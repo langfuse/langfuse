@@ -17,15 +17,14 @@ import { randomUUID } from "crypto";
 
 import { parseDbOrg } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import type { ChbCheckoutSession } from "@langfuse/shared/src/server/ee/clickhouseBilling";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  type ChbApiClient,
-  type ChbCheckoutSession,
-} from "@/src/ee/features/billing/server/chb/chbApiClient";
+import type { ChbApiClient } from "@/src/ee/features/billing/server/chb/chbApiClient";
 import { ChbBillingService } from "@/src/ee/features/billing/server/chb/chbBillingService";
 import { mapChbPlanCodeToStripeProductId } from "@/src/ee/features/billing/utils/chbCatalogue";
 import { type OrgAuthedContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const CORE_PRODUCT_ID = mapChbPlanCodeToStripeProductId("LANGFUSE_CORE")!;
 
@@ -68,9 +67,11 @@ const service = () => {
   const ctx = {
     prisma,
     session: {
+      ...createSession({
+        user: { id: `user-${randomUUID()}`, email: "owner@example.com" },
+        organizations: [{ id: orgId, role: "OWNER" }],
+      }),
       orgId,
-      orgRole: "OWNER",
-      user: { id: `user-${randomUUID()}`, email: "owner@example.com" },
     },
   } as unknown as OrgAuthedContext;
   return new ChbBillingService(clientMock, ctx);

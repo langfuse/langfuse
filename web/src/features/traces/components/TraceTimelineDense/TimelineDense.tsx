@@ -40,11 +40,6 @@
  *  - What a row shows follows from how tall it has become: the type square grows
  *    around 10px, text returns around 20px. Zooming in makes the timeline grow
  *    its labels back rather than switching mode.
- *
- * A magnifying lens (rows near the pointer expanding, borrowing space from the
- * rest) is implemented and tested in fns/timeline/focusLens.ts and deliberately
- * NOT wired up: a fisheye needs an invertible transform to hit-test correctly,
- * and absolutely-positioned rows are the wrong substrate. That is the next spike.
  */
 
 import {
@@ -262,7 +257,8 @@ export type TimelineDenseProps = {
    * observation, so this must not keep its own copy. See SelectionContext.
    */
   selectedId: string | null;
-  onSelect: (nodeId: string) => void;
+  /** Absent for a read-only chart: rows keep hover and zoom, not the pointer. */
+  onSelect?: (nodeId: string) => void;
   /** Hover, for prefetching the observation the user is about to open. */
   onHover?: (nodeId: string) => void;
   /**
@@ -1323,7 +1319,7 @@ export function TimelineDense({
    */
   const selectRowOnClick = (event: { detail: number }, nodeId: string) => {
     if (event.detail > 1 || focusedByTap.current) return;
-    onSelect(nodeId);
+    onSelect?.(nodeId);
   };
 
   const focused =
@@ -1600,7 +1596,8 @@ export function TimelineDense({
                         // Clicking selects, and the bar is the part that looks
                         // like it would: the row is clickable across its full
                         // width, but only the bar reads as a thing.
-                        "absolute cursor-pointer rounded-[1px]",
+                        "absolute rounded-[1px]",
+                        onSelect && "cursor-pointer",
                         barClass,
                         isSelected && "ring-foreground/80 ring-1",
                       )}
@@ -1684,7 +1681,8 @@ export function TimelineDense({
                 <div
                   key={node.id}
                   className={cn(
-                    "absolute inset-x-0 cursor-pointer",
+                    "absolute inset-x-0",
+                    onSelect && "cursor-pointer",
                     rowWashClass({
                       selected: node.id === selectedId,
                       focused: node.index === focusIndex,

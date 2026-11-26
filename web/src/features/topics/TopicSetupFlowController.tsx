@@ -1,14 +1,21 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { FilterState } from "@langfuse/shared";
-import { topicRuleFilterError } from "@langfuse/shared/topics";
+import {
+  DEFAULT_TOPIC_RULE_NAME,
+  TOPICS_MODEL_SLOTS,
+  topicRuleFilterError,
+  type TopicRule,
+  type TopicsModelSlotName,
+} from "@langfuse/shared/topics";
 import { useTopicTraceFilter } from "./useTopicTraceFilter";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { env } from "@/src/env.mjs";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
+import { useTopicsCapture } from "./useTopicsCapture";
 import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
+import { TopicCostEstimate } from "./TopicCostEstimate";
 import {
   TopicSetupFlowDialog,
   type TopicSetupPastCount,
@@ -21,8 +28,8 @@ import {
   resolveTopicModelSlot,
   topicConnectionCaption,
   topicProviderGroups,
+  topicSetupMapName,
   type TopicSetupConnection,
-  type TopicSetupDraft,
   type TopicSetupQuestion,
 } from "./topic-setup-flow";
 
@@ -45,7 +52,13 @@ export function TopicSetupFlowController({
 }) {
   // Opens only from Start analyzing, never on its own, so the landing shows first.
   const [open, setOpen] = useState(false);
+  const capture = useTopicsCapture();
   function openSetup() {
+    if (settings)
+      capture("topics:setup_flow_opened", {
+        hasConnection: settings.connections.length > 0,
+        isFirstSetup: !settings.rule,
+      });
     setOpen(true);
   }
   function closeSetup() {
@@ -94,7 +107,7 @@ function TopicSetupSession({
   }) => Promise<unknown>;
   closeDialog: () => void;
 }) {
-  const capture = usePostHogClientCapture();
+  const capture = useTopicsCapture();
   const utils = api.useUtils();
   const canAddConnection = useHasProjectAccess({
     projectId,
@@ -117,11 +130,17 @@ function TopicSetupSession({
     onSuccess: () => {
       utils.topics.modelSettings.invalidate({ projectId });
       utils.topics.facets.invalidate({ projectId });
-      utils.topics.rules.invalidate({ projectId });
       // The page follows the first rule's setup from the maps overview.
       utils.topics.maps.invalidate({ projectId });
+      utils.topics.ruleMapCosts.invalidate(
+        { projectId },
+        { refetchType: "none" },
+      );
       utils.topics.tracingReadinessSettings.invalidate({ projectId });
     },
+  });
+  const saveRule = api.topics.saveRule.useMutation({
+    onSuccess: () => utils.topics.maps.invalidate({ projectId }),
   });
   const startRuleSetup = api.topics.startRuleSetup.useMutation({
     onSuccess: () => utils.topics.ruleSetupStatus.invalidate({ projectId }),
@@ -144,14 +163,17 @@ function TopicSetupSession({
       facets: settings.facets,
       enabledFacetIds: settings.rule ? new Set(settings.rule.facetIds) : null,
       filter: settings.rule?.filter,
+      name: settings.rule?.name,
       traceIdleMs: settings.traceIdleMs,
     }),
   );
+  const mapName = topicSetupMapName(draft);
   const [error, setError] = useState<string | null>(null);
+  // Failed model checks per slot, kept until that slot's model changes.
+  const [slotErrors, setSlotErrors] = useState<
+    Partial<Record<TopicsModelSlotName, string>>
+  >({});
   const [pending, setPending] = useState(false);
-  useEffect(() => {
-    capture("topics:setup_opened", { source: "start_analyzing" });
-  }, [capture]);
   const changeFilter = (filter: FilterState) =>
     setDraft((current) => ({ ...current, filter }));
   const traceFilter = useTopicTraceFilter({
@@ -161,7 +183,7 @@ function TopicSetupSession({
     onFiltersChange: changeFilter,
   });
   // The rule a save created; going Back and Next again must update it, not add one.
-  const [savedRuleId, setSavedRuleId] = useState(settings.rule?.id);
+  const [savedRule, setSavedRule] = useState(settings.rule ?? undefined);
   // Counted once per step 2 visit; the slider only rescales the result.
   const counts = api.topics.setupTraceCounts.useQuery(
     { projectId, filter: draft.filter },
@@ -173,7 +195,6 @@ function TopicSetupSession({
   );
   const pastCount = pastTraceCount(
     counts.data,
-    draft.samplePercent,
     counts.error?.message ?? null,
     counts.isFetching,
   );
@@ -203,19 +224,25 @@ function TopicSetupSession({
 
   // Step 1 only checks the models; nothing is stored until the Traces step.
   async function checkModels() {
+    setSlotErrors({});
     const errors = await testModels.mutateAsync({
       projectId,
       ...resolveModels(),
     });
-    const messages = Object.values(errors).filter(Boolean);
-    if (messages.length > 0) throw new Error(messages.join(" "));
-    capture("topics:setup_step_saved", {
+    const failedSlots = TOPICS_MODEL_SLOTS.filter((slot) => errors[slot]);
+    setSlotErrors(errors);
+    if (failedSlots.length > 0) {
+      capture("topics:setup_flow_error", { step: "questions", failedSlots });
+      return false;
+    }
+    capture("topics:setup_flow_step_completed", {
       step: "questions",
       questionCount: draft.questions.filter((question) => question.enabled)
         .length,
       followsRecommendation: followsTopicRecommendations(draft),
       waitMinutes: draft.waitMinutes,
     });
+    return true;
   }
 
   /** Stores the models, the rule (facets and filter) and the idle time together. */
@@ -234,14 +261,16 @@ function TopicSetupSession({
       ),
       filter: draft.filter,
       traceIdleMs: draft.waitMinutes * 60_000,
-      ...(savedRuleId ? { ruleId: savedRuleId } : { name: "Default" }),
+      ...(savedRule
+        ? { ruleId: savedRule.id }
+        : { name: mapName.trim() || DEFAULT_TOPIC_RULE_NAME }),
     });
-    if (saved) setSavedRuleId(saved.id);
-    return saved?.id ?? savedRuleId;
+    if (saved) setSavedRule(saved);
+    return (saved ?? savedRule)?.id;
   }
 
   // `ruleId` is the rule the setup just saved, before state and the rules query catch up.
-  async function persistSampling(enabled: boolean, ruleId = savedRuleId) {
+  async function persistSampling(enabled: boolean, ruleId = savedRule?.id) {
     await onSaveSampling({
       enabled,
       sampling: draft.samplePercent / 100,
@@ -249,12 +278,38 @@ function TopicSetupSession({
     });
   }
 
+  // The rule is saved before the review step, where its name is edited.
+  async function renameSavedRule(rule: TopicRule) {
+    const name = mapName.trim();
+    if (name === rule.name) return;
+    setSavedRule(
+      await saveRule.mutateAsync({
+        projectId,
+        id: rule.id,
+        name,
+        filter: rule.filter,
+        facetIds: rule.facetIds,
+      }),
+    );
+  }
+
   async function startAnalyzing() {
-    if (!savedRuleId) throw new Error("Save the trace filter first.");
+    if (!savedRule) throw new Error("Save the trace filter first.");
+    await renameSavedRule(savedRule);
     await persistSampling(true);
-    await startRuleSetup.mutateAsync({ projectId, ruleId: savedRuleId });
-    capture("topics:setup_started", { samplePercent: draft.samplePercent });
+    await startRuleSetup.mutateAsync({ projectId, ruleId: savedRule.id });
+    capture("topics:setup_flow_finished", {
+      samplePercent: draft.samplePercent,
+      questionCount: draft.questions.filter((question) => question.enabled)
+        .length,
+      filterCount: draft.filter.length,
+    });
     closeDialog();
+  }
+
+  function changeModel(slot: TopicsModelSlotName, model: JudgeModel) {
+    setDraft((current) => ({ ...current, [slot]: model }));
+    setSlotErrors((current) => ({ ...current, [slot]: undefined }));
   }
 
   async function handleNext() {
@@ -263,21 +318,23 @@ function TopicSetupSession({
     setError(null);
     try {
       if (draft.step === "questions") {
-        await checkModels();
+        if (!(await checkModels())) return;
         setDraft((current) => ({ ...current, step: "traces" }));
         return;
       }
       if (draft.step === "traces") {
         await persistSampling(false, await saveSetup());
-        capture("topics:setup_step_saved", {
+        capture("topics:setup_flow_step_completed", {
           step: "traces",
           samplePercent: draft.samplePercent,
+          filterCount: draft.filter.length,
         });
         setDraft((current) => ({ ...current, step: "review" }));
         return;
       }
       await startAnalyzing();
     } catch (cause) {
+      capture("topics:setup_flow_error", { step: draft.step, failedSlots: [] });
       setError(
         cause instanceof Error ? cause.message : "Could not save Topics.",
       );
@@ -292,6 +349,7 @@ function TopicSetupSession({
       busy={pending}
       canWrite={canWrite}
       error={error}
+      slotErrors={slotErrors}
       questions={draft.questions}
       summary={draft.summary}
       embedding={draft.embedding}
@@ -317,15 +375,30 @@ function TopicSetupSession({
       onFilterChange={changeFilter}
       traceFilter={traceFilter}
       pastCount={pastCount}
+      costEstimate={
+        <TopicCostEstimate
+          projectId={projectId}
+          filter={draft.filter}
+          facetIds={savedRule?.facetIds ?? []}
+          samplingPercent={draft.samplePercent}
+          dailyTraces={
+            pastCount.status === "ready" ? pastCount.dailyTraces : null
+          }
+          backfillTraces={
+            pastCount.status === "ready" ? pastCount.matched : null
+          }
+          source="setup"
+        />
+      }
       onQuestionEnabled={(name, enabled) =>
         setDraft((current) => ({
           ...current,
           questions: setQuestionEnabled(current.questions, name, enabled),
         }))
       }
-      onSummaryChange={(model) => updateModel(setDraft, "summary", model)}
-      onEmbeddingChange={(model) => updateModel(setDraft, "embedding", model)}
-      onClusteringChange={(model) => updateModel(setDraft, "clustering", model)}
+      onSummaryChange={(model) => changeModel("summary", model)}
+      onEmbeddingChange={(model) => changeModel("embedding", model)}
+      onClusteringChange={(model) => changeModel("clustering", model)}
       onConfigureProviders={() => {
         window.open(connectionSettingsUrl, "_blank", "noopener,noreferrer");
       }}
@@ -339,6 +412,8 @@ function TopicSetupSession({
       onSamplePercentChange={(samplePercent) =>
         setDraft((current) => ({ ...current, samplePercent }))
       }
+      name={mapName}
+      onNameChange={(name) => setDraft((current) => ({ ...current, name }))}
       onEdit={(step) => setDraft((current) => ({ ...current, step }))}
       onBack={() =>
         setDraft((current) => ({
@@ -355,18 +430,14 @@ function TopicSetupSession({
 
 function pastTraceCount(
   counts: { finished7d: number; finished30d: number } | undefined,
-  samplePercent: number,
   error: string | null,
   fetching: boolean,
 ): TopicSetupPastCount {
   if (counts) {
-    // Setup reads at most 30 days, so that bounds what it can find.
+    // Setup reads at most 30 days, so that bounds what it can find. Sampling does not apply to the backfill.
     return {
       status: "ready",
-      matched: Math.min(
-        TOPIC_SETUP_BACKFILL_LIMIT,
-        Math.round((counts.finished30d * samplePercent) / 100),
-      ),
+      matched: Math.min(TOPIC_SETUP_BACKFILL_LIMIT, counts.finished30d),
       dailyTraces: counts.finished7d / TOPIC_SETUP_BACKFILL_DAYS,
     };
   }
@@ -382,12 +453,4 @@ function setQuestionEnabled(
   return questions.map((question) =>
     question.name === name ? { ...question, enabled } : question,
   );
-}
-
-function updateModel(
-  setDraft: (update: (current: TopicSetupDraft) => TopicSetupDraft) => void,
-  slot: "summary" | "embedding" | "clustering",
-  model: JudgeModel,
-) {
-  setDraft((current) => ({ ...current, [slot]: model }));
 }

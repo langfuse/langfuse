@@ -2,9 +2,10 @@
 import React, { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import Image from "next/image";
-import { InfoIcon, type IconComponent } from "@langfuse/icons";
+import { type IconComponent } from "@langfuse/icons";
 import { ActionButton } from "@/src/components/ActionButton";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 
 export interface ValueProposition {
@@ -23,6 +24,8 @@ export interface ActionConfig {
 interface Step {
   title: string;
   description?: string;
+  /** Info tooltip shown after the description. */
+  descriptionInfo?: { label: string; text: string };
   badge?: React.ReactNode;
   content?: React.ReactNode;
 }
@@ -162,10 +165,7 @@ export function SplashScreen({
 
       {gettingStarted && (
         <div className="w-full max-w-3xl">
-          <Alert icon={InfoIcon}>
-            <Alert.Title>Getting Started</Alert.Title>
-            <Alert.Description>{gettingStarted}</Alert.Description>
-          </Alert>
+          <Banner title="Getting started">{gettingStarted}</Banner>
         </div>
       )}
 
@@ -199,6 +199,16 @@ export function SplashScreen({
                 {step.description && (
                   <p className="text-muted-foreground text-sm">
                     {step.description}
+                    {step.descriptionInfo && (
+                      <>
+                        {" "}
+                        <span className="inline-flex align-middle">
+                          <InfoTooltip label={step.descriptionInfo.label}>
+                            {step.descriptionInfo.text}
+                          </InfoTooltip>
+                        </span>
+                      </>
+                    )}
                   </p>
                 )}
                 {step.content && <div className="mt-3">{step.content}</div>}
@@ -213,10 +223,9 @@ export function SplashScreen({
       {valuePropositions.length > 0 && (
         <div className="my-6 grid w-full max-w-3xl grid-cols-1 gap-4 md:grid-cols-2">
           {valuePropositions.map((prop, index) => (
-            <Alert key={index} icon={prop.icon}>
-              <Alert.Title>{prop.title}</Alert.Title>
-              <Alert.Description>{prop.description}</Alert.Description>
-            </Alert>
+            <Banner key={index} icon={prop.icon} title={prop.title}>
+              {prop.description}
+            </Banner>
           ))}
         </div>
       )}

@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { defaultFilter } from "cmdk";
 import { Plus } from "@langfuse/icons";
 import {
   type ScoreConfigCategoryDomain,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
-import { Combobox } from "@/src/components/ui/Combobox";
+import { AsyncSelectInput } from "@/src/components/design-system/AsyncSelectInput/AsyncSelectInput";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -37,7 +38,6 @@ export function CategoricalScoreInput({
   categories,
   value,
   disabled,
-  name,
   analyticsData,
   onValueChange,
   isActive = true,
@@ -47,7 +47,6 @@ export function CategoricalScoreInput({
   categories: (ScoreConfigCategoryDomain & { isOutdated: boolean })[];
   value: string;
   disabled: boolean;
-  name: string;
   analyticsData: AnnotationAnalyticsContext;
   onValueChange: (value: string, numericValue?: number) => void;
   isActive?: boolean;
@@ -57,6 +56,8 @@ export function CategoricalScoreInput({
     scope: "scoreConfigs:CUD",
   });
   const [pendingLabel, setPendingLabel] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const query = search.trim();
   const canAddCategory =
     hasConfigCudAccess &&
     isCategoricalDataType(config.dataType) &&
@@ -66,38 +67,49 @@ export function CategoricalScoreInput({
     .filter((category) => !category.isOutdated)
     .map((category) => category.label);
 
-  const addCategoryButton = (search: string, close?: () => void) => (
-    <button
-      type="button"
-      className="hover:bg-accent hover:text-accent-foreground flex w-full items-center rounded-sm px-2 py-1.5 text-left text-xs"
-      onClick={() => {
-        close?.();
-        setPendingLabel(search.trim());
-      }}
-    >
-      <Plus size="base" __rawClassName="mr-2" />
-      {getAddCategoryActionLabel(search, existingLabels)}
-    </button>
-  );
+  const options = categories.map((category) => ({
+    value: category.label,
+    label: category.label,
+    ...(category.isOutdated
+      ? { disabled: true as const, disabledReason: "Outdated category" }
+      : { disabled: false as const }),
+  }));
+  const useCombobox = shouldUseCombobox(categories);
 
   return (
     <>
-      {shouldUseCombobox(categories) ? (
-        <Combobox
-          name={name}
-          value={value}
+      {useCombobox ? (
+        <AsyncSelectInput
+          aria-label={config.name}
           disabled={disabled || !isActive}
-          onValueChange={onValueChange}
-          options={categories.map((category) => ({
-            value: category.label,
-            disabled: category.isOutdated,
-          }))}
           placeholder="Select category"
-          searchPlaceholder="Search categories..."
-          emptyText="No category found."
-          footer={
+          emptyMessage="No category found."
+          value={options.find((option) => option.value === value) ?? null}
+          onValueChange={(option) => onValueChange(option.value)}
+          options={
+            query
+              ? options
+                  .map((option) => ({
+                    option,
+                    rank: defaultFilter!(option.value.trim(), query),
+                  }))
+                  .filter(({ rank }) => rank > 0)
+                  .sort((a, b) => b.rank - a.rank)
+                  .map(({ option }) => option)
+              : options
+          }
+          search={{
+            placeholder: "Search categories...",
+            value: search,
+            onValueChange: setSearch,
+          }}
+          callToActionOption={
             canAddCategory
-              ? ({ search, close }) => addCategoryButton(search, close)
+              ? {
+                  label: getAddCategoryActionLabel(query, existingLabels),
+                  position: "last",
+                  onSelect: () => setPendingLabel(query),
+                }
               : undefined
           }
         />

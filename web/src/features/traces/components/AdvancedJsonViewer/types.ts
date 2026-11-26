@@ -218,9 +218,6 @@ export interface JsonValueProps {
 
   /** Offset of value within the row (for adjusting row-relative commentRanges to value-relative) */
   valueOffset?: number;
-
-  /** Custom CSS class */
-  className?: string;
 }
 
 /**

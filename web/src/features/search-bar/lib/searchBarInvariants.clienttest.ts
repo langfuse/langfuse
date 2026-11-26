@@ -46,7 +46,7 @@ import {
   generateQueryCases,
   runSearchBarInvariants,
   type RegistryUnderTest,
-} from "./searchBarInvariants";
+} from "../__tests__/searchBarInvariants";
 
 describe("search bar invariants — Scores registry", () => {
   it("preserves parent-owned filters as skipped and rejects conflicting scoped fields", () => {

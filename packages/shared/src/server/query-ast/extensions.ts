@@ -176,9 +176,31 @@ export function mapValues<V>(
   return functionCall("mapValues", [map]);
 }
 
+/**
+ * ClickHouse `mapContains(map, key)`: the map has an entry for `key`.
+ *
+ * @knipignore Keep this query compiler wrapper; it currently has only test callers.
+ */
+export function mapContains(
+  map: Expression<Record<string, unknown>>,
+  key: Expression<string>,
+): ChExpression<SqlBool> {
+  return functionCall("mapContains", [map, key]);
+}
+
 /** ClickHouse `uniq(value)`, an approximate distinct count. */
 export function uniq(value: Expression<unknown>): ChExpression<number> {
   return aggregate("uniq", [value]);
+}
+
+/**
+ * ClickHouse `uniqCombined(value)`, an approximate distinct count with a
+ * fixed-size state, more accurate than `uniq` and exact for small counts.
+ *
+ * @knipignore Keep this query compiler wrapper; it currently has only test callers.
+ */
+export function uniqCombined(value: Expression<unknown>): ChExpression<number> {
+  return aggregate("uniqCombined", [value]);
 }
 
 /** ClickHouse `count()`. Kysely's `eb.fn.countAll()` renders `count(*)`. */
@@ -350,18 +372,12 @@ export function typedValue<T>(value: unknown, type: string): ChExpression<T> {
 /**
  * A constant inlined into the SQL text rather than bound, so code-defined
  * constants (`level = 'ERROR'`, `span_id != ''`) render as literals. Never
- * pass user input; bind it instead.
+ * pass user input; bind it instead. A string with a backslash throws when
+ * compiled, as ClickHouse would read it as an escape.
  */
 export function literal<T extends string | number | boolean | null>(
   value: T,
 ): ChExpression<T> {
-  // Kysely doubles single quotes but leaves backslashes, which ClickHouse
-  // reads as escapes.
-  if (typeof value === "string" && value.includes("\\")) {
-    throw new QueryCompileError(
-      `literal does not accept backslashes, got ${value}.`,
-    );
-  }
   return new ExpressionWrapper(ValueNode.createImmediate(value));
 }
 
@@ -401,6 +417,16 @@ export function nullIf<T>(
   return functionCall("nullIf", [value, other]);
 }
 
+/**
+ * ClickHouse `nullIf(value, '')`: an empty string reads as NULL. The `''` is
+ * inlined, as in the dashboard views' SQL strings.
+ */
+export function nullIfEmpty(
+  value: Expression<string | null>,
+): ChExpression<string | null> {
+  return nullIf(value, literal(""));
+}
+
 /** ClickHouse `ifNull(value, fallback)`. */
 export function ifNull<T>(
   value: Expression<T | null>,
@@ -409,8 +435,10 @@ export function ifNull<T>(
   return functionCall("ifNull", [value, fallback]);
 }
 
-/** ClickHouse `toBool(value)`. */
-export function toBool(value: Expression<SqlBool>): ChExpression<boolean> {
+/** ClickHouse `toBool(value)`: a condition, or a number (0 is false). */
+export function toBool(
+  value: Expression<SqlBool | number>,
+): ChExpression<boolean> {
   return functionCall("toBool", [value]);
 }
 
@@ -688,6 +716,18 @@ export function uniqIf(
   return aggregate("uniqIf", [value, condition]);
 }
 
+/**
+ * ClickHouse `uniqCombinedIf(value, condition)`, see {@link uniqCombined}.
+ *
+ * @knipignore Keep this query compiler wrapper; it currently has only test callers.
+ */
+export function uniqCombinedIf(
+  value: Expression<unknown>,
+  condition: Expression<SqlBool>,
+): ChExpression<number> {
+  return aggregate("uniqCombinedIf", [value, condition]);
+}
+
 /** ClickHouse `avgIf(value, condition)`. */
 export function avgIf(
   value: Expression<number>,
@@ -873,6 +913,19 @@ export function xxHash32(expression: Expression<string>): ChExpression<number> {
   return functionCall("xxHash32", [expression]);
 }
 
+/**
+ * ClickHouse `cityHash64(first, ...rest)`: one UInt64 hash over all
+ * arguments, e.g. a seeded sampling order `cityHash64(trace_id, {seed})`.
+ *
+ * @knipignore Keep this query compiler wrapper; it currently has only test callers.
+ */
+export function cityHash64(
+  first: Expression<unknown>,
+  ...rest: Expression<unknown>[]
+): ChExpression<number> {
+  return functionCall("cityHash64", [first, ...rest]);
+}
+
 /** ClickHouse `toJSONString(expression)`. */
 export function toJSONString(
   expression: Expression<unknown>,
@@ -1049,6 +1102,11 @@ export function mapFromArrays<V>(
   values: Expression<V[]>,
 ): ChExpression<Record<string, V>> {
   return functionCall("mapFromArrays", [keys, values]);
+}
+
+/** ClickHouse `map()`: an empty map. */
+export function emptyMap<V>(): ChExpression<Record<string, V>> {
+  return functionCall("map", []);
 }
 
 /**

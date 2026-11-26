@@ -4,16 +4,15 @@ import { CircleAlert, History } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { type RouterOutputs } from "@/src/utils/api";
 import {
   executionBadgeTypes,
   executionLabels,
   formatTopicRunCost,
   runLabel,
+  estimatedTopicCostLabel,
+  type TopicRunWithCost as Run,
 } from "./topic-run-labels";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
-
-type Run = RouterOutputs["topics"]["executions"][number];
 
 type TopicRunHistoryListProps = {
   executions: Run[];
@@ -103,9 +102,7 @@ function ActiveRun({
     ...run.facets.map((facet) => facet.counts.complete),
   );
   // A snapshot shows a bar only while it summarizes its traces.
-  const showProgress =
-    (run.input.operation === "process" || run.phase === "summarizing") &&
-    total > 0;
+  const showProgress = run.phase === "summarizing" && total > 0;
   return (
     <div
       role="status"
@@ -142,13 +139,9 @@ function ActiveRun({
         </div>
       )}
       <div className="flex items-center justify-between gap-2.5 text-xs">
-        <span className="text-muted-foreground">
-          {run.input.operation === "process"
-            ? "Estimated cost so far"
-            : "Estimated cost"}
-        </span>
+        <span className="text-muted-foreground">{estimatedTopicCostLabel}</span>
         <span className="font-mono">
-          {formatTopicRunCost(run.input.operation, run.estimatedCost)}
+          {formatTopicRunCost(run.costBreakdown)}
         </span>
       </div>
     </div>
@@ -177,8 +170,9 @@ function RunRow({ run, onOpen }: { run: Run; onOpen: (id: string) => void }) {
         <span className="text-muted-foreground text-xs">
           {run.input.operation === "process" &&
             `${formatCount(traceCount(run))} traces · `}
+          {estimatedTopicCostLabel}{" "}
           <span className="whitespace-nowrap">
-            Cost: {formatTopicRunCost(run.input.operation, run.estimatedCost)}
+            {formatTopicRunCost(run.costBreakdown)}
           </span>
         </span>
         {problem && (

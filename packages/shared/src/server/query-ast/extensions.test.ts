@@ -34,6 +34,7 @@ import {
   arrayJoinElements,
   arrayLength,
   arrayMap,
+  cityHash64,
   count,
   countIf,
   firstMetadataValue,
@@ -64,6 +65,8 @@ import {
   tupleElement,
   typedValue,
   uniq,
+  uniqCombined,
+  uniqCombinedIf,
   uniqIf,
   useFinal,
   withFill,
@@ -377,10 +380,10 @@ describe("tupleArrayField", () => {
   });
 
   it("reads its column: a truncated one routes the relation to events_full", () => {
-    // `input` is truncated on events_core; `withTables` adds an Array(Tuple)
+    // `input` is truncated on events_core; `$extendTables` adds an Array(Tuple)
     // type to it so the helper accepts it.
     const qb = getClickhouseKysely()
-      .withTables<{ events: { input: Array<{ name: string }> } }>()
+      .$extendTables<{ events: { input: Array<{ name: string }> } }>()
       .selectFrom("events as e")
       .select((eb) => [tupleArrayField(eb.ref("e.input"), "name").as("names")]);
 
@@ -707,16 +710,6 @@ describe("compileClickhouseCondition", () => {
     ).toThrow(UnscopedRelationError);
   });
 
-  it("rejects raw SQL over the logical events relation", () => {
-    expect(() =>
-      compileClickhouseCondition(
-        events().where(sql<boolean>`e.input = 'x'`),
-        projectId,
-        "f_",
-      ),
-    ).toThrow(QueryCompileError);
-  });
-
   // Only the WHERE is emitted, so a select field outside FROM and WHERE, or a
   // FROM item that is not a plain table, would be dropped.
   it.each([
@@ -846,12 +839,6 @@ describe("renderClickhouseExpression", () => {
     );
   });
 
-  it("rejects a raw fragment that introduces a relation", () => {
-    expect(() =>
-      renderClickhouseExpression(sql`(select trace_id from events_core)`),
-    ).toThrow(UnscopedRelationError);
-  });
-
   it("rejects a bound value", () => {
     expect(() => renderClickhouseExpression(mapValue(metadata, "key"))).toThrow(
       /cannot bind parameters/,
@@ -932,6 +919,15 @@ describe("64-bit results", () => {
     expectTypeOf(
       uniqIf(eb.ref("e.trace_id"), isError).expressionType,
     ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(
+      uniqCombined(eb.ref("e.trace_id")).expressionType,
+    ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(
+      uniqCombinedIf(eb.ref("e.trace_id"), isError).expressionType,
+    ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(
+      cityHash64(eb.ref("e.trace_id"), eb.ref("e.span_id")).expressionType,
+    ).toEqualTypeOf<number | undefined>();
     expectTypeOf(arrayLength(eb.ref("e.tags")).expressionType).toEqualTypeOf<
       number | undefined
     >();
@@ -958,8 +954,17 @@ describe("literal", () => {
     expect(renderClickhouseExpression(literal("it's"))).toBe("'it''s'");
   });
 
+  // `t.id = 'a\' or t.id = ') or 1 = 1 --'` would end the tenancy scope.
   it("rejects a backslash, which ClickHouse reads as an escape", () => {
-    expect(() => literal("a\\")).toThrow(QueryCompileError);
+    expect(() =>
+      compileClickhouseQuery(
+        getClickhouseKysely()
+          .selectFrom("traces as t")
+          .select("t.id")
+          .where("t.id", "=", literal("a\\")),
+        projectId,
+      ),
+    ).toThrow(QueryCompileError);
   });
 });
 

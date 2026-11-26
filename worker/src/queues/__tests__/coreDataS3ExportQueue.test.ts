@@ -1001,6 +1001,7 @@ describe("names on Langfuse-owned rows", () => {
     expect(
       mapModelToCoreDataRow({
         id: "model-1",
+        scope: "LANGFUSE",
         projectId: null,
         modelName: "gpt-4o",
         _count: { Price: 3, pricingTiers: 1 },
@@ -1015,6 +1016,7 @@ describe("names on Langfuse-owned rows", () => {
     expect(
       mapModelToCoreDataRow({
         id: "model-2",
+        scope: "PROJECT",
         projectId: "project-1",
         modelName: "acme-internal-llm",
         _count: { Price: 1, pricingTiers: 1 },

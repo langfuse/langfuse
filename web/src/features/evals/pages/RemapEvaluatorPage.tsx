@@ -9,7 +9,7 @@ import {
   isTraceTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import { type PartialConfig } from "@/src/features/evals/types";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Button } from "@/src/components/ui/button";
 import { Callout } from "@/src/components/design-system/Callout/Callout";
@@ -179,6 +179,7 @@ export default function RemapEvaluatorPage() {
               <Callout
                 variant="info"
                 align="top"
+                icon={Zap}
                 actions={[
                   ...(isInAppAgentLauncherVisible
                     ? [
@@ -194,26 +195,23 @@ export default function RemapEvaluatorPage() {
                 ]}
                 onDismiss={onDismiss}
               >
-                <div className="flex items-start gap-2">
-                  <Zap size="base" __rawClassName="mt-0.5" />
-                  <span>
-                    <span className="font-bold">
-                      This evaluator needs an upgrade for Langfuse v4.
-                    </span>{" "}
-                    Evaluators are moving to observation-level. Upgrade this
-                    configuration to keep its scores aligned with the v4 data
-                    model.{" "}
-                    <a
-                      href={EVAL_MIGRATION_DOCS_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline"
-                    >
-                      Learn more about evaluator upgrades
-                    </a>
-                    .
-                  </span>
-                </div>
+                <span>
+                  <span className="font-bold">
+                    This evaluator needs an upgrade for Langfuse v4.
+                  </span>{" "}
+                  Evaluators are moving to observation-level. Upgrade this
+                  configuration to keep its scores aligned with the v4 data
+                  model.{" "}
+                  <a
+                    href={EVAL_MIGRATION_DOCS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    Learn more about evaluator upgrades
+                  </a>
+                  .
+                </span>
               </Callout>
             )}
           </DismissController>
@@ -241,11 +239,9 @@ export default function RemapEvaluatorPage() {
               <Skeleton className="h-[600px] w-full" />
             </div>
           ) : !oldConfig || !evalTemplate ? (
-            <Alert variant="destructive">
-              <Alert.Description>
-                Failed to load eval configuration or template.
-              </Alert.Description>
-            </Alert>
+            <Banner variant="error">
+              Failed to load eval configuration or template.
+            </Banner>
           ) : (
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2px_minmax(0,1fr)] items-start">
               {/* LEFT: Read-only old config */}

@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "4.80.0",
+  "version": "4.87.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -44,8 +44,8 @@
     "dev:web": "turbo run dev --filter=web",
     "dev:web-webpack": "turbo run dev --filter=web -- --webpack",
     "lint": "turbo run lint",
-    "format": "oxfmt --write \"**/*.{js,jsx,ts,tsx,css}\"",
-    "format:check": "oxfmt --check \"**/*.{js,jsx,ts,tsx,css}\"",
+    "format": "oxfmt --write \"**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,css}\"",
+    "format:check": "oxfmt --check \"**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,css}\"",
     "playwright:install": "pnpm --filter web exec playwright install chromium",
     "openapi:export": "pnpm dlx fern-api@3.88.0 export --api server web/public/generated/api/openapi.yml && pnpm --filter web exec tsx scripts/openapi/postprocess-openapi.ts && pnpm dlx fern-api@3.88.0 export --api client web/public/generated/api-client/openapi.yml && pnpm dlx fern-api@3.88.0 export --api organizations web/public/generated/organizations-api/openapi.yml && pnpm --filter web exec tsx scripts/openapi/postprocess-openapi.ts organizations",
     "openapi:check": "pnpm run openapi:export && bash scripts/openapi/assert-generated-current.sh",

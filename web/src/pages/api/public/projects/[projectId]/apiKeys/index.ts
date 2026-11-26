@@ -1,6 +1,6 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
-import { isBaseError } from "@langfuse/shared";
+import { isBaseError, hasEntitlementBasedOnPlan } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
@@ -9,7 +9,6 @@ import {
   handleGetApiKeys,
   handleCreateApiKey,
 } from "@/src/ee/features/admin-api/server/projects/projectById/apiKeys";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { writeProjectError } from "@/src/features/public-api/server/writeError";
 

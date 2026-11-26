@@ -4,10 +4,7 @@ import { ArrowUpRight } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 
 import { type SystemRole } from "@langfuse/shared/src/db";
-import {
-  apiKeyRolesForScope,
-  systemRoleAccessRights,
-} from "@langfuse/shared/rbac";
+import { apiKeyRolesForScope } from "@langfuse/shared/rbac";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -28,21 +25,19 @@ import {
 import { withoutGatewayRole } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
 import { ApiKeyExpirationInput } from "@/src/features/apiKey/components/ApiKeyExpirationInput/ApiKeyExpirationInput";
 import type { ApiKeyExpirationPreset } from "@/src/features/apiKey/constants/apiKeyExpirationOptions";
+import { apiKeyRoleDisplay } from "@/src/features/apiKey/fns/apiKeyRoleDisplay";
 import { resolveApiKeyExpiration } from "@/src/features/apiKey/fns/resolveApiKeyExpiration";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
-import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 
 type ApiKeyScope = "project" | "organization";
 
-const DEFAULT_ROLE: SystemRole = "ADMIN";
+const DEFAULT_ROLE: SystemRole = "MEMBER";
 
-/** apiKeyRoleNames renames user roles to be more api-key friendly. */
-const apiKeyRoleNames: Record<string, string> = {
-  Admin: "Full access",
-};
+/** apiKeyRoleOrder lists the roles shown first in the picker; the rest follow in catalog order. */
+const apiKeyRoleOrder: SystemRole[] = ["ADMIN", "VIEWER", "MEMBER"];
 
 /** ApiKeyCreateValues is the resolved create-form payload the button forwards to the create mutation. */
 export type ApiKeyCreateValues = {
@@ -104,7 +99,7 @@ function ApiKeyCreateForm({
   onSubmit,
   isPending,
 }: Extract<ApiKeyCreateDialogContentProps, { type: "form" }>) {
-  const roles = withoutGatewayRole(apiKeyRolesForScope(scope));
+  const roles = sortApiKeyRoles(withoutGatewayRole(apiKeyRolesForScope(scope)));
   const { data: session } = useSession();
   const roleSelectionEnabled =
     (scope === "project"
@@ -140,8 +135,8 @@ function ApiKeyCreateForm({
     });
   };
 
-  const selectedRoleDef = systemRoleAccessRights[role];
-  const SelectedRoleIcon = roleIcons[role];
+  const selectedRole = apiKeyRoleDisplay(role);
+  const SelectedRoleIcon = selectedRole.Icon;
 
   return (
     <DialogContent closeOnInteractionOutside>
@@ -182,23 +177,21 @@ function ApiKeyCreateForm({
               >
                 <SelectTrigger className="h-auto" disableValueLineClamp>
                   <div className="flex items-start gap-2 text-left">
-                    <SelectedRoleIcon size="base" __rawClassName="mt-0.5" />
+                    <SelectedRoleIcon size="base" __rawClassName="mt-1" />
                     <div className="flex flex-col">
-                      <span className="font-bold">
-                        {transformApiKeyRoleName(selectedRoleDef.name)}
-                      </span>
+                      <span className="font-bold">{selectedRole.name}</span>
                       <span className="text-muted-foreground text-xs">
-                        {selectedRoleDef.description}
+                        {selectedRole.description}
                       </span>
                     </div>
                   </div>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="w-(--radix-select-trigger-width)">
                   {roles.map((r) => (
                     <RoleSelectItem
                       key={r}
                       role={r}
-                      transformName={transformApiKeyRoleName}
+                      display={apiKeyRoleDisplay}
                       onViewPermissions={openPermissions}
                     />
                   ))}
@@ -227,7 +220,7 @@ function ApiKeyCreateForm({
             open={permissionsOpen}
             onOpenChange={setPermissionsOpen}
             role={permissionsRole}
-            transformName={transformApiKeyRoleName}
+            display={apiKeyRoleDisplay}
           />
         )}
       </DialogBody>
@@ -240,7 +233,12 @@ function ApiKeyCreateForm({
   );
 }
 
-/** transformApiKeyRoleName maps a role name to its api key display name. */
-function transformApiKeyRoleName(name: string): string {
-  return apiKeyRoleNames[name] ?? name;
+/** sortApiKeyRoles puts apiKeyRoleOrder roles first, keeping catalog order for the rest. */
+function sortApiKeyRoles(roles: SystemRole[]): SystemRole[] {
+  const rank = (role: SystemRole) => {
+    const index = apiKeyRoleOrder.indexOf(role);
+    if (index === -1) return apiKeyRoleOrder.length;
+    return index;
+  };
+  return [...roles].sort((a, b) => rank(a) - rank(b));
 }

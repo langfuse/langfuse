@@ -1,6 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { Check, ChevronDown, TriangleAlert, Unlink } from "@langfuse/icons";
 import {
+  TopicsTargetObject,
   type EvalTemplateType,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -15,6 +16,7 @@ import {
 } from "@/src/components/ui/collapsible";
 import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapping/VariableMapping";
 import { extractVariableMappingValue } from "@/src/features/evals/v2/fns/variableMapping/extractVariableMappingValue";
+import { traceTranscriptMapping } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import { useVariableMappingController } from "@/src/features/evals/v2/hooks/useVariableMappingController";
 import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
@@ -58,9 +60,15 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
     store,
     (state) => state.actions.detachEvaluator,
   );
+  const isTraceTranscript = useStore(
+    store,
+    (state) => state.targetObject === TopicsTargetObject,
+  );
   const variableMapping = useVariableMappingController();
   const isCodeEvaluator = evaluatorType === "CODE";
-  const mapping = variableMappingOverride ?? defaultVariableMapping;
+  const mapping = isTraceTranscript
+    ? traceTranscriptMapping(variableMappingOverride ?? defaultVariableMapping)
+    : (variableMappingOverride ?? defaultVariableMapping);
   const mappings = mapping.map((entry) => ({
     variable: entry.templateVariable,
     fieldState: {

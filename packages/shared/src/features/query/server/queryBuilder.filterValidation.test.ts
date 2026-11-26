@@ -75,7 +75,7 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toContain("prompt_version = {numberFilter");
+      expect(query).toMatch(/prompt_version = \{\w+: ?Decimal128\(12\)\}/);
       expect(query).not.toContain("position(");
     },
   );
@@ -131,7 +131,7 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toMatch(/prompt_version = \{\w+: ?Decimal64\(12\)\}/);
+      expect(query).toMatch(/prompt_version = \{\w+: ?Decimal128\(12\)\}/);
     },
   );
 
@@ -292,8 +292,10 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toContain("scores_numeric.evaluator_id");
-      expect(query).toContain("IN ({stringOptionsFilter");
+      // v1 qualifies the view alias, v2 the unaliased `scores`.
+      expect(query).toMatch(
+        /scores(_numeric)?\.evaluator_id in \(\{\w+: ?Array\(String\)\}\)/i,
+      );
     },
   );
 
@@ -311,8 +313,9 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toContain("scores_numeric.evaluation_rule_id");
-      expect(query).toContain("IN ({stringOptionsFilter");
+      expect(query).toMatch(
+        /scores(_numeric)?\.evaluation_rule_id in \(\{\w+: ?Array\(String\)\}\)/i,
+      );
     },
   );
 
@@ -330,8 +333,8 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toContain("scores_numeric.metadata['evaluator_test']");
-      expect(query).toContain(": Boolean}");
+      expect(query).toMatch(/scores(_numeric)?\.metadata\['evaluator_test'\]/);
+      expect(query).toMatch(/: ?Boolean\}/);
     },
   );
 
@@ -429,6 +432,32 @@ describe("queryBuilder filter type validation", () => {
       ),
     );
   });
+
+  it.each([
+    ["v1", "dimension", { dimensions: [{ field: "toString" }] }],
+    ["v2", "dimension", { dimensions: [{ field: "toString" }] }],
+    [
+      "v1",
+      "metric",
+      { metrics: [{ measure: "constructor", aggregation: "count" }] },
+    ],
+    [
+      "v2",
+      "metric",
+      { metrics: [{ measure: "constructor", aggregation: "count" }] },
+    ],
+    ["v2", "entity dimension", { entityDimension: { field: "toString" } }],
+  ] as const)(
+    "rejects a %s %s named after an Object.prototype member",
+    async (version, _kind, overrides) => {
+      await expect(
+        new QueryBuilder(undefined, version).build(
+          { ...baseQuery, ...overrides } as QueryType,
+          "test-project",
+        ),
+      ).rejects.toThrow(InvalidRequestError);
+    },
+  );
 });
 
 describe("legacy traces compatibility when routed through v2", () => {

@@ -10,24 +10,29 @@ import {
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
-import { api } from "@/src/utils/api";
+import { useTestModelMatch } from "@/src/features/models/hooks/useModelDefinitionApi";
+import {
+  modelDetailHref,
+  type ModelOwner,
+} from "@/src/features/models/modelOwner";
 import { UsageDetailsEditor } from "./UsageDetailsEditor";
 import { StringMapEditor } from "./StringMapEditor";
 import { MatchedModelCard } from "./MatchedModelCard";
 import { MatchedTierCard } from "./MatchedTierCard";
 import { NoMatchDisplay } from "./NoMatchDisplay";
-import { CheckCircle, SquareArrowOutUpRight } from "@langfuse/icons";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 const validStringMap = (entries: Array<[string, string]>) =>
   Object.fromEntries(entries.filter(([key]) => key.trim().length > 0));
 
 export function TestModelMatchDialogContent({
-  projectId,
+  owner,
   open,
   onClose,
 }: {
-  projectId: string;
+  owner: ModelOwner;
   open: boolean;
   onClose: () => void;
 }) {
@@ -44,18 +49,12 @@ export function TestModelMatchDialogContent({
   const metadata = validStringMap(metadataEntries);
 
   // Query for match result - only enabled after submit
-  const { data, isLoading, error, refetch } = api.models.testMatch.useQuery(
-    {
-      projectId,
-      modelName,
-      usageDetails,
-      modelParameters,
-      metadata,
-    },
-    {
-      enabled: false, // Manual trigger only
-    },
-  );
+  const { data, isLoading, error, refetch } = useTestModelMatch(owner, {
+    modelName,
+    usageDetails,
+    modelParameters,
+    metadata,
+  });
 
   // Handle form submission
   const handleSubmit = (e: React.SyntheticEvent) => {
@@ -85,6 +84,9 @@ export function TestModelMatchDialogContent({
           <DialogDescription className="mt-1">
             Test which model and pricing tier your ingestion data would match
             against.
+            {owner.scope === "organization"
+              ? " In a project, a matching project model comes first."
+              : null}
           </DialogDescription>
         </DialogHeader>
 
@@ -164,9 +166,7 @@ export function TestModelMatchDialogContent({
                   )}
 
                   {error && (
-                    <div className="border-destructive/50 bg-destructive/5 text-destructive rounded-lg border p-4 text-sm">
-                      Error: {error.message}
-                    </div>
+                    <Banner variant="error">Error: {error.message}</Banner>
                   )}
 
                   {!isLoading &&
@@ -174,15 +174,7 @@ export function TestModelMatchDialogContent({
                     data &&
                     (data.matched ? (
                       <>
-                        <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 dark:border-green-900 dark:bg-green-950">
-                          <CheckCircle
-                            size="base"
-                            __rawClassName="text-green-600 dark:text-green-400"
-                          />
-                          <span className="text-sm font-bold text-green-900 dark:text-green-100">
-                            Match Found
-                          </span>
-                        </div>
+                        <Banner variant="success" title="Match found" />
                         <MatchedModelCard model={data.model} />
                         <MatchedTierCard tier={data.matchedTier} />
                       </>
@@ -198,7 +190,7 @@ export function TestModelMatchDialogContent({
               <div className="border-t pt-4">
                 <Button variant="outline" asChild className="w-full">
                   <Link
-                    href={`/project/${projectId}/settings/models/${data.model.id}?pricingTier=${data.matchedTier.id}`}
+                    href={`${modelDetailHref(owner, data.model.id)}?pricingTier=${data.matchedTier.id}`}
                     target="_blank"
                   >
                     View Model Details

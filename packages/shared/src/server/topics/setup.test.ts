@@ -212,10 +212,16 @@ describe("Topics setup", () => {
     expect(mocks.prepareModels).not.toHaveBeenCalled();
   });
 
-  it("rejects an idle time below 60 seconds before testing models", async () => {
-    await expect(
-      saveTopicsSetup(projectId, { ...setup, traceIdleMs: 59_000 }),
-    ).rejects.toThrow(/at least 60 seconds/);
-    expect(mocks.prepareModels).not.toHaveBeenCalled();
-  });
+  it.each([
+    [59_000, /at least 60 seconds/],
+    [3_601_000, /at most 3,600 seconds/],
+  ])(
+    "rejects an idle time of %i ms before testing models",
+    async (traceIdleMs, message) => {
+      await expect(
+        saveTopicsSetup(projectId, { ...setup, traceIdleMs }),
+      ).rejects.toThrow(message);
+      expect(mocks.prepareModels).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -77,14 +77,17 @@ function normalizeScoreTypes(out: ObservedOptions): void {
 
 /**
  * Flatten the sidebar filter-options shape into observed-value lists keyed
- * the way the completion planner looks them up. Returns undefined while the
- * source is still loading so value stages can show a loading row.
+ * the way the completion planner looks them up. Returns undefined only while
+ * the source is still loading, so value stages can show a loading row. A
+ * settled source with no payload (the request errored) is an empty map: a
+ * bare word must not keep spinning after the request has ended.
  */
 export function toObservedOptions(
   raw: RawFilterOptions | undefined,
   loading: boolean,
 ): ObservedOptions | undefined {
-  if (loading || raw === undefined) return undefined;
+  if (loading) return undefined;
+  if (raw === undefined) return {};
 
   const out: ObservedOptions = {};
   for (const [column, options] of Object.entries(raw)) {

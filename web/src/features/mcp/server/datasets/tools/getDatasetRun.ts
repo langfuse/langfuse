@@ -3,7 +3,7 @@ import { getDatasetRunByIdForApi } from "@/src/features/datasets/server/publicDa
 import { defineTool } from "../../../core/define-tool";
 import { buildDatasetRunUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { rejectDatasetRunToolsInEventsOnlyMode } from "../events-only-guard";
+import { rejectLegacyDatasetRunTools } from "../legacy-run-tools-guard";
 import { GetDatasetRunMcpInput } from "../schema";
 
 export const [getDatasetRunTool, handleGetDatasetRun] = defineTool({
@@ -22,7 +22,7 @@ export const [getDatasetRunTool, handleGetDatasetRun] = defineTool({
         "mcp.dataset_run_id": input.datasetRunId,
       },
       fn: async () => {
-        rejectDatasetRunToolsInEventsOnlyMode();
+        rejectLegacyDatasetRunTools(context.projectId);
         const result = await getDatasetRunByIdForApi({
           projectId: context.projectId,
           datasetId: input.datasetId,
@@ -41,5 +41,5 @@ export const [getDatasetRunTool, handleGetDatasetRun] = defineTool({
         };
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

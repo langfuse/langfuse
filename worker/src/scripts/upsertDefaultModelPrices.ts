@@ -46,7 +46,7 @@ const DefaultModelPriceSchema = z
   });
 
 export type DefaultModelPrice = z.infer<typeof DefaultModelPriceSchema>;
-export type PricingTier = z.infer<typeof PricingTierSchema>;
+type PricingTier = z.infer<typeof PricingTierSchema>;
 
 const ExistingModelTierSchema = z.object({
   modelId: z.string(),
@@ -101,7 +101,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
         models m
         INNER JOIN pricing_tiers t ON t.model_id = m.id
       WHERE
-        m.project_id IS NULL
+        m.scope = 'LANGFUSE'
     `;
 
     const existingModels =
@@ -217,6 +217,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
 
 /**
  * Upserts a model with its pricing tiers in a transaction
+ * @internal
  */
 export async function upsertModelWithTiers(
   defaultModelPrice: DefaultModelPrice,
@@ -236,7 +237,7 @@ export async function upsertModelWithTiers(
     // 1. Upsert model
     await tx.model.upsert({
       where: {
-        projectId: null,
+        scope: "LANGFUSE",
         id: defaultModelPrice.id,
       },
       update: {
@@ -247,7 +248,7 @@ export async function upsertModelWithTiers(
         tokenizerId: defaultModelPrice.tokenizerId,
       },
       create: {
-        projectId: null,
+        scope: "LANGFUSE",
         id: defaultModelPrice.id,
         modelName: defaultModelPrice.modelName,
         matchPattern: defaultModelPrice.matchPattern,

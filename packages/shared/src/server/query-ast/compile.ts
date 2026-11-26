@@ -1,3 +1,6 @@
+// Query-AST compiler entry points: run every compiler pass over a Kysely query
+// or condition and render ClickHouse SQL with its binds.
+
 import {
   AliasNode,
   createQueryId,
@@ -61,13 +64,19 @@ export type ClickhouseCompilable = {
  * `requireProjectId` guard remains as defense-in-depth for the one case the
  * type cannot express (an empty `projectId`) and for callers reaching this
  * through an `any` boundary.
+ *
+ * `paramPrefix` names the placeholders (`<prefix>1`, `<prefix>2`, …). Pass
+ * one when the SQL is spliced into a query that binds its own parameters;
+ * the rules of {@link compileClickhouseCondition} apply.
  */
 export function compileClickhouseQuery(
   query: ClickhouseCompilable,
   projectId: string,
+  paramPrefix?: string,
 ): CompiledClickhouseQuery {
+  if (paramPrefix !== undefined) assertParamPrefix(paramPrefix);
   const stamped = applyCompilerPasses(query, projectId);
-  const compiler = new ClickHouseQueryCompiler();
+  const compiler = new ClickHouseQueryCompiler(paramPrefix);
   const compiled = compiler.compileQuery(stamped, createQueryId());
   return {
     sql: compiled.sql,
@@ -79,6 +88,7 @@ export function compileClickhouseQuery(
  * Every compiler pass, in the order it runs. Both entry points apply this
  * list through {@link applyCompilerPasses}, so a pass added here reaches
  * compiled queries and spliced conditions alike.
+ * @internal
  */
 export function compilerPasses(projectId: string): KyselyPlugin[] {
   return [

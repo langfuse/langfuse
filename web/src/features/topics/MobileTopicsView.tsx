@@ -1,14 +1,8 @@
-import {
-  useContext,
-  useMemo,
-  useRef,
-  useState,
-  type ComponentProps,
-} from "react";
+import { useContext, useMemo, useState, type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { ControlledDropdownMenu } from "@/src/components/design-system/ControlledDropdownMenu/ControlledDropdownMenu";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   type Facet,
   type UseTopicTraces,
@@ -30,13 +24,18 @@ import { prepareMobileTopics } from "./prepare-mobile-topics";
 import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
 import { FacetTraceSource } from "./useFacetTopicTraces";
 import { type MobileTopicsVisualization } from "./TopicsResultsViewSelect";
+import { useTopicsCapture } from "./useTopicsCapture";
+
+const VISUALIZATIONS = [
+  { value: "treemap", label: "Treemap" },
+  { value: "map", label: "Scatter" },
+] as const;
 
 type MobileTopicsViewProps = {
   projectId: string;
   facet: Facet;
   view: ComponentProps<typeof MobileTopicVisualization>["view"];
-  /** Adds the Visualize tab menu; omit while the map is unavailable. */
-  onViewChange?: (view: MobileTopicsVisualization) => void;
+  onViewChange: (view: MobileTopicsVisualization) => void;
   mapResult: ComponentProps<typeof MobileTopicVisualization>["mapResult"];
   filters: FilterState;
   searchQuery: string | null;
@@ -71,6 +70,7 @@ export function MobileTopicsView({
   showUnassigned,
   mapActions,
 }: MobileTopicsViewProps) {
+  const capture = useTopicsCapture();
   const [navigation, setNavigation] = useState({
     view,
     panel: filters.length > 0 || searchQuery ? "traces" : "topics",
@@ -131,12 +131,20 @@ export function MobileTopicsView({
     onSearchQueryChange(null);
     showPanel("traces");
   }
-  function selectTopic(topicId: string | null) {
+  function selectTopic(
+    topicId: string | null,
+    surface: "tile" | "row" | "map",
+  ) {
     if (topicId === null) {
       onFiltersChange([]);
       onSearchQueryChange(null);
       return;
     }
+    capture("topics:topic_selected", {
+      view: view === "map" ? "mobile_map" : "mobile_treemap",
+      surface,
+      isUnassigned: topicId === UNASSIGNED_TOPIC_ID,
+    });
     onFiltersChange(
       topicId === UNASSIGNED_TOPIC_ID
         ? [
@@ -176,22 +184,14 @@ export function MobileTopicsView({
         <Tabs.List variant="underline" layout="full" aria-label="Topics panels">
           <Tabs.Trigger value="topics" label="Topics" />
           <Tabs.Trigger value="traces" label="Traces" />
-          {onViewChange ? (
-            <VisualizeTabMenu
-              view={view}
-              active={navigation.panel === "visualization"}
-              onViewChange={onViewChange}
-            />
-          ) : (
-            <Tabs.Trigger value="visualization" label="Visualize" />
-          )}
+          <Tabs.Trigger value="visualization" label="Visualize" />
         </Tabs.List>
         <Tabs.Content value="topics" layout="fill">
           <TopicMobileList
             topics={topics}
             totalCount={facet.counts.total}
             selectedTopicId={selectedTopicId}
-            onSelectTopic={selectTopic}
+            onSelectTopic={(topicId) => selectTopic(topicId, "row")}
             onShowAllTraces={showAllTraces}
           />
           {facet.topics.length === 0 ? (
@@ -261,6 +261,18 @@ export function MobileTopicsView({
           </section>
         </Tabs.Content>
         <Tabs.Content value="visualization" layout="fill">
+          <div className="flex shrink-0 items-center border-b p-2">
+            <div className="w-40">
+              <SelectInput
+                aria-label="Visualization"
+                placeholder="Visualization"
+                value={view}
+                onValueChange={onViewChange}
+                options={[...VISUALIZATIONS]}
+                noCapture
+              />
+            </div>
+          </div>
           <MobileTopicVisualization
             facet={facet}
             treemapTopics={topics}
@@ -273,70 +285,13 @@ export function MobileTopicsView({
                 : null
             }
             matchingTraceIds={matchingTraceIds}
-            onSelectTopic={selectTopic}
+            onSelectTopic={(topicId) =>
+              selectTopic(topicId, view === "map" ? "map" : "tile")
+            }
             onSelectTrace={selectTrace}
           />
         </Tabs.Content>
       </Tabs>
     </div>
-  );
-}
-
-const VISUALIZATIONS = [
-  { value: "treemap", label: "Treemap" },
-  { value: "map", label: "Scatter" },
-] as const;
-
-/** Pressing the already active Visualize tab opens the view menu; the first press only selects the tab. */
-function VisualizeTabMenu({
-  view,
-  active,
-  onViewChange,
-}: {
-  view: MobileTopicsViewProps["view"];
-  active: boolean;
-  onViewChange: (view: MobileTopicsVisualization) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  // Read before the tab activates on mouse down, so the selecting press stays a plain tab press.
-  const pressedWhileActive = useRef(false);
-  return (
-    <ControlledDropdownMenu
-      open={open}
-      onOpenChange={(next) => setOpen(next && pressedWhileActive.current)}
-      ariaLabel="Visualize as"
-      placement="bottom-end"
-      items={VISUALIZATIONS.map((option) => ({
-        id: option.value,
-        title: option.label,
-        type: "item" as const,
-        selected: option.value === view,
-        onClick: () => onViewChange(option.value),
-      }))}
-    >
-      {({ getTriggerProps }) => (
-        <span
-          {...getTriggerProps({
-            onPointerDown: () => {
-              pressedWhileActive.current = active;
-            },
-            // Keyboard focus already activated the tab.
-            onKeyDown: () => {
-              pressedWhileActive.current = true;
-            },
-          })}
-          // The focused tab announces the menu; its id and aria-controls stay the tab's own.
-          aria-haspopup={undefined}
-          aria-expanded={undefined}
-          aria-controls={undefined}
-        >
-          <Tabs.Trigger
-            value="visualization"
-            label="Visualize"
-            menu={{ open }}
-          />
-        </span>
-      )}
-    </ControlledDropdownMenu>
   );
 }

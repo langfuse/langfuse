@@ -61,9 +61,8 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
-  // Internal Topics PoC controls; not a supported self-hosting configuration.
-  LANGFUSE_TOPICS_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_TOPICS_ENABLED_PROJECT_IDS: z
+  // Internal trace evals beta control; not a supported self-hosting configuration.
+  LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS: z
     .string()
     .default("")
     .transform((value) =>
@@ -72,7 +71,7 @@ const EnvSchema = z.object({
         .map((id) => id.trim())
         .filter(Boolean),
     ),
-  LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS: z
+  LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL: z
     .string()
     .default("")
     .transform((value) =>
@@ -81,11 +80,6 @@ const EnvSchema = z.object({
         .map((id) => id.trim())
         .filter(Boolean),
     ),
-  LANGFUSE_TOPICS_REDIS_TTL_SECONDS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(10800),
   // NextAuth.js falls back to VERCEL_URL when NEXTAUTH_URL is unset; the
   // shared base-URL helper mirrors that (see web/src/env.mjs preprocess).
   VERCEL_URL: z.string().optional(),
@@ -213,6 +207,10 @@ const EnvSchema = z.object({
   CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: z
     .enum(["alter_update", "lightweight_update", "lightweight_update_force"])
     .default("alter_update"),
+  // Comma-separated tables whose DELETE FROM always runs with
+  // lightweight_delete_mode = 'alter_update'.
+  CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE_EXCLUDED_TABLES:
+    optionalCommaSeparatedLowercase,
   CLICKHOUSE_USE_LIGHTWEIGHT_UPDATE: z.enum(["true", "false"]).default("false"),
   CLICKHOUSE_UPDATE_PARALLEL_MODE: z
     .enum(["sync", "async", "auto"])
@@ -396,6 +394,12 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_S3_CONCURRENT_WRITES: z.coerce.number().positive().default(50),
+  LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(2_147_483_647)
+    .default(2_000),
   LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED: z
     .enum(["true", "false"])
     .default("false"),
@@ -411,11 +415,6 @@ const EnvSchema = z.object({
     .default(3),
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string(), // Langfuse requires a bucket name for S3 Event Uploads.
   LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
-  LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(10_000), // 10 seconds
   LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
   LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
   LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
@@ -527,8 +526,6 @@ const EnvSchema = z.object({
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_S3_CORE_DATA_EXPORT_SSE: z.enum(["AES256", "aws:kms"]).optional(),
-  LANGFUSE_S3_CORE_DATA_EXPORT_SSE_KMS_KEY_ID: z.string().optional(),
   LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),

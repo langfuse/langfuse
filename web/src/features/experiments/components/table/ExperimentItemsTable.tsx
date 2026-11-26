@@ -2,6 +2,7 @@
 /* eslint-disable @repo/no-style-props */
 import { useRouter } from "next/router";
 import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
+import { buildExperimentFilterContextId } from "@/src/features/experiments/lib/experiment-filter-context";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { DataTableControlsProvider } from "@/src/components/table/data-table-controls";
@@ -9,7 +10,7 @@ import { ExperimentFilterSidebar } from "../filters/ExperimentFilterSidebar";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
-import { LightbulbIcon } from "@langfuse/icons";
+import { LightbulbIcon, ListFilter } from "@langfuse/icons";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import type { TableAction } from "@/src/features/table/types";
@@ -108,10 +109,7 @@ import {
 import { ScoreColumnHeaderSummary } from "./ScoreColumnHeaderSummary";
 import { ExperimentListInputHeader } from "./ExperimentListInputHeader";
 import { ExperimentScoreHover, scoreValueOf } from "./ExperimentScoreHover";
-import {
-  ScoreColumnFilterMenu,
-  ScoreColumnFilterMenuTrigger,
-} from "./ScoreColumnFilterMenu";
+import { ScoreColumnFilterMenu } from "./ScoreColumnFilterMenu";
 import { ScoreComparisonFilterPills } from "./ScoreComparisonFilterPills";
 import {
   ExperimentScoreMatrix,
@@ -552,7 +550,7 @@ export default function ExperimentItemsTable({
     layout,
     diffMode,
     itemVisibility,
-  } = useExperimentResultsState();
+  } = useExperimentResultsState(projectId);
 
   // "Off" turns the whole diff apparatus into plain values; "expected" keeps the
   // baseline deltas on the scores (a score has no expected value to diff
@@ -672,7 +670,12 @@ export default function ExperimentItemsTable({
     experimentItemsFilterConfig,
     scoreFilterOptions,
     {
-      stateLocation: "url",
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: buildExperimentFilterContextId({
+        projectId,
+        baselineId,
+        comparisonIds,
+      }),
       onExplicitFilterStateChange,
       loading: isFilterOptionsLoading,
       // v4-only surface — drives `isV4` on filters:* analytics.
@@ -1043,17 +1046,24 @@ export default function ExperimentItemsTable({
                             removeScoreComparisonFilter(activeComparisonFilter)
                           }
                         >
-                          {({ Trigger }) => (
+                          {({ getTriggerProps }) => (
                             // The header cell sorts on click, so opening the menu
                             // must not also reorder the table.
-                            <Trigger
-                              asChild
-                              onClick={(event) => event.stopPropagation()}
+                            <button
+                              type="button"
+                              aria-label="Filter items by this score"
+                              className={cn(
+                                "hover:bg-muted mt-0.5 shrink-0 rounded-sm p-0.5",
+                                activeComparisonFilter
+                                  ? "text-primary-accent"
+                                  : "text-muted-foreground opacity-0 group-hover:opacity-100",
+                              )}
+                              {...getTriggerProps({
+                                onClick: (event) => event.stopPropagation(),
+                              })}
                             >
-                              <ScoreColumnFilterMenuTrigger
-                                isActive={Boolean(activeComparisonFilter)}
-                              />
-                            </Trigger>
+                              <ListFilter size="sm" />
+                            </button>
                           )}
                         </ScoreColumnFilterMenu>
                       )

@@ -4,13 +4,16 @@ import { logger } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
-import { isBaseError, type Role } from "@langfuse/shared";
+import {
+  isBaseError,
+  type Role,
+  hasEntitlementBasedOnPlan,
+} from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { createOrgMembership } from "@langfuse/shared/memberships";
-import { assertValidOwnershipChange } from "@/src/ee/features/admin-api/server/memberships";
+import { assertValidOrgOwnershipChange } from "@/src/features/rbac/server/ownershipChange";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { writeScimError } from "@/src/features/public-api/server/writeError";
 export default async function handler(
@@ -201,7 +204,7 @@ export default async function handler(
         role = parsedRoles.data[0];
       }
 
-      await assertValidOwnershipChange({
+      await assertValidOrgOwnershipChange({
         tx: prisma,
         context: authCheck.ctx,
         orgId: authCheck.scope.orgId,

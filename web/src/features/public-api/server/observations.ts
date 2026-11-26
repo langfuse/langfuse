@@ -26,11 +26,7 @@ type ObservationsApiQueryProps = {
 };
 
 const publicApiObservationsFilterParams =
-  createPublicApiObservationsColumnMapping(
-    "observations",
-    "o",
-    "parent_observation_id",
-  );
+  createPublicApiObservationsColumnMapping();
 
 function buildObservationsFilter(props: ObservationsApiQueryProps) {
   const { advancedFilters, ...simpleFilterProps } = props;

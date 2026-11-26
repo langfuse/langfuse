@@ -11,6 +11,18 @@ import {
 import { getOrganizationFeaturePreviewDefaults } from "./fns/getOrganizationFeaturePreviewDefaults";
 
 describe("parseFlags", () => {
+  it("keeps the unified preview off by default and accepts organization opt-in", () => {
+    const context = { v4BetaEnabled: true };
+    expect(parseFlags([], context).unifiedTraceSessionView).toBe(false);
+    expect(
+      parseFlagsWithOrganizationDefaults(
+        [],
+        ["unifiedTraceSessionView"],
+        context,
+      ).unifiedTraceSessionView,
+    ).toBe(true);
+  });
+
   it.each([
     { flag: "sessionViewV2" as const, expectedView: false },
     { flag: "sessionViewV2Timeline" as const, expectedView: true },
@@ -44,15 +56,17 @@ describe("parseFlags", () => {
     ).toEqual([]);
   });
 
-  it("requires personal Topics opt-in and ignores organization defaults", () => {
+  it("requires personal trace evals opt-in and ignores organization defaults", () => {
     const context = {
       v4BetaEnabled: true,
     };
     expect(
-      parseFlagsWithOrganizationDefaults([], ["langfuseTopics"], context)
-        .langfuseTopics,
+      parseFlagsWithOrganizationDefaults([], ["traceTranscriptEvals"], context)
+        .traceTranscriptEvals,
     ).toBe(false);
-    expect(parseFlags(["langfuseTopics"], context).langfuseTopics).toBe(true);
+    expect(
+      parseFlags(["traceTranscriptEvals"], context).traceTranscriptEvals,
+    ).toBe(true);
   });
 
   it("enables both session previews by default for every user", () => {

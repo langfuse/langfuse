@@ -59,6 +59,10 @@ messages from the content.
 
 [`topics-renderer.ts`](topics-renderer.ts) takes the transcript plus the loaded, ordered observations. The latter supply root I/O, operation context, errors and tool definitions that conversation assembly omits. Rendering caps and inclusions live in [`topics-renderer-config.ts`](topics-renderer-config.ts); they are separate from the assembler's optional character limit and Topics model-input limits.
 
+### Eval threads
+
+[`eval-threads.ts`](eval-threads.ts) projects transcript threads for evaluators. `toEvalVariables` flattens each thread into one `messages` list, history first, with only `role` and `parts` per message; eval variable paths resolve against it.
+
 ## Execution issues
 
 `assembleTranscriptContext(orderedObservations, options?)` composes
@@ -81,8 +85,8 @@ from `utils/normalized-io/schema.ts`. `types.ts` infers the output types from th
 schemas; assembly inputs and options remain separate. Assembly does not parse
 each intermediate object at runtime.
 
-Persisted trace-batch inputs have their own frozen schemas and serialization
-adapters under [`../traceBatch`](../traceBatch/README.md). They version the
+Persisted trace transcripts have their own frozen schemas and serialization
+adapters under [`../eventsDispatch`](../eventsDispatch/README.md). They version the
 complete storage envelope, including the transcript and trace context.
 The transcript fixture suite validates the current assembled shape independently
 of that storage format.

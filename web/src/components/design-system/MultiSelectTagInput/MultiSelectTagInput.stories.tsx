@@ -74,6 +74,39 @@ export const ConstrainedWidth = meta.story({
   },
 });
 
+export const WithoutSelection = meta.story({
+  args: {
+    value: [],
+    options,
+    onValueChange: fn(),
+    placeholder: "Select options",
+    searchPlaceholder: "Search options...",
+    emptyMessage: "No options found.",
+  },
+  render: (args) => (
+    <div className="w-72">
+      <MultiSelectTagInput {...args} />
+    </div>
+  ),
+});
+
+export const Disabled = meta.story({
+  args: {
+    value: options.slice(0, 2).map((option) => option.value),
+    options,
+    onValueChange: fn(),
+    placeholder: "Select options",
+    searchPlaceholder: "Search options...",
+    emptyMessage: "No options found.",
+    disabled: true,
+  },
+  render: (args) => (
+    <div className="w-72">
+      <MultiSelectTagInput {...args} />
+    </div>
+  ),
+});
+
 export const Empty = meta.story({
   args: {
     value: [],
@@ -233,38 +266,41 @@ export const TestOverflowBadgePlacement = meta.story({
       );
       const visibleTags = [
         ...canvasElement.querySelectorAll<HTMLElement>("[data-value]"),
-      ].filter((tag) => getComputedStyle(tag).visibility !== "hidden");
+      ].filter((tag) => !tag.closest("[aria-hidden]"));
       const lastVisibleTag = visibleTags.at(-1);
       const layout = canvasElement.querySelector<HTMLElement>(
         "[data-tag-input-layout]",
       );
-      const clearButton = canvasElement.querySelector<HTMLElement>(
-        "[data-clear-selection]",
-      );
+      const clearButton = within(canvasElement).getByRole("button", {
+        name: "Clear selection",
+      });
 
       expect(overflowBadge).not.toBeNull();
       expect(lastVisibleTag).toBeDefined();
       expect(layout).not.toBeNull();
-      expect(clearButton).not.toBeNull();
 
-      if (!overflowBadge || !lastVisibleTag || !layout || !clearButton) return;
+      if (!overflowBadge || !lastVisibleTag || !layout) return;
 
+      expect(Number(overflowBadge.dataset.overflowCount)).toBe(
+        manyOptions.length - visibleTags.length,
+      );
       const gap =
         overflowBadge.getBoundingClientRect().left -
         lastVisibleTag.getBoundingClientRect().right;
-      const clearRightGap =
-        layout.getBoundingClientRect().right -
-        clearButton.getBoundingClientRect().right;
       const layoutStyles = getComputedStyle(layout);
       const expectedTagGap = Number.parseFloat(layoutStyles.columnGap);
-      const expectedClearRightGap = Number.parseFloat(
-        layoutStyles.paddingRight,
-      );
-
       expect(Math.abs(gap - expectedTagGap)).toBeLessThanOrEqual(0.5);
+      const clearBox = clearButton.getBoundingClientRect();
+      const layoutBox = layout.getBoundingClientRect();
+      expect(clearBox.left).toBeGreaterThanOrEqual(
+        lastVisibleTag.getBoundingClientRect().right - 1,
+      );
       expect(
-        Math.abs(clearRightGap - expectedClearRightGap),
-      ).toBeLessThanOrEqual(0.5);
+        Math.abs(
+          (clearBox.top + clearBox.bottom) / 2 -
+            (layoutBox.top + layoutBox.bottom) / 2,
+        ),
+      ).toBeLessThanOrEqual(1);
     });
   },
 });

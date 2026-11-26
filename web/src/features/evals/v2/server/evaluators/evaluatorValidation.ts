@@ -1,8 +1,8 @@
 import {
   EvalTemplateType,
   extractVariables,
+  evalVariableMappingListSchema,
   InvalidRequestError,
-  observationVariableMappingList,
 } from "@langfuse/shared";
 import {
   DECISION_MODEL_CONNECTIONS_HINT,
@@ -36,7 +36,7 @@ export function extractEvaluatorPromptVariables(
   ];
 }
 
-export function assertEvaluatorVariablesMatchPrompt(params: {
+function assertEvaluatorVariablesMatchPrompt(params: {
   promptVariables: string[];
   variables: string[];
 }) {
@@ -52,15 +52,25 @@ export function assertEvaluatorVariablesMatchPrompt(params: {
   }
 }
 
+/**
+ * Pass `targetObject` when the mapping runs against a known target (a rule or
+ * an observation); omit it for target-agnostic evaluator definitions.
+ */
 export function assertCompleteEvaluatorVariableMapping(params: {
   promptVariables: string[];
   variableMapping: unknown;
+  targetObject?: string;
 }) {
-  const parsed = observationVariableMappingList.safeParse(
+  const parsed = evalVariableMappingListSchema(params.targetObject).safeParse(
     params.variableMapping,
   );
   if (!parsed.success) {
-    throw new InvalidRequestError("Evaluator variable mapping is invalid");
+    const unknownColumnIssue = parsed.error.issues.find(
+      ({ code }) => code === "custom",
+    );
+    throw new InvalidRequestError(
+      unknownColumnIssue?.message ?? "Evaluator variable mapping is invalid",
+    );
   }
 
   for (const mapping of parsed.data) {

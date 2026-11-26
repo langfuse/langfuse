@@ -65,7 +65,7 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.state == 'open' &&
       (github.event.action != 'labeled' || github.event.label.name == 'preview')
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: read
       pull-requests: write
@@ -364,7 +364,7 @@ jobs:
             --build-arg "BUILD_ID=${COMMIT_SHA}" \
             -f ai-gateway/Dockerfile \
             -t "${IMAGE}" \
-            ai-gateway
+            .
           docker push "${IMAGE}"
 
       # Own marker, not <!-- aws-preview -->, so this cannot replace the
@@ -422,7 +422,7 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.state == 'open' &&
       (github.event.action != 'labeled' || github.event.label.name == 'preview')
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: read
       pull-requests: write

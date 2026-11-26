@@ -149,5 +149,5 @@ export const [getObservationTool, handleGetObservation] = defineTool({
       },
     });
   },
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

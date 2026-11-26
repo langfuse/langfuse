@@ -6,6 +6,7 @@ import {
 } from "@langfuse/shared/src/db";
 import {
   InvalidRequestError,
+  INVALID_LLM_BASE_URL_PREFIX,
   LangfuseConflictError,
   LangfuseNotFoundError,
   ServiceUnavailableError,
@@ -670,7 +671,7 @@ async function parseConnectionEndpoint(
       await validateLlmConnectionBaseURL(baseURL);
     } catch (error) {
       throw new InvalidRequestError(
-        `Invalid base URL: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `${INVALID_LLM_BASE_URL_PREFIX}${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
@@ -692,7 +693,7 @@ function toCanonicalBaseURL(
   if (!baseURL) return null;
   if (/[?#]/.test(baseURL) || baseURL.includes("{model}")) {
     throw new InvalidRequestError(
-      "Invalid base URL: query strings, fragments and {model} are not supported",
+      `${INVALID_LLM_BASE_URL_PREFIX}query strings, fragments and {model} are not supported`,
     );
   }
   if (provider === "AZURE") {
@@ -859,11 +860,38 @@ async function validateGatewayCredential(
       timeout: 10_000,
     });
   } catch (error) {
+    // A compatible proxy may not serve the test model. A custom base URL that
+    // lists its models for the key has accepted the key all the same.
+    if (params.baseURL && (await listsModelsForKey(params))) {
+      return { modelListingDenied: false };
+    }
     throw new ProviderCredentialRejectedError(
       getProviderAnswerFromCallError(error),
     );
   }
   return { modelListingDenied: false };
+}
+
+async function listsModelsForKey(
+  params: {
+    provider: GatewayProviderName;
+    credential: string;
+    config: GatewayProviderConfig | null;
+  } & ConnectionEndpoint,
+): Promise<boolean> {
+  const extraHeaders = params.extraHeaders ?? {};
+  const result = await getModelDiscoveryAdapter(params.provider).fetchCatalog({
+    credential: params.credential,
+    config: params.config,
+    baseURL: params.baseURL,
+    extraHeaders,
+    fetcher: getGatewayFetch({
+      baseURL: params.baseURL,
+      extraHeaders,
+      logContext: "AI Gateway credential validation",
+    }),
+  });
+  return result.success;
 }
 
 async function checkCredentialEndpoint(

@@ -79,8 +79,8 @@ impl MediaSource {
     }
 }
 
-/// Encoding used by the extracted text. Decoding is intentionally deferred to
-/// the upload adapter so extraction does not create a second large allocation.
+/// Encoding used by the extracted text. The upload adapter performs decoding later,
+/// so extraction retains one encoded representation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MediaEncoding {
     /// A complete `data:<type>;base64,<payload>` value.
@@ -111,9 +111,10 @@ impl MediaMetadata {
 /// Temporary references identify occurrences; metadata hashes identify assets.
 /// Distinct source spellings can share an upload without sharing restoration text.
 ///
-/// Store the spelling visible after parsing the outer JSON once. Restoration
-/// reads that spelling; upload removes `json_decode_layers` remaining string
-/// layers before decoding base64/Python bytes. A plain base64 span stays borrowed.
+/// The early pass stores the spelling visible after parsing the outer JSON once.
+/// The normalized pass retains the held string's spelling for in-place restoration.
+/// Upload removes `json_decode_layers` remaining string layers before decoding
+/// base64/Python bytes. A plain base64 span stays borrowed.
 ///
 /// For a slash escaped inside an embedded JSON string (quotes omitted):
 /// ```text
@@ -128,17 +129,20 @@ pub struct ExtractedMedia {
     /// Number of serialized JSON documents between the outer input and this candidate.
     /// Used to adjust restoration to the consumer's current serialization layer.
     original_json_depth: u8,
+    /// Text removed after normalization is restored into the same held string.
+    /// Its escapes already belong to that string and must not be escaped again.
+    restore_verbatim: bool,
     pub kind: MediaPayloadKind,
     pub encoding: MediaEncoding,
     /// Source spelling after parsing the outer JSON, retaining any nested escapes.
-    storage: MediaStorage,
+    pub(super) storage: MediaStorage,
     /// Remaining JSON unescapes needed to reach media text. Zero when the stored
     /// spelling already matches, even if the candidate was in an embedded document.
     json_decode_layers: u8,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum MediaStorage {
+pub(super) enum MediaStorage {
     Owned(Vec<u8>),
     Source {
         bytes: Arc<String>,
@@ -146,7 +150,60 @@ enum MediaStorage {
     },
 }
 
+#[derive(Default)]
+#[cfg_attr(test, derive(Debug, Eq, PartialEq))]
+pub(crate) struct MediaOccurrenceIds {
+    next: Option<u128>,
+}
+
+impl MediaOccurrenceIds {
+    fn reserve(&mut self, count: usize) -> Result<u128, EarlyMediaError> {
+        let id = match self.next {
+            Some(id) => id,
+            None => {
+                let mut nonce = [0; 16];
+                getrandom::fill(&mut nonce).map_err(|_| EarlyMediaError::RandomnessUnavailable)?;
+                u128::from_le_bytes(nonce)
+            }
+        };
+        self.next = Some(id.wrapping_add(count as u128));
+        Ok(id)
+    }
+}
+
 impl ExtractedMedia {
+    /// Retain encoded text replaced in place after normalization. No further parsing
+    /// moves this occurrence between JSON layers before upload resolution.
+    pub(crate) fn from_owned(
+        encoded: Vec<u8>,
+        content_type: &str,
+        kind: MediaPayloadKind,
+        source: MediaSource,
+        encoding: MediaEncoding,
+        ids: &mut MediaOccurrenceIds,
+    ) -> Result<Option<Self>, EarlyMediaError> {
+        let Some((_reference, sha256_hash)) =
+            super::scanner::media_identity_from_encoded(&encoded, content_type, source, encoding)
+        else {
+            return Ok(None);
+        };
+        let occurrence_id = ids.reserve(1)?;
+        Ok(Some(Self {
+            metadata: Arc::new(MediaMetadata {
+                source,
+                content_type: content_type.to_owned(),
+                sha256_hash,
+            }),
+            occurrence_id,
+            original_json_depth: 0,
+            restore_verbatim: true,
+            kind,
+            encoding,
+            storage: MediaStorage::Owned(encoded),
+            json_decode_layers: 0,
+        }))
+    }
+
     /// Temporary identity travels with this occurrence through normalization.
     /// Upload deduplication uses the separate content hash.
     pub fn reference(&self) -> String {
@@ -155,7 +212,7 @@ impl ExtractedMedia {
         reference
     }
 
-    /// Decode a body without consuming its encoded text, allowing retry or inline restoration.
+    /// Decode a body while preserving encoded text for retry or inline restoration.
     pub fn decode(&self) -> Result<Vec<u8>, MediaDecodeError> {
         super::encoding::decode_encoded_data(&self.encoded_data()?, self.encoding)
     }
@@ -166,13 +223,17 @@ impl ExtractedMedia {
             .map_err(|_| MediaDecodeError::InvalidSourceText)
     }
 
-    /// Return the source spelling at a requested number of remaining JSON layers.
-    /// `None` returns the exact spelling after parsing the outer document;
-    /// zero returns the fully decoded candidate.
+    /// Return source spelling for inline restoration. Normalized occurrences are
+    /// restored verbatim into the same string. For early occurrences, `None` keeps
+    /// the retained spelling and zero returns the fully decoded candidate; other
+    /// depths adjust the escaping to the consumer's current JSON layer.
     pub fn original_value_for_layers(
         &self,
         json_layers: Option<u32>,
     ) -> Result<String, MediaDecodeError> {
+        if self.restore_verbatim {
+            return self.original_value();
+        }
         let Some(json_layers) = json_layers else {
             return self.original_value();
         };
@@ -230,6 +291,13 @@ impl ExtractedMedia {
         }
     }
 
+    pub(crate) fn source_allocation(&self) -> Option<(*const String, usize)> {
+        match &self.storage {
+            MediaStorage::Source { bytes, .. } => Some((Arc::as_ptr(bytes), bytes.capacity())),
+            MediaStorage::Owned(_) => None,
+        }
+    }
+
     fn encoded_data(&self) -> Result<Cow<'_, [u8]>, MediaDecodeError> {
         let mut value = Cow::Borrowed(self.original_data());
         for _ in 0..self.json_decode_layers {
@@ -266,8 +334,8 @@ pub struct EarlyMediaResult {
     pub media: Vec<ExtractedMedia>,
 }
 
-/// An owned UTF-8 string with validated JSON syntax. Discovery is deferred until
-/// extraction so masking cannot cause media hashing of a discarded input.
+/// An owned UTF-8 string with validated JSON syntax. After optional masking, the
+/// caller selects the final source; `compact` then discovers and hashes its media.
 #[derive(Debug, Eq, PartialEq)]
 pub struct ValidatedPayload {
     source: String,
@@ -323,10 +391,15 @@ impl ValidatedPayload {
                 media: Vec::new(),
             });
         }
-        apply_edit_plan(Arc::new(source), manifest)
+        apply_edit_plan(
+            Arc::new(source),
+            manifest,
+            false,
+            &mut MediaOccurrenceIds::default(),
+        )
     }
 
-    /// Return the validated source allocation without running media discovery.
+    /// Return the validated source allocation directly; media discovery is skipped.
     pub fn into_source(self) -> String {
         self.source
     }
@@ -364,8 +437,8 @@ pub(super) struct MediaManifestEntry {
     pub(crate) original_json_depth: u8,
     pub kind: MediaPayloadKind,
     pub encoding: MediaEncoding,
-    /// Exact raw source span replaced during compaction. Also supplies the
-    /// restoration spelling; it need not equal the JSON-unescaped upload text.
+    /// Exact raw source span replaced during compaction and its restoration spelling.
+    /// Upload text is JSON-unescaped and may differ from this raw span.
     pub(super) edit_range: Range<usize>,
     /// JSON unescapes remaining after the outer input is parsed once.
     pub(super) json_decode_layers: u8,
@@ -384,6 +457,9 @@ pub enum EarlyMediaError {
     InvalidEditPlan {
         entry: usize,
     },
+    UnsupportedMediaReferenceAmbiguity {
+        reference: String,
+    },
     RandomnessUnavailable,
 }
 
@@ -394,6 +470,9 @@ impl fmt::Display for EarlyMediaError {
                 write!(f, "invalid JSON at byte {offset}: {message}")
             }
             Self::TrailingBytes { offset } => write!(f, "trailing JSON bytes at byte {offset}"),
+            Self::UnsupportedMediaReferenceAmbiguity { reference } => {
+                write!(f, "media reference {reference} is ambiguous")
+            }
             Self::RandomnessUnavailable => f.write_str("could not create temporary media identity"),
             Self::InvalidEditPlan { entry } => {
                 write!(
@@ -411,7 +490,9 @@ impl EarlyMediaError {
     /// Stable error codes exposed through N-API.
     pub fn code(&self) -> &'static str {
         match self {
-            Self::InvalidEditPlan { .. } | Self::RandomnessUnavailable => "ERR_OTEL_INTERNAL",
+            Self::InvalidEditPlan { .. }
+            | Self::RandomnessUnavailable
+            | Self::UnsupportedMediaReferenceAmbiguity { .. } => "ERR_OTEL_INTERNAL",
             Self::InvalidJson { .. } | Self::TrailingBytes { .. } => "ERR_OTEL_INVALID_JSON",
         }
     }
@@ -447,13 +528,13 @@ impl std::error::Error for MediaDecodeError {}
 fn apply_edit_plan(
     source: Arc<String>,
     manifest: MediaManifest,
+    restore_verbatim: bool,
+    ids: &mut MediaOccurrenceIds,
 ) -> Result<EarlyMediaResult, EarlyMediaError> {
     let entries = manifest.entries;
     let input = source.as_str();
     validate_edit_plan(input, &entries)?;
-    let mut nonce = [0; 16];
-    getrandom::fill(&mut nonce).map_err(|_| EarlyMediaError::RandomnessUnavailable)?;
-    let first_id = u128::from_le_bytes(nonce);
+    let first_id = ids.reserve(entries.len())?;
     let replacement_bytes = entries
         .iter()
         .map(|entry| {
@@ -479,11 +560,14 @@ fn apply_edit_plan(
         write_reference(&mut compact_json, &entry.metadata, occurrence_id);
         cursor = entry.edit_range.end;
         let raw = &input.as_bytes()[entry.edit_range.clone()];
-        let storage = if raw.contains(&b'\\') {
-            MediaStorage::Owned(
+        let has_escapes = raw.contains(&b'\\');
+        let storage = if has_escapes {
+            MediaStorage::Owned(if restore_verbatim {
+                raw.to_vec()
+            } else {
                 unescape_json_layer(raw)
-                    .map_err(|_| EarlyMediaError::InvalidEditPlan { entry: index })?,
-            )
+                    .map_err(|_| EarlyMediaError::InvalidEditPlan { entry: index })?
+            })
         } else {
             MediaStorage::Source {
                 bytes: Arc::clone(&source),
@@ -494,10 +578,14 @@ fn apply_edit_plan(
             metadata: entry.metadata,
             occurrence_id,
             original_json_depth: entry.original_json_depth,
+            restore_verbatim,
             kind: entry.kind,
             encoding: entry.encoding,
             storage,
-            json_decode_layers: entry.json_decode_layers,
+            // The early pass removes one JSON layer while retaining source. The
+            // normalized pass retains it verbatim and removes it only for upload.
+            json_decode_layers: entry.json_decode_layers
+                + u8::from(restore_verbatim && has_escapes),
         });
     }
     compact_json.push_str(&input[cursor..]);
@@ -507,6 +595,19 @@ fn apply_edit_plan(
         compact_json,
         media,
     })
+}
+
+/// Replace recorded media ranges in nested JSON text and retain their original values.
+/// Without media, leave the caller's string in place without copying it or allocating IDs.
+pub(super) fn compact_manifest(
+    input: &str,
+    manifest: MediaManifest,
+    ids: &mut MediaOccurrenceIds,
+) -> Result<Option<EarlyMediaResult>, EarlyMediaError> {
+    if manifest.entries.is_empty() {
+        return Ok(None);
+    }
+    apply_edit_plan(Arc::new(input.to_owned()), manifest, true, ids).map(Some)
 }
 
 const MAX_JSON_LAYER_ADJUSTMENT: u32 = 16;

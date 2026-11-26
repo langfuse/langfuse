@@ -3,7 +3,8 @@
 /// Only the OpenAI-compatible endpoint is routed. The location is both a DNS label
 /// of the host and a path segment, and they must agree, so a URL can never send the
 /// access token outside Google's Vertex hosts. `global` uses the host without a
-/// location label.
+/// location label, and the `us`/`eu` multi-regions use Google's `.rep.googleapis.com`
+/// hosts.
 pub(super) fn allows_openai_compatible_base_url(base_url: &str) -> bool {
     let Some((host, path)) = base_url
         .strip_prefix("https://")
@@ -18,10 +19,11 @@ pub(super) fn allows_openai_compatible_base_url(base_url: &str) -> bool {
     else {
         return false;
     };
-    let host_matches = if location == "global" {
-        host == "aiplatform.googleapis.com"
-    } else {
-        host.strip_suffix("-aiplatform.googleapis.com") == Some(location)
+    let host_matches = match location {
+        "global" => host == "aiplatform.googleapis.com",
+        "us" => host == "aiplatform.us.rep.googleapis.com",
+        "eu" => host == "aiplatform.eu.rep.googleapis.com",
+        _ => host.strip_suffix("-aiplatform.googleapis.com") == Some(location),
     };
     host_matches && is_segment(project) && is_segment(location)
 }

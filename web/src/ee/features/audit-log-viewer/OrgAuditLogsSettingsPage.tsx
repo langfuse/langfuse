@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { AccessLoggingSwitch } from "@/src/ee/features/access-audit-log/components/AccessLoggingSwitch";
 import { useShowAccessLoggingSetting } from "@/src/ee/features/access-audit-log/hooks/useShowAccessLoggingSetting";
 import { ConnectedAuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable/ConnectedAuditLogsTable";
@@ -25,12 +25,9 @@ export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
     }
     if (!hasAccess) {
       return (
-        <Alert>
-          <Alert.Title>Access Denied</Alert.Title>
-          <Alert.Description>
-            Contact your organization administrator to request access.
-          </Alert.Description>
-        </Alert>
+        <Banner title="Access denied">
+          Contact your organization administrator to request access.
+        </Banner>
       );
     }
     return <ConnectedAuditLogsTable scope="organization" orgId={props.orgId} />;
@@ -40,7 +37,7 @@ export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
     <div className="flex flex-col gap-6">
       {showAccessLogging && (
         <div>
-          <Header title="Access Logging" internal />
+          <Header title="Access Logging" />
           <AccessLoggingSwitch orgId={props.orgId} />
         </div>
       )}

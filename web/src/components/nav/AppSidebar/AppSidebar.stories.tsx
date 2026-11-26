@@ -2,7 +2,6 @@
 import type { ComponentProps } from "react";
 import {
   Activity,
-  ArrowUpRight,
   BookOpen,
   ListTree,
   Grid2X2,
@@ -341,7 +340,6 @@ const cloudEnterpriseOrg = (name: string): Partial<AppSidebarProps> => ({
     {
       id: "org-enterprise",
       name,
-      role: "OWNER",
       cloudConfig: undefined,
       plan: "cloud:enterprise",
       metadata: {},
@@ -423,15 +421,15 @@ const aiGatewayNavigationArgs = {
           isActive: true,
         },
         {
-          title: "Connections & Models",
-          url: "/organization/org-acme/ai-gateway/models",
-          icon: Box,
-          disabledReason: SETUP_REQUIRED_REASON,
-        },
-        {
           title: "Gateway keys",
           url: "/organization/org-acme/ai-gateway/api-keys",
           icon: KeyRound,
+          disabledReason: SETUP_REQUIRED_REASON,
+        },
+        {
+          title: "Connections & Models",
+          url: "/organization/org-acme/ai-gateway/models",
+          icon: Box,
           disabledReason: SETUP_REQUIRED_REASON,
         },
       ],
@@ -475,20 +473,20 @@ export const AiGatewayNavigationSetUp = meta.story({
             isActive: true,
           },
           {
-            title: "Connections & Models",
-            url: "/organization/org-acme/ai-gateway/models",
-            icon: Box,
-          },
-          {
             title: "Gateway keys",
             url: "/organization/org-acme/ai-gateway/api-keys",
             icon: KeyRound,
           },
           {
+            title: "Connections & Models",
+            url: "/organization/org-acme/ai-gateway/models",
+            icon: Box,
+          },
+          {
             title: "Tracing",
             url: "/project/project-gateway/traces",
             icon: ListTree,
-            label: <ArrowUpRight size="base" color="tertiary" aria-hidden />,
+            external: true,
           },
         ],
       },

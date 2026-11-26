@@ -25,7 +25,9 @@ const STORAGE_KEY = "peekViewWidthFraction";
 
 // Widget width bounds, as a fraction of the viewport width.
 export const PEEK_MIN_WIDTH_FRACTION = 0.4;
+/** @internal */
 export const PEEK_MAX_WIDGET_WIDTH_FRACTION = 0.9;
+/** @internal */
 export const PEEK_DEFAULT_WIDTH_FRACTION = 0.5;
 // Dragging the handle beyond this fraction of the viewport previews "expanded".
 export const PEEK_EXPAND_ENTER_FRACTION = 0.95;
@@ -38,6 +40,7 @@ const KEYBOARD_RESIZE_STEP = 0.05;
 // the fraction on very wide screens, giving a comfortable-but-bounded default
 // that still leaves the underlying list navigable. The floor is the drag min so
 // the default never lands narrower than the user could drag back to.
+/** @internal */
 export const PEEK_MAX_DEFAULT_WIDTH_PX = 1400;
 
 const clampWidthFraction = (
@@ -50,6 +53,7 @@ const clampWidthFraction = (
 // 50vw fraction, but capped so the resulting px never exceeds
 // PEEK_MAX_DEFAULT_WIDTH_PX, then floored at the drag minimum. SSR-safe (returns
 // the plain fraction when there's no window).
+/** @internal */
 export function resolveDefaultWidthFraction(): number {
   const vw = typeof window === "undefined" ? 0 : window.innerWidth;
   if (vw <= 0) return PEEK_DEFAULT_WIDTH_FRACTION;

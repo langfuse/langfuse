@@ -7,7 +7,9 @@ import { decodeAndNormalizeFilters } from "@/src/features/filters/hooks/useSideb
 import { createTopicTraceRegistry } from "./topic-trace-filters";
 import { resolveTopicFacetId } from "./topic-facet-selection";
 
-const columns = [...createTopicTraceRegistry([]).columns];
+const columns = [
+  ...createTopicTraceRegistry([], [], { traceFields: true }).columns,
+];
 const snapshotSchema = z.object({
   filter: z.string(),
   search: z.string().nullable(),
@@ -16,9 +18,14 @@ const snapshotsSchema = z.record(z.string(), snapshotSchema);
 const emptySnapshot: FacetFilterSnapshot = { filter: "", search: null };
 const emptySnapshots: Record<string, FacetFilterSnapshot> = {};
 
+/**
+ * `mapId` scopes the filters to one map: topic IDs belong to the map that created them.
+ * `undefined` means the shown map is not known yet; filters read empty and writes are ignored.
+ */
 export function useTopicTraceFilters(
   projectId: string,
   facets: readonly { facetId: string }[],
+  mapId: string | null | undefined,
 ) {
   const [facetId, setFacetId] = useQueryParam("topicFacet", StringParam);
   const selectedFacetId = resolveTopicFacetId(facets, facetId ?? undefined);
@@ -28,15 +35,20 @@ export function useTopicTraceFilters(
   );
   const parsed = snapshotsSchema.safeParse(stored);
   const snapshots = parsed.success ? parsed.data : emptySnapshots;
-  const storageKey = JSON.stringify([projectId, selectedFacetId]);
-  const snapshot = snapshots[storageKey] ?? emptySnapshot;
+  const storageKey = JSON.stringify(
+    mapId ? [projectId, mapId, selectedFacetId] : [projectId, selectedFacetId],
+  );
+  const snapshot =
+    mapId === undefined
+      ? emptySnapshot
+      : (snapshots[storageKey] ?? emptySnapshot);
   const filters = useMemo(
     () => decodeAndNormalizeFilters(snapshot.filter, columns),
     [snapshot.filter],
   );
 
   function updateSnapshot(patch: Partial<FacetFilterSnapshot>) {
-    if (!selectedFacetId) return;
+    if (!selectedFacetId || mapId === undefined) return;
     setStored((previous: unknown) => {
       const parsedPrevious = snapshotsSchema.safeParse(previous);
       const snapshots = parsedPrevious.success

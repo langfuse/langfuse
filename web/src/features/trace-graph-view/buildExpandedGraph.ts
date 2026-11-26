@@ -34,6 +34,7 @@ const SYSTEM_NODE_IDS = new Set<string>([
  * past the budget and the view shows a "too complex" notice instead. The
  * bound clears every linear shape under the panel's observation cap (a
  * 5000-call chain is ~5000 edges) and cuts off the quadratic ones.
+ * @internal
  */
 export const MAX_EXPANDED_EDGES = 10_000;
 

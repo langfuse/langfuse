@@ -129,7 +129,8 @@ const CodeEvalScoreSchema = z.union([
 ]);
 
 const CodeEvalDispatchResultSchema = z.object({
-  scores: z.array(CodeEvalScoreSchema).min(1),
+  // Empty is valid: evaluators may skip scoring an observation on purpose.
+  scores: z.array(CodeEvalScoreSchema),
 });
 
 export type CodeEvalScore = z.infer<typeof CodeEvalScoreSchema>;

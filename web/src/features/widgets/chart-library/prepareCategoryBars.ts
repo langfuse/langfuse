@@ -1,5 +1,5 @@
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
-import { seriesFillColor } from "@/src/features/widgets/chart-library/SeriesOverflowNote";
+import { seriesFillColor } from "@/src/features/widgets/chart-library/seriesColors";
 
 /**
  * How many bars a colour can still IDENTIFY. The chart palette holds 8 slots and
@@ -8,6 +8,7 @@ import { seriesFillColor } from "@/src/features/widgets/chart-library/SeriesOver
  * about which bar is which. Past the limit we colour every bar alike and leave
  * identity to the tooltip, rather than shipping a legend that lies.
  * (ARCHITECTURE.md V6: colour is identity, and the palette is bounded.)
+ * @internal
  */
 export const CATEGORY_COLOR_LIMIT = 8;
 

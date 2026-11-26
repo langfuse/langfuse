@@ -6,7 +6,7 @@ import { astToFilterState } from "@/src/features/search-bar/lib/adapter";
 import { planCommit } from "@/src/features/search-bar/lib/commit";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { parse } from "@/src/features/search-bar/lib/langQ";
-import { runSearchBarInvariants } from "@/src/features/search-bar/lib/searchBarInvariants";
+import { runSearchBarInvariants } from "@/src/features/search-bar/__tests__/searchBarInvariants";
 import {
   createTopicTraceRegistry,
   filterTopicTraces,
@@ -222,7 +222,12 @@ describe("topic trace filtering", () => {
       topicIds: { operator: "any of", values: ["billing"] },
       statuses: {
         operator: "any of",
-        values: ["not_applicable", "insufficient_input"],
+        values: [
+          "not_applicable",
+          "insufficient_input",
+          "empty_input",
+          "input_too_large",
+        ],
       },
     });
     expect(
@@ -314,6 +319,26 @@ describe("topic search registry", () => {
       astToFilterState(parse(roundTrip.text, registry).ast, undefined, registry)
         .filters,
     ).toEqual(parsed.filters);
+  });
+
+  it("keeps status: on the assignment state when trace fields are added", () => {
+    const traceRegistry = createTopicTraceRegistry(topics, [], {
+      traceFields: true,
+    });
+    expect(
+      astToFilterState(
+        parse('status:"Outlier"', traceRegistry).ast,
+        undefined,
+        traceRegistry,
+      ).filters,
+    ).toEqual([
+      {
+        column: "assignment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["outlier"],
+      },
+    ]);
   });
 
   it("keeps duplicate topic labels distinct", () => {

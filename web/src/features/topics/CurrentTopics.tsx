@@ -7,8 +7,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getQueryKey } from "@trpc/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { CurrentTopicsView } from "./CurrentTopicsView";
-import { TopicListView } from "./TopicListView";
+import { ScatterTopicsView } from "./scatter/ScatterTopicsView";
 import { TopicTreemapView } from "./TopicTreemapView";
 import {
   type MobileTopicsVisualization,
@@ -21,10 +20,13 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { MobileTopicsView } from "./MobileTopicsView";
 import { type TopicsActions } from "./prepare-topics-actions";
+import { splitTopicTraceFilters } from "./topic-trace-filters";
 import {
   facetWithoutUnassigned,
   mapWithoutUnassigned,
+  UNASSIGNED_TOPIC_ID,
 } from "./prepare-topic-display";
+import { useTopicsCapture, useTopicsViewCapture } from "./useTopicsCapture";
 import {
   FacetTraceSource,
   useFacetTopicTraces,
@@ -47,6 +49,26 @@ export function CurrentTopics({
   );
   const empty =
     !result.isLoading && !result.error && result.data?.facets.length === 0;
+  const capture = useTopicsCapture();
+  const facets = result.data?.facets ?? [];
+  const topicCount = facets.reduce(
+    (sum, facet) =>
+      sum +
+      facet.topics.filter((topic) => topic.id !== UNASSIGNED_TOPIC_ID).length,
+    0,
+  );
+  const mapKind = scope.analysisId ? "analysis" : "rule";
+  const mapKey = `${mapKind}:${scope.analysisId ?? scope.ruleId ?? "default"}`;
+  // A map switch keeps the previous map's results until its own arrive.
+  useTopicsViewCapture(
+    topicCount > 0 && !result.isPlaceholderData ? mapKey : null,
+    () =>
+      capture("topics:map_viewed", {
+        mapKind,
+        topicCount,
+        facetCount: facets.length,
+      }),
+  );
   return (
     <section
       className={cn(
@@ -96,7 +118,7 @@ function CurrentFacet({
   // Only the Map view needs the run's projection.
   const mapQuery = useCurrentTopicMap(
     projectId,
-    (isHandheld ? mobileVisualization.view : view) === "map"
+    ["map", "scatter"].includes(isHandheld ? mobileVisualization.view : view)
       ? resultFacet.map?.runId
       : undefined,
   );
@@ -121,7 +143,7 @@ function CurrentFacet({
   const mapResult = { data: mapData, error: mapQuery.error };
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
-    isV4: false,
+    isV4: true,
     queryParams: ["observation", "display", "timestamp", "traceId"],
   });
   const peekView = { itemType: "TRACE" as const, ...peekNavigation };
@@ -145,30 +167,19 @@ function CurrentFacet({
           mapActions={mapActions}
         />
       );
-    if (view === "map")
+    if (view === "scatter")
       return (
-        <CurrentTopicsView
+        <ScatterTopicsView
           key={facet.facetId}
           projectId={projectId}
           facet={facet}
           mapResult={mapResult}
-          tracePanelRef={tracePanelRef}
           traceFilters={traceFilters}
-          onOpenTrace={peekNavigation.openPeek}
-          peekView={peekView}
-          useTraces={useFacetTopicTraces}
           showUnassigned={showUnassigned}
-        />
-      );
-    if (view === "list")
-      return (
-        <TopicListView
-          key={facet.facetId}
-          projectId={projectId}
-          facet={facet}
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           useTraces={useFacetTopicTraces}
+          onOpenTrace={peekNavigation.openPeek}
         />
       );
     return (
@@ -178,6 +189,7 @@ function CurrentFacet({
         facet={facet}
         peekView={peekView}
         useTraces={useFacetTopicTraces}
+        showUnassigned={showUnassigned}
       />
     );
   }
@@ -203,9 +215,14 @@ function MobileTopics({
   onOpenTrace: (traceId: string) => void;
 }) {
   const { isV4 } = useReadPath();
-  const [selectedTraceId, setSelectedTraceId] = useSessionStorage<
-    string | null
-  >(`topics-selected-trace:${projectId}`, null);
+  const [selectedTraceId, setSelectedTraceId] = useMobileTraceSelection(
+    projectId,
+    facet.facetId,
+  );
+  // Mobile filters by topic and assignment only; Scatter's trace filters wait until it is back.
+  const [topicFilters, scatterFilters] = splitTopicTraceFilters(
+    traceFilters.filters,
+  );
   return (
     <MobileTopicsView
       projectId={projectId}
@@ -213,9 +230,11 @@ function MobileTopics({
       view={view}
       onViewChange={onViewChange}
       mapResult={mapResult}
-      filters={traceFilters.filters}
+      filters={topicFilters}
       searchQuery={traceFilters.searchQuery}
-      onFiltersChange={traceFilters.setFilters}
+      onFiltersChange={(filters) =>
+        traceFilters.setFilters([...filters, ...scatterFilters])
+      }
       onSearchQueryChange={traceFilters.setSearchQuery}
       selectedTraceId={selectedTraceId}
       onSelectTrace={setSelectedTraceId}
@@ -262,7 +281,8 @@ export function useCurrentTopics({
         tracesResetFor.current = refreshAfter;
         utils.topics.traces.reset();
       }
-      return results;
+      // Kept results stay on screen while another map loads; this names their map.
+      return { ...results, fetchedForRuleId: ruleId ?? null };
     },
     placeholderData: keepPreviousData,
     refetchInterval: (query) => {
@@ -283,6 +303,7 @@ type CurrentTopicsProps = {
   result: {
     data: { facets: Facet[] } | undefined;
     isLoading: boolean;
+    isPlaceholderData?: boolean;
     error: { message: string } | null;
   };
   selectedFacetId: string | undefined;
@@ -308,6 +329,22 @@ type CurrentFacetProps = {
 
 type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
 
+function useMobileTraceSelection(projectId: string, facetId: string) {
+  const [selection, setSelection] = useSessionStorage<{
+    facetId: string;
+    traceId: string | null;
+  }>(`topics-mobile-selected-trace:${projectId}`, { facetId, traceId: null });
+  const traceId = selection.facetId === facetId ? selection.traceId : null;
+  if (selection.facetId !== facetId) {
+    setSelection({ facetId, traceId: null });
+  }
+  return [
+    traceId,
+    (nextTraceId: string | null) =>
+      setSelection({ facetId, traceId: nextTraceId }),
+  ] as const;
+}
+
 function useCurrentTopicMap(projectId: string, runId: string | undefined) {
   return api.topics.map.useQuery(
     { projectId, runId: runId ?? "" },
@@ -315,4 +352,5 @@ function useCurrentTopicMap(projectId: string, runId: string | undefined) {
   );
 }
 
-export const __test = { useCurrentTopics };
+/** @internal */
+export const __test = { useCurrentTopics, useMobileTraceSelection };

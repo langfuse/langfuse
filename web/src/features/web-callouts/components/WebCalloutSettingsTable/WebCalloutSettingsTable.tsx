@@ -2,9 +2,9 @@ import { useCallback, useMemo } from "react";
 import { Pencil, Plus, Trash2 } from "@langfuse/icons";
 
 import {
-  SettingsTable,
-  type SettingsTableProps,
-} from "@/src/components/SettingsTable/SettingsTable";
+  TableCard,
+  type TableCardProps,
+} from "@/src/components/TableCard/TableCard";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -75,21 +75,20 @@ export function WebCalloutSettingsTable({
     [onEdit, onDelete],
   );
 
-  const toolbarActions: SettingsTableProps<WebCalloutEndpoint>["toolbarActions"] =
-    [
-      {
-        id: "add-endpoint",
-        label: "Add endpoint",
-        variant: "secondary",
-        icon: <Plus size="base" aria-hidden="true" />,
-        disabled: Boolean(createAction.disabledReason),
-        title: createAction.disabledReason,
-        onClick: createAction.onClick,
-      },
-    ];
+  const toolbarActions: TableCardProps<WebCalloutEndpoint>["toolbarActions"] = [
+    {
+      id: "add-endpoint",
+      label: "Add endpoint",
+      variant: "secondary",
+      icon: <Plus size="base" aria-hidden="true" />,
+      disabled: Boolean(createAction.disabledReason),
+      title: createAction.disabledReason,
+      onClick: createAction.onClick,
+    },
+  ];
 
   return (
-    <SettingsTable
+    <TableCard
       tableName="Web callout endpoints"
       columns={columns}
       actions={actions}

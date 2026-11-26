@@ -1,19 +1,29 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
+import { type ViewVersion } from "@langfuse/shared/query";
 import type { MissingBucketValue } from "@/src/features/widgets/chart-library/chart-props";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
+import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 
 export type TimeSeriesChartDataPoint = {
   ts: number;
   values: { label: string; value?: number }[];
 };
-import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { type ViewVersion } from "@langfuse/shared/query";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 
 type UseAllModelsOptions = {
   enabled?: boolean;
   queryId: string;
+};
+
+const extractAllModels = (
+  data: Record<string, unknown>[],
+): { model: string; count: number }[] => {
+  return data
+    .filter((item) => item.providedModelName !== null)
+    .map((item) => ({
+      model: item.providedModelName as string,
+      count: item.count as number,
+    }));
 };
 
 export const useAllModels = (
@@ -58,18 +68,10 @@ export const useAllModels = (
     },
   );
 
-  return allModels.data ? extractAllModels(allModels.data) : [];
-};
-
-const extractAllModels = (
-  data: Record<string, unknown>[],
-): { model: string; count: number }[] => {
-  return data
-    .filter((item) => item.providedModelName !== null)
-    .map((item) => ({
-      model: item.providedModelName as string,
-      count: item.count as number,
-    }));
+  return {
+    data: allModels.data ? extractAllModels(allModels.data) : [],
+    isPending: allModels.isPending,
+  };
 };
 
 type ChartData = {
@@ -175,6 +177,7 @@ export function fillMissingValuesAndTransform(
   return result;
 }
 
+/** @internal */
 export const isEmptyTimeSeries = ({
   data,
   isNullValueAllowed = false,

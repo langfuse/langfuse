@@ -15,8 +15,7 @@ import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props
  * "empty" by default. A real `0` is an honest, deliberate value here — never
  * coerced from a gap (manifesto V2 / principle 6; `DataPoint.metric`'s doc)
  * — and callers already rely on it rendering: a genuine zero-average score
- * chart (`NumericScoreTimeSeriesChart`, which opts out of the legacy
- * detector's zero-collapsing via `isNullValueAllowed: true`), a monitor
+ * chart (`NumericScoreTimeSeriesCard`), a monitor
  * alert-preview whose measure is zero across the window (thresholds still
  * need to draw), and any additive count/sum series whose honest value for an
  * empty bucket is a real `0` (`getWidgetMissingBucketValue`). Treating that

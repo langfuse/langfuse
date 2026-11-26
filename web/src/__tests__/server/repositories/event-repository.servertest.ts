@@ -1,7 +1,7 @@
 import {
   createEvent,
   createEventsCh,
-  getTraceBatchEventStream,
+  getEventsDispatchEventStream,
   getObservationsForTraceFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getObservationsCountFromEventsTable,
@@ -70,7 +70,7 @@ const findFilterOption = (
 ) => rows.find((row) => row.column === column && row.value === value);
 
 describe("Clickhouse Events Repository Test", () => {
-  it("streams complete trace batches with full payloads and exact per-trace time bounds", async () => {
+  it("streams complete traces with full payloads and exact per-trace time bounds", async () => {
     const batchProjectId = randomUUID();
     const otherProjectId = randomUUID();
     const firstTraceId = randomUUID();
@@ -197,7 +197,7 @@ describe("Clickhouse Events Repository Test", () => {
     let repeatedIntervalRowCount = 0;
     const foundTraces = new Set<string>();
     const traceGroups: string[] = [];
-    for await (const event of getTraceBatchEventStream({
+    for await (const event of getEventsDispatchEventStream({
       traces: [
         {
           projectId: batchProjectId,
@@ -310,7 +310,7 @@ describe("Clickhouse Events Repository Test", () => {
     await createEventsCh(expectedRows);
 
     const foundSpanIds: string[] = [];
-    for await (const event of getTraceBatchEventStream({ traces })) {
+    for await (const event of getEventsDispatchEventStream({ traces })) {
       foundSpanIds.push(event.span_id);
     }
 
@@ -318,11 +318,6 @@ describe("Clickhouse Events Repository Test", () => {
       expectedRows.map(({ span_id }) => span_id).sort(),
     );
   }, 120_000);
-
-  it("should kill redis connection", () => {
-    // we need at least one test case to avoid hanging
-    // redis connection when everything else is skipped.
-  });
 
   maybe("evaluator execution metrics", () => {
     it("returns evaluator costs from the last seven days excluding test runs", async () => {
@@ -763,6 +758,7 @@ describe("Clickhouse Events Repository Test", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId,
           modelName: `gpt-4-${modelId}`,
           matchPattern: `(?i)^(gpt-?4-${modelId})$`,
@@ -4502,6 +4498,7 @@ describe("Clickhouse Events Repository Test", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId: projectId,
           modelName: `test-model-${modelId}`,
           matchPattern: `(?i)^(test-model-${modelId})$`,

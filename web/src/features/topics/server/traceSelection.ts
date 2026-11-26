@@ -35,15 +35,9 @@ export async function previewTopicTraces(
   input: z.infer<typeof topicTraceSelectionSchema>,
   prisma: PrismaClient,
 ) {
-  const selection = {
-    ...input,
-    limit: input.limit ?? TOPICS_BACKFILL_TRACE_LIMIT,
-  };
-  const rows = await selectTopicTraceRows(selection, prisma, "preview");
-  const matchedTraceCount = Number(rows[0]?.matchedTraceCount ?? 0);
+  const rows = await selectTopicTraceRows(input, prisma);
   return {
-    matchedTraceCount,
-    selectedTraceCount: Math.min(matchedTraceCount, selection.limit),
+    matchedTraceCount: Number(rows[0]?.matchedTraceCount ?? 0),
     traces: rows.map((row) => ({
       id: row.id,
       timestamp: new Date(Number(row.timestampMs)),
@@ -80,12 +74,9 @@ async function setupMatching(
   );
 }
 
-// The wizard's lowest sampling rate.
-const SETUP_MIN_SAMPLING = 0.01;
-
 /**
  * Finished traces over 7 and 30 days that the rule's filter selects. The 30-day
- * scan is skipped once 7 days fill the backfill at the lowest sampling rate, so
+ * scan is skipped once 7 days fill the backfill, so
  * busy projects read 7 days; then `finished30d` is a lower bound.
  */
 export async function countTopicSetupTraces(input: {
@@ -112,9 +103,7 @@ export async function countTopicSetupTraces(input: {
   };
   const finished7d = await count(7);
   const finished30d =
-    finished7d * SETUP_MIN_SAMPLING >= TOPIC_SETUP_BACKFILL_LIMIT
-      ? finished7d
-      : await count(30);
+    finished7d >= TOPIC_SETUP_BACKFILL_LIMIT ? finished7d : await count(30);
   return { finished7d, finished30d };
 }
 

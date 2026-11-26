@@ -9,22 +9,10 @@
 use super::{NameRule, TagRule};
 
 pub(super) const NAME_RULES: &[NameRule] = &[
-    NameRule {
-        key: "gen_ai.tool.name",
-        require_truthy: true,
-    },
-    NameRule {
-        key: "genkit:name",
-        require_truthy: false,
-    },
-    NameRule {
-        key: "logfire.msg",
-        require_truthy: true,
-    },
-    NameRule {
-        key: "ai.toolCall.name",
-        require_truthy: false,
-    },
+    NameRule::StringifyIfTruthy("gen_ai.tool.name"),
+    NameRule::RawIfPresent("genkit:name"),
+    NameRule::StringifyIfTruthy("logfire.msg"),
+    NameRule::RawIfPresent("ai.toolCall.name"),
 ];
 
 pub(super) const MODEL_NAME_KEYS: &[&str] = &[
@@ -108,7 +96,7 @@ pub(super) const PROMPT_VERSION_KEYS: &[&str] = &[
 
 pub(super) const PUBLIC_KEYS: &[&str] = &["langfuse.trace.public", "langfuse.public"];
 
-pub(super) const DECLARED_OBSERVATION_TYPES: &[(&str, &[(&str, &str)])] = &[
+pub(super) const EXPLICIT_OBSERVATION_TYPES: &[(&str, &[(&str, &str)])] = &[
     (
         "langfuse.observation.type",
         &[
@@ -137,6 +125,9 @@ pub(super) const DECLARED_OBSERVATION_TYPES: &[(&str, &[(&str, &str)])] = &[
             ("EVALUATOR", "EVALUATOR"),
         ],
     ),
+];
+
+pub(super) const PROVIDER_OBSERVATION_TYPES: &[(&str, &[(&str, &str)])] = &[
     (
         "gen_ai.operation.name",
         &[

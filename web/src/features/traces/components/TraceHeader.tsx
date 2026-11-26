@@ -12,11 +12,22 @@ import {
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { traceTopicRows } from "@/src/features/topics/trace/trace-topic-rows";
+import { treemapBadgeColor } from "@/src/features/topics/topic-map-colors";
 /** Trace totals, session/user links and tags, above the panels. */
 
 import { useMemo } from "react";
 
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { PendingTraceDeletionBanner } from "@/src/features/traces/components/PendingTraceDeletionBanner";
+import { usePendingTraceDeletions } from "@/src/features/traces/usePendingTraceDeletions";
+import {
+  traceDeleteCandidateFromObservation,
+  traceDeleteCandidateFromTrace,
+} from "@/src/features/traces/pendingTraceDeletionMatch";
+import {
+  useTraceData,
+  useSingleTraceData,
+} from "@/src/features/traces/contexts/TraceDataProvider";
+import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { useTraceTopicFacets } from "@/src/features/topics/trace/useTraceTopicFacets";
 import { PlusIcon, SquarePen, MessageSquare } from "@langfuse/icons";
@@ -24,14 +35,18 @@ import { AnnotationQueueObjectType } from "@langfuse/shared";
 import { type DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
-import { AnnotationQueueSubmenuItemController } from "@/src/features/annotation-queues/components/AnnotationQueueSubmenuItemController";
+import { ConnectedAnnotationQueueSubmenuItemController } from "@/src/features/annotation-queues/components/ConnectedAnnotationQueueSubmenuItemController";
 import { useViewPreferences } from "../contexts/ViewPreferencesProvider";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-import { api } from "@/src/utils/api";
+import { useSessionScopeHeaderData } from "@/src/features/traces/hooks/useSessionScopeHeaderData";
+import { useTraceHeaderWorkflowData } from "@/src/features/traces/hooks/useTraceHeaderWorkflowData";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
+import { SessionHeaderMetricsControl } from "@/src/features/sessions/SessionHeaderMetricsControl/SessionHeaderMetricsControl";
+import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
+import { getTraceSessionLinkMetric } from "../fns/getTraceSessionLinkMetric";
 
 export function TraceHeader({
   isLoading = false,
@@ -45,57 +60,130 @@ export function TraceHeader({
       <ObservabilityEntityDetailHeader {...header} metrics={[]} isLoading />
     );
   }
+  return <ScopedTraceHeader header={header} />;
+}
+
+function ScopedTraceHeader({
+  header,
+}: Pick<React.ComponentProps<typeof TraceHeader>, "header">) {
+  const { scope } = useTraceData();
+  if (scope.type === "session")
+    return (
+      <ConnectedSessionScopeHeader
+        header={header}
+        sessionId={scope.sessionId}
+      />
+    );
   return <LoadedTraceHeader header={header} />;
+}
+
+function ConnectedSessionScopeHeader({
+  header,
+  sessionId,
+}: Pick<React.ComponentProps<typeof TraceHeader>, "header"> & {
+  sessionId: string;
+}) {
+  const { projectId, isPlaceholderData } = useTraceData();
+  const { session, traces, filters } = useSessionScopeHeaderData({
+    projectId,
+    sessionId,
+  });
+
+  return (
+    <ConnectedTraceHeaderWorkflowActions header={header}>
+      {(configuredHeader) => {
+        if (!session.data)
+          return (
+            <ObservabilityEntityDetailHeader
+              {...configuredHeader}
+              metrics={[]}
+              isLoading
+            />
+          );
+        const data = session.data;
+        return (
+          <SessionMetadataJsonPathControl
+            key={`${projectId}:${sessionId}`}
+            projectId={projectId}
+            sessionId={sessionId}
+            traces={
+              traces.isSuccess
+                ? { state: "loaded", data: traces.data }
+                : { state: "loading" }
+            }
+            filterState={filters}
+          >
+            {(metadataJsonPaths) => (
+              <SessionHeaderMetricsControl
+                projectId={projectId}
+                countTraces={data.countTraces}
+                minTimestamp={data.minTimestamp}
+                maxTimestamp={data.maxTimestamp}
+                tokensIn={data.inputUsage}
+                tokensOut={data.outputUsage}
+                totalTokens={data.totalTokens}
+                totalCost={data.totalCost ?? 0}
+                users={data.users ?? []}
+                scores={data.scores}
+                metadataJsonPaths={metadataJsonPaths}
+              >
+                {(metrics) => (
+                  <ObservabilityEntityDetailHeader
+                    {...configuredHeader}
+                    metrics={metrics}
+                    isPlaceholderData={isPlaceholderData}
+                  />
+                )}
+              </SessionHeaderMetricsControl>
+            )}
+          </SessionMetadataJsonPathControl>
+        );
+      }}
+    </ConnectedTraceHeaderWorkflowActions>
+  );
 }
 
 function LoadedTraceHeader({
   header,
 }: Pick<React.ComponentProps<typeof TraceHeader>, "header">) {
-  const {
-    trace,
-    observations,
-    mergedScores,
-    corrections,
-    sessionTraces,
-    isPlaceholderData,
-  } = useTraceData();
+  const { trace, observations, mergedScores, corrections, isPlaceholderData } =
+    useSingleTraceData();
+  const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
+    "unifiedTraceSessionView",
+    { projectId: trace.projectId },
+  );
+  const { isV4 } = useReadPath();
+  const isProjectMember = useIsAuthenticatedAndProjectMember(trace.projectId);
+  const { traceContext } = useViewPreferences();
   const topicFacets = useTraceTopicFacets(trace);
 
   const aggregatedMetrics = useMemo(
     () => aggregateTraceMetrics(observations),
     [observations],
   );
-  const latency = useMemo(() => {
-    if (!sessionTraces) return trace.latency;
-    if (observations.length === 0) return undefined;
-    let first = Infinity;
-    let last = -Infinity;
-    for (const observation of observations) {
-      first = Math.min(first, observation.startTime.getTime());
-      last = Math.max(
-        last,
-        (observation.endTime ?? observation.startTime).getTime(),
-      );
-    }
-    return (last - first) / 1000;
-  }, [sessionTraces, trace.latency, observations]);
+  const latency = trace.latency;
 
   const traceScores = useMemo(
     () => mergedScores.filter((score) => score.observationId === null),
     [mergedScores],
   );
 
-  const tags = sessionTraces
-    ? [...new Set(sessionTraces.flatMap((entry) => entry.tags))]
-    : trace.tags;
+  const { isEmbedded } = useTracePresentation();
+  const tags = trace.tags;
+  const pendingTraceDeletions = usePendingTraceDeletions(trace.projectId);
+  const scheduledForDeletion = useMemo(
+    () =>
+      pendingTraceDeletions.isTracePending(trace.id, {
+        traces: [traceDeleteCandidateFromTrace(trace)],
+        events: observations.flatMap((observation) => {
+          if (observation.traceId !== trace.id) return [];
+          const candidate = traceDeleteCandidateFromObservation(observation);
+          return candidate ? [candidate] : [];
+        }),
+      }),
+    [pendingTraceDeletions, trace, observations],
+  );
   const metrics: HeaderMetric[] = [];
-  if (sessionTraces)
-    metrics.push({
-      id: "traces",
-      type: "value",
-      text: `${sessionTraces.length} traces`,
-      searchText: `traces ${sessionTraces.length}`,
-    });
   if (latency != null)
     metrics.push({
       id: "latency",
@@ -138,15 +226,18 @@ function LoadedTraceHeader({
       details: aggregatedMetrics.usageDetails,
       searchText: `tokens ${aggregatedMetrics.totalUsage}`,
     });
-  if (trace.sessionId)
-    metrics.push({
-      id: "session",
-      type: "link",
-      href: `/project/${trace.projectId}/sessions/${encodeURIComponent(trace.sessionId)}`,
-      text: "session",
-      searchText: `session ${trace.sessionId}`,
-    });
-  if (!sessionTraces && trace.userId)
+  const sessionMetric = getTraceSessionLinkMetric({
+    projectId: trace.projectId,
+    header,
+    unifiedTraceSessionViewEnabled,
+    isV4,
+    isProjectMember,
+    sessionId: trace.sessionId,
+    context: traceContext,
+    aggregation: undefined,
+  });
+  if (sessionMetric) metrics.push(sessionMetric);
+  if (trace.userId)
     metrics.push({
       id: "user",
       type: "link",
@@ -165,6 +256,7 @@ function LoadedTraceHeader({
       id: "topics",
       type: "details",
       text,
+      color: lead ? treemapBadgeColor(lead.topicIndex) : undefined,
       title: "Topics",
       href: `/project/${encodeURIComponent(trace.projectId)}/topics`,
       linkText: "Open in Topics →",
@@ -212,8 +304,11 @@ function LoadedTraceHeader({
       {(configuredHeader) => (
         <ObservabilityEntityDetailHeader
           {...configuredHeader}
-          metrics={metrics}
+          metrics={isEmbedded ? [] : metrics}
           isPlaceholderData={isPlaceholderData}
+          notice={
+            scheduledForDeletion ? <PendingTraceDeletionBanner /> : undefined
+          }
         />
       )}
     </ConnectedTraceHeaderWorkflowActions>
@@ -227,26 +322,25 @@ function ConnectedTraceHeaderWorkflowActions({
   header: EntityDetailHeaderConfiguration;
   children: (props: EntityDetailHeaderConfiguration) => React.ReactNode;
 }) {
-  const { trace, mergedScores, isPlaceholderData } = useTraceData();
+  const { trace, projectId, scope, mergedScores, isPlaceholderData } =
+    useTraceData();
   const { isAnnotationMode } = useViewPreferences();
   const { isV4 } = useReadPath();
   const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
     "unifiedTraceSessionView",
-    { projectId: trace.projectId },
+    { projectId },
   );
-  const isMember = useIsAuthenticatedAndProjectMember(trace.projectId);
-  const sessionId =
-    header.headerProps.itemType === "SESSION" ? trace.sessionId : null;
-  const session = api.sessions.byIdWithScoresFromEvents.useQuery(
-    { projectId: trace.projectId, sessionId: sessionId ?? "" },
-    { enabled: !!sessionId && isMember },
-  );
-  const objectId = sessionId ?? trace.id;
+  const isMember = useIsAuthenticatedAndProjectMember(projectId);
+  const sessionId = scope.type === "session" ? scope.sessionId : null;
+  const objectId = sessionId ?? trace?.id ?? "";
   const objectType = sessionId ? ("SESSION" as const) : ("TRACE" as const);
-  const counts = api.comments.getCountByObjectId.useQuery(
-    { projectId: trace.projectId, objectId, objectType },
-    { enabled: isMember, refetchOnMount: false },
-  );
+  const { session, counts } = useTraceHeaderWorkflowData({
+    projectId,
+    sessionId,
+    objectId,
+    objectType,
+    isMember,
+  });
   const count = Number(counts.data?.get(objectId) ?? 0);
   // The unified view can show an observation instead of the trace detail pane.
   if (!sessionId && (!unifiedTraceSessionViewEnabled || !isV4))
@@ -255,16 +349,17 @@ function ConnectedTraceHeaderWorkflowActions({
     items: DropdownMenuItemDefinition[],
     totalCount: number | undefined,
   ) => (
-    <AnnotateDrawerController projectId={trace.projectId}>
+    <AnnotateDrawerController projectId={projectId}>
       {({ disabled: annotationDisabled, openDrawer: annotate }) => (
         <CommentDrawerController
-          projectId={trace.projectId}
+          projectId={projectId}
           count={count}
           onCommentChange={() => counts.refetch().then(() => {})}
         >
           {({ disabled: commentDisabled, openDrawer: comment }) => {
             const openAnnotation = () => {
               if (!sessionId) {
+                if (!trace) return;
                 annotate(
                   prepareTraceAnnotation({
                     traceId: trace.id,
@@ -281,7 +376,7 @@ function ConnectedTraceHeaderWorkflowActions({
                 scoreTarget: { type: "session", sessionId },
                 scores: session.data.scores,
                 scoreMetadata: {
-                  projectId: trace.projectId,
+                  projectId,
                   environment: session.data.environment,
                 },
                 analyticsData: {
@@ -296,9 +391,9 @@ function ConnectedTraceHeaderWorkflowActions({
                 type: "comments",
                 objectId,
                 objectType,
-                objectStartTime: sessionId ? undefined : trace.timestamp,
+                objectStartTime: sessionId ? undefined : trace?.timestamp,
               });
-            const commentLabel = count > 0 ? `Comments (${count})` : "Comment";
+            const commentLabel = count > 0 ? "Comments" : "Comment";
             const annotationUnavailable =
               annotationDisabled ||
               isPlaceholderData ||
@@ -307,7 +402,7 @@ function ConnectedTraceHeaderWorkflowActions({
               {
                 id: JSON.stringify([
                   "add-to",
-                  trace.id,
+                  trace?.id,
                   sessionId,
                   isPlaceholderData,
                 ]),
@@ -324,6 +419,11 @@ function ConnectedTraceHeaderWorkflowActions({
                       id: "annotate",
                       type: "button",
                       label: "Annotate",
+                      count: sessionId
+                        ? session.data?.scores.filter(
+                            (score) => score.source === "ANNOTATION",
+                          ).length
+                        : undefined,
                       icon: SquarePen,
                       disabled: annotationUnavailable,
                       onClick: openAnnotation,
@@ -334,6 +434,7 @@ function ConnectedTraceHeaderWorkflowActions({
                 id: "comment",
                 type: "button",
                 label: commentLabel,
+                count,
                 icon: MessageSquare,
                 disabled: commentDisabled || isPlaceholderData,
                 onClick: openComments,
@@ -362,7 +463,7 @@ function ConnectedTraceHeaderWorkflowActions({
       )}
     </AnnotateDrawerController>
   );
-  if (!sessionId)
+  if (!sessionId && trace)
     return (
       <ConnectedTraceObservationAddToDropdownMenuController
         projectId={trace.projectId}
@@ -376,13 +477,13 @@ function ConnectedTraceHeaderWorkflowActions({
       />
     );
   return (
-    <AnnotationQueueSubmenuItemController
-      projectId={trace.projectId}
-      objectId={sessionId}
+    <ConnectedAnnotationQueueSubmenuItemController
+      projectId={projectId}
+      objectId={sessionId ?? ""}
       objectType={AnnotationQueueObjectType.SESSION}
       analyticsData={{ source: "SessionDetail", isV4 }}
     >
       {({ item, totalCount }) => renderHeader([item], totalCount)}
-    </AnnotationQueueSubmenuItemController>
+    </ConnectedAnnotationQueueSubmenuItemController>
   );
 }

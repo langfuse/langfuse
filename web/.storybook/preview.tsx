@@ -15,12 +15,21 @@ import { SessionProvider } from "next-auth/react";
 import { TooltipProvider } from "../src/components/ui/tooltip";
 import { LayerProvider } from "../src/context/LayerContext/LayerContext";
 import { ThemeProvider } from "../src/features/theming/ThemeProvider";
+import { plexMono } from "../src/styles/fonts";
+import { cn } from "../src/utils/tailwind";
 import "./storybook.css";
 import "./docs.css";
 // Mirror the global CSS that _app.tsx imports so vendored components
 // (react18-json-view, streamdown markdown) render identically to the app.
 import "react18-json-view/src/style.css";
 import "streamdown/styles.css";
+
+declare global {
+  interface ImportMetaEnv {
+    /** Set by @storybook/addon-vitest: "false" in a standalone Vitest run, "true" when the Storybook UI starts it. */
+    readonly VITEST_STORYBOOK?: "true" | "false";
+  }
+}
 
 function StorybookThemeProvider({
   children,
@@ -53,7 +62,7 @@ function StorybookThemeProvider({
     >
       <div
         id="__next"
-        className="bg-background text-foreground"
+        className={cn(plexMono.variable, "bg-background text-foreground")}
         style={{ height: fullHeight ? "100vh" : "auto" }}
       >
         <div>{children}</div>
@@ -156,7 +165,11 @@ export default definePreview({
   ],
   parameters: {
     a11y: {
-      test: "todo",
+      // `todo` violations surface only in the Storybook UI. A standalone
+      // Vitest run (CI, `pnpm test-storybook`) attaches them to task metadata
+      // that nothing prints, so skip that axe pass there. Stories that set
+      // `test: "error"` keep running it everywhere.
+      test: import.meta.env.VITEST_STORYBOOK === "false" ? "off" : "todo",
       config: {
         rules: [{ id: "color-contrast", enabled: false }],
       },

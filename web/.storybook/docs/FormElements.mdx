@@ -1,0 +1,30 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as FormElementsStories from "./FormElements.stories";
+
+<Meta title="Form elements" />
+
+# Form elements
+
+Form controls that share a row should share a height. The standard control height is 32px (`h-8`): text fields, the default button, the medium icon button, and inset tabs at `md`.
+
+Input, PasswordInput, CopyInput, SelectInput, MultiSelectInput, and DateRangeInput have that single height. SearchInput default and QueryInput default match it. SearchInput `large` is 36px. QueryInput `large` uses a 36px minimum and can grow with its content. IconButton also has `sm` and `xs`. Button `sm` is 28px. Inset tabs `sm` set the tab list to 24px, the same as IconButton `sm`, but the tabs root renders 26px tall, so those two do not share a row height.
+
+Checkbox, radio, and switch are indicators. They are not row-height controls. SwitchInput is a labeled row at the same 32px height; a wrapping description grows the row and keeps the switch centered.
+
+## Standard size
+
+<Canvas of={FormElementsStories.StandardSize} />
+
+## Small row
+
+Button `sm` is 28px. IconButton `sm` is 24px. The inset `sm` tab list is 24px, and the tabs root around it renders 26px. None of the three share a height.
+
+<Canvas of={FormElementsStories.SmallRow} />
+
+## Large row
+
+<Canvas of={FormElementsStories.LargeRow} />
+
+## Indicators
+
+<Canvas of={FormElementsStories.Indicators} />

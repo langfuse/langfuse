@@ -74,6 +74,7 @@ import {
 } from "@/src/utils/clientSideDomainTypes";
 import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
 import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/fns/mapAgentGraphRecord";
+import { throwIfPublicSharingDisabled } from "@/src/ee/features/public-sharing/server/publicSharing";
 
 const storableSessionIdInput = z.string().refine(isStorableTraceSessionId, {
   message:
@@ -1228,7 +1229,7 @@ export const sessionRouter = createTRPCRouter({
   ),
   /**
    * Full raw I/O for one observation, for the session card's download
-   * fallback (LFE-10958). Session-authorized (public sessions included); the
+   * fallback. Session-authorized (public sessions included); the
    * repository query scopes by sessionId so a session grant cannot read
    * observations outside that session. Returns raw strings — the client
    * saves them to a file and never renders them.
@@ -1321,6 +1322,12 @@ export const sessionRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "objects:publish",
       });
+      if (input.public) {
+        await throwIfPublicSharingDisabled({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+        });
+      }
       await auditLog({
         session: ctx.session,
         resourceType: "session",

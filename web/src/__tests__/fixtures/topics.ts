@@ -47,7 +47,7 @@ export async function topicsProject() {
         projectId: project.projectId,
         createdByRunId: run.id,
         createdAt: now,
-        tags: [],
+        labels: [],
         name: "Private topic",
         description: "Private topic description",
         centroid: [1, 0],
@@ -70,19 +70,22 @@ export async function topicsProject() {
   await writeTopicSummaries([
     {
       ...summary,
-      triggerType: "manual_poc",
+      triggerType: "rule",
+      ruleIds: [rule.id],
+      executionId: null,
       state: "complete",
       summary: "Private summary",
       embedding: [1, 0],
       transcriptId: "test",
       transcriptVersion: "test",
+      transcriptBytes: 0,
       summaryModel: "summary-model",
       embeddingModel: "embedding-model",
       providedUsageDetails: {},
       usageDetails: {},
       providedCostDetails: {},
       costDetails: {},
-      processedAt: now,
+      createdAt: now,
       metadata: {},
     },
   ]);
@@ -91,14 +94,22 @@ export async function topicsProject() {
       ...summary,
       summaryProcessedAt: now,
       runId: run.id,
+      ruleId: rule.id,
       topicId,
       topicVersionId,
       distance: 0.1,
       runnerUpDistance: 0.2,
       origin: "initial",
       coordinates: null,
-      assignedAt: now,
+      createdAt: now,
     },
   ]);
-  return { ...project, facetId: facet.id, ruleId: rule.id, topicId, traceId };
+  return {
+    ...project,
+    facetId: facet.id,
+    ruleId: rule.id,
+    runId: run.id,
+    topicId,
+    traceId,
+  };
 }

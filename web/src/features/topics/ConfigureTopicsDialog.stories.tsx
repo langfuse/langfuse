@@ -2,10 +2,12 @@ import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import {
-  ConfigureTopicsDialog,
-  type ConfigureTopicsDraft,
-} from "./ConfigureTopicsDialog";
+import type { ComponentProps } from "react";
+import { ConfigureTopicsDialog } from "./ConfigureTopicsDialog";
+
+type ConfigureTopicsDraft = ComponentProps<
+  typeof ConfigureTopicsDialog
+>["draft"];
 
 const providerGroups: Array<[string, string[]]> = [
   [
@@ -22,7 +24,7 @@ const emptyDraft = {
   embeddingDimensions: "1024",
   clustering: null,
   idleSeconds: "600",
-  embeddingLocked: false,
+  hasEmbeddings: false,
   automaticProcessing: false,
 } satisfies ConfigureTopicsDraft;
 
@@ -32,7 +34,7 @@ const filledDraft = {
   embeddingDimensions: "1024",
   clustering: { provider: "Amazon Bedrock", model: "us.openai.gpt-5.6-terra" },
   idleSeconds: "600",
-  embeddingLocked: true,
+  hasEmbeddings: true,
   automaticProcessing: true,
 } satisfies ConfigureTopicsDraft;
 
@@ -68,6 +70,31 @@ export const Configured = meta.story({
   args: {
     draft: filledDraft,
     notice: "none",
+  },
+});
+
+export const LockedEmbeddingExplainsWhy = meta.story({
+  name: "(Test) Changing an embedded model explains the lock and blocks Save",
+  args: {
+    draft: filledDraft,
+    notice: "none",
+  },
+  play: async () => {
+    const body = within(document.body);
+    const warning = /can't change once summaries are embedded/;
+    const save = body.getByRole("button", { name: "Save" });
+    await expect(body.queryByText(warning)).not.toBeInTheDocument();
+    const dimensions = body.getByRole("spinbutton", {
+      name: "Embedding dimensions",
+    });
+    await userEvent.clear(dimensions);
+    await userEvent.type(dimensions, "512");
+    await expect(body.getByText(warning)).toBeVisible();
+    await expect(save).toBeDisabled();
+    await userEvent.clear(dimensions);
+    await userEvent.type(dimensions, "1024");
+    await expect(body.queryByText(warning)).not.toBeInTheDocument();
+    await expect(save).toBeEnabled();
   },
 });
 

@@ -1,9 +1,11 @@
 import { fn } from "storybook/test";
 import preview from "../../../.storybook/preview";
+import {
+  resolveV4MigrationBannerCopy,
+  V4_MIGRATION_TOP_BANNER_MESSAGE,
+} from "./v4MigrationBannerCopy";
 import { V4MigrationTopBannerView } from "./V4MigrationTopBannerView";
 
-const WARNING_MESSAGE =
-  "Action required: After November 16, 2026, some features may stop working for at least one of your projects.";
 const CRITICAL_MESSAGE =
   "Action required: Some features may not be working for at least one of your projects.";
 
@@ -11,7 +13,7 @@ const meta = preview.meta({
   component: V4MigrationTopBannerView,
   args: {
     severity: "warning" as const,
-    message: WARNING_MESSAGE,
+    message: V4_MIGRATION_TOP_BANNER_MESSAGE,
     onStatusClick: fn(),
   },
 });
@@ -24,5 +26,27 @@ export const Critical = meta.story({
   args: {
     severity: "critical" as const,
     message: CRITICAL_MESSAGE,
+  },
+});
+
+/** Top customers whose cutoff moved to November 23. Same page as the deadline banner. */
+export const DelayedDeadline = meta.story({
+  args: {
+    ...resolveV4MigrationBannerCopy({
+      actionNeededProjectIds: ["demo"],
+      cutoffExemptProjectIds: ["demo"],
+      decemberProjectIds: [],
+    }),
+  },
+});
+
+/** Organizations whose deadline is December 31. Same page as the other banners. */
+export const DecemberDeadline = meta.story({
+  args: {
+    ...resolveV4MigrationBannerCopy({
+      actionNeededProjectIds: ["demo"],
+      cutoffExemptProjectIds: [],
+      decemberProjectIds: ["demo"],
+    }),
   },
 });

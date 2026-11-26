@@ -53,6 +53,10 @@ vi.mock(
   () => ({ GatewayModelsPage: () => null }),
 );
 vi.mock(
+  "@/src/features/ai-gateway/components/GatewayBudgetsPage/GatewayBudgetsPage",
+  () => ({ GatewayBudgetsPage: () => null }),
+);
+vi.mock(
   "@/src/features/ai-gateway/components/GatewayNotDeployedNotice/GatewayNotDeployedNotice",
   () => ({ GatewayNotDeployedNotice: () => null }),
 );
@@ -121,8 +125,9 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
-      ["models", false],
       ["api-keys", false],
+      ["models", false],
+      ["budgets", false],
     ]);
   });
 
@@ -139,7 +144,7 @@ describe("useGatewayPages", () => {
     expect(models?.tabsProps).toBeDefined();
   });
 
-  it("disables Models and Gateway keys for managers until ingestion is set up", () => {
+  it("disables Gateway keys, Models and Budgets for managers until ingestion is set up", () => {
     grantScopes("gateway:manage", "gateway:read", "gateway:invoke");
     getSetupStatusQuery.mockReturnValue({
       data: { isConfigured: false },
@@ -148,8 +153,9 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
-      ["models", true],
       ["api-keys", true],
+      ["models", true],
+      ["budgets", true],
     ]);
   });
 
@@ -190,7 +196,7 @@ describe("useGatewayPages", () => {
     expect(visiblePages()).toEqual([["models", false]]);
   });
 
-  it("shows AI_GATEWAY members their keys, models and own analytics, even before ingestion is set up", () => {
+  it("shows AI_GATEWAY members their keys, budgets, models and own analytics, even before ingestion is set up", () => {
     grantScopesOf(Role.AI_GATEWAY);
     getSetupStatusQuery.mockReturnValue({
       data: { isConfigured: false },
@@ -199,8 +205,9 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
-      ["models", false],
       ["api-keys", false],
+      ["models", false],
+      ["budgets", false],
     ]);
   });
 
@@ -252,8 +259,9 @@ describe("useGatewayPages", () => {
     grantScopesOf(Role.MEMBER);
 
     expect(visiblePages().map(([slug]) => slug)).toEqual([
-      "models",
       "api-keys",
+      "models",
+      "budgets",
     ]);
   });
 });

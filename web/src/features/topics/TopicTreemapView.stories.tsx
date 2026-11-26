@@ -1,9 +1,12 @@
+import { PINCH_ZOOM_RATE } from "@/src/utils/panZoomGestures";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import { PINCH_ZOOM_RATE } from "@/src/utils/panZoomGestures";
 import preview from "../../../.storybook/preview";
 import { TopicTreemapView } from "./TopicTreemapView";
-import { staticTopicTraces, storyFacet } from "./topic-story-traces";
+import {
+  staticTopicTraces,
+  storyFacet,
+} from "@/.storybook/fixtures/topic-story-traces";
 
 const counts = [55, 45, 27, 23, 21, 20, 20, 18, 17, 16, 15, 15, 14, 14, 13];
 const names = [
@@ -259,17 +262,27 @@ export const LongNamesOnShortTiles = meta.story({
 });
 
 export const SelectTopic = meta.story({
-  name: "(Test) Selecting a tile lists its traces",
+  name: "(Test) Selecting a tile lists its traces, selecting it again lists all",
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const tile = await canvas.findByRole("button", {
       name: "Trace cost analysis, 21 traces",
     });
+    // The list remounts per selection, so it is looked up again each time.
+    const traceList = () =>
+      within(canvas.getByRole("region", { name: "Topic traces" }));
+    await expect(
+      traceList().getByRole("heading", { name: "All traces" }),
+    ).toBeVisible();
     await userEvent.click(tile);
     await expect(tile).toHaveAttribute("aria-pressed", "true");
-    const list = canvas.getByRole("region", { name: "Topic traces" });
     await expect(
-      within(list).getByRole("heading", { name: /Trace cost analysis/ }),
+      await traceList().findByRole("heading", { name: /Trace cost analysis/ }),
+    ).toBeVisible();
+    await userEvent.click(tile);
+    await expect(tile).toHaveAttribute("aria-pressed", "false");
+    await expect(
+      await traceList().findByRole("heading", { name: "All traces" }),
     ).toBeVisible();
   },
 });
@@ -328,18 +341,25 @@ export const DescriptionTooltipWhenClipped = meta.story({
     </div>
   ),
   play: async ({ canvasElement }) => {
-    const list = within(
-      within(canvasElement).getByRole("region", { name: "Topic traces" }),
+    const canvas = within(canvasElement);
+    // No tile is picked at first, so pick the topic with the long description.
+    await userEvent.click(
+      await canvas.findByRole("button", {
+        name: "Langfuse user assistance, 55 traces",
+      }),
     );
-    const title = list.getByRole("heading", {
+    const list = within(canvas.getByRole("region", { name: "Topic traces" }));
+    const title = await list.findByRole("heading", {
       name: "Langfuse user assistance",
     });
     const description = list.getByText(LONG_DESCRIPTION);
-    await userEvent.hover(title);
+    // The title lives on the name span, not the heading.
+    const name = within(title).getByText("Langfuse user assistance");
+    await userEvent.hover(name);
     await userEvent.hover(description);
     await waitFor(() =>
       expect(description).toHaveAttribute("title", LONG_DESCRIPTION),
     );
-    await expect(title).not.toHaveAttribute("title");
+    await expect(name).not.toHaveAttribute("title");
   },
 });

@@ -195,6 +195,7 @@ function emptyChatMLParserResult(): ChatMLParserResult {
   };
 }
 
+/** @internal */
 export function parseChatML(
   parsedInput: unknown,
   parsedOutput: unknown,

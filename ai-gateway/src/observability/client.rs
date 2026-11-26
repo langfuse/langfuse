@@ -120,7 +120,7 @@ mod tests {
             .await
             .unwrap();
         });
-        let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let closed = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let failed_url = format!(
             "http://{}:unused@{}/private-content?token=secret-query",
             "secret-user",

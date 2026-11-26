@@ -14,6 +14,16 @@ export const CreateAnnotationQueueItemToolSchema = z
   })
   .extend(CreateAnnotationQueueItemBody.shape);
 
+export const MAX_BATCH_CREATE_ANNOTATION_QUEUE_ITEMS = 10;
+
+export const BatchCreateAnnotationQueueItemsToolSchema = z.object({
+  queueId: z.string(),
+  items: z
+    .array(CreateAnnotationQueueItemBody)
+    .min(1)
+    .max(MAX_BATCH_CREATE_ANNOTATION_QUEUE_ITEMS),
+});
+
 export const UpdateAnnotationQueueItemToolSchema =
   GetAnnotationQueueItemByIdQuery.extend(UpdateAnnotationQueueItemBody.shape);
 
