@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import { VirtualizedTree } from "./VirtualizedTree";
 import {
   VirtualizedTreeNodeWrapper,
@@ -13,6 +13,8 @@ import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNo
 import { type TreeNode } from "../types/treeNode";
 import { resolveTreeNodeId } from "../fns/resolveTreeNodeId";
 import { getCollapsedAncestors } from "../fns/getCollapsedAncestors";
+import { flattenTree } from "../fns/flattenTree";
+import { foldTreeRows } from "../fns/foldTreeRows";
 import {
   metricEmphasisFor,
   type MetricEmphasisContext,
@@ -28,6 +30,18 @@ import {
  *
  * This composition pattern allows each component to have a single responsibility.
  */
+
+/** Rows below the embedded observation that stay visible, fading out. */
+const FOLD_TRAILING_ROWS = 3;
+const FADE_CLASS_NAMES = ["opacity-50", "opacity-30", "opacity-10"];
+
+function isEmbeddedObservation(node: TreeNode, observationId: string | null) {
+  return (
+    observationId != null &&
+    node.type !== "TRACE" &&
+    (node.observationId ?? node.id) === observationId
+  );
+}
 
 export function TraceTree({ isLoading = false }: { isLoading?: boolean }) {
   if (isLoading) return <TraceTreeLoading />;
@@ -82,6 +96,20 @@ function LoadedTraceTree() {
   } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
   const handleSelectNode = useSelectTraceNode("tree");
+  const { presentation, preferredObservationId } = useTracePresentation();
+  const fold = useMemo(() => {
+    if (presentation !== "observation") return null;
+    return foldTreeRows(
+      flattenTree(roots, collapsedNodes),
+      (node) => isEmbeddedObservation(node, preferredObservationId),
+      FOLD_TRAILING_ROWS,
+    );
+  }, [presentation, preferredObservationId, roots, collapsedNodes]);
+  const visibleNodeIds = useMemo(
+    () =>
+      fold ? new Set([fold.targetId, ...fold.fadeSteps.keys()]) : undefined,
+    [fold],
+  );
   const scope = traceScope.type;
   const previousScope = useRef(scope);
   const selectedTreeNodeId = resolveTreeNodeId(
@@ -117,13 +145,19 @@ function LoadedTraceTree() {
       isScrollReady={isNavigationReady}
       onToggleCollapse={toggleCollapsed}
       onSelectNode={handleSelectNode}
+      visibleNodeIds={visibleNodeIds}
       renderNode={({ node, ...row }) => {
         const typedNode = node as TreeNode;
+        const isFaded = fold != null && typedNode.id !== fold.targetId;
         return (
           <TraceTreeRow
             {...row}
             onSelect={selectionLocked ? undefined : row.onSelect}
             node={typedNode}
+            fadeStep={
+              isFaded ? (fold.fadeSteps.get(typedNode.id) ?? 0) : undefined
+            }
+            isFolded={fold != null}
             emphasis={metricEmphasisFor(typedNode, metricEmphasis)}
             commentCount={comments.get(typedNode.id)}
             onHover={() => handleHover(typedNode)}
@@ -145,6 +179,8 @@ function TraceTreeRow({
   emphasis,
   commentCount,
   onHover,
+  fadeStep,
+  isFolded,
 }: {
   node: TreeNode;
   treeMetadata: TreeNodeMetadata;
@@ -155,13 +191,13 @@ function TraceTreeRow({
   emphasis: MetricEmphasisContext | undefined;
   commentCount: number | undefined;
   onHover: () => void;
+  /** Index into the fade scale; undefined leaves the row at full strength. */
+  fadeStep: number | undefined;
+  isFolded: boolean;
 }) {
   const { isEmbedded, preferredObservationId } = useTracePresentation();
   const isSelectedObservation =
-    isEmbedded &&
-    preferredObservationId != null &&
-    node.type !== "TRACE" &&
-    (node.observationId ?? node.id) === preferredObservationId;
+    isEmbedded && isEmbeddedObservation(node, preferredObservationId);
   return (
     <VirtualizedTreeNodeWrapper
       metadata={treeMetadata}
@@ -172,8 +208,12 @@ function TraceTreeRow({
       isSelected={isSelected}
       onSelect={onSelect}
       surfaceClassName={
-        isSelectedObservation ? "bg-light-violet text-foreground" : undefined
+        isSelectedObservation ? "bg-light-blue text-foreground" : undefined
       }
+      className={
+        fadeStep === undefined ? undefined : FADE_CLASS_NAMES[fadeStep]
+      }
+      showFoldButton={!isFolded}
     >
       <SpanContent
         node={node}

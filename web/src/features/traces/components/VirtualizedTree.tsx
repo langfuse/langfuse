@@ -38,6 +38,8 @@ interface VirtualizedTreeProps<T extends { id: string; children: T[] }> {
   overscan?: number;
   defaultRowHeight?: number;
   className?: string;
+  /** Limits the rows to these nodes. */
+  visibleNodeIds?: ReadonlySet<string>;
 }
 
 export function VirtualizedTree<T extends { id: string; children: T[] }>({
@@ -55,6 +57,7 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
   overscan = 16,
   defaultRowHeight = 37,
   className,
+  visibleNodeIds,
 }: VirtualizedTreeProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -79,10 +82,12 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
     return () => ro.disconnect();
   }, []);
 
-  const flattenedItems = useMemo(
-    () => flattenTree(roots, collapsedNodes),
-    [roots, collapsedNodes],
-  );
+  const flattenedItems = useMemo(() => {
+    const items = flattenTree(roots, collapsedNodes);
+    return visibleNodeIds
+      ? items.filter((item) => visibleNodeIds.has(item.node.id))
+      : items;
+  }, [roots, collapsedNodes, visibleNodeIds]);
 
   const defaultEstimateSize = () => defaultRowHeight;
 

@@ -35,7 +35,7 @@ import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
 import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelProvider";
@@ -91,9 +91,10 @@ const DESKTOP_LAYOUTS = {
     expandDetailOnMount: false,
   },
   "peek-observation-sample": {
-    groupId: "trace-layout-observation-sample-v1",
+    groupId: "trace-layout-observation-sample-v3",
     defaultNavigationCollapsed: false,
     expandDetailOnMount: true,
+    defaultNavigationPercent: 50,
   },
   "peek-observation-focused": {
     groupId: "trace-layout-peek-navigation-collapsed-v1",
@@ -495,9 +496,9 @@ function TraceContent({
   const { isPlaceholderData, scope, projectId, trace } = useTraceData();
   const { presentation, isEmbedded } = useTracePresentation();
   const [traceView, setTraceView] = useQueryParam("traceView", StringParam);
-  const [embeddedView, setEmbeddedView] = useState<"messages" | "trace">(
-    presentation === "messages" ? "messages" : "trace",
-  );
+  const messagesOnly = isEmbedded && presentation === "messages";
+  // Embedders name the sample themselves.
+  const showHeader = !isEmbedded;
   const router = useRouter();
   const isSessionTracePeek = useIsSessionTracePeek();
   const tracePeek =
@@ -559,9 +560,7 @@ function TraceContent({
     presentation === "messages" ||
     (!isEmbedded && isV4 && unifiedTraceSessionViewEnabled);
   const activeView = traceTab({
-    isEmbedded,
     showMessagesTab,
-    embeddedView,
     traceView,
     isSessionTracePeek,
   });
@@ -634,66 +633,64 @@ function TraceContent({
           "Messages view is unavailable in stacked trace peeks. Open the trace in a new tab to view messages.",
       }
     : false;
+  const messagesView = (
+    <div className={cn("min-h-0 flex-1", messagesOnly ? "p-3" : "p-4")}>
+      <TraceMessagesView
+        onOpenObservation={(traceId, observationId) => {
+          const params = new URLSearchParams({
+            peek: traceId,
+            observation: observationId,
+            aggregation: "trace",
+          });
+          openTracePeek(params.toString());
+        }}
+      />
+    </div>
+  );
+  const tabbedBody =
+    showMessagesTab && !messagesOnly ? (
+      <Tabs
+        value={activeView}
+        onValueChange={(value) =>
+          setTraceView(value === "messages" ? "messages" : undefined, "pushIn")
+        }
+        layout="fill"
+      >
+        <TabBar
+          label="Trace views"
+          tabs={[
+            { value: "trace", label: "Trace" },
+            {
+              value: "messages",
+              label: "Messages",
+              disabled: messagesDisabled,
+            },
+          ]}
+        />
+        <Tabs.Content value="trace" layout="fill">
+          {sessionErrorBanner}
+          {panels}
+        </Tabs.Content>
+        <Tabs.Content value="messages" layout="fill">
+          {messagesView}
+        </Tabs.Content>
+      </Tabs>
+    ) : null;
+  const plainBody = (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {sessionErrorBanner}
+      {panels}
+    </div>
+  );
+  const traceBody = messagesOnly ? messagesView : (tabbedBody ?? plainBody);
   const content = (
     <div className={traceContentClassName}>
-      <TraceHeader header={header} />
+      {showHeader ? <TraceHeader header={header} /> : null}
       <div
         inert={stale.inert}
         className={cn("flex min-h-0 flex-1 flex-col", stale.className)}
       >
-        {sessionWorkspace ??
-          (showMessagesTab ? (
-            <Tabs
-              value={activeView}
-              onValueChange={(value) => {
-                const next = value === "messages" ? "messages" : "trace";
-                if (isEmbedded) {
-                  setEmbeddedView(next);
-                  return;
-                }
-                setTraceView(
-                  next === "messages" ? "messages" : undefined,
-                  "pushIn",
-                );
-              }}
-              layout="fill"
-            >
-              <TabBar
-                label="Trace views"
-                tabs={[
-                  { value: "trace", label: "Trace" },
-                  {
-                    value: "messages",
-                    label: "Messages",
-                    disabled: messagesDisabled,
-                  },
-                ]}
-              />
-              <Tabs.Content value="trace" layout="fill">
-                {sessionErrorBanner}
-                {panels}
-              </Tabs.Content>
-              <Tabs.Content value="messages" layout="fill">
-                <div className="min-h-0 flex-1 p-4">
-                  <TraceMessagesView
-                    onOpenObservation={(traceId, observationId) => {
-                      const params = new URLSearchParams({
-                        peek: traceId,
-                        observation: observationId,
-                        aggregation: "trace",
-                      });
-                      openTracePeek(params.toString());
-                    }}
-                  />
-                </div>
-              </Tabs.Content>
-            </Tabs>
-          ) : (
-            <div className="flex min-h-0 flex-1 flex-col">
-              {sessionErrorBanner}
-              {panels}
-            </div>
-          ))}
+        {sessionWorkspace ?? traceBody}
       </div>
     </div>
   );
@@ -718,20 +715,15 @@ const traceContentClassName =
   "flex h-full w-full min-w-0 flex-col overflow-hidden";
 
 function traceTab({
-  isEmbedded,
   showMessagesTab,
-  embeddedView,
   traceView,
   isSessionTracePeek,
 }: {
-  isEmbedded: boolean;
   showMessagesTab: boolean;
-  embeddedView: "messages" | "trace";
   traceView: string | null | undefined;
   isSessionTracePeek: boolean;
 }) {
   if (!showMessagesTab) return "trace";
-  if (isEmbedded) return embeddedView;
   return !isSessionTracePeek && traceView === "messages" ? "messages" : "trace";
 }
 
@@ -740,9 +732,10 @@ function TraceLoading({
   header,
 }: { desktopLayout: DesktopLayout } & Pick<TraceProps, "header">) {
   const isMobile = useIsMobile();
+  const { isEmbedded } = useTracePresentation();
   return (
     <SkeletonGroup className={traceContentClassName}>
-      <TraceHeader isLoading header={header} />
+      {isEmbedded ? null : <TraceHeader isLoading header={header} />}
       <div className="min-h-0 flex-1">
         {isMobile ? (
           <TraceLayoutMobile

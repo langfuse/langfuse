@@ -1,4 +1,5 @@
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
+import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
 import { SkeletonGroup } from "@/src/components/ui/skeleton";
@@ -7,6 +8,7 @@ import { ConnectedObservationDetailView } from "./ObservationDetailView/Connecte
 import { traceNodeId } from "../fns/treeBuilding";
 import { useTraceDetailData } from "../hooks/useTraceDetailData";
 import { useSessionMessageTraces } from "../hooks/useSessionMessageTraces";
+import { cn } from "@/src/utils/tailwind";
 
 function PanelMessage({ title, body }: { title: string; body: string }) {
   return (
@@ -22,8 +24,17 @@ export function TracePanelDetail({
 }: {
   isLoading?: boolean;
 }) {
+  // An embed sits in its host's card, so it takes the card surface.
+  const { isEmbedded } = useTracePresentation();
   return (
-    <div className="bg-surface-sunken h-full w-full overflow-y-auto [--surface-context:hsl(var(--surface-sunken))]">
+    <div
+      className={cn(
+        "h-full w-full overflow-y-auto",
+        isEmbedded
+          ? "bg-card [--surface-context:hsl(var(--card))]"
+          : "bg-surface-sunken [--surface-context:hsl(var(--surface-sunken))]",
+      )}
+    >
       {isLoading ? <TraceDetailView isLoading /> : <TracePanelDetailContent />}
     </div>
   );
