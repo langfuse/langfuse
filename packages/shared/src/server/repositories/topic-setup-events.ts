@@ -1,7 +1,7 @@
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
   INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-  PUBLIC_LLM_JUDGE_ENVIRONMENT,
+  PUBLIC_INTERNAL_EVAL_ENVIRONMENTS,
 } from "../llm/isInternalEvalEnvironment";
 import type { TopicEmbeddingConfig, TopicFacetRef } from "../../topics";
 import { queryClickhouse } from "./clickhouse";
@@ -45,7 +45,7 @@ const topicSetupTracesSql = (
     AND trace_id != ''
     AND is_deleted = 0
     AND NOT startsWith(environment, {internalEnvironmentPrefix: String})
-    AND environment != {publicLlmJudgeEnvironment: String}
+    AND environment NOT IN {publicInternalEnvironments: Array(String)}
     ${matching ? `AND trace_id IN (${matching.query})` : ""}
     ${summarized ? `AND trace_id NOT IN (${summarizedTraceIdsSql(days)})` : ""}
   GROUP BY trace_id
@@ -56,7 +56,7 @@ const topicSetupParams = (projectId: string, idleMs: number, now: Date) => ({
   idleMs,
   now: convertDateToClickhouseDateTime(now),
   internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-  publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+  publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
 });
 
 // Setup reads must never hang the wizard; a timeout surfaces as a recoverable error.
@@ -210,7 +210,7 @@ export async function getTopicCostEstimateSample(input: {
       AND trace_id != ''
       AND is_deleted = 0
       AND NOT startsWith(environment, {internalEnvironmentPrefix: String})
-      AND environment != {publicLlmJudgeEnvironment: String}
+      AND environment NOT IN {publicInternalEnvironments: Array(String)}
       ${bucketed ? "AND xxHash32(trace_id) % {modulus: UInt32} = {bucket: UInt32}" : ""}
       ${
         input.matching

@@ -6,7 +6,7 @@ import {
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
   INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-  PUBLIC_LLM_JUDGE_ENVIRONMENT,
+  PUBLIC_INTERNAL_EVAL_ENVIRONMENTS,
 } from "../llm/isInternalEvalEnvironment";
 import {
   latestSummaryFilterSql,
@@ -200,7 +200,7 @@ function currentResultsSql(
     FROM topic_facet_summaries
     WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${summaryScopeSql}
       AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-      AND environment != {publicLlmJudgeEnvironment:String}
+      AND environment NOT IN {publicInternalEnvironments:Array(String)}
       ${and(summaryConditions)}
       AND ${latestSummaryFilterSql(latestScopeSql, summarySourceKeySql)}
     -- The latest-summary filter leaves one version per trace and facet; this
@@ -430,7 +430,7 @@ function candidateQuery(
   if (!byTraceIds)
     conditions.push(
       "NOT startsWith(environment, {internalEnvironmentPrefix:String})",
-      "environment != {publicLlmJudgeEnvironment:String}",
+      "environment NOT IN {publicInternalEnvironments:Array(String)}",
     );
   const descending = input.orderBy === "timestamp.desc";
   // Assignment pages hold a row per map, so their keys include the run.
@@ -479,7 +479,7 @@ async function listCurrentRows<T extends CandidateRow>(
     facetIds: input.facetIds,
     publishedRunIds,
     internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-    publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+    publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
   };
   const tags = { route: `topics-${input.kind}`, projectId: input.projectId };
   const direction = input.orderBy === "timestamp.asc" ? "ASC" : "DESC";
@@ -739,7 +739,7 @@ export async function getTopicResultCounts(input: {
     versions: input.facets.map(({ version }) => version ?? 0),
     runIds: input.facets.map(({ runId }) => runId ?? ""),
     internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-    publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+    publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
     ...timeRangeParams(input.window),
   };
   const scope = (
@@ -747,7 +747,7 @@ export async function getTopicResultCounts(input: {
   ) => `project_id = {projectId:String} AND ${unitTimeFilterSql}
     AND ${levelSql} AND facet_id IN {facetIds:Array(String)}
     AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-    AND environment != {publicLlmJudgeEnvironment:String}`;
+    AND environment NOT IN {publicInternalEnvironments:Array(String)}`;
   const tags = { route: "topics-counts", projectId: input.projectId };
   const [summaries, assignments] = await Promise.all([
     queryClickhouse<{
