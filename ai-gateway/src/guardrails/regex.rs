@@ -1,5 +1,5 @@
-//! Bounded cache of compiled multi-pattern guardrail regexes and single-pass
-//! `LeftmostFirst` matching.
+//! Bounded cache of compiled multi-pattern guardrail regexes for overlapping
+//! detection (`MatchKind::All`) and per-guardrail `LeftmostFirst` span extraction.
 use std::{
     sync::{Arc, LazyLock},
     time::Duration,
@@ -29,14 +29,20 @@ pub(super) struct Compiled {
     bytes: u64,
 }
 
-/// Per guardrail, its patterns.
-type GuardrailPatterns = Vec<Vec<String>>;
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum CompileMode {
+    Detect,
+    Redact,
+}
+
+/// Cache key: compilation mode plus each guardrail's patterns.
+type CacheKey = (CompileMode, Vec<Vec<String>>);
 
 #[derive(Clone)]
 struct CompiledWeight;
 
-impl Weighter<GuardrailPatterns, Arc<Compiled>> for CompiledWeight {
-    fn weight(&self, _: &GuardrailPatterns, compiled: &Arc<Compiled>) -> u64 {
+impl Weighter<CacheKey, Arc<Compiled>> for CompiledWeight {
+    fn weight(&self, _: &CacheKey, compiled: &Arc<Compiled>) -> u64 {
         compiled.bytes
     }
 }
@@ -45,47 +51,58 @@ impl Weighter<GuardrailPatterns, Arc<Compiled>> for CompiledWeight {
 /// first. Search caches, one per thread scanning a set, come on top.
 const MAX_COMPILED_BYTES: u64 = 64 * 1024 * 1024;
 
-/// Compiled matchers, keyed by the patterns of the guardrails they check. Every
-/// request of a key resolves the same guardrails, so they compile once and the
-/// check is a scan. A set compiles without blocking lookups of other sets.
-static COMPILED: LazyLock<Cache<GuardrailPatterns, Arc<Compiled>, CompiledWeight>> =
+/// Compiled matchers, keyed by mode and guardrail patterns. Every request of a
+/// key resolves the same guardrails, so they compile once and the check is a
+/// scan. A set compiles without blocking lookups of other sets.
+static COMPILED: LazyLock<Cache<CacheKey, Arc<Compiled>, CompiledWeight>> =
     LazyLock::new(|| Cache::with_weighter(1024, MAX_COMPILED_BYTES, CompiledWeight));
 
-pub(super) fn compiled(active: &[(usize, &[String])]) -> Arc<Compiled> {
-    let key: GuardrailPatterns = active
+/// Overlapping multi-pattern detector (`MatchKind::All`, no captures) across
+/// all local regex guardrails so no rule can shadow an overlapping match.
+pub(super) fn compiled_detector(active: &[(usize, &[String])]) -> Arc<Compiled> {
+    let patterns = active
         .iter()
         .map(|(_, patterns)| (*patterns).to_vec())
         .collect();
+    lookup(&(CompileMode::Detect, patterns))
+}
+
+/// Per-guardrail `LeftmostFirst` capture matcher for redaction span extraction.
+pub(super) fn compiled_redactor(patterns: &[String]) -> Arc<Compiled> {
+    lookup(&(CompileMode::Redact, vec![patterns.to_vec()]))
+}
+
+fn lookup(key: &CacheKey) -> Arc<Compiled> {
     // A request that finds the set being compiled elsewhere compiles its own copy
     // rather than parking its thread, which may be an async worker, until then.
-    match COMPILED.get_value_or_guard(&key, Some(Duration::ZERO)) {
+    match COMPILED.get_value_or_guard(key, Some(Duration::ZERO)) {
         GuardResult::Value(compiled) => compiled,
         GuardResult::Guard(guard) => {
-            let compiled = compile(&key);
+            let compiled = compile(key);
             let _ = guard.insert(Arc::clone(&compiled));
             compiled
         }
-        GuardResult::Timeout => compile(&key),
+        GuardResult::Timeout => compile(key),
     }
 }
 
-fn compile(key: &GuardrailPatterns) -> Arc<Compiled> {
+fn compile((mode, groups): &CacheKey) -> Arc<Compiled> {
     let owned_patterns = |owners: &[usize]| -> Vec<(usize, &String)> {
         owners
             .iter()
-            .filter_map(|owner| key.get(*owner).map(|patterns| (*owner, patterns)))
+            .filter_map(|owner| groups.get(*owner).map(|patterns| (*owner, patterns)))
             .flat_map(|(owner, patterns)| patterns.iter().map(move |pattern| (owner, pattern)))
             .collect()
     };
-    let all: Vec<usize> = (0..key.len()).collect();
-    let matchers: Vec<Matcher> = match matcher(&owned_patterns(&all)) {
+    let all: Vec<usize> = (0..groups.len()).collect();
+    let matchers: Vec<Matcher> = match build_matcher(*mode, &owned_patterns(&all)) {
         Some(combined) => vec![combined],
         None => all
             .iter()
-            .filter_map(|owner| matcher(&owned_patterns(std::slice::from_ref(owner))))
+            .filter_map(|owner| build_matcher(*mode, &owned_patterns(std::slice::from_ref(owner))))
             .collect(),
     };
-    let pattern_bytes: usize = key.iter().flatten().map(String::len).sum();
+    let pattern_bytes: usize = groups.iter().flatten().map(String::len).sum();
     let regex_bytes: usize = matchers
         .iter()
         .map(|matcher| matcher.regex.memory_usage())
@@ -97,23 +114,27 @@ fn compile(key: &GuardrailPatterns) -> Arc<Compiled> {
     Arc::new(Compiled { matchers, bytes })
 }
 
-/// The patterns compiled via `ai-gateway-guardrail-rules` (ASCII semantics for
-/// `\w`/`\d`/`\s`/`\b`/`(?i)` with UTF-8-safe `.` and negated classes); `None`
-/// when a pattern does not compile. Uses `LeftmostFirst` with captures enabled
-/// so detection and `redact` span extraction share one compiled cache and run
-/// in a single pass.
-pub(super) fn matcher(patterns: &[(usize, &String)]) -> Option<Matcher> {
+fn build_matcher(mode: CompileMode, patterns: &[(usize, &String)]) -> Option<Matcher> {
     let raw: Vec<&str> = patterns
         .iter()
         .map(|(_, pattern)| pattern.as_str())
         .collect();
-    let regex = ai_gateway_guardrail_rules::compile_captures_set(&raw)
+    let compiled = match mode {
+        CompileMode::Detect => ai_gateway_guardrail_rules::compile_set(&raw),
+        CompileMode::Redact => ai_gateway_guardrail_rules::compile_captures_set(&raw),
+    };
+    let regex = compiled
         .inspect_err(|error| tracing::warn!(%error, "guardrail patterns failed to compile"))
         .ok()?;
     Some(Matcher {
         regex,
         owners: patterns.iter().map(|(owner, _)| *owner).collect(),
     })
+}
+
+#[cfg(test)]
+pub(super) fn matcher(patterns: &[(usize, &String)]) -> Option<Matcher> {
+    build_matcher(CompileMode::Redact, patterns)
 }
 
 /// Walks every non-overlapping `LeftmostFirst` match of `regex` in `text`,

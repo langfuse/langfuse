@@ -62,6 +62,7 @@ import {
   GatewayGuardrailRedactionLabelSchema,
   GatewayRegexGuardrailConfigSchema,
   isKnownGuardrailPreset,
+  resolveSupportedGuardrailAction,
   type GatewayBedrockGuardrailConfig,
   type GatewayGuardrailActionForType,
   type GatewayGuardrailAssignmentInput,
@@ -114,7 +115,10 @@ export class GatewayGuardrailService {
   }): Promise<GatewayCachedGuardrails> {
     const guardrails = await this.repository.findAssigned(params);
     return guardrails.flatMap<GatewayCachedGuardrails[number]>((guardrail) => {
-      const action = RESOLVE_GUARDRAIL_ACTION[guardrail.action];
+      const action =
+        RESOLVE_GUARDRAIL_ACTION[
+          resolveSupportedGuardrailAction(guardrail.type, guardrail.action)
+        ];
       switch (guardrail.type) {
         case "REGEX": {
           const config = GatewayRegexGuardrailConfigSchema.safeParse(
@@ -149,10 +153,6 @@ export class GatewayGuardrailService {
           ];
         }
         case "BEDROCK": {
-          const bedrockAction =
-            guardrail.action === "LOG"
-              ? ("log" as const)
-              : ("enforce" as const);
           const config = GatewayBedrockGuardrailConfigSchema.safeParse(
             guardrail.config,
           );
@@ -169,7 +169,7 @@ export class GatewayGuardrailService {
                 id: guardrail.id,
                 name: guardrail.name,
                 type: "fail_closed" as const,
-                action: bedrockAction,
+                action,
                 patterns: [] as [],
               },
             ];
@@ -179,7 +179,7 @@ export class GatewayGuardrailService {
               id: guardrail.id,
               name: guardrail.name,
               type: "bedrock" as const,
-              action: bedrockAction,
+              action,
               guardrail_id: config.data.guardrailId,
               guardrail_version: config.data.guardrailVersion,
               region: config.data.region,
@@ -1139,7 +1139,7 @@ function toGuardrailDto(
     id: record.id,
     name: record.name,
     type: record.type,
-    action: record.action,
+    action: resolveSupportedGuardrailAction(record.type, record.action),
     redactionLabel: record.redactionLabel,
     presets,
     secretPrefixes,

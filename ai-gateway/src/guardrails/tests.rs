@@ -234,6 +234,47 @@ fn redacts_leftmost_first_and_adjacent_matches_across_guardrails() {
 }
 
 #[test]
+fn overlapping_guardrails_never_shadow_block_or_redact_rules() {
+    // 1. An earlier LOG match (email at byte 0) must not shadow an overlapping BLOCK keyword.
+    let blocked_body = r#"{"messages":[{"role":"user","content":"my.secret@corp.com"}]}"#;
+    let secret_kw = r"(?:^|[^A-Za-z0-9_])(?<__lf_match>secret)(?:$|[^A-Za-z0-9_])";
+    let outcome = check_request(
+        &[
+            guardrail("audit-email", GuardrailAction::Log, &[EMAIL]),
+            guardrail("block-secret", GuardrailAction::Block, &[secret_kw]),
+        ],
+        ApiFormat::OpenAiChatCompletions,
+        blocked_body.as_bytes(),
+        &scanned(blocked_body, &["messages"]),
+    );
+    assert_eq!(
+        outcome.blocking().map(|finding| finding.id.as_str()),
+        Some("block-secret")
+    );
+
+    // 2. An earlier LOG rule on the same preset and a shorter earlier REDACT rule
+    //    must not prevent a REDACT email rule from scrubbing the full email span.
+    let redact_body = r#"{"messages":[{"role":"user","content":"foo@example.com"}]}"#;
+    let outcome = check_request(
+        &[
+            guardrail("audit-email", GuardrailAction::Log, &[EMAIL]),
+            redact_guardrail("short", "[SHORT]", &[r"foo"]),
+            redact_guardrail("email", "[EMAIL]", &[EMAIL]),
+        ],
+        ApiFormat::OpenAiChatCompletions,
+        redact_body.as_bytes(),
+        &scanned(redact_body, &["messages"]),
+    );
+    assert!(outcome.blocking().is_none());
+    let (findings, edits, _) = outcome.into_parts();
+    let ids: Vec<&str> = findings.iter().map(|finding| finding.id.as_str()).collect();
+    assert_eq!(ids, ["audit-email", "short", "email"]);
+    let rewritten: serde_json::Value =
+        serde_json::from_str(&apply_edits(redact_body, &edits)).unwrap();
+    assert_eq!(rewritten["messages"][0]["content"], "[SHORT]");
+}
+
+#[test]
 fn unreadable_body_fails_closed_for_redact_guardrail() {
     let body = r#"{"messages":[{"role":"user","role":"user","content":"a@example.com"}]}"#;
     let outcome = check_request(

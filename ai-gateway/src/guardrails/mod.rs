@@ -13,7 +13,7 @@ pub(crate) mod text;
 
 use std::{ops::Range, sync::Arc, time::Duration};
 
-use regex_automata::util::captures::Captures;
+use regex_automata::{Input, PatternSet, util::captures::Captures};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use tokio::sync::Semaphore;
@@ -802,7 +802,7 @@ fn apply_local_guardrails(
             redaction_reservations: Vec::new(),
         });
     }
-    let mut regex_slots: Vec<(usize, &[String])> = rules
+    let regex_slots: Vec<(usize, &[String])> = rules
         .iter()
         .enumerate()
         .filter_map(|(slot, rule)| {
@@ -810,28 +810,18 @@ fn apply_local_guardrails(
             Some((slot, patterns))
         })
         .collect();
-    // Put `block` rules ahead of `redact`/`log` so `LeftmostFirst` tie-breaking
-    // favors blocking when two rules match at the exact same starting byte.
-    regex_slots.sort_by_key(|&(slot, _)| {
-        usize::from(
-            rules
-                .get(slot)
-                .and_then(|rule| guardrails.get(rule.guardrail_index))
-                .is_none_or(|guardrail| guardrail.action != GuardrailAction::Block),
-        )
-    });
     let has_external = rules.iter().any(|rule| {
         guardrails
             .get(rule.guardrail_index)
             .is_some_and(Guardrail::is_external)
     });
-    let compiled = (!regex_slots.is_empty()).then(|| regex::compiled(&regex_slots));
+    let detector = (!regex_slots.is_empty()).then(|| regex::compiled_detector(&regex_slots));
 
     let mut state = LocalEvalState::new(
         guardrails,
         rules,
         regex_slots,
-        compiled,
+        detector,
         body,
         has_external,
         budget,
@@ -842,16 +832,23 @@ fn apply_local_guardrails(
     state.finish(unreadable)
 }
 
+struct RedactorSlot {
+    compiled: Arc<Compiled>,
+    caps: Vec<Captures>,
+}
+
 struct LocalEvalState<'g, 'b> {
     guardrails: &'g [Guardrail],
     rules: Vec<RuleState>,
     regex_slots: Vec<(usize, &'g [String])>,
-    compiled: Option<Arc<Compiled>>,
+    detector: Option<Arc<Compiled>>,
+    patsets: Vec<PatternSet>,
+    redactors: Vec<Option<RedactorSlot>>,
+    matched_redact_slots: Vec<usize>,
     body: &'b [u8],
     has_external: bool,
     budget: Option<&'b Arc<Semaphore>>,
     budget_exhausted: bool,
-    caps: Vec<Captures>,
     span_scratch: Vec<RedactionSpan<'g>>,
     blocks: TurnBlocks,
     redaction_reservations: Vec<MemoryReservation>,
@@ -862,28 +859,31 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
         guardrails: &'g [Guardrail],
         rules: Vec<RuleState>,
         regex_slots: Vec<(usize, &'g [String])>,
-        compiled: Option<Arc<Compiled>>,
+        detector: Option<Arc<Compiled>>,
         body: &'b [u8],
         has_external: bool,
         budget: Option<&'b Arc<Semaphore>>,
     ) -> Self {
-        let caps = compiled.as_ref().map_or_else(Vec::new, |compiled| {
+        let patsets = detector.as_ref().map_or_else(Vec::new, |compiled| {
             compiled
                 .matchers
                 .iter()
-                .map(|matcher| matcher.regex.create_captures())
+                .map(|matcher| PatternSet::new(matcher.regex.pattern_len()))
                 .collect()
         });
+        let redactors = (0..rules.len()).map(|_| None).collect();
         Self {
             guardrails,
             rules,
             regex_slots,
-            compiled,
+            detector,
+            patsets,
+            redactors,
+            matched_redact_slots: Vec::new(),
             body,
             has_external,
             budget,
             budget_exhausted: false,
-            caps,
             span_scratch: Vec::new(),
             blocks: TurnBlocks::default(),
             redaction_reservations: Vec::new(),
@@ -892,8 +892,6 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
 
     fn evaluate_turn(&mut self, turn: &LastTurn, scanned: &ScannedMembers) -> bool {
         let guardrails = self.guardrails;
-        let regex_slots = &self.regex_slots;
-        let compiled = self.compiled.as_deref();
         let body = self.body;
         let has_external = self.has_external;
         let budget = self.budget;
@@ -902,46 +900,42 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
                 return;
             }
             self.span_scratch.clear();
-            if let Some(compiled) = compiled {
-                for (matcher, caps) in compiled.matchers.iter().zip(&mut self.caps) {
-                    regex::for_each_match(
-                        &matcher.regex,
-                        caps,
-                        leaf.text,
-                        |pattern, start, end| {
-                            let Some(&(slot, _)) = matcher
-                                .owners
-                                .get(pattern.as_usize())
-                                .and_then(|&owner| regex_slots.get(owner))
-                            else {
-                                return;
-                            };
-                            let Some(rule) = self.rules.get_mut(slot) else {
-                                return;
-                            };
-                            let Some(guardrail) = guardrails.get(rule.guardrail_index) else {
-                                return;
-                            };
-                            if guardrail.action == GuardrailAction::Redact {
-                                if start < end {
-                                    rule.verdict.escalate(RuleVerdict::Redact);
-                                    self.span_scratch.push(RedactionSpan {
-                                        start,
-                                        end,
-                                        priority: slot,
-                                        label: guardrail.redaction_label(),
-                                    });
-                                } else {
-                                    rule.verdict
-                                        .escalate(RuleVerdict::from_fail_closed(guardrail.action));
-                                }
-                            } else {
-                                rule.verdict
-                                    .escalate(RuleVerdict::from_local_match(guardrail.action));
-                            }
-                        },
-                    );
+            self.matched_redact_slots.clear();
+            if let Some(detector) = self.detector.as_deref() {
+                let input = Input::new(leaf.text.as_bytes());
+                for (matcher, patset) in detector.matchers.iter().zip(&mut self.patsets) {
+                    patset.clear();
+                    matcher.regex.which_overlapping_matches(&input, patset);
+                    for pattern in patset.iter() {
+                        let Some(&(slot, _)) = matcher
+                            .owners
+                            .get(pattern.as_usize())
+                            .and_then(|&owner| self.regex_slots.get(owner))
+                        else {
+                            continue;
+                        };
+                        let Some(rule) = self.rules.get_mut(slot) else {
+                            continue;
+                        };
+                        let Some(guardrail) = guardrails.get(rule.guardrail_index) else {
+                            continue;
+                        };
+                        rule.verdict
+                            .escalate(RuleVerdict::from_local_match(guardrail.action));
+                        if guardrail.action == GuardrailAction::Redact
+                            && !self.matched_redact_slots.contains(&slot)
+                        {
+                            self.matched_redact_slots.push(slot);
+                        }
+                    }
                 }
+            }
+            let blocking = self
+                .rules
+                .iter()
+                .any(|rule| rule.verdict == RuleVerdict::Block);
+            if !blocking {
+                self.collect_redact_spans(leaf.text);
             }
             let Ok(redacted) = redact_leaf(
                 body,
@@ -970,6 +964,55 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
             }
         })
         .is_err()
+    }
+
+    fn collect_redact_spans(&mut self, text: &str) {
+        for index in 0..self.matched_redact_slots.len() {
+            let Some(&slot) = self.matched_redact_slots.get(index) else {
+                continue;
+            };
+            let Some(rule) = self.rules.get_mut(slot) else {
+                continue;
+            };
+            let Some(guardrail) = self.guardrails.get(rule.guardrail_index) else {
+                continue;
+            };
+            let Some(patterns) = guardrail.regex_patterns() else {
+                continue;
+            };
+            let Some(entry) = self.redactors.get_mut(slot) else {
+                continue;
+            };
+            let redactor = entry.get_or_insert_with(|| {
+                let compiled = regex::compiled_redactor(patterns);
+                let caps = compiled
+                    .matchers
+                    .iter()
+                    .map(|matcher| matcher.regex.create_captures())
+                    .collect();
+                RedactorSlot { compiled, caps }
+            });
+            let before = self.span_scratch.len();
+            let mut empty_match = false;
+            for (matcher, caps) in redactor.compiled.matchers.iter().zip(&mut redactor.caps) {
+                regex::for_each_match(&matcher.regex, caps, text, |_, start, end| {
+                    if start < end {
+                        self.span_scratch.push(RedactionSpan {
+                            start,
+                            end,
+                            priority: slot,
+                            label: guardrail.redaction_label(),
+                        });
+                    } else {
+                        empty_match = true;
+                    }
+                });
+            }
+            if empty_match || self.span_scratch.len() == before {
+                rule.verdict
+                    .escalate(RuleVerdict::from_fail_closed(guardrail.action));
+            }
+        }
     }
 
     fn finish(mut self, unreadable: bool) -> Result<GuardrailEvaluation, ResolutionError> {
