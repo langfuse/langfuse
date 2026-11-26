@@ -59,12 +59,7 @@ export function GatewayGuardrailsPage({
     return <ConnectedGatewayNotSetUpNotice />;
   }
 
-  const isInitialGuardrailsLoad =
-    table.guardrails.isPending &&
-    table.search.value.trim().length === 0 &&
-    table.pagination.state.pageIndex === 0;
-
-  if (isInitialGuardrailsLoad) return <GuardrailsPageSkeleton />;
+  if (table.guardrails.isPending) return <GuardrailsPageSkeleton />;
 
   if (table.guardrails.data?.organizationCount === 0) {
     if (!canManageGateway) {

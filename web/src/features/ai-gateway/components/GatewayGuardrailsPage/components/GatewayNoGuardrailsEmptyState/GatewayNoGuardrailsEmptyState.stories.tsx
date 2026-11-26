@@ -17,7 +17,7 @@ export const ReadOnly = meta.story({
 });
 
 export const SelectsTemplate = meta.story({
-  name: "(Test) Template card opens the dialog preselected with that template",
+  name: "(Test) Selects template",
   args: { mode: "manage", onAddGuardrail: fn(), onSelectTemplate: fn() },
   play: async ({ canvas, args }) => {
     if (args.mode !== "manage") {

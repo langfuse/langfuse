@@ -1,10 +1,8 @@
 import { Plus } from "@langfuse/icons";
 
-import { Button } from "@/src/components/design-system/Button/Button";
+import { GatewayCatalogEmptyState } from "@/src/features/ai-gateway/components/GatewayCatalogEmptyState/GatewayCatalogEmptyState";
 import type { GatewayGuardrailTemplateKind } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/GatewayGuardrailDialogController";
-import { GuardrailTemplateCard } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/components/GatewayNoGuardrailsEmptyState/components/GuardrailTemplateCard";
-import { NoGuardrailsFrame } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/components/GatewayNoGuardrailsEmptyState/components/NoGuardrailsFrame";
-import { NoGuardrailsTemplateList } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/components/GatewayNoGuardrailsEmptyState/components/NoGuardrailsTemplateList";
+import { NoGuardrailsDiagram } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/components/GatewayNoGuardrailsEmptyState/components/NoGuardrailsDiagram";
 import { GUARDRAIL_TEMPLATE_OPTIONS } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/components/GatewayNoGuardrailsEmptyState/constants/guardrailTemplateOptions";
 import { GATEWAY_GUARDRAILS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 
@@ -24,63 +22,48 @@ export function GatewayNoGuardrailsEmptyState(
 ) {
   if (props.mode === "readOnly") {
     return (
-      <NoGuardrailsFrame
+      <GatewayCatalogEmptyState
+        title="No guardrails yet"
         description="Ask your organization admin to add a guardrail to check prompts and responses passing through the gateway."
-        actions={
-          <Button
-            variant="outline"
-            text="About guardrails"
-            href={GATEWAY_GUARDRAILS_DOCS_URL}
-          />
-        }
+        actions={[
+          {
+            variant: "outline",
+            text: "About guardrails",
+            href: GATEWAY_GUARDRAILS_DOCS_URL,
+          },
+        ]}
+        optionsHeading="Templates"
+        options={GUARDRAIL_TEMPLATE_OPTIONS}
       >
-        <NoGuardrailsTemplateList>
-          {GUARDRAIL_TEMPLATE_OPTIONS.map(({ id, title, hint, icon }) => (
-            <li key={id}>
-              <GuardrailTemplateCard
-                templateKind={id}
-                title={title}
-                hint={hint}
-                icon={icon}
-              />
-            </li>
-          ))}
-        </NoGuardrailsTemplateList>
-      </NoGuardrailsFrame>
+        <NoGuardrailsDiagram />
+      </GatewayCatalogEmptyState>
     );
   }
 
   return (
-    <NoGuardrailsFrame
+    <GatewayCatalogEmptyState
+      title="No guardrails yet"
       description="Guardrails check prompts and responses as they pass through the gateway. On a match, they mask the value, block the request or log it."
-      actions={
-        <>
-          <Button
-            variant="outline"
-            text="Setup guide"
-            href={GATEWAY_GUARDRAILS_DOCS_URL}
-          />
-          <Button
-            text="Add guardrail"
-            icon={Plus}
-            onClick={props.onAddGuardrail}
-          />
-        </>
-      }
+      actions={[
+        {
+          variant: "outline",
+          text: "Setup guide",
+          href: GATEWAY_GUARDRAILS_DOCS_URL,
+        },
+        {
+          text: "Add guardrail",
+          icon: Plus,
+          onClick: props.onAddGuardrail,
+        },
+      ]}
+      optionsHeading="Templates"
+      options={GUARDRAIL_TEMPLATE_OPTIONS.map((template) => ({
+        ...template,
+        actionLabel: "Configure",
+        onSelect: () => props.onSelectTemplate(template.id),
+      }))}
     >
-      <NoGuardrailsTemplateList>
-        {GUARDRAIL_TEMPLATE_OPTIONS.map(({ id, title, hint, icon }) => (
-          <li key={id}>
-            <GuardrailTemplateCard
-              templateKind={id}
-              title={title}
-              hint={hint}
-              icon={icon}
-              onSelect={props.onSelectTemplate}
-            />
-          </li>
-        ))}
-      </NoGuardrailsTemplateList>
-    </NoGuardrailsFrame>
+      <NoGuardrailsDiagram />
+    </GatewayCatalogEmptyState>
   );
 }
