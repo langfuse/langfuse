@@ -141,7 +141,7 @@ export function EvaluatorSampleDetail({
     <SampleHeader title={title} count={count}>
       {/* In a tight row the trace name gives way before the title. */}
       <span
-        className="text-muted-foreground ml-auto max-w-48 min-w-0 shrink-100 truncate text-sm"
+        className="ph-no-capture text-muted-foreground ml-auto max-w-48 min-w-0 shrink-100 truncate text-sm"
         title={traceName}
       >
         {traceName}

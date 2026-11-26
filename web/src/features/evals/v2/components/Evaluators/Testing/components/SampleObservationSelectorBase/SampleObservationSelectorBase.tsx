@@ -54,6 +54,7 @@ import {
   useSampleObservationFilterOptions,
 } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/hooks/useSampleObservationFilterOptions";
 import { EvaluatorSampleDetail } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorSampleDetail/EvaluatorSampleDetail";
+import { useEvaluatorSampleTraceCount } from "@/src/features/evals/v2/hooks/useEvaluatorSampleTraceCount";
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import type { RuleTargetObject } from "@/src/features/evals/v2/types/rules";
@@ -467,22 +468,28 @@ export function SampleObservationSelectorBase(
     ? resolveSelection(detailObservations, selectedObservationId)
     : undefined;
   const loadedPageCount = observationQuery.data?.pages.length ?? 0;
-  const needsMoreTraces =
-    isTraceTarget &&
+  const traceCount = useEvaluatorSampleTraceCount({
+    projectId,
+    filter: effectiveFilters,
+    searchQuery,
+    searchType,
+    enabled: isTraceTarget && showTraceDetail,
+  });
+  // Pages may load unasked up to this many; each step by the user extends it.
+  const [autoPageLimit, setAutoPageLimit] = useState(MAX_TRACE_SAMPLE_PAGES);
+  const canAutoLoad =
     showTraceDetail &&
     querySettled &&
     observationQuery.hasNextPage &&
-    detailObservations.length < MIN_SAMPLE_TRACES &&
-    loadedPageCount < MAX_TRACE_SAMPLE_PAGES;
+    loadedPageCount < autoPageLimit &&
+    (traceCount === null || detailObservations.length < traceCount);
+  const needsMoreTraces =
+    isTraceTarget && detailObservations.length < MIN_SAMPLE_TRACES;
   const selectedSampleIndex = detailObservations.findIndex(
     (observation) => observation.id === selectedObservationId,
   );
-  const isNearLastSample =
-    showTraceDetail &&
-    querySettled &&
-    observationQuery.hasNextPage &&
-    selectedSampleIndex >= detailObservations.length - 2;
-  const needsNextPage = needsMoreTraces || isNearLastSample;
+  const isNearLastSample = selectedSampleIndex >= detailObservations.length - 2;
+  const needsNextPage = canAutoLoad && (needsMoreTraces || isNearLastSample);
   const fetchNextObservationPage = observationQuery.fetchNextPage;
   useEffect(() => {
     if (!needsNextPage) return;
@@ -604,18 +611,9 @@ export function SampleObservationSelectorBase(
     />
   );
 
-  const traceCountQuery = api.events.countAll.useQuery(
-    {
-      projectId,
-      filter: effectiveFilters,
-      searchQuery,
-      searchType,
-      orderBy: null,
-    },
-    { enabled: isTraceTarget && showTraceDetail },
-  );
-  const traceCount = traceCountQuery.data?.uniqueTraceCount ?? null;
-  const sampleCount = isTraceTarget ? traceCount : options.approxTotalCount;
+  // The approximate observation count does not see a text search.
+  const observationCount = searchQuery ? null : options.approxTotalCount;
+  const sampleCount = isTraceTarget ? traceCount : observationCount;
   const sampleCountLabel =
     sampleCount !== null ? formatCount(sampleCount) : null;
   // An approximate count can trail what is already loaded.
@@ -728,7 +726,10 @@ export function SampleObservationSelectorBase(
             observations={detailObservations}
             selectedObservationId={selectedObservationId}
             pending={observationsPending}
-            onSelect={onSelect}
+            onSelect={(observation) => {
+              setAutoPageLimit(loadedPageCount + MAX_TRACE_SAMPLE_PAGES);
+              onSelect(observation);
+            }}
           />
         </section>
       )}
