@@ -22,7 +22,7 @@ import { type TreeNode } from "../types/treeNode";
 import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
-import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { SampleBadge } from "@/src/features/traces/components/SampleBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -176,13 +176,7 @@ function LoadedSpanContent({
           shouldRenderScores ||
           shouldRenderCorrection ||
           isSelectedObservation) && (
-          <div
-            className={cn(
-              "flex min-w-0 flex-wrap items-center gap-x-3 font-mono",
-              // The sample badge can wrap under a score chip.
-              isSelectedObservation && "gap-y-1",
-            )}
-          >
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 font-mono">
             {/* Duration (own span) */}
             {shouldRenderDuration ? (
               <span
@@ -235,12 +229,7 @@ function LoadedSpanContent({
               </span>
             )}
 
-            {isSelectedObservation ? (
-              <BadgeShell color="blue" size="sm">
-                <span className="size-1.5 shrink-0 rounded-full bg-current" />
-                <span className="uppercase">Will be evaluated</span>
-              </BadgeShell>
-            ) : null}
+            {isSelectedObservation ? <SampleBadge /> : null}
           </div>
         )}
       </div>
