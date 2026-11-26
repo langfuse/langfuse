@@ -16,7 +16,7 @@ export function TopicCostEstimateCard({
   ...props
 }: TopicCostForecast & TopicEstimateVolume) {
   const { region } = useLangfuseCloudRegion();
-  const showUsage = region !== undefined && region !== "DEV";
+  const showUsage = region !== undefined;
   if (!modelPrice)
     return <TopicCostEstimateView {...props} showUsage={showUsage} />;
   const { estimate } = props;

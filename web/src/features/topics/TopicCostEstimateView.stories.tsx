@@ -48,7 +48,7 @@ export const Running = meta.story({
 
 export const Done = meta.story({ args: { estimate: estimate() } });
 
-// Self-hosted and local dev have no billable units, so only model cost shows.
+// Self-hosted has no billable units, so only model cost shows.
 export const WithoutUsage = meta.story({
   args: { estimate: estimate(), showUsage: false },
 });
