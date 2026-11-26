@@ -67,6 +67,34 @@ export function ConnectedAuditLogsTable(props: AuditLogsTableProps) {
     },
   });
 
+  const exportDropdown =
+    props.scope === "project" && !uiExportsDisabledReason
+      ? {
+          title: "Export",
+          description:
+            "Note: Filters are not applied to audit log exports. All audit logs for this project will be exported.",
+          disabled: createExport.isPending,
+          items: (Object.keys(exportOptions) as BatchExportFileFormat[]).map(
+            (format) => ({
+              type: "item" as const,
+              id: `export-${format}`,
+              title: `as ${exportOptions[format].label}`,
+              onClick: () =>
+                createExport.mutate({
+                  projectId: props.projectId,
+                  name: `${new Date().toISOString()} - ${BatchExportTableName.AuditLogs} as ${format}`,
+                  format,
+                  query: {
+                    tableName: BatchExportTableName.AuditLogs,
+                    filter: [],
+                    orderBy: { column: "createdAt", order: "DESC" },
+                  },
+                }),
+            }),
+          ),
+        }
+      : undefined;
+
   const toolbarActions =
     props.scope === "project" && hasBatchExportAccess
       ? [
@@ -78,32 +106,7 @@ export function ConnectedAuditLogsTable(props: AuditLogsTableProps) {
             loading: createExport.isPending,
             disabled: Boolean(uiExportsDisabledReason),
             disabledReason: uiExportsDisabledReason ?? undefined,
-            dropdown: uiExportsDisabledReason
-              ? undefined
-              : {
-                  title: "Export",
-                  description:
-                    "Note: Filters are not applied to audit log exports. All audit logs for this project will be exported.",
-                  disabled: createExport.isPending,
-                  items: (
-                    Object.keys(exportOptions) as BatchExportFileFormat[]
-                  ).map((format) => ({
-                    type: "item" as const,
-                    id: `export-${format}`,
-                    title: `as ${exportOptions[format].label}`,
-                    onClick: () =>
-                      createExport.mutate({
-                        projectId: props.projectId,
-                        name: `${new Date().toISOString()} - ${BatchExportTableName.AuditLogs} as ${format}`,
-                        format,
-                        query: {
-                          tableName: BatchExportTableName.AuditLogs,
-                          filter: [],
-                          orderBy: { column: "createdAt", order: "DESC" },
-                        },
-                      }),
-                  })),
-                },
+            dropdown: exportDropdown,
           },
         ]
       : undefined;
