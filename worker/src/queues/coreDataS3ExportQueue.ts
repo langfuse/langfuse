@@ -1906,8 +1906,17 @@ const enqueueMediaUsageExport = async (jobId: string, delay = 0) => {
   }
   const existing = await queue.getJob(jobId);
   if (existing && (await existing.isFailed())) {
-    await existing.retry("failed", { resetAttemptsMade: true });
-    return;
+    try {
+      await existing.retry("failed", { resetAttemptsMade: true });
+      return;
+    } catch (error) {
+      // The job left the failed set meanwhile (retried or removed); the add
+      // below then dedupes or re-creates it.
+      logger.warn(
+        `[CORE DATA] Could not retry media usage export job ${jobId}`,
+        error,
+      );
+    }
   }
   await queue.add(QueueJobs.CoreDataMediaUsageExportJob, {}, { jobId, delay });
 };
