@@ -31,7 +31,7 @@ type ConfiguredLineChartSeries = LineChartSeries & {
   emphasis?: "default" | "dimmed" | "emphasized";
 };
 
-export type ChartLegendInteraction = "toggle" | "select_all" | "clear_all";
+type ChartLegendInteraction = "toggle" | "select_all" | "clear_all";
 
 export type LineChartLegend =
   | { visibility: "hidden" }

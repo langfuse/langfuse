@@ -12,7 +12,6 @@ import {
 import {
   buildMultiQueryPlan,
   normalizeMultiQueryResults,
-  resolveMultiQueryView,
 } from "./multiQueryModel";
 
 const config: MultiQueryConfig = {
@@ -311,33 +310,6 @@ describe("multi-query ordinary query composition", () => {
     expect(formatMultiQueryFormula(tab, stored)).toBe(named);
     expect(parseMultiQueryFormulaInput(tab, named)).toBe(stored);
     expect(parseMultiQueryFormulaInput(tab, "A + B / C")).toBe(stored);
-  });
-
-  it("switches named execution subsets without invalidating the other saved views and falls back after deletion", () => {
-    const named = {
-      ...config,
-      views: [
-        { id: "abc", label: "Only abc", queryIds: ["a"] },
-        { id: "bbc", label: "Only bbc", queryIds: ["b"] },
-      ],
-      defaultViewId: "abc",
-    };
-    for (const [viewId, queryId] of [
-      ["abc", "a"],
-      ["bbc", "b"],
-    ]) {
-      const selected = resolveMultiQueryView(named, viewId);
-      expect(
-        buildMultiQueryPlan(named, context, selected.queryIds).queries.map(
-          (query) => query.source.id,
-        ),
-      ).toEqual([queryId]);
-    }
-    expect(
-      resolveMultiQueryView({ ...named, views: named.views.slice(0, 1) }, "bbc")
-        .viewId,
-    ).toBe("abc");
-    expect(resolveMultiQueryView(named, "all").queryIds).toEqual(["a", "b"]);
   });
 
   it("builds separate presence queries with production environment override and canonical query versions", () => {

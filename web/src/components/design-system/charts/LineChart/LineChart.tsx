@@ -5,7 +5,6 @@ import { type ComponentProps } from "react";
 import { SeriesChartCore } from "@/src/components/design-system/internal/charts/SeriesChartCore";
 
 export type {
-  ChartLegendInteraction,
   LineChartLegend,
   LineChartThreshold,
 } from "@/src/components/design-system/internal/charts/SeriesChartCore";

@@ -121,21 +121,6 @@ function queryChartType(type: MultiQueryConfig["display"]["chartType"]) {
   return type;
 }
 
-export function resolveMultiQueryView(
-  config: MultiQueryConfig,
-  selectedId: string | undefined,
-) {
-  const selected =
-    selectedId === "all"
-      ? undefined
-      : (config.views?.find((view) => view.id === selectedId) ??
-        config.views?.find((view) => view.id === config.defaultViewId));
-  return {
-    viewId: selected?.id ?? "all",
-    queryIds: selected?.queryIds ?? config.queries.map((query) => query.id),
-  };
-}
-
 export function buildMultiQueryPlan(
   config: MultiQueryConfig,
   context: MultiQueryContext,
