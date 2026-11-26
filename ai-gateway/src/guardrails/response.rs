@@ -548,6 +548,13 @@ fn extract_chat_json(value: &Value, blocks: &mut Vec<ResponseBlock>) -> Result<(
                 true,
             );
         }
+        if let Some(annotations) = map.get("annotations").filter(|v| !v.is_null()) {
+            collect_annotations(
+                annotations,
+                &format!("{msg_ptr}/annotations"),
+                &mut |text, ptr| push_leaf(blocks, None, text, ptr, true),
+            )?;
+        }
     }
     Ok(())
 }
@@ -604,11 +611,37 @@ fn collect_citation_fields(
     let Some(map) = citation.as_object() else {
         return;
     };
-    for key in ["cited_text", "document_title", "title", "url", "source"] {
+    for key in [
+        "cited_text",
+        "document_title",
+        "title",
+        "url",
+        "source",
+        "filename",
+        "text",
+        "quote",
+    ] {
         if let Some(text) = map.get(key).and_then(Value::as_str) {
             on_field(text, ptr_push(base_ptr, key));
         }
     }
+    for nested_key in ["url_citation", "file_citation", "file_path"] {
+        if let Some(nested) = map.get(nested_key) {
+            collect_citation_fields(nested, &ptr_push(base_ptr, nested_key), on_field);
+        }
+    }
+}
+
+fn collect_annotations(
+    annotations: &Value,
+    base_ptr: &str,
+    on_field: &mut impl FnMut(&str, String),
+) -> Result<(), Unreadable> {
+    for (idx, annotation) in annotations.as_array().ok_or(Unreadable)?.iter().enumerate() {
+        let ann_ptr = ptr_index(base_ptr, idx);
+        collect_citation_fields(annotation, &ann_ptr, on_field);
+    }
+    Ok(())
 }
 
 fn extract_responses_json(
@@ -633,6 +666,17 @@ fn extract_responses_json(
             ] {
                 if let Some(field) = map.get(key) {
                     collect_text_or_parts(field, None, &ptr_push(&item_ptr, key), 0, blocks)?;
+                }
+            }
+            if let Some(content) = map.get("content").and_then(Value::as_array) {
+                for (part_idx, part) in content.iter().enumerate() {
+                    if let Some(annotations) = part.get("annotations").filter(|v| !v.is_null()) {
+                        collect_annotations(
+                            annotations,
+                            &format!("{item_ptr}/content/{part_idx}/annotations"),
+                            &mut |text, ptr| push_leaf(blocks, None, text, ptr, true),
+                        )?;
+                    }
                 }
             }
         }
@@ -904,6 +948,15 @@ fn extract_chat_sse(
                 transcript,
             );
         }
+        if let Some(annotations) = map.get("annotations").filter(|v| !v.is_null()) {
+            collect_annotations(
+                annotations,
+                &format!("{delta_ptr}/annotations"),
+                &mut |text, ptr| {
+                    attach_matching_or_push_leaf(&mut collector.blocks, Some(frame_idx), text, ptr);
+                },
+            )?;
+        }
     }
     Ok(())
 }
@@ -1106,6 +1159,13 @@ fn extract_responses_sse(
         return Ok(());
     }
     match kind {
+        "response.output_text.annotation.added" => {
+            if let Some(annotation) = value.get("annotation") {
+                collect_citation_fields(annotation, "/annotation", &mut |text, ptr| {
+                    attach_matching_or_push_leaf(&mut collector.blocks, Some(frame_idx), text, ptr);
+                });
+            }
+        }
         "response.content_part.done" | "response.reasoning_summary_part.done" => {
             let (part_idx, text_slot) = if kind == "response.reasoning_summary_part.done" {
                 (
@@ -1184,6 +1244,22 @@ fn collect_responses_part_sse(
                 frame_idx,
                 ptr_push(ptr, field),
                 text,
+            );
+        }
+    }
+    if let Some(annotations) = part.get("annotations").and_then(Value::as_array) {
+        for (idx, annotation) in annotations.iter().enumerate() {
+            collect_citation_fields(
+                annotation,
+                &format!("{ptr}/annotations/{idx}"),
+                &mut |text, leaf_ptr| {
+                    attach_matching_or_push_leaf(
+                        &mut collector.blocks,
+                        Some(frame_idx),
+                        text,
+                        leaf_ptr,
+                    );
+                },
             );
         }
     }

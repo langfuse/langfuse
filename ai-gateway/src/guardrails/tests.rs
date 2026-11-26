@@ -803,6 +803,64 @@ fn redacts_non_streaming_json_responses_across_all_api_formats() {
 }
 
 #[test]
+fn redacts_openai_annotations_in_chat_and_responses_json_and_sse() {
+    let guardrails = [
+        redact_guardrail("email", "[EMAIL]", &[EMAIL]),
+        redact_guardrail("ssn", "[SSN]", &[SSN]),
+    ];
+
+    let chat_json = r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"See source.","annotations":[{"type":"url_citation","url_citation":{"url":"https://example.com/?e=alice@example.com","title":"Record 123-45-6789"}}]}}]}"#;
+    let chat_rewritten: serde_json::Value =
+        serde_json::from_str(&rewritten_response_str(check_response_local(
+            &guardrails,
+            ApiFormat::OpenAiChatCompletions,
+            ResponseFormat::Json,
+            chat_json,
+        )))
+        .unwrap();
+    assert_eq!(
+        chat_rewritten["choices"][0]["message"]["annotations"][0]["url_citation"]["url"],
+        "https://example.com/?e=[EMAIL]"
+    );
+    assert_eq!(
+        chat_rewritten["choices"][0]["message"]["annotations"][0]["url_citation"]["title"],
+        "Record [SSN]"
+    );
+
+    let responses_json = r#"{"id":"resp_1","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"See source.","annotations":[{"type":"url_citation","url":"https://example.com/?e=bob@example.com","title":"SSN 123-45-6789"}]}]}]}"#;
+    let resp_rewritten: serde_json::Value =
+        serde_json::from_str(&rewritten_response_str(check_response_local(
+            &guardrails,
+            ApiFormat::OpenAiResponses,
+            ResponseFormat::Json,
+            responses_json,
+        )))
+        .unwrap();
+    assert_eq!(
+        resp_rewritten["output"][0]["content"][0]["annotations"][0]["url"],
+        "https://example.com/?e=[EMAIL]"
+    );
+    assert_eq!(
+        resp_rewritten["output"][0]["content"][0]["annotations"][0]["title"],
+        "SSN [SSN]"
+    );
+
+    let responses_sse = concat!(
+        "event: response.output_text.annotation.added\ndata: {\"type\":\"response.output_text.annotation.added\",\"output_index\":0,\"content_index\":0,\"annotation\":{\"type\":\"url_citation\",\"title\":\"SSN 123-45-6789\"}}\n\n",
+        "event: response.content_part.done\ndata: {\"type\":\"response.content_part.done\",\"output_index\":0,\"content_index\":0,\"part\":{\"type\":\"output_text\",\"text\":\"ok\",\"annotations\":[{\"type\":\"url_citation\",\"title\":\"SSN 123-45-6789\"}]}}\n\n",
+        "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"ok\",\"annotations\":[{\"type\":\"url_citation\",\"title\":\"SSN 123-45-6789\"}]}]}]}}\n\n"
+    );
+    let sse_rewritten = rewritten_response_str(check_response_local(
+        &guardrails,
+        ApiFormat::OpenAiResponses,
+        ResponseFormat::Sse,
+        responses_sse,
+    ));
+    assert!(!sse_rewritten.contains("123-45-6789"));
+    assert_eq!(sse_rewritten.matches("SSN [SSN]").count(), 3);
+}
+
+#[test]
 fn redacts_span_crossing_sse_chunks_and_deduplicates_responses_summaries() {
     let guardrails = [redact_guardrail("ssn", "[SSN]", &[SSN])];
 
