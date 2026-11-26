@@ -1,10 +1,6 @@
-import { createHash, randomUUID } from "node:crypto";
-import { Readable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
-import {
-  createOrgProjectAndApiKey,
-  type StorageService,
-} from "@langfuse/shared/src/server";
+import { Readable } from "node:stream";
+import { type StorageService } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   PRODUCTION_LABEL,
@@ -13,7 +9,6 @@ import {
 } from "@langfuse/shared";
 import {
   coreDataTableExports,
-  createMediaUsageDailyFetchPage,
   mapDashboardToCoreDataRow,
   mapDashboardWidgetToCoreDataRow,
   mapDatasetToCoreDataRow,
@@ -24,7 +19,6 @@ import {
   mapGatewayAiConnectionToCoreDataRow,
   mapInAppAgentRunToCoreDataRow,
   mapJobConfigurationToCoreDataRow,
-  mapMediaUsageDailyToCoreDataRow,
   mapMembershipInvitationToCoreDataRow,
   mapModelToCoreDataRow,
   mapMonitorToCoreDataRow,
@@ -48,25 +42,6 @@ const readStream = async (stream: Readable): Promise<string> => {
   }
 
   return chunks.join("");
-};
-
-const sqlText = (strings: unknown, values: unknown[]): string => {
-  const parts = Array.isArray(strings) ? (strings as string[]) : [];
-  return parts
-    .map((part, index) => {
-      const value = values[index];
-      if (
-        value &&
-        typeof value === "object" &&
-        "strings" in value &&
-        "values" in value
-      ) {
-        const nested = value as { strings: unknown; values: unknown[] };
-        return part + sqlText(nested.strings, nested.values);
-      }
-      return part;
-    })
-    .join("");
 };
 
 describe("mapUserToCoreDataRow", () => {
@@ -315,7 +290,6 @@ describe("coreDataTableExports", () => {
     for (const delegate of delegates) {
       vi.spyOn(delegate, "findMany").mockResolvedValue([]);
     }
-    const queryRaw = vi.spyOn(prisma, "$queryRaw").mockResolvedValue([]);
 
     const uploadedFiles: string[] = [];
     const s3Client = {
@@ -327,21 +301,13 @@ describe("coreDataTableExports", () => {
       ),
     } as unknown as StorageService;
 
-    let mediaUsageSql = "";
-    try {
-      await Promise.all(
-        coreDataTableExports.map((exportTable) =>
-          exportTable({ s3Client, uploadPrefix: "core/" }),
-        ),
-      );
-      mediaUsageSql = queryRaw.mock.calls
-        .map((call) => sqlText(call[0], call.slice(1)))
-        .join("\n");
-    } finally {
-      queryRaw.mockRestore();
-    }
+    await Promise.all(
+      coreDataTableExports.map((exportTable) =>
+        exportTable({ s3Client, uploadPrefix: "core/" }),
+      ),
+    );
 
-    return { uploadedFiles, mediaUsageSql };
+    return uploadedFiles;
   };
 
   const selectFor = (findMany: {
@@ -349,7 +315,7 @@ describe("coreDataTableExports", () => {
   }) => findMany.mock.calls[0]?.[0]?.select;
 
   it("exports one file per settings and feature table, without secret or customer-authored columns", async () => {
-    const { uploadedFiles, mediaUsageSql } = await runAllExports();
+    const uploadedFiles = await runAllExports();
 
     expect(uploadedFiles).toEqual(
       expect.arrayContaining(
@@ -383,7 +349,6 @@ describe("coreDataTableExports", () => {
           "models",
           "externalMediaStorageIntegrations",
           "webCalloutEndpoints",
-          "mediaUsageDaily",
         ].map((table) => `core/${table}.jsonl`),
       ),
     );
@@ -446,18 +411,6 @@ describe("coreDataTableExports", () => {
       [prisma.tableViewPreset, ["name", "filters", "searchQuery"]],
       [prisma.batchExport, ["name", "query", "url", "log"]],
     ];
-    for (const column of [
-      "bucket_path",
-      "bucket_name",
-      "sha_256_hash",
-      "upload_http_error",
-      "trace_media",
-      "observation_media",
-      "dataset_item_media",
-    ]) {
-      expect(mediaUsageSql).not.toContain(column);
-    }
-    expect(mediaUsageSql).toContain("GROUP BY");
     for (const [delegate, columns] of neverSelected) {
       const select = selectFor(vi.mocked(delegate.findMany) as never);
       for (const column of columns) {
@@ -467,7 +420,7 @@ describe("coreDataTableExports", () => {
   });
 
   it("includes the evaluator v2 tables", async () => {
-    const { uploadedFiles } = await runAllExports();
+    const uploadedFiles = await runAllExports();
 
     expect(uploadedFiles).toEqual(
       expect.arrayContaining([
@@ -513,302 +466,6 @@ describe("coreDataTableExports", () => {
       chartType: true,
       chartConfig: true,
     });
-  });
-});
-
-const compareMediaUsageRows = (
-  left: {
-    projectId: string;
-    createdDate: string;
-    contentType: string;
-    isUploaded: boolean;
-    uploadHttpStatus: number | null;
-  },
-  right: {
-    projectId: string;
-    createdDate: string;
-    contentType: string;
-    isUploaded: boolean;
-    uploadHttpStatus: number | null;
-  },
-) => {
-  const byText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-  const byStatus = (status: number | null) =>
-    status ?? Number.POSITIVE_INFINITY;
-
-  return (
-    byText(left.projectId, right.projectId) ||
-    byText(left.createdDate, right.createdDate) ||
-    byText(left.contentType, right.contentType) ||
-    Number(left.isUploaded) - Number(right.isUploaded) ||
-    byStatus(left.uploadHttpStatus) - byStatus(right.uploadHttpStatus)
-  );
-};
-
-describe("mediaUsageDaily export", () => {
-  it("rolls media up by project, UTC day, content type, and upload state", async () => {
-    const [{ projectId: projectA }, { projectId: projectB }] =
-      await Promise.all([
-        createOrgProjectAndApiKey(),
-        createOrgProjectAndApiKey(),
-      ]);
-    const secret = `do-not-export-${randomUUID()}`;
-    const day1Early = new Date("2026-03-01T00:00:00.000Z");
-    const day1Late = new Date("2026-03-01T23:59:59.999Z");
-    const day2 = new Date("2026-03-02T00:30:00.000Z");
-    const snapshotAt = new Date("2026-11-17T03:04:05.000Z");
-    const mediaIds = [
-      randomUUID(),
-      randomUUID(),
-      randomUUID(),
-      randomUUID(),
-      randomUUID(),
-      randomUUID(),
-      randomUUID(),
-      randomUUID(),
-    ];
-
-    const hash = (seed: string) =>
-      createHash("sha256").update(seed).digest("base64");
-
-    try {
-      await prisma.media.createMany({
-        data: [
-          {
-            id: mediaIds[0],
-            projectId: projectA,
-            sha256Hash: hash(mediaIds[0]!),
-            bucketPath: `${secret}/a-morning`,
-            bucketName: secret,
-            contentType: "image/png",
-            contentLength: 100,
-            createdAt: day1Early,
-            uploadedAt: day1Early,
-            uploadHttpStatus: 201,
-            uploadHttpError: secret,
-          },
-          {
-            id: mediaIds[1],
-            projectId: projectA,
-            sha256Hash: hash(mediaIds[1]!),
-            bucketPath: `${secret}/a-late`,
-            bucketName: secret,
-            contentType: "image/png",
-            contentLength: 250,
-            createdAt: day1Late,
-            uploadedAt: day1Late,
-            uploadHttpStatus: 201,
-          },
-          {
-            id: mediaIds[2],
-            projectId: projectA,
-            sha256Hash: hash(mediaIds[2]!),
-            bucketPath: `${secret}/a-pending`,
-            bucketName: secret,
-            contentType: "image/png",
-            contentLength: 40,
-            createdAt: day1Early,
-            uploadedAt: null,
-            uploadHttpStatus: null,
-          },
-          {
-            id: mediaIds[3],
-            projectId: projectA,
-            sha256Hash: hash(mediaIds[3]!),
-            bucketPath: `${secret}/a-jpeg`,
-            bucketName: secret,
-            contentType: "image/jpeg",
-            contentLength: 10,
-            createdAt: day1Early,
-            uploadedAt: day1Early,
-            uploadHttpStatus: 201,
-          },
-          {
-            id: mediaIds[4],
-            projectId: projectA,
-            sha256Hash: hash(mediaIds[4]!),
-            bucketPath: `${secret}/a-failed`,
-            bucketName: secret,
-            contentType: "image/png",
-            contentLength: 5,
-            createdAt: day2,
-            uploadedAt: day2,
-            uploadHttpStatus: 500,
-          },
-          {
-            id: mediaIds[5],
-            projectId: projectA,
-            sha256Hash: hash(mediaIds[5]!),
-            bucketPath: `${secret}/a-rejected`,
-            bucketName: secret,
-            contentType: "image/png",
-            contentLength: 7,
-            createdAt: day2,
-            uploadedAt: null,
-            uploadHttpStatus: 413,
-          },
-          {
-            id: mediaIds[6],
-            projectId: projectA,
-            sha256Hash: hash(mediaIds[6]!),
-            bucketPath: `${secret}/a-uploaded-no-status`,
-            bucketName: secret,
-            contentType: "image/png",
-            contentLength: 9,
-            createdAt: day2,
-            uploadedAt: day2,
-            uploadHttpStatus: null,
-          },
-          {
-            id: mediaIds[7],
-            projectId: projectB,
-            sha256Hash: hash(mediaIds[7]!),
-            bucketPath: `${secret}/b`,
-            bucketName: secret,
-            contentType: "image/png",
-            contentLength: 1000,
-            createdAt: day1Early,
-            uploadedAt: day1Early,
-            uploadHttpStatus: 201,
-          },
-        ],
-      });
-
-      let jsonl = "";
-      const uploadFileBuffered = vi.fn(async ({ data }: { data: Readable }) => {
-        jsonl = await readStream(data);
-      });
-
-      const queryRaw = vi.spyOn(prisma, "$queryRaw");
-      try {
-        await uploadTableCoreDataJsonl({
-          s3Client: { uploadFileBuffered } as unknown as StorageService,
-          uploadPrefix: "core/",
-          tableName: "mediaUsageDaily",
-          pageSize: 1,
-          fetchPage: createMediaUsageDailyFetchPage(),
-          mapRow: (row) => mapMediaUsageDailyToCoreDataRow(row, snapshotAt),
-        });
-        // Paging over one aggregate keeps an upload that finishes mid-export
-        // from landing in two groups.
-        expect(queryRaw).toHaveBeenCalledTimes(1);
-      } finally {
-        queryRaw.mockRestore();
-      }
-
-      const rows = jsonl
-        .split("\n")
-        .filter((line) => line.length > 0)
-        .map((line) => JSON.parse(line) as Record<string, unknown>)
-        .filter(
-          (row) => row.projectId === projectA || row.projectId === projectB,
-        );
-
-      const snapshot = "2026-11-17T03:04:05.000Z";
-      const expected = [
-        {
-          projectId: projectA,
-          contentType: "image/jpeg",
-          createdDate: "2026-03-01",
-          isUploaded: true,
-          uploadHttpStatus: 201,
-          mediaCount: 1,
-          totalContentLength: 10,
-          snapshotAt: snapshot,
-        },
-        {
-          projectId: projectA,
-          contentType: "image/png",
-          createdDate: "2026-03-01",
-          isUploaded: false,
-          uploadHttpStatus: null,
-          mediaCount: 1,
-          totalContentLength: 40,
-          snapshotAt: snapshot,
-        },
-        {
-          projectId: projectA,
-          contentType: "image/png",
-          createdDate: "2026-03-01",
-          isUploaded: true,
-          uploadHttpStatus: 201,
-          mediaCount: 2,
-          totalContentLength: 350,
-          snapshotAt: snapshot,
-        },
-        {
-          projectId: projectA,
-          contentType: "image/png",
-          createdDate: "2026-03-02",
-          isUploaded: false,
-          uploadHttpStatus: 413,
-          mediaCount: 1,
-          totalContentLength: 7,
-          snapshotAt: snapshot,
-        },
-        {
-          projectId: projectA,
-          contentType: "image/png",
-          createdDate: "2026-03-02",
-          isUploaded: true,
-          uploadHttpStatus: 500,
-          mediaCount: 1,
-          totalContentLength: 5,
-          snapshotAt: snapshot,
-        },
-        {
-          projectId: projectA,
-          contentType: "image/png",
-          createdDate: "2026-03-02",
-          isUploaded: true,
-          uploadHttpStatus: null,
-          mediaCount: 1,
-          totalContentLength: 9,
-          snapshotAt: snapshot,
-        },
-        {
-          projectId: projectB,
-          contentType: "image/png",
-          createdDate: "2026-03-01",
-          isUploaded: true,
-          uploadHttpStatus: 201,
-          mediaCount: 1,
-          totalContentLength: 1000,
-          snapshotAt: snapshot,
-        },
-      ].sort(compareMediaUsageRows);
-
-      expect(rows).toEqual(expected);
-      expect(Object.keys(rows[0] ?? {})).toEqual([
-        "projectId",
-        "contentType",
-        "createdDate",
-        "isUploaded",
-        "uploadHttpStatus",
-        "mediaCount",
-        "totalContentLength",
-        "snapshotAt",
-      ]);
-      expect(jsonl).toContain('"mediaCount":2');
-      expect(jsonl).toContain('"totalContentLength":350');
-      expect(jsonl).not.toContain('totalContentLength":"');
-      expect(jsonl).not.toContain(secret);
-      for (const mediaId of mediaIds) {
-        expect(jsonl).not.toContain(mediaId);
-      }
-      expect(jsonl).not.toContain("2026-03-01T00:00:00.000Z");
-      expect(jsonl).not.toContain("2026-03-01T23:59:59.999Z");
-      expect(uploadFileBuffered).toHaveBeenCalledWith(
-        expect.objectContaining({
-          fileName: "core/mediaUsageDaily.jsonl",
-          fileType: "application/x-ndjson",
-        }),
-      );
-    } finally {
-      await prisma.media.deleteMany({
-        where: { projectId: { in: [projectA, projectB] } },
-      });
-    }
   });
 });
 
