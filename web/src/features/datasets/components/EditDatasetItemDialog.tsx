@@ -1,9 +1,9 @@
-/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { api } from "@/src/utils/api";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Control, useForm, useWatch } from "react-hook-form";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import { Form } from "@/src/components/ui/form";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -61,6 +61,52 @@ const formSchema = z.object({
   ),
 });
 
+/**
+ * Submit button isolated from the dialog so schema validation (which depends on
+ * the live field values) re-renders only the button as the user types, not the
+ * editors. Subscribes to the values via `useWatch` rather than `form.watch` at
+ * the dialog level.
+ */
+const SaveChangesButton = ({
+  control,
+  dataset,
+  disabled,
+  isPending,
+  pendingUploads,
+}: {
+  control: Control<DatasetItemFormValues, unknown, DatasetItemFormValues>;
+  dataset: DatasetSchema | null;
+  disabled: boolean;
+  isPending: boolean;
+  pendingUploads: PendingMediaUpload[];
+}) => {
+  const [input, expectedOutput] = useWatch({
+    control,
+    name: ["input", "expectedOutput"],
+  });
+
+  const datasets = useMemo(() => (dataset ? [dataset] : []), [dataset]);
+  const validation = useDatasetItemValidation(input, expectedOutput, datasets);
+
+  return (
+    <Button
+      type="submit"
+      loading={isPending}
+      // Block submit while uploads are in flight: the media reference is only
+      // inserted into the form value after the upload resolves, so submitting
+      // early would persist the item without the attachment and orphan the
+      // uploaded bytes on S3.
+      disabled={
+        disabled ||
+        (validation.hasSchemas && !validation.isValid) ||
+        pendingUploads.length > 0
+      }
+    >
+      Save changes
+    </Button>
+  );
+};
+
 type EditDatasetItemDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -99,19 +145,23 @@ export const EditDatasetItemDialog = ({
       datasetItemId: datasetItem?.id ?? "",
     });
 
-  useEffect(() => {
-    if (datasetItem && open) {
-      form.reset({
-        input: stringifyDatasetItemData(datasetItem.input),
-        expectedOutput: stringifyDatasetItemData(datasetItem.expectedOutput),
-        metadata: stringifyDatasetItemData(datasetItem.metadata),
-      });
-      setFormError(null);
-      // The hook lives above DialogContent (which unmounts on close), so its
-      // pending uploads would otherwise leak onto the next item's edit dialog.
-      resetPendingUploads();
+  const syncFormToDatasetItem = useEffectEvent(() => {
+    if (!datasetItem || !open) {
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    form.reset({
+      input: stringifyDatasetItemData(datasetItem.input),
+      expectedOutput: stringifyDatasetItemData(datasetItem.expectedOutput),
+      metadata: stringifyDatasetItemData(datasetItem.metadata),
+    });
+    setFormError(null);
+    // The hook lives above DialogContent (which unmounts on close), so its
+    // pending uploads would otherwise leak onto the next item's edit dialog.
+    resetPendingUploads();
+  });
+
+  useEffect(() => {
+    syncFormToDatasetItem();
   }, [datasetItem?.id, open]);
 
   const updateDatasetItemMutation = api.datasets.updateDatasetItem.useMutation({
@@ -183,51 +233,5 @@ export const EditDatasetItemDialog = ({
         </Form>
       </DialogContent>
     </Dialog>
-  );
-};
-
-/**
- * Submit button isolated from the dialog so schema validation (which depends on
- * the live field values) re-renders only the button as the user types, not the
- * editors. Subscribes to the values via `useWatch` rather than `form.watch` at
- * the dialog level.
- */
-const SaveChangesButton = ({
-  control,
-  dataset,
-  disabled,
-  isPending,
-  pendingUploads,
-}: {
-  control: Control<DatasetItemFormValues, unknown, DatasetItemFormValues>;
-  dataset: DatasetSchema | null;
-  disabled: boolean;
-  isPending: boolean;
-  pendingUploads: PendingMediaUpload[];
-}) => {
-  const [input, expectedOutput] = useWatch({
-    control,
-    name: ["input", "expectedOutput"],
-  });
-
-  const datasets = useMemo(() => (dataset ? [dataset] : []), [dataset]);
-  const validation = useDatasetItemValidation(input, expectedOutput, datasets);
-
-  return (
-    <Button
-      type="submit"
-      loading={isPending}
-      // Block submit while uploads are in flight: the media reference is only
-      // inserted into the form value after the upload resolves, so submitting
-      // early would persist the item without the attachment and orphan the
-      // uploaded bytes on S3.
-      disabled={
-        disabled ||
-        (validation.hasSchemas && !validation.isValid) ||
-        pendingUploads.length > 0
-      }
-    >
-      Save changes
-    </Button>
   );
 };
