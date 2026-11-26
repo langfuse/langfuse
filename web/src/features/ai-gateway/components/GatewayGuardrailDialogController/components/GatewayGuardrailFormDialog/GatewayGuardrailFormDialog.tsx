@@ -54,36 +54,32 @@ import {
   GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH,
   GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
-  GATEWAY_GUARDRAIL_RUNS_ON_OPTION_DESCRIPTIONS,
-  GATEWAY_GUARDRAIL_RUNS_ON_OPTION_LABELS,
-  GATEWAY_GUARDRAIL_RUNS_ON_OPTIONS,
+  GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS,
+  GATEWAY_GUARDRAIL_SCOPE_LABELS,
+  GATEWAY_GUARDRAIL_SCOPES,
   GATEWAY_GUARDRAIL_UNICODE_NOT_ALLOWED_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_UNSUPPORTED_BACKREFERENCE_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_UNSUPPORTED_LOOKAROUND_ERROR_MESSAGE,
-  fromGuardrailRunsOnOption,
-  toGuardrailRunsOnOption,
-  type GatewayGuardrailRunsOnOption,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import type { GatewayGuardrailsLimitFeedbackReason } from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
 import {
+  GATEWAY_GUARDRAIL_ACTION_SCOPES,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
   GatewayBedrockGuardrailApiKeySchema,
   GatewayBedrockGuardrailConfigSchema,
   GatewayGuardrailCustomRegexSchema,
   GatewayGuardrailRedactionLabelSchema,
+  guardrailScopeChecksOutput,
   parseContainsWordsText,
-  resolveSupportedGuardrailRunsOn,
   resolveSupportedGuardrailScope,
   supportsEntireInputScope,
   validateContainsWordsText,
   validateSecretPrefix,
   type GatewayGuardrailPreset,
   type GatewayGuardrailUiAction,
-  type GatewayGuardrailUiRunsOn,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import type {
-  GatewayGuardrailRunsOn,
   GatewayGuardrailScope,
   GatewayGuardrailType,
 } from "@langfuse/shared/src/db";
@@ -101,14 +97,14 @@ function toActionOption(value: GatewayGuardrailUiAction) {
   };
 }
 
-function toRunsOnSelectOption(value: GatewayGuardrailRunsOnOption) {
-  const label = GATEWAY_GUARDRAIL_RUNS_ON_OPTION_LABELS[value];
+function toScopeSelectOption(value: GatewayGuardrailScope) {
+  const label = GATEWAY_GUARDRAIL_SCOPE_LABELS[value];
   return {
     value,
     label,
     explanation: {
       title: label,
-      description: GATEWAY_GUARDRAIL_RUNS_ON_OPTION_DESCRIPTIONS[value],
+      description: GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[value],
     },
   };
 }
@@ -122,37 +118,9 @@ const ACTION_OPTIONS_BY_TYPE: Record<
     GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.actions.map(toActionOption),
 };
 
-function buildRunsOnOptions(
-  type: GatewayGuardrailType,
-  includeEntireInput: boolean,
-) {
-  const supportedRunsOn: readonly GatewayGuardrailRunsOn[] =
-    GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[type].runsOn;
-  return GATEWAY_GUARDRAIL_RUNS_ON_OPTIONS.filter((option) => {
-    const { runsOn, scope } = fromGuardrailRunsOnOption(option);
-    return (
-      supportedRunsOn.includes(runsOn) &&
-      (includeEntireInput || scope !== "ENTIRE_INPUT")
-    );
-  }).map(toRunsOnSelectOption);
-}
-
-const RUNS_ON_OPTIONS_BY_TYPE: Record<
-  GatewayGuardrailType,
-  {
-    all: ReturnType<typeof toRunsOnSelectOption>[];
-    lastTurnOnly: ReturnType<typeof toRunsOnSelectOption>[];
-  }
-> = {
-  REGEX: {
-    all: buildRunsOnOptions("REGEX", true),
-    lastTurnOnly: buildRunsOnOptions("REGEX", false),
-  },
-  BEDROCK: {
-    all: buildRunsOnOptions("BEDROCK", true),
-    lastTurnOnly: buildRunsOnOptions("BEDROCK", false),
-  },
-};
+const SCOPE_OPTIONS_ALL = GATEWAY_GUARDRAIL_SCOPES.map(toScopeSelectOption);
+const SCOPE_OPTIONS_BLOCK =
+  GATEWAY_GUARDRAIL_ACTION_SCOPES.BLOCK.map(toScopeSelectOption);
 
 const BEDROCK_FIELD_PATHS = {
   guardrailId: "bedrockGuardrailId",
@@ -196,7 +164,7 @@ function createGuardrailFormSchema(
       bedrockRegion: z.string(),
       bedrockApiKey: z.string(),
       action: z.enum(capabilities.actions),
-      runsOnOption: z.enum(GATEWAY_GUARDRAIL_RUNS_ON_OPTIONS),
+      scope: z.enum(GATEWAY_GUARDRAIL_SCOPES),
       redactionLabel: z.string(),
       targets: z
         .array(z.custom<AsyncAutocompleteOption>())
@@ -207,25 +175,16 @@ function createGuardrailFormSchema(
         ),
     })
     .superRefine((values, ctx) => {
-      const { runsOn, scope } = fromGuardrailRunsOnOption(values.runsOnOption);
       if (
-        !(capabilities.runsOn as readonly GatewayGuardrailRunsOn[]).includes(
-          runsOn,
-        )
+        !(
+          GATEWAY_GUARDRAIL_ACTION_SCOPES[
+            values.action
+          ] as readonly GatewayGuardrailScope[]
+        ).includes(values.scope)
       ) {
         ctx.addIssue({
           code: "custom",
-          path: ["runsOnOption"],
-          message: "Select where this guardrail runs",
-        });
-      }
-      if (
-        !supportsEntireInputScope(values.action) &&
-        scope === "ENTIRE_INPUT"
-      ) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["runsOnOption"],
+          path: ["scope"],
           message: "Block guardrails only evaluate the last turn",
         });
       }
@@ -351,7 +310,6 @@ export type GatewayGuardrailFormValues = {
   };
   action: GatewayGuardrailUiAction;
   scope?: GatewayGuardrailScope;
-  runsOn: GatewayGuardrailUiRunsOn;
   redactionLabel?: string;
   targets: AsyncAutocompleteOption[];
 };
@@ -435,12 +393,9 @@ export function GatewayGuardrailFormDialog({
       bedrockRegion: initialValues.bedrock?.region ?? "",
       bedrockApiKey: "",
       action: initialValues.action,
-      runsOnOption: toGuardrailRunsOnOption(
-        initialValues.runsOn,
-        resolveSupportedGuardrailScope(
-          initialValues.action,
-          initialValues.scope ?? "LAST_TURN",
-        ),
+      scope: resolveSupportedGuardrailScope(
+        initialValues.action,
+        initialValues.scope ?? "LAST_TURN",
       ),
       redactionLabel:
         initialValues.redactionLabel ??
@@ -459,9 +414,8 @@ export function GatewayGuardrailFormDialog({
   const bedrockRegion = form.watch("bedrockRegion");
   const bedrockApiKey = form.watch("bedrockApiKey");
   const selectedAction = form.watch("action");
-  const selectedRunsOnOption = form.watch("runsOnOption");
-  const checksOutput =
-    fromGuardrailRunsOnOption(selectedRunsOnOption).runsOn !== "INPUT";
+  const selectedScope = form.watch("scope");
+  const checksOutput = guardrailScopeChecksOutput(selectedScope);
   const parsedContains = useMemo(
     () =>
       templateKind === "contains" ? parseContainsWordsText(containsText) : [],
@@ -516,10 +470,6 @@ export function GatewayGuardrailFormDialog({
   const toFormValues = (
     values: GuardrailFormSchemaValues,
   ): GatewayGuardrailFormValues => {
-    const { runsOn: rawRunsOn, scope } = fromGuardrailRunsOnOption(
-      values.runsOnOption,
-    );
-    const runsOn = resolveSupportedGuardrailRunsOn(guardrailType, rawRunsOn);
     if (templateKind === "bedrock") {
       const apiKey = values.bedrockApiKey.trim();
       return {
@@ -535,8 +485,7 @@ export function GatewayGuardrailFormDialog({
           ...(apiKey ? { apiKey } : {}),
         },
         action: values.action,
-        scope,
-        runsOn,
+        scope: values.scope,
         targets: values.targets,
       };
     }
@@ -561,8 +510,7 @@ export function GatewayGuardrailFormDialog({
           ? values.customRegex
           : initialValues.customRegex,
       action: values.action,
-      scope,
-      runsOn,
+      scope: values.scope,
       redactionLabel,
       targets: values.targets,
     };
@@ -721,20 +669,15 @@ export function GatewayGuardrailFormDialog({
                         value={value}
                         onValueChange={(nextValue) => {
                           onChange(nextValue);
-                          if (!supportsEntireInputScope(nextValue)) {
-                            const current = fromGuardrailRunsOnOption(
-                              form.getValues("runsOnOption"),
-                            );
-                            if (current.scope === "ENTIRE_INPUT") {
-                              form.setValue(
-                                "runsOnOption",
-                                toGuardrailRunsOnOption(
-                                  current.runsOn,
-                                  "LAST_TURN",
-                                ),
-                                { shouldValidate: true },
-                              );
-                            }
+                          const currentScope = form.getValues("scope");
+                          const nextScope = resolveSupportedGuardrailScope(
+                            nextValue,
+                            currentScope,
+                          );
+                          if (nextScope !== currentScope) {
+                            form.setValue("scope", nextScope, {
+                              shouldValidate: true,
+                            });
                           }
                           if (capabilities.supportsRedactionLabel) {
                             form
@@ -753,18 +696,14 @@ export function GatewayGuardrailFormDialog({
               <CustomTooltip
                 content={
                   <span>
-                    {
-                      GATEWAY_GUARDRAIL_RUNS_ON_OPTION_DESCRIPTIONS[
-                        selectedRunsOnOption
-                      ]
-                    }
+                    {GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[selectedScope]}
                   </span>
                 }
               >
                 {({ getTriggerProps }) => (
                   <FormField
                     control={form.control}
-                    name="runsOnOption"
+                    name="scope"
                     label="Runs on"
                     registerLabelTooltip={getTriggerProps}
                   >
@@ -787,9 +726,8 @@ export function GatewayGuardrailFormDialog({
                         onBlur={onBlur}
                         options={
                           supportsEntireInputScope(selectedAction)
-                            ? RUNS_ON_OPTIONS_BY_TYPE[guardrailType].all
-                            : RUNS_ON_OPTIONS_BY_TYPE[guardrailType]
-                                .lastTurnOnly
+                            ? SCOPE_OPTIONS_ALL
+                            : SCOPE_OPTIONS_BLOCK
                         }
                       />
                     )}

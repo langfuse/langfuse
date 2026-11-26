@@ -1,6 +1,5 @@
 import type {
   GatewayGuardrailAction,
-  GatewayGuardrailRunsOn,
   GatewayGuardrailScope,
   GatewayGuardrailType,
 } from "@langfuse/shared/src/db";
@@ -268,11 +267,6 @@ type GuardrailTypeCapability = {
     ...GatewayGuardrailAction[],
   ];
   readonly defaultAction: GatewayGuardrailAction;
-  readonly runsOn: readonly [
-    GatewayGuardrailRunsOn,
-    ...GatewayGuardrailRunsOn[],
-  ];
-  readonly defaultRunsOn: GatewayGuardrailRunsOn;
   readonly supportsRedactionLabel: boolean;
 };
 
@@ -285,15 +279,11 @@ export const GATEWAY_GUARDRAIL_TYPE_CAPABILITIES = {
   REGEX: {
     actions: ["BLOCK", "REDACT", "LOG"],
     defaultAction: "BLOCK",
-    runsOn: ["INPUT", "OUTPUT", "BOTH"],
-    defaultRunsOn: "INPUT",
     supportsRedactionLabel: true,
   },
   BEDROCK: {
     actions: ["ENFORCE", "LOG"],
     defaultAction: "ENFORCE",
-    runsOn: ["INPUT", "OUTPUT", "BOTH"],
-    defaultRunsOn: "INPUT",
     supportsRedactionLabel: false,
   },
 } as const satisfies Record<GatewayGuardrailType, GuardrailTypeCapability>;
@@ -304,13 +294,6 @@ export type GatewayGuardrailActionForType<T extends GatewayGuardrailType> =
 /** All actions the management UI offers across guardrail types. */
 export type GatewayGuardrailUiAction =
   GatewayGuardrailActionForType<GatewayGuardrailType>;
-
-export type GatewayGuardrailRunsOnForType<T extends GatewayGuardrailType> =
-  (typeof GATEWAY_GUARDRAIL_TYPE_CAPABILITIES)[T]["runsOn"][number];
-
-/** All `runsOn` targets the management UI offers across guardrail types. */
-export type GatewayGuardrailUiRunsOn =
-  GatewayGuardrailRunsOnForType<GatewayGuardrailType>;
 
 export function resolveSupportedGuardrailAction<T extends GatewayGuardrailType>(
   type: T,
@@ -326,12 +309,12 @@ export function resolveSupportedGuardrailAction<T extends GatewayGuardrailType>(
 
 export const GatewayGuardrailScopeSchema = z.enum(GATEWAY_GUARDRAIL_SCOPES);
 
-/** Evaluation scopes permitted per guardrail action. Blocking only evaluates the last turn. */
+/** Evaluation scopes permitted per guardrail action. Blocking only evaluates the last turn on input. */
 export const GATEWAY_GUARDRAIL_ACTION_SCOPES = {
-  BLOCK: ["LAST_TURN"],
-  LOG: ["LAST_TURN", "ENTIRE_INPUT"],
-  REDACT: ["LAST_TURN", "ENTIRE_INPUT"],
-  ENFORCE: ["LAST_TURN", "ENTIRE_INPUT"],
+  BLOCK: ["LAST_TURN", "OUTPUT", "LAST_TURN_AND_OUTPUT"],
+  LOG: GATEWAY_GUARDRAIL_SCOPES,
+  REDACT: GATEWAY_GUARDRAIL_SCOPES,
+  ENFORCE: GATEWAY_GUARDRAIL_SCOPES,
 } as const satisfies Record<
   GatewayGuardrailAction,
   readonly [GatewayGuardrailScope, ...GatewayGuardrailScope[]]
@@ -345,23 +328,24 @@ export function supportsEntireInputScope(
   ).includes("ENTIRE_INPUT");
 }
 
+export function guardrailScopeChecksOutput(
+  scope: GatewayGuardrailScope,
+): boolean {
+  return (
+    scope === "OUTPUT" ||
+    scope === "LAST_TURN_AND_OUTPUT" ||
+    scope === "ENTIRE_INPUT_AND_OUTPUT"
+  );
+}
+
 export function resolveSupportedGuardrailScope(
   action: GatewayGuardrailAction,
   scope: GatewayGuardrailScope,
 ): GatewayGuardrailScope {
-  return supportsEntireInputScope(action) ? scope : "LAST_TURN";
-}
-
-export function resolveSupportedGuardrailRunsOn<T extends GatewayGuardrailType>(
-  type: T,
-  runsOn: GatewayGuardrailRunsOn,
-): GatewayGuardrailRunsOnForType<T> {
-  const capability = GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[type];
-  return (capability.runsOn as readonly GatewayGuardrailRunsOn[]).includes(
-    runsOn,
-  )
-    ? (runsOn as GatewayGuardrailRunsOnForType<T>)
-    : capability.defaultRunsOn;
+  if (supportsEntireInputScope(action)) return scope;
+  if (scope === "ENTIRE_INPUT") return "LAST_TURN";
+  if (scope === "ENTIRE_INPUT_AND_OUTPUT") return "LAST_TURN_AND_OUTPUT";
+  return scope;
 }
 
 export const GatewayGuardrailRedactionLabelSchema = z

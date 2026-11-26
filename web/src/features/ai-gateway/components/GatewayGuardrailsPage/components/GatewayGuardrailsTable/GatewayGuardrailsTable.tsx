@@ -14,9 +14,8 @@ import {
   GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS,
   GATEWAY_GUARDRAIL_ACTION_LABELS,
   GATEWAY_GUARDRAIL_FLAGGED_DATE_RANGE,
-  GATEWAY_GUARDRAIL_RUNS_ON_OPTION_DESCRIPTIONS,
-  GATEWAY_GUARDRAIL_RUNS_ON_OPTION_LABELS,
-  toGuardrailRunsOnOption,
+  GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS,
+  GATEWAY_GUARDRAIL_SCOPE_LABELS,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
 import {
@@ -79,23 +78,12 @@ const guardrailColumn = createTableColumn<
   ),
 });
 
-function formatGuardrailRunsOn(row: GatewayGuardrailRow) {
-  return GATEWAY_GUARDRAIL_RUNS_ON_OPTION_LABELS[
-    toGuardrailRunsOnOption(row.runsOn, row.scope)
-  ];
-}
-
-function getGuardrailRunsOnTooltip(row: GatewayGuardrailRow) {
-  return GATEWAY_GUARDRAIL_RUNS_ON_OPTION_DESCRIPTIONS[
-    toGuardrailRunsOnOption(row.runsOn, row.scope)
-  ];
-}
-
 const runsOnColumn = createTextTableColumn<GatewayGuardrailRow>({
-  accessorFn: formatGuardrailRunsOn,
+  accessorFn: (row) => GATEWAY_GUARDRAIL_SCOPE_LABELS[row.scope],
   id: "runsOn",
   header: "Runs on",
-  tooltip: (context) => getGuardrailRunsOnTooltip(context.row.original),
+  tooltip: (context) =>
+    GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[context.row.original.scope],
   size: 150,
   hideBelowMd: true,
   enableResizing: false,

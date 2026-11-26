@@ -37,7 +37,7 @@ import {
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
   resolveSupportedGuardrailAction,
-  resolveSupportedGuardrailRunsOn,
+  resolveSupportedGuardrailScope,
   type GatewayGuardrailPreset,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
@@ -160,10 +160,6 @@ export function GatewayGuardrailDialogController({
                     values.action,
                   ),
                   scope: values.scope,
-                  runsOn: resolveSupportedGuardrailRunsOn(
-                    "BEDROCK",
-                    values.runsOn,
-                  ),
                   bedrock: {
                     guardrailId: values.bedrock.guardrailId,
                     guardrailVersion: values.bedrock.guardrailVersion,
@@ -178,10 +174,6 @@ export function GatewayGuardrailDialogController({
                   type: "REGEX",
                   name: values.name,
                   ...toRegexActionInput(values),
-                  runsOn: resolveSupportedGuardrailRunsOn(
-                    "REGEX",
-                    values.runsOn,
-                  ),
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
                   containsWords: values.containsWords,
@@ -201,10 +193,6 @@ export function GatewayGuardrailDialogController({
                     values.action,
                   ),
                   scope: values.scope,
-                  runsOn: resolveSupportedGuardrailRunsOn(
-                    "BEDROCK",
-                    values.runsOn,
-                  ),
                   bedrock: values.bedrock,
                   assignments,
                 });
@@ -215,10 +203,6 @@ export function GatewayGuardrailDialogController({
                   type: "REGEX",
                   name: values.name,
                   ...toRegexActionInput(values),
-                  runsOn: resolveSupportedGuardrailRunsOn(
-                    "REGEX",
-                    values.runsOn,
-                  ),
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
                   containsWords: values.containsWords,
@@ -379,10 +363,6 @@ function GuardrailDialogContent({
                   selectedTemplate.guardrailType
                 ].defaultAction,
               scope: "LAST_TURN",
-              runsOn:
-                GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[
-                  selectedTemplate.guardrailType
-                ].defaultRunsOn,
               redactionLabel: GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
               targets: [EVERYONE_TARGET_OPTION],
             }}
@@ -408,10 +388,6 @@ function GuardrailDialogContent({
     guardrail.type,
     guardrail.action,
   );
-  const initialRunsOn = resolveSupportedGuardrailRunsOn(
-    guardrail.type,
-    guardrail.runsOn,
-  );
 
   return (
     <Dialog title="Edit guardrail" size={isExternal ? "md" : "lg"} noCapture>
@@ -432,7 +408,6 @@ function GuardrailDialogContent({
           bedrock: guardrail.bedrock ?? undefined,
           action: initialAction,
           scope: guardrail.scope,
-          runsOn: initialRunsOn,
           redactionLabel:
             guardrail.redactionLabel ??
             GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
@@ -463,9 +438,13 @@ function toRegexActionInput(
     };
   }
   if (action === "BLOCK") {
+    const scope = resolveSupportedGuardrailScope(
+      "BLOCK",
+      values.scope ?? "LAST_TURN",
+    );
     return {
       action,
-      scope: "LAST_TURN" as const,
+      scope: scope as "LAST_TURN" | "OUTPUT" | "LAST_TURN_AND_OUTPUT",
     };
   }
   return {

@@ -1,6 +1,5 @@
 import type {
   GatewayGuardrailAction,
-  GatewayGuardrailRunsOn,
   GatewayGuardrailScope,
 } from "@langfuse/shared/src/db";
 
@@ -67,21 +66,16 @@ export const GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS: Record<
   LOG: "Pass through unchanged and record the match on the generation.",
 };
 
-export const GATEWAY_GUARDRAIL_SCOPES = ["LAST_TURN", "ENTIRE_INPUT"] as const;
-
-export const GATEWAY_GUARDRAIL_RUNS_ON_OPTIONS = [
+export const GATEWAY_GUARDRAIL_SCOPES = [
   "LAST_TURN",
   "ENTIRE_INPUT",
   "OUTPUT",
   "LAST_TURN_AND_OUTPUT",
   "ENTIRE_INPUT_AND_OUTPUT",
-] as const;
+] as const satisfies readonly GatewayGuardrailScope[];
 
-export type GatewayGuardrailRunsOnOption =
-  (typeof GATEWAY_GUARDRAIL_RUNS_ON_OPTIONS)[number];
-
-export const GATEWAY_GUARDRAIL_RUNS_ON_OPTION_LABELS: Record<
-  GatewayGuardrailRunsOnOption,
+export const GATEWAY_GUARDRAIL_SCOPE_LABELS: Record<
+  GatewayGuardrailScope,
   string
 > = {
   LAST_TURN: "Last turn",
@@ -91,8 +85,8 @@ export const GATEWAY_GUARDRAIL_RUNS_ON_OPTION_LABELS: Record<
   ENTIRE_INPUT_AND_OUTPUT: "Entire input & output",
 };
 
-export const GATEWAY_GUARDRAIL_RUNS_ON_OPTION_DESCRIPTIONS: Record<
-  GatewayGuardrailRunsOnOption,
+export const GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS: Record<
+  GatewayGuardrailScope,
   string
 > = {
   LAST_TURN:
@@ -105,33 +99,3 @@ export const GATEWAY_GUARDRAIL_RUNS_ON_OPTION_DESCRIPTIONS: Record<
   ENTIRE_INPUT_AND_OUTPUT:
     "Evaluate all messages and system prompts in the request, plus provider responses.",
 };
-
-export function toGuardrailRunsOnOption(
-  runsOn: GatewayGuardrailRunsOn,
-  scope: GatewayGuardrailScope,
-): GatewayGuardrailRunsOnOption {
-  if (runsOn === "OUTPUT") return "OUTPUT";
-  if (runsOn === "BOTH") {
-    return scope === "ENTIRE_INPUT"
-      ? "ENTIRE_INPUT_AND_OUTPUT"
-      : "LAST_TURN_AND_OUTPUT";
-  }
-  return scope === "ENTIRE_INPUT" ? "ENTIRE_INPUT" : "LAST_TURN";
-}
-
-export function fromGuardrailRunsOnOption(
-  option: GatewayGuardrailRunsOnOption,
-): { runsOn: GatewayGuardrailRunsOn; scope: GatewayGuardrailScope } {
-  switch (option) {
-    case "LAST_TURN":
-      return { runsOn: "INPUT", scope: "LAST_TURN" };
-    case "ENTIRE_INPUT":
-      return { runsOn: "INPUT", scope: "ENTIRE_INPUT" };
-    case "OUTPUT":
-      return { runsOn: "OUTPUT", scope: "LAST_TURN" };
-    case "LAST_TURN_AND_OUTPUT":
-      return { runsOn: "BOTH", scope: "LAST_TURN" };
-    case "ENTIRE_INPUT_AND_OUTPUT":
-      return { runsOn: "BOTH", scope: "ENTIRE_INPUT" };
-  }
-}

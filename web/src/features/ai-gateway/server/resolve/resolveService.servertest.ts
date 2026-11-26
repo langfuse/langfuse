@@ -553,14 +553,14 @@ describe("GatewayResolveService", () => {
     });
   });
 
-  it("partitions input, output, and both guardrails into guardrails and response_guardrails", async () => {
+  it("partitions input, output, and combined scopes into guardrails and response_guardrails", async () => {
     const service = serviceWith(() => Promise.resolve(row({})), "org-1", [
       {
         id: "gr-regex-in",
         name: "Block input SSN",
         type: "REGEX",
         action: "BLOCK",
-        runsOn: "INPUT",
+        scope: "LAST_TURN",
         redactionLabel: null,
         config: { presets: ["us_ssn"] },
         encryptedCredential: null,
@@ -570,7 +570,7 @@ describe("GatewayResolveService", () => {
         name: "Redact output email",
         type: "REGEX",
         action: "REDACT",
-        runsOn: "OUTPUT",
+        scope: "OUTPUT",
         redactionLabel: "[EMAIL]",
         config: { presets: ["email"] },
         encryptedCredential: null,
@@ -580,7 +580,7 @@ describe("GatewayResolveService", () => {
         name: "Bedrock both",
         type: "BEDROCK",
         action: "ENFORCE",
-        runsOn: "BOTH",
+        scope: "ENTIRE_INPUT_AND_OUTPUT",
         redactionLabel: null,
         config: {
           guardrailId: "abc123def",
@@ -601,11 +601,13 @@ describe("GatewayResolveService", () => {
           id: "gr-regex-in",
           type: "regex",
           action: "block",
+          scope: "last_turn",
         },
         {
           id: "gr-bedrock-both",
           type: "bedrock",
           action: "enforce",
+          scope: "entire_input",
           guardrail_id: "abc123def",
         },
       ],

@@ -94,13 +94,16 @@ const GatewayResolveGuardrailScopeSchema = z.enum([
   "last_turn",
   "entire_input",
 ]);
-export type GatewayResolveGuardrailScope = z.infer<
-  typeof GatewayResolveGuardrailScopeSchema
->;
 
-const GatewayResolveGuardrailRunsOnSchema = z.enum(["input", "output", "both"]);
-export type GatewayResolveGuardrailRunsOn = z.infer<
-  typeof GatewayResolveGuardrailRunsOnSchema
+const GatewayCachedGuardrailScopeSchema = z.enum([
+  "last_turn",
+  "entire_input",
+  "output",
+  "last_turn_and_output",
+  "entire_input_and_output",
+]);
+export type GatewayCachedGuardrailScope = z.infer<
+  typeof GatewayCachedGuardrailScopeSchema
 >;
 
 const GatewayRegexResolveGuardrailSchema = z
@@ -130,13 +133,12 @@ const GatewayFailClosedResolveGuardrailSchema = z
 
 const GatewayRegexCachedGuardrailSchema =
   GatewayRegexResolveGuardrailSchema.extend({
-    // Required so cache entries predating runs_on miss and refetch from Postgres.
-    runs_on: GatewayResolveGuardrailRunsOnSchema,
+    scope: GatewayCachedGuardrailScopeSchema.optional(),
   }).strict();
 
 const GatewayFailClosedCachedGuardrailSchema =
   GatewayFailClosedResolveGuardrailSchema.extend({
-    runs_on: GatewayResolveGuardrailRunsOnSchema,
+    scope: GatewayCachedGuardrailScopeSchema.optional(),
   }).strict();
 
 /**
@@ -153,8 +155,7 @@ export const GatewayCachedGuardrailsSchema = z.array(
         name: z.string(),
         type: z.literal("bedrock"),
         action: GatewayResolveGuardrailActionSchema,
-        scope: GatewayResolveGuardrailScopeSchema.optional(),
-        runs_on: GatewayResolveGuardrailRunsOnSchema,
+        scope: GatewayCachedGuardrailScopeSchema.optional(),
         guardrail_id: z.string(),
         guardrail_version: z.string(),
         region: z.string(),

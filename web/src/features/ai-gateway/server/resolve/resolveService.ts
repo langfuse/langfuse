@@ -267,6 +267,31 @@ function getEnforcedSpendLimits(context: GatewayApiKeyAuthContext) {
   return getIngestionMode(context) === "NONE" ? [] : context.spendLimits;
 }
 
+function toInputWireScope(
+  scope: GatewayCachedGuardrails[number]["scope"],
+): "last_turn" | "entire_input" | null {
+  switch (scope ?? "last_turn") {
+    case "last_turn":
+    case "last_turn_and_output":
+      return "last_turn";
+    case "entire_input":
+    case "entire_input_and_output":
+      return "entire_input";
+    case "output":
+      return null;
+  }
+}
+
+function cachedScopeChecksOutput(
+  scope: GatewayCachedGuardrails[number]["scope"],
+): boolean {
+  return (
+    scope === "output" ||
+    scope === "last_turn_and_output" ||
+    scope === "entire_input_and_output"
+  );
+}
+
 function decryptResolvedGuardrails(
   cached: GatewayCachedGuardrails,
   organizationId: string,
@@ -278,12 +303,12 @@ function decryptResolvedGuardrails(
   const response_guardrails: GatewayResolveGuardrails = [];
   for (const guardrail of cached) {
     const resolved = decryptResolvedGuardrail(guardrail, organizationId);
-    if (guardrail.runs_on === "input" || guardrail.runs_on === "both") {
-      guardrails.push(resolved);
+    const inputScope = toInputWireScope(guardrail.scope);
+    if (inputScope !== null) {
+      guardrails.push({ ...resolved, scope: inputScope });
     }
-    if (guardrail.runs_on === "output" || guardrail.runs_on === "both") {
-      const { scope: _, ...responseGuardrail } = resolved;
-      response_guardrails.push(responseGuardrail);
+    if (cachedScopeChecksOutput(guardrail.scope)) {
+      response_guardrails.push(resolved);
     }
   }
   return { guardrails, response_guardrails };
@@ -294,11 +319,11 @@ function decryptResolvedGuardrail(
   organizationId: string,
 ): GatewayResolveGuardrails[number] {
   if (guardrail.type === "regex") {
-    const { runs_on: _, ...wire } = guardrail;
+    const { scope: _, ...wire } = guardrail;
     return wire;
   }
   if (guardrail.type === "fail_closed") {
-    const { runs_on: _, ...wire } = guardrail;
+    const { scope: _, ...wire } = guardrail;
     return wire;
   }
   try {
@@ -308,7 +333,6 @@ function decryptResolvedGuardrail(
       name: guardrail.name,
       type: "bedrock" as const,
       action: guardrail.action,
-      ...(guardrail.scope ? { scope: guardrail.scope } : {}),
       patterns: [] as [],
       guardrail_id: guardrail.guardrail_id,
       guardrail_version: guardrail.guardrail_version,
@@ -329,7 +353,6 @@ function decryptResolvedGuardrail(
       name: guardrail.name,
       type: "fail_closed" as const,
       action: guardrail.action,
-      ...(guardrail.scope ? { scope: guardrail.scope } : {}),
       patterns: [] as [],
     };
   }

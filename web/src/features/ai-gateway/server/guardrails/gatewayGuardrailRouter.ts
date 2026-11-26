@@ -56,13 +56,6 @@ const commonWriteFields = {
   assignments: assignmentsInput,
 };
 
-const regexCreateRunsOnSchema = z
-  .enum(GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.REGEX.runsOn)
-  .default(GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.REGEX.defaultRunsOn);
-const regexUpdateRunsOnSchema = z
-  .enum(GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.REGEX.runsOn)
-  .optional();
-
 const regexRuleFields = {
   type: z.literal("REGEX"),
   presets: z.array(GatewayGuardrailPresetSchema).default([]),
@@ -85,68 +78,48 @@ const hasGuardrailRule = (value: {
 const GUARDRAIL_RULE_REQUIRED_MESSAGE =
   "Configure at least one pattern, prefix, keyword, or custom regex to detect";
 
-function createRegexWriteSchema<
-  TRunsOn extends
-    | typeof regexCreateRunsOnSchema
-    | typeof regexUpdateRunsOnSchema,
->(runsOn: TRunsOn) {
-  return z
-    .discriminatedUnion("action", [
-      z.object({
-        ...commonWriteFields,
-        ...regexRuleFields,
-        runsOn,
-        action: z.literal("REDACT"),
-        redactionLabel: GatewayGuardrailRedactionLabelSchema.optional(),
-      }),
-      z.object({
-        ...commonWriteFields,
-        ...regexRuleFields,
-        runsOn,
-        action: z.literal("BLOCK"),
-        scope: z.enum(GATEWAY_GUARDRAIL_ACTION_SCOPES.BLOCK).optional(),
-      }),
-      z.object({
-        ...commonWriteFields,
-        ...regexRuleFields,
-        runsOn,
-        action: z.literal("LOG"),
-      }),
-    ])
-    .refine(hasGuardrailRule, GUARDRAIL_RULE_REQUIRED_MESSAGE);
-}
-
-const regexCreateSchema = createRegexWriteSchema(regexCreateRunsOnSchema);
-const regexUpdateSchema = createRegexWriteSchema(regexUpdateRunsOnSchema);
+const regexWriteSchema = z
+  .discriminatedUnion("action", [
+    z.object({
+      ...commonWriteFields,
+      ...regexRuleFields,
+      action: z.literal("REDACT"),
+      redactionLabel: GatewayGuardrailRedactionLabelSchema.optional(),
+    }),
+    z.object({
+      ...commonWriteFields,
+      ...regexRuleFields,
+      action: z.literal("BLOCK"),
+      scope: z.enum(GATEWAY_GUARDRAIL_ACTION_SCOPES.BLOCK).optional(),
+    }),
+    z.object({
+      ...commonWriteFields,
+      ...regexRuleFields,
+      action: z.literal("LOG"),
+    }),
+  ])
+  .refine(hasGuardrailRule, GUARDRAIL_RULE_REQUIRED_MESSAGE);
 
 const bedrockActionSchema = z.enum(
   GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.actions,
 );
-const bedrockCreateRunsOnSchema = z
-  .enum(GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.runsOn)
-  .default(GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.defaultRunsOn);
-const bedrockUpdateRunsOnSchema = z
-  .enum(GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.runsOn)
-  .optional();
 
 const createGuardrailInput = z.union([
-  organizationInput.and(regexCreateSchema),
+  organizationInput.and(regexWriteSchema),
   organizationInput.extend({
     ...commonWriteFields,
     type: z.literal("BEDROCK"),
     action: bedrockActionSchema,
-    runsOn: bedrockCreateRunsOnSchema,
     bedrock: GatewayBedrockGuardrailCreateInputSchema,
   }),
 ]);
 
 const updateGuardrailInput = z.union([
-  guardrailIdInput.and(regexUpdateSchema),
+  guardrailIdInput.and(regexWriteSchema),
   guardrailIdInput.extend({
     ...commonWriteFields,
     type: z.literal("BEDROCK"),
     action: bedrockActionSchema,
-    runsOn: bedrockUpdateRunsOnSchema,
     bedrock: GatewayBedrockGuardrailUpdateInputSchema,
   }),
 ]);
@@ -338,7 +311,6 @@ export const gatewayGuardrailRouter = createTRPCRouter({
           name: input.name,
           action: input.action,
           scope: input.scope,
-          runsOn: input.runsOn,
           bedrock: input.bedrock,
           assignments: input.assignments,
           session: ctx.session,
@@ -350,7 +322,6 @@ export const gatewayGuardrailRouter = createTRPCRouter({
         name: input.name,
         action: input.action,
         scope: input.scope,
-        runsOn: input.runsOn,
         redactionLabel:
           input.action === "REDACT" ? input.redactionLabel : undefined,
         presets: input.presets,
@@ -378,7 +349,6 @@ export const gatewayGuardrailRouter = createTRPCRouter({
           name: input.name,
           action: input.action,
           scope: input.scope,
-          runsOn: input.runsOn,
           bedrock: input.bedrock,
           assignments: input.assignments,
           session: ctx.session,
@@ -391,7 +361,6 @@ export const gatewayGuardrailRouter = createTRPCRouter({
         name: input.name,
         action: input.action,
         scope: input.scope,
-        runsOn: input.runsOn,
         redactionLabel:
           input.action === "REDACT" ? input.redactionLabel : undefined,
         presets: input.presets,

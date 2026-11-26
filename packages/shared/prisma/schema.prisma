@@ -513,12 +513,9 @@ enum GatewayGuardrailAction {
 enum GatewayGuardrailScope {
   LAST_TURN
   ENTIRE_INPUT
-}
-
-enum GatewayGuardrailRunsOn {
-  INPUT
   OUTPUT
-  BOTH
+  LAST_TURN_AND_OUTPUT
+  ENTIRE_INPUT_AND_OUTPUT
 }
 
 enum GatewayGuardrailAssignmentScope {
@@ -537,7 +534,6 @@ model GatewayGuardrail {
   type                GatewayGuardrailType         @default(REGEX)
   action              GatewayGuardrailAction
   scope               GatewayGuardrailScope        @default(LAST_TURN)
-  runsOn              GatewayGuardrailRunsOn       @default(INPUT) @map("runs_on")
   // For REGEX: { "presets": [...], "secretPrefixes": [...], "containsWords": [...], "customRegex": "..." };
   // For BEDROCK: { "guardrailId": "...", "guardrailVersion": "...", "region": "..." }.
   config              Json                         @default("{}") @db.JsonB

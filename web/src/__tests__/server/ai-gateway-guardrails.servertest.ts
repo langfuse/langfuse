@@ -210,7 +210,6 @@ describe("GatewayGuardrailService", () => {
       type: "regex",
       action: "block",
       scope: "last_turn",
-      runs_on: "input",
       patterns: [...GATEWAY_GUARDRAIL_PRESETS.email.patterns],
     });
     expect(resolved[3]).toEqual({
@@ -219,7 +218,6 @@ describe("GatewayGuardrailService", () => {
       type: "regex",
       action: "redact",
       scope: "last_turn",
-      runs_on: "input",
       patterns: [...GATEWAY_GUARDRAIL_PRESETS.email.patterns],
       redaction_label: "[EMAIL]",
     });
@@ -924,7 +922,6 @@ describe("aiGateway guardrails tRPC", () => {
         type: "bedrock",
         action: "enforce",
         scope: "last_turn",
-        runs_on: "input",
         guardrail_id: "abc123def456",
         guardrail_version: "1",
         region: "us-east-1",
@@ -1645,12 +1642,12 @@ describe("aiGateway guardrails tRPC", () => {
       type: "REGEX",
       name: "Output email redaction",
       action: "REDACT",
-      runsOn: "OUTPUT",
+      scope: "OUTPUT",
       redactionLabel: "[EMAIL]",
       presets: ["email"],
       assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
     });
-    expect(created.runsOn).toBe("OUTPUT");
+    expect(created.scope).toBe("OUTPUT");
 
     const updated = await ownerCaller.aiGateway.guardrails.update({
       orgId,
@@ -1658,15 +1655,15 @@ describe("aiGateway guardrails tRPC", () => {
       type: "REGEX",
       name: "Output email redaction",
       action: "REDACT",
-      runsOn: "BOTH",
+      scope: "ENTIRE_INPUT_AND_OUTPUT",
       redactionLabel: "[EMAIL]",
       presets: ["email"],
       assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
     });
-    expect(updated.runsOn).toBe("BOTH");
+    expect(updated.scope).toBe("ENTIRE_INPUT_AND_OUTPUT");
 
-    // Omitting runsOn on update preserves the stored runsOn value instead of resetting to INPUT.
-    const renamedWithoutRunsOn = await ownerCaller.aiGateway.guardrails.update({
+    // Omitting scope on update preserves the stored scope value instead of resetting to LAST_TURN.
+    const renamedWithoutScope = await ownerCaller.aiGateway.guardrails.update({
       orgId,
       id: created.id,
       type: "REGEX",
@@ -1676,7 +1673,7 @@ describe("aiGateway guardrails tRPC", () => {
       presets: ["email"],
       assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
     });
-    expect(renamedWithoutRunsOn.runsOn).toBe("BOTH");
+    expect(renamedWithoutScope.scope).toBe("ENTIRE_INPUT_AND_OUTPUT");
 
     const resolved = await new GatewayGuardrailService(prisma).resolveForKey({
       organizationId: orgId,
@@ -1688,7 +1685,7 @@ describe("aiGateway guardrails tRPC", () => {
         id: created.id,
         type: "regex",
         action: "redact",
-        runs_on: "both",
+        scope: "entire_input_and_output",
         redaction_label: "[EMAIL]",
       }),
     ]);

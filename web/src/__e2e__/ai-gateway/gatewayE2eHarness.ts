@@ -125,7 +125,12 @@ type GatewayKeySpendLimit = Parameters<
 
 type GatewayKeyGuardrail = {
   action: "BLOCK" | "LOG" | "REDACT";
-  runsOn?: "INPUT" | "OUTPUT" | "BOTH";
+  scope?:
+    | "LAST_TURN"
+    | "ENTIRE_INPUT"
+    | "OUTPUT"
+    | "LAST_TURN_AND_OUTPUT"
+    | "ENTIRE_INPUT_AND_OUTPUT";
   redactionLabel?: string;
   presets?: GatewayGuardrailPreset[];
   containsWords?: string[];
@@ -349,7 +354,7 @@ export async function withGatewayApiKey(
           organizationId: ORGANIZATION_ID,
           name: `e2e-${guardrail.action.toLowerCase()}-${randomBytes(3).toString("hex")}`,
           action: guardrail.action,
-          runsOn: guardrail.runsOn ?? "INPUT",
+          scope: guardrail.scope ?? "LAST_TURN",
           redactionLabel: guardrail.redactionLabel,
           config: {
             presets: guardrail.presets ?? [],
@@ -596,13 +601,13 @@ export async function expectRedactedStreamingCompletion(input: {
       guardrails: [
         {
           action: "REDACT",
-          runsOn: "BOTH",
+          scope: "LAST_TURN_AND_OUTPUT",
           presets: ["email"],
           redactionLabel: REDACT_REQUEST_LABEL,
         },
         {
           action: "REDACT",
-          runsOn: "OUTPUT",
+          scope: "OUTPUT",
           containsWords: [REDACT_RESPONSE_TOKEN],
           redactionLabel: REDACT_RESPONSE_LABEL,
         },
@@ -646,7 +651,7 @@ export async function expectRedactedRequestOnly(
       guardrails: [
         {
           action: "REDACT",
-          runsOn: "INPUT",
+          scope: "LAST_TURN",
           presets: ["email"],
           redactionLabel: REDACT_REQUEST_LABEL,
         },
