@@ -1,7 +1,7 @@
 import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
 import {
   BracesIcon,
-  ExternalLinkIcon,
+  SquareArrowOutUpRight,
   MessageCircleMoreIcon,
 } from "@langfuse/icons";
 import Link from "next/link";
@@ -55,7 +55,7 @@ export const ScoreValue = ({
                       className="flex items-center gap-1 text-blue-600 hover:underline"
                       target="_blank"
                     >
-                      <ExternalLinkIcon size="sm" />
+                      <SquareArrowOutUpRight size="sm" />
                       View execution trace
                     </Link>
                   </div>

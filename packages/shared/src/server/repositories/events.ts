@@ -1,3 +1,4 @@
+import { visibleModelsWhere } from "../ingestion/modelVisibility";
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { isTopicFilter } from "../../topics";
 import { topicFilterConditions } from "../topics/trace-filter";
@@ -8,7 +9,6 @@ import {
   type ClickHouseSettings,
 } from "@clickhouse/client";
 import {
-  sql,
   type AliasableExpression,
   type AliasedExpression,
   type Expression,
@@ -31,6 +31,8 @@ import {
 import { instrumentAsync, recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
 import {
+  AI_GATEWAY_GUARDRAIL_METADATA_PREFIX,
+  AI_GATEWAY_GUARDRAILS_OUTCOME_METADATA_KEY,
   AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
   AI_GATEWAY_SERVICE_NAME,
 } from "../../features/ai-gateway/constants";
@@ -39,10 +41,17 @@ import { getClickhouseKysely } from "../query-ast/dialect";
 import type { ClickHouseDatabase } from "../query-ast/schema";
 import { promptGenerationEvents } from "./prompt-events";
 import {
+  aliasRef,
+  arrayDistinct,
+  arrayJoin,
   arrayMap,
   byteLength,
   count,
   dateDiff,
+  emptyMap,
+  has,
+  hasAny,
+  interval,
   startsWith,
   leftUTF8,
   limitBy,
@@ -54,9 +63,13 @@ import {
   sumMapValuesWhereKeyContains,
   toDate,
   toJSONString,
+  toMonday,
   toStartOfMinute,
+  toStartOfMonth,
   tupleIn,
+  typedValue,
   uniq,
+  withFill,
   xxHash32,
 } from "../query-ast/extensions";
 import {
@@ -71,11 +84,7 @@ import {
   persistProjectHasTracesFlag,
   readProjectHasTracesFlag,
 } from "./traces";
-import {
-  type Filter,
-  FilterList,
-  filtersRequireEventsFull,
-} from "../queries/clickhouse-sql/clickhouse-filter";
+import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
 import { metadataFilterIsEventsCoreSafe } from "../queries/clickhouse-sql/events-core-truncation";
 
 import {
@@ -97,20 +106,16 @@ import {
   orderByToEntries,
 } from "../queries/clickhouse-sql/orderby-factory";
 import {
-  createPublicApiObservationsColumnMapping,
   createPublicApiTracesColumnMapping,
   deriveFilters,
-  type ApiColumnMapping,
 } from "../queries/public-api-filter-builder";
 import {
-  isFtsAcceleratedIoOperator,
-  isFtsEventsTable,
-  isFtsTextField,
-} from "../queries/clickhouse-sql/fts";
+  compilePublicApiObservationsFilter,
+  type PublicApiObservationsFilter,
+} from "../queries/clickhouse-sql/events-public-api-observation-filter";
 
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { DateTimeFilter } from "../queries/clickhouse-sql/clickhouse-filter";
-import { isTimeFilter } from "../queries/clickhouse-sql/filter-utils";
 import {
   planScoreFilterPushdown,
   resolveScoreDataRequirement,
@@ -121,10 +126,7 @@ import {
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
-import {
-  eventsTableNativeUiColumnDefinitions,
-  eventsTableUiColumnDefinitions,
-} from "../tableMappings/mapEventsTable";
+import { eventsTableUiColumnDefinitions } from "../tableMappings/mapEventsTable";
 import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
 import {
   applyInputOutputRendering,
@@ -386,7 +388,7 @@ async function enrichObservationsWithModelData(
                 id: {
                   in: uniqueModels,
                 },
-                OR: [{ projectId: projectId }, { scope: "LANGFUSE" }],
+                ...visibleModelsWhere(projectId),
               },
               include: {
                 Price: {
@@ -470,16 +472,6 @@ async function enrichObservationsWithTraceFields(
     };
   });
 }
-
-/**
- * Column mapping for public API filters on events table (observations)
- */
-const PUBLIC_API_EVENTS_COLUMN_MAPPING: ApiColumnMapping[] =
-  createPublicApiObservationsColumnMapping(
-    "events_proto",
-    "e",
-    "parent_span_id",
-  );
 
 /**
  * Column mappings for traces aggregated from events table
@@ -1345,7 +1337,7 @@ export const getTraceByIdFromEventsTable = async ({
       .orderBy("timestamp", "desc");
 
   const metadataSelect = excludeMetadata
-    ? sql`map()`.as("metadata")
+    ? emptyMap<string>().as("metadata")
     : "t.metadata";
 
   const builder = db
@@ -1712,141 +1704,40 @@ type BuildObservationsQueryComponentsOptions = {
   clickhouseSettings?: ClickHouseSettings;
 };
 
-const EVENTS_IO_FILTER_TYPE_ERROR =
-  "Input/output filters only support filter type `string`.";
-
-const validateInputOutputFilterTypes = (
-  filterState: EventsTableFilterState | undefined,
-  columnDefinitions: UiColumnMappings,
-) => {
-  for (const filter of filterState ?? []) {
-    const column = findUiColumnMapping(columnDefinitions, filter.column);
-
-    if (
-      column &&
-      isFtsEventsTable(column.clickhouseTableName) &&
-      isFtsTextField(column.clickhouseSelect) &&
-      filter.type !== "string"
-    ) {
-      throw new InvalidRequestError(EVENTS_IO_FILTER_TYPE_ERROR);
-    }
-  }
-};
-
-const isInputOutputFilter = (filter: Filter): boolean =>
-  isFtsTextField(filter.field);
-
-const validateIndexedInputOutputFilters = (filter: FilterList) => {
-  const hasIoFilter = filter.some(isInputOutputFilter);
-  if (!hasIoFilter) {
-    return;
-  }
-
-  const hasRequiredIoFilter = filter.some(
-    (f) => isInputOutputFilter(f) && isFtsAcceleratedIoOperator(f.operator),
-  );
-  if (!hasRequiredIoFilter) {
-    throw new InvalidRequestError(
-      "Input/output filters require at least one `matches` or `=` operator.",
-    );
-  }
-};
-
 /**
- * Build observation query components: an EventsQueryBuilder (with JOINs and filters but
- * without CTEs) and any external CTEs that should be composed at the outer level.
- *
- * This enables CTE-based split queries where external CTEs (e.g. traces) are hoisted
- * to the outer WITH clause rather than embedded in the EventsQueryBuilder.
+ * The events query of the observations public API with its row filter
+ * (`compilePublicApiObservationsFilter`) and no selects, ordering or
+ * pagination, on `events_full` when the filter must read it, plus that
+ * filter. Throws `InvalidRequestError` for a filter the endpoint rejects.
  */
 function buildObservationsQueryComponents(
   opts: PublicApiObservationsQuery,
-  columnDefinitions: UiColumnMappings = eventsTableNativeUiColumnDefinitions,
   options: BuildObservationsQueryComponentsOptions = {},
 ): {
   queryBuilder: EventsQueryBuilder;
-  externalCTEs: Array<{
-    name: string;
-    queryWithParams: { query: string; params: Record<string, any> };
-  }>;
-  filtersNeedFullTable: boolean;
-  observationsFilter: FilterList;
+  filter: PublicApiObservationsFilter;
 } {
-  const { projectId, advancedFilters, ...filterParams } = opts;
-
-  if (!options.allowUnindexedIoFilters) {
-    validateInputOutputFilterTypes(advancedFilters, columnDefinitions);
-  }
-
-  // Convert and merge simple and advanced filters
-  const observationsFilter = deriveFilters(
-    { ...filterParams, projectId },
-    PUBLIC_API_EVENTS_COLUMN_MAPPING,
+  const { projectId, advancedFilters, ...params } = opts;
+  const filter = compilePublicApiObservationsFilter({
+    projectId,
+    params,
     advancedFilters,
-    columnDefinitions,
-    eventsTableCols,
-  );
+    allowUnindexedIoFilters: options.allowUnindexedIoFilters,
+  });
 
-  if (!options.allowUnindexedIoFilters) {
-    validateIndexedInputOutputFilters(observationsFilter);
-  }
-
-  // Determine if we need to join traces (check both simple params and advanced filters)
-  const hasTraceFilter = observationsFilter.some(
-    (f) => f.clickhouseTable === "traces",
-  );
-  const filtersNeedFullTable = filtersRequireEventsFull(observationsFilter);
-
-  const startTimeFrom = extractTimeFilter(observationsFilter);
-  const appliedFilter = observationsFilter.apply();
-
-  // Build external CTEs
-  const externalCTEs: Array<{
-    name: string;
-    queryWithParams: { query: string; params: Record<string, any> };
-  }> = [];
-  if (hasTraceFilter) {
-    externalCTEs.push({
-      name: "traces",
-      queryWithParams: eventsTracesAggregation({
-        projectId,
-        startTimeFrom,
-      }).buildWithParams(),
-    });
-  }
-
-  // Build query with joins and filters (no CTEs)
   const queryBuilder = new EventsQueryBuilder({ projectId })
-    .when(filtersNeedFullTable, (b) => b.forceFullTable())
-    .when(hasTraceFilter, (b) =>
-      b.leftJoin(
-        "traces t",
-        "ON t.id = e.trace_id AND t.project_id = e.project_id",
-      ),
-    )
-    .where(appliedFilter);
+    .when(filter.requiresEventsFull, (b) => b.forceFullTable())
+    .where(rowConditionClause(filter.events));
 
-  return {
-    queryBuilder,
-    externalCTEs,
-    filtersNeedFullTable,
-    observationsFilter,
-  };
+  return { queryBuilder, filter };
 }
 
 function buildObservationsQueryBase(
   opts: PublicApiObservationsQuery,
-  columnDefinitions: UiColumnMappings = eventsTableNativeUiColumnDefinitions,
 ): EventsQueryBuilder {
-  const { queryBuilder, externalCTEs } = buildObservationsQueryComponents(
-    opts,
-    columnDefinitions,
-    { allowUnindexedIoFilters: true },
-  );
-  for (const cte of externalCTEs) {
-    queryBuilder.withCTE(cte.name, cte.queryWithParams);
-  }
-  return queryBuilder;
+  return buildObservationsQueryComponents(opts, {
+    allowUnindexedIoFilters: true,
+  }).queryBuilder;
 }
 
 function orderByForObservationsQuery(
@@ -2058,20 +1949,24 @@ export const getObservationsV2PageFromEventsTableForPublicApi = async (
     }
   });
 
+/**
+ * The `startTime` range the scan covers: the filter's bounds, the upper one
+ * capped at the cursor. Throws like `compilePublicApiObservationsFilter`.
+ */
 function extractObservationsStartTimeBounds(opts: PublicApiObservationsQuery) {
-  const { observationsFilter } = buildObservationsQueryComponents(opts);
-  let from: number | undefined;
-  let to = opts.cursor?.lastStartTimeTo.getTime();
-  observationsFilter.forEach((filter) => {
-    if (!isTimeFilter(filter)) return;
-    const value = filter.value.getTime();
-    if (filter.operator === ">" || filter.operator === ">=") {
-      from = Math.max(from ?? value, value);
-    } else if (filter.operator === "<" || filter.operator === "<=") {
-      to = Math.min(to ?? value, value);
-    }
-  });
-  return { from, to };
+  const { projectId, advancedFilters, ...params } = opts;
+  const { from, to } = compilePublicApiObservationsFilter({
+    projectId,
+    params,
+    advancedFilters,
+  }).startTime;
+  const bounds = [to, opts.cursor?.lastStartTimeTo.getTime()].filter(
+    (value): value is number => value !== undefined,
+  );
+  return {
+    from,
+    to: bounds.length > 0 ? Math.min(...bounds) : undefined,
+  };
 }
 
 async function scanObservationWindows(
@@ -2303,6 +2198,7 @@ async function runObservationsScanQuery<T>(
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
     abortSignal,
+    callerDeadline: true,
     clickhouseConfigs: { request_timeout: OBSERVATIONS_SCAN_BUDGET_MS },
     clickhouseSettings: {
       read_in_order_use_buffering: 0,
@@ -2354,15 +2250,8 @@ function buildObservationsV2Query(
   const needsIOCTE = needsIO || needsExpandedMetadata;
 
   // Shared: build base query with field sets, ordering, pagination
-  const {
-    queryBuilder: baseBuilder,
-    externalCTEs,
-    filtersNeedFullTable,
-  } = buildObservationsQueryComponents(
-    opts,
-    eventsTableNativeUiColumnDefinitions,
-    options,
-  );
+  const { queryBuilder: baseBuilder, filter } =
+    buildObservationsQueryComponents(opts, options);
 
   // Apply scan bounds after merging user filters so structured filters cannot
   // override them. The same bounded base feeds the full-payload lookup.
@@ -2387,11 +2276,11 @@ function buildObservationsV2Query(
   // The io lane only pays off when base reads the cheap truncated table
   // (events_core) and the split defers the heavy input/output/metadata columns
   // to a page-size lookup on events_full. When a filter touches input/output,
-  // `filtersNeedFullTable` already forces base onto events_full to evaluate that
-  // filter, so there is nothing left to defer — the split just re-scans
+  // `filter.requiresEventsFull` already forces base onto events_full to evaluate
+  // that filter, so there is nothing left to defer — the split just re-scans
   // events_full several times (base is referenced from the io lane and the final
   // join, and ClickHouse inlines CTEs). Read io/metadata inline on base instead.
-  const useSplit = needsIOCTE && !filtersNeedFullTable;
+  const useSplit = needsIOCTE && !filter.requiresEventsFull;
 
   // Metadata goes to the io CTE only when we actually split; on the simple path
   // base already reads events_full (forced by the filter) so metadata is
@@ -2424,11 +2313,7 @@ function buildObservationsV2Query(
   let builder: QueryWithParams;
   switch (queryPath) {
     case "simple":
-      // Everything from events_core; CTEs attach directly to the builder.
       selectBaseFieldSets();
-      for (const cte of externalCTEs) {
-        baseBuilder.withCTE(cte.name, cte.queryWithParams);
-      }
       builder = baseBuilder;
       break;
     case "cte-join":
@@ -2439,7 +2324,6 @@ function buildObservationsV2Query(
         baseBuilder,
         includeIO: needsIO,
         includeMetadata: metadataFromIoCte,
-        externalCTEs,
       }).orderByColumns(orderByForObservationsQuery("b", "id"));
       break;
   }
@@ -3650,8 +3534,8 @@ export const streamObservationIOFieldFromEventsTable = (
 
 /**
  * Full raw I/O + metadata for ONE observation, scoped to a session (the
- * session-detail download fallback for payloads too large to render inline,
- * LFE-10958). Callers are session-authorized (public sessions included), so
+ * session-detail download fallback for payloads too large to render inline).
+ * Callers are session-authorized (public sessions included), so
  * the session_id predicate is part of the authorization: the query itself
  * guarantees the observation belongs to that session — never widen it.
  */
@@ -4448,10 +4332,13 @@ const GATEWAY_KEY_OWNER_USER_ID_EXPRESSION = `e.metadata_values[indexOf(e.metada
 const GATEWAY_SPEND_SUBJECT_COLUMNS = {
   API_KEY: "e.ingestion_api_key",
   USER: GATEWAY_KEY_OWNER_USER_ID_EXPRESSION,
+  // The gateway records all of an organization's requests in its one ingestion project.
+  ORGANIZATION: "e.project_id",
 } as const;
 
 /**
- * USD each gateway key, or each user's gateway keys, spent since the subject's
+ * USD each gateway key, each user's gateway keys, or the organization (by its
+ * ingestion project's id) spent since the subject's
  * own `since`, in one scan from the earliest. Subjects without spend in their
  * window are absent from the result.
  */
@@ -4496,6 +4383,208 @@ export const getGatewaySpendSinceFromEvents = async (params: {
   return rows.map((row) => ({
     id: row.subject_id,
     spendUsd: Number(row.spend),
+  }));
+};
+
+const GATEWAY_GUARDRAIL_TIME_BUCKETS = {
+  day: { bucket: toDate, step: () => interval(1, "day") },
+  week: { bucket: toMonday, step: () => interval(1, "week") },
+  month: { bucket: toStartOfMonth, step: () => interval(1, "month") },
+} as const;
+
+export type GatewayGuardrailTimeBucket =
+  keyof typeof GATEWAY_GUARDRAIL_TIME_BUCKETS;
+
+/**
+ * Number of gateway requests that matched each guardrail since `since`.
+ * Reads `events_core` via `idx_metadata_names` (`langfuse.gateway.guardrails.<id>`)
+ * without touching `metadata_values` or `events_full`.
+ */
+export const getGatewayGuardrailFlaggedCountsFromEvents = async (params: {
+  projectId: string;
+  guardrailIds: string[];
+  since: Date;
+}): Promise<{ guardrailId: string; count: number }[]> => {
+  if (params.guardrailIds.length === 0) return [];
+
+  const keyToGuardrailId = new Map(
+    params.guardrailIds.map((id) => [
+      `${AI_GATEWAY_GUARDRAIL_METADATA_PREFIX}${id}`,
+      id,
+    ]),
+  );
+  const guardrailKeys = [...keyToGuardrailId.keys()];
+
+  const builder = getClickhouseKysely()
+    .selectFrom("events as e")
+    .$call(
+      arrayJoin((eb) => ({
+        guardrail_key: arrayDistinct(eb.ref("e.metadata_names")),
+      })),
+    )
+    .select(() => [
+      aliasRef<string>("guardrail_key").as("guardrail_key"),
+      count().as("count"),
+    ])
+    .where("e.start_time", ">=", params.since)
+    .where("e.service_name", "=", literal(AI_GATEWAY_SERVICE_NAME))
+    .where((eb) =>
+      hasAny(
+        eb.ref("e.metadata_names"),
+        typedValue<string[]>(guardrailKeys, "Array(String)"),
+      ),
+    )
+    .where((eb) => eb(aliasRef<string>("guardrail_key"), "in", guardrailKeys))
+    .groupBy(aliasRef("guardrail_key"));
+
+  const { sql: query, params: queryParams } = compileClickhouseQuery(
+    builder,
+    params.projectId,
+  );
+
+  const rows = await queryClickhouse<{ guardrail_key: string; count: string }>({
+    query,
+    params: queryParams,
+    tags: { projectId: params.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.flatMap((row) => {
+    const guardrailId = keyToGuardrailId.get(row.guardrail_key);
+    return guardrailId ? [{ guardrailId, count: Number(row.count) }] : [];
+  });
+};
+
+/**
+ * Bucketed count of flagged gateway requests over `[fromTimestamp, toTimestamp]`,
+ * gap-filled in ClickHouse via `WITH FILL` (matching `viewQuerySteps.ts` buckets).
+ * Reads `events_core` using `idx_metadata_names` without reading `metadata_values`.
+ */
+export const getGatewayGuardrailFlaggedTimeSeriesFromEvents = async (params: {
+  projectId: string;
+  fromTimestamp: Date;
+  toTimestamp: Date;
+  granularity: GatewayGuardrailTimeBucket;
+  guardrailIds?: string[];
+  groupByGuardrail?: boolean;
+}): Promise<
+  { timeDimension: string; guardrailId?: string; count: number }[]
+> => {
+  if (params.guardrailIds !== undefined && params.guardrailIds.length === 0) {
+    return [];
+  }
+
+  const { bucket, step } = GATEWAY_GUARDRAIL_TIME_BUCKETS[params.granularity];
+  const fill = withFill({
+    from: bucket(params.fromTimestamp),
+    to: bucket(params.toTimestamp),
+    step: step(),
+  });
+
+  if (params.groupByGuardrail && params.guardrailIds !== undefined) {
+    const keyToGuardrailId = new Map(
+      params.guardrailIds.map((id) => [
+        `${AI_GATEWAY_GUARDRAIL_METADATA_PREFIX}${id}`,
+        id,
+      ]),
+    );
+    const guardrailKeys = [...keyToGuardrailId.keys()];
+
+    const builder = getClickhouseKysely()
+      .selectFrom("events as e")
+      .$call(
+        arrayJoin((eb) => ({
+          guardrail_key: arrayDistinct(eb.ref("e.metadata_names")),
+        })),
+      )
+      .select((eb) => [
+        bucket(eb.ref("e.start_time")).as("time_dimension"),
+        aliasRef<string>("guardrail_key").as("guardrail_key"),
+        count().as("count"),
+      ])
+      .where("e.start_time", ">=", params.fromTimestamp)
+      .where("e.start_time", "<=", params.toTimestamp)
+      .where("e.service_name", "=", literal(AI_GATEWAY_SERVICE_NAME))
+      .where((eb) =>
+        hasAny(
+          eb.ref("e.metadata_names"),
+          typedValue<string[]>(guardrailKeys, "Array(String)"),
+        ),
+      )
+      .where((eb) => eb(aliasRef<string>("guardrail_key"), "in", guardrailKeys))
+      .groupBy([aliasRef("time_dimension"), aliasRef("guardrail_key")])
+      .orderBy(aliasRef("time_dimension"), "asc")
+      .$call(fill);
+
+    const { sql: query, params: queryParams } = compileClickhouseQuery(
+      builder,
+      params.projectId,
+    );
+
+    const rows = await queryClickhouse<{
+      time_dimension: string;
+      guardrail_key: string;
+      count: string;
+    }>({
+      query,
+      params: queryParams,
+      tags: { projectId: params.projectId },
+      preferredClickhouseService: "EventsReadOnly",
+    });
+
+    return rows.map((row) => ({
+      timeDimension: row.time_dimension,
+      guardrailId: keyToGuardrailId.get(row.guardrail_key),
+      count: Number(row.count),
+    }));
+  }
+
+  const guardrailKeys = params.guardrailIds?.map(
+    (id) => `${AI_GATEWAY_GUARDRAIL_METADATA_PREFIX}${id}`,
+  );
+
+  const builder = getClickhouseKysely()
+    .selectFrom("events as e")
+    .select((eb) => [
+      bucket(eb.ref("e.start_time")).as("time_dimension"),
+      count().as("count"),
+    ])
+    .where("e.start_time", ">=", params.fromTimestamp)
+    .where("e.start_time", "<=", params.toTimestamp)
+    .where("e.service_name", "=", literal(AI_GATEWAY_SERVICE_NAME))
+    .where((eb) =>
+      guardrailKeys
+        ? hasAny(
+            eb.ref("e.metadata_names"),
+            typedValue<string[]>(guardrailKeys, "Array(String)"),
+          )
+        : has(
+            eb.ref("e.metadata_names"),
+            literal(AI_GATEWAY_GUARDRAILS_OUTCOME_METADATA_KEY),
+          ),
+    )
+    .groupBy(aliasRef("time_dimension"))
+    .orderBy(aliasRef("time_dimension"), "asc")
+    .$call(fill);
+
+  const { sql: query, params: queryParams } = compileClickhouseQuery(
+    builder,
+    params.projectId,
+  );
+
+  const rows = await queryClickhouse<{
+    time_dimension: string;
+    count: string;
+  }>({
+    query,
+    params: queryParams,
+    tags: { projectId: params.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    timeDimension: row.time_dimension,
+    count: Number(row.count),
   }));
 };
 

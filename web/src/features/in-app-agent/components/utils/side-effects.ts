@@ -40,6 +40,10 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
     "annotationQueues",
     "annotationQueueItems",
   ],
+  langfuse_batchCreateAnnotationQueueItems: [
+    "annotationQueues",
+    "annotationQueueItems",
+  ],
   langfuse_updateAnnotationQueueItem: [
     "annotationQueues",
     "annotationQueueItems",
@@ -106,6 +110,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_testExternalMediaStorage: [],
   langfuse_queryMetrics: [],
   langfuse_getMetricsSchema: [],
+  langfuse_renderWidget: [],
   langfuse_listModels: [],
   langfuse_createModel: ["models"],
   langfuse_getModel: [],
@@ -139,6 +144,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_listScores: [],
   langfuse_getScore: [],
   langfuse_createScore: ["scores", "scoreAnalytics"],
+  langfuse_batchCreateScores: ["scores", "scoreAnalytics"],
   langfuse_listScoreConfigs: [],
   langfuse_getScoreConfig: [],
   langfuse_createScoreConfig: ["scoreConfigs"],

@@ -64,15 +64,7 @@ const EnvSchema = z.object({
   // CHB's resource-server identifier. Defaulted because it is the same value
   // in every CHB tenant, and overridable in case that stops being true.
   CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
-  // Compares each metered Stripe interval with the billable_events ledger and
-  // reports the gap. Requires the ledger table, which only Langfuse Cloud has;
-  // keep in sync with web/src/env.mjs.
-  LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
 
-  LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
-  LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),
   LANGFUSE_S3_BATCH_EXPORT_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_S3_BATCH_EXPORT_BUCKET: z.string().optional(),
   LANGFUSE_S3_BATCH_EXPORT_PREFIX: z.string().default(""),
@@ -114,7 +106,6 @@ const EnvSchema = z.object({
     .positive()
     .default(24),
   BATCH_EXPORT_S3_PART_SIZE_MIB: z.coerce.number().min(5).max(100).default(10),
-  BATCH_ACTION_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(50_000),
   LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT: z.coerce
     .number()
     .positive()
@@ -133,6 +124,7 @@ const EnvSchema = z.object({
   LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_OTEL_DIRECT_IMPLEMENTATION: z.enum(["ts", "rust"]).default("ts"),
   LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -149,11 +141,11 @@ const EnvSchema = z.object({
       message:
         'Use "*" alone to select all projects, or a comma-separated list of project IDs',
     }),
-  // Cloud only: records trace activity at ingestion; the events-dispatch consumer host also runs the dispatcher.
-  LANGFUSE_EVENTS_DISPATCH_ENABLED: z.enum(["true", "false"]).default("false"),
+  // Records trace activity at ingestion; the events-dispatch consumer host also runs the dispatcher.
+  LANGFUSE_EVENTS_DISPATCH_ENABLED: z.enum(["true", "false"]).default("true"),
   QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
   // How long a trace's Redis bounds survive its latest activity; late spans merge within it.
   LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS: z.coerce
     .number()
@@ -168,16 +160,6 @@ const EnvSchema = z.object({
     .positive()
     .max(1_000)
     .default(120),
-  // Experiment: also records traces without a matching rule, by deterministic trace-ID sample.
-  LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL: z.coerce
-    .number()
-    .min(0)
-    .max(1)
-    .default(0),
-  // Experiment: read and store every dispatched trace, enqueueing consumers only where rules apply.
-  LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL: z
-    .enum(["true", "false"])
-    .default("false"),
   QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -194,6 +176,12 @@ const EnvSchema = z.object({
     .min(0)
     .max(23)
     .default(4),
+  // Rendered transcript characters per Topics summary request; ~135k-150k o200k tokens at typical density.
+  LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(500_000),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
@@ -206,6 +194,13 @@ const EnvSchema = z.object({
     .positive()
     .default(5),
   LANGFUSE_SECONDARY_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z.string().optional(),
+  // Sends `date_time_input_format = best_effort` with the ClickHouse writer's
+  // JSONEachRow inserts. ClickHouse before 26.5 defaults to `basic`, which
+  // rejects a datetime string that carries a zone such as `Z` or `+02:00` and
+  // fails the whole insert. Set to "false" to keep the server's own setting.
+  LANGFUSE_CLICKHOUSE_BEST_EFFORT_DATETIME_PARSING: z
+    .enum(["true", "false"])
+    .default("true"),
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
     .number()
     .positive()
@@ -470,12 +465,6 @@ const EnvSchema = z.object({
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
 
-  // Comma-separated list of project IDs to exclude from event propagation dual-write
-  LANGFUSE_EVENT_PROPAGATION_EXCLUDE_PROJECT_IDS: z
-    .string()
-    .optional()
-    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
-
   LANGFUSE_EVENT_PROPAGATION_MAX_INSERT_THREADS: z.coerce
     .number()
     .int()
@@ -663,6 +652,12 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(10_000), // Max items (media files) to process per batch
+
+  // Deletes stored events-dispatch transcripts older than three days. Off until
+  // enabled so workers do not list the bucket by default.
+  LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
 
   // Batch Trace Deletion Cleaner configuration
   LANGFUSE_BATCH_TRACE_DELETION_CLEANER_ENABLED: z
@@ -854,6 +849,17 @@ export const v4ForceDirectOtelWrite = (envValue: ParsedEnv): boolean =>
 const v4AllowPreviewOptIn = (envValue: ParsedEnv): boolean =>
   envValue.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
+const validateOtelDirectImplementationConfig = (parsed: ParsedEnv): void => {
+  if (
+    parsed.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION === "rust" &&
+    parsed.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED !== "true"
+  ) {
+    throw new Error(
+      "Rust OTEL processing requires early media extraction to be enabled",
+    );
+  }
+};
+
 const validateV4Flags = (parsed: ParsedEnv): void => {
   const mode = parsed.LANGFUSE_MIGRATION_V4_WRITE_MODE;
   const otel = parsed.LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR;
@@ -902,6 +908,7 @@ const validateInAppAgentSandboxConfig = (parsed: ParsedEnv): void => {
 const parseEnv = (): ParsedEnv => {
   const source = { ...removeEmptyEnvVariables(process.env) };
   const parsed = EnvSchema.parse(source);
+  validateOtelDirectImplementationConfig(parsed);
   validateV4Flags(parsed);
   validateInAppAgentSandboxConfig(parsed);
   return parsed;

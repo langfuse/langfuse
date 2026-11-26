@@ -6,20 +6,19 @@ import {
   saveOrgMembership,
   saveProjectMembership,
 } from "@langfuse/shared/memberships";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { hasEntitlementBasedOnPlan, CloudConfigSchema } from "@langfuse/shared";
+import {
+  getOrganizationPlanServerSide,
+  initializeClickhouseCompatibility,
+  logger,
+} from "@langfuse/shared/src/server";
 import { isPublicSharingDisabledByInstance } from "@/src/ee/features/public-sharing/server/publicSharing";
-import { CloudConfigSchema } from "@langfuse/shared";
 import {
   OrganizationId,
   ProjectId,
   SystemRoleId,
   UserId,
 } from "@langfuse/shared/rbac";
-import {
-  initializeClickhouseCompatibility,
-  logger,
-} from "@langfuse/shared/src/server";
 
 await initializeClickhouseCompatibility();
 

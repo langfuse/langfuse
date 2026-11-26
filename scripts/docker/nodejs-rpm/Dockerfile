@@ -4,7 +4,7 @@
 # /rpms, which web/Dockerfile and worker/Dockerfile pull by digest. Built and
 # pushed by .github/workflows/nodejs-rpm.yml; a cold build compiles all of Node
 # and V8 (about 70 minutes on 16 x86_64 cores with 12 jobs, ~10 GB RAM).
-ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
+ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.9
 
 FROM ${BASE_IMAGE} AS builder
 COPY build.sh 000*.patch /build/

@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { AnnotationQueueObjectType, type Plan } from "@langfuse/shared";
@@ -6,6 +5,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const HOBBY_LIMIT_MESSAGE =
   /Maximum number of annotation queues reached on Hobby plan/;
@@ -20,40 +20,25 @@ describe("annotation queues trpc", () => {
     projectRole: "ADMIN" | "NONE" = "ADMIN",
     plan: Plan = "cloud:hobby",
   ) => {
-    const session: Session = {
-      expires: "1",
-      user: {
-        id: "user-1",
-        name: "Demo User",
-        canCreateOrganizations: true,
-        organizations: [
-          {
-            id: setup.org.id,
-            name: setup.org.name,
-            role: "MEMBER",
-            plan,
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: setup.project.id,
-                role: projectRole,
-                name: setup.project.name,
-                deletedAt: null,
-                retentionDays: null,
-                hasTraces: false,
-                createdAt: new Date().toISOString(),
-                metadata: {},
-              },
-            ],
-          },
-        ],
-        featureFlags: testFeatureFlags(),
-      },
-      environment: {} as Session["environment"],
-    };
+    const session: Session = createSession({
+      organizations: [
+        {
+          id: setup.org.id,
+          role: "MEMBER",
+          name: setup.org.name,
+          plan,
+          aiTelemetryEnabled: true,
+          projects: [
+            {
+              id: setup.project.id,
+              role: projectRole,
+              name: setup.project.name,
+              retentionDays: null,
+            },
+          ],
+        },
+      ],
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
 
@@ -354,12 +339,86 @@ describe("annotation queues trpc", () => {
       );
       const first = await createScoreConfig(setup.project.id);
       const second = await createScoreConfig(setup.project.id);
+      const sessionViewConfig = {
+        filters: [],
+        viewMode: "list" as const,
+        unmatchedTraces: "hide" as const,
+      };
+      const view = await prisma.sessionView.create({
+        data: {
+          projectId: setup.project.id,
+          name: "Queue session view",
+          ...sessionViewConfig,
+        },
+      });
+      const privateView = await prisma.sessionView.create({
+        data: {
+          projectId: setup.project.id,
+          name: "Private queue session view",
+          ownership: "PRIVATE",
+          ...sessionViewConfig,
+        },
+      });
+      await expect(
+        caller.annotationQueues.create({
+          projectId: setup.project.id,
+          name: "Private view queue",
+          scoreConfigIds: [first.id],
+          sessionViewId: privateView.id,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      const otherSetup = await createOrgProjectAndApiKey();
+      orgIds.push(otherSetup.org.id);
+      const otherView = await prisma.sessionView.create({
+        data: {
+          projectId: otherSetup.project.id,
+          name: "Other project view",
+          ...sessionViewConfig,
+        },
+      });
+      await expect(
+        caller.annotationQueues.create({
+          projectId: setup.project.id,
+          name: "Invalid view queue",
+          scoreConfigIds: [first.id],
+          sessionViewId: otherView.id,
+        }),
+      ).rejects.toThrow("must belong to this project");
       const queue = await caller.annotationQueues.create({
         projectId: setup.project.id,
         name: "configured-queue",
         description: "Initial description",
         scoreConfigIds: [first.id, second.id],
+        sessionViewId: view.id,
       });
+      expect(queue.sessionViewConfig).toEqual(sessionViewConfig);
+      await expect(
+        caller.annotationQueues.update({
+          projectId: setup.project.id,
+          queueId: queue.id,
+          sessionViewId: privateView.id,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(
+        prisma.annotationQueue.update({
+          where: { id: queue.id, projectId: setup.project.id },
+          data: { sessionViewId: otherView.id },
+        }),
+      ).rejects.toMatchObject({ code: "P2003" });
+      await prisma.annotationQueue.create({
+        data: {
+          projectId: otherSetup.project.id,
+          name: "Cascade-linked queue",
+          sessionViewId: otherView.id,
+        },
+      });
+      await expect(
+        caller.annotationQueues.update({
+          projectId: setup.project.id,
+          queueId: queue.id,
+          sessionViewId: otherView.id,
+        }),
+      ).rejects.toThrow("must belong to this project");
       await caller.annotationQueues.create({
         projectId: setup.project.id,
         name: "another-queue",
@@ -374,6 +433,7 @@ describe("annotation queues trpc", () => {
         projectId: setup.project.id,
         queueId: queue.id,
         scoreConfigIds: [second.id, first.id],
+        sessionViewId: view.id,
       });
       expect(configured).toMatchObject({
         name: "Latest name",
@@ -391,6 +451,53 @@ describe("annotation queues trpc", () => {
         name: "Changed settings",
         description: "Changed description",
         scoreConfigIds: [second.id, first.id],
+        sessionViewConfig,
+      });
+      const saved = await caller.annotationQueues.byId({
+        projectId: setup.project.id,
+        queueId: queue.id,
+      });
+      expect(saved.sessionViewConfig).toEqual(sessionViewConfig);
+      await prisma.sessionView.update({
+        where: { id: view.id, projectId: setup.project.id },
+        data: { unmatchedTraces: "show" },
+      });
+      expect(
+        (
+          await caller.annotationQueues.byId({
+            projectId: setup.project.id,
+            queueId: queue.id,
+          })
+        ).sessionViewConfig,
+      ).toEqual({ ...sessionViewConfig, unmatchedTraces: "show" });
+      await expect(
+        caller.sessionViews.delete({
+          projectId: setup.project.id,
+          id: view.id,
+        }),
+      ).rejects.toThrow("Changed settings");
+      const storedConfig = await prisma.annotationQueue.findUniqueOrThrow({
+        where: { id: queue.id, projectId: setup.project.id },
+      });
+      expect(storedConfig).toMatchObject({
+        sessionViewId: view.id,
+      });
+
+      const reset = await caller.annotationQueues.update({
+        projectId: setup.project.id,
+        queueId: queue.id,
+        sessionViewId: null,
+      });
+      expect(reset.sessionViewConfig).toBeNull();
+      const stored = await prisma.annotationQueue.findUniqueOrThrow({
+        where: { id: queue.id, projectId: setup.project.id },
+      });
+      expect(stored).toMatchObject({
+        sessionViewId: null,
+      });
+      await caller.sessionViews.delete({
+        projectId: setup.project.id,
+        id: view.id,
       });
     });
 

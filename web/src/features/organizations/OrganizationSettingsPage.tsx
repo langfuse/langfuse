@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
 import { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
@@ -29,6 +30,7 @@ import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flag
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { ConnectedLLMApiKeySettingsTable } from "@/src/features/public-api/components/LLMApiKeySettingsTable/ConnectedLLMApiKeySettingsTable";
+import { OrganizationModelsSettings } from "@/src/features/models/components/OrganizationModelsSettings";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -60,6 +62,10 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     organizationId: organization?.id,
     scope: "organizationLlmApiKeys:read",
   });
+  const canReadOrganizationModels = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organizationModels:read",
+  });
   const canReadUsage = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "organizationUsage:read",
@@ -88,6 +94,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showMembers: canReadSettings,
     showProjects: canReadSettings || organization.projects.length > 0,
     showOrganizationLlmConnections: canReadOrganizationLlmConnections,
+    showOrganizationModels: canReadOrganizationModels,
     showFeaturePreviews:
       canUpdateOrganization && organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
   });
@@ -105,6 +112,7 @@ const getOrganizationSettingsPages = ({
   showMembers,
   showProjects,
   showOrganizationLlmConnections,
+  showOrganizationModels,
   showFeaturePreviews,
 }: {
   organization: {
@@ -128,6 +136,7 @@ const getOrganizationSettingsPages = ({
   showMembers: boolean;
   showProjects: boolean;
   showOrganizationLlmConnections: boolean;
+  showOrganizationModels: boolean;
   showFeaturePreviews: boolean;
 }): OrganizationSettingsPage[] => [
   {
@@ -169,15 +178,23 @@ const getOrganizationSettingsPages = ({
                 "Once you delete an organization, there is no going back. Please be certain.",
               button: (
                 <DeleteOrganizationDialogController>
-                  {({ disabled, openDialog }) => (
-                    <Button
-                      variant="destructive-secondary"
-                      disabled={disabled !== undefined}
-                      onClick={openDialog}
-                    >
-                      Delete Organization
-                    </Button>
-                  )}
+                  {({ disabled, openDialog }) => {
+                    const button = (
+                      <Button
+                        variant="destructive-secondary"
+                        disabled={disabled !== undefined}
+                        onClick={openDialog}
+                      >
+                        Delete Organization
+                      </Button>
+                    );
+                    if (!disabled) return button;
+                    return (
+                      <DisabledActionTooltip label={disabled.reason}>
+                        {button}
+                      </DisabledActionTooltip>
+                    );
+                  }}
                 </DeleteOrganizationDialogController>
               ),
             },
@@ -238,6 +255,14 @@ const getOrganizationSettingsPages = ({
       </div>
     ),
     show: showOrganizationLlmConnections,
+  },
+  {
+    title: "Models",
+    slug: "models",
+    section: "Organization",
+    cmdKKeywords: ["models", "pricing", "prices", "tokenizer"],
+    content: <OrganizationModelsSettings organizationId={organization.id} />,
+    show: showOrganizationModels,
   },
   {
     title: "Members",

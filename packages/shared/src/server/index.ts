@@ -14,6 +14,7 @@ export { type TransformMediaPayloadResult } from "./media/MediaPayloadProcessor"
 export { transformMediaPayload } from "./media/MediaPayloadProcessor";
 export { getMediaId } from "./media/mediaService";
 export { getMediaBucketPath } from "./media/mediaService";
+export { getMediaDownloadUrl } from "./media/getMediaDownloadUrl";
 export { upsertMediaRecord } from "./media/mediaService";
 export { linkMediaToTraceOrObservation } from "./media/mediaService";
 export { type UploadMediaForTraceResult } from "./media/mediaService";
@@ -36,6 +37,7 @@ export * from "./services/email/passwordReset/sendResetPasswordVerificationReque
 export * from "./services/email/cloudSpendAlert/sendCloudSpendAlertEmail";
 export * from "./services/email/usageThresholdWarning/sendUsageThresholdWarningEmail";
 export * from "./services/email/usageThresholdSuspension/sendUsageThresholdSuspensionEmail";
+export type { UsageThresholdPlan } from "./services/email/usageThresholdPlan";
 export * from "./services/email/commentMention/sendCommentMentionEmail";
 export * from "./services/email/blobStorageExportFailed/sendBlobStorageExportFailedEmail";
 export * from "./services/email/posthogExportFailed/sendPostHogExportFailedEmail";
@@ -65,6 +67,8 @@ export * from "./evals/extractObservationVariables";
 export * from "./evals/classifyEvaluatorLlmError";
 export * from "./evals/llmEvaluatorExecution";
 export * from "./evals/decisionModelEvaluatorExecution";
+export * from "./evals/traceEvalsConfig";
+export * from "./evals/traceEvalsProcessingGate";
 export * from "./llm/createDecisionModelClient";
 export * from "./llm/typesafe/typeSafeDecisionModelClient";
 export * from "./utils/traceId";
@@ -148,6 +152,7 @@ export * from "./repositories/definitions";
 export * from "../utils/IORepresentation/chatML/types";
 export * from "../server/ingestion/types";
 export * from "../server/ingestion/modelMatch";
+export * from "./ingestion/modelVisibility";
 export * from "./ingestion/ingestionAttribution";
 export * from "./ingestion/processEventBatch";
 export * from "../server/ingestion/validateAndInflateScore";
@@ -160,6 +165,7 @@ export { normalizeIO } from "./normalized-io/parser";
 export { type NormalizedEvalRecord } from "./normalized-io/projections/eval-record";
 export { toEvalRecord } from "./normalized-io/projections/eval-record";
 export { toToolColumns } from "./normalized-io/projections/tool-call-columns";
+export { toEvalVariables } from "./transcript/eval-threads";
 export { orderObservations } from "./transcript/ordering";
 export { assembleTranscript } from "./transcript/transcript";
 export {
@@ -183,12 +189,15 @@ export { type ThreadMessage } from "./transcript/types";
 export { type Turn } from "./transcript/types";
 export { type Thread } from "./transcript/types";
 export { type Transcript } from "./transcript/types";
-export { createTraceBatchInputStorage } from "./traceBatch/storage";
-export { TRACE_BATCH_INPUT_MAX_CHARACTERS } from "./traceBatch/storage";
-export { UnsupportedTraceBatchInputVersionError } from "./traceBatch/storage";
-export { type TraceBatchInputReference } from "./traceBatch/storage";
-export { type TraceBatchInputData } from "./traceBatch/storage";
-export { type TraceBatchInputStorage } from "./traceBatch/storage";
+export { createTraceTranscriptStorage } from "./eventsDispatch/storage";
+export { serializeTraceTranscriptInputs } from "./eventsDispatch/storage";
+export { TRACE_TRANSCRIPT_MAX_CHARACTERS } from "./eventsDispatch/storage";
+export { TRACE_TRANSCRIPT_PREFIX } from "./eventsDispatch/storage";
+export { TRACE_TRANSCRIPT_RETENTION_MS } from "./eventsDispatch/storage";
+export { UnsupportedTraceTranscriptVersionError } from "./eventsDispatch/storage";
+export { type TraceTranscriptReference } from "./eventsDispatch/storage";
+export { type TraceTranscriptData } from "./eventsDispatch/storage";
+export { type TraceTranscriptStorage } from "./eventsDispatch/storage";
 export * from "../server/queries/public-api-filter-builder";
 export { type PricingTierMatchAttributes } from "./pricing-tiers/types";
 export { type PricingTierMatchResult } from "./pricing-tiers/types";
@@ -406,7 +415,6 @@ export { getScoresForBlobStorageExportParquet } from "./repositories/scores";
 export { getScoresForAnalyticsIntegrations } from "./repositories/scores";
 export { hasAnyScore } from "./repositories/scores";
 export { getScoreMetadataById } from "./repositories/scores";
-export { getScoreCountsByProjectAndDay } from "./repositories/scores";
 export { ScoresCursorV3 } from "./repositories/scores";
 export { type ScoresCursorV3Type } from "./repositories/scores";
 export { EncodedScoresCursorV3 } from "./repositories/scores";
@@ -448,7 +456,6 @@ export { getTracesForBlobStorageExportParquet } from "./repositories/traces";
 export { getTracesForAnalyticsIntegrations } from "./repositories/traces";
 export { getTracesByIdsForAnyProject } from "./repositories/traces";
 export { getAgentGraphData } from "./repositories/traces";
-export { getTraceCountsByProjectAndDay } from "./repositories/traces";
 export { TRACE_FIELD_GROUPS } from "./repositories/traces";
 export { type TraceFieldGroup } from "./repositories/traces";
 export { type TraceQueryType } from "./repositories/traces";
@@ -490,7 +497,6 @@ export { getObservationsForBlobStorageExport } from "./repositories/observations
 export { getObservationsForBlobStorageExportRaw } from "./repositories/observations";
 export { getObservationsForBlobStorageExportParquet } from "./repositories/observations";
 export { getGenerationsForAnalyticsIntegrations } from "./repositories/observations";
-export { getObservationCountsByProjectAndDay } from "./repositories/observations";
 export { getCostByEvaluatorIds } from "./repositories/observations";
 export { getAvgCostByEvaluatorIdsFromObservations } from "./repositories/observations";
 export { generateObservationsForPublicApi } from "./repositories/observations";
@@ -561,7 +567,12 @@ export { getAvgCostByEvaluatorIds } from "./repositories/events";
 export { getTotalCostByRule } from "./repositories/events";
 export { getTotalCostByEvaluatorIds } from "./repositories/events";
 export { getLatestEvaluatorRunCost } from "./repositories/events";
-export { getGatewaySpendSinceFromEvents } from "./repositories/events";
+export {
+  getGatewaySpendSinceFromEvents,
+  getGatewayGuardrailFlaggedCountsFromEvents,
+  getGatewayGuardrailFlaggedTimeSeriesFromEvents,
+  type GatewayGuardrailTimeBucket,
+} from "./repositories/events";
 export { getEvaluatorExecutionSummaries } from "./repositories/events";
 export { getSessionMetricsFromEvents } from "./repositories/events";
 export { type SdkMetadata } from "./repositories/events";
@@ -569,9 +580,10 @@ export { getLatestSdkVersionInfoFromEvents } from "./repositories/events";
 export { getTracesIdentifierForSessionFromEvents } from "./repositories/events";
 export { getEventsStreamForEval } from "./repositories/events-stream";
 export {
-  getTraceBatchEventStream,
-  type TraceBatchEventRow,
-} from "./repositories/trace-batch";
+  getEventsDispatchEventStream,
+  getTopicCostEstimateEventStream,
+  type EventsDispatchEventRow,
+} from "./repositories/events-dispatch";
 export { type TableCount } from "./repositories/types";
 export { type DateTrunc } from "./repositories/dashboards";
 export { getScoreAggregate } from "./repositories/dashboards";
@@ -743,7 +755,15 @@ export { getAuditLogResourceRefs } from "./repositories/auditLogs";
 export { getSystemAuditLogActorForUserId } from "./repositories/auditLogs";
 export { getSystemAuditLogActorForApiKeyId } from "./repositories/auditLogs";
 export { type BillableEventType } from "./repositories/billable-events";
-export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
+export {
+  BILLING_SETTLE_MS,
+  type BillableUnitBucketGranularity,
+  bucketStartSql,
+  getBillableEventsLedgerStart,
+  getBillableUnitCountsByProjectAndBucket,
+  getBillableUnitCountsByProjectInWindow,
+  getBillableUnitCountsForAllProjectsInRange,
+} from "./repositories/billable-events";
 export { getTopicSetupTraceCount } from "./repositories/topic-setup-events";
 export {
   getTopicSetupTraceBounds,
@@ -751,7 +771,9 @@ export {
   TOPIC_SETUP_WINDOW_DAYS,
 } from "./repositories/topic-setup-events";
 export { getTopicSetupTraceNames } from "./repositories/topic-setup-events";
+export { getTopicCostEstimateSample } from "./repositories/topic-setup-events";
 export {
+  getTopicFacetSummaryCountsByProjectInCreationInterval,
   getTopicResultCounts,
   type TopicResultCounts,
   listCurrentTopicAssignments,
@@ -939,7 +961,7 @@ export const getTracesIdentifierForSession =
   // eslint-disable-next-line @typescript-eslint/no-deprecated -- Intentional public alias for the deprecated routing wrapper.
   getTracesIdentifierForSessionRoutingWrapper;
 
-export * from "./billing/billingLedgerShadow";
+export * from "./entitlements/getPlan";
 
 export { isDnsCompatibleBucketName } from "./outbound-url/validation";
 export { assembleTranscriptContext } from "./transcript/context";
@@ -947,6 +969,8 @@ export { isExecutionIssue } from "./transcript/context";
 export type { ExecutionIssue } from "./transcript/types";
 export type { TranscriptContext } from "./transcript/types";
 export { getTracingCountsByProjectInCreationIntervalFromEventsTable } from "./repositories/events";
+export { AI_GATEWAY_COST_SOURCE_CALCULATED } from "./otel/OtelIngestionProcessor";
+export { AI_GATEWAY_COST_SOURCE_METADATA_KEY } from "./otel/OtelIngestionProcessor";
 export { AI_GATEWAY_KEY_ID_METADATA_KEY } from "./otel/OtelIngestionProcessor";
 export { aiGatewayIngestionApiKey } from "./otel/OtelIngestionProcessor";
 export { isAiGatewayIngestionApiKey } from "./otel/OtelIngestionProcessor";

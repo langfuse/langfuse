@@ -12,6 +12,7 @@ import { logger } from "../logger";
 import { getTracer, instrumentAsync } from "../instrumentation";
 import { randomUUID } from "crypto";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
+import { getLightweightDeleteModeOverride } from "../clickhouse/lightweightDelete";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { type Span, context, SpanKind, trace } from "@opentelemetry/api";
 import { backOff } from "exponential-backoff";
@@ -40,6 +41,8 @@ import {
 import {
   CLICKHOUSE_NETWORK_ERROR_PATTERNS,
   CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
+  type ClickHouseQueryOutcome,
+  clickHouseQueryErrorCode,
   clickHouseQueryShape,
   clickHouseQueryTableLabel,
   recordClickHouseQueryOutcome,
@@ -836,8 +839,18 @@ export async function queryClickhouse<T>(
   );
 }
 
+type ClickHouseProgressQueryOpts = ClickhouseQueryOpts & {
+  abortSignal?: AbortSignal;
+  /**
+   * `max_execution_time` is the caller's remaining time budget, so a ClickHouse
+   * `TIMEOUT_EXCEEDED` is that budget running out and is recorded as
+   * `deadline`. Other timeouts, such as a socket timeout, stay `timeout`.
+   */
+  callerDeadline?: boolean;
+};
+
 export async function* queryClickhouseWithProgress<T>(
-  opts: ClickhouseQueryOpts & { abortSignal?: AbortSignal },
+  opts: ClickHouseProgressQueryOpts,
 ): AsyncGenerator<RowOrProgress<T>> {
   if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
@@ -851,6 +864,7 @@ export async function* queryClickhouseWithProgress<T>(
     table,
     shape,
     clickhouseService,
+    callerDeadline: opts.callerDeadline ?? false,
   };
 
   const tracer = getTracer("clickhouse-query-progress");
@@ -867,7 +881,7 @@ export async function* queryClickhouseWithProgress<T>(
 }
 
 async function* runClickHouseProgressAttempts<T>(
-  opts: ClickhouseQueryOpts & { abortSignal?: AbortSignal },
+  opts: ClickHouseProgressQueryOpts,
   span: Span,
   progressContext: ClickHouseProgressQueryContext,
 ): AsyncGenerator<RowOrProgress<T>> {
@@ -1094,6 +1108,24 @@ async function retryClickHouseProgress(
   await new Promise((resolve) => setTimeout(resolve, 100));
 }
 
+function clickHouseProgressFailureOutcome(
+  error: unknown,
+  wrapped: Error,
+  callerDeadline: boolean,
+): ClickHouseQueryOutcome {
+  if (error instanceof ClickHouseQueryAbortedError) {
+    return error.isClientTimeout ? "deadline" : "client_closed";
+  }
+  if (!(wrapped instanceof ClickHouseResourceError)) return "error";
+  if (
+    callerDeadline &&
+    clickHouseQueryErrorCode(error) === "timeout_exceeded"
+  ) {
+    return "deadline";
+  }
+  return CLICKHOUSE_RESOURCE_ERROR_OUTCOMES[wrapped.errorType];
+}
+
 function recordClickHouseProgressError(
   error: unknown,
   queryId: string | undefined,
@@ -1111,14 +1143,8 @@ function recordClickHouseProgressError(
           enrichWithQueryId(originalError, queryId),
           context.normalizedTags,
         );
-  const fallbackOutcome =
-    error instanceof ClickHouseQueryAbortedError && !error.isClientTimeout
-      ? "client_closed"
-      : "error";
   recordClickHouseQueryOutcome(
-    wrapped instanceof ClickHouseResourceError
-      ? CLICKHOUSE_RESOURCE_ERROR_OUTCOMES[wrapped.errorType]
-      : fallbackOutcome,
+    clickHouseProgressFailureOutcome(error, wrapped, context.callerDeadline),
     context.normalizedTags,
     context.table,
     context.shape,
@@ -1143,6 +1169,7 @@ type ClickHouseProgressQueryContext = {
   table: ReturnType<typeof clickHouseQueryTableLabel>;
   shape: ReturnType<typeof clickHouseQueryShape>;
   clickhouseService: ReturnType<typeof resolveClickhouseService>;
+  callerDeadline: boolean;
 };
 
 export async function commandClickhouse(opts: {
@@ -1173,6 +1200,10 @@ export async function commandClickhouse(opts: {
         ...(opts.abortSignal ? { abort_signal: opts.abortSignal } : {}),
         clickhouse_settings: {
           ...opts.clickhouseSettings,
+          ...getLightweightDeleteModeOverride(
+            opts.query,
+            env.CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE_EXCLUDED_TABLES,
+          ),
           log_comment: JSON.stringify(normalizedTags),
         },
       });

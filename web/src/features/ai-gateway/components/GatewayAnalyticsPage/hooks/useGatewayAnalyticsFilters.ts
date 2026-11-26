@@ -12,9 +12,11 @@ import type { GatewayAnalyticsLabelSource } from "@/src/features/ai-gateway/comp
  */
 export function useGatewayAnalyticsFilters({
   labels,
+  apiKeyOwnerById,
   canFilterByUser,
 }: {
   labels: Record<GatewayAnalyticsLabelSource, ReadonlyMap<string, string>>;
+  apiKeyOwnerById: ReadonlyMap<string, string | null>;
   canFilterByUser: boolean;
 }) {
   const [query, setQuery] = useQueryParams({
@@ -25,9 +27,13 @@ export function useGatewayAnalyticsFilters({
     () => (canFilterByUser ? withoutNulls(query.users) : []),
     [canFilterByUser, query.users],
   );
-  const apiKeyIds = useMemo(
+  const rawApiKeyIds = useMemo(
     () => withoutNulls(query.gatewayKeys),
     [query.gatewayKeys],
+  );
+  const apiKeyIds = useMemo(
+    () => filterMatchingGatewayKeys(rawApiKeyIds, userIds, apiKeyOwnerById),
+    [rawApiKeyIds, userIds, apiKeyOwnerById],
   );
 
   const filters = useMemo(
@@ -40,8 +46,8 @@ export function useGatewayAnalyticsFilters({
 
   const userOptions = useMemo(() => toOptions(labels.users), [labels.users]);
   const apiKeyOptions = useMemo(
-    () => toOptions(labels.apiKeys),
-    [labels.apiKeys],
+    () => toApiKeyOptions(labels.apiKeys, userIds, apiKeyOwnerById),
+    [labels.apiKeys, userIds, apiKeyOwnerById],
   );
 
   return {
@@ -49,7 +55,10 @@ export function useGatewayAnalyticsFilters({
     user: {
       values: userIds,
       options: userOptions,
-      onValueChange: (values: string[]) => setQuery({ users: values }),
+      onValueChange: (values: string[]) =>
+        setQuery(
+          nextUserQuery(values, apiKeyIds, rawApiKeyIds, apiKeyOwnerById),
+        ),
     },
     apiKey: {
       values: apiKeyIds,
@@ -65,6 +74,69 @@ function withoutNulls(values: readonly (string | null)[]): string[] {
 
 function toOptions(labelMap: ReadonlyMap<string, string>) {
   return [...labelMap].map(([value, label]) => ({ value, label }));
+}
+
+function toApiKeyOptions(
+  labelMap: ReadonlyMap<string, string>,
+  userIds: readonly string[],
+  apiKeyOwnerById: ReadonlyMap<string, string | null>,
+) {
+  if (userIds.length === 0) return toOptions(labelMap);
+  const selectedUsers = new Set(userIds);
+  const options: { value: string; label: string }[] = [];
+  for (const [value, label] of labelMap) {
+    const ownerUserId = apiKeyOwnerById.get(value);
+    if (
+      ownerUserId !== null &&
+      ownerUserId !== undefined &&
+      selectedUsers.has(ownerUserId)
+    ) {
+      options.push({ value, label });
+    }
+  }
+  return options;
+}
+
+function nextUserQuery(
+  users: string[],
+  apiKeyIds: string[],
+  rawApiKeyIds: readonly string[],
+  apiKeyOwnerById: ReadonlyMap<string, string | null>,
+) {
+  const nextGatewayKeys = filterMatchingGatewayKeys(
+    apiKeyIds,
+    users,
+    apiKeyOwnerById,
+  );
+  const gatewayKeysChanged =
+    nextGatewayKeys.length !== rawApiKeyIds.length ||
+    nextGatewayKeys.some((id, index) => id !== rawApiKeyIds[index]);
+  return gatewayKeysChanged
+    ? { users, gatewayKeys: nextGatewayKeys }
+    : { users };
+}
+
+/**
+ * Keeps selected keys that can still match `userIds`. Keys absent from
+ * `apiKeyOwnerById` (custom/deleted IDs, or while labels are still loading)
+ * are kept since their owner is unknown.
+ */
+function filterMatchingGatewayKeys(
+  apiKeyIds: string[],
+  userIds: readonly string[],
+  apiKeyOwnerById: ReadonlyMap<string, string | null>,
+): string[] {
+  if (userIds.length === 0 || apiKeyIds.length === 0) return apiKeyIds;
+  const selectedUsers = new Set(userIds);
+  return apiKeyIds.filter((keyId) => {
+    if (!apiKeyOwnerById.has(keyId)) return true;
+    const ownerUserId = apiKeyOwnerById.get(keyId);
+    return (
+      ownerUserId !== null &&
+      ownerUserId !== undefined &&
+      selectedUsers.has(ownerUserId)
+    );
+  });
 }
 
 function anyOf(column: string, values: string[]): FilterState {

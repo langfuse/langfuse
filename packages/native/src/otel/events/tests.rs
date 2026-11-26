@@ -1,7 +1,9 @@
 use super::super::value::json;
+use super::super::value_properties::ordinary_json;
 use super::build::AI_GATEWAY_SERVICE_NAME;
 use super::*;
 use crate::otel::input::Span;
+use proptest::prelude::*;
 
 #[test]
 fn skips_ignored_envelope_values_without_materializing_them() {
@@ -235,8 +237,16 @@ fn claude_managed_agent_lifecycle_respects_provider_priority() {
             "anthropic.messages.create",
             Some("chat"),
             None,
-            "GENERATION",
+            "SPAN",
             "anthropic.messages.create",
+            true,
+        ),
+        (
+            "anthropic.model_request",
+            Some("chat"),
+            None,
+            "GENERATION",
+            "anthropic.model_request",
             false,
         ),
         (
@@ -356,6 +366,12 @@ fn builds_owned_events_with_project_and_resource_fields() {
 }
 
 #[test]
+fn preserves_an_explicitly_empty_scope_name() {
+    let event = metadata_event(vec![], "sdk", "", "1", None);
+    assert_eq!(event.scope_name.as_deref(), Some(""));
+}
+
+#[test]
 fn trusted_gateway_attribution_uses_caller_key_and_scope_version() {
     let input = json!([{
         "resource": {"attributes": [
@@ -442,6 +458,67 @@ fn ordinary_auth_clears_a_spoofed_gateway_service() {
 }
 
 #[test]
+fn gateway_calculated_cost_keeps_cost_details_and_clears_provided_cost_details() {
+    let context = crate::otel::StorageContext {
+        blob_storage_file_path: "otel/raw.json".into(),
+        created_at: "2026-01-01T00:00:00.000Z".into(),
+        updated_at: "2026-01-01T00:00:00.000Z".into(),
+        event_ts: "2026-01-01T00:00:00.000Z".into(),
+    };
+    let ingest = |ingestion_api_key: &str, metadata: serde_json::Value| {
+        let input = json!([{
+            "resource": {"attributes": [{"key":"service.name","value":{"stringValue":AI_GATEWAY_SERVICE_NAME}}]},
+            "scopeSpans": [{"scope":{"name":"langfuse-ai-gateway","version":"1.0.0"},"spans":[{
+                "traceId":"trace","spanId":"span","name":"chat",
+                "startTimeUnixNano":"1000000000","endTimeUnixNano":"2000000000",
+                "attributes":[
+                    {"key":"langfuse.observation.cost_details","value":{"stringValue":r#"{"input":0.1,"total":0.1}"#}},
+                    {"key":"langfuse.observation.metadata","value":{"stringValue":metadata.to_string()}}
+                ]
+            }]}]
+        }]);
+        let event = process_json(
+            &input,
+            &EventBuildConfig {
+                ingestion_api_key: ingestion_api_key.into(),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .pop()
+        .unwrap();
+        let enrichment = crate::otel_enrichment::enrich(
+            &event,
+            &Value::Null,
+            &mut crate::otel_enrichment::PricingRegexCache::default(),
+        );
+        event.into_storage(enrichment, &context)
+    };
+
+    for (key, meta, expects_cleared) in [
+        (
+            "gateway:grant",
+            serde_json::json!({"langfuse.gateway.api_key.id": "k", "langfuse.gateway.cost.source": "calculated"}),
+            true,
+        ),
+        (
+            "gateway:grant",
+            serde_json::json!({"langfuse.gateway.api_key.id": "k"}),
+            false,
+        ),
+        (
+            "project-key",
+            serde_json::json!({"langfuse.gateway.cost.source": "calculated"}),
+            false,
+        ),
+    ] {
+        let row = ingest(key, meta);
+        assert_eq!(row.cost_details["total"], serde_json::json!(0.1));
+        assert_eq!(row.provided_cost_details.is_empty(), expects_cleared);
+    }
+}
+
+#[test]
 fn preserves_legacy_metadata_nesting_and_environment_normalization() {
     let input = json!([{
         "resource": {"attributes": [{"key":"deployment.environment","value":{"stringValue":"Langfuse-Prod"}}]},
@@ -488,21 +565,32 @@ fn non_string_environment_uses_default_and_ingestion_cannot_bookmark() {
 }
 
 #[test]
-fn nullish_prompt_name_does_not_fall_through_an_explicit_empty_alias() {
-    let input = json!([{
-        "resource": {"attributes": []},
-        "scopeSpans": [{"scope":{"name":"otel.scope"},"spans":[{
-            "traceId":"trace","spanId":"span","name":"chat",
-            "startTimeUnixNano":"1000000000","endTimeUnixNano":"2000000000",
-            "attributes":[
-                {"key":"langfuse.observation.type","value":{"stringValue":"generation"}},
-                {"key":"langfuse.observation.prompt.name","value":{"stringValue":""}},
-                {"key":"langfuse.prompt.name","value":{"stringValue":"alias"}}
-            ]
-        }]}]
-    }]);
-    let events = process_json(&input, &EventBuildConfig::default()).unwrap();
-    assert_eq!(events[0].prompt_name.as_deref(), Some(""));
+fn prompt_lookup_preserves_raw_name_truthiness_and_alias_precedence() {
+    for (name, stored, lookup) in [
+        (json!({"boolValue": false}), "false", None),
+        (json!({"stringValue": ""}), "", None),
+        (json!({"intValue": "0"}), "0", None),
+        (json!({"stringValue": "false"}), "false", Some(4.0)),
+        (json!({"stringValue": "0"}), "0", Some(4.0)),
+    ] {
+        let input = json!([{
+            "resource": {"attributes": []},
+            "scopeSpans": [{"scope":{"name":"otel.scope"},"spans":[{
+                "traceId":"trace","spanId":"span","name":"chat",
+                "startTimeUnixNano":"1000000000","endTimeUnixNano":"2000000000",
+                "attributes":[
+                    {"key":"langfuse.observation.type","value":{"stringValue":"generation"}},
+                    {"key":"langfuse.observation.prompt.name","value":name},
+                    {"key":"langfuse.prompt.name","value":{"stringValue":"alias"}},
+                    {"key":"langfuse.prompt.version","value":{"intValue":"4"}}
+                ]
+            }]}]
+        }]);
+        let events = process_json(&input, &EventBuildConfig::default()).unwrap();
+        assert_eq!(events[0].prompt_name.as_deref(), Some(stored));
+        assert_eq!(events[0].prompt_version, Some(4));
+        assert_eq!(events[0].prompt_version_lookup, lookup, "{name:?}");
+    }
 }
 
 #[test]
@@ -599,45 +687,6 @@ fn resolves_user_identity_from_resource_and_span_values() {
 }
 
 #[test]
-fn streaming_preserves_order_across_resources() {
-    let input = json!([
-        {
-            "resource": {"attributes": []},
-            "scopeSpans": [{
-                "scope": {"name": "otel.scope"},
-                "spans": [{
-                    "traceId": "trace",
-                    "spanId": "root",
-                    "name": "root",
-                    "startTimeUnixNano": "1000000000",
-                    "endTimeUnixNano": "2000000000",
-                    "attributes": []
-                }]
-            }]
-        },
-        {
-            "resource": {"attributes": []},
-            "scopeSpans": [{
-                "scope": {"name": "otel.scope"},
-                "spans": [{
-                    "traceId": "trace",
-                    "spanId": "child",
-                    "parentSpanId": "root",
-                    "name": "child",
-                    "startTimeUnixNano": "3000000000",
-                    "endTimeUnixNano": "4000000000",
-                    "attributes": []
-                }]
-            }]
-        }
-    ]);
-    let actual = process_json(&input, &EventBuildConfig::default()).unwrap();
-
-    assert_eq!(actual[0].span_id, "root");
-    assert_eq!(actual[1].span_id, "child");
-}
-
-#[test]
 fn decodes_per_key_metadata_only_for_structured_langfuse_sdk_majors() {
     let cases = [
         ("Python 4", "python", "langfuse-sdk", "4.99.0", None, false),
@@ -727,19 +776,9 @@ fn decodes_per_key_metadata_only_for_structured_langfuse_sdk_majors() {
     }
 }
 
-#[test]
-fn per_key_metadata_scalars_objects_and_arrays_match_a_blob() {
-    let metadata = json!({
-        "environment": "prod",
-        "count": 42,
-        "ratio": 1.5,
-        "large": 9007199254740993u64,
-        "enabled": true,
-        "missing": null,
-        "database": {"host": "localhost", "port": 5432},
-        "steps": [{"name": "fetch", "args": {"url": "https://example.com"}}],
-    });
-
+/// Check that one attribute per metadata key decodes to the same metadata as a single
+/// attribute holding the whole object.
+fn check_per_key_metadata_matches_blob(metadata: &Value) -> Result<(), TestCaseError> {
     for domain in ["observation", "trace"] {
         let blob = metadata_event(
             vec![string_attribute(
@@ -764,13 +803,39 @@ fn per_key_metadata_scalars_objects_and_arrays_match_a_blob() {
             .collect();
         let decoded = metadata_event(per_key, "python", "langfuse-sdk", "5.0.0", None);
 
-        assert_eq!(decoded.metadata, blob.metadata, "{domain}");
-        assert_eq!(
+        prop_assert_eq!(&decoded.metadata, &blob.metadata, "{}", domain);
+        prop_assert_eq!(
             crate::otel::types::flatten_object_owned(decoded.metadata.clone()),
             crate::otel::types::flatten_object_owned(blob.metadata.clone()),
-            "{domain} flattened metadata",
+            "{} flattened metadata",
+            domain
         );
     }
+    Ok(())
+}
+
+#[test]
+fn per_key_metadata_scalars_objects_and_arrays_match_a_blob() {
+    check_per_key_metadata_matches_blob(&json!({
+        "environment": "prod",
+        "count": 42,
+        "ratio": 1.5,
+        "large": 9007199254740993u64,
+        "enabled": true,
+        "missing": null,
+        "database": {"host": "localhost", "port": 5432},
+        "steps": [{"name": "fetch", "args": {"url": "https://example.com"}}],
+    }))
+    .unwrap();
+
+    // A per-key attribute needs a name, and `__proto__` is reserved in that position.
+    let key = prop::collection::vec(any::<char>(), 1..=8)
+        .prop_map(String::from_iter)
+        .prop_filter("reserved metadata key", |key| key != "__proto__");
+    proptest!(|(entries in prop::collection::vec((key, ordinary_json()), 1..=4))| {
+        let metadata = Value::from(serde_json::Value::Object(entries.into_iter().collect()));
+        check_per_key_metadata_matches_blob(&metadata)?;
+    });
 }
 
 #[test]

@@ -313,7 +313,7 @@ describe("buildEventsObservationRowSelection", () => {
       ],
     });
 
-    expect(rowConditions.startTimeFrom).toBeNull();
+    expect(rowConditions.startTime.from).toBeUndefined();
     expect(query).not.toContain("AND timestamp >=");
   });
 

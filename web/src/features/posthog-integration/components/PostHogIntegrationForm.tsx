@@ -3,12 +3,12 @@ import {
   validateExportSource,
   type ExportSourceContext,
 } from "@langfuse/shared";
-import { ExternalLink } from "@langfuse/icons";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
 import { useMemo } from "react";
 import { useWatch } from "react-hook-form";
 import { type z } from "zod";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { createForm } from "@/src/components/design-system/factories/createForm";
@@ -231,7 +231,7 @@ export function PostHogIntegrationForm({
                       className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                     >
                       For further information see
-                      <ExternalLink size="sm" />
+                      <SquareArrowOutUpRight size="sm" />
                     </a>
                   </div>
                 </div>
@@ -272,16 +272,12 @@ export function PostHogIntegrationForm({
             </CustomTooltip>
           ) : null}
           {!exportSourceValidation.ok ? (
-            <Alert variant="destructive">
-              <Alert.Title>
-                Saved export source is no longer available
-              </Alert.Title>
-              <Alert.Description>
-                {getExportSourceUnavailableMessage(
-                  exportSourceValidation.reason,
-                )}
-              </Alert.Description>
-            </Alert>
+            <Banner
+              variant="error"
+              title="Saved export source is no longer available"
+            >
+              {getExportSourceUnavailableMessage(exportSourceValidation.reason)}
+            </Banner>
           ) : null}
           <PostHogForm.Field name="enabled" label="Enabled">
             {(field) => (

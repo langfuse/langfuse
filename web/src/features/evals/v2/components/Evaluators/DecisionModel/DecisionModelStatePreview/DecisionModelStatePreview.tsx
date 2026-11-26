@@ -44,16 +44,18 @@ export function DecisionModelStatePreview({
 }: {
   fields: PreviewField[];
   sourceObject: Record<string, unknown> | null;
-  /** Included beside the state. OpenAI sends these on the same request. */
+  /** Included beside the state. OpenAI and Gemini send these on the same request. */
   questions?: unknown[];
   title?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const statePreview = useMemo(() => {
-    const state = buildStatePreview(fields, sourceObject);
-    if (!state) return null;
-    return questions ? { ...state, questions } : state;
-  }, [fields, questions, sourceObject]);
+  const state = useMemo(
+    () => buildStatePreview(fields, sourceObject),
+    [fields, sourceObject],
+  );
+  // Nested so a mapped state key named `questions` is not overwritten.
+  const statePreview = state && questions ? { state, questions } : state;
+  const fieldCount = state ? Object.keys(state).length : 0;
   const stateSize = statePreview ? JSON.stringify(statePreview).length : 0;
   const tooLarge = stateSize > STATE_SIZE_WARNING_CHARS;
 
@@ -75,9 +77,8 @@ export function DecisionModelStatePreview({
               )}
             >
               {tooLarge ? <TriangleAlert size="base" /> : null}
-              {Object.keys(statePreview).length} field
-              {Object.keys(statePreview).length === 1 ? "" : "s"} ·{" "}
-              {stateSize.toLocaleString()} chars
+              {fieldCount} field
+              {fieldCount === 1 ? "" : "s"} · {stateSize.toLocaleString()} chars
               {tooLarge ? " · trim fields, ~32k limit" : ""}
             </span>
           ) : (

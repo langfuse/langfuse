@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import {
   Check,
-  ExternalLink,
+  SquareArrowOutUpRight,
   Plug,
   Settings2,
   Sparkles,
@@ -317,12 +317,12 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
             <Button
               type="button"
               variant="ghost"
-              className="font-regular justify-start"
+              className="justify-start font-normal"
               onClick={() => selectAndClose(onConfigureProviders)}
             >
               <Plug size="base" color="muted" __rawClassName="mr-2" />
               Configure AI providers
-              <ExternalLink
+              <SquareArrowOutUpRight
                 size="base"
                 color="muted"
                 __rawClassName="ml-auto"
@@ -332,7 +332,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
               <Button
                 type="button"
                 variant="ghost"
-                className="font-regular justify-start"
+                className="justify-start font-normal"
                 disabled={
                   props.purpose === "projectDefault"
                     ? !props.defaultModel
@@ -361,7 +361,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
               <Button
                 type="button"
                 variant="ghost"
-                className="font-regular justify-start"
+                className="justify-start font-normal"
                 disabled={
                   props.mode !== "custom" ||
                   !selectedModel ||

@@ -45,7 +45,7 @@ export function recordV4CutoffRejection(params: {
     surface: params.surface,
     route: params.route,
   });
-  logger.info("Langfuse v3 cutoff", {
+  logger.debug("Langfuse v3 cutoff", {
     surface: params.surface,
     route: params.route,
     orgId: params.orgId,

@@ -9,14 +9,17 @@ import {
   BotMessageSquare,
   Check,
   ChevronRight,
+  CircleCheck,
   Copy,
   Info,
+  TriangleAlert,
 } from "@langfuse/icons";
 import { env } from "@/src/env.mjs";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { RainbowButton } from "@/src/components/magicui/RainbowButton";
 import { Separator } from "@/src/components/ui/separator";
@@ -34,10 +37,13 @@ import {
   getAvailableSdkMajorUpgrade,
   getCustomInstrumentationSectionState,
   getDetectedInstrumentationSeries,
+  getMigratedKeySeries,
+  getMigratedSeriesByKey,
   getOtelSectionState,
   getSdkSectionState,
   isActionableSdkSeries,
   type V4MigrationSdkState,
+  type MigratedKeySeries,
   type V4MigrationSdkUsageSeries,
 } from "@/src/features/v4-migration/sdkVersionStatus";
 import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationBadgeContent";
@@ -48,6 +54,7 @@ import {
   type MigrationActionState,
   type MigrationCountState,
   type ProjectMigrationReadiness,
+  type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
@@ -345,19 +352,61 @@ function CodeBlockWithCopy({
   );
 }
 
+function truncatePublicKey(publicKey: string): string {
+  if (publicKey.length > 18) {
+    return `${publicKey.slice(0, 9)}…${publicKey.slice(-6)}`;
+  }
+  return publicKey;
+}
+
+function ingestionModeLabel(deliveryMode: "realtime" | "delayed"): string {
+  return deliveryMode === "realtime" ? "real-time" : "delayed";
+}
+
+// True when the only checklist rows still inside the lookback are keys that
+// already send on the new ingestion API. Readiness and the banner stay as
+// they are; this only changes the panel copy.
+export function allRemainingActionsAreMigratedKeys(
+  status: ProjectMigrationStatus,
+): boolean {
+  if (getMigratedKeySeries(status.sdk).length === 0) return false;
+  if (
+    status.sdk.status === "checking" ||
+    status.sdk.status === "error" ||
+    getSdkSectionState(status.sdk).actionableCount > 0 ||
+    getOtelSectionState(status.sdk).pendingCount > 0 ||
+    getCustomInstrumentationSectionState(status.sdk).actionableCount > 0
+  ) {
+    return false;
+  }
+  return (
+    status.evals.status === "loaded" &&
+    status.evals.count === 0 &&
+    status.experiments.status === "loaded" &&
+    status.experiments.result === "not_required" &&
+    status.apis.status === "loaded" &&
+    status.apis.count === 0 &&
+    status.exports.status === "loaded" &&
+    status.exports.count === 0
+  );
+}
+
 function SdkUsageSeriesRows({
   series,
   needsAction,
   suffix,
+  migratedByKey,
   unknownSeriesLabel = "Custom instrumentation",
   hideMissingApiKey = false,
   projectId,
   analyticsSection,
 }: {
   series: V4MigrationSdkUsageSeries[];
-  /** Drives the per-row status emoji; the suffix carries the text meaning. */
+  /** Drives the per-row status icon; the suffix carries the text meaning. */
   needsAction: (series: V4MigrationSdkUsageSeries) => boolean;
   suffix: (series: V4MigrationSdkUsageSeries) => ReactNode;
+  /** Required rows whose key later sent on the new ingestion API. */
+  migratedByKey?: Map<string, MigratedKeySeries>;
   /** Row label when the series carries no usable SDK name. */
   unknownSeriesLabel?: string;
   /** Omits the empty-key fallback when it is not useful to the user. */
@@ -371,7 +420,7 @@ function SdkUsageSeriesRows({
   if (series.length === 0) return null;
 
   return (
-    <ul className="mt-2 flex flex-col gap-2">
+    <ul className="mt-2 divide-y">
       {series.map((usage) => {
         const sdkLabel =
           usage.canonicalSdkName === null && usage.sdkName === "unknown"
@@ -382,10 +431,7 @@ function SdkUsageSeriesRows({
               });
         const publicKey = (() => {
           if (usage.publicKey) {
-            if (usage.publicKey.length > 18) {
-              return `${usage.publicKey.slice(0, 9)}…${usage.publicKey.slice(-6)}`;
-            }
-            return usage.publicKey;
+            return truncatePublicKey(usage.publicKey);
           }
           if (hideMissingApiKey) {
             return null;
@@ -399,20 +445,55 @@ function SdkUsageSeriesRows({
               )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`
             : null;
 
+        const seriesKey = `${usage.source}:${usage.sdkName}:${usage.sdkVersion}:${usage.publicKey}`;
+        const migrated = migratedByKey?.get(seriesKey);
+        if (migrated) {
+          return (
+            <li key={seriesKey} className="py-2 text-sm">
+              <div className="text-muted-foreground flex items-start gap-1.5">
+                <CircleCheck
+                  size="sm"
+                  color="inherit"
+                  __rawClassName="mt-0.5 text-green-600"
+                  aria-hidden="true"
+                />
+                <span>
+                  <span title={usage.publicKey}>
+                    {truncatePublicKey(usage.publicKey)}
+                  </span>{" "}
+                  now uses the new ingestion API (
+                  {ingestionModeLabel(migrated.successor.deliveryMode)}) · last
+                  legacy event{" "}
+                  {formatCompactRelativeTime(new Date(usage.lastSeen))}
+                </span>
+              </div>
+            </li>
+          );
+        }
+
         return (
-          <li
-            key={`${usage.source}:${usage.sdkName}:${usage.sdkVersion}:${usage.publicKey}`}
-            // Message-box style: soft fill + a thicker left edge to group the
-            // two lines of one item.
-            className="bg-muted/50 border-border rounded-md border-l-4 p-2 text-sm"
-          >
+          <li key={seriesKey} className="py-2 text-sm">
             {/* Action line: what it is and what to do about it. */}
             <div className="text-muted-foreground flex items-center gap-1.5">
-              <span aria-hidden="true">{needsAction(usage) ? "⚠️" : "✅"}</span>
+              {needsAction(usage) ? (
+                <TriangleAlert
+                  size="sm"
+                  color="inherit"
+                  __rawClassName="text-amber-500"
+                  aria-hidden="true"
+                />
+              ) : (
+                <CircleCheck
+                  size="sm"
+                  color="inherit"
+                  __rawClassName="text-green-600"
+                  aria-hidden="true"
+                />
+              )}
               <MonoValue>{sdkLabel}</MonoValue>
               {suffix(usage)}
             </div>
-            {/* Metadata line, indented under the label (emoji + gap). */}
+            {/* Metadata line, indented under the label (icon + gap). */}
             <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5">
               {publicKey ? (
                 <span title={usage.publicKey || undefined}>{publicKey}</span>
@@ -475,15 +556,24 @@ export function V4MigrationSdkSection({
   projectId?: string;
 }) {
   const section = getSdkSectionState(sdk);
-  if (section.status === "latest" || section.status === "no_data") return null;
+  if (
+    section.series.length === 0 &&
+    section.status !== "checking" &&
+    section.status !== "error"
+  ) {
+    return null;
+  }
+  if (section.status === "no_data") return null;
 
   const isTransient =
     section.status === "checking" || section.status === "error";
+  const allMigrated = !isTransient && section.actionableCount === 0;
 
   return (
     <Section
       title="Update SDK"
       analyticsSection="sdk"
+      statusVariant={allMigrated ? "done" : "action"}
       count={
         isTransient || section.actionableCount === 0
           ? undefined
@@ -498,33 +588,36 @@ export function V4MigrationSdkSection({
       }
       defaultOpen={defaultOpen}
     >
-      <p className="text-muted-foreground text-sm leading-relaxed">
-        {section.status === "checking" ? (
-          "Checking the latest traces for this project…"
-        ) : section.status === "error" ? (
-          "We could not check the latest traces for this project. Try again later."
-        ) : (
-          <>
-            {section.actionableCount} detected SDK{" "}
-            {section.actionableCount === 1
-              ? "configuration needs"
-              : "configurations need"}{" "}
-            an update, based on ingestion seen in the last{" "}
-            {V4_MIGRATION_LOOKBACK_DAYS} days. See{" "}
-            <ExternalLink
-              href={SDK_UPGRADE_URL}
-              analytics={{ section: "sdk", link: "sdk_upgrade_docs" }}
-            >
-              upgrade path
-            </ExternalLink>
-            .
-          </>
-        )}
-      </p>
+      {allMigrated ? null : (
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          {section.status === "checking" ? (
+            "Checking the latest traces for this project…"
+          ) : section.status === "error" ? (
+            "We could not check the latest traces for this project. Try again later."
+          ) : (
+            <>
+              {section.actionableCount} detected SDK{" "}
+              {section.actionableCount === 1
+                ? "configuration needs"
+                : "configurations need"}{" "}
+              an update, based on ingestion seen in the last{" "}
+              {V4_MIGRATION_LOOKBACK_DAYS} days. See{" "}
+              <ExternalLink
+                href={SDK_UPGRADE_URL}
+                analytics={{ section: "sdk", link: "sdk_upgrade_docs" }}
+              >
+                upgrade path
+              </ExternalLink>
+              .
+            </>
+          )}
+        </p>
+      )}
       <SdkUsageSeriesRows
         series={section.series}
         projectId={projectId}
         analyticsSection="sdk"
+        migratedByKey={getMigratedSeriesByKey(sdk)}
         needsAction={isActionableSdkSeries}
         suffix={(usage) => {
           if (usage.v4MigrationStatus === "upgrade_required") {
@@ -556,34 +649,40 @@ export function V4MigrationOtelSection({
   if (
     sdk.status === "checking" ||
     sdk.status === "error" ||
-    section.delayedCount === 0
+    section.series.length === 0
   )
     return null;
+
+  const allMigrated = section.pendingCount === 0;
 
   return (
     <Section
       title="Update OTel Instrumentation"
       analyticsSection="otel"
-      count={section.delayedCount}
+      statusVariant={allMigrated ? "done" : "action"}
+      count={allMigrated ? undefined : section.pendingCount}
       defaultOpen={defaultOpen}
     >
-      <p className="text-muted-foreground text-sm leading-relaxed">
-        Your OpenTelemetry data is using delayed ingestion. For real-time
-        ingestion, upgrade your integration or, if you use OpenTelemetry
-        directly, set <MonoValue>x-langfuse-ingestion-version: 4</MonoValue> on
-        your OTLP exporter.{" "}
-        <ExternalLink
-          href={OTEL_V4_MIGRATION_URL}
-          analytics={{ section: "otel", link: "otel_migration_docs" }}
-        >
-          Migration guide
-        </ExternalLink>
-        .
-      </p>
+      {allMigrated ? null : (
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          Your OpenTelemetry data is using delayed ingestion. For real-time
+          ingestion, upgrade your integration or, if you use OpenTelemetry
+          directly, set <MonoValue>x-langfuse-ingestion-version: 4</MonoValue>{" "}
+          on your OTLP exporter.{" "}
+          <ExternalLink
+            href={OTEL_V4_MIGRATION_URL}
+            analytics={{ section: "otel", link: "otel_migration_docs" }}
+          >
+            Migration guide
+          </ExternalLink>
+          .
+        </p>
+      )}
       <SdkUsageSeriesRows
         series={section.series}
         projectId={projectId}
         analyticsSection="otel"
+        migratedByKey={getMigratedSeriesByKey(sdk)}
         needsAction={(usage) => usage.actionLevel === "required"}
         suffix={(usage) =>
           usage.deliveryMode === "delayed" ? (
@@ -617,44 +716,50 @@ export function V4MigrationCustomInstrumentationSection({
   )
     return null;
 
+  const allMigrated = section.actionableCount === 0;
+
   return (
     <Section
       title="Upgrade Instrumentation"
       analyticsSection="custom_instrumentation"
-      count={section.series.length}
+      statusVariant={allMigrated ? "done" : "action"}
+      count={allMigrated ? undefined : section.actionableCount}
       defaultOpen={defaultOpen}
     >
-      <p className="text-muted-foreground text-sm leading-relaxed">
-        Data is arriving through the ingestion API without a Langfuse SDK
-        header, so this looks like custom instrumentation or a very old SDK
-        version. Please upgrade to the latest version of{" "}
-        <ExternalLink
-          href={SDK_OVERVIEW_URL}
-          analytics={{
-            section: "custom_instrumentation",
-            link: "sdk_overview_docs",
-          }}
-        >
-          any Langfuse SDK
-        </ExternalLink>
-        , or use the{" "}
-        <ExternalLink
-          href={OTEL_INTEGRATION_URL}
-          analytics={{
-            section: "custom_instrumentation",
-            link: "otel_integration_docs",
-          }}
-        >
-          OpenTelemetry endpoint
-        </ExternalLink>
-        .
-      </p>
+      {allMigrated ? null : (
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          Data is arriving through the ingestion API without a Langfuse SDK
+          header, so this looks like custom instrumentation or a very old SDK
+          version. Please upgrade to the latest version of{" "}
+          <ExternalLink
+            href={SDK_OVERVIEW_URL}
+            analytics={{
+              section: "custom_instrumentation",
+              link: "sdk_overview_docs",
+            }}
+          >
+            any Langfuse SDK
+          </ExternalLink>
+          , or use the{" "}
+          <ExternalLink
+            href={OTEL_INTEGRATION_URL}
+            analytics={{
+              section: "custom_instrumentation",
+              link: "otel_integration_docs",
+            }}
+          >
+            OpenTelemetry endpoint
+          </ExternalLink>
+          .
+        </p>
+      )}
       <SdkUsageSeriesRows
         series={section.series}
         projectId={projectId}
         unknownSeriesLabel="Custom instrumentation"
         hideMissingApiKey
         analyticsSection="custom_instrumentation"
+        migratedByKey={getMigratedSeriesByKey(sdk)}
         needsAction={() => true}
         suffix={() => null}
       />
@@ -955,7 +1060,7 @@ export function V4MigrationApisSection({
               migration guide
             </ExternalLink>
           </p>
-          <div className="flex flex-col gap-3">
+          <div className="divide-y">
             {usage.map((row) => {
               const roundedCount = Math.max(1, Math.round(row.count));
               const callers = row.callers ?? [];
@@ -969,7 +1074,7 @@ export function V4MigrationApisSection({
                   : publicApiPrefixStart + publicApiPrefix.length;
 
               return (
-                <div key={row.endpoint} className="rounded-md border p-3">
+                <div key={row.endpoint} className="py-3">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-2">
                     <ExternalLink
                       href={DEPRECATED_API_MIGRATION_URL}
@@ -997,7 +1102,7 @@ export function V4MigrationApisSection({
                     ) : null}
                   </div>
                   {hasKnownCallers ? (
-                    <ul className="mt-2 flex flex-col gap-2">
+                    <ul className="mt-1 divide-y">
                       {callers.map((caller, index) => {
                         const codingAgent = getCodingAgentName(
                           caller.userAgent,
@@ -1027,11 +1132,16 @@ export function V4MigrationApisSection({
                         return (
                           <li
                             key={`${callerName}-${index}`}
-                            className="bg-muted/50 border-border rounded-md border-l-4 p-2 text-sm"
+                            className="py-2 text-sm"
                           >
                             <div className="flex flex-wrap items-baseline justify-between gap-x-2">
                               <div className="text-muted-foreground flex items-center gap-1.5">
-                                <span aria-hidden="true">⚠️</span>
+                                <TriangleAlert
+                                  size="sm"
+                                  color="inherit"
+                                  __rawClassName="text-amber-500"
+                                  aria-hidden="true"
+                                />
                                 <MonoValue>{callerName}</MonoValue>
                               </div>
                               <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5 sm:pl-0">
@@ -1320,6 +1430,7 @@ export function V4MigrationDeadlineNote() {
 export function V4MigrationHeaderContent({
   titleRowClassName,
   readiness,
+  remainingActionsAreMigrated = false,
 }: {
   /** Extra classes on the title row. The modal host passes a right gutter:
    *  its dialog floats a fallback close button over the body's top-right
@@ -1328,8 +1439,11 @@ export function V4MigrationHeaderContent({
   titleRowClassName?: string;
   /** Known readiness from the organization status page or an action-only entry point. */
   readiness?: ProjectMigrationReadiness;
+  /** Keys already on the new API are the only rows left in the lookback. */
+  remainingActionsAreMigrated?: boolean;
 }) {
   const actionNeeded = readiness === "action-needed";
+  const showActionPrompt = actionNeeded && !remainingActionsAreMigrated;
   const title = useV4MigrationTitle();
 
   return (
@@ -1382,12 +1496,18 @@ export function V4MigrationHeaderContent({
             Langfuse Halo
           </ExternalLink>
           .
-          {actionNeeded
+          {showActionPrompt
             ? " Complete the action items below to avoid disruption."
             : ""}{" "}
           <V4MigrationDocsLink />
         </p>
-        {actionNeeded && <V4MigrationDeadlineNote />}
+        {remainingActionsAreMigrated ? (
+          <Banner variant="success">
+            Migration complete. This banner disappears after{" "}
+            {V4_MIGRATION_LOOKBACK_DAYS} days without legacy traffic.
+          </Banner>
+        ) : null}
+        {showActionPrompt && <V4MigrationDeadlineNote />}
       </div>
     </>
   );
@@ -1398,6 +1518,7 @@ export function V4MigrationHeaderContent({
 // Project API keys are NOT created as a side effect: credentials only exist
 // after an explicit click on the separate "Create keys for project access"
 // action, and secrets never enter the agent prompt.
+/** @internal */
 export function V4MigrationAgentUpgradeSection({
   projectId,
 }: {
@@ -1607,8 +1728,8 @@ export function V4MigrationDetailsContent({
       readiness,
       sdkStatus: migrationData.sdk.status,
       sdkActionableCount: sdkSection.actionableCount,
-      delayedOtelCount: otelSection.delayedCount,
-      customInstrumentationCount: customSection.series.length,
+      delayedOtelCount: otelSection.pendingCount,
+      customInstrumentationCount: customSection.actionableCount,
       evalsCount:
         migrationData.evals.status === "loaded"
           ? migrationData.evals.count
@@ -1714,7 +1835,6 @@ export function V4MigrationDetailsContent({
             sdk={migrationData.sdk}
             projectId={evidenceProjectId}
           />
-
           {!evalsClean && (
             <V4MigrationEvalsSection
               state={migrationData.evals}

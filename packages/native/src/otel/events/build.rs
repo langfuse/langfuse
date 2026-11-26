@@ -4,9 +4,11 @@
 //! Stages share the source's parse cache and metadata diagnostics. The returned event
 //! owns its data after that per-span parsing state is dropped.
 
+use std::rc::Rc;
+
 use super::super::attributes::{
-    attributes_to_map, is_js_truthy, parse_id, resolve_timestamps, value_as_string,
-    AttributeSource, EventAttributes, JsonParseCache,
+    attributes_to_map, is_js_truthy, parse_id, resolve_timestamps, retain_evaluation_value,
+    value_as_string, AttributeSource, EventAttributes, JsonParseCache,
 };
 use super::super::event_skills::extract_skills;
 use super::super::input::Span;
@@ -18,8 +20,8 @@ use super::super::providers::{
     claude_managed_agent_session_id, extract_completion_start_time, extract_cost_details,
     extract_input_output, extract_is_app_root, extract_model_name, extract_model_parameters,
     extract_name, extract_prompt_version, extract_prompt_version_lookup, extract_public,
-    extract_tags, extract_usage_details, observation_type, should_skip_model_usage_and_cost,
-    ProviderIO,
+    extract_tags, extract_usage_details, filter_attributes, observation_type,
+    should_skip_model_usage_and_cost, ProviderIO,
 };
 use super::super::tools::normalize_tools_for_observation;
 use super::super::types::{JsonObject, OwnedEvent};
@@ -32,6 +34,8 @@ const INTERNAL_LLM_JUDGE_ENVIRONMENT: &str = "langfuse-llm-as-a-judge";
 pub(super) const AI_GATEWAY_SERVICE_NAME: &str = "langfuse-ai-gateway";
 const AI_GATEWAY_INGESTION_API_KEY_PREFIX: &str = "gateway:";
 const AI_GATEWAY_KEY_ID_METADATA_KEY: &str = "langfuse.gateway.api_key.id";
+const AI_GATEWAY_COST_SOURCE_METADATA_KEY: &str = "langfuse.gateway.cost.source";
+const AI_GATEWAY_COST_SOURCE_CALCULATED: &str = "calculated";
 
 pub(super) fn build_event(
     span: Span,
@@ -80,12 +84,16 @@ impl<'a> EventAssembly<'a> {
             return None;
         }
         let mut source = EventSource::new(span, resource, scope_name, scope_version, config);
+        let (row, evaluation_fields) =
+            source.row(trace_id, span_id, resource, scope, scope_version, config)?;
         let event = OwnedEvent {
-            row: source.row(trace_id, span_id, resource, scope, scope_version, config),
+            row,
+            evaluation_fields,
             prompt_version_lookup: None,
             model_parameters: None,
             provided_usage_details: Default::default(),
             provided_cost_details: Default::default(),
+            gateway_calculated_cost: false,
             input: None,
             output: None,
             metadata: JsonObject::new(),
@@ -107,9 +115,7 @@ impl<'a> EventAssembly<'a> {
         let payloads = self.source.payloads(&self.event.row);
         self.event.input = payloads.input;
         self.event.output = payloads.output;
-        self.event.metadata = self
-            .source
-            .metadata(payloads.filtered_attributes, resource, scope);
+        self.event.metadata = self.source.metadata(resource, scope);
         self
     }
 
@@ -156,7 +162,9 @@ impl<'a> EventAssembly<'a> {
     }
 
     fn link_prompt(&mut self) -> &mut Self {
-        self.event.prompt_version_lookup = self.source.link_prompt(&mut self.event.row);
+        self.event.prompt_version_lookup = self
+            .source
+            .link_prompt(&mut self.event.row, &mut self.event.evaluation_fields);
         self
     }
 
@@ -184,6 +192,7 @@ impl<'a> EventAssembly<'a> {
         ingestion_api_key: &str,
         scope_version: Option<&str>,
     ) -> Option<&mut Self> {
+        let is_gateway = ingestion_api_key.starts_with(AI_GATEWAY_INGESTION_API_KEY_PREFIX);
         let Some((ingestion_api_key, service_name, service_version)) = resolve_gateway_attribution(
             ingestion_api_key,
             &self.event.metadata,
@@ -202,6 +211,13 @@ impl<'a> EventAssembly<'a> {
         self.event.row.ingestion_api_key = ingestion_api_key;
         self.event.row.service_name = service_name;
         self.event.row.service_version = service_version;
+        self.event.gateway_calculated_cost = is_gateway
+            && self
+                .event
+                .metadata
+                .get(AI_GATEWAY_COST_SOURCE_METADATA_KEY)
+                .and_then(Value::as_str)
+                == Some(AI_GATEWAY_COST_SOURCE_CALCULATED);
         Some(self)
     }
 
@@ -231,7 +247,8 @@ impl<'a> EventAssembly<'a> {
 /// Source data and per-span parsing state shared by the assembly stages.
 struct EventSource<'a> {
     span: Span,
-    attributes: JsonObject,
+    /// Shared with `cache`, which remembers parses by attribute position.
+    attributes: Rc<JsonObject>,
     scope_name: &'a str,
     cache: JsonParseCache,
     diagnostics: MetadataDiagnostics<'a>,
@@ -246,12 +263,14 @@ impl<'a> EventSource<'a> {
         scope_version: Option<&str>,
         config: &'a EventBuildConfig,
     ) -> Self {
-        let attributes = object_attributes(span.attributes.take().map(|value| value.into_value()));
+        let attributes = Rc::new(object_attributes(
+            span.attributes.take().map(|value| value.into_value()),
+        ));
         Self {
             span,
+            cache: JsonParseCache::for_attributes(Rc::clone(&attributes)),
             attributes,
             scope_name,
-            cache: JsonParseCache::default(),
             diagnostics: MetadataDiagnostics::new(
                 &config.project_id,
                 &config.ingestion_sdk_name,
@@ -285,7 +304,7 @@ impl<'a> EventSource<'a> {
         scope: &Object,
         scope_version: Option<&str>,
         config: &EventBuildConfig,
-    ) -> OtelStorageRow {
+    ) -> Option<(OtelStorageRow, Option<Box<JsonObject>>)> {
         let parent_span_id = self
             .span
             .parent_span_id
@@ -300,23 +319,35 @@ impl<'a> EventSource<'a> {
             scope_version,
             self.span_name(),
         );
+        let mut evaluation_fields = None;
         let name = extract_name(
-            self.span_name(),
+            self.span.name.as_deref(),
             &self.attributes,
             &event_type,
             self.scope_name,
+            &mut evaluation_fields,
         );
-        let (start_time, end_time) = resolve_timestamps(
+        let Some((start_time, end_time)) = resolve_timestamps(
             self.span.start_time.as_deref(),
             self.span.end_time.as_deref(),
             &config.fallback_time,
-        );
+        ) else {
+            // ClickHouse cannot store such a time. Dropping only this span preserves its siblings.
+            // A wrong time unit hits every span of an exporter, so this is counted, not logged.
+            metrics::counter!(
+                "langfuse.ingestion.otel.conversion_failure",
+                "failure_type" => "timestamp_out_of_range", "timestamp_field" => "unknown"
+            )
+            .increment(1);
+            return None;
+        };
         let mut attributes = EventAttributes {
             span: &self.attributes,
             resource,
             scope,
             cache: &mut self.cache,
             decode_metadata: self.decode_metadata,
+            evaluation_fields: &mut evaluation_fields,
         };
         let mut row = OtelStorageRow::from_attributes(&mut attributes);
         if claude_managed_agent_session_id(&self.attributes, self.scope_name).is_some() {
@@ -328,7 +359,12 @@ impl<'a> EventSource<'a> {
             &mut self.cache,
             &mut self.diagnostics,
         );
-        OtelStorageRow {
+        let status_message = row.status_message.or_else(|| {
+            let value = self.span.status.as_ref()?.message.as_deref()?;
+            retain_evaluation_value(&mut evaluation_fields, "status_message", value);
+            value_as_string(value)
+        });
+        let row = OtelStorageRow {
             project_id: config.project_id.clone(),
             trace_id,
             span_id,
@@ -344,13 +380,7 @@ impl<'a> EventSource<'a> {
             level: self.level(),
             start_time,
             end_time,
-            status_message: row.status_message.or_else(|| {
-                self.span
-                    .status
-                    .as_ref()
-                    .and_then(|status| status.message.as_deref())
-                    .and_then(value_as_string)
-            }),
+            status_message,
             bookmarked: false,
             public: extract_public(&self.attributes),
             is_app_root: extract_is_app_root(&self.attributes),
@@ -358,7 +388,8 @@ impl<'a> EventSource<'a> {
             ingestion_sdk_name: config.ingestion_sdk_name.clone(),
             ingestion_sdk_version: config.ingestion_sdk_version.clone(),
             ..row
-        }
+        };
+        Some((row, evaluation_fields))
     }
 
     fn payloads(&mut self, row: &OtelStorageRow) -> ProviderIO {
@@ -377,16 +408,12 @@ impl<'a> EventSource<'a> {
         )
     }
 
-    fn metadata(
-        &mut self,
-        filtered_attributes: JsonObject,
-        resource: &JsonObject,
-        scope: &Object,
-    ) -> JsonObject {
+    fn metadata(&mut self, resource: &JsonObject, scope: &Object) -> JsonObject {
         let mut metadata = JsonObject::new();
         // SDK scopes use root-level metadata; other spans retain the diagnostic attribute map.
         if !self.scope_name.starts_with("langfuse-sdk") {
-            metadata.insert("attributes".into(), Value::Object(filtered_attributes));
+            let attributes = filter_attributes(&self.attributes, self.scope_name);
+            metadata.insert("attributes".into(), Value::Object(attributes));
         }
         metadata.insert("resourceAttributes".into(), Value::Object(resource.clone()));
         metadata.insert("scope".into(), Value::Object(scope.clone()));
@@ -419,17 +446,34 @@ impl<'a> EventSource<'a> {
             .unwrap_or_else(|| "DEFAULT".to_owned())
     }
 
-    fn link_prompt(&mut self, row: &mut OtelStorageRow) -> Option<f64> {
+    fn link_prompt(
+        &mut self,
+        row: &mut OtelStorageRow,
+        evaluation_fields: &mut Option<Box<JsonObject>>,
+    ) -> Option<f64> {
         if row.event_type != "GENERATION" {
             return None;
         }
-        row.prompt_name = first_non_null_string(&self.attributes, PROMPT_NAME_KEYS).or_else(|| {
-            parse_prompt(&self.attributes, &mut self.cache)
-                .and_then(|value| value.get("name").and_then(value_as_string))
-        });
+        // A supplied false, 0, or "" suppresses aliases but must not trigger a lookup.
+        // Check truthiness before storage turns false and 0 into nonempty strings.
+        let mut read_name = |value: &Value| {
+            retain_evaluation_value(evaluation_fields, "prompt_name", value);
+            (value_as_string(value), is_js_truthy(value))
+        };
+        let (name, can_lookup) = PROMPT_NAME_KEYS
+            .iter()
+            .filter_map(|key| self.attributes.get(*key))
+            .find(|value| !value.is_null())
+            .map(&mut read_name)
+            .or_else(|| {
+                parse_prompt(&self.attributes, &mut self.cache)
+                    .and_then(|value| value.get("name").map(read_name))
+            })
+            .unwrap_or_default();
+        row.prompt_name = name;
         let lookup = extract_prompt_version_lookup(&self.attributes, &mut self.cache);
         row.prompt_version = extract_prompt_version(&self.attributes, &mut self.cache);
-        lookup
+        lookup.filter(|_| can_lookup)
     }
 
     fn model_parameters(&mut self) -> Value {
@@ -531,17 +575,6 @@ fn object_attributes(value: Option<Value>) -> JsonObject {
         })
         .map(attributes_to_map)
         .unwrap_or_default()
-}
-
-fn first_non_null_string(attributes: &JsonObject, keys: &[&str]) -> Option<String> {
-    keys.iter().find_map(|key| {
-        attributes
-            .get(*key)
-            // Prompt names use `??` in the TypeScript processor: an explicit empty string is a
-            // value and suppresses alias fallback.
-            .filter(|value| !value.is_null())
-            .and_then(value_as_string)
-    })
 }
 
 fn parse_prompt(attributes: &JsonObject, parse_cache: &mut JsonParseCache) -> Option<Value> {

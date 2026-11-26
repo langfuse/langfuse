@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { resolveTopicMapSelection, type TopicMapsOverview } from "./topic-maps";
+import {
+  resolveTopicMapSelection,
+  topicNextRefitLabel,
+  type TopicMapsOverview,
+} from "./topic-maps";
 
 const overview = {
   rules: [{ id: "support" }, { id: "checkout" }],
@@ -26,5 +30,14 @@ describe("resolveTopicMapSelection", () => {
       kind: "rule",
       id: "support",
     });
+  });
+});
+
+describe("topicNextRefitLabel", () => {
+  it("estimates the next nightly refit a whole number of days after the last", () => {
+    const last = Date.parse("2026-11-17T04:12:00.000Z");
+    expect(
+      topicNextRefitLabel(new Date(last).toISOString(), last + 25 * 3_600_000),
+    ).toBe("in about 23 hours");
   });
 });

@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { useFieldArray, useForm } from "react-hook-form";
 import { useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,6 +12,7 @@ import {
   type VertexAIConfig,
   LLMAdapter,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
+  getLlmBaseUrlFormatError,
   TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   resolveTypeSafeUpstream,
@@ -32,6 +34,12 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { BaseUrlPicker } from "@/src/components/BaseUrlPicker/BaseUrlPicker";
+import {
+  OPENAI_DATA_RESIDENCY_HINT,
+  openAiBaseUrlPresets,
+} from "@/src/constants/openAiBaseUrlPresets";
+import { Input as DesignSystemInput } from "@/src/components/design-system/Input/Input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import {
   Select,
@@ -42,6 +50,7 @@ import {
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TypeSafeUpstreamCards } from "@/src/features/llm-api-key/components/TypeSafeUpstreamCards/TypeSafeUpstreamCards";
+import { AnthropicModelFamilyCheckbox } from "@/src/features/llm-api-key/components/AnthropicModelFamilyCheckbox/AnthropicModelFamilyCheckbox";
 import { BedrockRoleSetupInstructions } from "@/src/features/llm-api-key/components/BedrockRoleSetupInstructions/BedrockRoleSetupInstructions";
 import { useBedrockIamRoleAuth } from "@/src/features/llm-api-key/useBedrockIamRoleAuth";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -54,6 +63,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import type { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
 import { env } from "@/src/env.mjs";
+import {
+  getBaseURLFieldPlacement,
+  getLlmConnectionSaveErrorTarget,
+} from "@/src/features/public-api/fns/getLlmConnectionSaveErrorTarget";
 import {
   AuthMethod,
   BedrockAuthMethodSchema,
@@ -121,6 +134,7 @@ const getInitialBedrockAuthMethod = (params: {
 const createFormSchema = (params: {
   mode: "create" | "update";
   existingAuthMethod?: BedrockAuthMethod;
+  existingBaseURL?: string | null;
 }) =>
   z
     .object({
@@ -133,14 +147,25 @@ const createFormSchema = (params: {
           "Provider name cannot contain colons. Use a format like 'OpenRouter_Mistral' instead.",
         ),
       adapter: z.enum(LLMAdapter),
-      baseURL: z.union([z.literal(""), z.url()]),
+      baseURL: z.string().superRefine((baseURL, ctx) => {
+        // The server skips an unchanged base URL on update, so a URL saved
+        // under older rules must not block other edits.
+        if (baseURL === "" || baseURL === params.existingBaseURL) return;
+        const message = getLlmBaseUrlFormatError(baseURL, isLangfuseCloud);
+        if (message) ctx.addIssue({ code: "custom", message });
+      }),
       typeSafeUpstream: z.enum(
         TYPESAFE_UPSTREAMS.map(
           (upstream): TypeSafeUpstream["id"] => upstream.id,
         ),
       ),
       withDefaultModels: z.boolean(),
-      customModels: z.array(z.object({ value: z.string().min(1) })),
+      customModels: z.array(
+        z.object({
+          value: z.string().min(1),
+          anthropicModelFamily: z.boolean(),
+        }),
+      ),
       awsAccessKeyId: z.string().optional(),
       awsSecretAccessKey: z.string().optional(),
       bedrockApiKey: z.string().optional(),
@@ -321,12 +346,23 @@ export type LlmConnectionFormOwner =
 // React Query default that would show the same error in a toast.
 const suppressSaveErrorToast = () => undefined;
 
+/**
+ * Prefill for a new connection, e.g. from a link. Limited to fields that do
+ * not decide where the API key is sent: a link must never set the base URL
+ * or headers.
+ */
+export type NewLlmConnectionPrefill = {
+  provider?: string;
+  adapter?: LLMAdapter;
+};
+
 interface CreateLLMApiKeyFormProps {
   owner: LlmConnectionFormOwner;
   onSuccess: () => void;
   customization: ReturnType<typeof useUiCustomization>;
   mode?: "create" | "update";
   existingKey?: LlmApiKeyListItem;
+  prefill?: NewLlmConnectionPrefill;
 }
 
 export function CreateLLMApiKeyForm({
@@ -335,6 +371,7 @@ export function CreateLLMApiKeyForm({
   customization,
   mode = "create",
   existingKey,
+  prefill,
 }: CreateLLMApiKeyFormProps) {
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   // When the "Other model" option is selected we hide the form fields and show
@@ -404,9 +441,11 @@ export function CreateLLMApiKeyForm({
   const mutTestUpdateOrganizationLlmApiKey =
     api.organizationLlmApiKey.testUpdate.useMutation();
 
-  const defaultAdapter: LLMAdapter = customization?.defaultModelAdapter
-    ? LLMAdapter[customization.defaultModelAdapter]
-    : LLMAdapter.OpenAI;
+  const defaultAdapter: LLMAdapter =
+    prefill?.adapter ??
+    (customization?.defaultModelAdapter
+      ? LLMAdapter[customization.defaultModelAdapter]
+      : LLMAdapter.OpenAI);
 
   const getCustomizedBaseURL = (adapter: LLMAdapter) => {
     switch (adapter) {
@@ -424,7 +463,13 @@ export function CreateLLMApiKeyForm({
   const formSchema = createFormSchema({
     mode,
     existingAuthMethod: existingKey?.authMethod,
+    existingBaseURL: existingKey?.baseURL,
   });
+
+  const existingCustomModelConfig =
+    existingKey?.adapter === LLMAdapter.Bedrock
+      ? (existingKey.config as BedrockConfig | null)?.customModelConfig
+      : undefined;
 
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -443,7 +488,11 @@ export function CreateLLMApiKeyForm({
               getCustomizedBaseURL(existingKey.adapter as LLMAdapter),
             typeSafeUpstream: resolveTypeSafeUpstream(existingKey.baseURL).id,
             withDefaultModels: existingKey.withDefaultModels,
-            customModels: existingKey.customModels.map((value) => ({ value })),
+            customModels: existingKey.customModels.map((value) => ({
+              value,
+              anthropicModelFamily:
+                existingCustomModelConfig?.[value]?.modelFamily === "anthropic",
+            })),
             extraHeaders:
               existingKey.extraHeaderKeys?.map((key) => ({ key, value: "" })) ??
               [],
@@ -474,7 +523,7 @@ export function CreateLLMApiKeyForm({
           }
         : {
             adapter: defaultAdapter,
-            provider: "",
+            provider: prefill?.provider ?? "",
             secretKey: "",
             baseURL: getCustomizedBaseURL(defaultAdapter),
             typeSafeUpstream: TYPESAFE_UPSTREAMS[0].id,
@@ -527,7 +576,6 @@ export function CreateLLMApiKeyForm({
     adapter === LLMAdapter.VertexAI ||
     adapter === LLMAdapter.GoogleAIStudio ||
     adapter === LLMAdapter.TypeSafe;
-
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "customModels",
@@ -574,6 +622,18 @@ export function CreateLLMApiKeyForm({
                 {...form.register(`customModels.${index}.value`)}
                 placeholder={`Custom model name ${index + 1}`}
               />
+              {currentAdapter === LLMAdapter.Bedrock && (
+                <FormField
+                  control={form.control}
+                  name={`customModels.${index}.anthropicModelFamily`}
+                  render={({ field }) => (
+                    <AnthropicModelFamilyCheckbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
+              )}
               <Button
                 type="button"
                 variant="ghost"
@@ -586,7 +646,7 @@ export function CreateLLMApiKeyForm({
           <Button
             type="button"
             variant="ghost"
-            onClick={() => append({ value: "" })}
+            onClick={() => append({ value: "", anthropicModelFamily: false })}
             className="w-full"
           >
             <PlusIcon
@@ -666,6 +726,30 @@ export function CreateLLMApiKeyForm({
     return ["provider", "adapter"].includes(fieldName);
   };
 
+  const showSaveError = (message: string) => {
+    const target = getLlmConnectionSaveErrorTarget({
+      message,
+      adapter: currentAdapter,
+      typeSafeUpstreamId: currentTypeSafeUpstream.id,
+    });
+    if (target.field === "root") {
+      form.setError("root", { type: "manual", message: target.message });
+      return;
+    }
+    form.setError("baseURL", { type: "server", message: target.message });
+    if (target.opensAdvancedSettings) setShowAdvancedSettings(true);
+  };
+
+  const handleInvalidSubmit = (errors: typeof form.formState.errors) => {
+    const placement = getBaseURLFieldPlacement(
+      currentAdapter,
+      currentTypeSafeUpstream.id,
+    );
+    if (errors.baseURL && placement === "advanced") {
+      setShowAdvancedSettings(true);
+    }
+  };
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (mode === "create") {
       if (existingKeys?.map((key) => key.provider).includes(values.provider)) {
@@ -718,8 +802,20 @@ export function CreateLLMApiKeyForm({
         }
       }
 
+      const customModelConfig: NonNullable<BedrockConfig["customModelConfig"]> =
+        Object.fromEntries(
+          values.customModels
+            .filter((model) => model.anthropicModelFamily && model.value.trim())
+            .map((model) => [
+              model.value.trim(),
+              { modelFamily: "anthropic" as const },
+            ]),
+        );
       config = {
         region: values.awsRegion ?? "",
+        ...(Object.keys(customModelConfig).length > 0
+          ? { customModelConfig }
+          : {}),
       };
     } else if (currentAdapter === LLMAdapter.VertexAI) {
       // Handle Vertex AI credentials
@@ -770,7 +866,9 @@ export function CreateLLMApiKeyForm({
       adapter: values.adapter,
       baseURL:
         values.baseURL ||
-        (mode === "update" && currentAdapter === LLMAdapter.TypeSafe
+        (mode === "update" &&
+        (currentAdapter === LLMAdapter.TypeSafe ||
+          currentAdapter === LLMAdapter.OpenAI)
           ? null
           : undefined),
       withDefaultModels: isCustomModelsRequired(currentAdapter)
@@ -809,14 +907,11 @@ export function CreateLLMApiKeyForm({
 
       if (!testResult.success) throw new Error(testResult.error);
     } catch (error) {
-      form.setError("root", {
-        type: "manual",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Could not verify the API key.",
-      });
-
+      showSaveError(
+        error instanceof Error
+          ? error.message
+          : "Could not verify the API key.",
+      );
       return;
     }
 
@@ -866,13 +961,11 @@ export function CreateLLMApiKeyForm({
       })
       .catch((error) => {
         reportTrpcErrorWithoutToast(error, "llm-api-keys");
-        form.setError("root", {
-          type: "manual",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Could not save the connection.",
-        });
+        showSaveError(
+          error instanceof Error
+            ? error.message
+            : "Could not save the connection.",
+        );
       });
   }
 
@@ -882,7 +975,7 @@ export function CreateLLMApiKeyForm({
         className="flex flex-col gap-4 overflow-auto"
         onSubmit={(e) => {
           e.stopPropagation(); // Prevent event bubbling to parent forms
-          form.handleSubmit(onSubmit)(e);
+          form.handleSubmit(onSubmit, handleInvalidSubmit)(e);
         }}
       >
         <DialogBody>
@@ -950,26 +1043,21 @@ export function CreateLLMApiKeyForm({
           />
 
           {showOtherModelInfo && (
-            <div className="bg-muted/40 text-muted-foreground space-y-2 rounded-md border p-4 text-sm">
-              <p>
-                You can use any model provider as LLM connection that supports
-                one of the adapters in the list. Many providers support the
-                OpenAI API schema, such as Z.ai, OpenRouter, Qwen, Mistral,
-                Hugging Face, and more. Just replace the API Base URL with the
-                endpoint for the model, and add your provider&apos;s custom
-                model names and api key.
-              </p>
-              <p>
-                <a
-                  href="https://langfuse.com/docs/administration/llm-connection#supported-providers"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 underline hover:text-blue-800"
-                >
-                  Learn more about supported providers
-                </a>
-              </p>
-            </div>
+            <Banner
+              actions={[
+                {
+                  text: "Learn more about supported providers",
+                  href: "https://langfuse.com/docs/administration/llm-connection#supported-providers",
+                },
+              ]}
+            >
+              You can use any model provider as LLM connection that supports one
+              of the adapters in the list. Many providers support the OpenAI API
+              schema, such as Z.ai, OpenRouter, Qwen, Mistral, Hugging Face, and
+              more. Just replace the API Base URL with the endpoint for the
+              model, and add your provider&apos;s custom model names and api
+              key.
+            </Banner>
           )}
 
           {!showOtherModelInfo && (
@@ -1043,7 +1131,7 @@ export function CreateLLMApiKeyForm({
                   <FormField
                     control={form.control}
                     name="baseURL"
-                    render={({ field }) => (
+                    render={({ field, fieldState }) => (
                       <FormItem>
                         <FormLabel>Custom base URL</FormLabel>
                         <FormDescription>
@@ -1053,8 +1141,9 @@ export function CreateLLMApiKeyForm({
                           out.
                         </FormDescription>
                         <FormControl>
-                          <Input
+                          <DesignSystemInput
                             {...field}
+                            error={Boolean(fieldState.error)}
                             placeholder="https://gateway.example.com/v1"
                           />
                         </FormControl>
@@ -1527,7 +1616,7 @@ export function CreateLLMApiKeyForm({
                 <FormField
                   control={form.control}
                   name="baseURL"
-                  render={({ field }) => (
+                  render={({ field, fieldState }) => (
                     <FormItem>
                       <FormLabel>API Base URL</FormLabel>
                       <FormDescription>
@@ -1536,8 +1625,9 @@ export function CreateLLMApiKeyForm({
                         https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
                       </FormDescription>
                       <FormControl>
-                        <Input
+                        <DesignSystemInput
                           {...field}
+                          error={Boolean(fieldState.error)}
                           placeholder="https://your-instance.openai.azure.com/openai/deployments"
                         />
                       </FormControl>
@@ -1585,28 +1675,46 @@ export function CreateLLMApiKeyForm({
                     <FormField
                       control={form.control}
                       name="baseURL"
-                      render={({ field }) => (
+                      render={({ field, fieldState }) => (
                         <FormItem>
                           <FormLabel>API Base URL</FormLabel>
-                          <FormDescription>
-                            Leave blank to use the default base URL for the
-                            given LLM adapter.{" "}
-                            {currentAdapter === LLMAdapter.OpenAI && (
-                              <span>
-                                OpenAI default: https://api.openai.com/v1
-                              </span>
-                            )}
-                            {currentAdapter === LLMAdapter.Anthropic && (
-                              <span>
-                                Anthropic default: https://api.anthropic.com
-                                (excluding /v1/messages)
-                              </span>
-                            )}
-                          </FormDescription>
-
-                          <FormControl>
-                            <Input {...field} placeholder="default" />
-                          </FormControl>
+                          {currentAdapter === LLMAdapter.OpenAI ? (
+                            <>
+                              <FormDescription>
+                                {OPENAI_DATA_RESIDENCY_HINT}
+                              </FormDescription>
+                              <FormControl>
+                                <BaseUrlPicker
+                                  presets={openAiBaseUrlPresets}
+                                  value={field.value}
+                                  error={Boolean(fieldState.error)}
+                                  onChange={field.onChange}
+                                  onBlur={field.onBlur}
+                                  ref={field.ref}
+                                />
+                              </FormControl>
+                            </>
+                          ) : (
+                            <>
+                              <FormDescription>
+                                Leave blank to use the default base URL for the
+                                given LLM adapter.{" "}
+                                {currentAdapter === LLMAdapter.Anthropic && (
+                                  <span>
+                                    Anthropic default: https://api.anthropic.com
+                                    (excluding /v1/messages)
+                                  </span>
+                                )}
+                              </FormDescription>
+                              <FormControl>
+                                <DesignSystemInput
+                                  {...field}
+                                  error={Boolean(fieldState.error)}
+                                  placeholder="default"
+                                />
+                              </FormControl>
+                            </>
+                          )}
 
                           <FormMessage />
                         </FormItem>

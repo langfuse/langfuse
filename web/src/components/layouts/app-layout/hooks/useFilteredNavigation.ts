@@ -198,12 +198,17 @@ export function useFilteredNavigation(
         ...route,
         menuNode:
           route.id === "v4-migration" && migrationProject
-            ? createElement(V4MigrationNavItem, { project: migrationProject })
+            ? ({ isCollapsed }) =>
+                createElement(V4MigrationNavItem, {
+                  project: migrationProject,
+                  isCollapsed,
+                })
             : route.menuNode,
         url: route.id === "ai-gateway" ? (gatewayEntryHref ?? "") : url,
         disabledReason:
           route.gatewayPage === GATEWAY_PAGE_SLUGS.models ||
           route.gatewayPage === GATEWAY_PAGE_SLUGS.budgets ||
+          route.gatewayPage === GATEWAY_PAGE_SLUGS.guardrails ||
           route.gatewayPage === GATEWAY_PAGE_SLUGS.apiKeys
             ? gatewaySetupRequiredReason
             : undefined,

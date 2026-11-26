@@ -50,7 +50,7 @@ export function ProvidedModelNameCell({
   return (
     <UpsertModelFormDialogController
       action="create"
-      projectId={projectId}
+      owner={{ scope: "project", projectId }}
       prefilledModelData={{ modelName, prices }}
     >
       {({ openDialog }) => (

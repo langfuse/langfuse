@@ -14,16 +14,24 @@ import {
   isExperimentEvaluationRule,
   observationVariableMappingList,
   stripExperimentRootFilter,
+  TopicsTargetObject,
 } from "@langfuse/shared";
 
 type EvaluationRule =
   RouterOutputs["evalsV2"]["rules"]["listForExperimentDataset"][number];
 
+/** @internal */
 export function getDatasetExperimentRules(
   rules: EvaluationRule[] | undefined,
   datasetId: string,
 ) {
   return (rules ?? []).filter((rule) => {
+    // A trace transcript rule may carry an isExperimentItemRootSpan filter
+    // without being an experiment rule, so it is never a dataset experiment rule.
+    if (rule.targetObject === TopicsTargetObject) {
+      return false;
+    }
+
     if (
       !isExperimentEvaluationRule({
         targetObject: rule.targetObject,

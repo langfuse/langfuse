@@ -26,7 +26,6 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   return {
     ...original,
     enqueueTopicExecution: vi.fn(),
-    isTopicsProjectEnabled: () => true,
     // Lets a test fail the summary count once, right after seeding.
     countTopicTraceSummaries: async (
       ...args: Parameters<typeof original.countTopicTraceSummaries>
@@ -191,7 +190,9 @@ describe("Topics snapshot summarizing", () => {
         facetVersion: 1,
         traceId,
         sessionId: null,
-        triggerType: "automatic" as const,
+        triggerType: "snapshot" as const,
+        ruleIds: [],
+        executionId: execution.id,
         environment: "default",
         traceName: "trace",
         unitStartTime: start.toISOString(),
@@ -200,14 +201,15 @@ describe("Topics snapshot summarizing", () => {
         embedding: Array<number>(DIMENSIONS).fill(1),
         transcriptId: "transcript",
         transcriptVersion: "v1",
+        transcriptBytes: 0,
         summaryModel: "summary",
         embeddingModel: "embed",
         providedUsageDetails: {},
         usageDetails: {},
         providedCostDetails: {},
         costDetails: {},
-        processedAt: new Date().toISOString(),
-        metadata: { executionId: execution.id },
+        createdAt: new Date().toISOString(),
+        metadata: {},
       })),
     );
     expect(await tickTopicSnapshotSetup(projectId, execution.id)).toBe(false);

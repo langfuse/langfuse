@@ -10,6 +10,7 @@ import { toGatewayApiKeyMetadataRows } from "@/src/features/ai-gateway/component
 import { toGatewaySpendLimitUpdate } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/toGatewaySpendLimitUpdate";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import { localDateInputValue } from "@/src/features/apiKey/fns/localDateInputValue";
+import { useCaptureGatewayBudgetChange } from "@/src/features/ai-gateway/hooks/useCaptureGatewayBudgetChange";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
@@ -54,6 +55,7 @@ export function EditGatewayApiKeyDialogController({
   });
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const captureBudgetChange = useCaptureGatewayBudgetChange(organizationId);
   const update = api.aiGateway.updateApiKey.useMutation({
     onError: (error) =>
       reportTrpcErrorWithoutToast(error, "ai-gateway-api-keys"),
@@ -62,6 +64,11 @@ export function EditGatewayApiKeyDialogController({
   const createSubmitHandler =
     (apiKey: EditableGatewayApiKey, closeDialog: () => void): SubmitHandler =>
     async (input) => {
+      const spendLimit = toGatewaySpendLimitUpdate({
+        loaded: apiKey.spendLimit,
+        hasSeveralSpendLimits: apiKey.hasSeveralSpendLimits,
+        submitted: input.spendLimit,
+      });
       try {
         await update.mutateAsync({
           orgId: organizationId,
@@ -75,17 +82,21 @@ export function EditGatewayApiKeyDialogController({
           previousAllowedModels: parseGatewayAllowedModels(
             apiKey.allowedModels,
           ),
-          spendLimit: toGatewaySpendLimitUpdate({
-            loaded: apiKey.spendLimit,
-            hasSeveralSpendLimits: apiKey.hasSeveralSpendLimits,
-            submitted: input.spendLimit,
-          }),
+          spendLimit,
         });
         capture("ai_gateway:api_key_updated", {
           orgId: organizationId,
           metadataCount: input.metadataCount,
           modelPatternCount: input.allowedModels?.length ?? 0,
         });
+        if (spendLimit !== undefined) {
+          captureBudgetChange({
+            surface: "api_key_dialog",
+            scope: "API_KEY",
+            subjectCount: 1,
+            spendLimit,
+          });
+        }
         await Promise.all([
           utils.aiGateway.listApiKeys.invalidate({ orgId: organizationId }),
           utils.aiGateway.getAnalyticsLabels.invalidate({

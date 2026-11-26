@@ -20,6 +20,8 @@
 import {
   eventsPredicateSource,
   eventsTableCols,
+  ObservationLevel,
+  ObservationType,
   type ColumnDefinition,
   type FilterState,
   type PredicateSource,
@@ -76,6 +78,13 @@ export type FieldDef = {
   negatedOperators?: readonly CompareOp[];
   /** Insert an explicit exact match when selecting a suggested value. */
   exactSuggestions?: boolean;
+  /**
+   * Closed enum for this field. Bare text that matches one of these values
+   * suggests `field:value` even when the value is absent from loaded facets.
+   * Only small static lists belong here — observed values cover everything
+   * that varies per project.
+   */
+  knownValues?: readonly string[];
 };
 
 export type SearchScope = {
@@ -216,6 +225,41 @@ export type FieldOverlay = Partial<
   description?: string;
 };
 
+/**
+ * Static option lists longer than this are not a closed enum. Copying them
+ * onto the field would scan a high-cardinality catalog on every keystroke.
+ */
+const MAX_KNOWN_VALUES = 24;
+
+/**
+ * A column's static options, when they are a small closed enum (the value is
+ * what the user types). Empty lists are filled at runtime from facet data, and
+ * a distinct display label is an id/name pair, not an enum the bar can insert
+ * as-is.
+ */
+function knownValuesFromColumn(
+  column: ColumnDefinition,
+): readonly string[] | undefined {
+  if (column.type !== "stringOptions" && column.type !== "arrayOptions") {
+    return undefined;
+  }
+  if (column.options.length === 0 || column.options.length > MAX_KNOWN_VALUES) {
+    return undefined;
+  }
+  const values: string[] = [];
+  for (const option of column.options) {
+    if (option.value.length === 0) return undefined;
+    if (
+      option.displayValue !== undefined &&
+      option.displayValue !== option.value
+    ) {
+      return undefined;
+    }
+    values.push(option.value);
+  }
+  return values;
+}
+
 /** `number`, `datetime` and `boolean` columns keep their type as kind; every other column is `text`. */
 function fieldKindOf(type: ColumnDefinition["type"]): FieldKind {
   return type === "number" || type === "datetime" || type === "boolean"
@@ -289,6 +333,7 @@ export function fieldRegistryFromColumns(
         operators: fieldOverlay?.operators,
         negatedOperators: fieldOverlay?.negatedOperators,
         exactSuggestions: fieldOverlay?.exactSuggestions,
+        knownValues: fieldOverlay?.knownValues ?? knownValuesFromColumn(column),
       };
     });
 
@@ -350,6 +395,7 @@ export function extendFieldRegistryWithColumns(
     defaultTextField: registry.defaultTextField,
     freeTextScopeLabel: registry.freeTextScopeLabel,
     searchExamples: registry.searchExamples,
+    searchPlaceholder: registry.searchPlaceholder,
     hasExample: registry.hasExample,
     recentSearches: registry.recentSearches,
     aiFilterPrompt: registry.aiFilterPrompt,
@@ -403,6 +449,7 @@ export function withFieldOptions(
     defaultTextField: registry.defaultTextField,
     freeTextScopeLabel: registry.freeTextScopeLabel,
     searchExamples: registry.searchExamples,
+    searchPlaceholder: registry.searchPlaceholder,
     hasExample: registry.hasExample,
     recentSearches: registry.recentSearches,
     aiFilterPrompt: registry.aiFilterPrompt,
@@ -418,7 +465,7 @@ const EVENTS_FIELD_ROWS: Record<string, Omit<FieldDef, "id" | "kind">> = {
   traceId: { aliases: ["traceid", "trace_id"], syncMode: "textSearch", label: "Trace ID", description: "Trace identifier" },
   name: { aliases: [], syncMode: "textSearch", suggestObservedValues: true, exactMatchUsesOptions: true, label: "Name", description: "Observation name", nullable: true },
   traceName: { aliases: ["tracename", "trace_name"], syncMode: "exactOption", label: "Trace name", description: "Trace name", nullable: true },
-  type: { aliases: [], syncMode: "exactOption", label: "Type", description: "Observation type" },
+  type: { aliases: [], syncMode: "exactOption", label: "Type", description: "Observation type", knownValues: Object.values(ObservationType) },
   environment: { aliases: ["env"], syncMode: "exactOption", label: "Environment", description: "Environment", nullable: true },
   ingestionApiKey: { aliases: ["ingestionapikey", "ingestion_api_key", "apikey", "api_key", "publickey", "public_key"], syncMode: "exactOption", label: "Ingestion API key", description: "Public ingestion API key" },
   ingestionSdkName: { aliases: ["ingestionsdkname", "ingestion_sdk_name", "sdkname", "sdk_name"], syncMode: "exactOption", label: "Ingestion SDK name", description: "Ingestion SDK name" },
@@ -426,7 +473,7 @@ const EVENTS_FIELD_ROWS: Record<string, Omit<FieldDef, "id" | "kind">> = {
   ingestionSource: { aliases: ["ingestionsource", "ingestion_source", "source"], syncMode: "exactOption", label: "Ingestion source", description: "Ingestion source (API or OTel path)" },
   userId: { aliases: ["userid", "user_id", "user"], syncMode: "exactOption", label: "User ID", description: "Trace user id", nullable: true },
   sessionId: { aliases: ["sessionid", "session_id", "session"], syncMode: "exactOption", label: "Session ID", description: "Trace session id", nullable: true },
-  level: { aliases: [], syncMode: "exactOption", label: "Status", description: "Observation status" },
+  level: { aliases: [], syncMode: "exactOption", label: "Status", description: "Observation status", knownValues: Object.values(ObservationLevel) },
   statusMessage: { aliases: ["statusmessage", "status_message", "status"], syncMode: "textSearch", label: "Status message", description: "Status message", nullable: true },
   modelId: { aliases: ["modelid", "model_id"], syncMode: "exactOption", label: "Model ID", description: "Internal model id", nullable: true },
   providedModelName: { aliases: ["providedmodelname", "provided_model_name", "model"], syncMode: "exactOption", label: "Model name", description: "Provided model name", nullable: true },
@@ -483,6 +530,7 @@ function eventsSourceField(id: string) {
 }
 
 /** The bar's events fields: each row joined with its `eventsPredicateSource` field. */
+/** @internal */
 export const FIELDS: FieldDef[] = Object.entries(EVENTS_FIELD_ROWS).map(
   ([id, row]) => ({
     id,

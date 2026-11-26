@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { TrashIcon } from "@langfuse/icons";
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import { TableCard } from "@/src/components/TableCard/TableCard";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createButtonTableColumn } from "@/src/components/design-system/table/columns/createButtonTableColumn";
@@ -83,7 +83,7 @@ export function VerifiedDomainsSettingsTable({
   ];
 
   return (
-    <SettingsTable
+    <TableCard
       tableName="Verified domains"
       columns={columns}
       actions={actions}

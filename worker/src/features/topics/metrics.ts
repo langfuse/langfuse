@@ -19,6 +19,7 @@ export type TopicResult =
   | "applicable"
   | "not_applicable"
   | "insufficient_input"
+  | "empty_input"
   | "invalid_output"
   | "input_too_large"
   | "topics_found"
@@ -28,6 +29,7 @@ export type TopicResult =
   | "assigned"
   | "outlier"
   | "name_conflict"
+  | "name_kept"
   | "duplicate_name";
 type TopicErrorReason =
   | TopicsProviderUnavailable["reason"]
@@ -35,7 +37,26 @@ type TopicErrorReason =
   | "numerical"
   | "input_too_large"
   | "definition_readback"
+  | "assignment_visibility"
   | "unknown";
+
+/** Who has to act on a failure. Topics builds the request, so rejected input is ours; a trace over the size limit is the customer's. */
+export function topicFailureOwner(
+  reason: string,
+): "platform" | "upstream" | "customer" {
+  if (
+    [
+      "authentication",
+      "configuration",
+      "rate_limit",
+      "content_filter",
+      "input_too_large",
+    ].includes(reason)
+  )
+    return "customer";
+  if (["timeout", "provider_error"].includes(reason)) return "upstream";
+  return "platform";
+}
 
 // Statuses with their own operational meaning; exact codes are on the span.
 const COUNTED_HTTP_STATUSES = new Set([400, 401, 403, 429]);
@@ -71,6 +92,44 @@ export function recordTopicModelCall(
   recordIncrement("langfuse.topics.llm_calls", 1, { stage, adapter, status });
 }
 
+/** Request body size of one model call, counted when it is sent, whether or not it succeeds. */
+export function recordTopicRequestBytes(
+  stage: "summary" | "embedding" | "naming",
+  adapter: string,
+  bytes: number,
+): void {
+  recordDistribution("langfuse.topics.llm_request_bytes", bytes, {
+    stage,
+    adapter,
+    unit: "bytes",
+  });
+}
+
+/** One cost estimate from the user's click to its end, queue wait included; the count per outcome is the success rate. */
+/** Estimates are rare, so per-project and per-org tags stay low-cardinality. */
+export function recordTopicCostEstimate(
+  outcome: "done" | "failed" | "superseded",
+  startedAt: number,
+  tenant: { projectId: string; orgId: string | undefined },
+  per1000TracesUsd?: number,
+): void {
+  const tags = {
+    projectId: tenant.projectId,
+    ...(tenant.orgId && { orgId: tenant.orgId }),
+  };
+  recordDistribution(
+    "langfuse.topics.cost_estimate_duration_ms",
+    Date.now() - startedAt,
+    { ...tags, outcome, unit: "milliseconds" },
+  );
+  if (per1000TracesUsd !== undefined)
+    recordDistribution(
+      "langfuse.topics.cost_estimate_per_1000_traces_usd",
+      per1000TracesUsd,
+      tags,
+    );
+}
+
 /** One instance per execution attempt prevents nested catches counting an error twice. */
 export class TopicMetrics {
   private readonly reportedErrors = new WeakSet<object>();
@@ -101,10 +160,51 @@ export class TopicMetrics {
   }
 
   /** Summary input size per format: the rendered text sent, and the JSON projection it replaced. */
-  summaryInputCharacters(format: "text" | "json", characters: number): void {
+  summaryInputCharacters(
+    format: "text" | "json",
+    characters: number,
+    overLimit?: boolean,
+  ): void {
     recordDistribution("langfuse.topics.summary_input_characters", characters, {
       ...this.tags,
       format,
+      ...(overLimit !== undefined && { over_limit: String(overLimit) }),
+    });
+  }
+
+  /** Approximate tokens of the text sent, from the cost estimate's characters-per-token ratio. */
+  summaryInputEstimatedTokens(tokens: number): void {
+    recordDistribution(
+      "langfuse.topics.summary_input_estimated_tokens",
+      tokens,
+      this.tags,
+    );
+  }
+
+  /** One fit of a rule's map, whether nightly, from setup or a manual refresh. */
+  ruleFit(
+    outcome: string,
+    trigger: "automatic" | "manual",
+    durationMs: number,
+    failure?: unknown,
+  ): void {
+    const tags = {
+      outcome,
+      trigger,
+      ...(outcome === "failed"
+        ? {
+            owner:
+              failure instanceof TopicsProviderUnavailable
+                ? topicFailureOwner(failure.reason)
+                : "platform",
+          }
+        : {}),
+    };
+    recordIncrement("langfuse.topics.rule_fits", 1, tags);
+    recordDistribution("langfuse.topics.rule_fit_duration_ms", durationMs, {
+      outcome,
+      trigger,
+      unit: "milliseconds",
     });
   }
 
@@ -163,6 +263,8 @@ export class TopicMetrics {
       if (error.name === "TopicInputTooLarge") reason = "input_too_large";
       if (error.name === "TopicDefinitionReadbackError")
         reason = "definition_readback";
+      if (error.name === "TopicAssignmentVisibilityError")
+        reason = "assignment_visibility";
       if (
         [
           "PrismaClientKnownRequestError",
@@ -180,6 +282,11 @@ export class TopicMetrics {
       ...this.tags,
       stage,
       reason,
+      owner:
+        error instanceof TopicsProviderUnavailable ||
+        reason === "input_too_large"
+          ? topicFailureOwner(reason)
+          : "platform",
     });
   }
 }

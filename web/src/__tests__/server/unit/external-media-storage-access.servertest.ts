@@ -1,5 +1,5 @@
 import { type Organization, type PrismaClient } from "@langfuse/shared/src/db";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   cloudRegion: undefined as string | undefined,
@@ -29,6 +29,22 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
   };
 });
 
+// The plan resolver in @langfuse/shared reads shared's own env.
+vi.mock("@langfuse/shared/src/env", async (importOriginal) => {
+  const original = (await importOriginal()) as { env: Record<string, unknown> };
+  return {
+    ...original,
+    env: new Proxy(original.env, {
+      get: (target, prop) => {
+        if (prop === "NEXT_PUBLIC_LANGFUSE_CLOUD_REGION")
+          return mocks.cloudRegion;
+        if (prop === "LANGFUSE_EE_LICENSE_KEY") return mocks.licenseKey;
+        return Reflect.get(target, prop);
+      },
+    }),
+  };
+});
+
 vi.mock(
   "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
   async (importOriginal) => ({
@@ -43,25 +59,15 @@ import { createExternalMediaStorageService } from "@/src/ee/features/external-me
 const organization = (cloudConfig: unknown = null) =>
   ({ id: "org-allowlisted", cloudConfig }) as Organization;
 
-function setCloudRegion(region: string | undefined) {
-  mocks.cloudRegion = region;
-  // The plan resolver reads the region from process.env directly.
-  vi.stubEnv("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", region ?? "");
-}
-
 describe("hasExternalMediaStorageAccess", () => {
   beforeEach(() => {
-    setCloudRegion(undefined);
+    mocks.cloudRegion = undefined;
     mocks.licenseKey = undefined;
     mocks.allowlist = ["org-allowlisted"];
   });
 
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
   it("grants Cloud access to enterprise plans and allowlisted organizations only", () => {
-    setCloudRegion("EU");
+    mocks.cloudRegion = "EU";
     expect(hasExternalMediaStorageAccess(organization({ plan: "Pro" }))).toBe(
       true,
     );
@@ -85,12 +91,8 @@ describe("hasExternalMediaStorageAccess", () => {
 
 describe("external media storage IAM role auth", () => {
   beforeEach(() => {
-    setCloudRegion("EU");
+    mocks.cloudRegion = "EU";
     mocks.allowlist = ["org-allowlisted"];
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
   });
 
   const roleAuthAvailability = (plan: "cloud:pro" | "cloud:enterprise") =>

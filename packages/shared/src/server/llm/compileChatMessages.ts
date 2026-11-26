@@ -44,7 +44,7 @@ function expandPlaceholder(
   }
 
   if (!Array.isArray(replacementMessages)) {
-    throw new Error(
+    throw new TypeError(
       `Placeholder value for '${placeholder.name}' must be an array of messages`,
     );
   }

@@ -14,6 +14,7 @@ import {
  * from QueueMetricsRunner so age keeps rising between the 15-minute job runs.
  *
  * Alert: `avg:langfuse.v4.legacy_api_usage.heartbeat_age_seconds > 10800` (3h).
+ * @internal
  */
 export const V4_LEGACY_API_USAGE_HEARTBEAT_AGE_METRIC =
   "langfuse.v4.legacy_api_usage.heartbeat_age_seconds";

@@ -95,6 +95,9 @@ export const env = createEnv({
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
+    LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS: z
+      .enum(["true", "false"])
+      .default("false"),
     SALT: z.string({
       error: (issue) =>
         issue.input === undefined
@@ -373,6 +376,11 @@ export const env = createEnv({
     // "clickhouse.conductor.one"; ENTITLEMENT_ID is this region's entitlement.
     LANGFUSE_CONDUCTORONE_ISSUER: z.string().min(1).optional(),
     LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID: z.string().min(1).optional(),
+    // Comma-separated organization IDs that support access is never granted for.
+    LANGFUSE_SUPPORT_ACCESS_DENIED_ORG_IDS: z
+      .string()
+      .default("")
+      .transform((s) => s.split(",").map((id) => id.trim())),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY: z.string().min(1).optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: z.string().min(1).optional(),
     // Whether an AI gateway is deployed next to Web. Unset, it is deployed once
@@ -517,6 +525,37 @@ export const env = createEnv({
 
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
+    // Coupon codes that start a self-serve enterprise trial on
+    // /organization/<orgId>/enterprise-trial (Langfuse Cloud only), as a JSON
+    // object from code to trial length in days, e.g.
+    // {"CODE-FOR-SHORT-TRIALS":14,"CODE-FOR-LONG-TRIALS":60}. Unset disables
+    // redemption. Attempts share the per-org coupon rate limit; use random
+    // codes all the same, since one code works for any number of orgs.
+    LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES: z
+      .string()
+      .optional()
+      .transform((value, ctx) => {
+        if (value == null || value.trim() === "") return [];
+        try {
+          const coupons = z
+            .record(
+              z.string().regex(/^\S{16,}$/),
+              z.number().int().min(1).max(365),
+            )
+            .parse(JSON.parse(value));
+          return Object.entries(coupons).map(([code, durationDays]) => ({
+            code,
+            durationDays,
+          }));
+        } catch {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES must be a JSON object mapping coupon codes of at least 16 characters without spaces to trial lengths of 1 to 365 days",
+          });
+          return z.NEVER;
+        }
+      }),
     // ClickHouse Billing (CHB) integration. First-time upgrades on/after this
     // UTC date route to CHB; unset = feature off. Date-only (YYYY-MM-DD) so the
     // cutline is a single unambiguous instant of UTC midnight, which is what
@@ -562,12 +601,6 @@ export const env = createEnv({
     // Bearer secret CHB's metering pipeline presents to GET /api/billing/metrics.
     // Unset disables the endpoint (it 500s) rather than leaving it open.
     CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
-    // Compares each GET /api/billing/metrics poll with the billable_events
-    // ledger and reports the gap. Requires the ledger table, which only
-    // Langfuse Cloud has; keep in sync with worker/src/env.ts.
-    LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED: z
-      .enum(["true", "false"])
-      .default("false"),
     // ARN of CHB's cross-account EventBridge bus we publish project lifecycle
     // events to. Unset = no events are emitted. The ARN carries the bus region,
     // so it is the only input needed; authentication is SigV4 from the task
@@ -617,8 +650,6 @@ export const env = createEnv({
       .number()
       .positive()
       .default(50_000),
-    PLAIN_AUTHENTICATION_SECRET: z.string().optional(),
-    PLAIN_CARDS_API_TOKEN: z.string().optional(),
     PYLON_API_KEY: z.string().optional(),
 
     // UI customization - comma-separated list of visible product modules
@@ -858,19 +889,6 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("true"),
 
-    // Temporary kill-switch for the observations v2 subquery-IN rewrite.
-    LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE: z.coerce
-      .number()
-      .min(0)
-      .max(1)
-      .default(0.01),
-
     // Blocked users for chat completion API (userId:reason format)
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: z
       .string()
@@ -934,7 +952,6 @@ export const env = createEnv({
       .default("false"),
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
-    NEXT_PUBLIC_PLAIN_APP_ID: z.string().optional(),
     NEXT_PUBLIC_BUILD_ID: z.string().optional(),
     NEXT_PUBLIC_BASE_PATH: z.string().optional(),
     // Origin that serves this build's `/_next/static/*` output, when it is
@@ -989,6 +1006,8 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS:
+      process.env.LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
     LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER:
@@ -1252,9 +1271,6 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
     // Other
-    NEXT_PUBLIC_PLAIN_APP_ID: process.env.NEXT_PUBLIC_PLAIN_APP_ID,
-    PLAIN_AUTHENTICATION_SECRET: process.env.PLAIN_AUTHENTICATION_SECRET,
-    PLAIN_CARDS_API_TOKEN: process.env.PLAIN_CARDS_API_TOKEN,
     PYLON_API_KEY: process.env.PYLON_API_KEY,
     // clickhouse
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
@@ -1281,7 +1297,8 @@ export const env = createEnv({
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE:
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_AZURE,
     LANGFUSE_UI_INSTANCE_LINKS: process.env.LANGFUSE_UI_INSTANCE_LINKS,
-    LANGFUSE_DISABLE_PUBLIC_SHARING: process.env.LANGFUSE_DISABLE_PUBLIC_SHARING,
+    LANGFUSE_DISABLE_PUBLIC_SHARING:
+      process.env.LANGFUSE_DISABLE_PUBLIC_SHARING,
     LANGFUSE_UI_VISIBLE_PRODUCT_MODULES:
       process.env.LANGFUSE_UI_VISIBLE_PRODUCT_MODULES,
     LANGFUSE_UI_HIDDEN_PRODUCT_MODULES:
@@ -1296,6 +1313,8 @@ export const env = createEnv({
     LANGFUSE_CONDUCTORONE_ISSUER: process.env.LANGFUSE_CONDUCTORONE_ISSUER,
     LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID:
       process.env.LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID,
+    LANGFUSE_SUPPORT_ACCESS_DENIED_ORG_IDS:
+      process.env.LANGFUSE_SUPPORT_ACCESS_DENIED_ORG_IDS,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY:
       process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS:
@@ -1334,6 +1353,8 @@ export const env = createEnv({
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
+    LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES:
+      process.env.LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES,
     LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE:
       process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
     LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS:
@@ -1341,8 +1362,6 @@ export const env = createEnv({
     LANGFUSE_CLOUD_COUPON_CODES: process.env.LANGFUSE_CLOUD_COUPON_CODES,
     CLICKHOUSE_BILLING_METRICS_API_KEY:
       process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
-    LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED:
-      process.env.LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED,
     CLICKHOUSE_BILLING_EVENT_BUS_ARN:
       process.env.CLICKHOUSE_BILLING_EVENT_BUS_ARN,
     CLICKHOUSE_BILLING_BASE_URL: process.env.CLICKHOUSE_BILLING_BASE_URL,
@@ -1459,12 +1478,6 @@ export const env = createEnv({
       process.env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH,
     LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED:
       process.env.LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED,
-    LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE:
-      process.env.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE,
-    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY:
-      process.env.LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY,
-    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE:
-      process.env.LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE,
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION:
       process.env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION,
   },

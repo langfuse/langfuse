@@ -1,7 +1,7 @@
 import { BookOpen, Plus, UserPlus } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
-import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
+import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
 import { TeamInviteDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/TeamInviteDialogController/TeamInviteDialogController";
 import { UsageInstructionsDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/UsageInstructionsDialogController/UsageInstructionsDialogController";
 

@@ -1,6 +1,11 @@
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import type { ListEntry } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
-import { ExternalLink, Maximize2, Minimize2, X } from "@langfuse/icons";
+import {
+  SquareArrowOutUpRight,
+  Maximize2,
+  Minimize2,
+  X,
+} from "@langfuse/icons";
 import type {
   EntityDetailHeaderAction,
   EntityDetailHeaderConfiguration,
@@ -30,7 +35,7 @@ export function createPeekHeaderActions({
       id: "open-in-new-tab",
       type: "button",
       label: "Open in new tab",
-      icon: ExternalLink,
+      icon: SquareArrowOutUpRight,
       iconOnly: true,
       onClick: openInNewTab,
     });

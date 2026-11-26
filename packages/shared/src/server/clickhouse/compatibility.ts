@@ -103,6 +103,7 @@ const CLICKHOUSE_COMPATIBILITY_RULES: ClickHouseCompatibilityRule[] = [
 let detectedClickHouseVersion: string | null = null;
 let initializationPromise: Promise<void> | null = null;
 
+/** @internal */
 export const parseClickHouseVersion = (
   rawVersion: string,
 ): ClickHouseVersion | null => {
@@ -144,6 +145,7 @@ const parseVersionBound = (version: string): ClickHouseVersion => {
   return parsed;
 };
 
+/** @internal */
 export const isClickHouseVersionInBand = (
   version: string | ClickHouseVersion,
   band: ClickHouseVersionBand,
@@ -177,6 +179,7 @@ type ResolvedClickHouseJsonBadUnicodeEscapeMode = Exclude<
   "auto"
 >;
 
+/** @internal */
 export const resolveClickHouseJsonBadUnicodeEscapeMode = ({
   version,
   configuredMode,
@@ -206,6 +209,7 @@ export const getClickHouseJsonBadUnicodeEscapeMode = () =>
     configuredMode: env.LANGFUSE_JSON_BAD_UNICODE_ESCAPE,
   });
 
+/** @internal */
 export const resolveClickHouseCompatibility = ({
   version,
   overrides,
@@ -348,6 +352,7 @@ const getClickHouseVersionClientConfig =
     };
   };
 
+/** @internal */
 export const setClickHouseCompatibilityVersionForTests = (
   version: string | null,
 ): void => {

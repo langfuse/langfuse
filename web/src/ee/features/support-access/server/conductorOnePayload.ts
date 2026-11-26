@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 
 export const C1_TEST_EVENT = "c1.webhooks.v1.PayloadTest";
+/** @internal */
 export const C1_PROVISION_EVENT = "c1.webhooks.v1.PayloadProvisionStep";
 
 export type GrantRequest = {

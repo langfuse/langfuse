@@ -34,17 +34,27 @@ vi.mock(
   }),
 );
 
+import {
+  Client,
+  InMemoryTransport,
+  ProtocolErrorCode,
+} from "@modelcontextprotocol/client";
 import { nanoid } from "nanoid";
 import { createHash, randomUUID } from "crypto";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  buildEventBucketPrefix,
+  createApiKey,
+  createBasicAuthHeader,
   createDatasetRunScore,
   createEvent,
   createEventsCh,
   createScoresCh,
   createSessionScore,
   createTraceScore,
+  getS3EventStorageClient,
+  getScoreById,
   buildDashboardUrl,
   buildDashboardWidgetUrl,
   buildEvaluatorUrl,
@@ -56,6 +66,12 @@ import {
   buildTraceUrl,
 } from "@langfuse/shared/src/server";
 import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import {
   LLMAdapter,
   ScoreConfigDataType,
   supportedModels,
@@ -66,14 +82,15 @@ import { MonitorService } from "@langfuse/shared/monitors/server";
 import {
   createMcpTestSetup,
   createPromptInDb,
+  findCallableTool,
   mcpEvalOutputDefinition,
   mockServerContext,
   verifyAuditLog,
   verifyToolAnnotations,
 } from "./mcp-helpers";
 import { env } from "@/src/env.mjs";
-import "@/src/features/mcp/server/bootstrap";
-import { toolRegistry } from "@/src/features/mcp/server/registry";
+import { authenticator } from "@/src/features/apiKey/authenticator";
+import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
 import { handleCreateDashboardWidget } from "@/src/features/mcp/server/dashboardWidgets/tools/createDashboardWidget";
 import {
   getDashboardTool,
@@ -132,14 +149,12 @@ import {
   createScoreConfigTool,
   handleCreateScoreConfig,
 } from "@/src/features/mcp/server/scores/tools/createScoreConfig";
+import { handleCreateScore } from "@/src/features/mcp/server/scores/tools/createScore";
 import {
-  createScoreTool,
-  handleCreateScore,
-} from "@/src/features/mcp/server/scores/tools/createScore";
-import {
-  deleteScoreConfigTool,
-  handleDeleteScoreConfig,
-} from "@/src/features/mcp/server/scores/tools/deleteScoreConfig";
+  batchCreateScoresTool,
+  handleBatchCreateScores,
+} from "@/src/features/mcp/server/scores/tools/batchCreateScores";
+import { handleDeleteScoreConfig } from "@/src/features/mcp/server/scores/tools/deleteScoreConfig";
 import {
   getScoreTool,
   handleGetScore,
@@ -620,7 +635,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(listMonitorsTool.name, context),
+        findCallableTool(listMonitorsTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -696,7 +711,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(getMonitorTool.name, context),
+        findCallableTool(getMonitorTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -745,7 +760,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(listLlmConnectionsTool.name, context),
+        findCallableTool(listLlmConnectionsTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -896,7 +911,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(listEvaluatorsTool.name, context),
+        findCallableTool(listEvaluatorsTool.name, context),
       ).resolves.toMatchObject({
         definition: expect.objectContaining({ name: listEvaluatorsTool.name }),
       });
@@ -989,7 +1004,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(getEvaluatorTool.name, context),
+        findCallableTool(getEvaluatorTool.name, context),
       ).resolves.toMatchObject({
         definition: expect.objectContaining({ name: getEvaluatorTool.name }),
       });
@@ -1023,7 +1038,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(listEvaluationRulesTool.name, context),
+        findCallableTool(listEvaluationRulesTool.name, context),
       ).resolves.toMatchObject({
         definition: expect.objectContaining({
           name: listEvaluationRulesTool.name,
@@ -1165,7 +1180,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(getEvaluationRuleTool.name, context),
+        findCallableTool(getEvaluationRuleTool.name, context),
       ).resolves.toMatchObject({
         definition: expect.objectContaining({
           name: getEvaluationRuleTool.name,
@@ -1240,10 +1255,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(
-          getObservationFieldSchemaTool.name,
-          context,
-        ),
+        findCallableTool(getObservationFieldSchemaTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -1321,40 +1333,53 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(
-          getObservationFilterSchemaTool.name,
-          context,
-        ),
+        findCallableTool(getObservationFilterSchemaTool.name, context),
       ).resolves.toBeDefined();
     });
 
     it("should return public-compatible observation filter schema", async () => {
+      type FilterType = { type: string; operators: string[] };
       const result = (await handleGetObservationFilterSchema(
         {},
         mockServerContext(),
       )) as {
         resource: string;
-        columns: Record<string, { type: string; operators: string[] }>;
+        columns: Record<
+          string,
+          { types: FilterType[]; nullable: boolean; requiresKey: boolean }
+        >;
       };
+      const operatorsOf = (column: string) =>
+        result.columns[column].types[0].operators;
 
       expect(result.resource).toBe("observation");
-      expect(result.columns.providedModelName.type).toBe("stringOptions");
-      expect(result.columns.tags.type).toBe("arrayOptions");
-      expect(result.columns.metadata).toEqual(
-        expect.objectContaining({
-          type: "stringObject",
-          operators: expect.arrayContaining(["matches"]),
-          requiresKey: true,
-        }),
-      );
-      expect(result.columns.input.operators).toEqual(["=", "matches"]);
-      expect(result.columns.output.operators).toEqual(["=", "matches"]);
-      expect(result.columns.version.operators).not.toContain("matches");
+      expect(result.columns.providedModelName.types).toEqual([
+        { type: "stringOptions", operators: expect.any(Array) },
+      ]);
+      expect(result.columns.tags.types[0].type).toBe("arrayOptions");
+      expect(result.columns.metadata).toEqual({
+        types: [
+          {
+            type: "stringObject",
+            operators: expect.arrayContaining(["matches"]),
+          },
+          { type: "numberObject", operators: ["=", ">", "<", ">=", "<="] },
+        ],
+        nullable: expect.any(Boolean),
+        requiresKey: true,
+      });
+      expect(result.columns.input).toEqual({
+        types: [{ type: "string", operators: ["=", "matches"] }],
+        nullable: expect.any(Boolean),
+        requiresKey: false,
+      });
+      expect(operatorsOf("output")).toEqual(["=", "matches"]);
+      expect(operatorsOf("version")).not.toContain("matches");
       expect(result.columns.traceTags).toBeUndefined();
       expect(result.columns.startTime).toBeUndefined();
       expect(result.columns.comments).toBeUndefined();
       expect(result.columns.scores).toBeUndefined();
-      expect(result.columns.name.operators).toContain("any of");
+      expect(operatorsOf("name")).toContain("any of");
     });
 
     it.each([
@@ -1383,18 +1408,22 @@ describe("MCP Read Tools", () => {
         )) as {
           columns: Record<
             string,
-            { type: string; operators: string[]; nullable: boolean }
+            {
+              types: { type: string; operators: string[] }[];
+              nullable: boolean;
+              requiresKey: boolean;
+            }
           >;
         };
 
-        expect(result.columns[column]).toEqual(
-          expect.objectContaining({
-            type,
-            nullable,
-            operators: expect.any(Array),
-          }),
-        );
-        expect(result.columns[column]?.operators.length).toBeGreaterThan(0);
+        expect(result.columns[column]).toEqual({
+          types: [{ type, operators: expect.any(Array) }],
+          nullable,
+          requiresKey: false,
+        });
+        expect(
+          result.columns[column]?.types[0].operators.length,
+        ).toBeGreaterThan(0);
       },
     );
   });
@@ -1541,7 +1570,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(listObservationsTool.name, context),
+        findCallableTool(listObservationsTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -1669,6 +1698,56 @@ describe("MCP Read Tools", () => {
             observationId: matchingObservation.id,
           }),
         },
+      ]);
+    });
+
+    it("should filter by numeric metadata advanced filters", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const startTime = new Date();
+      const matchingObservation = createObservationEvent({
+        projectId,
+        traceId,
+        startTime,
+        metadata: { retries: "10" },
+      });
+      // "10" > "9" fails as a string comparison, so only a numeric one matches.
+      const nonMatchingObservation = createObservationEvent({
+        projectId,
+        traceId,
+        startTime,
+        metadata: { retries: "9" },
+      });
+
+      await createEventsCh([matchingObservation, nonMatchingObservation]);
+
+      const result = (await handleListObservations(
+        {
+          fromStartTime: new Date(startTime.getTime() - 1000).toISOString(),
+          toStartTime: new Date(startTime.getTime() + 1000).toISOString(),
+          filter: [
+            {
+              type: "stringOptions",
+              column: "id",
+              operator: "any of",
+              value: [matchingObservation.id, nonMatchingObservation.id],
+            },
+            {
+              type: "numberObject",
+              column: "metadata",
+              key: "retries",
+              operator: ">",
+              value: 9,
+            },
+          ],
+          fields: ["id"],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ id: string }> };
+
+      expect(result.data.map((observation) => observation.id)).toEqual([
+        matchingObservation.id,
       ]);
     });
 
@@ -3082,7 +3161,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(getObservationTool.name, context),
+        findCallableTool(getObservationTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -3301,10 +3380,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(
-          getObservationFilterValuesTool.name,
-          context,
-        ),
+        findCallableTool(getObservationFilterValuesTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -3808,10 +3884,6 @@ describe("MCP Read Tools", () => {
   });
 
   describe("createScore tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(createScoreTool, { destructiveHint: true });
-    });
-
     it("should create a score using v1 route semantics", async () => {
       const { context, projectId, apiKeyId } = await createMcpTestSetup();
       const scoreId = randomUUID();
@@ -3847,6 +3919,157 @@ describe("MCP Read Tools", () => {
         resourceId: scoreId,
         action: "create",
       });
+    });
+  });
+
+  describe("batchCreateScores tool", () => {
+    it("creates each score with its own audit log", async () => {
+      const { context, projectId, apiKeyId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const scoreIds = [randomUUID(), randomUUID()];
+
+      const result = await handleBatchCreateScores(
+        {
+          scores: scoreIds.map((id, index) => ({
+            id,
+            traceId,
+            name: `mcp-batch-score-${index}`,
+            value: index,
+            dataType: "NUMERIC",
+            environment: "default",
+            source: "API",
+          })),
+        },
+        context,
+      );
+
+      const url = buildTraceUrl({ projectId, traceId });
+      expect(result).toEqual({
+        data: scoreIds.map((id, index) => ({ index, id, url })),
+        errors: [],
+      });
+      for (const resourceId of scoreIds) {
+        await expect(
+          verifyAuditLog({
+            projectId,
+            apiKeyId,
+            resourceType: "score",
+            resourceId,
+            action: "create",
+          }),
+        ).resolves.toMatchObject({ resourceId, action: "create" });
+      }
+    });
+
+    it("denies a key without scores:save and writes no scores or audit logs", async () => {
+      const mutableEnv = env as unknown as {
+        API_AUTH_MIGRATION: typeof env.API_AUTH_MIGRATION;
+      };
+      const originalAuthMode = mutableEnv.API_AUTH_MIGRATION;
+      // Shadow and legacy modes report denials without enforcing them.
+      mutableEnv.API_AUTH_MIGRATION = "enforce";
+
+      try {
+        const setup = await createMcpTestSetup();
+        const { projectId, orgId } = setup;
+        const traceId = randomUUID();
+        const scoreIds = [randomUUID(), randomUUID()];
+
+        // VIEWER holds scores:read but not scores:save.
+        const keyCreator = await prisma.user.create({
+          data: { email: `mcp-batch-scores-viewer-${nanoid()}@example.com` },
+        });
+        const viewerKey = await createApiKey(prisma, {
+          tenant: OrganizationId(orgId),
+          scope: ProjectId(projectId),
+          role: SystemRoleId("VIEWER"),
+          createdBy: UserId(keyCreator.id),
+        });
+        const authenticated = await authenticator.authenticate({
+          headers: {
+            authorization: createBasicAuthHeader(
+              viewerKey.publicKey,
+              viewerKey.secretKey,
+            ),
+          },
+        });
+        if (!authenticated.success) throw authenticated.error;
+
+        const server = await createMcpServer({
+          ...setup.context,
+          apiKeyId: viewerKey.id,
+          publicKey: viewerKey.publicKey,
+          auth: authenticated.context,
+        });
+        const client = new Client({
+          name: "batch-create-scores-scope-test",
+          version: "1.0.0",
+        });
+        const [serverTransport, clientTransport] =
+          InMemoryTransport.createLinkedPair();
+        await server.connect(serverTransport);
+        await client.connect(clientTransport);
+
+        try {
+          const read = await client.callTool({
+            name: listScoresTool.name,
+            arguments: { limit: 1 },
+          });
+          expect(read.isError).not.toBe(true);
+
+          await expect(
+            client.callTool({
+              name: batchCreateScoresTool.name,
+              arguments: {
+                scores: scoreIds.map((id, index) => ({
+                  id,
+                  traceId,
+                  name: `mcp-denied-batch-score-${index}`,
+                  value: index,
+                  dataType: "NUMERIC",
+                  environment: "default",
+                  source: "API",
+                })),
+              },
+            }),
+          ).rejects.toMatchObject({
+            code: ProtocolErrorCode.InvalidRequest,
+            message: expect.stringContaining(
+              'Access denied. The "scores:save" permission is required to access this resource.',
+            ),
+          });
+        } finally {
+          await client.close();
+          await server.close();
+        }
+
+        const eventBucket = process.env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET;
+        if (!eventBucket) {
+          throw new Error("LANGFUSE_S3_EVENT_UPLOAD_BUCKET must be set");
+        }
+        const storageClient = getS3EventStorageClient(eventBucket);
+        for (const scoreId of scoreIds) {
+          await expect(
+            storageClient.listFiles(
+              buildEventBucketPrefix({
+                projectId,
+                entityType: "score",
+                entityId: scoreId,
+              }),
+            ),
+          ).resolves.toEqual([]);
+          await expect(
+            getScoreById({ projectId, scoreId }),
+          ).resolves.toBeUndefined();
+        }
+        await expect(
+          prisma.auditLog.count({
+            where: { projectId, resourceType: "score" },
+          }),
+        ).resolves.toBe(0);
+      } finally {
+        mutableEnv.API_AUTH_MIGRATION = originalAuthMode;
+      }
     });
   });
 
@@ -3997,10 +4220,6 @@ describe("MCP Read Tools", () => {
   });
 
   describe("createScoreConfig tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(createScoreConfigTool, { destructiveHint: true });
-    });
-
     it("should describe allowed score config name characters in the input schema", () => {
       expect(
         containsStringValue(
@@ -4132,10 +4351,6 @@ describe("MCP Read Tools", () => {
   });
 
   describe("updateScoreConfig tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(updateScoreConfigTool, { destructiveHint: true });
-    });
-
     it("should describe allowed score config name characters in the input schema", () => {
       expect(
         containsStringValue(
@@ -4260,10 +4475,6 @@ describe("MCP Read Tools", () => {
   });
 
   describe("deleteScoreConfig tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(deleteScoreConfigTool, { destructiveHint: true });
-    });
-
     it("should archive the score config", async () => {
       const { context, projectId, apiKeyId } = await createMcpTestSetup();
       const config = await prisma.scoreConfig.create({
@@ -4310,7 +4521,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(getPromptTool.name, context),
+        findCallableTool(getPromptTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -4606,7 +4817,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(listPromptsTool.name, context),
+        findCallableTool(listPromptsTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -4988,7 +5199,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(getPromptUnresolvedTool.name, context),
+        findCallableTool(getPromptUnresolvedTool.name, context),
       ).resolves.toBeDefined();
     });
 

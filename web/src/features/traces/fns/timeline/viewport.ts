@@ -30,13 +30,16 @@ import { clampView, type TimeSpan } from "./viewTransform";
  * are reading the trace. A 600px-tall box holds 600 rows, so most traces fit
  * whole and the shape arrives all at once; zoom is then how you get from the
  * shape to a span, rather than how you find out there is more below.
+ * @internal
  */
 export const MIN_ROW_HEIGHT = 1;
 /** Nor thicker than this, so zooming in cannot end at one giant row. */
+/** @internal */
 export const MAX_ROW_HEIGHT = 40;
 /** The row height a human reads comfortably — what double-click aims for. */
 export const HUMAN_ROW_HEIGHT = 26;
 /** Shortest row that can hold a duration label and a name. */
+/** @internal */
 export const LABELLED_ROW_HEIGHT = 20;
 
 export type RowPresentation =
@@ -156,6 +159,7 @@ export type ZoomAxes = "both" | "x" | "y";
  *
  * `axes` defaults to both. `"y"` grows or shrinks only the rows, which is how
  * a long trace can keep its full duration on screen while the labels return.
+ * @internal
  */
 export function zoomViewport(
   viewport: Viewport,

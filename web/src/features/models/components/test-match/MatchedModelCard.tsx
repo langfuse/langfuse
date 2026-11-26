@@ -6,6 +6,7 @@ import {
 } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type ModelScope } from "@langfuse/shared";
+import { modelMaintainerByScope } from "@/src/features/models/modelMaintainer";
 
 export type MatchedModelCardProps = {
   model: {
@@ -16,8 +17,6 @@ export type MatchedModelCardProps = {
 };
 
 export function MatchedModelCard({ model }: MatchedModelCardProps) {
-  const isLangfuseModel = model.scope === "LANGFUSE";
-
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -30,7 +29,9 @@ export function MatchedModelCard({ model }: MatchedModelCardProps) {
           <span className="font-mono text-base font-bold">
             {model.modelName}
           </span>
-          {isLangfuseModel && <Badge color="filled" text="Langfuse" />}
+          {model.scope !== "PROJECT" && (
+            <Badge color="filled" text={modelMaintainerByScope[model.scope]} />
+          )}
         </div>
         <div className="space-y-1">
           <div className="text-muted-foreground text-xs font-bold">

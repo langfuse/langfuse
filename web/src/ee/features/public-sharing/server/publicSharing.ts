@@ -1,8 +1,7 @@
 import { env } from "@/src/env.mjs";
-import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { ForbiddenError } from "@langfuse/shared";
+import { ForbiddenError, hasEntitlementBasedOnPlan } from "@langfuse/shared";
 import { type PrismaClient } from "@langfuse/shared/src/db";
+import { getSelfHostedInstancePlanServerSide } from "@langfuse/shared/src/server";
 
 /** Whether LANGFUSE_DISABLE_PUBLIC_SHARING is set and the instance license covers it. */
 export function isPublicSharingDisabledByInstance(): boolean {

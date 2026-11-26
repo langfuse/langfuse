@@ -1,4 +1,4 @@
-import type { McpFeatureModule } from "../registry";
+import type { McpFeatureModule } from "../tools";
 import { getScoreTool, handleGetScore } from "./tools/getScore";
 import {
   getScoreConfigTool,
@@ -14,6 +14,10 @@ import {
   handleCreateScoreConfig,
 } from "./tools/createScoreConfig";
 import { createScoreTool, handleCreateScore } from "./tools/createScore";
+import {
+  batchCreateScoresTool,
+  handleBatchCreateScores,
+} from "./tools/batchCreateScores";
 import {
   deleteScoreConfigTool,
   handleDeleteScoreConfig,
@@ -39,6 +43,10 @@ export const scoresFeature = {
     {
       definition: createScoreTool,
       handler: handleCreateScore,
+    },
+    {
+      definition: batchCreateScoresTool,
+      handler: handleBatchCreateScores,
     },
     {
       definition: listScoreConfigsTool,

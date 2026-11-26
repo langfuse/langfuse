@@ -49,8 +49,8 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { AlertCircle, ExternalLink } from "@langfuse/icons";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
@@ -231,7 +231,7 @@ export const VariableMappingCard = ({
                 rel="noopener noreferrer"
               >
                 Edit prompt
-                <ExternalLink
+                <SquareArrowOutUpRight
                   size="base"
                   color="default"
                   __rawClassName="ml-1"
@@ -246,7 +246,11 @@ export const VariableMappingCard = ({
               title="Only user-managed templates can be edited"
             >
               Edit prompt
-              <ExternalLink size="base" color="default" __rawClassName="ml-1" />
+              <SquareArrowOutUpRight
+                size="base"
+                color="default"
+                __rawClassName="ml-1"
+              />
             </Button>
           )}
         </div>
@@ -327,14 +331,14 @@ export const VariableMappingCard = ({
                   )}
                 >
                   {disabled && !syncStatus.inSync && (
-                    <Alert variant="destructive" icon={AlertCircle}>
-                      <Alert.Title>Variable mapping is out of sync</Alert.Title>
-                      <Alert.Description>
-                        The template has {syncStatus.added.length} new
-                        variable(s) and {syncStatus.removed.length} removed
-                        variable(s). Toggle Edit Mode to update the mapping.
-                      </Alert.Description>
-                    </Alert>
+                    <Banner
+                      variant="error"
+                      title="Variable mapping is out of sync"
+                    >
+                      The template has {syncStatus.added.length} new variable(s)
+                      and {syncStatus.removed.length} removed variable(s).
+                      Toggle Edit Mode to update the mapping.
+                    </Banner>
                   )}
                   {isLegacyEvalTarget(form.watch("target")) // Complex variable mapping for trace/dataset targets (legacy)
                     ? fields.map((mappingField, index) => (

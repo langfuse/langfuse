@@ -22,7 +22,7 @@ describe("ClickHouse query tags", () => {
           },
         }),
       )
-      .setValue(CLICKHOUSE_ROUTE_CONTEXT_KEY, "langfuse.queue.trace_batch");
+      .setValue(CLICKHOUSE_ROUTE_CONTEXT_KEY, "langfuse.queue.events_dispatch");
     try {
       const tags = context.with(entrypoint, () =>
         JSON.parse(
@@ -35,7 +35,7 @@ describe("ClickHouse query tags", () => {
       expect(tags).toEqual({
         tag_schema_version: "1",
         surface: "worker",
-        route: "langfuse.queue.trace_batch",
+        route: "langfuse.queue.events_dispatch",
         projectId: "MULTI_PROJECT",
         projectSize: "unknown",
         queryWindow: "none",

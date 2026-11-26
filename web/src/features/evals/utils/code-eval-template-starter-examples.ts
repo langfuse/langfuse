@@ -194,6 +194,7 @@ type EvaluationResult = {
 
 // Keep in sync with the Prettier output so the Format button is a no-op on
 // the untouched starter code.
+/** @internal */
 export const DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE = `function evaluate(ctx: EvaluationContext): EvaluationResult {
   const input = ctx.observation.input;
   const matchesOutput = input !== undefined && ctx.observation.output === input;
@@ -260,6 +261,7 @@ class EvaluationResult:
     scores: list[Score]
 `;
 
+/** @internal */
 export const DEFAULT_PYTHON_CODE_EVAL_SOURCE = `def evaluate(ctx: EvaluationContext) -> EvaluationResult:
   """Evaluates one observation and returns one or more Langfuse scores."""
   input = ctx.observation.input
@@ -285,6 +287,7 @@ export const DEFAULT_PYTHON_CODE_EVAL_SOURCE = `def evaluate(ctx: EvaluationCont
 // docs examples get pasted into the editor). When changing a contract above,
 // append the outgoing text here so sources saved under it keep stripping
 // cleanly in the editor.
+/** @internal */
 export const PREVIOUS_TYPESCRIPT_CODE_EVAL_CONTRACTS: string[] = [
   // pre-ToolCall (before tool calls were passed to code evaluators)
   `type EvaluationContext = {
@@ -438,6 +441,7 @@ type EvaluationResult = {
 `,
 ];
 
+/** @internal */
 export const PREVIOUS_PYTHON_CODE_EVAL_CONTRACTS: string[] = [
   // pre-ToolCall (before tool calls were passed to code evaluators)
   `from dataclasses import dataclass
@@ -489,6 +493,7 @@ export function getDefaultCodeEvalSource(
     : DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE;
 }
 
+/** @internal */
 export function isDefaultCodeEvalSource(sourceCode: string) {
   return (
     sourceCode === DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE ||

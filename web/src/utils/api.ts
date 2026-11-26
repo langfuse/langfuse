@@ -30,6 +30,10 @@ import { versionUpdateStore } from "@/src/features/version-update/versionUpdateS
 import { type AppRouter } from "@/src/server/api/root";
 import { reportError } from "@/src/utils/reportError";
 import { setUpSuperjson } from "@/src/utils/superjson";
+import {
+  annotateTrpcParseError,
+  trpcCorrelationTags,
+} from "@/src/utils/trpcCorrelation";
 import { EXPECTED_TRPC_BAD_REQUEST_PATHS } from "@/src/utils/trpcErrorClassification";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
@@ -46,9 +50,6 @@ import {
   TrpcNonJsonResponseError,
 } from "@/src/utils/trpcResponseParseError";
 import { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
-
-export { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
-export { EXPECTED_TRPC_BAD_REQUEST_PATHS } from "@/src/utils/trpcErrorClassification";
 
 setUpSuperjson();
 
@@ -102,6 +103,7 @@ const hasReportedFailedFetchMessage = (error: unknown): boolean => {
   return REPORTED_FAILED_FETCH_MESSAGE.test(error.message);
 };
 
+/** @internal */
 export const isNetworkConnectivityError = (error: unknown): boolean => {
   if (!(error instanceof TRPCClientError)) return false;
 
@@ -151,13 +153,17 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  * Zod input validation (`BAD_REQUEST` whose message is a Zod 4 issue list or
  * whose `data.zodError` is populated), plus CONFLICT on
  * {@link EXPECTED_TRPC_CONFLICT_PATHS}, plus BAD_REQUEST on
- * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}. Empty/too-short fields, stale
- * in-app-agent approvals, and a rejected user-configured remote-experiment
- * URL are the product working as designed — the toast is the UX; Sentry
- * must not log them.
+ * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}, plus PRECONDITION_FAILED on
+ * {@link EXPECTED_TRPC_PRECONDITION_FAILED_PATHS}. Empty/too-short fields, stale
+ * in-app-agent approvals, a rejected user-configured remote-experiment URL,
+ * an invite for someone who is already a member or already invited, a prompt
+ * export over the 10,000 version limit, and an organization delete while
+ * projects are still being purged are the product working as designed — the
+ * UI already explains them; Sentry must not log them.
  * A 5xx (`INTERNAL_SERVER_ERROR`), a non-Zod `BAD_REQUEST` outside the
  * allowlist, a CONFLICT outside the allowlist, an unrecognized code, or
  * any non-tRPC error is not expected and keeps flowing to Sentry.
+ * @internal
  */
 export const EXPECTED_TRPC_ERROR_CODES = [
   "NOT_FOUND",
@@ -168,16 +174,32 @@ export const EXPECTED_TRPC_ERROR_CODES = [
 
 /**
  * CONFLICT is usually a uniqueness / concurrency failure we still want
- * (duplicate names, unique-constraint races). These procedures throw 409
- * only as an optimistic-concurrency / stale-UI race the product already
- * toasts — expected user-facing state, not a regression.
+ * captured (duplicate names, unique-constraint races). These procedures
+ * throw 409 only for a state the product already explains in the UI.
  *
- * `inAppAgent.decideToolApproval` is the only current member: every CONFLICT
- * it throws means the parent run is no longer AWAITING_APPROVAL (already
- * decided, expired, or cancelled). The UI already tells the user to reload.
+ * `inAppAgent.decideToolApproval`: the parent run is no longer
+ * AWAITING_APPROVAL (already decided, expired, or cancelled). The UI tells
+ * the user to reload.
+ * `members.create`: a concurrent insert hits the membership unique
+ * constraint. `rethrowIfMembershipExists` in `@langfuse/shared` returns
+ * 409 with the already-member sentence, and the invite form shows it on
+ * the email field. The pre-check for the same state is BAD_REQUEST.
+ * @internal
  */
 export const EXPECTED_TRPC_CONFLICT_PATHS = [
   "inAppAgent.decideToolApproval",
+  "members.create",
+] as const;
+
+/**
+ * PRECONDITION_FAILED is usually an unexpected guard. These procedures throw
+ * it only as user-facing product state the UI already explains.
+ *
+ * `organizations.delete` throws it while soft-deleted projects are still
+ * being purged. The delete dialog renders that inline.
+ */
+const EXPECTED_TRPC_PRECONDITION_FAILED_PATHS = [
+  "organizations.delete",
 ] as const;
 
 const getTrpcErrorData = (
@@ -209,7 +231,9 @@ export const getTrpcErrorPath = (error: unknown): string | undefined => {
  * True when `error` is a TRPCClientError whose code is an EXPECTED, user-facing
  * state that should not be captured to Sentry.
  * See {@link EXPECTED_TRPC_ERROR_CODES}, {@link EXPECTED_TRPC_CONFLICT_PATHS},
- * and {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}.
+ * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}, and
+ * {@link EXPECTED_TRPC_PRECONDITION_FAILED_PATHS}.
+ * @internal
  */
 export const isExpectedTrpcClientError = (error: unknown): boolean => {
   const code = getTrpcErrorCode(error);
@@ -234,6 +258,15 @@ export const isExpectedTrpcClientError = (error: unknown): boolean => {
   ) {
     return true;
   }
+  if (
+    code === "PRECONDITION_FAILED" &&
+    path !== undefined &&
+    (EXPECTED_TRPC_PRECONDITION_FAILED_PATHS as readonly string[]).includes(
+      path,
+    )
+  ) {
+    return true;
+  }
   return isTrpcZodValidationError(error);
 };
 
@@ -253,20 +286,29 @@ const REQUEST_TOO_LARGE_STATUSES = [414, 431];
  *  - when a JSON body still fails to parse, replaces the engine error with
  *    {@link TrpcNonJsonResponseError} so status and classification do not
  *    depend on which browser threw.
+ * Both `httpLink` and `httpBatchLink` drop `meta.response` when `res.json()`
+ * throws, so the safe correlation headers are copied onto that error.
  * Exported for tests.
+ * @internal
  */
 export const fetchWithParseErrorStatus: typeof fetch = async (input, init) => {
   const response = await fetch(input, init);
   const originalJson = response.json.bind(response);
   response.json = async () => {
     if (!shouldParseResponseAsJson(response.headers.get("content-type"))) {
-      throw new TrpcNonJsonResponseError(response.status);
+      throw annotateTrpcParseError(
+        new TrpcNonJsonResponseError(response.status),
+        response,
+      );
     }
     try {
       return await originalJson();
     } catch (error) {
       if (isResponseJsonParseFailure(error)) {
-        throw new TrpcNonJsonResponseError(response.status, error);
+        throw annotateTrpcParseError(
+          new TrpcNonJsonResponseError(response.status, error),
+          response,
+        );
       }
       throw error;
     }
@@ -306,6 +348,7 @@ const TRPC_GATEWAY_RESPONSE_STATUSES = [502, 503, 504] as const;
  * A gateway non-JSON response (502/503/504) groups by status instead. Those
  * share one stack and, on Safari, one message; the procedure path stays a
  * tag so the group does not split per procedure or collide with app errors.
+ * @internal
  */
 export const getTrpcErrorFingerprint = (error: unknown): string[] => {
   if (isTrpcNonJsonBodyError(error)) {
@@ -347,6 +390,7 @@ export const getTrpcErrorFingerprint = (error: unknown): string[] => {
  * Safari's failure is a DOMException named `SyntaxError`, not a JS
  * `SyntaxError`. {@link isTrpcNonJsonBodyError} accepts that, a real
  * `SyntaxError` (Chrome / Firefox), and {@link TrpcNonJsonResponseError}.
+ * @internal
  */
 export const isTrpcResponseParseError = (error: unknown): boolean => {
   if (!isTrpcNonJsonBodyError(error)) return false;
@@ -362,10 +406,14 @@ export const isTrpcResponseParseError = (error: unknown): boolean => {
  * (`MAX_URL_FILTER_QUERY_LENGTH`) but independent of it: this bounds the full
  * tRPC GET URL (path + superjson-serialized input), not the `?filter=` param.
  * Queries whose GET URL would exceed this are sent as POST.
+ * @internal
  */
 export const MAX_TRPC_GET_URL_BYTES = 4_000;
 
-/** Approximate GET URL size for a tRPC query, matching the live httpLink encoding. */
+/**
+ * Approximate GET URL size for a tRPC query, matching the live httpLink encoding.
+ * @internal
+ */
 export const getApproxTrpcGetUrlBytes = (
   path: string,
   input: unknown,
@@ -399,6 +447,7 @@ export const sendAsPostOption = {
   trpc: { context: { sendAsPost: true } },
 } as const;
 
+/** @internal */
 export const shouldSendQueryAsPost = (
   op: Pick<Operation, "type" | "path" | "input" | "context">,
 ): boolean => {
@@ -471,6 +520,7 @@ const handleTrpcError = (
   if (error instanceof TRPCClientError) {
     const httpStatus: number =
       typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
+    const correlationTags = trpcCorrelationTags(error);
 
     // Version mismatch UX is owned by VersionUpdateBanner (fed by
     // buildIdLink / versionUpdateStore). 400/404 here are real API errors.
@@ -490,6 +540,7 @@ const handleTrpcError = (
           code: getTrpcErrorCode(error),
           path: getTrpcErrorPath(error),
           httpStatus,
+          ...correlationTags,
         },
       });
     } else if (isTrpcResponseParseError(error)) {
@@ -505,6 +556,7 @@ const handleTrpcError = (
           message: error.message,
           status: getResponseStatus(error),
           path: getTrpcErrorPath(error),
+          ...correlationTags,
         },
       });
     } else {
@@ -526,6 +578,7 @@ const handleTrpcError = (
           ...(nonJsonStatus !== undefined
             ? { "http.status": String(nonJsonStatus) }
             : {}),
+          ...correlationTags,
         },
       });
     }
@@ -603,6 +656,7 @@ export const reportTrpcErrorWithoutToast = (
 // and error — so a mismatch is detected on the first response after a deploy,
 // not only when a stale chunk 404s. Exported so tests can inject an observed
 // build id without going through the tRPC link.
+/** @internal */
 export const captureBuildId = (response: unknown) => {
   if (!(response instanceof Response)) return;
   const observed = response.headers.get("x-build-id");
@@ -611,6 +665,7 @@ export const captureBuildId = (response: unknown) => {
 };
 
 // Track the build id serving tRPC responses to compare against the running one.
+/** @internal */
 export const buildIdLink = (): TRPCLink<AppRouter> => () => {
   return ({ next, op }) => {
     return observable((observer) => {

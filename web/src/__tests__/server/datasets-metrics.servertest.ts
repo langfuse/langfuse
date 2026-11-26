@@ -1,47 +1,23 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { randomUUID } from "crypto";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
-const session: Session = {
-  expires: "1",
-  user: {
-    id: "user-1",
-    canCreateOrganizations: true,
-    name: "Demo User",
-    organizations: [
-      {
-        id: "seed-org-id",
-        name: "Test Organization",
-        role: "OWNER",
-        plan: "cloud:hobby",
-        cloudConfig: undefined,
-        metadata: {},
-        aiFeaturesEnabled: false,
-        aiTelemetryEnabled: true,
-        projects: [
-          {
-            id: projectId,
-            role: "ADMIN",
-            retentionDays: 30,
-            deletedAt: null,
-            name: "Test Project",
-            hasTraces: true,
-            metadata: {},
-            createdAt: new Date().toISOString(),
-          },
-        ],
-      },
-    ],
-    featureFlags: testFeatureFlags(),
-    v4BetaEnabled: false,
-  },
-  environment: {} as any,
-};
+const session: Session = createSession({
+  user: { v4BetaEnabled: false },
+  organizations: [
+    {
+      id: "seed-org-id",
+      role: "OWNER",
+      aiTelemetryEnabled: true,
+      projects: [{ id: projectId, role: "ADMIN", hasTraces: true }],
+    },
+  ],
+});
 
 const ctx = createInnerTRPCContext({ session, headers: {} });
 const caller = appRouter.createCaller({ ...ctx, prisma });

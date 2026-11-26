@@ -4,6 +4,7 @@ import { type IncomingMessage } from "http";
 import { env } from "@/src/env.mjs";
 
 /** projectCookieName names the region-unscoped cookie recording a user's most recent project. */
+/** @internal */
 export const projectCookieName = "langfuse.project";
 
 /** projectCookieMaxAgeSeconds keeps the project cookie alive for 30 days. */

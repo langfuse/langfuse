@@ -30,9 +30,9 @@ import {
 import * as shared from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
-import { TraceBatchMetricsRunner } from "../features/traceBatching/TraceBatchMetricsRunner";
-import { getTraceBatchShard } from "../features/traceBatching/traceBatchReadiness";
-import { TraceBatchDispatcher } from "../features/traceBatching/traceBatching";
+import { TraceDispatchMetricsRunner } from "../features/traceDispatch/TraceDispatchMetricsRunner";
+import { getTraceDispatchShard } from "../features/traceDispatch/traceReadiness";
+import { TraceDispatcher } from "../features/traceDispatch/traceDispatcher";
 import {
   ACKNOWLEDGE_RECORDING_SCRIPT,
   getRecordingBoundsKey,
@@ -41,16 +41,16 @@ import {
   HYDRATE_RECORDING_SCRIPT,
   recordTraceActivity,
   seedTraceDispatch,
-} from "../features/traceBatching/traceRuleRecording";
+} from "../features/traceDispatch/traceRuleRecording";
 import {
-  isTraceBatchSampled,
-  resolveTraceBatchSamplingRate,
-} from "../features/traceBatching/traceBatchSampling";
+  isTraceDispatchSampled,
+  resolveTraceDispatchSamplingRate,
+} from "../features/traceDispatch/traceDispatchSampling";
 import {
   prepareLocalityPartials,
-  selectTraceBatches,
+  selectDispatchBatches,
   type PendingTrace,
-} from "../features/traceBatching/traceBatchSelection";
+} from "../features/traceDispatch/dispatchBatchSelection";
 import {
   getTopicsProcessingSampling,
   isTopicsProcessingActive,
@@ -67,7 +67,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   return {
     ...original,
     redis: original.createNewRedisInstance({
-      keyPrefix: `trace-batch-test-${randomUUID()}:`,
+      keyPrefix: `trace-dispatch-test-${randomUUID()}:`,
     }),
     recordDistribution: vi.fn(),
     recordGauge: vi.fn(),
@@ -79,7 +79,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 const topicsProjects = vi.hoisted(() => new Set<string>());
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
-  isTopicsProjectEnabled: (projectId: string) => topicsProjects.has(projectId),
   isTopicsProcessingActive: vi.fn(async (projectId: string) =>
     topicsProjects.has(projectId),
   ),
@@ -125,7 +124,7 @@ vi.mock("../features/evaluation/fetchEvalRules", () => ({
   }),
 }));
 
-describe("trace batch selection", () => {
+describe("dispatch batch selection", () => {
   const minute = 60_000;
   const pendingTrace = (
     projectId: string,
@@ -166,7 +165,7 @@ describe("trace batch selection", () => {
     const trace0 = pendingTrace("project-a", "trace-0", 4, 20_000, 50_000);
     const trace1 = pendingTrace("project-a", "trace-1", 5, 10_000, 50_000);
 
-    const batches = selectTraceBatches(
+    const batches = selectDispatchBatches(
       [projectB, laterMinute, widerRange, trace0, trace1],
       2,
     );
@@ -185,7 +184,7 @@ describe("trace batch selection", () => {
       pendingTrace("project-a", "trace-1", 3, 10 * minute, 11 * minute),
       pendingTrace("project-a", "trace-4", 2, 10 * minute, 11 * minute),
     ];
-    const expected = selectTraceBatches(candidates, 3);
+    const expected = selectDispatchBatches(candidates, 3);
 
     expect(expected.flat().map(({ trace }) => trace.traceId)).toEqual([
       "trace-1",
@@ -193,7 +192,7 @@ describe("trace batch selection", () => {
       "trace-4",
       "trace-3",
     ]);
-    expect(selectTraceBatches(candidates.toReversed(), 3)).toEqual(expected);
+    expect(selectDispatchBatches(candidates.toReversed(), 3)).toEqual(expected);
   });
 
   it("moves a batch boundary instead of bridging distant time ranges", () => {
@@ -210,7 +209,7 @@ describe("trace batch selection", () => {
       ),
     );
 
-    const batches = selectTraceBatches([...late, ...early], 60);
+    const batches = selectDispatchBatches([...late, ...early], 60);
 
     expect(batches.map((batch) => batch.length)).toEqual([59, 60]);
     expect(
@@ -229,7 +228,7 @@ describe("trace batch selection", () => {
       pendingTrace("project-b", `trace-${index}`, 100 + index, 0, minute),
     );
 
-    const batches = selectTraceBatches([...projectB, ...projectA], 60);
+    const batches = selectDispatchBatches([...projectB, ...projectA], 60);
 
     expect(batches.map((batch) => batch.length)).toEqual([59, 60]);
     expect(
@@ -244,7 +243,7 @@ describe("trace batch selection", () => {
       pendingTrace("project", `trace-${index}`, index, 0, minute),
     );
 
-    const batches = selectTraceBatches(candidates.toReversed(), 3);
+    const batches = selectDispatchBatches(candidates.toReversed(), 3);
 
     expect(
       batches.map((batch) => batch.map(({ trace }) => trace.traceId)),
@@ -265,7 +264,7 @@ describe("trace batch selection", () => {
       ),
     );
 
-    expect(ids(selectTraceBatches(candidates, 60))).toEqual(
+    expect(ids(selectDispatchBatches(candidates, 60))).toEqual(
       candidates.map((candidate) => [candidate.member]),
     );
   });
@@ -285,9 +284,9 @@ describe("trace batch selection", () => {
     );
 
     for (const cap of [4, 9]) {
-      expect(ids(selectTraceBatches(cohorts.flat().toReversed(), cap))).toEqual(
-        ids(cohorts),
-      );
+      expect(
+        ids(selectDispatchBatches(cohorts.flat().toReversed(), cap)),
+      ).toEqual(ids(cohorts));
     }
   });
 
@@ -308,7 +307,7 @@ describe("trace batch selection", () => {
       168 * minute,
     );
 
-    const batches = selectTraceBatches([wouldChain, compatible, seed], 60);
+    const batches = selectDispatchBatches([wouldChain, compatible, seed], 60);
 
     expect(batches.flat()).toHaveLength(3);
     expect(
@@ -392,7 +391,7 @@ describe("trace batch selection", () => {
       pendingTrace("project", "trace-2", 1, 0, 0),
       pendingTrace("project", "trace-3", 1, 0, 0),
     ];
-    const canonical = selectTraceBatches(candidates, 3)[0];
+    const canonical = selectDispatchBatches(candidates, 3)[0];
 
     const result = prepareLocalityPartials(
       candidates.toReversed().map((candidate) => [candidate]),
@@ -491,7 +490,7 @@ describe("trace batch selection", () => {
         { ...pendingTrace("project", "unknown", 1, 0, minute) },
       ];
 
-      const batches = selectTraceBatches(candidates, 60, limits);
+      const batches = selectDispatchBatches(candidates, 60, limits);
 
       expect(batches.flat()).toHaveLength(candidates.length);
       for (const batch of batches) {
@@ -513,7 +512,7 @@ describe("trace batch selection", () => {
         ),
       ).toBe(false);
       // Without budgets the same candidates fit one batch.
-      expect(selectTraceBatches(candidates, 60)).toHaveLength(1);
+      expect(selectDispatchBatches(candidates, 60)).toHaveLength(1);
     });
 
     it("packs light locality neighbors of a heavy trace into full batches", () => {
@@ -535,7 +534,7 @@ describe("trace batch selection", () => {
         ),
       ];
 
-      const batches = selectTraceBatches(candidates, 4, limits);
+      const batches = selectDispatchBatches(candidates, 4, limits);
 
       expect(batches.flat()).toHaveLength(candidates.length);
       expect(batches).toHaveLength(3);
@@ -595,8 +594,6 @@ describe("trace micro-batch scheduling with Redis", () => {
   const recordingKeys = getRecordingKeys(0);
   const recordingBoundsKeys = new Map<number, Buffer[]>();
   const originalEventsDispatchEnabled = env.LANGFUSE_EVENTS_DISPATCH_ENABLED;
-  const originalDispatchSamplingRate =
-    env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL;
   const originalBoundsTtl = traceDispatchConfig.boundsTtlMs;
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalMaxSize = env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE;
@@ -606,7 +603,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   const originalMaxTraceBytes = eventsDispatchConfig.maxTraceBytes;
   let queue: Queue<TQueueJobTypes[QueueName.EventsDispatch]>;
   let connection: NonNullable<ReturnType<typeof createNewRedisInstance>>;
-  const runners: TraceBatchDispatcher[] = [];
+  const runners: TraceDispatcher[] = [];
   const client = () => {
     if (!redis) throw new Error("Redis is required for this test");
     return redis;
@@ -617,7 +614,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   ) {
     for (const { traceId } of activity) {
       const identity = JSON.stringify([projectId, traceId]);
-      const shard = getTraceBatchShard(identity);
+      const shard = getTraceDispatchShard(identity);
       const keys = recordingBoundsKeys.get(shard) ?? [];
       keys.push(getRecordingBoundsKey(shard, identity));
       recordingBoundsKeys.set(shard, keys);
@@ -625,7 +622,10 @@ describe("trace micro-batch scheduling with Redis", () => {
     await recordTraceActivity(projectId, activity);
   }
   async function readRecordedBounds(identity: string) {
-    const key = getRecordingBoundsKey(getTraceBatchShard(identity), identity);
+    const key = getRecordingBoundsKey(
+      getTraceDispatchShard(identity),
+      identity,
+    );
     const value = (await client().eval(
       `local value = redis.call('GET', KEYS[1])
        if value then return cmsgpack.unpack(value) end`,
@@ -652,7 +652,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     ruleIds: ["rule"],
   });
   const runner = () => {
-    const instance = new TraceBatchDispatcher();
+    const instance = new TraceDispatcher();
     runners.push(instance);
     return instance;
   };
@@ -690,7 +690,6 @@ describe("trace micro-batch scheduling with Redis", () => {
       topicsProjects.add(projectId);
     // vitest loads the root .env; pin the dispatcher's target queue.
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
-    env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = 0;
     traceDispatchConfig.boundsTtlMs = 86_400_000;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE = 60;
@@ -703,7 +702,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     const redisConnection = createNewRedisInstance();
     if (!redisConnection) throw new Error("Redis is required for this test");
     connection = redisConnection;
-    const name = `trace-batch-test-${randomUUID()}`;
+    const name = `trace-dispatch-test-${randomUUID()}`;
     queue = new Queue(name, { connection, prefix: getQueuePrefix(name) });
     await queue.waitUntilReady();
     vi.spyOn(EventsDispatchQueue, "getInstance").mockReturnValue(
@@ -720,8 +719,6 @@ describe("trace micro-batch scheduling with Redis", () => {
     await clearReadiness();
     topicsProjects.clear();
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = originalEventsDispatchEnabled;
-    env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL =
-      originalDispatchSamplingRate;
     traceDispatchConfig.boundsTtlMs = originalBoundsTtl;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE = originalMaxSize;
@@ -1027,7 +1024,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     for (const traceId of traces) {
       const identity = member("project", traceId);
       await client().zadd(
-        getRecordingKeys(getTraceBatchShard(identity)).due,
+        getRecordingKeys(getTraceDispatchShard(identity)).due,
         Date.now() - 1_000,
         identity,
       );
@@ -1062,7 +1059,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       traces.map((traceId) => {
         const identity = member("project", traceId);
         return client().exists(
-          getRecordingBoundsKey(getTraceBatchShard(identity), identity),
+          getRecordingBoundsKey(getTraceDispatchShard(identity), identity),
         );
       }),
     );
@@ -1386,7 +1383,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       const members = await client().zrange(due, 0, -1);
       counts.push(members.length);
       for (const entry of members)
-        expect(getTraceBatchShard(entry)).toBe(shard);
+        expect(getTraceDispatchShard(entry)).toBe(shard);
       if (members.length)
         await client().zadd(
           due,
@@ -1425,7 +1422,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     for (const traceId of traceIds) {
       const entry = member("project", traceId);
       await client().zadd(
-        getRecordingKeys(getTraceBatchShard(entry)).due,
+        getRecordingKeys(getTraceDispatchShard(entry)).due,
         Date.now() - 1_000,
         entry,
       );
@@ -1455,7 +1452,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     for (const traceId of traceIds) {
       const entry = member("project", traceId);
       await client().zadd(
-        getRecordingKeys(getTraceBatchShard(entry)).due,
+        getRecordingKeys(getTraceDispatchShard(entry)).due,
         Date.now() - 1_000,
         entry,
       );
@@ -1499,7 +1496,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     await queue.pause();
     // Age collection must not fetch or parse the batch payload.
     await connection.hset(queue.toKey(waiting.id!), "data", "invalid JSON");
-    const metrics = new TraceBatchMetricsRunner();
+    const metrics = new TraceDispatchMetricsRunner();
     const evaluate = vi.spyOn(client(), "eval");
     await metrics["execute"]();
 
@@ -1556,7 +1553,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("awaits failed telemetry collections while preserving independent queue measurements", async () => {
-    const metrics = new TraceBatchMetricsRunner();
+    const metrics = new TraceDispatchMetricsRunner();
     const pendingMemory = Promise.withResolvers<number[]>();
     vi.spyOn(client(), "eval").mockImplementationOnce(
       () => pendingMemory.promise,
@@ -1673,7 +1670,7 @@ describe("trace micro-batch scheduling with Redis", () => {
         { reason },
       );
       expect(warn).toHaveBeenCalledWith(
-        "Trace batch excluded trace",
+        "Trace dispatch excluded trace",
         expect.objectContaining({ projectId: "project", traceId, reason }),
       );
     }
@@ -1731,7 +1728,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect.anything(),
     );
     expect(warn).not.toHaveBeenCalledWith(
-      "Trace batch excluded trace",
+      "Trace dispatch excluded trace",
       expect.anything(),
     );
     expect(recordIncrement).not.toHaveBeenCalledWith(
@@ -1882,26 +1879,22 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(offset).toBeLessThan(610_000);
   });
 
-  it("does not dispatch or sample metrics on self-hosted deployments even with trace dispatch enabled", async () => {
+  it("dispatches on self-hosted deployments with events dispatch enabled", async () => {
     await recordActivity("project", [matched("trace")]);
     await makeDue("project", "trace");
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-    const evaluate = vi.spyOn(client(), "eval");
-    const evaluateCached = vi.spyOn(client(), "evalsha");
-    const lock = vi.spyOn(client(), "set");
     await runner()["execute"]();
-    await new TraceBatchMetricsRunner()["execute"]();
-    expect(evaluate).not.toHaveBeenCalled();
-    expect(evaluateCached).not.toHaveBeenCalled();
-    expect(lock).not.toHaveBeenCalled();
-    expect(await client().hlen(recordingKeys.pending)).toBe(1);
-    expect(await queue.count()).toBe(0);
+    expect(await client().hlen(recordingKeys.pending)).toBe(0);
+    expect(await queue.count()).toBe(1);
   });
 
-  it("admits the larger of the Topics rule's rate and the experiment rate", async () => {
+  it("admits a stable trace-ID sample at the Topics rule's rate", async () => {
     const traceIds = Array.from({ length: 1_000 }, (_, index) =>
       index.toString(16).padStart(32, "0"),
     );
+    // "project" is an active Topics project whose rule samples everything.
+    expect(await resolveTraceDispatchSamplingRate("project")).toBe(1);
+    expect(await resolveTraceDispatchSamplingRate("other-project")).toBe(0);
     let previous: string[] = [];
     for (const [rate, expectedCount] of [
       [0, 0],
@@ -1909,38 +1902,28 @@ describe("trace micro-batch scheduling with Redis", () => {
       [0.5, 478],
       [1, 1_000],
     ]) {
-      env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = rate;
-      // "project" is an active Topics project whose rule samples everything.
-      expect(await resolveTraceBatchSamplingRate("project")).toBe(1);
-      const samplingRate = await resolveTraceBatchSamplingRate("other-project");
+      vi.mocked(getTopicsProcessingSampling).mockResolvedValueOnce(rate);
+      const samplingRate = await resolveTraceDispatchSamplingRate("project");
       expect(samplingRate).toBe(rate);
       const selected = traceIds.filter((traceId) =>
-        isTraceBatchSampled(traceId, samplingRate),
+        isTraceDispatchSampled(traceId, samplingRate),
       );
       expect(selected).toHaveLength(expectedCount);
       expect(selected).toEqual(expect.arrayContaining(previous));
       previous = selected;
     }
-    // A rule sampling below the experiment rate admits the experiment share.
-    env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = 0.5;
-    vi.mocked(getTopicsProcessingSampling).mockResolvedValueOnce(0.25);
-    expect(await resolveTraceBatchSamplingRate("project")).toBe(0.5);
-    // A rule sampling above it admits the rule's share.
-    env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = 0.1;
-    vi.mocked(getTopicsProcessingSampling).mockResolvedValueOnce(0.25);
-    expect(await resolveTraceBatchSamplingRate("project")).toBe(0.25);
-    // An unreadable gate falls back to the Topics allowlist.
+    // An unreadable gate admits nothing.
     vi.mocked(getTopicsProcessingSampling).mockRejectedValueOnce(
       new Error("postgres down"),
     );
-    expect(await resolveTraceBatchSamplingRate("project")).toBe(1);
+    expect(await resolveTraceDispatchSamplingRate("project")).toBe(0);
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.trace_dispatch.topics_gate_failures",
       1,
     );
     // Nothing is admitted without events dispatch.
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "false";
-    expect(await resolveTraceBatchSamplingRate("project")).toBe(0);
+    expect(await resolveTraceDispatchSamplingRate("project")).toBe(0);
   });
 
   it.each([{ maxSize: 60 }, { maxSize: 80 }])(

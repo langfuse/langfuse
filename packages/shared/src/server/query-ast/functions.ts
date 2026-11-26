@@ -5,7 +5,6 @@ import {
   OperatorNode,
   ParensNode,
   PrimitiveValueListNode,
-  RawNode,
   SelectQueryNode,
   TupleNode,
   ValueListNode,
@@ -42,6 +41,7 @@ const ALLOWED_FUNCTIONS: ReadonlySet<string> = new Set([
   "arrayStringConcat",
   "arraySum",
   "arrayZip",
+  "cityHash64",
   "coalesce",
   "concat",
   "countEqual",
@@ -63,6 +63,8 @@ const ALLOWED_FUNCTIONS: ReadonlySet<string> = new Set([
   "lengthUTF8",
   "like",
   "lower",
+  "map",
+  "mapContains",
   "mapExists",
   "mapFilter",
   "mapFromArrays",
@@ -122,6 +124,8 @@ const ALLOWED_FUNCTIONS: ReadonlySet<string> = new Set([
   "sum",
   "sumMap",
   "uniq",
+  "uniqCombined",
+  "uniqCombinedIf",
   "uniqIf",
 ]);
 
@@ -155,7 +159,8 @@ export function assertAllowedCalls(root: OperationNode): void {
     }
     if (
       BinaryOperationNode.is(node) &&
-      IN_OPERATOR.test(operatorText(node.operator).trim()) &&
+      OperatorNode.is(node.operator) &&
+      IN_OPERATOR.test(node.operator.operator) &&
       !isInOperand(node.rightOperand)
     ) {
       throw new UnscopedRelationError(
@@ -163,15 +168,6 @@ export function assertAllowedCalls(root: OperationNode): void {
       );
     }
   });
-}
-
-/** `in` for `OperatorNode("in")` and for raw sql`in` alike. */
-function operatorText(node: OperationNode): string {
-  if (OperatorNode.is(node)) return node.operator;
-  if (RawNode.is(node) && node.parameters.length === 0) {
-    return node.sqlFragments.join("");
-  }
-  return "";
 }
 
 /**

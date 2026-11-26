@@ -70,6 +70,20 @@ export const CloudConfigSchema = z.object({
     })
     .nullish(),
 
+  // Self-serve enterprise trial, written when an org redeems a trial coupon.
+  // Not paid billing state: plan resolution ranks it below every paid plan and
+  // usage stays capped. Dates may carry a UTC offset or no time, so that an
+  // `endsAt` edited by hand in SQL (e.g. `to_jsonb(now() + interval '7 days')`)
+  // still parses. `.catch(null)` keeps a malformed value from failing the whole
+  // cloudConfig in parseDbOrg.
+  enterpriseTrial: z
+    .object({
+      startedAt: z.union([z.iso.datetime({ offset: true }), z.iso.date()]),
+      endsAt: z.union([z.iso.datetime({ offset: true }), z.iso.date()]),
+    })
+    .nullish()
+    .catch(null),
+
   // custom rate limits for an organization
   rateLimitOverrides: CloudConfigRateLimit.optional(),
 });

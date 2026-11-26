@@ -28,6 +28,7 @@ import {
   type CustomerFaultReason,
 } from "../integrations/customerFaultClassification";
 
+/** @internal */
 export const MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC =
   "langfuse.mixpanel.integration_customer_fault.count";
 

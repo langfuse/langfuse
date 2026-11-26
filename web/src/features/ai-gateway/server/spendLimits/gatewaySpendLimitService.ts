@@ -11,11 +11,20 @@ import {
   type PrismaClient,
 } from "@langfuse/shared/src/db";
 import { organizationRoleAccessRights } from "@langfuse/shared/rbac";
-import { getGatewaySpendSinceFromEvents } from "@langfuse/shared/src/server";
+import {
+  getGatewaySpendSinceFromEvents,
+  logger,
+} from "@langfuse/shared/src/server";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
+import {
+  DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
+  type GatewaySpendBudgetAlertThreshold,
+} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
+import { areGatewaySpendBudgetAlertThresholdsEqual } from "@/src/features/ai-gateway/fns/spendLimits/areGatewaySpendBudgetAlertThresholdsEqual";
 import { getGatewaySpendLimitWindowStart } from "@/src/features/ai-gateway/fns/gatewaySpendLimitWindow";
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/spendLimits/normalizeGatewaySpendBudgetAlertThresholds";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import {
   invalidateGatewayResolveCacheForApiKey,
@@ -28,11 +37,14 @@ import {
 } from "@/src/features/ai-gateway/server/gatewayUsageScope";
 import type { GatewayBudgetStatus } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
 import { GATEWAY_USER_SCOPE } from "@/src/features/ai-gateway/server/team/gatewayTeamService";
+import { toGatewaySpendLimitDto } from "./gatewaySpendLimitDto";
 import {
   GatewaySpendLimitRepository,
   type GatewaySpendLimitRecord,
+  type GatewaySubjectlessSpendLimitScope,
 } from "./gatewaySpendLimitRepository";
 import { GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES } from "./gatewayDefaultSpendLimits";
+import { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "./gatewayOrganizationSpendLimitScope";
 import {
   type GatewaySpendLimitScope,
   toSpendLimitScope,
@@ -52,6 +64,7 @@ const GATEWAY_SPEND_LIMITS_UNAVAILABLE_REASON =
 type SpendLimitInput = {
   interval: GatewaySpendLimitInterval;
   limitUsd: number;
+  alertThresholds?: GatewaySpendBudgetAlertThreshold[];
 };
 
 type SetForApiKeyParams = {
@@ -65,7 +78,8 @@ type SetForApiKeyParams = {
 /**
  * Gateway spend limits, each capping one scope: an API key, set together with
  * the key or later by a gateway manager, or a user, capping all of the user's keys in the organization and
- * set only by gateway managers. Spend is read from the gateway ingestion project, so
+ * set only by gateway managers, or the whole organization, also set only by
+ * gateway managers. Spend is read from the gateway ingestion project, so
  * limits can only be set while gateway requests are recorded. Every write
  * drops the cached /resolve context of the keys the scope covers, so the
  * gateway sees the change on their next request.
@@ -266,12 +280,7 @@ export class GatewaySpendLimitService {
         subjectId,
         name,
         user,
-        spendLimit: applied
-          ? {
-              interval: applied.interval,
-              limitUsd: applied.limitUsd.toNumber(),
-            }
-          : null,
+        spendLimit: applied ? toGatewaySpendLimitDto(applied) : null,
         isDefault: limit === null && applied !== null,
         spentUsd: applied && spend ? (spend.get(subjectId) ?? 0) : undefined,
         // Members may add a budget to their own keys, and change only budgets they set.
@@ -348,6 +357,107 @@ export class GatewaySpendLimitService {
     await this.applyChanges(changes);
   }
 
+  /**
+   * Zeros the current period's spend for one key or user budget while keeping
+   * the limit intact. If the subject inherits the organization's default
+   * budget, creates an explicit budget for the subject copied from the default
+   * with a fresh counting start. Only gateway managers may reset user budgets
+   * or another member's key; everyone else may reset only their own keys.
+   */
+  async resetForSubject(params: {
+    organizationId: string;
+    usageScope: GatewayUsageScope;
+    scope: GatewaySpendLimitScope["type"];
+    subjectId: string;
+    session: OrgAuthedContext["session"];
+  }) {
+    if (params.scope === "USER" && params.usageScope.scope !== "organization") {
+      throw new ForbiddenError("Only gateway admins can reset user budgets.");
+    }
+    const scope = toSpendLimitScope(params.scope, params.subjectId);
+    const subject = await this.requireSubject({
+      organizationId: params.organizationId,
+      usageScope: params.usageScope,
+      scope,
+    });
+
+    const runReset = () =>
+      this.prisma.$transaction(async (tx) => {
+        const repo = new GatewaySpendLimitRepository(tx);
+        const existing = await repo.listForUpdate({
+          organizationId: params.organizationId,
+          scope,
+        });
+        if (existing.length > 0) {
+          const now = new Date();
+          for (const before of existing) {
+            const after = await repo.resetCountingStartedAt({
+              id: before.id,
+              countingStartedAt: nextCountingStartedAt(
+                before.countingStartedAt,
+                now,
+              ),
+            });
+            await audit(tx, {
+              session: params.session,
+              action: "reset",
+              before,
+              after,
+            });
+          }
+          return;
+        }
+
+        const fallback = await repo.findDefault({
+          organizationId: params.organizationId,
+          scope: params.scope,
+        });
+        if (!fallback) {
+          throw new LangfuseNotFoundError(
+            params.scope === "API_KEY"
+              ? "Gateway key has no spend budget"
+              : "User has no spend budget",
+          );
+        }
+        const created = await repo.create({
+          organizationId: params.organizationId,
+          scope,
+          interval: fallback.interval,
+          limitUsd: fallback.limitUsd.toNumber(),
+          alertThresholds: normalizeGatewaySpendBudgetAlertThresholds(
+            fallback.alertThresholds,
+          ),
+          countingStartedAt: nextCountingStartedAt(
+            fallback.countingStartedAt,
+            new Date(),
+          ),
+          // Preserve the default's owner so members cannot subsequently edit or remove an admin-set default cap.
+          ownerUserId: fallback.ownerUserId,
+        });
+        await audit(tx, {
+          session: params.session,
+          action: "reset",
+          before: fallback,
+          after: created,
+        });
+      });
+
+    try {
+      await runReset();
+    } catch (error) {
+      // Two concurrent first resets of a default-budgeted subject race on creating its row; retry onto the locked update path.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        await runReset();
+      } else {
+        throw error;
+      }
+    }
+    await subject.invalidateResolveCache();
+  }
+
   /** Throws unless limits can be set, so a caller can check before writing anything else. */
   async requireAvailable(organizationId: string) {
     await this.requireRecordingProjectId(organizationId);
@@ -408,8 +518,8 @@ export class GatewaySpendLimitService {
     const kept = limit
       ? existing.find((candidate) => candidate.interval === limit.interval)
       : undefined;
-    const isUnchanged =
-      kept !== undefined && kept.limitUsd.toNumber() === limit?.limitUsd;
+    const { alertThresholds: normalizedThresholds, isUnchanged } =
+      resolveSpendLimitChange(kept, limit);
     const changed = existing.filter(
       (candidate) => candidate !== kept || !isUnchanged,
     );
@@ -430,9 +540,21 @@ export class GatewaySpendLimitService {
     return {
       write: async (tx) => {
         if (limit && !kept) {
-          await create(tx, { organizationId, scope, ...limit, session });
+          await create(tx, {
+            organizationId,
+            scope,
+            interval: limit.interval,
+            limitUsd: limit.limitUsd,
+            alertThresholds: normalizedThresholds!,
+            session,
+          });
         } else if (limit && kept && !isUnchanged) {
-          await update(tx, { before: kept, limitUsd: limit.limitUsd, session });
+          await update(tx, {
+            before: kept,
+            limitUsd: limit.limitUsd,
+            alertThresholds: normalizedThresholds!,
+            session,
+          });
         }
         for (const candidate of existing) {
           if (candidate !== kept) {
@@ -457,19 +579,14 @@ export class GatewaySpendLimitService {
         (candidate) =>
           candidate.scope === GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES[scope],
       );
-      return limit
-        ? { interval: limit.interval, limitUsd: limit.limitUsd.toNumber() }
-        : null;
+      return limit ? toGatewaySpendLimitDto(limit) : null;
     };
     return { API_KEY: toBudget("API_KEY"), USER: toBudget("USER") };
   }
 
   /**
    * Makes `limit` the organization's default budget for keys or users, or
-   * removes it when null. Like a budget of one key or user, an unchanged
-   * default keeps counting, a new amount keeps counting and a new interval
-   * starts counting afresh. Every key of the organization may resolve it, so
-   * all of them are dropped from the resolve cache.
+   * removes it when null. Every key of the organization may resolve it.
    */
   async setDefault(params: {
     organizationId: string;
@@ -477,14 +594,88 @@ export class GatewaySpendLimitService {
     limit: SpendLimitInput | null;
     session: OrgAuthedContext["session"];
   }) {
+    await this.setSubjectless({
+      ...params,
+      scope: GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES[params.scope],
+      conflictMessage:
+        "The default budget was changed at the same time. Reload and try again.",
+    });
+  }
+
+  /**
+   * The organization's own budget, which caps all of its gateway spend on top
+   * of key and user budgets, with what ClickHouse has recorded against it in
+   * its current window; `spentUsd` is absent while spend is not recorded.
+   */
+  async getOrganizationBudget(organizationId: string) {
+    const limit = await this.repository.findSubjectless({
+      organizationId,
+      scope: GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE,
+    });
+    if (!limit) return null;
+    const recordingProjectId = await this.getRecordingProjectId(organizationId);
+    // The budget stays visible and editable while its spend can't be read.
+    const spentUsd = recordingProjectId
+      ? await readSpend(recordingProjectId, "ORGANIZATION", [
+          { subjectId: recordingProjectId, limit },
+        ]).then(
+          (spend) => spend.get(recordingProjectId) ?? 0,
+          (error: unknown) => {
+            logger.warn("Failed to read the organization's gateway spend", {
+              organizationId,
+              error,
+            });
+            return undefined;
+          },
+        )
+      : undefined;
+    return {
+      spendLimit: toGatewaySpendLimitDto(limit),
+      spentUsd,
+    };
+  }
+
+  /** Makes `limit` the organization's own budget, or removes it when null. */
+  async setOrganizationBudget(params: {
+    organizationId: string;
+    limit: SpendLimitInput | null;
+    session: OrgAuthedContext["session"];
+  }) {
+    await this.setSubjectless({
+      ...params,
+      scope: GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE,
+      conflictMessage:
+        "The organization budget was changed at the same time. Reload and try again.",
+    });
+  }
+
+  /**
+   * Makes `limit` the organization's one limit of a scope without a subject,
+   * or removes it when null. Like a budget of one key or user, an unchanged
+   * limit keeps counting, a new amount keeps counting and a new interval
+   * starts counting afresh. Every key of the organization may resolve it, so
+   * all of them are dropped from the resolve cache.
+   */
+  private async setSubjectless(params: {
+    organizationId: string;
+    scope: GatewaySubjectlessSpendLimitScope;
+    limit: SpendLimitInput | null;
+    session: OrgAuthedContext["session"];
+    conflictMessage: string;
+  }) {
     const { organizationId, scope, limit, session } = params;
-    const existing = await this.repository.findDefault(params);
+    const existing = await this.repository.findSubjectless({
+      organizationId,
+      scope,
+    });
     const kept = existing?.interval === limit?.interval ? existing : null;
-    if (kept && kept.limitUsd.toNumber() === limit?.limitUsd) return;
+    const { alertThresholds: normalizedThresholds, isUnchanged } =
+      resolveSpendLimitChange(kept, limit);
+    if (isUnchanged) return;
     if (!limit && !existing) return;
     if (limit) await this.requireRecordingProjectId(organizationId);
 
-    // One default per scope, so a replaced one goes first, in the same
+    // One limit per scope, so a replaced one goes first, in the same
     // transaction so that a failed write keeps it.
     try {
       await this.prisma.$transaction(async (tx) => {
@@ -492,24 +683,30 @@ export class GatewaySpendLimitService {
           await update(tx, {
             before: kept,
             limitUsd: limit.limitUsd,
+            alertThresholds: normalizedThresholds!,
             session,
           });
           return;
         }
         if (existing) await remove(tx, { before: existing, session });
         if (limit) {
-          await createDefault(tx, { organizationId, scope, ...limit, session });
+          await createSubjectless(tx, {
+            organizationId,
+            scope,
+            interval: limit.interval,
+            limitUsd: limit.limitUsd,
+            alertThresholds: normalizedThresholds!,
+            session,
+          });
         }
       });
     } catch (error) {
-      // Another save of the same default won: one created it (P2002) or removed the replaced one (P2025).
+      // Another save of the same limit won: one created it (P2002) or removed the replaced one (P2025).
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         (error.code === "P2002" || error.code === "P2025")
       ) {
-        throw new LangfuseConflictError(
-          "The default budget was changed at the same time. Reload and try again.",
-        );
+        throw new LangfuseConflictError(params.conflictMessage);
       }
       throw error;
     }
@@ -581,7 +778,7 @@ export class GatewaySpendLimitService {
  */
 async function readSpend(
   projectId: string,
-  scope: GatewaySpendLimitScope["type"],
+  scope: Parameters<typeof getGatewaySpendSinceFromEvents>[0]["scope"],
   budgeted: {
     subjectId: string;
     limit: Pick<GatewaySpendLimitRecord, "interval" | "countingStartedAt">;
@@ -611,6 +808,7 @@ async function create(
     scope: GatewaySpendLimitScope;
     interval: GatewaySpendLimitInterval;
     limitUsd: number;
+    alertThresholds: GatewaySpendBudgetAlertThreshold[];
     session: OrgAuthedContext["session"];
   },
 ) {
@@ -621,6 +819,7 @@ async function create(
       scope: params.scope,
       interval: params.interval,
       limitUsd: params.limitUsd,
+      alertThresholds: params.alertThresholds,
       countingStartedAt: new Date(),
       ownerUserId: params.session.user.id,
     });
@@ -630,7 +829,7 @@ async function create(
       error.code === "P2002"
     ) {
       throw new LangfuseConflictError(
-        "A spend limit for this interval already exists",
+        "A budget for this interval already exists",
       );
     }
     throw error;
@@ -638,21 +837,23 @@ async function create(
   await audit(tx, { session: params.session, action: "create", after: limit });
 }
 
-async function createDefault(
+async function createSubjectless(
   tx: Prisma.TransactionClient,
   params: {
     organizationId: string;
-    scope: GatewaySpendLimitScope["type"];
+    scope: GatewaySubjectlessSpendLimitScope;
     interval: GatewaySpendLimitInterval;
     limitUsd: number;
+    alertThresholds: GatewaySpendBudgetAlertThreshold[];
     session: OrgAuthedContext["session"];
   },
 ) {
-  const limit = await new GatewaySpendLimitRepository(tx).createDefault({
+  const limit = await new GatewaySpendLimitRepository(tx).createSubjectless({
     organizationId: params.organizationId,
     scope: params.scope,
     interval: params.interval,
     limitUsd: params.limitUsd,
+    alertThresholds: params.alertThresholds,
     countingStartedAt: new Date(),
     ownerUserId: params.session.user.id,
   });
@@ -664,12 +865,15 @@ async function update(
   params: {
     before: GatewaySpendLimitRecord;
     limitUsd: number;
+    alertThresholds: GatewaySpendBudgetAlertThreshold[];
     session: OrgAuthedContext["session"];
   },
 ) {
   const after = await new GatewaySpendLimitRepository(tx).updateLimit({
     id: params.before.id,
     limitUsd: params.limitUsd,
+    alertThresholds: params.alertThresholds,
+    clearAlerts: params.before.limitUsd.toNumber() !== params.limitUsd,
     userId: params.session.user.id,
   });
   await audit(tx, {
@@ -678,6 +882,28 @@ async function update(
     before: params.before,
     after,
   });
+}
+
+function resolveSpendLimitChange(
+  kept: GatewaySpendLimitRecord | null | undefined,
+  limit: SpendLimitInput | null,
+) {
+  if (!limit) {
+    return { alertThresholds: undefined, isUnchanged: false };
+  }
+  const alertThresholds = normalizeGatewaySpendBudgetAlertThresholds(
+    limit.alertThresholds ??
+      kept?.alertThresholds ??
+      DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
+  );
+  const isUnchanged =
+    kept != null &&
+    kept.limitUsd.toNumber() === limit.limitUsd &&
+    areGatewaySpendBudgetAlertThresholdsEqual(
+      kept.alertThresholds,
+      alertThresholds,
+    );
+  return { alertThresholds, isUnchanged };
 }
 
 /** Deleting stays possible without ingestion, so a limit can always be removed. */
@@ -696,11 +922,15 @@ async function remove(
   });
 }
 
+function nextCountingStartedAt(previous: Date, now: Date) {
+  return new Date(Math.max(now.getTime(), previous.getTime() + 1));
+}
+
 function audit(
   tx: Prisma.TransactionClient,
   params: {
     session: OrgAuthedContext["session"];
-    action: "create" | "update" | "delete";
+    action: "create" | "update" | "delete" | "reset";
     before?: GatewaySpendLimitRecord;
     after?: GatewaySpendLimitRecord;
   },

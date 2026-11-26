@@ -159,9 +159,8 @@ export const DatasetItemField = ({
       {!isFormField && (
         <MarkdownJsonViewHeader
           title={label}
-          handleOnCopy={() => copyTextToClipboard(value)}
+          copyButton={{ onCopy: () => copyTextToClipboard(value) }}
           controlButtons={schemaHoverCard}
-          hoverRevealControls
         />
       )}
       {!isFormField && showPrettyView && pretty.scalar === null && (

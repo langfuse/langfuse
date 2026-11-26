@@ -1,8 +1,9 @@
+/* oxlint-disable eqeqeq -- tRPC error code guard matches existing APIError typing */
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRouter } from "next/router";
 import { useState } from "react";
 
-import { ErrorPage } from "@/src/components/error-page";
+import { ErrorPage } from "@/src/components/ErrorPage";
 import Page from "@/src/components/layouts/Page";
 import { Trash2 } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
