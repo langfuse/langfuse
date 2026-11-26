@@ -1910,10 +1910,14 @@ const enqueueMediaUsageExport = async (jobId: string, delay = 0) => {
       await existing.retry("failed", { resetAttemptsMade: true });
       return;
     } catch (error) {
-      // The job left the failed set meanwhile (retried or removed); the add
-      // below then dedupes or re-creates it.
+      // Only a job that left the failed set meanwhile (retried or removed) is
+      // handed to the add below, which dedupes or re-creates it. Anything else
+      // fails the caller so BullMQ retries it.
+      if (await existing.isFailed()) {
+        throw error;
+      }
       logger.warn(
-        `[CORE DATA] Could not retry media usage export job ${jobId}`,
+        `[CORE DATA] Media usage export job ${jobId} left the failed state before its retry`,
         error,
       );
     }
