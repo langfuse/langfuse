@@ -1,6 +1,7 @@
 import {
   TopicsTargetObject,
   TRACE_TRANSCRIPT_EVAL_COLUMN,
+  type EvalTemplateType,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import isEqual from "lodash/isEqual";
@@ -15,18 +16,38 @@ export const TRACE_TRANSCRIPT_DEFAULT_FIELD: VariableFieldState = {
 };
 
 /**
- * Every variable of a trace rule reads threads: a threads mapping keeps its
- * JSON path, any other reads the first thread's messages.
+ * A trace rule reads only threads: a threads mapping keeps its JSON path, any
+ * other variable stays unmapped until the rule maps it.
  */
 export function traceTranscriptMapping(mapping: ObservationVariableMapping[]) {
-  return mapping.map((entry) => ({
-    templateVariable: entry.templateVariable,
-    selectedColumnId: TRACE_TRANSCRIPT_EVAL_COLUMN,
-    jsonSelector:
-      entry.selectedColumnId === TRACE_TRANSCRIPT_EVAL_COLUMN
-        ? (entry.jsonSelector ?? null)
-        : TRACE_TRANSCRIPT_DEFAULT_FIELD.jsonSelector,
-  }));
+  return mapping.map((entry) =>
+    entry.selectedColumnId === TRACE_TRANSCRIPT_EVAL_COLUMN
+      ? {
+          templateVariable: entry.templateVariable,
+          selectedColumnId: TRACE_TRANSCRIPT_EVAL_COLUMN,
+          jsonSelector: entry.jsonSelector ?? null,
+        }
+      : {
+          templateVariable: entry.templateVariable,
+          selectedColumnId: "",
+          jsonSelector: null,
+        },
+  );
+}
+
+/** A trace rule cannot inherit a mapping that reads other fields, so it needs its own threads mapping. */
+export function needsTraceMapping(assignment: {
+  evaluatorType: EvalTemplateType;
+  variableMapping: ObservationVariableMapping[] | null;
+  defaultVariableMapping?: ObservationVariableMapping[] | null;
+}) {
+  // Code evaluators have no user mapping; the server rejects them on trace rules.
+  if (assignment.evaluatorType === "CODE") return false;
+  return (
+    assignment.variableMapping ??
+    assignment.defaultVariableMapping ??
+    []
+  ).some((entry) => entry.selectedColumnId !== TRACE_TRANSCRIPT_EVAL_COLUMN);
 }
 
 /** The mapping the test panel runs on and a save persists. */
@@ -96,10 +117,7 @@ export function rulesNeedingOverride(
   );
 }
 
-/**
- * An assignment inherits the evaluator's mapping (null) unless the rule changes it.
- * A mapping that does not read threads cannot be inherited, so it is stored converted.
- */
+/** An assignment inherits the evaluator's mapping (null) unless the rule changes it. */
 export function traceTranscriptAssignments(
   assignments: {
     evaluatorId: string;
@@ -107,17 +125,15 @@ export function traceTranscriptAssignments(
     defaultVariableMapping?: ObservationVariableMapping[] | null;
   }[],
 ) {
-  return assignments.map((assignment) => {
-    const defaultMapping = assignment.defaultVariableMapping ?? [];
-    const variableMapping = traceTranscriptMapping(
-      assignment.variableMapping ?? defaultMapping,
-    );
-    if (
-      readsOnlyThreads(defaultMapping) &&
-      isEqual(variableMapping, traceTranscriptMapping(defaultMapping))
-    ) {
-      return { evaluatorId: assignment.evaluatorId, variableMapping: null };
-    }
-    return { evaluatorId: assignment.evaluatorId, variableMapping };
-  });
+  return assignments.map(
+    ({ evaluatorId, variableMapping, defaultVariableMapping }) => {
+      if (variableMapping === null) return { evaluatorId, variableMapping };
+      const mapping = traceTranscriptMapping(variableMapping);
+      const inheritsDefault = isEqual(
+        mapping,
+        traceTranscriptMapping(defaultVariableMapping ?? []),
+      );
+      return { evaluatorId, variableMapping: inheritsDefault ? null : mapping };
+    },
+  );
 }

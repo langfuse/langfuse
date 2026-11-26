@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  needsTraceMapping,
   rulesNeedingOverride,
   traceTranscriptAssignments,
+  traceTranscriptMapping,
 } from "./traceTranscriptAssignments";
 
 describe("traceTranscriptAssignments", () => {
-  it("stores an override only when the rule edits the mapping or the evaluator's mapping needs converting", () => {
+  it("stores an override only when the rule changes the mapping", () => {
     const threadsMapping = [
       {
         templateVariable: "conversation",
@@ -15,6 +17,13 @@ describe("traceTranscriptAssignments", () => {
     ];
     const observationMapping = [
       { templateVariable: "input", selectedColumnId: "input" },
+    ];
+    const explicitMapping = [
+      {
+        templateVariable: "input",
+        selectedColumnId: "threads",
+        jsonSelector: "$[0].messages",
+      },
     ];
     const editedMapping = [
       {
@@ -37,8 +46,8 @@ describe("traceTranscriptAssignments", () => {
           defaultVariableMapping: threadsMapping,
         },
         {
-          evaluatorId: "converted",
-          variableMapping: null,
+          evaluatorId: "explicit",
+          variableMapping: explicitMapping,
           defaultVariableMapping: observationMapping,
         },
         {
@@ -50,8 +59,29 @@ describe("traceTranscriptAssignments", () => {
     ).toEqual([
       { evaluatorId: "inherits", variableMapping: null },
       { evaluatorId: "unchanged", variableMapping: null },
-      {
-        evaluatorId: "converted",
+      { evaluatorId: "explicit", variableMapping: explicitMapping },
+      { evaluatorId: "edited", variableMapping: editedMapping },
+    ]);
+  });
+
+  it("asks for an explicit threads mapping when the evaluator's mapping reads other fields", () => {
+    const observationMapping = [
+      { templateVariable: "input", selectedColumnId: "input" },
+    ];
+
+    expect(traceTranscriptMapping(observationMapping)).toEqual([
+      { templateVariable: "input", selectedColumnId: "", jsonSelector: null },
+    ]);
+    expect(
+      needsTraceMapping({
+        evaluatorType: "LLM_AS_JUDGE",
+        variableMapping: null,
+        defaultVariableMapping: observationMapping,
+      }),
+    ).toBe(true);
+    expect(
+      needsTraceMapping({
+        evaluatorType: "LLM_AS_JUDGE",
         variableMapping: [
           {
             templateVariable: "input",
@@ -59,9 +89,9 @@ describe("traceTranscriptAssignments", () => {
             jsonSelector: "$[0].messages",
           },
         ],
-      },
-      { evaluatorId: "edited", variableMapping: editedMapping },
-    ]);
+        defaultVariableMapping: observationMapping,
+      }),
+    ).toBe(false);
   });
 
   it("flags inheriting rules whose target cannot read the evaluator mapping", () => {
