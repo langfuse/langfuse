@@ -141,88 +141,6 @@ describe("buildEventsStreamQuery", () => {
     expect(normalizeSql(query)).toContain("FROM events_core e");
   });
 
-  it("ignores a positionInTrace filter, which only the observations list applies", () => {
-    // Placeholder prefixes are random per compile, so compare without them.
-    const build = (filter: FilterCondition[]) => {
-      const { query, params } = buildEventsBlobExportStreamQuery({
-        projectId,
-        filter,
-        rowLimit: 7,
-      })
-        .queryBuilder.selectFieldSet("eval")
-        .buildWithParams();
-      return {
-        query: query.replace(/\bpred\w+?_(\d+)/g, "pred_$1"),
-        params: Object.values(params),
-      };
-    };
-
-    expect(
-      build([
-        nativeFilter,
-        {
-          column: "positionInTrace",
-          type: "positionInTrace",
-          operator: "=",
-          key: "first",
-        },
-      ]),
-    ).toEqual(build([nativeFilter]));
-  });
-
-  it("shares one bounded score dependency between filtering and projection", () => {
-    const { queryBuilder, startTimeFrom } = buildEventsBlobExportStreamQuery({
-      projectId,
-      filter: [
-        {
-          type: "datetime",
-          column: "startTime",
-          operator: ">=",
-          value: new Date("2025-01-02T03:04:05.678Z"),
-        },
-        scoreFilter,
-      ],
-      rowLimit: 7,
-    });
-    const { query, params } = queryBuilder.buildWithParams();
-
-    expect(startTimeFrom).toBe(params.startTimeFrom);
-    expect(query.match(/\bscores_agg AS \(/g)).toHaveLength(1);
-    expect(query).toContain("s.scores_avg as scores_avg");
-    expect(query).toContain("s.score_categories as score_categories");
-    expect(query).toContain(
-      "s.score_categories_tuples as score_categories_tuples",
-    );
-    expect(query).toContain(
-      "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id",
-    );
-    expect(query).toContain(
-      "AND timestamp >= {startTimeFrom: DateTime64(3)} - INTERVAL 1 HOUR",
-    );
-    expect(query).not.toContain("name IN ({");
-  });
-
-  it("exports trace-level scores alongside observation-level ones (LFE-10596)", () => {
-    // No score filter at all: the export must still join and select the
-    // trace-score aggregate so trace-level scores land in the file exactly
-    // like the UI's unified Scores column.
-    const { queryBuilder } = buildEventsBlobExportStreamQuery({
-      projectId,
-      filter: [],
-      rowLimit: 7,
-    });
-    const { query } = queryBuilder.buildWithParams();
-
-    expect(query.match(/\btrace_scores_agg AS \(/g)).toHaveLength(1);
-    expect(query).toContain("ts.scores_avg as trace_scores_avg");
-    expect(query).toContain(
-      "ts.score_categories_tuples as trace_score_categories_tuples",
-    );
-    expect(query).toContain(
-      "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
-    );
-  });
-
   it("applies score filters without exposing them as native event filters", () => {
     const { queryBuilder } = buildEventsStreamQuery({
       projectId,
@@ -241,6 +159,105 @@ describe("buildEventsStreamQuery", () => {
     const { params } = queryBuilder.selectFieldSet("eval").buildWithParams();
 
     expect(Object.values(params)).toContain("quality");
+  });
+});
+
+describe("buildEventsBlobExportStreamQuery", () => {
+  const build = (filter: FilterCondition[]) =>
+    buildEventsBlobExportStreamQuery({
+      projectId,
+      cutoffCreatedAt,
+      filter,
+      rowLimit: 7,
+    });
+
+  it("ignores a positionInTrace filter, which only the observations list applies", () => {
+    expect(
+      build([
+        nativeFilter,
+        {
+          column: "positionInTrace",
+          type: "positionInTrace",
+          operator: "=",
+          key: "first",
+        },
+      ]),
+    ).toEqual(build([nativeFilter]));
+  });
+
+  it("reads a filter on the legacy scores column as one on scores_avg", () => {
+    expect(build([{ ...scoreFilter, column: "scores" }])).toEqual(
+      build([scoreFilter]),
+    );
+  });
+
+  // Each relation that reads a tenant table carries its own project
+  // condition: `e`, and `scores` inside each score aggregate.
+  it("scopes events and the scores of both score aggregates to the project", () => {
+    const { query, params } = build([nativeFilter, scoreFilter]);
+    const scope = Object.entries(params).find(
+      ([, value]) => value === projectId,
+    )?.[0];
+    const [, observationScores, traceScores, outer] =
+      /^with scores_agg as \((.*)\), trace_scores_agg as \((.*)\) (select .*)$/s.exec(
+        query,
+      ) ?? [];
+
+    expect(scope).toBeDefined();
+    for (const body of [observationScores, traceScores]) {
+      expect(body).toContain(
+        `from scores final where scores.project_id = {${scope}:String}`,
+      );
+    }
+    expect(outer).toContain("from events_full as e left join ");
+    expect(outer).toContain(`where e.project_id = {${scope}:String} and `);
+  });
+
+  it("adds no row condition when nothing filters", () => {
+    const { query } = buildEventsBlobExportStreamQuery({
+      projectId,
+      filter: null,
+      rowLimit: 7,
+    });
+
+    expect(query).toMatch(/ where e\.project_id = \{\w+:String\} order by /);
+  });
+
+  it.each<[string, FilterCondition]>([
+    [
+      "another score type than its column takes",
+      {
+        type: "numberObject",
+        column: "score_categories",
+        operator: ">",
+        key: "sentiment",
+        value: 1,
+      },
+    ],
+    [
+      "a type no score column takes",
+      {
+        type: "stringOptions",
+        column: "score_categories",
+        operator: "any of",
+        value: ["positive"],
+      },
+    ],
+  ])("rejects a score filter of %s", (_name, filter) => {
+    expect(() => build([filter])).toThrow(InvalidRequestError);
+  });
+
+  it("rejects an unresolved comment filter", () => {
+    expect(() =>
+      build([
+        {
+          column: "commentContent",
+          operator: "contains",
+          value: "comment-needle",
+          type: "string",
+        },
+      ]),
+    ).toThrow(InvalidRequestError);
   });
 });
 

@@ -65,7 +65,11 @@ export const getEventsStream = async (props: {
     },
   };
 
-  const { queryBuilder, startTimeFrom } = buildEventsBlobExportStreamQuery({
+  const {
+    query,
+    params: queryParams,
+    startTimeFrom,
+  } = buildEventsBlobExportStreamQuery({
     projectId,
     cutoffCreatedAt,
     filter,
@@ -73,7 +77,6 @@ export const getEventsStream = async (props: {
     searchType,
     rowLimit,
   });
-  const { query, params: queryParams } = queryBuilder.buildWithParams();
 
   // Get distinct score names for empty columns
   // Same service as the values read below: a missing name is silently dropped.

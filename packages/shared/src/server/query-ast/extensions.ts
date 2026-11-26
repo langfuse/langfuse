@@ -453,7 +453,14 @@ export function greatest<T>(...values: Expression<T>[]): ChExpression<T> {
 }
 
 /** ClickHouse `concat(a, b, …)`. */
-export function concat(...values: Expression<string>[]): ChExpression<string> {
+export function concat(...values: Expression<string>[]): ChExpression<string>;
+/** ClickHouse `concat(a, b, …)` over a nullable string: NULL if one is NULL. */
+export function concat(
+  ...values: Expression<string | null>[]
+): ChExpression<string | null>;
+export function concat(
+  ...values: Expression<string | null>[]
+): ChExpression<string | null> {
   return functionCall("concat", values);
 }
 
@@ -491,9 +498,11 @@ export function arraySort<T>(array: Expression<T[]>): ChExpression<T[]> {
   return functionCall("arraySort", [array]);
 }
 
-/** ClickHouse `notEmpty(array)`. */
-export function notEmpty(array: Expression<unknown[]>): ChExpression<SqlBool> {
-  return functionCall("notEmpty", [array]);
+/** ClickHouse `notEmpty(value)`: a non-empty array or string. */
+export function notEmpty(
+  value: Expression<unknown[] | string | null>,
+): ChExpression<SqlBool> {
+  return functionCall("notEmpty", [value]);
 }
 
 /** ClickHouse `empty(array)`. */
@@ -563,6 +572,13 @@ export function endsWith(
 /** ClickHouse `lower(value)`: lowercases ASCII letters only. */
 export function lower(value: Expression<string>): ChExpression<string> {
   return functionCall("lower", [value]);
+}
+
+/** ClickHouse `lowerUTF8(value)`: lowercases every UTF-8 letter. */
+export function lowerUTF8<T extends string | null>(
+  value: Expression<T>,
+): ChExpression<T> {
+  return functionCall("lowerUTF8", [value]);
 }
 
 /** ClickHouse `toString(value)`. */
@@ -682,6 +698,18 @@ export function arrayExists<T>(
   return functionCall("arrayExists", [lambda(["x"], predicate), array]);
 }
 
+/**
+ * ClickHouse `arrayFilter(x -> predicate, array)`: the elements `predicate`
+ * keeps. `predicate` receives the lambda parameter named like
+ * {@link arrayExists} names its own.
+ */
+export function arrayFilter<T>(
+  predicate: (element: Expression<T>) => Expression<SqlBool>,
+  array: Expression<T[]>,
+): ChExpression<T[]> {
+  return functionCall("arrayFilter", [lambda(["x"], predicate), array]);
+}
+
 /** ClickHouse `any(value)`: some value of the group. */
 export function anyValue<T>(value: Expression<T>): ChExpression<T> {
   return aggregate("any", [value]);
@@ -739,6 +767,14 @@ export function avgIf(
 /** ClickHouse `groupArray(value)`. */
 export function groupArray<T>(value: Expression<T>): ChExpression<T[]> {
   return aggregate("groupArray", [value]);
+}
+
+/** ClickHouse `groupArrayIf(value, condition)`. */
+export function groupArrayIf<T>(
+  value: Expression<T>,
+  condition: Expression<SqlBool>,
+): ChExpression<T[]> {
+  return aggregate("groupArrayIf", [value, condition]);
 }
 
 /** ClickHouse `groupUniqArray(value)`. */
@@ -1002,6 +1038,24 @@ export function interval(
   return functionCall(INTERVAL_FUNCTIONS[unit], [
     ValueNode.createImmediate(count),
   ]);
+}
+
+/**
+ * `value - step`: the time `step` earlier, as ClickHouse computes it
+ * (`{p:DateTime64(3)} - toIntervalHour(1)`); a JS `Date` is bound. Chain
+ * calls for several steps.
+ */
+export function minusInterval(
+  value: Expression<Date> | Date,
+  step: Expression<IntervalValue>,
+): ChExpression<Date> {
+  return new ExpressionWrapper(
+    BinaryOperationNode.create(
+      toNode(dateArg(value)),
+      OperatorNode.create("-"),
+      toNode(step),
+    ),
+  );
 }
 
 /**

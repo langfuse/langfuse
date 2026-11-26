@@ -654,8 +654,8 @@ function renderEventsSelects<S extends SelectCallback<EventsDb, "e">>(
  * Makes `build` callable with the calling query's expression builder, which
  * must satisfy {@link ReadsEvents}. Every expression export of this module
  * goes through it, and so must any helper that composes them: called with the
- * query's own builder, using one outside a query that reads only events as `e`
- * is a type error. Never pass a query's own builder to a helper typed
+ * query's own builder, using one outside a query that reads a full events row
+ * as `e` is a type error. Never pass a query's own builder to a helper typed
  * `ExpressionBuilder<{ e: … }, "e">`: that accepts any query's builder and the
  * check is lost. Wrap the helper in `scopedToEvents` instead.
  */
@@ -664,7 +664,8 @@ export function scopedToEvents<A extends unknown[], R>(
 ) {
   return <DB, TB extends keyof DB>(eb: ReadsEvents<DB, TB>, ...args: A): R =>
     // Sound when `eb` is the query's own builder: `ReadsEvents` then proves the
-    // query reads only a full events row as `e`.
+    // query reads a full events row as `e`, and the compiler's qualify rule
+    // keeps the helpers' `e.…` columns on it under a join.
     build(eb as unknown as EventsExpressionBuilder, ...args);
 }
 
@@ -680,18 +681,16 @@ function pickSelects<M extends Record<string, EventsSelection>>(
 }
 
 /**
- * The expression builder of a query that reads only a full events row, as
- * `e`. Anything else resolves to `never`: no `e`, no FROM (`selectNoFrom`), a
- * join (no caller joins; with one, an unqualified column added here later
- * would silently read the other table), or an `e` missing an events column
- * (`observations as e`, a narrower subquery). `ExpressionBuilder` alone would
- * accept the narrower `e`, because it is contravariant in `DB`.
+ * The expression builder of a query that reads a full events row as `e`,
+ * alone or beside other relations (`events as e left join scores_agg as s`).
+ * Anything else resolves to `never`: no `e` in scope (`traces as t`, a CTE
+ * named `e` that the FROM does not read), no FROM (`selectNoFrom`), or an `e`
+ * missing an events column (`observations as e`, a narrower subquery, a
+ * left-joined `e` whose columns turn nullable). `ExpressionBuilder` alone
+ * would accept the narrower `e`, because it is contravariant in `DB`. Joins
+ * need no type check: the helpers write every column `e.…`, and the compiler
+ * rejects an unqualified column in a select that reads several relations
+ * (`compiler.ts`, README "Qualify every column…").
  */
 type ReadsEvents<DB, TB extends keyof DB> = ExpressionBuilder<DB, TB> &
-  ([DB] extends [EventsDb]
-    ? [TB] extends ["e"]
-      ? ["e"] extends [TB]
-        ? unknown
-        : never
-      : never
-    : never);
+  ([DB] extends [EventsDb] ? (["e"] extends [TB] ? unknown : never) : never);

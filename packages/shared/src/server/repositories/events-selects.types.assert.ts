@@ -13,8 +13,8 @@ import {
 
 /**
  * Compile-time assertions that the shared events expressions keep their table
- * scope: they type-check only in a query that reads a full events row as `e`
- * and nothing else. Never called at runtime; `tsc` is the test, and every
+ * scope: they type-check only in a query that reads a full events row as `e`,
+ * alone or beside joined relations. Never called at runtime; `tsc` is the test, and every
  * `@ts-expect-error` must stay a real error. knip treats `*types.assert.ts` as
  * an entry, so nothing needs to import it.
  */
@@ -25,9 +25,14 @@ export function eventsSelectsScopeTypeAssertions(): void {
   db.selectFrom("events as e").select(allTraceAggregates);
   db.selectFrom("events_truncated as e").select(allTraceAggregates);
 
+  // Joined relations beside a full `e`: the compiler's qualify rule keeps the
+  // helpers' `e.…` columns on `e`.
   db.selectFrom("events as e")
     .innerJoin("traces as t", "t.id", "e.trace_id")
-    // @ts-expect-error a join
+    .select(allTraceAggregates);
+  db.selectFrom("traces as t")
+    .leftJoin("events as e", "e.trace_id", "t.id")
+    // @ts-expect-error a left-joined `e`: its columns turn nullable
     .select(allTraceAggregates);
   db.with("e", (qb) => qb.selectFrom("events").selectAll())
     .selectFrom("traces as t")
@@ -69,7 +74,6 @@ export function eventsSelectsScopeTypeAssertions(): void {
   db.selectFrom("events as e").select(traceNameSelect);
   db.selectFrom("events as e")
     .innerJoin("traces as t", "t.id", "e.trace_id")
-    // @ts-expect-error a join, through a composed helper
     .select(traceNameSelect);
   db.selectFrom("observations as e")
     // @ts-expect-error `e` lacks events columns, through a composed helper

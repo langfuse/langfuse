@@ -1,6 +1,6 @@
 import { FilterCondition, FilterState } from "../../types";
 import { logger } from "../logger";
-import { encodeBooleanScoreEntry } from "../queries/clickhouse-sql/clickhouse-filter";
+import { encodeBooleanScoreEntry } from "../repositories/events-score-predicate";
 
 export type InMemoryFilterOptions = {
   emptyEqualsNullColumns?: ReadonlySet<string>;
