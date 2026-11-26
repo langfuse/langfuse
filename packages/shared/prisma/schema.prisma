@@ -521,7 +521,7 @@ model GatewayGuardrail {
   name                String
   type                GatewayGuardrailType         @default(REGEX)
   action              GatewayGuardrailAction
-  // For REGEX: { "presets": [...], "secretPrefixes": [...], "containsWords": [...] };
+  // For REGEX: { "presets": [...], "secretPrefixes": [...], "containsWords": [...], "customRegex": "..." };
   // For BEDROCK: { "guardrailId": "...", "guardrailVersion": "...", "region": "..." }.
   config              Json                         @default("{}") @db.JsonB
   // Encrypted credential for external guardrail providers (e.g. Bedrock API key); null for REGEX.

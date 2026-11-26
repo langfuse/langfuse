@@ -900,7 +900,8 @@ To build locally, from the repository root:
 ```sh
 docker build --target runtime \
   --build-arg BUILD_ID="$(git rev-parse HEAD)" \
-  -t langfuse-ai-gateway:dev ./ai-gateway
+  -f ai-gateway/Dockerfile \
+  -t langfuse-ai-gateway:dev .
 docker run --rm --name langfuse-ai-gateway-dev \
   -e LANGFUSE_LOG_FORMAT=json -p 127.0.0.1:8080:8080 langfuse-ai-gateway:dev
 # In another terminal:

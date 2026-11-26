@@ -16,9 +16,7 @@ use quick_cache::{
     Weighter,
     sync::{Cache, GuardResult},
 };
-use regex_automata::{
-    Input, MatchKind, PatternSet, meta, nfa::thompson::WhichCaptures, util::syntax,
-};
+use regex_automata::{Input, PatternSet, meta};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use tokio::sync::Semaphore;
@@ -660,24 +658,15 @@ fn compile(key: &GuardrailPatterns) -> Arc<Compiled> {
     Arc::new(Compiled { matchers, bytes })
 }
 
-/// The patterns compiled in ASCII mode, so `\b` and `\d` stay on the fast DFA path
-/// even when the text holds non-ASCII; `None` when a pattern does not compile.
-/// Configured like `regex::bytes::RegexSet`: every pattern that matches is reported.
+/// The patterns compiled via `ai-gateway-guardrail-rules` (ASCII semantics for
+/// `\w`/`\d`/`\s`/`\b`/`(?i)` with UTF-8-safe `.` and negated classes); `None`
+/// when a pattern does not compile.
 fn matcher(patterns: &[(usize, &String)]) -> Option<Matcher> {
-    let regex = meta::Builder::new()
-        .configure(
-            meta::Config::new()
-                .match_kind(MatchKind::All)
-                .utf8_empty(false)
-                .which_captures(WhichCaptures::None),
-        )
-        .syntax(syntax::Config::new().unicode(false).utf8(false))
-        .build_many(
-            &patterns
-                .iter()
-                .map(|(_, pattern)| pattern.as_str())
-                .collect::<Vec<_>>(),
-        )
+    let raw: Vec<&str> = patterns
+        .iter()
+        .map(|(_, pattern)| pattern.as_str())
+        .collect();
+    let regex = ai_gateway_guardrail_rules::compile_set(&raw)
         .inspect_err(|error| tracing::warn!(%error, "guardrail patterns failed to compile"))
         .ok()?;
     Some(Matcher {
