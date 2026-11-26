@@ -30,12 +30,6 @@ pub(crate) enum ExternalOutcome {
     Failed,
 }
 
-impl ExternalOutcome {
-    pub(crate) fn is_match(&self) -> bool {
-        !matches!(self, Self::None)
-    }
-}
-
 /// Pre-serialized request payloads for external guardrail providers, built once
 /// per request so temporary text copies can be dropped before awaiting network I/O.
 pub(crate) struct ExternalPayloads {

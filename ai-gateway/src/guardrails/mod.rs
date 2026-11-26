@@ -110,29 +110,21 @@ impl Guardrails {
                 })
                 .await
                 .ok_or(ResolutionError::Busy)?;
-            let mut local = local?;
+            let mut eval = local?;
             let local_duration = finding + scanning;
-            let (external_outcomes, external_duration) = if !local.unreadable
-                && !local.has_local_block(&guardrails)
-                && !local.external_blocks.is_empty()
-            {
+            let external_duration = if !eval.is_blocking() && !eval.blocks.is_empty() {
                 self.evaluate_external(
-                    &local.external_targets(&guardrails),
-                    &mut local,
+                    &guardrails,
+                    &mut eval,
                     &mut turn_text_reservation,
                     &organization_id,
                 )
                 .await?
             } else {
                 drop(turn_text_reservation);
-                (Vec::new(), None)
+                None
             };
-            let outcome = finalize_outcome(
-                local,
-                &guardrails,
-                &external_outcomes,
-                Some(&self.memory_budget),
-            )?;
+            let outcome = eval.finalize(&guardrails, Some(&self.memory_budget))?;
             crate::observability::guardrails_checked(
                 &organization_id,
                 crate::observability::GuardrailTimings {
@@ -156,82 +148,64 @@ impl Guardrails {
     /// any observing (`log`/`block`) external guardrails concurrently.
     async fn evaluate_external(
         &self,
-        targets: &[(usize, &Guardrail)],
-        local: &mut LocalEvaluation,
+        guardrails: &[Guardrail],
+        eval: &mut GuardrailEvaluation,
         turn_text_reservation: &mut Option<MemoryReservation>,
         organization_id: &str,
-    ) -> Result<(Vec<(usize, ExternalOutcome)>, Option<Duration>), ResolutionError> {
+    ) -> Result<Option<Duration>, ResolutionError> {
+        let targets = eval.external_targets(guardrails);
         if targets.is_empty() {
-            local.external_blocks.clear();
+            eval.blocks.retain_modified();
             drop(turn_text_reservation.take());
-            return Ok((Vec::new(), None));
+            return Ok(None);
         }
         let (enforcing, observing): (Vec<_>, Vec<_>) = targets
-            .iter()
-            .copied()
+            .into_iter()
             .partition(|(_, guardrail)| guardrail.is_external_enforce());
         let started = std::time::Instant::now();
-        let mut outcomes = Vec::with_capacity(targets.len());
-        let mut blocked = false;
 
-        for &(slot, guardrail) in &enforcing {
-            let payload_reservation = self.reserve_external_payload(&local.external_blocks)?;
-            let payloads = serialize_external_blocks(&[guardrail], &local.external_blocks);
+        for (slot, guardrail) in enforcing {
+            let payload_reservation = self.reserve_external_payload(&eval.blocks)?;
+            let payloads = eval.blocks.serialize_for(&[guardrail]);
             let outcome = self
                 .external
                 .evaluate_one(guardrail, &payloads, organization_id)
                 .await;
             drop(payload_reservation);
-            match outcome {
-                ExternalOutcome::None => outcomes.push((slot, ExternalOutcome::None)),
-                ExternalOutcome::Blocked | ExternalOutcome::Failed => {
-                    outcomes.push((slot, outcome));
-                    blocked = true;
-                    break;
-                }
-                ExternalOutcome::Anonymized(outputs) => {
-                    if apply_anonymized_outputs(&mut local.external_blocks, &outputs) {
-                        outcomes.push((slot, ExternalOutcome::Anonymized(Vec::new())));
-                    } else {
-                        outcomes.push((slot, ExternalOutcome::Blocked));
-                        blocked = true;
-                        break;
-                    }
-                }
+            if eval.apply_external(slot, guardrail, &outcome) {
+                return Ok(Some(started.elapsed()));
             }
         }
 
-        if !blocked && !observing.is_empty() {
-            let guardrails: Vec<&Guardrail> =
+        if !observing.is_empty() {
+            let batch: Vec<&Guardrail> =
                 observing.iter().map(|(_, guardrail)| *guardrail).collect();
-            let payload_reservation = self.reserve_external_payload(&local.external_blocks)?;
-            let payloads = serialize_external_blocks(&guardrails, &local.external_blocks);
-            // Drop text blocks before awaiting I/O when no enforcing rule needs them afterward.
-            if enforcing.is_empty() {
-                local.external_blocks.clear();
-                drop(turn_text_reservation.take());
-            }
+            let payload_reservation = self.reserve_external_payload(&eval.blocks)?;
+            let payloads = eval.blocks.serialize_for(&batch);
+            // Free unchanged text blocks before awaiting I/O; no further enforcing rule reads them.
+            eval.blocks.retain_modified();
+            drop(turn_text_reservation.take());
             let results = self
                 .external
-                .evaluate_many(&guardrails, &payloads, organization_id)
+                .evaluate_many(&batch, &payloads, organization_id)
                 .await;
             drop(payload_reservation);
-            outcomes.extend(
-                observing
-                    .iter()
-                    .zip(results)
-                    .map(|(&(slot, _), outcome)| (slot, outcome)),
-            );
+            for ((slot, guardrail), outcome) in observing.into_iter().zip(results) {
+                eval.apply_external(slot, guardrail, &outcome);
+            }
         }
-        Ok((outcomes, Some(started.elapsed())))
+        Ok(Some(started.elapsed()))
     }
 
     fn reserve_external_payload(
         &self,
-        blocks: &[ExternalBlock],
+        blocks: &TurnBlocks,
     ) -> Result<MemoryReservation, ResolutionError> {
-        let bytes: usize = blocks.iter().map(|block| block.text.len()).sum();
-        MemoryReservation::from_budget(&self.memory_budget, bytes.saturating_add(64), "guardrails")
+        MemoryReservation::from_budget(
+            &self.memory_budget,
+            blocks.text_bytes().saturating_add(64),
+            "guardrails",
+        )
     }
 
     #[cfg(test)]
@@ -244,25 +218,6 @@ impl Guardrails {
     pub(crate) fn set_memory_budget(&mut self, memory_budget: Arc<Semaphore>) {
         self.memory_budget = memory_budget;
     }
-}
-
-fn serialize_external_blocks(
-    guardrails: &[&Guardrail],
-    blocks: &[ExternalBlock],
-) -> ExternalPayloads {
-    if blocks.len() <= bedrock::MAX_BEDROCK_CONTENT_BLOCKS {
-        let texts: Vec<&str> = blocks.iter().map(|block| block.text.as_str()).collect();
-        return ExternalPayloads::for_guardrails(guardrails, &texts);
-    }
-    let total = blocks.iter().map(|block| block.text.len() + 1).sum();
-    let mut joined = String::with_capacity(total);
-    for block in blocks {
-        if !joined.is_empty() {
-            joined.push('\n');
-        }
-        joined.push_str(&block.text);
-    }
-    ExternalPayloads::for_guardrails(guardrails, &[joined.as_str()])
 }
 
 /// Provider-specific configuration of a resolved guardrail.
@@ -503,59 +458,229 @@ fn raw_range(body: &[u8], raw: &str) -> Option<Range<usize>> {
     (end <= body.len()).then_some(start..end)
 }
 
-/// Evaluation state for one active guardrail, in resolution order.
-struct RuleState {
-    guardrail_index: usize,
-    matched: bool,
-    fail_closed: bool,
+/// Resolved per-rule outcome across local and external stages, ordered by severity.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum RuleVerdict {
+    None,
+    Log,
+    Redact,
+    Block,
 }
 
-impl RuleState {
-    fn blocks(&self, guardrail: &Guardrail) -> bool {
-        match guardrail.action {
-            GuardrailAction::Block => true,
-            GuardrailAction::Redact | GuardrailAction::Enforce => self.fail_closed,
-            GuardrailAction::Log | GuardrailAction::Unknown => false,
+impl RuleVerdict {
+    fn from_local_match(action: GuardrailAction) -> Self {
+        match action {
+            GuardrailAction::Block | GuardrailAction::Enforce => Self::Block,
+            GuardrailAction::Redact => Self::Redact,
+            GuardrailAction::Log => Self::Log,
+            GuardrailAction::Unknown => Self::None,
+        }
+    }
+
+    fn from_fail_closed(action: GuardrailAction) -> Self {
+        match action {
+            GuardrailAction::Log => Self::Log,
+            GuardrailAction::Block | GuardrailAction::Redact | GuardrailAction::Enforce => {
+                Self::Block
+            }
+            GuardrailAction::Unknown => Self::None,
+        }
+    }
+
+    fn from_external(action: GuardrailAction, outcome: &ExternalOutcome) -> Self {
+        match outcome {
+            ExternalOutcome::None => Self::None,
+            ExternalOutcome::Blocked | ExternalOutcome::Failed => Self::from_fail_closed(action),
+            ExternalOutcome::Anonymized(_) => match action {
+                GuardrailAction::Log => Self::Log,
+                GuardrailAction::Block => Self::Block,
+                GuardrailAction::Redact | GuardrailAction::Enforce => Self::Redact,
+                GuardrailAction::Unknown => Self::None,
+            },
+        }
+    }
+
+    fn to_finding_action(self, configured: GuardrailAction) -> Option<GuardrailAction> {
+        match self {
+            Self::None => None,
+            Self::Log => Some(GuardrailAction::Log),
+            Self::Redact => Some(GuardrailAction::Redact),
+            Self::Block => Some(match configured {
+                GuardrailAction::Redact => GuardrailAction::Redact,
+                _ => GuardrailAction::Block,
+            }),
+        }
+    }
+
+    fn escalate(&mut self, next: Self) {
+        if next > *self {
+            *self = next;
         }
     }
 }
 
-/// One non-empty JSON string field sent to external guardrails (after any local
-/// regex redaction) so anonymized outputs can be chained across providers and
-/// spliced back into the request body.
-struct ExternalBlock {
-    raw_range: Range<usize>,
-    text: String,
-    modified: bool,
+/// Evaluation state for one active guardrail, in resolution order.
+struct RuleState {
+    guardrail_index: usize,
+    verdict: RuleVerdict,
 }
 
-/// Result of the CPU-bound local pass: per-rule state, local redaction edits,
-/// and the last turn's text blocks when external guardrails also run.
-struct LocalEvaluation {
+/// Tracks whether a turn block needs a [`BodyEdit`] emitted at finalization and
+/// whether its replacement bytes were already reserved during local redaction.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BlockMutation {
+    Unchanged,
+    Local,
+    External,
+}
+
+struct TurnBlock {
+    raw_range: Range<usize>,
+    text: String,
+    mutation: BlockMutation,
+}
+
+/// Last-turn text blocks carried across local redaction and external guardrail
+/// stages so `BodyEdit`s are emitted once at finalization with no duplicate merge.
+#[derive(Default)]
+struct TurnBlocks(Vec<TurnBlock>);
+
+impl TurnBlocks {
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    fn text_bytes(&self) -> usize {
+        self.0.iter().map(|block| block.text.len()).sum()
+    }
+
+    fn push(&mut self, raw_range: Range<usize>, text: String, mutation: BlockMutation) {
+        self.0.push(TurnBlock {
+            raw_range,
+            text,
+            mutation,
+        });
+    }
+
+    fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    fn retain_modified(&mut self) {
+        self.0
+            .retain(|block| block.mutation != BlockMutation::Unchanged);
+    }
+
+    fn serialize_for(&self, guardrails: &[&Guardrail]) -> ExternalPayloads {
+        if self.0.len() <= bedrock::MAX_BEDROCK_CONTENT_BLOCKS {
+            let texts: Vec<&str> = self.0.iter().map(|block| block.text.as_str()).collect();
+            return ExternalPayloads::for_guardrails(guardrails, &texts);
+        }
+        let total = self.0.iter().map(|block| block.text.len() + 1).sum();
+        let mut joined = String::with_capacity(total);
+        for block in &self.0 {
+            if !joined.is_empty() {
+                joined.push('\n');
+            }
+            joined.push_str(&block.text);
+        }
+        ExternalPayloads::for_guardrails(guardrails, &[joined.as_str()])
+    }
+
+    /// Applies one enforcing external guardrail's anonymized `outputs` in place.
+    /// Returns `false` if the outputs cannot be mapped 1:1 or changed nothing.
+    fn apply_anonymized(&mut self, outputs: &[String]) -> bool {
+        if outputs.is_empty() {
+            return false;
+        }
+        if outputs.len() == self.0.len() {
+            return self.update_in_place(outputs.iter().map(String::as_str));
+        }
+        // Joined single-block fallback when text field count exceeded MAX_BEDROCK_CONTENT_BLOCKS.
+        // Partition by each block's line count so multiline fields still map back 1:1.
+        if outputs.len() == 1
+            && let Some(single) = outputs.first()
+        {
+            let lines: Vec<&str> = single.split('\n').collect();
+            let expected_lines: usize = self
+                .0
+                .iter()
+                .map(|block| block.text.bytes().filter(|&b| b == b'\n').count() + 1)
+                .sum();
+            if lines.len() == expected_lines {
+                let mut cursor = 0usize;
+                let mut reconstructed = Vec::with_capacity(self.0.len());
+                for block in &self.0 {
+                    let count = block.text.bytes().filter(|&b| b == b'\n').count() + 1;
+                    let Some(slice) = lines.get(cursor..cursor + count) else {
+                        return false;
+                    };
+                    reconstructed.push(slice.join("\n"));
+                    cursor += count;
+                }
+                return self.update_in_place(reconstructed.iter().map(String::as_str));
+            }
+        }
+        false
+    }
+
+    fn update_in_place<'a>(&mut self, outputs: impl Iterator<Item = &'a str>) -> bool {
+        let mut changed = false;
+        for (block, output) in self.0.iter_mut().zip(outputs) {
+            if output == block.text {
+                continue;
+            }
+            block.text.clear();
+            block.text.push_str(output);
+            block.mutation = BlockMutation::External;
+            changed = true;
+        }
+        changed
+    }
+
+    fn into_body_edits(
+        self,
+        budget: Option<&Arc<Semaphore>>,
+        reservations: &mut Vec<MemoryReservation>,
+    ) -> Result<Option<Vec<BodyEdit>>, ResolutionError> {
+        let mut edits = Vec::new();
+        for block in self.0 {
+            match block.mutation {
+                BlockMutation::Unchanged => continue,
+                BlockMutation::Local => {}
+                BlockMutation::External => {
+                    reserve_redaction_bytes(budget, block.text.len(), reservations)?;
+                }
+            }
+            let Ok(replacement) = serde_json::to_vec(&block.text) else {
+                return Ok(None);
+            };
+            edits.push(BodyEdit {
+                range: block.raw_range,
+                replacement,
+            });
+        }
+        Ok(Some(edits))
+    }
+
+    #[cfg(test)]
+    fn texts(&self) -> Vec<&str> {
+        self.0.iter().map(|block| block.text.as_str()).collect()
+    }
+}
+
+/// Evaluation state accumulated across local regex and external guardrail stages.
+struct GuardrailEvaluation {
     rules: Vec<RuleState>,
-    unreadable: bool,
-    external_blocks: Vec<ExternalBlock>,
-    local_redactions: Vec<BodyEdit>,
+    blocks: TurnBlocks,
     redaction_reservations: Vec<MemoryReservation>,
 }
 
-impl LocalEvaluation {
-    fn has_local_block(&self, guardrails: &[Guardrail]) -> bool {
-        self.rules.iter().any(|rule| {
-            rule.matched
-                && guardrails
-                    .get(rule.guardrail_index)
-                    .is_some_and(|guardrail| rule.blocks(guardrail))
-        })
-    }
-
-    fn any_blocking(&self, guardrails: &[Guardrail]) -> bool {
-        self.rules.iter().any(|rule| {
-            (self.unreadable || rule.matched)
-                && guardrails
-                    .get(rule.guardrail_index)
-                    .is_some_and(|guardrail| rule.blocks(guardrail))
-        })
+impl GuardrailEvaluation {
+    fn is_blocking(&self) -> bool {
+        self.rules
+            .iter()
+            .any(|rule| rule.verdict == RuleVerdict::Block)
     }
 
     fn external_targets<'a>(&self, guardrails: &'a [Guardrail]) -> Vec<(usize, &'a Guardrail)> {
@@ -569,137 +694,85 @@ impl LocalEvaluation {
             .collect()
     }
 
-    /// Applies any remaining anonymized outputs sequentially onto
-    /// `self.external_blocks` and emits updated [`BodyEdit`] entries for every
-    /// externally modified block.
-    fn apply_external_anonymizations(
+    /// Records one external guardrail outcome and applies any anonymized text
+    /// onto `self.blocks`. Returns `true` when the guardrail blocked the request.
+    fn apply_external(
         &mut self,
+        slot: usize,
+        guardrail: &Guardrail,
+        outcome: &ExternalOutcome,
+    ) -> bool {
+        let Some(rule) = self.rules.get_mut(slot) else {
+            return false;
+        };
+        let mut verdict = RuleVerdict::from_external(guardrail.action, outcome);
+        if guardrail.is_external_enforce()
+            && let ExternalOutcome::Anonymized(outputs) = outcome
+            && !self.blocks.apply_anonymized(outputs)
+        {
+            verdict = RuleVerdict::from_fail_closed(guardrail.action);
+        }
+        rule.verdict.escalate(verdict);
+        rule.verdict == RuleVerdict::Block
+    }
+
+    /// Converts the evaluated verdicts and modified blocks into the final
+    /// [`Outcome`], preserving guardrail resolution order.
+    fn finalize(
+        mut self,
         guardrails: &[Guardrail],
-        external_outcomes: &[(usize, ExternalOutcome)],
         budget: Option<&Arc<Semaphore>>,
-    ) -> Result<(), ResolutionError> {
-        for (slot, outcome) in external_outcomes {
-            let Some(rule) = self.rules.get_mut(*slot) else {
-                continue;
-            };
+    ) -> Result<Outcome, ResolutionError> {
+        let mut redactions = if self.is_blocking() {
+            Vec::new()
+        } else if let Some(edits) = self
+            .blocks
+            .into_body_edits(budget, &mut self.redaction_reservations)?
+        {
+            edits
+        } else {
+            for rule in &mut self.rules {
+                if let Some(guardrail) = guardrails.get(rule.guardrail_index) {
+                    rule.verdict
+                        .escalate(RuleVerdict::from_fail_closed(guardrail.action));
+                }
+            }
+            Vec::new()
+        };
+
+        let mut findings = Vec::new();
+        let mut blocked_index = None;
+        for rule in &self.rules {
             let Some(guardrail) = guardrails.get(rule.guardrail_index) else {
                 continue;
             };
-            if !guardrail.is_external_enforce() {
-                continue;
-            }
-            let ExternalOutcome::Anonymized(outputs) = outcome else {
+            let Some(action) = rule.verdict.to_finding_action(guardrail.action) else {
                 continue;
             };
-            if !outputs.is_empty() && !apply_anonymized_outputs(&mut self.external_blocks, outputs)
-            {
-                rule.fail_closed = true;
-                return Ok(());
+            if rule.verdict == RuleVerdict::Block && blocked_index.is_none() {
+                blocked_index = Some(findings.len());
             }
+            findings.push(Finding {
+                id: guardrail.id.clone(),
+                name: guardrail.name.clone(),
+                action,
+                location: GuardrailLocation::Request,
+            });
         }
 
-        for block in &self.external_blocks {
-            if !block.modified {
-                continue;
-            }
-            reserve_redaction_bytes(budget, block.text.len(), &mut self.redaction_reservations)?;
-            let Ok(replacement) = serde_json::to_vec(&block.text) else {
-                for rule in &mut self.rules {
-                    rule.fail_closed = true;
-                }
-                return Ok(());
-            };
-            if let Some(existing) = self
-                .local_redactions
-                .iter_mut()
-                .find(|edit| edit.range == block.raw_range)
-            {
-                existing.replacement = replacement;
-            } else {
-                self.local_redactions.push(BodyEdit {
-                    range: block.raw_range.clone(),
-                    replacement,
-                });
-            }
-        }
-        Ok(())
-    }
-}
-
-/// Combines local regex evaluation results and external guardrail outcomes into
-/// the final [`Outcome`], preserving guardrail resolution order.
-fn finalize_outcome(
-    mut local: LocalEvaluation,
-    guardrails: &[Guardrail],
-    external_outcomes: &[(usize, ExternalOutcome)],
-    budget: Option<&Arc<Semaphore>>,
-) -> Result<Outcome, ResolutionError> {
-    if local.unreadable {
-        for rule in &mut local.rules {
-            rule.fail_closed = true;
-        }
-    }
-    for (slot, outcome) in external_outcomes {
-        if let Some(rule) = local.rules.get_mut(*slot) {
-            if outcome.is_match() {
-                rule.matched = true;
-            }
-            if matches!(outcome, ExternalOutcome::Blocked | ExternalOutcome::Failed) {
-                rule.fail_closed = true;
-            }
-        }
-    }
-
-    let redactions = if local.unreadable || local.any_blocking(guardrails) {
-        Vec::new()
-    } else {
-        if !local.external_blocks.is_empty() {
-            local.apply_external_anonymizations(guardrails, external_outcomes, budget)?;
-        }
-        local.local_redactions
-    };
-
-    let mut findings = Vec::new();
-    let mut blocked_index = None;
-    for rule in &local.rules {
-        if !local.unreadable && !rule.matched {
-            continue;
-        }
-        let Some(guardrail) = guardrails.get(rule.guardrail_index) else {
-            continue;
-        };
-        let blocks = rule.blocks(guardrail);
-        if blocks && blocked_index.is_none() {
-            blocked_index = Some(findings.len());
-        }
-        let action = if guardrail.action == GuardrailAction::Enforce {
-            if blocks {
-                GuardrailAction::Block
-            } else {
-                GuardrailAction::Redact
-            }
+        let redaction_reservations = if blocked_index.is_some() {
+            redactions.clear();
+            Vec::new()
         } else {
-            guardrail.action
+            self.redaction_reservations
         };
-        findings.push(Finding {
-            id: guardrail.id.clone(),
-            name: guardrail.name.clone(),
-            action,
-            location: GuardrailLocation::Request,
-        });
+        Ok(Outcome {
+            findings,
+            blocked_index,
+            redactions,
+            redaction_reservations,
+        })
     }
-
-    let (redactions, redaction_reservations) = if blocked_index.is_some() {
-        (Vec::new(), Vec::new())
-    } else {
-        (redactions, local.redaction_reservations)
-    };
-    Ok(Outcome {
-        findings,
-        blocked_index,
-        redactions,
-        redaction_reservations,
-    })
 }
 
 /// Runs the local regex guardrails against `turn` (applying local redactions
@@ -711,24 +784,21 @@ fn apply_local_guardrails(
     scanned: &ScannedMembers,
     turn: &Result<LastTurn, Unreadable>,
     budget: Option<&Arc<Semaphore>>,
-) -> Result<LocalEvaluation, ResolutionError> {
+) -> Result<GuardrailEvaluation, ResolutionError> {
     let rules: Vec<RuleState> = guardrails
         .iter()
         .enumerate()
         .filter_map(|(guardrail_index, guardrail)| {
             guardrail.is_active().then_some(RuleState {
                 guardrail_index,
-                matched: false,
-                fail_closed: false,
+                verdict: RuleVerdict::None,
             })
         })
         .collect();
     if rules.is_empty() {
-        return Ok(LocalEvaluation {
+        return Ok(GuardrailEvaluation {
             rules,
-            unreadable: false,
-            external_blocks: Vec::new(),
-            local_redactions: Vec::new(),
+            blocks: TurnBlocks::default(),
             redaction_reservations: Vec::new(),
         });
     }
@@ -783,8 +853,7 @@ struct LocalEvalState<'g, 'b> {
     budget_exhausted: bool,
     caps: Vec<Captures>,
     span_scratch: Vec<RedactionSpan<'g>>,
-    external_blocks: Vec<ExternalBlock>,
-    local_redactions: Vec<BodyEdit>,
+    blocks: TurnBlocks,
     redaction_reservations: Vec<MemoryReservation>,
 }
 
@@ -816,8 +885,7 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
             budget_exhausted: false,
             caps,
             span_scratch: Vec::new(),
-            external_blocks: Vec::new(),
-            local_redactions: Vec::new(),
+            blocks: TurnBlocks::default(),
             redaction_reservations: Vec::new(),
         }
     }
@@ -851,32 +919,35 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
                             let Some(rule) = self.rules.get_mut(slot) else {
                                 return;
                             };
-                            rule.matched = true;
                             let Some(guardrail) = guardrails.get(rule.guardrail_index) else {
                                 return;
                             };
-                            if guardrail.action != GuardrailAction::Redact {
-                                return;
-                            }
-                            if start < end {
-                                self.span_scratch.push(RedactionSpan {
-                                    start,
-                                    end,
-                                    priority: slot,
-                                    label: guardrail.redaction_label(),
-                                });
+                            if guardrail.action == GuardrailAction::Redact {
+                                if start < end {
+                                    rule.verdict.escalate(RuleVerdict::Redact);
+                                    self.span_scratch.push(RedactionSpan {
+                                        start,
+                                        end,
+                                        priority: slot,
+                                        label: guardrail.redaction_label(),
+                                    });
+                                } else {
+                                    rule.verdict
+                                        .escalate(RuleVerdict::from_fail_closed(guardrail.action));
+                                }
                             } else {
-                                rule.fail_closed = true;
+                                rule.verdict
+                                    .escalate(RuleVerdict::from_local_match(guardrail.action));
                             }
                         },
                     );
                 }
             }
-            let Ok(redacted) = apply_local_leaf_redaction(
+            let Ok(redacted) = redact_leaf(
                 body,
                 leaf,
                 &mut self.span_scratch,
-                &mut self.local_redactions,
+                guardrails,
                 &mut self.rules,
                 budget,
                 &mut self.redaction_reservations,
@@ -884,43 +955,42 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
                 self.budget_exhausted = true;
                 return;
             };
-            // Send locally redacted text to external guardrails so local secrets
-            // never leave the gateway and Bedrock anonymizations compose cleanly.
-            if has_external {
-                let text = redacted.unwrap_or_else(|| leaf.text.to_owned());
-                if !text.is_empty()
-                    && let Some(range) = raw_range(body, leaf.raw)
-                {
-                    self.external_blocks.push(ExternalBlock {
-                        raw_range: range,
-                        text,
-                        modified: false,
-                    });
+            // Store locally redacted blocks (always) and unchanged non-empty blocks
+            // when external guardrails also run so local secrets never leave the
+            // gateway and external anonymizations compose cleanly in one pass.
+            match redacted {
+                Some((range, text)) => self.blocks.push(range, text, BlockMutation::Local),
+                None if has_external && !leaf.text.is_empty() => {
+                    if let Some(range) = raw_range(body, leaf.raw) {
+                        self.blocks
+                            .push(range, leaf.text.to_owned(), BlockMutation::Unchanged);
+                    }
                 }
+                None => {}
             }
         })
         .is_err()
     }
 
-    fn finish(mut self, unreadable: bool) -> Result<LocalEvaluation, ResolutionError> {
+    fn finish(mut self, unreadable: bool) -> Result<GuardrailEvaluation, ResolutionError> {
         if self.budget_exhausted {
             return Err(ResolutionError::Busy);
         }
+        if unreadable {
+            self.blocks.clear();
+        }
         for rule in &mut self.rules {
-            if self
-                .guardrails
-                .get(rule.guardrail_index)
-                .is_some_and(|guardrail| matches!(guardrail.kind, GuardrailKind::FailClosed))
-            {
-                rule.matched = true;
-                rule.fail_closed = true;
+            let Some(guardrail) = self.guardrails.get(rule.guardrail_index) else {
+                continue;
+            };
+            if unreadable || matches!(guardrail.kind, GuardrailKind::FailClosed) {
+                rule.verdict
+                    .escalate(RuleVerdict::from_fail_closed(guardrail.action));
             }
         }
-        Ok(LocalEvaluation {
+        Ok(GuardrailEvaluation {
             rules: self.rules,
-            unreadable,
-            external_blocks: self.external_blocks,
-            local_redactions: self.local_redactions,
+            blocks: self.blocks,
             redaction_reservations: self.redaction_reservations,
         })
     }
@@ -948,98 +1018,46 @@ fn reserve_redaction_bytes(
     Ok(())
 }
 
-fn apply_local_leaf_redaction(
+fn redact_leaf(
     body: &[u8],
     leaf: text::TextLeaf<'_>,
     span_scratch: &mut Vec<RedactionSpan<'_>>,
-    local_redactions: &mut Vec<BodyEdit>,
+    guardrails: &[Guardrail],
     rules: &mut [RuleState],
     budget: Option<&Arc<Semaphore>>,
     reservations: &mut Vec<MemoryReservation>,
-) -> Result<Option<String>, ResolutionError> {
+) -> Result<Option<(Range<usize>, String)>, ResolutionError> {
     if span_scratch.is_empty() {
         return Ok(None);
     }
     let Some(range) = raw_range(body, leaf.raw) else {
-        mark_spans_fail_closed(span_scratch, rules);
+        fail_closed_spans(span_scratch, guardrails, rules);
         return Ok(None);
     };
     let Some(capacity) = redact::prepare_redactions(leaf.text, span_scratch) else {
-        mark_spans_fail_closed(span_scratch, rules);
+        fail_closed_spans(span_scratch, guardrails, rules);
         return Ok(None);
     };
     reserve_redaction_bytes(budget, capacity, reservations)?;
-    let redacted = redact::splice_merged_spans(leaf.text, span_scratch, capacity);
-    if let Ok(replacement) = serde_json::to_vec(&redacted) {
-        local_redactions.push(BodyEdit { range, replacement });
-        Ok(Some(redacted))
-    } else {
-        mark_spans_fail_closed(span_scratch, rules);
-        Ok(None)
-    }
+    Ok(Some((
+        range,
+        redact::splice_merged_spans(leaf.text, span_scratch, capacity),
+    )))
 }
 
-fn mark_spans_fail_closed(spans: &[RedactionSpan<'_>], rules: &mut [RuleState]) {
+fn fail_closed_spans(
+    spans: &[RedactionSpan<'_>],
+    guardrails: &[Guardrail],
+    rules: &mut [RuleState],
+) {
     for span in spans {
-        if let Some(rule) = rules.get_mut(span.priority) {
-            rule.fail_closed = true;
+        if let Some(rule) = rules.get_mut(span.priority)
+            && let Some(guardrail) = guardrails.get(rule.guardrail_index)
+        {
+            rule.verdict
+                .escalate(RuleVerdict::from_fail_closed(guardrail.action));
         }
     }
-}
-
-/// Applies one enforcing external guardrail's anonymized `outputs` in place onto
-/// `blocks`. Returns `false` if the outputs cannot be mapped 1:1 onto `blocks`
-/// or left every block unchanged despite `GUARDRAIL_INTERVENED`.
-fn apply_anonymized_outputs(blocks: &mut [ExternalBlock], outputs: &[String]) -> bool {
-    if outputs.is_empty() {
-        return false;
-    }
-    if outputs.len() == blocks.len() {
-        return update_blocks_in_place(blocks, outputs.iter().map(String::as_str));
-    }
-    // Joined single-block fallback when text field count exceeded MAX_BEDROCK_CONTENT_BLOCKS.
-    // Partition the joined output by each block's line count so multiline
-    // fields still map back 1:1 when anonymization preserves line structure.
-    if outputs.len() == 1
-        && let Some(single) = outputs.first()
-    {
-        let lines: Vec<&str> = single.split('\n').collect();
-        let expected_lines: usize = blocks
-            .iter()
-            .map(|block| block.text.bytes().filter(|&b| b == b'\n').count() + 1)
-            .sum();
-        if lines.len() == expected_lines {
-            let mut cursor = 0usize;
-            let mut reconstructed = Vec::with_capacity(blocks.len());
-            for block in &*blocks {
-                let count = block.text.bytes().filter(|&b| b == b'\n').count() + 1;
-                let Some(slice) = lines.get(cursor..cursor + count) else {
-                    return false;
-                };
-                reconstructed.push(slice.join("\n"));
-                cursor += count;
-            }
-            return update_blocks_in_place(blocks, reconstructed.iter().map(String::as_str));
-        }
-    }
-    false
-}
-
-fn update_blocks_in_place<'a>(
-    blocks: &mut [ExternalBlock],
-    outputs: impl Iterator<Item = &'a str>,
-) -> bool {
-    let mut changed = false;
-    for (block, output) in blocks.iter_mut().zip(outputs) {
-        if output == block.text {
-            continue;
-        }
-        block.text.clear();
-        block.text.push_str(output);
-        block.modified = true;
-        changed = true;
-    }
-    changed
 }
 
 #[cfg(test)]

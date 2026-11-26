@@ -6,15 +6,16 @@ fn check_request(
     body: &[u8],
     scanned: &ScannedMembers,
 ) -> Outcome {
-    let local = apply_local_guardrails(
+    apply_local_guardrails(
         guardrails,
         body,
         scanned,
         &last_turn(api_format, body, scanned),
         None,
     )
-    .unwrap();
-    finalize_outcome(local, guardrails, &[], None).unwrap()
+    .unwrap()
+    .finalize(guardrails, None)
+    .unwrap()
 }
 
 fn apply_edits(body: &str, edits: &[BodyEdit]) -> String {
@@ -258,7 +259,7 @@ fn bedrock_enforce_applies_anonymized_outputs_and_blocks_on_block_or_failure() {
 
     // 1. Local regex redaction runs before Bedrock, so Bedrock receives the
     //    already-redacted block and its anonymized output composes cleanly.
-    let local = apply_local_guardrails(
+    let mut eval = apply_local_guardrails(
         &guardrails,
         body.as_bytes(),
         &members,
@@ -266,25 +267,19 @@ fn bedrock_enforce_applies_anonymized_outputs_and_blocks_on_block_or_failure() {
         None,
     )
     .unwrap();
-    let block_texts: Vec<&str> = local
-        .external_blocks
-        .iter()
-        .map(|block| block.text.as_str())
-        .collect();
-    assert_eq!(block_texts, ["Hi Alice, call 555-0199", "mail [EMAIL]"]);
-    let outcome = finalize_outcome(
-        local,
-        &guardrails,
-        &[(
-            0,
-            ExternalOutcome::Anonymized(vec![
-                "Hi {NAME}, call {PHONE}".into(),
-                "mail [EMAIL]".into(),
-            ]),
-        )],
-        None,
-    )
-    .unwrap();
+    assert_eq!(
+        eval.blocks.texts(),
+        ["Hi Alice, call 555-0199", "mail [EMAIL]"]
+    );
+    eval.apply_external(
+        0,
+        &guardrails[0],
+        &ExternalOutcome::Anonymized(vec![
+            "Hi {NAME}, call {PHONE}".into(),
+            "mail [EMAIL]".into(),
+        ]),
+    );
+    let outcome = eval.finalize(&guardrails, None).unwrap();
     assert!(outcome.blocking().is_none());
     let (findings, edits, _) = outcome.into_parts();
     assert_eq!(findings.len(), 2);
@@ -300,7 +295,7 @@ fn bedrock_enforce_applies_anonymized_outputs_and_blocks_on_block_or_failure() {
 
     // 2. Blocked and Failed outcomes block the request and record action Block.
     for external in [ExternalOutcome::Blocked, ExternalOutcome::Failed] {
-        let local = apply_local_guardrails(
+        let mut eval = apply_local_guardrails(
             &guardrails,
             body.as_bytes(),
             &members,
@@ -308,7 +303,8 @@ fn bedrock_enforce_applies_anonymized_outputs_and_blocks_on_block_or_failure() {
             None,
         )
         .unwrap();
-        let outcome = finalize_outcome(local, &guardrails, &[(0, external)], None).unwrap();
+        eval.apply_external(0, &guardrails[0], &external);
+        let outcome = eval.finalize(&guardrails, None).unwrap();
         let blocking = outcome.blocking().expect("expected blocking finding");
         assert_eq!(blocking.id, "br");
         assert_eq!(blocking.action, GuardrailAction::Block);
@@ -322,7 +318,7 @@ fn bedrock_enforce_handles_joined_multiline_outputs_and_sequential_chaining() {
     let members = scanned(body, &["messages"]);
 
     // 1. Joined single-block output maps back across multiline fields by line count.
-    let local = apply_local_guardrails(
+    let mut eval = apply_local_guardrails(
         &guardrails,
         body.as_bytes(),
         &members,
@@ -330,16 +326,12 @@ fn bedrock_enforce_handles_joined_multiline_outputs_and_sequential_chaining() {
         None,
     )
     .unwrap();
-    let outcome = finalize_outcome(
-        local,
-        &guardrails,
-        &[(
-            0,
-            ExternalOutcome::Anonymized(vec!["line 1\ncall {PHONE}\nline 3\nline 4".into()]),
-        )],
-        None,
-    )
-    .unwrap();
+    eval.apply_external(
+        0,
+        &guardrails[0],
+        &ExternalOutcome::Anonymized(vec!["line 1\ncall {PHONE}\nline 3\nline 4".into()]),
+    );
+    let outcome = eval.finalize(&guardrails, None).unwrap();
     assert!(outcome.blocking().is_none());
     let (_, edits, _) = outcome.into_parts();
     assert_eq!(edits.len(), 1);
@@ -356,7 +348,7 @@ fn bedrock_enforce_handles_joined_multiline_outputs_and_sequential_chaining() {
         bedrock_enforce_guardrail("br-email"),
         bedrock_enforce_guardrail("br-phone"),
     ];
-    let local = apply_local_guardrails(
+    let mut eval = apply_local_guardrails(
         &pair,
         single.as_bytes(),
         &single_members,
@@ -368,22 +360,17 @@ fn bedrock_enforce_handles_joined_multiline_outputs_and_sequential_chaining() {
         None,
     )
     .unwrap();
-    let outcome = finalize_outcome(
-        local,
-        &pair,
-        &[
-            (
-                0,
-                ExternalOutcome::Anonymized(vec!["mail {EMAIL} or call 555-0199".into()]),
-            ),
-            (
-                1,
-                ExternalOutcome::Anonymized(vec!["mail {EMAIL} or call {PHONE}".into()]),
-            ),
-        ],
-        None,
-    )
-    .unwrap();
+    eval.apply_external(
+        0,
+        &pair[0],
+        &ExternalOutcome::Anonymized(vec!["mail {EMAIL} or call 555-0199".into()]),
+    );
+    eval.apply_external(
+        1,
+        &pair[1],
+        &ExternalOutcome::Anonymized(vec!["mail {EMAIL} or call {PHONE}".into()]),
+    );
+    let outcome = eval.finalize(&pair, None).unwrap();
     assert!(outcome.blocking().is_none());
     let (_, edits, _) = outcome.into_parts();
     let rewritten: serde_json::Value = serde_json::from_str(&apply_edits(single, &edits)).unwrap();
