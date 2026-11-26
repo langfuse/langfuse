@@ -159,6 +159,10 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
     "name contains",
     { column: "name", type: "string", operator: "contains", value: "chat" },
   ],
+  // Known-wrong baseline: the pruning part runs `IS NULL` on the
+  // non-Nullable `trace_name`/`name` columns, which store a missing name as
+  // '', so this filter matches no traces. Pinned as-is, like
+  // `timestampMonth =`, so a change to the clause shows in the golden diff.
   [
     "name is-null",
     { column: "name", type: "null", operator: "is null", value: "" },
