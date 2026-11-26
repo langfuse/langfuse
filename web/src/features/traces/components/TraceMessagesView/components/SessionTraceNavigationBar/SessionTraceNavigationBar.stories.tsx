@@ -229,6 +229,10 @@ export const IdleMarked = meta.story({
 
 export const ClickableSegments = meta.story({
   name: "(Test) Clicking a segment navigates",
+  args: {
+    position: 2,
+    total: 3,
+  },
   render: (args) => {
     const [opened, setOpened] = useState<string>();
     return (
@@ -243,7 +247,7 @@ export const ClickableSegments = meta.story({
   },
   play: async ({ canvas }) => {
     await userEvent.click(
-      canvas.getByRole("button", { name: /Go to trace 1 of 36/ }),
+      canvas.getByRole("button", { name: /Go to trace 1 of 3/ }),
     );
     await expect(canvas.getByText("first")).toBeVisible();
   },
@@ -273,11 +277,13 @@ export const ManyTraces = meta.story({
 export const SegmentTooltip = meta.story({
   name: "(Test) Trace segment tooltip",
   args: {
+    position: 2,
+    total: 3,
     onSelectTrace: () => undefined,
   },
   play: async ({ canvas, canvasElement }) => {
     await userEvent.hover(
-      canvas.getByRole("button", { name: /Go to trace 1 of 36/ }),
+      canvas.getByRole("button", { name: /Go to trace 1 of 3/ }),
     );
     const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
       "tooltip",

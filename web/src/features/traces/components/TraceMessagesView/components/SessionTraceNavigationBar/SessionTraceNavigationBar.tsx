@@ -33,7 +33,7 @@ export function SessionTraceNavigationBar({
 
   return (
     <div ref={rootRef} className="@container/sessionnav sticky top-0 z-1">
-      <div className="bg-muted/40 flex h-8 shrink-0 items-center gap-2 border-b px-2 @min-[520px]/sessionnav:gap-5">
+      <div className="bg-muted/40 flex h-8 shrink-0 items-center gap-2 border-b px-2 @min-[520px]/sessionnav:gap-6">
         <Link
           href={sessionHref}
           className="text-foreground hover:text-foreground flex shrink-0 items-center gap-1.5 text-sm"
