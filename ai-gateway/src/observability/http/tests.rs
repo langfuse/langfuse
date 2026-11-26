@@ -203,7 +203,7 @@ async fn provider_http_errors_are_traced_without_changing_the_response() {
         let recording = Recording::start();
         let response = provider
             .forward(
-                provider.admit(),
+                provider.admit(None),
                 context,
                 &HeaderMap::new(),
                 Bytes::from_static(br#"{"model":"requested"}"#),
@@ -474,6 +474,7 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
     let telemetry = Telemetry::new(
         &ControlPlaneConfig::new(&web.url, "test-service-key").unwrap(),
         crate::telemetry::DEFAULT_RETAINED_BYTES,
+        Duration::from_millis(crate::telemetry::DEFAULT_BATCH_LINGER_MS),
     )
     .unwrap();
     let service = InferenceService::for_test(
@@ -543,10 +544,11 @@ fn outbound_span<'a>(spans: &'a [SpanData], name: &str) -> &'a SpanData {
 /// ingestion runs in its own trace, linked back to each request it carries.
 fn assert_phase_spans(spans: &[SpanData], server: &SpanData) {
     let named = |name: &str| spans.iter().find(|span| span.name == name).unwrap();
-    assert_eq!(spans.len(), 9);
+    assert_eq!(spans.len(), 10);
     for (name, parent) in [
         ("resolution", server),
         ("request.body", server),
+        ("request.parse", server),
         ("request.capture", server),
         ("provider.headers", server),
         ("provider.stream", server),

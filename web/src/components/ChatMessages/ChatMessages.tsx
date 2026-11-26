@@ -1,14 +1,9 @@
-/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { ChevronDownIcon, PlusCircleIcon } from "@langfuse/icons";
 import { useCallback, useEffect, useRef } from "react";
 
 import { Button } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -349,32 +344,20 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              className="flex-1"
-              onClick={addPlaceholderMessage}
-            >
-              <PlusCircleIcon
-                size="base"
-                color="default"
-                __rawClassName="mr-2"
-              />
-              <p>Placeholder</p>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p className="text-xs">
-              Adds a placeholder to inject message pairs, e.g. a message history
-              (with &quot;role&quot;, &quot;content&quot; pairs) when compiling
-              the message in the SDK.
-            </p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Tooltip label='Adds a placeholder to inject message pairs, e.g. a message history (with "role", "content" pairs) when compiling the message in the SDK.'>
+        {({ getTriggerProps }) => (
+          <Button
+            {...getTriggerProps()}
+            type="button"
+            variant="outline"
+            className="flex-1"
+            onClick={addPlaceholderMessage}
+          >
+            <PlusCircleIcon size="base" color="default" __rawClassName="mr-2" />
+            <p>Placeholder</p>
+          </Button>
+        )}
+      </Tooltip>
     </div>
   );
 };

@@ -502,7 +502,9 @@ fn agent_trace_id(name: &str, session_id: Option<&str>, turn_id: &str) -> String
     hasher.update(turn_id.as_bytes());
     let digest = hasher.finalize();
     let mut trace_id = [0; 16];
-    trace_id.copy_from_slice(&digest[..16]);
+    for (dst, &src) in trace_id.iter_mut().zip(digest.iter()) {
+        *dst = src;
+    }
     if trace_id.iter().all(|byte| *byte == 0) {
         trace_id[15] = 1;
     }

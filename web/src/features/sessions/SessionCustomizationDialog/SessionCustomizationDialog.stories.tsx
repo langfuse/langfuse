@@ -2,6 +2,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { SessionCustomizationDialog } from "./SessionCustomizationDialog";
+import { useState } from "react";
 
 const meta = preview.meta({
   component: SessionCustomizationDialog,
@@ -28,6 +29,35 @@ const meta = preview.meta({
 });
 
 export default meta;
+
+export const TestPresetReplacesGroupedType = meta.story({
+  name: "(Test) Preset replaces grouped type",
+  args: {
+    initialFilters: [
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["AGENT", "TOOL"],
+      },
+      { column: "level", type: "string", operator: "=", value: "ERROR" },
+    ],
+  },
+  play: async ({ args }) => {
+    const body = within(document.body);
+    await userEvent.click(body.getByRole("button", { name: "Generations" }));
+    await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
+    await expect(args.onApply).toHaveBeenCalledWith({
+      name: "",
+      filters: [
+        { column: "level", type: "string", operator: "=", value: "ERROR" },
+        { column: "type", type: "string", operator: "=", value: "GENERATION" },
+      ],
+      unmatchedTraces: "show",
+      viewMode: "conversational",
+    });
+  },
+});
 
 export const TestObservationFilters = meta.story({
   name: "(Test) Observation filters",
@@ -57,7 +87,7 @@ export const TestObservationFilters = meta.story({
     const completion = await body.findByRole("group", {
       name: "Observation completion",
     });
-    const input = body.getByRole("combobox", { name: "Search" });
+    const input = body.getByRole("combobox", { name: "Observation filters" });
     await userEvent.click(input);
     await userEvent.paste("traceName:=other name:=completion");
     await expect(
@@ -177,6 +207,7 @@ export const EditSavedView = Default.extend({
     await userEvent.click(body.getByRole("button", { name: "Generations" }));
     await userEvent.click(body.getByRole("button", { name: "Save changes" }));
     await expect(args.onApply).toHaveBeenCalledWith({
+      ownership: undefined,
       name: "Renamed generations",
       filters: [
         { column: "type", type: "string", operator: "=", value: "GENERATION" },
@@ -187,10 +218,94 @@ export const EditSavedView = Default.extend({
   },
 });
 
+export const PromotePrivateView = meta.story({
+  name: "(Test) Promote private view",
+  args: {
+    variant: {
+      type: "edit",
+      initialName: "My view",
+      pending: false,
+      disabled: false,
+      ownership: "PRIVATE",
+      canPromoteToProject: true,
+    },
+  },
+  play: async ({ args }) => {
+    const body = within(document.body);
+    await userEvent.click(body.getByRole("radio", { name: "Project view" }));
+    await expect(
+      body.getByText(/It cannot be made private again/),
+    ).toBeInTheDocument();
+    await userEvent.click(body.getByRole("button", { name: "Save changes" }));
+    await expect(args.onApply).toHaveBeenCalledWith(
+      expect.objectContaining({ ownership: "PROJECT", name: "My view" }),
+    );
+  },
+});
+
+export const TestSessionNavigation = TestObservationFilters.extend({
+  render: function Render(args) {
+    const [index, setIndex] = useState(0);
+    return (
+      <SessionCustomizationDialog
+        {...args}
+        preview={{
+          ...args.preview,
+          pending: args.preview?.pending ?? false,
+          error: args.preview?.error,
+          navigation: {
+            sessionId: `session-${index + 1}`,
+            isCurrentSession: index === 0,
+            position: index + 1,
+            total: 2,
+            onPrevious: index > 0 ? () => setIndex(index - 1) : undefined,
+            onNext: index < 1 ? () => setIndex(index + 1) : undefined,
+          },
+          traces: args.preview?.traces?.slice(index, index + 1),
+        }}
+      />
+    );
+  },
+  play: async ({ args }) => {
+    const body = within(document.body);
+    await expect(body.getByText("(Current session)")).toBeInTheDocument();
+    await expect(
+      body.getByRole("button", { name: "Previous session" }),
+    ).toBeDisabled();
+    const input = body.getByRole("combobox", { name: "Observation filters" });
+    await userEvent.click(input);
+    await userEvent.paste("name:=completion");
+    await userEvent.click(body.getByRole("button", { name: "Next session" }));
+    await expect(body.getByText("(Session: session-2)")).toBeInTheDocument();
+    await expect(
+      body.getByRole("heading", { name: /Trace: other/ }),
+    ).toBeInTheDocument();
+    await expect(
+      body.getByRole("button", { name: "Next session" }),
+    ).toBeDisabled();
+    await expect(input).toHaveTextContent("name:=completion");
+    await userEvent.click(
+      body.getByRole("button", { name: "Previous session" }),
+    );
+    await expect(
+      body.getByRole("heading", { name: /Trace: chat/ }),
+    ).toBeInTheDocument();
+    await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
+    await expect(args.onApply).toHaveBeenCalledWith({
+      name: "",
+      filters: [
+        { column: "name", type: "string", operator: "=", value: "completion" },
+      ],
+      unmatchedTraces: "show",
+      viewMode: "conversational",
+    });
+  },
+});
+
 export const TestInvalidDraftKeepsPreview = TestObservationFilters.extend({
   play: async ({ args }) => {
     const body = within(document.body);
-    const input = body.getByRole("combobox", { name: "Search" });
+    const input = body.getByRole("combobox", { name: "Observation filters" });
     await userEvent.click(input);
     await userEvent.paste("name:=completion");
     const completion = body.getByRole("group", {

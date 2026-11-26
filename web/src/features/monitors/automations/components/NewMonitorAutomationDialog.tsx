@@ -100,19 +100,10 @@ export function NewMonitorAutomationDialog({
             slack={slack}
             pagerDuty={pagerDuty}
           />
-          {rootError && <FormError message={rootError} />}
+          <Form.Error announce message={rootError} />
         </Form>
       </Dialog.Body>
     </Dialog>
-  );
-}
-
-/** FormError shows a rejection that concerns no single field. */
-function FormError({ message }: { message: string }) {
-  return (
-    <p role="alert" className="text-destructive text-sm">
-      {message}
-    </p>
   );
 }
 

@@ -1,52 +1,46 @@
 import { z } from "zod";
-import { createHash } from "node:crypto";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   getTopicSetupTraceNames,
   getTracingReadinessSettings,
 } from "@langfuse/shared/src/server";
 import {
-  topicEmbeddingConfigSchema,
-  topicExecutionInputSchema,
+  TOPICS_COST_ESTIMATE_MAX_FACETS,
   topicIdSchema,
   topicFacetRefSchema,
-  topicProcessingConfigSchema,
   topicRuleConfigSchema,
   topicTimeRangeSchema,
   topicsAutomaticProcessingSchema,
-  TOPICS_MAX_TIME_RANGE_MS,
   topicsModelSettingsSchema,
   topicsSetupSchema,
   topicRuleFilterError,
   topicSnapshotSummarizeSchema,
+  type TopicCostEstimate,
   type TopicExecutionSummary,
   type TopicFacetRef,
 } from "@langfuse/shared/topics";
 import {
-  createTopicExecution,
-  readTopicExecutionForRequest,
   readTopicExecutionSummary,
-  readTopicExecutionTraceErrors,
   getTopicExecutionCosts,
+  getTopicExecutionNamingCosts,
+  getTopicRuleMapCosts,
   enqueueTopicSnapshotSetup,
   readTopicSnapshotSummarizing,
   writeTopicExecution,
   writeTopicSnapshotSummarizing,
-  getTopicSummaryCounts,
   listTopicExecutions,
   listTopicFacets,
-  isTopicsProjectEnabled,
   getTopicFacetVersion,
   getLatestFacetSummaries,
   createTopicFacet,
   createTopicFacetVersion,
-  listTopicRules,
   getTopicRule,
   saveTopicRule,
   getTopicRun,
   readTopicMapAssignments,
-  getTopicsModels,
+  selectTopicMapMatches,
   readTopicsModelSettings,
+  hasCurrentTopicEmbeddings,
   checkTopicsModelSettings,
   saveTopicsSetup,
   setTopicsAutomaticProcessing,
@@ -57,6 +51,10 @@ import {
   readTopicRuleSetup,
   startTopicRuleRefresh,
   startTopicRuleSetup,
+  priceTopicCostEstimate,
+  readTopicCostEstimate,
+  startTopicCostEstimate,
+  topicCostEstimateKey,
 } from "@langfuse/shared/topics/server";
 import {
   createTRPCRouter,
@@ -67,13 +65,11 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
+import { createsSummaries } from "../topic-run-labels";
 import {
   previewTopicTraces,
-  resolveTopicTraceSelection,
   countTopicSetupTraces,
-  selectTopicSetupTraces,
   topicTraceSelectionSchema,
-  topicTriggerInputSchema,
 } from "./traceSelection";
 
 import {
@@ -87,19 +83,17 @@ import {
   startTopicAnalysis,
   topicMapsOverview,
 } from "./slices";
-import { topicFilterOptions, tracesTopics } from "./traceTopics";
-import { TOPIC_SETUP_BACKFILL_LIMIT } from "../topic-setup-flow";
+import {
+  topicFilterOptions,
+  topicStripeMap,
+  tracesTopics,
+} from "./traceTopics";
 
 const projectInput = z.object({ projectId: topicIdSchema });
-// Covers the gap between a trace's first and last event (p99 is about 4 minutes).
-const SETUP_TRACE_SPAN_MARGIN_MS = 5 * 60_000;
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
-const resultInput = projectInput.extend({
-  timeRange: topicTimeRangeSchema.refine(
-    ({ from, to }) => to.getTime() - from.getTime() <= TOPICS_MAX_TIME_RANGE_MS,
-    "Select a time range of at most 93 days.",
-  ),
-});
+const includeCosts = z.boolean().default(true);
+// A history page plus the selected snapshot and an open run detail.
+const visibleExecutionIds = z.array(topicIdSchema).max(102);
 const mapInput = projectInput.extend({ runId: topicIdSchema });
 // Snapshots offer 7 or 14 days; longer windows risk an out-of-memory fit.
 const SNAPSHOT_MAX_WINDOW_MS = 14 * 86_400_000;
@@ -111,6 +105,11 @@ const analysisFilterInput = projectInput.extend({
   ),
   facets: z.array(topicFacetRefSchema).min(1),
 });
+/** Tracing filters on a trace, as a rule filter takes them. */
+const traceFilterInput = topicRuleConfigSchema.shape.filter.refine(
+  (filter) => !topicRuleFilterError(filter),
+  { message: "These filters can't be used on Topics traces." },
+);
 const tracesInput = projectInput.extend({
   facetId: topicIdSchema,
   /** A rule's live map or an analysis snapshot; omitted means every rule. */
@@ -132,12 +131,15 @@ const tracesInput = projectInput.extend({
           "awaiting_map",
           "not_applicable",
           "insufficient_input",
+          "empty_input",
+          "input_too_large",
         ]),
       ),
     })
     .optional(),
   assigned: z.boolean().optional(),
   traceId: z.string().min(1).optional(),
+  filter: traceFilterInput.optional(),
   cursor: z
     .object({ timestamp: z.date(), traceId: z.string(), facetId: z.string() })
     .optional(),
@@ -145,12 +147,7 @@ const tracesInput = projectInput.extend({
 const topicsProcedure = protectedProjectProcedureWithoutTracing
   .input(projectInput)
   .use(({ ctx, input, next }) => {
-    // The allowlist comes from env here, so admins outside the project are covered too.
-    const project = {
-      id: input.projectId,
-      topicsEnabled: isTopicsProjectEnabled(input.projectId),
-    };
-    if (!canViewTopics(ctx.session, project))
+    if (!canViewTopics(ctx.session, input.projectId))
       throw new LangfuseNotFoundError("Topics is not available.");
     return next();
   });
@@ -162,6 +159,32 @@ const topicsWriteProcedure = topicsProcedure.use(({ ctx, input, next }) => {
   });
   return next();
 });
+
+const costEstimateInput = projectInput.extend({
+  filter: topicRuleConfigSchema.shape.filter,
+  facetIds: z.array(topicIdSchema).min(1).max(TOPICS_COST_ESTIMATE_MAX_FACETS),
+});
+
+/** The facets' current versions and the project's stored Topics models; null without a summary model. */
+async function costEstimateInputs(
+  input: z.infer<typeof costEstimateInput>,
+): Promise<TopicCostEstimate["inputs"] | null> {
+  const [models, facets] = await Promise.all([
+    readTopicsModelSettings(input.projectId),
+    listTopicFacets(input.projectId),
+  ]);
+  if (!models.summary) return null;
+  return {
+    filter: input.filter,
+    facets: input.facetIds.map((facetId) => {
+      const version = facets.find(({ id }) => id === facetId)?.versions[0];
+      if (!version) throw new LangfuseNotFoundError("Question not found.");
+      return { facetId, version: version.version };
+    }),
+    summaryModel: models.summary.model,
+    embeddingModel: models.embedding?.model ?? null,
+  };
+}
 
 function readTopicConfig(ctx: ProjectAuthedContext, projectId: string) {
   return ctx.prisma.topicConfig.findUnique({ where: { projectId } });
@@ -188,15 +211,6 @@ async function auditedTopicConfigSave<T>(
   return result;
 }
 
-async function requireTopicsModels(projectId: string) {
-  const models = await getTopicsModels(projectId);
-  if (!models)
-    throw new InvalidRequestError(
-      "Choose summary, embedding, and clustering models in the Topics model settings first.",
-    );
-  return models;
-}
-
 async function requireFacetVersions(
   projectId: string,
   facets: TopicFacetRef[],
@@ -214,6 +228,7 @@ async function executionWithRecovery(projectId: string, executionId: string) {
 }
 
 function canResume(execution: TopicExecutionSummary) {
+  if (execution.input.operation === "process") return false;
   return (
     execution.status === "failed" ||
     (execution.status === "completed_with_errors" &&
@@ -257,7 +272,9 @@ async function recoverExecutionState(execution: TopicExecutionSummary) {
         status: "failed" as const,
         phase: "interrupted",
         error:
-          "The worker stopped before this execution finished. Resume its interrupted stages.",
+          execution.input.operation === "process"
+            ? "The worker stopped before this execution finished."
+            : "The worker stopped before this execution finished. Resume its interrupted stages.",
       };
     }
   }
@@ -382,6 +399,35 @@ async function publishedTopicMap(input: {
   };
 }
 
+/** Same cohort and window as publishedTopicMap; an unpublished map matches nothing. */
+async function topicMapMatches(
+  input: {
+    projectId: string;
+    runId: string;
+    filter: z.infer<typeof traceFilterInput>;
+  },
+  prisma: ProjectAuthedContext["prisma"],
+) {
+  const run = await getTopicRun(input.projectId, input.runId);
+  if (!run || run.projectId !== input.projectId)
+    throw new LangfuseNotFoundError("Map not found.");
+  const cohortRange = topicTimeRangeSchema.safeParse(run.config.timeRange);
+  if (run.status !== "completed" || !cohortRange.success)
+    return { traceIds: [] };
+  return {
+    traceIds: await selectTopicMapMatches(
+      {
+        projectId: input.projectId,
+        runId: run.id,
+        facet: { facetId: run.facetId, version: run.facetVersion },
+        timeRange: cohortRange.data,
+        filter: input.filter,
+      },
+      prisma,
+    ),
+  };
+}
+
 export const topicsRouter = createTRPCRouter({
   /** Counts per facet over its published map's window; the page has no time filter. */
   currentResults: topicsProcedure
@@ -409,6 +455,10 @@ export const topicsRouter = createTRPCRouter({
   filterOptions: topicsProcedure.query(({ input }) =>
     topicFilterOptions(input.projectId),
   ),
+  /** Tracing topic stripe: the facet's default map and its topics in the Topics page ranking. */
+  stripeMap: topicsProcedure
+    .input(projectInput.extend({ facet: z.string().min(1).max(200) }))
+    .query(({ input }) => topicStripeMap(input.projectId, input.facet)),
   /** Rule maps and one-off analyses for the map picker and the Rules page. */
   maps: topicsProcedure.query(({ input }) =>
     topicMapsOverview(input.projectId),
@@ -466,7 +516,6 @@ export const topicsRouter = createTRPCRouter({
         return createTopicFacetVersion({ ...input, facetId: input.facetId });
       return createTopicFacet(input);
     }),
-  rules: topicsProcedure.query(({ input }) => listTopicRules(input.projectId)),
   saveRule: topicsWriteProcedure
     .input(
       topicRuleConfigSchema.extend({
@@ -519,6 +568,9 @@ export const topicsRouter = createTRPCRouter({
   modelSettings: topicsProcedure.query(({ input }) =>
     readTopicsModelSettings(input.projectId),
   ),
+  hasCurrentEmbeddings: topicsProcedure.query(({ input }) =>
+    hasCurrentTopicEmbeddings(input.projectId),
+  ),
   tracingReadinessSettings: topicsProcedure.query(({ input }) =>
     getTracingReadinessSettings(input.projectId),
   ),
@@ -563,62 +615,74 @@ export const topicsRouter = createTRPCRouter({
         });
       return { enabled: input.enabled, sampling: ruleAfter?.sampling ?? null };
     }),
-  summaryCounts: topicsProcedure
-    .input(
-      resultInput.extend({
-        facets: z.array(topicFacetRefSchema).min(1),
-      }),
-    )
+  executions: topicsProcedure
+    .input(projectInput.extend({ includeCosts }))
     .query(async ({ input }) => {
-      await requireFacetVersions(input.projectId, input.facets);
-      const { embedding } = await requireTopicsModels(input.projectId);
-      return getTopicSummaryCounts(
-        input.projectId,
-        input.facets,
-        topicEmbeddingConfigSchema.parse({
-          embeddingModel: embedding.model,
-          embeddingDimensions: embedding.dimensions,
-        }),
-        input.timeRange,
-      );
+      const listed = await listTopicExecutions(input.projectId);
+      const [executions, costs] = await Promise.all([
+        Promise.all(listed.map(recoverExecutionState)),
+        input.includeCosts
+          ? getTopicExecutionCosts(
+              input.projectId,
+              listed
+                .filter((execution) => createsSummaries(execution.input))
+                .map((execution) => execution.id),
+            )
+          : null,
+      ]);
+      return executions.map((execution) => ({
+        ...execution,
+        estimatedCost: costs?.[execution.id] ?? null,
+      }));
     }),
-  executions: topicsProcedure.query(async ({ input }) => {
-    const listed = await listTopicExecutions(input.projectId);
-    const [executions, costs] = await Promise.all([
-      Promise.all(listed.map(recoverExecutionState)),
-      getTopicExecutionCosts(
-        input.projectId,
-        listed
-          .filter((execution) => execution.input.operation === "process")
-          .map((execution) => execution.id),
-      ),
-    ]);
-    return executions.map((execution) => ({
-      ...execution,
-      estimatedCost: costs[execution.id] ?? null,
-    }));
-  }),
-  execution: topicsProcedure.input(executionInput).query(async ({ input }) => {
-    const execution = await executionWithRecovery(
-      input.projectId,
-      input.executionId,
-    );
-    const costs = await getTopicExecutionCosts(
-      input.projectId,
-      execution.input.operation === "process" ? [execution.id] : [],
-    );
-    return { ...execution, estimatedCost: costs[execution.id] ?? null };
-  }),
-  traceErrors: topicsProcedure
-    .input(executionInput)
+  execution: topicsProcedure
+    .input(executionInput.extend({ includeCosts }))
     .query(async ({ input }) => {
-      const execution = await readTopicExecutionSummary(
+      const execution = await executionWithRecovery(
         input.projectId,
         input.executionId,
       );
-      if (!execution) throw new LangfuseNotFoundError("Execution not found.");
-      return readTopicExecutionTraceErrors(execution);
+      const costs =
+        input.includeCosts && createsSummaries(execution.input)
+          ? await getTopicExecutionCosts(input.projectId, [execution.id])
+          : null;
+      return { ...execution, estimatedCost: costs?.[execution.id] ?? null };
     }),
+  executionCosts: topicsProcedure
+    .input(projectInput.extend({ executionIds: visibleExecutionIds }))
+    .query(({ input }) =>
+      getTopicExecutionCosts(input.projectId, input.executionIds),
+    ),
+  executionCostBreakdown: topicsProcedure
+    .input(
+      projectInput.extend({
+        executionIds: visibleExecutionIds,
+        includeSummaryCosts: z.boolean().default(true),
+      }),
+    )
+    .query(
+      async ({ input: { projectId, executionIds, includeSummaryCosts } }) => {
+        const [costs, naming] = await Promise.all([
+          includeSummaryCosts
+            ? getTopicExecutionCosts(projectId, executionIds)
+            : null,
+          getTopicExecutionNamingCosts(projectId, executionIds),
+        ]);
+        return Object.fromEntries(
+          executionIds.map(
+            (id) =>
+              [
+                id,
+                {
+                  summaries:
+                    costs && Object.hasOwn(costs, id) ? costs[id] : null,
+                  naming: Object.hasOwn(naming, id) ? naming[id] : null,
+                },
+              ] as const,
+          ),
+        );
+      },
+    ),
   setupTraceCounts: topicsProcedure
     .input(
       projectInput.extend({
@@ -633,6 +697,34 @@ export const topicsRouter = createTRPCRouter({
         now: new Date(),
       }),
     ),
+  /** Measures a sample of matching traces in the background; no model is called. */
+  startCostEstimate: topicsWriteProcedure
+    .input(costEstimateInput)
+    .mutation(async ({ input }) => {
+      const inputs = await costEstimateInputs(input);
+      if (!inputs) throw new InvalidRequestError("Pick a summary model first.");
+      const estimate = await startTopicCostEstimate({
+        projectId: input.projectId,
+        ...inputs,
+      });
+      return { key: estimate.key };
+    }),
+  /** The estimate for these inputs, priced with current model prices; null before one starts. */
+  costEstimate: topicsWriteProcedure
+    .input(costEstimateInput)
+    .query(async ({ input }) => {
+      const inputs = await costEstimateInputs(input);
+      if (!inputs) return null;
+      const estimate = await readTopicCostEstimate(
+        input.projectId,
+        topicCostEstimateKey(inputs),
+      );
+      if (!estimate) return null;
+      return {
+        ...estimate,
+        prices: await priceTopicCostEstimate(input.projectId, estimate),
+      };
+    }),
   setupTraceNames: topicsProcedure.query(({ input }) =>
     getTopicSetupTraceNames({ projectId: input.projectId, now: new Date() }),
   ),
@@ -659,148 +751,12 @@ export const topicsRouter = createTRPCRouter({
         ruleId: input.ruleId,
       }),
     ),
+  ruleMapCosts: topicsProcedure.query(({ input }) =>
+    getTopicRuleMapCosts(input.projectId),
+  ),
   ruleSetupStatus: topicsProcedure
     .input(projectInput.extend({ ruleId: topicIdSchema }))
     .query(({ input }) => readTopicRuleSetup(input.projectId, input.ruleId)),
-  /** Summarizes recent finished traces, then generates topics over the same window. */
-  startSetup: topicsWriteProcedure
-    .input(
-      projectInput.extend({
-        requestId: topicIdSchema,
-        sampling: z.number().gt(0).max(1),
-        facets: z.array(topicFacetRefSchema).min(1),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      const { summary, embedding } = await requireTopicsModels(input.projectId);
-      // Hash only the caller's input: a retry must find this run, not re-select traces.
-      const requestHash = createHash("sha256")
-        .update(
-          JSON.stringify({
-            input,
-            summaryModel: summary.model,
-            embeddingModel: embedding.model,
-          }),
-        )
-        .digest("hex");
-      const existing = await readTopicExecutionForRequest(
-        input.projectId,
-        input.requestId,
-        requestHash,
-      );
-      if (existing) {
-        if (existing.status === "queued")
-          await enqueueTopicExecution(input.projectId, existing.id);
-        return {
-          id: existing.id,
-          traceCount: existing.facets[0]?.counts.requested ?? 0,
-        };
-      }
-      await requireFacetVersions(input.projectId, input.facets);
-      const now = new Date();
-      // The backfill selects what the first rule matches, as ingestion will.
-      const [rule] = await listTopicRules(input.projectId);
-      const { traceIds, days } = await selectTopicSetupTraces({
-        projectId: input.projectId,
-        filter: rule?.filter ?? [],
-        sampling: input.sampling,
-        limit: TOPIC_SETUP_BACKFILL_LIMIT,
-        now,
-      });
-      if (traceIds.length === 0) return { id: null, traceCount: 0 };
-      const execution = await createTopicExecution(
-        {
-          operation: "process",
-          projectId: input.projectId,
-          requestId: input.requestId,
-          facets: input.facets,
-          traceIds,
-          reuseExistingSummaries: true,
-          embeddingConfig: {
-            embeddingModel: embedding.model,
-            embeddingDimensions: embedding.dimensions,
-          },
-          processingConfig: topicProcessingConfigSchema.parse({
-            summaryModel: summary.model,
-          }),
-          thenUpdate: {
-            // Summaries date from a trace's first event, which can precede the window.
-            timeRange: {
-              from: new Date(
-                now.getTime() - days * 86_400_000 - SETUP_TRACE_SPAN_MARGIN_MS,
-              ),
-              to: now,
-            },
-          },
-        },
-        requestHash,
-        ctx.session.user.id,
-      );
-      if (execution.status === "queued")
-        await enqueueTopicExecution(input.projectId, execution.id, traceIds);
-      return { id: execution.id, traceCount: traceIds.length };
-    }),
-  trigger: topicsWriteProcedure
-    .input(topicTriggerInputSchema)
-    .mutation(async ({ input, ctx }) => {
-      const { summary, embedding } = await requireTopicsModels(input.projectId);
-      const models = {
-        summaryModel: summary.model,
-        embeddingModel: embedding.model,
-        embeddingDimensions: embedding.dimensions,
-      };
-      const requestHash = createHash("sha256")
-        .update(JSON.stringify({ input, models }))
-        .digest("hex");
-      const existing = await readTopicExecutionForRequest(
-        input.projectId,
-        input.requestId,
-        requestHash,
-      );
-      if (existing) {
-        if (existing.status === "queued")
-          await enqueueTopicExecution(input.projectId, existing.id);
-        return { id: existing.id };
-      }
-      // Processing past traces writes rule-agnostic summaries; rules never backfill.
-      if (input.operation === "process" && input.ruleId)
-        throw new InvalidRequestError(
-          "Process past traces with a trace filter instead of a rule.",
-        );
-      if (input.operation === "update" && input.analysis)
-        throw new InvalidRequestError("Create snapshots with New snapshot.");
-      await requireFacetVersions(input.projectId, input.facets);
-      const resolvedInput = await resolveTopicTraceSelection(input, ctx.prisma);
-      const configuredInput = topicExecutionInputSchema.parse({
-        ...resolvedInput,
-        embeddingConfig: {
-          embeddingModel: models.embeddingModel,
-          embeddingDimensions: models.embeddingDimensions,
-        },
-        ...(resolvedInput.operation === "process"
-          ? {
-              processingConfig: {
-                ...resolvedInput.processingConfig,
-                summaryModel: models.summaryModel,
-              },
-            }
-          : {}),
-      });
-      const execution = await createTopicExecution(
-        configuredInput,
-        requestHash,
-        ctx.session.user.id,
-      );
-      if (execution.status === "queued")
-        await enqueueTopicExecution(
-          input.projectId,
-          execution.id,
-          execution.input.operation === "process"
-            ? execution.input.traceIds
-            : undefined,
-        );
-      return { id: execution.id };
-    }),
   retry: topicsWriteProcedure
     .input(executionInput)
     .mutation(async ({ input }) => {
@@ -808,6 +764,10 @@ export const topicsRouter = createTRPCRouter({
         input.projectId,
         input.executionId,
       );
+      if (execution.input.operation === "process")
+        throw new InvalidRequestError(
+          "Manual runs can no longer be resumed. Start a snapshot instead.",
+        );
       if (!canResume(execution))
         throw new InvalidRequestError(
           "Only failed or interrupted executions can be resumed.",
@@ -838,4 +798,8 @@ export const topicsRouter = createTRPCRouter({
   map: topicsProcedure
     .input(mapInput)
     .query(({ input }) => publishedTopicMap(input)),
+  /** The map's points whose traces meet the tracing filters, for the map highlight. */
+  mapMatches: topicsProcedure
+    .input(mapInput.extend({ filter: traceFilterInput }))
+    .query(({ input, ctx }) => topicMapMatches(input, ctx.prisma)),
 });

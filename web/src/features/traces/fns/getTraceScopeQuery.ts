@@ -1,13 +1,15 @@
 import { type ParsedUrlQuery } from "querystring";
 import { resolveTraceScopeSelection } from "./resolveTraceScopeSelection";
+import { type TraceDataTrace } from "../types/traceScope";
 
 export function getTraceScopeQuery(
   query: ParsedUrlQuery,
   scope: "trace" | "session",
-  observations: Parameters<typeof resolveTraceScopeSelection>[1] = [],
-  sessionTraces: Parameters<typeof resolveTraceScopeSelection>[2] = [],
+  observations: readonly { id: string; traceId?: string | null }[] = [],
+  sessionTraces: readonly Pick<TraceDataTrace, "id">[] = [],
 ) {
   const next = { ...query };
+  delete next.sessionPeek;
   if (scope === "session") {
     next.aggregation = "session";
     return next;

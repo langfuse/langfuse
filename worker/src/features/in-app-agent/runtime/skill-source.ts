@@ -149,12 +149,10 @@ export class InAppAgentSkillSource implements SkillSource {
       }
     }
     this.config.signal?.throwIfAborted();
-    return Array.from(entries.values()).map(
-      (name): SkillSourceEntry => ({
-        name,
-        type: "directory",
-      }),
-    );
+    return Array.from(entries.values()).map((name): SkillSourceEntry => ({
+      name,
+      type: "directory",
+    }));
   }
 
   private async getSkill(name: string): Promise<SkillVersionResponse | null> {

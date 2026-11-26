@@ -57,9 +57,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { ActionHandlerRegistry } from "@/src/features/automations/components/actions/ActionHandlerRegistry";
 import { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
 import { webhookSchema } from "./actions/WebhookActionForm";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import Link from "next/link";
-import { Info } from "@langfuse/icons";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { useVersionFilterOptions } from "../hooks/useVersionFilterOptions";
 
 // Define Slack action schema
@@ -357,19 +355,14 @@ const VersionTriggerFields = ({
 
 /** MonitorTriggerFields renders an info card explaining that monitors connect to this automation via the create-monitor page. */
 const MonitorTriggerFields = ({ projectId }: { projectId: string }) => (
-  <Alert icon={Info}>
-    <Alert.Title>How Alerts Connect</Alert.Title>
-    <Alert.Description>
-      Add this automation to an alert from the{" "}
-      <Link
-        href={`/project/${projectId}/alerts/new`}
-        className="text-primary underline underline-offset-2"
-      >
-        create alerts page
-      </Link>
-      .
-    </Alert.Description>
-  </Alert>
+  <Banner
+    title="How alerts connect"
+    actions={[
+      { text: "Create alerts page", href: `/project/${projectId}/alerts/new` },
+    ]}
+  >
+    Add this automation to an alert from the create alerts page.
+  </Banner>
 );
 
 interface AutomationFormProps {
@@ -862,7 +855,7 @@ export const AutomationForm = ({
                       <Button
                         type="button"
                         variant="outline"
-                        className="border-light-red flex items-center"
+                        className="border-dark-red/30 flex items-center"
                         disabled={disabled !== undefined}
                         onClick={openDialog}
                       >

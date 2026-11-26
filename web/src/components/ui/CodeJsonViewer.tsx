@@ -184,9 +184,8 @@ export function JSONView(props: {
     >
       {props.title && !props.hideTitle ? (
         <MarkdownJsonViewHeader
-          hoverRevealControls
           title={props.title}
-          handleOnCopy={handleOnCopy}
+          copyButton={{ onCopy: handleOnCopy }}
           controlButtons={
             <>
               {props.controlButtons}

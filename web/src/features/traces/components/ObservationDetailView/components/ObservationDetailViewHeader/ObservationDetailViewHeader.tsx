@@ -25,6 +25,7 @@ import {
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
@@ -83,6 +84,7 @@ export const ObservationDetailViewHeader = memo(
     treeNodeTotalCost,
   }: ObservationDetailViewHeaderProps) {
     const { serverScores } = useTraceData();
+    const { isEmbedded } = useTracePresentation();
     const { isAnnotationMode } = useViewPreferences();
     const { isV4: isV4Enabled } = useReadPath();
     const companionTrace = isV4Enabled
@@ -280,10 +282,30 @@ export const ObservationDetailViewHeader = memo(
       commentCount && !commentDrawerControl.disabled
         ? `Comments (${commentCount})`
         : "Comment";
+    const headerMetrics = (openModelDialog: () => void): HeaderMetric[] => {
+      if (isEmbedded) return [];
+      if (
+        !isAnnotationMode &&
+        observation.model &&
+        !observation.internalModelId
+      ) {
+        return [
+          ...metrics,
+          {
+            id: "model",
+            type: "model",
+            model: observation.model,
+            onCreate: openModelDialog,
+            searchText: `model ${observation.model}`,
+          },
+        ];
+      }
+      return metrics;
+    };
     return (
       <UpsertModelFormDialogController
         action="create"
-        projectId={projectId}
+        owner={{ scope: "project", projectId }}
         prefilledModelData={{
           modelName: observation.model ?? undefined,
           prices:
@@ -354,22 +376,7 @@ export const ObservationDetailViewHeader = memo(
                       return (
                         <ObservabilityEntityDetailHeader
                           variant="page"
-                          metrics={
-                            !isAnnotationMode &&
-                            observation.model &&
-                            !observation.internalModelId
-                              ? [
-                                  ...metrics,
-                                  {
-                                    id: "model",
-                                    type: "model",
-                                    model: observation.model,
-                                    onCreate: openModelDialog,
-                                    searchText: `model ${observation.model}`,
-                                  },
-                                ]
-                              : metrics
-                          }
+                          metrics={headerMetrics(openModelDialog)}
                           headerProps={{
                             title: observation.name || observation.id,
                             itemType: observation.type as ObservationType,

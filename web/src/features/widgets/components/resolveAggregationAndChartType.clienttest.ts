@@ -1,7 +1,9 @@
 // @vitest-environment node
 
-import { resolveAggregationAndChartType } from "./WidgetForm";
-import { resolveMeasureChangeAggregation } from "./widgetFormSchema";
+import {
+  resolveAggregationAndChartType,
+  resolveMeasureChangeAggregation,
+} from "./widgetFormSchema";
 
 const allAggs = [
   "sum",

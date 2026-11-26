@@ -107,6 +107,59 @@ const OPAQUE_PAYLOAD_KEYS = new Set([
   "tool_definitions",
 ]);
 
+type TopicVisibleReply =
+  | "assistant text"
+  | "assistant audio"
+  | "application output"
+  | "none";
+
+/** What a run whose visible reply is "none" ended on; not rendered. */
+export type TopicNoneReplyEnding =
+  | "pending_tool_call"
+  | "tool_result"
+  | "reasoning_only"
+  | "no_text"
+  | "unknown";
+
+/** Classifies how a run without a visible reply ended. */
+function noneReplyEnding(
+  current: RenderedEvent[],
+  matchedCalls: Set<PartEvent>,
+  toolCallsIncluded: boolean,
+): TopicNoneReplyEnding {
+  const parts = current.flatMap(({ event }) =>
+    event.kind === "part" ? [event] : [],
+  );
+  const last = parts.at(-1);
+  // Blank assistant text is not a reply, so it does not decide the ending.
+  const ending = [...parts]
+    .reverse()
+    .find(
+      (event) =>
+        !(
+          event.message.role === "assistant" &&
+          event.part.type === "text" &&
+          !event.part.text.trim()
+        ),
+    );
+  if (ending?.part.type === "tool-call")
+    return toolCallsIncluded && !matchedCalls.has(ending)
+      ? "pending_tool_call"
+      : "tool_result";
+  if (ending?.part.type === "tool-result" || ending?.message.role === "tool")
+    return "tool_result";
+  if (last?.message.role !== "assistant") return "unknown";
+  const hasStructuredReply = parts.some(
+    (event) =>
+      event.message.role === "assistant" &&
+      (event.part.type === "data" || event.part.type === "custom"),
+  );
+  if (hasStructuredReply) return "unknown";
+  if (ending?.part.type === "reasoning") return "reasoning_only";
+  if (last.part.type === "text") return "no_text";
+  return "unknown";
+}
+
 /**
  * Render an assembled trace for Topics without assembling it a second time.
  * Observations provide root I/O and operation context omitted by assembly.
@@ -118,6 +171,10 @@ export function renderTranscript(
   countTokens?: (text: string) => number,
 ): {
   text: string;
+  visibleReply: {
+    value: TopicVisibleReply;
+    noneEnding: TopicNoneReplyEnding | null;
+  };
   tokens: number | null;
   stats: {
     blocksCut: number;
@@ -631,9 +688,16 @@ export function renderTranscript(
     let activeThread: number | null = null;
     for (const { event, text } of events) {
       const thread = event.thread;
-      if (threads.length > 1 && thread !== null && thread !== activeThread) {
+      // An error without a thread (run-level, or placed by time across threads) belongs to no thread block.
+      // Operation markers without a thread stay inside the active thread.
+      const leavesThread = thread === null && event.kind === "error";
+      if (
+        threads.length > 1 &&
+        thread !== activeThread &&
+        (thread !== null || leavesThread)
+      ) {
         if (activeThread !== null) header("</thread>");
-        header(`<thread n="${thread + 1}">`);
+        if (thread !== null) header(`<thread n="${thread + 1}">`);
         activeThread = thread;
       }
       lines.push({
@@ -677,8 +741,34 @@ export function renderTranscript(
       lastAction = "assistant text";
     else lastAction = `${lastPart.message.role} message`;
   }
+  // Reasoning and tool calls are not shown to end users; only non-blank text, spoken audio or the root output is.
+  const assistantParts = current.flatMap(({ event }) =>
+    event.kind === "part" && event.message.role === "assistant"
+      ? [event.part]
+      : [],
+  );
+  let visibleReply: TopicVisibleReply = "none";
+  if (assistantParts.some((part) => part.type === "text" && part.text.trim()))
+    visibleReply = "assistant text";
+  else if (
+    assistantParts.some(
+      (part) =>
+        part.type === "file" &&
+        !part.reasoning &&
+        typeof part.providerMetadata?.transcript === "string" &&
+        part.providerMetadata.transcript.trim() !== "",
+    )
+  )
+    visibleReply = "assistant audio";
+  // The root output reached the user even when it repeats the final message.
+  else if (rootOutput) visibleReply = "application output";
+  const noneEnding =
+    visibleReply === "none"
+      ? noneReplyEnding(current, matchedCalls, config.toolCalls.include)
+      : null;
   header("<end_of_run>");
   header(`last action: ${lastAction}`);
+  header(`visible reply: ${visibleReply}`);
   if (rootOutputLine) header("final output: application output");
   else if (outputMatchesMessage)
     header(
@@ -742,6 +832,7 @@ export function renderTranscript(
     .reduce((sum, line) => sum + line.text.length, 0);
   return {
     text,
+    visibleReply: { value: visibleReply, noneEnding },
     tokens: countTokens ? countTokens(text) : null,
     stats: {
       blocksCut,

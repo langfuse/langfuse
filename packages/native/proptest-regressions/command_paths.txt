@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 10364c6778b810dd05495adb8e7cad3651c3338a0c24bd2bdc2e3d838ac95cc2 # shrinks to wrapper = "run_a", file = "a", padding = "", statements = ["a "]
+cc dddf48c908a43e068ee73aca33ae9b0f6469c4d7d0d8d4a12db90337df3aca00 # shrinks to files = ["0", "_"], preceding = [], following = [], before = "// Let's read it\n", after = "\n// It's done"
+cc 9174b0e56aaf35645b2fc17be4330f8da688000a8aec674e46b979fc28465494 # shrinks to files = ["_", "-"], preceding = [], following = [], before = ["Let's", "Let's", "'"], after = ["Let's"]

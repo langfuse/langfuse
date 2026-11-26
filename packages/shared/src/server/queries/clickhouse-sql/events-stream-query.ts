@@ -4,6 +4,7 @@ import type { EventsQueryBuilder } from "./event-query-builder";
 import {
   buildEventsObservationRowSelection,
   buildEventsObservationRowSelectionForBlobExport,
+  startTimeFromOf,
   withoutPositionInTrace,
 } from "./events-observation-row-selection";
 
@@ -70,7 +71,7 @@ const buildEventsStreamQueryInternal = (
 
   return {
     queryBuilder,
-    startTimeFrom: rowConditions.startTimeFrom,
+    startTimeFrom: startTimeFromOf(rowConditions),
   };
 };
 

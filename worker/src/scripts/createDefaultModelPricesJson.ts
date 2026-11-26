@@ -35,7 +35,7 @@ export async function getDefaultModelPrices() {
     FROM
       models
     WHERE
-      project_id IS NULL
+      scope = 'LANGFUSE'
     ORDER BY
       model_name,
       start_date DESC NULLS LAST;

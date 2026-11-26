@@ -31,6 +31,10 @@
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"
     },
+    "./src/server/v4Cutoff": {
+      "import": "./dist/src/server/v4Cutoff.js",
+      "require": "./dist/src/server/v4Cutoff.js"
+    },
     "./src/server/query-ast/schema": {
       "import": "./dist/src/server/query-ast/schema.js",
       "require": "./dist/src/server/query-ast/schema.js"
@@ -58,6 +62,10 @@
     "./src/server/services/email/aiGatewayInvitation/GatewayInvitationEmailTemplate": {
       "import": "./dist/src/server/services/email/aiGatewayInvitation/GatewayInvitationEmailTemplate.js",
       "require": "./dist/src/server/services/email/aiGatewayInvitation/GatewayInvitationEmailTemplate.js"
+    },
+    "./src/server/services/email/aiGatewaySpendLimit/GatewaySpendLimitEmailTemplate": {
+      "import": "./dist/src/server/services/email/aiGatewaySpendLimit/GatewaySpendLimitEmailTemplate.js",
+      "require": "./dist/src/server/services/email/aiGatewaySpendLimit/GatewaySpendLimitEmailTemplate.js"
     },
     "./src/server/clickhouse": {
       "import": "./dist/src/server/clickhouse/index.js",
@@ -110,6 +118,10 @@
     "./src/server/ee/customerRoleAuth/customerRoleCredentials": {
       "import": "./dist/src/server/ee/customerRoleAuth/customerRoleCredentials.js",
       "require": "./dist/src/server/ee/customerRoleAuth/customerRoleCredentials.js"
+    },
+    "./src/server/ee/bedrockRoleAuth/bedrockRoleCredentials": {
+      "import": "./dist/src/server/ee/bedrockRoleAuth/bedrockRoleCredentials.js",
+      "require": "./dist/src/server/ee/bedrockRoleAuth/bedrockRoleCredentials.js"
     },
     "./src/server/ee/storageRoleAuth/storageRoleCredentials": {
       "import": "./dist/src/server/ee/storageRoleAuth/storageRoleCredentials.js",
@@ -269,15 +281,15 @@
     "@clickhouse/client": "1.23.1",
     "@google-cloud/storage": "^8.4.0",
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
-    "@opentelemetry/otlp-transformer": "^0.220.0",
-    "@opentelemetry/resources": "^2.9.0",
-    "@opentelemetry/sdk-trace-base": "^2.9.0",
+    "@opentelemetry/otlp-transformer": "^0.222.0",
+    "@opentelemetry/resources": "^2.11.0",
+    "@opentelemetry/sdk-trace-base": "^2.11.0",
     "@prisma/client": "^6.19.3",
     "@react-email/components": "^0.5.1",
     "@react-email/render": "^1.2.1",
     "@slack/oauth": "3.0.5",
     "@slack/web-api": "^7.15.0",
-    "@smithy/node-http-handler": "4.5.1",
+    "@smithy/node-http-handler": "4.14.2",
     "@smithy/signature-v4": "5.6.4",
     "@types/bcryptjs": "^2.4.6",
     "ai": "^7.0.170",
@@ -308,7 +320,7 @@
     "zod": "^4.6.6"
   },
   "devDependencies": {
-    "@opentelemetry/context-async-hooks": "^2.9.0",
+    "@opentelemetry/context-async-hooks": "^2.11.0",
     "@repo/oxlint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/lodash": "^4.17.24",

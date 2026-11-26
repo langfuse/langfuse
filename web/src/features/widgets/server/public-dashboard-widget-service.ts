@@ -298,7 +298,8 @@ export async function createPublicDashboardWidget(params: {
   return toApiDashboardWidget(widget);
 }
 
-function toPublicWidgetInput(widget: WidgetDomain) {
+/** A stored widget's definition in the public API shape, without its record fields. */
+export function toPublicWidgetInput(widget: WidgetDomain) {
   const {
     id: _id,
     createdAt: _createdAt,

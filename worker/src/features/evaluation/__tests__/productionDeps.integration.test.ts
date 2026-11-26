@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import {
+  buildEvalScoreBucketPrefix,
   createOrgProjectAndApiKey,
   StorageService,
   StorageServiceFactory,
@@ -442,9 +443,8 @@ describe("Production Dependency Factories Integration Tests", () => {
         },
       });
 
-      const prefix = env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX || "";
       createdS3Paths.push(
-        `${prefix}${projectId}/score/${scoreId}/${eventId}.json`,
+        `${buildEvalScoreBucketPrefix({ projectId, scoreId })}${eventId}.json`,
       );
 
       // Verify final state

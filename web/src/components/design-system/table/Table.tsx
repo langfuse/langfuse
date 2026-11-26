@@ -15,7 +15,7 @@ import { type ComponentProps, useMemo } from "react";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 
@@ -55,6 +55,11 @@ export interface TableProps<TData> {
   /** `false` for a table that sits directly under a divider, such as page tabs. */
   topBorder?: boolean;
 }
+
+// A new empty array on every loading render counts as new data, and TanStack
+// then resets pagination in a microtask, which renders again: an endless loop
+// once a column reads the row model while loading.
+const NO_ROWS: never[] = [];
 
 export function Table<TData extends object>({
   tableName,
@@ -150,7 +155,7 @@ export function Table<TData extends object>({
     ];
   }, [actions, actionsDisabledReason, actionsVisibility, columns]);
   const table = useReactTable({
-    data: data.status === "success" ? data.data : [],
+    data: data.status === "success" ? data.data : NO_ROWS,
     columns: tableColumns,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row, index) =>
@@ -273,7 +278,13 @@ export function Table<TData extends object>({
                           <DocPopup
                             description={column.headerTooltip.description}
                             href={column.headerTooltip.href}
-                          />
+                          >
+                            {({ getTriggerProps }) => (
+                              <DocPopupTrigger
+                                triggerProps={getTriggerProps()}
+                              />
+                            )}
+                          </DocPopup>
                         )}
                       </div>
                       {header.column.getCanResize() && (
@@ -332,7 +343,7 @@ export function Table<TData extends object>({
                             "hidden md:table-cell",
                         )}
                       >
-                        <div className="flex min-w-0 items-center overflow-hidden">
+                        <div className="flex min-w-0 items-center">
                           {typeof loadingCell === "function" && loadingCell()}
                           {typeof loadingCell !== "function" && loadingCell}
                           {loadingCell === undefined && (
@@ -412,7 +423,7 @@ export function Table<TData extends object>({
                       >
                         <div
                           className={cn(
-                            "flex min-w-0 items-center overflow-hidden",
+                            "flex min-w-0 items-center",
                             rowHeight === "s" && "h-8",
                             rowHeight === "m" && "h-20",
                             rowHeight === "l" && "h-60",

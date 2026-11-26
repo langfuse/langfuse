@@ -38,10 +38,10 @@
  * - `*`, `e.*` or `COLUMNS(…)` over a logical relation (`count(*)` reads no
  *   column);
  * - an unqualified truncated column while a logical relation is in scope,
- *   outside an emptiness check;
- * - raw SQL text or identifiers (`sql` templates, `sql.raw`, `sql.id`,
- *   `sql.table`) in or under a select that reads a logical relation.
- *   `sql.ref` and bound values resolve like builder references.
+ *   outside an emptiness check.
+ *
+ * `sql.ref` resolves like a builder reference; the compiler rejects every
+ * other raw SQL.
  *
  * Callers that want the truncated copy on purpose read `events_truncated`.
  * It routes to `events_core` unless its WHERE reads a truncated column by a
@@ -54,15 +54,13 @@
  *     → select leftUTF8(e.input, 200) as input from events_full as e … where e.output = 'x'
  *
  * Only the select's own WHERE decides; an aggregate's `FILTER (WHERE …)`,
- * HAVING and JOIN ON read cut values. Raw SQL text or identifiers in that
- * WHERE are rejected, as the pass cannot tell what they filter. Once on
- * `events_full`, the relation rejects the reads that cannot be cut: `*`, an
- * unqualified truncated column, raw SQL text or identifiers in a select that
- * reads it. While it stays on `events_core` they read the cut copy and are
- * allowed.
+ * HAVING and JOIN ON read cut values. Once on `events_full`, the relation
+ * rejects the reads that cannot be cut: `*` and an unqualified truncated
+ * column in a select that reads it. While it stays on `events_core` they read
+ * the cut copy and are allowed.
  *
  * Only this pass names the physical tables. A call site that does — as a
- * FROM/JOIN table, an alias, a column qualifier, or in raw SQL — is
+ * FROM/JOIN table, an alias or a column qualifier — is
  * rejected: ClickHouse resolves a qualifier by table name even when the
  * table is aliased, so a physical name could reach a routed relation.
  */
@@ -79,7 +77,6 @@ import {
   JoinNode,
   OperatorNode,
   ParensNode,
-  RawNode,
   SelectAllNode,
   SelectionNode,
   TableNode,
@@ -107,6 +104,7 @@ import { arrayMap, leftUTF8 } from "./extensions";
 import {
   ArrayIndexNode,
   FinalTableNode,
+  isRawReference,
   MetadataPrefilterNode,
   TypedParam,
   walkNodes,
@@ -122,7 +120,6 @@ import { ClickHouseOperationNodeTransformer } from "./transformer";
 
 const LOGICAL_EVENTS = "events";
 const LOGICAL_EVENTS_TRUNCATED = "events_truncated";
-const PHYSICAL_EVENT_NAME = /\bevents_(core|full)\b/;
 
 export class EventsTableRoutingPlugin implements KyselyPlugin {
   /**
@@ -174,8 +171,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   readonly copyReads = new Map<OperationNode, OperationNode>();
   /**
    * Reads of `events_truncated` relations the router cannot cut (`*`, an
-   * unqualified truncated column, raw SQL), each with the relations it may
-   * read.
+   * unqualified truncated column), each with the relations it may read.
    */
   private readonly uncutReads: {
     read: string;
@@ -227,8 +223,8 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
    *
    * Errors: the emptiness check and the metadata comparison still reject a
    * physical table qualifier (a vouched prefilter has its comparison's); the
-   * walk throws for an unqualified truncated column, `*` or raw SQL over a
-   * logical relation.
+   * walk throws for an unqualified truncated column or `*` over a logical
+   * relation.
    */
   protected override transformNodeImpl<T extends OperationNode>(
     node: T,
@@ -333,7 +329,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
       const full = relations.find((r) => this.fullRelations.has(r.node));
       if (full) {
         throw new QueryCompileError(
-          `${read} cannot read "${full.name}": its WHERE routes that events_truncated relation to events_full, where only qualified column references are cut to the events_core copy. List and qualify the columns, and use builder expressions instead of raw SQL.`,
+          `${read} cannot read "${full.name}": its WHERE routes that events_truncated relation to events_full, where only qualified column references are cut to the events_core copy. List and qualify the columns.`,
         );
       }
     }
@@ -362,7 +358,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
     return node;
   }
 
-  /** Reached only outside a reference: `selectAll()`, `*` in raw SQL. */
+  /** Reached only outside a reference: `selectAll()`. */
   protected override transformSelectAll(node: SelectAllNode): SelectAllNode {
     this.rejectStar("*");
     return node;
@@ -392,7 +388,7 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   }
 
   /**
-   * The direction is raw `asc` / `desc`, so it is not walked: the
+   * The direction (`asc` / `desc`) reads no column, so it is not walked: the
    * `no-deprecated` lint rule keeps `orderBy` from taking an expression.
    */
   protected override transformOrderByItem(
@@ -409,33 +405,6 @@ class EventsReadAnalysis extends ClickHouseOperationNodeTransformer {
   ): FunctionNode {
     this.rejectColumnsMatcher(node.func);
     return super.transformFunction(node, queryId);
-  }
-
-  /**
-   * Raw text or identifiers may read any column, so where the read picks the
-   * table (any read of `events`, a WHERE read of `events_truncated`) they
-   * throw; elsewhere over `events_truncated` they throw only once its WHERE
-   * routes it to `events_full`.
-   */
-  protected override transformRaw(node: RawNode, queryId?: QueryId): RawNode {
-    rejectPhysicalRawNames(node);
-    const writesText =
-      node.sqlFragments.some((fragment) => fragment.trim() !== "") ||
-      node.parameters.some((p) => IdentifierNode.is(p) || TableNode.is(p));
-    if (writesText && this.readsLogicalInScope()) {
-      throw new QueryCompileError(
-        `Raw SQL text or identifiers cannot appear in a select that reads the logical "${LOGICAL_EVENTS}" relation: they may read a truncated column the routing pass cannot see. Use builder expressions, sql.ref() or bound values.`,
-      );
-    }
-    if (writesText && this.copiesInScope().length > 0) {
-      if (this.inWhere.at(-1)) {
-        throw new QueryCompileError(
-          `Raw SQL text or identifiers cannot appear in the WHERE of a select that reads "${LOGICAL_EVENTS_TRUNCATED}": they may filter a truncated column, which routes the relation to events_full, and the routing pass cannot see it. Use builder expressions, sql.ref() or bound values.`,
-        );
-      }
-      this.readCopiesUncut("Raw SQL text or identifiers", this.copiesInScope());
-    }
-    return super.transformRaw(node, queryId);
   }
 
   /**
@@ -548,23 +517,6 @@ function rejectPhysicalQualifiers(node: OperationNode): void {
   });
 }
 
-/** Raw SQL text, and `sql.table` / `sql.id` parameters. */
-function rejectPhysicalRawNames(node: RawNode): void {
-  for (const fragment of node.sqlFragments) {
-    rejectPhysicalName(PHYSICAL_EVENT_NAME.exec(fragment)?.[0]);
-  }
-  for (const parameter of node.parameters) {
-    rejectPhysicalName(rawParameterName(parameter));
-  }
-}
-
-/** The name a `sql.table` / `sql.id` parameter writes into raw SQL. */
-function rawParameterName(node: OperationNode): string | undefined {
-  if (TableNode.is(node)) return node.table.identifier.name;
-  if (IdentifierNode.is(node)) return node.name;
-  return undefined;
-}
-
 /** A physical events table as FROM/JOIN table or alias. */
 function rejectPhysicalRelation({ table, alias }: Relation): void {
   rejectPhysicalName(table?.table.identifier.name);
@@ -575,6 +527,11 @@ function starError(star: string): QueryCompileError {
   return new QueryCompileError(
     `${star} cannot expand the logical "${LOGICAL_EVENTS}" relation: list the columns, so the routing pass can tell whether it reads a truncated one.`,
   );
+}
+
+/** The column reference inside a `sql.ref`, or `node` itself. */
+function unwrapRawReference(node: OperationNode): OperationNode {
+  return isRawReference(node) ? node.parameters[0] : node;
 }
 
 class EventsTableRouter extends ClickHouseOperationNodeTransformer {
@@ -599,31 +556,29 @@ class EventsTableRouter extends ClickHouseOperationNodeTransformer {
     node: SelectionNode,
     queryId?: QueryId,
   ): SelectionNode {
-    const { selection } = node;
-    const cut = this.cutRead(selection);
-    if (
-      !cut ||
-      !ReferenceNode.is(selection) ||
-      !ColumnNode.is(selection.column)
-    ) {
+    const read = unwrapRawReference(node.selection);
+    const cut = this.cutRead(read);
+    if (!cut || !ReferenceNode.is(read) || !ColumnNode.is(read.column)) {
       return super.transformSelection(node, queryId);
     }
     return SelectionNode.create(
-      AliasNode.create(
-        cut,
-        IdentifierNode.create(selection.column.column.name),
-      ),
+      AliasNode.create(cut, IdentifierNode.create(read.column.column.name)),
     );
   }
 
-  /** `node` cut, when it is a read of an `events_truncated` relation routed to `events_full`. */
+  /**
+   * `node` cut, when it is a read of an `events_truncated` relation routed to
+   * `events_full`. A `sql.ref` is cut whole, so no raw node is left around
+   * the function call.
+   */
   private cutRead(node: OperationNode): OperationNode | undefined {
-    const relation = this.copyReads.get(node);
+    const read = unwrapRawReference(node);
+    const relation = this.copyReads.get(read);
     if (relation === undefined || !this.fullRelations.has(relation)) {
       return undefined;
     }
-    return ReferenceNode.is(node) && ColumnNode.is(node.column)
-      ? cutTruncatedColumn(node, node.column.column.name)
+    return ReferenceNode.is(read) && ColumnNode.is(read.column)
+      ? cutTruncatedColumn(read, read.column.column.name)
       : undefined;
   }
 

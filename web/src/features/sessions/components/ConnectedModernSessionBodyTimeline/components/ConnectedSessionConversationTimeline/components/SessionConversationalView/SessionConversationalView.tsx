@@ -27,7 +27,7 @@ export function SessionConversationalView(
           ComponentProps<typeof SessionConversationSidebar>,
           { state: "loaded" }
         >,
-        "traces" | "activeTraceId"
+        "traces" | "activeTraceId" | "sidebarToggle"
       > & {
         searchQuery: string;
         isSearchPending: boolean;
@@ -40,6 +40,7 @@ export function SessionConversationalView(
       typeof SessionConversationTimeline
     >["traces"][number] & { trace: EventSessionTrace })[];
     controller: SessionConversationTimelineController;
+    sidebarMode: "fixed" | "collapsible";
   },
 ) {
   const { customization } = props;
@@ -203,21 +204,6 @@ export function SessionConversationalView(
             ];
           });
       })();
-      const matchesTraceName =
-        props.searchQuery.length > 0 &&
-        (item.trace.name ?? "")
-          .toLowerCase()
-          .includes(props.searchQuery.toLowerCase());
-      const matchingRows =
-        props.searchQuery && !matchesTraceName && transcriptRows
-          ? transcriptRows.filter((row) =>
-              `${row.role} ${row.label}`
-                .toLowerCase()
-                .includes(props.searchQuery.toLowerCase()),
-            )
-          : transcriptRows;
-      if (props.searchQuery && !matchesTraceName && matchingRows?.length === 0)
-        continue;
       const threadVisibility =
         item.state.type === "transcript"
           ? getSessionTranscriptThreads(item.state.result.transcript)
@@ -236,7 +222,7 @@ export function SessionConversationalView(
                 props.traces[item.traceIndex - 1]!.trace,
                 item.trace,
               ),
-        transcriptRows: matchingRows,
+        transcriptRows,
         emptyTranscriptReason:
           transcriptRows?.length === 0 ? emptyTranscriptReason : undefined,
         threadCount: threadVisibility?.visibleThreads.length,
@@ -266,18 +252,21 @@ export function SessionConversationalView(
         };
   return (
     <SessionViewLayout
+      sidebarMode={props.sidebarMode}
       search={props.state === "loaded" ? props.search : ""}
       isLoading={props.state === "loading"}
-      renderSidebar={(onNavigate) =>
+      renderSidebar={(onNavigate, sidebarToggle) =>
         sidebarProps.state === "loading" ? (
           <SessionConversationSidebar
             state="loading"
             customization={customization}
+            sidebarToggle={sidebarToggle}
           />
         ) : (
           <SessionConversationSidebar
             {...sidebarProps}
             customization={customization}
+            sidebarToggle={sidebarToggle}
             onSelect={(...args) => {
               sidebarProps.onSelect(...args);
               onNavigate();

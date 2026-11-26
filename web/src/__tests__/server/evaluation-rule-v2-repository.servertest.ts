@@ -2,13 +2,16 @@ import { randomUUID } from "node:crypto";
 import {
   EvalTargetObject,
   EvalTemplateType,
+  TopicsTargetObject,
   type FilterState,
 } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import * as ruleRepository from "@/src/features/evals/v2/server/rules/ruleRepository";
+import * as evaluatorRepository from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
 import { filtersMatch } from "@/src/features/evals/v2/server/rules/ruleFilterMatching";
+import { countActiveEvaluationRules } from "@/src/features/evals/v2/server/rules/ruleErrors";
 import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
 
 const orgIds: string[] = [];
@@ -529,6 +532,122 @@ describe("evaluation rule v2 repository", () => {
       await expect(
         prisma.evaluationRule.findUnique({ where: { id: rule.id } }),
       ).resolves.toMatchObject({ status: "ACTIVE" });
+    });
+
+    it("disables a trace transcript rule left unassigned by an evaluator delete", async () => {
+      const evaluator = await createEvaluator();
+      const rule = await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: `trace-rule-${randomUUID()}`,
+          targetObject: TopicsTargetObject,
+          status: "ACTIVE",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+          assignments: { create: { projectId, evaluatorId: evaluator.id } },
+        },
+      });
+
+      // deleteEvaluator runs the zero-assignment cleanup without opting into
+      // trace transcript visibility, which must still disable the rule.
+      await expect(
+        evaluatorRepository.deleteEvaluator({
+          prisma,
+          projectId,
+          evaluatorId: evaluator.id,
+        }),
+      ).resolves.toBe(true);
+
+      await expect(
+        prisma.evaluationRule.findUnique({
+          where: { id: rule.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "INACTIVE" });
+    });
+
+    it("leaves a facet rule active during the zero-assignment cleanup", async () => {
+      const evaluator = await createEvaluator();
+      await prisma.evaluator.update({
+        where: { id: evaluator.id },
+        data: { type: EvalTemplateType.FACET, isBuiltIn: true },
+      });
+      // A Topics/FACET rule is a transcript rule assigned a FACET evaluator.
+      const facetRule = await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: `facet-rule-${randomUUID()}`,
+          targetObject: TopicsTargetObject,
+          status: "ACTIVE",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+          assignments: { create: { projectId, evaluatorId: evaluator.id } },
+        },
+      });
+
+      // The same cleanup that disables unassigned transcript rules must skip a
+      // FACET rule, which the explicit FACET exclusion guarantees.
+      await expect(
+        ruleRepository.setRuleStatus({
+          prisma,
+          projectId,
+          enabled: false,
+          unassignedOnly: true,
+        }),
+      ).resolves.toEqual({ count: 0 });
+
+      await expect(
+        prisma.evaluationRule.findUnique({
+          where: { id: facetRule.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "ACTIVE" });
+    });
+  });
+
+  describe("countActiveEvaluationRules", () => {
+    it("counts an active trace transcript rule but excludes a facet rule", async () => {
+      const judge = await createEvaluator();
+      await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: `trace-rule-${randomUUID()}`,
+          targetObject: TopicsTargetObject,
+          status: "ACTIVE",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+          assignments: { create: { projectId, evaluatorId: judge.id } },
+        },
+      });
+
+      const facet = await createEvaluator();
+      await prisma.evaluator.update({
+        where: { id: facet.id },
+        data: { type: EvalTemplateType.FACET, isBuiltIn: true },
+      });
+      await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: `topics-rule-${randomUUID()}`,
+          targetObject: TopicsTargetObject,
+          status: "ACTIVE",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+          assignments: { create: { projectId, evaluatorId: facet.id } },
+        },
+      });
+
+      await expect(
+        countActiveEvaluationRules({ prisma, projectId }),
+      ).resolves.toBe(1);
     });
   });
 

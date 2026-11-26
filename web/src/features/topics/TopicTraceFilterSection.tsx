@@ -108,6 +108,7 @@ export function TopicTraceFilterSection({
             trailing={
               <FilterModeToggle mode={model.mode} onChange={model.changeMode} />
             }
+            trailingLayout="wrap"
           />
         ) : (
           <div className="flex items-center justify-between gap-2">

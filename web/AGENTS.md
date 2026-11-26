@@ -16,6 +16,7 @@
 
 - App shell/providers: `src/pages/_app.tsx`
 - tRPC context/procedures: `src/server/api/trpc.ts`
+- tRPC HTTP handler: `src/pages/api/trpc/[trpc].ts` sets `x-build-id`, `x-request-id`, and `x-dd-trace-id` on every response (one HTTP call, batched or single). The client copies the safe ids onto tRPC Sentry events.
 - tRPC router registry: `src/server/api/root.ts`
 - tRPC routers: `src/server/api/routers/*`, `src/features/*/server/*`
 - Public REST API routes: `src/pages/api/public/*`
@@ -98,11 +99,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   component that satisfies the use case. Prefer the design-system component
   and extend it when appropriate; use another component only when the design
   system has no suitable option.
-- **Before adding or modifying a chart, dashboard, or chart formatter, read
-  `src/features/widgets/chart-library/ARCHITECTURE.md` first** — the charts
-  manifesto. It owns the data → preparer → visualiser contract: presentation
-  decisions (formatting, colors, axis scale, overload) live in the preparer,
-  not the chart components.
+- **Before adding or modifying a chart, dashboard, or chart formatter, read `src/features/widgets/components/usePreparedWidgetChart.ts` and `src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame.tsx` first.** They define the data → preparer → visualiser contract: presentation decisions (formatting, colors, axis scale, overload) live in the preparer, not the chart components.
 - **When working on the search bar or any filtering UI/grammar, read
   `src/features/search-bar/README.md` first.** It owns the grammar ↔
   `FilterState` contract, the validate/lower parity invariants, and the
@@ -200,10 +197,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   LFE-10645). Format TypeScript with `parser: "babel-ts"` +
   `prettier/plugins/babel` instead, as the eval-template editor does
   (`src/features/evals/components/CodeEvalTemplateFormBody.tsx`).
-- Public API routes should use
-  `src/features/public-api/server/withMiddlewares.ts`, define strict request and
-  response types in `src/features/public-api/types/*`, add server tests, and
-  update Fern sources when the contract changes.
+- Public API routes should use `src/features/public-api/server/withMiddlewares.ts`, define strict request and response types in `src/features/public-api/types/*`, and update Fern sources when the contract changes. Whether to add a server test follows root [`AGENTS.md`](../AGENTS.md).
 - Observations v2 pages can be short or empty while `meta.cursor` exists because
   the endpoint bounds scan work. End pagination only when the cursor is absent;
   never derive completion from the number of returned rows.
@@ -216,6 +210,8 @@ Sentry instrumentation skill first and decide whether it should capture at all
   `@langfuse/shared/src/server/clickhouse`, not the full server barrel or relative
   shared source paths. Suites own their private Redis clients; shared-context
   workers skip per-file teardown.
+- Shared-context files must restore their state in `afterAll`: real timers, environment/global stubs, spies, listeners, pending work, and module caches they mutate. Delete only the file's own database rows and Redis keys; keep shared clients open. Module mocks or singletons without a reset contract need file isolation; a source-text classification alone is not leak proof.
+- Before widening shared-context membership, run the affected files together with one worker and at least two recorded shuffle seeds (`--sequence.shuffle.files --sequence.seed=<seed>`). Fix order-dependent failures; preserve the first failure without retries or wider timeouts.
 - Put pure server unit tests that do not need Postgres bootstrap under
   `src/__tests__/server/unit/**` so they skip the shared DB setup hook.
 - Server tests that drive the public REST API over HTTP need a web server on
@@ -272,13 +268,13 @@ Sentry instrumentation skill first and decide whether it should capture at all
    `src/features/<feature>/server/*`.
 2. Register in `src/server/api/root.ts`.
 3. Reuse auth/error patterns from `src/server/api/trpc.ts`.
-4. Add/adjust server tests under `src/__tests__/server/*`.
+4. Whether to add a test follows root [`AGENTS.md`](../AGENTS.md). Place a warranted server test under `src/__tests__/server/*`.
 
 ### Add/Change public API endpoint
 
 1. Add route in `src/pages/api/public/*`.
 2. Define/update contract types in `src/features/public-api/types/*`.
-3. Add/adjust server tests in `src/__tests__/server/*`.
+3. Whether to add a test follows root [`AGENTS.md`](../AGENTS.md). Place a warranted server test in `src/__tests__/server/*`.
 4. If API contract changed, update Fern source (`../fern/apis/**`) and regenerate
    outputs (do not hand-edit `../generated/**`).
 
@@ -338,8 +334,8 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - Confirm the target `*.clienttest.*` or `*.servertest.*` file exists before passing a pattern to `vitest run`; source files do not always have a matching colocated test file.
 - When passing a Vitest file or pattern through `pnpm --filter web ...`, make it
   relative to `web/` because the script runs with `web` as the working
-  directory. Example: use `src/features/widgets/chart-library/BigNumber.tsx`,
-  not `web/src/features/widgets/chart-library/BigNumber.tsx`.
+  directory. Example: use `src/features/widgets/chart-library/utils.clienttest.ts`,
+  not `web/src/features/widgets/chart-library/utils.clienttest.ts`.
 - Prefer separate test files for components, integration coverage, and broader
   behaviors; use Vitest in-source tests mainly for small-scoped utilities.
 - Run Vitest in-source utility coverage with `pnpm --filter web run test:in-source`;

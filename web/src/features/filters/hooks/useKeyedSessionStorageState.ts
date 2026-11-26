@@ -93,5 +93,10 @@ export function useKeyedSessionStorageState<T>(
     });
   }, [storageKey, initialValue]);
 
-  return [state.value, setValue, clearValue] as const;
+  const value =
+    state.key === storageKey
+      ? state.value
+      : readSessionStorageValue({ storageKey, fallback: initialValue });
+
+  return [value, setValue, clearValue] as const;
 }

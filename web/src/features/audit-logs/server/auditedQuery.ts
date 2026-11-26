@@ -257,7 +257,7 @@ export async function recordRefusedRead({
 }: {
   path: string;
   ctx: {
-    session: { user?: Session["user"] } | null;
+    session: Pick<Session, "user" | "policies"> | null;
     headers: IncomingHttpHeaders;
   };
   meta: AccessAuditMeta;

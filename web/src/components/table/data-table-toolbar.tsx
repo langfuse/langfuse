@@ -3,8 +3,11 @@ import React, {
   type Dispatch,
   type ReactNode,
   type SetStateAction,
+  useLayoutEffect,
+  useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import {
   DataTableColumnVisibilityFilter,
@@ -41,8 +44,13 @@ import {
   TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/DataTableSelectAllBanner";
+import { isSelectAllBannerVisible } from "@/src/components/table/data-table-multi-select-actions/isSelectAllBannerVisible";
+import {
+  findSelectAllBannerSlot,
+  subscribeSelectAllBannerSlots,
+} from "@/src/components/table/selectAllBannerSlot";
 import { cn } from "@/src/utils/tailwind";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import {
   TableViewPresetsDrawer,
   type SystemFilterPreset,
@@ -419,16 +427,26 @@ export function DataTableToolbar<TData, TValue>({
     searchConfig?.setSearchType && searchConfig.tableAllowsFullTextSearch,
   );
   const allVisibleRowsSelected = Boolean(
-    multiSelect &&
-    multiSelect.pageIndex === 0 &&
-    multiSelect.selectedRowIds.length > 0 &&
-    (multiSelect.totalCount !== null
-      ? multiSelect.totalCount > multiSelect.pageSize &&
-        multiSelect.selectedRowIds.length ===
-          Math.min(multiSelect.pageSize, multiSelect.totalCount)
-      : multiSelect.hasNextPage === true &&
-        multiSelect.selectedRowIds.length === multiSelect.pageSize),
+    multiSelect && isSelectAllBannerVisible(multiSelect),
   );
+  const toolbarRootRef = useRef<HTMLDivElement>(null);
+  const [selectAllBannerSlot, setSelectAllBannerSlot] =
+    useState<HTMLElement | null>(null);
+  // The slot lives on the table header, which is a sibling of this toolbar.
+  // Portal the banner there so it sits on the header instead of above the
+  // metric strip. Fall back to inline when a table has no slot.
+  useLayoutEffect(() => {
+    if (!allVisibleRowsSelected) {
+      setSelectAllBannerSlot(null);
+      return;
+    }
+    const update = () => {
+      const host = toolbarRootRef.current;
+      setSelectAllBannerSlot(host ? findSelectAllBannerSlot(host) : null);
+    };
+    update();
+    return subscribeSelectAllBannerSlots(update);
+  }, [allVisibleRowsSelected]);
 
   const submitSearch = (query: string) => {
     if (
@@ -450,8 +468,16 @@ export function DataTableToolbar<TData, TValue>({
 
   // Only show the toggle button when we're using the new sidebar
   const hasNewSidebar = !filterColumnDefinition && filterState !== undefined;
+  const selectAllBanner =
+    multiSelect && allVisibleRowsSelected ? (
+      <DataTableSelectAllBanner {...multiSelect} />
+    ) : null;
+
   return (
-    <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
+    <div
+      ref={toolbarRootRef}
+      className={cn("grid h-fit w-full gap-0 px-2", className)}
+    >
       <div
         className={cn(
           "@container my-2 flex flex-wrap items-center gap-2",
@@ -512,7 +538,11 @@ export function DataTableToolbar<TData, TValue>({
                             searchConfig.hidePerformanceWarning,
                             searchConfig.tableAllowsFullTextSearch,
                           )}
-                        />
+                        >
+                          {({ getTriggerProps }) => (
+                            <DocPopupTrigger triggerProps={getTriggerProps()} />
+                          )}
+                        </DocPopup>
                       ),
                       content: (
                         <DropdownMenuRadioGroup
@@ -738,9 +768,10 @@ export function DataTableToolbar<TData, TValue>({
           {actionButtons}
         </div>
       </div>
-      {multiSelect && allVisibleRowsSelected && (
-        <DataTableSelectAllBanner {...multiSelect} />
-      )}
+      {selectAllBanner &&
+        (selectAllBannerSlot
+          ? createPortal(selectAllBanner, selectAllBannerSlot)
+          : selectAllBanner)}
     </div>
   );
 }

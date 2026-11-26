@@ -1,4 +1,4 @@
-import { EllipsisVertical, Pencil } from "@langfuse/icons";
+import { EllipsisVertical, MessageSquare, Pencil } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -9,6 +9,15 @@ import { type TopicsActions } from "./prepare-topics-actions";
 export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
   return (
     <div className="ph-no-capture flex shrink-0 items-center justify-end gap-1">
+      {actions.giveFeedback && (
+        <Button
+          text="Give feedback"
+          icon={MessageSquare}
+          size="default"
+          variant="ghost"
+          onClick={actions.giveFeedback}
+        />
+      )}
       {actions.editRun && <EditMapButton editRun={actions.editRun} />}
       <DropdownMenu
         ariaLabel="Topics actions"
@@ -25,6 +34,8 @@ export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
             disabled: action.disabledReason
               ? { reason: action.disabledReason }
               : undefined,
+            // The reason's title tooltip never shows on touch screens.
+            description: action.disabledReason,
             onClick: action.onSelect,
           })),
         ]}

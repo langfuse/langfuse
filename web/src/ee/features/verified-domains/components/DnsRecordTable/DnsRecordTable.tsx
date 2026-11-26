@@ -1,4 +1,4 @@
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import { TableCard } from "@/src/components/TableCard/TableCard";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 
@@ -35,7 +35,7 @@ export function DnsRecordTable({
     }),
   ];
   return (
-    <SettingsTable
+    <TableCard
       tableName="DNS record"
       columns={columns}
       data={{

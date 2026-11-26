@@ -6,7 +6,10 @@ import {
   type QueryType,
 } from "@langfuse/shared/query";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import type { GatewayAnalyticsWidget } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
+import type {
+  GatewayAnalyticsGranularity,
+  GatewayAnalyticsWidget,
+} from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
 import { GATEWAY_TRAFFIC_FILTER } from "@/src/features/ai-gateway/constants/gatewayTrafficFilter";
 
 /** Top-N cap for breakdowns that do not set their own row limit. */
@@ -16,6 +19,7 @@ export function buildGatewayAnalyticsQuery(
   widget: GatewayAnalyticsWidget,
   timeRange: { from: Date; to: Date },
   filters: FilterState,
+  granularity: GatewayAnalyticsGranularity = "auto",
 ): QueryType {
   const chartType = widget.chartType;
   const isTimeSeries = isTimeSeriesChart(chartType);
@@ -35,7 +39,7 @@ export function buildGatewayAnalyticsQuery(
     dimensions: widget.dimensions,
     metrics,
     filters: [GATEWAY_TRAFFIC_FILTER, ...widget.filters, ...filters],
-    timeDimension: isTimeSeries ? { granularity: "auto" } : null,
+    timeDimension: isTimeSeries ? { granularity } : null,
     fromTimestamp: timeRange.from.toISOString(),
     toTimestamp: timeRange.to.toISOString(),
     orderBy: buildWidgetOrderBy({

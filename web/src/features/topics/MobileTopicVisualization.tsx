@@ -1,28 +1,21 @@
 import { type ComponentProps } from "react";
 import { type Facet } from "./facet-topics";
 import { type TopicDisplay } from "./prepare-topic-display";
-import { TopicEmbeddingMap } from "./TopicEmbeddingMap";
-import { TopicGrid } from "./TopicGrid";
+import { type MobileTopicsVisualization } from "./TopicsResultsViewSelect";
+import { ScatterMap } from "./scatter/ScatterMap";
 import { TopicTreemap } from "./TopicTreemap";
-import { prepareTopicGrid } from "./prepare-topic-grid";
 
 type MobileTopicVisualizationProps = {
-  view: "treemap" | "map" | "grid";
+  view: MobileTopicsVisualization;
   facet: Facet;
   treemapTopics: TopicDisplay[];
-  mapResult: ComponentProps<typeof TopicEmbeddingMap>["query"];
+  mapResult: ComponentProps<typeof ScatterMap>["query"];
   selectedTopicId: string | null;
   selectedTraceId: string | null;
   matchingTraceIds?: ReadonlySet<string>;
   onSelectTopic: (topicId: string | null) => void;
   onSelectTrace: (traceId: string | null) => void;
 };
-
-function gridMessage(query: MobileTopicVisualizationProps["mapResult"]) {
-  if (query.error) return `Grid could not load: ${query.error.message}`;
-  if (!query.data) return "Loading grid…";
-  return query.data.reason ?? "This map has no saved embedding projection.";
-}
 
 export function MobileTopicVisualization({
   view,
@@ -41,16 +34,14 @@ export function MobileTopicVisualization({
   }
   if (view === "treemap") {
     return treemapTopics.length > 0 ? (
-      <div className="flex min-h-0 flex-1 p-4">
-        <TopicTreemap
-          key={facet.facetId}
-          total={facet.counts.total}
-          topics={treemapTopics}
-          selectedTopicId={selectedTopicId}
-          onSelectTopic={onSelectTopic}
-          previewOnSelect
-        />
-      </div>
+      <TopicTreemap
+        key={facet.facetId}
+        total={facet.counts.total}
+        topics={treemapTopics}
+        selectedTopicId={selectedTopicId}
+        onSelectTopic={onSelectTopic}
+        previewOnSelect
+      />
     ) : (
       <p className="text-muted-foreground p-4 text-sm">
         No topics in this time range. Browse traces to read their summaries.
@@ -64,43 +55,20 @@ export function MobileTopicVisualization({
       </p>
     );
   }
-  if (view === "map") {
-    return (
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col p-2">
-        <TopicEmbeddingMap
-          key={facet.map.runId}
-          query={mapResult}
-          topics={facet.map.topics}
-          selectedTopic={null}
-          selectedTraceId={selectedTraceId}
-          matchingTraceIds={matchingTraceIds}
-          onSelectTopic={selectMapTopic}
-          onSelectTrace={onSelectTrace}
-          previewOnSelect
-          fillContainer
-        />
-      </div>
-    );
-  }
-  if (mapResult.error || !mapResult.data || mapResult.data.status !== "ready") {
-    return (
-      <p className="text-muted-foreground p-4 text-sm">
-        {gridMessage(mapResult)}
-      </p>
-    );
-  }
-  const grid = prepareTopicGrid(facet, mapResult.data);
-  const selectedIndex = grid.topics.findIndex(
-    (topic) => topic.id === selectedTopicId,
-  );
   return (
-    <TopicGrid
-      key={facet.map.runId}
-      {...grid}
-      selectedIndex={selectedIndex < 0 ? null : selectedIndex}
-      onSelectTopic={onSelectTopic}
-      onSelectTrace={onSelectTrace}
-      previewOnSelect
-    />
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col p-2">
+      <ScatterMap
+        key={facet.map.runId}
+        query={mapResult}
+        topics={facet.map.topics}
+        selectedTopic={null}
+        selectedTraceId={selectedTraceId}
+        matchingTraceIds={matchingTraceIds}
+        onSelectTopic={selectMapTopic}
+        onSelectTrace={onSelectTrace}
+        previewOnSelect
+        fillContainer
+      />
+    </div>
   );
 }

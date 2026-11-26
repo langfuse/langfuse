@@ -162,7 +162,7 @@ const ViewMismatchNotice = ({
   onCustomizeView,
 }: {
   viewLabel: string | null;
-  onCustomizeView: () => void;
+  onCustomizeView: (() => void) | null;
 }) => (
   <div className="flex flex-col items-start gap-1.5 rounded-md border border-dashed border-amber-500/50 bg-amber-500/5 p-3">
     <div className="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-500">
@@ -172,15 +172,20 @@ const ViewMismatchNotice = ({
         : "No observation matches the current filter in this trace"}
     </div>
     <p className="text-muted-foreground text-xs">
-      Its content is hidden by the current view, not missing.{" "}
-      <button
-        type="button"
-        onClick={onCustomizeView}
-        className="text-primary underline underline-offset-2 hover:no-underline"
-      >
-        Switch the view
-      </button>{" "}
-      to see it.
+      Its content is hidden by the current view, not missing.
+      {onCustomizeView && (
+        <>
+          {" "}
+          <button
+            type="button"
+            onClick={onCustomizeView}
+            className="text-primary underline underline-offset-2 hover:no-underline"
+          >
+            Switch the view
+          </button>{" "}
+          to see it.
+        </>
+      )}
     </p>
   </div>
 );
@@ -258,7 +263,7 @@ export const TraceEventsRow = React.memo(
     surface?: TraceEventsSurface;
     contentMode?: IOPreviewContentMode;
     showSystemPrompt?: boolean;
-    onCustomizeView?: () => void;
+    onCustomizeView?: (() => void) | null;
   }) => {
     const observationsQuery =
       api.sessions.observationsForTraceFromEvents.useQuery(

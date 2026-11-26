@@ -1,3 +1,6 @@
+// Blob storage export job for one project: computes the export window, streams
+// each table to the customer bucket, writes the manifest, and handles failures.
+
 import { pipeline, Transform, type Readable } from "stream";
 import { monitorEventLoopDelay } from "perf_hooks";
 import { Job, UnrecoverableError } from "bullmq";
@@ -142,6 +145,7 @@ function resolveBlobExportFormat(
   return compressed ? entry.gzip : entry.raw;
 }
 
+/** @internal */
 export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
 
 // When a catch-up run lands within this distance of the frontier, treat it as
@@ -153,16 +157,19 @@ export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffe
 // scheduled run (its minTimestamp = lastSyncAt already covers it). Must be >= 1000ms
 // (the key granularity) and well below any frequencyInterval so no meaningful data
 // is deferred.
+/** @internal */
 export const BLOB_STORAGE_REMAINDER_COALESCE_MS = 1000;
 
 // Persisted as lastError when a window exceeds S3's 10,000-part multipart cap.
 // Retrying re-queries a retention-shrinking window until a truncated object
 // commits as success, so the run stops loud instead of degrading silently.
+/** @internal */
 export const BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE =
   "Blob storage export stopped: the export window exceeded the storage provider's " +
   "10,000-part multipart upload limit. Increase the upload part size or reduce the " +
   "export frequency so each window fits within the limit.";
 
+/** @internal */
 export async function* enrichObservationStream(
   stream: AsyncGenerator<Record<string, unknown>>,
   projectId: string,
@@ -410,6 +417,7 @@ const createBlobStorageService = (
     googleCloudCredentials: gcsServiceAccountKey,
     useOCIObjectStorage: false, // Not supported in blob storage integration
     connectionValidation: blobStorageEndpointConnectionValidationOptions(),
+    sendContentMd5: true,
   });
 };
 

@@ -12,7 +12,7 @@ import {
   openAiResponsesBuiltInToolsAndMediaFixture,
   openAiResponsesFunctionCallFixture,
   openAiResponsesReasoningWithParallelCallsFixture,
-} from "./fixtures";
+} from "./__tests__/fixtures";
 
 describe("OpenAI normalized I/O", () => {
   it.each([

@@ -86,6 +86,7 @@ type TablePeekViewProps = Pick<
   titleTabs?: React.ComponentProps<typeof PeekHeader>["titleTabs"];
   defaultWidthTarget?: HTMLElement | null;
   widthStorageKey?: string;
+  maxWidthPx?: number;
   /**
    * Item-specific header actions (star / publish / delete …), shared with the
    * full detail page so the peek and the page expose the same controls.
@@ -141,6 +142,7 @@ const TOAST_LAYER: LayerName = "toast";
  * All checks run against the pointer event's `target`, not
  * `document.activeElement` — `onPointerDownOutside` fires on pointer-down,
  * before focus has moved to the clicked element.
+ * @internal
  */
 export const shouldKeepPeekOpenOnOutsideInteraction = (
   target: EventTarget | null,
@@ -197,7 +199,9 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   // replace (not push) so toggling expand/collapse doesn't spam history.
   const setExpanded = useCallback(
     (expanded: boolean) => {
-      const params = new URLSearchParams(window.location.search);
+      const params = new URLSearchParams(
+        new URL(router.asPath, window.location.origin).search,
+      );
       const currentlyExpanded =
         params.get(PEEK_VIEW_PARAM) === PEEK_VIEW_EXPANDED;
       // No-op when the flag already matches: skip the redundant shallow
@@ -263,6 +267,8 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
     preventDefault: () => void;
   }) => {
     if (
+      (typeof router.query.sessionPeek === "string" &&
+        document.querySelector("[data-session-trace-peek]") !== null) ||
       shouldKeepPeekOpenOnOutsideInteraction(event.target, ignoredSelectors)
     ) {
       event.preventDefault();
@@ -273,6 +279,12 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
     // Open is driven by row clicks / detail-page navigation; we only react to
     // close requests (Escape, swipe-down, click-outside, the close button).
     if (open) return;
+    // A stale URL parameter alone must not block dismissal.
+    if (
+      typeof router.query.sessionPeek === "string" &&
+      document.querySelector("[data-session-trace-peek]") !== null
+    )
+      return;
     props.closePeek();
   };
 
@@ -344,6 +356,12 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
               but give portaled child dialogs the same non-modal host as desktop. */}
           <Sheet open={!!itemId} onOpenChange={handleOpenChange} modal={false}>
             <DrawerContent
+              data-peek-content=""
+              style={
+                props.maxWidthPx !== undefined
+                  ? { maxWidth: props.maxWidthPx, marginLeft: "auto" }
+                  : undefined
+              }
               portalLayer="modal"
               size="full"
               className="min-h-screen-with-banner top-[calc(var(--banner-offset)+10px)] bottom-0 gap-0 p-0"
@@ -367,7 +385,12 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
             <SheetPrimitive.Content
               aria-describedby={undefined}
               data-peek-content=""
-              style={panel.panelStyle}
+              style={{
+                ...panel.panelStyle,
+                ...(props.maxWidthPx !== undefined
+                  ? { maxWidth: props.maxWidthPx, minWidth: 0 }
+                  : {}),
+              }}
               onPointerDownOutside={preventDismissOnKeptOpen}
               onInteractOutside={preventDismissOnKeptOpen}
               // Never close because focus moved out (e.g. into a portaled

@@ -1,17 +1,17 @@
 import { useState, type ReactNode } from "react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import TopicsPage from "./TopicsPage";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { useGlobalDateRangeStore } from "@/src/features/global-time-range/globalDateRangeStore";
-import { type TimeRange } from "@/src/utils/date-range-utils";
 import { type TopicFacet } from "@langfuse/shared/topics";
+import { type TopicRunCost } from "./topic-run-labels";
+import { type RouterOutputs } from "@/src/utils/api";
 
 const state = vi.hoisted(() => ({
   canViewTopics: true,
@@ -20,17 +20,17 @@ const state = vi.hoisted(() => ({
   updatedAt: "2026-09-23T12:00:00Z",
   retry: vi.fn(),
   refetchExecution: vi.fn(),
+  queryCosts: vi.fn<() => Promise<Record<string, TopicRunCost>>>(),
   dateRange: undefined as string | undefined,
   executionId: undefined as string | undefined,
+  map: undefined as string | undefined,
   setQueryParams: vi.fn(),
   currentTopics: vi.fn(),
-  showGenerateCTA: true,
   hasStoredSummaries: true,
   resultsDataAvailable: true,
   mobileHeader: false,
   resultFacets: [] as Array<{ facetId: string; name: string }>,
   openAutomaticProcessing: vi.fn(),
-  picker: vi.fn(),
   push: vi.fn(),
   openConfigure: vi.fn(),
   canWrite: true,
@@ -43,16 +43,34 @@ const state = vi.hoisted(() => ({
   rulesError: null as Error | null,
   configurationFailure: null as "settings" | "readiness" | "connections" | null,
   settings: {} as Record<string, unknown>,
-  rules: [] as Array<{ id?: string; facetIds: string[] }>,
+  rules: [] as Array<{
+    id?: string;
+    facetIds: string[];
+    name?: string;
+  }>,
+  queryMapCosts:
+    vi.fn<
+      (input: {
+        projectId: string;
+      }) => Promise<RouterOutputs["topics"]["ruleMapCosts"]>
+    >(),
   maps: undefined as unknown,
-  countsPending: false,
-  countsFetching: false,
-  summaryCountInput: vi.fn(),
-  invalidateSummaryCounts: vi.fn(),
-  counts: [] as Array<{ facetId: string; facetVersion: number; count: number }>,
-  trigger: vi.fn(),
+  capture: vi.fn(),
 }));
 
+vi.mock("@/src/features/projects/hooks", () => ({
+  useQueryProject: () => ({
+    project: { id: "project" },
+    organization: { id: "org" },
+  }),
+}));
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
+  usePostHogClientCapture: () => state.capture,
+}));
+
+vi.mock("./useOpenTopicsFeedback", () => ({
+  useOpenTopicsFeedback: () => vi.fn(),
+}));
 vi.mock("use-query-params", () => ({
   StringParam: {},
   useQueryParam: () => [undefined, vi.fn()],
@@ -61,36 +79,13 @@ vi.mock("use-query-params", () => ({
 vi.mock("@/src/components/layouts/page-header-controls-slot", () => ({
   PageHeaderControlsPortal: ({ children }: { children: ReactNode }) => children,
 }));
-vi.mock("@/src/components/date-picker", () => ({
-  TimeRangePicker: (props: {
-    timeRange: TimeRange;
-    onTimeRangeChange: (range: TimeRange) => void;
-  }) => {
-    state.picker(props.timeRange);
-    return (
-      <>
-        <button
-          onClick={() => props.onTimeRangeChange({ range: "last30Days" })}
-        >
-          Select last 30 days
-        </button>
-        <button
-          onClick={() =>
-            props.onTimeRangeChange({
-              from: new Date("2026-10-01T00:00:00Z"),
-              to: new Date("2026-10-08T00:00:00Z"),
-            })
-          }
-        >
-          Select custom dates
-        </button>
-      </>
-    );
-  },
-}));
 vi.mock("next/router", () => ({
   useRouter: () => ({
-    query: { projectId: "project", executionId: state.executionId },
+    query: {
+      projectId: "project",
+      executionId: state.executionId,
+      map: state.map,
+    },
     push: state.push,
   }),
 }));
@@ -119,38 +114,14 @@ vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
 vi.mock("@/src/components/table/peek/TablePeekViewTraceDetail", () => ({
   TablePeekViewTraceDetail: () => null,
 }));
-vi.mock(
-  "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled",
-  () => ({
-    useInternalFeaturesEnabled: () => false,
-  }),
-);
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => state.canWrite,
 }));
-vi.mock("@/src/components/error-page", () => ({
+vi.mock("@/src/components/ErrorPage", () => ({
   ErrorPage: ({ message }: { message: string }) => <p>{message}</p>,
 }));
 vi.mock("@/src/features/topics/topicsAccess", () => ({
   useCanViewTopics: () => state.canViewTopics,
-}));
-vi.mock("./TopicTraceSelector", () => ({
-  useTopicTraceSelector: () => ({
-    selection: {
-      count: 2,
-      selection: {
-        filter: [],
-        from: new Date("2026-10-01T00:00:00Z"),
-        to: new Date("2026-10-09T12:00:00Z"),
-        limit: 2,
-        sampling: "random",
-        seed: "frozen-preview",
-        excludedTraceIds: ["excluded-trace"],
-      },
-    },
-    controls: <div>Trace selection</div>,
-    reset: vi.fn(),
-  }),
 }));
 vi.mock("./ConfigureTopicsDialogController", () => ({
   ConfigureTopicsDialogController: ({
@@ -194,25 +165,22 @@ vi.mock("./CurrentTopics", () => ({
   },
   CurrentTopics: ({
     result,
-    onGenerateTopics,
   }: {
     result: { running: boolean; refreshAfter: number };
-    onGenerateTopics: () => void;
   }) => (
     <div
       data-testid="current-topics"
       data-running={result.running}
       data-refresh-after={result.refreshAfter}
-    >
-      {state.showGenerateCTA && (
-        <button onClick={onGenerateTopics}>Open topic generation</button>
-      )}
-    </div>
+    ></div>
   ),
 }));
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
+      executionCostBreakdown: {
+        _def: () => ({ path: ["topics", "executionCostBreakdown"] }),
+      },
       facets: {
         useQuery: () => ({
           data: state.facetsLoading ? undefined : state.facets,
@@ -258,29 +226,6 @@ vi.mock("@/src/utils/api", () => ({
           mutateAsync: vi.fn(),
         }),
       },
-      rules: {
-        useQuery: () => ({
-          data: state.rulesPending ? undefined : state.rules,
-          isPending: state.rulesPending,
-          isSuccess: !state.rulesPending && !state.rulesError,
-          error: state.rulesError,
-        }),
-      },
-      summaryCounts: {
-        useQuery: (input: unknown) => {
-          state.summaryCountInput(input);
-          return typeof input === "symbol"
-            ? { isPending: true }
-            : {
-                isPending: state.countsPending,
-                isFetching: state.countsFetching,
-                data: state.countsPending ? undefined : state.counts,
-              };
-        },
-      },
-      trigger: {
-        useMutation: () => ({ mutateAsync: state.trigger, isPending: false }),
-      },
       execution: {
         useQuery: () => ({
           data: {
@@ -290,7 +235,7 @@ vi.mock("@/src/utils/api", () => ({
             createdAt: "2026-09-23T12:00:00Z",
             updatedAt: state.updatedAt,
             input: {
-              operation: "process",
+              operation: "update",
               embeddingConfig: { embeddingDimensions: 1024 },
             },
             facets: [],
@@ -300,9 +245,41 @@ vi.mock("@/src/utils/api", () => ({
           refetch: state.refetchExecution,
         }),
       },
-      traceErrors: { useQuery: () => ({}) },
-      maps: { useQuery: () => ({ data: state.maps }) },
+      // Settings read the rules from the maps overview.
+      maps: {
+        useQuery: () => ({
+          data: state.rulesPending
+            ? undefined
+            : (state.maps ?? {
+                // A settled live map per rule, so the page shows its results.
+                rules: state.rules.map((rule, index) => ({
+                  id: `rule-${index}`,
+                  projectId: "project",
+                  name: "Rule",
+                  filter: [],
+                  sampling: 1,
+                  enabled: true,
+                  updatedAt: "2026-11-01T00:00:00Z",
+                  lastRefitAt: "2026-11-01T00:00:00Z",
+                  refresh: { running: false, availableAt: null },
+                  ...rule,
+                })),
+                analyses: [],
+              }),
+        }),
+      },
       ruleSetupStatus: { useQuery: () => ({ data: null }) },
+      ruleMapCosts: {
+        useQuery: (
+          input: { projectId: string },
+          options: { enabled: boolean; staleTime: number },
+        ) =>
+          useQuery({
+            queryKey: ["topics.ruleMapCosts", input],
+            queryFn: () => state.queryMapCosts(input),
+            ...options,
+          }),
+      },
       startRuleSetup: {
         useMutation: () => ({
           isPending: false,
@@ -311,6 +288,8 @@ vi.mock("@/src/utils/api", () => ({
         }),
       },
       analysisResults: { useQuery: () => ({}) },
+      // The map picker's preview pane.
+      currentResults: { useQuery: () => ({ isLoading: false }) },
       retry: {
         useMutation: ({ onSuccess }: { onSuccess: () => void }) => ({
           mutate: (input: unknown) => {
@@ -337,18 +316,36 @@ vi.mock("@/src/utils/api", () => ({
       },
     },
     useUtils: () => ({
+      client: {
+        topics: {
+          executionCostBreakdown: { query: state.queryCosts },
+        },
+      },
       topics: {
         modelSettings: { invalidate: vi.fn() },
-        rules: { invalidate: vi.fn() },
+        maps: { invalidate: vi.fn() },
         executions: { invalidate: vi.fn() },
-        summaryCounts: { invalidate: state.invalidateSummaryCounts },
       },
     }),
   },
 }));
 
+function renderTopicsPage() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(<TopicsPage />, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>
+        <LayerProvider>{children}</LayerProvider>
+      </QueryClientProvider>
+    ),
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  state.queryCosts.mockReset().mockResolvedValue({});
   state.maps = undefined;
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-09T12:00:00Z"));
@@ -360,7 +357,6 @@ beforeEach(() => {
       disconnect() {}
     },
   );
-  state.showGenerateCTA = true;
   state.canViewTopics = true;
   state.resultsDataAvailable = true;
   state.mobileHeader = false;
@@ -371,6 +367,7 @@ beforeEach(() => {
   state.updatedAt = "2026-09-23T12:00:00Z";
   state.dateRange = undefined;
   state.executionId = undefined;
+  state.map = undefined;
   state.canWrite = true;
   state.facets = [];
   state.facetsLoading = false;
@@ -389,10 +386,7 @@ beforeEach(() => {
     blockMessage: null,
   };
   state.rules = [];
-  state.counts = [];
-  state.countsPending = false;
-  state.countsFetching = false;
-  state.trigger.mockReset().mockResolvedValue({ id: "regenerated" });
+  state.queryMapCosts.mockReset().mockResolvedValue({});
   state.setQueryParams.mockImplementation(
     ({ dateRange }: { dateRange: string }) => {
       state.dateRange = dateRange;
@@ -411,7 +405,7 @@ afterEach(() => {
 
 it("shows Not found instead of the workspace when the Topics gate is closed", () => {
   state.canViewTopics = false;
-  render(<TopicsPage />, { wrapper: LayerProvider });
+  renderTopicsPage();
   expect(screen.getByText("This page is not available.")).toBeTruthy();
   expect(state.currentTopics).not.toHaveBeenCalled();
 });
@@ -420,14 +414,14 @@ it("keeps the question picker reachable with the mobile header", () => {
   state.mobileHeader = true;
   state.resultFacets = [{ facetId: "intent", name: "Intent" }];
   state.rules = [{ facetIds: ["intent"] }];
-  render(<TopicsPage />);
+  renderTopicsPage();
   expect(screen.getByRole("combobox", { name: "Topics facet" })).toBeTruthy();
 });
 
 it("refreshes current results through retry and completion for a selected run outside history", () => {
   state.executionId = "execution";
-  const view = render(<TopicsPage />, { wrapper: LayerProvider });
-  const status = screen.getByRole("dialog", { name: "Analyze traces" });
+  const view = renderTopicsPage();
+  const status = screen.getByRole("dialog", { name: "Regenerate topics" });
   fireEvent.click(within(status).getByRole("button", { name: "Resume run" }));
   expect(state.retry).toHaveBeenCalledWith({
     projectId: "project",
@@ -477,17 +471,6 @@ const execution = (status: string, operation: "process" | "update") => ({
   input: { operation },
   facets: [],
 });
-/** Opens the manual dialog from the empty state; "process" switches to its summarize tab. */
-async function openManualDialog(operation: "process" | "update" = "update") {
-  fireEvent.click(
-    await screen.findByRole("button", { name: "Open topic generation" }),
-  );
-  if (operation === "process")
-    fireEvent.mouseDown(
-      screen.getByRole("tab", { name: "Summarize traces & embed" }),
-      { button: 0, ctrlKey: false },
-    );
-}
 function withSummaries() {
   state.facets = [
     facet("intent", [2, 1]),
@@ -495,11 +478,93 @@ function withSummaries() {
     facet("language", [1]),
   ];
   state.rules = [{ facetIds: ["intent", "outcome"] }];
-  state.counts = [
-    { facetId: "intent", facetVersion: 2, count: 240 },
-    { facetId: "outcome", facetVersion: 1, count: 0 },
-  ];
 }
+
+it.each(["live map", "snapshot"])(
+  "loads a %s cost on opening the picker and reuses it on reopen",
+  async (kind) => {
+    withSummaries();
+    state.queryMapCosts.mockResolvedValue({ "rule-0": 0 });
+    state.queryCosts.mockResolvedValue({
+      snapshot: { summaries: null, naming: 0.13 },
+    });
+    if (kind === "snapshot") {
+      state.maps = {
+        rules: [],
+        analyses: [
+          {
+            id: "snapshot",
+            label: "Checkout snapshot",
+            facetIds: ["intent"],
+            filter: [],
+            status: "completed",
+            createdAt: state.updatedAt,
+            updatedAt: state.updatedAt,
+            timeRange: {
+              from: new Date("2026-09-22"),
+              to: new Date("2026-09-23"),
+            },
+            traceCount: 20,
+          },
+        ],
+      };
+      state.map = "analysis:snapshot";
+    }
+    renderTopicsPage();
+    const trigger = screen.getByRole("button", { name: /Topic map:/ });
+    expect(state.queryMapCosts).not.toHaveBeenCalled();
+    expect(state.queryCosts).not.toHaveBeenCalled();
+
+    const cost = kind === "snapshot" ? "~$0.13" : "~$0.00";
+    fireEvent.click(trigger);
+    expect(await screen.findByText(cost)).toBeVisible();
+    fireEvent.click(trigger);
+    expect(screen.queryByRole("dialog", { name: "Topic maps" })).toBeNull();
+    fireEvent.click(trigger);
+    expect(screen.getByText(cost)).toBeVisible();
+    expect(state.queryMapCosts).toHaveBeenCalledTimes(
+      kind === "live map" ? 1 : 0,
+    );
+    expect(state.queryCosts).toHaveBeenCalledTimes(kind === "snapshot" ? 1 : 0);
+  },
+);
+
+it("keeps settled costs visible while fetching the final cost of a completed run", async () => {
+  withSummaries();
+  const settled = execution("completed", "process");
+  const unpriced = { ...settled, id: "unpriced" };
+  const active = execution("running", "update");
+  state.executions = [settled, unpriced, active];
+  const finalCosts = Promise.withResolvers<Record<string, TopicRunCost>>();
+  state.queryCosts
+    .mockResolvedValueOnce({
+      [settled.id]: { summaries: 0, naming: null },
+      [active.id]: { summaries: null, naming: 0.12 },
+    })
+    .mockReturnValueOnce(finalCosts.promise);
+  const view = renderTopicsPage();
+  fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "History" }));
+  expect(await screen.findByText("~$0.12")).toBeVisible();
+
+  state.executions = [settled, unpriced, { ...active, status: "completed" }];
+  view.rerender(<TopicsPage />);
+  expect(screen.getByText("~$0.00")).toBeVisible();
+  expect(screen.getByText("Unavailable")).toBeVisible();
+  expect(screen.getByText("Loading…")).toBeVisible();
+  expect(state.queryCosts).toHaveBeenLastCalledWith(
+    {
+      projectId: "project",
+      executionIds: [active.id],
+      includeSummaryCosts: false,
+    },
+    expect.anything(),
+  );
+  finalCosts.resolve({
+    [active.id]: { summaries: null, naming: 0.34 },
+  });
+  expect(await screen.findByText("~$0.34")).toBeVisible();
+});
 
 it.each([
   ["no facets", () => []],
@@ -510,7 +575,7 @@ it.each([
     state.facets = facets();
     state.facetsLoading = true;
     state.executions = undefined;
-    const view = render(<TopicsPage />, { wrapper: LayerProvider });
+    const view = renderTopicsPage();
     expect(screen.queryByTestId("current-topics")).toBeNull();
     expect(state.currentTopics).toHaveBeenCalled();
     const { refreshAfter } = state.currentTopics.mock.lastCall![0];
@@ -526,14 +591,12 @@ it.each([
   },
 );
 
-it("puts New map and New snapshot first in the menu", async () => {
+it("leaves creating and refreshing maps to the map picker, not the menu", async () => {
   withSummaries();
-  render(<TopicsPage />, { wrapper: LayerProvider });
+  renderTopicsPage();
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).toEqual([
-    "New map",
-    "New snapshot",
     "History",
     "Settings",
   ]);
@@ -562,534 +625,86 @@ it.each([
     ],
     analyses: [],
   };
-  render(<TopicsPage />, { wrapper: LayerProvider });
+  renderTopicsPage();
   const editMap = screen.getByRole("button", { name: "Edit map" });
   expect(editMap).toHaveProperty("disabled", !canWrite);
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
-  expect(items.map((item) => item.textContent)).not.toContain("Edit map");
-  // Every action stays visible; without write access it is disabled with a reason.
-  for (const label of ["New map", "New snapshot"]) {
-    const item = items.find((candidate) => candidate.textContent === label);
-    expect(item).toBeDefined();
-    expect(item!.getAttribute("aria-disabled")).toBe(canWrite ? null : "true");
-    expect(item!.getAttribute("title")).toBe(
-      canWrite ? null : "You need permission to edit Topics.",
-    );
-  }
+  expect(items.some((item) => item.textContent?.startsWith("Edit map"))).toBe(
+    false,
+  );
+});
+
+it("offers creating maps in the menu while onboarding hides the map picker", async () => {
+  withSummaries();
+  // Configured but off, and no summaries stored yet.
+  state.settings = { ...state.settings, enabled: false };
+  state.hasStoredSummaries = false;
+  renderTopicsPage();
+  expect(screen.queryByRole("button", { name: /Topic map:/ })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
+  const items = await screen.findAllByRole("menuitem");
+  expect(items.map((item) => item.textContent)).toEqual([
+    "New live map",
+    "New snapshot",
+    "History",
+    "Settings",
+  ]);
 });
 
 it.each([
-  {
-    name: "without topics:CUD",
-    setup: () => {
-      state.canWrite = false;
-    },
-    reason: "You need permission to manage Topics in this project.",
-  },
-  {
-    name: "while Topics is paused",
-    setup: () => {
-      state.settings.blockedAt = "2026-10-09T10:00:00Z";
-      state.settings.blockMessage = "Fix the connection.";
-    },
-    reason: "Topics is paused. Fix the connection.",
-  },
-  {
-    name: "while any Topics run is in progress",
-    setup: () => {
-      state.executions = [execution("running", "process")];
-    },
-    reason: "A Topics run is in progress. Wait for it to finish.",
-  },
-  {
-    name: "before any summaries exist",
-    setup: () => {
-      state.counts = [];
-    },
-    reason:
-      "No trace summaries in the selected time range yet. Summarize traces first, then regenerate.",
-  },
-])("disables Generate topics $name", async ({ setup, reason }) => {
-  withSummaries();
-  setup();
-  render(<TopicsPage />, { wrapper: LayerProvider });
-  await openManualDialog();
-  fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
-    button: 0,
-    ctrlKey: false,
-  });
-  expect(
-    screen.getByRole("button", { name: "Generate topics" }),
-  ).toBeDisabled();
-  expect(screen.getByText(reason)).toBeInTheDocument();
-});
-
-it("requires an eligible selected facet and applies the small-sample threshold before generating topics", async () => {
-  withSummaries();
-  state.counts = [
-    { facetId: "intent", facetVersion: 2, count: 13 },
-    { facetId: "outcome", facetVersion: 1, count: 9 },
-  ];
-  render(<TopicsPage />, { wrapper: LayerProvider });
-  await openManualDialog();
-  fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
-    button: 0,
-    ctrlKey: false,
-  });
-  const submit = screen.getByRole("button", { name: "Generate topics" });
-  expect(submit).toBeDisabled();
-  fireEvent.click(submit);
-  expect(state.trigger).not.toHaveBeenCalled();
-
-  fireEvent.click(screen.getByRole("switch", { name: "Small sample mode" }));
-  expect(submit).toBeEnabled();
-  fireEvent.click(screen.getByRole("checkbox", { name: "intent" }));
-  expect(submit).toBeDisabled();
-  fireEvent.click(submit);
-  expect(state.trigger).not.toHaveBeenCalled();
-
-  fireEvent.click(screen.getByRole("checkbox", { name: "intent" }));
-  fireEvent.click(submit);
-  await waitFor(() =>
-    expect(state.trigger).toHaveBeenCalledWith(
-      expect.objectContaining({ exploratory: true, minimumTraceCount: 10 }),
-    ),
-  );
-});
-
-it("counts summaries only while the open manual dialog is generating topics", async () => {
-  withSummaries();
-  render(<TopicsPage />, { wrapper: LayerProvider });
-  const countRequests = () =>
-    state.summaryCountInput.mock.calls.filter(
-      ([input]) => typeof input !== "symbol",
-    );
-  expect(countRequests()).toHaveLength(0);
-  await openManualDialog();
-  expect(countRequests().length).toBeGreaterThan(0);
-  const generatingRequests = countRequests().length;
-  fireEvent.mouseDown(
-    screen.getByRole("tab", { name: "Summarize traces & embed" }),
-    { button: 0, ctrlKey: false },
-  );
-  expect(countRequests()).toHaveLength(generatingRequests);
-  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  expect(countRequests()).toHaveLength(generatingRequests);
-});
-
-it("keeps summary loading and refetching out of validation warnings", async () => {
-  withSummaries();
-  state.counts = state.counts.map((count) => ({ ...count, count: 240 }));
-  state.countsPending = true;
-  state.countsFetching = true;
-  const page = render(<TopicsPage />, { wrapper: LayerProvider });
-  await openManualDialog();
-  fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
-    button: 0,
-    ctrlKey: false,
-  });
-  const dialog = within(
-    screen.getByRole("dialog", { name: "Manual processing" }),
-  );
-  expect(
-    dialog.getByRole("button", { name: "Generate topics" }),
-  ).toBeDisabled();
-  expect(dialog.queryByRole("alert")).toBeNull();
-  expect(dialog.getByRole("status")).toHaveTextContent(/^2 facets selected$/);
-  state.countsPending = false;
-  state.countsFetching = false;
-  page.rerender(<TopicsPage />);
-  expect(dialog.getByRole("button", { name: "Generate topics" })).toBeEnabled();
-  expect(dialog.getAllByText("240 summaries")[0]).toBeVisible();
-  expect(dialog.getByRole("status")).toHaveTextContent(
-    "2 facets selected · 480 stored summaries",
-  );
-  state.countsFetching = true;
-  page.rerender(<TopicsPage />);
-  expect(dialog.getAllByText("240 summaries")[0]).toBeVisible();
-  expect(dialog.getByRole("status")).toHaveTextContent(
-    "2 facets selected · 480 stored summaries",
-  );
-  expect(dialog.queryByRole("alert")).toBeNull();
-  expect(
-    dialog.getByRole("button", { name: "Generate topics" }),
-  ).toBeDisabled();
-});
-
-it("regenerates the rule's facets that have summaries, at their latest version, over its default seven-day range, then opens the run", async () => {
-  withSummaries();
-  state.executions = [execution("completed", "update")];
-  render(<TopicsPage />, { wrapper: LayerProvider });
-  await openManualDialog();
-  fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
-    button: 0,
-    ctrlKey: false,
-  });
-
-  const dialog = screen.getByRole("dialog", { name: "Manual processing" });
-  expect(
-    within(dialog).getByRole("checkbox", { name: "outcome" }),
-  ).toBeChecked();
-  expect(
-    within(dialog).queryByRole("checkbox", { name: "language" }),
-  ).toBeNull();
-  fireEvent.click(
-    within(dialog).getByRole("button", { name: "Generate topics" }),
-  );
-
-  await waitFor(() =>
-    expect(state.push).toHaveBeenCalledWith(
-      expect.objectContaining({
-        query: expect.objectContaining({ executionId: "regenerated" }),
-      }),
-      undefined,
-      { shallow: true },
-    ),
-  );
-  expect(state.trigger).toHaveBeenCalledWith({
-    projectId: "project",
-    operation: "update",
-    facets: [
-      { facetId: "intent", version: 2 },
-      { facetId: "outcome", version: 1 },
-    ],
-    exploratory: false,
-    timeRange: {
-      from: new Date("2026-10-02T12:00:00Z"),
-      to: new Date("2026-10-09T12:00:00Z"),
-    },
-    minimumTraceCount: 100,
-    requestId: expect.any(String),
-  });
-});
-
-it("regenerates the shown rule's facets as a snapshot, without a rule ID", async () => {
-  withSummaries();
-  state.rules = [
-    { id: "rule-oldest", facetIds: ["outcome"] },
-    { id: "rule-shown", facetIds: ["intent"] },
-  ];
-  state.maps = {
-    rules: [
-      {
-        id: "rule-shown",
-        name: "Shown",
-        filter: [],
-        sampling: 1,
-        facetIds: ["intent"],
-        enabled: true,
-        lastRefitAt: "2026-10-09T10:00:00Z",
-        refresh: { availableAt: null, running: false },
-      },
-    ],
-    analyses: [],
-  };
-  render(<TopicsPage />, { wrapper: LayerProvider });
-  await openManualDialog();
-  fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
-    button: 0,
-    ctrlKey: false,
-  });
-  const dialog = screen.getByRole("dialog", { name: "Manual processing" });
-  fireEvent.click(
-    within(dialog).getByRole("button", { name: "Generate topics" }),
-  );
-
-  await waitFor(() =>
-    expect(state.trigger).toHaveBeenCalledWith(
-      expect.objectContaining({ facets: [{ facetId: "intent", version: 2 }] }),
-    ),
-  );
-  expect(state.trigger.mock.calls[0][0]).not.toHaveProperty("ruleId");
-});
-
-it("shows a regenerate failure that settles after the dialog was closed and reopened, and retries with the same requestId", async () => {
-  withSummaries();
-  let fail: (error: Error) => void = () => {};
-  state.trigger.mockImplementationOnce(
-    () => new Promise((_, reject) => (fail = reject)),
-  );
-  render(<TopicsPage />, { wrapper: LayerProvider });
-  const open = async () => {
-    await openManualDialog();
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
-      button: 0,
-      ctrlKey: false,
-    });
-    return screen.getByRole("dialog", { name: "Manual processing" });
-  };
-
-  fireEvent.click(
-    within(await open()).getByRole("button", { name: "Generate topics" }),
-  );
-  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  const reopened = await open();
-  fail(new Error("Clustering connection failed."));
-
-  expect(
-    await within(reopened).findByText("Clustering connection failed."),
-  ).toBeInTheDocument();
-  fireEvent.click(
-    within(reopened).getByRole("button", { name: "Generate topics" }),
-  );
-  await waitFor(() => expect(state.trigger).toHaveBeenCalledTimes(2));
-  const [first, second] = state.trigger.mock.calls.map(
-    ([input]) => (input as { requestId: string }).requestId,
-  );
-  expect(second).toBe(first);
-});
-
-it("summarizes the frozen trace selection for active facets and opens the progress drawer", async () => {
-  withSummaries();
-  render(<TopicsPage />, { wrapper: LayerProvider });
-  await openManualDialog("process");
-  const dialog = screen.getByRole("dialog", { name: "Manual processing" });
-  fireEvent.click(
-    within(dialog).getByRole("button", { name: "Summarize & embed" }),
-  );
-
-  await waitFor(() =>
-    expect(state.push).toHaveBeenCalledWith(
-      expect.objectContaining({
-        query: expect.objectContaining({ executionId: "regenerated" }),
-      }),
-      undefined,
-      { shallow: true },
-    ),
-  );
-  expect(state.trigger).toHaveBeenCalledWith({
-    projectId: "project",
-    operation: "process",
-    facets: [
-      { facetId: "intent", version: 2 },
-      { facetId: "outcome", version: 1 },
-    ],
-    reuseExistingSummaries: true,
-    selection: {
-      filter: [],
-      from: new Date("2026-10-01T00:00:00Z"),
-      to: new Date("2026-10-09T12:00:00Z"),
-      limit: 2,
-      sampling: "random",
-      seed: "frozen-preview",
-      excludedTraceIds: ["excluded-trace"],
-    },
-    requestId: expect.any(String),
-  });
-  expect(screen.queryByRole("dialog")).toBeNull();
-});
-
-it("hands off from manual processing to Topics model configuration", async () => {
-  withSummaries();
-  render(<TopicsPage />, { wrapper: LayerProvider });
-  await openManualDialog("process");
-  const dialog = screen.getByRole("dialog", { name: "Manual processing" });
-  fireEvent.click(within(dialog).getByRole("button", { name: "Settings" }));
-  expect(state.openConfigure).toHaveBeenCalledOnce();
-  await waitFor(() =>
-    expect(
-      screen.queryByRole("dialog", { name: "Manual processing" }),
-    ).toBeNull(),
-  );
-  expect(state.trigger).not.toHaveBeenCalled();
-});
-
-it("freezes an independent generation range for summary counts and submission", async () => {
-  withSummaries();
-  render(<TopicsPage />, { wrapper: LayerProvider });
-  await openManualDialog();
-  fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
-    button: 0,
-    ctrlKey: false,
-  });
-  const dialog = screen.getByRole("dialog", { name: "Manual processing" });
-  fireEvent.click(
-    within(dialog).getByRole("button", { name: "Select last 30 days" }),
-  );
-  const expectedRange = {
-    from: new Date("2026-09-09T12:00:00Z"),
-    to: new Date("2026-10-09T12:00:00Z"),
-  };
-  expect(state.summaryCountInput).toHaveBeenLastCalledWith(
-    expect.objectContaining({ timeRange: expectedRange }),
-  );
-  vi.setSystemTime(new Date("2026-10-09T12:05:00Z"));
-  fireEvent.click(
-    within(dialog).getByRole("button", { name: "Generate topics" }),
-  );
-  await waitFor(() => expect(state.trigger).toHaveBeenCalled());
-  expect(state.trigger.mock.lastCall![0].timeRange).toEqual({
-    from: new Date("2026-09-09T12:00:00Z"),
-    to: new Date("2026-10-09T12:00:00Z"),
-  });
-  expect(state.setQueryParams).not.toHaveBeenCalled();
-});
-
-it.each(["relative", "absolute"])(
-  "refreshes summary counts on reopening and preserves %s range semantics",
-  async (rangeKind) => {
-    withSummaries();
-    state.counts = [];
-    const view = render(<TopicsPage />, { wrapper: LayerProvider });
-    await openManualDialog();
-    if (rangeKind === "absolute") {
-      fireEvent.mouseDown(
-        screen.getByRole("tab", { name: "Generate topics" }),
-        { button: 0, ctrlKey: false },
-      );
-      fireEvent.click(
-        within(screen.getByRole("dialog")).getByRole("button", {
-          name: "Select custom dates",
-        }),
-      );
-    }
-    expect(state.invalidateSummaryCounts).toHaveBeenCalledWith({
-      projectId: "project",
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    state.counts = [{ facetId: "intent", facetVersion: 2, count: 120 }];
-    vi.setSystemTime(new Date("2026-10-10T12:00:00Z"));
-    view.rerender(<TopicsPage />);
-    await openManualDialog();
-    expect(state.invalidateSummaryCounts).toHaveBeenCalledTimes(2);
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
-      button: 0,
-      ctrlKey: false,
-    });
-    expect(
-      screen.getByRole("button", { name: "Generate topics" }),
-    ).toBeEnabled();
-    const expectedRange =
-      rangeKind === "relative"
-        ? {
-            from: new Date("2026-10-03T12:00:00Z"),
-            to: new Date("2026-10-10T12:00:00Z"),
-          }
-        : {
-            from: new Date("2026-10-01T00:00:00Z"),
-            to: new Date("2026-10-08T00:00:00Z"),
-          };
-    expect(state.summaryCountInput.mock.lastCall![0].timeRange).toEqual(
-      expectedRange,
-    );
-    vi.setSystemTime(new Date("2026-10-10T12:05:00Z"));
-    fireEvent.click(screen.getByRole("button", { name: "Generate topics" }));
-    await waitFor(() => expect(state.trigger).toHaveBeenCalled());
-    expect(state.trigger.mock.lastCall![0].timeRange).toEqual(expectedRange);
-  },
-);
-
-it.each(["settings", "readiness", "connections"] as const)(
-  "shows a failed %s configuration query and recovers after it succeeds",
-  async (query) => {
-    withSummaries();
-    state.configurationFailure = query;
-    const view = render(<TopicsPage />, { wrapper: LayerProvider });
-    await openManualDialog("process");
-    expect(
-      screen.getByText(
-        /Could not load Topics configuration: Configuration unavailable\./,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText("Loading Topics configuration…"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Summarize & embed" }),
-    ).toBeDisabled();
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
-      button: 0,
-      ctrlKey: false,
-    });
-    expect(
-      screen.getByRole("button", { name: "Generate topics" }),
-    ).toBeDisabled();
-    expect(state.trigger).not.toHaveBeenCalled();
-    state.configurationFailure = null;
-    view.rerender(<TopicsPage />);
-    expect(
-      screen.getByRole("button", { name: "Generate topics" }),
-    ).toBeEnabled();
-    expect(
-      screen.queryByText(/Could not load Topics configuration/),
-    ).not.toBeInTheDocument();
-  },
-);
-
-it.each([
-  ["loading rules", "Checking the active Topics facets…"],
-  ["failed rules", "Could not load active Topics facets: Rules unavailable."],
-  ["loading runs", "Checking for Topics runs in progress…"],
-  ["failed runs", "Could not check Topics runs: Runs unavailable."],
+  { access: "with topics:CUD", canWrite: true },
+  { access: "without topics:CUD", canWrite: false },
 ])(
-  "blocks both operations while prerequisites are unknown: %s",
-  async (condition, reason) => {
+  "offers refreshing and creating maps in the map picker $access",
+  async ({ canWrite }) => {
     withSummaries();
-    if (condition === "loading rules") state.rulesPending = true;
-    if (condition === "failed rules")
-      state.rulesError = new Error("Rules unavailable.");
-    if (condition === "loading runs") state.executions = undefined;
-    if (condition === "failed runs")
-      state.executionsError = new Error("Runs unavailable.");
-    const { rerender } = render(<TopicsPage />, { wrapper: LayerProvider });
-    await openManualDialog("process");
-    expect(
-      screen.getByRole("button", { name: "Summarize & embed" }),
-    ).toBeDisabled();
-    expect(screen.getByText(reason)).toBeInTheDocument();
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
-      button: 0,
-      ctrlKey: false,
-    });
-    expect(
-      screen.getByRole("button", { name: "Generate topics" }),
-    ).toBeDisabled();
-    expect(state.summaryCountInput.mock.lastCall![0]).toEqual(
-      expect.any(Symbol),
+    state.canWrite = canWrite;
+    // A refresh needs automatic processing on.
+    state.settings = { ...state.settings, enabled: true };
+    renderTopicsPage();
+    fireEvent.click(screen.getByRole("button", { name: "Topic map: Rule" }));
+    const picker = within(
+      await screen.findByRole("dialog", { name: "Topic maps" }),
     );
-    expect(state.trigger).not.toHaveBeenCalled();
-    state.rulesPending = false;
-    state.rulesError = null;
-    state.executions = [];
-    state.executionsError = null;
-    rerender(<TopicsPage />);
+    // Every entry stays visible; without write access it is disabled and says why on screen.
+    for (const name of [/^New live map/, /^New snapshot/]) {
+      const entry = picker.getByRole("button", { name });
+      expect(entry).toHaveProperty("disabled", !canWrite);
+      expect(
+        entry.textContent?.includes("You need permission to edit Topics."),
+      ).toBe(!canWrite);
+    }
+    // The preview card's Refresh, at its top right.
+    expect(picker.getByRole("button", { name: "Refresh" })).toHaveProperty(
+      "disabled",
+      !canWrite,
+    );
     expect(
-      screen.getByRole("button", { name: "Generate topics" }),
-    ).toBeEnabled();
-    expect(
-      screen.queryByRole("checkbox", { name: "language" }),
-    ).not.toBeInTheDocument();
+      picker
+        .queryAllByText("You need permission to edit Topics.")
+        .some((element) => element.tagName === "P"),
+    ).toBe(!canWrite);
   },
 );
 
 it("shows the setup landing until the project's first stored summary exists", () => {
   state.hasStoredSummaries = false;
-  const view = render(<TopicsPage />, { wrapper: LayerProvider });
+  const view = renderTopicsPage();
   expect(screen.getByRole("button", { name: "Set up topics" })).toBeEnabled();
   expect(screen.queryByTestId("current-topics")).toBeNull();
   state.hasStoredSummaries = true;
   view.rerender(<TopicsPage />);
   expect(screen.getByTestId("current-topics")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Set up topics" })).toBeNull();
-});
-
-it("opens generation directly from the empty topics panel", () => {
-  withSummaries();
-  state.showGenerateCTA = true;
-  render(<TopicsPage />, { wrapper: LayerProvider });
-  fireEvent.click(
-    screen.getByRole("button", { name: "Open topic generation" }),
+  // The page view keeps the state it first showed, once per mount.
+  const context = { projectId: "project", orgId: "org", isV4: true };
+  const events = state.capture.mock.calls.map(([event]) => event);
+  expect(events.filter((event) => event === "topics:page_viewed")).toHaveLength(
+    1,
   );
-  const dialog = within(
-    screen.getByRole("dialog", { name: "Manual processing" }),
+  expect(state.capture).toHaveBeenCalledWith(
+    "topics:page_viewed",
+    expect.objectContaining({ ...context, pageState: "landing" }),
   );
-  expect(dialog.getByRole("tab", { name: "Generate topics" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  expect(dialog.getByRole("button", { name: "Generate topics" })).toBeEnabled();
 });

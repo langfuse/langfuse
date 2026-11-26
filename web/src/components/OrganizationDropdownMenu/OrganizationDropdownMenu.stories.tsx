@@ -11,7 +11,6 @@ type Organization = Extract<
 const createOrganization = (id: string, name: string): Organization => ({
   id,
   name,
-  role: "OWNER",
   cloudConfig: undefined,
   plan: "cloud:hobby",
   metadata: {},
@@ -93,7 +92,9 @@ export const TestSearch = meta.story({
     const search = await menu.findByRole("searchbox", {
       name: "Search organizations...",
     });
+    await expect(search).toHaveFocus();
     await userEvent.type(search, "globex");
+    await userEvent.keyboard("{Enter}");
     await waitFor(() =>
       expect(
         menu.getByRole("link", { name: /Globex Corporation/ }),
@@ -102,5 +103,15 @@ export const TestSearch = meta.story({
     await expect(
       menu.getByRole("menuitem", { name: "New organization" }),
     ).toBeVisible();
+    await userEvent.click(menu.getByRole("button", { name: "Clear search" }));
+    await expect(search).toHaveValue("");
+    await expect(search).toHaveFocus();
+    await userEvent.keyboard("{ArrowDown}");
+    await expect(menu.getAllByRole("menuitem")[0]).toHaveFocus();
+    await userEvent.click(search);
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(body.queryByRole("menu", { name: "Organizations" })).toBeNull(),
+    );
   },
 });

@@ -164,7 +164,7 @@ describe("getFacetSummary", () => {
     ).toBe("not legacy");
   });
 
-  it("reads an explicit keep-everything filter as an active 'All' (managed env override)", () => {
+  it("counts a finite positive selection even when every loaded option is checked", () => {
     expect(
       getFacetSummary(
         categorical({
@@ -174,7 +174,7 @@ describe("getFacetSummary", () => {
           value: ["default", "dev"],
         }),
       ),
-    ).toBe("All");
+    ).toBe("2 selected");
   });
 
   it("says 'filtered' for a live none-of whose exclusions fell out of the option list", () => {

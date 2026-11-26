@@ -2,6 +2,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
+  visibleModelsWhere,
 } from "@langfuse/shared/src/server";
 
 import {
@@ -116,10 +117,7 @@ export default withMiddlewares(
                   id: {
                     in: uniqueModels,
                   },
-                  OR: [
-                    { projectId: auth.scope.projectId },
-                    { projectId: null },
-                  ],
+                  ...visibleModelsWhere(auth.scope.projectId),
                 },
                 include: {
                   Price: {

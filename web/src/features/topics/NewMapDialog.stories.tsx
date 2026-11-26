@@ -7,6 +7,8 @@ import preview from "../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { NewMapDialogView } from "./NewMapDialogView";
+import { costEstimateFixture } from "@/.storybook/fixtures/topicCostEstimateFixture";
+import { TopicCostEstimateView } from "./TopicCostEstimateView";
 import { TopicSliceFields } from "./TopicSliceFields";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 import {
@@ -108,6 +110,19 @@ function NewMapStory({
           tooltip="Share of new matching traces this map analyzes."
         />
       }
+      costEstimateField={
+        <TopicCostEstimateView
+          estimate={costEstimateFixture()}
+          samplingPercent={samplingPercent}
+          dailyTraces={180}
+          backfillTraces={412}
+          onAddModelPrice={fn()}
+          starting={false}
+          facetCount={facetIds.length}
+          error={null}
+          onStart={fn()}
+        />
+      }
       canStart={name.trim().length > 0 && facetIds.length > 0}
       starting={false}
       errors={errors}
@@ -131,7 +146,7 @@ const meta = preview.meta({
   ],
 });
 
-export const Default = meta.story({ name: "New map" });
+export const Default = meta.story({ name: "New live map" });
 
 export const LimitReached = meta.story({
   name: "Map limit reached",
@@ -152,7 +167,7 @@ export const NothingToLookFor = meta.story({
   play: async () => {
     const body = within(document.body);
     const start = await body.findByRole("button", {
-      name: "Create map",
+      name: "Create live map",
     });
     await userEvent.type(
       body.getByRole("textbox", { name: "Map name" }),

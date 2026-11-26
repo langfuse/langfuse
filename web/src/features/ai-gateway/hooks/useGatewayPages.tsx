@@ -10,6 +10,12 @@ import { GatewayProvidersHeaderActions } from "@/src/features/ai-gateway/compone
 import { GatewayNotDeployedNotice } from "@/src/features/ai-gateway/components/GatewayNotDeployedNotice/GatewayNotDeployedNotice";
 import { GatewayIngestionHeaderAction } from "@/src/features/ai-gateway/components/GatewayOverviewPage/components/GatewayIngestionHeaderAction/GatewayIngestionHeaderAction";
 import { GatewayOverviewPage } from "@/src/features/ai-gateway/components/GatewayOverviewPage/GatewayOverviewPage";
+import { GatewayBudgetsPage } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/GatewayBudgetsPage";
+import { GatewayBudgetsHeaderActions } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsHeaderActions/GatewayBudgetsHeaderActions";
+import { GatewayGuardrailsHeaderActions } from "@/src/features/ai-gateway/components/GatewayGuardrailsHeaderActions/GatewayGuardrailsHeaderActions";
+import { GatewayGuardrailsPage } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/GatewayGuardrailsPage";
+import { buildGatewayBudgetsTabs } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/buildGatewayBudgetsTabs";
+import { useGatewayBudgetsTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTab";
 import { buildGatewayModelsTabs } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/buildGatewayModelsTabs";
 import { useGatewayModelsPageState } from "@/src/features/ai-gateway/components/GatewayModelsPage/hooks/useGatewayModelsPageState";
 import { GATEWAY_MODELS_TABS } from "@/src/features/ai-gateway/constants/gatewayModelsTabs";
@@ -42,6 +48,8 @@ type GatewayPageEntry = {
   actionsLeft?: ReactNode;
   /** Rendered on the right of the page title row. */
   actions?: ReactNode;
+  /** Rendered inline in the mobile header instead of folding into an overflow popover. */
+  mobileActions?: ReactNode;
   help?: { description: string; href?: string };
   show: boolean;
   /** Set when the page needs the gateway set up first. */
@@ -62,6 +70,7 @@ export function useGatewayPages(): GatewayPageEntry[] {
     scope: "organizationMembers:CUD",
   });
   const { activeTab: modelsTab } = useGatewayModelsPageState();
+  const budgetsTab = useGatewayBudgetsTab(access.canManageGateway);
   const overviewSetup = useGatewayOverviewSetupVisit(organization?.id);
   const memberLabelsQuery = api.aiGateway.getAnalyticsLabels.useQuery(
     { orgId: organization?.id ?? "" },
@@ -156,6 +165,24 @@ export function useGatewayPages(): GatewayPageEntry[] {
       show: visible[GATEWAY_PAGE_SLUGS.overview],
     },
     {
+      title: "Gateway keys",
+      slug: GATEWAY_PAGE_SLUGS.apiKeys,
+      cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
+      content: <GatewayApiKeysPage organizationId={organization.id} />,
+      actions:
+        !access.isSetupStatusPending &&
+        (access.canManageGateway || access.isIngestionConfigured !== false) &&
+        !showsFirstKeyPlaceholder ? (
+          <GatewayApiKeysHeaderActions
+            organizationId={organization.id}
+            canInvite={access.canManageGateway && canInviteMembers}
+          />
+        ) : undefined,
+      hideTitle: showsNotSetUpNotice,
+      show: visible[GATEWAY_PAGE_SLUGS.apiKeys],
+      disabledReason,
+    },
+    {
       title: "Connections & Models",
       slug: GATEWAY_PAGE_SLUGS.models,
       cmdKKeywords: [
@@ -188,21 +215,71 @@ export function useGatewayPages(): GatewayPageEntry[] {
       disabledReason,
     },
     {
-      title: "Gateway keys",
-      slug: GATEWAY_PAGE_SLUGS.apiKeys,
-      cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
-      content: <GatewayApiKeysPage organizationId={organization.id} />,
+      title: "Budgets",
+      slug: GATEWAY_PAGE_SLUGS.budgets,
+      cmdKKeywords: ["gateway", "budgets", "spend", "cost", "keys", "users"],
+      content: access.showNotDeployedNotice ? (
+        <GatewayNotDeployedNotice />
+      ) : (
+        <GatewayBudgetsPage organizationId={organization.id} />
+      ),
+      help: {
+        description: access.canManageGateway
+          ? "Spend of requests made through the AI Gateway, in total or per gateway key or user, and the budgets of gateway keys."
+          : "Spend of your requests made through the AI Gateway, in total or per gateway key, and the budgets of your keys.",
+        href: GATEWAY_ANALYTICS_DOCS_URL,
+      },
+      // Everyone may add budgets to their own keys; the default is for managers only.
       actions:
-        !access.isSetupStatusPending &&
-        (access.canManageGateway || access.isIngestionConfigured !== false) &&
-        !showsFirstKeyPlaceholder ? (
-          <GatewayApiKeysHeaderActions
+        !access.showNotDeployedNotice && !showsNotSetUpNotice ? (
+          <GatewayBudgetsHeaderActions
             organizationId={organization.id}
-            canInvite={access.canManageGateway && canInviteMembers}
+            tab={budgetsTab}
           />
         ) : undefined,
-      hideTitle: showsNotSetUpNotice,
-      show: visible[GATEWAY_PAGE_SLUGS.apiKeys],
+      tabsProps:
+        access.canManageGateway &&
+        !access.showNotDeployedNotice &&
+        !showsNotSetUpNotice
+          ? buildGatewayBudgetsTabs(organization.id, budgetsTab)
+          : undefined,
+      scrollable: true,
+      hideTitle: showsNotSetUpNotice || access.showNotDeployedNotice,
+      show: visible[GATEWAY_PAGE_SLUGS.budgets],
+      disabledReason,
+    },
+    {
+      title: "Guardrails",
+      slug: GATEWAY_PAGE_SLUGS.guardrails,
+      cmdKKeywords: [
+        "gateway",
+        "guardrails",
+        "pii",
+        "secrets",
+        "block",
+        "log",
+        "safety",
+      ],
+      content: access.showNotDeployedNotice ? (
+        <GatewayNotDeployedNotice />
+      ) : (
+        <GatewayGuardrailsPage organizationId={organization.id} />
+      ),
+      actions:
+        access.canManageGateway &&
+        !access.showNotDeployedNotice &&
+        !showsNotSetUpNotice ? (
+          <GatewayGuardrailsHeaderActions organizationId={organization.id} />
+        ) : undefined,
+      mobileActions:
+        access.canManageGateway &&
+        !access.showNotDeployedNotice &&
+        !showsNotSetUpNotice ? (
+          <GatewayGuardrailsHeaderActions organizationId={organization.id} />
+        ) : undefined,
+      scrollable: true,
+      hideTitle: showsNotSetUpNotice || access.showNotDeployedNotice,
+      show: visible[GATEWAY_PAGE_SLUGS.guardrails],
       disabledReason,
     },
   ];

@@ -3,6 +3,7 @@ import {
   getValidAggregationsForMeasureType,
   metricAggregations,
   validateQuery,
+  MAX_TIME_SERIES_BREAKDOWN_VALUES,
   type QueryType,
 } from "@langfuse/shared/query";
 import {
@@ -4585,6 +4586,32 @@ describe("validateQuery", () => {
     expect(result).toEqual({ valid: true });
   });
 
+  it("allows a high cardinality time series breakdown only while a same-field filter bounds it to few values", () => {
+    const breakdown = (count: number): QueryType => ({
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }],
+      timeDimension: { granularity: "day" },
+      filters: [
+        {
+          column: "traceId",
+          operator: "any of",
+          value: Array.from({ length: count }, (_, index) => `trace-${index}`),
+          type: "stringOptions",
+        },
+      ],
+    });
+
+    expect(
+      validateQuery(breakdown(MAX_TIME_SERIES_BREAKDOWN_VALUES), "v2"),
+    ).toEqual({ valid: true });
+    expect(
+      validateQuery(breakdown(MAX_TIME_SERIES_BREAKDOWN_VALUES + 1), "v2"),
+    ).toMatchObject({
+      valid: false,
+      highCardinality: { code: "time_dimension", dimensions: ["traceId"] },
+    });
+  });
+
   it("should return invalid when high cardinality entityDimension is unbounded", () => {
     const query: QueryType = {
       ...baseQuery,
@@ -4932,12 +4959,10 @@ describe("query builder measure-aggregation validation", () => {
     const queryBuilder = new QueryBuilder(undefined, "v2");
     const result = await queryBuilder.build(query, randomUUID());
 
-    expect(result.query).toContain(
-      "INNER JOIN events_core AS events_observations",
-    );
-    expect(result.query).toContain("events_observations.experiment_name");
+    expect(result.query).toMatch(/inner join events_core as e\b/i);
+    expect(result.query).toContain("e.experiment_name");
     expect(result.query).toContain("as entity_dimension");
-    expect(result.query).toContain("GROUP BY entity_dimension");
+    expect(result.query).toMatch(/group by entity_dimension/i);
   });
 
   it("should build run-level score entity queries without joining events", async () => {
@@ -4977,7 +5002,7 @@ describe("query builder measure-aggregation validation", () => {
 
     expect(result.query).toContain("scores.dataset_run_id");
     expect(result.query).toContain("entity_dimension");
-    expect(result.query).not.toContain("JOIN events_core");
+    expect(result.query).not.toMatch(/join events_core/i);
   });
 
   it("should reject queries with both timeDimension and entityDimension", async () => {
@@ -5402,8 +5427,305 @@ describe("query builder measure-aggregation validation", () => {
     );
   });
 
+  describe("v2 score views read trace attributes across all spans", () => {
+    const isEventsTableV2Enabled =
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
+
+    const span = (
+      projectId: string,
+      traceId: string,
+      overrides: Partial<Parameters<typeof createEvent>[0]> = {},
+    ) =>
+      createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        parent_span_id: "child-of-something",
+        start_time: Date.now(),
+        ...overrides,
+      });
+
+    const scoreOn = (projectId: string, traceId: string) =>
+      createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        name: "trace-attr-score",
+        value: 1,
+        data_type: "NUMERIC",
+        timestamp: Date.now(),
+      });
+
+    const scoreQuery = (
+      overrides: Pick<QueryType, "dimensions" | "filters">,
+    ): QueryType => ({
+      view: "scores-numeric",
+      metrics: [{ measure: "count", aggregation: "count" }],
+      timeDimension: null,
+      fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+      toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+      orderBy: null,
+      ...overrides,
+    });
+
+    const tagFilter = (operator: "any of" | "none of", value: string[]) => ({
+      column: "tags",
+      operator,
+      value,
+      type: "arrayOptions" as const,
+    });
+
+    const count = (rows: Array<Record<string, unknown>>) =>
+      rows.reduce((sum, row) => sum + Number(row.count_count), 0);
+
+    isEventsTableV2Enabled(
+      "matches an app root whose parent span id is set",
+      async () => {
+        const projectId = randomUUID();
+        const traceId = randomUUID();
+        await createEventsCh([
+          span(projectId, traceId, {
+            is_app_root: true,
+            trace_name: "app-root-trace",
+            tags: ["app-root-tag"],
+          }),
+        ]);
+        await createScoresCh([scoreOn(projectId, traceId)]);
+
+        const filtered = await executeQuery(
+          projectId,
+          scoreQuery({
+            dimensions: [],
+            filters: [tagFilter("any of", ["app-root-tag"])],
+          }),
+          "v2",
+        );
+        const grouped = await executeQuery(
+          projectId,
+          scoreQuery({ dimensions: [{ field: "traceName" }], filters: [] }),
+          "v2",
+        );
+
+        expect(count(filtered)).toBe(1);
+        expect(grouped).toEqual([
+          expect.objectContaining({ traceName: "app-root-trace" }),
+        ]);
+        expect(count(grouped)).toBe(1);
+      },
+    );
+
+    isEventsTableV2Enabled(
+      "matches tags that only a child span carries",
+      async () => {
+        const projectId = randomUUID();
+        const traceId = randomUUID();
+        await createEventsCh([
+          span(projectId, traceId, { is_app_root: true, tags: [] }),
+          span(projectId, traceId, { tags: ["child-tag"] }),
+        ]);
+        await createScoresCh([scoreOn(projectId, traceId)]);
+
+        const filtered = await executeQuery(
+          projectId,
+          scoreQuery({
+            dimensions: [],
+            filters: [tagFilter("any of", ["child-tag"])],
+          }),
+          "v2",
+        );
+        const grouped = await executeQuery(
+          projectId,
+          scoreQuery({ dimensions: [{ field: "tags" }], filters: [] }),
+          "v2",
+        );
+
+        expect(count(filtered)).toBe(1);
+        expect(grouped).toEqual([
+          expect.objectContaining({ tags: ["child-tag"] }),
+        ]);
+      },
+    );
+
+    isEventsTableV2Enabled(
+      "groups two app roots into one trace with the union of their tags",
+      async () => {
+        const projectId = randomUUID();
+        const traceId = randomUUID();
+        await createEventsCh([
+          span(projectId, traceId, { is_app_root: true, tags: ["root-b"] }),
+          span(projectId, traceId, { is_app_root: true, tags: ["root-a"] }),
+        ]);
+        await createScoresCh([scoreOn(projectId, traceId)]);
+
+        const grouped = await executeQuery(
+          projectId,
+          scoreQuery({ dimensions: [{ field: "tags" }], filters: [] }),
+          "v2",
+        );
+        const filtered = await executeQuery(
+          projectId,
+          scoreQuery({
+            dimensions: [],
+            filters: [tagFilter("any of", ["root-b"])],
+          }),
+          "v2",
+        );
+
+        expect(grouped).toEqual([
+          expect.objectContaining({ tags: ["root-a", "root-b"] }),
+        ]);
+        expect(count(grouped)).toBe(1);
+        expect(count(filtered)).toBe(1);
+      },
+    );
+
+    isEventsTableV2Enabled(
+      "matches traces from an exporter that marks no span as root",
+      async () => {
+        const projectId = randomUUID();
+        const traceId = randomUUID();
+        await createEventsCh([
+          span(projectId, traceId, { trace_name: "exporter-trace" }),
+          span(projectId, traceId, { tags: ["exporter-tag"] }),
+        ]);
+        await createScoresCh([scoreOn(projectId, traceId)]);
+
+        const filtered = await executeQuery(
+          projectId,
+          scoreQuery({
+            dimensions: [{ field: "traceName" }],
+            filters: [tagFilter("any of", ["exporter-tag"])],
+          }),
+          "v2",
+        );
+
+        expect(filtered).toEqual([
+          expect.objectContaining({ traceName: "exporter-trace" }),
+        ]);
+        expect(count(filtered)).toBe(1);
+      },
+    );
+
+    isEventsTableV2Enabled(
+      "counts a score once when a synthetic trace row sits next to an app root",
+      async () => {
+        const projectId = randomUUID();
+        const traceId = randomUUID();
+        await createEventsCh([
+          span(projectId, traceId, {
+            parent_span_id: "",
+            trace_name: "dual-write-trace",
+            tags: [],
+          }),
+          span(projectId, traceId, {
+            is_app_root: true,
+            trace_name: "dual-write-trace",
+            tags: ["dual-tag"],
+          }),
+        ]);
+        await createScoresCh([scoreOn(projectId, traceId)]);
+
+        const result = await executeQuery(
+          projectId,
+          scoreQuery({
+            dimensions: [{ field: "traceName" }],
+            filters: [tagFilter("any of", ["dual-tag"])],
+          }),
+          "v2",
+        );
+
+        expect(result).toEqual([
+          expect.objectContaining({ traceName: "dual-write-trace" }),
+        ]);
+        expect(count(result)).toBe(1);
+      },
+    );
+
+    isEventsTableV2Enabled(
+      "excludes a trace from a negative tag filter when any span has the tag",
+      async () => {
+        const projectId = randomUUID();
+        const taggedTraceId = randomUUID();
+        const untaggedTraceId = randomUUID();
+        await createEventsCh([
+          span(projectId, taggedTraceId, { is_app_root: true }),
+          span(projectId, taggedTraceId, { tags: ["excluded-tag"] }),
+          span(projectId, untaggedTraceId, { is_app_root: true }),
+          span(projectId, untaggedTraceId, { tags: ["other-tag"] }),
+        ]);
+        await createScoresCh([
+          scoreOn(projectId, taggedTraceId),
+          scoreOn(projectId, untaggedTraceId),
+        ]);
+
+        const result = await executeQuery(
+          projectId,
+          scoreQuery({
+            dimensions: [{ field: "traceId" }],
+            filters: [tagFilter("none of", ["excluded-tag"])],
+          }),
+          "v2",
+        );
+
+        expect(result).toEqual([
+          expect.objectContaining({ traceId: untaggedTraceId }),
+        ]);
+      },
+    );
+
+    const seedSetAndEmpty = async (
+      projectId: string,
+      column: "tags" | "environment" | "observationName",
+    ) => {
+      const [setTraceId, emptyTraceId] = [randomUUID(), randomUUID()];
+      const [setScore, emptyScore] = [
+        scoreOn(projectId, setTraceId),
+        scoreOn(projectId, emptyTraceId),
+      ];
+      if (column === "tags") {
+        await createEventsCh([
+          span(projectId, setTraceId, { is_app_root: true, tags: ["x"] }),
+          span(projectId, emptyTraceId, { is_app_root: true, tags: [] }),
+        ]);
+      } else if (column === "environment") {
+        setScore.environment = "production";
+        emptyScore.environment = "";
+      } else {
+        const setSpan = span(projectId, setTraceId, { name: "gen" });
+        const emptySpan = span(projectId, emptyTraceId, { name: "" });
+        await createEventsCh([setSpan, emptySpan]);
+        setScore.observation_id = setSpan.span_id;
+        emptyScore.observation_id = emptySpan.span_id;
+      }
+      await createScoresCh([setScore, emptyScore]);
+    };
+
+    isEventsTableV2Enabled.each([
+      { column: "tags", operator: "is null" },
+      { column: "tags", operator: "is not null" },
+      { column: "environment", operator: "is null" },
+      { column: "environment", operator: "is not null" },
+      { column: "observationName", operator: "is null" },
+    ] as const)(
+      "matches only one of a set and an empty $column for $operator",
+      async ({ column, operator }) => {
+        const projectId = randomUUID();
+        await seedSetAndEmpty(projectId, column);
+
+        const result = await executeQuery(
+          projectId,
+          scoreQuery({
+            dimensions: [],
+            filters: [{ column, type: "null", operator, value: "" }],
+          }),
+          "v2",
+        );
+
+        expect(count(result)).toBe(1);
+      },
+    );
+  });
+
   describe("useFinal flag on events_core joins", () => {
-    it("should join the parentless trace event without FINAL in v2 scores-numeric view", async () => {
+    it("should join aggregated trace attributes without FINAL in v2 scores-numeric view", async () => {
       const projectId = randomUUID();
       const builder = new QueryBuilder(undefined, "v2");
       const { query: compiledQuery } = await builder.build(
@@ -5422,14 +5744,11 @@ describe("query builder measure-aggregation validation", () => {
         projectId,
       );
 
-      // events_core should be joined without FINAL (useFinal: false)
-      expect(compiledQuery).toContain("JOIN events_core");
-      expect(compiledQuery).not.toContain(
-        "JOIN events_core AS events_traces FINAL",
-      );
-      expect(compiledQuery).toContain("AND events_traces.parent_span_id = ''");
-      // scores base CTE should still use FINAL
-      expect(compiledQuery).toContain("scores scores_numeric FINAL");
+      expect(compiledQuery).toContain("from events_core");
+      expect(compiledQuery).toMatch(/\) as events_traces on /i);
+      expect(compiledQuery).not.toMatch(/events_core( as \w+)? final/i);
+      // the scores base table still reads FINAL
+      expect(compiledQuery).toMatch(/from scores final\b/i);
     });
 
     it("should omit FINAL for events_observations join in v2 scores-categorical view", async () => {
@@ -5452,10 +5771,8 @@ describe("query builder measure-aggregation validation", () => {
       );
 
       // events_core should be joined without FINAL (useFinal: false)
-      expect(compiledQuery).toContain("JOIN events_core");
-      expect(compiledQuery).not.toContain(
-        "JOIN events_core AS events_observations FINAL",
-      );
+      expect(compiledQuery).toMatch(/join events_core as e\b/i);
+      expect(compiledQuery).not.toMatch(/join events_core as e final/i);
     });
 
     it("should keep FINAL for non-events_core joins in v1 scores view", async () => {

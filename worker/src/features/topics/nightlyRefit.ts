@@ -1,12 +1,11 @@
 import { createHash } from "node:crypto";
 import { prisma } from "@langfuse/shared/src/db";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import {
   createTopicRun,
   enqueueTopicRuleRefit,
-  getEnabledTopicsModels,
-  getTopicClusteringSummaryStats,
+  getAllEnabledTopicsModels,
+  hasCompatibleTopicSummaries,
   getTopicRuleMap,
   isTopicRuleSetupActive,
   listTopicFacets,
@@ -37,6 +36,7 @@ const NIGHTLY_REFIT_PRIORITY = 10;
  * The latest daily refit time at or before `now`: the configured UTC hour plus
  * a stable per-project offset within the spread window, so projects in one
  * deployment do not all refit at the same moment.
+ * @internal
  */
 export function nightlyRefitSlot(
   projectId: string,
@@ -59,18 +59,13 @@ export function nightlyRefitSlot(
  * run row with the rule's ID, whose ID derives from the slot, so a slot is
  * handled at most once; a slot with nothing to fit leaves a skipped run.
  * After downtime, only the latest slot runs.
+ * @internal
  */
 export async function scheduleNightlyTopicRefits(
   now: Date,
   onProgress: () => Promise<void> = async () => {},
 ): Promise<number> {
-  const projects = [
-    ...(
-      await getEnabledTopicsModels(
-        sharedEnv.LANGFUSE_TOPICS_ENABLED_PROJECT_IDS,
-      )
-    ).values(),
-  ]
+  const projects = [...(await getAllEnabledTopicsModels()).values()]
     .map((models) => ({
       projectId: models.projectId,
       embeddingConfig: {
@@ -228,7 +223,7 @@ async function refitRuleFacet({
     ...run,
     config: {
       ...embedding,
-      // The fit loads the newest of the rule's summaries in this window.
+      // The fit loads a stable sample of the rule's summaries in this window.
       timeRange: {
         from: new Date(
           now.getTime() - TOPICS_MAX_SELECTION_RANGE_MS,
@@ -279,18 +274,10 @@ async function hasNewSummaries(
     now.getTime() - TOPICS_MAX_TIME_RANGE_MS,
   );
   if (from >= now.getTime()) return false;
-  const { count } = await getTopicClusteringSummaryStats(
-    projectId,
-    facet.facetId,
-    facet.version,
-    embeddingConfig,
-    { from: new Date(from), to: now },
-    {
-      maxRows: env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
-      maxBytes: env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES,
-    },
-  );
-  return count > 0;
+  return hasCompatibleTopicSummaries(projectId, facet, embeddingConfig, {
+    from: new Date(from),
+    to: now,
+  });
 }
 
 export class TopicsNightlyRefitRunner extends PeriodicExclusiveRunner {

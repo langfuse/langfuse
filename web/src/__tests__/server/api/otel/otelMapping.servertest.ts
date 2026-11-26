@@ -6084,7 +6084,7 @@ describe("OTel Resource Span Mapping", () => {
       },
       {
         scenario: "preserves other model spans",
-        spanName: "anthropic.messages.create",
+        spanName: "anthropic.model_request",
         expectedType: "GENERATION",
         expectedModel: "claude-test-model",
       },
@@ -6253,6 +6253,65 @@ describe("OTel Resource Span Mapping", () => {
           type: expectedType,
           name: expectedName,
         });
+      },
+    );
+
+    it.each([
+      {
+        scenario: "platform request spans defer to their model request",
+        scopeName: "com.anthropic.claude-platform",
+        expectedTypes: ["SPAN", "GENERATION"],
+      },
+      {
+        scenario: "SDK request spans stay generations",
+        scopeName: "com.anthropic.sdk.python",
+        expectedTypes: ["GENERATION", "GENERATION"],
+      },
+    ])(
+      "Claude request spans: $scenario",
+      async ({ scopeName, expectedTypes }) => {
+        const modelAttributes = {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "claude-test-model",
+          "gen_ai.usage.input_tokens": "12",
+          "gen_ai.usage.output_tokens": "5",
+        };
+        const { legacyObservations, eventInputs } = await mapCmaSpans(
+          [
+            { name: "anthropic.messages.create", attributes: modelAttributes },
+            {
+              name: "anthropic.model_request",
+              parentSpanId: Buffer.alloc(8, 1),
+              attributes: modelAttributes,
+            },
+          ],
+          scopeName,
+        );
+
+        const expectedUsage = (type: string) =>
+          type === "GENERATION" ? { input: 12, output: 5 } : undefined;
+        expect(
+          legacyObservations.map((observation) => ({
+            type: observation.type,
+            usageDetails: observation.body.usageDetails,
+          })),
+        ).toEqual(
+          expectedTypes.map((type) => ({
+            type: `${type.toLowerCase()}-create`,
+            usageDetails: expectedUsage(type) ?? {},
+          })),
+        );
+        expect(
+          eventInputs.map((event) => ({
+            type: event.type,
+            providedUsageDetails: event.providedUsageDetails,
+          })),
+        ).toEqual(
+          expectedTypes.map((type) => ({
+            type,
+            providedUsageDetails: expectedUsage(type),
+          })),
+        );
       },
     );
 
@@ -8170,6 +8229,49 @@ describe("OTel Resource Span Mapping", () => {
       expect(toolEvents.length).toBe(1);
     });
 
+    it.each([
+      ["ai.operationId", { intValue: 0 }],
+      ["operation.name", { boolValue: true }],
+    ])(
+      "should map a span whose %s is not text to span-create",
+      async (key, value) => {
+        const otelSpans = [
+          {
+            resource: { attributes: [] },
+            scopeSpans: [
+              {
+                scope: { name: "ai" },
+                spans: [
+                  {
+                    traceId: {
+                      data: [
+                        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                      ],
+                    },
+                    spanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                    name: "tool-execution",
+                    startTimeUnixNano: 1000000000,
+                    endTimeUnixNano: 2000000000,
+                    attributes: [{ key, value }],
+                    status: {},
+                  },
+                ],
+              },
+            ],
+          },
+        ];
+
+        const events = await convertOtelSpanToIngestionEvent(
+          otelSpans[0],
+          new Set(),
+          publicKey,
+        );
+
+        const spanEvents = events.filter((e) => e.type === "span-create");
+        expect(spanEvents.length).toBe(1);
+      },
+    );
+
     it("should map Vercel AI SDK generation WITH model to generation-create", async () => {
       const otelSpans = [
         {
@@ -9152,6 +9254,21 @@ describe("OTel Resource Span Mapping", () => {
           input_cache_creation: 500,
           input_cache_creation_5m: 3000,
           input_cache_creation_1h: 1500,
+        },
+      },
+      {
+        name: "Claude Platform anthropic.usage breakdown",
+        attributes: {
+          "gen_ai.usage.input_tokens": 6000,
+          "gen_ai.usage.cache_write.input_tokens": 4500,
+          "anthropic.usage.cache_creation.ephemeral_5m_input_tokens": 1500,
+          "anthropic.usage.cache_creation.ephemeral_1h_input_tokens": 3000,
+        },
+        expected: {
+          input: 1500,
+          input_cache_creation: 0,
+          input_cache_creation_5m: 1500,
+          input_cache_creation_1h: 3000,
         },
       },
     ])(

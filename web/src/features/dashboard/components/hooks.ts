@@ -58,7 +58,10 @@ export const useAllModels = (
     },
   );
 
-  return allModels.data ? extractAllModels(allModels.data) : [];
+  return {
+    data: allModels.data ? extractAllModels(allModels.data) : [],
+    isPending: allModels.isPending,
+  };
 };
 
 const extractAllModels = (
@@ -175,6 +178,7 @@ export function fillMissingValuesAndTransform(
   return result;
 }
 
+/** @internal */
 export const isEmptyTimeSeries = ({
   data,
   isNullValueAllowed = false,

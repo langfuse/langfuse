@@ -2,7 +2,10 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
-import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
+import {
+  type GatewayApiFormat,
+  GatewayResolveResponseSchema,
+} from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayResolveService } from "./resolveService";
 
 const mockEnv = vi.hoisted(() => ({
@@ -30,16 +33,32 @@ vi.mock("@/src/server/utils/jwt", () => ({
 }));
 
 vi.mock("@langfuse/shared/encryption", () => ({
-  decrypt: vi.fn(() => "sk-test"),
+  decrypt: vi.fn((value: string) => {
+    if (value === "corrupt-bedrock-guardrail") {
+      throw new Error("Unsupported state or unable to authenticate data");
+    }
+    return value === "encrypted-bedrock-guardrail"
+      ? JSON.stringify({ apiKey: "bedrock-guardrail-key" })
+      : "sk-test";
+  }),
 }));
 
-const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
+const serviceWith = (
+  findFirst: () => Promise<unknown>,
+  keyOrgId = "org-1",
+  guardrails: unknown[] = [],
+) => {
   const prisma = {
     apiKey: { findFirst },
+    gatewayGuardrail: { findMany: () => Promise.resolve(guardrails) },
     roleAssignment: {
       findMany: () =>
         Promise.resolve([
-          { systemRole: "AI_GATEWAY", orgId: keyOrgId, projectId: null },
+          {
+            systemRole: "AI_GATEWAY_INFERENCE",
+            orgId: keyOrgId,
+            projectId: null,
+          },
         ]),
     },
   } as unknown as PrismaClient;
@@ -55,7 +74,11 @@ const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
         ...params,
         model: "Production OpenAI:gpt-4o",
       });
-      return service.resolve({ context, apiFormat: params.apiFormat });
+      return service.resolve({
+        context,
+        apiFormat: params.apiFormat,
+        pricing: service.findPricing(context),
+      });
     },
   };
 };
@@ -83,7 +106,9 @@ const row = (overrides: {
         },
   gatewayAssociation:
     overrides.metadata === undefined ? null : { metadata: overrides.metadata },
+  gatewaySpendLimits: [],
   organization: {
+    gatewaySpendLimits: [],
     gatewayConfig: {
       defaultIngestionProjectId: overrides.withoutProject ? null : "project-1",
       ingestionMode: overrides.ingestionMode ?? "USAGE",
@@ -151,6 +176,9 @@ describe("GatewayResolveService", () => {
         token_type: "Bearer",
         expires_at: expect.any(Number),
       },
+      spend_limits: [],
+      guardrails: [],
+      pricing: null,
     });
   });
 
@@ -352,7 +380,12 @@ describe("GatewayResolveService", () => {
           orgId: "org-not-allowed",
           expiresAt: null,
           gatewayAssociation: null,
-          organization: { gatewayConfig: null, gatewayAiConnections: [] },
+          gatewaySpendLimits: [],
+          organization: {
+            gatewaySpendLimits: [],
+            gatewayConfig: null,
+            gatewayAiConnections: [],
+          },
         }),
       "org-not-allowed",
     );
@@ -365,6 +398,111 @@ describe("GatewayResolveService", () => {
     ).rejects.toMatchObject({
       status: 403,
       message: "Gateway is not enabled for this organization",
+    });
+  });
+
+  it("decrypts Bedrock guardrail API keys in the resolve response", async () => {
+    const service = serviceWith(() => Promise.resolve(row({})), "org-1", [
+      {
+        id: "gr-bedrock",
+        name: "Bedrock filter",
+        type: "BEDROCK",
+        action: "BLOCK",
+        config: {
+          guardrailId: "abc123def",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
+        encryptedCredential: "encrypted-bedrock-guardrail",
+      },
+    ]);
+
+    await expect(
+      service.resolve({
+        fastHashedSecretKey: "hashed-secret-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toMatchObject({
+      guardrails: [
+        {
+          id: "gr-bedrock",
+          name: "Bedrock filter",
+          type: "bedrock",
+          action: "block",
+          patterns: [],
+          guardrail_id: "abc123def",
+          guardrail_version: "1",
+          region: "us-east-1",
+          api_key: "bedrock-guardrail-key",
+        },
+      ],
+    });
+  });
+
+  it("emits fail_closed when a Bedrock guardrail credential cannot be decrypted or config is invalid", async () => {
+    const service = serviceWith(() => Promise.resolve(row({})), "org-1", [
+      {
+        id: "gr-corrupt-secret",
+        name: "Corrupt secret",
+        type: "BEDROCK",
+        action: "BLOCK",
+        config: {
+          guardrailId: "abc123def",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
+        encryptedCredential: "corrupt-bedrock-guardrail",
+      },
+      {
+        id: "gr-missing-secret",
+        name: "Missing secret",
+        type: "BEDROCK",
+        action: "BLOCK",
+        config: {
+          guardrailId: "abc123def",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
+        encryptedCredential: null,
+      },
+      {
+        id: "gr-invalid-config",
+        name: "Invalid config",
+        type: "BEDROCK",
+        action: "LOG",
+        config: { region: "not-a-region" },
+        encryptedCredential: "encrypted-bedrock-guardrail",
+      },
+    ]);
+
+    const resolved = await service.resolve({
+      fastHashedSecretKey: "hashed-secret-key",
+      apiFormat: "openai.responses",
+    });
+    expect(GatewayResolveResponseSchema.parse(resolved)).toMatchObject({
+      guardrails: [
+        {
+          id: "gr-corrupt-secret",
+          name: "Corrupt secret",
+          type: "fail_closed",
+          action: "block",
+          patterns: [],
+        },
+        {
+          id: "gr-missing-secret",
+          name: "Missing secret",
+          type: "fail_closed",
+          action: "block",
+          patterns: [],
+        },
+        {
+          id: "gr-invalid-config",
+          name: "Invalid config",
+          type: "fail_closed",
+          action: "log",
+          patterns: [],
+        },
+      ],
     });
   });
 });

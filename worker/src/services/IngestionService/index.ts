@@ -4,13 +4,9 @@ import { v4 } from "uuid";
 import {
   InvalidRequestError,
   LangfuseNotFoundError,
-  MAX_SKILLS_PER_OBSERVATION,
   PrismaClient,
   Prompt,
   type JsonNested,
-  type SkillsAvailable,
-  type SkillsAvailableInput,
-  type SkillsResourceLoaded,
 } from "@langfuse/shared";
 import {
   ClickhouseClientType,
@@ -58,6 +54,7 @@ import {
   sanitizeSdkMetricTagValue,
   type IngestionAttribution,
 } from "@langfuse/shared/src/server";
+import { resolveSkillReferences as resolveSkillReferencesShared } from "./skillReferences";
 
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 import { clickhouseComputesEventBytes } from "../ClickhouseWriter/eventByteAccounting";
@@ -67,7 +64,10 @@ import {
   convertRecordValuesToString,
   overwriteObject,
 } from "./utils";
-import { resolveAiGatewayAttribution } from "./aiGatewayAttribution";
+import {
+  isAiGatewayCalculatedCost,
+  resolveAiGatewayAttribution,
+} from "./aiGatewayAttribution";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
@@ -323,9 +323,10 @@ export class IngestionService {
             },
           })
         : null,
-      this.resolveSkillReferences({
+      resolveSkillReferencesShared({
         projectId: eventData.projectId,
         type: eventData.type ?? "SPAN",
+        service: this.skillCacheService,
         available: eventData.skillsAvailable,
         loaded: eventData.skillsResourceLoaded,
       }),
@@ -397,7 +398,12 @@ export class IngestionService {
       provided_usage_details: eventData.providedUsageDetails ?? {},
       usage_details:
         generationUsage?.usage_details ?? eventData.usageDetails ?? {},
-      provided_cost_details: eventData.providedCostDetails ?? {},
+      provided_cost_details: isAiGatewayCalculatedCost({
+        ingestionApiKey: eventData.ingestionApiKey,
+        metadata,
+      })
+        ? {}
+        : (eventData.providedCostDetails ?? {}),
       cost_details:
         generationUsage?.cost_details ?? eventData.costDetails ?? {},
 
@@ -474,10 +480,10 @@ export class IngestionService {
    * Use ClickHouse's sizing DEFAULT when detected, otherwise retain the legacy
    * JSON byte estimate. The supplied record is not mutated, and its raw OTEL
    * size is not sent to ClickHouse. Legacy estimates are returned with the row
-   * for reuse by trace batching.
+   * for reuse by trace dispatch.
    *
    * @param eventRecord - The event record to write
-   * @returns The accepted post-overflow row, for trace-batch capacity estimates
+   * @returns The accepted post-overflow row, for trace dispatch capacity estimates
    */
   public async writeEventRecord(
     eventRecord: EventRecordInsertType,
@@ -1198,84 +1204,6 @@ export class IngestionService {
     }
 
     return parsedObservationRecord;
-  }
-
-  private async resolveSkillReferences({
-    projectId,
-    type,
-    available = [],
-    loaded = [],
-  }: {
-    projectId: string;
-    type: EventRecordInsertType["type"];
-    available?: SkillsAvailableInput;
-    loaded?: SkillsResourceLoaded;
-  }): Promise<{
-    skills_available: SkillsAvailable;
-    skills_resource_loaded: SkillsResourceLoaded;
-  }> {
-    // Bound internal callers too, before building the lookup or its cache key.
-    if (
-      available.length > MAX_SKILLS_PER_OBSERVATION ||
-      loaded.length > MAX_SKILLS_PER_OBSERVATION
-    ) {
-      logger.warn("Skill references truncated: item limit exceeded", {
-        projectId,
-        availableCount: available.length,
-        loadedCount: loaded.length,
-        limit: MAX_SKILLS_PER_OBSERVATION,
-      });
-    }
-    available = available.slice(0, MAX_SKILLS_PER_OBSERVATION);
-    loaded = loaded.slice(0, MAX_SKILLS_PER_OBSERVATION);
-    const versions = available.flatMap(({ name, version }) =>
-      version == null ? [] : [{ name, version }],
-    );
-    const skills = await this.skillCacheService.getReferences({
-      projectId,
-      versions,
-    });
-
-    const availableSkills = available.map(({ name, version }) => {
-      const skill = skills.find(
-        (skill) => skill.name === name && skill.version === version,
-      );
-      return {
-        name,
-        version: skill?.version ?? version,
-        langfuseSkillId: skill?.id,
-      };
-    });
-
-    const loadedResources = loaded.map(
-      ({ skillName, filePath, skillVersion }) => {
-        const candidates = availableSkills.filter(
-          (skill) => skill.name === skillName,
-        );
-        if (candidates.length !== 1)
-          return { skillName, filePath, skillVersion };
-
-        const skill = candidates[0];
-        return {
-          skillName,
-          filePath,
-          langfuseSkillId: skill?.langfuseSkillId,
-          skillVersion: skill.version ?? skillVersion,
-        };
-      },
-    );
-
-    return {
-      skills_available:
-        type === "GENERATION"
-          ? availableSkills.map(({ name, version, langfuseSkillId }) => ({
-              skillName: name,
-              skillVersion: version,
-              langfuseSkillId,
-            }))
-          : [],
-      skills_resource_loaded: loadedResources,
-    };
   }
 
   private mergeRecords<T extends InsertRecord>(

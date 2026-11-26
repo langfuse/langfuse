@@ -21,15 +21,15 @@ vi.mock(
 import { randomUUID } from "crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
-import type { Session } from "next-auth";
 
 import { eventsRouter } from "@/src/features/events/server/eventsRouter";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const createdSessionIds: string[] = [];
 
-const createSession = async (isPublic: boolean) => {
+const createTraceSession = async (isPublic: boolean) => {
   const sessionId = randomUUID();
   createdSessionIds.push(sessionId);
   await prisma.traceSession.create({
@@ -45,43 +45,15 @@ const caller = eventsRouter.createCaller({
 
 const memberCaller = eventsRouter.createCaller({
   ...createInnerTRPCContext({
-    session: {
-      expires: "1",
+    session: createSession({
       user: {
-        id: "user-1",
         name: "Test User",
-        canCreateOrganizations: true,
         featureFlags: testFeatureFlags({ templateFlag: false }),
-        organizations: [
-          {
-            id: "org-1",
-            name: "Test Organization",
-            role: "MEMBER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: false,
-            projects: [
-              {
-                id: projectId,
-                role: "MEMBER",
-                retentionDays: 30,
-                deletedAt: null,
-                name: "Test Project",
-                hasTraces: false,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
       },
-      environment: {
-        enableExperimentalFeatures: false,
-        selfHostedInstancePlan: null,
-      },
-    } satisfies Session,
+      organizations: [
+        { id: "org-1", role: "MEMBER", projects: [{ id: projectId }] },
+      ],
+    }),
     headers: {},
   }),
   prisma,
@@ -99,7 +71,7 @@ describe("events.sessionAll", () => {
   });
 
   it("allows public access and enforces the authorized session filter", async () => {
-    const sessionId = await createSession(true);
+    const sessionId = await createTraceSession(true);
     const unauthorizedSessionId = randomUUID();
 
     await caller.sessionAll({
@@ -144,7 +116,7 @@ describe("events.sessionAll", () => {
   });
 
   it("rejects unauthenticated access to a private session", async () => {
-    const sessionId = await createSession(false);
+    const sessionId = await createTraceSession(false);
 
     await expect(
       caller.sessionAll({
@@ -163,7 +135,7 @@ describe("events.sessionAll", () => {
   });
 
   it("strips comment filters for public session viewers", async () => {
-    const sessionId = await createSession(true);
+    const sessionId = await createTraceSession(true);
 
     await caller.sessionAll({
       projectId,
@@ -204,7 +176,7 @@ describe("events.sessionAll", () => {
   });
 
   it("keeps comment filters for project members", async () => {
-    const sessionId = await createSession(false);
+    const sessionId = await createTraceSession(false);
 
     await memberCaller.sessionAll({
       projectId,

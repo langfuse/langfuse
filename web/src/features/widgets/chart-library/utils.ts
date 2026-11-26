@@ -2,9 +2,24 @@ import {
   type DataPoint,
   type FormatMetricOptions,
   type FormattedMetric,
+  type MetricUnit,
 } from "./chart-props";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
+
+export function parseMetricUnit(
+  unit: string | undefined,
+): MetricUnit | undefined {
+  switch (unit) {
+    case "USD":
+    case "milliseconds":
+    case "tokens":
+    case "traces":
+      return unit;
+    default:
+      return undefined;
+  }
+}
 
 export const toFullMetricString = (metric: FormattedMetric): string =>
   `${metric.negative ? "-" : ""}${metric.prefix ?? ""}${metric.main}${metric.suffix ?? ""}`;
@@ -127,10 +142,7 @@ export const isTimeSeriesChart = (
  * collision dropping skips ticks unevenly (e.g. 6/9, 6/11, 6/13 vanish while
  * 6/1–6/8 stay), making tick density vary by chart width. (LFE-10549)
  */
-export const getEvenTickInterval = (
-  pointCount: number,
-  maxTicks = 8,
-): number =>
+export const getEvenTickInterval = (pointCount: number, maxTicks = 8): number =>
   pointCount <= maxTicks ? 0 : Math.ceil(pointCount / maxTicks) - 1;
 
 /**
@@ -165,7 +177,7 @@ export function getChartTypeDisplayName(
 
 export function valueFormatter(
   value: number | string,
-  unit?: string,
+  unit?: FormatMetricOptions["unit"],
   compact?: boolean,
 ): string {
   if (typeof value === "string") {

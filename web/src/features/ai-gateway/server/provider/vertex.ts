@@ -31,9 +31,16 @@ export function parseVertexServiceAccountKey(credential: string) {
 }
 
 function vertexOrigin(config: GatewayVertexConfig) {
-  return config.location === "global"
-    ? "https://aiplatform.googleapis.com"
-    : `https://${config.location}-aiplatform.googleapis.com`;
+  switch (config.location) {
+    case "global":
+      return "https://aiplatform.googleapis.com";
+    case "us":
+      return "https://aiplatform.us.rep.googleapis.com";
+    case "eu":
+      return "https://aiplatform.eu.rep.googleapis.com";
+    default:
+      return `https://${config.location}-aiplatform.googleapis.com`;
+  }
 }
 
 export function vertexOpenAICompatibleBaseUrl(params: {

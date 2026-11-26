@@ -38,6 +38,7 @@ export class ApiKeyRepository {
 
   /** findByPublicKey looks a key up by its public-key unique index. */
   async findByPublicKey(publicKey: string): Promise<FindApiKeyResult> {
+    if (containsNulByte(publicKey)) return { success: true, apiKey: null };
     try {
       const apiKey = await this.prisma.apiKey.findUnique({
         where: { publicKey },
@@ -62,6 +63,11 @@ export class ApiKeyRepository {
       logger.error("authz api key fast-hash backfill failed", error);
     }
   }
+}
+
+/** containsNulByte reports a key no row can match: Postgres text cannot store NUL and rejects it in a query. */
+export function containsNulByte(value: string): boolean {
+  return value.includes("\u0000");
 }
 
 /** dbError classifies a caught database error: a transient infra failure as 503, anything else as 500. */

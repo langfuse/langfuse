@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { normalizeSpanIO } from "../../../parser";
-import { mixedNormalizedIOFixtures } from "./fixtures";
+import { mixedNormalizedIOFixtures } from "./__tests__/fixtures";
 
 describe("mixed normalized I/O", () => {
   it.each(mixedNormalizedIOFixtures)("$name", ({ spanIO, expected }) => {

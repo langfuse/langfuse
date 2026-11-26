@@ -1,9 +1,5 @@
 import { Eye } from "@langfuse/icons";
-import {
-  buildStorageRolePermissionPolicy,
-  buildStorageRoleTrustPolicy,
-  type StorageRoleActions,
-} from "@langfuse/shared";
+import { buildStorageRoleTrustPolicy } from "@langfuse/shared";
 
 import { type ReactNode } from "react";
 
@@ -42,18 +38,13 @@ function LabeledCode({
 export function RoleAuthSetupInstructions({
   crossAccountRoleArn,
   externalId,
-  roleArn,
-  bucketName,
-  prefix,
-  actions,
+  permissionPolicy,
   description,
 }: {
   crossAccountRoleArn: string;
   externalId: RevealableExternalId;
-  roleArn: string;
-  bucketName: string;
-  prefix: string | null | undefined;
-  actions: StorageRoleActions;
+  /** What the customer's role must be allowed to do. */
+  permissionPolicy: object;
   description: string;
 }) {
   const hasValue = externalId.value !== undefined;
@@ -102,16 +93,7 @@ export function RoleAuthSetupInstructions({
       <LabeledCode label="Permission policy">
         <CodeSection
           language="json"
-          content={JSON.stringify(
-            buildStorageRolePermissionPolicy({
-              roleArn: roleArn || "arn:aws:iam::123456789012:role/role-name",
-              bucketName: bucketName || "bucket-name",
-              prefix,
-              actions,
-            }),
-            null,
-            2,
-          )}
+          content={JSON.stringify(permissionPolicy, null, 2)}
         />
       </LabeledCode>
     </div>

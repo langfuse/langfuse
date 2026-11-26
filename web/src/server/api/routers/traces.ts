@@ -60,6 +60,7 @@ import {
   ScoreDataTypeArray,
   ScoreDataTypeEnum,
   LISTABLE_SCORE_TYPES,
+  AUDIT_LOG_RESOURCE_REFS_MAX,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
@@ -76,6 +77,7 @@ import {
 } from "@/src/utils/clientSideDomainTypes";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import partition from "lodash/partition";
+import chunk from "lodash/chunk";
 
 const TraceCountOptions = z
   .object({
@@ -557,7 +559,7 @@ export const traceRouter = createTRPCRouter({
           }
         }
 
-        await createBatchActionJob({
+        const { cutoffCreatedAt } = await createBatchActionJob({
           projectId: input.projectId,
           actionId: ActionId.TraceDelete,
           actionType: BatchActionType.Delete,
@@ -566,22 +568,26 @@ export const traceRouter = createTRPCRouter({
           query: input.query,
           useEventsTableOverride: declaresEventsTable ? true : undefined,
         });
-      } else {
-        await Promise.all(
-          input.traceIds.map((traceId) =>
-            auditLog({
-              resourceType: "trace",
-              resourceId: traceId,
-              action: "delete",
-              session: ctx.session,
-            }),
-          ),
-        );
+        return { cutoffCreatedAt: cutoffCreatedAt?.toISOString() ?? null };
+      }
 
-        await traceDeletionProcessor(input.projectId, input.traceIds, {
-          actor: { type: "USER", userId: ctx.session.user.id },
+      for (const traceIds of chunk(
+        input.traceIds,
+        AUDIT_LOG_RESOURCE_REFS_MAX,
+      )) {
+        await auditLog({
+          resourceType: "project",
+          resourceId: input.projectId,
+          action: "deleteTraces",
+          before: { traceIds },
+          session: ctx.session,
         });
       }
+
+      await traceDeletionProcessor(input.projectId, input.traceIds, {
+        actor: { type: "USER", userId: ctx.session.user.id },
+      });
+      return { cutoffCreatedAt: null };
     }),
   bookmark: protectedProjectProcedure
     .input(
