@@ -33,15 +33,31 @@ class InvalidWatchFrameError extends BackgroundExecutionConnectionError {
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
-    const timeout = setTimeout(resolve, ms);
-    signal.addEventListener(
-      "abort",
-      () => {
+    if (signal.aborted) {
+      resolve();
+      return;
+    }
+
+    let settled = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const finish = () => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      if (timeout !== undefined) {
         clearTimeout(timeout);
-        resolve();
-      },
-      { once: true },
-    );
+      }
+      signal.removeEventListener("abort", finish);
+      resolve();
+    };
+    timeout = setTimeout(finish, ms);
+
+    signal.addEventListener("abort", finish, { once: true });
+    if (signal.aborted) {
+      finish();
+    }
   });
 }
 
