@@ -34,16 +34,15 @@ import {
   topicsNightlyRefitRunner,
 } from "../app";
 
-// Blob exports are aborted and re-queued only on a signal-driven shutdown. A
-// fatal-error drain must not re-queue: an export that crashes the worker would
-// then loop across the fleet without ever failing.
-let shutdownSignalReceived = false;
+// Blob exports are aborted and re-queued only when a signal starts the drain.
+// A fatal-error drain never re-queues, even if a signal follows (its closed
+// health server makes the orchestrator send SIGTERM): an export that crashes
+// the worker would otherwise loop across the fleet without ever failing.
+let drainStartedBySignal = false;
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info(`Received ${signal}, closing server...`);
-  shutdownSignalReceived = true;
-  // A drain already started by a fatal error has passed its abort step.
-  if (drainPromise) abortBlobExportsForShutdown();
+  if (!drainPromise) drainStartedBySignal = true;
   await drainAndClose();
 };
 
@@ -121,7 +120,7 @@ const runDrainAndClose = async () => {
   logInFlightBlobExportsOnShutdown();
   // Abort running exports so closeWorkers() can re-queue their jobs instead
   // of waiting until ECS kills the task.
-  if (shutdownSignalReceived) abortBlobExportsForShutdown();
+  if (drainStartedBySignal) abortBlobExportsForShutdown();
 
   // Abort in-flight agent loops at their next step boundary so closeWorkers()
   // does not wait out a full agent turn; each run finishes FAILED
