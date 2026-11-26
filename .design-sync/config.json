@@ -360,6 +360,16 @@
     },
     "OverflowList": {
       "cardMode": "column"
+    },
+    "AvatarGroup": {
+      "skip": [
+        "design-components-avatargroup--test-hover-lists-everyone"
+      ]
+    },
+    "CopyInput": {
+      "skip": [
+        "design-components-copyinput--test-copies-value"
+      ]
     }
   },
   "extraFonts": [
@@ -370,7 +380,8 @@
     "dropdown-menu": null,
     "mobile-page-actions-content": "MobilePageActionsContent",
     "drawer": "Drawer",
-    "SortableList": null
+    "SortableList": null,
+    "QueryInput": null
   },
   "readmeHeader": ".design-sync/conventions.md",
   "storyImports": {
