@@ -83,6 +83,10 @@ describe("createEvaluatorSetupStore", () => {
       mode: "create",
     });
     const { actions } = store.getState();
+    actions.setPromptMessage(0, {
+      role: "user",
+      content: "Judge {{input}} {{output}}",
+    });
     actions.setVariableField("output", {
       selectedColumnId: "metadata",
       jsonSelector: "$.answer",
@@ -96,6 +100,31 @@ describe("createEvaluatorSetupStore", () => {
 
     actions.setTargetObject(EvalTargetObject.EVENT);
     expect(store.getState().variableFields).toEqual({});
+  });
+
+  it("swaps an unedited starter prompt for the one of a new test target", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+    const { actions } = store.getState();
+    const starter = store.getState().promptMessages;
+
+    actions.setTargetObject(TopicsTargetObject);
+    expect(store.getState().promptMessages[0]?.content).toContain(
+      "{{messages}}",
+    );
+    expect(store.getState().variableFields).toEqual({
+      messages: TRACE_TRANSCRIPT_DEFAULT_FIELD,
+    });
+
+    actions.setTargetObject(EvalTargetObject.EVENT);
+    expect(store.getState().promptMessages).toEqual(starter);
+
+    const edited = { role: "user" as const, content: "Judge {{output}}" };
+    actions.setPromptMessage(0, edited);
+    actions.setTargetObject(TopicsTargetObject);
+    expect(store.getState().promptMessages).toEqual([edited]);
   });
 
   it("opens a trace-only evaluator on trace messages without rewriting its stored mapping", () => {
