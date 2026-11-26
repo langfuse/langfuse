@@ -178,9 +178,11 @@ export function defineTool<TInput, const TName extends string>(
     ui,
   } = options;
 
-  // Convert base Zod schema to JSON Schema using Zod v4's native method
+  // The arguments a client may send, in MCP's default JSON Schema dialect:
+  // fields with a default are optional, objects accept what the schema does.
   const jsonSchema = z.toJSONSchema(baseSchema, {
-    target: "draft-7", // MCP uses JSON Schema draft-7
+    target: "draft-2020-12",
+    io: "input",
     unrepresentable: "any", // Fallback for unsupported types
   });
 

@@ -106,8 +106,15 @@ export async function createMcpServer(
 
   // ListTools handler - dynamically load from registry
   server.server.setRequestHandler("tools/list", async () => {
+    // Protocol fields only: `action` is for the server's permission check.
     const definitions = (await getEnabledTools(context)).map(
-      (tool) => tool.definition,
+      ({ definition }) => ({
+        name: definition.name,
+        description: definition.description,
+        inputSchema: definition.inputSchema,
+        annotations: definition.annotations,
+        _meta: definition._meta,
+      }),
     );
     const tools = clientMayRenderApps(clientCapabilities)
       ? definitions

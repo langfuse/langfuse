@@ -140,6 +140,32 @@ describe("defineTool", () => {
     expect(handler).toHaveBeenCalledExactlyOnceWith(input, context, undefined);
   });
 
+  it("publishes the arguments clients may send, in draft 2020-12", () => {
+    const schema = z.object({
+      name: z.string(),
+      limit: z.number().default(50),
+    });
+
+    const [tool] = defineTool({
+      name: "defaultsTool",
+      description: "",
+      action: __dangerouslySkipAuthz,
+      baseSchema: schema,
+      inputSchema: schema,
+      handler: async (input) => input,
+    });
+
+    expect(tool.inputSchema).toEqual({
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        limit: { type: "number", default: 50 },
+      },
+      required: ["name"],
+    });
+  });
+
   it("preserves root type: 'object' for plain object schemas", () => {
     const schema = z.object({ name: z.string() });
 
