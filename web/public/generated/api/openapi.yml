@@ -15820,6 +15820,12 @@ components:
       title: unstableCreateDashboardWidgetRequest
       type: object
       properties:
+        definition:
+          $ref: '#/components/schemas/unstableWidgetDefinition'
+          nullable: true
+          description: >-
+            Versioned content is read-only to project API keys. Supplying a
+            non-null definition returns 403 during employee-only authoring.
         name:
           type: string
         description:
@@ -15857,6 +15863,12 @@ components:
       title: unstableUpdateDashboardWidgetRequest
       type: object
       properties:
+        definition:
+          $ref: '#/components/schemas/unstableWidgetDefinition'
+          nullable: true
+          description: >-
+            Versioned content is read-only to project API keys. Supplying a
+            non-null definition returns 403 during employee-only authoring.
         name:
           type: string
           nullable: true
@@ -15908,10 +15920,49 @@ components:
           type: string
       required:
         - message
+    unstableWidgetDefinition:
+      title: unstableWidgetDefinition
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - multiQuery
+            - $ref: '#/components/schemas/unstableMultiQueryDashboardBlock'
+          required:
+            - kind
+          title: UnstableMultiQueryDashboardBlock
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - markdown
+            - $ref: '#/components/schemas/unstableMarkdownDashboardBlock'
+          required:
+            - kind
+          title: UnstableMarkdownDashboardBlock
+      description: >-
+        Complete widget content. When present, use this definition to render
+        every tab, formula or Markdown. Flat fields describe a compatibility
+        projection only. Employee authoring is required to change this
+        definition.
     unstableDashboardWidget:
       title: unstableDashboardWidget
       type: object
       properties:
+        definition:
+          $ref: '#/components/schemas/unstableWidgetDefinition'
+          nullable: true
+        revision:
+          type: integer
+          nullable: true
+          description: Optimistic edit revision. Classic widgets begin at zero.
         id:
           type: string
         createdAt:
@@ -16362,7 +16413,7 @@ components:
           $ref: '#/components/schemas/unstableDashboardMultiQueryFormatV1'
         title:
           type: string
-          description: Between 1 and 200 characters.
+          description: A nonempty chart name.
         description:
           type: string
           description: At most 10000 characters.
@@ -16563,7 +16614,7 @@ components:
           items:
             $ref: '#/components/schemas/unstableDashboardMultiQueryMetric'
           description: >-
-            Between 1 and 5 metrics with unique ids and distinct
+            Between 1 and 10 metrics with unique ids and distinct
             measure/aggregation pairs.
         dimensions:
           type: array
@@ -16630,6 +16681,12 @@ components:
       properties:
         chartType:
           $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+        defaultSort:
+          $ref: '#/components/schemas/unstableDashboardWidgetDefaultSort'
+          nullable: true
+        showValueLabels:
+          type: boolean
+          nullable: true
         rowLimit:
           type: integer
           nullable: true

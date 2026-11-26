@@ -15,6 +15,7 @@ import {
 import startCase from "lodash/startCase";
 import {
   ChartConfigSchema,
+  dashboardBlockContentSchema,
   DimensionSchema,
   MetricSchema,
   singleFilterList,
@@ -37,7 +38,7 @@ const widgetMetricSchema = MetricSchema.extend({
  * query-engine (v1/v2) version.
  * @internal
  */
-export const WIDGET_FILE_FORMAT_VERSION = 1;
+export const WIDGET_FILE_FORMAT_VERSION = 2;
 
 const widgetImportBaseSchema = z
   .object({
@@ -52,6 +53,7 @@ const widgetImportBaseSchema = z
     chartType: dashboardWidgetChartTypeSchema,
     chartConfig: ChartConfigSchema,
     minVersion: z.number().int().optional(),
+    definition: dashboardBlockContentSchema.nullish(),
   })
   .loose();
 
@@ -196,6 +198,7 @@ export type WidgetExportSource = Pick<
   | "chartType"
   | "chartConfig"
   | "minVersion"
+  | "definition"
 >;
 
 /**
@@ -206,7 +209,7 @@ export type WidgetExportSource = Pick<
 export function buildWidgetExport(widget: WidgetExportSource) {
   return {
     $langfuseWidget: true as const,
-    version: WIDGET_FILE_FORMAT_VERSION,
+    version: widget.definition ? WIDGET_FILE_FORMAT_VERSION : 1,
     name: widget.name,
     description: widget.description,
     view: widget.view,
@@ -216,6 +219,7 @@ export function buildWidgetExport(widget: WidgetExportSource) {
     chartType: widget.chartType,
     chartConfig: widget.chartConfig,
     minVersion: widget.minVersion,
+    ...(widget.definition ? { definition: widget.definition } : {}),
   };
 }
 
@@ -340,6 +344,9 @@ export function parseAndNormalizeImportedWidget(params: {
   removedFilters: boolean;
 } {
   const parsed = widgetImportSchema.parse(params.parsedJson);
+  if (parsed.definition) {
+    return { widget: parsed, removedValues: false, removedFilters: false };
+  }
   const normalized = normalizeImportedWidget({
     widget: parsed,
     allowedValuesByColumn: params.allowedValuesByColumn,
@@ -471,6 +478,10 @@ export function parseImportedWidgetJson(params: {
   optionSets?: WidgetImportOptionSets;
   isV4: boolean;
 }): { widget: WidgetImport; removedValues: boolean; removedFilters: boolean } {
+  const candidate = widgetImportSchema.parse(params.parsedJson);
+  if (candidate.definition) {
+    return { widget: candidate, removedValues: false, removedFilters: false };
+  }
   const allowedValuesByColumn = params.optionSets
     ? buildWidgetImportAllowedValues(params.optionSets, params.parsedJson)
     : new Map<string, Set<string>>();
@@ -519,6 +530,12 @@ export async function importWidgetFile(params: {
     optionSets: params.optionSets,
     isV4: params.isV4,
   });
+
+  if (widget.definition) {
+    throw new Error(
+      "Open this widget with the new widget editor to preserve its complete definition.",
+    );
+  }
 
   return {
     snapshot: toImportedWidgetFormSnapshot(widget),
@@ -584,6 +601,9 @@ export function parsePastedWidget(
  * duplicated widget as a new project-owned widget.
  */
 export function toWidgetCreateFields(widget: WidgetExportSource) {
+  if (widget.definition) {
+    throw new Error("Save this widget using its complete definition.");
+  }
   return {
     name: widget.name,
     description: widget.description,

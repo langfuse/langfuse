@@ -1,7 +1,10 @@
 import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
 import { z } from "zod";
 import { singleFilterList } from "../../../interfaces/filters";
-import { DashboardDefinitionSchema } from "../../../features/dashboards";
+import {
+  dashboardBlockContentSchema,
+  DashboardDefinitionSchema,
+} from "../../../features/dashboards";
 import {
   persistedWidgetViewToQueryView,
   type views,
@@ -145,6 +148,8 @@ export const WidgetDomainSchema = z.object({
   filters: singleFilterList,
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
+  definition: dashboardBlockContentSchema.nullish(),
+  revision: z.number().int().nonnegative().optional(),
   // Lowest query-engine version required by the persisted widget definition.
   minVersion: z.number().int().default(1),
   owner: OwnerEnum,

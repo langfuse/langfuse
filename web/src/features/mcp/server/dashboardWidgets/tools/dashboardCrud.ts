@@ -6,6 +6,7 @@ import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 import {
   DashboardWidgetChartConfigBaseSchema,
   DashboardWidgetFilterBaseSchema,
+  SavedDashboardWidgetDefinitionBaseSchema,
 } from "@/src/features/mcp/server/dashboardWidgets/tools/createDashboardWidget";
 import {
   buildDashboardUrl,
@@ -63,6 +64,7 @@ const placementPatchBaseSchema = z.object({
   height: z.number().int().positive().optional(),
 });
 const dashboardWidgetPatchBaseSchema = z.object({
+  definition: SavedDashboardWidgetDefinitionBaseSchema.optional(),
   widgetId: z.string(),
   name: z.string().min(1).optional(),
   description: z.string().optional(),

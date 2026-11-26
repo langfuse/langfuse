@@ -267,7 +267,7 @@ describe("buildWidgetExport", () => {
     });
 
     expect(exported.$langfuseWidget).toBe(true);
-    expect(exported.version).toBe(WIDGET_FILE_FORMAT_VERSION);
+    expect(exported.version).toBe(1);
     expect(exported.name).toBe("My widget");
   });
 });
@@ -289,6 +289,26 @@ describe("parsePastedWidget", () => {
     expect(parsePastedWidget("hello world", { isV4: false })).toEqual({
       status: "not-widget",
     });
+  });
+
+  it("retains a saved Markdown definition through export and clipboard import", () => {
+    const definition = {
+      kind: "markdown" as const,
+      config: {
+        version: 1 as const,
+        title: "Context",
+        content: "## Weekly report",
+      },
+    };
+    const exported = buildWidgetExport({ ...baseWidget, definition });
+    expect(exported.definition).toEqual(definition);
+    expect(exported.version).toBe(2);
+    const imported = parsePastedWidget(JSON.stringify(exported), {
+      isV4: false,
+    });
+    expect(imported.status).toBe("widget");
+    if (imported.status === "widget")
+      expect(imported.widget.definition).toEqual(definition);
   });
 
   it("ignores JSON without the widget envelope", () => {

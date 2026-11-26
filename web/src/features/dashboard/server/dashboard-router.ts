@@ -190,12 +190,14 @@ function clickhouseHistogramToChartData(
   };
 }
 
-async function getScoreAggregateV2({
+export async function getScoreAggregateV2({
   projectId,
   filter,
+  executionOptions,
 }: {
   projectId: string;
   filter: FilterState;
+  executionOptions?: Parameters<typeof executeQuery>[4];
 }): Promise<DatabaseRow[]> {
   // prepareScoresNumericV2Params also applies LEGACY_CAMEL_CASE_MAP for
   // scoreHistogram callers. For score-aggregate calls, the only camelCase
@@ -249,10 +251,16 @@ async function getScoreAggregateV2({
   };
 
   const [numericResults, categoricalResults] = await Promise.all([
-    executeQuery(projectId, numericQuery, "v2"),
+    executeQuery(projectId, numericQuery, "v2", false, executionOptions),
     skipCategorical
       ? Promise.resolve([])
-      : executeQuery(projectId, categoricalQuery, "v2"),
+      : executeQuery(
+          projectId,
+          categoricalQuery,
+          "v2",
+          false,
+          executionOptions,
+        ),
   ]);
 
   const merged = [

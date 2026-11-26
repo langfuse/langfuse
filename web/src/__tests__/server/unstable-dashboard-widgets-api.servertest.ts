@@ -51,6 +51,59 @@ const expectUnstableError = (
 };
 
 describe("/api/public/unstable/dashboard-widgets API", () => {
+  it("returns complete reusable widget definitions and rejects lossy classic writes", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+    const definition = {
+      kind: "markdown" as const,
+      config: {
+        version: 1 as const,
+        title: "Saved note",
+        content: "**Full content**",
+      },
+    };
+    const { widget } = await DashboardService.saveWidgetDefinition(projectId, {
+      definition,
+    });
+    const route = `/api/public/unstable/dashboard-widgets/${widget.id}`;
+    const read = await makeAPICall("GET", route, undefined, auth);
+    expect(read.status).toBe(200);
+    expect(read.body).toMatchObject({
+      id: widget.id,
+      definition,
+      revision: 1,
+      metrics: [],
+    });
+    const list = await makeAPICall(
+      "GET",
+      "/api/public/unstable/dashboard-widgets",
+      undefined,
+      auth,
+    );
+    expect(list.status).toBe(200);
+    expect(list.body).toMatchObject({
+      data: expect.arrayContaining([
+        expect.objectContaining({ id: widget.id, definition }),
+      ]),
+    });
+    const recreate = await makeAPICall(
+      "POST",
+      "/api/public/unstable/dashboard-widgets",
+      { ...baseWidgetBody, definition },
+      auth,
+    );
+    expect(recreate.status).toBe(403);
+    const overwrite = await makeAPICall(
+      "PATCH",
+      route,
+      { ...baseWidgetBody, name: "Lossy replacement" },
+      auth,
+    );
+    expect(overwrite.status).toBe(409);
+    expect(
+      (await DashboardService.getWidget(widget.id, projectId))?.definition,
+    ).toEqual(definition);
+  });
+
   it("creates a dashboard widget and writes an API-key audit log", async () => {
     const { auth, projectId } = await createOrgProjectAndApiKey();
 

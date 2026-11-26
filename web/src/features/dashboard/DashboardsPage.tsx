@@ -1,4 +1,5 @@
 import { useRouter } from "next/router";
+import Link from "next/link";
 import Page from "@/src/components/layouts/Page";
 import { ConnectedDashboardTable } from "@/src/features/dashboard/components/DashboardTable/ConnectedDashboardTable";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -30,15 +31,25 @@ export default function DashboardsPage() {
           activeTab: DASHBOARD_TABS.DASHBOARDS,
         },
         actionButtonsRight: (
-          <ActionButton
-            icon={<PlusIcon size="base" color="default" aria-hidden="true" />}
-            hasAccess={hasCUDAccess}
-            href={`/project/${projectId}/dashboards/new`}
-            trackingEventName="dashboard:new_dashboard_form_open"
-            variant="default"
-          >
-            New dashboard
-          </ActionButton>
+          <>
+            {process.env.NODE_ENV === "development" && (
+              <Link
+                className="text-muted-foreground px-2 text-sm underline"
+                href={`/project/${projectId}/dashboards/debug`}
+              >
+                Inspect structure
+              </Link>
+            )}
+            <ActionButton
+              icon={<PlusIcon size="base" color="default" aria-hidden="true" />}
+              hasAccess={hasCUDAccess}
+              href={`/project/${projectId}/dashboards/new`}
+              trackingEventName="dashboard:new_dashboard_form_open"
+              variant="default"
+            >
+              New dashboard
+            </ActionButton>
+          </>
         ),
       }}
     >

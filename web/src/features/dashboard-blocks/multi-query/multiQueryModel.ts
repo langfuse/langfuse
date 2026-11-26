@@ -264,6 +264,16 @@ export function buildMultiQueryPlan(
         toTimestamp: context.dateRange.to.toISOString(),
         orderBy:
           source.orderBy ??
+          (config.display.chartType === "PIVOT_TABLE" &&
+          config.display.defaultSort
+            ? [
+                {
+                  field: config.display.defaultSort.column,
+                  direction:
+                    config.display.defaultSort.order === "ASC" ? "asc" : "desc",
+                },
+              ]
+            : undefined) ??
           (!timeSeries &&
           !metrics.some((metric) => metric.aggregation === "histogram")
             ? [

@@ -1,6 +1,6 @@
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import { v4 as uuidv4 } from "uuid";
+import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   CopyPlusIcon,
@@ -56,10 +56,13 @@ export function DashboardBlockCard({
   const sourcePreset =
     block.kind === "multiQuery" ? block.sourcePreset : undefined;
   const canRemove = !editOnly && canEdit && (editable || Boolean(sourcePreset));
-  const duplicate = useSaveDashboardBlock({
-    projectId,
-    dashboardId,
-    onSaved: () => {
+  const utils = api.useUtils();
+  const duplicate = api.dashboardWidgets.saveDefinition.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.dashboard.invalidate(),
+        utils.dashboardWidgets.invalidate(),
+      ]);
       track("duplicate", block.kind, true);
       showSuccessToast({
         operation: "widget.clone",
@@ -94,14 +97,9 @@ export function DashboardBlockCard({
       {
         projectId,
         dashboardId,
-        blockPatch: {
-          op: "upsert",
-          id: uuidv4(),
-          expectedRevision: 0,
-          beforePlacementId:
-            sourcePreset?.placementId ?? block.beforePlacementId,
-          ...content,
-        },
+        beforePlacementId:
+          sourcePreset?.placementId ?? block.beforePlacementId ?? undefined,
+        definition: content,
       },
       {
         onError: (error) =>

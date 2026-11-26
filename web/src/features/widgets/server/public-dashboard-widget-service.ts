@@ -21,7 +21,11 @@ import {
   type PostUnstableDashboardWidgetBodyType,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
 
-import { ChartConfigSchema, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  ChartConfigSchema,
+  LangfuseNotFoundError,
+  ForbiddenError,
+} from "@langfuse/shared";
 import {
   getWidgetImportFilterConfig,
   partitionStoredUiTableFiltersToView,
@@ -259,6 +263,8 @@ export function validatePublicDashboardWidgetInput(
 function toApiDashboardWidget(widget: WidgetDomain) {
   return PostUnstableDashboardWidgetResponse.parse({
     id: widget.id,
+    definition: widget.definition ?? null,
+    revision: widget.revision ?? 0,
     createdAt: widget.createdAt,
     updatedAt: widget.updatedAt,
     name: widget.name,
@@ -277,6 +283,10 @@ export async function createPublicDashboardWidget(params: {
   input: PostUnstableDashboardWidgetBodyType;
   auditScope: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
+  if (params.input.definition != null)
+    throw new ForbiddenError(
+      "Versioned widget authoring requires an opted-in employee.",
+    );
   const input = normalizePublicDashboardWidgetInput(params.input);
   validatePublicDashboardWidgetInput(input);
 
@@ -349,6 +359,10 @@ export async function updatePublicDashboardWidget(params: {
   input: Partial<PostUnstableDashboardWidgetBodyType>;
   auditScope: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
+  if (params.input.definition != null)
+    throw new ForbiddenError(
+      "Versioned widget authoring requires an opted-in employee.",
+    );
   const current = await getProjectWidgetOrThrow(
     params.projectId,
     params.widgetId,

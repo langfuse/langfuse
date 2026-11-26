@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import {
@@ -15,6 +16,7 @@ import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
+  dashboardBlockContentSchema,
   type ColumnDefinition,
   type FilterState,
   LANGFUSE_HOME_DASHBOARD_ID,
@@ -144,6 +146,7 @@ export default function DashboardDetailPage() {
 function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   const router = useRouter();
   const utils = api.useUtils();
+  const authoringEnabled = useIsFeatureEnabled("dashboardBlockAuthoring");
   const capture = usePostHogClientCapture();
 
   const { projectId, dashboardId, addWidgetId } = router.query as {
@@ -343,7 +346,12 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   const insertWidgetPlacement = useCallback(
     (
       widgetId: string,
-      position?: { x: number; y: number; x_size: number; y_size: number },
+      position?: Partial<{
+        x: number;
+        y: number;
+        x_size: number;
+        y_size: number;
+      }>,
     ) => {
       // Read through the ref: async callers (paste/duplicate) reach here
       // after a network round-trip.
@@ -389,7 +397,13 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   );
 
   const addWidgetToDashboard = useCallback(
-    (widget: WidgetItem) => insertWidgetPlacement(widget.id),
+    (widget: WidgetItem) =>
+      insertWidgetPlacement(
+        widget.id,
+        widget.definition?.kind === "markdown"
+          ? { x_size: 12, y_size: 2 }
+          : undefined,
+      ),
     [insertWidgetPlacement],
   );
 
@@ -401,6 +415,12 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       presetId: HomeDashboardPresetId,
       position?: { x: number; y: number; x_size: number; y_size: number },
     ) => {
+      if (authoringEnabled) {
+        router.push(
+          `/project/${projectId}/widgets/new?dashboardId=${dashboardId}&template=${presetId}`,
+        );
+        return;
+      }
       const currentDefinition = dashboardDefinitionRef.current;
       if (!currentDefinition) return;
 
@@ -434,7 +454,14 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
           ?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 150);
     },
-    [applyDashboardDefinition, dashboardDefinitionRef],
+    [
+      applyDashboardDefinition,
+      dashboardDefinitionRef,
+      authoringEnabled,
+      router,
+      projectId,
+      dashboardId,
+    ],
   );
 
   const addPresetToDashboard = useCallback(
@@ -483,6 +510,15 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     [capture, dashboardId, insertPresetPlacement],
   );
 
+  const { mutateAsync: saveDefinitionAsync } =
+    api.dashboardWidgets.saveDefinition.useMutation({
+      onSuccess: async () => {
+        await Promise.all([
+          utils.dashboard.invalidate(),
+          utils.dashboardWidgets.invalidate(),
+        ]);
+      },
+    });
   const { mutateAsync: createWidgetAsync } =
     api.dashboardWidgets.create.useMutation();
   const { mutateAsync: deleteWidgetAsync } =
@@ -497,6 +533,21 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       surface: WidgetDuplicateSurface,
     ) => {
       try {
+        if (widget.definition) {
+          await saveDefinitionAsync({
+            projectId,
+            dashboardId,
+            beforePlacementId: anchor.id,
+            definition: dashboardBlockContentSchema.parse({
+              ...widget.definition,
+              config: {
+                ...widget.definition.config,
+                title: `${widget.name.slice(0, 190)} (Copy)`,
+              },
+            }),
+          });
+          return;
+        }
         const result = await createWidgetAsync({
           projectId,
           ...toWidgetCreateFields(widget),
@@ -521,6 +572,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     },
     [
       createWidgetAsync,
+      saveDefinitionAsync,
       projectId,
       dashboardId,
       capture,
@@ -560,6 +612,15 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       // otherwise leave an orphan widget in the library.
       if (!dashboardDefinitionRef.current) return;
       try {
+        if (parsed.widget.definition) {
+          await saveDefinitionAsync({
+            projectId,
+            dashboardId,
+            beforePlacementId: anchor?.id,
+            definition: parsed.widget.definition,
+          });
+          return;
+        }
         const result = await createWidgetAsync({
           projectId,
           ...toWidgetCreateFields(parsed.widget),
@@ -598,6 +659,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     [
       capture,
       createWidgetAsync,
+      saveDefinitionAsync,
       dashboardDefinitionRef,
       dashboardId,
       insertWidgetPlacement,
@@ -754,10 +816,15 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         );
         const settled = await Promise.allSettled(
           widgetPlacements.map((p) =>
-            createWidgetAsync({
-              projectId,
-              ...toWidgetCreateFields(p.widget),
-            }),
+            p.widget.definition
+              ? saveDefinitionAsync({
+                  projectId,
+                  definition: p.widget.definition,
+                })
+              : createWidgetAsync({
+                  projectId,
+                  ...toWidgetCreateFields(p.widget),
+                }),
           ),
         );
         const createdWidgets = settled.flatMap((s) =>
@@ -873,6 +940,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     },
     [
       createWidgetAsync,
+      saveDefinitionAsync,
       dashboardDefinitionRef,
       deleteWidgetAsync,
       projectId,

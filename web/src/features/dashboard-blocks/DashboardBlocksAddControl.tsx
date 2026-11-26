@@ -25,7 +25,7 @@ export function DashboardBlocksAddControl({
     items.push({
       id: "multi-query",
       type: "item",
-      title: "New multi-query chart",
+      title: "New chart",
       description: "Compare independently filtered queries",
       icon: BarChart3,
       onClick: () => onCreate("multiQuery"),
@@ -42,7 +42,7 @@ export function DashboardBlocksAddControl({
   items.push({
     id: "existing",
     type: "item",
-    title: "Existing widgets and home cards",
+    title: "Saved widgets and templates",
     icon: Library,
     onClick: onExistingWidget,
   });

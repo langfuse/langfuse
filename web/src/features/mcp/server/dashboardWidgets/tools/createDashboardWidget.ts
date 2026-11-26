@@ -38,8 +38,21 @@ export const DashboardWidgetChartConfigBaseSchema = z.object({
     .optional(),
 });
 
+/** The runtime schema validates the versioned configuration in full. */
+export const SavedDashboardWidgetDefinitionBaseSchema = z.object({
+  kind: z.enum(["multiQuery", "markdown"]),
+  config: z
+    .looseObject({})
+    .describe(
+      "Versioned configuration, as returned by getDashboardWidget.definition.config. Markdown: {version:1,title,content}. Charts: {version:2,title,description,tabs:[{id,label,queries:[{id,label,view,metrics:[{id,measure,aggregation}],dimensions:[],filters:[]}],display:{chartType},formulas:[{id,label,expression,format}]}]}. Formulas reference queryId.metricId.",
+    ),
+});
+
 /** A widget definition; renderWidget charts the same shape ad hoc. */
 export const CreateDashboardWidgetBaseSchema = z.object({
+  definition: SavedDashboardWidgetDefinitionBaseSchema.optional().describe(
+    "Saved versioned definition. API-key authoring is not enabled; use renderWidget for a read-only preview.",
+  ),
   name: z.string().min(1).describe("Human-readable widget name."),
   description: z
     .string()

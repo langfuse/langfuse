@@ -56,6 +56,7 @@ import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { SavedWidgetCard } from "./SavedWidgetCard";
 import { WidgetChartCard } from "./WidgetChartCard";
 import { getWidgetChartQueryState } from "../fns/getWidgetChartQueryState";
 
@@ -69,7 +70,31 @@ export interface WidgetPlacement {
   type: "widget";
 }
 
-export function DashboardWidget({
+export function DashboardWidget(
+  props: Parameters<typeof ClassicDashboardWidget>[0],
+) {
+  const widget = api.dashboardWidgets.get.useQuery(
+    { projectId: props.projectId, widgetId: props.placement.widgetId },
+    { enabled: Boolean(props.projectId) },
+  );
+  if (widget.isPending)
+    return (
+      <WidgetChartCard
+        title="Loading widget"
+        content={{ type: "loading", progress: { type: "spinner" } }}
+      />
+    );
+  if (widget.data?.definition)
+    return (
+      <SavedWidgetCard
+        {...props}
+        widget={{ ...widget.data, definition: widget.data.definition }}
+      />
+    );
+  return <ClassicDashboardWidget {...props} />;
+}
+
+function ClassicDashboardWidget({
   projectId,
   dashboardId,
   chartSync,
@@ -454,6 +479,7 @@ export function DashboardWidget({
     chartType: widget.data.chartType,
     chartConfig: widget.data.chartConfig,
     minVersion: widget.data.minVersion,
+    definition: widget.data.definition ?? undefined,
   };
 
   const duplicate =

@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
   errors: ./errors.yml
+  dashboards: ./dashboards.yml
   pagination: ../utils/pagination.yml
 
 service:
@@ -303,6 +304,9 @@ types:
 
   CreateDashboardWidgetRequest:
     properties:
+      definition:
+        type: optional<nullable<WidgetDefinition>>
+        docs: Versioned content is read-only to project API keys. Supplying a non-null definition returns 403 during employee-only authoring.
       name:
         type: string
       description:
@@ -324,6 +328,9 @@ types:
 
   UpdateDashboardWidgetRequest:
     properties:
+      definition:
+        type: optional<nullable<WidgetDefinition>>
+        docs: Versioned content is read-only to project API keys. Supplying a non-null definition returns 403 during employee-only authoring.
       name:
         type: optional<string>
       description:
@@ -353,8 +360,20 @@ types:
       message:
         type: string
 
+  WidgetDefinition:
+    docs: Complete widget content. When present, use this definition to render every tab, formula or Markdown. Flat fields describe a compatibility projection only. Employee authoring is required to change this definition.
+    discriminant: kind
+    union:
+      multiQuery: dashboards.MultiQueryDashboardBlock
+      markdown: dashboards.MarkdownDashboardBlock
+
   DashboardWidget:
     properties:
+      definition:
+        type: optional<nullable<WidgetDefinition>>
+      revision:
+        type: optional<integer>
+        docs: Optimistic edit revision. Classic widgets begin at zero.
       id:
         type: string
       createdAt:

@@ -1,3 +1,7 @@
+import {
+  saveWidgetDefinition,
+  migrateInlineWidgets,
+} from "./widget-definition-storage";
 import { prisma, Prisma } from "../../../db";
 import { isPrismaRecordNotFoundError } from "../../prismaErrors";
 import { escapeSqlLikePattern } from "../../utils/sqlLike";
@@ -70,7 +74,7 @@ const toWidgetQueryShape = (input: CreateWidgetInput): WidgetQueryShape => ({
   filters: input.filters,
 });
 
-const validateDashboardWidgetQuery = (
+export const validateDashboardWidgetQuery = (
   input: CreateWidgetInput,
   minVersion: number,
 ) => {
@@ -120,6 +124,8 @@ type DashboardPageOptions = {
 };
 
 export class DashboardService {
+  public static saveWidgetDefinition = saveWidgetDefinition;
+  public static migrateInlineWidgets = migrateInlineWidgets;
   public static getDashboardBlocks = getDashboardBlocks;
   public static patchDashboardBlock = patchDashboardBlock;
   public static patchPublicDashboard = patchPublicDashboard;
@@ -564,8 +570,19 @@ export class DashboardService {
   ): Promise<WidgetDomain> {
     const existingWidget = await prisma.dashboardWidget.findFirst({
       where: { id: widgetId, projectId },
-      select: { minVersion: true, view: true },
+      select: {
+        minVersion: true,
+        view: true,
+        definition: true,
+        revision: true,
+      },
     });
+    if (!existingWidget)
+      throw new LangfuseNotFoundError("Dashboard widget not found");
+    if (existingWidget?.definition != null)
+      throw new LangfuseConflictError(
+        "This widget uses a versioned definition. Edit it with the widget editor to preserve its tabs and formulas.",
+      );
     const persistedMinVersion =
       existingWidget && existingWidget.view === input.view
         ? existingWidget.minVersion
@@ -575,24 +592,35 @@ export class DashboardService {
       persistedMinVersion,
     );
     validateDashboardWidgetQuery(input, minVersion);
-    const updatedWidget = await prisma.dashboardWidget.update({
-      where: {
-        id: widgetId,
-        projectId,
-      },
-      data: {
-        name: input.name,
-        description: input.description,
-        view: input.view,
-        dimensions: input.dimensions,
-        metrics: input.metrics,
-        filters: input.filters,
-        chartType: input.chartType,
-        chartConfig: input.chartConfig,
-        minVersion,
-        updatedBy: userId,
-      },
-    });
+    const updatedWidget = await prisma.dashboardWidget
+      .update({
+        where: {
+          id: widgetId,
+          projectId,
+          definition: { equals: Prisma.DbNull },
+          revision: existingWidget.revision,
+        },
+        data: {
+          name: input.name,
+          description: input.description,
+          view: input.view,
+          dimensions: input.dimensions,
+          metrics: input.metrics,
+          filters: input.filters,
+          chartType: input.chartType,
+          chartConfig: input.chartConfig,
+          minVersion,
+          updatedBy: userId,
+          revision: { increment: 1 },
+        },
+      })
+      .catch((error: unknown) => {
+        if (isPrismaRecordNotFoundError(error))
+          throw new LangfuseConflictError(
+            "This widget changed. Reload it and try again.",
+          );
+        throw error;
+      });
 
     return WidgetDomainSchema.parse({
       ...updatedWidget,
@@ -701,6 +729,8 @@ export class DashboardService {
           chartType: sourceWidget.chartType,
           chartConfig: sourceWidget.chartConfig ?? {},
           minVersion,
+          definition: sourceWidget.definition ?? Prisma.DbNull,
+          revision: sourceWidget.definition ? 1 : 0,
           projectId, // project owned
           createdBy: userId,
           updatedBy: userId,

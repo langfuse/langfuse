@@ -26,8 +26,10 @@ export function DashboardMarkdownEditor({
   onSave,
   onCancel,
   onPreview,
+  sharedWidget = false,
 }: {
   initial: MarkdownConfig;
+  sharedWidget?: boolean;
   beforePlacementId: string | null;
   placementOptions: { value: string | null; label: string }[];
   pending: boolean;
@@ -146,6 +148,11 @@ export function DashboardMarkdownEditor({
             </Tabs.Content>
           </Tabs>
         </Form>
+        {sharedWidget && (
+          <p className="text-muted-foreground text-sm">
+            Changes apply wherever this widget is used.
+          </p>
+        )}
         {error && (
           <p role="alert" className="text-destructive text-sm">
             {error}

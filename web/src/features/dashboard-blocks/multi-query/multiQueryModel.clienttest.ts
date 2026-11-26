@@ -47,6 +47,18 @@ const context = {
 };
 
 describe("multi-query ordinary query composition", () => {
+  it("preserves a classic pivot table's saved dimension sort", () => {
+    const pivot = structuredClone(config);
+    pivot.display = {
+      chartType: "PIVOT_TABLE",
+      defaultSort: { column: "name", order: "ASC" },
+    };
+    pivot.queries[0]!.dimensions = [{ field: "name" }];
+    const plan = buildMultiQueryPlan(pivot, context);
+    expect(plan.queries[0]!.query.orderBy).toEqual([
+      { field: "name", direction: "asc" },
+    ]);
+  });
   it("runs saved Home map categories against their original data on the legacy read path", () => {
     const categories = structuredClone(config);
     categories.display.chartType = "LINE_TIME_SERIES";

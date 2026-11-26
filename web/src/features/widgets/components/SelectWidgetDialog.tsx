@@ -1,7 +1,8 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import React, { useEffect, useRef } from "react";
+import React, { useContext, useEffect, useRef } from "react";
+import { DashboardBlocksContext } from "@/src/features/dashboard-blocks/dashboard-block-context";
 import { useRouter } from "next/router";
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   Dialog,
@@ -36,6 +37,9 @@ export type WidgetItem = {
   description: string;
   view: string;
   chartType: string;
+  definition?: NonNullable<
+    RouterOutputs["dashboardWidgets"]["get"]
+  >["definition"];
   createdAt: Date;
   updatedAt: Date;
 };
@@ -61,6 +65,16 @@ function WidgetRow({
   widget: WidgetItem;
   onClick: () => void;
 }) {
+  const summary = (() => {
+    if (widget.definition?.kind === "markdown") return "Markdown";
+    if (widget.definition?.kind === "multiQuery") {
+      const config = widget.definition.config;
+      return config.version === 2
+        ? `${config.tabs.length} chart ${config.tabs.length === 1 ? "tab" : "tabs"}`
+        : "Chart";
+    }
+    return `${getChartTypeDisplayName(widget.chartType as DashboardWidgetChartType)} · ${startCase(widget.view.toLowerCase())}`;
+  })();
   return (
     <button type="button" onClick={onClick} className={rowClassName}>
       <RowIllustration type={widget.chartType} />
@@ -76,12 +90,7 @@ function WidgetRow({
             {widget.description}
           </div>
         ) : null}
-        <div className="text-muted-foreground/80 mt-0.5 text-xs">
-          {getChartTypeDisplayName(
-            widget.chartType as DashboardWidgetChartType,
-          )}{" "}
-          · {startCase(widget.view.toLowerCase())}
-        </div>
+        <div className="text-muted-foreground/80 mt-0.5 text-xs">{summary}</div>
       </div>
     </button>
   );
@@ -106,6 +115,8 @@ export function SelectWidgetDialog({
   dashboardId,
 }: SelectWidgetDialogProps) {
   const router = useRouter();
+  const authoring = useContext(DashboardBlocksContext);
+  const useTemplates = Boolean(authoring?.capabilities.multiQuery);
   const capture = usePostHogClientCapture();
   const { isAvailable, openAssistant, submit } = useInAppAiAgent();
 
@@ -139,8 +150,10 @@ export function SelectWidgetDialog({
   const { isV4, isResolved } = useReadPath();
   const suggestedVersion: ViewVersion = isV4 ? "v2" : "v1";
   const allProjectWidgets = widgets.data?.widgets ?? [];
-  const projectWidgets = allProjectWidgets.filter((widget) =>
-    isSuggestedWidgetView(widget.view, suggestedVersion),
+  const projectWidgets = allProjectWidgets.filter(
+    (widget) =>
+      widget.definition != null ||
+      isSuggestedWidgetView(widget.view, suggestedVersion),
   );
   const hiddenWidgetCount = allProjectWidgets.length - projectWidgets.length;
   // Replaces the generic empty state when it hid every widget, so the two can
@@ -194,15 +207,20 @@ export function SelectWidgetDialog({
                     source: "add_widget_dialog",
                     dashboard_id: dashboardId,
                   });
-                  router.push(
-                    `/project/${projectId}/widgets/new?dashboardId=${dashboardId}`,
-                  );
+                  if (useTemplates) {
+                    onOpenChange(false);
+                    authoring?.openEditor({ kind: "multiQuery" });
+                  } else {
+                    router.push(
+                      `/project/${projectId}/widgets/new?dashboardId=${dashboardId}`,
+                    );
+                  }
                 }}
                 className={`${rowClassName} border-dashed`}
               >
                 <RowIllustration type="CUSTOM" />
                 <div className="min-w-0 flex-1">
-                  <div className="font-bold">Custom Chart</div>
+                  <div className="font-bold">New chart</div>
                   <div className="text-muted-foreground text-xs">
                     Pick a data view, metrics, and chart type from scratch
                   </div>
@@ -229,7 +247,7 @@ export function SelectWidgetDialog({
                   {onSelectPreset && (
                     <Tabs.Trigger
                       value="home-cards"
-                      label={`Home cards (${HOME_DASHBOARD_PRESET_IDS.length})`}
+                      label={`${useTemplates ? "Templates" : "Home cards"} (${HOME_DASHBOARD_PRESET_IDS.length})`}
                     />
                   )}
                 </Tabs.List>
@@ -275,8 +293,19 @@ export function SelectWidgetDialog({
                                   preset_id: presetId,
                                   dashboard_id: dashboardId,
                                 });
-                                onSelectPreset(presetId);
                                 onOpenChange(false);
+                                if (useTemplates) {
+                                  authoring?.openEditor({
+                                    kind: "multiQuery",
+                                    preset: {
+                                      source: { placementId: "", presetId },
+                                      selection: {},
+                                      template: true,
+                                    },
+                                  });
+                                } else {
+                                  onSelectPreset(presetId);
+                                }
                               }}
                               className={rowClassName}
                             >
@@ -295,7 +324,9 @@ export function SelectWidgetDialog({
                                   {meta.description}
                                 </div>
                                 <div className="text-muted-foreground/80 mt-0.5 text-xs">
-                                  Home card · fixed configuration
+                                  {useTemplates
+                                    ? "Editable widget template"
+                                    : "Home card · fixed configuration"}
                                 </div>
                               </div>
                             </button>

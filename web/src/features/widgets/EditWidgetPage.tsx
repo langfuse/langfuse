@@ -1,3 +1,5 @@
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { SavedWidgetEditor } from "./components/SavedWidgetEditor";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/Page";
 import { api } from "@/src/utils/api";
@@ -13,6 +15,7 @@ import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export default function EditWidgetPage() {
   const router = useRouter();
+  const authoringEnabled = useIsFeatureEnabled("dashboardBlockAuthoring");
   const { projectId, widgetId, dashboardId } = router.query as {
     projectId: string;
     widgetId: string;
@@ -94,6 +97,15 @@ export default function EditWidgetPage() {
       chartConfig: widgetFormData.chartConfig,
     });
   };
+
+  if (widgetData && isResolved && (authoringEnabled || widgetData.definition))
+    return (
+      <SavedWidgetEditor
+        projectId={projectId}
+        dashboardId={dashboardId}
+        widget={widgetData}
+      />
+    );
 
   return (
     <Page

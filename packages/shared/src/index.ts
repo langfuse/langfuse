@@ -66,6 +66,7 @@ export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
 export * from "./features/dashboards/blocks";
 export * from "./features/dashboards/multiQuery";
+export * from "./features/dashboards/widgetDefinition";
 export * from "./domain/webhooks";
 export * from "./domain/storage-role-auth";
 export * from "./domain/dataset-run-items";

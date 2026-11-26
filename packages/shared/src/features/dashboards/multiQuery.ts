@@ -18,7 +18,7 @@ const multiQuerySourceSchema = z.object({
   metrics: z
     .array(metric.extend({ id, label: z.string().max(200).optional() }))
     .min(1)
-    .max(5),
+    .max(10),
   dimensions: z.array(dimension).max(3),
   filters: singleFilterList,
   orderBy: z
@@ -45,6 +45,10 @@ const displaySchema = z.object({
     "HISTOGRAM",
     "PIVOT_TABLE",
   ]),
+  defaultSort: z
+    .object({ column: z.string(), order: z.enum(["ASC", "DESC"]) })
+    .optional(),
+  showValueLabels: z.boolean().optional(),
   rowLimit: z.number().int().min(1).max(1000).optional(),
   bins: z.number().int().min(1).max(100).optional(),
   legend: z.boolean().optional(),
@@ -107,7 +111,7 @@ function validateSources(
 export const multiQueryConfigSchema = z
   .object({
     version: z.literal(multiQueryConfigVersion),
-    title: z.string().min(1).max(200),
+    title: z.string().min(1),
     description: z.string().max(10000),
     queries: z.array(multiQuerySourceSchema).min(1).max(5),
     display: displaySchema,
@@ -155,7 +159,7 @@ const tabMetricSchema = metric.extend({
 });
 const tabSourceSchema = multiQuerySourceSchema.extend({
   hidden: z.boolean().optional(),
-  metrics: z.array(tabMetricSchema).min(1).max(5),
+  metrics: z.array(tabMetricSchema).min(1).max(10),
 });
 const formulaSchema = z.object({
   id,
@@ -235,7 +239,7 @@ export const multiQueryTabSchema = z
 export const multiQueryConfigV2Schema = z
   .object({
     version: z.literal(2),
-    title: z.string().min(1).max(200),
+    title: z.string().min(1),
     description: z.string().max(10000),
     tabs: z.array(multiQueryTabSchema).min(1).max(9),
   })

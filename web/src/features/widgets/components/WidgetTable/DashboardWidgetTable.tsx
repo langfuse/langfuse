@@ -1,3 +1,5 @@
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { type RouterOutputs } from "@/src/utils/api";
 import { useCallback, useMemo } from "react";
 import { Copy, CopyPlus, FileJson, Trash } from "@langfuse/icons";
 import startCase from "lodash/startCase";
@@ -66,6 +68,9 @@ export type WidgetTableRow = {
   description: string;
   view: string;
   chartType: string;
+  definition?: NonNullable<
+    RouterOutputs["dashboardWidgets"]["get"]
+  >["definition"];
   createdAt: Date;
   updatedAt: Date;
   owner: "PROJECT" | "LANGFUSE";
@@ -96,6 +101,7 @@ export function DashboardWidgetTable({
   onDownload: (widget: WidgetTableRow) => void;
   onDuplicate: (widget: WidgetTableRow) => void;
 }) {
+  const authoring = useIsFeatureEnabled("dashboardBlockAuthoring");
   const columns = useMemo<LangfuseColumnDef<WidgetTableRow>[]>(
     () => [
       createLinkTableColumn<WidgetTableRow>({
@@ -125,8 +131,11 @@ export function DashboardWidgetTable({
         header: "View Type",
         enableSorting: true,
         size: TYPE_COLUMN_SIZE,
-        getBadge: (view) => ({
-          value: startCase(view.toLowerCase()),
+        getBadge: (view, { row }) => ({
+          value:
+            row.original.definition?.kind === "markdown"
+              ? "Text"
+              : startCase(view.toLowerCase()),
           variant:
             viewBadgeVariants[view as keyof typeof viewBadgeVariants] ?? "blue",
         }),
@@ -137,8 +146,11 @@ export function DashboardWidgetTable({
         header: "Chart Type",
         enableSorting: true,
         size: TYPE_COLUMN_SIZE,
-        getBadge: (chartType) => ({
-          value: chartTypeLabels[chartType as DashboardWidgetChartType],
+        getBadge: (chartType, { row }) => ({
+          value:
+            row.original.definition?.kind === "markdown"
+              ? "Markdown"
+              : chartTypeLabels[chartType as DashboardWidgetChartType],
           variant:
             chartTypeBadgeVariants[chartType as DashboardWidgetChartType],
           icon: dashboardWidgetChartTypeIcons[
@@ -148,8 +160,15 @@ export function DashboardWidgetTable({
       }),
       createBadgeTableColumn<WidgetTableRow>({
         range: "decorative",
-        accessorFn: (row) =>
-          chartDisplayModes[row.chartType as DashboardWidgetChartType],
+        accessorFn: (row) => {
+          if (row.definition?.kind === "markdown") return "Text";
+          if (
+            row.definition?.kind === "multiQuery" &&
+            row.definition.config.version === 2
+          )
+            return `${row.definition.config.tabs.length} chart tabs`;
+          return chartDisplayModes[row.chartType as DashboardWidgetChartType];
+        },
         id: "displayMode",
         header: "Display Mode",
         enableSorting: true,
@@ -196,9 +215,15 @@ export function DashboardWidgetTable({
         type: "item",
         title: "Clone",
         icon: CopyPlus,
-        disabled: hasCUDAccess
-          ? undefined
-          : { reason: "You do not have permission to clone widgets" },
+        disabled: (() => {
+          if (!hasCUDAccess)
+            return { reason: "You do not have permission to clone widgets" };
+          if (row.definition && !authoring)
+            return {
+              reason: "Enable Dashboard widget authoring to clone this widget",
+            };
+          return undefined;
+        })(),
         onClick: () => onDuplicate(row),
       },
       {
@@ -224,7 +249,7 @@ export function DashboardWidgetTable({
         onClick: () => onDelete(row),
       },
     ],
-    [hasCUDAccess, onCopy, onDelete, onDownload, onDuplicate],
+    [hasCUDAccess, authoring, onCopy, onDelete, onDownload, onDuplicate],
   );
 
   return (

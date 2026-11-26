@@ -49,10 +49,12 @@ import {
 } from "../../../core/widget-payload";
 import {
   CreateDashboardWidgetBaseSchema,
+  SavedDashboardWidgetDefinitionBaseSchema,
   throwActionableDashboardWidgetError,
 } from "../../dashboardWidgets/tools/createDashboardWidget";
 import { WIDGET_APP_RESOURCE_URI } from "../resources";
 import { summarizeWidget } from "./widgetSummary";
+import { renderRichWidget } from "./renderRichWidget";
 import {
   DEFAULT_WIDGET_TIME_RANGE,
   WIDGET_TIME_RANGES,
@@ -65,6 +67,12 @@ const timeRanges = z.enum([...WIDGET_TIME_RANGES.keys()] as [
 ]);
 
 const renderOptions = {
+  tabId: z
+    .string()
+    .optional()
+    .describe(
+      "Named tab ID in a saved multi-query widget. Defaults to the first tab.",
+    ),
   widgetId: z
     .string()
     .optional()
@@ -96,6 +104,9 @@ const renderOptions = {
 const RenderWidgetBaseSchema = CreateDashboardWidgetBaseSchema.partial().extend(
   {
     ...renderOptions,
+    definition: SavedDashboardWidgetDefinitionBaseSchema.optional().describe(
+      "Render a tabbed multi-query chart or Markdown without saving. No classic fields are needed when definition is supplied.",
+    ),
     name: z
       .string()
       .optional()
@@ -132,7 +143,7 @@ const RenderWidgetInputSchema = PostUnstableDashboardWidgetBody.partial()
         message: "toTimestamp must be after fromTimestamp",
       });
     }
-    if (input.widgetId) return;
+    if (input.widgetId || input.definition) return;
     if (!input.view) {
       ctx.addIssue({
         code: "custom",
@@ -175,7 +186,7 @@ const loadSavedWidget = async (widgetId: string, context: ServerContext) => {
   if (!widget) {
     throw new LangfuseNotFoundError(`Dashboard widget ${widgetId} not found`);
   }
-  return toPublicWidgetInput(widget);
+  return { ...toPublicWidgetInput(widget), definition: widget.definition };
 };
 
 /**
@@ -205,7 +216,7 @@ const adHocWidget = (input: RenderWidgetInput) => {
   }
 };
 
-type ChartedWidget = Awaited<ReturnType<typeof loadSavedWidget>>;
+type ChartedWidget = ReturnType<typeof toPublicWidgetInput>;
 
 type TimeWindow = {
   /** The range as requested: a relative preset or a custom window. */
@@ -428,8 +439,9 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
   name: RENDER_WIDGET_TOOL_NAME,
   action: "metrics:read",
   description: [
-    "Render a Langfuse chart inline in the chat: a big number, a time series, a breakdown, a table or a histogram.",
+    "Render a saved Langfuse widget, including named tabs, multiple queries, computed formulas and Markdown, inline in the chat. Also supports ad-hoc big numbers, time series, breakdowns, tables and histograms.",
     "Use it whenever a metrics question is better answered visually, e.g. 'what is our average cost?', 'latency by model this week', or to show a saved dashboard widget (pass widgetId).",
+    "For an unsaved tabbed chart or Markdown, pass definition with kind and config in the shape returned by getDashboardWidget; it is rendered without saving or requiring authoring access. Select a tab with tabId.",
     "For an ad-hoc chart pass a widget definition in the same shape as createDashboardWidget (view, metrics with agg, dimensions, filters, chartType, chartConfig); it is rendered, not saved. To save the chart, pass the same arguments to createDashboardWidget.",
     "Pick the time range with timeRange, or a custom window with fromTimestamp and toTimestamp, and call the tool again for another range. The text result summarizes the chart (totals, peaks, latest values per series) and links to Langfuse; no follow-up query is needed to describe it.",
   ].join(" "),
@@ -447,13 +459,38 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
         "mcp.widget_time_range": input.timeRange,
       },
       fn: async () => {
+        const window = resolveTimeWindow(input, context);
+        if (!input.widgetId && input.definition) {
+          return renderRichWidget({
+            definition: input.definition,
+            projectId: context.projectId,
+            tabId: input.tabId,
+            window,
+            url: buildDashboardsUrl({ projectId: context.projectId }),
+          });
+        }
         const widget = input.widgetId
           ? await loadSavedWidget(input.widgetId, context)
           : adHocWidget(input);
+        const url = input.widgetId
+          ? buildDashboardWidgetUrl({
+              projectId: context.projectId,
+              widgetId: input.widgetId,
+            })
+          : buildDashboardsUrl({ projectId: context.projectId });
+        if ("definition" in widget && widget.definition != null) {
+          return renderRichWidget({
+            widget,
+            definition: widget.definition,
+            tabId: input.tabId,
+            projectId: context.projectId,
+            window,
+            url,
+          });
+        }
         if (widget.metrics.length === 0) {
           throw new InvalidRequestError("The widget has no metrics");
         }
-        const window = resolveTimeWindow(input, context);
         const filters = await resolveFilters(widget, context.projectId, window);
         const query = buildRenderQuery(widget, filters, window);
         const rows = await runQuery(query, context.projectId);

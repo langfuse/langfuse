@@ -101,9 +101,15 @@ export function useWidgetApp() {
   });
   useHostStyles(app, app?.getHostContext());
 
-  const rerender = (nextRange: WidgetTimeRange) => {
+  const rerender = (
+    nextRange: WidgetTimeRange,
+    overrides?: { tabId: string },
+  ) => {
     if (!app || !toolArguments) return;
-    const nextArguments = withTimeRange(toolArguments, nextRange);
+    const nextArguments = withTimeRange(
+      { ...toolArguments, ...overrides },
+      nextRange,
+    );
     runningCall.current?.abort();
     const call = new AbortController();
     runningCall.current = call;

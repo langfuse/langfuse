@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
+import {
+  HOME_DASHBOARD_PRESET_IDS,
+  type dashboardBlockPatchSchema,
+} from "@langfuse/shared";
+import { buildHomeWidgetRecipe } from "@/src/features/dashboard-blocks/homeWidgetRecipes";
 import type { z } from "zod";
-import type { dashboardBlockPatchSchema } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { createSession } from "@/src/__tests__/fixtures/session-factory";
@@ -101,7 +105,293 @@ describe("project dashboard blocks", () => {
     await prisma.user.delete({ where: { id: userId } });
   });
 
-  it("reads a legacy layout without writing and persists its mirrored placements on the next classic edit", async () => {
+  it("stores rich content on reusable widgets and replaces a Home placement atomically", async () => {
+    const author = caller(projectId);
+    const reader = caller(projectId, "VIEWER", { optedIn: false });
+    const placement = {
+      type: "preset" as const,
+      id: "model-costs",
+      presetId: "home-model-costs",
+      x: 6,
+      y: 3,
+      x_size: 6,
+      y_size: 4,
+    };
+    const dashboard = await prisma.dashboard.create({
+      data: {
+        projectId,
+        name: "Replace card",
+        description: "",
+        definition: { widgets: [placement] },
+      },
+    });
+    const definition = {
+      kind: "multiQuery" as const,
+      config: multiQueryConfig,
+    };
+    const input = {
+      projectId,
+      dashboardId: dashboard.id,
+      replacePlacementId: placement.id,
+      definition,
+    };
+    await expect(
+      caller(projectId, "ADMIN", {
+        optedIn: false,
+      }).dashboardWidgets.saveDefinition(input),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      caller(otherProjectId).dashboardWidgets.saveDefinition({
+        ...input,
+        projectId: otherProjectId,
+      }),
+    ).rejects.toThrow();
+    const { widget, placementId } =
+      await author.dashboardWidgets.saveDefinition(input);
+    expect(widget.definition).toEqual(definition);
+    const saved = await prisma.dashboard.findUniqueOrThrow({
+      where: { id: dashboard.id },
+    });
+    expect(saved.definition).toEqual({
+      widgets: [
+        {
+          id: placement.id,
+          type: "widget",
+          widgetId: widget.id,
+          x: 6,
+          y: 3,
+          x_size: 6,
+          y_size: 4,
+        },
+      ],
+    });
+    expect(placementId).toBe(placement.id);
+    const second = await prisma.dashboard.create({
+      data: {
+        projectId,
+        name: "Shared chart",
+        description: "",
+        definition: saved.definition!,
+      },
+    });
+    const changed = {
+      ...definition,
+      config: { ...multiQueryConfig, title: "Shared title" },
+    };
+    await author.dashboardWidgets.saveDefinition({
+      projectId,
+      widgetId: widget.id,
+      expectedRevision: 1,
+      definition: changed,
+    });
+    await expect(
+      reader.dashboardWidgets.get({ projectId, widgetId: widget.id }),
+    ).resolves.toMatchObject({ definition: changed, revision: 2 });
+    for (const dashboardId of [dashboard.id, second.id]) {
+      const data = await reader.dashboard.getDashboard({
+        projectId,
+        dashboardId,
+      });
+      expect(data?.definition.widgets[0]).toMatchObject({
+        widgetId: widget.id,
+      });
+    }
+    await expect(
+      author.dashboardWidgets.saveDefinition({
+        projectId,
+        widgetId: widget.id,
+        expectedRevision: 1,
+        definition,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      author.dashboardWidgets.update({
+        projectId,
+        widgetId: widget.id,
+        name: "Old writer",
+        description: "",
+        view: "observations",
+        metrics: [{ measure: "count", agg: "count" }],
+        dimensions: [],
+        filters: [],
+        chartType: "NUMBER",
+        chartConfig: { type: "NUMBER" },
+      }),
+    ).rejects.toThrow("versioned definition");
+    const count = await prisma.dashboardWidget.count({ where: { projectId } });
+    await expect(author.dashboardWidgets.saveDefinition(input)).rejects.toThrow(
+      "already been replaced",
+    );
+    expect(await prisma.dashboardWidget.count({ where: { projectId } })).toBe(
+      count,
+    );
+
+    const classic = await author.dashboardWidgets.create({
+      projectId,
+      name: "Classic",
+      description: "",
+      view: "observations",
+      dimensions: [],
+      filters: [],
+      metrics: [{ measure: "count", agg: "count" }],
+      chartType: "NUMBER",
+      chartConfig: { type: "NUMBER" },
+    });
+    const upgraded = await author.dashboardWidgets.saveDefinition({
+      projectId,
+      widgetId: classic.widget.id,
+      expectedRevision: 0,
+      definition,
+    });
+    expect(upgraded.widget.id).toBe(classic.widget.id);
+    expect(upgraded.widget.revision).toBe(1);
+  });
+
+  it("saves every Home template on both read paths without losing its query definition", async () => {
+    const author = caller(projectId);
+    const reader = caller(projectId, "VIEWER", { optedIn: false });
+    const failures: string[] = [];
+    for (const version of ["v1", "v2"] as const) {
+      for (const preset of HOME_DASHBOARD_PRESET_IDS) {
+        try {
+          const recipe = buildHomeWidgetRecipe(preset, {
+            version,
+            models: ["alpha", "beta"],
+            scores: [
+              { name: "Quality", source: "EVAL", dataType: "NUMERIC" },
+              { name: "Quality", source: "API", dataType: "BOOLEAN" },
+              {
+                name: "Outcome",
+                source: "ANNOTATION",
+                dataType: "CATEGORICAL",
+              },
+            ],
+          });
+          if ("reason" in recipe) throw new Error(recipe.reason);
+          const definition = {
+            kind: "multiQuery" as const,
+            config: recipe.config,
+          };
+          const { widget } = await author.dashboardWidgets.saveDefinition({
+            projectId,
+            definition,
+          });
+          const stored = await reader.dashboardWidgets.get({
+            projectId,
+            widgetId: widget.id,
+          });
+          expect(stored?.revision).toBe(1);
+          expect(stored?.definition).toEqual(
+            JSON.parse(JSON.stringify(definition)),
+          );
+        } catch (error) {
+          failures.push(
+            `${version} ${preset}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+    }
+    expect(failures).toEqual([]);
+  });
+
+  it("migrates inline charts and Markdown transactionally and only once", async () => {
+    const author = caller(projectId);
+    const preset = {
+      type: "preset" as const,
+      id: "cost",
+      presetId: "home-model-costs",
+      x: 0,
+      y: 0,
+      x_size: 6,
+      y_size: 4,
+    };
+    const note = {
+      id: randomUUID(),
+      kind: "markdown",
+      config: { version: 1, title: "Note", content: "**Keep this**" },
+      revision: 1,
+      beforePlacementId: preset.id,
+    };
+    const chart = {
+      id: randomUUID(),
+      kind: "multiQuery",
+      config: multiQueryConfig,
+      revision: 1,
+      beforePlacementId: null,
+    };
+    const dashboard = await prisma.dashboard.create({
+      data: {
+        projectId,
+        name: "Inline migration",
+        description: "",
+        definition: {
+          version: "1",
+          widgets: [preset],
+          blocks: [preset, note, chart],
+        },
+      },
+    });
+    const target = { projectId, dashboardId: dashboard.id };
+    await expect(
+      author.dashboardWidgets.migrateInlineWidgets(target),
+    ).resolves.toEqual({ migrated: 2 });
+    await expect(
+      author.dashboardWidgets.migrateInlineWidgets(target),
+    ).resolves.toEqual({ migrated: 0 });
+    const stored = await prisma.dashboard.findUniqueOrThrow({
+      where: { id: dashboard.id },
+    });
+    expect(Object.keys(stored.definition!)).toEqual(["widgets"]);
+    const placements = (
+      stored.definition as {
+        widgets: { type: string; widgetId?: string; y: number }[];
+      }
+    ).widgets;
+    const definitions = await prisma.dashboardWidget.findMany({
+      where: {
+        projectId,
+        id: {
+          in: placements.flatMap((item) =>
+            item.widgetId ? [item.widgetId] : [],
+          ),
+        },
+      },
+      select: { definition: true },
+    });
+    expect(definitions.map((item) => item.definition)).toEqual(
+      expect.arrayContaining([
+        { kind: "markdown", config: note.config },
+        { kind: "multiQuery", config: multiQueryConfig },
+      ]),
+    );
+    expect(placements.find((item) => item.type === "preset")?.y).toBe(2);
+
+    const future = {
+      version: "1",
+      widgets: [],
+      blocks: [note, { kind: "future", id: "unknown" }],
+    };
+    await prisma.dashboard.update({
+      where: { id: dashboard.id },
+      data: { definition: future },
+    });
+    const before = await prisma.dashboardWidget.count({ where: { projectId } });
+    await expect(
+      author.dashboardWidgets.migrateInlineWidgets(target),
+    ).rejects.toThrow("cannot migrate");
+    expect(await prisma.dashboardWidget.count({ where: { projectId } })).toBe(
+      before,
+    );
+    expect(
+      (
+        await prisma.dashboard.findUniqueOrThrow({
+          where: { id: dashboard.id },
+        })
+      ).definition,
+    ).toEqual(future);
+  });
+
+  it("reads a legacy layout without writing and keeps a classic edit as ordinary placements", async () => {
     const editor = caller(projectId, "ADMIN", { optedIn: false });
     const geometry = { x: 0, y: 0, x_size: 4, y_size: 3 };
     const widget = {
@@ -155,11 +445,7 @@ describe("project dashboard blocks", () => {
       ...target,
       definition: { widgets },
     });
-    expect((await stored()).definition).toEqual({
-      version: "1",
-      widgets,
-      blocks: widgets,
-    });
+    expect((await stored()).definition).toEqual({ widgets });
     await expect(editor.dashboard.getDashboard(target)).resolves.toMatchObject({
       hasDashboardBlocks: false,
     });

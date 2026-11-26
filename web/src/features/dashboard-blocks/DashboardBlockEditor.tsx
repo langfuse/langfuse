@@ -1,10 +1,9 @@
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import { v4 as uuidv4 } from "uuid";
 import { type FilterState } from "@langfuse/shared";
 import { type SavedMultiQueryConfig } from "@langfuse/shared/dashboards";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { useSaveDashboardBlock } from "./useDashboardBlockMutations";
+import { api } from "@/src/utils/api";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type BlockEditorRequest } from "./dashboard-block-context";
 import { buildHomeWidgetRecipe } from "./homeWidgetRecipes";
@@ -55,7 +54,7 @@ export function DashboardBlockEditor({
   onPreview: () => void;
   onCancel: () => void;
 }) {
-  const [id] = useState(() => request.block?.id ?? uuidv4());
+  const utils = api.useUtils();
   const [recipe, setRecipe] = useState(() =>
     request.kind === "multiQuery" && request.preset
       ? buildHomeWidgetRecipe(request.preset.source.presetId, {
@@ -72,7 +71,14 @@ export function DashboardBlockEditor({
     setBeforePlacementId(next);
     onPlacementChanged();
   };
-  const mutation = useSaveDashboardBlock({ projectId, dashboardId });
+  const mutation = api.dashboardWidgets.saveDefinition.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.dashboard.invalidate(),
+        utils.dashboardWidgets.invalidate(),
+      ]);
+    },
+  });
   const finishSave = (activeTabId?: string) => {
     if (activeTabId) request.onTabSaved?.(activeTabId);
     onSaved();
@@ -92,13 +98,11 @@ export function DashboardBlockEditor({
       {
         projectId,
         dashboardId,
-        blockPatch: {
-          op: "upsert",
-          id,
-          expectedRevision: request.block?.revision ?? 0,
-          beforePlacementId,
-          ...content,
-        },
+        widgetId: request.widgetId,
+        expectedRevision: request.expectedRevision ?? request.block?.revision,
+        sourceBlockId: request.widgetId ? undefined : request.block?.id,
+        beforePlacementId: beforePlacementId ?? undefined,
+        definition: content,
       },
       { onSuccess: () => finishSave(activeTabId) },
     );
@@ -116,6 +120,7 @@ export function DashboardBlockEditor({
   if (request.kind === "markdown")
     return (
       <DashboardMarkdownEditor
+        sharedWidget={Boolean(request.widgetId)}
         initial={
           request.block?.kind === "markdown"
             ? request.block.config
@@ -181,13 +186,13 @@ export function DashboardBlockEditor({
           {
             projectId,
             dashboardId,
-            blockPatch: {
-              op: "convertPreset",
-              id,
-              expectedRevision: 0,
-              sourcePreset: request.preset.source,
-              config,
-            },
+            replacePlacementId: request.preset.template
+              ? undefined
+              : request.preset.source.placementId,
+            replacePresetId: request.preset.template
+              ? undefined
+              : request.preset.source.presetId,
+            definition: { kind: "multiQuery", config },
           },
           { onSuccess: () => finishSave(activeTabId) },
         );
@@ -202,11 +207,17 @@ export function DashboardBlockEditor({
           onChange={updatePlacement}
         />
       )}
+      {request.widgetId && (
+        <p className="text-muted-foreground text-sm">
+          Changes apply wherever this widget is used.
+        </p>
+      )}
       {recipe && (
         <div className="mb-3 space-y-1 px-1 text-sm">
           <p>
-            Saving replaces this Home card with an editable widget in the same
-            position. You can restore the Home card from the widget menu.
+            {request.preset?.template
+              ? "Save creates a widget from this template."
+              : "Save creates a widget and replaces this Home card in the same position."}
           </p>
           {recipe.limitations.length > 0 && (
             <ul className="text-muted-foreground list-disc space-y-1 pl-5">

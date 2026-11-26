@@ -46,3 +46,4 @@ export type DashboardDefinition = z.infer<typeof DashboardDefinitionSchema>;
 
 export * from "./blocks";
 export * from "./multiQuery";
+export * from "./widgetDefinition";

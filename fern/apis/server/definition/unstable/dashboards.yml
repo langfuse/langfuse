@@ -399,7 +399,7 @@ types:
       version: DashboardMultiQueryFormatV1
       title:
         type: string
-        docs: Between 1 and 200 characters.
+        docs: A nonempty chart name.
       description:
         type: string
         docs: At most 10000 characters.
@@ -488,7 +488,7 @@ types:
         docs: Use the Home score aggregate on the project's read path. Supports score-record counts and numeric means, grouped by name, source or data type. Use the scores-numeric source with explicit data type filters to select a population.
       metrics:
         type: list<DashboardMultiQueryMetric>
-        docs: Between 1 and 5 metrics with unique ids and distinct measure/aggregation pairs.
+        docs: Between 1 and 10 metrics with unique ids and distinct measure/aggregation pairs.
       dimensions:
         type: list<dashboardWidgets.DashboardWidgetDimension>
         docs: At most 3 grouping dimensions.
@@ -515,6 +515,8 @@ types:
   DashboardMultiQueryDisplay:
     properties:
       chartType: dashboardWidgets.DashboardWidgetChartType
+      defaultSort: optional<dashboardWidgets.DashboardWidgetDefaultSort>
+      showValueLabels: optional<boolean>
       rowLimit:
         type: optional<integer>
         docs: Between 1 and 1000.

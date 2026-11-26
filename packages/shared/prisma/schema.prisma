@@ -2127,6 +2127,8 @@ model DashboardWidget {
   chartType   DashboardWidgetChartType @map("chart_type")
   chartConfig Json                     @map("chart_config")
   minVersion  Int                      @default(1) @map("min_version")
+  definition Json?
+  revision   Int @default(0)
 
   @@map("dashboard_widgets")
 }

@@ -2,6 +2,7 @@ import {
   type FilterState,
   encodeFiltersGeneric,
   MAX_URL_FILTER_QUERY_LENGTH,
+  scoresTableCols,
 } from "@langfuse/shared";
 import { type views } from "@langfuse/shared/query";
 import { type z } from "zod";
@@ -122,6 +123,87 @@ export function buildTableFilterHref(
   const href = `/project/${projectId}/${table}${query ? `?${query}` : ""}`;
 
   return { href, notApplicable, droppedForLength };
+}
+
+/** Score-record drilldown preserves score timestamps and the analytics view's implicit type segment. */
+export function buildScoreRecordsHref(
+  projectId: string,
+  view: ViewName,
+  filters: FilterState,
+  dateRange: { from: Date; to: Date },
+  options: { homeScoreAggregate?: boolean; dimensions?: string[] } = {},
+): TableFilterHrefResult {
+  const supported = new Set(scoresTableCols.map((column) => column.id));
+  const related = new Set(["traceName", "userId", "tags", "sessionId"]);
+  const notApplicable = new Map<string, string>();
+  const mapped: FilterState = [];
+  for (const filter of filters) {
+    if (!supported.has(filter.column)) {
+      notApplicable.set(
+        filter.column,
+        `${filter.column} is not available in the scores table`,
+      );
+      continue;
+    }
+    if (related.has(filter.column))
+      notApplicable.set(
+        filter.column,
+        `${filter.column} is applied, but related-record lookback can differ from the chart`,
+      );
+    if (filter.column === "booleanValue" && filter.type === "boolean") {
+      mapped.push({
+        column: "booleanValue",
+        type: "stringOptions",
+        operator: filter.operator === "=" ? "any of" : "none of",
+        value: [String(filter.value)],
+      });
+    } else mapped.push(filter);
+  }
+  for (const dimension of options.dimensions ?? []) {
+    if (related.has(dimension))
+      notApplicable.set(
+        dimension,
+        `${dimension} grouping can exclude scores whose related record is outside the chart's lookback`,
+      );
+  }
+  if (!options.homeScoreAggregate) {
+    mapped.push({
+      column: "dataType",
+      type: "stringOptions",
+      operator: "any of",
+      value: (() => {
+        if (view === "scores-categorical") return ["CATEGORICAL"];
+        if (view === "scores-boolean") return ["BOOLEAN"];
+        return ["NUMERIC", "BOOLEAN"];
+      })(),
+    });
+  } else {
+    notApplicable.set(
+      "scoreTypes",
+      "The scores table lists supported score types; legacy correction records included in Home totals are not listed",
+    );
+  }
+  if (!mapped.some((filter) => filter.column === "environment")) {
+    // Explicit match-all avoids the table's implicit hidden-environment filter.
+    mapped.push({
+      column: "environment",
+      type: "string",
+      operator: "contains",
+      value: "",
+    });
+  }
+  const { encoded, droppedForLength } = encodeFiltersWithinBudget(mapped);
+  const range = options.homeScoreAggregate
+    ? {
+        from: new Date(dateRange.from.getTime() + 1),
+        to: new Date(dateRange.to.getTime() - 1),
+      }
+    : dateRange;
+  return {
+    href: `/project/${projectId}/scores?filter=${encodeURIComponent(encoded)}&dateRange=${encodeURIComponent(rangeToString(range))}`,
+    notApplicable,
+    droppedForLength,
+  };
 }
 
 export interface ViewAsTableHint {

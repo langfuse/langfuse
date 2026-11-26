@@ -1,3 +1,4 @@
+import { dashboardBlockContentSchema } from "@langfuse/shared";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -99,6 +100,8 @@ function ConnectedDashboardWidgetTableContent({
     projectId,
     scope: "dashboards:CUD",
   });
+  const { mutateAsync: saveDefinitionAsync } =
+    api.dashboardWidgets.saveDefinition.useMutation();
   const { mutateAsync: createWidgetAsync } =
     api.dashboardWidgets.create.useMutation();
 
@@ -112,6 +115,7 @@ function ConnectedDashboardWidgetTableContent({
       );
 
       return {
+        definition: widget.definition ?? undefined,
         name: widget.name,
         description: widget.description,
         view: widget.view,
@@ -190,11 +194,24 @@ function ConnectedDashboardWidgetTableContent({
         if (!projectId) throw new Error("Project ID is missing");
 
         const exportSource = await fetchExportSource(widgetId);
-        await createWidgetAsync({
-          projectId,
-          ...toWidgetCreateFields(exportSource),
-          name: `${exportSource.name} (Copy)`,
-        });
+        if (exportSource.definition) {
+          await saveDefinitionAsync({
+            projectId,
+            definition: dashboardBlockContentSchema.parse({
+              ...exportSource.definition,
+              config: {
+                ...exportSource.definition.config,
+                title: `${exportSource.name.slice(0, 190)} (Copy)`,
+              },
+            }),
+          });
+        } else {
+          await createWidgetAsync({
+            projectId,
+            ...toWidgetCreateFields(exportSource),
+            name: `${exportSource.name} (Copy)`,
+          });
+        }
         capture("dashboard:widget_duplicated", {
           surface: "widget_table",
           kind: "widget",
@@ -215,7 +232,14 @@ function ConnectedDashboardWidgetTableContent({
         );
       }
     },
-    [capture, createWidgetAsync, fetchExportSource, projectId, utils],
+    [
+      capture,
+      createWidgetAsync,
+      saveDefinitionAsync,
+      fetchExportSource,
+      projectId,
+      utils,
+    ],
   );
 
   const [orderByState, setOrderByState] = useOrderByState({

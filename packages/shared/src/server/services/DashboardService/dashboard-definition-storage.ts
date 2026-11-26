@@ -42,7 +42,7 @@ function mirrorClassicPlacements({ widgets }: DashboardDefinition) {
 
 export function newDashboardDefinition(initial: DashboardDefinition) {
   const classic = DashboardDefinitionSchema.parse(initial);
-  return mirrorClassicPlacements(classic);
+  return classic;
 }
 
 function interpretDashboardDefinition(
@@ -304,6 +304,14 @@ async function replaceClassicLayout(
       );
   }
   const classic = Prisma.sql`${JSON.stringify(layout)}::jsonb`;
+  if (current.definition.blocks.every(isClassicPlacement))
+    return writeDefinition(
+      tx,
+      projectId,
+      dashboardId,
+      Prisma.sql`(definition - 'version' - 'blocks') || ${classic}`,
+      userId,
+    );
 
   // Rebuild only the classic part, without decoding other entries through JavaScript.
   const updated = Prisma.sql`(SELECT definition || grid || jsonb_build_object('version', '1', 'blocks', (grid->'widgets') || COALESCE((

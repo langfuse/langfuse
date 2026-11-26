@@ -35,20 +35,32 @@ const unitLabel = (unit: string | undefined) =>
   })[unit ?? ""] ??
   unit ??
   "Value";
-type MultiQueryRuntime = ReturnType<typeof useMultiQueryWidget>;
+type MultiQueryRuntime = Pick<
+  ReturnType<typeof useMultiQueryWidget>,
+  | "hiddenSeries"
+  | "toggleSeries"
+  | "result"
+  | "isV4"
+  | "validationError"
+  | "refresh"
+  | "hasVisibleMetrics"
+  | "plan"
+>;
 
 export function MultiQueryResultView({
   config,
   runtime,
+  asTable = false,
 }: {
   config: MultiQueryConfig;
   runtime: MultiQueryRuntime;
+  asTable?: boolean;
 }) {
   const hidden = runtime.hiddenSeries;
   const [page, setPage] = useState({ pageIndex: 0, pageSize: 50 });
   const capture = usePostHogClientCapture();
   const result = runtime.result;
-  const showTable = config.display.chartType === "PIVOT_TABLE";
+  const showTable = asTable || config.display.chartType === "PIVOT_TABLE";
   const canToggle =
     !showTable &&
     config.display.chartType !== "NUMBER" &&
@@ -360,6 +372,7 @@ function MultiQueryUnitChart({
     legendPosition: "none",
     zeroBaseline: true,
     colorBarsByCategory: true,
+    showValueLabels: config.display.showValueLabels,
     rowLimit: data.length,
   });
   const content = prepareMultiQueryUnitVisualization(

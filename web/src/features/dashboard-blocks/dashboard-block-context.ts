@@ -11,6 +11,7 @@ import type { PresetSelection } from "@/src/features/dashboard/components/home-p
 export type HomePresetDraft = {
   source: NonNullable<SavedDashboardBlock["sourcePreset"]>;
   selection: PresetSelection;
+  template?: boolean;
 };
 
 export type BlockEditorRequest = (
@@ -26,7 +27,11 @@ export type BlockEditorRequest = (
       initialTabId?: never;
       preset: HomePresetDraft;
     }
-) & { onTabSaved?: (tabId: string) => void };
+) & {
+  onTabSaved?: (tabId: string) => void;
+  widgetId?: string;
+  expectedRevision?: number;
+};
 
 export type DashboardBlocksContextValue = {
   projectId: string;

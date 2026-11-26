@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   ChartConfigSchema,
+  dashboardBlockContentSchema,
   DashboardWidgetChartType,
   DimensionSchema,
   MetricSchema,
@@ -42,6 +43,7 @@ const DashboardWidgetChartConfigInput = z
   .loose();
 
 const UnstableDashboardWidgetBody = z.object({
+  definition: dashboardBlockContentSchema.nullish(),
   name: z.string().min(1, "Widget name is required"),
   description: z.string(),
   view: PostUnstableDashboardWidgetView,
@@ -60,6 +62,8 @@ export const PostUnstableDashboardWidgetBody =
 const PublicDashboardWidget = z
   .object({
     id: z.string(),
+    definition: dashboardBlockContentSchema.nullish(),
+    revision: z.number().int().nonnegative().optional(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
     name: z.string(),

@@ -1,3 +1,4 @@
+import { canAuthorDashboardBlocks } from "@/src/features/feature-flags/utils";
 import { z } from "zod";
 import {
   createTRPCRouter,
@@ -12,6 +13,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
   DashboardService,
+  SaveWidgetDefinitionInput,
   DimensionSchema,
   MetricSchema,
   ChartConfigSchema,
@@ -61,6 +63,44 @@ const GetDashboardWidgetInput = z.object({
 });
 
 export const dashboardWidgetRouter = createTRPCRouter({
+  saveDefinition: protectedProjectProcedure
+    .input(SaveWidgetDefinitionInput.and(z.object({ projectId: z.string() })))
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+      if (!canAuthorDashboardBlocks(ctx.session))
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Widget authoring requires the employee feature flag.",
+        });
+      return DashboardService.saveWidgetDefinition(
+        input.projectId,
+        input,
+        ctx.session.user.id,
+      );
+    }),
+  migrateInlineWidgets: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), dashboardId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+      if (!canAuthorDashboardBlocks(ctx.session))
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Widget authoring requires the employee feature flag.",
+        });
+      return DashboardService.migrateInlineWidgets(
+        input.projectId,
+        input.dashboardId,
+        ctx.session.user.id,
+      );
+    }),
   create: protectedProjectProcedure
     .input(CreateDashboardWidgetInput)
     .mutation(async ({ input, ctx }) => {

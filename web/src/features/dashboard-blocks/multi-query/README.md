@@ -12,4 +12,4 @@ An unnamed formula uses its expression in the chart legend. Renaming a series up
 
 `multiQueryModel` builds up to five ordinary analytics queries for the active tab. `useMultiQueryResults` gives each source a scheduler slot and reuses its cached results. A dashboard date or filter change applies to the active tab and to subsequent tabs when opened. Formula edits and legend toggles use the returned values in memory. Missing values and zero denominators produce gaps in the formula result.
 
-Version 2 stores ordered tabs. The reader interprets saved version 1 configurations on open. Saving a change in the editor writes version 2. The dashboard document keeps its existing version and projection for classic clients.
+Version 2 stores ordered tabs. The reader interprets saved version 1 configurations on open. Saving a change in the editor writes version 2. The saved widget owns the versioned configuration. Dashboard placements reference its ID. Widgets without a versioned definition are adapted from their existing query fields when opened in the editor.
