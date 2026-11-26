@@ -15,9 +15,9 @@ import {
 import { GatewayGuardrailService } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailService";
 import { ProviderCredentialRejectedError } from "@/src/features/ai-gateway/server/provider/connection/ProviderCredentialRejectedError";
 import {
+  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
   GatewayBedrockGuardrailCreateInputSchema,
   GatewayBedrockGuardrailUpdateInputSchema,
-  GatewayExternalGuardrailActionSchema,
   GatewayGuardrailAssignmentsInputSchema,
   GatewayGuardrailContainsListSchema,
   GatewayGuardrailCustomRegexSchema,
@@ -91,12 +91,16 @@ const regexWriteSchema = z
   ])
   .refine(hasGuardrailRule, GUARDRAIL_RULE_REQUIRED_MESSAGE);
 
+const bedrockActionSchema = z.enum(
+  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.actions,
+);
+
 const createGuardrailInput = z.union([
   organizationInput.and(regexWriteSchema),
   organizationInput.extend({
     ...commonWriteFields,
     type: z.literal("BEDROCK"),
-    action: GatewayExternalGuardrailActionSchema,
+    action: bedrockActionSchema,
     bedrock: GatewayBedrockGuardrailCreateInputSchema,
   }),
 ]);
@@ -106,7 +110,7 @@ const updateGuardrailInput = z.union([
   guardrailIdInput.extend({
     ...commonWriteFields,
     type: z.literal("BEDROCK"),
-    action: GatewayExternalGuardrailActionSchema,
+    action: bedrockActionSchema,
     bedrock: GatewayBedrockGuardrailUpdateInputSchema,
   }),
 ]);

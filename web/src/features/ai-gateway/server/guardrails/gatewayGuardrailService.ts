@@ -56,16 +56,16 @@ import { GATEWAY_USER_SCOPE } from "@/src/features/ai-gateway/server/team/gatewa
 import {
   compileGuardrailConfigPatterns,
   deduplicateContainsWords,
+  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
   GatewayBedrockGuardrailConfigSchema,
   GatewayGuardrailCustomRegexSchema,
   GatewayGuardrailRedactionLabelSchema,
   GatewayRegexGuardrailConfigSchema,
   isKnownGuardrailPreset,
   type GatewayBedrockGuardrailConfig,
-  type GatewayExternalGuardrailAction,
+  type GatewayGuardrailActionForType,
   type GatewayGuardrailAssignmentInput,
   type GatewayGuardrailPreset,
-  type GatewayRegexGuardrailAction,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { assertUnreachable } from "@/src/utils/types";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
@@ -359,7 +359,7 @@ export class GatewayGuardrailService {
     } & (
       | {
           type: "REGEX";
-          action: GatewayRegexGuardrailAction;
+          action: GatewayGuardrailActionForType<"REGEX">;
           redactionLabel?: string;
           presets: GatewayGuardrailPreset[];
           secretPrefixes?: string[];
@@ -368,15 +368,18 @@ export class GatewayGuardrailService {
         }
       | {
           type: "BEDROCK";
-          action: GatewayExternalGuardrailAction;
+          action: GatewayGuardrailActionForType<"BEDROCK">;
           bedrock: GatewayBedrockGuardrailConfig & { apiKey: string };
         }
     ),
   ) {
-    const redactionLabel =
-      params.type === "REGEX"
-        ? normalizeRedactionLabel(params.action, params.redactionLabel)
-        : null;
+    const redactionLabel = GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[params.type]
+      .supportsRedactionLabel
+      ? normalizeRedactionLabel(
+          params.action,
+          params.type === "REGEX" ? params.redactionLabel : undefined,
+        )
+      : null;
     let config: Prisma.InputJsonValue;
     let encryptedCredential: string | null = null;
     let compiledPatterns: string[] | null = null;
@@ -457,7 +460,7 @@ export class GatewayGuardrailService {
     } & (
       | {
           type: "REGEX";
-          action: GatewayRegexGuardrailAction;
+          action: GatewayGuardrailActionForType<"REGEX">;
           redactionLabel?: string;
           presets: GatewayGuardrailPreset[];
           secretPrefixes?: string[];
@@ -466,15 +469,18 @@ export class GatewayGuardrailService {
         }
       | {
           type: "BEDROCK";
-          action: GatewayExternalGuardrailAction;
+          action: GatewayGuardrailActionForType<"BEDROCK">;
           bedrock: GatewayBedrockGuardrailConfig & { apiKey?: string };
         }
     ),
   ) {
-    const redactionLabel =
-      params.type === "REGEX"
-        ? normalizeRedactionLabel(params.action, params.redactionLabel)
-        : null;
+    const redactionLabel = GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[params.type]
+      .supportsRedactionLabel
+      ? normalizeRedactionLabel(
+          params.action,
+          params.type === "REGEX" ? params.redactionLabel : undefined,
+        )
+      : null;
     if (params.type === "BEDROCK") {
       const existingCredential = await this.repository.findCredentialById({
         organizationId: params.organizationId,
@@ -1089,7 +1095,7 @@ async function assertOrgSizeLimit(
 }
 
 function normalizeRedactionLabel(
-  action: GatewayRegexGuardrailAction,
+  action: GatewayGuardrailRecord["action"],
   rawLabel: string | undefined,
 ): string | null {
   if (action !== "REDACT") return null;

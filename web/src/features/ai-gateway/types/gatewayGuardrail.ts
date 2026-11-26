@@ -1,3 +1,7 @@
+import type {
+  GatewayGuardrailAction,
+  GatewayGuardrailType,
+} from "@langfuse/shared/src/db";
 import { z } from "zod/v4";
 
 import {
@@ -255,32 +259,51 @@ export const GatewayGuardrailCustomRegexSchema = z
     `Regular expression must be at most ${GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH} characters`,
   );
 
-/** Actions available for regex guardrails. */
-export const GATEWAY_REGEX_GUARDRAIL_ACTIONS = [
-  "BLOCK",
-  "REDACT",
-  "LOG",
-] as const;
+type GuardrailTypeCapability = {
+  readonly actions: readonly [
+    GatewayGuardrailAction,
+    ...GatewayGuardrailAction[],
+  ];
+  readonly defaultAction: GatewayGuardrailAction;
+  readonly supportsRedactionLabel: boolean;
+};
 
-export type GatewayRegexGuardrailAction =
-  (typeof GATEWAY_REGEX_GUARDRAIL_ACTIONS)[number];
+/**
+ * Single control-plane source of truth for what each guardrail type supports.
+ * The gateway itself stays action-agnostic and executes whatever action the
+ * control plane resolves.
+ */
+export const GATEWAY_GUARDRAIL_TYPE_CAPABILITIES = {
+  REGEX: {
+    actions: ["BLOCK", "REDACT", "LOG"],
+    defaultAction: "BLOCK",
+    supportsRedactionLabel: true,
+  },
+  BEDROCK: {
+    actions: ["ENFORCE", "LOG"],
+    defaultAction: "ENFORCE",
+    supportsRedactionLabel: false,
+  },
+} as const satisfies Record<GatewayGuardrailType, GuardrailTypeCapability>;
 
-/** Actions available for external guardrails (e.g. AWS Bedrock), where the
- * provider decides block vs anonymize and Langfuse either enforces or logs. */
-export const GATEWAY_EXTERNAL_GUARDRAIL_ACTIONS = ["ENFORCE", "LOG"] as const;
+export type GatewayGuardrailActionForType<T extends GatewayGuardrailType> =
+  (typeof GATEWAY_GUARDRAIL_TYPE_CAPABILITIES)[T]["actions"][number];
 
-export const GatewayExternalGuardrailActionSchema = z.enum(
-  GATEWAY_EXTERNAL_GUARDRAIL_ACTIONS,
-);
-
-export type GatewayExternalGuardrailAction = z.infer<
-  typeof GatewayExternalGuardrailActionSchema
->;
-
-/** All actions the management UI offers across regex and external guardrails. */
+/** All actions the management UI offers across guardrail types. */
 export type GatewayGuardrailUiAction =
-  | GatewayRegexGuardrailAction
-  | GatewayExternalGuardrailAction;
+  GatewayGuardrailActionForType<GatewayGuardrailType>;
+
+export function resolveSupportedGuardrailAction<T extends GatewayGuardrailType>(
+  type: T,
+  action: GatewayGuardrailAction,
+): GatewayGuardrailActionForType<T> {
+  const capability = GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[type];
+  return (capability.actions as readonly GatewayGuardrailAction[]).includes(
+    action,
+  )
+    ? (action as GatewayGuardrailActionForType<T>)
+    : capability.defaultAction;
+}
 
 export const GatewayGuardrailRedactionLabelSchema = z
   .string()

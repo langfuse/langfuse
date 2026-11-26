@@ -31,6 +31,8 @@ import {
 import {
   GATEWAY_GUARDRAIL_PRESETS,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
+  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
+  resolveSupportedGuardrailAction,
   type GatewayGuardrailPreset,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
@@ -148,7 +150,10 @@ export function GatewayGuardrailDialogController({
                   orgId: organizationId,
                   type: "BEDROCK",
                   name: values.name,
-                  action: values.action === "LOG" ? "LOG" : "ENFORCE",
+                  action: resolveSupportedGuardrailAction(
+                    "BEDROCK",
+                    values.action,
+                  ),
                   bedrock: {
                     guardrailId: values.bedrock.guardrailId,
                     guardrailVersion: values.bedrock.guardrailVersion,
@@ -177,7 +182,10 @@ export function GatewayGuardrailDialogController({
                   id: state.guardrail.id,
                   type: "BEDROCK",
                   name: values.name,
-                  action: values.action === "LOG" ? "LOG" : "ENFORCE",
+                  action: resolveSupportedGuardrailAction(
+                    "BEDROCK",
+                    values.action,
+                  ),
                   bedrock: values.bedrock,
                   assignments,
                 });
@@ -330,7 +338,9 @@ function GuardrailDialogContent({
           secretPrefixes: [],
           containsWords: [],
           customRegex: null,
-          action: isExternal ? "ENFORCE" : "BLOCK",
+          action:
+            GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[selectedTemplate.guardrailType]
+              .defaultAction,
           redactionLabel: GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
           targets: [EVERYONE_TARGET_OPTION],
         }}
@@ -351,7 +361,10 @@ function GuardrailDialogContent({
   >;
   const { templateKind, availablePresets } = resolveEditableTemplate(guardrail);
   const isExternal = guardrail.type === "BEDROCK";
-  const initialAction = resolveEditableAction(guardrail);
+  const initialAction = resolveSupportedGuardrailAction(
+    guardrail.type,
+    guardrail.action,
+  );
 
   return (
     <ConnectedGuardrailFormDialog
@@ -387,24 +400,14 @@ function GuardrailDialogContent({
 function toRegexActionInput(
   values: Pick<GatewayGuardrailFormValues, "action" | "redactionLabel">,
 ) {
-  if (values.action === "REDACT") {
+  const action = resolveSupportedGuardrailAction("REGEX", values.action);
+  if (action === "REDACT") {
     return {
-      action: "REDACT" as const,
+      action,
       redactionLabel: values.redactionLabel,
     };
   }
-  return {
-    action: values.action === "LOG" ? ("LOG" as const) : ("BLOCK" as const),
-  };
-}
-
-function resolveEditableAction(
-  guardrail: Pick<GatewayGuardrailRow, "type" | "action">,
-) {
-  if (guardrail.type === "BEDROCK") {
-    return guardrail.action === "LOG" ? "LOG" : "ENFORCE";
-  }
-  return guardrail.action === "ENFORCE" ? "BLOCK" : guardrail.action;
+  return { action };
 }
 
 function ConnectedGuardrailFormDialog({

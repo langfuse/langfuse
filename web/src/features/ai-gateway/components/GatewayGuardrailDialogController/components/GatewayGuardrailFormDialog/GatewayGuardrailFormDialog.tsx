@@ -50,6 +50,7 @@ import {
 import {
   GATEWAY_GUARDRAIL_PRESET_LABELS,
   GATEWAY_GUARDRAIL_TEMPLATES,
+  getGuardrailTypeForTemplate,
   type GatewayGuardrailTemplateKind,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
 import { RegionSelect } from "@/src/features/ai-gateway/components/RegionSelect";
@@ -75,9 +76,8 @@ import {
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import type { GatewayGuardrailsLimitFeedbackReason } from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
 import {
-  GATEWAY_EXTERNAL_GUARDRAIL_ACTIONS,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
-  GATEWAY_REGEX_GUARDRAIL_ACTIONS,
+  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
   GatewayBedrockGuardrailApiKeySchema,
   GatewayBedrockGuardrailConfigSchema,
   GatewayGuardrailCustomRegexSchema,
@@ -88,6 +88,7 @@ import {
   type GatewayGuardrailPreset,
   type GatewayGuardrailUiAction,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
+import type { GatewayGuardrailType } from "@langfuse/shared/src/db";
 import { cn } from "@/src/utils/tailwind";
 
 function toActionOption(value: GatewayGuardrailUiAction) {
@@ -102,11 +103,14 @@ function toActionOption(value: GatewayGuardrailUiAction) {
   };
 }
 
-const REGEX_ACTION_OPTIONS =
-  GATEWAY_REGEX_GUARDRAIL_ACTIONS.map(toActionOption);
-
-const EXTERNAL_ACTION_OPTIONS =
-  GATEWAY_EXTERNAL_GUARDRAIL_ACTIONS.map(toActionOption);
+const ACTION_OPTIONS_BY_TYPE: Record<
+  GatewayGuardrailType,
+  ReturnType<typeof toActionOption>[]
+> = {
+  REGEX: GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.REGEX.actions.map(toActionOption),
+  BEDROCK:
+    GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.actions.map(toActionOption),
+};
 
 const RUNS_ON_OPTIONS = [{ value: "input", label: "Input" }] as const;
 
@@ -124,6 +128,10 @@ function createGuardrailFormSchema(
   templateKind: GatewayGuardrailTemplateKind,
   hasSavedApiKey: boolean,
 ) {
+  const capabilities =
+    GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[
+      getGuardrailTypeForTemplate(templateKind)
+    ];
   return z
     .object({
       name: z
@@ -147,10 +155,7 @@ function createGuardrailFormSchema(
       bedrockGuardrailVersion: z.string(),
       bedrockRegion: z.string(),
       bedrockApiKey: z.string(),
-      action:
-        templateKind === "bedrock"
-          ? z.enum(GATEWAY_EXTERNAL_GUARDRAIL_ACTIONS)
-          : z.enum(GATEWAY_REGEX_GUARDRAIL_ACTIONS),
+      action: z.enum(capabilities.actions),
       redactionLabel: z.string(),
       targets: z
         .array(z.custom<AsyncAutocompleteOption>())
@@ -161,7 +166,7 @@ function createGuardrailFormSchema(
         ),
     })
     .superRefine((values, ctx) => {
-      if (templateKind !== "bedrock" && values.action === "REDACT") {
+      if (capabilities.supportsRedactionLabel && values.action === "REDACT") {
         const labelResult = GatewayGuardrailRedactionLabelSchema.safeParse(
           values.redactionLabel,
         );
@@ -394,6 +399,8 @@ export function GatewayGuardrailFormDialog({
       templateKind === "contains" ? parseContainsWordsText(containsText) : [],
     [templateKind, containsText],
   );
+  const guardrailType = getGuardrailTypeForTemplate(templateKind);
+  const capabilities = GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[guardrailType];
   const externalTemplate =
     GATEWAY_GUARDRAIL_TEMPLATES.find((template) => template.id === templateKind)
       ?.external ?? null;
@@ -703,18 +710,14 @@ export function GatewayGuardrailFormDialog({
                               value={value}
                               onValueChange={(nextValue) => {
                                 onChange(nextValue);
-                                if (!isExternal) {
+                                if (capabilities.supportsRedactionLabel) {
                                   form
                                     .trigger("redactionLabel")
                                     .catch(() => undefined);
                                 }
                               }}
                               onBlur={onBlur}
-                              options={
-                                isExternal
-                                  ? EXTERNAL_ACTION_OPTIONS
-                                  : REGEX_ACTION_OPTIONS
-                              }
+                              options={ACTION_OPTIONS_BY_TYPE[guardrailType]}
                             />
                           )}
                         </FormField>
@@ -736,7 +739,8 @@ export function GatewayGuardrailFormDialog({
                     </FormField>
                   </div>
 
-                  {!isExternal && selectedAction === "REDACT" ? (
+                  {capabilities.supportsRedactionLabel &&
+                  selectedAction === "REDACT" ? (
                     <CustomTooltip
                       content={
                         <span>
