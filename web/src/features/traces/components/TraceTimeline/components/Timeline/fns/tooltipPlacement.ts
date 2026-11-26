@@ -1,3 +1,5 @@
+import type { TooltipPlacement } from "../types";
+
 /**
  * Where a pointer-anchored tooltip goes, in viewport coordinates.
  *
@@ -29,14 +31,6 @@ const EDGE_PX = 4;
  * any real one, and a zero-width tooltip is worse than one hanging over an edge.
  */
 const MIN_WIDTH_PX = 60;
-
-export type TooltipPlacement = {
-  left: number;
-  top: number;
-  /** `translate(…)` — the flip, which is what keeps this measurement-free. */
-  transform: string;
-  maxWidth: number;
-};
 
 export function tooltipPlacement(input: {
   clientX: number;

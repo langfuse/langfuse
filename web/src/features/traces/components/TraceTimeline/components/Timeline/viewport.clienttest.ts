@@ -1,29 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { traceSpaceOf } from "./viewTransform";
+import { traceSpaceOf } from "./fns/traceSpaceOf";
+import type { Viewport } from "./types";
 import {
   HUMAN_ROW_HEIGHT,
   LABELLED_ROW_HEIGHT,
-  anchorTimeToRows,
-  canExpandRowsToReadable,
-  expandRowsToReadable,
   MAX_ROW_HEIGHT,
   MIN_ROW_HEIGHT,
-  clampViewport,
-  fitViewport,
-  focusViewport,
-  isViewportFitted,
-  panViewport,
-  presentationForRowHeight,
-  revealViewport,
-  rowHeightOf,
-  viewportsEqual,
-  interpolateViewport,
-  visibleRowRange,
-  zoomToBox,
-  zoomViewport,
-  zoomViewportRevealLabels,
-  type Viewport,
-} from "./viewport";
+} from "./constants";
+import { anchorTimeToRows } from "./fns/anchorTimeToRows";
+import { canExpandRowsToReadable } from "./fns/canExpandRowsToReadable";
+import { expandRowsToReadable } from "./fns/expandRowsToReadable";
+import { clampViewport } from "./fns/clampViewport";
+import { fitViewport } from "./fns/fitViewport";
+import { focusViewport } from "./fns/focusViewport";
+import { isViewportFitted } from "./fns/isViewportFitted";
+import { panViewport } from "./fns/panViewport";
+import { presentationForRowHeight } from "./fns/presentationForRowHeight";
+import { revealViewport } from "./fns/revealViewport";
+import { rowHeightOf } from "./fns/rowHeightOf";
+import { viewportsEqual } from "./fns/viewportsEqual";
+import { interpolateViewport } from "./fns/interpolateViewport";
+import { visibleRowRange } from "./fns/visibleRowRange";
+import { zoomToBox } from "./fns/zoomToBox";
+import { zoomViewport } from "./fns/zoomViewport";
+import { zoomViewportRevealLabels } from "./fns/zoomViewportRevealLabels";
 
 // 600px of rows over a 24s trace, one row per span. More spans than the box has
 // pixels, so the floor and the panning both get exercised.

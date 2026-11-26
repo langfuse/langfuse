@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { collapsedForSearch } from "./searchMatches";
-import { type LayoutNode } from "./layout";
+import { collapsedForSearch } from "./collapsedForSearch";
+import type { LayoutNode } from "../types";
 
 const node = (id: string, children: LayoutNode[] = []): LayoutNode => ({
   id,

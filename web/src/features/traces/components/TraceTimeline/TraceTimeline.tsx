@@ -20,7 +20,7 @@ import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useTraceSearchMatches } from "@/src/features/traces/hooks/useTraceSearchMatches";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
-import { detectPointerModality } from "./fns/density";
+import { detectPointerModality } from "./fns/detectPointerModality";
 import { Timeline } from "./components/Timeline/Timeline";
 
 export function TraceTimeline() {

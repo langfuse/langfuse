@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { packCompactLanes } from "./compactLanes";
-import { layout, prepareTimeline, type LayoutNode } from "./layout";
-import { resolveDensity } from "../../../fns/density";
-import { createTextMeasurerFrom } from "./textMeasurer";
+import { packCompactLanes } from "./packCompactLanes";
+import type { LayoutNode } from "../types";
+import { layout } from "./layout";
+import { prepareTimeline } from "./prepareTimeline";
+import { resolveDensity } from "../../../fns/resolveDensity";
+import { createTextMeasurerFrom } from "./createTextMeasurerFrom";
 
 const measurer = createTextMeasurerFrom(null);
 

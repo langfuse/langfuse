@@ -8,11 +8,9 @@
  */
 
 import { IDLE_GAP_THRESHOLD_SECONDS } from "@/src/features/sessions/sessionIdleGap";
-import { spanOffsetsOf, type LayoutNode } from "./layout";
-import {
-  compressionFromCollapsedGaps,
-  type TimeCompression,
-} from "./timeCompression";
+import type { LayoutNode, TimeCompression } from "../types";
+import { compressionFromCollapsedGaps } from "./compressionFromCollapsedGaps";
+import { spanOffsetsOf } from "./spanOffsetsOf";
 
 /** Width of one collapsed idle band. The label sits in the axis, not the band. */
 const SESSION_IDLE_BAND_PX = 36;

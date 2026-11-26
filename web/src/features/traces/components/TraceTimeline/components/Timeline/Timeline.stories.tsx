@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { expect, fn, userEvent, waitFor } from "storybook/test";
 import preview from "../../../../../../../.storybook/preview";
 import { Timeline, type TimelineProps } from "./Timeline";
-import { type Box } from "./fns/viewTransform";
+import type { Box } from "./types";
 import {
   deepNesting,
   streamingSpan,
@@ -10,7 +10,7 @@ import {
   reporterTrace,
   threeSpans,
   longTailTrace,
-} from "./fns/__tests__/timelineV2.fixtures";
+} from "./timelineV2.fixtures";
 
 /**
  * In the Storybook canvas the chart fills the preview, so resizing the

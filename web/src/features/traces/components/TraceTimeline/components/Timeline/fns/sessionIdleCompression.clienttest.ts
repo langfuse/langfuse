@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { IDLE_GAP_THRESHOLD_SECONDS } from "@/src/features/sessions/sessionIdleGap";
-import { layout, prepareTimeline, type LayoutNode } from "./layout";
-import { resolveDensity } from "../../../fns/density";
-import { createTextMeasurerFrom } from "./textMeasurer";
+import type { LayoutNode } from "../types";
+import { layout } from "./layout";
+import { prepareTimeline } from "./prepareTimeline";
+import { resolveDensity } from "../../../fns/resolveDensity";
+import { createTextMeasurerFrom } from "./createTextMeasurerFrom";
 import { sessionIdleCompression } from "./sessionIdleCompression";
 
 const MINUTE = 60_000;

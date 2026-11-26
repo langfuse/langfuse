@@ -1,9 +1,9 @@
 import { expect } from "storybook/test";
 import preview from "../../../../../../../../.storybook/preview";
 import { TimelineRowMetrics } from "./TimelineRowMetrics";
-import { createTextMeasurer } from "../fns/textMeasurer";
-import { resolveDensity } from "../../../fns/density";
-import { type PositionedNode } from "../fns/layout";
+import { createTextMeasurer } from "../fns/createTextMeasurer";
+import { resolveDensity } from "../../../fns/resolveDensity";
+import type { PositionedNode } from "../types";
 
 const LANE = 640;
 

@@ -15,9 +15,8 @@
  * is the one thing this timeline promises never to do.
  */
 
-import { type Density } from "../../../fns/density";
-import { type TextMeasurer } from "../fns/textMeasurer";
-import { type PositionedNode } from "../fns/layout";
+import type { Density } from "../../../types";
+import type { PositionedNode, TextMeasurer } from "../types";
 
 /**
  * What a row has to say about itself, formatted by whoever owns the trace data.

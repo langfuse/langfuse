@@ -18,7 +18,7 @@
  * PINS the paths to its hits open — re-collapsing one while still searching does
  * not hold.
  */
-import { type LayoutNode } from "./layout";
+import type { LayoutNode } from "../types";
 
 export function collapsedForSearch({
   roots,

@@ -19,8 +19,6 @@
  * composites a translucent bar onto its surface for free.
  */
 
-export type BarTextTone = "light" | "dark";
-
 /**
  * WCAG's crossover. Below this relative luminance white text has the better
  * contrast ratio, above it black does — `1.05 / (L + 0.05)` against
@@ -51,6 +49,8 @@ const cache = new Map<string, Record<string, BarTextTone>>();
  * `theme` is an input, not a decoration: it is what decides which colour a class
  * resolves to, and therefore what makes a previous answer stale.
  */
+import type { BarTextTone } from "../types";
+
 export function resolveBarTones(
   classNames: readonly string[],
   { theme = "", surfaceClassName = "bg-background" } = {},

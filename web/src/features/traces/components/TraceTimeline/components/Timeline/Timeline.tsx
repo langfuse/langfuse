@@ -58,10 +58,7 @@ import {
   ItemTypeIcon,
   type LangfuseItemType,
 } from "@/src/components/ItemBadge";
-import {
-  tooltipPlacement,
-  type TooltipPlacement,
-} from "./fns/tooltipPlacement";
+import { tooltipPlacement } from "./fns/tooltipPlacement";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
@@ -69,49 +66,49 @@ import {
   type RowMetrics,
 } from "./components/TimelineRowMetrics";
 import { cn } from "@/src/utils/tailwind";
-import { type Density, type PointerModality } from "../../fns/density";
-import {
-  formatDurationMs,
-  layout,
-  prepareTimeline,
-  spanOffsetsOf,
-  timeCompressionFor,
-  type LayoutNode,
-  type PositionedNode,
-} from "./fns/layout";
-import { packCompactLanes } from "./fns/compactLanes";
+import type { Density, PointerModality } from "../../types";
+import type {
+  Box,
+  LayoutNode,
+  PositionedNode,
+  RowExtent,
+  TooltipPlacement,
+  Viewport,
+} from "./types";
+import { formatDurationMs } from "./fns/formatDurationMs";
+import { layout } from "./fns/layout";
+import { prepareTimeline } from "./fns/prepareTimeline";
+import { spanOffsetsOf } from "./fns/spanOffsetsOf";
+import { timeCompressionFor } from "./fns/timeCompressionFor";
+import { packCompactLanes } from "./fns/packCompactLanes";
 import { sessionIdleCompression } from "./fns/sessionIdleCompression";
 import {
   formatIdleGap,
   IDLE_GAP_THRESHOLD_SECONDS,
 } from "@/src/features/sessions/sessionIdleGap";
-import { collapsedForSearch } from "./fns/searchMatches";
-import { createTextMeasurer } from "./fns/textMeasurer";
-import { resolveBarTones } from "./fns/barContrast";
-import { traceSpaceOf, type Box } from "./fns/viewTransform";
-import {
-  HUMAN_ROW_HEIGHT,
-  anchorTimeToRows,
-  canExpandRowsToReadable,
-  expandRowsToReadable,
-  interpolateViewport,
-  rowCountBounds,
-  viewportsEqual,
-  clampViewport,
-  fitViewport,
-  focusViewport,
-  isViewportFitted,
-  panViewport,
-  presentationForRowHeight,
-  revealViewport,
-  rowHeightOf,
-  rowIndexAtOffset,
-  visibleRowRange,
-  zoomToBox,
-  zoomViewportRevealLabels,
-  type RowExtent,
-  type Viewport,
-} from "./fns/viewport";
+import { collapsedForSearch } from "./fns/collapsedForSearch";
+import { createTextMeasurer } from "./fns/createTextMeasurer";
+import { resolveBarTones } from "./fns/resolveBarTones";
+import { traceSpaceOf } from "./fns/traceSpaceOf";
+import { HUMAN_ROW_HEIGHT } from "./constants";
+import { anchorTimeToRows } from "./fns/anchorTimeToRows";
+import { canExpandRowsToReadable } from "./fns/canExpandRowsToReadable";
+import { expandRowsToReadable } from "./fns/expandRowsToReadable";
+import { interpolateViewport } from "./fns/interpolateViewport";
+import { rowCountBounds } from "./fns/rowCountBounds";
+import { viewportsEqual } from "./fns/viewportsEqual";
+import { clampViewport } from "./fns/clampViewport";
+import { fitViewport } from "./fns/fitViewport";
+import { focusViewport } from "./fns/focusViewport";
+import { isViewportFitted } from "./fns/isViewportFitted";
+import { panViewport } from "./fns/panViewport";
+import { presentationForRowHeight } from "./fns/presentationForRowHeight";
+import { revealViewport } from "./fns/revealViewport";
+import { rowHeightOf } from "./fns/rowHeightOf";
+import { rowIndexAtOffset } from "./fns/rowIndexAtOffset";
+import { visibleRowRange } from "./fns/visibleRowRange";
+import { zoomToBox } from "./fns/zoomToBox";
+import { zoomViewportRevealLabels } from "./fns/zoomViewportRevealLabels";
 
 /** Reuses ItemBadge's type→hue mapping, so a colour means what it already means. */
 const TYPE_COLOR: Record<string, string> = {
