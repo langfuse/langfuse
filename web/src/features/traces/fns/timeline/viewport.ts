@@ -410,30 +410,47 @@ export type RowExtent = { startMs: number; endMs: number };
  * user asked for is the zoom they get — and it does nothing at all whenever there
  * is something to see, so it cannot fight someone who is looking at a span.
  */
+function intervalsOf(
+  extent: RowExtent | readonly RowExtent[] | null,
+): readonly RowExtent[] {
+  if (extent == null) return [];
+  if ("startMs" in extent) return [extent];
+  return extent;
+}
+
 export function anchorTimeToRows(
   viewport: Viewport,
   limits: ViewportLimits,
-  extentOf: (rowIndex: number) => RowExtent | null,
+  extentOf: (rowIndex: number) => RowExtent | readonly RowExtent[] | null,
 ): Viewport {
   const range = visibleRowRange(viewport, limits.rowCount, 0);
   const windowStart = viewport.time.start;
   const windowEnd = windowStart + viewport.time.duration;
-  let earliest = Infinity;
-  let latest = -Infinity;
+  let nearest: RowExtent | null = null;
+  let nearestDistance = Infinity;
 
   for (let index = range.startIndex; index <= range.endIndex; index++) {
-    const extent = extentOf(index);
-    if (!extent) continue;
-    // Anything at all inside the window means there is something to look at.
-    if (extent.endMs >= windowStart && extent.startMs <= windowEnd) {
-      return viewport;
+    const intervals = intervalsOf(extentOf(index));
+    for (const interval of intervals) {
+      // Anything at all inside the window means there is something to look at.
+      // A shared lane reports each span, so a gap between them still counts
+      // as empty.
+      if (interval.endMs >= windowStart && interval.startMs <= windowEnd) {
+        return viewport;
+      }
+      const distance =
+        interval.endMs < windowStart
+          ? windowStart - interval.endMs
+          : interval.startMs - windowEnd;
+      if (distance < nearestDistance) {
+        nearest = interval;
+        nearestDistance = distance;
+      }
     }
-    earliest = Math.min(earliest, extent.startMs);
-    latest = Math.max(latest, extent.endMs);
   }
-  if (!Number.isFinite(earliest) || !Number.isFinite(latest)) return viewport;
+  if (!nearest) return viewport;
 
-  const centre = (earliest + latest) / 2;
+  const centre = (nearest.startMs + nearest.endMs) / 2;
   return clampViewport(
     {
       time: {

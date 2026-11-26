@@ -358,14 +358,26 @@ export function TimelineDense({
   onRowLayoutChange,
   collapseIdleGaps = true,
 }: TimelineDenseProps) {
-  const [viewport, setViewport] = useState<Viewport | null>(null);
+  const [windowState, setWindowState] = useState<{
+    layout: "tree" | "compact";
+    viewport: Viewport | null;
+  }>({ layout: rowLayout, viewport: null });
   const compact = rowLayout === "compact";
-  // A layout switch changes how many rows exist. Drop the old window so the
-  // next render fits the new row count instead of clamping a staircase zoom.
-  const layoutSeen = useRef(rowLayout);
-  if (layoutSeen.current !== rowLayout) {
-    layoutSeen.current = rowLayout;
-    setViewport(null);
+  // A layout switch changes how many rows exist. A window stored for the
+  // other layout is ignored, so the next render fits the new row count.
+  const viewport =
+    windowState.layout === rowLayout ? windowState.viewport : null;
+  const rowLayoutRef = useRef(rowLayout);
+  rowLayoutRef.current = rowLayout;
+  const setViewport = (next: Viewport | null) => {
+    setWindowState({ layout: rowLayoutRef.current, viewport: next });
+  };
+  const tween = useRef(0);
+  const tweenLayout = useRef(rowLayout);
+  if (tweenLayout.current !== rowLayout) {
+    tweenLayout.current = rowLayout;
+    if (tween.current) cancelAnimationFrame(tween.current);
+    tween.current = 0;
   }
   const [pointerPos, setPointerPos] = useState<{
     x: number;
@@ -643,23 +655,20 @@ export function TimelineDense({
   // window is expressed in — so a zoom can tell "nothing to see here" from "the
   // thing you were looking at is still here".
   const extentOf = useCallback(
-    (rowIndex: number): RowExtent | null => {
+    (rowIndex: number): RowExtent | readonly RowExtent[] | null => {
       if (packing) {
-        let startMs = Infinity;
-        let endMs = -Infinity;
+        const intervals: RowExtent[] = [];
         packing.lanes.forEach((lane, index) => {
           if (lane !== rowIndex) return;
           const row = prepared.rows[index];
           if (!row) return;
           const offsets = spanOffsetsOf(row.node, prepared.originMs);
-          startMs = Math.min(
-            startMs,
-            compression.toCompressedMs(offsets.startMs),
-          );
-          endMs = Math.max(endMs, compression.toCompressedMs(offsets.endMs));
+          intervals.push({
+            startMs: compression.toCompressedMs(offsets.startMs),
+            endMs: compression.toCompressedMs(offsets.endMs),
+          });
         });
-        if (!Number.isFinite(startMs)) return null;
-        return { startMs, endMs };
+        return intervals.length > 0 ? intervals : null;
       }
       const row = prepared.rows[rowIndex];
       if (!row) return null;
@@ -710,7 +719,7 @@ export function TimelineDense({
    * detail-based guard only ever catches a mouse.
    */
   const focusedByTap = useRef(false);
-  const tween = useRef(0);
+  const lastBar = useRef<{ id: string; lane: number } | null>(null);
 
   const cancelTween = useCallback(() => {
     if (tween.current) cancelAnimationFrame(tween.current);
@@ -737,8 +746,10 @@ export function TimelineDense({
     extentOf,
     rowHeight,
     rows: prepared.rows,
-    hitId: (lane: number, xInLane: number) =>
-      hitIdAt(result.nodes, lane, xInLane, compact),
+    lanes: packing?.lanes ?? null,
+    originMs: prepared.originMs,
+    compression,
+    compact,
   });
   layoutRef.current = {
     limits,
@@ -748,8 +759,10 @@ export function TimelineDense({
     extentOf,
     rowHeight,
     rows: prepared.rows,
-    hitId: (lane: number, xInLane: number) =>
-      hitIdAt(result.nodes, lane, xInLane, compact),
+    lanes: packing?.lanes ?? null,
+    originMs: prepared.originMs,
+    compression,
+    compact,
   };
 
   /**
@@ -774,7 +787,22 @@ export function TimelineDense({
       live.rowHeight,
       live.rows.length,
     );
-    const id = index == null ? null : live.hitId(index, at.x - live.railWidth);
+    const xInLane = at.x - live.railWidth;
+    if (live.compact && xInLane < 0) return;
+    const id =
+      index == null
+        ? null
+        : spanAtPointer({
+            rows: live.rows,
+            lanes: live.lanes,
+            originMs: live.originMs,
+            compression: live.compression,
+            compact: live.compact,
+            lane: index,
+            compressedMs:
+              viewport.time.start +
+              (xInLane / Math.max(live.laneWidth, 1)) * viewport.time.duration,
+          });
     if (!id || id === hoveredRef.current) return;
     hoveredRef.current = id;
     onHover(id);
@@ -1281,6 +1309,13 @@ export function TimelineDense({
       setPeeking(offsetX <= Math.max(railWidth, peekWidth) + PEEK_MARGIN_PX);
     }
 
+    const lane = rowIndexAtOffset(current, offsetY, rowHeight, rowCount);
+    const overBar =
+      lane == null
+        ? null
+        : hitIdAt(result.nodes, lane, offsetX - railWidth, compact);
+    if (overBar != null && lane != null)
+      lastBar.current = { id: overBar, lane };
     notifyHover(current, { x: offsetX, y: offsetY });
     setPointerPos({
       x: offsetX,
@@ -1401,10 +1436,19 @@ export function TimelineDense({
     onSelect?.(nodeId);
   };
 
-  const focusedId =
-    focusIndex == null || pointerPos == null
+  const xInLane = pointerPos == null ? null : pointerPos.x - railWidth;
+  const barUnderPointer =
+    focusIndex == null || xInLane == null
       ? null
-      : hitIdAt(result.nodes, focusIndex, pointerPos.x - railWidth, compact);
+      : hitIdAt(result.nodes, focusIndex, xInLane, compact);
+  const gutterKeeps =
+    compact &&
+    xInLane != null &&
+    xInLane < 0 &&
+    lastBar.current?.lane === focusIndex
+      ? lastBar.current.id
+      : null;
+  const focusedId = barUnderPointer ?? gutterKeeps;
   const focused = focusedId
     ? (result.nodes.find((node) => node.id === focusedId) ?? null)
     : null;
@@ -2110,7 +2154,6 @@ function hitIdAt(
   xInLane: number,
   compact: boolean,
 ): string | null {
-  let earliest: PositionedNode | null = null;
   for (const node of nodes) {
     if (node.index !== lane) continue;
     if (!compact) return node.id;
@@ -2118,10 +2161,40 @@ function hitIdAt(
     if (xInLane >= node.x && xInLane < node.x + Math.max(node.width, 1)) {
       return node.id;
     }
-    if (!earliest || node.startMs < earliest.startMs) earliest = node;
   }
-  if (compact && xInLane < 0) return earliest?.id ?? null;
   return null;
+}
+
+function spanAtPointer(args: {
+  rows: readonly { node: { id: string } }[];
+  lanes: readonly number[] | null;
+  originMs: number;
+  compression: {
+    toCompressedMs: (ms: number) => number;
+  };
+  compact: boolean;
+  lane: number;
+  compressedMs: number;
+}): string | null {
+  if (!args.compact || !args.lanes) {
+    return args.rows[args.lane]?.node.id ?? null;
+  }
+  let id: string | null = null;
+  args.lanes.forEach((lane, index) => {
+    if (lane !== args.lane) return;
+    const row = args.rows[index];
+    if (!row) return;
+    const offsets = spanOffsetsOf(row.node as LayoutNode, args.originMs);
+    const start = args.compression.toCompressedMs(offsets.startMs);
+    const end = args.compression.toCompressedMs(offsets.endMs);
+    if (
+      args.compressedMs >= start &&
+      args.compressedMs <= Math.max(end, start)
+    ) {
+      id = row.node.id;
+    }
+  });
+  return id;
 }
 
 function ToolbarButton({

@@ -377,6 +377,12 @@ export function layout<TNode extends LayoutNode>(
     if (lane == null || lane < from || lane > to) continue;
     const row = prepared.rows[index];
     if (!row) continue;
+    if (
+      laneByRow &&
+      spanOutsideView(row.node, prepared.originMs, compression, view)
+    ) {
+      continue;
+    }
     nodes.push(positionRow(row, lane, context));
   }
 
@@ -394,6 +400,21 @@ export function layout<TNode extends LayoutNode>(
     gaps: buildGapMarkers({ compression, transform, laneWidth }),
     compression,
   };
+}
+
+function spanOutsideView(
+  node: LayoutNode,
+  originMs: number,
+  compression: TimeCompression,
+  view: TimeSpan,
+): boolean {
+  const offsets = spanOffsetsOf(node, originMs);
+  const start = compression.toCompressedMs(offsets.startMs);
+  const end = compression.toCompressedMs(
+    Math.max(offsets.endMs, offsets.startMs),
+  );
+  const viewEnd = view.start + view.duration;
+  return end < view.start || start > viewEnd;
 }
 
 function positionRow<TNode extends LayoutNode>(

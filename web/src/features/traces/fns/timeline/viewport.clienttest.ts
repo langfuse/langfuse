@@ -338,6 +338,25 @@ describe("viewport", () => {
     expect(anchorTimeToRows(zoomed, limits, () => null)).toEqual(zoomed);
   });
 
+  it("slides off a gap between spans that share a row", () => {
+    const oneRow = { ...limits, rowCount: 1, boxHeight: 40 };
+    const zoomed = {
+      ...fitViewport(oneRow),
+      time: { start: 10_000, duration: 100 },
+    };
+    const anchored = anchorTimeToRows(zoomed, oneRow, () => [
+      { startMs: 0, endMs: 1_000 },
+      { startMs: 20_000, endMs: 21_000 },
+    ]);
+    expect(anchored.time.duration).toBe(100);
+    const coversASpan =
+      (anchored.time.start <= 1_000 &&
+        anchored.time.start + anchored.time.duration >= 0) ||
+      (anchored.time.start <= 21_000 &&
+        anchored.time.start + anchored.time.duration >= 20_000);
+    expect(coversASpan).toBe(true);
+  });
+
   it("zooms to a drawn box on both axes", () => {
     const fitted = fitViewport(limits);
     // The right half of the width, the second quarter of the height.
