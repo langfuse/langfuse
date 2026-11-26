@@ -713,23 +713,33 @@ export function EvaluatorSetupPage(
               : current,
         );
         await utils.evalsV2.filterOptions.invalidate({ projectId });
-        // The save already succeeded, so a failed lookup only skips the warning.
-        const overrideRules =
-          traceEvalsAvailable && canReadRules && definition.type !== "CODE"
-            ? await utils.evalsV2.rules.listRulesForEvaluator
-                .fetch({ projectId, evaluatorId: evaluator.id })
-                .then((assignments) =>
-                  rulesNeedingOverride(defaultVariableMapping, assignments),
-                )
-                .catch(() => [])
-            : [];
+        const findRulesNeedingOverride = async () => {
+          if (
+            !traceEvalsAvailable ||
+            !canReadRules ||
+            definition.type === "CODE"
+          ) {
+            return [];
+          }
+          // The save already succeeded, so a failed lookup only skips the warning.
+          try {
+            const assignments =
+              await utils.evalsV2.rules.listRulesForEvaluator.fetch({
+                projectId,
+                evaluatorId: evaluator.id,
+              });
+            return rulesNeedingOverride(defaultVariableMapping, assignments);
+          } catch {
+            return [];
+          }
+        };
+        const overrideRules = await findRulesNeedingOverride();
         // Evaluators opened on Trace messages already have trace rules.
-        if (
-          shouldOfferRuleAttachment(evaluator) &&
-          (overrideRules.length > 0 ||
-            (isTraceTranscript &&
-              props.initialTargetObject !== TopicsTargetObject))
-        ) {
+        const switchedToTraceMessages =
+          isTraceTranscript && props.initialTargetObject !== TopicsTargetObject;
+        const needsSavedDialog =
+          overrideRules.length > 0 || switchedToTraceMessages;
+        if (shouldOfferRuleAttachment(evaluator) && needsSavedDialog) {
           offerRuleAttachment(evaluator, overrideRules);
           return;
         }
