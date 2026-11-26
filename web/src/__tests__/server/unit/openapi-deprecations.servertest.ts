@@ -113,18 +113,22 @@ function withDefinition(
 }
 
 describe("OpenAPI deprecations", () => {
-  it("distinguishes numeric chart formats in the published OpenAPI schema", () => {
+  it("publishes the numeric widget definition version at the root", () => {
     const { schemas } = parseSpec(
       fs.readFileSync(openApiPath, "utf8"),
     ).components;
-    for (const version of [1, 2]) {
-      expect(
-        schemas[`unstableDashboardMultiQueryFormatV${version}`],
-      ).toMatchObject({
-        type: "integer",
-        enum: [version],
-      });
-    }
+    expect(schemas.unstableWidgetDefinitionVersion).toMatchObject({
+      type: "integer",
+      enum: [1],
+    });
+    expect(schemas.unstableWidgetDefinition).toMatchObject({
+      required: ["version"],
+      properties: {
+        version: {
+          $ref: "#/components/schemas/unstableWidgetDefinitionVersion",
+        },
+      },
+    });
   });
   it("finds deprecated named-type and inline-request properties", () => {
     withDefinition(
