@@ -1,7 +1,8 @@
 on:
   push:
     branches:
-      - main
+      # TODO restore `- main` to deploy every merge to staging again.
+      # Staging can still be deployed by hand through workflow_dispatch.
       - production
   workflow_dispatch:
     inputs:
