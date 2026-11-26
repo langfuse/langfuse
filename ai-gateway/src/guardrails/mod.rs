@@ -329,11 +329,7 @@ impl Guardrail {
     }
 
     fn is_external_enforce(&self) -> bool {
-        self.is_external()
-            && matches!(
-                self.action,
-                GuardrailAction::Enforce | GuardrailAction::Redact
-            )
+        self.is_external() && self.action == GuardrailAction::Enforce
     }
 
     fn redaction_label(&self) -> &str {
