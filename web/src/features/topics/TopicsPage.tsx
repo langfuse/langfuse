@@ -461,10 +461,15 @@ function TopicsWorkspaceContent({
       }
     : results;
   const scope = analysisId ? { analysisId } : { ruleId: selectedRule?.id };
-  // Until the maps load, or while the previous map's results are still shown,
-  // filters stay unscoped so no click writes into another map's filters.
+  // Until the maps load, or while another map's results are still shown, filters
+  // stay unscoped so no click writes into a different map's filters. A refetch of
+  // the same map keeps them.
+  const showsOtherMap =
+    !analysisId &&
+    results.data !== undefined &&
+    results.data.fetchedForRuleId !== (selectedRule?.id ?? null);
   const filterMapId =
-    !maps.data || (!analysisId && results.isPlaceholderData)
+    !maps.data || showsOtherMap
       ? undefined
       : (analysisId ?? selectedRule?.id ?? null);
   const traceFilters = useTopicTraceFilters(
