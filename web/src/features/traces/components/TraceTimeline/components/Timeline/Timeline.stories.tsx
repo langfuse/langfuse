@@ -2762,6 +2762,13 @@ export const IdleGapMatchesAxis = meta.story({
     expect(labelStyle.lineHeight).toBe(tickStyle.lineHeight);
     expect(labelStyle.color).toBe(tickStyle.color);
     expect(label.textContent).toBe("54m idle");
+    const idleBox = label.getBoundingClientRect();
+    for (const tick of canvas.getAllByTestId("timeline-tick-label")) {
+      const box = tick.getBoundingClientRect();
+      const overlaps =
+        box.right > idleBox.left + 0.5 && box.left < idleBox.right - 0.5;
+      expect(overlaps).toBe(false);
+    }
     const bandBox = band.getBoundingClientRect();
     const metrics = canvas.getAllByTestId("timeline-dense-metrics");
     expect(metrics.length).toBeGreaterThan(0);
