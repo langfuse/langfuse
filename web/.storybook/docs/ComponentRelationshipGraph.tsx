@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, X } from "@langfuse/icons";
+import { ChevronDown, ChevronRight } from "@langfuse/icons";
 import { select } from "d3-selection";
 import { zoom, zoomIdentity } from "d3-zoom";
 import type { ElkNode } from "elkjs";
@@ -392,39 +392,6 @@ export function ComponentRelationshipGraph() {
                 : null
             }
             options={searchOptions}
-            trailingAction={
-              selectedNode
-                ? {
-                    icon: X,
-                    label: "Clear component selection",
-                    appearance: "inline",
-                    onClick: () => {
-                      setRequest((current) => ({
-                        collapsedGroups: current.collapsedGroups,
-                        viewTarget: "fit",
-                      }));
-                      for (const target of new Set([window, window.parent])) {
-                        try {
-                          const url = new URL(target.location.href);
-                          if (
-                            !url.searchParams.has(COMPONENT_RELATIONSHIP_QUERY)
-                          ) {
-                            continue;
-                          }
-                          url.searchParams.delete(COMPONENT_RELATIONSHIP_QUERY);
-                          target.history.replaceState(
-                            target.history.state,
-                            "",
-                            url,
-                          );
-                        } catch {
-                          // A cross-origin manager owns its own URL.
-                        }
-                      }
-                    },
-                  }
-                : undefined
-            }
             search={{
               placeholder: "Search names or paths…",
               value: searchQuery,
@@ -471,6 +438,31 @@ export function ComponentRelationshipGraph() {
               }
             />
           </div>
+        )}
+        {selectedNode && (
+          <Button
+            text="Clear component selection"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setRequest((current) => ({
+                collapsedGroups: current.collapsedGroups,
+                viewTarget: "fit",
+              }));
+              for (const target of new Set([window, window.parent])) {
+                try {
+                  const url = new URL(target.location.href);
+                  if (!url.searchParams.has(COMPONENT_RELATIONSHIP_QUERY)) {
+                    continue;
+                  }
+                  url.searchParams.delete(COMPONENT_RELATIONSHIP_QUERY);
+                  target.history.replaceState(target.history.state, "", url);
+                } catch {
+                  // A cross-origin manager owns its own URL.
+                }
+              }
+            }}
+          />
         )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {collapsibleGroups.size > 0 && (
