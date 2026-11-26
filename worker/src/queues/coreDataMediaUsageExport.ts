@@ -153,7 +153,9 @@ type MediaUsageHourlyQueryRow = {
 
 // `project_id = ANY(...)` plus a closed `created_at` range is answered from the
 // (project_id, created_at) index, so a query reads at most one project batch
-// for one day.
+// for one day. Raw SQL because Prisma's `groupBy` cannot bucket by hour.
+// `created_at` is a `timestamp` without time zone and is read as UTC, which
+// holds when Postgres runs in UTC.
 const queryMediaUsageHourly = ({
   projectIds,
   from,
@@ -203,6 +205,8 @@ async function* createMediaUsageDayJsonlStream({
   let afterProjectId: string | undefined;
   let isFirstRow = true;
 
+  // Walks every project that existed by the end of the day in id order. The
+  // batch size only bounds the `ANY(...)` list; no project is skipped.
   while (true) {
     const projects = await prisma.project.findMany({
       where: {
