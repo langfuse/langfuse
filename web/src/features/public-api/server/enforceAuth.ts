@@ -43,22 +43,27 @@ import {
 /** __dangerouslySkipAuthz skips the connection-level action check for routes that authorize each call themselves. */
 export const __dangerouslySkipAuthz = "__dangerouslySkipAuthz" as const;
 
-/** orgIdHeader selects the target org. */
-const orgIdHeader = "langfuse-organization-id";
-
 /** projectIdHeader selects the target project for keys without a bound project. */
 const projectIdHeader = "langfuse-project-id";
 
+/** unauthorizedPrefix starts the 403 message for a project the key is not bound to. */
+const unauthorizedPrefix = "The API Key is not authorized to access project";
+
 /** projectErrors are the 403 messages for a request whose target project cannot be resolved for the key. */
-export const projectErrors = {
-  missing: `Organization and user API keys require the '${projectIdHeader}' header to select a project`,
-  pathMismatch:
-    "The project in the URL does not match the project this API key belongs to",
-  headerMismatch: `The '${projectIdHeader}' header does not match the project this API key belongs to`,
-  usernameMismatch:
-    "The Basic auth username does not match the project this API key belongs to",
-  selectorConflict: `The project in the URL, the '${projectIdHeader}' header and the Basic auth username must name the same project`,
-} as const;
+const projectErrors = {
+  missing: `Multi-project API keys require the '${projectIdHeader}' header to select a project`,
+  mismatch: `Project ids from the '${projectIdHeader}' header, authorization header, and url path disagree`,
+  unauthorized: (projectId: string) => `${unauthorizedPrefix} '${projectId}'`,
+};
+
+/** isProjectError reports whether a 403 message comes from resolving the request's target project. */
+export function isProjectError(message: string): boolean {
+  return (
+    message === projectErrors.missing ||
+    message === projectErrors.mismatch ||
+    message.startsWith(unauthorizedPrefix)
+  );
+}
 
 /** enforceAuth authenticates the request and authorizes the action for the given endpoint, or only resolves context when the route skips authz (combines authz and authn). */
 export async function enforceAuth({
@@ -139,7 +144,7 @@ function enforceOrgAuthz(
   action: ApiAction,
   span: Span,
 ): EnforceAuthResult {
-  const org = getOrgId(context, req);
+  const org = getOrgId(context);
   if (!org.success) return org;
   addUserToSpan({ orgId: org.orgId }, span);
 
@@ -195,45 +200,42 @@ function authorizeAction(
   return authorize(context, tenant, action, resource);
 }
 
-/** getOrgId resolves the target org the key's bound org and the header agree on. */
+/** getOrgId resolves the target org from the key's bound org. */
 function getOrgId(
   context: AuthorizationContext,
-  req: NextApiRequest,
 ): ResolvedOrg | ErrorResult<ForbiddenError> {
-  const requested = [getHeaderOrgId(req), getBoundOrgId(context)];
-  const orgId = first(requested);
-  if (!equal(requested) || !orgId) {
-    return forbiddenError();
-  }
+  const orgId = getBoundOrgId(context);
+  if (!orgId) return forbiddenError();
 
   return { success: true, orgId };
 }
 
-/** getProjectId prioritizes the bound project, then the path, header, and Basic auth username, which must agree, then a query-string projectId; a bound key refuses any of the three naming another project. */
+/** getProjectId resolves the bound project, else the project the path, header, and Basic auth username agree on, else a query-string projectId; a bound key refuses a request naming another project. */
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
 ): ResolvedProject | ErrorResult<ForbiddenError> {
-  const boundProjectId = getBoundProjectId(context);
-  const pathProjectId = getPathProjectId(req);
-  const headerProjectId = getHeaderProjectId(req);
-  const usernameProjectId = getUsernameProjectId(req);
-  if (!equal([boundProjectId, pathProjectId])) {
-    return forbiddenError(projectErrors.pathMismatch);
-  }
-  if (!equal([boundProjectId, headerProjectId])) {
-    return forbiddenError(projectErrors.headerMismatch);
-  }
-  if (!equal([boundProjectId, usernameProjectId])) {
-    return forbiddenError(projectErrors.usernameMismatch);
-  }
-
-  const selected = [pathProjectId, headerProjectId, usernameProjectId];
+  const selected = [
+    getPathProjectId(req),
+    getHeaderProjectId(req),
+    getUsernameProjectId(req),
+  ];
   if (!equal(selected)) {
-    return forbiddenError(projectErrors.selectorConflict);
+    return forbiddenError(projectErrors.mismatch);
   }
 
-  const projectId = boundProjectId ?? first(selected) ?? getUrlProjectId(req);
+  const boundProjectId = getBoundProjectId(context);
+  const requestedProjectId = first(selected);
+  if (
+    boundProjectId &&
+    requestedProjectId &&
+    requestedProjectId !== boundProjectId
+  ) {
+    return forbiddenError(projectErrors.unauthorized(requestedProjectId));
+  }
+
+  const projectId =
+    boundProjectId ?? requestedProjectId ?? getUrlProjectId(req);
   if (!projectId) {
     return forbiddenError(projectErrors.missing);
   }
@@ -272,17 +274,12 @@ function getBoundProjectId(context: AuthorizationContext): string | undefined {
   return context.principal.boundResource.projectId;
 }
 
-/** getHeaderOrgId returns the target org from the header. */
-function getHeaderOrgId(req: NextApiRequest): string | undefined {
-  return getHeaderValue(req, orgIdHeader);
-}
-
 /** getHeaderProjectId returns the target project from the header. */
 function getHeaderProjectId(req: NextApiRequest): string | undefined {
   return getHeaderValue(req, projectIdHeader);
 }
 
-/** getUsernameProjectId returns the Basic auth username as the target project when it is not a public key, which lets SDKs that cannot send the header select a project. */
+/** getUsernameProjectId returns the Basic auth username as the target project, unless it is a public key. */
 function getUsernameProjectId(req: NextApiRequest): string | undefined {
   const credential = parseAuthorizationHeader(req.headers.authorization);
   if (credential.kind !== "basic") return undefined;

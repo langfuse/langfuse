@@ -102,39 +102,17 @@ const forbidden = (message: string) => ({
 });
 
 describe("getOrgId", () => {
-  it("resolves the bound org without a header", () => {
-    expect(getOrgId(orgKey(), req())).toEqual({ success: true, orgId: ORG });
+  it("resolves the bound org", () => {
+    expect(getOrgId(orgKey())).toEqual({ success: true, orgId: ORG });
   });
   it("resolves a project-scoped key to its own organization", () => {
-    expect(getOrgId(projectKey(), req())).toEqual({
+    expect(getOrgId(projectKey())).toEqual({
       success: true,
       orgId: ORG,
     });
   });
-  it.each(["x-langfuse-organization-id", "langfuse-organization-id"])(
-    "403s %s disagreeing with the bound org",
-    (orgIdHeader) => {
-      expect(
-        getOrgId(orgKey(), req({}, { [orgIdHeader]: "org_2" })),
-      ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
-    },
-  );
-  it("prefers the X-prefixed organization header when both are provided", () => {
-    expect(
-      getOrgId(
-        orgKey(),
-        req(
-          {},
-          {
-            "x-langfuse-organization-id": ORG,
-            "langfuse-organization-id": "org_2",
-          },
-        ),
-      ),
-    ).toEqual({ success: true, orgId: ORG });
-  });
   it("403s a principal carrying no binding", () => {
-    expect(getOrgId(adminKey(), req())).toMatchObject({
+    expect(getOrgId(adminKey())).toMatchObject({
       success: false,
       error: expect.any(ForbiddenError),
     });
@@ -186,7 +164,7 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         error: expect.any(ForbiddenError),
       });
       expect(!result.success && result.error.message).toBe(
-        "The 'langfuse-project-id' header does not match the project this API key belongs to",
+        "The API Key is not authorized to access project 'prj_2'",
       );
     });
     it("403s a bound key whose path names another project", () => {
@@ -199,7 +177,7 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         error: expect.any(ForbiddenError),
       });
       expect(!result.success && result.error.message).toBe(
-        "The project in the URL does not match the project this API key belongs to",
+        "The API Key is not authorized to access project 'prj_2'",
       );
     });
     it("403s a bound key whose percent-encoded path names another project", () => {
@@ -243,7 +221,7 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         ),
       ).toMatchObject(
         forbidden(
-          "The project in the URL, the 'langfuse-project-id' header and the Basic auth username must name the same project",
+          "Project ids from the 'langfuse-project-id' header, authorization header, and url path disagree",
         ),
       );
     });
@@ -287,9 +265,7 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
     });
     it("403s a Basic auth username disagreeing with the bound project", () => {
       expect(getProjectId(projectKey(), req({}, basic("prj_2")))).toMatchObject(
-        forbidden(
-          "The Basic auth username does not match the project this API key belongs to",
-        ),
+        forbidden("The API Key is not authorized to access project 'prj_2'"),
       );
     });
     it("resolves when the Basic auth username and header agree", () => {
@@ -308,7 +284,7 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         ),
       ).toMatchObject(
         forbidden(
-          "The project in the URL, the 'langfuse-project-id' header and the Basic auth username must name the same project",
+          "Project ids from the 'langfuse-project-id' header, authorization header, and url path disagree",
         ),
       );
     });
@@ -333,7 +309,7 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         error: expect.any(ForbiddenError),
       });
       expect(!result.success && result.error.message).toBe(
-        "Organization and user API keys require the 'langfuse-project-id' header to select a project",
+        "Multi-project API keys require the 'langfuse-project-id' header to select a project",
       );
     });
   },
@@ -506,31 +482,22 @@ describe("enforceAuth span metadata", () => {
     ]);
   });
 
-  it.each([false, true])(
-    "records organization resolution with header conflict %s",
-    async (conflict) => {
-      vi.mocked(authenticator.authenticate).mockResolvedValue({
-        success: true,
-        context: orgKey(),
-      });
-      vi.mocked(authorize).mockReturnValue(forbiddenError());
-      expect(
-        await enforceAuth({
-          req: req(
-            {},
-            { "x-langfuse-organization-id": conflict ? "foreign" : ORG },
-          ),
-          action: "projects:read",
-        }),
-      ).toMatchObject({ success: false });
-      expect(authSpan.setAttribute.mock.calls).toEqual([
-        ["langfuse.authz.action", "projects:read"],
-        ["langfuse.api_key.id", "key_1"],
-        ["langfuse.api_key.public_key", "pk-lf-1"],
-        ...(conflict ? [] : [["langfuse.org.id", ORG]]),
-      ]);
-    },
-  );
+  it("records the bound organization when authorization denies an org action", async () => {
+    vi.mocked(authenticator.authenticate).mockResolvedValue({
+      success: true,
+      context: orgKey(),
+    });
+    vi.mocked(authorize).mockReturnValue(forbiddenError());
+    expect(
+      await enforceAuth({ req: req(), action: "projects:read" }),
+    ).toMatchObject({ success: false });
+    expect(authSpan.setAttribute.mock.calls).toEqual([
+      ["langfuse.authz.action", "projects:read"],
+      ["langfuse.api_key.id", "key_1"],
+      ["langfuse.api_key.public_key", "pk-lf-1"],
+      ["langfuse.org.id", ORG],
+    ]);
+  });
 
   it("preserves the skip-authorization action", async () => {
     expect(

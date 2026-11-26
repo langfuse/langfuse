@@ -4,7 +4,7 @@ import { logger } from "@langfuse/shared/src/server";
 import { handleCreateProject } from "@/src/ee/features/admin-api/server/projects/createProject";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@langfuse/shared";
-import { projectErrors } from "@/src/features/public-api/server/enforceAuth";
+import { isProjectError } from "@/src/features/public-api/server/enforceAuth";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { writeProjectError } from "@/src/features/public-api/server/writeError";
 
@@ -14,9 +14,7 @@ const projectKeyRequired =
 
 /** getForbiddenMessage keeps the project-selection 403s, which name the fix, and masks the rest as a wrong-key hint. */
 const getForbiddenMessage = (message: string): string =>
-  Object.values<string>(projectErrors).includes(message)
-    ? message
-    : projectKeyRequired;
+  isProjectError(message) ? message : projectKeyRequired;
 
 export default async function handler(
   req: NextApiRequest,
