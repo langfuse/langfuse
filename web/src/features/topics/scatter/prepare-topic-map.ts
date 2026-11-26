@@ -415,7 +415,19 @@ export function prepareMapTextLabels(
     const bottom = Math.min(size.height, bottomRight.y);
     // A zone keeps one geographic label as its center moves beyond the viewport.
     // Clamping to the visible intersection is continuous through pan and zoom.
-    if (right < left || bottom < top) continue;
+    // Names fade in over the last pixels as a topic's bounds cross the viewport
+    // edge, so a clamped label never claims its space in a single frame.
+    const entering = smoothStep(
+      0,
+      24,
+      Math.min(
+        bottomRight.x,
+        size.width - topLeft.x,
+        bottomRight.y,
+        size.height - topLeft.y,
+      ),
+    );
+    if (right < left || bottom < top || entering === 0) continue;
     const center = screenPoint(zone.anchor, camera, model.bounds, size);
     const xInset = Math.min(width / 2 + 12, (right - left) / 2);
     const yInset = Math.min(height / 2 + 12, (bottom - top) / 2);
@@ -447,8 +459,8 @@ export function prepareMapTextLabels(
       description: zone.description,
       rect,
       fontSize,
-      // Placement starts from the overlap gate, so a hidden name claims no space.
-      opacity: reveal,
+      // Placement starts from the overlap and edge gates, so a hidden name claims no space.
+      opacity: reveal * entering,
       emphasis: selected
         ? 1
         : (readingTopic ? 0.4 : 1) * (matchesFilters ? 1 : 0.15),
@@ -457,8 +469,7 @@ export function prepareMapTextLabels(
     });
   }
 
-  placeLabels(labels);
-  return labels;
+  return placeLabels(labels);
 }
 
 /**
@@ -469,8 +480,9 @@ export function prepareMapTextLabels(
  * rather than pop while zooming or panning. Dimming does not affect placement,
  * so filtering never reshuffles which names are shown.
  */
-function placeLabels(labels: MapTextLabel[]) {
+function placeLabels(labels: MapTextLabel[]): MapTextLabel[] {
   const placed: { rect: MapRectangle; claim: number }[] = [];
+  const opacityById = new Map<string, number>();
   const byRank = labels
     .map((label, order) => ({
       label,
@@ -492,10 +504,14 @@ function placeLabels(labels: MapTextLabel[]) {
                 rectangleGap(label.rect, other.rect),
               )),
       );
-    label.opacity = smoothStep(0.5, 1, placement);
+    opacityById.set(label.id, smoothStep(0.5, 1, placement));
     const claim = smoothStep(0, 0.5, placement);
     if (claim > 0) placed.push({ rect: label.rect, claim });
   }
+  return labels.map((label) => ({
+    ...label,
+    opacity: opacityById.get(label.id) ?? 0,
+  }));
 }
 
 export function hitMapNode(

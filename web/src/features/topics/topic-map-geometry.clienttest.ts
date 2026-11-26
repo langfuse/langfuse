@@ -588,6 +588,30 @@ describe("background group labels", () => {
     }
   });
 
+  it("fades names continuously while their topics pan across the viewport edge", () => {
+    const two = ["a", "b"].map((id) => ({ id, name: `Topic ${id}` }));
+    const model = prepareTopicMap(
+      data([
+        ...[0, 1].map((i) => point(`a-${i}`, -10, 0, { topicId: "a" })),
+        point("b-0", -7, 0, { topicId: "b" }),
+      ]),
+      two,
+    );
+    const fit = fitCamera(model.bounds, model.bounds, size);
+    let previous = new Map<string, number>();
+    for (let x = fit.x - 2; x <= fit.x + 12; x += 0.002) {
+      const labels = prepareMapTextLabels(
+        prepareMapNodes(model, { ...fit, x, zoom: 0.3 }, size, pointer),
+      );
+      const current = new Map(two.map(({ id }) => [id, 0]));
+      for (const label of labels) current.set(label.id, label.opacity);
+      for (const [id, opacity] of current)
+        if (previous.has(id))
+          expect(Math.abs(opacity - previous.get(id)!)).toBeLessThan(0.1);
+      previous = current;
+    }
+  });
+
   it("keeps one topic label within the viewport when the topic center is offscreen", () => {
     const model = prepareTopicMap(
       data([point("distant-invoice", -90, 0), point("visible-invoice", 90, 0)]),
