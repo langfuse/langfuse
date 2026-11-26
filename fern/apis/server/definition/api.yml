@@ -8,10 +8,8 @@ docs: |
 
   Authenticate with the API using [Basic Auth](https://en.wikipedia.org/wiki/Basic_access_authentication), get API keys in the project settings:
 
-  - username: Langfuse Public Key
+  - username: Langfuse Project Id
   - password: Langfuse Secret Key
-
-  Organization and user API keys can access more than one project. Select the project with the `langfuse-project-id` header, or use the project ID as the Basic auth username in place of the public key. A project ID in the URL path takes precedence over both. If the header and the username name different projects, the request fails with a 400.
 
   ## Exports
 

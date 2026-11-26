@@ -219,6 +219,9 @@ async function generateKeyMaterial({
   if (predefinedKeys && !predefinedKeys.publicKey.startsWith("pk-lf-")) {
     throw new InvalidRequestError("Public keys must start with 'pk-lf-'");
   }
+  if (predefinedKeys && !predefinedKeys.secretKey.startsWith("sk-lf-")) {
+    throw new InvalidRequestError("Secret keys must start with 'sk-lf-'");
+  }
 
   let keys = predefinedKeys;
   if (!keys) {

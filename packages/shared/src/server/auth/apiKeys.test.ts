@@ -259,6 +259,21 @@ describe("createApiKey assignment rows", () => {
     expect(tx.apiKey.create).not.toHaveBeenCalled();
   });
 
+  it("rejects a predefined secret key without the sk-lf- prefix before writing", async () => {
+    const { tx } = makeTx();
+
+    await expect(
+      createApiKey(asTx(tx), {
+        tenant: OrganizationId(ORG_ID),
+        scope: ProjectId("proj_1"),
+        role: SystemRoleId("VIEWER"),
+        createdBy: UserId("user_1"),
+        predefinedKeys: { publicKey: PUBLIC_KEY, secretKey: "sk-1234567890" },
+      }),
+    ).rejects.toThrow("Secret keys must start with 'sk-lf-'");
+    expect(tx.apiKey.create).not.toHaveBeenCalled();
+  });
+
   it("stores the secret only as a fast hash, with a placeholder no bcrypt check accepts", async () => {
     const { tx, getApiKeyData } = makeTx();
 
