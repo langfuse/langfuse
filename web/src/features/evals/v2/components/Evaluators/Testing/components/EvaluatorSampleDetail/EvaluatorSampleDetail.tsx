@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { TopicsTargetObject } from "@langfuse/shared";
 import { StringParam, useQueryParam } from "use-query-params";
 
@@ -83,6 +90,28 @@ export function EvaluatorSampleDetail({
     return () => setDetailPageList(SAMPLE_LIST_KEY, []);
   }, [entries, setDetailPageList]);
 
+  const selectedTraceId = selected ? (selected.traceId ?? selected.id) : null;
+  const selectableObservationIds = useMemo(
+    () =>
+      new Set(
+        observations
+          .filter(
+            (observation) =>
+              (observation.traceId ?? observation.id) === selectedTraceId,
+          )
+          .map((observation) => observation.id),
+      ),
+    [observations, selectedTraceId],
+  );
+  const selectObservation = useCallback(
+    (observationId: string) => {
+      const next = observations.find(
+        (observation) => observation.id === observationId,
+      );
+      if (next) onSelect(next);
+    },
+    [observations, onSelect],
+  );
   const [, setObservation] = useQueryParam("observation", StringParam);
   const intentRef = useRef<string | null>(null);
   const isTraceTarget = targetObject === TopicsTargetObject;
@@ -202,6 +231,10 @@ export function EvaluatorSampleDetail({
           <TracePresentationProvider
             presentation={view.presentation}
             preferredObservationId={view.observationId}
+            selectableObservationIds={
+              isTraceTarget ? null : selectableObservationIds
+            }
+            onSelectObservation={isTraceTarget ? null : selectObservation}
           >
             <TraceDetailBody
               trace={detail.data}

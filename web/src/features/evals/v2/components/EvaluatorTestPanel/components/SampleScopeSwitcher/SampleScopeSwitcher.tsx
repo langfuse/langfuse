@@ -25,7 +25,7 @@ export function SampleScopeSwitcher({
   );
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-3">
+    <div className="flex min-w-0 flex-1 items-baseline gap-3">
       <h2 className="text-base font-bold whitespace-nowrap">Evaluate</h2>
       <div className="min-w-0">
         <Tabs
@@ -38,12 +38,7 @@ export function SampleScopeSwitcher({
             )
           }
         >
-          <Tabs.List
-            variant="inset"
-            size="md"
-            emphasis="strong"
-            aria-label="Evaluate"
-          >
+          <Tabs.List variant="inset" size="md" aria-label="Evaluate">
             <Tabs.Trigger
               value={EvalTargetObject.EVENT}
               label="Observations"

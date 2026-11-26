@@ -26,6 +26,7 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
@@ -54,6 +55,7 @@ import {
   useSampleObservationFilterOptions,
 } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/hooks/useSampleObservationFilterOptions";
 import { EvaluatorSampleDetail } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorSampleDetail/EvaluatorSampleDetail";
+import { orderSamplesByTrace } from "@/src/features/evals/v2/fns/evaluatorTesting/orderSamplesByTrace";
 import { useEvaluatorSampleTraceCount } from "@/src/features/evals/v2/hooks/useEvaluatorSampleTraceCount";
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
@@ -67,6 +69,8 @@ const PAGE_SIZE = 25;
 /** Trace samples keep loading observation pages until this many traces show up. */
 const MIN_SAMPLE_TRACES = 5;
 const MAX_TRACE_SAMPLE_PAGES = 8;
+/** Matching observations loaded for the trace of the sample on show. */
+const TRACE_MATCH_LIMIT = 100;
 
 const EXAMPLES = [
   {
@@ -461,9 +465,46 @@ export function SampleObservationSelectorBase(
       : undefined;
   const querySettled =
     observationQuery.isSuccess && !observationQuery.isFetching;
-  const detailObservations = isTraceTarget
-    ? matchingTraces(matchingObservations)
-    : matchingObservations;
+  // A sample picked in the trace tree may sit outside the loaded pages.
+  const [pickedTraceId, setPickedTraceId] = useState<string | null>(null);
+  const sampleTraceId =
+    !isTraceTarget && showTraceDetail
+      ? (matchingObservations.find(
+          (observation) => observation.id === selectedObservationId,
+        )?.traceId ?? pickedTraceId)
+      : null;
+  // Every match in the sample's trace, so each can be picked from the tree.
+  const traceMatchesQuery = api.events.listCursor.useQuery(
+    {
+      projectId,
+      filter: [
+        ...effectiveFilters,
+        {
+          column: "traceId",
+          type: "string" as const,
+          operator: "=" as const,
+          value: sampleTraceId ?? "",
+        },
+      ],
+      searchQuery,
+      searchType,
+      limit: TRACE_MATCH_LIMIT,
+    },
+    { enabled: sampleTraceId !== null },
+  );
+  const traceMatches = traceMatchesQuery.data?.observations;
+  const detailObservations = useMemo(() => {
+    const loaded = observationPages.flat();
+    if (isTraceTarget) return matchingTraces(loaded);
+    if (!showTraceDetail) return loaded;
+    const loadedIds = new Set(loaded.map((observation) => observation.id));
+    return orderSamplesByTrace([
+      ...loaded,
+      ...(traceMatches ?? []).filter(
+        (observation) => !loadedIds.has(observation.id),
+      ),
+    ]);
+  }, [isTraceTarget, showTraceDetail, observationPages, traceMatches]);
   const detailSelectionToReconcile = querySettled
     ? resolveSelection(detailObservations, selectedObservationId)
     : undefined;
@@ -626,21 +667,31 @@ export function SampleObservationSelectorBase(
     : "Matching observations";
   const presetButtons =
     filterMode === "query"
-      ? examples.map((example) => (
-          <Button
-            key={example.label}
-            type="button"
-            variant="ghost"
-            size={showTraceDetail ? "sm" : "default"}
-            icon={example.icon}
-            text={example.label}
-            onClick={() => {
-              setFilters((current) =>
-                toggleExampleFilters(current, [...example.filters]),
-              );
-            }}
-          />
-        ))
+      ? examples.map((example) => {
+          const toggle = () => {
+            setFilters((current) =>
+              toggleExampleFilters(current, [...example.filters]),
+            );
+          };
+          return showTraceDetail ? (
+            <TextActionButton
+              key={example.label}
+              text={example.label}
+              icon={example.icon}
+              tone="muted"
+              onClick={toggle}
+            />
+          ) : (
+            <Button
+              key={example.label}
+              type="button"
+              variant="ghost"
+              icon={example.icon}
+              text={example.label}
+              onClick={toggle}
+            />
+          );
+        })
       : null;
 
   return (
@@ -691,7 +742,7 @@ export function SampleObservationSelectorBase(
         )}
         {showTraceDetail && (
           <div className="flex items-center gap-2">
-            <div className="text-muted-foreground -ml-2 flex min-w-0 flex-wrap gap-0.5">
+            <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1">
               {presetButtons}
             </div>
             <div className="ml-auto shrink-0">{filterModeControl}</div>
@@ -729,6 +780,7 @@ export function SampleObservationSelectorBase(
             pending={observationsPending}
             onSelect={(observation) => {
               setAutoPageLimit(loadedPageCount + MAX_TRACE_SAMPLE_PAGES);
+              setPickedTraceId(observation?.traceId ?? null);
               onSelect(observation);
             }}
           />

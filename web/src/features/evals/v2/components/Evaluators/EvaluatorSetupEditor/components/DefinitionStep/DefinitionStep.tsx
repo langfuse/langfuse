@@ -1,7 +1,7 @@
 import type { EvalTemplateType } from "@langfuse/shared";
 import type { ReactNode } from "react";
 
-import { EvaluationTypeConfiguration } from "@/src/features/evals/v2/components/Evaluators/EvaluationTypeConfiguration/EvaluationTypeConfiguration";
+import { EvaluationTypeToggle } from "@/src/features/evals/v2/components/Evaluators/EvaluationTypeConfiguration/components/EvaluationTypeToggle/EvaluationTypeToggle";
 import { FieldRow } from "@/src/features/evals/v2/components/Evaluators/FieldRow/FieldRow";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 
@@ -53,19 +53,38 @@ export function DefinitionStep(props: DefinitionStepProps) {
     <Stepper
       number={1}
       size="md"
-      title="Evaluation method"
-      tooltipText="Use custom code for deterministic checks like exact matches, regex, or schema validation. Use an LLM when the check needs judgment, such as rating helpfulness, tone, or answer quality. Use a decision model for a fast, cheap label with calibrated probabilities when the possible answers are known upfront."
+      title="Method"
+      tooltip={
+        <ul className="flex list-disc flex-col gap-1.5 pl-4">
+          <li>
+            <span className="font-bold">LLM-as-a-judge</span>: when the check
+            needs judgment, such as rating helpfulness, tone, or answer quality.
+          </li>
+          <li>
+            <span className="font-bold">Code evaluator</span>: for deterministic
+            checks like exact matches, regex, or schema validation.
+          </li>
+          <li>
+            <span className="font-bold">Decision model</span>: for a fast, cheap
+            label with calibrated probabilities when the possible answers are
+            known upfront.
+          </li>
+        </ul>
+      }
       open={props.open}
       onOpenChange={props.onOpenChange}
-    >
-      <div className="flex flex-col gap-2 pt-2">
-        <EvaluationTypeConfiguration
-          mode={props.type}
-          onModeChange={props.onTypeChange}
+      headerEnd={
+        <EvaluationTypeToggle
+          value={props.type}
+          onValueChange={props.onTypeChange}
           disabled={props.isEditing}
-        >
+        />
+      }
+    >
+      <div className="flex flex-col gap-2 pt-3">
+        <FieldRow label={props.type === "CODE" ? "Language" : "Model"}>
           {props.typeConfiguration}
-        </EvaluationTypeConfiguration>
+        </FieldRow>
         <DefinitionStepBody {...props} />
       </div>
     </Stepper>

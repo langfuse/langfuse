@@ -82,7 +82,10 @@ export function EvaluatorTestPanelContainer({
           store={store}
           testResult={testResult}
           testPending={testPending}
+          rawResultOpen={rawResultOpen}
+          onRawResultOpenChange={onRawResultOpenChange}
           onRunTest={onRunTest}
+          onOpenExecutionTrace={onOpenExecutionTrace}
         />
       }
     />
