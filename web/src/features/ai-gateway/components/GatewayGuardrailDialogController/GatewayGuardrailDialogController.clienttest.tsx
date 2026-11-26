@@ -124,4 +124,81 @@ describe("GatewayGuardrailDialogController", () => {
       "active",
     );
   });
+
+  it.each([
+    { runsOn: "INPUT" as const, scope: "LAST_TURN" as const, expected: false },
+    {
+      runsOn: "INPUT" as const,
+      scope: "ENTIRE_INPUT" as const,
+      expected: false,
+    },
+    { runsOn: "OUTPUT" as const, scope: "LAST_TURN" as const, expected: true },
+    { runsOn: "BOTH" as const, scope: "LAST_TURN" as const, expected: true },
+    {
+      runsOn: "BOTH" as const,
+      scope: "ENTIRE_INPUT" as const,
+      expected: true,
+    },
+  ])(
+    "shows the streaming notice only when runsOn includes output ($runsOn / $scope)",
+    ({ runsOn, scope, expected }) => {
+      render(
+        <LayerProvider>
+          <GatewayGuardrailDialogController organizationId="org-1">
+            {({ openDialog }) => (
+              <button
+                type="button"
+                onClick={() =>
+                  openDialog({
+                    mode: "edit",
+                    guardrail: {
+                      id: "g-1",
+                      name: "PII rule",
+                      type: "REGEX",
+                      action: "REDACT",
+                      scope,
+                      runsOn,
+                      redactionLabel: "[REDACTED]",
+                      presets: ["email"],
+                      secretPrefixes: [],
+                      containsWords: [],
+                      customRegex: null,
+                      bedrock: null,
+                      assignments: [
+                        {
+                          id: "a-1",
+                          scope: "ORGANIZATION",
+                          label: "Everyone",
+                        },
+                      ],
+                      flaggedCount7d: 0,
+                      createdAt: new Date(0),
+                      updatedAt: new Date(0),
+                    },
+                  })
+                }
+              >
+                Edit guardrail
+              </button>
+            )}
+          </GatewayGuardrailDialogController>
+        </LayerProvider>,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Edit guardrail" }));
+
+      const notice = screen.queryByText(
+        "Streaming is turned off when checking output.",
+      );
+      if (expected) {
+        expect(notice).toBeInTheDocument();
+        expect(notice?.closest('[role="alert"]')).toHaveAttribute(
+          "data-variant",
+          "info",
+        );
+      } else {
+        expect(notice).not.toBeInTheDocument();
+      }
+    },
+  );
 });

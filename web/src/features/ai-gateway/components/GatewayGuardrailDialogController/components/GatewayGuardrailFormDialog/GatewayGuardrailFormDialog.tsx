@@ -471,6 +471,8 @@ export function GatewayGuardrailFormDialog({
   const bedrockApiKey = form.watch("bedrockApiKey");
   const selectedAction = form.watch("action");
   const selectedRunsOnOption = form.watch("runsOnOption");
+  const checksOutput =
+    fromGuardrailRunsOnOption(selectedRunsOnOption).runsOn !== "INPUT";
   const parsedContains = useMemo(
     () =>
       templateKind === "contains" ? parseContainsWordsText(containsText) : [],
@@ -834,6 +836,12 @@ export function GatewayGuardrailFormDialog({
                 )}
               </CustomTooltip>
             </div>
+
+            {checksOutput ? (
+              <Banner variant="info">
+                Streaming is turned off when checking output.
+              </Banner>
+            ) : null}
 
             {capabilities.supportsRedactionLabel &&
             selectedAction === "REDACT" ? (
