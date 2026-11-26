@@ -39,3 +39,28 @@ export function objectKeysReadBy(sourcePath: string): string[] {
   visit(source);
   return [...keys].sort();
 }
+
+/**
+ * Lists the OTEL attribute keys a TypeScript source file names: its string
+ * literals made of dot- or colon-separated segments, such as `gen_ai.system`.
+ */
+export function attributeKeysNamedIn(sourcePath: string): string[] {
+  const source = ts.createSourceFile(
+    sourcePath,
+    readFileSync(sourcePath, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const keys = new Set<string>();
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isStringLiteralLike(node) &&
+      /^[\w-]+([.:][\w-]+)+$/.test(node.text)
+    ) {
+      keys.add(node.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return [...keys].sort();
+}

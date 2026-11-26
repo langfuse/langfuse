@@ -200,6 +200,63 @@
   overflow: hidden;
 }
 
+/* The hit target rides the animating edge. It stays inert until that width
+   transition finishes, so a stationary pointer does not strobe the hover line
+   while the border passes under it. Two animation names restart the arming
+   delay when expansion changes. */
+.rail {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: -0.5rem;
+  inline-size: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+  transition: none;
+}
+
+.rail::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: 2px;
+}
+
+.rail:hover::after {
+  background: hsl(var(--sidebar-border));
+}
+
+.surface[data-sidebar-mode="expanded"] .rail {
+  animation: sidebar-rail-arm-expanded var(--sidebar-motion-duration) step-end
+    forwards;
+}
+
+.surface[data-sidebar-mode="collapsed"] .rail {
+  animation: sidebar-rail-arm-collapsed var(--sidebar-motion-duration) step-end
+    forwards;
+}
+
+@keyframes sidebar-rail-arm-expanded {
+  from {
+    pointer-events: none;
+  }
+  to {
+    pointer-events: auto;
+  }
+}
+
+@keyframes sidebar-rail-arm-collapsed {
+  from {
+    pointer-events: none;
+  }
+  to {
+    pointer-events: auto;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .surface[data-sidebar-mode],
   .gutter[data-sidebar-mode] {
@@ -207,5 +264,10 @@
     --sidebar-label-duration: 0ms;
     --sidebar-label-delay: 0ms;
     --sidebar-presence-duration: 0ms;
+  }
+
+  .rail {
+    animation: none;
+    pointer-events: auto;
   }
 }

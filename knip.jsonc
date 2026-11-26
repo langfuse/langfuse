@@ -130,7 +130,8 @@
       "oxlint": { "config": ["oxlint.config.mts"] },
       // Loaded through the inherited config; declared by @repo/oxlint-config.
       "ignoreDependencies": ["eslint-plugin-turbo"],
-      "project": ["src/**/*.ts"],
+      "entry": ["src/index.ts!"],
+      "project": ["src/**/*.ts!"],
     },
     "packages/in-app-agent-sandbox-runtime": {
       "entry": ["src/server.ts!"],
