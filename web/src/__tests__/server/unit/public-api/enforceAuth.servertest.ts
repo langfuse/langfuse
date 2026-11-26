@@ -242,7 +242,7 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         ),
       ).toEqual({ success: true, projectId: PRJ });
     });
-    it("403s a bound key whose header names another project than its path", () => {
+    it("prefers the path project over the header for a bound key", () => {
       expect(
         getProjectId(
           projectKey(),
@@ -252,9 +252,7 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
             `/api/public/projects/${PRJ}/apiKeys`,
           ),
         ),
-      ).toMatchObject(
-        forbidden("The API Key is not authorized to access project 'prj_2'"),
-      );
+      ).toEqual({ success: true, projectId: PRJ });
     });
     it("prefers the header over a query-string project", () => {
       expect(

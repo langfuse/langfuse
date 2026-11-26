@@ -198,28 +198,21 @@ function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
 ): ResolvedProject | ErrorResult<ForbiddenError | InvalidRequestError> {
-  const pathProjectId = getPathProjectId(req);
-  const defaultProjectIds = [
+  const headerProjectIds = [
     getHeaderProjectId(req),
     getBasicAuthProjectId(context, req),
   ];
-  if (!equal(defaultProjectIds)) {
+  if (!equal(headerProjectIds)) {
     return invalidProjectError();
   }
 
   const boundProjectId = getBoundProjectId(context);
-  const foreignProjectId = [pathProjectId, ...defaultProjectIds].find(
-    (id) => boundProjectId && id && id !== boundProjectId,
-  );
-  if (foreignProjectId) {
-    return unauthorizedProjectError(foreignProjectId);
+  const inputProjectId = first([getPathProjectId(req), ...headerProjectIds]);
+  if (inputProjectId && !equal([boundProjectId, inputProjectId])) {
+    return unauthorizedProjectError(inputProjectId);
   }
 
-  const projectId =
-    boundProjectId ??
-    pathProjectId ??
-    first(defaultProjectIds) ??
-    getUrlProjectId(req);
+  const projectId = boundProjectId ?? inputProjectId ?? getUrlProjectId(req);
   if (!projectId) {
     return missingProjectError();
   }
