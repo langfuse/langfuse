@@ -120,4 +120,20 @@ describe("packCompactLanes", () => {
     });
     expect(zoomed.nodes.some((node) => node.id.startsWith("t"))).toBe(true);
   });
+
+  it("keeps an instantaneous span mounted in compact layout", () => {
+    const event = span("event", 5, 5);
+    const prepared = prepareTimeline([event]);
+    const positioned = layout({
+      roots: [event],
+      box: { width: 300, height: 80 },
+      density: fineDensity,
+      measurer,
+      view: null,
+      compress: false,
+      prepared,
+      laneByRow: packCompactLanes(prepared.rows).lanes,
+    });
+    expect(positioned.nodes.map((node) => node.id)).toContain("event");
+  });
 });

@@ -127,7 +127,10 @@ export function layout<TNode extends LayoutNode>(
       const compressedEnd = compression.toCompressedMs(
         Math.max(offsets.endMs, offsets.startMs),
       );
+      // A zero-duration span is a marker. Its mapped width is 0 at every zoom,
+      // and the minimum bar width is what makes it visible.
       if (
+        compressedEnd > compressedStart &&
         Math.abs(
           transform.toPx(compressedEnd) - transform.toPx(compressedStart),
         ) < 1
