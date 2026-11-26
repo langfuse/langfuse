@@ -636,4 +636,33 @@ describe("processThresholds", () => {
       expect(result.emailSent).toBe(false);
     });
   });
+
+  describe("enterprise trial", () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const trialOrg = (endsInDays: number) =>
+      createMockOrg({
+        cloudConfig: {
+          enterpriseTrial: {
+            startedAt: new Date(Date.now() - DAY_MS).toISOString(),
+            endsAt: new Date(Date.now() + endsInDays * DAY_MS).toISOString(),
+          },
+        },
+      });
+
+    it.each([
+      // Free-tier thresholds already give WARNING and BLOCKED at 200k and
+      // 250k, so only usage below 200k tells the two policies apart.
+      ["active trial just below its warning threshold", 1, 199_999, null],
+      ["expired trial at the same usage", -1, 199_999, "WARNING"],
+    ])(
+      "enforces the trial's own cap: %s",
+      async (_case, endsInDays, usage, expectedState) => {
+        const result = await processThresholds(trialOrg(endsInDays), usage);
+
+        expect(result.updateData.cloudFreeTierUsageThresholdState).toBe(
+          expectedState,
+        );
+      },
+    );
+  });
 });

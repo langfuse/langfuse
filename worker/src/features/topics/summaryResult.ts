@@ -8,27 +8,39 @@ export type TopicModelUsage = Pick<
   | "costDetails"
 >;
 
+/** @knipignore Tests exercise the oversized-summary path relative to the current limit. */
+export const MAX_TOPIC_SUMMARY_CHARACTERS = 2000;
+
 export function topicSummaryOutputError(output: {
   summary: string;
   status: "applicable" | "not_applicable" | "insufficient_input";
 }): string | undefined {
   const summary = output.summary.trim();
   // Models sometimes add text to a non-applicable result; callers keep the status and drop the text.
-  if (output.status === "applicable" && (!summary || summary.length > 2000))
+  // An empty applicable summary is stored as insufficient input before this check.
+  if (
+    output.status === "applicable" &&
+    summary.length > MAX_TOPIC_SUMMARY_CHARACTERS
+  )
     return "Applicable facet summary must contain a concise summary.";
 }
+
+// Token counts are stored as integers and costs with 12 decimals.
+const COST_UNITS = 1e12;
 
 function mergeDetails(
   summary: Record<string, number>,
   embedding: Record<string, number>,
+  units: number,
 ): Record<string, number> {
   const details = { ...summary, ...embedding };
+  const total = (stage: Record<string, number>) =>
+    Math.round(
+      (stage.total ??
+        Object.values(stage).reduce((sum, value) => sum + value, 0)) * units,
+    );
   if (Object.keys(details).length)
-    details.total =
-      (summary.total ??
-        Object.values(summary).reduce((sum, value) => sum + value, 0)) +
-      (embedding.total ??
-        Object.values(embedding).reduce((sum, value) => sum + value, 0));
+    details.total = (total(summary) + total(embedding)) / units;
   return details;
 }
 
@@ -40,18 +52,21 @@ export function mergeTopicModelUsage(
     providedUsageDetails: mergeDetails(
       summary.providedUsageDetails,
       embedding.providedUsageDetails,
+      1,
     ),
-    usageDetails: mergeDetails(summary.usageDetails, embedding.usageDetails),
+    usageDetails: mergeDetails(summary.usageDetails, embedding.usageDetails, 1),
     providedCostDetails: mergeDetails(
       summary.providedCostDetails,
       embedding.providedCostDetails,
+      COST_UNITS,
     ),
-    costDetails: mergeDetails(summary.costDetails, embedding.costDetails),
+    costDetails: mergeDetails(
+      summary.costDetails,
+      embedding.costDetails,
+      COST_UNITS,
+    ),
   };
 }
-
-// Token counts are stored as integers and costs with 12 decimals.
-const COST_UNITS = 1e12;
 
 function splitDetails(
   details: Record<string, number>,

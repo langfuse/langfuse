@@ -20,7 +20,7 @@ type OtelAttribute = {
 function timestampToUnixNano(timestamp: string): string {
   const milliseconds = Date.parse(timestamp);
   if (Number.isNaN(milliseconds)) {
-    throw new Error(`Invalid AI-feature trace timestamp: ${timestamp}`);
+    throw new TypeError(`Invalid AI-feature trace timestamp: ${timestamp}`);
   }
 
   return `${BigInt(milliseconds) * 1_000_000n}`;

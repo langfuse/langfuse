@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import type { FilterState } from "@langfuse/shared";
 
-import { GatewayAnalyticsHeader } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsHeader/GatewayAnalyticsHeader";
 import { GatewayAnalyticsWidgetCard } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsWidgetCard/GatewayAnalyticsWidgetCard";
 import { GatewayUnpricedUsageAlert } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayUnpricedUsageAlert/GatewayUnpricedUsageAlert";
 import { GATEWAY_ANALYTICS_WIDGETS } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgets";
@@ -12,8 +11,7 @@ import {
 import { useGatewayAnalyticsFilters } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsFilters";
 import { useGatewayAnalyticsLabels } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsLabels";
 import { useGatewayUnpricedUsage } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayUnpricedUsage";
-import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
-import { api } from "@/src/utils/api";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   toAbsoluteTimeRange,
   type TimeRange,
@@ -38,37 +36,19 @@ export function GatewayAnalyticsDashboard({
     [timeRange],
   );
   const fetchQuery = useGatewayAnalyticsFetchQuery(organizationId);
-  const { labels, isPending: labelsPending } =
-    useGatewayAnalyticsLabels(organizationId);
-  const { filters, user, apiKey } = useGatewayAnalyticsFilters({ labels });
+  const {
+    labels,
+    apiKeyOwnerById,
+    isPending: labelsPending,
+  } = useGatewayAnalyticsLabels(organizationId);
+  const { filters } = useGatewayAnalyticsFilters({
+    labels,
+    apiKeyOwnerById,
+    canFilterByUser: canManageGateway,
+  });
 
   return (
     <div className="flex flex-col gap-4">
-      <GatewayAnalyticsHeader
-        description={
-          canManageGateway
-            ? undefined
-            : "Cost and usage of your requests made through the AI Gateway."
-        }
-      >
-        {/* Option labels are member and API key names. */}
-        <div className="ph-no-capture flex flex-wrap items-center gap-2">
-          {canManageGateway ? (
-            <MultiSelect
-              title="User"
-              label="User"
-              className="my-0 w-auto overflow-hidden"
-              {...user}
-            />
-          ) : null}
-          <MultiSelect
-            title="Gateway key"
-            label="Gateway key"
-            className="my-0 w-auto overflow-hidden"
-            {...apiKey}
-          />
-        </div>
-      </GatewayAnalyticsHeader>
       {absoluteTimeRange && (
         <GatewayAnalyticsWidgets
           organizationId={organizationId}
@@ -101,26 +81,31 @@ function GatewayAnalyticsWidgets({
   labelsPending: boolean;
   canManageGateway: boolean;
 }) {
-  // Only managers can add the missing prices, in the ingestion project.
+  // Only gateway managers see org-wide unpriced usage; only users who can open
+  // and edit organization models get the link to add missing prices.
   const unpricedUsage = useGatewayUnpricedUsage({
     fetchQuery,
     timeRange,
     filters,
     enabled: canManageGateway,
   });
-  const config = api.aiGateway.getConfig.useQuery(
-    { orgId: organizationId },
-    { enabled: canManageGateway },
-  );
-  const ingestionProjectId = config.data?.config?.defaultIngestionProject?.id;
+  const canReadOrganizationModels = useHasOrganizationAccess({
+    organizationId,
+    scope: "organizationModels:read",
+  });
+  const canEditOrganizationModels = useHasOrganizationAccess({
+    organizationId,
+    scope: "organizationModels:CUD",
+  });
+  const canAddModelPrices =
+    canReadOrganizationModels && canEditOrganizationModels;
 
   return (
     <>
-      {ingestionProjectId &&
-      unpricedUsage &&
-      unpricedUsage.models.length > 0 ? (
+      {unpricedUsage && unpricedUsage.models.length > 0 ? (
         <GatewayUnpricedUsageAlert
-          projectId={ingestionProjectId}
+          organizationId={organizationId}
+          canAddModelPrices={canAddModelPrices}
           usage={unpricedUsage}
         />
       ) : null}

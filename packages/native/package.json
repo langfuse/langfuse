@@ -5,10 +5,11 @@
   "license": "MIT",
   "private": true,
   "main": "index.js",
-  "types": "index.d.ts",
+  "types": "public.d.ts",
   "files": [
     "index.js",
     "index.d.ts",
+    "public.d.ts",
     "*.node"
   ],
   "engines": {

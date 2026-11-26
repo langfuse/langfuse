@@ -2,6 +2,7 @@ import { expect, it, describe, beforeAll, beforeEach, afterEach } from "vitest";
 import { env, v4WritesToEventsTable } from "../env";
 import { randomUUID } from "crypto";
 import {
+  clickhouseClient,
   convertDateToClickhouseDateTime,
   createObservation,
   createObservationsCh,
@@ -13,9 +14,11 @@ import {
   getObservationById,
   getScoreById,
   getTraceById,
+  queryClickhouse,
   StorageService,
   StorageServiceFactory,
   storageKeys,
+  toClickhouseDateTime,
   upsertTrace,
   deleteTracesByProjectId,
   deleteObservationsByProjectId,
@@ -25,6 +28,7 @@ import {
   deleteObservationsOlderThanDays,
   deleteScoresOlderThanDays,
   deleteEventsOlderThanDays,
+  findAllMediaByProjectId,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Job } from "bullmq";
@@ -204,6 +208,86 @@ describe("ProjectDeletionProcessingJob", () => {
     expect(score).toBeUndefined();
   });
 
+  it("should delete Topics data on project delete without affecting other projects", async () => {
+    const projectId = randomUUID();
+    const otherProjectId = randomUUID();
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: `Project-${randomUUID()}` },
+    });
+    const now = toClickhouseDateTime(new Date());
+    const projectIds = [projectId, otherProjectId];
+    await Promise.all([
+      clickhouseClient().insert({
+        table: "topic_facet_summaries",
+        format: "JSONEachRow",
+        values: projectIds.map((project_id) => ({
+          project_id,
+          facet_id: "intent",
+          facet_version: 1,
+          trace_id: randomUUID(),
+          environment: "default",
+          unit_start_time: now,
+          processing_state: "complete",
+          summary: "A trace summary.",
+          created_at: now,
+        })),
+      }),
+      clickhouseClient().insert({
+        table: "topic_assignments",
+        format: "JSONEachRow",
+        values: projectIds.map((project_id) => ({
+          project_id,
+          facet_id: "intent",
+          clustering_run_id: randomUUID(),
+          facet_version: 1,
+          trace_id: randomUUID(),
+          environment: "default",
+          unit_start_time: now,
+          summary_processed_at: now,
+          origin: "online",
+          created_at: now,
+        })),
+      }),
+      clickhouseClient().insert({
+        table: "topics",
+        format: "JSONEachRow",
+        values: projectIds.map((project_id) => ({
+          project_id,
+          id: randomUUID(),
+          stable_id: randomUUID(),
+          created_by_run_id: randomUUID(),
+          created_at: now,
+          name: "Billing",
+          description: "Billing questions.",
+          centroid: [],
+          radius: 0,
+          representative_summaries: [],
+          metadata: "{}",
+        })),
+      }),
+    ]);
+
+    await projectDeleteProcessor({
+      data: { payload: { projectId, orgId } },
+    } as Job);
+
+    for (const table of [
+      "topic_facet_summaries",
+      "topic_assignments",
+      "topic_assignments_by_trace",
+      "topics",
+    ]) {
+      const rows = await queryClickhouse<{ project_id: string }>({
+        query: `SELECT project_id FROM ${table} WHERE project_id IN {projectIds: Array(String)}`,
+        params: { projectIds },
+      });
+      expect(
+        rows.map((row) => row.project_id),
+        table,
+      ).toEqual([otherProjectId]);
+    }
+  });
+
   maybeEventsIt(
     "should delete event data from S3 for the project",
     async () => {
@@ -343,6 +427,40 @@ describe("ProjectDeletionProcessingJob", () => {
       where: { mediaId },
     });
     expect(datasetItemMedia).toBeNull();
+  });
+
+  it("should page through project media with the afterId cursor", async () => {
+    const projectId = randomUUID();
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: `Project-${randomUUID()}` },
+    });
+    const mediaIds = Array.from({ length: 5 }, () => randomUUID());
+    await prisma.media.createMany({
+      data: mediaIds.map((id) => ({
+        id,
+        sha256Hash: randomUUID(),
+        projectId,
+        bucketPath: `${randomUUID()}.txt`,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
+        contentType: "text/plain",
+        contentLength: 0,
+      })),
+    });
+
+    const pagedIds: string[] = [];
+    let afterId: string | undefined;
+    for (let page = 0; page < mediaIds.length; page++) {
+      const batch = await findAllMediaByProjectId({
+        projectId,
+        limit: 2,
+        afterId,
+      });
+      if (batch.length === 0) break;
+      pagedIds.push(...batch.map((media) => media.id));
+      afterId = batch[batch.length - 1].id;
+    }
+
+    expect(pagedIds).toEqual([...mediaIds].sort());
   });
 
   describe("delete functions with hasAny probe", () => {

@@ -1,12 +1,6 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type ComponentProps } from "react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { HelpCircle, AlertCircle } from "@langfuse/icons";
 import type { InterpretationResult } from "@/src/features/score-analytics/lib/statistics-utils";
@@ -67,16 +61,11 @@ export function MetricCard({
       <div className="flex items-center gap-1">
         <p className="text-muted-foreground text-xs">{label}</p>
         {helpText && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <HelpCircle size="sm" color="muted" />
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-xs">
-                <p className="text-xs">{helpText}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Tooltip label={helpText}>
+            {({ getTriggerProps }) => (
+              <HelpCircle size="sm" color="muted" {...getTriggerProps()} />
+            )}
+          </Tooltip>
         )}
       </div>
 
@@ -95,20 +84,16 @@ export function MetricCard({
           !isPlaceholder &&
           !isNA &&
           interpretation.strength !== "N/A" && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge
-                    color={getBadgeColor(interpretation.color)}
-                    size="sm"
-                    text={interpretation.strength}
-                  />
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs">
-                  <p className="text-xs">{interpretation.description}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Tooltip label={interpretation.description}>
+              {({ getTriggerProps }) => (
+                <Badge
+                  color={getBadgeColor(interpretation.color)}
+                  size="sm"
+                  text={interpretation.strength}
+                  {...getTriggerProps()}
+                />
+              )}
+            </Tooltip>
           )}
         {warning?.show && !isPlaceholder && !isNA && (
           <HoverCard

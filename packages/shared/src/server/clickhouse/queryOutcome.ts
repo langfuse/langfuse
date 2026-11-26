@@ -1,3 +1,6 @@
+// Classifies each ClickHouse query's terminal outcome, table, route and shape,
+// and records them as metrics.
+
 import { ClickHouseError, parseError } from "@clickhouse/client";
 import { recordDistribution, recordIncrement } from "../instrumentation";
 import { type NormalizedClickHouseQueryTags } from "./queryTags";
@@ -11,6 +14,7 @@ import { type ClickhouseService } from "./client";
  * callers as UNPROCESSABLE_CONTENT, so status-code-derived signals cannot
  * distinguish them from a caller's malformed request. This metric is the
  * signal that can: it is emitted where the resource error is classified.
+ * @internal
  */
 export const CLICKHOUSE_QUERY_OUTCOME_METRIC =
   "langfuse.clickhouse.query.outcome";
@@ -20,21 +24,30 @@ export const CLICKHOUSE_QUERY_OUTCOME_METRIC =
  * header and emitted unsampled with the outcome metric's tags. APM keeps only a
  * small sample of query spans, so this is the series to track query runtime
  * over time per route, table, shape and ClickHouse service.
+ * @internal
  */
 export const CLICKHOUSE_QUERY_ELAPSED_MS_METRIC =
   "langfuse.clickhouse.query.elapsed_ms";
 
 /**
- * `client_closed` is not a ClickHouse failure: the caller aborted its signal for
- * a reason other than a deadline, e.g. a browser closing a dashboard stream. A
- * deadline abort is an `error` with `error_code:client_timeout`.
+ * Neither is a ClickHouse failure:
+ *
+ * - `client_closed`: the caller aborted its signal for a reason other than a
+ *   deadline, e.g. a browser closing a dashboard stream.
+ * - `deadline`: the caller's own time budget ran out. Covers a deadline abort
+ *   (`error_code:client_timeout`) and, for queries run with `callerDeadline`,
+ *   ClickHouse enforcing that budget as `max_execution_time`
+ *   (`error_code:timeout_exceeded`). Whichever side fires first, the outcome is
+ *   the same.
  */
 export type ClickHouseQueryOutcome =
   | "success"
   | "client_closed"
+  | "deadline"
   | "timeout"
   | "memory_limit"
   | "overcommit"
+  | "result_limit"
   | "error";
 
 /**
@@ -47,6 +60,7 @@ export const CLICKHOUSE_RESOURCE_ERROR_OUTCOMES = {
   TIMEOUT: "timeout",
   MEMORY_LIMIT: "memory_limit",
   OVERCOMMIT: "overcommit",
+  RESULT_SIZE: "result_limit",
 } as const satisfies Record<string, ClickHouseQueryOutcome>;
 
 /**
@@ -75,6 +89,7 @@ const OTHER_ROUTE_LABEL = "other";
  * SLO and dashboard queries can filter both signals the same way. Datadog tag
  * values cannot contain spaces or brackets, so the method is folded in with an
  * underscore and a `[param]` placeholder is rendered as `_param_`.
+ * @internal
  */
 export function clickHouseQueryOutcomeRouteLabel(route?: string): string {
   if (!route) return OTHER_ROUTE_LABEL;
@@ -336,6 +351,8 @@ function clickHouseQueryMetricTags(
     table,
     query_shape: shape,
     clickhouse_service: clickhouseService,
+    project_size: tags.projectSize,
+    query_window: tags.queryWindow,
   };
 }
 
@@ -362,6 +379,7 @@ export const CLICKHOUSE_NETWORK_ERROR_PATTERNS = [
  */
 const LABELLED_CLICKHOUSE_ERROR_CODES: Record<string, string> = {
   "60": "unknown_table",
+  "158": "too_many_rows_or_bytes",
   "159": "timeout_exceeded",
   "202": "too_many_simultaneous_queries",
   "209": "socket_timeout",

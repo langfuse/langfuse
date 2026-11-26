@@ -25,7 +25,7 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
-import { ChevronLeft, ExternalLink, Plus } from "@langfuse/icons";
+import { ChevronLeft, SquareArrowOutUpRight, Plus } from "@langfuse/icons";
 import {
   EvaluatorSelectionStep,
   type BatchEvaluator,
@@ -171,17 +171,15 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     () =>
       (evaluatorsQuery.data ?? [])
         .filter((evaluator) => evaluator.blockedAt === null)
-        .map(
-          (evaluator): BatchEvaluator => ({
-            id: evaluator.id,
-            scoreName: evaluator.name,
-            variableMapping:
-              observationVariableMappingList.safeParse(
-                evaluator.latestVersion?.variableMapping,
-              ).data ?? [],
-            prompt: evaluator.latestVersion?.prompt ?? null,
-          }),
-        ),
+        .map((evaluator): BatchEvaluator => ({
+          id: evaluator.id,
+          scoreName: evaluator.name,
+          variableMapping:
+            observationVariableMappingList.safeParse(
+              evaluator.latestVersion?.variableMapping,
+            ).data ?? [],
+          prompt: evaluator.latestVersion?.prompt ?? null,
+        })),
     [evaluatorsQuery.data],
   );
 
@@ -490,7 +488,7 @@ function CreateEvaluatorButton({
       >
         <Plus size="base" aria-hidden="true" />
         Create new Evaluator
-        <ExternalLink size="base" aria-hidden="true" />
+        <SquareArrowOutUpRight size="base" aria-hidden="true" />
       </Link>
     </Button>
   );

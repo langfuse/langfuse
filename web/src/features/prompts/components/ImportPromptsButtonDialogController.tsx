@@ -31,7 +31,7 @@ const importPayloadSchema = z
 
 function validateImportPayload(raw: unknown): ImportItem[] {
   if (!Array.isArray(raw)) {
-    throw new Error("File must contain a JSON array of prompts.");
+    throw new TypeError("File must contain a JSON array of prompts.");
   }
   const result = importPayloadSchema.safeParse(raw);
   if (!result.success) {

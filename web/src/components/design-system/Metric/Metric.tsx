@@ -1,7 +1,7 @@
 import { cva } from "class-variance-authority";
 import { ArrowUpRight, type IconComponent } from "@langfuse/icons";
 import Link, { type LinkProps } from "next/link";
-import { type ComponentPropsWithoutRef, type ReactNode } from "react";
+import { type ComponentProps, type ReactNode } from "react";
 
 import { cn } from "@/src/utils/tailwind";
 
@@ -26,7 +26,7 @@ const metricVariants = cva(
 );
 
 type MetricBaseProps = Omit<
-  ComponentPropsWithoutRef<"span">,
+  ComponentProps<"span">,
   "className" | "style" | "children"
 > & {
   size?: "default" | "sm";

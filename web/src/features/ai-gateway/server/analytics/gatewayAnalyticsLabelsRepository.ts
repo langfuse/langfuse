@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
+import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import {
   getKeyOwnerFilter,
@@ -29,7 +30,7 @@ export class GatewayAnalyticsLabelsRepository {
       this.prisma.apiKey.findMany({
         where: {
           orgId: params.organizationId,
-          scope: "ORGANIZATION",
+          scope: { in: orgBoundApiKeyScopes },
           isInAppAgentKey: false,
           gatewayAssociation: { isNot: null },
           ...ownedBy,
@@ -58,6 +59,7 @@ export class GatewayAnalyticsLabelsRepository {
         id: apiKey.id,
         name: apiKey.note,
         detail: apiKey.displaySecretKey,
+        ownerUserId: apiKey.user?.id ?? null,
       })),
       users: [...users.values()].map((user) => ({
         id: user.id,

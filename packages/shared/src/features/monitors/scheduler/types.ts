@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { metric as MetricSchema } from "../../query/types";
+import { type ActionTypes } from "../../../domain/automations";
 
 import {
   MonitorAlertSchema,
@@ -56,5 +57,6 @@ export type MonitorWebhookInput = {
   projectId: string;
   automationId: string;
   executionId: string;
+  actionType: ActionTypes;
   payload: MonitorWebhookQueueEvent;
 };

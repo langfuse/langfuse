@@ -9,7 +9,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   applyCommentFilters,
-  traceException,
+  logger,
   getSessionsTable,
   getSessionsTableCount,
   getSessionsTableFromEvents,
@@ -74,6 +74,7 @@ import {
 } from "@/src/utils/clientSideDomainTypes";
 import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
 import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/fns/mapAgentGraphRecord";
+import { throwIfPublicSharingDisabled } from "@/src/ee/features/public-sharing/server/publicSharing";
 
 const storableSessionIdInput = z.string().refine(isStorableTraceSessionId, {
   message:
@@ -179,7 +180,8 @@ const handleGetSessionById = async (input: {
   const validatedScores = filterAndValidateDbScoreList({
     scores,
     dataTypes: LISTABLE_SCORE_TYPES,
-    onParseError: traceException,
+    onParseError: (error) =>
+      logger.warn("Invalid score omitted from response", { error }),
   });
 
   return {
@@ -467,7 +469,8 @@ export const sessionRouter = createTRPCRouter({
       const validatedScores = filterAndValidateDbScoreList({
         scores,
         dataTypes: LISTABLE_SCORE_TYPES,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       return sessions.map((s) => ({
@@ -551,7 +554,8 @@ export const sessionRouter = createTRPCRouter({
       const validatedScores = filterAndValidateDbScoreList({
         scores,
         dataTypes: LISTABLE_SCORE_TYPES,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       audit.refs(sessions.map((s) => ref("session", s.session_id)));
@@ -752,7 +756,8 @@ export const sessionRouter = createTRPCRouter({
       const validatedScores: ScoreDomain[] = filterAndValidateDbScoreList({
         scores,
         dataTypes: LISTABLE_SCORE_TYPES,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       audit.refs([
@@ -881,7 +886,8 @@ export const sessionRouter = createTRPCRouter({
       const validatedScores: ScoreDomain[] = filterAndValidateDbScoreList({
         scores,
         dataTypes: LISTABLE_SCORE_TYPES,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       audit.refs(scoreRefs(validatedScores));
@@ -944,7 +950,8 @@ export const sessionRouter = createTRPCRouter({
       const validatedScores = filterAndValidateDbScoreList({
         scores,
         dataTypes: LISTABLE_SCORE_TYPES,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       audit.refs([
@@ -1033,7 +1040,8 @@ export const sessionRouter = createTRPCRouter({
       const validatedScores = filterAndValidateDbScoreList({
         scores,
         dataTypes: ScoreDataTypeArray,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
       audit.refs([
         ...observationRefs(observations),
@@ -1221,7 +1229,7 @@ export const sessionRouter = createTRPCRouter({
   ),
   /**
    * Full raw I/O for one observation, for the session card's download
-   * fallback (LFE-10958). Session-authorized (public sessions included); the
+   * fallback. Session-authorized (public sessions included); the
    * repository query scopes by sessionId so a session grant cannot read
    * observations outside that session. Returns raw strings — the client
    * saves them to a file and never renders them.
@@ -1314,6 +1322,12 @@ export const sessionRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "objects:publish",
       });
+      if (input.public) {
+        await throwIfPublicSharingDisabled({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+        });
+      }
       await auditLog({
         session: ctx.session,
         resourceType: "session",

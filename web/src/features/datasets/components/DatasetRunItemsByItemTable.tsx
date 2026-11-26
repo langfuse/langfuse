@@ -24,10 +24,8 @@ import { createIdTableColumn } from "@/src/components/design-system/table/column
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { convertRunItemToItemsByItemUiTableRow } from "@/src/features/datasets/lib/convertRunItemDataToUiTableRow";
-import {
-  DatasetItemIOCell,
-  TraceObservationIOCell,
-} from "@/src/features/datasets/components/DatasetIOCells";
+import { DatasetItemIOCell } from "@/src/features/datasets/components/DatasetItemIOCell";
+import { TraceObservationIOCell } from "@/src/features/datasets/components/TraceObservationIOCell";
 import { type DatasetRunItemByItemRowData } from "@/src/features/datasets/lib/types";
 
 export function DatasetRunItemsByItemTable(props: {

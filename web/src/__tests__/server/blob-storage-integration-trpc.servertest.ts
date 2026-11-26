@@ -1,11 +1,10 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Mock } from "vitest";
 import type { Session } from "next-auth";
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import {
   BlobStorageIntegrationProcessingQueue,
   createOrgProjectAndApiKey,
@@ -23,6 +22,7 @@ import {
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const PRE_CUTOFF = new Date(
@@ -65,52 +65,26 @@ vi.mock(
 const __orgIds: string[] = [];
 
 const prepare = async ({
-  admin = true,
-  plan = "cloud:hobby",
+  plan = "cloud:team",
+  projectRole = "ADMIN",
 }: {
-  admin?: boolean;
   plan?: Plan;
+  projectRole?: Role;
 } = {}) => {
   const { project, org } = await createOrgProjectAndApiKey();
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: project.id,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              name: project.name,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-      admin,
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: plan,
-    },
-  };
+  const session: Session = createSession({
+    organizations: [
+      {
+        id: org.id,
+        role: "OWNER",
+        name: org.name,
+        plan,
+        projects: [{ id: project.id, role: projectRole, name: project.name }],
+      },
+    ],
+    environment: { selfHostedInstancePlan: plan },
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
@@ -192,6 +166,28 @@ const baseConfig = {
   exportSource: "EVENTS" as const,
 };
 
+const roleArn = "arn:aws:iam::123456789012:role/langfuse-export";
+
+const createRoleIntegration = (projectId: string) =>
+  prisma.blobStorageIntegration.create({
+    data: {
+      projectId,
+      type: "S3",
+      bucketName: baseConfig.bucketName,
+      region: baseConfig.region,
+      authType: "ROLE_ARN",
+      roleArn,
+      externalId: encrypt("lf-0123456789abcdef0123456789abcdef"),
+      prefix: baseConfig.prefix,
+      exportFrequency: "daily",
+      enabled: true,
+      forcePathStyle: false,
+      fileType: "JSONL",
+      exportMode: "FULL_HISTORY",
+      exportSource: "EVENTS",
+    },
+  });
+
 describe("Blob Storage Integration tRPC Router", () => {
   afterAll(async () => {
     await prisma.auditLog.deleteMany({
@@ -207,9 +203,8 @@ describe("Blob Storage Integration tRPC Router", () => {
   });
 
   describe("scheduled-blob-exports entitlement", () => {
-    it("blocks a non-admin OWNER on cloud:hobby from all blobStorageIntegration procedures", async () => {
+    it("blocks an OWNER on cloud:hobby from all blobStorageIntegration procedures", async () => {
       const { caller, project } = await prepare({
-        admin: false,
         plan: "cloud:hobby",
       });
       await createIntegration({ projectId: project.id });
@@ -250,9 +245,8 @@ describe("Blob Storage Integration tRPC Router", () => {
       expect(stillThere).not.toBeNull();
     });
 
-    it("allows a non-admin OWNER on cloud:team to read the integration", async () => {
+    it("allows an OWNER on cloud:team to read the integration", async () => {
       const { caller, project } = await prepare({
-        admin: false,
         plan: "cloud:team",
       });
       await createIntegration({ projectId: project.id });
@@ -813,11 +807,8 @@ describe("Blob Storage Integration tRPC Router", () => {
       }
     });
 
-    it("requires the Enterprise plan, even for Langfuse admins", async () => {
-      const { caller, project } = await prepare({
-        admin: true,
-        plan: "cloud:team",
-      });
+    it("requires the Enterprise plan for IAM role auth", async () => {
+      const { caller, project } = await prepare({ plan: "cloud:team" });
       (getCrossAccountRoleArn as Mock).mockReturnValue(
         "arn:aws:iam::210987654321:role/langfuse-customer-storage-access",
       );
@@ -842,25 +833,7 @@ describe("Blob Storage Integration tRPC Router", () => {
 
     it("still saves an unchanged role without the Enterprise plan or deployment support", async () => {
       const { caller, project } = await prepare({ plan: "cloud:team" });
-      const roleArn = "arn:aws:iam::123456789012:role/langfuse-export";
-      await prisma.blobStorageIntegration.create({
-        data: {
-          projectId: project.id,
-          type: "S3",
-          bucketName: baseConfig.bucketName,
-          region: baseConfig.region,
-          authType: "ROLE_ARN",
-          roleArn,
-          externalId: encrypt("lf-0123456789abcdef0123456789abcdef"),
-          prefix: baseConfig.prefix,
-          exportFrequency: "daily",
-          enabled: true,
-          forcePathStyle: false,
-          fileType: "JSONL",
-          exportMode: "FULL_HISTORY",
-          exportSource: "EVENTS",
-        },
-      });
+      await createRoleIntegration(project.id);
       const roleConfig = {
         projectId: project.id,
         ...baseConfig,
@@ -884,6 +857,42 @@ describe("Blob Storage Integration tRPC Router", () => {
           roleArn: "arn:aws:iam::123456789012:role/another-role",
         }),
       ).rejects.toThrow("IAM role auth is not available");
+    });
+
+    describe("getExternalId access", () => {
+      it("does not return another project's external ID", async () => {
+        const tenantA = await prepare({ plan: "cloud:team" });
+        const tenantB = await prepare({ plan: "cloud:team" });
+        await createRoleIntegration(tenantA.project.id);
+
+        await expect(
+          tenantB.caller.blobStorageIntegration.getExternalId({
+            projectId: tenantA.project.id,
+          }),
+        ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+        await expect(
+          tenantB.caller.blobStorageIntegration.getExternalId({
+            projectId: tenantB.project.id,
+          }),
+        ).resolves.toBeNull();
+      });
+
+      it("requires integrations:CRUD within the project", async () => {
+        const { caller, project } = await prepare({
+          plan: "cloud:team",
+          projectRole: "MEMBER",
+        });
+        await createRoleIntegration(project.id);
+
+        await expect(
+          caller.blobStorageIntegration.getExternalId({
+            projectId: project.id,
+          }),
+        ).rejects.toMatchObject({
+          code: "FORBIDDEN",
+          message: "User does not have access to this resource or action",
+        });
+      });
     });
   });
 

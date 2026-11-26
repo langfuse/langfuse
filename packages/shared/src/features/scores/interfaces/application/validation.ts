@@ -28,12 +28,12 @@ export const validateDbScore = (score: unknown): ScoreDomain =>
 
 /**
  * Use this function when pulling a list of scores from the database before using in the application to ensure type safety.
- * All scores are expected to pass the validation. If a score fails validation, it will be logged to Otel.
+ * All scores are expected to pass the validation. Invalid scores are omitted and reported through onParseError (console.error by default).
  * This function filters scores by the specified data types and validates them.
  * @param scores - List of scores to filter and validate
  * @param dataTypes - Array of data types to filter by (required)
  * @param includeHasMetadata - Whether to include hasMetadata field
- * @param onParseError - Optional callback for parse errors
+ * @param onParseError - Reporter for rejected rows; defaults to console.error
  * @returns list of validated and filtered scores
  */
 export const filterAndValidateDbScoreList = <
@@ -43,7 +43,7 @@ export const filterAndValidateDbScoreList = <
   scores,
   dataTypes,
   includeHasMetadata = false as IncludeHasMetadata,
-  onParseError,
+  onParseError = (error) => console.error("Score parsing error: ", error),
 }: {
   scores: InputScore[];
   dataTypes: DataTypes;
@@ -66,8 +66,7 @@ export const filterAndValidateDbScoreList = <
         }
         acc.push(score as ValidatedScore<IncludeHasMetadata, DataTypes>);
       } else {
-        console.error("Score parsing error: ", result.error);
-        onParseError?.(result.error);
+        onParseError(result.error);
       }
       return acc;
     },
@@ -84,7 +83,7 @@ export const filterAndValidateDbLegacyTraceScoreList = <
 >({
   scores,
   includeHasMetadata = false as IncludeHasMetadata,
-  onParseError,
+  onParseError = (error) => console.error("Score parsing error: ", error),
 }: {
   scores: InputScore[];
   includeHasMetadata?: IncludeHasMetadata;
@@ -100,8 +99,7 @@ export const filterAndValidateDbLegacyTraceScoreList = <
       }
       acc.push(score as ValidatedAPITraceScore<IncludeHasMetadata>);
     } else {
-      console.error("Score parsing error: ", result.error);
-      onParseError?.(result.error);
+      onParseError(result.error);
     }
     return acc;
   }, [] as ValidatedAPITraceScore<IncludeHasMetadata>[]);
@@ -112,7 +110,7 @@ export const filterAndValidateDbLegacyTraceScoreList = <
  * @alias
  * Use `filterAndValidateDbScoreList` instead. This function is only used for the legacy v1 API where scores were only associated with traces.
  * Use this function when pulling a list of scores from the database before using in the application to ensure type safety.
- * All scores are expected to pass the validation. If a score fails validation, it will be logged to Otel.
+ * All scores are expected to pass the validation. Invalid scores are omitted and reported through onParseError (console.error by default).
  * @param scores
  * @returns list of validated scores
  */

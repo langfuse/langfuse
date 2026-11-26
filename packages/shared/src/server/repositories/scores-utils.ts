@@ -10,7 +10,6 @@ import { ScoreRecordReadType } from "./definitions";
 import { convertClickhouseScoreToDomain } from "./scores_converters";
 
 /**
- * @internal
  * Internal utility function for getting scores by ID.
  * Do not use directly - use ScoresApiService or repository functions instead.
  */
@@ -61,7 +60,6 @@ export const _handleGetScoreById = async ({
 };
 
 /**
- * @internal
  * Internal utility function for getting scores by ID.
  * Do not use directly - use ScoresApiService or repository functions instead.
  */

@@ -1,5 +1,5 @@
 import React from "react";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 
 export interface StepHeaderProps {
   title: string;
@@ -16,11 +16,7 @@ export const StepHeader: React.FC<StepHeaderProps> = ({
     <div className="space-y-2">
       <h3 className="text-lg font-bold">{title}</h3>
       <p className="text-muted-foreground text-sm">{description}</p>
-      {errorMessage && (
-        <Alert variant="destructive">
-          <Alert.Description>{errorMessage}</Alert.Description>
-        </Alert>
-      )}
+      {errorMessage && <Banner variant="error">{errorMessage}</Banner>}
     </div>
   );
 };

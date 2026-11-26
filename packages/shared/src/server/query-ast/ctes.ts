@@ -15,9 +15,9 @@ import { REGISTRY_TABLES } from "./schema";
 
 /**
  * Rejects every CTE name and FROM/JOIN name that could mean two relations.
- * Runs first in every compile, so the passes after it can treat a registry
- * name as its table and the compiler can type each CTE read from the one
- * body the name resolves to in scope. Rejected:
+ * Runs before every pass but `SchemaReferencePlugin`, so the passes after it
+ * can treat a registry name as its table and the compiler can type each CTE
+ * read from the one body the name resolves to in scope. Rejected:
  * - a CTE named like a registry table (`with traces as (…)`), the logical
  *   `events` included;
  * - a CTE that reuses the name of a CTE in scope: a sibling's, or one an
@@ -25,6 +25,9 @@ import { REGISTRY_TABLES } from "./schema";
  *   so a nested WITH there may reuse its name;
  * - a schema-qualified FROM/JOIN name (`default.traces`): the registry
  *   describes tables by name only, not per database;
+ * - two FROM/JOIN items of one select with the same name (alias, else table
+ *   name): `traces join scores as traces` binds `traces.` to the alias, so
+ *   the passes could not tell which relation a qualified column reads;
  * - a FROM/JOIN name that is neither a registry table nor a CTE in scope. A
  *   CTE body's scope is where the CTE is declared, without the CTE itself
  *   and its later siblings, so recursive and cyclic CTEs are rejected, and
@@ -83,13 +86,26 @@ function assertNameAllowed(name: string, visible: ReadonlySet<string>): void {
   }
 }
 
-/** Every FROM/JOIN table of `node` is a registry table or a CTE in `visible`. */
+/**
+ * Every FROM/JOIN table of `node` is a registry table or a CTE in `visible`,
+ * and no two FROM/JOIN items share a name.
+ */
 function assertReadsResolve(
   node: SelectQueryNode,
   visible: ReadonlySet<string>,
 ): void {
-  for (const { table } of selectRelations(node)) {
+  const names = new Set<string>();
+  for (const { table, alias } of selectRelations(node)) {
     if (table) assertReadResolves(table, visible);
+    // The name a qualified column uses: `scores as s` → s, `traces` → traces.
+    const name = alias ?? table?.table.identifier.name;
+    if (name === undefined) continue;
+    if (names.has(name)) {
+      throw new UnscopedRelationError(
+        `FROM/JOIN name "${name}" names two relations of one select: a column qualified "${name}." could read either. Give each relation its own alias.`,
+      );
+    }
+    names.add(name);
   }
 }
 

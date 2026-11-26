@@ -1,12 +1,4 @@
-import {
-  isPrismaRecordNotFoundError,
-  blockEvaluatorsUsingDefaultModel,
-  DefaultEvalModelService,
-  EvaluatorBlockSource,
-  finalizeEvaluatorBlocks,
-  invalidateProjectEvalConfigCaches,
-  unblockEvaluatorsUsingDefaultModel,
-} from "@langfuse/shared/src/server";
+import { DefaultEvalModelService } from "@langfuse/shared/src/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -14,11 +6,11 @@ import {
 } from "@/src/server/api/trpc";
 import { z } from "zod";
 
+import { ZodModelConfig } from "@langfuse/shared";
 import {
-  EvaluatorBlockReason,
-  LangfuseNotFoundError,
-  ZodModelConfig,
-} from "@langfuse/shared";
+  deleteDefaultEvalModel,
+  upsertDefaultEvalModel,
+} from "@/src/features/evals/server/defaultEvalModelService";
 
 export const defaultEvalModelRouter = createTRPCRouter({
   fetchDefaultModel: protectedProjectProcedure
@@ -49,20 +41,13 @@ export const defaultEvalModelRouter = createTRPCRouter({
         scope: "evalDefaultModel:CUD",
       });
 
-      const defaultModel =
-        await DefaultEvalModelService.upsertDefaultModel(input);
-      const unblocked = await ctx.prisma.$transaction((tx) =>
-        unblockEvaluatorsUsingDefaultModel({
-          tx,
-          projectId: input.projectId,
-        }),
-      );
-
-      if (unblocked.unblockedEvaluatorCount > 0) {
-        await invalidateProjectEvalConfigCaches(input.projectId);
-      }
-
-      return defaultModel;
+      return upsertDefaultEvalModel({
+        projectId: input.projectId,
+        provider: input.provider,
+        model: input.model,
+        modelParams: input.modelParams,
+        actor: { session: ctx.session },
+      });
     }),
   deleteDefaultModel: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
@@ -73,40 +58,9 @@ export const defaultEvalModelRouter = createTRPCRouter({
         scope: "evalDefaultModel:CUD",
       });
 
-      let result;
-      try {
-        result = await ctx.prisma.$transaction(async (tx) => {
-          const blockResult = await blockEvaluatorsUsingDefaultModel({
-            tx,
-            projectId: input.projectId,
-          });
-
-          // Delete the default model within the transaction
-          await tx.defaultLlmModel.delete({
-            // unique constraint on projectId
-            where: {
-              projectId: input.projectId,
-            },
-          });
-
-          return blockResult;
-        });
-      } catch (error) {
-        if (isPrismaRecordNotFoundError(error)) {
-          throw new LangfuseNotFoundError("Default evaluation model not found");
-        }
-        throw error;
-      }
-
-      await finalizeEvaluatorBlocks({
+      return deleteDefaultEvalModel({
         projectId: input.projectId,
-        source: EvaluatorBlockSource.DEFAULT_EVAL_MODEL_DELETION,
-        evaluatorIdsByReason: {
-          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
-            result.blockedEvaluatorIds,
-        },
+        actor: { session: ctx.session },
       });
-
-      return { success: true };
     }),
 });

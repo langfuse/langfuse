@@ -15,8 +15,10 @@ import { cloudBillingRouter } from "@/src/ee/features/billing/server/cloudBillin
 import { spendAlertRouter } from "@/src/ee/features/billing/server/spendAlertRouter";
 import { observationsRouter } from "@/src/server/api/routers/observations";
 import { sessionRouter } from "@/src/server/api/routers/sessions";
+import { sessionViewsRouter } from "@/src/features/sessions/server/sessionViewsRouter";
 import { promptRouter } from "@/src/features/prompts/server/routers/promptRouter";
 import { modelRouter } from "@/src/server/api/routers/models";
+import { organizationModelRouter } from "@/src/features/models/server/organizationRouter";
 import { evalRouter } from "@/src/features/evals/server/router";
 import { evaluatorRouter } from "@/src/features/evals/v2/server/evaluators/evaluatorRouter";
 import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
@@ -47,6 +49,7 @@ import { mediaRouter } from "@/src/server/api/routers/media";
 import { backgroundMigrationsRouter } from "@/src/features/background-migrations/server/background-migrations-router";
 import { auditLogsRouter } from "./routers/auditLogs";
 import { accessAuditLogRouter } from "@/src/ee/features/access-audit-log/server/accessAuditLogRouter";
+import { publicSharingRouter } from "@/src/ee/features/public-sharing/server/publicSharingRouter";
 import { tableRouter } from "@/src/features/table/server/tableRouter";
 import { batchActionRouter } from "@/src/features/batch-actions/server/batchActionRouter";
 import { cloudStatusRouter } from "@/src/features/cloud-status-notification/server/cloud-status-router";
@@ -82,6 +85,7 @@ export const appRouter = createTRPCRouter({
   batchExport: batchExportRouter,
   traces: traceRouter,
   sessions: sessionRouter,
+  sessionViews: sessionViewsRouter,
   generations: generationsRouter,
   events: eventsRouter,
   scores: scoresRouter,
@@ -114,6 +118,7 @@ export const appRouter = createTRPCRouter({
   externalMediaStorage: externalMediaStorageRouter,
   llmApiKey: llmApiKeyRouter,
   organizationLlmApiKey: organizationLlmApiKeyRouter,
+  organizationModels: organizationModelRouter,
   llmSchemas: llmSchemaRouter,
   llmTools: llmToolRouter,
   public: publicRouter,
@@ -126,6 +131,7 @@ export const appRouter = createTRPCRouter({
   backgroundMigrations: backgroundMigrationsRouter,
   auditLogs: auditLogsRouter,
   accessAuditLog: accessAuditLogRouter,
+  publicSharing: publicSharingRouter,
   table: tableRouter,
   batchAction: batchActionRouter,
   cloudStatus: cloudStatusRouter,

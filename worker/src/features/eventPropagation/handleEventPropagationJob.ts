@@ -164,12 +164,6 @@ export const handleEventPropagationJob = async (
     // for the same span, this may create duplicates in the new events table. Deduplicating in this query
     // will significantly affect run-time. This may be an accepted degradation and we test the outcome
     // to check the likelihood of this happening in practice.
-    const excludeProjectIds =
-      env.LANGFUSE_EVENT_PROPAGATION_EXCLUDE_PROJECT_IDS;
-    const excludeProjectIdsInClause =
-      excludeProjectIds.length > 0
-        ? `NOT IN (${excludeProjectIds.map((id) => `'${id}'`).join(",")})`
-        : "";
     await commandClickhouse({
       query: `
         with batch_stats as (
@@ -180,7 +174,6 @@ export const handleEventPropagationJob = async (
             max(start_time) as max_start_time
           from observations_batch_staging
           where _partition_value = tuple('${partitionToProcess}')
-          ${excludeProjectIdsInClause ? `AND project_id ${excludeProjectIdsInClause}` : ""}
         ), experiment_traces_to_exclude as (
           select distinct
             project_id,
@@ -337,7 +330,6 @@ export const handleEventPropagationJob = async (
           excl.trace_id = obs.trace_id
         )
         WHERE obs._partition_value = tuple('${partitionToProcess}')
-        ${excludeProjectIdsInClause ? `AND obs.project_id ${excludeProjectIdsInClause}` : ""}
       `,
       clickhouseConfigs: {
         request_timeout: 1_800_000, // 30 minutes timeout

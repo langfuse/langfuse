@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
 import { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
@@ -20,32 +21,22 @@ import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { LlmConnectionEmptyState } from "@/src/features/public-api/components/LlmConnectionEmptyState/LlmConnectionEmptyState";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import AIFeatureSwitch from "@/src/features/organizations/components/AIFeatureSwitch";
+import { PublicSharingSettings } from "@/src/ee/features/public-sharing/components/PublicSharingSettings";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { env } from "@/src/env.mjs";
 import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/OrgAuditLogsSettingsPage";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
-import { GatewayAnalyticsPage } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/GatewayAnalyticsPage";
-import { GatewayNotDeployedNotice } from "@/src/features/ai-gateway/components/GatewayNotDeployedNotice/GatewayNotDeployedNotice";
-import { GatewaySetupPage } from "@/src/features/ai-gateway/components/GatewaySetupPage/GatewaySetupPage";
-import { GatewayApiKeysPage } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/GatewayApiKeysPage";
-import { GatewayModelsPage } from "@/src/features/ai-gateway/components/GatewayModelsPage/GatewayModelsPage";
-import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
-import { useGatewayKeyReminder } from "@/src/features/ai-gateway/hooks/useGatewayKeyReminder";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { ConnectedLLMApiKeySettingsTable } from "@/src/features/public-api/components/LLMApiKeySettingsTable/ConnectedLLMApiKeySettingsTable";
-
-const GATEWAY_SETUP_REQUIRED_REASON =
-  "Set up an ingestion project in Setup first.";
+import { OrganizationModelsSettings } from "@/src/features/models/components/OrganizationModelsSettings";
 
 type OrganizationSettingsPage = {
   title: string;
   slug: string;
   section?: string;
   show?: boolean | (() => boolean);
-  disabledReason?: string;
-  indicator?: boolean;
   cmdKKeywords?: string[];
 } & ({ content: React.ReactNode } | { href: string });
 
@@ -67,11 +58,13 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     organizationId: organization?.id,
     scope: "organization:update",
   });
-  const gatewayAccess = useGatewaySettingsAccess(organization?.id);
-  const gatewayKeyReminder = useGatewayKeyReminder(organization?.id);
   const canReadOrganizationLlmConnections = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "organizationLlmApiKeys:read",
+  });
+  const canReadOrganizationModels = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organizationModels:read",
   });
   const canReadUsage = useHasOrganizationAccess({
     organizationId: organization?.id,
@@ -100,23 +93,8 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showGeneralSettings: canReadSettings,
     showMembers: canReadSettings,
     showProjects: canReadSettings || organization.projects.length > 0,
-    showAiGatewayManagement: gatewayAccess.showManagement,
-    showAiGatewayNotDeployedNotice: gatewayAccess.showNotDeployedNotice,
-    showAiGatewayModels: gatewayAccess.showModels,
-    showAiGatewayApiKeys: gatewayAccess.showApiKeys,
-    /** Gateway-only members; members with settings access keep today's pages. */
-    showAiGatewayOwnUsageAnalytics:
-      gatewayAccess.showApiKeys &&
-      !gatewayAccess.showManagement &&
-      !canReadSettings,
-    gatewayKeyReminder,
-    /** Only managers get disabled entries; others see a notice on the page. */
-    gatewaySetupDisabledReason:
-      gatewayAccess.showManagement &&
-      gatewayAccess.isIngestionConfigured === false
-        ? GATEWAY_SETUP_REQUIRED_REASON
-        : undefined,
     showOrganizationLlmConnections: canReadOrganizationLlmConnections,
+    showOrganizationModels: canReadOrganizationModels,
     showFeaturePreviews:
       canUpdateOrganization && organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
   });
@@ -133,14 +111,8 @@ const getOrganizationSettingsPages = ({
   showGeneralSettings,
   showMembers,
   showProjects,
-  showAiGatewayManagement,
-  showAiGatewayNotDeployedNotice,
-  showAiGatewayModels,
-  showAiGatewayApiKeys,
-  showAiGatewayOwnUsageAnalytics,
-  gatewayKeyReminder,
-  gatewaySetupDisabledReason,
   showOrganizationLlmConnections,
+  showOrganizationModels,
   showFeaturePreviews,
 }: {
   organization: {
@@ -163,21 +135,15 @@ const getOrganizationSettingsPages = ({
   showGeneralSettings: boolean;
   showMembers: boolean;
   showProjects: boolean;
-  showAiGatewayManagement: boolean;
-  showAiGatewayNotDeployedNotice: boolean;
-  showAiGatewayModels: boolean;
-  showAiGatewayApiKeys: boolean;
-  showAiGatewayOwnUsageAnalytics: boolean;
-  gatewayKeyReminder: boolean;
-  gatewaySetupDisabledReason: string | undefined;
   showOrganizationLlmConnections: boolean;
+  showOrganizationModels: boolean;
   showFeaturePreviews: boolean;
 }): OrganizationSettingsPage[] => [
   {
     title: "General",
     slug: "index",
     section: "Organization",
-    cmdKKeywords: ["name", "id", "delete"],
+    cmdKKeywords: ["name", "id", "delete", "sharing", "public"],
     content: (
       <div className="flex flex-col gap-6">
         <RenameOrganization />
@@ -203,6 +169,7 @@ const getOrganizationSettingsPages = ({
           </Card>
         </div>
         <AIFeatureSwitch />
+        <PublicSharingSettings orgId={organization.id} />
         <SettingsDangerZone
           items={[
             {
@@ -211,15 +178,23 @@ const getOrganizationSettingsPages = ({
                 "Once you delete an organization, there is no going back. Please be certain.",
               button: (
                 <DeleteOrganizationDialogController>
-                  {({ disabled, openDialog }) => (
-                    <Button
-                      variant="destructive-secondary"
-                      disabled={disabled !== undefined}
-                      onClick={openDialog}
-                    >
-                      Delete Organization
-                    </Button>
-                  )}
+                  {({ disabled, openDialog }) => {
+                    const button = (
+                      <Button
+                        variant="destructive-secondary"
+                        disabled={disabled !== undefined}
+                        onClick={openDialog}
+                      >
+                        Delete Organization
+                      </Button>
+                    );
+                    if (!disabled) return button;
+                    return (
+                      <DisabledActionTooltip label={disabled.reason}>
+                        {button}
+                      </DisabledActionTooltip>
+                    );
+                  }}
                 </DeleteOrganizationDialogController>
               ),
             },
@@ -280,6 +255,14 @@ const getOrganizationSettingsPages = ({
       </div>
     ),
     show: showOrganizationLlmConnections,
+  },
+  {
+    title: "Models",
+    slug: "models",
+    section: "Organization",
+    cmdKKeywords: ["models", "pricing", "prices", "tokenizer"],
+    content: <OrganizationModelsSettings organizationId={organization.id} />,
+    show: showOrganizationModels,
   },
   {
     title: "Members",
@@ -350,59 +333,6 @@ const getOrganizationSettingsPages = ({
     section: "Organization",
     href: "/v4-migration",
     show: showV4Migration,
-  },
-  {
-    title: "Setup",
-    slug: "ai-gateway",
-    section: "AI Gateway",
-    cmdKKeywords: [
-      "gateway",
-      "llm",
-      "setup",
-      "configuration",
-      "ingestion",
-      "providers",
-      "credentials",
-      "openai",
-      "anthropic",
-    ],
-    content: showAiGatewayNotDeployedNotice ? (
-      <GatewayNotDeployedNotice />
-    ) : (
-      <GatewaySetupPage
-        organizationId={organization.id}
-        projects={organization.projects}
-      />
-    ),
-    show: showAiGatewayManagement || showAiGatewayNotDeployedNotice,
-  },
-  {
-    title: "Models",
-    slug: "ai-gateway-models",
-    section: "AI Gateway",
-    cmdKKeywords: ["gateway", "models", "discovery", "sync"],
-    content: <GatewayModelsPage organizationId={organization.id} />,
-    show: showAiGatewayModels,
-    disabledReason: gatewaySetupDisabledReason,
-  },
-  {
-    title: "Gateway keys",
-    slug: "ai-gateway-api-keys",
-    section: "AI Gateway",
-    cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
-    content: <GatewayApiKeysPage organizationId={organization.id} />,
-    show: showAiGatewayApiKeys,
-    indicator: gatewayKeyReminder,
-    disabledReason: gatewaySetupDisabledReason,
-  },
-  {
-    title: "Analytics",
-    slug: "ai-gateway-analytics",
-    section: "AI Gateway",
-    cmdKKeywords: ["gateway", "analytics", "cost", "usage", "consumption"],
-    content: <GatewayAnalyticsPage organizationId={organization.id} />,
-    show: showAiGatewayManagement || showAiGatewayOwnUsageAnalytics,
-    disabledReason: gatewaySetupDisabledReason,
   },
 ];
 

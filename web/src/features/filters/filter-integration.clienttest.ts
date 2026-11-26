@@ -26,10 +26,8 @@ import {
   sessionFilterConfig,
 } from "./config/sessions-config";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
-import {
-  decodeAndNormalizeFilters,
-  resolveCheckboxOperator,
-} from "./hooks/useSidebarFilterState";
+import { decodeAndNormalizeFilters } from "./hooks/useSidebarFilterState";
+import { resolveCheckboxOperator } from "./lib/sidebar-filter-actions";
 import {
   SESSION_DETAIL_SYSTEM_PRESETS,
   getSessionDetailPresetToApply,
@@ -663,6 +661,44 @@ describe("Retired bookmarked filters (traces + sessions)", () => {
     expect(tracesTableCols.some((col) => col.id === "bookmarked")).toBe(true);
     expect(sessionsViewCols.some((col) => col.id === "bookmarked")).toBe(true);
   });
+});
+
+describe("Numeric metadata filters on legacy tables", () => {
+  const textFilter: FilterState = [
+    {
+      column: "metadata",
+      type: "stringObject",
+      key: "region",
+      operator: "=",
+      value: "eu",
+    },
+  ];
+  const sharedLink = encodeFiltersGeneric([
+    ...textFilter,
+    {
+      column: "metadata",
+      type: "numberObject",
+      key: "attempt",
+      operator: ">",
+      value: 2,
+    },
+  ]);
+
+  it.each([
+    ["traces", traceFilterConfig],
+    ["observations", observationFilterConfig],
+  ] as const)(
+    "opens an events-table link on the %s table without its numeric metadata comparison",
+    (_label, config) => {
+      expect(
+        decodeAndNormalizeFilters(
+          sharedLink,
+          config.columnDefinitions,
+          config.migrateFilterState,
+        ),
+      ).toEqual(textFilter);
+    },
+  );
 });
 
 describe("Filter Flow: URL → Decode → Normalize → Transform", () => {

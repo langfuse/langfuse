@@ -9,10 +9,10 @@
 # with DoD provenance and scan attestations. Release builds opt in by overriding
 # both args after `docker login registry1.dso.mil` (free P1 account plus a CLI
 # secret):
-#   --build-arg BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8
-#   --build-arg MICRO_BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8
-ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
-ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
+#   --build-arg BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.9
+#   --build-arg MICRO_BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.9
+ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.9
+ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.9
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
 
@@ -143,6 +143,9 @@ RUN set -eux; \
     --components=rustc,cargo,rust-std-${triple}; \
     rm -rf /tmp/rust.tar.gz /tmp/rust-1.98.0-${triple}
 
+# These tools are needed to ship the addon, not to exercise it in FIPS mode.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} toolchain AS audit-tools
+
 # cargo-about renders the third-party license notices for the native addon's
 # Rust dependencies. cargo-auditable embeds the addon's resolved dependency
 # list in the .node binary so image scanners (Trivy, Grype, Docker Scout) can
@@ -184,6 +187,9 @@ ARG NEXT_PUBLIC_POSTHOG_HOST
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
 
+# Only the audited build needs these binaries; the dependency install above can
+# run while audit-tools compiles them.
+COPY --from=audit-tools /usr/local/bin/cargo-about /usr/local/bin/cargo-auditable /usr/local/bin/cargo-auditable-shim /usr/local/bin/
 RUN CARGO=/usr/local/bin/cargo-auditable-shim turbo run build --filter=worker...
 
 # Runs after the build so `cargo fetch` adds the sources the build skipped (dev

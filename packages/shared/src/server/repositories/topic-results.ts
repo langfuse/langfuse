@@ -1,4 +1,8 @@
-import type { TopicTimeRange } from "../../topics";
+import {
+  TOPIC_SUMMARY_STATES,
+  type TopicSummaryState,
+  type TopicTimeRange,
+} from "../../topics";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
   INTERNAL_EVAL_ENVIRONMENT_PREFIX,
@@ -16,12 +20,7 @@ import {
   queryClickhouse,
 } from "./clickhouse";
 
-export const TOPIC_SUMMARY_STATES = [
-  "complete",
-  "not_applicable",
-  "insufficient_input",
-] as const;
-export type TopicSummaryState = (typeof TOPIC_SUMMARY_STATES)[number];
+export { TOPIC_SUMMARY_STATES, type TopicSummaryState };
 
 export const TOPIC_ASSIGNMENT_STATUSES = [
   "assigned",
@@ -38,7 +37,7 @@ type DateMatch = { operator: ">" | "<" | ">=" | "<="; value: Date };
 /** Conditions on current results; text matches are case-insensitive, ids match exactly. */
 export type TopicResultCondition =
   | { column: "traceId" | "environment"; match: OptionsMatch }
-  | { column: "timestamp" | "processedAt"; match: DateMatch }
+  | { column: "timestamp" | "createdAt"; match: DateMatch }
   | {
       column: "state";
       match: { operator: "any of" | "none of"; values: TopicSummaryState[] };
@@ -59,6 +58,8 @@ export type TopicResultCursor = {
   timestamp: Date;
   traceId: string;
   facetId: string;
+  /** Assignment pages only: rules each have a row per trace and facet. */
+  runId?: string;
 };
 
 export type TopicSummaryRow = {
@@ -78,7 +79,7 @@ export type TopicSummaryRow = {
   state: TopicSummaryState;
   summary: string;
   summaryTruncated: boolean;
-  processedAt: Date;
+  createdAt: Date;
 };
 
 export type TopicAssignmentRow = {
@@ -90,7 +91,7 @@ export type TopicAssignmentRow = {
   topicId: string | null;
   topicVersionId: string | null;
   runId: string | null;
-  assignedAt: Date;
+  createdAt: Date;
 };
 
 class SqlParams {
@@ -117,6 +118,7 @@ const dateSql = (expression: string, match: DateMatch, params: SqlParams) =>
 function summaryConditionSql(
   condition: TopicResultCondition,
   params: SqlParams,
+  kind: "summaries" | "assignments",
 ) {
   switch (condition.column) {
     case "traceId":
@@ -125,8 +127,10 @@ function summaryConditionSql(
       return inSql("environment", condition.match, params);
     case "timestamp":
       return dateSql("unit_start_time", condition.match, params);
-    case "processedAt":
-      return dateSql("processed_at", condition.match, params);
+    case "createdAt":
+      return kind === "summaries"
+        ? dateSql("created_at", condition.match, params)
+        : null;
     case "state":
       return inSql("toString(processing_state)", condition.match, params);
     case "topicId":
@@ -136,14 +140,22 @@ function summaryConditionSql(
   }
 }
 
-/** Conditions on the resolved assignment; they filter `current`. */
+/**
+ * Conditions on the resolved assignment; they filter `current`. For summary rows
+ * (`acrossMaps`), a topic matches if any rule's map assigned it, and statuses
+ * apply to the trace's best result across maps.
+ */
 function assignmentConditionSql(
   condition: TopicResultCondition,
   params: SqlParams,
+  acrossMaps = false,
 ) {
   switch (condition.column) {
     case "topicId": {
-      const matches = `(topic_status = 'assigned' AND topic_id IN ${params.add("Array(String)", condition.match.values)})`;
+      const topicIds = params.add("Array(String)", condition.match.values);
+      const matches = acrossMaps
+        ? `hasAny(key_topic_stable_ids, ${topicIds})`
+        : `(topic_status = 'assigned' AND topic_stable_id IN ${topicIds})`;
       return condition.match.operator === "none of"
         ? `NOT ${matches}`
         : matches;
@@ -154,10 +166,13 @@ function assignmentConditionSql(
       return condition.match
         ? "topic_status = 'assigned'"
         : "topic_status != 'assigned'";
+    case "createdAt":
+      return acrossMaps
+        ? null
+        : dateSql("assignment_created_at", condition.match, params);
     case "traceId":
     case "environment":
     case "timestamp":
-    case "processedAt":
     case "state":
       return null;
   }
@@ -165,23 +180,25 @@ function assignmentConditionSql(
 
 /**
  * `summaries`: one row per trace and facet, the newest facet version's newest
- * summary. `current` adds the assignment only when it was made for exactly
- * that summary by the facet's published run. Mirrors `resolveTopicResult`.
+ * summary. `current` adds each published map's assignment only when it was made
+ * for exactly that summary, so rules sharing a facet give one row per map.
+ * Mirrors `resolveTopicResult`.
  */
 function currentResultsSql(
   summaryConditions: string[],
   traceIdConditions: string[],
 ) {
-  const scopeSql = `trace_id != '' AND facet_id IN {facetIds:Array(String)}`;
+  const summaryScopeSql = `unit_type = 'trace' AND facet_id IN {facetIds:Array(String)}`;
+  const assignmentScopeSql = `trace_id != '' AND facet_id IN {facetIds:Array(String)}`;
   const and = (conditions: string[]) =>
     conditions.map((sql) => `AND ${sql}`).join(" ");
-  const latestScopeSql = [scopeSql, ...traceIdConditions].join(" AND ");
+  const latestScopeSql = [summaryScopeSql, ...traceIdConditions].join(" AND ");
   return `
   summaries AS (
-    SELECT trace_id, facet_id, facet_version, unit_start_time, processed_at,
+    SELECT trace_id, facet_id, facet_version, unit_start_time, created_at AS summary_created_at,
       processing_state, summary, trace_name, environment
     FROM topic_facet_summaries
-    WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
+    WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${summaryScopeSql}
       AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
       AND environment != {publicLlmJudgeEnvironment:String}
       ${and(summaryConditions)}
@@ -193,35 +210,70 @@ function currentResultsSql(
   assignments AS (
     SELECT trace_id AS a_trace_id, facet_id AS a_facet_id,
       facet_version AS a_facet_version, unit_start_time AS a_unit_start_time,
-      summary_processed_at AS a_summary_processed_at, topic_id AS a_topic_id,
-      topic_version_id AS a_topic_version_id, clustering_run_id AS a_run_id,
-      assigned_at AS a_assigned_at
+      summary_processed_at AS a_summary_processed_at, topic_stable_id AS a_topic_stable_id,
+      topic_id AS a_topic_id, clustering_run_id AS a_run_id,
+      created_at AS a_created_at
     FROM topic_assignments
-    WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
+    WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${assignmentScopeSql}
       AND clustering_run_id IN {publishedRunIds:Array(String)}
       ${and(traceIdConditions)}
-    ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC
-    LIMIT 1 BY facet_id, trace_id
+    ORDER BY facet_version DESC, created_at DESC, origin DESC
+    LIMIT 1 BY a_facet_id, a_run_id, a_trace_id
   ),
   current AS (
-    SELECT trace_id, facet_id, facet_version, unit_start_time, processed_at,
+    SELECT trace_id, facet_id, facet_version, unit_start_time, summary_created_at,
       processing_state, summary, trace_name, environment,
       processing_state = 'complete' AND a_trace_id != ''
         AND a_facet_version = facet_version AND a_unit_start_time = unit_start_time
-        AND a_summary_processed_at = processed_at AS matched,
+        AND a_summary_processed_at = summary_created_at AS matched,
+      if(matched, a_topic_stable_id, '') AS topic_stable_id,
       if(matched, a_topic_id, '') AS topic_id,
-      if(matched, a_topic_version_id, '') AS topic_version_id,
       if(matched, a_run_id, '') AS clustering_run_id,
-      a_assigned_at AS assigned_at,
+      a_created_at AS assignment_created_at,
       multiIf(
         processing_state != 'complete', toString(processing_state),
         NOT matched, 'awaiting_map',
-        topic_id != '', 'assigned',
+        topic_stable_id != '', 'assigned',
         'outlier'
       ) AS topic_status
     FROM summaries
-    LEFT ANY JOIN assignments ON a_trace_id = trace_id AND a_facet_id = facet_id
+    LEFT JOIN assignments ON a_trace_id = trace_id AND a_facet_id = facet_id
   )`;
+}
+
+/**
+ * Selects the batch's candidate rows. A summary row is one per trace and facet: filters
+ * see every map's assignment, and the row shows the best one (a filtered topic, then
+ * assigned, outlier, newest).
+ */
+function resolveRowsSql(args: {
+  input: { conditions: TopicResultCondition[]; select: string };
+  params: SqlParams;
+  source: "summaries" | "current";
+  perRun: boolean;
+  inCandidates: string;
+  assignmentConditions: string[];
+}) {
+  const conditionSql = args.assignmentConditions
+    .map((sql) => `AND ${sql}`)
+    .join(" ");
+  if (args.perRun || args.source === "summaries")
+    return `SELECT ${args.input.select} FROM ${args.source} WHERE ${args.inCandidates} ${conditionSql}`;
+  const positiveTopics = args.input.conditions.flatMap((condition) =>
+    condition.column === "topicId" && condition.match.operator === "any of"
+      ? [args.params.add("Array(String)", condition.match.values)]
+      : [],
+  );
+  // Continues the WITH clause of `currentResultsSql`.
+  return `, ranked AS (
+      SELECT *,
+        groupArrayIf(topic_stable_id, topic_status = 'assigned') OVER (PARTITION BY facet_id, trace_id) AS key_topic_stable_ids,
+        row_number() OVER (PARTITION BY facet_id, trace_id ORDER BY
+          ${positiveTopics.map((ids) => `(topic_status = 'assigned' AND topic_stable_id IN ${ids}) DESC, `).join("")}matched DESC,
+          topic_status = 'assigned' DESC, assignment_created_at DESC) AS key_rank
+      FROM current WHERE ${args.inCandidates}
+    )
+    SELECT ${args.input.select} FROM ranked WHERE key_rank = 1 ${conditionSql}`;
 }
 
 type ListInput = {
@@ -236,6 +288,17 @@ type ListInput = {
   includeAssignment?: boolean;
   /** Candidate rows per batch and batches per page; defaults bound the work of one page. */
   scan?: { batchSize: number; maxBatches: number };
+  /** Runs whose assignments count; defaults to each facet's published run. */
+  publishedRunIds?: string[];
+  /**
+   * Trace IDs a batch may keep, as a subquery over the batch's traces and source times;
+   * null keeps none. Applied after candidates, so selective filters can return short pages.
+   */
+  traceFilter?: (batch: {
+    from: Date;
+    to: Date;
+    traceIds: string[];
+  }) => Promise<{ query: string; params: Record<string, unknown> } | null>;
 };
 
 const MAX_CANDIDATE_BATCHES = 10;
@@ -249,18 +312,36 @@ const READ_OPTIONS = {
     cancel_http_readonly_queries_on_client_close: 1,
   },
 } as const;
+const TRACE_FILTER_TIMEOUT_SECONDS = 10;
+// A trace filter scans events, so its resolve reads stay off the primary with bounded CPU.
+const TRACE_FILTER_READ_OPTIONS = {
+  preferredClickhouseService: "EventsReadOnly",
+  // The client must outlast the server limit for the timeout to be reported as one.
+  clickhouseConfigs: {
+    request_timeout: (TRACE_FILTER_TIMEOUT_SECONDS + 15) * 1000,
+  },
+  clickhouseSettings: {
+    ...READ_OPTIONS.clickhouseSettings,
+    max_threads: 2,
+    max_execution_time: TRACE_FILTER_TIMEOUT_SECONDS,
+    timeout_overflow_mode: "throw",
+  },
+} as const;
 
 type CandidateRow = {
   facet_id: string;
   trace_id: string;
   unit_start_time: string;
+  run_id?: string;
 };
 
 /**
  * Picks candidates from the table that can satisfy the filter: assignments
  * when the filter needs an assignment (or rows are assignments), otherwise
- * summaries. Ordering by the sort key's minute prefix lets ClickHouse read in
- * order and stop after one batch, instead of scanning the whole window.
+ * summaries. Ordering by the summaries' hour key prefix lets ClickHouse read in
+ * order and stop after one batch, instead of scanning the whole window. Assignment
+ * candidates cannot, as run and topic precede the hour; they sort the published
+ * runs' rows, which nightly refits keep to about a day of online placements.
  */
 function candidateQuery(
   input: ListInput & { kind: "summaries" | "assignments" },
@@ -304,8 +385,7 @@ function candidateQuery(
     assignedOnly ||
     (statuses !== undefined &&
       statuses.every((status) => status !== "awaiting_map"));
-  // Trace id lookups on summaries read only columns of the latest_source_versions
-  // projection, which ClickHouse serves by trace id; the resolve step applies the rest.
+  // Trace id lookups on summaries use the trace_id bloom filter; the resolve step applies the rest.
   const byTraceIds =
     !fromAssignments &&
     input.conditions.some(
@@ -315,10 +395,14 @@ function candidateQuery(
 
   for (const condition of input.conditions) {
     if (condition.column === "traceId" || condition.column === "timestamp")
-      conditions.push(summaryConditionSql(condition, params) as string);
+      conditions.push(
+        summaryConditionSql(condition, params, input.kind) as string,
+      );
+    else if (condition.column === "createdAt" && input.kind === "assignments")
+      conditions.push(dateSql("created_at", condition.match, params));
     else if (byTraceIds) continue;
     else if (condition.column === "environment" || !fromAssignments) {
-      const sql = summaryConditionSql(condition, params);
+      const sql = summaryConditionSql(condition, params, input.kind);
       if (sql) conditions.push(sql);
     }
   }
@@ -328,15 +412,17 @@ function candidateQuery(
     );
     if (topicIdIn)
       conditions.push(
-        `topic_id IN ${params.add("Array(String)", topicIdIn.match.values)}`,
+        `topic_stable_id IN ${params.add("Array(String)", topicIdIn.match.values)}`,
       );
-    else if (assignedOnly) conditions.push("topic_id != ''");
+    else if (assignedOnly) conditions.push("topic_stable_id != ''");
     else if (statuses?.length === 1)
       conditions.push(
-        statuses[0] === "assigned" ? "topic_id != ''" : "topic_id = ''",
+        statuses[0] === "assigned"
+          ? "topic_stable_id != ''"
+          : "topic_stable_id = ''",
       );
   } else {
-    conditions.push("trace_id != ''");
+    conditions.push("unit_type = 'trace'");
     // Every assignment status needs a complete summary.
     if (statuses && !byTraceIds)
       conditions.push("processing_state = 'complete'");
@@ -347,27 +433,29 @@ function candidateQuery(
       "environment != {publicLlmJudgeEnvironment:String}",
     );
   const descending = input.orderBy === "timestamp.desc";
+  // Assignment pages hold a row per map, so their keys include the run.
+  const perRun = input.kind === "assignments";
   if (cursor)
     conditions.push(
-      `(unit_start_time, trace_id, facet_id) ${descending ? "<" : ">"} (${params.add("DateTime64(3)", convertDateToClickhouseDateTime(cursor.timestamp))}, ${params.add("String", cursor.traceId)}, ${params.add("String", cursor.facetId)})`,
+      `(unit_start_time, trace_id, facet_id${perRun && cursor.runId !== undefined ? ", clustering_run_id" : ""}) ${descending ? "<" : ">"} (${params.add("DateTime64(3)", convertDateToClickhouseDateTime(cursor.timestamp))}, ${params.add("String", cursor.traceId)}, ${params.add("String", cursor.facetId)}${perRun && cursor.runId !== undefined ? `, ${params.add("String", cursor.runId)}` : ""})`,
     );
   const direction = descending ? "DESC" : "ASC";
   return {
-    query: `SELECT facet_id, trace_id, unit_start_time
+    query: `SELECT facet_id, trace_id, unit_start_time${perRun ? ", clustering_run_id AS run_id" : ""}
       FROM ${fromAssignments ? "topic_assignments" : "topic_facet_summaries"}
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
         AND facet_id IN {facetIds:Array(String)}
         AND ${conditions.join(" AND ")}
-      ORDER BY ${byTraceIds ? "" : `toStartOfMinute(unit_start_time) ${direction}, `}unit_start_time ${direction},
-        trace_id ${direction}, facet_id ${direction}
+      ORDER BY ${byTraceIds ? "" : `toStartOfHour(unit_start_time) ${direction}, `}unit_start_time ${direction},
+        trace_id ${direction}, facet_id ${direction}${perRun ? `, clustering_run_id ${direction}` : ""}
       LIMIT {batchSize:UInt32}`,
     params: { ...params.values, batchSize },
   };
 }
 
 /**
- * Pages current results of one row per trace and facet, ordered by the trace's
- * source time. Each batch takes candidate rows in order, then resolves the
+ * Pages current results of one row per trace and facet (and map, for
+ * assignments), ordered by the trace's source time. Each batch takes candidate rows in order, then resolves the
  * current result of only those keys, so a page costs about its candidates
  * rather than the window. When the batch budget runs out before the page is
  * full, the page is returned short with a cursor to continue.
@@ -383,10 +471,9 @@ async function listCurrentRows<T extends CandidateRow>(
   const batchSize =
     input.scan?.batchSize ?? Math.min(1000, Math.max(200, input.limit * 4));
   const maxBatches = input.scan?.maxBatches ?? MAX_CANDIDATE_BATCHES;
-  const publishedRunIds = await getPublishedTopicRunIds(
-    input.projectId,
-    input.facetIds,
-  );
+  const publishedRunIds =
+    input.publishedRunIds ??
+    (await getPublishedTopicRunIds(input.projectId, input.facetIds));
   const baseParams = {
     projectId: input.projectId,
     facetIds: input.facetIds,
@@ -423,15 +510,21 @@ async function listCurrentRows<T extends CandidateRow>(
     );
     const params = new SqlParams();
     const summaryConditions = input.conditions.flatMap(
-      (condition) => summaryConditionSql(condition, params) ?? [],
+      (condition) => summaryConditionSql(condition, params, input.kind) ?? [],
     );
+    const traceFilter = await input.traceFilter?.({
+      from: new Date(Math.min(...times)),
+      to: new Date(Math.max(...times) + 1),
+      traceIds: [...new Set(found.map((row) => row.trace_id))],
+    });
     const traceIds = params.add("Array(String)", [
       ...new Set(found.map((row) => row.trace_id)),
     ]);
+    const perRun = input.kind === "assignments";
     const assignmentConditions = input.conditions.flatMap(
-      (condition) => assignmentConditionSql(condition, params) ?? [],
+      (condition) => assignmentConditionSql(condition, params, !perRun) ?? [],
     );
-    if (input.kind === "assignments")
+    if (perRun)
       assignmentConditions.push("topic_status IN ('assigned', 'outlier')");
     const source =
       input.kind === "summaries" &&
@@ -439,6 +532,10 @@ async function listCurrentRows<T extends CandidateRow>(
       !input.includeAssignment
         ? "summaries"
         : "current";
+    // On the resolved rows, so the summary reads keep their trace ID projection.
+    if (traceFilter === null) assignmentConditions.push("0 = 1");
+    else if (traceFilter)
+      assignmentConditions.push(`trace_id IN (${traceFilter.query})`);
     const candidateTuples = `arrayZip(${params.add(
       "Array(String)",
       found.map((row) => row.facet_id),
@@ -448,20 +545,27 @@ async function listCurrentRows<T extends CandidateRow>(
     )}, ${params.add(
       "Array(DateTime64(3))",
       found.map((row) => row.unit_start_time),
-    )})`;
+    )}${
+      perRun
+        ? `, ${params.add(
+            "Array(String)",
+            found.map((row) => row.run_id ?? ""),
+          )}`
+        : ""
+    })`;
+    const inCandidates = `has(${candidateTuples}, (facet_id, trace_id, unit_start_time${perRun ? ", clustering_run_id" : ""}))`;
+    const orderSql = `ORDER BY unit_start_time ${direction}, trace_id ${direction}, facet_id ${direction}${perRun ? `, clustering_run_id ${direction}` : ""}`;
     const resolved = await queryClickhouse<T>({
-      ...READ_OPTIONS,
+      ...(traceFilter ? TRACE_FILTER_READ_OPTIONS : READ_OPTIONS),
       query: `WITH ${currentResultsSql(summaryConditions, [`trace_id IN ${traceIds}`])}
-        SELECT ${input.select}
-        FROM ${source}
-        WHERE has(${candidateTuples}, (facet_id, trace_id, unit_start_time))
-          ${assignmentConditions.map((sql) => `AND ${sql}`).join(" ")}
-        ORDER BY unit_start_time ${direction}, trace_id ${direction}, facet_id ${direction}`,
+        ${resolveRowsSql({ input, params, source, perRun, inCandidates, assignmentConditions })}
+        ${orderSql}`,
       params: {
+        ...traceFilter?.params,
         ...baseParams,
         ...params.values,
         ...input.extraParams,
-        // The candidates' own time span; their keys' history is read in full.
+        // The candidates' own time span; the latest-summary filter widens it by 2 days.
         ...timeRangeParams({
           from: new Date(Math.min(...times)),
           to: new Date(Math.max(...times) + 1),
@@ -478,6 +582,12 @@ async function listCurrentRows<T extends CandidateRow>(
             timestamp: parseClickhouseUTCDateTimeFormat(row.unit_start_time),
             traceId: row.trace_id,
             facetId: row.facet_id,
+            ...(perRun
+              ? {
+                  runId: (row as { clustering_run_id?: string })
+                    .clustering_run_id,
+                }
+              : {}),
           },
         };
     }
@@ -487,6 +597,7 @@ async function listCurrentRows<T extends CandidateRow>(
       timestamp: parseClickhouseUTCDateTimeFormat(last.unit_start_time),
       traceId: last.trace_id,
       facetId: last.facet_id,
+      ...(perRun ? { runId: last.run_id } : {}),
     };
   }
   return { rows, next: cursor };
@@ -497,7 +608,7 @@ export async function listCurrentTopicSummaries(
   input: ListInput & { truncateSummaries: boolean },
 ): Promise<{ rows: TopicSummaryRow[]; next?: TopicResultCursor }> {
   const assignmentSelect = input.includeAssignment
-    ? ", topic_status, topic_id, topic_version_id, clustering_run_id"
+    ? ", topic_status, topic_stable_id, topic_id, clustering_run_id"
     : "";
   const { rows, next } = await listCurrentRows<{
     trace_id: string;
@@ -509,10 +620,10 @@ export async function listCurrentTopicSummaries(
     state: TopicSummaryState;
     summary_text: string;
     summary_truncated: number;
-    processed_at: string;
+    summary_created_at: string;
     topic_status?: string;
+    topic_stable_id?: string;
     topic_id?: string;
-    topic_version_id?: string;
     clustering_run_id?: string;
   }>({
     ...input,
@@ -521,7 +632,7 @@ export async function listCurrentTopicSummaries(
       toString(processing_state) AS state,
       {truncate:Bool} AND lengthUTF8(summary) > {previewLength:UInt32} AS summary_truncated,
       if({truncate:Bool}, leftUTF8(summary, {previewLength:UInt32}), summary) AS summary_text,
-      processed_at${assignmentSelect}`,
+      summary_created_at${assignmentSelect}`,
     extraParams: {
       truncate: input.truncateSummaries,
       previewLength: TOPIC_SUMMARY_PREVIEW_LENGTH,
@@ -538,15 +649,15 @@ export async function listCurrentTopicSummaries(
       state: row.state,
       summary: row.summary_text,
       summaryTruncated: Boolean(Number(row.summary_truncated)),
-      processedAt: parseClickhouseUTCDateTimeFormat(row.processed_at),
+      createdAt: parseClickhouseUTCDateTimeFormat(row.summary_created_at),
       ...(input.includeAssignment
         ? {
             assignment: {
               status: row.topic_status as
                 | TopicSummaryState
                 | TopicAssignmentStatus,
-              topicId: row.topic_id || null,
-              topicVersionId: row.topic_version_id || null,
+              topicId: row.topic_stable_id || null,
+              topicVersionId: row.topic_id || null,
               runId: row.clustering_run_id || null,
             },
           }
@@ -556,7 +667,7 @@ export async function listCurrentTopicSummaries(
   };
 }
 
-/** Lists each trace's current assignment per facet: assigned or outlier. */
+/** Lists each trace's current assignment per facet and map: assigned or outlier. */
 export async function listCurrentTopicAssignments(
   input: ListInput,
 ): Promise<{ rows: TopicAssignmentRow[]; next?: TopicResultCursor }> {
@@ -566,15 +677,15 @@ export async function listCurrentTopicAssignments(
     facet_version: number;
     unit_start_time: string;
     topic_status: TopicAssignmentRow["status"];
+    topic_stable_id: string;
     topic_id: string;
-    topic_version_id: string;
     clustering_run_id: string;
-    assigned_at: string;
+    assignment_created_at: string;
   }>({
     ...input,
     kind: "assignments",
     select: `trace_id, facet_id, facet_version, unit_start_time, topic_status,
-      topic_id, topic_version_id, clustering_run_id, assigned_at`,
+      topic_stable_id, topic_id, clustering_run_id, assignment_created_at`,
   });
   return {
     rows: rows.map((row) => ({
@@ -583,10 +694,10 @@ export async function listCurrentTopicAssignments(
       facetVersion: Number(row.facet_version),
       timestamp: parseClickhouseUTCDateTimeFormat(row.unit_start_time),
       status: row.topic_status,
-      topicId: row.topic_id || null,
-      topicVersionId: row.topic_version_id || null,
+      topicId: row.topic_stable_id || null,
+      topicVersionId: row.topic_id || null,
       runId: row.clustering_run_id || null,
-      assignedAt: parseClickhouseUTCDateTimeFormat(row.assigned_at),
+      createdAt: parseClickhouseUTCDateTimeFormat(row.assignment_created_at),
     })),
     next,
   };
@@ -604,6 +715,8 @@ export type TopicResultCounts = {
   outliers: number;
   notApplicable: number;
   insufficientInput: number;
+  emptyInput: number;
+  inputTooLarge: number;
   topics: { topicId: string; count: number }[];
 };
 
@@ -629,8 +742,10 @@ export async function getTopicResultCounts(input: {
     publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
     ...timeRangeParams(input.window),
   };
-  const scope = `project_id = {projectId:String} AND ${unitTimeFilterSql}
-    AND trace_id != '' AND facet_id IN {facetIds:Array(String)}
+  const scope = (
+    levelSql: string,
+  ) => `project_id = {projectId:String} AND ${unitTimeFilterSql}
+    AND ${levelSql} AND facet_id IN {facetIds:Array(String)}
     AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
     AND environment != {publicLlmJudgeEnvironment:String}`;
   const tags = { route: "topics-counts", projectId: input.projectId };
@@ -642,6 +757,8 @@ export async function getTopicResultCounts(input: {
       usable: string;
       not_applicable: string;
       insufficient_input: string;
+      empty_input: string;
+      input_too_large: string;
     }>({
       ...READ_OPTIONS,
       query: `SELECT facet_id, uniqCombined(trace_id) AS total,
@@ -649,27 +766,29 @@ export async function getTopicResultCounts(input: {
           uniqCombinedIf(trace_id, processing_state = 'complete'
             AND facet_version = {versions:Array(UInt32)}[indexOf({facetIds:Array(String)}, facet_id)]) AS usable,
           uniqCombinedIf(trace_id, processing_state = 'not_applicable') AS not_applicable,
-          uniqCombinedIf(trace_id, processing_state = 'insufficient_input') AS insufficient_input
-        FROM topic_facet_summaries WHERE ${scope}
+          uniqCombinedIf(trace_id, processing_state = 'insufficient_input') AS insufficient_input,
+          uniqCombinedIf(trace_id, processing_state = 'empty_input') AS empty_input,
+          uniqCombinedIf(trace_id, processing_state = 'input_too_large') AS input_too_large
+        FROM topic_facet_summaries WHERE ${scope("unit_type = 'trace'")}
         GROUP BY facet_id`,
       params,
       tags,
     }),
     queryClickhouse<{
       facet_id: string;
-      topic_id: string;
+      topic_stable_id: string;
       is_facet_total: number;
       count: string;
       assigned: string;
     }>({
       ...READ_OPTIONS,
-      query: `SELECT facet_id, topic_id, grouping(topic_id) AS is_facet_total,
+      query: `SELECT facet_id, topic_stable_id, grouping(topic_stable_id) AS is_facet_total,
           uniqCombined(trace_id) AS count,
-          uniqCombinedIf(trace_id, topic_id != '') AS assigned
+          uniqCombinedIf(trace_id, topic_stable_id != '') AS assigned
         FROM topic_assignments
-        WHERE ${scope} AND clustering_run_id != ''
+        WHERE ${scope("trace_id != ''")} AND clustering_run_id != ''
           AND clustering_run_id = {runIds:Array(String)}[indexOf({facetIds:Array(String)}, facet_id)]
-        GROUP BY GROUPING SETS ((facet_id, topic_id), (facet_id))`,
+        GROUP BY GROUPING SETS ((facet_id, topic_stable_id), (facet_id))`,
       params,
       tags,
     }),
@@ -681,7 +800,7 @@ export async function getTopicResultCounts(input: {
     const assignedAny = Number(facetTotal?.count ?? 0);
     const topicRows = rows.filter((row) => Number(row.is_facet_total) === 0);
     const outliers = Number(
-      topicRows.find((row) => row.topic_id === "")?.count ?? 0,
+      topicRows.find((row) => row.topic_stable_id === "")?.count ?? 0,
     );
     return {
       facetId,
@@ -692,10 +811,50 @@ export async function getTopicResultCounts(input: {
       outliers,
       notApplicable: Number(summary?.not_applicable ?? 0),
       insufficientInput: Number(summary?.insufficient_input ?? 0),
+      emptyInput: Number(summary?.empty_input ?? 0),
+      inputTooLarge: Number(summary?.input_too_large ?? 0),
       topics: topicRows
-        .filter((row) => row.topic_id !== "")
-        .map((row) => ({ topicId: row.topic_id, count: Number(row.count) }))
+        .filter((row) => row.topic_stable_id !== "")
+        .map((row) => ({
+          topicId: row.topic_stable_id,
+          count: Number(row.count),
+        }))
         .sort((a, b) => b.count - a.count),
     };
   });
+}
+
+/**
+ * Facet summaries written in `[start, end)`, by `created_at`, except those
+ * written without a model call, as billing counts them. Rows
+ * are not deduplicated (no `FINAL`), so a source re-summarized before a merge
+ * counts once per write. `created_at` is outside the sort key, so this scans
+ * the table; it runs only from the self-hosted telemetry job.
+ */
+export async function getTopicFacetSummaryCountsByProjectInCreationInterval({
+  start,
+  end,
+}: {
+  start: Date;
+  end: Date;
+}): Promise<{ projectId: string; count: number }[]> {
+  const rows = await queryClickhouse<{ project_id: string; count: string }>({
+    query: `
+      SELECT project_id, count() AS count
+      FROM topic_facet_summaries
+      WHERE created_at >= {start: DateTime64(3)}
+        AND created_at < {end: DateTime64(3)}
+        AND processing_state NOT IN ('empty_input', 'input_too_large')
+      GROUP BY project_id
+    `,
+    params: {
+      start: convertDateToClickhouseDateTime(start),
+      end: convertDateToClickhouseDateTime(end),
+    },
+    clickhouseConfigs: { request_timeout: 300_000 },
+  });
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    count: Number(row.count),
+  }));
 }

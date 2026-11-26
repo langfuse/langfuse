@@ -38,7 +38,6 @@ function getTraceExportSession(
   return {
     user: {
       email: user.email,
-      admin: user.admin,
       organizations: user.organizations,
     },
   };

@@ -1,5 +1,9 @@
+// Export staleness metric: how far each integration's export lags behind now,
+// tagged by integration and frequency window.
+
 import { recordDistribution } from "@langfuse/shared/src/server";
 
+/** @internal */
 export const EXPORT_STALENESS_METRIC = "langfuse.export.staleness_seconds";
 
 type ExportStalenessIntegration = "blob_storage" | "posthog" | "mixpanel";

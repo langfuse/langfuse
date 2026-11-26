@@ -3,7 +3,7 @@ import {
   type EntityDetailHeaderProps,
   type HeaderMetric,
 } from "@/src/components/ObservabilityEntityDetailHeader/ObservabilityEntityDetailHeader";
-import { AnnotationQueueSubmenuItemController } from "@/src/features/annotation-queues/components/AnnotationQueueSubmenuItemController";
+import { ConnectedAnnotationQueueSubmenuItemController } from "@/src/features/annotation-queues/components/ConnectedAnnotationQueueSubmenuItemController";
 import {
   AnnotateDrawerController,
   type AnnotateDrawerPayload,
@@ -34,7 +34,7 @@ export function ConnectedSessionDetailHeader({
   isLoading?: boolean;
 }) {
   return (
-    <AnnotationQueueSubmenuItemController
+    <ConnectedAnnotationQueueSubmenuItemController
       projectId={projectId}
       objectId={sessionId}
       objectType={AnnotationQueueObjectType.SESSION}
@@ -93,6 +93,6 @@ export function ConnectedSessionDetailHeader({
           )}
         </AnnotateDrawerController>
       )}
-    </AnnotationQueueSubmenuItemController>
+    </ConnectedAnnotationQueueSubmenuItemController>
   );
 }

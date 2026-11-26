@@ -9,7 +9,7 @@ import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Copy, MoreVertical, Pen, Trash } from "@langfuse/icons";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { TablePeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/TablePeekViewEvaluatorTemplateDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -24,12 +24,9 @@ import {
 } from "@/src/components/ui/dialog";
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/DeleteEvalTemplateDialog";
+  type DropdownMenuItemDefinition,
+} from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { DeleteEvalTemplateDialogController } from "@/src/features/evals/components/DeleteEvalTemplateDialogController";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { EvalTemplateForm } from "@/src/features/evals/components/EvalTemplateForm";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -59,7 +56,7 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 
-export type EvalsTemplateRow = {
+type EvalsTemplateRow = {
   name: string;
   resultType: string;
   maintainer: string;
@@ -118,112 +115,102 @@ const templateTableRowHeights: CustomHeights = {
   l: "h-8",
 };
 
-// Owns the per-row actions dropdown plus the delete confirm dialog as its
-// sibling (see the overlay-lifecycle rule in web/AGENTS.md). The dialog's
-// open state is local so opening it re-renders only this cell, not the table.
 const EvalTemplateRowActionsMenu = ({
   projectId,
-  templateId,
-  templateName,
-  usageCount,
   hasAccess,
   showClone,
   showEditAndDelete,
   onEdit,
   onClone,
+  onDelete,
 }: {
   projectId: string;
-  templateId: string;
-  templateName: string;
-  usageCount?: number;
   hasAccess: boolean;
   showClone: boolean;
   showEditAndDelete: boolean;
   onEdit: () => void;
   onClone: () => void;
+  onDelete: () => void;
 }) => {
-  // undefined = never opened: keeps the dialog unmounted for untouched rows,
-  // while close (false) keeps it mounted so the exit animation can play.
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>();
   const capture = usePostHogClientCapture();
-  const utils = api.useUtils();
   const hasTemplateWriteAccess = useHasProjectAccess({
     projectId,
     scope: "evaluator:CUD",
   });
 
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-xs" aria-label="actions">
+    <div onClick={(event) => event.stopPropagation()}>
+      <DropdownMenu
+        title="Actions"
+        placement="bottom-end"
+        items={[
+          ...(showClone
+            ? ([
+                {
+                  type: "item",
+                  id: "clone",
+                  title: "Clone",
+                  icon: Copy,
+                  disabled: hasAccess
+                    ? undefined
+                    : {
+                        reason:
+                          "You do not have permission to clone templates.",
+                      },
+                  onClick: onClone,
+                },
+              ] satisfies DropdownMenuItemDefinition[])
+            : []),
+          ...(showEditAndDelete
+            ? ([
+                {
+                  type: "item",
+                  id: "edit",
+                  title: "Edit",
+                  icon: Pen,
+                  disabled: hasAccess
+                    ? undefined
+                    : {
+                        reason: "You do not have permission to edit templates.",
+                      },
+                  onClick: onEdit,
+                },
+                {
+                  type: "item",
+                  id: "delete",
+                  title: "Delete",
+                  icon: Trash,
+                  variant: "destructive",
+                  disabled: hasTemplateWriteAccess
+                    ? undefined
+                    : {
+                        reason:
+                          "You do not have permission to delete templates.",
+                      },
+                  onClick: () => {
+                    capture("eval_templates:delete_form_open", {
+                      source: "table-single-row",
+                    });
+                    onDelete();
+                  },
+                },
+              ] satisfies DropdownMenuItemDefinition[])
+            : []),
+        ]}
+      >
+        {({ getTriggerProps }) => (
+          <Button
+            {...getTriggerProps()}
+            variant="ghost"
+            size="icon-xs"
+            aria-label="actions"
+          >
             <span className="sr-only relative">Open menu</span>
             <MoreVertical size="sm" color="default" />
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-          {showClone ? (
-            <DropdownMenuItem
-              aria-label="clone"
-              disabled={!hasAccess}
-              onClick={(e) => {
-                e.stopPropagation();
-                onClone();
-              }}
-            >
-              <Copy size="base" color="default" __rawClassName="mr-2" />
-              Clone
-            </DropdownMenuItem>
-          ) : null}
-          {showEditAndDelete ? (
-            <>
-              <DropdownMenuItem
-                aria-label="edit"
-                disabled={!hasAccess}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit();
-                }}
-              >
-                <Pen size="base" color="default" __rawClassName="mr-2" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                aria-label="delete"
-                disabled={!hasTemplateWriteAccess}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  capture("eval_templates:delete_form_open", {
-                    source: "table-single-row",
-                  });
-                  setIsDeleteDialogOpen(true);
-                }}
-              >
-                <Trash size="base" color="default" __rawClassName="mr-2" />
-                Delete
-              </DropdownMenuItem>
-            </>
-          ) : null}
-        </DropdownMenuContent>
+        )}
       </DropdownMenu>
-      {isDeleteDialogOpen !== undefined ? (
-        <DeleteEvalTemplateDialog
-          projectId={projectId}
-          templateId={templateId}
-          templateName={templateName}
-          initialUsageCount={usageCount}
-          open={isDeleteDialogOpen}
-          onOpenChange={setIsDeleteDialogOpen}
-          onSuccess={() => {
-            capture("eval_templates:delete_template_button_click", {
-              source: "table-single-row",
-            });
-            utils.evals.templateNames.invalidate();
-          }}
-        />
-      ) : null}
-    </>
+    </div>
   );
 };
 
@@ -231,6 +218,37 @@ export default function EvalsTemplateTable({
   projectId,
 }: {
   projectId: string;
+}) {
+  const capture = usePostHogClientCapture();
+  const utils = api.useUtils();
+  return (
+    <DeleteEvalTemplateDialogController
+      projectId={projectId}
+      onSuccess={() => {
+        capture("eval_templates:delete_template_button_click", {
+          source: "table-single-row",
+        });
+        utils.evals.templateNames.invalidate();
+      }}
+    >
+      {({ openDialog }) => (
+        <EvalsTemplateTableContent
+          projectId={projectId}
+          openDeleteDialog={openDialog}
+        />
+      )}
+    </DeleteEvalTemplateDialogController>
+  );
+}
+
+function EvalsTemplateTableContent({
+  projectId,
+  openDeleteDialog,
+}: {
+  projectId: string;
+  openDeleteDialog: Parameters<
+    ComponentProps<typeof DeleteEvalTemplateDialogController>["children"]
+  >[0]["openDialog"];
 }) {
   const router = useRouter();
   const codeEvalCapabilities = useIsCodeEvalEnabled();
@@ -446,14 +464,18 @@ export default function EvalsTemplateTable({
             {hasMenuItems && id ? (
               <EvalTemplateRowActionsMenu
                 projectId={projectId}
-                templateId={id}
-                templateName={row.original.name}
-                usageCount={row.original.usageCount}
                 hasAccess={hasAccess}
                 showClone={!isUserMaintained && !isCodeTemplate}
                 showEditAndDelete={isUserMaintained}
                 onEdit={() => setEditTemplateId(id)}
                 onClone={() => setCloneTemplateId(id)}
+                onDelete={() =>
+                  openDeleteDialog({
+                    templateId: id,
+                    templateName: row.original.name,
+                    initialUsageCount: row.original.usageCount,
+                  })
+                }
               />
             ) : null}
           </div>
@@ -482,7 +504,7 @@ export default function EvalsTemplateTable({
       detailNavigationKey: "eval-templates",
       peekEventOptions: {
         ignoredSelectors: [
-          "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone'], [aria-label='delete']",
+          "[aria-label='apply'], [aria-label='actions'], [role='menu']",
         ],
       },
       ...peekNavigationProps,

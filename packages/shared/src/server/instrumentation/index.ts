@@ -133,6 +133,14 @@ export function instrumentSync<T>(
 
 export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
 
+/** withoutBaggage runs fn with the active context's baggage removed. */
+export function withoutBaggage<T>(fn: () => T): T {
+  return opentelemetry.context.with(
+    opentelemetry.propagation.deleteBaggage(opentelemetry.context.active()),
+    fn,
+  );
+}
+
 export const getActiveTraceId = () => {
   const span = opentelemetry.trace.getActiveSpan();
   // Only return a trace id for sampled/recording spans. An unsampled span still

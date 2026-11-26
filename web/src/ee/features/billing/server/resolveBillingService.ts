@@ -5,6 +5,7 @@ import { type OrgAuthedContext } from "@/src/server/api/trpc";
 import {
   type BillingProvider,
   getBillingProvider,
+  type ParsedOrganization,
   parseDbOrg,
 } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
@@ -18,6 +19,37 @@ export type CloudBillingService =
   | ChbBillingService;
 
 /**
+ * The provider that owns an org's billing, without building its service.
+ *
+ * Fail-closed guard: when the CHB cutoff or opt-in list is set but the CHB
+ * REST env is incomplete, orgs routed by them (no CHB state yet) fall back to
+ * Stripe — never a half-configured CHB flow. Orgs already carrying CHB state
+ * always resolve to CHB.
+ */
+export const resolveBillingProvider = (
+  parsedOrg: ParsedOrganization,
+): BillingProvider => {
+  // The cutoff and opt-in list are injected rather than read inside the
+  // resolver: the shared module is exported from the client-safe barrel, so web
+  // passes the values from its own validated env schema.
+  const billingProvider = getBillingProvider(parsedOrg, {
+    cutoff: env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
+    optInOrgIds: env.LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS,
+  });
+  if (
+    billingProvider === "clickhouse" &&
+    !parsedOrg.cloudConfig?.clickhouse?.organizationId &&
+    !getChbApiClient()
+  ) {
+    logger.error(
+      `resolveBillingService: org ${parsedOrg.id} routes to CHB by cutoff or opt-in but the CHB REST env is incomplete — falling back to Stripe`,
+    );
+    return "stripe";
+  }
+  return billingProvider;
+};
+
+/**
  * Provider-dispatching billing service factory.
  *
  * Resolves the org's billing provider via the shared `getBillingProvider`
@@ -26,10 +58,9 @@ export type CloudBillingService =
  * `cloudBillingRouter` procedures keep their names, inputs, and output
  * shapes, so the tRPC contract does not change.
  *
- * Fail-closed guard: when the CHB cutoff or opt-in list is set but the CHB
- * REST env is incomplete, orgs routed by them (no CHB state yet) fall back to
- * Stripe — never a half-configured CHB flow. Orgs already carrying CHB state
- * cannot be served by Stripe and error instead.
+ * Uses `resolveBillingProvider`, including its fail-closed Stripe fallback.
+ * Orgs already carrying CHB state cannot be served by Stripe and error when
+ * the CHB REST env is incomplete.
  *
  * This dispatch is also the structural interlock that keeps Stripe checkout
  * unreachable for any org holding a `cloudConfig.clickhouse` block: such
@@ -52,37 +83,20 @@ export const resolveBillingService = async (
     });
   }
   const parsedOrg = parseDbOrg(org);
-  // The cutoff and opt-in list are injected rather than read inside the
-  // resolver: the shared module is exported from the client-safe barrel, so web
-  // passes the values from its own validated env schema.
-  const billingProvider = getBillingProvider(parsedOrg, {
-    cutoff: env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
-    optInOrgIds: env.LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS,
-  });
 
-  if (billingProvider === "clickhouse") {
+  if (resolveBillingProvider(parsedOrg) === "clickhouse") {
     // Shared process-wide, so every billing request reuses one Auth0 token
     // cache rather than minting a token per request.
     const client = getChbApiClient();
     if (!client) {
-      if (parsedOrg.cloudConfig?.clickhouse?.organizationId) {
-        // Sticky CHB org: Stripe cannot serve it, this is a config error
-        logger.error(
-          `resolveBillingService: org ${orgId} is CHB-billed but the CHB REST env is not configured`,
-        );
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "ClickHouse Billing is not configured on this deployment",
-        });
-      }
-      // Cutoff- or opt-in-routed org without CHB state: fail closed to Stripe
+      // Sticky CHB org: Stripe cannot serve it, this is a config error
       logger.error(
-        `resolveBillingService: org ${orgId} routes to CHB by cutoff or opt-in but the CHB REST env is incomplete — falling back to Stripe`,
+        `resolveBillingService: org ${orgId} is CHB-billed but the CHB REST env is not configured`,
       );
-      return {
-        billingProvider: "stripe",
-        service: createBillingServiceFromContext(ctx),
-      };
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "ClickHouse Billing is not configured on this deployment",
+      });
     }
     return {
       billingProvider: "clickhouse",

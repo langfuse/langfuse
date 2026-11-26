@@ -1,5 +1,5 @@
 import { type Flag } from "@/src/features/feature-flags/types";
-import { type ProjectScope } from "@langfuse/shared";
+import { type ProjectScope, type Entitlement } from "@langfuse/shared";
 import {
   BellRing,
   Database,
@@ -21,24 +21,34 @@ import {
   ClipboardPen,
   Clock,
   Beaker,
+  Waypoints,
+  Box,
+  Gauge,
+  KeyRound,
+  ShieldCheck,
 } from "@langfuse/icons";
+import { useRouter } from "next/router";
 import { type ReactNode } from "react";
-import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type Session } from "next-auth";
-import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { type OrganizationScope } from "@langfuse/shared/rbac";
 import { SupportButton } from "@/src/components/nav/SupportButton";
 import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { BookACallButton } from "@/src/components/nav/BookACallButton";
-import { SidebarMenuButton } from "@/src/components/ui/sidebar";
+import { SidebarNavItem } from "@/src/components/nav/SidebarNavItem";
+import { useAppNavigation } from "@/src/components/nav/AppNavigationProvider";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
 import { matchesPathname } from "@/src/components/layouts/app-layout/utils/pathClassification";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import {
+  GATEWAY_PAGE_SLUGS,
+  type GatewayPageSlug,
+} from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
+import { gatewayPageSlugFromPath } from "@/src/features/ai-gateway/fns/gatewayUrls/gatewayPageSlugFromPath";
+import { useGatewayKeyReminder } from "@/src/features/ai-gateway/hooks/useGatewayKeyReminder";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 export enum RouteSection {
@@ -50,19 +60,27 @@ export enum RouteGroup {
   Observability = "Observability",
   ContextManagement = "Context management",
   Evaluation = "Evaluation",
+  AiGateway = "AI Gateway",
+  Infrastructure = "Infrastructure",
 }
 
+export const ROUTE_GROUP_BADGES: Partial<Record<RouteGroup, ReactNode>> = {
+  [RouteGroup.AiGateway]: <FeatureReleaseStatus status="beta" />,
+};
+
 export type Route = {
-  id?: "v4-migration";
+  id?: "v4-migration" | "ai-gateway" | "gateway-ingestion-project";
   title: string;
-  menuNode?: ReactNode;
+  menuNode?: (props: { isCollapsed: boolean }) => ReactNode;
   featureFlag?: Flag;
   label?: string | ReactNode;
+  /** Leaves the current app area; the title shows a trailing ↗. */
+  external?: boolean;
   projectRbacScopes?: ProjectScope[]; // array treated as OR
   organizationRbacScope?: OrganizationScope;
   icon?: IconComponent; // ignored for nested routes
   href: string;
-  isActive?: (pathname: string) => boolean;
+  isActive?: (pathname: string, asPath: string) => boolean;
   legacyPathname?: string; // link used when the V4 preview is disabled
   items?: Array<Route>; // folder
   section?: RouteSection; // which section of the sidebar (top/main/bottom)
@@ -75,6 +93,7 @@ export type Route = {
       | undefined;
     projectId: string | undefined;
     canViewTopics: boolean;
+    visibleGatewayPages: Record<GatewayPageSlug, boolean>;
     isLangfuseCloud: boolean;
     hasActiveCloudIncident: boolean;
     canToggleV4: boolean;
@@ -84,6 +103,7 @@ export type Route = {
     v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
+  gatewayPage?: GatewayPageSlug; // disabled until the gateway is set up
 };
 
 export const ROUTES: Route[] = [
@@ -91,27 +111,72 @@ export const ROUTES: Route[] = [
     title: "Go to...",
     href: "", // Empty pathname since this is a dropdown
     icon: Search,
-    menuNode: <CommandMenuTrigger />,
-    section: RouteSection.Main,
-  },
-  {
-    title: "Organizations",
-    href: "/",
-    icon: Grid2X2,
-    show: ({ organization }) => organization === undefined,
+    menuNode: ({ isCollapsed }) => (
+      <CommandMenuTrigger isCollapsed={isCollapsed} />
+    ),
     section: RouteSection.Main,
   },
   {
     title: "Projects",
     href: "/organization/[organizationId]",
     icon: Grid2X2,
-    show: ({ organization }) =>
-      !organization ||
-      hasOrganizationAccess({
-        role: organization.role,
-        scope: "organizationSettings:read",
-      }) ||
-      organization.projects.length > 0,
+    section: RouteSection.Main,
+  },
+  ...(
+    [
+      {
+        title: "Overview",
+        slug: GATEWAY_PAGE_SLUGS.overview,
+        icon: Home,
+      },
+      {
+        title: "Gateway keys",
+        slug: GATEWAY_PAGE_SLUGS.apiKeys,
+        icon: KeyRound,
+      },
+      {
+        title: "Connections & Models",
+        slug: GATEWAY_PAGE_SLUGS.models,
+        icon: Box,
+      },
+      {
+        title: "Budgets",
+        slug: GATEWAY_PAGE_SLUGS.budgets,
+        icon: Gauge,
+      },
+      {
+        title: "Guardrails",
+        slug: GATEWAY_PAGE_SLUGS.guardrails,
+        icon: ShieldCheck,
+      },
+    ] as const
+  ).map(({ title, slug, icon }): Route => ({
+    title,
+    href:
+      slug === GATEWAY_PAGE_SLUGS.overview
+        ? "/organization/[organizationId]/ai-gateway"
+        : `/organization/[organizationId]/ai-gateway/${slug}`,
+    icon,
+    gatewayPage: slug,
+    show: ({ visibleGatewayPages }) => visibleGatewayPages[slug],
+    isActive: (_, asPath) => gatewayPageSlugFromPath(asPath) === slug,
+    label:
+      slug === GATEWAY_PAGE_SLUGS.apiKeys ? (
+        <GatewayKeyReminderDot />
+      ) : undefined,
+    group: RouteGroup.AiGateway,
+    section: RouteSection.Main,
+  })),
+  {
+    // The URL is filled in from the gateway config; see useFilteredNavigation.
+    title: "Tracing",
+    id: "gateway-ingestion-project",
+    href: "/project/[gatewayIngestionProjectId]/traces",
+    icon: ListTree,
+    show: ({ visibleGatewayPages }) =>
+      visibleGatewayPages[GATEWAY_PAGE_SLUGS.models],
+    external: true,
+    group: RouteGroup.AiGateway,
     section: RouteSection.Main,
   },
   {
@@ -163,7 +228,7 @@ export const ROUTES: Route[] = [
     title: "Topics",
     href: "/project/[projectId]/topics",
     icon: Grid2X2,
-    label: <TopicsInternalBadge />,
+    label: <FeatureReleaseStatus status="beta" />,
     show: ({ canViewTopics }) => canViewTopics,
     group: RouteGroup.Observability,
     section: RouteSection.Main,
@@ -179,7 +244,6 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Skills",
-    label: <FeatureReleaseStatus status="beta" />,
     href: "/project/[projectId]/skills",
     icon: FolderCode,
     projectRbacScopes: ["skills:read"],
@@ -201,7 +265,7 @@ export const ROUTES: Route[] = [
     href: "/project/[projectId]/playground",
     icon: TerminalIcon,
     productModule: "playground",
-    group: RouteGroup.ContextManagement,
+    group: RouteGroup.Evaluation,
     section: RouteSection.Main,
   },
   {
@@ -247,6 +311,17 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
+    // The URL is the viewer's first AI Gateway page; see useFilteredNavigation.
+    title: "AI Gateway",
+    id: "ai-gateway",
+    href: "",
+    icon: Waypoints,
+    show: ({ projectId }) => projectId !== undefined,
+    external: true,
+    group: RouteGroup.Infrastructure,
+    section: RouteSection.Main,
+  },
+  {
     // Keep Action required first in the secondary nav so it is not sandwiched
     // between regular items like Upgrade plan and Settings.
     title: "Update",
@@ -262,7 +337,9 @@ export const ROUTES: Route[] = [
     href: "",
     show: ({ isLangfuseCloud, hasActiveCloudIncident }) =>
       isLangfuseCloud && hasActiveCloudIncident,
-    menuNode: <CloudStatusMenu />,
+    menuNode: ({ isCollapsed }) => (
+      <CloudStatusMenu isCollapsed={isCollapsed} />
+    ),
   },
   {
     title: V4_PREVIEW_LABEL,
@@ -278,7 +355,9 @@ export const ROUTES: Route[] = [
     }) =>
       canRecoverV4 ||
       (canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience)),
-    menuNode: <V4SidebarToggle />,
+    menuNode: ({ isCollapsed }) => (
+      <V4SidebarToggle isCollapsed={isCollapsed} />
+    ),
   },
   {
     title: "Upgrade plan",
@@ -287,7 +366,9 @@ export const ROUTES: Route[] = [
     section: RouteSection.Secondary,
     entitlements: ["cloud-billing"],
     organizationRbacScope: "langfuseCloudBilling:CRUD",
-    show: ({ organization }) => organization?.plan === "cloud:hobby",
+    show: ({ organization }) =>
+      organization?.plan === "cloud:hobby" ||
+      organization?.plan === "cloud:enterprise-trial",
   },
   {
     title: "Upgrade plan",
@@ -296,7 +377,9 @@ export const ROUTES: Route[] = [
     section: RouteSection.Secondary,
     entitlements: ["cloud-billing"],
     organizationRbacScope: "langfuseCloudBilling:CRUD",
-    show: ({ organization }) => organization?.plan === "cloud:hobby",
+    show: ({ organization }) =>
+      organization?.plan === "cloud:hobby" ||
+      organization?.plan === "cloud:enterprise-trial",
   },
   {
     title: "Settings",
@@ -309,48 +392,62 @@ export const ROUTES: Route[] = [
     href: "/organization/[organizationId]/settings",
     icon: Settings,
     section: RouteSection.Secondary,
+    organizationRbacScope: "organizationSettings:read",
   },
   {
     title: "Book a call",
     section: RouteSection.Secondary,
     href: "",
-    menuNode: <BookACallButton />,
+    menuNode: ({ isCollapsed }) => (
+      <BookACallButton isCollapsed={isCollapsed} />
+    ),
   },
   {
     title: "Support",
     icon: LifeBuoy,
     section: RouteSection.Secondary,
     href: "", // Empty pathname since this is a dropdown
-    menuNode: <SupportButton />,
+    menuNode: ({ isCollapsed }) => <SupportButton isCollapsed={isCollapsed} />,
   },
 ];
 
-function TopicsInternalBadge() {
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  return internalFeaturesEnabled ? (
-    <FeatureReleaseStatus status="internal" />
+function GatewayKeyReminderDot() {
+  const router = useRouter();
+  const organizationId =
+    typeof router.query.organizationId === "string"
+      ? router.query.organizationId
+      : undefined;
+  const showReminder = useGatewayKeyReminder(organizationId);
+  return showReminder ? (
+    <span
+      aria-label="Get your AI Gateway API key"
+      className="size-1.75 shrink-0 rounded-full bg-orange-400"
+    />
   ) : null;
 }
 
-function CommandMenuTrigger() {
+function CommandMenuTrigger({ isCollapsed }: { isCollapsed: boolean }) {
   const { setOpen } = useCommandMenu();
+  const appNavigation = useAppNavigation();
   const capture = usePostHogClientCapture();
 
   return (
-    <SidebarMenuButton
+    <SidebarNavItem.Button
+      isCollapsed={isCollapsed}
       onClick={() => {
         capture("cmd_k_menu:opened", {
           source: "main_navigation",
         });
+        appNavigation?.closeTransientNavigation();
         setOpen(true);
       }}
-      className="whitespace-nowrap"
-    >
-      <Search size="base" />
-      Go to...
-      <span className="-mr-px ml-auto hidden md:inline-flex">
-        <KeyboardShortcut keys={["Mod", "K"]} />
-      </span>
-    </SidebarMenuButton>
+      leading={<Search size="base" />}
+      label="Go to..."
+      trailing={
+        <span className="hidden md:inline-flex">
+          <KeyboardShortcut keys={["Mod", "K"]} />
+        </span>
+      }
+    />
   );
 }

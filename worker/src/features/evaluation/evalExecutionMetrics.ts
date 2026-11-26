@@ -124,6 +124,7 @@ export function recordEvalScorePersistenceOutcome(
   });
 }
 
+/** @internal */
 export function getLlmEvalTerminalErrorOutcome(
   classification: EvaluatorLlmErrorClassification | null,
 ): Extract<
@@ -235,6 +236,7 @@ type CustomerEvalFailureReason =
   | typeof EvalFailureReason.InvalidModelConfig
   | typeof EvalFailureReason.InvalidModelOutput;
 
+/** @internal */
 export const __test = {
   getEvalScoreCountBucket,
 };

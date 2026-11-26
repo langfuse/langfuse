@@ -1,3 +1,5 @@
+import { InvalidRequestError } from "@langfuse/shared";
+
 /**
  * MCP Error Classes
  *
@@ -45,6 +47,23 @@ export class ApiServerError extends Error {
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, ApiServerError);
     }
+  }
+}
+
+/**
+ * Error raised while a project's MCP observation searches are paused after a
+ * query exceeded ClickHouse resource limits. Recorded as the `throttled`
+ * outcome so pauses stay separate from invalid requests in telemetry.
+ */
+export class McpQueryCooldownError extends InvalidRequestError {
+  readonly retryAfterSeconds: number;
+
+  constructor(seconds: number) {
+    const retryAfterSeconds = Math.max(1, seconds);
+    super(
+      `MCP observation searches for this project are paused after a query exceeded resource limits. Retry in ${retryAfterSeconds}s with a shorter date range or more specific filters, and run searches sequentially.`,
+    );
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 

@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -66,20 +67,20 @@ export function V4IntroDialog({
               </a>
             </li>
           </ul>
-          <div className="mt-3 rounded-md border border-yellow-300 bg-yellow-50 p-3 text-sm dark:border-yellow-700 dark:bg-yellow-950">
-            <p className="text-yellow-900 dark:text-yellow-200">
-              <span className="font-bold">Want traces to appear live?</span>{" "}
+          <div className="mt-3">
+            <Banner
+              variant="warning"
+              title="Want traces to appear live?"
+              actions={[
+                {
+                  text: "Upgrade guide",
+                  href: "https://langfuse.com/docs/observability/sdk/upgrade-path",
+                },
+              ]}
+            >
               Upgrade your SDK to the latest version. Older SDKs still work but
-              traces may take ~10 minutes to appear.{" "}
-              <a
-                href="https://langfuse.com/docs/observability/sdk/upgrade-path"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-bold underline hover:no-underline"
-              >
-                Upgrade guide &rarr;
-              </a>
-            </p>
+              traces may take ~10 minutes to appear.
+            </Banner>
           </div>
         </DialogBody>
         <DialogFooter className="items-center sm:justify-between">

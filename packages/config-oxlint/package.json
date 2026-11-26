@@ -11,11 +11,11 @@
     "./eslint-rules": "./eslint-rules.js"
   },
   "dependencies": {
-    "@next/eslint-plugin-next": "16.4.2",
+    "@next/eslint-plugin-next": "16.4.6",
     "@repo/eslint-plugin": "workspace:*",
-    "eslint-plugin-turbo": "2.11.9",
+    "eslint": "10.8.0",
     "eslint-plugin-react": "^7.37.0",
-    "eslint": "10.8.0"
+    "eslint-plugin-turbo": "2.11.9"
   },
   "peerDependencies": {
     "oxlint": "^1.90.0"

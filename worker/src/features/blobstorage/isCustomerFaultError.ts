@@ -1,6 +1,5 @@
 export {
   classifyCustomerFault,
-  isCustomerFaultError,
   type CustomerFaultReason,
 } from "../integrations/customerFaultClassification";
 

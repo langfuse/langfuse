@@ -549,7 +549,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
                   matchedNodeNames != null && !matchedNodeNames.has(node.id)
                 }
                 compact={compact}
-                onSelect={handleSelect}
+                onSelect={onCanvasNodeNameChange ? handleSelect : undefined}
                 onHover={setHoveredId}
               />
             );

@@ -60,6 +60,16 @@
   stroke: hsl(var(--chart-4));
 }
 
+.component-relationship-node--constants {
+  fill: hsl(var(--chart-3) / 0.16);
+  stroke: hsl(var(--chart-3));
+}
+
+.component-relationship-key--constants {
+  background: hsl(var(--chart-3) / 0.16);
+  border-color: hsl(var(--chart-3));
+}
+
 .component-relationship-key--component {
   background: hsl(var(--chart-1) / 0.16);
   border-color: hsl(var(--chart-1));

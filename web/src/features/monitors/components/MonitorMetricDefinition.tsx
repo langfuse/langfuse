@@ -299,5 +299,5 @@ type SelectDropdownOption<V extends string> = Exclude<
 /** MonitorAggregation is an aggregation a monitor metric can use. */
 type MonitorAggregation = CreateMonitor["metric"]["aggregation"];
 
-/** __test exposes private helpers to co-located tests without widening the module API. */
+/** @internal */
 export const __test = { getMeasuresByAggregation };

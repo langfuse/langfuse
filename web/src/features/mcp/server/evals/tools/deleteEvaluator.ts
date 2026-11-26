@@ -2,8 +2,11 @@ import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { createMcpEvaluatorService } from "../evaluator-service";
+import { EVALUATOR_ID_DESCRIPTION } from "./evaluatorInput";
 
-const DeleteEvaluatorInput = z.object({ evaluatorId: z.string() });
+const DeleteEvaluatorInput = z.object({
+  evaluatorId: z.string().describe(`Required. ${EVALUATOR_ID_DESCRIPTION}`),
+});
 
 export const [deleteEvaluatorTool, handleDeleteEvaluator] = defineTool({
   name: "deleteEvaluator",
@@ -22,5 +25,5 @@ export const [deleteEvaluatorTool, handleDeleteEvaluator] = defineTool({
         return { message: "Evaluator successfully deleted" };
       },
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

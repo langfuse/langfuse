@@ -1,5 +1,7 @@
 import {
   logger,
+  isInternalEvalEnvironment,
+  traceException,
   recordDistribution,
   recordIncrement,
 } from "@langfuse/shared/src/server";
@@ -8,20 +10,40 @@ import {
   isObservationAllowedForQueuedObservationEvals,
   scheduleObservationEvals,
 } from "./observationEval/scheduleObservationEvals";
-import type { ObservationForEval } from "./observationEval/types";
+import type {
+  ObservationEvalSchedulerDeps,
+  ObservationForScheduling,
+} from "./observationEval/types";
 import type { EvalRules } from "./fetchEvalRules";
 import { scheduleTraceTranscriptEvals } from "./traceTranscriptEval/scheduleTraceTranscriptEvals";
-import { prepareTraceBatchRules } from "../traceBatching/traceBatchRules";
+import { prepareTraceDispatchRules } from "../traceDispatch/traceDispatchRules";
 import {
   recordTraceActivity,
   type TraceSpanActivity,
-} from "../traceBatching/traceRuleRecording";
+} from "../traceDispatch/traceRuleRecording";
+
+/**
+ * The durable writes of evaluation scheduling: the job execution row, the
+ * observation snapshot, the queued job and the trace activity record.
+ */
+export type EvalWrites = ObservationEvalSchedulerDeps & {
+  recordTraceActivity: typeof recordTraceActivity;
+};
+
+export const productionEvalWrites = (): EvalWrites => ({
+  ...createObservationEvalSchedulerDeps(),
+  recordTraceActivity,
+});
 
 /** Prepare rules and own the trace-activity buffer for one ingestion batch. */
-export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
+export function createEvalSchedulerDeps(
+  projectId: string,
+  rules: EvalRules,
+  { recordTraceActivity: recordActivity, ...observationWrites }: EvalWrites,
+) {
   // The caller flushes this buffer before returning.
   const traceActivity: TraceSpanActivity[] = [];
-  const traceTranscriptRules = prepareTraceBatchRules(
+  const traceTranscriptRules = prepareTraceDispatchRules(
     projectId,
     rules.traceTranscriptRules,
   ).catch((error) => {
@@ -34,7 +56,7 @@ export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
   });
 
   return {
-    ...createObservationEvalSchedulerDeps(),
+    ...observationWrites,
     traceTranscriptRules,
     collectTraceActivity: (activity: TraceSpanActivity): void => {
       traceActivity.push(activity);
@@ -44,7 +66,7 @@ export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
       const startedAt = performance.now();
       let outcome = "success";
       try {
-        await recordTraceActivity(projectId, traceActivity);
+        await recordActivity(projectId, traceActivity);
         traceActivity.length = 0;
       } catch (error) {
         outcome = "error";
@@ -68,33 +90,92 @@ export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
 
 export type EvalSchedulerDeps = ReturnType<typeof createEvalSchedulerDeps>;
 
+type SchedulingFailureContext = {
+  projectId: string;
+  observationId: string;
+  fileKey?: string;
+};
+
 /**
  * Match transcript rules and schedule observation evals.
  * Return rule IDs for recording after the event write; undefined skips recording.
  */
 export async function scheduleEvals({
-  observation,
+  parseObservation,
+  environment,
   traceActivity,
   rules,
   schedulerDeps,
+  buildFailureContext,
 }: {
-  observation: ObservationForEval;
-  /** Present only for direct event writes. */
+  /** Called only when an evaluation rule needs the observation. */
+  parseObservation: () => ObservationForScheduling;
+  environment: string;
+  /** Present only for sampled direct event writes. */
   traceActivity?: Omit<TraceSpanActivity, "ruleIds" | "serializedEventBytes">;
   rules: EvalRules;
   schedulerDeps: EvalSchedulerDeps;
+  /** Read identifiers on failure, without requiring observation conversion. */
+  buildFailureContext: () => SchedulingFailureContext;
 }): Promise<readonly string[] | undefined> {
-  const matchedRuleIds = await scheduleTraceTranscriptEvals({
-    observation,
-    traceActivity,
-    schedulerDeps,
-  });
-  await scheduleObservationEvals({
-    observation,
-    configs: isObservationAllowedForQueuedObservationEvals(observation)
-      ? rules.observationRules
-      : [],
-    schedulerDeps,
-  });
+  if (isInternalEvalEnvironment(environment)) traceActivity = undefined;
+  let matchedRuleIds: readonly string[] | undefined =
+    traceActivity && rules.traceTranscriptRules.length === 0 ? [] : undefined;
+  if (
+    rules.observationRules.length === 0 &&
+    !(traceActivity && rules.traceTranscriptRules.length > 0)
+  ) {
+    return matchedRuleIds;
+  }
+
+  try {
+    const { observation, loadSnapshot } = parseObservation();
+    if (traceActivity && rules.traceTranscriptRules.length > 0) {
+      matchedRuleIds = await matchTranscriptRules(
+        { observation, traceActivity, schedulerDeps },
+        buildFailureContext,
+      );
+    }
+    if (isObservationAllowedForQueuedObservationEvals(observation)) {
+      await scheduleObservationEvals({
+        observation,
+        loadSnapshot,
+        configs: rules.observationRules,
+        schedulerDeps,
+      });
+    }
+  } catch (error) {
+    reportSchedulingFailure(error, rules, buildFailureContext());
+  }
   return matchedRuleIds;
+}
+
+async function matchTranscriptRules(
+  params: Parameters<typeof scheduleTraceTranscriptEvals>[0],
+  buildFailureContext: () => SchedulingFailureContext,
+) {
+  try {
+    return await scheduleTraceTranscriptEvals(params);
+  } catch (error) {
+    logger.warn("Failed to match trace transcript rules", {
+      error,
+      ...buildFailureContext(),
+    });
+  }
+}
+
+function reportSchedulingFailure(
+  error: unknown,
+  rules: EvalRules,
+  context: SchedulingFailureContext,
+): void {
+  if (rules.observationRules.length > 0) {
+    traceException(error);
+    logger.error("Failed to schedule observation evals", { error, ...context });
+  } else {
+    logger.warn("Failed to normalize observation for trace transcript rules", {
+      error,
+      ...context,
+    });
+  }
 }

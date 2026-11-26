@@ -6,14 +6,13 @@ import {
   PagedSettingsContainer,
 } from "@/src/components/PagedSettingsContainer";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useAccountSettingsPages } from "@/src/features/account/AccountSettingsPage";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
 import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath";
-import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type SettingsScope = "account" | "organization";
 
@@ -41,34 +40,23 @@ export function SettingsPage({ scope }: SettingsPageProps) {
 
   const activeSlug =
     typeof router.query.page === "string" ? router.query.page : undefined;
-  const fullHeight =
-    scope === "organization" &&
-    (activeSlug === "ai-gateway-models" ||
-      activeSlug === "ai-gateway" ||
-      activeSlug === "ai-gateway-api-keys");
 
   if (scope === "organization" && !organization) {
     return (
       <ContainerPage headerProps={{ title: "Settings" }}>
-        <NoDataOrLoading isLoading />
+        <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
+          <Skeleton className="h-full w-full" />
+        </div>
       </ContainerPage>
     );
   }
 
   return (
-    <ContainerPage
-      headerProps={{ title: "Settings" }}
-      extendRight={fullHeight}
-      fullHeight={fullHeight}
-    >
+    <ContainerPage headerProps={{ title: "Settings" }}>
       <PagedSettingsContainer
         activeSlug={activeSlug}
         pages={pages}
-        fullHeight={fullHeight}
         sectionHeaders={organizationSectionHeaders(organization?.id, pages)}
-        sectionBadges={{
-          "AI Gateway": <FeatureReleaseStatus status="beta" />,
-        }}
       />
     </ContainerPage>
   );
@@ -116,6 +104,7 @@ const organizationSettingsPath = (organizationId: string, slug: string) =>
  * Merges account and organization settings into one nav. Pages owned by the
  * other route become internal links, so each route only renders its own
  * content while the nav looks the same on both.
+ * @internal
  */
 export function buildSettingsPages({
   scope,

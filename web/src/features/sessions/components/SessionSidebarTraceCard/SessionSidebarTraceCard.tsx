@@ -6,6 +6,7 @@ import { HighlightedText } from "@/src/components/HighlightedText/HighlightedTex
 export function SessionSidebarTraceCard({
   title,
   isActive,
+  isPeeked,
   children,
   number,
   onSelect,
@@ -14,6 +15,7 @@ export function SessionSidebarTraceCard({
 }: {
   title: string;
   isActive: boolean;
+  isPeeked?: boolean;
   children: ReactNode;
   number: string | number;
   onSelect: () => void;
@@ -28,9 +30,11 @@ export function SessionSidebarTraceCard({
     <div
       role="group"
       aria-label={title}
+      data-peeked={isPeeked || undefined}
       className={cn(
         "ph-no-capture group border-border hover:bg-muted/60 rounded-md border p-2 transition-colors duration-150",
-        isActive && "border-primary-accent/50 bg-background dark:bg-muted",
+        (isActive || isPeeked) && "border-primary-accent/60",
+        isPeeked && "bg-muted",
       )}
     >
       <div className="flex w-full items-center gap-2">

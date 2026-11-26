@@ -1,3 +1,4 @@
+import { usePublicSharingDisabledReason } from "@/src/ee/features/public-sharing/hooks/usePublicSharingDisabledReason";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -23,6 +24,7 @@ export function usePublishObject(props: PublishObjectProps) {
     projectId,
     scope: "objects:publish",
   });
+  const sharingDisabledReason = usePublicSharingDisabledReason(projectId);
   const utils = api.useUtils();
   const traceQueryInput: RouterInput["traces"]["byIdWithObservationsAndScores"] =
     { projectId, traceId: objectId, timestamp };
@@ -143,7 +145,12 @@ export function usePublishObject(props: PublishObjectProps) {
     return mutation.mutateAsync(isPublic);
   };
 
-  return { hasAccess, isPending: mutation.isPending, toggle };
+  return {
+    hasAccess,
+    sharingDisabledReason,
+    isPending: mutation.isPending,
+    toggle,
+  };
 }
 
 const getShareUrlWithBasePath = (shareUrl: string) => {

@@ -1,12 +1,13 @@
 import type { Observation } from "@langfuse/shared";
 import {
   convertObservation,
-  type TraceBatchEventRow,
+  type EventsDispatchEventRow,
 } from "@langfuse/shared/src/server";
 
 export type TraceEventObservation = Observation & {
   eventTimestamp: string;
   sessionId: string | null;
+  traceName: string | null;
 };
 
 /** Identity of one trace within a job; a job spans projects. */
@@ -14,7 +15,7 @@ export const traceKey = (projectId: string, traceId: string) =>
   JSON.stringify([projectId, traceId]);
 
 export function toTraceEventObservation(
-  row: TraceBatchEventRow,
+  row: EventsDispatchEventRow,
 ): TraceEventObservation {
   return {
     ...convertObservation({
@@ -32,11 +33,12 @@ export function toTraceEventObservation(
     }),
     eventTimestamp: row.event_ts,
     sessionId: row.session_id || null,
+    traceName: row.trace_name || null,
   };
 }
 
 /** Logical UTF-8 payload size, excluding JSON transport and compression. */
-export function traceEventPayloadBytes(row: TraceBatchEventRow): number {
+export function traceEventPayloadBytes(row: EventsDispatchEventRow): number {
   let bytes = Buffer.byteLength(row.input) + Buffer.byteLength(row.output);
   for (const [key, value] of Object.entries(row.metadata))
     bytes += Buffer.byteLength(key) + Buffer.byteLength(value);
@@ -60,5 +62,12 @@ export function newestEvent<T extends TraceEventObservation>(
 export function newestSessionId(observations: TraceEventObservation[]) {
   return (
     newestEvent(observations.filter((row) => row.sessionId))?.sessionId ?? null
+  );
+}
+
+/** Stored trace name of the newest event that has one, as manual processing reads it. */
+export function newestTraceName(observations: TraceEventObservation[]) {
+  return (
+    newestEvent(observations.filter((row) => row.traceName))?.traceName ?? null
   );
 }

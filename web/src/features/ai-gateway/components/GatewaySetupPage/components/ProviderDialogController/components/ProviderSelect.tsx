@@ -29,7 +29,7 @@ export function ProviderSelect({
       <FieldHeader
         htmlFor="gateway-provider"
         label="Provider"
-        description="Where gateway requests for this credential are sent."
+        description="Where gateway requests for this connection are sent."
       />
       <Select value={value} onValueChange={handleValueChange}>
         <SelectTrigger id="gateway-provider">

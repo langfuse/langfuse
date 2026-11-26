@@ -1,5 +1,10 @@
 import { type FilterCondition, type FilterState } from "@langfuse/shared";
-import { resolveField } from "@/src/features/search-bar/lib/fields";
+import type { CompareOp } from "@/src/features/search-bar/lib/ast";
+import { isComparison } from "@/src/features/search-bar/lib/adapter";
+import {
+  type FieldRegistry,
+  resolveField,
+} from "@/src/features/search-bar/lib/fields";
 
 /**
  * Which of the events table's sidebar/search filters a chart can honour, and a
@@ -110,6 +115,7 @@ const CHART_UNSUPPORTED_FIELD_REASON =
  * present-tense and polite, without claiming a hard impossibility (none of these
  * are) or promising a roadmap — plus the reassurance that the filter still works
  * on the table. No "dimension"/"measure" jargon.
+ * @internal
  */
 export function chartFilterExclusionReason(column: string): string | null {
   if (FORWARDABLE_CHART_FILTER_COLUMNS.has(column)) return null;
@@ -181,13 +187,25 @@ export function toChartFilters(filterState: FilterState): FilterState {
  * it is forwarded. Resolves a grammar field name (`level`, `user`, `latency`,
  * `scores.accuracy`, `metadata.region`) to its filter column via the bar's own
  * `resolveField`, so a token deactivates identically to its sidebar facet.
+ * `op` is the token's operator: a numeric metadata comparison lowers to a
+ * filter shape the chart drops.
  */
-export function chartSearchFieldReason(fieldName: string): string | null {
-  const ref = resolveField(fieldName);
+export function chartSearchFieldReason(
+  fieldName: string,
+  registry?: FieldRegistry,
+  op?: CompareOp,
+): string | null {
+  const ref = resolveField(fieldName, registry);
   if (!ref) return null;
-  // A metadata dot-path lowers to the keyed `stringObject` shape the chart
-  // query accepts, so it deactivates only if the column policy says so.
-  if (ref.type === "metadata") return chartFilterExclusionReason("metadata");
+  if (ref.type === "metadata") {
+    // Comparisons lower to `numberObject`, which the chart query rejects;
+    // everything else lowers to the keyed `stringObject` shape it accepts.
+    if (ref.numeric === true && op !== undefined && isComparison(op))
+      return CHART_UNSUPPORTED_FIELD_REASON;
+    return chartFilterExclusionReason("metadata");
+  }
+  if (ref.type === "keyedOptions")
+    return chartFilterExclusionReason(ref.column);
   if (ref.type === "scores")
     return chartFilterExclusionReason(
       ref.level === "trace" ? "trace_scores_avg" : "scores_avg",
@@ -204,6 +222,7 @@ export function chartSearchFieldReason(fieldName: string): string | null {
  * Splits a `FilterState` into what the chart forwards and what it ignores, with
  * a per-column reason for the ignored ones. Both filter surfaces read the
  * `excluded` map (column -> reason) to deactivate the matching filter.
+ * @internal
  */
 export function classifyChartFilters(filterState: FilterState): {
   forwarded: FilterState;

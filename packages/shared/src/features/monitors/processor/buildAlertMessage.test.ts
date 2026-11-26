@@ -185,6 +185,19 @@ const cases: Case[] = [
     },
   },
   {
+    name: "OK from missing data treated as OK: body says there is no data instead of a recovery",
+    monitor: {
+      severity: MonitorSeveritySchema.enum.ALERT,
+      noData: { mode: MonitorNoDataModeSchema.enum.SUBSTITUTE_OK },
+    },
+    next: MonitorSeveritySchema.enum.OK,
+    value: null,
+    expected: {
+      title: "[OK] Latency monitor",
+      body: `${metricRef} has no data over the last **5m** (treated as OK)`,
+    },
+  },
+  {
     name: "ALERT on a cost metric: body prefixes value and threshold with $",
     monitor: {
       severity: MonitorSeveritySchema.enum.OK,

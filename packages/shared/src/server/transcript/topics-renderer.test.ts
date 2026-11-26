@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { convertObservation } from "../repositories/observations_converters";
 import { createObservation } from "../test-utils/tracing-factory";
-import { inheritedConversationHistoryFixture } from "./fixtures/trace/inherited-conversation-history";
-import { standaloneToolObservationFixture } from "./fixtures/trace/standalone-tool-observation";
+import { inheritedConversationHistoryFixture } from "./__tests__/fixtures/trace/inherited-conversation-history";
+import { standaloneToolObservationFixture } from "./__tests__/fixtures/trace/standalone-tool-observation";
 import { orderObservations } from "./ordering";
 import {
   renderTranscript,
@@ -60,6 +60,7 @@ describe("Topics transcript renderer", () => {
         "</this_run>",
         "<end_of_run>",
         "last action: assistant text",
+        "visible reply: assistant text",
         "final output: assistant",
         "</end_of_run>",
       ].join("\n"),
@@ -205,7 +206,7 @@ describe("Topics transcript renderer", () => {
       text.indexOf("<end_of_run>"),
     );
     expect(text).toContain(
-      "last action: assistant text\nfinal output: application output",
+      "last action: assistant text\nvisible reply: assistant text\nfinal output: application output",
     );
   });
 
@@ -415,7 +416,51 @@ describe("Topics transcript renderer", () => {
     expect(
       renderTranscript(pending, [root, generation], topicsTranscriptConfig)
         .text,
-    ).toContain("last action: assistant tool call");
+    ).toContain("last action: assistant tool call\nvisible reply: none");
+    // A run that ends on an unanswered tool call, such as an approval, is a pending call.
+    expect(
+      renderTranscript(pending, [root, generation], topicsTranscriptConfig)
+        .visibleReply,
+    ).toEqual({ value: "none", noneEnding: "pending_tool_call" });
+
+    // A blank text part next to the tool call is not a reply the user can read.
+    const [request, call] = messages;
+    const blank: Transcript = {
+      threads: [
+        {
+          ...pending.threads[0],
+          currentTurn: {
+            ...pending.threads[0].currentTurn,
+            messages: [
+              request,
+              { ...call, parts: [{ type: "text", text: "  " }, ...call.parts] },
+            ],
+          },
+        },
+      ],
+    };
+    expect(
+      renderTranscript(blank, [root, generation], topicsTranscriptConfig).text,
+    ).toContain("visible reply: none");
+    // Blank text after the call does not change the ending.
+    const trailing: Transcript = {
+      threads: [
+        {
+          ...pending.threads[0],
+          currentTurn: {
+            ...pending.threads[0].currentTurn,
+            messages: [
+              request,
+              { ...call, parts: [...call.parts, { type: "text", text: "  " }] },
+            ],
+          },
+        },
+      ],
+    };
+    expect(
+      renderTranscript(trailing, [root, generation], topicsTranscriptConfig)
+        .visibleReply,
+    ).toEqual({ value: "none", noneEnding: "pending_tool_call" });
   });
 
   it("marks the request after supplied context without repeating trace input", () => {
@@ -606,6 +651,8 @@ describe("Topics transcript renderer", () => {
     expect(text).not.toContain("[tool] lookup");
     expect(text).not.toContain("[final output] Result");
     expect(text).toContain("final output: tool result");
+    // The root output reached the user, even though it repeats the final tool result.
+    expect(text).toContain("visible reply: application output");
   });
 
   it("pairs a result with the current call when replayed history reused its ID", () => {
@@ -689,5 +736,58 @@ describe("Topics transcript renderer", () => {
       topicsTranscriptConfig,
     ).text;
     expect(withoutIdsText).toContain("[tool lookup #1 ←] Found");
+  });
+
+  it("scrubs payload media and opaque blobs like the JSON input and keeps audio transcripts", () => {
+    const at = new Date("2026-01-01T00:00:00.000Z");
+    const message = (
+      role: "user" | "assistant" | "tool",
+      parts: Transcript["threads"][number]["currentTurn"]["messages"][number]["parts"],
+    ) => ({ role, observationId: "g", startTime: at, endTime: at, parts });
+    const transcript = {
+      threads: [
+        {
+          conversationHistory: [],
+          currentTurn: {
+            nestingLevel: 0,
+            observations: [{ id: "g", traceId: "trace" }],
+            messages: [
+              message("user", [{ type: "text", text: "Read the page aloud" }]),
+              message("tool", [
+                {
+                  type: "tool-result",
+                  toolCallId: "1",
+                  toolName: "screenshot",
+                  output: {
+                    type: "json",
+                    value: {
+                      mimeType: "image/png",
+                      data: "iVBORw0KGgo",
+                      signature: "opaque-blob",
+                    },
+                  },
+                },
+              ]),
+              message("assistant", [
+                {
+                  type: "file",
+                  mediaType: "audio/wav",
+                  content: { kind: "base64", data: "UklGR" },
+                  providerMetadata: { transcript: "Prices start at $10." },
+                },
+              ]),
+            ],
+          },
+        },
+      ],
+    } as unknown as Transcript;
+
+    const { text } = renderTranscript(transcript, [], topicsTranscriptConfig);
+    expect(text).toContain('{"mimeType":"image/png","data":"[media omitted]"}');
+    expect(text).not.toContain("iVBORw0KGgo");
+    expect(text).toContain(
+      "[assistant] [audio/wav omitted] transcript: Prices start at $10.",
+    );
+    expect(text).toContain("visible reply: assistant audio");
   });
 });

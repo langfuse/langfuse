@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import TracesTable from "@/src/features/traces/TracesTable";
 import Page from "@/src/components/layouts/Page";
@@ -11,6 +10,7 @@ import {
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { tracingPageView } from "@/src/features/traces/fns/tracingPageView";
 import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function TracesPage() {
@@ -21,7 +21,7 @@ export default function TracesPage() {
 
   // Check if the user has tracing configured
   // Skip polling entirely if the project flag is already set in the session
-  const { data: hasTracingConfigured, isLoading } =
+  const { data: hasTracingConfigured, isPending } =
     api.traces.hasTracingConfigured.useQuery(
       { projectId },
       {
@@ -37,9 +37,9 @@ export default function TracesPage() {
       },
     );
 
-  const showOnboarding = !isLoading && !hasTracingConfigured;
+  const view = tracingPageView({ isPending, hasTracingConfigured });
 
-  if (showOnboarding) {
+  if (view !== "table") {
     return (
       <Page
         headerProps={{
@@ -53,7 +53,7 @@ export default function TracesPage() {
         }}
         scrollable
       >
-        <TracesOnboarding projectId={projectId} />
+        {view === "onboarding" && <TracesOnboarding projectId={projectId} />}
       </Page>
     );
   }
@@ -96,14 +96,15 @@ export default function TracesPage() {
           legacy table can briefly mount, restore a v3 saved view, and
           promote its viewId into the URL before the correct mode
           resolves. */}
-      {!isResolved ? null : isV4 ? (
+      {isResolved && isV4 && (
         <ObservationsEventsTable
           projectId={projectId}
           showControlsInPageHeader
           enableAppRootDefault
           showAllEnvironments={router.query.showAllEnvironments === "true"}
         />
-      ) : (
+      )}
+      {isResolved && !isV4 && (
         <TracesTable projectId={projectId} showControlsInPageHeader />
       )}
     </Page>

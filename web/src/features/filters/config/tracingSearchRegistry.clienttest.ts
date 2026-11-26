@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { FilterState } from "@langfuse/shared";
 import { planCommit } from "@/src/features/search-bar/lib/commit";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
-import { runSearchBarInvariants } from "@/src/features/search-bar/lib/searchBarInvariants";
+import { runSearchBarInvariants } from "@/src/features/search-bar/__tests__/searchBarInvariants";
 import { validateQuery } from "@/src/features/search-bar/lib/validate";
 
 import { getTraceFilterConfig } from "./traces-config";

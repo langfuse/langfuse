@@ -111,7 +111,7 @@ export const getActionById = async ({
 
 export type TriggerDomainWithActions = TriggerDomain & {
   actionIds: string[];
-  automations: { id: string; actionId: string }[];
+  automations: { id: string; actionId: string; actionType: Action["type"] }[];
 };
 
 export const getTriggerConfigurations = async ({
@@ -144,6 +144,7 @@ export const getTriggerConfigurations = async ({
     automations: trigger.automations.map((automation) => ({
       id: automation.id,
       actionId: automation.action.id,
+      actionType: automation.action.type,
     })),
   }));
 

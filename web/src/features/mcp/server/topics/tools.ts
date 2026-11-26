@@ -81,7 +81,7 @@ export const [listTopicFacetsTool, handleListTopicFacets] = defineTool({
           listPublicTopicFacets({ projectId: context.projectId, ...input }),
         ),
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });
 
 export const [listTopicsTool, handleListTopics] = defineTool({
@@ -95,7 +95,7 @@ export const [listTopicsTool, handleListTopics] = defineTool({
       .array(McpAdvancedFilterBaseSchema)
       .optional()
       .describe(
-        "Filter conditions combined with AND. Columns: facetId (stringOptions), facetName (string, stringOptions), id (stringOptions), name (string, stringOptions).",
+        "Filter conditions combined with AND. Columns: facetId (stringOptions), facetName (string, stringOptions), ruleId (stringOptions), stableId (stringOptions), name (string, stringOptions).",
       ),
     orderBy: z
       .enum(["traceCount.desc", "traceCount.asc", "name.asc", "name.desc"])
@@ -113,7 +113,7 @@ export const [listTopicsTool, handleListTopics] = defineTool({
           listPublicTopics({ projectId: context.projectId, ...input }),
         ),
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });
 
 export const [listTopicRulesTool, handleListTopicRules] = defineTool({
@@ -141,7 +141,7 @@ export const [listTopicRulesTool, handleListTopicRules] = defineTool({
           listPublicTopicRules({ projectId: context.projectId, ...input }),
         ),
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });
 
 const resultListBaseFields = {
@@ -177,7 +177,7 @@ export const [listTopicSummariesTool, handleListTopicSummaries] = defineTool({
   description: [
     "List the current Topics summary of traces, one row per trace and facet: what the trace is about from that facet's perspective.",
     TRACE_ID_HINT,
-    "Filter by topicId, topicName or assignmentStatus to read the summaries of a topic's traces, or of traces no topic fits (outlier) or not yet assigned (awaiting_map).",
+    "Filter by topicStableId, topicName or assignmentStatus to read the summaries of a topic's traces, or of traces no topic fits (outlier) or not yet assigned (awaiting_map).",
     "The window spans at most 30 days. Use meta.cursor to fetch the next page; a short or empty page with a cursor is not the end. traceId accepts at most 100 ids.",
   ].join(" "),
   action: "topics:read",
@@ -187,7 +187,7 @@ export const [listTopicSummariesTool, handleListTopicSummaries] = defineTool({
       .array(McpAdvancedFilterBaseSchema)
       .optional()
       .describe(
-        'Filter conditions combined with AND. Columns: traceId, facetId, facetName, ruleId, environment (stringOptions), timestamp, processedAt (datetime), state (stringOptions: complete, not_applicable, insufficient_input), topicId, topicName (stringOptions), assignmentStatus (stringOptions, any of: assigned, outlier, awaiting_map). Example: [{"type":"stringOptions","column":"traceId","operator":"any of","value":["<trace id>"]}].',
+        'Filter conditions combined with AND. Columns: traceId, facetId, facetName, ruleId, environment (stringOptions), timestamp, createdAt (datetime), state (stringOptions: complete, not_applicable, insufficient_input, empty_input, input_too_large), topicStableId, topicName (stringOptions), assignmentStatus (stringOptions, any of: assigned, outlier, awaiting_map). Example: [{"type":"stringOptions","column":"traceId","operator":"any of","value":["<trace id>"]}].',
       ),
     truncateSummaries: z
       .boolean()
@@ -215,7 +215,7 @@ export const [listTopicSummariesTool, handleListTopicSummaries] = defineTool({
         return result;
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });
 
 export const [listTopicAssignmentsTool, handleListTopicAssignments] =
@@ -224,7 +224,7 @@ export const [listTopicAssignmentsTool, handleListTopicAssignments] =
     description: [
       "List the current topic of traces on each rule's live map, one row per trace, facet and rule. status is assigned (with its topic) or outlier (no topic fits).",
       TRACE_ID_HINT,
-      "Filter by topicId or topicName to list a topic's traces.",
+      "Filter by topicStableId or topicName to list a topic's traces.",
       "The window spans at most 30 days. Use meta.cursor to fetch the next page; a short or empty page with a cursor is not the end. traceId accepts at most 100 ids.",
     ].join(" "),
     action: "topics:read",
@@ -234,7 +234,7 @@ export const [listTopicAssignmentsTool, handleListTopicAssignments] =
         .array(McpAdvancedFilterBaseSchema)
         .optional()
         .describe(
-          "Filter conditions combined with AND. Columns: traceId, facetId, facetName, ruleId, environment, topicId, topicName (stringOptions), status (stringOptions, any of: assigned, outlier), timestamp (datetime).",
+          "Filter conditions combined with AND. Columns: traceId, facetId, facetName, ruleId, environment, topicStableId, topicName (stringOptions), status (stringOptions, any of: assigned, outlier), timestamp, createdAt (datetime).",
         ),
     }),
     inputSchema: GetUnstableTopicAssignmentsQuery.extend(resultListInput),
@@ -255,5 +255,5 @@ export const [listTopicAssignmentsTool, handleListTopicAssignments] =
           return result;
         },
       }),
-    readOnlyHint: true,
+    annotations: { readOnlyHint: true },
   });

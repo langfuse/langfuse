@@ -412,19 +412,27 @@ mod tests {
         }
     }
 
-    #[test]
-    fn hashes_large_python_bytes_literals_in_bounded_chunks() {
-        let decoded = vec![b'a'; BASE64_HASH_DECODED_CHUNK_SIZE + 17];
-        let mut encoded = Vec::with_capacity(decoded.len() + 3);
-        encoded.extend_from_slice(b"b'");
-        encoded.extend_from_slice(&decoded);
-        encoded.push(b'\'');
-        let expected_hash: [u8; 32] = Sha256::digest(&decoded).into();
-
-        assert_eq!(
-            hash_encoded_data(&encoded, MediaEncoding::PythonBytesLiteral).unwrap(),
-            expected_hash
-        );
+    /// Write `bytes` the way Python prints a bytes object delimited by `quote`.
+    fn python_bytes_literal(bytes: &[u8], quote: u8) -> Vec<u8> {
+        let mut literal = vec![b'b', quote];
+        for &byte in bytes {
+            match byte {
+                b'\\' => literal.extend_from_slice(b"\\\\"),
+                b'\t' => literal.extend_from_slice(b"\\t"),
+                b'\n' => literal.extend_from_slice(b"\\n"),
+                b'\r' => literal.extend_from_slice(b"\\r"),
+                _ if byte == quote => literal.extend_from_slice(&[b'\\', quote]),
+                0x20..=0x7e => literal.push(byte),
+                _ => literal.extend_from_slice(&[
+                    b'\\',
+                    b'x',
+                    b"0123456789abcdef"[usize::from(byte >> 4)],
+                    b"0123456789abcdef"[usize::from(byte & 0x0f)],
+                ]),
+            }
+        }
+        literal.push(quote);
+        literal
     }
 
     proptest! {
@@ -448,13 +456,13 @@ mod tests {
         }
 
         #[test]
-        fn bounded_base64_hash_matches_decoded_content(bytes in prop_oneof![
+        fn bounded_hashes_match_decoded_content(bytes in prop_oneof![
                 prop::collection::vec(any::<u8>(), 1..4096),
                 prop::collection::vec(
                     any::<u8>(),
                     BASE64_HASH_DECODED_CHUNK_SIZE..(2 * BASE64_HASH_DECODED_CHUNK_SIZE + 17),
                 ),
-            ]) {
+            ], quote in prop::sample::select(vec![b'\'', b'"'])) {
             // Pin the first partial chunk as well as sampling arbitrary bodies and padding.
             let boundary: [u8; BASE64_HASH_DECODED_CHUNK_SIZE + 1] =
                 std::array::from_fn(|index| index.wrapping_mul(31) as u8);
@@ -464,6 +472,9 @@ mod tests {
                 prop_assert_eq!(hash_encoded_data(encoded.as_bytes(), MediaEncoding::Base64).unwrap(), expected);
                 let unpadded = encoded.trim_end_matches('=');
                 prop_assert_eq!(hash_encoded_data(unpadded.as_bytes(), MediaEncoding::Base64).unwrap(), expected);
+                let literal = python_bytes_literal(bytes, quote);
+                prop_assert_eq!(hash_encoded_data(&literal, MediaEncoding::PythonBytesLiteral).unwrap(), expected);
+                prop_assert_eq!(decode_python_bytes_literal(&literal).unwrap(), bytes);
             }
         }
     }

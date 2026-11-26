@@ -1,10 +1,18 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
-import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
 import {
-  loadTopicTranscript,
+  createEvent,
+  createEventsCh,
+  getTopicSetupTraceBounds,
+  getTopicSetupTraceIds,
+} from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
+import type { TopicSummary } from "@langfuse/shared/topics";
+import {
+  getSampledTopicClusteringSummaries,
   selectTopicTraceRows,
+  summarizedTopicMatchesQuery,
+  writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
 
 const selection = {
@@ -51,11 +59,8 @@ describe("Topics trace selection", () => {
   });
   it("deduplicates, orders and scopes matches to the project, window and public environments", async () => {
     const input = { ...selection, projectId };
-    const [preview, ids] = await Promise.all([
-      selectTopicTraceRows(input, prisma, "preview"),
-      selectTopicTraceRows(input, prisma, "ids"),
-    ]);
-    expect(ids).toEqual([{ id: "trace-new" }, { id: "trace-old" }]);
+    const preview = await selectTopicTraceRows(input, prisma);
+    expect(preview.map(({ id }) => id)).toEqual(["trace-new", "trace-old"]);
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
   });
 
@@ -79,12 +84,215 @@ describe("Topics trace selection", () => {
         },
       ],
     };
-    const [preview, ids] = await Promise.all([
-      selectTopicTraceRows(input, prisma, "preview"),
-      selectTopicTraceRows(input, prisma, "ids"),
-    ]);
-    expect(ids).toEqual([{ id: "trace-new" }]);
+    const preview = await selectTopicTraceRows(input, prisma);
+    expect(preview.map(({ id }) => id)).toEqual(["trace-new"]);
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
+  });
+
+  it("samples the summaries of traces that meet a rule's filter, filtering before the limit", async () => {
+    await createEventsCh(
+      [
+        ["trace-unmatched", "2026-09-23T09:30:00Z", "plan"],
+        ["trace-earlier", "2026-09-12T09:00:00Z", "fetch_context"],
+        // Starts with another span and matches 30 minutes later.
+        ["trace-long", "2026-09-16T23:50:00Z", "plan"],
+        ["trace-long", "2026-09-17T00:20:00Z", "fetch_context"],
+      ].map(([trace, timestamp, name]) =>
+        createEvent({
+          project_id: projectId,
+          trace_id: trace,
+          name,
+          start_time: new Date(timestamp),
+          environment: "test",
+        }),
+      ),
+    );
+    // "trace-outside" matches the filter but has no summary.
+    await writeTopicSummaries(
+      [
+        ["trace-new", "2026-09-23T09:00:00.000Z"],
+        ["trace-old", "2026-09-23T08:00:00.000Z"],
+        ["trace-unmatched", "2026-09-23T09:30:00.000Z"],
+        ["trace-earlier", "2026-09-12T09:00:00.000Z"],
+        ["trace-long", "2026-09-16T23:50:00.000Z"],
+      ].map(([traceId, unitStartTime]) => ({
+        projectId,
+        facetId: "facet",
+        facetVersion: 1,
+        traceId,
+        sessionId: null,
+        triggerType: "rule",
+        ruleIds: [],
+        executionId: null,
+        environment: "test",
+        traceName: "agent-turn",
+        unitStartTime,
+        state: "complete",
+        summary: "summary",
+        embedding: [1, 0],
+        transcriptId: "transcript",
+        transcriptVersion: "v1",
+        transcriptBytes: 0,
+        summaryModel: "summary",
+        embeddingModel: "embed",
+        providedUsageDetails: {},
+        usageDetails: {},
+        providedCostDetails: {},
+        costDetails: {},
+        createdAt: new Date().toISOString(),
+        metadata: {},
+      })),
+    );
+    const facet = { facetId: "facet", version: 1 };
+    const timeRange = {
+      from: new Date("2026-09-01T00:00:00.000Z"),
+      to: selection.to,
+    };
+
+    const traces = await summarizedTopicMatchesQuery(
+      {
+        projectId,
+        facet,
+        filter: [
+          {
+            column: "name",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["fetch_context"],
+          },
+        ],
+        ...timeRange,
+      },
+      prisma,
+    );
+    const sample = (limits: { maxRows: number; maxBytes: number }) =>
+      getSampledTopicClusteringSummaries(
+        projectId,
+        facet,
+        { embeddingModel: "embed", embeddingDimensions: 2 },
+        timeRange,
+        limits,
+        async () => traces,
+      ).then(({ summaries }) => summaries.map(({ traceId }) => traceId));
+
+    const matched = ["trace-new", "trace-old", "trace-earlier", "trace-long"];
+    expect((await sample({ maxRows: 10, maxBytes: 1_000_000 })).sort()).toEqual(
+      [...matched].sort(),
+    );
+    // The byte-estimated limit admits at most two of the matches.
+    const limited = await sample({ maxRows: 3, maxBytes: 6000 });
+    expect(limited.length).toBeLessThanOrEqual(2);
+    expect(matched).toEqual(expect.arrayContaining(limited));
+  });
+
+  it("samples the same traces on consecutive nights with overlapping windows", async () => {
+    const sampleProject = randomUUID();
+    const facet = { facetId: "facet", version: 1 };
+    const day = 86_400_000;
+    const start = Date.parse("2026-09-01T00:00:00.000Z");
+    // One summary per hour for ten days.
+    await writeTopicSummaries(
+      Array.from({ length: 240 }, (_, hour) => ({
+        projectId: sampleProject,
+        facetId: facet.facetId,
+        facetVersion: facet.version,
+        traceId: `hourly-${hour}`,
+        sessionId: null,
+        triggerType: "rule" as const,
+        ruleIds: [],
+        executionId: null,
+        environment: "test",
+        traceName: "agent-turn",
+        unitStartTime: new Date(start + hour * 3_600_000).toISOString(),
+        state: "complete" as const,
+        summary: "summary",
+        embedding: [1, 0],
+        transcriptId: "transcript",
+        transcriptVersion: "v1",
+        transcriptBytes: 0,
+        summaryModel: "summary",
+        embeddingModel: "embed",
+        providedUsageDetails: {},
+        usageDetails: {},
+        providedCostDetails: {},
+        costDetails: {},
+        createdAt: new Date().toISOString(),
+        metadata: {},
+      })),
+    );
+    const night = (from: number) =>
+      getSampledTopicClusteringSummaries(
+        sampleProject,
+        facet,
+        { embeddingModel: "embed", embeddingDimensions: 2 },
+        { from: new Date(from), to: new Date(from + 7 * day) },
+        { maxRows: 40, maxBytes: 1_000_000 },
+      ).then(({ summaries }) => summaries);
+    const [first, second] = [await night(start), await night(start + day)];
+    const overlap = (rows: TopicSummary[]) =>
+      rows
+        .filter(
+          ({ unitStartTime }) =>
+            Date.parse(unitStartTime) >= start + day &&
+            Date.parse(unitStartTime) < start + 7 * day,
+        )
+        .map(({ traceId }) => traceId)
+        .sort();
+
+    for (const rows of [first, second]) {
+      expect(rows.length).toBeLessThanOrEqual(40);
+      expect(rows.length).toBeGreaterThan(30);
+    }
+    expect(overlap(second)).toEqual(overlap(first));
+  });
+
+  it("widens a refit to 14 days before the whole window when 7 days hold too few summaries", async () => {
+    const stepProject = randomUUID();
+    const facet = { facetId: "facet", version: 1 };
+    const day = 86_400_000;
+    const end = Date.parse("2026-09-30T00:00:00.000Z");
+    // One summary every 12 hours for 30 days: 14 in the last 7 days, 28 in the last 14.
+    await writeTopicSummaries(
+      Array.from({ length: 60 }, (_, index) => ({
+        projectId: stepProject,
+        facetId: facet.facetId,
+        facetVersion: facet.version,
+        traceId: `half-day-${index}`,
+        sessionId: null,
+        triggerType: "rule" as const,
+        ruleIds: [],
+        executionId: null,
+        environment: "test",
+        traceName: "agent-turn",
+        unitStartTime: new Date(end - (index + 1) * (day / 2)).toISOString(),
+        state: "complete" as const,
+        summary: "summary",
+        embedding: [1, 0],
+        transcriptId: "transcript",
+        transcriptVersion: "v1",
+        transcriptBytes: 0,
+        summaryModel: "summary",
+        embeddingModel: "embed",
+        providedUsageDetails: {},
+        usageDetails: {},
+        providedCostDetails: {},
+        costDetails: {},
+        createdAt: new Date().toISOString(),
+        metadata: {},
+      })),
+    );
+    const { summaries, timeRange } = await getSampledTopicClusteringSummaries(
+      stepProject,
+      facet,
+      { embeddingModel: "embed", embeddingDimensions: 2 },
+      { from: new Date(end - 30 * day), to: new Date(end) },
+      { maxRows: 20, maxBytes: 1_000_000 },
+    );
+    expect(timeRange.from).toEqual(new Date(end - 14 * day));
+    expect(summaries.length).toBeLessThanOrEqual(20);
+    expect(summaries.length).toBeGreaterThan(10);
+    for (const { unitStartTime } of summaries)
+      expect(Date.parse(unitStartTime)).toBeGreaterThanOrEqual(end - 14 * day);
   });
 
   it("filters latest matching environments before counting and limiting", async () => {
@@ -138,10 +346,7 @@ describe("Topics trace selection", () => {
         ),
     );
     const input = { ...selection, projectId: mixedProject, limit: 1 };
-    const [preview, ids] = await Promise.all([
-      selectTopicTraceRows(input, prisma, "preview"),
-      selectTopicTraceRows(input, prisma, "ids"),
-    ]);
+    const preview = await selectTopicTraceRows(input, prisma);
     expect(preview).toEqual([
       expect.objectContaining({
         id: "equal-timestamp",
@@ -149,20 +354,9 @@ describe("Topics trace selection", () => {
       }),
     ]);
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
-    expect(ids).toEqual([{ id: "equal-timestamp" }]);
-    for (const [traceId, environment] of [
-      ["public-root", "langfuse-topics"],
-      ["internal-root", "production"],
-      ["equal-timestamp", "langfuse-topics"],
-      ["updated-root", "langfuse-topics"],
-    ]) {
-      expect(
-        await loadTopicTranscript({ projectId: mixedProject, traceId }),
-      ).toMatchObject({ environment });
-    }
   });
 
-  it("keeps preview and ID-only trigger sampling aligned", async () => {
+  it("samples a random preview across every matched trace", async () => {
     const input = {
       ...selection,
       projectId,
@@ -183,16 +377,146 @@ describe("Topics trace selection", () => {
         },
       ],
     };
-    const [preview, ids] = await Promise.all([
-      selectTopicTraceRows(input, prisma, "preview"),
-      selectTopicTraceRows(input, prisma, "ids"),
-    ]);
+    const preview = await selectTopicTraceRows(input, prisma);
     expect(preview).toHaveLength(1);
     expect(preview[0]).toMatchObject({
       name: "agent-turn",
       environment: "test",
     });
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
-    expect(ids).toEqual([{ id: preview[0].id }]);
+  });
+});
+
+describe("Topics setup backfill selection", () => {
+  const DAY_MS = 86_400_000;
+  const summary = (
+    projectId: string,
+    traceId: string,
+    facetId: string,
+    unitStartTime: Date,
+    state: "complete" | "not_applicable",
+    embeddingModel = "embed",
+  ) => ({
+    projectId,
+    facetId,
+    facetVersion: 1,
+    traceId,
+    sessionId: null,
+    triggerType: "rule" as const,
+    ruleIds: [],
+    executionId: null,
+    environment: "test",
+    traceName: "agent-turn",
+    unitStartTime: unitStartTime.toISOString(),
+    state,
+    summary: state === "complete" ? "summary" : null,
+    embedding: state === "complete" ? [1, 0] : [],
+    transcriptId: "transcript",
+    transcriptVersion: "v1",
+    transcriptBytes: 0,
+    summaryModel: "summary",
+    embeddingModel,
+    providedUsageDetails: {},
+    usageDetails: {},
+    providedCostDetails: {},
+    costDetails: {},
+    createdAt: new Date().toISOString(),
+    metadata: {},
+  });
+  const select = (
+    projectId: string,
+    now: Date,
+    input: { limit: number; seed?: string },
+  ) =>
+    getTopicSetupTraceIds({
+      projectId,
+      idleMs: 60_000,
+      now,
+      days: 7,
+      seed: "rule",
+      summarized: {
+        facets: [
+          { facetId: "intent", version: 1 },
+          { facetId: "outcome", version: 1 },
+        ],
+        embeddingConfig: { embeddingModel: "embed", embeddingDimensions: 2 },
+      },
+      ...input,
+    });
+
+  it("selects every unsummarized finished trace, and a repeatable sample beyond the limit", async () => {
+    const projectId = randomUUID();
+    const now = new Date();
+    const start = new Date(now.getTime() - 2 * 60 * 60_000);
+    const fresh = Array.from({ length: 6 }, (_, index) => `fresh-${index}`);
+    await createEventsCh(
+      [
+        ...["summarized", "one-facet", "other-embedding", ...fresh].map(
+          (traceId) => [traceId, start, start],
+        ),
+        // Still active within the idle wait, and older than the window.
+        ["active", start, new Date(now.getTime() - 10_000)],
+        ["old", new Date(now.getTime() - 8 * DAY_MS), start],
+      ].map(([traceId, startTime, eventTs]) =>
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId as string,
+          start_time: startTime as Date,
+          event_ts: eventTs as Date,
+          environment: "test",
+        }),
+      ),
+    );
+    await writeTopicSummaries([
+      summary(projectId, "summarized", "intent", start, "complete"),
+      summary(projectId, "summarized", "outcome", start, "not_applicable"),
+      summary(projectId, "one-facet", "intent", start, "complete"),
+      summary(projectId, "other-embedding", "intent", start, "complete", "old"),
+      summary(projectId, "other-embedding", "outcome", start, "complete"),
+    ]);
+
+    // Below the limit, every match: a missing facet or embedding counts as unsummarized.
+    expect((await select(projectId, now, { limit: 500 })).toSorted()).toEqual(
+      ["one-facet", "other-embedding", ...fresh].toSorted(),
+    );
+    // Beyond it, a sample of the limit's size that the same seed repeats.
+    const sample = await select(projectId, now, { limit: 3 });
+    expect(sample).toHaveLength(3);
+    expect(await select(projectId, now, { limit: 3 })).toEqual(sample);
+  });
+
+  it("reads each selected trace's whole extent and bytes for trace dispatch", async () => {
+    const projectId = randomUUID();
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - 7 * DAY_MS);
+    // The first span predates the window by a day; the trace still counts as one.
+    const starts = [
+      new Date(windowStart.getTime() - DAY_MS),
+      new Date(now.getTime() - 2 * 60 * 60_000),
+    ];
+    await createEventsCh(
+      starts.map((startTime) =>
+        createEvent({
+          project_id: projectId,
+          trace_id: "long",
+          start_time: startTime,
+          event_ts: startTime,
+          environment: "test",
+        }),
+      ),
+    );
+
+    const [bounds] = await getTopicSetupTraceBounds({
+      projectId,
+      traceIds: ["long", "missing"],
+      from: windowStart,
+    });
+
+    expect(bounds).toMatchObject({
+      traceId: "long",
+      minStart: starts[0].getTime(),
+      maxStart: starts[1].getTime(),
+    });
+    expect(bounds.serializedEventBytes).toBeGreaterThan(0);
   });
 });

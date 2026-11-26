@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { Prisma, type PrismaClient, Role } from "@langfuse/shared";
+import { Prisma, Role } from "@langfuse/shared";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
@@ -8,67 +8,23 @@ import {
 } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { createWithinEntitlementLimit } from "@/src/features/entitlements/server/createWithinEntitlementLimit";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import {
+  createOrgMembership,
+  createProjectMembership,
+} from "@langfuse/shared/memberships";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
-import { throwIfHigherRole } from "@/src/features/rbac/server/throwIfHigherRole";
+import {
+  ALREADY_ORGANIZATION_MEMBER_MESSAGE,
+  ALREADY_PROJECT_MEMBER_MESSAGE,
+  PENDING_MEMBERSHIP_INVITE_MESSAGE,
+} from "@/src/features/rbac/constants/membershipErrorMessages";
+import {
+  assertValidOrgOwnershipChange,
+  assertValidProjectOwnershipChange,
+} from "@/src/features/rbac/server/ownershipChange";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
-
-async function createProjectMembershipOrThrowIfDuplicate({
-  prisma,
-  data,
-}: {
-  prisma: PrismaClient | Prisma.TransactionClient;
-  data: {
-    userId: string;
-    projectId: string;
-    role: Role;
-    orgMembershipId: string;
-  };
-}) {
-  try {
-    return await prisma.projectMembership.create({ data });
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "User is already a member of this project",
-      });
-    }
-    throw error;
-  }
-}
-
-async function createOrgMembershipOrThrowIfDuplicate({
-  prisma,
-  data,
-}: {
-  prisma: PrismaClient | Prisma.TransactionClient;
-  data: {
-    userId: string;
-    orgId: string;
-    role: Role;
-  };
-}) {
-  try {
-    return await prisma.organizationMembership.create({ data });
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "User is already a member of this organization",
-      });
-    }
-    throw error;
-  }
-}
 
 type InviteOrganizationMemberParams = {
   ctx: Pick<OrgAuthedContext, "session" | "prisma">;
@@ -165,9 +121,12 @@ export async function inviteOrganizationMember({
     });
   }
 
-  throwIfHigherRole({
-    ownRole: ctx.session.orgRole,
-    role: input.orgRole,
+  await assertValidOrgOwnershipChange({
+    tx: ctx.prisma,
+    session: ctx.session,
+    orgId: input.orgId,
+    from: undefined,
+    to: input.orgRole,
   });
   requireGatewayEnabledForRole(input.orgId, input.orgRole);
 
@@ -193,10 +152,12 @@ export async function inviteOrganizationMember({
   });
 
   if (project && input.projectRole)
-    await throwIfHigherProjectRole({
-      orgCtx: ctx,
-      projectId: project.id,
-      projectRole: input.projectRole,
+    await assertValidProjectOwnershipChange({
+      tx: ctx.prisma,
+      session: ctx.session,
+      orgId: input.orgId,
+      from: undefined,
+      to: input.projectRole,
     });
 
   const org = await ctx.prisma.organization.findFirst({
@@ -240,16 +201,13 @@ export async function inviteOrganizationMember({
         input.projectRole !== Role.NONE
       ) {
         // Create project role for user
-        const newProjectMembership =
-          await createProjectMembershipOrThrowIfDuplicate({
-            prisma: ctx.prisma,
-            data: {
-              userId: user.id,
-              projectId: project.id,
-              role: input.projectRole,
-              orgMembershipId: existingOrgMembership.id,
-            },
-          });
+        const newProjectMembership = await createProjectMembership(ctx.prisma, {
+          orgId: input.orgId,
+          userId: user.id,
+          projectId: project.id,
+          role: input.projectRole,
+          orgMembershipId: existingOrgMembership.id,
+        });
 
         // audit log
         await auditLog({
@@ -263,7 +221,7 @@ export async function inviteOrganizationMember({
       }
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: "User is already a member of this organization",
+        message: ALREADY_ORGANIZATION_MEMBER_MESSAGE,
       });
     }
 
@@ -283,7 +241,7 @@ export async function inviteOrganizationMember({
     ) {
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: "User is already a member of this project",
+        message: ALREADY_PROJECT_MEMBER_MESSAGE,
       });
     }
 
@@ -300,25 +258,19 @@ export async function inviteOrganizationMember({
         sessionUser: ctx.session.user,
         countCurrentUsage: countSeatsInUse,
         create: async (tx) => {
-          const createdOrgMembership =
-            await createOrgMembershipOrThrowIfDuplicate({
-              prisma: tx,
-              data: {
-                userId: user.id,
-                orgId: input.orgId,
-                role: input.orgRole,
-              },
-            });
+          const createdOrgMembership = await createOrgMembership(tx, {
+            userId: user.id,
+            orgId: input.orgId,
+            role: input.orgRole,
+          });
           const createdProjectMembership =
             project && input.projectRole && input.projectRole !== Role.NONE
-              ? await createProjectMembershipOrThrowIfDuplicate({
-                  prisma: tx,
-                  data: {
-                    userId: user.id,
-                    projectId: project.id,
-                    role: input.projectRole,
-                    orgMembershipId: createdOrgMembership.id,
-                  },
+              ? await createProjectMembership(tx, {
+                  orgId: input.orgId,
+                  userId: user.id,
+                  projectId: project.id,
+                  role: input.projectRole,
+                  orgMembershipId: createdOrgMembership.id,
                 })
               : null;
           return {
@@ -405,8 +357,7 @@ export async function inviteOrganizationMember({
       ) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message:
-            "A pending membership invitation with this email and organization already exists",
+          message: PENDING_MEMBERSHIP_INVITE_MESSAGE,
         });
       } else {
         throw error;

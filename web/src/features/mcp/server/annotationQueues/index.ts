@@ -1,4 +1,4 @@
-import type { McpFeatureModule } from "../registry";
+import type { McpFeatureModule } from "../tools";
 import {
   createAnnotationQueueAssignmentTool,
   handleCreateAnnotationQueueAssignment,
@@ -7,6 +7,10 @@ import {
   createAnnotationQueueItemTool,
   handleCreateAnnotationQueueItem,
 } from "./tools/createAnnotationQueueItem";
+import {
+  batchCreateAnnotationQueueItemsTool,
+  handleBatchCreateAnnotationQueueItems,
+} from "./tools/batchCreateAnnotationQueueItems";
 import {
   createAnnotationQueueTool,
   handleCreateAnnotationQueue,
@@ -68,6 +72,10 @@ export const annotationQueuesFeature = {
     {
       definition: createAnnotationQueueItemTool,
       handler: handleCreateAnnotationQueueItem,
+    },
+    {
+      definition: batchCreateAnnotationQueueItemsTool,
+      handler: handleBatchCreateAnnotationQueueItems,
     },
     {
       definition: updateAnnotationQueueItemTool,

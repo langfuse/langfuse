@@ -37,6 +37,7 @@ function buildLegacyEvaluatorListUrl(projectId: string, filter: FilterState) {
 }
 
 /** Opens the evaluator list with only the deprecated target types visible. */
+/** @internal */
 export function buildDeprecatedEvaluatorsUrl(projectId: string) {
   return buildLegacyEvaluatorListUrl(projectId, DEPRECATED_EVALUATOR_FILTERS);
 }
