@@ -1,16 +1,13 @@
-import { useId } from "react";
 import { DecisionModelQuestionType } from "@langfuse/shared";
 import {
   Gauge,
-  Info,
   ListChecks,
   ToggleLeft,
   type IconComponent,
 } from "@langfuse/icons";
 
-import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { cn } from "@/src/utils/tailwind";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 
 export const QUESTION_TYPE_COPY: Record<
   DecisionModelQuestionType,
@@ -59,8 +56,8 @@ const ORDER: DecisionModelQuestionType[] = [
 ];
 
 /**
- * Picks the question type. All three primitives stay visible with their
- * descriptor so the model's vocabulary is learned where it is used.
+ * Picks the question type. Each option's info icon says what it does, gives an
+ * example and when to use it.
  */
 export function QuestionTypeSelector({
   value,
@@ -71,75 +68,41 @@ export function QuestionTypeSelector({
   onValueChange: (value: DecisionModelQuestionType) => void;
   disabled?: boolean;
 }) {
-  const helpIdPrefix = useId();
-
   return (
-    <div className="@container flex flex-col gap-1.5">
-      <div
-        role="radiogroup"
-        aria-label="Question type"
-        className="grid gap-2 @lg:grid-cols-3"
-      >
+    <Tabs
+      value={value}
+      onValueChange={(next) => onValueChange(next as DecisionModelQuestionType)}
+    >
+      <Tabs.List variant="inset" size="md" aria-label="Question type">
         {ORDER.map((type) => {
           const copy = QUESTION_TYPE_COPY[type];
-          const selected = type === value;
-          const helpId = `${helpIdPrefix}-${type}`;
-          const explanation = `Writes ${copy.writes}. ${copy.whenToUse}`;
           return (
-            <div
-              key={type}
-              className={cn(
-                "relative rounded-md border text-sm transition-colors",
-                "hover:bg-muted/50",
-                selected
-                  ? "border-primary-accent bg-primary-accent/5 ring-primary-accent ring-1"
-                  : "border-border",
-                disabled && "opacity-60",
-              )}
-            >
-              <button
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                aria-describedby={helpId}
-                disabled={disabled}
-                onClick={() => onValueChange(type)}
-                className={cn(
-                  "flex w-full flex-col gap-1 p-3 pr-10 text-left",
-                  "focus-visible:ring-ring rounded-md focus-visible:ring-2 focus-visible:outline-hidden",
-                  disabled && "cursor-not-allowed",
-                )}
+            <Tabs.Trigger key={type} value={type} disabled={disabled}>
+              {copy.label}
+              {/* Keeps a press on the info icon from selecting the tab. */}
+              <span
+                role="presentation"
+                className="inline-flex"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
               >
-                <span className="flex items-center gap-1.5 font-bold">
-                  <copy.icon size="base" />
-                  {copy.label}
-                </span>
-                <span className="text-muted-foreground">{copy.summary}</span>
-                <span className="text-muted-foreground text-xs italic">
-                  e.g. “{copy.example}”
-                </span>
-              </button>
-              <div className="absolute top-2 right-1.5">
-                <Tooltip label={explanation}>
-                  {({ getTriggerProps }) => (
-                    <IconButton
-                      {...getTriggerProps()}
-                      icon={Info}
-                      label={`About ${copy.label}`}
-                      size="sm"
-                      variant="ghost"
-                      disabled={disabled}
-                    />
-                  )}
-                </Tooltip>
-              </div>
-              <span id={helpId} className="sr-only">
-                {explanation}
+                <InfoTooltip label={`About ${copy.label}`}>
+                  <div className="flex flex-col gap-1.5">
+                    <p className="font-bold">{copy.summary}</p>
+                    <p className="text-muted-foreground">
+                      e.g. “{copy.example}”
+                    </p>
+                    <p>Writes {copy.writes}.</p>
+                    <p>{copy.whenToUse}</p>
+                  </div>
+                </InfoTooltip>
               </span>
-            </div>
+            </Tabs.Trigger>
           );
         })}
-      </div>
-    </div>
+      </Tabs.List>
+    </Tabs>
   );
 }
