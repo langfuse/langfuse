@@ -611,12 +611,12 @@ export async function getTopicClusteringSummaries(
 const SAMPLED_SUMMARIES_TIMEOUT_SECONDS = 60;
 
 // How far back from the window's end each step reaches; the last step reaches the window's start.
-const SAMPLED_SUMMARIES_STEP_DAYS = [7, 30];
+const SAMPLED_SUMMARIES_STEP_DAYS = [7, 14, 30];
 
 /**
  * A stable sample of compatible summaries, up to the limits: units whose unit_hash
  * falls below a bound, so overlapping windows pick the same units. The sample
- * comes from the last 7 days when they hold enough units, else from the window.
+ * comes from the shortest step (7, then 14 days) that holds enough units, else from the window.
  */
 export async function getSampledTopicClusteringSummaries(
   projectId: string,
