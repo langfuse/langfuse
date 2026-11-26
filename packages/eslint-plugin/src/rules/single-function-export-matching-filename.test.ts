@@ -167,6 +167,16 @@ ruleTester.run("single-function-export-matching-filename", rule, {
       errors: count(2),
     },
     {
+      code: "export function pack() { return 1; }\nexport { pack as default };",
+      filename: file("pack.ts"),
+      errors: count(2),
+    },
+    {
+      code: "const pack = () => 1;\nexport { pack };\nexport default pack;",
+      filename: file("pack.ts"),
+      errors: count(2),
+    },
+    {
       code: "export const left = () => 1, right = () => 2;",
       filename: file("pack.ts"),
       errors: count(2),

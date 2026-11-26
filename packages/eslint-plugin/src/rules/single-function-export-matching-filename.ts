@@ -39,7 +39,7 @@ function exportedFunctionName(
 
 type Counts = {
   functions: Set<string>;
-  exportedNames: Set<string>;
+  declaredExports: Set<string>;
   pending: PendingExport[];
   functionCount: number;
   otherCount: number;
@@ -47,10 +47,14 @@ type Counts = {
 };
 
 function noteFunction(counts: Counts, name: string | null) {
-  if (name !== null && counts.exportedNames.has(name)) return;
-  if (name !== null) counts.exportedNames.add(name);
   counts.functionCount += 1;
   counts.soleName = name;
+}
+
+function noteDeclaredFunction(counts: Counts, name: string) {
+  if (counts.declaredExports.has(name)) return;
+  counts.declaredExports.add(name);
+  noteFunction(counts, name);
 }
 
 function noteOther(counts: Counts) {
@@ -125,9 +129,10 @@ function noteNamed(counts: Counts, statement: TSESTree.ExportNamedDeclaration) {
     (declaration.type === N.FunctionDeclaration ||
       declaration.type === N.TSDeclareFunction)
   ) {
-    const name = declarationName(declaration);
+    // `export function` and `export declare function` always name the function.
+    const name = declaration.id!.name;
     rememberFunction(counts, name);
-    noteFunction(counts, name);
+    noteDeclaredFunction(counts, name);
     return;
   }
   if (statement.exportKind === "type") {
@@ -217,7 +222,7 @@ export default createRule({
       Program(program) {
         const counts: Counts = {
           functions: new Set(),
-          exportedNames: new Set(),
+          declaredExports: new Set(),
           pending: [],
           functionCount: 0,
           otherCount: 0,
