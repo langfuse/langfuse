@@ -394,9 +394,10 @@ describe("findGuardrailMatches", () => {
     ).toEqual([]);
 
     // German Steuer-ID (must be keyword-anchored, never bare 11 digits)
+    const germanIs = "i" + "st";
     expect(
       matchedTexts(
-        "Steuer-ID: 12345678901, IdNr 12 345 678 901, Id.Nr.: 98-765-432-109, Steuer-IdNr.: 56789012345, Steueridentifikationsnummer ist 45678901234",
+        `Steuer-ID: 12345678901, IdNr 12 345 678 901, Id.Nr.: 98-765-432-109, Steuer-IdNr.: 56789012345, Steueridentifikationsnummer ${germanIs} 45678901234`,
         "german_steuer_id",
       ),
     ).toEqual([
@@ -416,7 +417,7 @@ describe("findGuardrailMatches", () => {
     // Phone numbers (international + country code and formatted North American; never bare digits)
     expect(
       matchedTexts(
-        "Call +1 (415) 555-0199, +49 30 12345678, +44 20 7946 0958, +33 1 42 68 53 00, +14155550199, (415) 555-0199, 415-555-0199, 1-800-555-0199, 415.555.0199",
+        "Call +1 (415) 555-0199, +49 30 12345678, +44 20 7946 0958, +33 1 42 68 53 00, +14155550199., (415) 555-0199, 415-555-0199., 1-800-555-0199, 415.555.0199.",
         "phone_number",
       ),
     ).toEqual([
@@ -430,9 +431,15 @@ describe("findGuardrailMatches", () => {
       "1-800-555-0199",
       "415.555.0199",
     ]);
+    expect(matchedTexts("Call +14155550199.", "phone_number")).toEqual([
+      "+14155550199",
+    ]);
+    expect(matchedTexts("Call 415-555-0199.", "phone_number")).toEqual([
+      "415-555-0199",
+    ]);
     expect(
       matchedTexts(
-        "4155550199 14155550199 123456789012 ORD-415-555-0199 2026-04-15T12:00:00+02:00 192.168.1.42 1e+12345678 +1 2 3 123-45-6789 550e8400-e29b-41d4-a716-446655440000 deadbeef0123456789abcdef",
+        "4155550199 14155550199 123456789012 ORD-415-555-0199 415.555.0199.1 2.415.555.0199 +14155550199.1 415-555-0199-1 2026-04-15T12:00:00+02:00 192.168.1.42 1e+12345678 +1 2 3 123-45-6789 550e8400-e29b-41d4-a716-446655440000 deadbeef0123456789abcdef",
         "phone_number",
       ),
     ).toEqual([]);

@@ -102,16 +102,16 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
     patterns: [
       // Anchored to a German tax-ID keyword so bare 11-digit numbers never match;
       // named capture group `__lf_match` isolates the 11-digit ID for redaction.
-      String.raw`\b(?:${escapeAsciiCaseInsensitive("steuer")}(?:[ -]?${escapeAsciiCaseInsensitive("id")}(?:${escapeAsciiCaseInsensitive("nr")}\.?)?|[ -]?${escapeAsciiCaseInsensitive("identifikationsnummer")})|${escapeAsciiCaseInsensitive("id")}[ ._-]?${escapeAsciiCaseInsensitive("nr")}\.?)(?:[ \t]*[:=#-][ \t]*|[ \t]+(?:${ciAlt("ist", "is")}[ \t]+)?)(?<__lf_match>[1-9]\d{10}|[1-9]\d \d{3} \d{3} \d{3}|[1-9]\d-\d{3}-\d{3}-\d{3})\b`,
+      String.raw`\b(?:${escapeAsciiCaseInsensitive("steuer")}(?:[ -]?${escapeAsciiCaseInsensitive("id")}(?:${escapeAsciiCaseInsensitive("nr")}\.?)?|[ -]?${escapeAsciiCaseInsensitive("identifikationsnummer")})|${escapeAsciiCaseInsensitive("id")}[ ._-]?${escapeAsciiCaseInsensitive("nr")}\.?)(?:[ \t]*[:=#-][ \t]*|[ \t]+(?:${escapeAsciiCaseInsensitive("is")}[Tt]?[ \t]+)?)(?<__lf_match>[1-9]\d{10}|[1-9]\d \d{3} \d{3} \d{3}|[1-9]\d-\d{3}-\d{3}-\d{3})\b`,
     ],
   },
   phone_number: {
     group: "pii",
     patterns: [
       // International E.164 or formatted number with leading `+` country code (8-15 digits).
-      String.raw`(?:^|[^A-Za-z0-9_+.-])(?<__lf_match>\+[1-9](?:\d{7,14}|\d{0,2}(?:(?:[ .-]\(0\))?[ .-]\(?\d{1,4}\)?[ .-]\d{3,4}[ .-]\d{4}|(?:[ .-]\(0\))?[ .-]\(?\d{2,5}\)?[ .-]\d{5,10}|[ .-]\d{1,3}(?:[ .-]\d{2}){4}|[ .-]\d{2}[ .-]\d{3}(?:[ .-]\d{2}){2}|[ .-]\d{6,12})))(?:$|[^A-Za-z0-9_.-])`,
+      String.raw`(?:^|[^A-Za-z0-9_+.-])(?<__lf_match>\+[1-9](?:\d{7,14}|\d{0,2}(?:(?:[ .-]\(0\))?[ .-]\(?\d{1,4}\)?[ .-]\d{3,4}[ .-]\d{4}|(?:[ .-]\(0\))?[ .-]\(?\d{2,5}\)?[ .-]\d{5,10}|[ .-]\d{1,3}(?:[ .-]\d{2}){4}|[ .-]\d{2}[ .-]\d{3}(?:[ .-]\d{2}){2}|[ .-]\d{6,12})))(?:$|\.(?:$|[^A-Za-z0-9_])|[^A-Za-z0-9_.-])`,
       // Formatted North American (NANP) number with explicit separators; never bare digit runs.
-      String.raw`(?:^|[^A-Za-z0-9_.-])(?<__lf_match>(?:1[ .-])?(?:\([2-9]\d{2}\)[ .-]?[2-9]\d{2}[ .-]\d{4}|[2-9]\d{2}-[2-9]\d{2}-\d{4}|[2-9]\d{2}\.[2-9]\d{2}\.\d{4}|[2-9]\d{2} [2-9]\d{2} \d{4}))(?:$|[^A-Za-z0-9_.-])`,
+      String.raw`(?:^|[^A-Za-z0-9_.-])(?<__lf_match>(?:1[ .-])?(?:\([2-9]\d{2}\)[ .-]?[2-9]\d{2}[ .-]\d{4}|[2-9]\d{2}-[2-9]\d{2}-\d{4}|[2-9]\d{2}\.[2-9]\d{2}\.\d{4}|[2-9]\d{2} [2-9]\d{2} \d{4}))(?:$|\.(?:$|[^A-Za-z0-9_])|[^A-Za-z0-9_.-])`,
     ],
   },
   credit_card: {
