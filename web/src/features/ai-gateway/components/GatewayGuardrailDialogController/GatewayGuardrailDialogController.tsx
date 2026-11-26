@@ -169,7 +169,6 @@ export function GatewayGuardrailDialogController({
                   type: "REGEX",
                   name: values.name,
                   ...toRegexActionInput(values),
-                  scope: values.scope,
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
                   containsWords: values.containsWords,
@@ -199,7 +198,6 @@ export function GatewayGuardrailDialogController({
                   type: "REGEX",
                   name: values.name,
                   ...toRegexActionInput(values),
-                  scope: values.scope,
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
                   containsWords: values.containsWords,
@@ -404,16 +402,29 @@ function GuardrailDialogContent({
 }
 
 function toRegexActionInput(
-  values: Pick<GatewayGuardrailFormValues, "action" | "redactionLabel">,
+  values: Pick<
+    GatewayGuardrailFormValues,
+    "action" | "scope" | "redactionLabel"
+  >,
 ) {
   const action = resolveSupportedGuardrailAction("REGEX", values.action);
   if (action === "REDACT") {
     return {
       action,
+      scope: values.scope,
       redactionLabel: values.redactionLabel,
     };
   }
-  return { action };
+  if (action === "BLOCK") {
+    return {
+      action,
+      scope: "LAST_TURN" as const,
+    };
+  }
+  return {
+    action,
+    scope: values.scope,
+  };
 }
 
 function ConnectedGuardrailFormDialog({

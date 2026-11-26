@@ -1144,7 +1144,7 @@ describe("aiGateway guardrails tRPC", () => {
       }),
     ]);
 
-    // Switching REDACT -> BLOCK clears redactionLabel to null
+    // Switching REDACT (ENTIRE_INPUT) -> BLOCK clears redactionLabel and resets scope to LAST_TURN
     const switchedToBlock = await ownerCaller.aiGateway.guardrails.update({
       orgId,
       id: customLabelRule.id,
@@ -1155,7 +1155,21 @@ describe("aiGateway guardrails tRPC", () => {
       assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
     });
     expect(switchedToBlock.action).toBe("BLOCK");
+    expect(switchedToBlock.scope).toBe("LAST_TURN");
     expect(switchedToBlock.redactionLabel).toBeNull();
+
+    // Rejects ENTIRE_INPUT scope for BLOCK guardrails
+    await expect(
+      ownerCaller.aiGateway.guardrails.create({
+        orgId,
+        type: "REGEX",
+        name: "Block entire input",
+        action: "BLOCK",
+        scope: "ENTIRE_INPUT" as never,
+        presets: ["email"],
+        assignments: [{ scope: "ORGANIZATION" }],
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("validates custom regex rules with the WASM engine, previews UTF-16 spans, and enforces 128 KiB rule and 512 KiB org limits", async () => {

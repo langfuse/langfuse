@@ -64,6 +64,7 @@ import {
   GatewayRegexGuardrailConfigSchema,
   isKnownGuardrailPreset,
   resolveSupportedGuardrailAction,
+  resolveSupportedGuardrailScope,
   type GatewayBedrockGuardrailConfig,
   type GatewayGuardrailActionForType,
   type GatewayGuardrailAssignmentInput,
@@ -124,11 +125,18 @@ export class GatewayGuardrailService {
   }): Promise<GatewayCachedGuardrails> {
     const guardrails = await this.repository.findAssigned(params);
     return guardrails.flatMap<GatewayCachedGuardrails[number]>((guardrail) => {
-      const action =
-        RESOLVE_GUARDRAIL_ACTION[
-          resolveSupportedGuardrailAction(guardrail.type, guardrail.action)
+      const supportedAction = resolveSupportedGuardrailAction(
+        guardrail.type,
+        guardrail.action,
+      );
+      const action = RESOLVE_GUARDRAIL_ACTION[supportedAction];
+      const scope =
+        RESOLVE_GUARDRAIL_SCOPE[
+          resolveSupportedGuardrailScope(
+            supportedAction,
+            guardrail.scope ?? "LAST_TURN",
+          )
         ];
-      const scope = RESOLVE_GUARDRAIL_SCOPE[guardrail.scope ?? "LAST_TURN"];
       switch (guardrail.type) {
         case "REGEX": {
           const config = GatewayRegexGuardrailConfigSchema.safeParse(
@@ -441,7 +449,10 @@ export class GatewayGuardrailService {
         name: params.name,
         type: params.type,
         action: params.action,
-        scope: params.scope ?? "LAST_TURN",
+        scope: resolveSupportedGuardrailScope(
+          params.action,
+          params.scope ?? "LAST_TURN",
+        ),
         redactionLabel,
         config,
         encryptedCredential,
@@ -602,7 +613,10 @@ export class GatewayGuardrailService {
         id: existing.id,
         name: params.name,
         action: params.action,
-        scope: params.scope ?? existing.scope,
+        scope: resolveSupportedGuardrailScope(
+          params.action,
+          params.scope ?? existing.scope,
+        ),
         redactionLabel,
         config,
         encryptedCredential,
@@ -1154,12 +1168,14 @@ function toGuardrailDto(
     : null;
   const bedrock = parsedBedrock?.success ? parsedBedrock.data : null;
 
+  const action = resolveSupportedGuardrailAction(record.type, record.action);
+
   return {
     id: record.id,
     name: record.name,
     type: record.type,
-    action: resolveSupportedGuardrailAction(record.type, record.action),
-    scope: record.scope,
+    action,
+    scope: resolveSupportedGuardrailScope(action, record.scope),
     redactionLabel: record.redactionLabel,
     presets,
     secretPrefixes,

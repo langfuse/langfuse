@@ -1,5 +1,6 @@
 import type {
   GatewayGuardrailAction,
+  GatewayGuardrailScope,
   GatewayGuardrailType,
 } from "@langfuse/shared/src/db";
 import { z } from "zod/v4";
@@ -307,6 +308,32 @@ export function resolveSupportedGuardrailAction<T extends GatewayGuardrailType>(
 }
 
 export const GatewayGuardrailScopeSchema = z.enum(GATEWAY_GUARDRAIL_SCOPES);
+
+/** Evaluation scopes permitted per guardrail action. Blocking only evaluates the last turn. */
+export const GATEWAY_GUARDRAIL_ACTION_SCOPES = {
+  BLOCK: ["LAST_TURN"],
+  LOG: ["LAST_TURN", "ENTIRE_INPUT"],
+  REDACT: ["LAST_TURN", "ENTIRE_INPUT"],
+  ENFORCE: ["LAST_TURN", "ENTIRE_INPUT"],
+} as const satisfies Record<
+  GatewayGuardrailAction,
+  readonly [GatewayGuardrailScope, ...GatewayGuardrailScope[]]
+>;
+
+export function supportsEntireInputScope(
+  action: GatewayGuardrailAction,
+): boolean {
+  return (
+    GATEWAY_GUARDRAIL_ACTION_SCOPES[action] as readonly GatewayGuardrailScope[]
+  ).includes("ENTIRE_INPUT");
+}
+
+export function resolveSupportedGuardrailScope(
+  action: GatewayGuardrailAction,
+  scope: GatewayGuardrailScope,
+): GatewayGuardrailScope {
+  return supportsEntireInputScope(action) ? scope : "LAST_TURN";
+}
 
 export const GatewayGuardrailRedactionLabelSchema = z
   .string()

@@ -15,6 +15,7 @@ import {
 import { GatewayGuardrailService } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailService";
 import { ProviderCredentialRejectedError } from "@/src/features/ai-gateway/server/provider/connection/ProviderCredentialRejectedError";
 import {
+  GATEWAY_GUARDRAIL_ACTION_SCOPES,
   GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
   GatewayBedrockGuardrailCreateInputSchema,
   GatewayBedrockGuardrailUpdateInputSchema,
@@ -88,7 +89,13 @@ const regexWriteSchema = z
     z.object({
       ...commonWriteFields,
       ...regexRuleFields,
-      action: z.enum(["BLOCK", "LOG"]),
+      action: z.literal("BLOCK"),
+      scope: z.enum(GATEWAY_GUARDRAIL_ACTION_SCOPES.BLOCK).optional(),
+    }),
+    z.object({
+      ...commonWriteFields,
+      ...regexRuleFields,
+      action: z.literal("LOG"),
     }),
   ])
   .refine(hasGuardrailRule, GUARDRAIL_RULE_REQUIRED_MESSAGE);

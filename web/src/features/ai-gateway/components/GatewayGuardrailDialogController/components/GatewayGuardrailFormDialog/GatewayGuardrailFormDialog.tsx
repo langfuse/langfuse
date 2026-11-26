@@ -86,6 +86,8 @@ import {
   GatewayGuardrailCustomRegexSchema,
   GatewayGuardrailRedactionLabelSchema,
   parseContainsWordsText,
+  resolveSupportedGuardrailScope,
+  supportsEntireInputScope,
   validateContainsWordsText,
   validateSecretPrefix,
   type GatewayGuardrailPreset,
@@ -118,7 +120,7 @@ const ACTION_OPTIONS_BY_TYPE: Record<
     GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.actions.map(toActionOption),
 };
 
-const SCOPE_OPTIONS = GATEWAY_GUARDRAIL_SCOPES.map((value) => {
+const SCOPE_OPTIONS_ALL = GATEWAY_GUARDRAIL_SCOPES.map((value) => {
   const label = GATEWAY_GUARDRAIL_SCOPE_LABELS[value];
   return {
     value,
@@ -128,6 +130,25 @@ const SCOPE_OPTIONS = GATEWAY_GUARDRAIL_SCOPES.map((value) => {
       description: GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[value],
     },
   };
+});
+
+const SCOPE_OPTIONS_LAST_TURN_ONLY = GATEWAY_GUARDRAIL_SCOPES.map((value) => {
+  const label = GATEWAY_GUARDRAIL_SCOPE_LABELS[value];
+  return value === "ENTIRE_INPUT"
+    ? {
+        value,
+        label,
+        disabled: true as const,
+        disabledReason: "Block guardrails only evaluate the last turn",
+      }
+    : {
+        value,
+        label,
+        explanation: {
+          title: label,
+          description: GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[value],
+        },
+      };
 });
 
 const BEDROCK_FIELD_PATHS = {
@@ -183,6 +204,16 @@ function createGuardrailFormSchema(
         ),
     })
     .superRefine((values, ctx) => {
+      if (
+        !supportsEntireInputScope(values.action) &&
+        values.scope === "ENTIRE_INPUT"
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["scope"],
+          message: "Block guardrails only evaluate the last turn",
+        });
+      }
       if (capabilities.supportsRedactionLabel && values.action === "REDACT") {
         const labelResult = GatewayGuardrailRedactionLabelSchema.safeParse(
           values.redactionLabel,
@@ -395,7 +426,10 @@ export function GatewayGuardrailFormDialog({
       bedrockRegion: initialValues.bedrock?.region ?? "",
       bedrockApiKey: "",
       action: initialValues.action,
-      scope: initialValues.scope ?? "LAST_TURN",
+      scope: resolveSupportedGuardrailScope(
+        initialValues.action,
+        initialValues.scope ?? "LAST_TURN",
+      ),
       redactionLabel:
         initialValues.redactionLabel ??
         GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
@@ -732,6 +766,11 @@ export function GatewayGuardrailFormDialog({
                               value={value}
                               onValueChange={(nextValue) => {
                                 onChange(nextValue);
+                                if (!supportsEntireInputScope(nextValue)) {
+                                  form.setValue("scope", "LAST_TURN", {
+                                    shouldValidate: true,
+                                  });
+                                }
                                 if (capabilities.supportsRedactionLabel) {
                                   form
                                     .trigger("redactionLabel")
@@ -777,7 +816,11 @@ export function GatewayGuardrailFormDialog({
                               value={value}
                               onValueChange={onChange}
                               onBlur={onBlur}
-                              options={SCOPE_OPTIONS}
+                              options={
+                                supportsEntireInputScope(selectedAction)
+                                  ? SCOPE_OPTIONS_ALL
+                                  : SCOPE_OPTIONS_LAST_TURN_ONLY
+                              }
                             />
                           )}
                         </FormField>
