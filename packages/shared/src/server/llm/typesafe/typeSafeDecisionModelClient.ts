@@ -10,7 +10,9 @@ import type {
   DecisionModelEvaluation,
   DecisionModelRequestQuestion,
 } from "../../evals/decisionModelEvaluatorExecution";
+import { wrapFetchWithOpenRouterInternalTraceProvenance } from "../ai-sdk/openRouterProvenance";
 import { createSecureLlmFetch } from "../secureLlmFetch";
+import type { LangfuseInternalTraceEnvironment } from "../types";
 
 /** TypeSafe reads a description per level, in order. */
 function toTypeSafeQuestion(question: DecisionModelRequestQuestion) {
@@ -53,18 +55,24 @@ export function createTypeSafeDecisionModelClient(params: {
   model: string;
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
+  internalEnvironment?: LangfuseInternalTraceEnvironment;
   fetchImpl?: typeof fetch;
 }): DecisionModelClient {
-  const provider = createTypeSafeAi({
-    apiKey: params.apiKey,
-    baseURL: params.baseURL ?? undefined,
-    headers: params.extraHeaders,
-    fetch:
+  const fetchImpl = wrapFetchWithOpenRouterInternalTraceProvenance({
+    fetchImpl:
       params.fetchImpl ??
       createSecureLlmFetch({
         logContext: "TypeSafe decision model",
         additionalSensitiveHeaders: Object.keys(params.extraHeaders ?? {}),
       }),
+    baseURL: params.baseURL,
+    internalEnvironment: params.internalEnvironment,
+  });
+  const provider = createTypeSafeAi({
+    apiKey: params.apiKey,
+    baseURL: params.baseURL ?? undefined,
+    headers: params.extraHeaders,
+    fetch: fetchImpl,
   });
   const model = provider.decisionModel(params.model);
 

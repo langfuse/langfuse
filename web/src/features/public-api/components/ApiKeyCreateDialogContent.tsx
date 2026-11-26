@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React, { useState } from "react";
-import { ArrowUpRight, CodeXml } from "@langfuse/icons";
+import { ArrowUpRight } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 
 import { type SystemRole } from "@langfuse/shared/src/db";
@@ -25,14 +25,11 @@ import {
 import { withoutGatewayRole } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
 import { ApiKeyExpirationInput } from "@/src/features/apiKey/components/ApiKeyExpirationInput/ApiKeyExpirationInput";
 import type { ApiKeyExpirationPreset } from "@/src/features/apiKey/constants/apiKeyExpirationOptions";
+import { apiKeyRoleDisplay } from "@/src/features/apiKey/fns/apiKeyRoleDisplay";
 import { resolveApiKeyExpiration } from "@/src/features/apiKey/fns/resolveApiKeyExpiration";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
-import {
-  roleDisplay,
-  type RoleDisplay,
-} from "@/src/features/rbac/components/roleDisplay";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 
 type ApiKeyScope = "project" | "organization";
@@ -41,17 +38,6 @@ const DEFAULT_ROLE: SystemRole = "MEMBER";
 
 /** apiKeyRoleOrder lists the roles shown first in the picker; the rest follow in catalog order. */
 const apiKeyRoleOrder: SystemRole[] = ["ADMIN", "VIEWER", "MEMBER"];
-
-/** apiKeyRoleOverrides presents user roles in api-key friendly terms. */
-const apiKeyRoleOverrides: Partial<Record<SystemRole, Partial<RoleDisplay>>> = {
-  ADMIN: { name: "Full access" },
-  MEMBER: {
-    name: "Developer",
-    description:
-      "Debug traces, build datasets and run experiments from the SDK.",
-    Icon: CodeXml,
-  },
-};
 
 /** ApiKeyCreateValues is the resolved create-form payload the button forwards to the create mutation. */
 export type ApiKeyCreateValues = {
@@ -245,11 +231,6 @@ function ApiKeyCreateForm({
       </DialogFooter>
     </DialogContent>
   );
-}
-
-/** apiKeyRoleDisplay presents a role with its api-key overrides applied. */
-function apiKeyRoleDisplay(role: SystemRole): RoleDisplay {
-  return { ...roleDisplay(role), ...apiKeyRoleOverrides[role] };
 }
 
 /** sortApiKeyRoles puts apiKeyRoleOrder roles first, keeping catalog order for the rest. */

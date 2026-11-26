@@ -3,6 +3,7 @@ import { type CellContext, type RowData } from "@tanstack/react-table";
 import { type IconComponent } from "@langfuse/icons";
 
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   createTableColumn,
@@ -25,6 +26,8 @@ export function createLinkTableColumn<TData extends RowData, TValue = string>({
     context: CellContext<TData, TValue | null | undefined>,
   ) =>
     | { type: "loading" }
+    | { type: "empty" }
+    | { type: "text"; value: string }
     | { type: "link"; props: LinkTableColumnProps }
     | undefined;
 }) {
@@ -35,6 +38,8 @@ export function createLinkTableColumn<TData extends RowData, TValue = string>({
       const cell = getCell(value, context);
       if (!cell) return null;
       if (cell.type === "loading") return <Skeleton className="h-4 w-1/2" />;
+      if (cell.type === "empty") return <EmptyValue />;
+      if (cell.type === "text") return <span>{cell.value}</span>;
 
       const { icon: Icon, path, value: linkValue, title, onClick } = cell.props;
       return (

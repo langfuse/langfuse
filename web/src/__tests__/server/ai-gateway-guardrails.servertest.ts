@@ -94,6 +94,7 @@ const createGuardrail = async (params: {
   organizationId: string;
   name: string;
   action?: "BLOCK" | "LOG" | "REDACT";
+  redactionLabel?: string | null;
   config?: object;
   assignments: Array<
     | { scope: "ORGANIZATION" }
@@ -106,6 +107,7 @@ const createGuardrail = async (params: {
       organizationId: params.organizationId,
       name: params.name,
       action: params.action ?? "BLOCK",
+      redactionLabel: params.redactionLabel ?? null,
       config: params.config ?? { presets: ["email"] },
       assignments: {
         create: params.assignments.map((assignment) => ({
@@ -180,6 +182,7 @@ describe("GatewayGuardrailService", () => {
       organizationId,
       name: "Redact rule",
       action: "REDACT",
+      redactionLabel: "[EMAIL]",
       assignments: [{ scope: "API_KEY", apiKeyId: key }],
     });
     await createGuardrail({
@@ -198,6 +201,7 @@ describe("GatewayGuardrailService", () => {
       "Key rule",
       "Organization PII",
       "Partly unknown presets",
+      "Redact rule",
       "User rule",
     ]);
     expect(resolved[0]).toEqual({
@@ -205,7 +209,17 @@ describe("GatewayGuardrailService", () => {
       name: "Key rule",
       type: "regex",
       action: "block",
+      scope: "last_turn",
       patterns: [...GATEWAY_GUARDRAIL_PRESETS.email.patterns],
+    });
+    expect(resolved[3]).toEqual({
+      id: expect.any(String),
+      name: "Redact rule",
+      type: "regex",
+      action: "redact",
+      scope: "last_turn",
+      patterns: [...GATEWAY_GUARDRAIL_PRESETS.email.patterns],
+      redaction_label: "[EMAIL]",
     });
 
     const forServiceKey = await service.resolveForKey({
@@ -768,7 +782,7 @@ describe("aiGateway guardrails tRPC", () => {
         orgId,
         type: "BEDROCK",
         name: "Bad ID",
-        action: "BLOCK",
+        action: "ENFORCE",
         bedrock: {
           guardrailId: "../evil",
           guardrailVersion: "1",
@@ -817,7 +831,7 @@ describe("aiGateway guardrails tRPC", () => {
         orgId,
         type: "BEDROCK",
         name: "Missing guardrail",
-        action: "BLOCK",
+        action: "ENFORCE",
         bedrock: {
           guardrailId: "abc123def456",
           guardrailVersion: "1",
@@ -854,7 +868,7 @@ describe("aiGateway guardrails tRPC", () => {
       orgId,
       type: "BEDROCK",
       name: "Bedrock content filter",
-      action: "BLOCK",
+      action: "ENFORCE",
       bedrock: {
         guardrailId: "abc123def456",
         guardrailVersion: "1",
@@ -864,6 +878,8 @@ describe("aiGateway guardrails tRPC", () => {
       assignments: [{ scope: "ORGANIZATION" }],
     });
     expect(created.type).toBe("BEDROCK");
+    expect(created.action).toBe("ENFORCE");
+    expect(created.redactionLabel).toBeNull();
     expect(created.bedrock).toEqual({
       guardrailId: "abc123def456",
       guardrailVersion: "1",
@@ -904,7 +920,8 @@ describe("aiGateway guardrails tRPC", () => {
         id: created.id,
         name: "Bedrock content filter",
         type: "bedrock",
-        action: "block",
+        action: "enforce",
+        scope: "last_turn",
         guardrail_id: "abc123def456",
         guardrail_version: "1",
         region: "us-east-1",
@@ -1008,6 +1025,147 @@ describe("aiGateway guardrails tRPC", () => {
         type: "REGEX",
         name: "Cannot convert",
         action: "BLOCK",
+        presets: ["email"],
+        assignments: [{ scope: "ORGANIZATION" }],
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("persists, validates, and resolves REDACT replacement labels for regex and ENFORCE for Bedrock guardrails", async () => {
+    Object.assign(env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING",
+      NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+      LANGFUSE_AI_GATEWAY_ENABLED: "true",
+    });
+
+    const orgId = await createOrganization();
+    const owner = await createUser("Owner User");
+    const ownerCaller = createCaller({
+      orgId,
+      userId: owner.id,
+      role: Role.OWNER,
+    });
+    const keyId = await createKey(orgId, owner.id, {
+      gateway: true,
+      name: "redact-key",
+    });
+
+    // Default replacement label when omitted
+    const defaultLabelRule = await ownerCaller.aiGateway.guardrails.create({
+      orgId,
+      type: "REGEX",
+      name: "Default redact",
+      action: "REDACT",
+      presets: ["email"],
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(defaultLabelRule.action).toBe("REDACT");
+    expect(defaultLabelRule.redactionLabel).toBe("[REDACTED]");
+
+    // Custom replacement label (trimmed) + ENTIRE_INPUT scope
+    const customLabelRule = await ownerCaller.aiGateway.guardrails.create({
+      orgId,
+      type: "REGEX",
+      name: "Custom redact",
+      action: "REDACT",
+      scope: "ENTIRE_INPUT",
+      redactionLabel: "  [SSN]  ",
+      presets: ["us_ssn"],
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(customLabelRule.redactionLabel).toBe("[SSN]");
+    expect(customLabelRule.scope).toBe("ENTIRE_INPUT");
+
+    // Rejects blank, control-char, and overly long replacement labels
+    for (const invalidLabel of ["   ", "bad\nlabel", "x".repeat(65)]) {
+      await expect(
+        ownerCaller.aiGateway.guardrails.create({
+          orgId,
+          type: "REGEX",
+          name: `Invalid ${invalidLabel.length}`,
+          action: "REDACT",
+          redactionLabel: invalidLabel,
+          presets: ["email"],
+          assignments: [{ scope: "ORGANIZATION" }],
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    }
+
+    // Bedrock ENFORCE guardrail persists with null redactionLabel and resolves action "enforce"
+    vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ action: "NONE" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+    const bedrockEnforce = await ownerCaller.aiGateway.guardrails.create({
+      orgId,
+      type: "BEDROCK",
+      name: "Bedrock enforce",
+      action: "ENFORCE",
+      bedrock: {
+        guardrailId: "abc123def456",
+        guardrailVersion: "1",
+        region: "us-east-1",
+        apiKey: "bedrock-secret-enforce",
+      },
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(bedrockEnforce.action).toBe("ENFORCE");
+    expect(bedrockEnforce.redactionLabel).toBeNull();
+
+    const resolved = await new GatewayGuardrailService(prisma).resolveForKey({
+      organizationId: orgId,
+      apiKeyId: keyId,
+      userId: owner.id,
+    });
+    expect(resolved).toEqual([
+      expect.objectContaining({
+        id: bedrockEnforce.id,
+        type: "bedrock",
+        action: "enforce",
+      }),
+      expect.objectContaining({
+        id: customLabelRule.id,
+        type: "regex",
+        action: "redact",
+        scope: "entire_input",
+        redaction_label: "[SSN]",
+      }),
+      expect.objectContaining({
+        id: defaultLabelRule.id,
+        type: "regex",
+        action: "redact",
+        scope: "last_turn",
+        redaction_label: "[REDACTED]",
+      }),
+    ]);
+
+    // Switching REDACT (ENTIRE_INPUT) -> BLOCK clears redactionLabel and resets scope to LAST_TURN
+    const switchedToBlock = await ownerCaller.aiGateway.guardrails.update({
+      orgId,
+      id: customLabelRule.id,
+      type: "REGEX",
+      name: "Custom redact",
+      action: "BLOCK",
+      presets: ["us_ssn"],
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(switchedToBlock.action).toBe("BLOCK");
+    expect(switchedToBlock.scope).toBe("LAST_TURN");
+    expect(switchedToBlock.redactionLabel).toBeNull();
+
+    // Rejects ENTIRE_INPUT scope for BLOCK guardrails
+    await expect(
+      ownerCaller.aiGateway.guardrails.create({
+        orgId,
+        type: "REGEX",
+        name: "Block entire input",
+        action: "BLOCK",
+        scope: "ENTIRE_INPUT" as never,
         presets: ["email"],
         assignments: [{ scope: "ORGANIZATION" }],
       }),
@@ -1250,7 +1408,7 @@ describe("aiGateway guardrails tRPC", () => {
       orgId,
       type: "BEDROCK",
       name: "Org bedrock rule",
-      action: "BLOCK",
+      action: "ENFORCE",
       bedrock: {
         guardrailId: "abc123def456",
         guardrailVersion: "1",

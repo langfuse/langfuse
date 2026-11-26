@@ -586,7 +586,7 @@ export enum LangfuseInternalTraceEnvironment {
   CodeEval = "langfuse-code-eval",
   NaturalLanguageFilter = "langfuse-natural-language-filter",
   InAppAgent = "langfuse-in-app-agent",
-  Topics = "langfuse-topics",
+  Topics = "langfuse-topics-internal",
 }
 
 export type ProcessedTraceEvent = {

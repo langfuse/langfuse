@@ -1,4 +1,7 @@
-import type { GatewayGuardrailAction } from "@langfuse/shared/src/db";
+import type {
+  GatewayGuardrailAction,
+  GatewayGuardrailScope,
+} from "@langfuse/shared/src/db";
 
 export const GATEWAY_GUARDRAIL_MAX_NAME_LENGTH = 200;
 export const GATEWAY_GUARDRAIL_MAX_TARGETS = 100;
@@ -6,6 +9,9 @@ export const GATEWAY_GUARDRAIL_MAX_BULK_DELETE = 500;
 export const GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION = 20;
 export const GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE = `Organizations can have up to ${GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION} guardrails. Reach out to support to share your use case and tell us why you need more.`;
 export const GATEWAY_GUARDRAIL_FLAGGED_WINDOW_DAYS = 7;
+export const GATEWAY_GUARDRAIL_FLAGGED_DATE_RANGE = {
+  range: "last7Days",
+} as const;
 export const GATEWAY_GUARDRAIL_TARGET_SEARCH_LIMIT = 25;
 
 export const GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES = 20;
@@ -36,11 +42,47 @@ export const GATEWAY_GUARDRAIL_UNSUPPORTED_BACKREFERENCE_ERROR_MESSAGE =
 export const GATEWAY_GUARDRAIL_UNICODE_NOT_ALLOWED_ERROR_MESSAGE =
   "Unicode classes (\\p{..}) and the u flag are not supported in built-in regex guardrails. Use ASCII patterns, or use an external guardrail provider.";
 
+export const GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL = "[REDACTED]";
+export const GATEWAY_GUARDRAIL_MAX_REDACTION_LABEL_LENGTH = 64;
+
 export const GATEWAY_GUARDRAIL_ACTION_LABELS: Record<
   GatewayGuardrailAction,
   string
 > = {
   BLOCK: "Block",
   LOG: "Log",
-  REDACT: "Mask",
+  REDACT: "Redact",
+  ENFORCE: "Enforce",
+};
+
+export const GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS: Record<
+  GatewayGuardrailAction,
+  string
+> = {
+  BLOCK: "Reject the request before it reaches the provider.",
+  REDACT:
+    "Replace matched text with the replacement label before forwarding the request.",
+  ENFORCE:
+    "Follow the provider's verdict: block when it blocks, or anonymize matched text before forwarding.",
+  LOG: "Forward the request unchanged and record the match on the generation.",
+};
+
+export const GATEWAY_GUARDRAIL_SCOPES = ["LAST_TURN", "ENTIRE_INPUT"] as const;
+
+export const GATEWAY_GUARDRAIL_SCOPE_LABELS: Record<
+  GatewayGuardrailScope,
+  string
+> = {
+  LAST_TURN: "Last turn",
+  ENTIRE_INPUT: "Entire input",
+};
+
+export const GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS: Record<
+  GatewayGuardrailScope,
+  string
+> = {
+  LAST_TURN:
+    "Evaluate only the latest user turn and tool outputs since the last model reply.",
+  ENTIRE_INPUT:
+    "Evaluate all messages and system prompts in the request, including conversation history. Recommended for redaction so earlier turns aren't resent unredacted.",
 };
