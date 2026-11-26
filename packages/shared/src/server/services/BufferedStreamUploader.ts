@@ -105,10 +105,18 @@ export class BufferedStreamUploader {
   }
 
   async upload(stream: Readable): Promise<UploadPartStats> {
+    // A failed source (e.g. a shutdown abort) dooms the upload, so in-flight
+    // parts stop retrying and no new part is scheduled. Listened for directly:
+    // while the reader waits for a free part slot it does not pull, so the
+    // loop below would only see the error later.
+    const onSourceError = () => {
+      this.sourceFailed = true;
+    };
+    stream.once("error", onSourceError);
     try {
       await this.params.strategy.initialize();
 
-      for await (const chunk of this.trackSourceFailure(stream)) {
+      for await (const chunk of stream) {
         if (this.errors.hasError()) break;
 
         const buf = Buffer.isBuffer(chunk)
@@ -170,6 +178,7 @@ export class BufferedStreamUploader {
       await this.params.strategy.complete(sortedParts);
       this.isCompleted = true;
     } finally {
+      stream.off("error", onSourceError);
       if (!this.isCompleted) {
         await Promise.all(this.inFlightUploads.values());
         await this.params.strategy.abort("upload failed or incomplete");
@@ -238,12 +247,13 @@ export class BufferedStreamUploader {
     // Wait for a slot if all concurrent slots are full
     while (
       this.inFlightUploads.size >= this.params.maxConcurrentParts &&
-      !this.errors.hasError()
+      !this.errors.hasError() &&
+      !this.sourceFailed
     ) {
       await Promise.race(this.inFlightUploads.values());
     }
 
-    if (this.errors.hasError()) return;
+    if (this.errors.hasError() || this.sourceFailed) return;
 
     this.scheduleUpload(partData, this.partNumber);
   }
@@ -267,17 +277,6 @@ export class BufferedStreamUploader {
       });
 
     this.inFlightUploads.set(id, promise);
-  }
-
-  // A failed source (e.g. a shutdown abort) dooms the upload, so in-flight
-  // parts stop retrying instead of holding up the rejection.
-  private async *trackSourceFailure(stream: Readable): AsyncGenerator<unknown> {
-    try {
-      yield* stream;
-    } catch (error) {
-      this.sourceFailed = true;
-      throw error;
-    }
   }
 
   private async uploadPartWithRetry(

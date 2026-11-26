@@ -424,7 +424,9 @@ describe("BufferedStreamUploader", () => {
         read() {
           if (pushed) return;
           pushed = true;
-          this.push(Buffer.alloc(1024));
+          // Two parts with one slot: the reader is waiting for the slot (not
+          // pulling) when the source errors.
+          this.push(Buffer.alloc(2048));
           setTimeout(() => this.destroy(new Error("aborted by shutdown")), 10);
         },
       });
