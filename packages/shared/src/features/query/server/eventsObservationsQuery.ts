@@ -1,12 +1,11 @@
 /**
  * The v2 observations view's query on the query AST
- * ({@link buildEventsObservations}): its FROM, `scores` join, ARRAY JOIN and
+ * ({@link eventsObservationsAstView}): its FROM, `scores` join, ARRAY JOIN and
  * WHERE, and its dimension and measure selections, read from the entries of
  * `eventsObservationsRegistry.ts`. The steps it shares with the other views
- * are in `viewQuerySteps.ts`; `QueryBuilder` dispatches the view here.
+ * run in `defineAstView` (`astViewQuery.ts`).
  */
 import { expressionBuilder, type AliasableExpression } from "kysely";
-import { type QueryType } from "../types";
 import { eventsObservationsView } from "../dataModel";
 import { conditionFromFilter } from "../../../query-ast/filterStateCodec";
 import type { PredicateCondition } from "../../../query-ast/predicate";
@@ -28,32 +27,15 @@ import {
   type ObservationsBuilder,
   type ObservationsDb,
 } from "./eventsObservationsRegistry";
-import { type BuildContext } from "./astViewQuery";
+import { defineAstView, levelIfAllowed } from "./astViewQuery";
 import { type QueryLevel } from "./registryEntry";
 import {
   type AppliedDimensionType,
   type AppliedMetricType,
-  utcDateTime,
-  assertKnownRelationTables,
-  type BucketValues,
+  type TimeWindow,
   atLevel,
-  applyBucketingDimension,
-  mapDimensions,
-  mapMetrics,
-  withRequiredDimensions,
-  validateFilters,
-  resolveFilterColumn,
-  collectRelationTables,
-  canUseSingleLevelQuery,
   pairExpandDimension,
-  validateAndProcessOrderBy,
-  astOuterClauses,
-  astOuterSelect,
-  compileWithOuterClauses,
   dimensionAlias,
-  astBucketSelection,
-  astSingleLevelMetrics,
-  astInnerMetrics,
 } from "./viewQuerySteps";
 
 /** A dashboard filter as the events predicate lowering takes it. */
@@ -63,130 +45,59 @@ type DashboardFilter = {
 };
 
 /**
- * `QueryBuilder.build` for the v2 observations view, on the query AST: the same
- * single- and two-level shapes, with the view's entries from
- * `eventsObservationsRegistry.ts` and its filters lowered by the events
- * predicate lowering. Reads `events_truncated`, so it selects the
- * `events_core` values as the string builder does; a filter that needs
- * untruncated values routes it to `events_full`, where the routing pass
- * cuts the selected truncated columns. Tenancy adds the project
- * conditions. Rows flagged deleted are read, as the string builder does.
+ * The v2 observations view on the query AST: its entries from
+ * `eventsObservationsRegistry.ts`, its filters lowered by the events
+ * predicate lowering, one inner row per observation. Reads
+ * `events_truncated`, so it selects the `events_core` values as the SQL-text
+ * builder (`buildSqlText`) does; a filter that needs untruncated values routes it to
+ * `events_full`, where the routing pass cuts the selected truncated columns.
+ * Rows flagged deleted are read, as the SQL-text builder does.
+ *
+ * Plan: the query's one pairExpand dimension, which the source ARRAY JOINs;
+ * two throw `InvalidRequestError`.
  */
-export function buildEventsObservations(
-  query: QueryType,
-  {
-    projectId,
-    enableSingleLevelOptimization,
-    skipScoresFinal,
-    version,
-    chartConfig,
-  }: BuildContext,
-): { query: string; parameters: Record<string, unknown> } {
-  const view = eventsObservationsView;
-  const requestedDimensions = mapDimensions(query.dimensions, view);
-  const appliedMetrics = mapMetrics(query.metrics, view);
-  const bucket = applyBucketingDimension(query, view, version);
-  const appliedDimensions = withRequiredDimensions(
-    requestedDimensions,
-    appliedMetrics,
-    view,
-  );
-  validateFilters(query.filters, view, { numericMetadata: true });
-  const filters = query.filters.map((filter): DashboardFilter => ({
-    lowering: eventsObservationsFilterLowering(
-      resolveFilterColumn(view, filter.column),
-    ),
-    condition: conditionFromFilter(filter),
-  }));
-
+export const eventsObservationsAstView = defineAstView<
+  ObservationsDb,
+  "e",
+  DashboardFilter,
+  AppliedDimensionType | undefined
+>({
+  serves: [eventsObservationsView],
+  numericMetadata: true,
   // No filter joins a relation: `eventsObservationsFilterLowering` compares
   // `e` columns only.
-  const relationTables = collectRelationTables(
-    appliedDimensions,
-    appliedMetrics,
-    bucket,
-  );
-  assertKnownRelationTables(view, relationTables);
-  const pairDimension = pairExpandDimension(appliedDimensions);
-  const level: QueryLevel =
-    enableSingleLevelOptimization &&
-    canUseSingleLevelQuery(appliedDimensions, appliedMetrics)
-      ? "single"
-      : "two";
-  const orderBy = validateAndProcessOrderBy(
-    query.orderBy,
-    appliedDimensions,
-    appliedMetrics,
-    bucket,
-  );
-  const source = astEventsSource(
-    query,
-    filters,
-    relationTables.has("scores"),
-    skipScoresFinal,
-    pairDimension,
-  );
-  const outerClauses = astOuterClauses(
-    query,
-    appliedDimensions,
-    bucket,
-    orderBy,
-    chartConfig?.row_limit,
-  );
-  const measure =
-    (eb: ObservationsBuilder, level: QueryLevel) =>
-    (metric: AppliedMetricType) =>
-      astMeasureValue(eb, metric, level);
-  const bucketValue = (eb: ObservationsBuilder): BucketValues => ({
+  lowerFilter: (column, filter) => ({
+    lowering: eventsObservationsFilterLowering(column),
+    condition: conditionFromFilter(filter),
+  }),
+  plan: (input) => ({
+    plan: pairExpandDimension(input.dimensions),
+    level: levelIfAllowed(input),
+  }),
+  source: ({ filters, relations, ctx, plan, window }) =>
+    astEventsSource(
+      window,
+      filters,
+      relations.has("scores"),
+      ctx.skipScoresFinal,
+      plan,
+    ),
+  dimension: astDimensionSelection,
+  measure: astMeasureValue,
+  bucket: (eb) => ({
     time: eb.ref("e.start_time"),
     entity: (field) => eventsObservationsDimension(field).expression(eb),
-  });
-
-  if (level === "single") {
-    // select <dimensions>, <bucket>, <aggregation>(<measure>) … from <source>
-    return compileWithOuterClauses(
-      projectId,
-      outerClauses,
-      source.select((eb) => [
-        ...appliedDimensions.map((d) => astDimensionSelection(eb, d, "single")),
-        ...astBucketSelection(bucket, "single", bucketValue(eb)),
-        ...astSingleLevelMetrics(
-          eb,
-          appliedMetrics,
-          measure(eb, "single"),
-          chartConfig?.bins,
-        ),
-      ]),
-    );
-  }
-  // select e.project_id, e.span_id, <dimensions>, <bucket>, <measures> from <source>
-  // group by e.project_id, e.span_id[, <exploded and pair-expanded aliases>]
-  const perSpan = source
-    .select(["e.project_id", "e.span_id"])
-    .select((eb) => [
-      ...appliedDimensions.map((d) => astDimensionSelection(eb, d, "two")),
-      ...astBucketSelection(bucket, "two", bucketValue(eb)),
-      ...astInnerMetrics(eb, appliedMetrics, measure(eb, "two")),
-    ])
-    .groupBy([
-      "e.project_id",
-      "e.span_id",
-      ...appliedDimensions
+  }),
+  perRow: {
+    keys: ["e.project_id", "e.span_id"],
+    alias: "per_span",
+    // An exploded or pair-expanded dimension has one inner row per element.
+    extraGroupBy: (dimensions) =>
+      dimensions
         .filter((d) => d.explodeArray || d.pairExpand)
         .map((d) => aliasRef(dimensionAlias(d))),
-    ]);
-  return compileWithOuterClauses(
-    projectId,
-    outerClauses,
-    astOuterSelect(
-      perSpan.as("per_span"),
-      appliedDimensions,
-      bucket,
-      appliedMetrics,
-      chartConfig?.bins,
-    ),
-  );
-}
+  },
+});
 
 /**
  * The FROM, JOINs, ARRAY JOIN and WHERE of the v2 observations query:
@@ -195,14 +106,12 @@ export function buildEventsObservations(
  * between <from> and <to>]`.
  */
 function astEventsSource(
-  query: QueryType,
+  { from, to }: TimeWindow,
   filters: DashboardFilter[],
   joinsScores: boolean,
   skipScoresFinal: boolean,
   pairDimension: AppliedDimensionType | undefined,
 ) {
-  const from = utcDateTime(new Date(query.fromTimestamp));
-  const to = utcDateTime(new Date(query.toTimestamp));
   const db = getClickhouseKysely();
   // from events_truncated as e where <filters> and e.start_time between <from> and <to>
   let events = db.selectFrom("events_truncated as e");

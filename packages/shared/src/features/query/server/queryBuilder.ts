@@ -17,7 +17,7 @@ import {
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { env } from "../../../env";
 import { buildScores, SCORE_VIEWS_V2 } from "./scoresQuery";
-import { buildEventsObservations } from "./eventsObservationsQuery";
+import { eventsObservationsAstView } from "./eventsObservationsQuery";
 import { buildEventsTraces } from "./eventsTracesQuery";
 import { buildSqlText } from "./sqlTextQuery";
 import { type BuildContext } from "./astViewQuery";
@@ -83,8 +83,9 @@ export class QueryBuilder {
     }
     const view = this.getViewDeclaration(query.view);
     if (view === eventsObservationsView) {
-      return buildEventsObservations(
+      return eventsObservationsAstView.build(
         query,
+        view,
         this.astContext(projectId, enableSingleLevelOptimization),
       );
     }
