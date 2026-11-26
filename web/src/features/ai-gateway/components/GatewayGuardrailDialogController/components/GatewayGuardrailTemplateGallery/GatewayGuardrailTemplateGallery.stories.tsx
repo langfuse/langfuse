@@ -2,6 +2,7 @@ import { fn } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { GatewayGuardrailDialogShell } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailDialogShell/GatewayGuardrailDialogShell";
 import { GatewayGuardrailTemplateGallery } from "./GatewayGuardrailTemplateGallery";
 
 const meta = preview.meta({
@@ -10,7 +11,11 @@ const meta = preview.meta({
     (Story) => (
       <DialogController
         initialState={() => true}
-        renderDialog={() => <Story />}
+        renderDialog={() => (
+          <GatewayGuardrailDialogShell size="4xl" closeOnInteractionOutside>
+            <Story />
+          </GatewayGuardrailDialogShell>
+        )}
       >
         {() => null}
       </DialogController>

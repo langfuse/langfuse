@@ -4,6 +4,7 @@ import { type MutationStatus } from "@tanstack/react-query";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { GatewayBulkGuardrailTargetsDialog } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayBulkGuardrailTargetsDialog/GatewayBulkGuardrailTargetsDialog";
+import { GatewayGuardrailDialogShell } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailDialogShell/GatewayGuardrailDialogShell";
 import {
   GatewayGuardrailFormDialog,
   type ExternalGuardrailTestControl,
@@ -11,7 +12,10 @@ import {
   type GatewayGuardrailFormDialogProps,
   type GatewayGuardrailFormValues,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailFormDialog/GatewayGuardrailFormDialog";
-import { GatewayGuardrailTemplateGallery } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTemplateGallery/GatewayGuardrailTemplateGallery";
+import {
+  GatewayGuardrailTemplateGallery,
+  type GatewayGuardrailTemplateGalleryTab,
+} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTemplateGallery/GatewayGuardrailTemplateGallery";
 import {
   GATEWAY_GUARDRAIL_TEMPLATES,
   type GatewayGuardrailTemplate,
@@ -100,10 +104,10 @@ export function GatewayGuardrailDialogController({
     bulkTargetsMutation.isPending;
 
   const resetMutations = () => {
-    testMutation.reset();
-    createMutation.reset();
-    updateMutation.reset();
-    bulkTargetsMutation.reset();
+    if (testMutation.status !== "idle") testMutation.reset();
+    if (createMutation.status !== "idle") createMutation.reset();
+    if (updateMutation.status !== "idle") updateMutation.reset();
+    if (bulkTargetsMutation.status !== "idle") bulkTargetsMutation.reset();
   };
 
   const testOutcome = getTestOutcome(testMutation);
@@ -307,6 +311,8 @@ function GuardrailDialogContent({
 }: GuardrailDialogContentProps) {
   const [selectedTemplate, setSelectedTemplate] =
     useState<GatewayGuardrailTemplate | null>(null);
+  const [galleryTab, setGalleryTab] =
+    useState<GatewayGuardrailTemplateGalleryTab>("built-in");
 
   const needsTargets = state.mode !== "create" || selectedTemplate !== null;
   const targetPicker = useGatewayGuardrailTargetPicker(
@@ -330,51 +336,61 @@ function GuardrailDialogContent({
     );
   }
 
-  if (state.mode === "create" && selectedTemplate === null) {
-    return (
-      <GatewayGuardrailTemplateGallery onSelectTemplate={setSelectedTemplate} />
-    );
-  }
-
-  if (state.mode === "create" && selectedTemplate !== null) {
+  if (state.mode === "create") {
     const handleBack = () => {
       onClearError();
       setSelectedTemplate(null);
     };
-    const isExternal = Boolean(selectedTemplate.external);
+    const isExternal = Boolean(selectedTemplate?.external);
     return (
-      <ConnectedGuardrailFormDialog
-        key={selectedTemplate.id}
-        organizationId={organizationId}
-        title={selectedTemplate.name}
-        submitLabel={isExternal ? "Test and save" : "Add guardrail"}
-        templateKind={selectedTemplate.id}
-        availablePresets={selectedTemplate.presets}
-        externalTest={isExternal ? externalTest : undefined}
-        initialValues={{
-          name: selectedTemplate.name,
-          presets: [...selectedTemplate.defaultPresets],
-          secretPrefixes: [],
-          containsWords: [],
-          customRegex: null,
-          action:
-            GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[selectedTemplate.guardrailType]
-              .defaultAction,
-          scope: "LAST_TURN",
-          runsOn:
-            GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[selectedTemplate.guardrailType]
-              .defaultRunsOn,
-          redactionLabel: GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
-          targets: [EVERYONE_TARGET_OPTION],
-        }}
-        initialTestText={selectedTemplate.sampleTestText}
-        targetPicker={targetPicker}
-        isSubmitting={isSubmitting}
-        errorMessage={errorMessage}
-        onBack={handleBack}
-        onContactSupport={onContactSupport}
-        onSubmit={onSubmitForm}
-      />
+      <GatewayGuardrailDialogShell
+        size={selectedTemplate && isExternal ? "xl" : "4xl"}
+        closeOnInteractionOutside={selectedTemplate === null}
+        noCapture={selectedTemplate !== null}
+      >
+        {selectedTemplate === null ? (
+          <GatewayGuardrailTemplateGallery
+            activeTab={galleryTab}
+            onActiveTabChange={setGalleryTab}
+            onSelectTemplate={setSelectedTemplate}
+          />
+        ) : (
+          <ConnectedGuardrailFormContent
+            key={selectedTemplate.id}
+            organizationId={organizationId}
+            title={selectedTemplate.name}
+            submitLabel={isExternal ? "Test and save" : "Add guardrail"}
+            templateKind={selectedTemplate.id}
+            availablePresets={selectedTemplate.presets}
+            externalTest={isExternal ? externalTest : undefined}
+            initialValues={{
+              name: selectedTemplate.name,
+              presets: [...selectedTemplate.defaultPresets],
+              secretPrefixes: [],
+              containsWords: [],
+              customRegex: null,
+              action:
+                GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[
+                  selectedTemplate.guardrailType
+                ].defaultAction,
+              scope: "LAST_TURN",
+              runsOn:
+                GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[
+                  selectedTemplate.guardrailType
+                ].defaultRunsOn,
+              redactionLabel: GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
+              targets: [EVERYONE_TARGET_OPTION],
+            }}
+            initialTestText={selectedTemplate.sampleTestText}
+            targetPicker={targetPicker}
+            isSubmitting={isSubmitting}
+            errorMessage={errorMessage}
+            onBack={handleBack}
+            onContactSupport={onContactSupport}
+            onSubmit={onSubmitForm}
+          />
+        )}
+      </GatewayGuardrailDialogShell>
     );
   }
 
@@ -394,35 +410,38 @@ function GuardrailDialogContent({
   );
 
   return (
-    <ConnectedGuardrailFormDialog
-      key={guardrail.id}
-      organizationId={organizationId}
-      title="Edit guardrail"
-      submitLabel={isExternal ? "Test and save" : "Save changes"}
-      templateKind={templateKind}
-      availablePresets={availablePresets}
-      hasSavedApiKey={isExternal}
-      externalTest={isExternal ? externalTest : undefined}
-      initialValues={{
-        name: guardrail.name,
-        presets: guardrail.presets,
-        secretPrefixes: guardrail.secretPrefixes,
-        containsWords: guardrail.containsWords,
-        customRegex: guardrail.customRegex,
-        bedrock: guardrail.bedrock ?? undefined,
-        action: initialAction,
-        scope: guardrail.scope,
-        runsOn: initialRunsOn,
-        redactionLabel:
-          guardrail.redactionLabel ?? GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
-        targets: assignmentsToTargetOptions(guardrail.assignments),
-      }}
-      targetPicker={targetPicker}
-      isSubmitting={isSubmitting}
-      errorMessage={errorMessage}
-      onContactSupport={onContactSupport}
-      onSubmit={onSubmitForm}
-    />
+    <GatewayGuardrailDialogShell size={isExternal ? "xl" : "4xl"} noCapture>
+      <ConnectedGuardrailFormContent
+        key={guardrail.id}
+        organizationId={organizationId}
+        title="Edit guardrail"
+        submitLabel={isExternal ? "Test and save" : "Save changes"}
+        templateKind={templateKind}
+        availablePresets={availablePresets}
+        hasSavedApiKey={isExternal}
+        externalTest={isExternal ? externalTest : undefined}
+        initialValues={{
+          name: guardrail.name,
+          presets: guardrail.presets,
+          secretPrefixes: guardrail.secretPrefixes,
+          containsWords: guardrail.containsWords,
+          customRegex: guardrail.customRegex,
+          bedrock: guardrail.bedrock ?? undefined,
+          action: initialAction,
+          scope: guardrail.scope,
+          runsOn: initialRunsOn,
+          redactionLabel:
+            guardrail.redactionLabel ??
+            GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
+          targets: assignmentsToTargetOptions(guardrail.assignments),
+        }}
+        targetPicker={targetPicker}
+        isSubmitting={isSubmitting}
+        errorMessage={errorMessage}
+        onContactSupport={onContactSupport}
+        onSubmit={onSubmitForm}
+      />
+    </GatewayGuardrailDialogShell>
   );
 }
 
@@ -452,7 +471,7 @@ function toRegexActionInput(
   };
 }
 
-function ConnectedGuardrailFormDialog({
+function ConnectedGuardrailFormContent({
   organizationId,
   ...props
 }: Omit<GatewayGuardrailFormDialogProps, "customRegexPreview"> & {

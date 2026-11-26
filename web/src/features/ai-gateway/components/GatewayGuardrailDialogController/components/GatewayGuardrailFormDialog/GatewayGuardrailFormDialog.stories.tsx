@@ -6,6 +6,7 @@ import preview from "@/.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
+import { GatewayGuardrailDialogShell } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailDialogShell/GatewayGuardrailDialogShell";
 import { GATEWAY_GUARDRAIL_TEMPLATES } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
 import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
 import {
@@ -47,20 +48,28 @@ function StoryGuardrailFormDialog(
       )
     : TARGET_OPTIONS;
 
+  const isExternal = Boolean(
+    GATEWAY_GUARDRAIL_TEMPLATES.find(
+      (template) => template.id === props.templateKind,
+    )?.external,
+  );
+
   return (
     <DialogController
       initialState={() => true}
       renderDialog={() => (
-        <GatewayGuardrailFormDialog
-          {...props}
-          targetPicker={{
-            options,
-            search,
-            onSearchChange: setSearch,
-            isLoading: false,
-          }}
-          onSubmit={fn()}
-        />
+        <GatewayGuardrailDialogShell size={isExternal ? "xl" : "4xl"} noCapture>
+          <GatewayGuardrailFormDialog
+            {...props}
+            targetPicker={{
+              options,
+              search,
+              onSearchChange: setSearch,
+              isLoading: false,
+            }}
+            onSubmit={fn()}
+          />
+        </GatewayGuardrailDialogShell>
       )}
     >
       {() => null}
