@@ -3878,14 +3878,12 @@ paths:
             - `output` (string) - Observation output. Supports accelerated
             indexed literal search with the `matches` operator.
 
-            - `metadata` (stringObject) - Metadata key-value pairs. Use the
-            `key` parameter to filter on a specific metadata key. Metadata
-            values are stored as strings: a stringObject filter matches numbers
-            and booleans by their string form with `=` (for example `"value":
-            "true"` or `"value": "42"`). A numberObject filter compares the
-            value as a number (for example `"operator": ">", "value": 20`
-            matches `"20.5"` and `"21"`); values that are not numbers never
-            match.
+            - `metadata` (stringObject or numberObject) - Value at the metadata
+            `key`, stored as a string. stringObject compares it as text, so
+            numbers and booleans match by their string form (`"value": "42"`,
+            `"value": "true"`). numberObject compares it as a number
+            (`"operator": ">", "value": 20` matches `"20.5"` and `"21"`);
+            non-numeric values never match.
 
 
             The `matches` operator is only supported for `input`, `output`, and
