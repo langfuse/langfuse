@@ -366,7 +366,8 @@
     },
     "AvatarGroup": {
       "skip": [
-        "design-components-avatargroup--test-hover-lists-everyone"
+        "design-components-avatargroup--test-hover-lists-everyone",
+        "design-components-avatargroup--test-keyboard-reaches-member-list"
       ]
     },
     "CopyInput": {
