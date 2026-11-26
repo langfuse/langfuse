@@ -2,6 +2,7 @@ import { type ComponentProps, useState } from "react";
 import { BarChart3, LineChart } from "@langfuse/icons";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
+import { MultiSelectTagInput } from "../MultiSelectTagInput/MultiSelectTagInput";
 import { SelectInput } from "./SelectInput";
 
 const longOptionLabel =
@@ -192,6 +193,243 @@ export const SearchableWithBadges = meta.story({
     await expect(body.getByRole("option", { name: /relevance/ })).toBeVisible();
     await userEvent.click(body.getByRole("option", { name: /relevance/ }));
     await expect(canvas.getByRole("combobox")).toHaveTextContent("relevance");
+  },
+});
+
+const modelOptions = [
+  { value: "gpt-4.1", label: "GPT-4.1" },
+  { value: "gpt-4.1-mini", label: "GPT-4.1 mini" },
+] satisfies ComponentProps<typeof SelectInput>["options"];
+
+export const WithoutSelection = meta.story({
+  args: {
+    value: "",
+    placeholder: "Select a model",
+    options: modelOptions,
+    onValueChange: fn(),
+  },
+  render: (args) => (
+    <div className="w-72">
+      <SelectInput {...args} />
+    </div>
+  ),
+});
+
+export const Clearable = meta.story({
+  args: {
+    value: "gpt-4.1",
+    placeholder: "Select a model",
+    options: modelOptions,
+    onValueChange: fn(),
+    clearAction: { label: "Clear selection", onClear: fn() },
+  },
+  render: (args) => {
+    const [value, setValue] = useState(args.value);
+
+    return (
+      <div className="w-72">
+        <SelectInput
+          {...args}
+          value={value}
+          clearAction={{
+            label: "Clear selection",
+            onClear: () => {
+              setValue("");
+              args.clearAction?.onClear();
+            },
+          }}
+          onValueChange={(newValue) => {
+            setValue(newValue);
+            args.onValueChange(newValue);
+          }}
+        />
+      </div>
+    );
+  },
+});
+
+const tagOptions = [
+  { value: "production", label: "production" },
+  { value: "staging", label: "staging" },
+] as const;
+
+function ClearIndicatorComparison() {
+  return (
+    <div className="flex items-start gap-4">
+      <div className="w-72">
+        <SelectInput
+          value="gpt-4.1"
+          placeholder="Select a model"
+          options={modelOptions}
+          onValueChange={() => undefined}
+          clearAction={{ label: "Clear selection", onClear: () => undefined }}
+        />
+      </div>
+      <div className="w-72">
+        <MultiSelectTagInput
+          aria-label="Tags"
+          value={["production", "staging"]}
+          options={[...tagOptions]}
+          onValueChange={() => undefined}
+          placeholder="Tags"
+          searchPlaceholder="Search tags"
+          emptyMessage="No tags"
+        />
+      </div>
+    </div>
+  );
+}
+
+const alignmentArgs = {
+  value: "gpt-4.1",
+  placeholder: "Select a model",
+  options: modelOptions,
+  onValueChange: fn(),
+} satisfies ComponentProps<typeof SelectInput>;
+
+export const ClearIndicatorAlignment = meta.story({
+  name: "Clear indicator alignment",
+  args: alignmentArgs,
+  render: () => <ClearIndicatorComparison />,
+});
+
+export const TestClearIndicatorAlignment = meta.story({
+  name: "(Test) Clear indicators align",
+  args: alignmentArgs,
+  render: () => <ClearIndicatorComparison />,
+  play: async ({ canvasElement }) => {
+    const indicators = [
+      ...canvasElement.querySelectorAll("[data-select-indicator='clear']"),
+    ];
+    await expect(indicators).toHaveLength(2);
+    const insets = indicators.map((indicator) => {
+      const field = indicator.parentElement;
+      if (!field) throw new Error("Indicator has no field");
+      const fieldBox = field.getBoundingClientRect();
+      const indicatorBox = indicator.getBoundingClientRect();
+      return {
+        right: Math.round(fieldBox.right - indicatorBox.right),
+        center: Math.round(
+          indicatorBox.top +
+            indicatorBox.height / 2 -
+            (fieldBox.top + fieldBox.height / 2),
+        ),
+      };
+    });
+    await expect(insets[0]).toEqual(insets[1]);
+  },
+});
+
+export const Disabled = meta.story({
+  args: {
+    value: "gpt-4.1",
+    placeholder: "Select a model",
+    options: modelOptions,
+    disabled: true,
+    onValueChange: fn(),
+  },
+  render: (args) => (
+    <div className="w-72">
+      <SelectInput {...args} />
+    </div>
+  ),
+});
+
+export const TestClearReplacesCaret = meta.story({
+  name: "(Test) Clear replaces the caret",
+  args: {
+    value: "gpt-4.1",
+    placeholder: "Select a model",
+    options: modelOptions,
+    onValueChange: fn(),
+    clearAction: { label: "Clear selection", onClear: fn() },
+  },
+  render: (args) => (
+    <div className="w-72">
+      <SelectInput {...args} />
+    </div>
+  ),
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = canvas.getByRole("combobox");
+
+    await expect(
+      canvasElement.querySelector("[data-select-indicator='caret']"),
+    ).toBeNull();
+    await expect(
+      canvasElement.querySelector("[data-select-indicator='clear']"),
+    ).not.toBeNull();
+    await expect(trigger.querySelector("svg")).toBeNull();
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Clear selection" }),
+    );
+    await expect(args.clearAction?.onClear).toHaveBeenCalledOnce();
+    await expect(
+      canvasElement.ownerDocument.body.querySelector("[role='listbox']"),
+    ).toBeNull();
+  },
+});
+
+export const TestCaretOpensMenu = meta.story({
+  name: "(Test) Caret opens the menu",
+  args: {
+    value: "",
+    placeholder: "Select a model",
+    options: modelOptions,
+    onValueChange: fn(),
+  },
+  render: (args) => (
+    <div className="w-72">
+      <SelectInput {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = canvas.getByRole("combobox");
+    const caret = canvasElement.querySelector(
+      "[data-select-indicator='caret']",
+    );
+    if (!caret) throw new Error("Expected a caret indicator");
+    const caretBox = caret.getBoundingClientRect();
+    const hit = caret.ownerDocument.elementFromPoint(
+      caretBox.left + caretBox.width / 2,
+      caretBox.top + caretBox.height / 2,
+    );
+    await expect(hit && trigger.contains(hit)).toBe(true);
+    if (!hit) throw new Error("Expected the caret to hit the trigger");
+    await userEvent.click(hit);
+    await waitFor(() =>
+      expect(
+        canvasElement.ownerDocument.body.querySelector("[role='listbox']"),
+      ).not.toBeNull(),
+    );
+  },
+});
+
+export const TestClearWithoutMatchingOption = meta.story({
+  name: "(Test) Clear stays when the option is missing",
+  args: {
+    value: "missing-baseline",
+    placeholder: "Baseline name",
+    options: modelOptions,
+    onValueChange: fn(),
+    search: { placeholder: "Search experiments..." },
+    clearAction: { label: "Clear baseline", onClear: fn() },
+  },
+  render: (args) => (
+    <div className="w-72">
+      <SelectInput {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Clear baseline" }),
+    ).toBeVisible();
+    await expect(canvas.getByRole("combobox")).toHaveTextContent(
+      "Baseline name",
+    );
   },
 });
 
