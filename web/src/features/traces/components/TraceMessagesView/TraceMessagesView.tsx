@@ -1,5 +1,4 @@
 import { useState, type ComponentProps } from "react";
-import { useRouter } from "next/router";
 import { StringParam, useQueryParam } from "use-query-params";
 import { ErrorBoundary } from "@sentry/nextjs";
 import { GitBranch } from "@langfuse/icons";
@@ -9,10 +8,7 @@ import {
   useTraceData,
   useSingleTraceData,
 } from "@/src/features/traces/contexts/TraceDataProvider";
-import {
-  useTraceMessagesNavigation,
-  type TraceMessagesNeighbor,
-} from "./hooks/useTraceMessagesNavigation";
+import { useTraceMessagesNavigation } from "./hooks/useTraceMessagesNavigation";
 import { useTraceMessagesTranscript } from "./hooks/useTraceMessagesTranscript";
 // TODO: Before TraceMessagesView leaves internal preview, rename the components
 // shared by session and trace views and move them to a common location.
@@ -49,7 +45,6 @@ function SingleTraceMessagesView({
   const [expandedTraceId, setExpandedTraceId] = useState<string | null>(null);
   const { selectNode } = useSelection();
   const [, setTraceView] = useQueryParam("traceView", StringParam);
-  const router = useRouter();
   const { messageTrace, sessionNavigation } = useTraceMessagesNavigation();
   const { data, state } = useTraceMessagesTranscript(
     {
@@ -103,8 +98,8 @@ function SingleTraceMessagesView({
             position={sessionNavigation.position}
             total={sessionNavigation.total}
             sessionHref={sessionNavigation.sessionHref}
-            onPrevious={openNeighbor(router, sessionNavigation.previous)}
-            onNext={openNeighbor(router, sessionNavigation.next)}
+            previous={sessionNavigation.previous}
+            next={sessionNavigation.next}
           />
         ) : null}
         <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
@@ -128,18 +123,6 @@ function SingleTraceMessagesView({
       </div>
     </ErrorBoundary>
   );
-}
-
-function openNeighbor(
-  router: ReturnType<typeof useRouter>,
-  neighbor: TraceMessagesNeighbor | undefined,
-) {
-  if (!neighbor) return undefined;
-  return () => {
-    router
-      .push(neighbor.href, undefined, { shallow: neighbor.shallow })
-      .catch(() => undefined);
-  };
 }
 
 function HiddenThreadsDivider({

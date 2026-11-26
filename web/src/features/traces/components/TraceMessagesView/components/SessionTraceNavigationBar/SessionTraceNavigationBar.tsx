@@ -1,35 +1,36 @@
-import { ChevronLeft, ChevronRight, type IconComponent } from "@langfuse/icons";
+import { ArrowDown, ArrowUp, type IconComponent } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { type TraceMessagesNeighbor } from "@/src/features/traces/components/TraceMessagesView/hooks/useTraceMessagesNavigation";
 
 export function SessionTraceNavigationBar({
   position,
   total,
   sessionHref,
-  onPrevious,
-  onNext,
+  previous,
+  next,
 }: {
   position: number;
   total: number;
   sessionHref: string;
-  onPrevious?: () => void;
-  onNext?: () => void;
+  previous?: TraceMessagesNeighbor;
+  next?: TraceMessagesNeighbor;
 }) {
   return (
     <div className="bg-background sticky top-0 z-1 flex h-9 shrink-0 items-center gap-1 border-b px-2">
-      <SessionTraceNavButton
-        label="Previous trace"
-        icon={ChevronLeft}
-        onClick={onPrevious}
-      />
       <p className="text-muted-foreground px-1 text-sm tabular-nums">
         Trace {position} / {total}
       </p>
-      <SessionTraceNavButton
+      <SessionTraceNavControl
+        label="Previous trace"
+        icon={ArrowUp}
+        neighbor={previous}
+      />
+      <SessionTraceNavControl
         label="Next trace"
-        icon={ChevronRight}
-        onClick={onNext}
+        icon={ArrowDown}
+        neighbor={next}
       />
       <div className="ml-auto">
         <Button text="Session" variant="ghost" size="sm" href={sessionHref} />
@@ -38,22 +39,22 @@ export function SessionTraceNavigationBar({
   );
 }
 
-function SessionTraceNavButton({
+function SessionTraceNavControl({
   label,
-  icon,
-  onClick,
+  icon: Icon,
+  neighbor,
 }: {
   label: string;
   icon: IconComponent;
-  onClick?: () => void;
+  neighbor?: TraceMessagesNeighbor;
 }) {
-  if (!onClick) {
+  if (!neighbor) {
     return (
       <Tooltip label={label}>
         {({ getTriggerProps }) => (
           <span className="inline-flex" {...getTriggerProps()}>
             <IconButton
-              icon={icon}
+              icon={Icon}
               label={label}
               size="sm"
               variant="toolbar"
@@ -69,11 +70,13 @@ function SessionTraceNavButton({
     <Tooltip label={label}>
       {({ getTriggerProps }) => (
         <IconButton
-          icon={icon}
+          icon={Icon}
           label={label}
           size="sm"
           variant="toolbar"
-          {...getTriggerProps({ onClick })}
+          href={neighbor.href}
+          shallow={neighbor.shallow}
+          {...getTriggerProps()}
         />
       )}
     </Tooltip>

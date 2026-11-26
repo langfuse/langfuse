@@ -1,5 +1,6 @@
 import { cva } from "class-variance-authority";
 import { type IconColor, type IconComponent } from "@langfuse/icons";
+import Link from "next/link";
 import { type ComponentProps, type Ref } from "react";
 import { cn } from "@/src/utils/tailwind";
 
@@ -51,6 +52,9 @@ type IconButtonProps = NativeButtonProps & {
     | "subtle"
     | "toolbar"
     | "destructive";
+  /** Renders an anchor. Disabled controls stay buttons. */
+  href?: ComponentProps<typeof Link>["href"];
+  shallow?: boolean;
 };
 
 const iconColors = {
@@ -69,25 +73,45 @@ export function IconButton({
   size,
   type = "button",
   variant,
+  href,
+  shallow,
   ...buttonProps
 }: IconButtonProps) {
+  const className = cn(buttonVariants({ size, variant }));
+  const icon = (
+    <Icon
+      size={
+        variant === "toolbar" || size === "xs" || size === "xsTouch"
+          ? "sm"
+          : "base"
+      }
+      color={iconColors[variant ?? "ghost"]}
+      aria-hidden
+    />
+  );
+  if (href !== undefined) {
+    return (
+      <Link
+        href={href}
+        shallow={shallow}
+        aria-label={label}
+        className={className}
+        ref={ref}
+        {...buttonProps}
+      >
+        {icon}
+      </Link>
+    );
+  }
   return (
     <button
       {...buttonProps}
       aria-label={label}
-      className={cn(buttonVariants({ size, variant }))}
+      className={className}
       ref={ref}
       type={type}
     >
-      <Icon
-        size={
-          variant === "toolbar" || size === "xs" || size === "xsTouch"
-            ? "sm"
-            : "base"
-        }
-        color={iconColors[variant ?? "ghost"]}
-        aria-hidden
-      />
+      {icon}
     </button>
   );
 }
