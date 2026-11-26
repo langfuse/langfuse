@@ -69,7 +69,13 @@ export function SessionTraceTrack({
             className="flex h-full min-w-0 px-px"
             style={{ flexGrow: piece.width, flexBasis: 0 }}
           >
-            {renderPiece(piece, interactive, traces.length, onSelect, edge)}
+            {renderPiece(
+              piece,
+              Boolean(interactive),
+              traces.length,
+              onSelect,
+              edge,
+            )}
           </span>
         );
       })}
