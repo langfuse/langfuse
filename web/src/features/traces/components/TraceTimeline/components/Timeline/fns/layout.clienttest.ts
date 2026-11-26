@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveDensity } from "./density";
+import { resolveDensity } from "../../../fns/density";
 import {
   formatDurationMs,
   layout,

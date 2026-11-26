@@ -29,7 +29,7 @@
  * "not production code" marker does not cover it.
  */
 
-import type { Density } from "./density";
+import type { Density } from "../../../fns/density";
 import type { TextMeasurer } from "./textMeasurer";
 import {
   buildTimeCompression,

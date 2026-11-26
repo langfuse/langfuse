@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { IDLE_GAP_THRESHOLD_SECONDS } from "@/src/features/sessions/sessionIdleGap";
 import { layout, prepareTimeline, type LayoutNode } from "./layout";
-import { resolveDensity } from "./density";
+import { resolveDensity } from "../../../fns/density";
 import { createTextMeasurerFrom } from "./textMeasurer";
 import { sessionIdleCompression } from "./sessionIdleCompression";
 

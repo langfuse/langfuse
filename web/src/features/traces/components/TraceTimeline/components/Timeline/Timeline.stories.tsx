@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { expect, fn, userEvent, waitFor } from "storybook/test";
-import preview from "../../../../../../.storybook/preview";
-import { TimelineDense, type TimelineDenseProps } from "./TimelineDense";
-import { type Box } from "../fns/viewTransform";
+import preview from "../../../../../../../.storybook/preview";
+import { Timeline, type TimelineProps } from "./Timeline";
+import { type Box } from "./fns/viewTransform";
 import {
   deepNesting,
   streamingSpan,
@@ -10,14 +10,14 @@ import {
   reporterTrace,
   threeSpans,
   longTailTrace,
-} from "../fns/__tests__/timelineV2.fixtures";
+} from "./fns/__tests__/timelineV2.fixtures";
 
 /**
  * In the Storybook canvas the chart fills the preview, so resizing the
  * browser resizes the timeline. The play tests keep the box from the story
  * args, because those sizes are what the gestures assert against.
  */
-function TimelineStory(props: TimelineDenseProps) {
+function TimelineStory(props: TimelineProps) {
   const host = useRef<HTMLDivElement>(null);
   const testing = import.meta.env.VITEST_STORYBOOK !== undefined;
   const [box, setBox] = useState<Box | null>(testing ? props.box : null);
@@ -40,7 +40,7 @@ function TimelineStory(props: TimelineDenseProps) {
   return (
     <div ref={host} className="h-dvh w-full">
       {box ? (
-        <TimelineDense
+        <Timeline
           {...props}
           box={box}
           showReadout={testing ? props.showReadout : false}
@@ -51,7 +51,7 @@ function TimelineStory(props: TimelineDenseProps) {
 }
 
 const meta = preview.meta({
-  component: TimelineDense,
+  component: Timeline,
   parameters: { layout: "fullscreen" },
   render: (args) => <TimelineStory {...args} />,
 });
@@ -1241,8 +1241,8 @@ export const TooltipFollowsTheContent = meta.story({
 });
 
 /** A selection whose row arrives late, as a deep link's does. */
-function WithLateRows(props: TimelineDenseProps) {
-  const [roots, setRoots] = useState<TimelineDenseProps["roots"]>([]);
+function WithLateRows(props: TimelineProps) {
+  const [roots, setRoots] = useState<TimelineProps["roots"]>([]);
   return (
     <div className="flex flex-col items-start gap-1">
       <button type="button" onClick={() => setRoots(props.roots)}>
@@ -2628,9 +2628,9 @@ export const ARowTooTightForMetricsStillSaysThem = meta.story({
 function sessionRoots(
   count: number,
   options?: { idleAfter?: number; idleMs?: number },
-): TimelineDenseProps["roots"] {
+): TimelineProps["roots"] {
   let start = 0;
-  const roots: TimelineDenseProps["roots"] = [];
+  const roots: TimelineProps["roots"] = [];
   for (let index = 0; index < count; index++) {
     const end = start + 1_000;
     const traceId = `trace-${index}`;
@@ -2666,7 +2666,7 @@ function sessionRoots(
   return roots;
 }
 
-function CompactToggleStory(props: TimelineDenseProps) {
+function CompactToggleStory(props: TimelineProps) {
   const [rowLayout, setRowLayout] = useState<"tree" | "compact">("tree");
   return (
     <TimelineStory

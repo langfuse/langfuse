@@ -15,7 +15,7 @@
  * is the one thing this timeline promises never to do.
  */
 
-import { type Density } from "../fns/density";
+import { type Density } from "../../../fns/density";
 import { type TextMeasurer } from "../fns/textMeasurer";
 import { type PositionedNode } from "../fns/layout";
 

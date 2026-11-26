@@ -1,5 +1,5 @@
 /**
- * The Timeline. `TraceTimelineCompact` measures a box and renders this inside it,
+ * The Timeline. `TraceTimeline` measures a box and renders this inside it,
  * and the trace panel's Timeline view IS this — for everyone, on every device,
  * with no flag in front of it. A bug here is a bug in the product.
  *
@@ -61,12 +61,15 @@ import {
 import {
   tooltipPlacement,
   type TooltipPlacement,
-} from "../fns/tooltipPlacement";
+} from "./fns/tooltipPlacement";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { TimelineRowMetrics, type RowMetrics } from "./TimelineRowMetrics";
+import {
+  TimelineRowMetrics,
+  type RowMetrics,
+} from "./components/TimelineRowMetrics";
 import { cn } from "@/src/utils/tailwind";
-import { type Density, type PointerModality } from "../fns/density";
+import { type Density, type PointerModality } from "../../fns/density";
 import {
   formatDurationMs,
   layout,
@@ -75,17 +78,17 @@ import {
   timeCompressionFor,
   type LayoutNode,
   type PositionedNode,
-} from "../fns/layout";
-import { packCompactLanes } from "../fns/compactLanes";
-import { sessionIdleCompression } from "../fns/sessionIdleCompression";
+} from "./fns/layout";
+import { packCompactLanes } from "./fns/compactLanes";
+import { sessionIdleCompression } from "./fns/sessionIdleCompression";
 import {
   formatIdleGap,
   IDLE_GAP_THRESHOLD_SECONDS,
 } from "@/src/features/sessions/sessionIdleGap";
-import { collapsedForSearch } from "../fns/searchMatches";
-import { createTextMeasurer } from "../fns/textMeasurer";
-import { resolveBarTones } from "../fns/barContrast";
-import { traceSpaceOf, type Box } from "../fns/viewTransform";
+import { collapsedForSearch } from "./fns/searchMatches";
+import { createTextMeasurer } from "./fns/textMeasurer";
+import { resolveBarTones } from "./fns/barContrast";
+import { traceSpaceOf, type Box } from "./fns/viewTransform";
 import {
   HUMAN_ROW_HEIGHT,
   anchorTimeToRows,
@@ -108,7 +111,7 @@ import {
   zoomViewportRevealLabels,
   type RowExtent,
   type Viewport,
-} from "../fns/viewport";
+} from "./fns/viewport";
 
 /** Reuses ItemBadge's type→hue mapping, so a colour means what it already means. */
 const TYPE_COLOR: Record<string, string> = {
@@ -233,7 +236,7 @@ type MarqueeBox = {
   to: { x: number; y: number };
 };
 
-export type TimelineDenseProps = {
+export type TimelineProps = {
   roots: LayoutNode[];
   /** The measured box. Required — there is no fallback size. */
   box: Box;
@@ -339,7 +342,7 @@ function rowWashClass(state: {
   return state.focused && "bg-primary-accent/15";
 }
 
-export function TimelineDense({
+export function Timeline({
   roots,
   box,
   gutter,
@@ -357,7 +360,7 @@ export function TimelineDense({
   rowLayout = "tree",
   onRowLayoutChange,
   collapseIdleGaps = true,
-}: TimelineDenseProps) {
+}: TimelineProps) {
   const [windowState, setWindowState] = useState<{
     layout: "tree" | "compact";
     viewport: Viewport | null;

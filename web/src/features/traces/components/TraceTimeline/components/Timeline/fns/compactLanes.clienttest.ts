@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { packCompactLanes } from "./compactLanes";
 import { layout, prepareTimeline, type LayoutNode } from "./layout";
-import { resolveDensity } from "./density";
+import { resolveDensity } from "../../../fns/density";
 import { createTextMeasurerFrom } from "./textMeasurer";
 
 const measurer = createTextMeasurerFrom(null);

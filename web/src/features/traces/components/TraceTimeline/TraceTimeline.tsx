@@ -1,18 +1,18 @@
 /**
- * TraceTimelineCompact - the compact timeline, wired into the trace panel.
+ * TraceTimeline, wired into the trace panel, wired into the trace panel.
  *
  * This is the container half: it measures the box it has been given and hands
  * that to the renderer, and it connects the renderer's selection and hover to
  * the same contexts the Tree and Timeline views use, so all three select the
  * same observation and open the same detail panel.
  *
- * The renderer itself (TimelineDense) takes a measured box and nothing implicit,
+ * The renderer (Timeline) takes a measured box and nothing implicit,
  * which is what keeps it reviewable in Storybook across every size and shape.
  */
 
 import { useCallback, useState } from "react";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
-import { type RowMetrics } from "./components/TimelineRowMetrics";
+import { type RowMetrics } from "./components/Timeline/components/TimelineRowMetrics";
 import { usdFormatter } from "@/src/utils/numbers";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
@@ -20,9 +20,9 @@ import { useTraceSearchMatches } from "@/src/features/traces/hooks/useTraceSearc
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import { detectPointerModality } from "./fns/density";
-import { TimelineDense } from "./components/TimelineDense";
+import { Timeline } from "./components/Timeline/Timeline";
 
-export function TraceTimelineCompact() {
+export function TraceTimeline() {
   const { roots, nodeMap } = useTraceData();
   const { selectedNodeId, collapsedNodes, selectionLocked } = useSelection();
   // The same five switches the tree honours. They live in one place because a
@@ -95,7 +95,7 @@ export function TraceTimelineCompact() {
   return (
     <div ref={measureRef} className="h-full w-full overflow-hidden">
       {box && box.width > 0 && box.height > 0 ? (
-        <TimelineDense
+        <Timeline
           roots={roots}
           box={box}
           gutter="auto"
