@@ -104,7 +104,23 @@ describe("ExternalCodeEvalDispatcher", () => {
     });
 
     const [request] = requests;
-    expect(JSON.parse(request.body)).toEqual({ apiVersion: "v1", ...input });
+    expect(request.body).toBe(
+      JSON.stringify({
+        apiVersion: "v1",
+        scope: input.scope,
+        runtime: input.runtime,
+        execution: input.execution,
+        code: input.code,
+        payload: {
+          observation: {
+            input: null,
+            output: null,
+            metadata: null,
+            toolCalls: [],
+          },
+        },
+      }),
+    );
     expect(request.headers.authorization).toBe("Bearer executor-token");
     const [, timestamp, signature] =
       /^t=(\d+),v1=([0-9a-f]+)$/.exec(
@@ -113,6 +129,36 @@ describe("ExternalCodeEvalDispatcher", () => {
     expect(signature).toBe(
       generateWebhookSignature(request.body, Number(timestamp), SIGNING_SECRET),
     );
+  });
+
+  it("keeps the experiment section in v1 observation requests", async () => {
+    replies.push({ status: 200, body: { scores: SCORES } });
+    const experiment = { itemExpectedOutput: "yes", itemMetadata: { a: 1 } };
+
+    await createDispatcher().dispatch({
+      ...input,
+      payload: { ...input.payload, experiment } as DispatchInput["payload"],
+    });
+
+    expect(Object.keys(JSON.parse(requests[0].body).payload)).toEqual([
+      "observation",
+      "experiment",
+    ]);
+  });
+
+  it("sends trace runs as v2 with a targetType-discriminated payload", async () => {
+    replies.push({ status: 200, body: { scores: SCORES } });
+    const traceInput: DispatchInput = {
+      ...input,
+      payload: { targetType: "trace", trace: { threads: [{ messages: [] }] } },
+    };
+
+    await createDispatcher().dispatch(traceInput);
+
+    expect(JSON.parse(requests[0].body)).toEqual({
+      apiVersion: "v2",
+      ...traceInput,
+    });
   });
 
   it("keeps valid scores when the executor also returns an error envelope", async () => {

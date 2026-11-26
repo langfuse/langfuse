@@ -241,7 +241,9 @@ export function parseCodeEvalUserCodeError(payload: unknown) {
   return UserCodeErrorSchema.safeParse(payload).data ?? null;
 }
 
-export function assertDispatchInputWithinLimits(input: DispatchInput): string {
+export function assertDispatchInputWithinLimits(input: {
+  code: DispatchInput["code"];
+}): string {
   const sourceBytes = Buffer.byteLength(input.code.source, "utf8");
   if (sourceBytes > CODE_EVAL_SOURCE_MAX_BYTES) {
     throw new CodeEvalDispatcherError(
