@@ -102,6 +102,7 @@ describe("traces trpc", () => {
         ]),
         totalCost: expect.any(Number),
         users: expect.arrayContaining([trace.user_id, trace2.user_id]),
+        uiExportsDisabledReason: null,
       });
     });
   });
