@@ -123,7 +123,8 @@ export function layout<TNode extends LayoutNode>(
       }
       // A span thinner than a pixel cannot be told apart at this zoom. One
       // bar per pixel column stands for the spans that land there, drawn at
-      // the minimum width. The selected span stays mounted on its own.
+      // the minimum width. The selected span claims that column, so a later
+      // stand-in does not paint over it.
       const offsets = spanOffsetsOf(row.node, prepared.originMs);
       const compressedStart = compression.toCompressedMs(offsets.startMs);
       const compressedEnd = compression.toCompressedMs(
@@ -131,7 +132,6 @@ export function layout<TNode extends LayoutNode>(
       );
       const selected = row.node.id === input.selectedId;
       if (
-        !selected &&
         compressedEnd > compressedStart &&
         Math.abs(
           transform.toPx(compressedEnd) - transform.toPx(compressedStart),
@@ -139,7 +139,7 @@ export function layout<TNode extends LayoutNode>(
       ) {
         const column = Math.floor(transform.toPx(compressedStart));
         const key = `${lane}:${column}`;
-        if (claimedColumn.has(key)) continue;
+        if (claimedColumn.has(key) && !selected) continue;
         claimedColumn.add(key);
       }
     }

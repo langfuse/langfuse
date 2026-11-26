@@ -140,8 +140,8 @@ describe("packCompactLanes", () => {
 
     const piled = [
       span("wide-session", 0, 30_000),
-      span("first", 0, 1),
       span("second", 0, 1),
+      span("first", 0, 1),
     ];
     const piledPrepared = prepareTimeline(piled);
     const piledLayout = layout({
@@ -155,7 +155,9 @@ describe("packCompactLanes", () => {
       laneByRow: packCompactLanes(piledPrepared.rows).lanes,
       selectedId: "second",
     });
-    expect(piledLayout.nodes.map((node) => node.id)).toContain("second");
+    const piledIds = piledLayout.nodes.map((node) => node.id);
+    expect(piledIds).toContain("second");
+    expect(piledIds).not.toContain("first");
 
     const zoomed = layout({
       roots,
