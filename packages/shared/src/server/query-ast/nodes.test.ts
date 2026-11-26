@@ -1226,6 +1226,34 @@ describe("bare columns in a SELECT with several relations", () => {
   });
 });
 
+describe("qualifiers in a SELECT with one relation", () => {
+  const db = getClickhouseKysely();
+
+  it.each([
+    [
+      "a SELECT ref",
+      () => db.selectFrom("scores").select(sql.ref("zz.name").as("n")),
+    ],
+    [
+      "an uncompared WHERE term",
+      () =>
+        db
+          .selectFrom("scores")
+          .select("id")
+          .where((eb) => eb.fn<SqlBool>("toBool", [sql.ref("e.name")])),
+    ],
+  ])("rejects a relation the query did not join in %s", (_, build) => {
+    expect(() => compileClickhouseQuery(build(), projectId)).toThrow(
+      /Qualifier "(zz|e)" names no relation, registry column/,
+    );
+  });
+
+  it("accepts a subcolumn of its relation's column", () => {
+    const qb = db.selectFrom("scores").select(sql.ref("metadata.keys").as("k"));
+    expect(() => compileClickhouseQuery(qb, projectId)).not.toThrow();
+  });
+});
+
 describe("names the compiler writes verbatim", () => {
   const db = getClickhouseKysely();
 
