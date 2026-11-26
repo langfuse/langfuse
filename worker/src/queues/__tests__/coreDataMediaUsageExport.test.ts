@@ -153,18 +153,19 @@ describe("coreDataTableExports media usage entry", () => {
   };
 
   it("writes one object per closed UTC day with hourly rows and only count and byte columns", async () => {
+    // Upload status does not split groups.
     await createMedia({ createdAt: atHour(-3, 10, 5), contentLength: 100 });
-    await createMedia({ createdAt: atHour(-3, 10, 55), contentLength: 250 });
+    await createMedia({
+      createdAt: atHour(-3, 10, 55),
+      uploadHttpStatus: null,
+      contentLength: 250,
+    });
     await createMedia({
       createdAt: atHour(-3, 10, 30),
       contentType: "audio/mpeg",
       contentLength: 40,
     });
-    await createMedia({
-      createdAt: atHour(-3, 23, 59),
-      uploadHttpStatus: null,
-      contentLength: 7,
-    });
+    await createMedia({ createdAt: atHour(-3, 23, 59), contentLength: 7 });
     await createMedia({
       createdAt: atHour(-1, 0, 0),
       uploadHttpStatus: 500,
@@ -180,7 +181,6 @@ describe("coreDataTableExports media usage entry", () => {
         projectId,
         hour: `${isoDay(dayAt(-3))}T10:00:00.000Z`,
         contentType: "audio/mpeg",
-        uploadHttpStatus: 200,
         mediaCount: 1,
         totalContentLength: 40,
       },
@@ -188,7 +188,6 @@ describe("coreDataTableExports media usage entry", () => {
         projectId,
         hour: `${isoDay(dayAt(-3))}T10:00:00.000Z`,
         contentType: "image/png",
-        uploadHttpStatus: 200,
         mediaCount: 2,
         totalContentLength: 350,
       },
@@ -196,7 +195,6 @@ describe("coreDataTableExports media usage entry", () => {
         projectId,
         hour: `${isoDay(dayAt(-3))}T23:00:00.000Z`,
         contentType: "image/png",
-        uploadHttpStatus: null,
         mediaCount: 1,
         totalContentLength: 7,
       },
@@ -205,7 +203,6 @@ describe("coreDataTableExports media usage entry", () => {
       "projectId",
       "hour",
       "contentType",
-      "uploadHttpStatus",
       "mediaCount",
       "totalContentLength",
     ]);
@@ -216,7 +213,6 @@ describe("coreDataTableExports media usage entry", () => {
         projectId,
         hour: `${isoDay(dayAt(-1))}T00:00:00.000Z`,
         contentType: "image/png",
-        uploadHttpStatus: 500,
         mediaCount: 1,
         totalContentLength: 9,
       },
@@ -306,44 +302,37 @@ describe("coreDataTableExports media usage entry", () => {
     expect(await readWatermark()).toBe(ahead);
   });
 
-  it("rewrites the lookback days idempotently and leaves older days alone", async () => {
+  it("writes each closed day once and only rewrites it when a run is retried", async () => {
     env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_MIN_START_DATE = isoDay(
-      dayAt(-5),
+      dayAt(-4),
     );
-    await createMedia({ createdAt: atHour(-5, 8), contentLength: 10 });
+    await createMedia({ createdAt: atHour(-4, 8), contentLength: 10 });
     await createMedia({ createdAt: atHour(-2, 8), contentLength: 20 });
 
     await exportMediaUsage({ s3Client, uploadPrefix });
+    const days = [-4, -3, -2, -1];
     const firstRun = await Promise.all(
-      [-5, -4, -3, -2, -1].map((offset) =>
-        s3Client.download(dayKey(dayAt(offset))),
-      ),
+      days.map((offset) => s3Client.download(dayKey(dayAt(offset)))),
     );
 
-    // No changes: a rerun rewrites the last 3 closed days with identical content.
+    // Nothing new has closed: a rerun writes no day object, and rows that
+    // arrive late for an exported day are not re-exported.
+    await createMedia({ createdAt: atHour(-2, 8, 30), contentLength: 5 });
     const uploadedDays = spyOnDayUploads();
     await exportMediaUsage({ s3Client, uploadPrefix });
-    expect(uploadedDays.sort()).toEqual(
-      [-3, -2, -1].map((offset) => isoDay(dayAt(offset))),
-    );
-    const secondRun = await Promise.all(
-      [-5, -4, -3, -2, -1].map((offset) =>
-        s3Client.download(dayKey(dayAt(offset))),
-      ),
-    );
-    expect(secondRun).toEqual(firstRun);
+    expect(uploadedDays).toEqual([]);
+    expect(await s3Client.download(dayKey(dayAt(-2)))).toBe(firstRun[2]);
     expect(await readWatermark()).toBe(dayAt(0).toISOString());
 
-    // Late changes inside the lookback are picked up, older ones are not.
-    await createMedia({ createdAt: atHour(-2, 8, 30), contentLength: 5 });
-    await createMedia({ createdAt: atHour(-5, 9), contentLength: 5 });
-    await exportMediaUsage({ s3Client, uploadPrefix });
-
-    expect((await readDayRows(dayAt(-2)))[0]).toMatchObject({
-      mediaCount: 2,
-      totalContentLength: 25,
+    // A run that stopped before its watermark moved rewrites the same objects.
+    await s3Client.uploadFile({
+      fileName: watermarkKey(),
+      fileType: "application/json",
+      data: JSON.stringify({ exportedUntil: dayAt(-1).toISOString() }),
     });
-    expect(await s3Client.download(dayKey(dayAt(-5)))).toBe(firstRun[0]);
+    await exportMediaUsage({ s3Client, uploadPrefix });
+    expect(uploadedDays).toEqual([isoDay(dayAt(-1))]);
+    expect(await s3Client.download(dayKey(dayAt(-1)))).toBe(firstRun[3]);
     expect(await readWatermark()).toBe(dayAt(0).toISOString());
   });
 

@@ -6,13 +6,9 @@ import { env } from "../env";
 // Mirrors the ClickHouse analytics views (analytics_traces, analytics_scores,
 // analytics_observations): one row per project and UTC hour, exported only for
 // closed periods and picked up downstream by a cursor on the period. Rows are
-// grouped into one object per closed UTC day so a rerun of a day rewrites the
-// same key instead of appending.
+// grouped into one object per closed UTC day, written once; a retried day
+// rewrites the same key instead of appending.
 const MEDIA_USAGE_TABLE_NAME = "mediaUsageHourly";
-// Every run re-exports this many of the most recent closed days, so upload
-// status updates and rows committed just after midnight still land in their
-// day. Changes to older days are not re-exported.
-const MEDIA_USAGE_LOOKBACK_DAYS = 3;
 const MEDIA_USAGE_PROJECT_BATCH_SIZE = 1_000;
 const MEDIA_USAGE_PART_SIZE_BYTES = 100 * 1024 * 1024;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -44,27 +40,23 @@ const mediaUsageWatermarkKey = (uploadPrefix: string) =>
 /**
  * Returns the UTC days to export, oldest first. Only closed days (before the
  * UTC day of `now`) are exported. Without a watermark the export backfills from
- * `backfillStart`; afterwards it exports every day from `exportedUntil` on,
- * plus the last `lookbackDays` closed days.
+ * `backfillStart`; afterwards it exports every day from `exportedUntil` on.
  */
 const computeMediaUsageExportDays = ({
   now,
   exportedUntil,
   backfillStart,
   minStartDay,
-  lookbackDays = MEDIA_USAGE_LOOKBACK_DAYS,
 }: {
   now: Date;
   exportedUntil: Date | null;
   backfillStart: Date | null;
   minStartDay: Date;
-  lookbackDays?: number;
 }): Date[] => {
   const lastClosedDay = addUtcDays(toUtcDay(now), -1);
   let start: Date;
   if (exportedUntil) {
-    const lookbackStart = addUtcDays(lastClosedDay, -(lookbackDays - 1));
-    start = exportedUntil < lookbackStart ? exportedUntil : lookbackStart;
+    start = exportedUntil;
   } else if (backfillStart) {
     start = toUtcDay(backfillStart);
   } else {
@@ -146,7 +138,6 @@ type MediaUsageHourlyQueryRow = {
   projectId: string;
   hour: string;
   contentType: string;
-  uploadHttpStatus: number | null;
   mediaCount: bigint | number;
   totalContentLength: bigint | number;
 };
@@ -170,15 +161,14 @@ const queryMediaUsageHourly = ({
       project_id AS "projectId",
       to_char(date_trunc('hour', created_at), 'YYYY-MM-DD"T"HH24":00:00.000Z"') AS "hour",
       content_type AS "contentType",
-      upload_http_status AS "uploadHttpStatus",
       COUNT(*)::bigint AS "mediaCount",
       SUM(content_length)::bigint AS "totalContentLength"
     FROM media
     WHERE project_id = ANY(${projectIds}::text[])
       AND created_at >= ${toPgUtcTimestamp(from)}::timestamp
       AND created_at < ${toPgUtcTimestamp(to)}::timestamp
-    GROUP BY 1, 2, 3, 4
-    ORDER BY 1, 2, 3, 4 NULLS LAST
+    GROUP BY 1, 2, 3
+    ORDER BY 1, 2, 3
   `;
 
 /** Exports the BigInt aggregates as numbers, since JSON.stringify throws on BigInt. */
@@ -186,7 +176,6 @@ const mapMediaUsageHourlyRow = (row: MediaUsageHourlyQueryRow) => ({
   projectId: row.projectId,
   hour: row.hour,
   contentType: row.contentType,
-  uploadHttpStatus: row.uploadHttpStatus,
   mediaCount: Number(row.mediaCount),
   totalContentLength: Number(row.totalContentLength),
 });
@@ -270,18 +259,17 @@ const uploadMediaUsageDay = async ({
 
 /**
  * Writes one JSONL object per closed UTC day with media counts and bytes per
- * project, hour, content type and upload status, one day at a time, advancing
+ * project, hour and content type, one day at a time, advancing
  * the watermark after each written day. Stops starting new days once
  * `timeBudgetMs` has elapsed; the next run continues from the watermark. At
  * least one day is attempted per run. Counts and bytes only: ids, hashes,
- * bucket locations, upload errors and media association tables are not
+ * bucket locations, upload status and errors, and media association tables are not
  * exported.
  */
 export const exportMediaUsageHourly = async ({
   s3Client,
   uploadPrefix,
   now = new Date(),
-  lookbackDays = MEDIA_USAGE_LOOKBACK_DAYS,
   timeBudgetMs = env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_TIME_BUDGET_MINUTES *
     60_000,
   minStartDay = new Date(
@@ -292,7 +280,6 @@ export const exportMediaUsageHourly = async ({
   s3Client: StorageService;
   uploadPrefix: string;
   now?: Date;
-  lookbackDays?: number;
   timeBudgetMs?: number;
   minStartDay?: Date;
   projectBatchSize?: number;
@@ -304,7 +291,6 @@ export const exportMediaUsageHourly = async ({
     exportedUntil: watermark,
     backfillStart: watermark ? null : await getMediaUsageBackfillStart(),
     minStartDay,
-    lookbackDays,
   });
 
   if (days.length === 0) {
