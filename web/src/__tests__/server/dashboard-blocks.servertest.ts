@@ -94,6 +94,53 @@ describe("project dashboard blocks", () => {
     await prisma.user.delete({ where: { id: userId } });
   });
 
+  it("inserts before the entire connected row without overlapping taller neighbors", async () => {
+    const widgets = [0, 1, 2].map((index) => ({
+      id: `placement-${index}`,
+      type: "preset" as const,
+      presetId: "home-model-costs",
+      x: index * 4,
+      y: index * 2,
+      x_size: 4,
+      y_size: 3,
+    }));
+    const dashboard = await prisma.dashboard.create({
+      data: {
+        projectId,
+        name: "Staggered cards",
+        description: "",
+        definition: { widgets },
+      },
+    });
+    const saved = await caller(projectId).dashboardWidgets.saveDefinition({
+      projectId,
+      dashboardId: dashboard.id,
+      beforePlacementId: "placement-2",
+      definition: {
+        version: 1,
+        kind: "markdown",
+        config: { title: "Section", content: "Before these charts" },
+      },
+    });
+    const updated = await prisma.dashboard.findUniqueOrThrow({
+      where: { id: dashboard.id },
+    });
+    expect(updated.definition).toEqual({
+      widgets: [
+        ...widgets.map((placement) => ({ ...placement, y: placement.y + 2 })),
+        {
+          id: saved.placementId,
+          type: "widget",
+          widgetId: saved.widget.id,
+          x: 0,
+          y: 0,
+          x_size: 12,
+          y_size: 2,
+        },
+      ],
+    });
+  });
+
   it("stores rich content on reusable widgets and replaces a Home placement atomically", async () => {
     const author = caller(projectId);
     const reader = caller(projectId, "VIEWER", { optedIn: false });

@@ -147,12 +147,18 @@ function addPlacement(
   const before = beforeId
     ? layout.widgets.find((item) => item.id === beforeId)
     : undefined;
-  const y =
+  let y =
     before?.y ??
     layout.widgets.reduce(
       (max, item) => Math.max(max, item.y + item.y_size),
       0,
     );
+  if (before) {
+    // A full-width widget must precede every card spanning the insertion row.
+    for (const item of [...layout.widgets].sort((a, b) => b.y - a.y)) {
+      if (item.y < y && item.y + item.y_size > y) y = item.y;
+    }
+  }
   const placement = {
     type: "widget" as const,
     widgetId,
