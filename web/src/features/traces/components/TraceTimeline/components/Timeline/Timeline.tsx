@@ -232,21 +232,65 @@ function idleAxisLabel(durationMs: number): string {
 
 type IdleAxisLabel = { label: string; left: number; width: number };
 
-function placedIdleLabels(gaps: readonly GapMarker[]): IdleAxisLabel[] {
+/** A 9px character is a little over half that wide. */
+const AXIS_CHAR_PX = TICK_FONT_PX * 0.56;
+/** Tick text starts 4px right of its line (`left-1`). */
+const TICK_LABEL_INSET_PX = 4;
+
+function axisTextWidth(text: string) {
+  return text.length * AXIS_CHAR_PX;
+}
+
+function placedIdleLabels(
+  gaps: readonly GapMarker[],
+  ticks: readonly { x: number; label: string }[],
+): IdleAxisLabel[] {
+  const tickBoxes = ticks.map((tick) => {
+    const left = tick.x + TICK_LABEL_INSET_PX;
+    return { left, right: left + axisTextWidth(tick.label) };
+  });
   const placed: IdleAxisLabel[] = [];
   let labelCursor = 0;
   for (const gap of gaps) {
     if (gap.durationMs < IDLE_GAP_THRESHOLD_SECONDS * 1000) continue;
     const label = idleAxisLabel(gap.durationMs);
     if (gap.width < GAP_LABEL_MIN_WIDTH) continue;
-    const width = label.length * (TICK_FONT_PX * 0.62);
-    if (width > gap.width) continue;
-    const left = gap.x + (gap.width - width) / 2;
-    if (left < labelCursor) continue;
+    const width = axisTextWidth(label);
+    const room = freeSpans(gap.x, gap.x + gap.width, tickBoxes).find(
+      (span) => span.end - span.start >= width,
+    );
+    if (!room) continue;
+    const left = Math.max(
+      room.start + (room.end - room.start - width) / 2,
+      labelCursor,
+    );
+    if (left + width > room.end) continue;
     labelCursor = left + width;
     placed.push({ label, left, width });
   }
   return placed;
+}
+
+function freeSpans(
+  start: number,
+  end: number,
+  boxes: readonly { left: number; right: number }[],
+) {
+  let spans = [{ start, end }];
+  for (const box of boxes) {
+    const next = [];
+    for (const span of spans) {
+      if (box.right <= span.start || box.left >= span.end) {
+        next.push(span);
+        continue;
+      }
+      if (box.left > span.start)
+        next.push({ start: span.start, end: box.left });
+      if (box.right < span.end) next.push({ start: box.right, end: span.end });
+    }
+    spans = next;
+  }
+  return spans.toSorted((a, b) => b.end - b.start - (a.end - a.start));
 }
 
 function idleGapLabels(placed: readonly IdleAxisLabel[]) {
@@ -262,20 +306,6 @@ function idleGapLabels(placed: readonly IdleAxisLabel[]) {
   ));
 }
 
-/** Tick text starts 4px right of its line (`left-1`). */
-const TICK_LABEL_INSET_PX = 4;
-
-function tickLabelClearsIdle(
-  tickX: number,
-  tickLabel: string,
-  idleLabels: readonly IdleAxisLabel[],
-) {
-  const left = tickX + TICK_LABEL_INSET_PX;
-  const right = left + tickLabel.length * (TICK_FONT_PX * 0.62);
-  return idleLabels.every(
-    (idle) => right <= idle.left || left >= idle.left + idle.width,
-  );
-}
 /** Below this in both axes a drag was a stray click, not a box. */
 const MARQUEE_MIN_PX = 6;
 /** Two taps within this long, and this close, are one double-tap. */
@@ -743,7 +773,7 @@ export function Timeline({
     barInsetPx: packed ? 2 : 0,
     selectedId,
   });
-  const axisIdleLabels = placedIdleLabels(result.gaps);
+  const axisIdleLabels = placedIdleLabels(result.gaps, result.ticks);
 
   // What each row occupies on the time axis, in the same compressed space the
   // window is expressed in — so a zoom can tell "nothing to see here" from "the
@@ -1705,15 +1735,13 @@ export function Timeline({
               className="border-border-contrast absolute inset-y-0 border-l"
               style={{ left: `${tick.x}px` }}
             >
-              {tickLabelClearsIdle(tick.x, tick.label, axisIdleLabels) ? (
-                <span
-                  className="text-muted-foreground absolute left-1 whitespace-nowrap"
-                  style={{ top: 0, fontSize: `${TICK_FONT_PX}px` }}
-                  data-testid="timeline-tick-label"
-                >
-                  {tick.label}
-                </span>
-              ) : null}
+              <span
+                className="text-muted-foreground absolute left-1 whitespace-nowrap"
+                style={{ top: 0, fontSize: `${TICK_FONT_PX}px` }}
+                data-testid="timeline-tick-label"
+              >
+                {tick.label}
+              </span>
             </div>
           ))}
           {idleGapLabels(axisIdleLabels)}

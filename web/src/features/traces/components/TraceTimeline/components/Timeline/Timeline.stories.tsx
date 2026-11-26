@@ -2763,12 +2763,20 @@ export const IdleGapMatchesAxis = meta.story({
     expect(labelStyle.color).toBe(tickStyle.color);
     expect(label.textContent).toBe("54m idle");
     const idleBox = label.getBoundingClientRect();
-    for (const tick of canvas.getAllByTestId("timeline-tick-label")) {
-      const box = tick.getBoundingClientRect();
-      const overlaps =
-        box.right > idleBox.left + 0.5 && box.left < idleBox.right - 0.5;
-      expect(overlaps).toBe(false);
-    }
+    const tickBoxes = canvas
+      .getAllByTestId("timeline-tick-label")
+      .map((tick) => {
+        const box = tick.getBoundingClientRect();
+        const overlaps =
+          box.right > idleBox.left + 0.5 && box.left < idleBox.right - 0.5;
+        expect(overlaps).toBe(false);
+        return box;
+      });
+    const nearestLeft = tickBoxes
+      .filter((box) => box.right <= idleBox.left + 0.5)
+      .toSorted((a, b) => b.right - a.right)[0];
+    if (!nearestLeft) throw new Error("no tick left of the idle label");
+    expect(idleBox.left - nearestLeft.right).toBeLessThan(24);
     const bandBox = band.getBoundingClientRect();
     const metrics = canvas.getAllByTestId("timeline-dense-metrics");
     expect(metrics.length).toBeGreaterThan(0);
