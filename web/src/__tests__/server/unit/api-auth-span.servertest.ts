@@ -41,6 +41,8 @@ vi.mock("@langfuse/shared", () => ({
     parse: vi.fn((value) => value),
   },
   isPlan: vi.fn((plan) => typeof plan === "string"),
+  publicKeyPrefix: "pk-lf-",
+  secretKeyPrefix: "sk-lf-",
 }));
 
 vi.mock("@langfuse/shared/src/server", () => ({
