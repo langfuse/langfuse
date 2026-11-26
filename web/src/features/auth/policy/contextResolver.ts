@@ -15,7 +15,10 @@ import {
   systemRoleAccessRights,
 } from "@langfuse/shared/rbac";
 
-import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
+import {
+  getGroupRolesForUser,
+  getRolesForPrincipal,
+} from "@/src/features/rbac/getRolesForPrincipal";
 import { getOrganizationPlanServerSide } from "@langfuse/shared/src/server";
 import {
   OrganizationRepository,
@@ -154,12 +157,16 @@ export async function getPoliciesForApiKey(
   return [userPolicies, toPolicies(ownRoles)];
 }
 
-/** getPoliciesForUser loads the policy set a user's roles bind. */
+/** getPoliciesForUser loads the policy set a user's own and group roles bind. */
 export async function getPoliciesForUser(
   tx: Prisma.TransactionClient,
   userId: string,
 ): Promise<Policy[]> {
-  return toPolicies(await getRolesForPrincipal(tx, UserId(userId)));
+  const [ownRoles, groupRoles] = await Promise.all([
+    getRolesForPrincipal(tx, UserId(userId)),
+    getGroupRolesForUser(tx, userId),
+  ]);
+  return toPolicies([...ownRoles, ...groupRoles]);
 }
 
 /**

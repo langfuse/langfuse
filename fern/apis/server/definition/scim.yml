@@ -92,6 +92,141 @@ service:
         userId: string
       response: EmptyResponse
 
+    replaceUser:
+      docs: >-
+        Replace a user's organization membership (requires organization-scoped
+        API key). `active: true` adds the user to the organization, `active:
+        false` removes them. When `roles` is set, the first valid role is
+        applied to the membership; when it is omitted, an existing membership
+        keeps its role and a new one gets the `NONE` role. A request that sends
+        `roles` without `active` updates the role of an existing member. Other
+        user attributes are ignored.
+      method: PUT
+      path: /Users/{userId}
+      path-parameters:
+        userId: string
+      request:
+        name: ReplaceUserRequest
+        body:
+          properties:
+            schemas:
+              docs: Must include `urn:ietf:params:scim:schemas:core:2.0:User`
+              type: list<string>
+            active:
+              docs: Whether the user should be a member of the organization
+              type: optional<boolean>
+            roles:
+              docs: >-
+                Organization role to apply. Only the first entry is used. One of
+                OWNER, ADMIN, MEMBER, VIEWER, NONE, AI_GATEWAY.
+              type: optional<list<string>>
+      response: ScimUserSummary
+
+    patchUser:
+      docs: >-
+        Update a user's organization membership with a SCIM PatchOp (requires
+        organization-scoped API key). Only `replace` operations whose value sets
+        `active` are supported: `active: true` adds the user to the organization
+        with the `NONE` role if they are not a member yet, `active: false`
+        removes them.
+      method: PATCH
+      path: /Users/{userId}
+      path-parameters:
+        userId: string
+      request:
+        name: PatchUserRequest
+        body: ScimPatchRequest
+      response: ScimUser
+
+    listGroups:
+      docs: List groups in the organization (requires organization-scoped API key)
+      method: GET
+      path: /Groups
+      request:
+        name: ListGroupsRequest
+        query-parameters:
+          filter:
+            docs: Filter expression. Supported are `displayName eq "value"` and `externalId eq "value"`.
+            type: optional<string>
+          startIndex:
+            docs: 1-based index of the first result to return (default 1)
+            type: optional<integer>
+          count:
+            docs: Maximum number of results to return (default and maximum 100)
+            type: optional<integer>
+          excludedAttributes:
+            docs: Comma-separated attributes to leave out of the response. Pass `members` to omit group members.
+            type: optional<string>
+      response: ScimGroupsListResponse
+
+    createGroup:
+      docs: Create a group in the organization (requires organization-scoped API key)
+      method: POST
+      path: /Groups
+      request:
+        name: CreateGroupRequest
+        body: ScimGroupRequest
+      response: ScimGroup
+
+    getGroup:
+      docs: Get a specific group by ID (requires organization-scoped API key)
+      method: GET
+      path: /Groups/{groupId}
+      path-parameters:
+        groupId: string
+      request:
+        name: GetGroupRequest
+        query-parameters:
+          excludedAttributes:
+            docs: Comma-separated attributes to leave out of the response. Pass `members` to omit group members.
+            type: optional<string>
+      response: ScimGroup
+
+    replaceGroup:
+      docs: >-
+        Replace a group's display name, external ID and members (requires
+        organization-scoped API key). Members not listed are removed from the
+        group.
+      method: PUT
+      path: /Groups/{groupId}
+      path-parameters:
+        groupId: string
+      request:
+        name: ReplaceGroupRequest
+        query-parameters:
+          excludedAttributes:
+            docs: Comma-separated attributes to leave out of the response. Pass `members` to omit group members.
+            type: optional<string>
+        body: ScimGroupRequest
+      response: ScimGroup
+
+    patchGroup:
+      docs: >-
+        Update a group with a SCIM PatchOp (requires organization-scoped API
+        key). Supports `add`, `remove` and `replace` on `members`, `displayName`
+        and `externalId`, `remove` on `members[value eq "<userId>"]`, and
+        operations without a path whose value is a partial group.
+      method: PATCH
+      path: /Groups/{groupId}
+      path-parameters:
+        groupId: string
+      request:
+        name: PatchGroupRequest
+        query-parameters:
+          excludedAttributes:
+            docs: Comma-separated attributes to leave out of the response. Pass `members` to omit group members.
+            type: optional<string>
+        body: ScimPatchRequest
+      response: ScimGroup
+
+    deleteGroup:
+      docs: Delete a group from the organization (requires organization-scoped API key)
+      method: DELETE
+      path: /Groups/{groupId}
+      path-parameters:
+        groupId: string
+      response: EmptyResponse
+
 types:
   ServiceProviderConfig:
     properties:
@@ -202,6 +337,85 @@ types:
       primary: boolean
       value: string
       type: string
+
+  ScimUserSummary:
+    docs: User returned by a PUT request, without name and emails
+    properties:
+      schemas: list<string>
+      id: string
+      userName: string
+      meta: UserMeta
+
+  ScimPatchRequest:
+    properties:
+      schemas:
+        docs: Must include `urn:ietf:params:scim:api:messages:2.0:PatchOp`
+        type: list<string>
+      Operations: list<ScimPatchOperation>
+
+  ScimPatchOperation:
+    properties:
+      op:
+        docs: One of `add`, `remove`, `replace`
+        type: string
+      path: optional<string>
+      value: optional<unknown>
+
+  ScimGroupRequest:
+    properties:
+      schemas: optional<list<string>>
+      displayName: string
+      externalId:
+        docs: Identifier of the group in the identity provider. Unique within the organization.
+        type: optional<string>
+      members:
+        docs: Users to add to the group. Each user must be a member of the organization.
+        type: optional<list<ScimGroupMemberReference>>
+
+  ScimGroupMemberReference:
+    properties:
+      value:
+        docs: SCIM User ID
+        type: string
+
+  ScimGroup:
+    properties:
+      schemas: list<string>
+      id: string
+      displayName: string
+      externalId: optional<string>
+      members:
+        docs: Omitted when `excludedAttributes=members` is set
+        type: optional<list<ScimGroupMember>>
+      meta: GroupMeta
+
+  ScimGroupMember:
+    properties:
+      value:
+        docs: SCIM User ID
+        type: string
+      display:
+        docs: User's email address
+        type: optional<string>
+      $ref:
+        name: ref
+        type: string
+      type: string
+
+  GroupMeta:
+    properties:
+      resourceType: string
+      created: string
+      lastModified: string
+      location: string
+
+  ScimGroupsListResponse:
+    properties:
+      schemas: list<string>
+      totalResults: integer
+      startIndex: integer
+      itemsPerPage: integer
+      Resources: list<ScimGroup>
 
   EmptyResponse:
     docs: Empty response for 204 No Content responses

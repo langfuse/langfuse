@@ -12,6 +12,7 @@ import { getOrgMembershipRoles } from "../memberships/orgMembershipRepository";
 import { getProjectMembershipRoles } from "../memberships/projectMembershipRepository";
 import {
   hasApiKeyKind,
+  hasGroupKind,
   hasOrganizationKind,
   hasSystemRoleKind,
   hasUserKind,
@@ -46,6 +47,7 @@ export async function assignRole(
       tx,
       ra.tenantId,
       ra.ownerId,
+      ra.principalId,
     );
     return await tx.roleAssignment.create({
       data: {
@@ -107,6 +109,15 @@ export async function revokeUserRoles(
 ): Promise<void> {
   await prisma.roleAssignment.deleteMany({
     where: { ownerId, userId: { not: null } },
+  });
+}
+
+export async function revokeGroupRoles(
+  prisma: Prisma.TransactionClient,
+  { ownerId }: { ownerId: OwnerId },
+): Promise<void> {
+  await prisma.roleAssignment.deleteMany({
+    where: { ownerId, groupId: { not: null } },
   });
 }
 
@@ -184,13 +195,25 @@ async function getImpliedRoles(
   ];
 }
 
-/** validateTenancy holds project ownership stable until the transaction ends. */
+/** validateTenancy rejects a group principal outside the tenant and holds project ownership stable until the transaction ends. */
 async function validateTenancy(
   tx: Prisma.TransactionClient,
   tenantId: TenantId,
   ownerId: OwnerId,
+  principalId?: PrincipalId,
 ) {
   const orgId = untag(tenantId);
+  if (principalId && hasGroupKind(principalId)) {
+    const group = await tx.group.findFirst({
+      where: { id: untag(principalId), orgId },
+      select: { id: true },
+    });
+    if (!group) {
+      throw new InvalidRequestError(
+        "Role assignment group must belong to its tenant",
+      );
+    }
+  }
   if (hasOrganizationKind(ownerId)) {
     if (ownerId !== tenantId) {
       throw new InvalidRequestError(
@@ -215,9 +238,13 @@ async function validateTenancy(
 
 /** principalFields pairs a tagged principal with its foreign key. */
 function principalFields(principalId: PrincipalId) {
-  return hasApiKeyKind(principalId)
-    ? { principalId, apiKeyId: untag(principalId) }
-    : { principalId, userId: untag(principalId) };
+  if (hasApiKeyKind(principalId)) {
+    return { principalId, apiKeyId: untag(principalId) };
+  }
+  if (hasGroupKind(principalId)) {
+    return { principalId, groupId: untag(principalId) };
+  }
+  return { principalId, userId: untag(principalId) };
 }
 
 /** validateRole rejects unsupported roles and returns their storage fields. */

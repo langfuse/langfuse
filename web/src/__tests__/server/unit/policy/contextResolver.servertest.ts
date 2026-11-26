@@ -107,8 +107,8 @@ const mockPrisma = (row: OrganizationWithProjects | null): PrismaClient =>
       findFirst: async () => row,
     },
     roleAssignment: {
-      findMany: async ({ where }: { where: { principalId: string } }) =>
-        assignmentsFor(where.principalId),
+      findMany: async ({ where }: { where: { principalId?: string } }) =>
+        where.principalId ? assignmentsFor(where.principalId) : [],
     },
     project: {
       findMany: async () => (row?.projects ?? []).map((p) => ({ id: p.id })),
@@ -378,16 +378,16 @@ describe("expansion table: scope USER, privateKey", () => {
     );
   });
 
-  it("loads the user's and the key's roles concurrently", async () => {
+  it("loads the user's, the user's groups' and the key's roles concurrently", async () => {
     const prisma = mockPrisma(orgRow());
     let inFlight = 0;
     let maxInFlight = 0;
     Object.assign(prisma.roleAssignment, {
-      findMany: async ({ where }: { where: { principalId: string } }) => {
+      findMany: async ({ where }: { where: { principalId?: string } }) => {
         maxInFlight = Math.max(maxInFlight, ++inFlight);
         await new Promise((resolve) => setImmediate(resolve));
         inFlight--;
-        return assignmentsFor(where.principalId);
+        return where.principalId ? assignmentsFor(where.principalId) : [];
       },
     });
     const resolved = await new ContextResolver(
@@ -395,7 +395,7 @@ describe("expansion table: scope USER, privateKey", () => {
       prisma,
     ).resolve({ authorization: "privateKey", apiKey: userKey() });
     if (!resolved.success) throw resolved.error;
-    expect(maxInFlight).toBe(2);
+    expect(maxInFlight).toBe(3);
     expect(resolved.context.policies.map((set) => set[0]?.roleId)).toEqual([
       "system/MEMBER",
       "system/ADMIN",

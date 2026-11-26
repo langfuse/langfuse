@@ -488,6 +488,48 @@ describe("API-key cache invalidation on membership role changes", () => {
     expect(await survivingKeys(keys)).toEqual([]);
   });
 
+  it("groups.removeMember evicts the removed member's USER keys and gateway resolve cache", async () => {
+    const orgId = await createOrg();
+    const admin = await createUserInOrgs([orgId]);
+    const member = await createUserInOrgs([orgId]);
+    const group = await prisma.group.create({
+      data: { orgId, displayName: "engineering", source: "MANUAL" },
+    });
+    await prisma.groupMembership.create({
+      data: {
+        groupId: group.id,
+        orgMembershipId: await orgMembershipIdOf(orgId, member.id),
+      },
+    });
+    const { publicKey, secretKey } = await createApiKey(prisma, {
+      tenant: OrganizationId(orgId),
+      scope: UserId(member.id),
+      role: SystemRoleId("AI_GATEWAY"),
+      createdBy: UserId(member.id),
+    });
+    const fastHash = createShaHash(secretKey, env.SALT!);
+    const keys = [
+      ...cacheKeysFor({ fastHash, publicKey }),
+      `ai-gateway:resolve:context:openai.responses:${fastHash}`,
+    ];
+    for (const key of keys) {
+      await setRedisValue(redis, key, "1");
+    }
+
+    const caller = makeCaller({
+      userId: admin.id,
+      orgIds: [orgId],
+      plan: "cloud:enterprise",
+    });
+    await caller.groups.removeMember({
+      orgId,
+      groupId: group.id,
+      userId: member.id,
+    });
+
+    expect(await survivingKeys(keys)).toEqual([]);
+  });
+
   it("deleteProjectMembership evicts the user's USER keys", async () => {
     const orgId = await createOrg();
     const projectId = await createProject(orgId);
