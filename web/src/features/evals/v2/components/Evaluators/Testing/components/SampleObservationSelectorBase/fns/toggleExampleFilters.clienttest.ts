@@ -33,6 +33,21 @@ describe("toggleExampleFilters", () => {
     ]);
   });
 
+  it("replaces the current filters when the example is not present", () => {
+    const current = [
+      {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+    ] satisfies FilterState;
+
+    expect(toggleExampleFilters(current, generationExample)).toEqual(
+      generationExample,
+    );
+  });
+
   it("adds the example when it is not present", () => {
     expect(toggleExampleFilters([], generationExample)).toEqual(
       generationExample,

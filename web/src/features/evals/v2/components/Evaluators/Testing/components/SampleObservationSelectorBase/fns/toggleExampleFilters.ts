@@ -36,6 +36,7 @@ function isExamplePresent(current: FilterState, example: FilterState) {
   );
 }
 
+/** An example replaces the current filters; picking it again removes it. */
 export function toggleExampleFilters(
   current: FilterState,
   example: FilterState,
@@ -74,27 +75,5 @@ export function toggleExampleFilters(
     return next;
   }
 
-  for (const addition of example) {
-    const index = next.findIndex((filter) =>
-      matchesFilterSlot(filter, addition),
-    );
-    if (index < 0) {
-      next.push(addition);
-      continue;
-    }
-
-    const existing = next[index];
-    if (
-      existing &&
-      Array.isArray(existing.value) &&
-      Array.isArray(addition.value)
-    ) {
-      next[index] = {
-        ...existing,
-        value: Array.from(new Set([...existing.value, ...addition.value])),
-      } as typeof existing;
-    }
-  }
-
-  return next;
+  return [...example];
 }
