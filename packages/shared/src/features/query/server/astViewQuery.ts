@@ -61,7 +61,7 @@ export type BuildContext = {
 };
 
 /** One element of a dashboard query's `filters`. */
-export type QueryFilter = QueryType["filters"][number];
+type QueryFilter = QueryType["filters"][number];
 
 /**
  * What the hooks after filter lowering read: the query, the declaration it
@@ -80,7 +80,7 @@ export type ViewQueryInput<F> = {
 };
 
 /** A dimension in a select: aliased, or a bare ARRAY JOIN alias (`costType`). */
-export type DimensionSelection =
+type DimensionSelection =
   | AliasedExpression<unknown, string>
   | DynamicReferenceBuilder<string>;
 
@@ -90,53 +90,75 @@ export type DimensionSelection =
  * views, `scores` for the score views); the hooks get the select's builder,
  * typed over `Base` alone, and an entry that reads a joined relation builds
  * a builder with that relation by name in its own module. `F` is a lowered
- * dashboard filter, `P` what the view's planning step hands its source.
+ * dashboard filter, `P` what the view's planning step hands its source
+ * (`undefined` for a view with nothing to plan, as the traces view).
  */
 export type AstView<DB, Base extends keyof DB & string, F, P> = {
-  /** The declarations it compiles; one in both version maps serves v1 and v2. */
+  /**
+   * The declarations it compiles; one in both version maps serves v1 and v2.
+   * Dispatch matches by object identity: list the `dataModel.ts` declaration
+   * itself, since a copy or spread of it stays on the SQL-text builder.
+   */
   serves: readonly ViewDeclarationType[];
   /** `validateFilters` also takes `numberObject` metadata filters. */
   numericMetadata?: true;
   /**
    * One dashboard filter, on the column {@link resolveFilterColumn} resolved;
-   * the view reads the condition from `filter`.
+   * the view reads the condition from `filter`. Filters on the time dimension
+   * arrive here too, besides the `window` the source applies. The view lowers
+   * through its registry: the events views through the `filter` entries
+   * (`EventsFieldLowering`), the score views through a `FieldLowering` that
+   * `lowerFieldCondition` applies.
    */
-  lowerFilter(
+  lowerFilter: (
     column: FilterColumn,
     filter: QueryFilter,
     view: ViewDeclarationType,
-  ): F;
+  ) => F;
   /**
    * The relations the query reads, each checked against the declaration;
    * absent: those of the output (`collectRelationTables`).
    */
-  relations?(input: ViewQueryInput<F>): ReadonlySet<string>;
+  relations?: (input: ViewQueryInput<F>) => ReadonlySet<string>;
   /** The query's level, and what the view decides from its relations. */
-  plan(input: ViewQueryInput<F> & { relations: ReadonlySet<string> }): {
+  plan: (input: ViewQueryInput<F> & { relations: ReadonlySet<string> }) => {
     level: QueryLevel;
     plan: P;
   };
-  /** FROM, JOINs, ARRAY JOIN and WHERE. */
-  source(
+  /**
+   * FROM, JOINs, ARRAY JOIN and WHERE. The driver adds no time predicate:
+   * the source applies `window`.
+   */
+  source: (
     input: ViewQueryInput<F> & {
       relations: ReadonlySet<string>;
       plan: P;
       window: TimeWindow;
     },
-  ): SelectQueryBuilder<DB, Base, {}>;
-  /** A dimension in the single-level select or the inner select. */
-  dimension(
+  ) => SelectQueryBuilder<DB, Base, {}>;
+  /**
+   * A dimension in the single-level select or the inner select, aliased
+   * `dimensionAlias(dimension)`, which the outer clauses reference; or the
+   * bare reference to an ARRAY JOIN alias of that name.
+   */
+  dimension: (
     eb: ExpressionBuilder<DB, Base>,
     dimension: AppliedDimensionType,
     level: QueryLevel,
-  ): DimensionSelection;
-  /** A measure's value in the single-level select or the inner select. */
-  measure(
+  ) => DimensionSelection;
+  /**
+   * A measure's value. At level `single`, the per-row value the metric's
+   * aggregation wraps. At level `two`, one value per entity row, which the
+   * outer select aggregates: `atLevel` for a column of the entity's rows,
+   * an aggregate over those rows (a per-trace count) as it is. The types
+   * accept a wrong level, so the goldens pin it.
+   */
+  measure: (
     eb: ExpressionBuilder<DB, Base>,
     metric: AppliedMetricType,
     level: QueryLevel,
-  ): AliasableExpression<unknown>;
-  bucket(eb: ExpressionBuilder<DB, Base>): BucketValues;
+  ) => AliasableExpression<unknown>;
+  bucket: (eb: ExpressionBuilder<DB, Base>) => BucketValues;
   /**
    * The inner select of a two-level query, one row per entity: the keys it
    * selects and groups by, its alias, and the GROUP BY items a dimension
@@ -214,6 +236,7 @@ export function astViewsByDeclaration(
   return byDeclaration;
 }
 
+/** The SQL and parameters of `query` on `view`, built with `spec` (the steps of {@link defineAstView}). */
 function buildAstViewQuery<DB, Base extends keyof DB & string, F, P>(
   spec: AstView<DB, Base, F, P>,
   query: QueryType,
