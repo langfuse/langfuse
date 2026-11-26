@@ -1,6 +1,6 @@
 import { RuleTester } from "@typescript-eslint/rule-tester";
 import * as typescriptEslintParser from "@typescript-eslint/parser";
-import rule from "./fns-single-function-export.js";
+import rule from "./single-function-export-matching-filename.js";
 
 const ruleTester = new RuleTester({
   languageOptions: {
@@ -14,7 +14,7 @@ const ruleTester = new RuleTester({
 });
 
 function file(name: string) {
-  return `/repo/src/features/example/fns/${name}`;
+  return `/tmp/${name}`;
 }
 
 const count = (count: number) => [
@@ -24,7 +24,7 @@ const filename = (name: string) => [
   { messageId: "filename" as const, data: { name } },
 ];
 
-ruleTester.run("fns-single-function-export", rule, {
+ruleTester.run("single-function-export-matching-filename", rule, {
   valid: [
     { code: "export function pack() { return 1; }", filename: file("pack.ts") },
     {
@@ -95,6 +95,14 @@ ruleTester.run("fns-single-function-export", rule, {
       code: "const pack = () => 1;\nexport { pack as default };",
       filename: file("pack.ts"),
     },
+    {
+      code: "export function pack(value: string): string;\nexport function pack(value: number): number;\nexport function pack(value: string | number) { return value; }",
+      filename: file("pack.ts"),
+    },
+    {
+      code: "export declare function pack(value: string): string;",
+      filename: file("pack.ts"),
+    },
   ],
   invalid: [
     { code: "", filename: file("pack.ts"), errors: count(0) },
@@ -143,6 +151,11 @@ ruleTester.run("fns-single-function-export", rule, {
       code: "export type { Foo } from './types';",
       filename: file("pack.ts"),
       errors: count(0),
+    },
+    {
+      code: "export declare function left(value: string): string;\nexport declare function right(value: number): number;",
+      filename: file("pack.ts"),
+      errors: count(2),
     },
     {
       code: "export function left() { return 1; }\nexport function right() { return 2; }",

@@ -46,7 +46,7 @@ test("fns scoping lives in the oxlint config", () => {
       "src/features/traces/fns/treeBuilding.ts",
     ]);
     assert.match(output, /exportsTwo\.ts/);
-    assert.match(output, /fns-single-function-export/);
+    assert.match(output, /single-function-export-matching-filename/);
     assert.doesNotMatch(output, /keepsOne\.ts/);
     assert.doesNotMatch(output, /exportsTwo\.test\.ts/);
     assert.doesNotMatch(output, /treeBuilding\.ts/);

@@ -35,7 +35,7 @@ export default {
       ],
       jsPlugins: ["@repo/eslint-plugin"],
       rules: {
-        "@repo/fns-single-function-export": "error",
+        "@repo/single-function-export-matching-filename": "error",
       },
     },
     {
@@ -43,11 +43,11 @@ export default {
         "**/fns/**/*.{test,spec,clienttest,servertest,stories,story}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
         "**/fns/**/{__tests__,__mocks__,tests,test,__stories__,stories}/**",
       ],
-      rules: { "@repo/fns-single-function-export": "off" },
+      rules: { "@repo/single-function-export-matching-filename": "off" },
     },
     {
       files: existingFnsSingleFunctionExceptions,
-      rules: { "@repo/fns-single-function-export": "off" },
+      rules: { "@repo/single-function-export-matching-filename": "off" },
     },
     {
       files: ["**/*"],

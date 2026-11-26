@@ -30,7 +30,7 @@ function moduleName(
 }
 
 function functionDeclarationName(
-  node: TSESTree.FunctionDeclaration,
+  node: TSESTree.FunctionDeclaration | TSESTree.TSDeclareFunction,
 ): string | null {
   if (node.id === null) return null;
   return node.id.name;
@@ -93,13 +93,17 @@ function readNamed(
   statement: TSESTree.ExportNamedDeclaration,
   functionBindings: Set<string>,
 ): ExportRecord[] {
+  const declaration = statement.declaration;
+  if (
+    declaration !== null &&
+    (declaration.type === N.FunctionDeclaration ||
+      declaration.type === N.TSDeclareFunction)
+  ) {
+    return [{ kind: "function", name: functionDeclarationName(declaration) }];
+  }
   if (statement.exportKind === "type") return [{ kind: "other" }];
 
-  const declaration = statement.declaration;
   if (declaration !== null) {
-    if (declaration.type === N.FunctionDeclaration) {
-      return [{ kind: "function", name: functionDeclarationName(declaration) }];
-    }
     if (declaration.type === N.VariableDeclaration) {
       return declaration.declarations.map((declarator) => {
         const name = bindingName(declarator.id);
@@ -127,21 +131,36 @@ function readNamed(
   });
 }
 
+function addExport(exported: ExportRecord[], record: ExportRecord) {
+  if (
+    record.kind === "function" &&
+    record.name !== null &&
+    exported.some(
+      (item) => item.kind === "function" && item.name === record.name,
+    )
+  ) {
+    return;
+  }
+  exported.push(record);
+}
+
 function collect(
   statement: TSESTree.ProgramStatement,
   functionBindings: Set<string>,
   exported: ExportRecord[],
 ) {
   if (statement.type === N.ExportDefaultDeclaration) {
-    exported.push(readDefault(statement.declaration, functionBindings));
+    addExport(exported, readDefault(statement.declaration, functionBindings));
     return;
   }
   if (statement.type === N.ExportAllDeclaration) {
-    exported.push({ kind: "other" });
+    addExport(exported, { kind: "other" });
     return;
   }
   if (statement.type !== N.ExportNamedDeclaration) return;
-  exported.push(...readNamed(statement, functionBindings));
+  for (const record of readNamed(statement, functionBindings)) {
+    addExport(exported, record);
+  }
 }
 
 function reportedCount(
@@ -154,7 +173,7 @@ function reportedCount(
 }
 
 export default createRule({
-  name: "fns-single-function-export",
+  name: "single-function-export-matching-filename",
   meta: {
     type: "problem",
     docs: {
@@ -162,9 +181,8 @@ export default createRule({
         "Require this file to export exactly one function named after the file.",
     },
     messages: {
-      count: "fns/ files must export exactly one function (found {{count}})",
-      filename:
-        "fns/ file name must match its exported function: expected {{name}}",
+      count: "File must export exactly one function (found {{count}})",
+      filename: "File name must match its exported function: expected {{name}}",
     },
     schema: [],
   },
