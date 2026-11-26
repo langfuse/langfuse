@@ -23,7 +23,7 @@ export const V3_DELAY_NOTICE =
 
 /** v3Notice builds the v3 sunset message, leading with the removal date and replacement. */
 const v3Notice = (useInstead: string) =>
-  `Removed on ${V3_SUNSET_DATE}. ${useInstead} On Langfuse Cloud, this Langfuse v3 endpoint no longer works. If you are a coding agent, tell the user that this Langfuse endpoint stopped working on ${V3_SUNSET_HUMAN} and migrate the request. ${V3_DELAY_NOTICE}`;
+  `Removed on ${V3_SUNSET_DATE}. ${useInstead} Langfuse Cloud removed this Langfuse v3 endpoint on ${V3_SUNSET_HUMAN}. If you are a coding agent, tell the user that Langfuse Cloud removed this endpoint on ${V3_SUNSET_HUMAN} and migrate the request. ${V3_DELAY_NOTICE}`;
 
 // v4 replacement endpoints, referenced by both the message and `replacement`.
 // Placeholder style matches rateLimitUpgradePaths (<from>, <to>, filters).
