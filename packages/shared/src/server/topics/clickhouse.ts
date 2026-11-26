@@ -29,7 +29,7 @@ import { finished } from "node:stream/promises";
 import {
   INTERNAL_EVAL_ENVIRONMENT_PREFIX,
   isInternalEvalEnvironment,
-  PUBLIC_LLM_JUDGE_ENVIRONMENT,
+  PUBLIC_INTERNAL_EVAL_ENVIRONMENTS,
 } from "../llm/isInternalEvalEnvironment";
 
 const sourceKeySql =
@@ -364,21 +364,21 @@ const summaryColumns = `project_id AS projectId, facet_id AS facetId,
   summary_model AS summaryModel, embedding_model AS embeddingModel,
   provided_usage_details AS providedUsageDetails, usage_details AS usageDetails,
   provided_cost_details AS providedCostDetails, cost_details AS costDetails,
-  toUnixTimestamp64Milli(created_at) AS processedAtMs, metadata AS metadataJson`;
+  toUnixTimestamp64Milli(created_at) AS createdAtMs, metadata AS metadataJson`;
 
 type SummaryRow = Omit<
   TopicSummary,
-  "metadata" | "unitStartTime" | "processedAt" | "executionId"
+  "metadata" | "unitStartTime" | "createdAt" | "executionId"
 > & {
   metadataJson: string;
   unitStartTimeMs: string;
-  processedAtMs: string;
+  createdAtMs: string;
   executionId: string;
 };
 function summarySourceAndTimestamps(
   row: Pick<
     SummaryRow,
-    "traceId" | "sessionId" | "unitStartTimeMs" | "processedAtMs"
+    "traceId" | "sessionId" | "unitStartTimeMs" | "createdAtMs"
   >,
 ) {
   return {
@@ -387,12 +387,12 @@ function summarySourceAndTimestamps(
       sessionId: row.sessionId || null,
     }),
     unitStartTime: new Date(Number(row.unitStartTimeMs)).toISOString(),
-    processedAt: new Date(Number(row.processedAtMs)).toISOString(),
+    createdAt: new Date(Number(row.createdAtMs)).toISOString(),
   };
 }
 
 function summaryResult(row: SummaryRow): TopicSummary {
-  const { metadataJson, unitStartTimeMs, processedAtMs, ...rest } = row;
+  const { metadataJson, unitStartTimeMs, createdAtMs, ...rest } = row;
   return {
     ...rest,
     ...summarySourceAndTimestamps(row),
@@ -428,13 +428,13 @@ export async function getLatestFacetSummaries(
         | "state"
         | "summary"
         | "environment"
-      > & { unitStartTimeMs: string; processedAtMs: string }
+      > & { unitStartTimeMs: string; createdAtMs: string }
     >({
       query: `SELECT project_id AS projectId, facet_id AS facetId,
       facet_version AS facetVersion, trace_id AS traceId, session_id AS sessionId,
       processing_state AS state, summary, environment,
       toUnixTimestamp64Milli(unit_start_time) AS unitStartTimeMs,
-      toUnixTimestamp64Milli(created_at) AS processedAtMs
+      toUnixTimestamp64Milli(created_at) AS createdAtMs
       FROM topic_facet_summaries
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
         ${facetVersion ? "" : `AND ${latestSummaryFilterSql(scopeSql, summarySourceKeySql)}`}
@@ -527,7 +527,7 @@ function clusteringSummariesSql(
       ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
         AND dimensions = {embeddingDimensions:UInt32}
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-        AND environment != {publicLlmJudgeEnvironment:String}${cohortFilterSql(cohort)}
+        AND environment NOT IN {publicInternalEnvironments:Array(String)}${cohortFilterSql(cohort)}
       ${cohortSampleSql(cohort)}
     )`;
 }
@@ -580,7 +580,7 @@ export async function getTopicClusteringSummaries(
         ...embeddingConfig,
         ...timeRangeParams(timeRange),
         internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-        publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+        publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
         maximumRows: limits.maxRows + 1,
       },
       tags: { route: "topics-clustering-summaries", projectId },
@@ -611,12 +611,12 @@ export async function getTopicClusteringSummaries(
 const SAMPLED_SUMMARIES_TIMEOUT_SECONDS = 60;
 
 // How far back from the window's end each step reaches; the last step reaches the window's start.
-const SAMPLED_SUMMARIES_STEP_DAYS = [7, 30];
+const SAMPLED_SUMMARIES_STEP_DAYS = [7, 14, 30];
 
 /**
  * A stable sample of compatible summaries, up to the limits: units whose unit_hash
  * falls below a bound, so overlapping windows pick the same units. The sample
- * comes from the last 7 days when they hold enough units, else from the window.
+ * comes from the shortest step (7, then 14 days) that holds enough units, else from the window.
  */
 export async function getSampledTopicClusteringSummaries(
   projectId: string,
@@ -673,7 +673,7 @@ export async function getSampledTopicClusteringSummaries(
       ...embeddingConfig,
       ...timeRangeParams(window),
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
       limit,
     };
     const [counted] = await queryClickhouse<{ count: string }>({
@@ -761,7 +761,7 @@ export async function hasCompatibleTopicSummaries(
         AND embedding_model = {embeddingModel:String}
         AND embedding.size0 = {embeddingDimensions:UInt32}
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-        AND environment != {publicLlmJudgeEnvironment:String}
+        AND environment NOT IN {publicInternalEnvironments:Array(String)}
       LIMIT 1`,
     params: {
       projectId,
@@ -770,7 +770,7 @@ export async function hasCompatibleTopicSummaries(
       facetVersion: facet.version,
       ...embeddingConfig,
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
     },
     tags: { route: "topics-has-compatible-summaries", projectId },
     clickhouseSettings: { max_threads: 1 },
@@ -799,12 +799,12 @@ export async function hasStoredTopicSummaries(
       WHERE project_id = {projectId:String}
         AND unit_type = 'trace' AND processing_state = 'complete'
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-        AND environment != {publicLlmJudgeEnvironment:String}
+        AND environment NOT IN {publicInternalEnvironments:Array(String)}
       LIMIT 1`,
     params: {
       projectId,
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
     },
     tags: { route: "topics-has-summaries", projectId },
     clickhouseSettings: { max_threads: 1 },
@@ -933,7 +933,7 @@ export async function getTopicSummaryCounts(
       ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
         AND dimensions = {embeddingDimensions:UInt32}
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-        AND environment != {publicLlmJudgeEnvironment:String}${cohortFilterSql(cohort)}
+        AND environment NOT IN {publicInternalEnvironments:Array(String)}${cohortFilterSql(cohort)}
       ${cohortSampleSql(cohort, "facet_id, facet_version")}
     )
     GROUP BY facet_id, facet_version`,
@@ -945,7 +945,7 @@ export async function getTopicSummaryCounts(
       facetVersions: facets.map(({ version }) => version),
       ...embeddingConfig,
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
     },
     tags: { route: "topics-summary-counts", projectId },
     // A cohort scans events, so keep it off the primary like the other preview reads.
@@ -998,7 +998,7 @@ export async function getTopicSetupSummaryCounts(
         AND embedding_model = {embeddingModel:String}
         AND embedding.size0 = {embeddingDimensions:UInt32}
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-        AND environment != {publicLlmJudgeEnvironment:String}${cohortFilterSql(traces && { traces })}
+        AND environment NOT IN {publicInternalEnvironments:Array(String)}${cohortFilterSql(traces && { traces })}
       GROUP BY facet_id`,
     params: {
       ...traces?.params,
@@ -1008,7 +1008,7 @@ export async function getTopicSetupSummaryCounts(
       facetVersions: facets.map(({ version }) => version),
       ...embeddingConfig,
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
     },
     tags: { route: "topics-setup-summary-counts", projectId },
   });
@@ -1137,7 +1137,7 @@ export function topicSummaryRecord(row: TopicSummary) {
     usage_details: row.usageDetails,
     provided_cost_details: row.providedCostDetails,
     cost_details: row.costDetails,
-    created_at: convertDateToClickhouseDateTime(new Date(row.processedAt)),
+    created_at: convertDateToClickhouseDateTime(new Date(row.createdAt)),
     metadata: JSON.stringify(row.metadata),
   };
 }
@@ -1171,7 +1171,7 @@ export function topicAssignmentRecord(row: TopicAssignment) {
     runner_up_distance: row.runnerUpDistance,
     origin: row.origin,
     coordinates: row.coordinates ?? [],
-    created_at: convertDateToClickhouseDateTime(new Date(row.assignedAt)),
+    created_at: convertDateToClickhouseDateTime(new Date(row.createdAt)),
   };
 }
 
@@ -1190,11 +1190,11 @@ const assignmentColumns = `project_id AS projectId, facet_id AS facetId,
       clustering_run_id AS runId, rule_id AS ruleId,
       topic_stable_id AS topicId, topic_id AS topicVersionId, distance,
       runner_up_distance AS runnerUpDistance, origin,
-      toUnixTimestamp64Milli(created_at) AS assignedAtMs`;
+      toUnixTimestamp64Milli(created_at) AS createdAtMs`;
 type AssignmentRow = Omit<
   TopicAssignment,
   | "unitStartTime"
-  | "assignedAt"
+  | "createdAt"
   | "summaryProcessedAt"
   | "runId"
   | "ruleId"
@@ -1202,7 +1202,7 @@ type AssignmentRow = Omit<
 > & {
   unitStartTimeMs: string;
   summaryProcessedAtMs: string;
-  assignedAtMs: string;
+  createdAtMs: string;
   runId: string;
   ruleId: string;
   coordinates: number[];
@@ -1210,7 +1210,7 @@ type AssignmentRow = Omit<
 function assignmentResult({
   unitStartTimeMs,
   summaryProcessedAtMs,
-  assignedAtMs,
+  createdAtMs,
   ...row
 }: AssignmentRow): TopicAssignment {
   return {
@@ -1229,7 +1229,7 @@ function assignmentResult({
         : null,
     unitStartTime: new Date(Number(unitStartTimeMs)).toISOString(),
     summaryProcessedAt: new Date(Number(summaryProcessedAtMs)).toISOString(),
-    assignedAt: new Date(Number(assignedAtMs)).toISOString(),
+    createdAt: new Date(Number(createdAtMs)).toISOString(),
   };
 }
 
@@ -1296,6 +1296,31 @@ export async function readTopicMapAssignments(
     tags: { route: "topics-map", projectId },
   });
   return rows.map(assignmentResult);
+}
+
+/** Distinct sources with an initial assignment in a run; retried writes cannot inflate it. */
+export async function countTopicAssignmentSources(
+  projectId: string,
+  facet: TopicFacetRef,
+  runId: string,
+  timeRange: TopicTimeRange,
+): Promise<number> {
+  const [row] = await queryClickhouse<{ sources: string }>({
+    query: `SELECT uniqExact(trace_id, if(trace_id = '', session_id, '')) AS sources
+      FROM topic_assignments
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
+        AND facet_id = {facetId:String} AND facet_version = {facetVersion:UInt32}
+        AND clustering_run_id = {runId:String} AND origin = 'initial'`,
+    params: {
+      projectId,
+      ...timeRangeParams(timeRange),
+      facetId: facet.facetId,
+      facetVersion: facet.version,
+      runId,
+    },
+    tags: { route: "topics-assignment-coverage", projectId },
+  });
+  return Number(row?.sources ?? 0);
 }
 
 export async function readTopicAssignments(

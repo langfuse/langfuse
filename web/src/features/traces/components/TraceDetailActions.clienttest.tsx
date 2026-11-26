@@ -5,7 +5,7 @@ import { TraceDetailActions } from "./TraceDetailActions";
 import { type TraceTranscriptDialogController } from "./TraceTranscriptDialogController";
 import { type TopicsTranscriptDialogController } from "./TopicsTranscriptDialogController";
 import { type DeleteTraceDialogController } from "./DeleteTraceDialogController";
-import { type ConnectedDetailHeaderActionsMenuController } from "./DetailHeaderActionsMenuController";
+import { type ConnectedDetailHeaderActionsMenuController } from "./ConnectedDetailHeaderActionsMenuController";
 
 const mocks = vi.hoisted(() => ({
   aggregation: "trace",
@@ -53,7 +53,7 @@ vi.mock("./DeleteTraceDialogController", () => ({
   }: ComponentProps<typeof DeleteTraceDialogController>) =>
     children({ disabled: undefined, openDialog: vi.fn() }),
 }));
-vi.mock("./DetailHeaderActionsMenuController", () => ({
+vi.mock("./ConnectedDetailHeaderActionsMenuController", () => ({
   ConnectedDetailHeaderActionsMenuController: ({
     renderMenu,
   }: ComponentProps<typeof ConnectedDetailHeaderActionsMenuController>) =>

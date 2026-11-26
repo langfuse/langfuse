@@ -138,6 +138,7 @@ export * from "./utils/withTransaction";
 export * from "./utils/withSerializableRetry";
 export * from "./otel/utils";
 export * from "./clickhouse/client";
+export { initializeClickhouseAuth } from "./clickhouse/auth";
 export {
   getClickHouseCompatibilitySettings,
   getDetectedClickHouseVersion,
@@ -165,6 +166,7 @@ export { normalizeIO } from "./normalized-io/parser";
 export { type NormalizedEvalRecord } from "./normalized-io/projections/eval-record";
 export { toEvalRecord } from "./normalized-io/projections/eval-record";
 export { toToolColumns } from "./normalized-io/projections/tool-call-columns";
+export { toEvalVariables } from "./transcript/eval-threads";
 export { orderObservations } from "./transcript/ordering";
 export { assembleTranscript } from "./transcript/transcript";
 export {
@@ -566,7 +568,12 @@ export { getAvgCostByEvaluatorIds } from "./repositories/events";
 export { getTotalCostByRule } from "./repositories/events";
 export { getTotalCostByEvaluatorIds } from "./repositories/events";
 export { getLatestEvaluatorRunCost } from "./repositories/events";
-export { getGatewaySpendSinceFromEvents } from "./repositories/events";
+export {
+  getGatewaySpendSinceFromEvents,
+  getGatewayGuardrailFlaggedCountsFromEvents,
+  getGatewayGuardrailFlaggedTimeSeriesFromEvents,
+  type GatewayGuardrailTimeBucket,
+} from "./repositories/events";
 export { getEvaluatorExecutionSummaries } from "./repositories/events";
 export { getSessionMetricsFromEvents } from "./repositories/events";
 export { type SdkMetadata } from "./repositories/events";

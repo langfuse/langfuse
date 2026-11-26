@@ -1,4 +1,8 @@
-import { type EvalTargetObject, type FilterState } from "@langfuse/shared";
+import {
+  type EvalTargetObject,
+  type FilterState,
+  type TopicsTargetObject,
+} from "@langfuse/shared";
 import { useState } from "react";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { CreateRuleDialogContent } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/components/CreateRuleDialogContent/CreateRuleDialogContent";
@@ -19,6 +23,7 @@ export function CreateRuleDialog({
   initialRule,
   initialFilter,
   targetObject,
+  lockScope,
   successNotification,
   onCreated,
 }: {
@@ -28,7 +33,10 @@ export function CreateRuleDialog({
   initialEvaluator?: RuleEvaluatorOption;
   initialRule?: RuleTableRow;
   initialFilter?: FilterState;
-  targetObject?: Extract<EvalTargetObject, "event" | "experiment">;
+  targetObject?:
+    | Extract<EvalTargetObject, "event" | "experiment">
+    | typeof TopicsTargetObject;
+  lockScope?: boolean;
   successNotification: "toast" | "none";
   onCreated?: () => void;
 }) {
@@ -63,8 +71,16 @@ export function CreateRuleDialog({
   const initialEvaluatorFromOptions = options.find(
     (evaluator) => evaluator.id === initialEvaluator?.id,
   );
+  // The options list can be cached from before the evaluator was edited, so
+  // the caller's mappings win over the cached entry's.
   const resolvedInitialEvaluator =
-    initialEvaluatorFromOptions ?? initialEvaluator;
+    initialEvaluatorFromOptions && initialEvaluator
+      ? {
+          ...initialEvaluatorFromOptions,
+          defaultVariableMapping: initialEvaluator.defaultVariableMapping,
+          initialVariableMapping: initialEvaluator.initialVariableMapping,
+        }
+      : (initialEvaluatorFromOptions ?? initialEvaluator);
   const initialDraft: RuleDraft | undefined = initialRule
     ? prepareRuleCloneDraft(initialRule)
     : undefined;
@@ -97,7 +113,9 @@ export function CreateRuleDialog({
       initialEvaluator={resolvedInitialEvaluator}
       initialDraft={initialDraft}
       initialFilter={initialFilter}
+      initialTargetObject={initialRule?.targetObject}
       targetObject={targetObject}
+      lockScope={lockScope}
       evaluatorSearch={evaluatorSearch}
       successNotification={successNotification}
       onCreated={onCreated}

@@ -1,8 +1,10 @@
 import { type Session } from "next-auth";
+import { useSession } from "next-auth/react";
 import {
   getContextualFeatureFlags,
   isInternalViewEnabled,
 } from "@/src/features/feature-flags/utils";
+import { useProject } from "@/src/features/projects/hooks";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 type TraceEvalsProject = { id: string; traceEvalsEnabled?: boolean };
@@ -40,6 +42,13 @@ export function canViewTraceTranscriptsEvals(
         scope: "evaluationRule:read",
       }))
   );
+}
+
+/** Resolves the project like the rest of the app. */
+export function useCanViewTraceTranscriptsEvals(projectId: string) {
+  const session = useSession().data;
+  const { project } = useProject(projectId);
+  return canViewTraceTranscriptsEvals(session, project);
 }
 
 /** Project gate: trace evals are enabled for the project (deployment allowlist, resolved on the server). */

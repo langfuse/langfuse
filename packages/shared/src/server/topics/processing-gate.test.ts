@@ -6,12 +6,10 @@ import {
 } from "./processing-gate";
 
 const mocks = vi.hoisted(() => ({
-  enabled: vi.fn(),
   configFind: vi.fn(),
   ruleFind: vi.fn(),
   redis: { get: vi.fn(), set: vi.fn(), del: vi.fn() },
 }));
-vi.mock("./config", () => ({ isTopicsEnabled: mocks.enabled }));
 vi.mock("../redis/redis", () => ({ redis: mocks.redis }));
 vi.mock("../../db", () => ({
   JobConfigState: { ACTIVE: "ACTIVE" },
@@ -26,18 +24,9 @@ const key = "langfuse:topics:processing-active:project-a";
 describe("isTopicsProcessingActive", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.enabled.mockReturnValue(true);
     mocks.redis.get.mockResolvedValue(null);
     mocks.configFind.mockResolvedValue({ id: "config-a" });
     mocks.ruleFind.mockResolvedValue([{ id: "rule-a", sampling: 1 }]);
-  });
-
-  it("skips Redis and Postgres when Topics is off for the deployment", async () => {
-    mocks.enabled.mockReturnValue(false);
-
-    await expect(isTopicsProcessingActive("project-a")).resolves.toBe(false);
-    expect(mocks.redis.get).not.toHaveBeenCalled();
-    expect(mocks.configFind).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -42,7 +42,8 @@ export const modelRouter = createTRPCRouter({
       listModelDefinitions({
         owner: { type: "project", projectId: input.projectId },
         searchString: input.searchString,
-        page: input.page,
+        // The table's page index starts at 0.
+        page: input.page + 1,
         limit: input.limit,
       }),
     ),

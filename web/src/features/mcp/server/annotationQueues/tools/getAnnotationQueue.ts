@@ -36,5 +36,5 @@ export const [getAnnotationQueueTool, handleGetAnnotationQueue] = defineTool({
         };
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

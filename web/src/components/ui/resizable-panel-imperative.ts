@@ -5,6 +5,7 @@ import type { PanelImperativeHandle } from "react-resizable-panels";
  * registry. After the group unmounts — desktop↔mobile swap, navigation, or a
  * remount that tears the group down — the panel ref still holds the live
  * methods, and isCollapsed / expand / collapse / resize / getSize throw.
+ * @internal
  */
 export function isUnmountedResizablePanelGroupError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;

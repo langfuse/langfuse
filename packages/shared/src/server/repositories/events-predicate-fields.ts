@@ -63,7 +63,8 @@ type StringIndexFacts = {
   textIndexed?: true;
 };
 
-type Lowered<T> = (eb: EventsExpressionBuilder) => Expression<T>;
+/** A field's value, built with the expression builder `B` of the calling query. */
+type Lowered<T, B> = (eb: B) => Expression<T>;
 
 type EventsDb = { e: ClickHouseDatabase["events"] };
 
@@ -72,14 +73,22 @@ type EventsDb = { e: ClickHouseDatabase["events"] };
  * condition type reads the value type it needs: `string` and
  * `nullableString` take string conditions, `array` array conditions, every
  * kind option, number, date, boolean and `null` conditions. Only `string`
- * carries index facts, which read its non-null value.
+ * carries index facts, which read its non-null value. A `null` condition
+ * reads `''` as missing on `string` and `emptyEqualsNull` fields, and
+ * compares with NULL alone on the others.
+ *
+ * `B` is the expression builder the value is built with: an events read's
+ * `EventsExpressionBuilder` by default, or the builder of another host query
+ * (the dashboard score views read `scores` and joined relations). With the
+ * default, `(eb) => eb.ref("e.name")` type-checks and
+ * `(eb) => eb.ref("scores.name")` does not.
  */
-export type ScalarFieldLowering =
+export type ScalarFieldLowering<B = EventsExpressionBuilder> =
   | (ScalarFacts &
-      StringIndexFacts & { kind: "string"; value: Lowered<string> })
-  | KindedLowering<"nullableString">
-  | KindedLowering<"array">
-  | KindedLowering<"scalar">;
+      StringIndexFacts & { kind: "string"; value: Lowered<string, B> })
+  | KindedLowering<"nullableString", B>
+  | KindedLowering<"array", B>
+  | KindedLowering<"scalar", B>;
 
 /** Value type of each kind without index facts. */
 type ValueOfKind = {
@@ -90,15 +99,38 @@ type ValueOfKind = {
   scalar: unknown;
 };
 
-type KindedLowering<K extends keyof ValueOfKind> = ScalarFacts & {
+/**
+ * A lowering of kind `K` whose value, built with builder `B`, has
+ * {@link ValueOfKind}`[K]`: `KindedLowering<"array", B>` takes an
+ * `Array(String)` value, not a scalar one.
+ */
+type KindedLowering<K extends keyof ValueOfKind, B> = ScalarFacts & {
   kind: K;
-  value: Lowered<ValueOfKind[K]>;
+  value: Lowered<ValueOfKind[K], B>;
 };
 
 /** The keyed metadata field, stored as `e.metadata_names` / `e.metadata_values`. */
 type MetadataFieldLowering = { kind: "metadata" };
 
 export type EventsFieldLowering = ScalarFieldLowering | MetadataFieldLowering;
+
+/**
+ * A keyed metadata field stored as one `Map(String, String)` column, e.g.
+ * `scores.metadata`; `map` builds the column with the host builder `B`.
+ */
+type MapMetadataFieldLowering<B> = {
+  kind: "mapMetadata";
+  map: Lowered<Record<string, string>, B>;
+};
+
+/**
+ * What `lowerFieldCondition` takes from any host query: a value lowering, or
+ * a metadata map. Events reads keep their metadata arrays apart
+ * ({@link EventsFieldLowering}).
+ */
+export type FieldLowering<B> =
+  | ScalarFieldLowering<B>
+  | MapMetadataFieldLowering<B>;
 
 // Token counts: `usage_details` holds UInt64 counts, which a Decimal64 bind
 // overflows above ~9.2e15.
@@ -107,16 +139,16 @@ const TOKEN_COUNT_BIND_TYPE = "Float64";
 const SECONDS_BIND_TYPE = "Decimal64(3)";
 
 const text = (
-  value: Lowered<string>,
+  value: Lowered<string, EventsExpressionBuilder>,
   opts: ScalarFacts & StringIndexFacts = {},
 ): ScalarFieldLowering => ({ kind: "string", value, ...opts });
 
 const lowering =
   <K extends keyof ValueOfKind>(kind: K) =>
   (
-    value: Lowered<ValueOfKind[K]>,
+    value: Lowered<ValueOfKind[K], EventsExpressionBuilder>,
     opts: ScalarFacts = {},
-  ): KindedLowering<K> => ({ kind, value, ...opts });
+  ): KindedLowering<K, EventsExpressionBuilder> => ({ kind, value, ...opts });
 
 const nullableText = lowering("nullableString");
 const array = lowering("array");

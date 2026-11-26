@@ -12,6 +12,7 @@ import {
   DefaultEvalModelService,
   generateLlmEvaluatorOutput,
   IngestionQueue,
+  LangfuseInternalTraceEnvironment,
   LLMAdapter,
   mapLegacyLLMCompletionParams,
   QueueJobs,
@@ -327,6 +328,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         model: params.modelConfig.model,
         baseURL: typeof apiKey.baseURL === "string" ? apiKey.baseURL : null,
         extraHeaders,
+        internalEnvironment: LangfuseInternalTraceEnvironment.LLMJudge,
       });
 
       return withLLMConnectionCooldown(
@@ -343,6 +345,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
  * Creates a mock implementation of eval execution dependencies for testing.
  * All functions are no-ops or return null by default.
  * Override specific functions as needed in tests.
+ * @internal
  */
 export function createMockEvalExecutionDeps(
   overrides?: Partial<EvalExecutionDeps>,

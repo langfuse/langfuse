@@ -1,11 +1,21 @@
-import type { FilterState } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  TopicsTargetObject,
+  TRACE_TRANSCRIPT_EVAL_COLUMN,
+  type FilterState,
+} from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 
 import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 import {
+  TRACE_TRANSCRIPT_DEFAULT_FIELD,
+  variableFieldsForTarget,
+} from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
+import {
   createEvaluatorSetupStore,
   selectHasValidModel,
 } from "./evaluatorSetupStore";
+import type { NormalizedEvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
 describe("createEvaluatorSetupStore", () => {
   it("starts new evaluator descriptions empty", () => {
@@ -65,6 +75,87 @@ describe("createEvaluatorSetupStore", () => {
       promptMessages: [{ role: "user", content: "Judge {{output}}" }],
       sourceCode: "return { score: 1 };",
     });
+  });
+
+  it("resets variable mappings to the defaults of a new test target", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+    const { actions } = store.getState();
+    actions.setVariableField("output", {
+      selectedColumnId: "metadata",
+      jsonSelector: "$.answer",
+    });
+
+    actions.setTargetObject(TopicsTargetObject);
+    expect(store.getState().variableFields).toEqual({
+      input: TRACE_TRANSCRIPT_DEFAULT_FIELD,
+      output: TRACE_TRANSCRIPT_DEFAULT_FIELD,
+    });
+
+    actions.setTargetObject(EvalTargetObject.EVENT);
+    expect(store.getState().variableFields).toEqual({});
+  });
+
+  it("opens a trace-only evaluator on trace messages without rewriting its stored mapping", () => {
+    const definition = {
+      type: "LLM_AS_JUDGE" as const,
+      promptMessages: [
+        { role: "user" as const, content: "{{threads}} {{input}}" },
+      ],
+      provider: null,
+      model: null,
+      modelParams: null,
+      vars: ["threads", "input"],
+      variableMapping: [
+        {
+          templateVariable: "threads",
+          selectedColumnId: TRACE_TRANSCRIPT_EVAL_COLUMN,
+          jsonSelector: "$[1].messages",
+        },
+        { templateVariable: "input", selectedColumnId: "input" },
+      ],
+      outputDefinition: {
+        version: 1,
+        score: { dataType: "NUMERIC", description: "Score" },
+        reasoning: { description: "Reasoning" },
+      },
+    } as unknown as NormalizedEvaluatorDefinition;
+    const evaluator = { name: "Trace judge", description: null, definition };
+    const storedFields = {
+      threads: {
+        selectedColumnId: TRACE_TRANSCRIPT_EVAL_COLUMN,
+        jsonSelector: "$[1].messages",
+      },
+      input: { selectedColumnId: "input", jsonSelector: null },
+    };
+
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: evaluator,
+      initialTargetObject: TopicsTargetObject,
+      mode: "edit",
+    });
+    expect(store.getState().targetObject).toBe(TopicsTargetObject);
+    expect(store.getState().variableFields).toEqual(storedFields);
+    expect(
+      variableFieldsForTarget(
+        TopicsTargetObject,
+        store.getState().variableFields,
+      ),
+    ).toEqual({
+      threads: storedFields.threads,
+      input: TRACE_TRANSCRIPT_DEFAULT_FIELD,
+    });
+
+    store.getState().actions.applyDefinition(definition);
+    expect(store.getState().variableFields).toEqual(storedFields);
+
+    const withoutTarget = createEvaluatorSetupStore({
+      initialEvaluator: evaluator,
+      mode: "edit",
+    });
+    expect(withoutTarget.getState().targetObject).toBe(EvalTargetObject.EVENT);
   });
 
   it("initializes an existing code evaluator", () => {

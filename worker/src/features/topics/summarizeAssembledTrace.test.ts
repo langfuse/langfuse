@@ -1,3 +1,4 @@
+import { MAX_TOPIC_SUMMARY_CHARACTERS } from "./summaryResult";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   recordDistribution,
@@ -153,21 +154,44 @@ beforeEach(() => {
 
 describe("summarizeAssembledTrace", () => {
   it("skips internal traces before calling models", async () => {
+    for (const environment of [
+      "langfuse-topics-internal",
+      "langfuse-topics",
+      "topics-internal",
+      "llm-as-a-judge",
+    ]) {
+      const result = await summarize({
+        projectId: "project-a",
+        traceId: "trace-1",
+        sessionId: null,
+        traceTimestamp: "2026-09-22T12:00:00.000Z",
+        environment,
+        traceName: "topics-summary",
+        transcript,
+        models,
+        facets: [facet],
+      });
+      expect(result).toBe("disabled");
+    }
+    expect(state.summarize).not.toHaveBeenCalled();
+    expect(state.embed).not.toHaveBeenCalled();
+    expect(summaries).toEqual([]);
+  });
+
+  it("still summarizes a customer trace in an environment named topics", async () => {
     const result = await summarize({
       projectId: "project-a",
-      traceId: "trace-1",
+      traceId: "trace-customer-topics-env",
       sessionId: null,
       traceTimestamp: "2026-09-22T12:00:00.000Z",
-      environment: "langfuse-topics",
-      traceName: "topics-summary",
+      environment: "topics",
+      traceName: "agent-turn",
       transcript,
       models,
       facets: [facet],
     });
-    expect(result).toBe("disabled");
-    expect(state.summarize).not.toHaveBeenCalled();
-    expect(state.embed).not.toHaveBeenCalled();
-    expect(summaries).toEqual([]);
+    expect(result).toBe("summarized");
+    expect(state.summarize).toHaveBeenCalledTimes(1);
   });
 
   it("summarizes a snapshot trace into a priced row and attributes both model calls to the snapshot", async () => {
@@ -233,14 +257,14 @@ describe("summarizeAssembledTrace", () => {
       { stage: "trace", outcome: "success", unit: "milliseconds" },
     );
     const submittedText = state.summarize.mock.calls[0][2] as string;
-    for (const [format, characters] of [
-      ["text", submittedText.length],
-      ["json", expect.any(Number)],
+    for (const [characters, tags] of [
+      [submittedText.length, { format: "text", over_limit: "false" }],
+      [expect.any(Number), { format: "json" }],
     ] as const)
       expect(recordDistribution).toHaveBeenCalledWith(
         "langfuse.topics.summary_input_characters",
         characters,
-        { format },
+        tags,
       );
   });
 
@@ -367,6 +391,44 @@ describe("summarizeAssembledTrace", () => {
     expect(state.embed).not.toHaveBeenCalled();
   });
 
+  it("stores an applicable result without a summary as insufficient input instead of failing the trace", async () => {
+    state.summarize.mockResolvedValue({
+      output: { intent_1: { summary: " ", status: "applicable" } },
+      ...usage,
+    });
+    await summarize({
+      projectId: "project-a",
+      traceId: "trace-1",
+      sessionId: null,
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      environment: "default",
+      traceName: "agent-turn",
+      transcript,
+      models,
+      facets: state.facets(),
+    });
+    const [written] = summaries;
+    expect(written).toMatchObject({ state: "insufficient_input", summary: "" });
+    expect(state.embed).not.toHaveBeenCalled();
+    // Counted as our rule's decision, so the rate stays visible.
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(([name]) => name === "langfuse.topics.results"),
+    ).toEqual([
+      [
+        "langfuse.topics.results",
+        1,
+        {
+          stage: "summary",
+          result: "insufficient_input",
+          source: "rule",
+          facet: "intent",
+        },
+      ],
+    ]);
+  });
+
   it("keeps the other facets when one facet's output is invalid", async () => {
     const issues: TopicFacet = {
       ...facet,
@@ -377,7 +439,10 @@ describe("summarizeAssembledTrace", () => {
     state.facets.mockReturnValue([facet, issues]);
     state.summarize.mockResolvedValue({
       output: {
-        intent_1: { summary: "", status: "applicable" },
+        intent_1: {
+          summary: "x".repeat(MAX_TOPIC_SUMMARY_CHARACTERS + 1),
+          status: "applicable",
+        },
         issues_2: { summary: "Retried a failed export.", status: "applicable" },
       },
       ...usage,
@@ -416,7 +481,7 @@ describe("summarizeAssembledTrace", () => {
       [
         "langfuse.topics.errors",
         1,
-        { stage: "summary", reason: "invalid_output", owner: "platform" },
+        { stage: "summary", reason: "invalid_output", owner: "customer" },
       ],
     ]);
     // Rejected output is a local rule's decision; accepted output is the model's.
@@ -565,7 +630,10 @@ describe("summarizeAssembledTrace", () => {
     ]);
     state.summarize.mockResolvedValue({
       output: {
-        intent_1: { summary: "", status: "applicable" },
+        intent_1: {
+          summary: "x".repeat(MAX_TOPIC_SUMMARY_CHARACTERS + 1),
+          status: "applicable",
+        },
         tone_3: { summary: "", status: "not_applicable" },
         issues_2: { summary: "Retried a failed export.", status: "applicable" },
       },
@@ -689,7 +757,12 @@ describe("summarizeAssembledTrace", () => {
 
   it("attributes invalid summary output to the failed summary stage", async () => {
     state.summarize.mockResolvedValue({
-      output: { intent_1: { summary: "  ", status: "applicable" } },
+      output: {
+        intent_1: {
+          summary: "x".repeat(MAX_TOPIC_SUMMARY_CHARACTERS + 1),
+          status: "applicable",
+        },
+      },
       ...usage,
     });
     await expect(
@@ -720,7 +793,7 @@ describe("summarizeAssembledTrace", () => {
       [
         "langfuse.topics.errors",
         1,
-        { stage: "summary", reason: "invalid_output", owner: "platform" },
+        { stage: "summary", reason: "invalid_output", owner: "customer" },
       ],
     ]);
     expect(state.setAttribute).toHaveBeenCalledWith(

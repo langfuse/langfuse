@@ -944,6 +944,7 @@ const COMPLETION_CONFIGS: Record<
   },
 };
 
+/** @internal */
 export function getCodeEvalCompletionSource(
   sourceCodeLanguage: CodeEvalSourceCodeLanguage,
 ): CompletionSource {

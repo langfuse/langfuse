@@ -12,7 +12,7 @@ import {
   TEXT_BASE64,
   TEXT_DATA_URI,
   providerMediaCases,
-} from "./MediaPayloadProcessor.fixtures";
+} from "./__tests__/MediaPayloadProcessor.fixtures";
 
 const MEDIA_REFERENCE = `@@@langfuseMedia:type=image/png|id=${MEDIA_ID}|source=base64_data_uri@@@`;
 

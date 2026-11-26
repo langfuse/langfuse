@@ -143,6 +143,9 @@ RUN set -eux; \
     --components=rustc,cargo,rust-std-${triple}; \
     rm -rf /tmp/rust.tar.gz /tmp/rust-1.98.0-${triple}
 
+# These tools are needed to ship the addon, not to exercise it in FIPS mode.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} toolchain AS audit-tools
+
 # cargo-about renders the third-party license notices for the native addon's
 # Rust dependencies. cargo-auditable embeds the addon's resolved dependency
 # list in the .node binary so image scanners (Trivy, Grype, Docker Scout) can
@@ -184,6 +187,9 @@ ARG NEXT_PUBLIC_POSTHOG_HOST
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
 
+# Only the audited build needs these binaries; the dependency install above can
+# run while audit-tools compiles them.
+COPY --from=audit-tools /usr/local/bin/cargo-about /usr/local/bin/cargo-auditable /usr/local/bin/cargo-auditable-shim /usr/local/bin/
 RUN CARGO=/usr/local/bin/cargo-auditable-shim turbo run build --filter=worker...
 
 # Runs after the build so `cargo fetch` adds the sources the build skipped (dev

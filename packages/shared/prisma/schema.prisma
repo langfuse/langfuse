@@ -84,6 +84,7 @@ model User {
   topicConfigsUpdated       TopicConfig[]               @relation("UpdatedByUser")
   tracingReadinessCreated   TracingReadinessSettings[]  @relation("CreatedByUser")
   tracingReadinessUpdated   TracingReadinessSettings[]  @relation("UpdatedByUser")
+  gatewayGuardrailsCreated  GatewayGuardrail[]          @relation("CreatedByUser")
   annotationQueueAssignment AnnotationQueueAssignment[]
   surveys                   Survey[]
   commentReactions          CommentReaction[]
@@ -99,6 +100,7 @@ model User {
   evaluationRulesCreated    EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
   gatewaySpendLimitsOwned   GatewaySpendLimit[]         @relation("GatewaySpendLimitOwner")
   gatewaySpendLimits        GatewaySpendLimit[]         @relation("GatewaySpendLimitUser")
+  gatewayGuardrailAssignments GatewayGuardrailAssignment[] @relation("GatewayGuardrailAssignmentUser")
 
   deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentUser") @ignore
 
@@ -131,6 +133,9 @@ model Organization {
   // LANGFUSE_AUDIT_LOG_ACCESS_EVENTS is "org" and the org has the audit-logs
   // entitlement.
   accessAuditLogEnabled            Boolean                  @default(false) @map("access_audit_log_enabled")
+  // While true, `public` flags on this org's traces and sessions are ignored
+  // by access checks and publishing is rejected. The flags themselves are kept.
+  publicSharingDisabled            Boolean                  @default(false) @map("public_sharing_disabled")
   featureFlagOrgDefaults           String[]                 @default([]) @map("feature_flag_org_defaults")
   // SFDC Account / Organization ID returned by the Mulesoft org endpoint on
   // Langfuse Cloud. NULL for self-hosted or pre-integration orgs. A mismatch
@@ -147,6 +152,8 @@ model Organization {
   gatewayConfig                    GatewayConfig?
   gatewayAiConnections             GatewayAiConnection[]
   gatewaySpendLimits               GatewaySpendLimit[]
+  gatewayGuardrails                GatewayGuardrail[]
+  gatewayGuardrailAssignments      GatewayGuardrailAssignment[]
   organizationLlmApiKeys           LlmApiKeys[]             @relation("OrganizationLlmApiKeys")
   models                           Model[]
   roleAssignments                  RoleAssignment[]         @relation("RoleAssignmentTenant")
@@ -271,6 +278,7 @@ model ApiKey {
   apiKeysCreated      ApiKey[]                  @relation("ApiKeyCreatedByApiKey")
   gatewayAssociation  GatewayApiKeyAssociation?
   gatewaySpendLimits  GatewaySpendLimit[]
+  gatewayGuardrailAssignments GatewayGuardrailAssignment[]
   roleAssignments     RoleAssignment[]
 
   deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentApiKey") @ignore
@@ -486,6 +494,81 @@ model GatewaySpendLimitAlert {
 
   @@unique([spendLimitId, subjectId, type, thresholdPercent, countingStartedAt, windowStart], map: "gateway_spend_limit_alerts_limit_type_counting_window_key")
   @@map("gateway_spend_limit_alerts")
+}
+
+enum GatewayGuardrailType {
+  // Built-in presets matched by the gateway.
+  REGEX
+  // External AWS Bedrock Guardrail evaluated via ApplyGuardrail.
+  BEDROCK
+}
+
+enum GatewayGuardrailAction {
+  BLOCK
+  LOG
+  REDACT
+  ENFORCE
+}
+
+enum GatewayGuardrailScope {
+  LAST_TURN
+  ENTIRE_INPUT
+}
+
+enum GatewayGuardrailAssignmentScope {
+  ORGANIZATION
+  API_KEY
+  USER
+}
+
+// A rule set the AI gateway checks each request against. Assignments decide
+// which keys it applies to.
+model GatewayGuardrail {
+  id                  String                       @id @default(cuid())
+  organizationId      String                       @map("organization_id")
+  organization        Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name                String
+  type                GatewayGuardrailType         @default(REGEX)
+  action              GatewayGuardrailAction
+  scope               GatewayGuardrailScope        @default(LAST_TURN)
+  // For REGEX: { "presets": [...], "secretPrefixes": [...], "containsWords": [...], "customRegex": "..." };
+  // For BEDROCK: { "guardrailId": "...", "guardrailVersion": "...", "region": "..." }.
+  config              Json                         @default("{}") @db.JsonB
+  // Encrypted credential for external guardrail providers (e.g. Bedrock API key); null for REGEX.
+  encryptedCredential String?                      @map("encrypted_credentials")
+  // Replacement text used when action is REDACT (e.g. "[REDACTED]", "[PHONE]"); null otherwise.
+  redactionLabel      String?                      @map("redaction_label")
+  createdBy           String?                      @map("created_by")
+  createdByUser       User?                        @relation("CreatedByUser", fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt           DateTime                     @default(now()) @map("created_at")
+  updatedAt           DateTime                     @default(now()) @updatedAt @map("updated_at")
+  assignments         GatewayGuardrailAssignment[]
+
+  @@unique([organizationId, name])
+  @@map("gateway_guardrails")
+}
+
+// Applies a guardrail to every key of its organization, one key, or all keys of
+// one user in the organization. Each scope sets exactly its subject column
+// (checked in the database); each guardrail has one assignment per subject
+// (partial unique indexes in the migration).
+model GatewayGuardrailAssignment {
+  id             String                          @id @default(cuid())
+  guardrailId    String                          @map("guardrail_id")
+  guardrail      GatewayGuardrail                @relation(fields: [guardrailId], references: [id], onDelete: Cascade)
+  organizationId String                          @map("organization_id")
+  organization   Organization                    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  scope          GatewayGuardrailAssignmentScope
+  apiKeyId       String?                         @map("api_key_id")
+  apiKey         ApiKey?                         @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  userId         String?                         @map("user_id")
+  user           User?                           @relation("GatewayGuardrailAssignmentUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime                        @default(now()) @map("created_at")
+
+  @@index([organizationId, scope])
+  @@index([apiKeyId])
+  @@index([userId, organizationId])
+  @@map("gateway_guardrail_assignments")
 }
 
 enum InAppAgentConversationVisibilityScope {

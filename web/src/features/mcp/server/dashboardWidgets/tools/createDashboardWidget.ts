@@ -122,7 +122,7 @@ export const [createDashboardWidgetTool, handleCreateDashboardWidget] =
     ].join(" "),
     baseSchema: CreateDashboardWidgetBaseSchema,
     inputSchema: PostUnstableDashboardWidgetBody,
-    destructiveHint: true,
+    annotations: { destructiveHint: true },
     handler: async (input, context) =>
       runMcpTool({
         spanName: "mcp.dashboard_widgets.create",

@@ -33,5 +33,5 @@ export const [deleteDatasetRunTool, handleDeleteDatasetRun] = defineTool({
         return DeleteDatasetRunV1Response.parse(result);
       },
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

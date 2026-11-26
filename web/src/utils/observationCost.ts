@@ -6,6 +6,7 @@ import { usdFormatter } from "@/src/utils/numbers";
  * Matches EMPTY_VALUE_PLACEHOLDER in the design-system table constants. Held
  * as a literal rather than imported: this module is a string formatter and
  * must not depend on the component tree.
+ * @internal
  */
 export const MISSING_OBSERVATION_COST_PLACEHOLDER = "—";
 
@@ -13,6 +14,7 @@ export const MISSING_OBSERVATION_COST_PLACEHOLDER = "—";
  * Types that ingestion can attach usage/cost to (CreateGenerationBody),
  * matching `isGenerationLike`. Used to describe typical cost-bearing rows;
  * display still follows a stored amount, not this set alone.
+ * @internal
  */
 export function isObservationCostSupported(
   observationType: ObservationType | string | undefined,

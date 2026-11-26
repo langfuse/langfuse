@@ -3,15 +3,17 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
+import { StringParam, useQueryParam } from "use-query-params";
 import { TRPCClientError } from "@trpc/client";
 import { History, Trash2 } from "@langfuse/icons";
 import {
-  observationVariableMappingList,
   isEvaluatorBlockReasonRecoverableByDefinitionUpdate,
   type EvaluatorBlockReason,
+  EvalTargetObject,
   type EvalTemplateType,
   type FilterState,
   type ObservationVariableMapping,
+  TopicsTargetObject,
 } from "@langfuse/shared";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
@@ -31,8 +33,17 @@ import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluat
 import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupFooter/EvaluatorSetupFooter";
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
+import { TraceSampleSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TraceSampleSelectorContainer/TraceSampleSelectorContainer";
+import { SampleScopeSwitcher } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleScopeSwitcher/SampleScopeSwitcher";
 import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
+import {
+  type RuleNeedingOverride,
+  rulesNeedingOverride,
+  variableFieldsForTarget,
+} from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
+import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
 import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
 import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
@@ -47,6 +58,7 @@ import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import {
   createEvaluatorSetupStore,
   type EvaluatorSetupStore,
+  type EvaluatorTargetObject,
 } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import type { EvaluatorSetupDraft } from "@/src/features/evals/v2/types/templateGallery";
 import { EvaluatorRuleRelationships } from "@/src/features/evals/v2/components/Rules/EvaluatorRuleRelationships/EvaluatorRuleRelationships";
@@ -90,12 +102,14 @@ type InitialEvaluator = {
   sampleFilter?: FilterState;
 };
 
+/** @internal */
 export function shouldOfferRuleAttachment(evaluator: {
   blockedAt: Date | null;
 }) {
   return evaluator.blockedAt === null;
 }
 
+/** @internal */
 export function applyEvaluatorSuggestion(
   suggestion: string | null,
   setSuggestion: (suggestion: string) => void,
@@ -105,6 +119,7 @@ export function applyEvaluatorSuggestion(
   return true;
 }
 
+/** @internal */
 export function getEvaluatorVersionDefinition(
   version: EvaluatorVersion,
 ): NormalizedEvaluatorDefinition {
@@ -154,6 +169,7 @@ export function getEvaluatorVersionDefinition(
   };
 }
 
+/** @internal */
 export function restoreEvaluatorVersion({
   store,
   version,
@@ -182,6 +198,7 @@ export function EvaluatorSetupPage(
         mode: "edit";
         projectId: string;
         initialEvaluator: InitialEvaluator;
+        initialTargetObject?: EvaluatorTargetObject;
       },
 ) {
   const { projectId } = props;
@@ -207,6 +224,11 @@ export function EvaluatorSetupPage(
     projectId,
     scope: "evaluator:CUD",
   });
+  const canReadRules = useHasProjectAccess({
+    projectId,
+    scope: "evaluationRule:read",
+  });
+  const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
   const evaluatorAlerts = useEvaluatorAlerts({
     scope: "evaluator",
     projectId,
@@ -234,6 +256,8 @@ export function EvaluatorSetupPage(
       initialEvaluator: initialEvaluator ?? initialDraft,
       initialSampleFilter: initialEvaluator?.sampleFilter,
       initialType: props.mode === "create" ? props.initialType : undefined,
+      initialTargetObject:
+        props.mode === "edit" ? props.initialTargetObject : undefined,
       defaultModel: projectDefaultModel.defaultModel,
       mode: props.mode,
     }),
@@ -329,6 +353,8 @@ export function EvaluatorSetupPage(
     sampleFilter: FilterState;
     hasCompletedTestCall: boolean;
     testRunCostUsd: number | null;
+    targetObject: typeof EvalTargetObject.EVENT | typeof TopicsTargetObject;
+    rulesNeedingOverride: RuleNeedingOverride[];
   } | null>(null);
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
   // Keep relative ranges stable across unrelated renders so the observations
@@ -337,6 +363,7 @@ export function EvaluatorSetupPage(
     () => toAbsoluteTimeRange(timeRange),
     [timeRange],
   );
+  const [, setObservationParam] = useQueryParam("observation", StringParam);
   const sampleTracePeekNavigation = usePeekNavigation({
     queryParams: ["observation", "display", "timestamp", "traceId"],
     tableName: "evaluators-v2",
@@ -620,11 +647,40 @@ export function EvaluatorSetupPage(
           return;
         }
       }
-      const { definition } = prepareEvaluatorDraft(
-        applyFallbackDecisionModel(state, fallbackDecisionModel),
-      );
+      const { definition } = prepareEvaluatorDraft({
+        ...applyFallbackDecisionModel(state, fallbackDecisionModel),
+        variableFields: variableFieldsForTarget(
+          state.targetObject,
+          state.variableFields,
+        ),
+      });
       if (!definition) return;
       const { name, description } = metadata;
+      const isTraceTranscript = state.targetObject === TopicsTargetObject;
+      const defaultVariableMapping = prepareModernRuleVariableMapping(
+        definition.type === "CODE" ? undefined : definition.variableMapping,
+        state.type,
+      ).defaultVariableMapping;
+      const offerRuleAttachment = (
+        evaluator: { id: string },
+        overrideRules: RuleNeedingOverride[] = [],
+      ) => {
+        setSavedEvaluator({
+          id: evaluator.id,
+          name,
+          type: state.type,
+          defaultVariableMapping,
+          sampleFilter: isTraceTranscript
+            ? state.traceSampleFilter
+            : state.sampleFilter,
+          hasCompletedTestCall,
+          testRunCostUsd: lastTestRunCostUsd,
+          targetObject: isTraceTranscript
+            ? TopicsTargetObject
+            : EvalTargetObject.EVENT,
+          rulesNeedingOverride: overrideRules,
+        });
+      };
 
       if (props.mode === "edit") {
         const evaluator = await update.mutateAsync({
@@ -661,6 +717,36 @@ export function EvaluatorSetupPage(
               : current,
         );
         await utils.evalsV2.filterOptions.invalidate({ projectId });
+        const findRulesNeedingOverride = async () => {
+          if (
+            !traceEvalsAvailable ||
+            !canReadRules ||
+            definition.type === "CODE"
+          ) {
+            return [];
+          }
+          // The save already succeeded, so a failed lookup only skips the warning.
+          try {
+            const assignments =
+              await utils.evalsV2.rules.listRulesForEvaluator.fetch({
+                projectId,
+                evaluatorId: evaluator.id,
+              });
+            return rulesNeedingOverride(defaultVariableMapping, assignments);
+          } catch {
+            return [];
+          }
+        };
+        const overrideRules = await findRulesNeedingOverride();
+        // Evaluators opened on Trace messages already have trace rules.
+        const switchedToTraceMessages =
+          isTraceTranscript && props.initialTargetObject !== TopicsTargetObject;
+        const needsSavedDialog =
+          overrideRules.length > 0 || switchedToTraceMessages;
+        if (shouldOfferRuleAttachment(evaluator) && needsSavedDialog) {
+          offerRuleAttachment(evaluator, overrideRules);
+          return;
+        }
         await router.push(`/project/${projectId}/evals/${evaluator.id}`);
         return;
       }
@@ -711,21 +797,7 @@ export function EvaluatorSetupPage(
         await router.push(`/project/${projectId}/evals/${evaluator.id}`);
         return;
       }
-      setSavedEvaluator({
-        id: evaluator.id,
-        name,
-        type: state.type,
-        defaultVariableMapping: observationVariableMappingList
-          .catch([])
-          .parse(
-            definition.type === "LLM_AS_JUDGE"
-              ? definition.variableMapping
-              : undefined,
-          ),
-        sampleFilter: state.sampleFilter,
-        hasCompletedTestCall,
-        testRunCostUsd: lastTestRunCostUsd,
-      });
+      offerRuleAttachment(evaluator);
     } catch (error) {
       hasCreatedRef.current = false;
       if (
@@ -753,11 +825,16 @@ export function EvaluatorSetupPage(
 
   const runTest = () => {
     const state = evaluatorSetupStore.getState();
-    const { definition } = prepareEvaluatorDraft(
-      applyFallbackDecisionModel(state, fallbackDecisionModel),
-    );
+    const { definition } = prepareEvaluatorDraft({
+      ...applyFallbackDecisionModel(state, fallbackDecisionModel),
+      variableFields: variableFieldsForTarget(
+        state.targetObject,
+        state.variableFields,
+      ),
+    });
     const selectedObservation = state.selectedObservation;
     if (!definition || !selectedObservation?.traceId) return;
+    const isTraceTest = state.targetObject === TopicsTargetObject;
     capture("evaluators:test", {
       evaluatorType: state.type,
       isEditing: Boolean(initialEvaluator),
@@ -766,7 +843,7 @@ export function EvaluatorSetupPage(
       projectId,
       evaluatorId,
       definition,
-      observationId: selectedObservation.id,
+      ...(isTraceTest ? {} : { observationId: selectedObservation.id }),
       traceId: selectedObservation.traceId,
       startTime: selectedObservation.startTime,
     });
@@ -842,6 +919,30 @@ export function EvaluatorSetupPage(
     </DefaultModelChangeConfirmationDialog>
   );
 
+  const resetTestState = () => {
+    setTestResult(null);
+    setHasCompletedTestCall(false);
+    setLastTestRunCostUsd(null);
+    setRawResultOpen(false);
+  };
+
+  const openSampleTrace = (observation: SampleObservation) => {
+    onboardingAnalytics?.track(
+      "eval:onboarding_sample_observation_previewed",
+      {},
+    );
+    if (observation.traceId) {
+      sampleTracePeekNavigation.openPeek(observation.id, observation);
+    }
+  };
+
+  const changeSampleTarget = (targetObject: EvaluatorTargetObject) => {
+    if (evaluatorSetupStore.getState().targetObject === targetObject) return;
+    evaluatorSetupStore.getState().actions.setTargetObject(targetObject);
+    setObservationParam(undefined, "replaceIn");
+    resetTestState();
+  };
+
   const evaluatorTestPanel = (
     <EvaluatorTestPanelContainer
       projectId={projectId}
@@ -851,15 +952,21 @@ export function EvaluatorSetupPage(
           store={evaluatorSetupStore}
           projectId={projectId}
           timeRange={absoluteTimeRange}
-          onOpenTrace={(observation) => {
-            onboardingAnalytics?.track(
-              "eval:onboarding_sample_observation_previewed",
-              {},
-            );
-            if (observation.traceId) {
-              sampleTracePeekNavigation.openPeek(observation.id, observation);
-            }
-          }}
+          onOpenTrace={openSampleTrace}
+        />
+      }
+      traceSampleSelector={
+        <TraceSampleSelectorContainer
+          store={evaluatorSetupStore}
+          projectId={projectId}
+          timeRange={absoluteTimeRange}
+          onOpenTrace={openSampleTrace}
+        />
+      }
+      heading={
+        <SampleScopeSwitcher
+          store={evaluatorSetupStore}
+          onTargetObjectChange={changeSampleTarget}
         />
       }
       testResult={testResult}
@@ -1000,8 +1107,8 @@ export function EvaluatorSetupPage(
                   primaryContent={evaluatorEditor}
                   secondaryContent={evaluatorTestPanel}
                   open={testPanelOpen}
-                  defaultPrimarySize={60}
-                  defaultSecondarySize={40}
+                  defaultPrimarySize={50}
+                  defaultSecondarySize={50}
                   minPrimarySize={30}
                   minSecondarySize="360px"
                   collapsedSecondarySize="48px"
@@ -1065,12 +1172,7 @@ export function EvaluatorSetupPage(
                 restoreEvaluatorVersion({
                   store: evaluatorSetupStore,
                   version,
-                  resetTestState: () => {
-                    setTestResult(null);
-                    setHasCompletedTestCall(false);
-                    setLastTestRunCostUsd(null);
-                    setRawResultOpen(false);
-                  },
+                  resetTestState,
                 });
                 capture("evaluators:version_history_interaction", {
                   action: "restore_version",
@@ -1090,6 +1192,7 @@ export function EvaluatorSetupPage(
             <EvaluatorSavedDialogContainer
               projectId={projectId}
               evaluator={savedEvaluator}
+              rulesNeedingOverride={savedEvaluator.rulesNeedingOverride}
               onboardingAnalytics={onboardingAnalytics}
               onDismiss={async () => {
                 await router.push(

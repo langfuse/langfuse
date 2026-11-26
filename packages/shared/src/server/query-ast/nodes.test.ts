@@ -1,3 +1,5 @@
+// Pins tenancy injection and the custom AST nodes across query shapes.
+
 import {
   AliasNode,
   BinaryOperationNode,
@@ -42,7 +44,7 @@ import {
   finalTable,
   isClickHouseSelectQueryNode,
 } from "./nodes";
-import { applyPassOnly, renderPassOutput } from "./passHarness";
+import { applyPassOnly, renderPassOutput } from "./__tests__/passHarness";
 import { type ClickHouseDatabase } from "./schema";
 import { NameShadowingPlugin } from "./shadowing";
 import { TenancyInjectionPlugin } from "./tenancy";
@@ -511,7 +513,7 @@ describe("tenancy injection", () => {
     const db = getClickhouseKysely();
     // Knows the CTE names `a` and `b` as tables, so a body can read a name
     // before its CTE is declared without a cast.
-    const loose = db.withTables<{
+    const loose = db.$extendTables<{
       a: { id: string };
       b: { id: string };
     }>();
@@ -1224,6 +1226,22 @@ describe("bare columns in a SELECT with several relations", () => {
   });
 });
 
+describe("qualifiers in a SELECT with one relation", () => {
+  const db = getClickhouseKysely();
+
+  it("rejects a relation the query did not join", () => {
+    const qb = db.selectFrom("scores").select(sql.ref("zz.name").as("n"));
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      /Qualifier "zz" names no relation, registry column/,
+    );
+  });
+
+  it("accepts a subcolumn of its relation's column", () => {
+    const qb = db.selectFrom("scores").select(sql.ref("metadata.keys").as("k"));
+    expect(() => compileClickhouseQuery(qb, projectId)).not.toThrow();
+  });
+});
+
 describe("names the compiler writes verbatim", () => {
   const db = getClickhouseKysely();
 
@@ -1312,7 +1330,7 @@ describe("names the compiler writes verbatim", () => {
     [
       "tuple subcolumn field",
       db
-        .withTables<{
+        .$extendTables<{
           events: {
             skills_available: Array<{ "skillName from x --": string }>;
           };

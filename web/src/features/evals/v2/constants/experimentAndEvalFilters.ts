@@ -1,13 +1,15 @@
 import {
   LangfuseInternalTraceEnvironment,
+  PUBLIC_INTERNAL_EVAL_ENVIRONMENTS,
   type FilterState,
 } from "@langfuse/shared";
 
 export const INTERNAL_EVALUATION_ENVIRONMENTS = [
   ...Object.values(LangfuseInternalTraceEnvironment),
+  "langfuse-topics",
   "langfuse-evaluation",
   "langfuse",
-  "llm-as-a-judge",
+  ...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS,
 ] as const;
 
 export const INTERNAL_EVALUATION_ENVIRONMENT_FILTERS = [

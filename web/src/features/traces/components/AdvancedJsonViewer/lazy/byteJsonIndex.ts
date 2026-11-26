@@ -474,6 +474,7 @@ function significantDigitCount(text: string): number {
  *   - big integers    -> `bigint`   (lossy=true: JSON.parse would round it)
  *   - long fractions  -> raw string (lossy=true)
  *   - everything else -> `number`
+ * @internal
  */
 export function parseNumberPreservePrecision(text: string): {
   value: number | bigint | string;
@@ -746,6 +747,7 @@ export class ByteJsonIndexEngine {
 }
 
 /** Convenience factory mirroring the worker `load(bytes)` entry point. */
+/** @internal */
 export function loadByteJsonIndex(bytes: Uint8Array): {
   engine: ByteJsonIndexEngine;
   root: NodeDescriptor;

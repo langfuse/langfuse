@@ -1,9 +1,12 @@
+// Per-process registry of running blob storage table exports, logged on
+// shutdown, plus the per-table export attempt counter.
+
 import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 
 // Per-table attempt counter. Residual `started - success - failure - aborted`
 // counts silent hard kills (OOM) that emit nothing. Lives here to avoid an
-// import cycle with the handler. See LFE-10407.
+// import cycle with the handler.
 export const BLOB_TABLE_EXPORT_METRIC =
   "langfuse.blobstorage.table_export.count";
 
@@ -39,9 +42,11 @@ export const unregisterInFlightBlobExport = (handle: symbol): void => {
   inFlightExports.delete(handle);
 };
 
+/** @internal */
 export const getInFlightBlobExportCount = (): number => inFlightExports.size;
 
 // Test helper — clear leaked state between tests.
+/** @internal */
 export const resetInFlightBlobExports = (): void => {
   inFlightExports.clear();
 };
@@ -57,8 +62,6 @@ export const logInFlightBlobExportsOnShutdown = (): void => {
 
   const now = Date.now();
   for (const entry of inFlightExports.values()) {
-    // "in-flight at shutdown", not "aborted": worker.close() drains gracefully,
-    // so this export may still complete within the grace period.
     logger.warn(
       `[BLOB INTEGRATION] Blob storage export in-flight at shutdown signal on host ${WORKER_HOST_ID}: ` +
         `jobId=${entry.jobId} projectId=${entry.projectId} table=${entry.table} ` +
@@ -73,4 +76,28 @@ export const logInFlightBlobExportsOnShutdown = (): void => {
       table: entry.table,
     });
   }
+};
+
+// Aborted once on SIGTERM. Exports tear down their streams on it and the job is
+// re-queued, so a deploy does not count as a BullMQ stall: an export longer
+// than the ECS stop timeout would otherwise be killed on every rollout wave
+// and fail terminally once it exceeds `maxStalledCount`.
+let shutdownController = new AbortController();
+
+export const getBlobExportShutdownSignal = (): AbortSignal =>
+  shutdownController.signal;
+
+export const abortBlobExportsForShutdown = (): void => {
+  // AbortError lets the storage layer log the teardown as a warning.
+  const reason = new Error(
+    "Blob storage export aborted by worker shutdown (SIGTERM)",
+  );
+  reason.name = "AbortError";
+  shutdownController.abort(reason);
+};
+
+// Test helper — an aborted controller cannot be reset, so replace it.
+/** @internal */
+export const resetBlobExportShutdown = (): void => {
+  shutdownController = new AbortController();
 };

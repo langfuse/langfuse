@@ -12,7 +12,7 @@ service:
       docs: |
         Create an evaluator in the authenticated project.
 
-        An evaluator defines **how** Langfuse should score data. LLM-as-a-judge evaluators define a prompt, expected structured output, and optional model configuration. Code evaluators define source code and a runtime language.
+        An evaluator defines **how** Langfuse should score data. LLM-as-a-judge evaluators define a prompt, expected structured output, and optional model configuration. Code evaluators define source code and a runtime language. Decision-model evaluators define typed questions, a decision-model configuration, and a mapping from observation data to state keys.
 
         This always creates a new evaluator with version `1`. Names are not identifiers and do not need to be unique.
       method: POST
@@ -81,7 +81,7 @@ service:
 
         Provide only the top-level fields to change. Metadata-only changes do not create a version. Evaluator type cannot change.
 
-        Definition fields are flattened into the request. To replace a definition, include `type` and every definition field for that type. Definition fields are replaced as a complete unit rather than merged. For LLM-as-a-judge evaluators, omitting or setting `modelConfig` to `null` selects the project's default evaluation model.
+        Definition fields are flattened into the request. To replace a definition, include `type` and every definition field for that type. Definition fields are replaced as a complete unit rather than merged. For LLM-as-a-judge evaluators, omitting or setting `modelConfig` to `null` selects the project's default evaluation model. Decision-model evaluators always require `modelConfig`.
 
         Replacing a definition automatically returns an evaluator paused by an invalid or missing model configuration to `active`, while preserving its id and evaluation-rule assignments. Pauses caused by provider authentication, billing, connectivity, account state, or an unknown legacy reason remain paused until the explicit reactivation check succeeds.
       method: PATCH
@@ -270,6 +270,131 @@ types:
         type: evals.CodeEvaluatorSourceCodeLanguage
         docs: Runtime language used to execute the source code.
 
+  DecisionModelEntry:
+    docs: |
+      Instruction text (1 to 20,000 characters), or a non-null JSON value that the decision model receives as structured instructions.
+    discriminated: false
+    union:
+      - string
+      - map<string, unknown>
+      - list<unknown>
+      - double
+      - boolean
+
+  DecisionModelChoiceCriterion:
+    docs: One allowed answer of a `choice` question.
+    properties:
+      value:
+        type: string
+        docs: Answer value stored as the categorical score value. Must be unique within the question.
+      description:
+        type: optional<nullable<DecisionModelEntry>>
+        docs: Optional description of when this answer applies.
+
+  DecisionModelScoreCriterion:
+    docs: One level of a `score` question, ordered from lowest to highest.
+    properties:
+      description:
+        type: DecisionModelEntry
+        docs: Description of this level.
+
+  DecisionModelBooleanCriteria:
+    docs: |
+      Optional descriptions of the two answers of a `boolean` question. The answer is always `true` or `false`; these descriptions only tell the model when each one applies.
+    properties:
+      "true":
+        type: optional<nullable<DecisionModelBooleanCriterion>>
+        docs: When the statement is true.
+      "false":
+        type: optional<nullable<DecisionModelBooleanCriterion>>
+        docs: When the statement is false.
+
+  DecisionModelBooleanCriterion:
+    docs: One answer of a `boolean` question.
+    properties:
+      description:
+        type: DecisionModelEntry
+        docs: Description of when this answer applies.
+
+  DecisionModelChoiceQuestion:
+    docs: Pick one of a fixed list of options. Produces a categorical score.
+    properties:
+      id:
+        type: string
+        docs: Question identifier. Must be unique within the evaluator.
+      scoreName:
+        type: string
+        docs: Name of the score this question produces. Must be unique within the evaluator.
+      instructions:
+        type: DecisionModelEntry
+        docs: Question instructions. Refer to state keys from `variableMapping` by name, wrapped in backticks, for example `` `user_message` ``.
+      criteria:
+        type: list<DecisionModelChoiceCriterion>
+        docs: The allowed answers. Between 2 and 255, with unique values.
+
+  DecisionModelScoreQuestion:
+    docs: Rate on an ordered scale. Produces a numeric score.
+    properties:
+      id:
+        type: string
+        docs: Question identifier. Must be unique within the evaluator.
+      scoreName:
+        type: string
+        docs: Name of the score this question produces. Must be unique within the evaluator.
+      instructions:
+        type: DecisionModelEntry
+        docs: Question instructions. Refer to state keys from `variableMapping` by name, wrapped in backticks, for example `` `user_message` ``.
+      criteria:
+        type: list<DecisionModelScoreCriterion>
+        docs: The levels of the scale. Between 2 and 10, ordered from lowest to highest.
+
+  DecisionModelBooleanQuestion:
+    docs: |
+      Decide whether a statement is true. Produces a numeric score: the probability (0–1) that the statement is true.
+    properties:
+      id:
+        type: string
+        docs: Question identifier. Must be unique within the evaluator.
+      scoreName:
+        type: string
+        docs: Name of the score this question produces. Must be unique within the evaluator.
+      instructions:
+        type: DecisionModelEntry
+        docs: Question instructions. Refer to state keys from `variableMapping` by name, wrapped in backticks, for example `` `user_message` ``.
+      criteria:
+        type: optional<nullable<DecisionModelBooleanCriteria>>
+        docs: Optional descriptions of when the statement is true and when it is false.
+
+  DecisionModelQuestion:
+    docs: One typed question answered by a decision-model evaluator. Each question produces one score.
+    discriminant: type
+    union:
+      choice:
+        type: DecisionModelChoiceQuestion
+      score:
+        type: DecisionModelScoreQuestion
+      boolean:
+        type: DecisionModelBooleanQuestion
+
+  DecisionModelEvaluatorVersion:
+    extends: EvaluatorVersionBase
+    properties:
+      type:
+        type: literal<"decision_model">
+        docs: Evaluator type.
+      questions:
+        type: list<DecisionModelQuestion>
+        docs: Typed questions answered during evaluation.
+      variables:
+        type: list<string>
+        docs: State keys available to the questions and evaluation-rule mappings.
+      variableMapping:
+        type: list<evals.PromptVariableMappingRead>
+        docs: Default mapping from observation data to state keys.
+      modelConfig:
+        type: EvaluatorModelConfig
+        docs: Decision-model connection and model used for evaluation.
+
   EvaluatorVersion:
     discriminant: type
     union:
@@ -277,6 +402,8 @@ types:
         type: LlmAsJudgeEvaluatorVersion
       code:
         type: CodeEvaluatorVersion
+      decision_model:
+        type: DecisionModelEvaluatorVersion
 
   EvaluationRuleAssignment:
     docs: Evaluation-rule assignment associated with this evaluator.
@@ -371,6 +498,25 @@ types:
         type: evals.CodeEvaluatorSourceCodeLanguage
         docs: Runtime language used to execute the latest source code.
 
+  DecisionModelEvaluator:
+    extends: EvaluatorBase
+    properties:
+      type:
+        type: literal<"decision_model">
+        docs: Evaluator type.
+      questions:
+        type: list<DecisionModelQuestion>
+        docs: Typed questions answered by the latest evaluator version.
+      variables:
+        type: list<string>
+        docs: State keys available to the questions and evaluation-rule mappings.
+      variableMapping:
+        type: list<evals.PromptVariableMappingRead>
+        docs: Default mapping from observation data to state keys for the latest version.
+      modelConfig:
+        type: EvaluatorModelConfig
+        docs: Decision-model connection and model used by the latest version.
+
   Evaluator:
     docs: |
       One evaluator that can be used for scoring.
@@ -382,6 +528,8 @@ types:
         type: LlmAsJudgeEvaluator
       code:
         type: CodeEvaluator
+      decision_model:
+        type: DecisionModelEvaluator
 
   EvaluatorStatus:
     docs: |
@@ -435,6 +583,30 @@ types:
         type: evals.CodeEvaluatorSourceCodeLanguage
         docs: Runtime language used to execute the source code.
 
+  CreateDecisionModelEvaluatorRequest:
+    properties:
+      name:
+        type: string
+        docs: Human-readable evaluator name. Names are not identifiers and do not need to be unique.
+      description:
+        type: optional<nullable<string>>
+        docs: Optional human-readable evaluator description.
+      type:
+        type: literal<"decision_model">
+        docs: Evaluator type.
+      questions:
+        type: list<DecisionModelQuestion>
+        docs: Between 1 and 50 typed questions. Question ids and score names must be unique.
+      modelConfig:
+        type: EvaluatorModelConfig
+        docs: |
+          Decision-model connection and model. Required.
+
+          The provider must be a decision-model connection of the project. Call `GET /api/public/llm-connections` to discover available providers.
+      variableMapping:
+        type: list<evals.PromptVariableMappingInput>
+        docs: At least one mapping from observation data to a state key. Each `variable` is a state key that starts with a letter or underscore and contains only letters, digits, and underscores.
+
   CreateEvaluatorRequest:
     docs: Initial evaluator definition with metadata and definition fields at the same level. The returned evaluator starts at version `1`.
     discriminant: type
@@ -443,6 +615,8 @@ types:
         type: CreateLlmAsJudgeEvaluatorRequest
       code:
         type: CreateCodeEvaluatorRequest
+      decision_model:
+        type: CreateDecisionModelEvaluatorRequest
 
   UpdateEvaluatorMetadataRequest:
     docs: Metadata-only update. At least one field must be provided.
@@ -496,6 +670,27 @@ types:
         type: evals.CodeEvaluatorSourceCodeLanguage
         docs: Runtime language used to execute the source code.
 
+  UpdateDecisionModelEvaluatorRequest:
+    properties:
+      name:
+        type: optional<string>
+        docs: New human-readable evaluator name.
+      description:
+        type: optional<nullable<string>>
+        docs: New description. Set to `null` to clear it.
+      type:
+        type: literal<"decision_model">
+        docs: Evaluator type. The type of an existing evaluator cannot change.
+      questions:
+        type: list<DecisionModelQuestion>
+        docs: Complete replacement list of typed questions.
+      modelConfig:
+        type: EvaluatorModelConfig
+        docs: Decision-model connection and model. Required.
+      variableMapping:
+        type: list<evals.PromptVariableMappingInput>
+        docs: Complete replacement mapping from observation data to state keys.
+
   UpdateEvaluatorRequest:
     docs: Metadata-only update or complete flattened definition replacement. At least one field must be provided.
     discriminated: false
@@ -503,6 +698,7 @@ types:
       - UpdateEvaluatorMetadataRequest
       - UpdateLlmAsJudgeEvaluatorRequest
       - UpdateCodeEvaluatorRequest
+      - UpdateDecisionModelEvaluatorRequest
 
   EvaluatorsPage:
     properties:

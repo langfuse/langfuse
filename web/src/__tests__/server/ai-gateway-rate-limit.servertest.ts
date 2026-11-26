@@ -47,6 +47,7 @@ describe("AI Gateway organization rate limits", () => {
     keyMetadata: {},
     keyAllowedModels: null,
     spendLimits: [],
+    guardrails: [],
     ingestionProjectId: "project-1",
     ingestionMode: "USAGE",
     plan: "cloud:hobby",

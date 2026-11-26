@@ -1,5 +1,5 @@
 //! Resolve credentials through trusted Web before any provider execution.
-mod bedrock;
+pub(crate) mod bedrock;
 mod contracts;
 pub(crate) mod signing;
 mod vertex;
@@ -614,7 +614,7 @@ impl SpendLimitExceeded {
     }
 }
 
-fn valid_token(value: &str) -> bool {
+pub(crate) fn valid_token(value: &str) -> bool {
     !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_graphic())
 }
 
@@ -646,6 +646,9 @@ pub enum ResolutionError {
     /// The key has spend limits, but Langfuse has no price for the model.
     #[error("spend limit cannot price the model")]
     SpendLimitUnpricedModel,
+    /// A guardrail blocked or could not evaluate the request.
+    #[error("rejected by a guardrail")]
+    GuardrailBlocked(crate::guardrails::GuardrailRejection),
     /// The gateway's memory budget cannot cover another request.
     #[error("gateway at capacity")]
     Busy,

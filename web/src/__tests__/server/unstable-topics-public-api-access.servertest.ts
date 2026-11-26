@@ -3,8 +3,7 @@ import { readdirSync } from "node:fs";
 import path from "node:path";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createApiKey,
@@ -17,7 +16,7 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 import topicsHandler from "@/src/pages/api/public/unstable/topics/index";
-import topicHandler from "@/src/pages/api/public/unstable/topics/[topicId]";
+import topicHandler from "@/src/pages/api/public/unstable/topics/[topicStableId]";
 import facetsHandler from "@/src/pages/api/public/unstable/topic-facets/index";
 import facetHandler from "@/src/pages/api/public/unstable/topic-facets/[facetId]";
 import { topicsProject } from "@/src/__tests__/fixtures/topics";
@@ -29,7 +28,6 @@ import ruleHandler from "@/src/pages/api/public/unstable/topic-rules/[ruleId]";
 
 type Handler = (req: NextApiRequest, res: NextApiResponse) => Promise<void>;
 
-// In-process calls, since the Topics gate reads shared env in this process.
 async function get(
   handler: Handler,
   authorization: string,
@@ -53,7 +51,12 @@ function topicsRoutes(project: Awaited<ReturnType<typeof topicsProject>>) {
   const { topicId, facetId, ruleId, traceId } = project;
   return {
     "topics/index": [topicsHandler, {}, topicId, 200],
-    "topics/[topicId]": [topicHandler, { topicId }, topicId, 404],
+    "topics/[topicStableId]": [
+      topicHandler,
+      { topicStableId: topicId },
+      topicId,
+      404,
+    ],
     "topic-facets/index": [facetsHandler, {}, facetId, 200],
     "topic-facets/[facetId]": [facetHandler, { facetId }, facetId, 404],
     "topic-rules/index": [rulesHandler, {}, ruleId, 200],
@@ -69,22 +72,10 @@ function topicsRoutes(project: Awaited<ReturnType<typeof topicsProject>>) {
 describe("unstable Topics public API access", () => {
   let owner: Awaited<ReturnType<typeof topicsProject>>;
   let other: Awaited<ReturnType<typeof topicsProject>>;
-  const original = {
-    enabled: sharedEnv.LANGFUSE_TOPICS_ENABLED,
-    region: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-  };
 
   beforeAll(async () => {
     owner = await topicsProject();
     other = await topicsProject();
-    // The Topics gate reads shared env in this process.
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
-    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-  });
-
-  afterAll(() => {
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = original.enabled;
-    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.region;
   });
 
   it("serves every Topics route read-only and only from the key's own project", async () => {
@@ -134,7 +125,7 @@ describe("unstable Topics public API access", () => {
     // Every filter that can name another project's ids or labels.
     const ownerFilters = [
       filterOn("traceId", owner.traceId),
-      filterOn("topicId", owner.topicId),
+      filterOn("topicStableId", owner.topicId),
       filterOn("facetId", owner.facetId),
       filterOn("ruleId", owner.ruleId),
       filterOn("topicName", "Private topic"),
@@ -169,21 +160,6 @@ describe("unstable Topics public API access", () => {
     );
     expect(topics.status).toBe(200);
     expect(JSON.stringify(topics.body)).not.toContain(owner.topicId);
-  });
-
-  it("returns not found when the deployment turns Topics off", async () => {
-    const auth = createBasicAuthHeader(other.publicKey, other.secretKey);
-    const routes = Object.values(topicsRoutes(other));
-    // Positive control: its own ids resolve while Topics is on.
-    for (const [handler, query] of routes)
-      expect((await get(handler, auth, query)).status).toBe(200);
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "false";
-    try {
-      for (const [handler, query] of routes)
-        expect((await get(handler, auth, query)).status).toBe(404);
-    } finally {
-      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
-    }
   });
 
   it("denies a project key without topics:read", async () => {

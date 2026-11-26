@@ -310,10 +310,18 @@ export async function listEvaluators(params: {
   orderBy?: EvaluatorListOrderBy;
   search?: string;
   filter?: FilterState;
+  /** Trace transcript rule assignments are left out unless the caller opts in. */
+  includeTraceTranscriptAssignments?: boolean;
 }) {
   const where = await evaluatorWhere(params);
   const orderColumn = params.orderBy?.column ?? "updatedAt";
   const orderDirection = params.orderBy?.order.toLowerCase() ?? "desc";
+  const assignmentWhere = {
+    projectId: params.projectId,
+    ...(params.includeTraceTranscriptAssignments
+      ? {}
+      : { evaluationRule: { targetObject: { not: TopicsTargetObject } } }),
+  } satisfies Prisma.EvaluationRuleEvaluatorAssignmentWhereInput;
   const [evaluators, totalItems, defaultModel] = await Promise.all([
     params.prisma.evaluator.findMany({
       where,
@@ -325,11 +333,11 @@ export async function listEvaluators(params: {
         createdByUser,
         _count: {
           select: {
-            assignments: { where: { projectId: params.projectId } },
+            assignments: { where: assignmentWhere },
           },
         },
         assignments: {
-          where: { projectId: params.projectId },
+          where: assignmentWhere,
           select: {
             evaluationRule: { select: { id: true, name: true, status: true } },
           },

@@ -2,6 +2,7 @@ import { type FilterState } from "@langfuse/shared";
 import { isTopicFilter } from "@langfuse/shared/topics";
 
 /** Topics past this many fold into one grey segment. */
+/** @internal */
 export const TOPIC_STRIPE_SLOTS = 16;
 
 type TraceTopics = Record<

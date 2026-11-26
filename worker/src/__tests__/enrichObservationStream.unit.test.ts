@@ -17,7 +17,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-import { enrichObservationStream } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
+import { enrichObservationStream } from "../features/blobstorage/exportTable";
 import type { ObservationFieldGroupFull } from "@langfuse/shared";
 
 async function* rowStream(
