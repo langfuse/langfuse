@@ -154,18 +154,26 @@ export class OtelShadowRowVerifier extends PeriodicRunner {
    * Run one read of the batches being compared and report them once their
    * last read is done. The next run waits long enough to keep reads at
    * READ_TIME_SHARE of the worker's time.
+   *
+   * A group gives up its place when its last read is taken, whatever happens
+   * to that read or to the report: a group that stayed would hold back every
+   * later one, and sampling would stay throttled until a restart.
    */
   protected async execute(): Promise<number | void> {
     if (!current) current = nextGroup(Date.now());
-    const read = current?.reads.shift();
-    if (!current || !read) return;
+    if (!current) return;
+    const group = current;
     const startedAt = performance.now();
-    current.found.push(...(await compare(read)));
-    const readMs = performance.now() - startedAt;
-    if (current.reads.length === 0 && !this.stopped) {
-      reportGroup(current.samples, current.found);
-      current = undefined;
+    try {
+      const read = group.reads.shift();
+      if (read) group.found.push(...(await compare(read)));
+    } finally {
+      if (group.reads.length === 0) {
+        current = undefined;
+        if (!this.stopped) reportGroup(group.samples, group.found);
+      }
     }
+    const readMs = performance.now() - startedAt;
     return Math.max(this.defaultIntervalMs, readMs * (1 / READ_TIME_SHARE - 1));
   }
 }
