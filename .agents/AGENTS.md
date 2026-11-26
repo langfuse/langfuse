@@ -24,6 +24,7 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
   component and extend it when appropriate; use another component only when
   the design system has no suitable option.
 - UI headings, navigation labels, and titles use sentence case: capitalize only the first word and proper nouns ("Prompt management", "Human annotation", "Upgrade plan"). Single-word labels stay as they are.
+- Any new UI-based data download or export must respect the organization and instance UI export disablement flag: gate the UI control with `useUiExportsDisabledReason` (disable it with a tooltip via `DisabledActionTooltip` or a disabled dropdown item reason) and enforce `throwIfUiExportsDisabled` on any backing server endpoint.
 - Delegate exploratory or noisy work — broad code search, multi-file
   investigation, log or test-output trawls — to a subagent so the
   intermediate tool output stays out of the main context.
