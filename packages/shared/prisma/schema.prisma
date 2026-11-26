@@ -515,14 +515,20 @@ enum GatewayGuardrailScope {
   ENTIRE_INPUT
 }
 
+enum GatewayGuardrailRunsOn {
+  INPUT
+  OUTPUT
+  BOTH
+}
+
 enum GatewayGuardrailAssignmentScope {
   ORGANIZATION
   API_KEY
   USER
 }
 
-// A rule set the AI gateway checks each request against. Assignments decide
-// which keys it applies to.
+// A rule set the AI gateway checks each request and/or response against.
+// Assignments decide which keys it applies to.
 model GatewayGuardrail {
   id                  String                       @id @default(cuid())
   organizationId      String                       @map("organization_id")
@@ -531,6 +537,7 @@ model GatewayGuardrail {
   type                GatewayGuardrailType         @default(REGEX)
   action              GatewayGuardrailAction
   scope               GatewayGuardrailScope        @default(LAST_TURN)
+  runsOn              GatewayGuardrailRunsOn       @default(INPUT) @map("runs_on")
   // For REGEX: { "presets": [...], "secretPrefixes": [...], "containsWords": [...], "customRegex": "..." };
   // For BEDROCK: { "guardrailId": "...", "guardrailVersion": "...", "region": "..." }.
   config              Json                         @default("{}") @db.JsonB

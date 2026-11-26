@@ -23,7 +23,7 @@ use crate::{
         resolution_origin,
     },
     observability::{ErrorOrigin, Wait},
-    providers::{ProviderError, RequestBody, Route, StreamOptions},
+    providers::{ForwardError, ProviderError, RequestBody, Route, StreamOptions},
     resolution::{ApiFormat, ResolutionError, SpendLimitExceeded},
     server::GatewayLifecycleState,
 };
@@ -291,7 +291,13 @@ async fn relay(
             correlation,
         )
         .await
-        .map_err(InferenceHttpError::Provider)
+        .map_err(|error| match error {
+            ForwardError::Provider(provider) => InferenceHttpError::Provider(provider),
+            ForwardError::GuardrailBlocked(rejection) => {
+                InferenceHttpError::Resolution(ResolutionError::GuardrailBlocked(rejection))
+            }
+            ForwardError::Busy => InferenceHttpError::Resolution(ResolutionError::Busy),
+        })
 }
 
 /// The caller body, parsed once on arrival.

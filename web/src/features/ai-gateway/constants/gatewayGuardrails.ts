@@ -1,5 +1,6 @@
 import type {
   GatewayGuardrailAction,
+  GatewayGuardrailRunsOn,
   GatewayGuardrailScope,
 } from "@langfuse/shared/src/db";
 
@@ -56,12 +57,29 @@ export const GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS: Record<
   GatewayGuardrailAction,
   string
 > = {
-  BLOCK: "Reject the request before it reaches the provider.",
-  REDACT:
-    "Replace matched text with the replacement label before forwarding the request.",
+  BLOCK: "Reject the request or response when matched.",
+  REDACT: "Replace matched text with the replacement label.",
   ENFORCE:
-    "Follow the provider's verdict: block when it blocks, or anonymize matched text before forwarding.",
-  LOG: "Forward the request unchanged and record the match on the generation.",
+    "Follow the provider's verdict: block when it blocks, or anonymize matched text.",
+  LOG: "Pass through unchanged and record the match on the generation.",
+};
+
+export const GATEWAY_GUARDRAIL_RUNS_ON_LABELS: Record<
+  GatewayGuardrailRunsOn,
+  string
+> = {
+  INPUT: "Input",
+  OUTPUT: "Output",
+  BOTH: "Input & output",
+};
+
+export const GATEWAY_GUARDRAIL_RUNS_ON_DESCRIPTIONS: Record<
+  GatewayGuardrailRunsOn,
+  string
+> = {
+  INPUT: "Evaluate requests before they reach the provider.",
+  OUTPUT: "Evaluate provider responses before returning them to the client.",
+  BOTH: "Evaluate both requests and provider responses.",
 };
 
 export const GATEWAY_GUARDRAIL_SCOPES = ["LAST_TURN", "ENTIRE_INPUT"] as const;

@@ -13,6 +13,8 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS,
   GATEWAY_GUARDRAIL_ACTION_LABELS,
+  GATEWAY_GUARDRAIL_RUNS_ON_DESCRIPTIONS,
+  GATEWAY_GUARDRAIL_RUNS_ON_LABELS,
   GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS,
   GATEWAY_GUARDRAIL_SCOPE_LABELS,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
@@ -69,13 +71,25 @@ const guardrailColumn = createTableColumn<
   ),
 });
 
+function formatGuardrailRunsOn(row: GatewayGuardrailRow) {
+  if (row.runsOn === "OUTPUT") return GATEWAY_GUARDRAIL_RUNS_ON_LABELS.OUTPUT;
+  const scopeLabel = GATEWAY_GUARDRAIL_SCOPE_LABELS[row.scope];
+  return row.runsOn === "BOTH" ? `${scopeLabel} & output` : scopeLabel;
+}
+
+function getGuardrailRunsOnTooltip(row: GatewayGuardrailRow) {
+  if (row.runsOn === "INPUT") {
+    return GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[row.scope];
+  }
+  return GATEWAY_GUARDRAIL_RUNS_ON_DESCRIPTIONS[row.runsOn];
+}
+
 const runsOnColumn = createTextTableColumn<GatewayGuardrailRow>({
-  accessorFn: (row) => GATEWAY_GUARDRAIL_SCOPE_LABELS[row.scope],
+  accessorFn: formatGuardrailRunsOn,
   id: "runsOn",
   header: "Runs on",
-  tooltip: (context) =>
-    GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[context.row.original.scope],
-  size: 135,
+  tooltip: (context) => getGuardrailRunsOnTooltip(context.row.original),
+  size: 150,
   hideBelowMd: true,
   enableResizing: false,
 });

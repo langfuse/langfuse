@@ -98,6 +98,11 @@ export type GatewayResolveGuardrailScope = z.infer<
   typeof GatewayResolveGuardrailScopeSchema
 >;
 
+const GatewayResolveGuardrailRunsOnSchema = z.enum(["input", "output", "both"]);
+export type GatewayResolveGuardrailRunsOn = z.infer<
+  typeof GatewayResolveGuardrailRunsOnSchema
+>;
+
 const GatewayRegexResolveGuardrailSchema = z
   .object({
     id: z.string(),
@@ -111,7 +116,7 @@ const GatewayRegexResolveGuardrailSchema = z
   })
   .strict();
 
-const GatewayFailClosedGuardrailSchema = z
+const GatewayFailClosedResolveGuardrailSchema = z
   .object({
     id: z.string(),
     name: z.string(),
@@ -123,14 +128,25 @@ const GatewayFailClosedGuardrailSchema = z
   })
   .strict();
 
+const GatewayRegexCachedGuardrailSchema =
+  GatewayRegexResolveGuardrailSchema.extend({
+    // Required so cache entries predating runs_on miss and refetch from Postgres.
+    runs_on: GatewayResolveGuardrailRunsOnSchema,
+  }).strict();
+
+const GatewayFailClosedCachedGuardrailSchema =
+  GatewayFailClosedResolveGuardrailSchema.extend({
+    runs_on: GatewayResolveGuardrailRunsOnSchema,
+  }).strict();
+
 /**
  * Cached shape in Redis: external guardrail credentials stay encrypted until
  * `/resolve` builds the response, matching provider connections.
  */
 export const GatewayCachedGuardrailsSchema = z.array(
   z.discriminatedUnion("type", [
-    GatewayRegexResolveGuardrailSchema,
-    GatewayFailClosedGuardrailSchema,
+    GatewayRegexCachedGuardrailSchema,
+    GatewayFailClosedCachedGuardrailSchema,
     z
       .object({
         id: z.string(),
@@ -138,6 +154,7 @@ export const GatewayCachedGuardrailsSchema = z.array(
         type: z.literal("bedrock"),
         action: GatewayResolveGuardrailActionSchema,
         scope: GatewayResolveGuardrailScopeSchema.optional(),
+        runs_on: GatewayResolveGuardrailRunsOnSchema,
         guardrail_id: z.string(),
         guardrail_version: z.string(),
         region: z.string(),
@@ -154,7 +171,7 @@ export type GatewayCachedGuardrails = z.infer<
 const GatewayResolveGuardrailsSchema = z.array(
   z.discriminatedUnion("type", [
     GatewayRegexResolveGuardrailSchema,
-    GatewayFailClosedGuardrailSchema,
+    GatewayFailClosedResolveGuardrailSchema,
     z
       .object({
         id: z.string(),
@@ -228,9 +245,13 @@ export const GatewayResolveResponseSchema = z
       .nullable(),
     // Empty in "none" mode, where spend is not recorded.
     spend_limits: GatewayResolveSpendLimitsSchema,
-    // Checked by the gateway in every ingestion mode. A gateway without
-    // guardrail support ignores this field, so deploy the gateway first.
+    // Checked by the gateway on requests in every ingestion mode. A gateway
+    // without guardrail support ignores this field, so deploy the gateway first.
     guardrails: GatewayResolveGuardrailsSchema,
+    // Checked by the gateway on provider responses. Sent separately from
+    // `guardrails` so gateways predating response guardrails ignore it instead
+    // of evaluating output-only guardrails on incoming requests.
+    response_guardrails: GatewayResolveGuardrailsSchema,
     // Prices of the model the request is priced with; null without spend
     // limits or when no model in the ingestion project matches.
     pricing: z

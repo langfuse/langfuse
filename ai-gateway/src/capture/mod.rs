@@ -219,6 +219,8 @@ pub(crate) struct ExecutionCapture {
     response_parse_limit: usize,
     parse_growth: Option<ResponseParseGrowth>,
     parse_reservation: Option<Box<dyn Send + Sync>>,
+    rejection: Option<GatewayRejection>,
+    suppress_output: bool,
 }
 
 impl ExecutionCapture {
@@ -244,6 +246,8 @@ impl ExecutionCapture {
             response_parse_limit: MAX_OUTPUT_CAPTURE_BYTES,
             parse_growth: None,
             parse_reservation: None,
+            rejection: None,
+            suppress_output: false,
         }
     }
 
@@ -312,6 +316,8 @@ impl ExecutionCapture {
             response_parse_limit: MAX_OUTPUT_CAPTURE_BYTES,
             parse_growth: None,
             parse_reservation: None,
+            rejection: None,
+            suppress_output: false,
         }
     }
 
@@ -358,14 +364,37 @@ impl ExecutionCapture {
         self.provider_model = bounded_string(model);
     }
 
-    /// Lists the guardrails the request matched in the generation's metadata, by id,
-    /// action and location, so generations can be filtered by each.
+    /// Appends matched guardrails to the generation's metadata, by id, action
+    /// and location, so request and response findings compose cleanly.
     pub(crate) fn record_guardrails(&mut self, guardrails: &[crate::guardrails::Finding]) {
-        if !guardrails.is_empty()
-            && let Some(metadata) = self.metadata.as_object_mut()
-        {
-            metadata.insert("guardrails".into(), json!(guardrails));
+        if guardrails.is_empty() {
+            return;
         }
+        let Some(metadata) = self.metadata.as_object_mut() else {
+            return;
+        };
+        let Value::Array(mut next) = json!(guardrails) else {
+            return;
+        };
+        match metadata.get_mut("guardrails") {
+            Some(Value::Array(existing)) => existing.append(&mut next),
+            _ => {
+                metadata.insert("guardrails".into(), Value::Array(next));
+            }
+        }
+    }
+
+    /// Marks the execution rejected after upstream execution (e.g. a response
+    /// guardrail block) so `finish` still records upstream usage and charges spend.
+    pub(crate) fn record_rejection(&mut self, rejection: GatewayRejection) {
+        self.rejection = Some(rejection);
+    }
+
+    /// Drops captured model output while preserving usage, model, and status
+    /// facts so aborted or fail-closed response guardrail paths still charge
+    /// spend limits without persisting unredacted output in FULL ingestion.
+    pub(crate) fn suppress_output(&mut self) {
+        self.suppress_output = true;
     }
 
     pub(crate) fn record_response(&mut self, status: u16, headers: &HeaderMap) {
@@ -441,7 +470,11 @@ impl ExecutionCapture {
     }
 
     fn take_facts(&mut self, outcome: RelayOutcome) -> Option<InferenceFacts> {
-        let (api_format, inference) = self.protocol.take()?.into_facts();
+        let (api_format, mut inference) = self.protocol.take()?.into_facts();
+        if self.suppress_output {
+            inference.output = None;
+            inference.output_complete = false;
+        }
         Some(InferenceFacts {
             api_format,
             start_time_unix_ms: self.start_time_unix_ms,
@@ -456,7 +489,7 @@ impl ExecutionCapture {
             metadata: std::mem::take(&mut self.metadata),
             outcome,
             charged_cost_details: None,
-            rejection: None,
+            rejection: self.rejection.take(),
             inference,
         })
     }

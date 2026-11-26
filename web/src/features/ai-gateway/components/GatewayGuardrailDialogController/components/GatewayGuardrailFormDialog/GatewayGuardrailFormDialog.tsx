@@ -70,6 +70,8 @@ import {
   GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH,
   GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
+  GATEWAY_GUARDRAIL_RUNS_ON_DESCRIPTIONS,
+  GATEWAY_GUARDRAIL_RUNS_ON_LABELS,
   GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS,
   GATEWAY_GUARDRAIL_SCOPE_LABELS,
   GATEWAY_GUARDRAIL_SCOPES,
@@ -92,6 +94,7 @@ import {
   validateSecretPrefix,
   type GatewayGuardrailPreset,
   type GatewayGuardrailUiAction,
+  type GatewayGuardrailUiRunsOn,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import type {
   GatewayGuardrailScope,
@@ -107,6 +110,18 @@ function toActionOption(value: GatewayGuardrailUiAction) {
     explanation: {
       title: label,
       description: GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS[value],
+    },
+  };
+}
+
+function toRunsOnOption(value: GatewayGuardrailUiRunsOn) {
+  const label = GATEWAY_GUARDRAIL_RUNS_ON_LABELS[value];
+  return {
+    value,
+    label,
+    explanation: {
+      title: label,
+      description: GATEWAY_GUARDRAIL_RUNS_ON_DESCRIPTIONS[value],
     },
   };
 }
@@ -151,6 +166,15 @@ const SCOPE_OPTIONS_LAST_TURN_ONLY = GATEWAY_GUARDRAIL_SCOPES.map((value) => {
       };
 });
 
+const RUNS_ON_OPTIONS_BY_TYPE: Record<
+  GatewayGuardrailType,
+  ReturnType<typeof toRunsOnOption>[]
+> = {
+  REGEX: GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.REGEX.runsOn.map(toRunsOnOption),
+  BEDROCK:
+    GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.runsOn.map(toRunsOnOption),
+};
+
 const BEDROCK_FIELD_PATHS = {
   guardrailId: "bedrockGuardrailId",
   guardrailVersion: "bedrockGuardrailVersion",
@@ -194,6 +218,7 @@ function createGuardrailFormSchema(
       bedrockApiKey: z.string(),
       action: z.enum(capabilities.actions),
       scope: z.enum(GATEWAY_GUARDRAIL_SCOPES),
+      runsOn: z.enum(capabilities.runsOn),
       redactionLabel: z.string(),
       targets: z
         .array(z.custom<AsyncAutocompleteOption>())
@@ -336,6 +361,7 @@ export type GatewayGuardrailFormValues = {
   };
   action: GatewayGuardrailUiAction;
   scope?: GatewayGuardrailScope;
+  runsOn: GatewayGuardrailUiRunsOn;
   redactionLabel?: string;
   targets: AsyncAutocompleteOption[];
 };
@@ -430,6 +456,7 @@ export function GatewayGuardrailFormDialog({
         initialValues.action,
         initialValues.scope ?? "LAST_TURN",
       ),
+      runsOn: initialValues.runsOn,
       redactionLabel:
         initialValues.redactionLabel ??
         GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
@@ -448,6 +475,7 @@ export function GatewayGuardrailFormDialog({
   const bedrockApiKey = form.watch("bedrockApiKey");
   const selectedAction = form.watch("action");
   const selectedScope = form.watch("scope");
+  const selectedRunsOn = form.watch("runsOn");
   const parsedContains = useMemo(
     () =>
       templateKind === "contains" ? parseContainsWordsText(containsText) : [],
@@ -518,6 +546,7 @@ export function GatewayGuardrailFormDialog({
         },
         action: values.action,
         scope: values.scope,
+        runsOn: values.runsOn,
         targets: values.targets,
       };
     }
@@ -543,6 +572,7 @@ export function GatewayGuardrailFormDialog({
           : initialValues.customRegex,
       action: values.action,
       scope: values.scope,
+      runsOn: values.runsOn,
       redactionLabel,
       targets: values.targets,
     };
@@ -788,6 +818,50 @@ export function GatewayGuardrailFormDialog({
                     <CustomTooltip
                       content={
                         <span>
+                          {
+                            GATEWAY_GUARDRAIL_RUNS_ON_DESCRIPTIONS[
+                              selectedRunsOn
+                            ]
+                          }
+                        </span>
+                      }
+                    >
+                      {({ getTriggerProps }) => (
+                        <FormField
+                          control={form.control}
+                          name="runsOn"
+                          label="Runs on"
+                          registerLabelTooltip={getTriggerProps}
+                        >
+                          {({
+                            id,
+                            inputDescribedById,
+                            error,
+                            value,
+                            onChange,
+                            onBlur,
+                          }) => (
+                            <SelectInput
+                              id={id}
+                              aria-describedby={inputDescribedById}
+                              aria-invalid={Boolean(error)}
+                              error={Boolean(error)}
+                              placeholder="Select direction"
+                              value={value}
+                              onValueChange={onChange}
+                              onBlur={onBlur}
+                              options={RUNS_ON_OPTIONS_BY_TYPE[guardrailType]}
+                            />
+                          )}
+                        </FormField>
+                      )}
+                    </CustomTooltip>
+                  </div>
+
+                  {selectedRunsOn !== "OUTPUT" ? (
+                    <CustomTooltip
+                      content={
+                        <span>
                           {GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[selectedScope]}
                         </span>
                       }
@@ -796,7 +870,7 @@ export function GatewayGuardrailFormDialog({
                         <FormField
                           control={form.control}
                           name="scope"
-                          label="Runs on"
+                          label="Input scope"
                           registerLabelTooltip={getTriggerProps}
                         >
                           {({
@@ -826,16 +900,13 @@ export function GatewayGuardrailFormDialog({
                         </FormField>
                       )}
                     </CustomTooltip>
-                  </div>
+                  ) : null}
 
                   {capabilities.supportsRedactionLabel &&
                   selectedAction === "REDACT" ? (
                     <CustomTooltip
                       content={
-                        <span>
-                          Matched spans in the request are replaced with this
-                          label before forwarding.
-                        </span>
+                        <span>Matched spans are replaced with this label.</span>
                       }
                     >
                       {({ getTriggerProps }) => (

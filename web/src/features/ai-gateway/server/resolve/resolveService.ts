@@ -189,7 +189,7 @@ export class GatewayResolveService {
               })
             : null,
         spend_limits: spendLimits,
-        guardrails: decryptResolvedGuardrails(
+        ...decryptResolvedGuardrails(
           context.guardrails,
           context.organizationId,
         ),
@@ -268,46 +268,69 @@ function getEnforcedSpendLimits(context: GatewayApiKeyAuthContext) {
 }
 
 function decryptResolvedGuardrails(
-  guardrails: GatewayCachedGuardrails,
+  cached: GatewayCachedGuardrails,
   organizationId: string,
-): GatewayResolveGuardrails {
-  return guardrails.map<GatewayResolveGuardrails[number]>((guardrail) => {
-    if (guardrail.type === "regex" || guardrail.type === "fail_closed") {
-      return guardrail;
+): {
+  guardrails: GatewayResolveGuardrails;
+  response_guardrails: GatewayResolveGuardrails;
+} {
+  const guardrails: GatewayResolveGuardrails = [];
+  const response_guardrails: GatewayResolveGuardrails = [];
+  for (const guardrail of cached) {
+    const resolved = decryptResolvedGuardrail(guardrail, organizationId);
+    if (guardrail.runs_on === "input" || guardrail.runs_on === "both") {
+      guardrails.push(resolved);
     }
-    try {
-      const apiKey = decodeBedrockApiKey(
-        decrypt(guardrail.encrypted_credential),
-      );
-      return {
-        id: guardrail.id,
-        name: guardrail.name,
-        type: "bedrock" as const,
-        action: guardrail.action,
-        ...(guardrail.scope ? { scope: guardrail.scope } : {}),
-        patterns: [] as [],
-        guardrail_id: guardrail.guardrail_id,
-        guardrail_version: guardrail.guardrail_version,
-        region: guardrail.region,
-        api_key: apiKey,
-      };
-    } catch (error) {
-      logger.error(
-        "Bedrock guardrail credential could not be decrypted; failing closed",
-        {
-          guardrailId: guardrail.id,
-          organizationId,
-          error: error instanceof Error ? error.message : String(error),
-        },
-      );
-      return {
-        id: guardrail.id,
-        name: guardrail.name,
-        type: "fail_closed" as const,
-        action: guardrail.action,
-        ...(guardrail.scope ? { scope: guardrail.scope } : {}),
-        patterns: [] as [],
-      };
+    if (guardrail.runs_on === "output" || guardrail.runs_on === "both") {
+      const { scope: _, ...responseGuardrail } = resolved;
+      response_guardrails.push(responseGuardrail);
     }
-  });
+  }
+  return { guardrails, response_guardrails };
+}
+
+function decryptResolvedGuardrail(
+  guardrail: GatewayCachedGuardrails[number],
+  organizationId: string,
+): GatewayResolveGuardrails[number] {
+  if (guardrail.type === "regex") {
+    const { runs_on: _, ...wire } = guardrail;
+    return wire;
+  }
+  if (guardrail.type === "fail_closed") {
+    const { runs_on: _, ...wire } = guardrail;
+    return wire;
+  }
+  try {
+    const apiKey = decodeBedrockApiKey(decrypt(guardrail.encrypted_credential));
+    return {
+      id: guardrail.id,
+      name: guardrail.name,
+      type: "bedrock" as const,
+      action: guardrail.action,
+      ...(guardrail.scope ? { scope: guardrail.scope } : {}),
+      patterns: [] as [],
+      guardrail_id: guardrail.guardrail_id,
+      guardrail_version: guardrail.guardrail_version,
+      region: guardrail.region,
+      api_key: apiKey,
+    };
+  } catch (error) {
+    logger.error(
+      "Bedrock guardrail credential could not be decrypted; failing closed",
+      {
+        guardrailId: guardrail.id,
+        organizationId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
+    return {
+      id: guardrail.id,
+      name: guardrail.name,
+      type: "fail_closed" as const,
+      action: guardrail.action,
+      ...(guardrail.scope ? { scope: guardrail.scope } : {}),
+      patterns: [] as [],
+    };
+  }
 }

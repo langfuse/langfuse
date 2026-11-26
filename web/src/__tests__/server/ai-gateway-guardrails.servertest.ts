@@ -210,6 +210,7 @@ describe("GatewayGuardrailService", () => {
       type: "regex",
       action: "block",
       scope: "last_turn",
+      runs_on: "input",
       patterns: [...GATEWAY_GUARDRAIL_PRESETS.email.patterns],
     });
     expect(resolved[3]).toEqual({
@@ -218,6 +219,7 @@ describe("GatewayGuardrailService", () => {
       type: "regex",
       action: "redact",
       scope: "last_turn",
+      runs_on: "input",
       patterns: [...GATEWAY_GUARDRAIL_PRESETS.email.patterns],
       redaction_label: "[EMAIL]",
     });
@@ -922,6 +924,7 @@ describe("aiGateway guardrails tRPC", () => {
         type: "bedrock",
         action: "enforce",
         scope: "last_turn",
+        runs_on: "input",
         guardrail_id: "abc123def456",
         guardrail_version: "1",
         region: "us-east-1",
@@ -1613,5 +1616,81 @@ describe("aiGateway guardrails tRPC", () => {
         where: { resourceId: { in: guardrailIds } },
       }),
     ).toBe(auditCountBefore);
+  });
+
+  it("creates, updates, and resolves guardrails configured for output and both", async () => {
+    Object.assign(env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING",
+      NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+      LANGFUSE_AI_GATEWAY_ENABLED: "true",
+    });
+
+    const orgId = await createOrganization();
+    const owner = await createUser("Owner");
+    await createOrgMembership(prisma, {
+      orgId,
+      userId: owner.id,
+      role: Role.OWNER,
+    });
+    const keyId = await createKey(orgId, owner.id, { gateway: true });
+    const ownerCaller = createCaller({
+      orgId,
+      userId: owner.id,
+      role: Role.OWNER,
+    });
+
+    const created = await ownerCaller.aiGateway.guardrails.create({
+      orgId,
+      type: "REGEX",
+      name: "Output email redaction",
+      action: "REDACT",
+      runsOn: "OUTPUT",
+      redactionLabel: "[EMAIL]",
+      presets: ["email"],
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(created.runsOn).toBe("OUTPUT");
+
+    const updated = await ownerCaller.aiGateway.guardrails.update({
+      orgId,
+      id: created.id,
+      type: "REGEX",
+      name: "Output email redaction",
+      action: "REDACT",
+      runsOn: "BOTH",
+      redactionLabel: "[EMAIL]",
+      presets: ["email"],
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(updated.runsOn).toBe("BOTH");
+
+    // Omitting runsOn on update preserves the stored runsOn value instead of resetting to INPUT.
+    const renamedWithoutRunsOn = await ownerCaller.aiGateway.guardrails.update({
+      orgId,
+      id: created.id,
+      type: "REGEX",
+      name: "Output email redaction renamed",
+      action: "REDACT",
+      redactionLabel: "[EMAIL]",
+      presets: ["email"],
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(renamedWithoutRunsOn.runsOn).toBe("BOTH");
+
+    const resolved = await new GatewayGuardrailService(prisma).resolveForKey({
+      organizationId: orgId,
+      apiKeyId: keyId,
+      userId: owner.id,
+    });
+    expect(resolved).toEqual([
+      expect.objectContaining({
+        id: created.id,
+        type: "regex",
+        action: "redact",
+        runs_on: "both",
+        redaction_label: "[EMAIL]",
+      }),
+    ]);
   });
 });

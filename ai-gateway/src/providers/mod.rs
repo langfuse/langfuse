@@ -17,10 +17,12 @@ use tokio::time::Instant;
 
 pub use crate::transport::ProviderError;
 use crate::{
-    capture::{ExecutionCapture, RelayOutcome, RequestInput},
+    capture::{ExecutionCapture, MAX_RESPONSE_PARSE_BYTES, RelayOutcome, RequestInput},
     config::ExecutionLimits,
     correlation::{RequestCorrelation, UpstreamTarget},
     cpu::CpuWork,
+    guardrails::{BlockReason, Guardrail, GuardrailRejection, Guardrails, response::ResponseFormat},
+    inference::MemoryReservation,
     observability::{ErrorOrigin, RequestObservation, Wait, provider_status_reason},
     resolution::{
         ApiFormat, IngestionMode, ProviderConnection, ProviderCredential, ResolvedRequestContext,
@@ -28,6 +30,24 @@ use crate::{
     transport,
 };
 pub use outbound::OutboundPolicy;
+
+/// Largest provider response body buffered for output guardrail evaluation.
+const MAX_RESPONSE_GUARDRAIL_BYTES: usize = MAX_RESPONSE_PARSE_BYTES;
+
+/// Failures that can end [`ProviderTransport::forward_route_with_guardrails`]
+/// before returning a provider response to the caller.
+#[derive(Debug)]
+pub(crate) enum ForwardError {
+    Provider(ProviderError),
+    GuardrailBlocked(GuardrailRejection),
+    Busy,
+}
+
+impl From<ProviderError> for ForwardError {
+    fn from(error: ProviderError) -> Self {
+        Self::Provider(error)
+    }
+}
 
 #[derive(Clone, Copy)]
 pub(crate) enum Route {
@@ -74,6 +94,17 @@ impl Route {
                 | Self::AnthropicMessages
         )
     }
+
+    pub(crate) fn evaluates_response_guardrails(self) -> bool {
+        matches!(
+            self,
+            Self::OpenAiResponses
+                | Self::OpenAiResponsesCompact
+                | Self::OpenAiChatCompletions
+                | Self::OpenAiDecisions
+                | Self::AnthropicMessages
+        )
+    }
 }
 
 #[derive(Default)]
@@ -94,7 +125,7 @@ pub struct RequestPermit {
     pub(crate) redactions: Vec<crate::guardrails::redact::BodyEdit>,
     /// Memory budget reserved for expanded redaction replacements, held until
     /// the forwarded request finishes.
-    pub(crate) redaction_reservations: Vec<crate::inference::MemoryReservation>,
+    pub(crate) redaction_reservations: Vec<MemoryReservation>,
 }
 
 impl RequestPermit {
@@ -269,15 +300,66 @@ impl ProviderTransport {
         Ok((capture, reservation))
     }
 
+    #[cfg(test)]
     pub(crate) async fn forward_route(
         &self,
-        mut permit: RequestPermit,
+        permit: RequestPermit,
         context: ResolvedRequestContext,
         headers: &HeaderMap,
         request: RequestBody,
         route: Route,
         correlation: &mut RequestCorrelation,
     ) -> Result<Response<Body>, ProviderError> {
+        self.forward_route_inner(permit, context, headers, request, route, None, correlation)
+            .await
+            .map_err(|error| match error {
+                ForwardError::Provider(provider) => provider,
+                ForwardError::GuardrailBlocked(_) | ForwardError::Busy => {
+                    ProviderError::Configuration
+                }
+            })
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "forwards request execution context, response guardrails, and correlation"
+    )]
+    pub(crate) async fn forward_route_with_guardrails(
+        &self,
+        permit: RequestPermit,
+        context: ResolvedRequestContext,
+        headers: &HeaderMap,
+        request: RequestBody,
+        route: Route,
+        guardrails: &Guardrails,
+        correlation: &mut RequestCorrelation,
+    ) -> Result<Response<Body>, ForwardError> {
+        self.forward_route_inner(
+            permit,
+            context,
+            headers,
+            request,
+            route,
+            Some(guardrails),
+            correlation,
+        )
+        .await
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "forwards request execution context, optional response guardrails, and correlation"
+    )]
+    async fn forward_route_inner(
+        &self,
+        mut permit: RequestPermit,
+        context: ResolvedRequestContext,
+        headers: &HeaderMap,
+        request: RequestBody,
+        route: Route,
+        guardrails: Option<&Guardrails>,
+        correlation: &mut RequestCorrelation,
+    ) -> Result<Response<Body>, ForwardError> {
         let RequestBody {
             bytes: body,
             model_range,
@@ -328,6 +410,7 @@ impl ProviderTransport {
             .headers(provider_headers)
             .body(body);
         let started = Instant::now();
+        let observation = correlation.observation();
         // A stream, or a call that does not generate, that goes quiet before its
         // headers is stalled. A non-streamed generation sends nothing until the whole
         // response is generated.
@@ -338,49 +421,47 @@ impl ProviderTransport {
         } else {
             permit.deadline
         };
-        let response = tokio::time::timeout_at(headers_deadline, upstream.send())
-            .await
-            .map_err(|_| ProviderError::Timeout)
-            .and_then(|result| {
-                result.map_err(|error| {
-                    if error.is_timeout() {
-                        ProviderError::Timeout
-                    } else {
-                        ProviderError::Transport
-                    }
-                })
-            });
-        let observation = correlation.observation();
-        observation.record_wait(Wait::ProviderHeaders, started.elapsed());
-        let response = match response {
-            Ok(response) => response,
-            Err(error) => {
-                capture.finish(if matches!(error, ProviderError::Timeout) {
-                    RelayOutcome::Timeout
-                } else {
-                    RelayOutcome::TransportError
-                });
-                return Err(error);
-            }
-        };
+        let response = send_upstream(
+            upstream,
+            headers_deadline,
+            observation,
+            started,
+            &mut capture,
+        )
+        .await?;
         if let Some(request_id) = transport::provider_request_id(response.headers(), api_format) {
             tracing::Span::current().record("provider_request_id", request_id);
         }
         let status = response.status();
         capture.record_response(status.as_u16(), response.headers());
         record_provider_status(observation, status);
-        let mut downstream = Response::new(Body::empty());
-        *downstream.status_mut() = status;
-        *downstream.headers_mut() = transport::response_headers(response.headers(), api_format);
-        *downstream.body_mut() = transport::relay(
-            response,
-            api_format.provider().as_str(),
-            permit.deadline,
-            self.limits.execution.stall_timeout,
-            (permit, context, reservation),
-            capture,
-        );
-        Ok(downstream)
+        if let Some(guardrails) =
+            guardrails.filter(|_| has_active_response_guardrails(status, route, &context))
+        {
+            let run = ResponseGuardrailRun {
+                status,
+                headers: transport::response_headers(response.headers(), api_format),
+                api_format,
+                permit,
+                context,
+                reservation,
+                capture,
+                stall_timeout: self.limits.execution.stall_timeout,
+            };
+            return Box::pin(run.execute(response, guardrails)).await;
+        }
+        Ok(build_downstream_response(
+            status,
+            transport::response_headers(response.headers(), api_format),
+            transport::relay(
+                response,
+                api_format.provider().as_str(),
+                permit.deadline,
+                self.limits.execution.stall_timeout,
+                (permit, context, reservation),
+                capture,
+            ),
+        ))
     }
 
     /// Relay a gateway-built response body under the execution deadlines, holding
@@ -457,6 +538,411 @@ impl ProviderTransport {
         let mut provider = Self::with_limits(limits, policy).unwrap();
         provider.origin_override = Some(base_url);
         provider
+    }
+}
+
+async fn send_upstream(
+    upstream: reqwest_middleware::RequestBuilder,
+    headers_deadline: Instant,
+    observation: &RequestObservation,
+    started: Instant,
+    capture: &mut ExecutionCapture,
+) -> Result<reqwest::Response, ProviderError> {
+    let response = tokio::time::timeout_at(headers_deadline, upstream.send())
+        .await
+        .map_err(|_| ProviderError::Timeout)
+        .and_then(|result| {
+            result.map_err(|error| {
+                if error.is_timeout() {
+                    ProviderError::Timeout
+                } else {
+                    ProviderError::Transport
+                }
+            })
+        });
+    observation.record_wait(Wait::ProviderHeaders, started.elapsed());
+    response.inspect_err(|error| {
+        capture.finish(if matches!(error, ProviderError::Timeout) {
+            RelayOutcome::Timeout
+        } else {
+            RelayOutcome::TransportError
+        });
+    })
+}
+
+fn has_active_response_guardrails(
+    status: StatusCode,
+    route: Route,
+    context: &ResolvedRequestContext,
+) -> bool {
+    status.is_success()
+        && route.evaluates_response_guardrails()
+        && context
+            .response_guardrails()
+            .iter()
+            .any(Guardrail::is_active)
+}
+
+fn build_downstream_response(status: StatusCode, headers: HeaderMap, body: Body) -> Response<Body> {
+    let mut downstream = Response::new(body);
+    *downstream.status_mut() = status;
+    *downstream.headers_mut() = headers;
+    downstream
+}
+
+fn reject_blocked_response(
+    rejection: GuardrailRejection,
+    findings: &[crate::guardrails::Finding],
+    mut capture: ExecutionCapture,
+) -> ForwardError {
+    let error = crate::resolution::ResolutionError::GuardrailBlocked(rejection.clone());
+    capture.record_guardrails(findings);
+    capture.record_rejection(crate::http::resolution_rejection(&error));
+    capture.finish(RelayOutcome::Eof);
+    ForwardError::GuardrailBlocked(rejection)
+}
+
+fn reject_busy_response(mut capture: ExecutionCapture, chunks: &[Bytes]) -> ForwardError {
+    capture_usage_without_output(&mut capture, chunks);
+    capture.record_rejection(crate::http::resolution_rejection(
+        &crate::resolution::ResolutionError::Busy,
+    ));
+    capture.finish(RelayOutcome::Eof);
+    ForwardError::Busy
+}
+
+struct ResponseGuardrailRun {
+    status: StatusCode,
+    headers: HeaderMap,
+    api_format: ApiFormat,
+    permit: RequestPermit,
+    context: ResolvedRequestContext,
+    reservation: Option<BodyReservation>,
+    capture: ExecutionCapture,
+    stall_timeout: Duration,
+}
+
+enum UnreadableSource {
+    Stream(reqwest::Response, Vec<Bytes>, Option<MemoryReservation>),
+    Buffered(Bytes, MemoryReservation),
+}
+
+impl ResponseGuardrailRun {
+    async fn execute(
+        mut self,
+        response: reqwest::Response,
+        guardrails: &Guardrails,
+    ) -> Result<Response<Body>, ForwardError> {
+        let Some(format) = ResponseFormat::from_headers(response.headers()) else {
+            return self.fail_closed_or_relay(
+                UnreadableSource::Stream(response, Vec::new(), None),
+                BlockReason::Unreadable,
+            );
+        };
+        let (raw_bytes, buffer_reservation) = match read_bounded_response(
+            response,
+            guardrails.memory_budget(),
+            self.permit.deadline,
+            self.stall_timeout,
+        )
+        .await
+        {
+            BufferedResponse::Complete(bytes, reservation) => (bytes, reservation),
+            BufferedResponse::TooLarge {
+                prefix,
+                response,
+                reservation,
+            } => {
+                return self.fail_closed_or_relay(
+                    UnreadableSource::Stream(response, prefix, reservation),
+                    BlockReason::InputTooLarge,
+                );
+            }
+            BufferedResponse::Busy(partial) => {
+                return Err(reject_busy_response(self.capture, &partial));
+            }
+            BufferedResponse::UpstreamError(error, partial) => {
+                capture_usage_without_output(&mut self.capture, &partial);
+                self.capture
+                    .finish(if matches!(error, ProviderError::Timeout) {
+                        RelayOutcome::Timeout
+                    } else {
+                        RelayOutcome::TransportError
+                    });
+                return Err(error.into());
+            }
+        };
+
+        let outcome = match tokio::time::timeout_at(
+            self.permit.deadline,
+            guardrails.check_response(self.api_format, format, &self.context, raw_bytes.clone()),
+        )
+        .await
+        {
+            Ok(Ok(outcome)) => outcome,
+            Err(_) => {
+                capture_usage_without_output(&mut self.capture, std::slice::from_ref(&raw_bytes));
+                self.capture.finish(RelayOutcome::Timeout);
+                return Err(ProviderError::Timeout.into());
+            }
+            Ok(Err(crate::resolution::ResolutionError::Busy)) => {
+                return Err(reject_busy_response(
+                    self.capture,
+                    std::slice::from_ref(&raw_bytes),
+                ));
+            }
+            Ok(Err(_)) => {
+                return self.fail_closed_or_relay(
+                    UnreadableSource::Buffered(raw_bytes, buffer_reservation),
+                    BlockReason::Unreadable,
+                );
+            }
+        };
+
+        self.finish_checked(raw_bytes, buffer_reservation, outcome)
+    }
+
+    fn finish_checked(
+        mut self,
+        raw_bytes: Bytes,
+        buffer_reservation: MemoryReservation,
+        outcome: crate::guardrails::Outcome,
+    ) -> Result<Response<Body>, ForwardError> {
+        if let Some(rejection) = outcome.rejection() {
+            capture_usage_without_output(&mut self.capture, std::slice::from_ref(&raw_bytes));
+            return Err(reject_blocked_response(
+                rejection,
+                &outcome.into_findings(),
+                self.capture,
+            ));
+        }
+
+        if Instant::now() >= self.permit.deadline {
+            capture_usage_without_output(&mut self.capture, std::slice::from_ref(&raw_bytes));
+            self.capture.record_guardrails(&outcome.into_findings());
+            self.capture.finish(RelayOutcome::Timeout);
+            return Err(ProviderError::Timeout.into());
+        }
+
+        let (findings, rewritten, redaction_reservations) = outcome.into_response_parts();
+        let (final_bytes, body_reservation) = match rewritten {
+            Some(rewritten) => {
+                self.headers.remove(header::CONTENT_LENGTH);
+                drop(raw_bytes);
+                drop(buffer_reservation);
+                (rewritten, None)
+            }
+            None => (raw_bytes, Some(buffer_reservation)),
+        };
+        self.capture.push_bytes(&final_bytes);
+        self.capture.end_body();
+        self.capture.record_guardrails(&findings);
+
+        Ok(build_downstream_response(
+            self.status,
+            self.headers,
+            transport::relay_buffered_observed(
+                final_bytes,
+                self.api_format.provider().as_str(),
+                self.permit.deadline,
+                self.stall_timeout,
+                (
+                    self.permit,
+                    self.context,
+                    self.reservation,
+                    body_reservation,
+                    redaction_reservations,
+                ),
+                self.capture,
+            ),
+        ))
+    }
+
+    fn fail_closed_or_relay(
+        mut self,
+        source: UnreadableSource,
+        reason: BlockReason,
+    ) -> Result<Response<Body>, ForwardError> {
+        let outcome = crate::guardrails::fail_closed_response_outcome(
+            self.context.response_guardrails(),
+            reason,
+        );
+        if let Some(rejection) = outcome.rejection() {
+            match &source {
+                UnreadableSource::Stream(_, prefix, _) => {
+                    capture_usage_without_output(&mut self.capture, prefix);
+                }
+                UnreadableSource::Buffered(raw_bytes, _) => {
+                    capture_usage_without_output(
+                        &mut self.capture,
+                        std::slice::from_ref(raw_bytes),
+                    );
+                }
+            }
+            return Err(reject_blocked_response(
+                rejection,
+                &outcome.into_findings(),
+                self.capture,
+            ));
+        }
+        self.capture.record_guardrails(&outcome.into_findings());
+        let provider = self.api_format.provider().as_str();
+        let body = match source {
+            UnreadableSource::Stream(response, prefix, buffer_reservation) if prefix.is_empty() => {
+                transport::relay(
+                    response,
+                    provider,
+                    self.permit.deadline,
+                    self.stall_timeout,
+                    (
+                        self.permit,
+                        self.context,
+                        self.reservation,
+                        buffer_reservation,
+                    ),
+                    self.capture,
+                )
+            }
+            UnreadableSource::Stream(response, prefix, buffer_reservation) => {
+                transport::relay_with_prefix(
+                    prefix,
+                    response,
+                    provider,
+                    self.permit.deadline,
+                    self.stall_timeout,
+                    (
+                        self.permit,
+                        self.context,
+                        self.reservation,
+                        buffer_reservation,
+                    ),
+                    self.capture,
+                )
+            }
+            UnreadableSource::Buffered(raw_bytes, buffer_reservation) => {
+                self.capture.push_bytes(&raw_bytes);
+                self.capture.end_body();
+                transport::relay_buffered_observed(
+                    raw_bytes,
+                    provider,
+                    self.permit.deadline,
+                    self.stall_timeout,
+                    (
+                        self.permit,
+                        self.context,
+                        self.reservation,
+                        buffer_reservation,
+                    ),
+                    self.capture,
+                )
+            }
+        };
+        Ok(build_downstream_response(self.status, self.headers, body))
+    }
+}
+
+fn capture_usage_without_output(capture: &mut ExecutionCapture, chunks: &[Bytes]) {
+    for chunk in chunks {
+        capture.push_bytes(chunk);
+    }
+    capture.end_body();
+    capture.suppress_output();
+}
+
+enum BufferedResponse {
+    Complete(Bytes, MemoryReservation),
+    TooLarge {
+        prefix: Vec<Bytes>,
+        response: reqwest::Response,
+        reservation: Option<MemoryReservation>,
+    },
+    Busy(Vec<Bytes>),
+    UpstreamError(ProviderError, Vec<Bytes>),
+}
+
+/// Buffers a provider response body up to [`MAX_RESPONSE_GUARDRAIL_BYTES`],
+/// reserving capacity incrementally from the shared memory budget and honoring
+/// both the execution deadline and per-chunk stall timeout.
+async fn read_bounded_response(
+    mut response: reqwest::Response,
+    budget: &Arc<tokio::sync::Semaphore>,
+    deadline: Instant,
+    stall_timeout: Duration,
+) -> BufferedResponse {
+    let declared = response
+        .content_length()
+        .map(|length| usize::try_from(length).unwrap_or(usize::MAX));
+    if declared.is_some_and(|declared| declared > MAX_RESPONSE_GUARDRAIL_BYTES) {
+        return BufferedResponse::TooLarge {
+            prefix: Vec::new(),
+            response,
+            reservation: None,
+        };
+    }
+    let Ok(mut reservation) = MemoryReservation::from_budget(budget, 0, "guardrails") else {
+        return BufferedResponse::Busy(Vec::new());
+    };
+    let capacity_limit = declared.unwrap_or(MAX_RESPONSE_GUARDRAIL_BYTES);
+    let mut buffer = Vec::new();
+    loop {
+        let chunk_deadline = deadline.min(Instant::now() + stall_timeout);
+        let next = match tokio::time::timeout_at(chunk_deadline, response.chunk()).await {
+            Ok(Ok(next)) => next,
+            Ok(Err(error)) => {
+                let kind = if error.is_timeout() {
+                    ProviderError::Timeout
+                } else {
+                    ProviderError::Transport
+                };
+                let partial = (!buffer.is_empty())
+                    .then(|| Bytes::from(buffer))
+                    .into_iter()
+                    .collect();
+                return BufferedResponse::UpstreamError(kind, partial);
+            }
+            Err(_) => {
+                let partial = (!buffer.is_empty())
+                    .then(|| Bytes::from(buffer))
+                    .into_iter()
+                    .collect();
+                return BufferedResponse::UpstreamError(ProviderError::Timeout, partial);
+            }
+        };
+        let Some(chunk) = next else {
+            return BufferedResponse::Complete(Bytes::from(buffer), reservation);
+        };
+        let total = buffer.len().saturating_add(chunk.len());
+        if total > MAX_RESPONSE_GUARDRAIL_BYTES {
+            let mut prefix = Vec::with_capacity(2);
+            if !buffer.is_empty() {
+                prefix.push(Bytes::from(buffer));
+            }
+            prefix.push(chunk);
+            return BufferedResponse::TooLarge {
+                prefix,
+                response,
+                reservation: Some(reservation),
+            };
+        }
+        if total > buffer.capacity() {
+            let capacity = buffer
+                .capacity()
+                .saturating_mul(2)
+                .clamp(total, capacity_limit.max(total));
+            if reservation
+                .try_reserve_body(capacity, "guardrails")
+                .is_err()
+            {
+                let mut partial = Vec::with_capacity(2);
+                if !buffer.is_empty() {
+                    partial.push(Bytes::from(buffer));
+                }
+                partial.push(chunk);
+                return BufferedResponse::Busy(partial);
+            }
+            buffer.reserve_exact(capacity - buffer.len());
+        }
+        buffer.extend_from_slice(&chunk);
     }
 }
 

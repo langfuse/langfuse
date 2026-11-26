@@ -1,5 +1,6 @@
 import type {
   GatewayGuardrailAction,
+  GatewayGuardrailRunsOn,
   GatewayGuardrailScope,
   GatewayGuardrailType,
 } from "@langfuse/shared/src/db";
@@ -267,6 +268,11 @@ type GuardrailTypeCapability = {
     ...GatewayGuardrailAction[],
   ];
   readonly defaultAction: GatewayGuardrailAction;
+  readonly runsOn: readonly [
+    GatewayGuardrailRunsOn,
+    ...GatewayGuardrailRunsOn[],
+  ];
+  readonly defaultRunsOn: GatewayGuardrailRunsOn;
   readonly supportsRedactionLabel: boolean;
 };
 
@@ -279,11 +285,15 @@ export const GATEWAY_GUARDRAIL_TYPE_CAPABILITIES = {
   REGEX: {
     actions: ["BLOCK", "REDACT", "LOG"],
     defaultAction: "BLOCK",
+    runsOn: ["INPUT", "OUTPUT", "BOTH"],
+    defaultRunsOn: "INPUT",
     supportsRedactionLabel: true,
   },
   BEDROCK: {
     actions: ["ENFORCE", "LOG"],
     defaultAction: "ENFORCE",
+    runsOn: ["INPUT", "OUTPUT", "BOTH"],
+    defaultRunsOn: "INPUT",
     supportsRedactionLabel: false,
   },
 } as const satisfies Record<GatewayGuardrailType, GuardrailTypeCapability>;
@@ -294,6 +304,13 @@ export type GatewayGuardrailActionForType<T extends GatewayGuardrailType> =
 /** All actions the management UI offers across guardrail types. */
 export type GatewayGuardrailUiAction =
   GatewayGuardrailActionForType<GatewayGuardrailType>;
+
+export type GatewayGuardrailRunsOnForType<T extends GatewayGuardrailType> =
+  (typeof GATEWAY_GUARDRAIL_TYPE_CAPABILITIES)[T]["runsOn"][number];
+
+/** All `runsOn` targets the management UI offers across guardrail types. */
+export type GatewayGuardrailUiRunsOn =
+  GatewayGuardrailRunsOnForType<GatewayGuardrailType>;
 
 export function resolveSupportedGuardrailAction<T extends GatewayGuardrailType>(
   type: T,
@@ -333,6 +350,18 @@ export function resolveSupportedGuardrailScope(
   scope: GatewayGuardrailScope,
 ): GatewayGuardrailScope {
   return supportsEntireInputScope(action) ? scope : "LAST_TURN";
+}
+
+export function resolveSupportedGuardrailRunsOn<T extends GatewayGuardrailType>(
+  type: T,
+  runsOn: GatewayGuardrailRunsOn,
+): GatewayGuardrailRunsOnForType<T> {
+  const capability = GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[type];
+  return (capability.runsOn as readonly GatewayGuardrailRunsOn[]).includes(
+    runsOn,
+  )
+    ? (runsOn as GatewayGuardrailRunsOnForType<T>)
+    : capability.defaultRunsOn;
 }
 
 export const GatewayGuardrailRedactionLabelSchema = z

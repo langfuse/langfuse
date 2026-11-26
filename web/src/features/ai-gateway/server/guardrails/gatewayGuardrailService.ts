@@ -50,6 +50,7 @@ import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGa
 import type {
   GatewayCachedGuardrails,
   GatewayResolveGuardrailAction,
+  GatewayResolveGuardrailRunsOn,
   GatewayResolveGuardrailScope,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
@@ -64,11 +65,13 @@ import {
   GatewayRegexGuardrailConfigSchema,
   isKnownGuardrailPreset,
   resolveSupportedGuardrailAction,
+  resolveSupportedGuardrailRunsOn,
   resolveSupportedGuardrailScope,
   type GatewayBedrockGuardrailConfig,
   type GatewayGuardrailActionForType,
   type GatewayGuardrailAssignmentInput,
   type GatewayGuardrailPreset,
+  type GatewayGuardrailRunsOnForType,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { assertUnreachable } from "@/src/utils/types";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
@@ -89,6 +92,15 @@ const RESOLVE_GUARDRAIL_SCOPE = {
 } as const satisfies Record<
   GatewayGuardrailRecord["scope"],
   GatewayResolveGuardrailScope
+>;
+
+const RESOLVE_GUARDRAIL_RUNS_ON = {
+  INPUT: "input",
+  OUTPUT: "output",
+  BOTH: "both",
+} as const satisfies Record<
+  GatewayGuardrailRecord["runsOn"],
+  GatewayResolveGuardrailRunsOn
 >;
 
 const GATEWAY_MEMBER_ROLES = Object.values(Role).filter((role) =>
@@ -137,6 +149,14 @@ export class GatewayGuardrailService {
             guardrail.scope ?? "LAST_TURN",
           )
         ];
+      const runsOn =
+        RESOLVE_GUARDRAIL_RUNS_ON[
+          resolveSupportedGuardrailRunsOn(
+            guardrail.type,
+            guardrail.runsOn ??
+              GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[guardrail.type].defaultRunsOn,
+          )
+        ];
       switch (guardrail.type) {
         case "REGEX": {
           const config = GatewayRegexGuardrailConfigSchema.safeParse(
@@ -160,6 +180,7 @@ export class GatewayGuardrailService {
               type: "regex" as const,
               action,
               scope,
+              runs_on: runsOn,
               patterns,
               ...(action === "redact"
                 ? {
@@ -190,6 +211,7 @@ export class GatewayGuardrailService {
                 type: "fail_closed" as const,
                 action,
                 scope,
+                runs_on: runsOn,
                 patterns: [] as [],
               },
             ];
@@ -201,6 +223,7 @@ export class GatewayGuardrailService {
               type: "bedrock" as const,
               action,
               scope,
+              runs_on: runsOn,
               guardrail_id: config.data.guardrailId,
               guardrail_version: config.data.guardrailVersion,
               region: config.data.region,
@@ -382,6 +405,7 @@ export class GatewayGuardrailService {
       | {
           type: "REGEX";
           action: GatewayGuardrailActionForType<"REGEX">;
+          runsOn?: GatewayGuardrailRunsOnForType<"REGEX">;
           redactionLabel?: string;
           presets: GatewayGuardrailPreset[];
           secretPrefixes?: string[];
@@ -391,10 +415,16 @@ export class GatewayGuardrailService {
       | {
           type: "BEDROCK";
           action: GatewayGuardrailActionForType<"BEDROCK">;
+          runsOn?: GatewayGuardrailRunsOnForType<"BEDROCK">;
           bedrock: GatewayBedrockGuardrailConfig & { apiKey: string };
         }
     ),
   ) {
+    const runsOn = resolveSupportedGuardrailRunsOn(
+      params.type,
+      params.runsOn ??
+        GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[params.type].defaultRunsOn,
+    );
     const redactionLabel = normalizeRedactionLabel(
       params.type,
       params.action,
@@ -453,6 +483,7 @@ export class GatewayGuardrailService {
           params.action,
           params.scope ?? "LAST_TURN",
         ),
+        runsOn,
         redactionLabel,
         config,
         encryptedCredential,
@@ -486,6 +517,7 @@ export class GatewayGuardrailService {
       | {
           type: "REGEX";
           action: GatewayGuardrailActionForType<"REGEX">;
+          runsOn?: GatewayGuardrailRunsOnForType<"REGEX">;
           redactionLabel?: string;
           presets: GatewayGuardrailPreset[];
           secretPrefixes?: string[];
@@ -495,6 +527,7 @@ export class GatewayGuardrailService {
       | {
           type: "BEDROCK";
           action: GatewayGuardrailActionForType<"BEDROCK">;
+          runsOn?: GatewayGuardrailRunsOnForType<"BEDROCK">;
           bedrock: GatewayBedrockGuardrailConfig & { apiKey?: string };
         }
     ),
@@ -608,6 +641,10 @@ export class GatewayGuardrailService {
         config = regexConfig;
       }
 
+      const runsOn = resolveSupportedGuardrailRunsOn(
+        params.type,
+        params.runsOn ?? existing.runsOn,
+      );
       const record = await repo.update({
         organizationId: params.organizationId,
         id: existing.id,
@@ -617,6 +654,7 @@ export class GatewayGuardrailService {
           params.action,
           params.scope ?? existing.scope,
         ),
+        runsOn,
         redactionLabel,
         config,
         encryptedCredential,
@@ -1176,6 +1214,7 @@ function toGuardrailDto(
     type: record.type,
     action,
     scope: resolveSupportedGuardrailScope(action, record.scope),
+    runsOn: resolveSupportedGuardrailRunsOn(record.type, record.runsOn),
     redactionLabel: record.redactionLabel,
     presets,
     secretPrefixes,

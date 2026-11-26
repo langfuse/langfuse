@@ -16,7 +16,9 @@ use crate::{
     guardrails::Finding,
     http::ParsedRequest,
     observability::ErrorOrigin,
-    providers::{ProviderError, ProviderTransport, RequestBody, RequestPermit, Route},
+    providers::{
+        ForwardError, ProviderError, ProviderTransport, RequestBody, RequestPermit, Route,
+    },
     resolution::{
         ApiFormat, ControlPlaneClient, ControlPlaneConfig, IngestionMode, RateLimitKind,
         ResolutionError, ResolvedRequestContext,
@@ -519,9 +521,17 @@ impl InferenceService {
         request: RequestBody,
         route: Route,
         correlation: &mut RequestCorrelation,
-    ) -> Result<Response<Body>, ProviderError> {
+    ) -> Result<Response<Body>, ForwardError> {
         self.provider
-            .forward_route(permit, context, headers, request, route, correlation)
+            .forward_route_with_guardrails(
+                permit,
+                context,
+                headers,
+                request,
+                route,
+                &self.guardrails,
+                correlation,
+            )
             .await
     }
 
