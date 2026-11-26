@@ -1,6 +1,15 @@
 // Golden SQL of v2 executeQuery filters and group-bys per view and dimension.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import {
   capturedQueries,
@@ -25,6 +34,7 @@ vi.mock("../../../server/queries/clickhouse-sql/query-options", () => ({
   shouldSkipScoresDedup: vi.fn().mockReturnValue(false),
 }));
 
+import { env } from "../../../env";
 import { type QueryType } from "../types";
 import { QueryBuilder } from "./queryBuilder";
 import { executeQuery } from "./queryExecutor";
@@ -159,6 +169,16 @@ describeWithClickhouse("golden: metrics v2 executeQuery", () => {
 // Chart config on v1 observations and the root-event window on v2 traces,
 // both assembled as SQL text.
 describeWithClickhouse("golden: SQL-text executeQuery options", () => {
+  const originalSingleLevel =
+    env.LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION;
+
+  // The env flag ORs into the argument; pin it off so the argument decides.
+  beforeAll(() => {
+    env.LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION = "false";
+  });
+  afterAll(() => {
+    env.LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION = originalSingleLevel;
+  });
   beforeEach(() => resetCaptures());
 
   describe("histogram bins", () => {
