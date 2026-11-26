@@ -157,8 +157,8 @@ export const IdleMarked = meta.story({
   },
   play: async ({ canvas }) => {
     const track = canvas.getByRole("group", { name: "Session timeline" });
-    const cuts = track.querySelectorAll(".bg-background");
-    expect(cuts.length).toBeGreaterThan(0);
+    const idle = track.querySelectorAll(".border-dashed");
+    expect(idle.length).toBeGreaterThan(0);
   },
 });
 

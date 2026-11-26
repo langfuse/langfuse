@@ -8,12 +8,12 @@ type SessionTracePiece = ReturnType<
   typeof layoutSessionTracePieces
 >["pieces"][number];
 
-const idleClassName =
-  "bg-muted/40 bg-[repeating-linear-gradient(135deg,hsl(var(--foreground)/0.18)_0_1px,transparent_1px_7px)]";
+const pillClassName = "rounded-sm";
+const idleClassName = "border-border border-x border-dashed";
 
 const pieceClassName = {
-  fill: "bg-observation-trace-line",
-  muted: "bg-observation-trace-line/35",
+  fill: `bg-observation-trace-line shadow-sm dark:shadow-none ${pillClassName}`,
+  muted: `bg-observation-trace-line/20 ${pillClassName}`,
   idle: idleClassName,
   rest: idleClassName,
 } as const;
@@ -55,10 +55,9 @@ export function SessionTraceTrack({
       ref={trackRef}
       role="group"
       aria-label="Session timeline"
-      className="border-border relative flex h-[22px] min-w-6 flex-1 overflow-hidden rounded-sm border"
+      className="bg-muted relative flex h-[22px] min-w-6 flex-1 gap-px overflow-hidden rounded-md p-0.5"
     >
       {pieces.map((piece, index) => {
-        const next = pieces[index + 1];
         const trace = piece.trace;
         const interactive = clickable && trace && onSelect;
         let edge: "start" | "end" | undefined;
@@ -70,9 +69,6 @@ export function SessionTraceTrack({
             className="contents"
           >
             {renderPiece(piece, interactive, traces.length, onSelect, edge)}
-            {next && separate(piece, next) ? (
-              <span className="bg-background w-0.5 shrink-0" />
-            ) : null}
           </span>
         );
       })}
@@ -183,10 +179,17 @@ function TrackTimes({
         ? current
         : next,
     );
-  }, [width, startClock, endClock, active?.index, active?.clock, active?.endClock]);
+  }, [
+    width,
+    startClock,
+    endClock,
+    active?.index,
+    active?.clock,
+    active?.endClock,
+  ]);
 
   const edgeClass = (tone?: SessionTracePiece["tone"]) =>
-    tone === "fill" ? "text-background" : "text-foreground";
+    tone === "fill" ? "text-background" : "text-muted-foreground";
 
   return (
     <div className="pointer-events-none absolute inset-0 text-[10px] leading-none tabular-nums">
@@ -312,8 +315,8 @@ function TraceSegmentButton({
           className={cn(
             "ph-no-capture h-full min-w-0 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-observation-trace-line",
             piece.tone === "fill"
-              ? "bg-observation-trace-line hover:brightness-110 min-w-1"
-              : "bg-observation-trace-line/35 hover:bg-observation-trace-line/50",
+              ? "bg-observation-trace-line hover:brightness-110 min-w-1 rounded-sm shadow-sm dark:shadow-none"
+              : "bg-observation-trace-line/20 hover:bg-observation-trace-line/30 rounded-sm",
           )}
           data-edge={edge}
           data-active={piece.tone === "fill" ? "" : undefined}
@@ -385,11 +388,6 @@ function TooltipLines({
       ))}
     </span>
   );
-}
-
-function separate(current: SessionTracePiece, next: SessionTracePiece) {
-  if (current.tone === "fill" || next.tone === "fill") return true;
-  return current.width >= 3 && next.width >= 3;
 }
 
 function useElementWidth(ref: { current: HTMLElement | null }) {
