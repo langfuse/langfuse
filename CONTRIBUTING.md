@@ -663,11 +663,11 @@ If the CLA check still isn't passing after signing, it may be due to this [known
 
 If it still isn't passing, the author header in your commits is likely missing your GitHub email address ([example patch](https://github.com/langfuse/langfuse/commit/f301bb528f5ca6944bd04afae3c1a87390f9b92e.patch)). To fix this, set your email address in your git config and rebase.
 
-Run this only on your unprotected PR branch, substituting its name below. Never rewrite or force-push the default branch or another protected branch.
+Run this only on your unprotected PR branch, substituting its name and the remote that hosts it below. For a fork PR, use your fork remote as `YOUR_PR_REMOTE`. Never rewrite or force-push the default branch or another protected branch.
 
 ```bash
 git switch YOUR_PR_BRANCH
 git config user.email "YOUR_GITHUB_EMAIL"
 git rebase --exec "git commit --amend --no-edit --reset-author" origin/main
-git push --force-with-lease origin HEAD:refs/heads/YOUR_PR_BRANCH
+git push --force-with-lease YOUR_PR_REMOTE HEAD:refs/heads/YOUR_PR_BRANCH
 ```

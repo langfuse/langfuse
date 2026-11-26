@@ -70,7 +70,7 @@ asks for another pass.
 
 ## Bot review comments
 
-When Bugbot, Claude (Claude Code, `claude[bot]`, or the security-review action),
+When Bugbot (`cursor[bot]`), Claude (Claude Code, `claude[bot]`, or the security-review action),
 Greptile (`greptile-apps[bot]`), or Codex (`chatgpt-codex-connector[bot]`)
 leaves review comments on a PR you own:
 
