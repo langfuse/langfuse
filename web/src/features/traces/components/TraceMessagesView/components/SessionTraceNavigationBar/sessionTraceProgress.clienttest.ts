@@ -42,7 +42,7 @@ describe("buildSessionTraceProgress", () => {
     expect(idle?.end).toBeCloseTo((64 / 75) * 100, 5);
     expect(current?.start).toBeCloseTo((64 / 75) * 100, 5);
     expect(others).toHaveLength(2);
-    expect(progress.segments.at(-1)?.tone).toBe("fill");
+    expect(current?.traceId).toBe("current");
   });
 
   it("keeps a zero-duration trace at the session end inside the track", () => {

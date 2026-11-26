@@ -105,6 +105,12 @@ function SingleTraceMessagesView({
             sessionHref={sessionNavigation.sessionHref}
             currentTraceId={sessionNavigation.currentTraceId}
             timeline={sessionNavigation.timeline}
+            onSelectTrace={(traceId) => {
+              const selected = sessionNavigation.timeline.find(
+                (span) => span.id === traceId,
+              );
+              openNeighbor(router, selected?.link)?.();
+            }}
             onPrevious={openNeighbor(router, sessionNavigation.previous)}
             onNext={openNeighbor(router, sessionNavigation.next)}
           />

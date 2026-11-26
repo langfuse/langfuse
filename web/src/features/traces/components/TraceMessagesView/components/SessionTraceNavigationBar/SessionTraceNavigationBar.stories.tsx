@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import preview from "@/.storybook/preview";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -15,6 +16,7 @@ function span(
 ): SessionTraceSpan {
   return {
     id,
+    name: id,
     startMs: start + startMinute * minute,
     endMs: start + (startMinute + durationMinute) * minute,
   };
@@ -78,8 +80,8 @@ export const ShortTrace = meta.story({
     ],
   },
   play: async ({ canvas }) => {
-    const track = canvas.getByRole("progressbar");
-    const active = track.querySelector(".bg-accent-dark-blue");
+    const track = canvas.getByRole("group", { name: "Session timeline" });
+    const active = track.querySelector("[data-active]");
     if (!(active instanceof HTMLElement))
       throw new Error("Missing active segment");
     expect(active.getBoundingClientRect().width).toBeGreaterThanOrEqual(4);
@@ -187,7 +189,9 @@ export const Narrow = meta.story({
     const position = canvas.getByText("Trace 12 of 36");
     expect(position.scrollWidth).toBeLessThanOrEqual(position.clientWidth + 1);
     expect(canvas.getByText(/ \/ /)).not.toBeVisible();
-    expect(canvas.getByRole("progressbar")).toBeVisible();
+    expect(
+      canvas.getByRole("group", { name: "Session timeline" }),
+    ).toBeVisible();
     expect(
       canvas.getByRole("button", { name: "Next trace in session" }),
     ).toBeVisible();
@@ -209,7 +213,7 @@ export const ShortcutTooltip = meta.story({
 });
 
 export const IdleMarked = meta.story({
-  name: "(Test) Idle gap is hatched",
+  name: "(Test) Segment boundaries are cut",
   args: {
     position: 2,
     total: 3,
@@ -217,8 +221,67 @@ export const IdleMarked = meta.story({
     timeline: idleTimeline,
   },
   play: async ({ canvas }) => {
-    const track = canvas.getByRole("progressbar");
-    const hatched = track.querySelector("[class*='repeating-linear-gradient']");
-    expect(hatched).not.toBeNull();
+    const track = canvas.getByRole("group", { name: "Session timeline" });
+    const cuts = track.querySelectorAll(".bg-background");
+    expect(cuts.length).toBeGreaterThan(0);
+  },
+});
+
+export const ClickableSegments = meta.story({
+  name: "(Test) Clicking a segment navigates",
+  render: (args) => {
+    const [opened, setOpened] = useState<string>();
+    return (
+      <div>
+        <SessionTraceNavigationBar
+          {...args}
+          onSelectTrace={(traceId) => setOpened(traceId)}
+        />
+        <p>{opened}</p>
+      </div>
+    );
+  },
+  play: async ({ canvas }) => {
+    await userEvent.click(
+      canvas.getByRole("button", { name: /Go to trace 1 of 36/ }),
+    );
+    await expect(canvas.getByText("first")).toBeVisible();
+  },
+});
+
+export const ManyTraces = meta.story({
+  name: "(Test) Many traces are not buttons",
+  args: {
+    position: 20,
+    total: 40,
+    currentTraceId: "trace-20",
+    timeline: Array.from({ length: 40 }, (_, index) =>
+      span(`trace-${index + 1}`, index * 2, 1),
+    ),
+  },
+  render: (args) => (
+    <div className="w-[320px]">
+      <SessionTraceNavigationBar {...args} onSelectTrace={() => undefined} />
+    </div>
+  ),
+  play: async ({ canvas }) => {
+    const track = canvas.getByRole("group", { name: "Session timeline" });
+    expect(within(track).queryAllByRole("button")).toHaveLength(0);
+  },
+});
+
+export const SegmentTooltip = meta.story({
+  name: "(Test) Trace segment tooltip",
+  args: {
+    onSelectTrace: () => undefined,
+  },
+  play: async ({ canvas, canvasElement }) => {
+    await userEvent.hover(
+      canvas.getByRole("button", { name: /Go to trace 1 of 36/ }),
+    );
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await expect(tooltip).toHaveTextContent("first");
   },
 });
