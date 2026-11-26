@@ -113,7 +113,13 @@ const nextConfig = {
     ignoreBuildErrors: process.env.NEXT_IGNORE_BUILD_ERRORS === "true",
   },
   // Agent/browser tooling often targets 127.0.0.1 instead of localhost in dev.
-  allowedDevOrigins: ["127.0.0.1"],
+  // MCP App hosts load the widget page's dev assets from their sandbox
+  // origins (src/features/mcp/server/apps/resources.ts).
+  allowedDevOrigins: [
+    "127.0.0.1",
+    "*.claudemcpcontent.com",
+    "**.oaiusercontent.com",
+  ],
   staticPageGenerationTimeout: 500, // default is 60. Required for build process for amd
   transpilePackages: ["@langfuse/shared"],
   reactStrictMode: true,
@@ -125,6 +131,7 @@ const nextConfig = {
     "@opentelemetry/sdk-node",
     "@opentelemetry/instrumentation-winston",
     "piscina",
+    "@langfuse/ai-gateway-guardrail-rules",
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,

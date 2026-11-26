@@ -29,5 +29,5 @@ export const [deleteModelTool, handleDeleteModel] = defineTool({
         return DeleteModelV1Response.parse(result);
       },
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

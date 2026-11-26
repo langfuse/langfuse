@@ -17,18 +17,21 @@
 //! input/output and usage. Shared helpers apply JavaScript coercions and convert
 //! nanosecond timestamps to milliseconds.
 //!
-//! `JsonParseCache` parses JSON inside attribute strings on demand, caching both
-//! successes and failures for one event. `ParsedJson` borrows an existing value or
-//! shares a cached tree through `Rc`, allowing recursive tool extraction to reuse
-//! the cache without copying that tree.
+//! `JsonParseCache` parses JSON inside attribute strings on demand. It remembers the
+//! parse of a span attribute by the attribute's position, so extractors that read
+//! the same attribute share one parse. `ParsedJson` borrows an existing value or
+//! shares a parsed tree through `Rc`, so recursive tool extraction can hold it
+//! while parsing nested strings.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use num_bigint::BigUint;
 use num_traits::{Num, ToPrimitive};
-use std::collections::HashMap;
+use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, SeqAccess, Visitor};
+use serde::{Deserialize, Deserializer};
+use serde_json::value::RawValue;
 use std::rc::Rc;
 
-use super::value::{JsString, JsonObject, Number, Object, Value};
+use super::value::{FastValue, JsString, JsonObject, Number, Object, Value};
 
 pub(crate) use super::value::javascript_array_index;
 pub use super::value::{javascript_json_stringify, javascript_number_to_string};
@@ -138,12 +141,33 @@ pub(crate) fn retain_evaluation_value(
 ///
 /// Consumes wrappers and reuses their payload allocations.
 pub fn any_value_to_json(value: Value) -> Value {
-    let Value::Object(mut object) = value else {
-        return value;
+    let mut object = match value {
+        Value::Object(object) => object,
+        // Text passes through: the decoder hands on a wrapper too deep to parse as its JSON text.
+        Value::Null | Value::String(_) => return value,
+        // Any other value without a wrapper is read as its JSON text, like an unrecognized wrapper.
+        value => return Value::String(javascript_json_stringify(&value).into()),
     };
 
     if object.is_empty() {
         return Value::Null;
+    }
+
+    // An AnyValue normally holds one field. Read the common scalar kinds by position instead of
+    // hashing each candidate name in turn; every other shape takes the general path below.
+    if let (1, Some((name, value))) = (object.len(), object.get_index(0)) {
+        match name.as_bytes() {
+            b"stringValue" | b"boolValue" => {
+                return object.pop().expect("one field").1;
+            }
+            b"doubleValue" => return parse_double(value),
+            b"intValue" => {
+                if let Some(integer) = parse_int(value) {
+                    return integer;
+                }
+            }
+            _ => {}
+        }
     }
 
     if let Some(value) = object.shift_remove("stringValue") {
@@ -203,7 +227,16 @@ pub fn attributes_to_map(value: Value) -> JsonObject {
 }
 
 fn map_value_to_json(value: Value) -> Value {
-    let is_any_value = value.as_object().is_some_and(|object| {
+    if is_any_value(&value) {
+        any_value_to_json(value)
+    } else {
+        value
+    }
+}
+
+/// Whether a value in a map-form attribute object is read as an OTLP AnyValue wrapper.
+fn is_any_value(value: &Value) -> bool {
+    value.as_object().is_some_and(|object| {
         object.is_empty()
             || [
                 "stringValue",
@@ -215,12 +248,7 @@ fn map_value_to_json(value: Value) -> Value {
             ]
             .iter()
             .any(|key| object.contains_key(*key))
-    });
-    if is_any_value {
-        any_value_to_json(value)
-    } else {
-        value
-    }
+    })
 }
 
 pub(super) fn is_key_value_list(values: &[Value]) -> bool {
@@ -234,15 +262,30 @@ pub(super) fn is_key_value_list(values: &[Value]) -> bool {
 }
 
 fn key_value_array_to_map(values: Vec<Value>) -> JsonObject {
-    let mut result = JsonObject::new();
+    let mut result = JsonObject::with_capacity(values.len());
     for entry in values {
         let Value::Object(mut entry) = entry else {
             continue;
         };
-        let Some(Value::String(key)) = entry.shift_remove("key") else {
+        // Nearly every entry is exactly `{"key": ..., "value": ...}`; take both fields by
+        // position instead of hashing their names.
+        let is_key_then_value = entry.len() == 2
+            && entry
+                .get_index(0)
+                .is_some_and(|(name, _)| name.as_bytes() == b"key")
+            && entry
+                .get_index(1)
+                .is_some_and(|(name, _)| name.as_bytes() == b"value");
+        let (key, value) = if is_key_then_value {
+            let value = entry.pop().map(|(_, value)| value);
+            (entry.pop().map(|(_, key)| key), value)
+        } else {
+            (entry.shift_remove("key"), entry.shift_remove("value"))
+        };
+        let Some(Value::String(key)) = key else {
             continue;
         };
-        let Some(value) = entry.shift_remove("value") else {
+        let Some(value) = value else {
             continue;
         };
         if value.is_null() || matches!(&value, Value::Object(object) if object.is_empty()) {
@@ -251,6 +294,160 @@ fn key_value_array_to_map(values: Vec<Value>) -> JsonObject {
         result.insert(key, any_value_to_json(value));
     }
     result
+}
+
+/// Decode a KeyValue list whose entries are all `{"key": name, "value": {kind: payload}}`
+/// straight into the attribute map. Scalar values are read without building the two wrapper
+/// objects of their entry; any other kind is converted as the full parser converts it. The
+/// result equals `attributes_to_map` of the parsed list. Any other entry shape returns `None`
+/// and the caller parses the list in full.
+pub(super) fn direct_attributes(source: &str) -> Option<JsonObject> {
+    // An entry takes at least 40 bytes of JSON, which bounds the number of entries.
+    let mut attributes = JsonObject::with_capacity((source.len() / 40).min(32));
+    let mut deserializer = serde_json::Deserializer::from_str(source);
+    DirectEntries(&mut attributes)
+        .deserialize(&mut deserializer)
+        .ok()?;
+    deserializer.end().ok()?;
+    // Callers pass the result to `attributes_to_map`, which converts object values that look
+    // like an AnyValue and unwraps a KeyValue list stored under `values`. Only a map that it
+    // returns unchanged may take this path.
+    let is_unchanged_as_object = !attributes.values().any(is_any_value)
+        && !matches!(
+            attributes.get("values"),
+            Some(Value::Array(values)) if is_key_value_list(values)
+        );
+    is_unchanged_as_object.then_some(attributes)
+}
+
+struct DirectEntries<'a>(&'a mut JsonObject);
+
+impl<'de> DeserializeSeed<'de> for DirectEntries<'_> {
+    type Value = ();
+
+    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<(), D::Error> {
+        deserializer.deserialize_seq(self)
+    }
+}
+
+impl<'de> Visitor<'de> for DirectEntries<'_> {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("a list of OTLP attributes")
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut entries: A) -> Result<(), A::Error> {
+        while let Some(DirectEntry(name, value)) = entries.next_element()? {
+            self.0.insert(name, value);
+        }
+        Ok(())
+    }
+}
+
+struct DirectEntry(JsString, Value);
+
+impl<'de> Deserialize<'de> for DirectEntry {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct EntryVisitor;
+
+        impl<'de> Visitor<'de> for EntryVisitor {
+            type Value = DirectEntry;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("an OTLP attribute with a key and a value")
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, mut entry: A) -> Result<DirectEntry, A::Error> {
+                expect_field(&mut entry, r#""key""#)?;
+                let Value::String(name) = entry.next_value::<FastValue>()?.0 else {
+                    return Err(other_shape());
+                };
+                // A span whose attributes are an object reads that object's `attributes`
+                // member instead, so a list holding this name must stay a list.
+                if name.as_bytes() == b"attributes" {
+                    return Err(other_shape());
+                }
+                expect_field(&mut entry, r#""value""#)?;
+                let value = entry.next_value::<DirectAnyValue>()?.0;
+                expect_end(&mut entry)?;
+                Ok(DirectEntry(name, value))
+            }
+        }
+
+        deserializer.deserialize_map(EntryVisitor)
+    }
+}
+
+/// An AnyValue with exactly one field, already converted as `any_value_to_json` does.
+struct DirectAnyValue(Value);
+
+impl<'de> Deserialize<'de> for DirectAnyValue {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct AnyValueVisitor;
+
+        impl<'de> Visitor<'de> for AnyValueVisitor {
+            type Value = DirectAnyValue;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("an OTLP AnyValue with one field")
+            }
+
+            fn visit_map<A: MapAccess<'de>>(
+                self,
+                mut wrapper: A,
+            ) -> Result<DirectAnyValue, A::Error> {
+                let Some(kind) = wrapper.next_key::<&RawValue>()? else {
+                    return Err(other_shape());
+                };
+                let kind = kind.get();
+                let payload = wrapper.next_value::<FastValue>()?.0;
+                expect_end(&mut wrapper)?;
+                let scalar = match (kind, &payload) {
+                    (r#""stringValue""#, Value::String(_)) | (r#""boolValue""#, Value::Bool(_)) => {
+                        return Ok(DirectAnyValue(payload))
+                    }
+                    (r#""doubleValue""#, Value::Number(_) | Value::String(_)) => {
+                        Some(parse_double(&payload))
+                    }
+                    (r#""intValue""#, Value::Number(_) | Value::String(_)) => parse_int(&payload),
+                    _ => None,
+                };
+                if let Some(value) = scalar {
+                    return Ok(DirectAnyValue(value));
+                }
+                // Arrays and every other kind take the conversion the full parser applies to
+                // this wrapper. An escaped field name is left to the full parser to decode.
+                if kind.contains('\\') {
+                    return Err(other_shape());
+                }
+                let mut object = JsonObject::with_capacity(1);
+                object.insert(kind[1..kind.len() - 1].into(), payload);
+                Ok(DirectAnyValue(any_value_to_json(Value::Object(object))))
+            }
+        }
+
+        deserializer.deserialize_map(AnyValueVisitor)
+    }
+}
+
+/// Read the next field name, which must be exactly `token`, quotes included.
+fn expect_field<'de, A: MapAccess<'de>>(object: &mut A, token: &str) -> Result<(), A::Error> {
+    match object.next_key::<&RawValue>()? {
+        Some(name) if name.get() == token => Ok(()),
+        _ => Err(other_shape()),
+    }
+}
+
+fn expect_end<'de, A: MapAccess<'de>>(object: &mut A) -> Result<(), A::Error> {
+    match object.next_key::<IgnoredAny>()? {
+        None => Ok(()),
+        Some(_) => Err(other_shape()),
+    }
+}
+
+fn other_shape<E: serde::de::Error>() -> E {
+    E::custom("not a list of plain OTLP attributes")
 }
 
 /// Parse IDs emitted by the JS SDK, protobuf decoders, and OTLP JSON replay files.
@@ -295,7 +492,9 @@ fn bytes_to_hex(bytes: &[u8]) -> String {
 }
 
 /// Convert an OTLP nanosecond timestamp to the millisecond precision used by JS `Date`.
-pub fn nano_timestamp_to_iso(value: Option<&Value>) -> Option<String> {
+/// The outer `None` is a missing or unreadable timestamp. The inner `None` is a time outside
+/// years 0000-9999, which ClickHouse cannot store.
+fn nano_timestamp_to_iso(value: Option<&Value>) -> Option<Option<String>> {
     let value = value?;
     let millis = match value {
         Value::String(value) => value.as_utf8()?.parse::<i128>().ok()? / 1_000_000,
@@ -310,25 +509,33 @@ pub fn nano_timestamp_to_iso(value: Option<&Value>) -> Option<String> {
         }
         _ => return None,
     };
-    let millis = i64::try_from(millis).ok()?;
-    DateTime::<Utc>::from_timestamp_millis(millis)
-        .map(|date| date.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
+    // JS `Date` holds 8.64e15 milliseconds either side of the epoch; more is an invalid date,
+    // which TypeScript reads as a missing timestamp.
+    let millis = i64::try_from(millis)
+        .ok()
+        .filter(|millis| millis.unsigned_abs() <= 8_640_000_000_000_000)?;
+    Some(
+        DateTime::<Utc>::from_timestamp_millis(millis)
+            .filter(|date| (0..=9999).contains(&date.year()))
+            .map(|date| date.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)),
+    )
 }
 
-/// Resolve missing OTLP span endpoints exactly once at the processing boundary.
+/// Resolve missing OTLP span endpoints exactly once at the processing boundary. Returns `None`
+/// when an endpoint lies outside years 0000-9999; the caller drops that span.
 pub fn resolve_timestamps(
     start: Option<&Value>,
     end: Option<&Value>,
     fallback: &str,
-) -> (String, String) {
+) -> Option<(String, String)> {
     let start = nano_timestamp_to_iso(start);
     let end = nano_timestamp_to_iso(end);
-    match (start, end) {
-        (Some(start), Some(end)) => (start, end),
-        (Some(start), None) => (start.clone(), start),
-        (None, Some(end)) => (end.clone(), end),
+    Some(match (start, end) {
+        (Some(start), Some(end)) => (start?, end?),
+        (Some(start), None) => (start.clone()?, start?),
+        (None, Some(end)) => (end.clone()?, end?),
         (None, None) => (fallback.to_owned(), fallback.to_owned()),
-    }
+    })
 }
 
 pub fn value_as_string(value: &Value) -> Option<String> {
@@ -534,15 +741,24 @@ fn number_from_integer_like_f64(value: f64) -> Option<Number> {
     Number::from_f64(value)
 }
 
-/// Memoize stringified JSON only when an event extractor actually needs to parse it.
+/// Parse stringified JSON only when an event extractor actually needs it.
 ///
 /// The queue graph is already normalized at its boundary, so non-string values can be borrowed
-/// directly. Parsed strings are normalized once and borrowed by all provider extractors that use
-/// the same source. The cache distinguishes inputs beyond the nesting limit from malformed JSON
-/// so tool normalization can preserve their original string representation.
+/// directly. Several extractors read the same span attribute, so the parse of an attribute value
+/// is remembered by the attribute's position and shared between them. Any other string is parsed
+/// each time it is requested and kept until the event is built, so extractors can borrow the
+/// result. Input beyond the nesting limit is told apart from malformed JSON so tool
+/// normalization can preserve its original string representation.
 #[derive(Default)]
 pub struct JsonParseCache {
-    parsed_strings: HashMap<JsString, CachedParse>,
+    /// The span's attributes. Shared ownership keeps them alive and unchanged while this cache
+    /// exists, so a value's position among them identifies its text.
+    attributes: Option<Rc<JsonObject>>,
+    /// Parses of attribute values, by position in `attributes`.
+    by_position: Vec<Option<CachedParse>>,
+    /// Parses of strings that are not span attributes. Nothing looks them up: they are held
+    /// until the event is built so `parse` can return a reference to them.
+    others: Vec<Value>,
 }
 
 enum CachedParse {
@@ -551,7 +767,25 @@ enum CachedParse {
     Invalid,
 }
 
+impl CachedParse {
+    fn of(text: &JsString) -> Self {
+        match super::value::parse_js_string(text) {
+            Ok(value) => Self::Parsed(Rc::new(value)),
+            Err(error) if is_depth_limit_error(&error) => Self::DepthLimited,
+            Err(_) => Self::Invalid,
+        }
+    }
+}
+
 impl JsonParseCache {
+    /// Remember parses of the values in `attributes`, the attributes of the span being built.
+    pub fn for_attributes(attributes: Rc<JsonObject>) -> Self {
+        Self {
+            attributes: Some(attributes),
+            ..Self::default()
+        }
+    }
+
     pub fn parse<'a>(&'a mut self, value: Option<&'a Value>) -> Option<&'a Value> {
         let value = value?;
         let Value::String(text) = value else {
@@ -560,18 +794,45 @@ impl JsonParseCache {
         if !looks_like_json(text.as_str()) {
             return None;
         }
-        if !self.parsed_strings.contains_key(text) {
-            let parsed = match super::value::parse_js_string(text) {
-                Ok(value) => CachedParse::Parsed(Rc::new(value)),
-                Err(error) if is_depth_limit_error(&error) => CachedParse::DepthLimited,
-                Err(_) => CachedParse::Invalid,
-            };
-            self.parsed_strings.insert(text.clone(), parsed);
+        let Some(position) = self.attribute_position(value) else {
+            self.others.push(super::value::parse_js_string(text).ok()?);
+            return self.others.last();
+        };
+        match self.attribute_parse(position, text) {
+            CachedParse::Parsed(value) => Some(value),
+            CachedParse::DepthLimited | CachedParse::Invalid => None,
         }
-        match self.parsed_strings.get(text) {
-            Some(CachedParse::Parsed(value)) => Some(value),
-            Some(CachedParse::DepthLimited | CachedParse::Invalid) | None => None,
+    }
+
+    /// The position of `value` among the span's attributes, if it is one of them.
+    fn attribute_position(&self, value: &Value) -> Option<usize> {
+        let attributes = self.attributes.as_deref()?;
+        let address = |value: &Value| std::ptr::from_ref(value) as usize;
+        let (_, first) = attributes.get_index(0)?;
+        let offset = address(value).checked_sub(address(first))?;
+        let position = match attributes.get_index(1) {
+            // The map stores its entries one after another, so one stride separates their values.
+            Some((_, second)) => {
+                let stride = address(second).checked_sub(address(first))?;
+                offset.checked_div(stride)?
+            }
+            None => 0,
+        };
+        // Accept only the attribute itself, whatever the arithmetic produced.
+        let (_, candidate) = attributes.get_index(position)?;
+        std::ptr::eq(candidate, value).then_some(position)
+    }
+
+    /// The parse of the attribute at `position`, whose text is parsed on first use.
+    fn attribute_parse(&mut self, position: usize, text: &JsString) -> &CachedParse {
+        if self.by_position.len() <= position {
+            let attributes = self
+                .attributes
+                .as_ref()
+                .map_or(0, |attributes| attributes.len());
+            self.by_position.resize_with(attributes, || None);
         }
+        self.by_position[position].get_or_insert_with(|| CachedParse::of(text))
     }
 
     pub fn parse_or_self<'a>(&'a mut self, value: Option<&'a Value>) -> Option<&'a Value> {
@@ -585,11 +846,21 @@ impl JsonParseCache {
         let Value::String(text) = value else {
             return ParsedJson::Borrowed(value);
         };
-        self.parse(Some(value));
-        match self.parsed_strings.get(text) {
-            Some(CachedParse::Parsed(parsed)) => ParsedJson::Shared(Rc::clone(parsed)),
-            Some(CachedParse::DepthLimited) => ParsedJson::DepthLimited(value),
-            Some(CachedParse::Invalid) | None => ParsedJson::Borrowed(value),
+        if !looks_like_json(text.as_str()) {
+            return ParsedJson::Borrowed(value);
+        }
+        let unshared;
+        let parse = match self.attribute_position(value) {
+            Some(position) => self.attribute_parse(position, text),
+            None => {
+                unshared = CachedParse::of(text);
+                &unshared
+            }
+        };
+        match parse {
+            CachedParse::Parsed(parsed) => ParsedJson::Shared(Rc::clone(parsed)),
+            CachedParse::DepthLimited => ParsedJson::DepthLimited(value),
+            CachedParse::Invalid => ParsedJson::Borrowed(value),
         }
     }
 }
@@ -639,6 +910,72 @@ fn looks_like_json(text: &str) -> bool {
 mod tests {
     use super::*;
     use crate::otel::value::json;
+
+    proptest::proptest! {
+        #[test]
+        fn attribute_lists_decode_directly_like_the_full_parser(
+            entries in proptest::collection::vec(
+                (
+                    proptest::sample::select(vec![
+                        r#""a""#, r#""b""#, r#""a.b""#, r#""values""#, r#""attributes""#,
+                        r#""a""#, r#""\ud800""#, "1", "null",
+                    ]),
+                    proptest::sample::select(vec![
+                        r#"{"stringValue":"x"}"#, r#"{"boolValue":true}"#, r#"{"intValue":"42"}"#,
+                        r#"{"intValue":42}"#, r#"{"intValue":1.5}"#, r#"{"intValue":"x"}"#,
+                        r#"{"intValue":"18446744073709551616"}"#, r#"{"intValue":1e400}"#,
+                        r#"{"intValue":{"high":-1,"low":-1}}"#, r#"{"doubleValue":1.5}"#,
+                        r#"{"doubleValue":"1.5"}"#, r#"{"doubleValue":"x"}"#,
+                        r#"{"doubleValue":[1]}"#, r#"{"stringValue":5}"#, r#"{"stringValue":null}"#,
+                        r#"{"stringValue":{"intValue":"1"}}"#, r#"{"stringValue":"\ud800"}"#,
+                        r#"{"boolValue":"true"}"#, r#"{"stringValue":"x","intValue":"1"}"#,
+                        r#"{"arrayValue":{"values":[{"stringValue":"x"}]}}"#,
+                        r#"{"kvlistValue":{"values":[]}}"#, r#"{"unknown":1}"#, "{}", "null",
+                        r#""plain""#, r#"{"stringValue":{}}"#, r#"{"arrayValue":null}"#,
+                        r#"{"arrayValue":{"values":[]}}"#, r#"{"string\u0056alue":"x"}"#,
+                        r#"{"arrayValue":{"values":[{"stringValue":{"key":"k","value":1}}]}}"#,
+                        r#"{"kvlistValue":{"values":[{"key":"k","value":{"intValue":"1"}}]}}"#,
+                    ]),
+                    0_u8..8,
+                ),
+                0..5,
+            ),
+        ) {
+            let source = format!(
+                "[{}]",
+                entries
+                    .iter()
+                    .map(|(key, value, form)| match form {
+                        0 => format!(r#"{{"value":{value},"key":{key}}}"#),
+                        1 => format!(r#"{{"key":{key},"value":{value},"extra":1}}"#),
+                        2 => format!(r#"{{"key":{key}}}"#),
+                        _ => format!(r#"{{"key":{key},"value":{value}}}"#),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+            let direct = direct_attributes(&source);
+            let is_plain = entries.iter().all(|(key, value, form)| {
+                *form > 2
+                    && [r#""a""#, r#""b""#, r#""a.b""#, r#""values""#].contains(key)
+                    && [
+                        r#"{"stringValue":"x"}"#, r#"{"boolValue":true}"#, r#"{"intValue":"42"}"#,
+                        r#"{"arrayValue":{"values":[{"stringValue":"x"}]}}"#,
+                    ]
+                    .contains(value)
+            });
+            proptest::prop_assert!(direct.is_some() || !is_plain, "{}", source);
+            if let Some(attributes) = direct {
+                proptest::prop_assert!(!attributes.contains_key("attributes"), "{}", source);
+                proptest::prop_assert_eq!(
+                    attributes_to_map(Value::Object(attributes)),
+                    attributes_to_map(Value::parse(&source).unwrap()),
+                    "{}",
+                    source
+                );
+            }
+        }
+    }
 
     #[test]
     fn converts_all_otlp_any_value_variants() {
@@ -725,7 +1062,7 @@ mod tests {
         for text in ["text-", "false alarm", "nothing", "true false"] {
             assert!(cache.parse(Some(&json!(text))).is_none());
         }
-        assert!(cache.parsed_strings.is_empty());
+        assert!(cache.others.is_empty());
         for (text, expected) in [
             ("true", json!(true)),
             (" \tfalse\r\n", json!(false)),
@@ -736,13 +1073,38 @@ mod tests {
     }
 
     #[test]
-    fn caches_malformed_embedded_json_as_a_missing_value() {
+    fn treats_malformed_embedded_json_as_a_missing_value() {
         let value = Value::String(r#"{"broken":}"#.into());
         let mut cache = JsonParseCache::default();
         assert!(cache.parse(Some(&value)).is_none());
-        assert_eq!(cache.parsed_strings.len(), 1);
-        assert!(cache.parse(Some(&value)).is_none());
-        assert_eq!(cache.parsed_strings.len(), 1);
+        assert!(cache.others.is_empty());
+    }
+
+    #[test]
+    fn parses_a_span_attribute_once_and_any_other_string_each_time() {
+        let attributes = Rc::new(JsonObject::from_iter([
+            ("plain".into(), json!("text")),
+            ("payload".into(), json!(r#"{"a":[1]}"#)),
+            ("broken".into(), json!(r#"{"a":}"#)),
+        ]));
+        let mut cache = JsonParseCache::for_attributes(Rc::clone(&attributes));
+        let payload = attributes.get("payload");
+
+        let first = std::ptr::from_ref(cache.parse(payload).unwrap());
+        assert_eq!(std::ptr::from_ref(cache.parse(payload).unwrap()), first);
+        let ParsedJson::Shared(shared) = cache.shared_or_self(payload.unwrap()) else {
+            panic!("the attribute parses as JSON");
+        };
+        assert_eq!(std::ptr::from_ref(shared.as_ref()), first);
+        assert!(cache.parse(attributes.get("broken")).is_none());
+        assert!(cache.parse(attributes.get("plain")).is_none());
+
+        // An equal string that is not the attribute itself gets its own parse.
+        let copy = payload.unwrap().clone();
+        let copied = std::ptr::from_ref(cache.parse(Some(&copy)).unwrap());
+        assert_ne!(copied, first);
+        assert_eq!(cache.others.len(), 1);
+        assert_eq!(cache.by_position.iter().flatten().count(), 2);
     }
 
     #[test]
@@ -769,13 +1131,47 @@ mod tests {
         ] {
             assert_eq!(
                 resolve_timestamps(Some(&start), None, "fallback"),
-                (expected.to_owned(), expected.to_owned())
+                Some((expected.to_owned(), expected.to_owned()))
             );
         }
         assert_eq!(
             resolve_timestamps(None, None, "fallback"),
-            ("fallback".to_owned(), "fallback".to_owned())
+            Some(("fallback".to_owned(), "fallback".to_owned()))
         );
+    }
+
+    #[test]
+    fn rejects_timestamps_outside_four_digit_years() {
+        for (start, end, expected) in [
+            // Year 10000, the millisecond before year 0000, microseconds sent as milliseconds.
+            ("253402300800000000000", None, None),
+            ("-62167219200001000000", None, None),
+            ("1750000000123000000000", None, None),
+            // Only the end is out of range.
+            ("1000000000", Some("253402300800000000000"), None),
+            // The first and the last millisecond ClickHouse stores.
+            (
+                "-62167219200000000000",
+                None,
+                Some("0000-01-01T00:00:00.000Z"),
+            ),
+            (
+                "253402300799999000000",
+                None,
+                Some("9999-12-31T23:59:59.999Z"),
+            ),
+            // The last instant of JS `Date` is a date; one millisecond later is a missing timestamp.
+            ("8640000000000000000000", None, None),
+            ("8640000000000001000000", None, Some("fallback")),
+        ] {
+            let end = end.map(|end| json!(end));
+            let resolved = resolve_timestamps(Some(&json!(start)), end.as_ref(), "fallback");
+            assert_eq!(
+                resolved.map(|(start, _)| start).as_deref(),
+                expected,
+                "{start}"
+            );
+        }
     }
 
     #[test]
@@ -865,6 +1261,20 @@ mod tests {
                     {"key": "payload", "value": {"nested": {"stringValue": "keep"}}}
                 ]),
                 json!({"payload": r#"{"nested":{"stringValue":"keep"}}"#}),
+            ),
+            (
+                json!([
+                    {"key": "number", "value": 5},
+                    {"key": "flag", "value": false},
+                    {"key": "list", "value": ["a", 1]},
+                    {"key": "wrapped", "value": {"arrayValue": {"values": [1, null]}}}
+                ]),
+                json!({
+                    "number": "5",
+                    "flag": "false",
+                    "list": r#"["a",1]"#,
+                    "wrapped": ["1", null]
+                }),
             ),
         ] {
             let expected = expected.as_object().unwrap().clone();

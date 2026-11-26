@@ -17,9 +17,12 @@ import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/
 import { resolveGatewayJwtKeys } from "@/src/features/ai-gateway/server/auth/gatewayJwtKeys";
 import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "@/src/features/ai-gateway/server/auth/ingestionTokenVerifier";
 import { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
+import { decodeBedrockApiKey } from "@/src/features/ai-gateway/server/provider/bedrock";
 import {
   type GatewayApiFormat,
+  type GatewayCachedGuardrails,
   type GatewayProviderId,
+  type GatewayResolveGuardrails,
   type GatewayResolveResponse,
   getGatewayUpstream,
   getGatewayUpstreamSecret,
@@ -186,6 +189,10 @@ export class GatewayResolveService {
               })
             : null,
         spend_limits: spendLimits,
+        guardrails: decryptResolvedGuardrails(
+          context.guardrails,
+          context.organizationId,
+        ),
         pricing,
       };
     });
@@ -258,4 +265,47 @@ function getIngestionMode(context: GatewayApiKeyAuthContext) {
 // NONE mode records no spend, so it enforces no limits.
 function getEnforcedSpendLimits(context: GatewayApiKeyAuthContext) {
   return getIngestionMode(context) === "NONE" ? [] : context.spendLimits;
+}
+
+function decryptResolvedGuardrails(
+  guardrails: GatewayCachedGuardrails,
+  organizationId: string,
+): GatewayResolveGuardrails {
+  return guardrails.map<GatewayResolveGuardrails[number]>((guardrail) => {
+    if (guardrail.type === "regex" || guardrail.type === "fail_closed") {
+      return guardrail;
+    }
+    try {
+      const apiKey = decodeBedrockApiKey(
+        decrypt(guardrail.encrypted_credential),
+      );
+      return {
+        id: guardrail.id,
+        name: guardrail.name,
+        type: "bedrock" as const,
+        action: guardrail.action,
+        patterns: [] as [],
+        guardrail_id: guardrail.guardrail_id,
+        guardrail_version: guardrail.guardrail_version,
+        region: guardrail.region,
+        api_key: apiKey,
+      };
+    } catch (error) {
+      logger.error(
+        "Bedrock guardrail credential could not be decrypted; failing closed",
+        {
+          guardrailId: guardrail.id,
+          organizationId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
+      return {
+        id: guardrail.id,
+        name: guardrail.name,
+        type: "fail_closed" as const,
+        action: guardrail.action,
+        patterns: [] as [],
+      };
+    }
+  });
 }

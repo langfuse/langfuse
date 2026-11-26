@@ -1,10 +1,5 @@
-import { useMemo } from "react";
-import { Button } from "@/src/components/ui/button";
-import {
-  Combobox,
-  type ComboboxOptionGroup,
-} from "@/src/components/ui/Combobox";
-import { X } from "@langfuse/icons";
+import { type ComponentProps, useMemo } from "react";
+import { ExperimentBaselineSelect } from "./ExperimentBaselineSelect";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";
 import {
@@ -12,7 +7,6 @@ import {
   NO_DATASET_LABEL,
   UNNAMED_DATASET_LABEL,
 } from "@/src/features/experiments/constants/comparison";
-import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { baselineChangedProps } from "@/src/features/experiments/lib/analytics";
 
@@ -44,13 +38,21 @@ export function ExperimentBaselineControls({
 
   // Grouped by dataset and dated, so two runs sharing a name are two readable
   // options rather than the same label twice.
-  const baselineOptionGroups = useMemo<ComboboxOptionGroup<string>[]>(() => {
-    const byDataset = new Map<string, ComboboxOptionGroup<string>>();
+  const baselineOptionGroups = useMemo(() => {
+    const byDataset = new Map<
+      string,
+      Extract<
+        ComponentProps<typeof ExperimentBaselineSelect>["options"][number],
+        { type: "group" }
+      >
+    >();
 
     for (const experiment of experimentNames) {
       const datasetKey = experiment.datasetId ?? NO_DATASET_KEY;
       const group = byDataset.get(datasetKey) ?? {
-        heading:
+        type: "group" as const,
+        id: datasetKey,
+        label:
           experiment.datasetId === null
             ? NO_DATASET_LABEL
             : (experiment.datasetName ?? UNNAMED_DATASET_LABEL),
@@ -59,7 +61,7 @@ export function ExperimentBaselineControls({
       group.options.push({
         value: experiment.experimentId,
         label: experiment.experimentName,
-        badge: formatRunRecency(experiment.startTime),
+        secondaryLabel: formatRunRecency(experiment.startTime),
       });
       byDataset.set(datasetKey, group);
     }
@@ -68,55 +70,32 @@ export function ExperimentBaselineControls({
   }, [experimentNames]);
 
   return (
-    <div className="flex min-w-0 items-center">
-      <div className="min-w-0 flex-1">
-        <Combobox
-          options={baselineOptionGroups}
-          value={baselineId}
-          onValueChange={(id) => {
-            if (id === baselineId) return;
-            capture(
-              "experiment:baseline_changed",
-              baselineChangedProps({
-                tableName: "experiment-items",
-                source: "picker",
-              }),
-            );
-            onBaselineChange(id);
-          }}
-          placeholder={baselineName ?? baselineId ?? "Select baseline..."}
-          emptyText="No experiments found"
-          searchPlaceholder="Search experiments..."
-          disabled={isLoading}
-          className={cn(
-            "rounded-l-none border-l-0",
-            baselineId && "rounded-r-none",
-          )}
-        />
-      </div>
-
-      {baselineId && (
-        <Button
-          variant="outline"
-          size="icon"
-          className="-ml-px shrink-0 rounded-l-none"
-          onClick={() => {
-            capture(
-              "experiment:baseline_changed",
-              baselineChangedProps({
-                tableName: "experiment-items",
-                source: "clear",
-              }),
-            );
-            onBaselineClear();
-          }}
-          disabled={isLoading}
-          title="Clear baseline"
-          aria-label="Clear baseline"
-        >
-          <X size="base" color="default" />
-        </Button>
-      )}
-    </div>
+    <ExperimentBaselineSelect
+      options={baselineOptionGroups}
+      baselineId={baselineId}
+      baselineName={baselineName}
+      isLoading={isLoading}
+      onBaselineChange={(id) => {
+        if (id === baselineId) return;
+        capture(
+          "experiment:baseline_changed",
+          baselineChangedProps({
+            tableName: "experiment-items",
+            source: "picker",
+          }),
+        );
+        onBaselineChange(id);
+      }}
+      onBaselineClear={() => {
+        capture(
+          "experiment:baseline_changed",
+          baselineChangedProps({
+            tableName: "experiment-items",
+            source: "clear",
+          }),
+        );
+        onBaselineClear();
+      }}
+    />
   );
 }

@@ -25,6 +25,7 @@ const orderKey = (promotedColumns: readonly string[]) =>
   promotedColumns.join(",");
 
 /** Settle the order to the live promotion state. */
+/** @internal */
 export function settleFacetOrder(
   promotedColumns: readonly string[],
   interactionToken = 0,

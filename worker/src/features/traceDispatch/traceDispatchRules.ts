@@ -7,10 +7,11 @@ import {
   traceTranscriptFilterDefinition,
   validateEvaluatorFiltersForTarget,
   type FilterState,
-  type ObservationForEval,
+  type ObservationEvalFilterFields,
 } from "@langfuse/shared";
 import {
   InMemoryFilterService,
+  isTraceEvalsProcessingActive,
   logger,
   recordDistribution,
   recordIncrement,
@@ -38,18 +39,31 @@ export async function prepareTraceDispatchRules(
     rule.assignments.every(
       (assignment) => assignment.evaluator.type === EvalTemplateType.FACET,
     );
-  const topicsActive = rules.some(needsTopics)
-    ? await isTopicsProcessingActive(projectId).catch((error) => {
-        logger.warn("Failed to check Topics availability for trace rules", {
-          projectId,
-          error,
-        });
-        return false;
-      })
-    : false;
+  const [topicsActive, traceEvalsActive] = await Promise.all([
+    rules.some(needsTopics)
+      ? isTopicsProcessingActive(projectId).catch((error) => {
+          logger.warn("Failed to check Topics availability for trace rules", {
+            projectId,
+            error,
+          });
+          return false;
+        })
+      : false,
+    rules.some((rule) => !needsTopics(rule))
+      ? isTraceEvalsProcessingActive(projectId).catch((error) => {
+          logger.warn(
+            "Failed to check trace evals availability for trace rules",
+            { projectId, error },
+          );
+          return false;
+        })
+      : false,
+  ]);
 
   return rules.flatMap((rule) => {
-    if (rule.projectId !== projectId || (needsTopics(rule) && !topicsActive)) {
+    // Facet-only rules belong to Topics; every other rule runs trace evals.
+    const active = needsTopics(rule) ? topicsActive : traceEvalsActive;
+    if (rule.projectId !== projectId || !active) {
       return [];
     }
     const validation = validateEvaluatorFiltersForTarget({
@@ -90,7 +104,7 @@ export async function prepareTraceDispatchRules(
 
 /** All predicates must match one observation; selection applies to its trace. */
 export function getMatchingTraceDispatchRuleIds(
-  observation: ObservationForEval,
+  observation: ObservationEvalFilterFields,
   rules: TraceDispatchRule[],
 ): string[] {
   const startedAt = performance.now();

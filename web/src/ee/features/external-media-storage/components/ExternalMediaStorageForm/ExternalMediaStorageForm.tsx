@@ -135,9 +135,7 @@ export function ExternalMediaStorageForm({
                                 label: "IAM role",
                                 disabled: true,
                                 disabledReason: ROLE_AUTH_UPGRADE_MESSAGE,
-                                badges: [
-                                  { text: "Enterprise", color: "outline" },
-                                ],
+                                badges: [{ text: "Enterprise" }],
                               }
                             : { value: "ROLE_ARN", label: "IAM role" },
                         ]}

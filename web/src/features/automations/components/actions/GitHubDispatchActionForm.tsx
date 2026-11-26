@@ -1,29 +1,15 @@
-/* eslint-disable no-nested-ternary */
-import { Input } from "@/src/components/ui/input";
-import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/src/components/ui/form";
-import { type UseFormReturn } from "react-hook-form";
-import { type ActionDomain } from "@langfuse/shared";
-import { ExternalLink } from "@langfuse/icons";
-import Link from "next/link";
+import { Form } from "@/src/components/design-system/Form/Form";
 import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
+import { type UseFormReturn } from "react-hook-form";
+import { type GitHubDispatchActionFormData } from "./GitHubDispatchActionHandler";
 
-interface GitHubDispatchActionFormProps {
-  form: UseFormReturn<any>;
+export function GitHubDispatchActionForm({
+  form,
+  disabled,
+}: {
+  form: UseFormReturn<GitHubDispatchActionFormData>;
   disabled: boolean;
-  projectId: string;
-  action?: ActionDomain;
-}
-
-export const GitHubDispatchActionForm: React.FC<
-  GitHubDispatchActionFormProps
-> = ({ form, disabled }) => {
+}) {
   const displayGitHubToken = form.watch("githubDispatch.displayGitHubToken");
   const currentUrl = form.watch("githubDispatch.url");
   const originalUrl = form.watch("githubDispatch.originalUrl");
@@ -31,108 +17,74 @@ export const GitHubDispatchActionForm: React.FC<
     originalUrl !== undefined &&
     !areDestinationUrlsEquivalent(currentUrl, originalUrl);
 
+  const tokenHint = (() => {
+    if (isUrlChanged) {
+      return " Enter a new token when changing the dispatch URL.";
+    }
+    if (displayGitHubToken) {
+      return " Leave empty to keep existing token.";
+    }
+    return "";
+  })();
+
   return (
     <div className="space-y-4">
-      <FormField
+      <Form.InputField
         control={form.control}
         name="githubDispatch.url"
-        rules={{ required: "Repository Dispatch URL is required" }}
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel className="flex items-center">
-              Repository Dispatch URL{" "}
-              <span className="text-destructive ml-1">*</span>
-            </FormLabel>
-            <FormControl>
-              <Input
-                placeholder="https://api.github.com/repos/owner/repo/dispatches"
-                disabled={disabled}
-                {...field}
-              />
-            </FormControl>
-            <FormDescription>
-              GitHub API endpoint for repository dispatch.{" "}
-              <Link
-                href="https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary inline-flex items-center hover:underline"
-              >
-                Learn more <ExternalLink size="sm" __rawClassName="ml-1" />
-              </Link>
-            </FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
+        label="Repository dispatch URL"
+        required
+        placeholder="https://api.github.com/repos/owner/repo/dispatches"
+        disabled={disabled}
+        description={[
+          {
+            type: "text",
+            text: "GitHub API endpoint for repository dispatch. ",
+          },
+          {
+            type: "link",
+            text: "Learn more",
+            href: "https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event",
+          },
+        ]}
       />
-
-      <FormField
+      <Form.InputField
         control={form.control}
         name="githubDispatch.eventType"
-        rules={{ required: "Event type is required" }}
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel className="flex items-center">
-              Event Type <span className="text-destructive ml-1">*</span>
-            </FormLabel>
-            <FormControl>
-              <Input
-                placeholder="prompt-update"
-                disabled={disabled}
-                {...field}
-              />
-            </FormControl>
-            <FormDescription>
-              Event type for GitHub Actions workflow triggers. This will be used
-              in the{" "}
-              <code className="text-xs">on.repository_dispatch.types</code>{" "}
-              filter in your workflow file.
-            </FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
+        label="Event type"
+        required
+        placeholder="prompt-update"
+        disabled={disabled}
+        description={[
+          {
+            type: "text",
+            text: "Event type for GitHub Actions workflow triggers. This will be used in the ",
+          },
+          { type: "code", text: "on.repository_dispatch.types" },
+          { type: "text", text: " filter in your workflow file." },
+        ]}
       />
-
-      <FormField
+      <Form.PasswordInputField
         control={form.control}
         name="githubDispatch.githubToken"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel className="flex items-center">
-              GitHub Personal Access Token
-              {(!displayGitHubToken || isUrlChanged) && (
-                <span className="text-destructive ml-1">*</span>
-              )}
-            </FormLabel>
-            <FormControl>
-              <Input
-                type="password"
-                placeholder={displayGitHubToken || "ghp_..."}
-                disabled={disabled}
-                {...field}
-              />
-            </FormControl>
-            <FormDescription>
-              GitHub PAT with <code className="text-xs">repo</code> scope for
-              repository dispatch.
-              {isUrlChanged
-                ? " Enter a new token when changing the dispatch URL."
-                : displayGitHubToken
-                  ? " Leave empty to keep existing token."
-                  : ""}{" "}
-              <Link
-                href="https://github.com/settings/tokens/new?scopes=repo&description=Langfuse%20Automation"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary inline-flex items-center hover:underline"
-              >
-                Create token <ExternalLink size="sm" __rawClassName="ml-1" />
-              </Link>
-            </FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
+        label="GitHub Personal Access Token"
+        required={!displayGitHubToken || isUrlChanged}
+        placeholder={displayGitHubToken || "ghp_..."}
+        disabled={disabled}
+        description={[
+          { type: "text", text: "GitHub PAT with " },
+          { type: "code", text: "repo" },
+          {
+            type: "text",
+            text: ` scope for repository dispatch.${tokenHint} `,
+          },
+          {
+            type: "link",
+            text: "Create token",
+            href: "https://github.com/settings/tokens/new?scopes=repo&description=Langfuse%20Automation",
+          },
+        ]}
       />
     </div>
   );
-};
+}

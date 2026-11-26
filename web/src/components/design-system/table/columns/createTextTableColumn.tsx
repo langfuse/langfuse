@@ -3,6 +3,7 @@ import { type CellContext, type RowData } from "@tanstack/react-table";
 import { Check, Copy, InfoIcon, type IconComponent } from "@langfuse/icons";
 import { type ReactNode } from "react";
 
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -45,9 +46,17 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
   nullValue,
   trailingAction,
   tooltip,
+  status,
   ...options
 }: TextTableColumnOptions<TData, TValue> & {
   nullValue?: string;
+  /**
+   * Marks a row whose value no longer applies, e.g. one superseded by another
+   * row: the text is muted and followed by the returned label.
+   */
+  status?: (
+    context: CellContext<TData, TValue | null | undefined>,
+  ) => { label: string; description: string } | undefined;
 } & (
     | {
         trailingAction?: TextTableColumnTrailingAction<TData, TValue>;
@@ -89,6 +98,9 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
         );
       }
       if (typeof text !== "string") return loadingCell;
+
+      const rowStatus = status?.(context);
+      if (rowStatus) return <TextWithStatus value={text} status={rowStatus} />;
 
       if (tooltip) {
         const content = tooltip(context);
@@ -182,6 +194,28 @@ function TextWithAction({
         </span>
       ) : null}
       <span className="shrink-0 p-1">{action}</span>
+    </div>
+  );
+}
+
+function TextWithStatus({
+  value,
+  status,
+}: {
+  value: string;
+  status: { label: string; description: string };
+}) {
+  return (
+    <div className="flex w-full min-w-0 items-center gap-2">
+      <span className="text-muted-foreground min-w-0 truncate" title={value}>
+        {value}
+      </span>
+      <Badge
+        size="sm"
+        color="filled"
+        text={status.label}
+        title={status.description}
+      />
     </div>
   );
 }

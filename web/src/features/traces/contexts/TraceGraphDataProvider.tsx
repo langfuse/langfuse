@@ -16,6 +16,7 @@ import {
   resolveGraphAvailability,
   type GraphAvailability,
 } from "@/src/features/traces/fns/graphAvailability";
+import { type TraceTarget } from "../types/traceScope";
 
 interface TraceGraphDataContextValue {
   /** Agent graph data for visualization */
@@ -51,19 +52,19 @@ export function useTraceGraphData(): TraceGraphDataContextValue {
 interface TraceGraphDataProviderProps {
   children: ReactNode;
   projectId: string;
-  traceId: string;
-  sessionId?: string;
+  target: TraceTarget;
   observations: Array<{ startTime: Date; id?: string; traceId?: string }>;
 }
 
 export function TraceGraphDataProvider({
   children,
   projectId,
-  traceId,
-  sessionId,
+  target,
   observations,
 }: TraceGraphDataProviderProps) {
   const { isV4 } = useReadPath();
+  const traceId = target.type === "trace" ? target.traceId : undefined;
+  const sessionId = target.type === "session" ? target.sessionId : undefined;
 
   // Skip graph data entirely for large traces to avoid performance issues
   const exceedsThreshold = observations.length >= MAX_NODES_FOR_GRAPH_UI;
@@ -97,7 +98,7 @@ export function TraceGraphDataProvider({
 
   const queryInput = {
     projectId,
-    traceId,
+    traceId: traceId ?? "",
     minStartTime: minStartTime ?? "",
     maxStartTime: maxStartTime ?? "",
   };

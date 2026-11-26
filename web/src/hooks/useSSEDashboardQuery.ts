@@ -61,6 +61,7 @@ export function parseSSEBuffer(buffer: string): {
   return { events, remaining };
 }
 
+/** @internal */
 export function computeMonotonicPercent(
   readRows: number,
   totalRows: number,
@@ -82,6 +83,7 @@ const SSE_STALL_TIMEOUT_MS = 60_000;
  * forever-pending query holding a scheduler slot.
  *
  * Exported for tests; the hook below is the only production caller.
+ * @internal
  */
 export async function fetchDashboardSSERows(
   input: DashboardExecuteQueryInput,

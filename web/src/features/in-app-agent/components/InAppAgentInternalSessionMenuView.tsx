@@ -3,7 +3,7 @@
 import {
   Check,
   Copy,
-  ExternalLink,
+  SquareArrowOutUpRight,
   type IconComponent,
   Link,
   MoreHorizontal,
@@ -109,7 +109,7 @@ function getOpenSessionItem(link: SessionLink): DropdownMenuItemDefinition {
   const item = {
     id: "open-session",
     title: "Open session in Langfuse",
-    icon: ExternalLink,
+    icon: SquareArrowOutUpRight,
   };
   if (link.path === null) {
     return disabledItem(item, link.disabledReason);

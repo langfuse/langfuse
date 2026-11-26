@@ -1,6 +1,4 @@
 import { useRouter } from "next/router";
-import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Card,
   CardContent,
@@ -18,10 +16,16 @@ import Decimal from "decimal.js";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { useMemo, useState } from "react";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
+import { modelMaintainerByScope } from "@/src/features/models/modelMaintainer";
 import {
-  isProjectEditableModel,
-  modelMaintainerByScope,
-} from "@/src/features/models/modelMaintainer";
+  isEditableIn,
+  modelsSettingsHref,
+  type ModelOwner,
+  useCanEditModels,
+} from "@/src/features/models/modelOwner";
+import { useModelDefinition } from "@/src/features/models/hooks/useModelDefinitionApi";
+import { OrganizationModelsNotice } from "@/src/features/models/components/OrganizationModelsNotice/OrganizationModelsNotice";
+import { useOrganizationModelsNotice } from "@/src/features/models/hooks/useOrganizationModelsNotice";
 import { default as Generations } from "@/src/features/tracing-tables/observations/ObservationsTable";
 import Page from "@/src/components/layouts/Page";
 import { SquareArrowOutUpRight, Info as InfoIcon } from "@langfuse/icons";
@@ -46,20 +50,21 @@ const resolvePricingTier = <T extends { id: string }>(
   return defaultTier;
 };
 
-export default function ModelDetailPage() {
+export function ModelDetailPage({ owner }: { owner: ModelOwner }) {
   const router = useRouter();
   const { priceUnit, priceUnitMultiplier } = usePriceUnitMultiplier();
-  const projectId = router.query.projectId as string;
   const modelId = router.query.modelId as string;
   const pricingTierParam = router.query.pricingTier as string | undefined;
-  const hasWriteAccess = useHasProjectAccess({
-    projectId,
-    scope: "models:CUD",
-  });
+  const hasWriteAccess = useCanEditModels(owner);
+  const modelsHref = modelsSettingsHref(owner);
+  const settingsHref =
+    owner.scope === "project"
+      ? `/project/${owner.projectId}/settings`
+      : `/organization/${owner.organizationId}/settings`;
 
-  const { data: model, isLoading } = api.models.getById.useQuery(
-    { projectId, modelId },
-    { enabled: !!projectId && !!modelId },
+  const { data: model, isLoading } = useModelDefinition(owner, modelId);
+  const organizationNotice = useOrganizationModelsNotice(
+    owner.scope === "project" ? owner.projectId : null,
   );
 
   // Get default tier or first tier by priority
@@ -97,9 +102,7 @@ export default function ModelDetailPage() {
       <div className="flex min-h-screen flex-col items-center justify-center">
         <div className="mb-4 text-xl font-bold">Model not found</div>
         <Button variant="outline" asChild>
-          <Link href={`/project/${projectId}/settings/models`}>
-            Return to Models page
-          </Link>
+          <Link href={modelsHref}>Return to Models page</Link>
         </Button>
       </div>
     );
@@ -121,11 +124,11 @@ export default function ModelDetailPage() {
         breadcrumb: [
           {
             name: "Settings",
-            href: `/project/${router.query.projectId as string}/settings`,
+            href: settingsHref,
           },
           {
             name: "Models",
-            href: `/project/${router.query.projectId as string}/settings/models`,
+            href: modelsHref,
           },
           { name: model.modelName },
         ],
@@ -133,20 +136,20 @@ export default function ModelDetailPage() {
           <div className="flex gap-2">
             {hasWriteAccess && (
               <>
-                <TestModelMatchButton projectId={projectId} variant="outline" />
-                {isProjectEditableModel(model.scope) ? (
+                <TestModelMatchButton owner={owner} variant="outline" />
+                {isEditableIn(owner.scope, model.scope) ? (
                   <>
-                    <EditModelButton projectId={projectId} modelData={model} />
+                    <EditModelButton owner={owner} modelData={model} />
                     <DeleteModelButton
-                      projectId={projectId}
+                      owner={owner}
                       modelData={model}
                       onSuccess={() => {
-                        router.push(`/project/${projectId}/settings/models`);
+                        router.push(modelsHref);
                       }}
                     />
                   </>
                 ) : (
-                  <CloneModelButton projectId={projectId} modelData={model} />
+                  <CloneModelButton owner={owner} modelData={model} />
                 )}
               </>
             )}
@@ -155,6 +158,11 @@ export default function ModelDetailPage() {
       }}
     >
       <div className="grid grid-cols-2 gap-6 p-2">
+        {organizationNotice && model.scope === "ORGANIZATION" ? (
+          <div className="col-span-2">
+            <OrganizationModelsNotice {...organizationNotice} />
+          </div>
+        ) : null}
         <Card>
           <CardHeader>
             <CardTitle>Model configuration</CardTitle>
@@ -169,7 +177,7 @@ export default function ModelDetailPage() {
 
             <div>
               <div className="text-muted-foreground text-sm font-bold">
-                Maintained by
+                Maintainer
               </div>
               <div className="mt-1 text-sm">
                 {modelMaintainerByScope[model.scope]}
@@ -280,32 +288,49 @@ export default function ModelDetailPage() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-2 min-w-0">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Model observations</span>
-              <Button variant="ghost" asChild>
-                <Link
-                  href={`/project/${projectId}/observations`}
-                  className="flex items-center gap-1"
-                >
-                  <span className="text-sm">View all</span>
-                  <SquareArrowOutUpRight size="base" color="default" />
-                </Link>
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="min-w-0">
-            <div className="flex h-[calc(100vh-20rem)] min-h-0 min-w-0 flex-col overflow-hidden">
-              <Generations
-                projectId={projectId}
-                omittedFilter={["model"]}
-                modelId={model.id}
-              />
-            </div>
-          </CardContent>
-        </Card>
+        {owner.scope === "project" ? (
+          <ModelObservationsCard
+            projectId={owner.projectId}
+            modelId={model.id}
+          />
+        ) : null}
       </div>
     </Page>
+  );
+}
+
+function ModelObservationsCard({
+  projectId,
+  modelId,
+}: {
+  projectId: string;
+  modelId: string;
+}) {
+  return (
+    <Card className="col-span-2 min-w-0">
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>Model observations</span>
+          <Button variant="ghost" asChild>
+            <Link
+              href={`/project/${projectId}/observations`}
+              className="flex items-center gap-1"
+            >
+              <span className="text-sm">View all</span>
+              <SquareArrowOutUpRight size="base" color="default" />
+            </Link>
+          </Button>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="min-w-0">
+        <div className="flex h-[calc(100vh-20rem)] min-h-0 min-w-0 flex-col overflow-hidden">
+          <Generations
+            projectId={projectId}
+            omittedFilter={["model"]}
+            modelId={modelId}
+          />
+        </div>
+      </CardContent>
+    </Card>
   );
 }

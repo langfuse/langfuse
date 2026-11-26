@@ -1,9 +1,12 @@
+// Per-process registry of running blob storage table exports, logged on
+// shutdown, plus the per-table export attempt counter.
+
 import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 
 // Per-table attempt counter. Residual `started - success - failure - aborted`
 // counts silent hard kills (OOM) that emit nothing. Lives here to avoid an
-// import cycle with the handler. See LFE-10407.
+// import cycle with the handler.
 export const BLOB_TABLE_EXPORT_METRIC =
   "langfuse.blobstorage.table_export.count";
 
@@ -39,9 +42,11 @@ export const unregisterInFlightBlobExport = (handle: symbol): void => {
   inFlightExports.delete(handle);
 };
 
+/** @internal */
 export const getInFlightBlobExportCount = (): number => inFlightExports.size;
 
 // Test helper — clear leaked state between tests.
+/** @internal */
 export const resetInFlightBlobExports = (): void => {
   inFlightExports.clear();
 };

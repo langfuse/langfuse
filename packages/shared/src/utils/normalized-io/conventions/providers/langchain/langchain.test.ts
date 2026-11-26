@@ -11,7 +11,7 @@ import {
   langchainStandardMultimodalBlocksFixture,
   langchainStandardOutputBlocksFixture,
   langgraphProductionShapeFixture,
-} from "./fixtures";
+} from "./__tests__/fixtures";
 
 describe("LangChain normalized I/O", () => {
   it("preserves the generic file URL fallback inside LangChain messages", () => {

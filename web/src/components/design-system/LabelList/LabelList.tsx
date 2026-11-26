@@ -3,7 +3,7 @@ import { cva } from "class-variance-authority";
 
 import { BadgeShell } from "../Badge/Badge";
 import { HoverCard } from "../HoverCard/HoverCard";
-import { useFittingCount } from "../internal/useFittingCount";
+import { OverflowList } from "@/src/components/design-system/OverflowList/OverflowList";
 
 const labelListVariants = cva("ph-no-capture", {
   variants: {
@@ -28,18 +28,6 @@ const DEFAULT_MAX_VISIBLE = 5;
 export function LabelList(props: LabelListProps) {
   const { labels, layout = "contained" } = props;
   const isSingleLine = layout === "contained" && props.shouldWrap === false;
-  const { listRef, probeRef, fittingCount } = useFittingCount({
-    itemCount: labels.length,
-    itemsKey: labels
-      .map((label) => `${label.name}:${label.isProduction ?? false}`)
-      .join("\u0000"),
-    isEnabled: isSingleLine,
-  });
-  const visibleCount = isSingleLine
-    ? fittingCount
-    : (props.maxVisible ?? DEFAULT_MAX_VISIBLE);
-  const visibleLabels = labels.slice(0, visibleCount);
-  const hiddenCount = labels.length - visibleLabels.length;
   const renderChip = (label: LabelListItem) => (
     <LabelChip
       key={label.name}
@@ -47,41 +35,44 @@ export function LabelList(props: LabelListProps) {
       isProduction={label.isProduction ?? false}
     />
   );
-  const overflow =
-    hiddenCount > 0 ? (
-      <LabelOverflow
-        chips={labels.map(renderChip)}
-        totalCount={labels.length}
-        hiddenCount={hiddenCount}
-      />
-    ) : null;
-
   if (!isSingleLine) {
+    const visibleLabels = labels.slice(
+      0,
+      props.maxVisible ?? DEFAULT_MAX_VISIBLE,
+    );
     return (
       <div className={labelListVariants({ layout, wrap: true })}>
         {visibleLabels.map(renderChip)}
-        {overflow}
+        {labels.length > visibleLabels.length && (
+          <LabelOverflow
+            chips={labels.map(renderChip)}
+            totalCount={labels.length}
+            hiddenCount={labels.length - visibleLabels.length}
+          />
+        )}
       </div>
     );
   }
 
   return (
-    <div ref={listRef} className={labelListVariants({ wrap: false })}>
-      <div className="flex min-w-0 gap-1 overflow-hidden">
-        {visibleLabels.map(renderChip)}
-      </div>
-      {overflow}
-      {/* Natural chip widths, measured to decide how many fit. */}
-      <div
-        ref={probeRef}
-        aria-hidden
-        className="pointer-events-none invisible absolute flex w-max gap-1"
-      >
-        {labels.map(renderChip)}
-        <BadgeShell color="filled" size="md">
-          +{labels.length}
-        </BadgeShell>
-      </div>
+    <div className="ph-no-capture min-w-0">
+      <OverflowList
+        additionalOverflowCount={0}
+        spacing="tight"
+        minVisible={1}
+        items={labels}
+        getKey={(label) => label.name}
+        renderItem={(label, { getItemProps }) => (
+          <span {...getItemProps()}>{renderChip(label)}</span>
+        )}
+        renderOverflow={({ overflowItemCount }) => (
+          <LabelOverflow
+            chips={labels.map(renderChip)}
+            totalCount={labels.length}
+            hiddenCount={overflowItemCount}
+          />
+        )}
+      />
     </div>
   );
 }

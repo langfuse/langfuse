@@ -95,11 +95,13 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
         "attributes": attributes,
         "status": { "code": if level == "ERROR" { 2 } else { 0 } },
     });
-    if let Some(parent) = &context.parent_span_id {
-        span["parentSpanId"] = json!(parent);
-    }
-    if !context.trace_state.is_empty() {
-        span["traceState"] = json!(context.trace_state);
+    if let Some(span) = span.as_object_mut() {
+        if let Some(parent) = &context.parent_span_id {
+            span.insert("parentSpanId".into(), json!(parent));
+        }
+        if !context.trace_state.is_empty() {
+            span.insert("traceState".into(), json!(context.trace_state));
+        }
     }
     span
 }
@@ -201,7 +203,7 @@ fn omit_content(
     if let Some(value) = attributes
         .iter_mut()
         .find(|attribute| attribute["key"] == "langfuse.observation.metadata")
-        .map(|attribute| &mut attribute["value"]["stringValue"])
+        .and_then(|attribute| attribute.pointer_mut("/value/stringValue"))
         && let Some(Value::Object(mut metadata)) = value
             .as_str()
             .and_then(|value| serde_json::from_str(value).ok())
@@ -252,6 +254,7 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
             metadata.insert(format!("langfuse.gateway.{target}"), value.clone());
         }
     }
+    metadata.extend(guardrail_metadata(facts));
     for (key, value) in [
         ("model.requested", &facts.inference.requested_model),
         ("model.upstream", &facts.upstream_model),
@@ -308,6 +311,36 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
                 json!(MAX_INPUT_CAPTURE_BYTES),
             );
         }
+    }
+    metadata
+}
+
+/// Per-guardrail metadata keys (`langfuse.gateway.guardrails.<id> = action`) plus
+/// an overall `.outcome` (`"block"` if any matched guardrail blocked, else `"log"`),
+/// so `ClickHouse` filters on `events_core.metadata_names` via `idx_metadata_names`
+/// without reading `metadata_values` or parsing JSON.
+fn guardrail_metadata(facts: &InferenceFacts) -> Map<String, Value> {
+    let mut metadata = Map::new();
+    let Some(guardrails) = facts.metadata.get("guardrails").and_then(Value::as_array) else {
+        return metadata;
+    };
+    let mut blocked = false;
+    let mut matched = false;
+    for finding in guardrails {
+        if let (Some(id), Some(action)) = (
+            finding.get("id").and_then(Value::as_str),
+            finding.get("action").and_then(Value::as_str),
+        ) {
+            matched = true;
+            if action == "block" {
+                blocked = true;
+            }
+            metadata.insert(format!("langfuse.gateway.guardrails.{id}"), json!(action));
+        }
+    }
+    if matched {
+        let outcome = if blocked { "block" } else { "log" };
+        metadata.insert("langfuse.gateway.guardrails.outcome".into(), json!(outcome));
     }
     metadata
 }
@@ -406,6 +439,13 @@ fn observation_status(facts: &InferenceFacts) -> (&'static str, Option<String>) 
         ("WARNING", Some("Client cancelled the response".into()))
     } else if facts.inference.provider_status.as_deref() == Some("incomplete") {
         ("WARNING", Some("Provider response incomplete".into()))
+    } else if facts
+        .metadata
+        .get("guardrails")
+        .and_then(Value::as_array)
+        .is_some_and(|guardrails| !guardrails.is_empty())
+    {
+        ("WARNING", Some("Request matched a guardrail".into()))
     } else {
         ("DEFAULT", None)
     }

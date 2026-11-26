@@ -1764,10 +1764,6 @@ export function buildEventsFullTableSplitQuery(opts: {
   baseBuilder: EventsQueryBuilder;
   includeIO: boolean;
   includeMetadata: boolean;
-  externalCTEs?: Array<{
-    name: string;
-    queryWithParams: { query: string; params: Record<string, any> };
-  }>;
 }): SplitQueryBuilder {
   const { query: baseQuery, params: baseParams } =
     opts.baseBuilder.buildWithParams();
@@ -1807,17 +1803,7 @@ export function buildEventsFullTableSplitQuery(opts: {
   ].join("\n");
 
   // Compose final query using CTEQueryBuilder
-  let cteBuilder = new CTEQueryBuilder();
-
-  // Register external CTEs (referenced inside base query via JOINs)
-  for (const cte of opts.externalCTEs ?? []) {
-    cteBuilder = cteBuilder.withCTE(cte.name, {
-      ...cte.queryWithParams,
-      schema: [] as string[],
-    });
-  }
-
-  cteBuilder = cteBuilder
+  const cteBuilder = new CTEQueryBuilder()
     .withCTE("base", {
       query: baseQuery,
       params: baseParams,

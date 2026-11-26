@@ -33,14 +33,14 @@ pub struct EnrichmentResult {
 }
 
 /// Skill catalog entries before the worker resolves project-local IDs.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SkillAvailableInput {
     pub name: String,
     pub version: Option<u32>,
 }
 
 /// A tool call that loaded a skill resource before project-local resolution.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SkillResourceInput {
     pub skill_name: String,
     pub file_path: String,
@@ -165,6 +165,29 @@ pub(crate) fn to_clickhouse_datetime(value: &str) -> String {
     if value.as_bytes().get(10) == Some(&b' ') {
         return value.to_owned();
     }
+    utc_millisecond_datetime(value).unwrap_or_else(|| any_to_clickhouse_datetime(value))
+}
+
+/// `YYYY-MM-DDTHH:MM:SS.mmmZ`, the shape span times are written in, only needs its separator
+/// replaced and its zone dropped. Other shapes return `None`.
+fn utc_millisecond_datetime(value: &str) -> Option<String> {
+    let bytes = value.as_bytes();
+    if bytes.len() != 24
+        || bytes[19] != b'.'
+        || bytes[23] != b'Z'
+        || !bytes[20..23].iter().all(u8::is_ascii_digit)
+    {
+        return None;
+    }
+    crate::native_codec::fixed_width_datetime(bytes, b'T')?;
+    let mut datetime = String::with_capacity(23);
+    datetime.push_str(&value[..10]);
+    datetime.push(' ');
+    datetime.push_str(&value[11..23]);
+    Some(datetime)
+}
+
+fn any_to_clickhouse_datetime(value: &str) -> String {
     if let Ok(parsed) = DateTime::parse_from_rfc3339(value) {
         return parsed
             .with_timezone(&Utc)
@@ -185,6 +208,75 @@ pub(crate) fn to_clickhouse_datetime(value: &str) -> String {
 
 /// Flatten metadata while consuming the event so keys and leaf strings can be moved.
 pub(crate) fn flatten_object_owned(value: JsonObject) -> (Vec<String>, Vec<String>) {
+    // Returns the number of leaves, or `None` when a key is not valid UTF-8.
+    fn count_leaves(object: &JsonObject) -> Option<usize> {
+        object.iter().try_fold(0, |leaves, (key, value)| {
+            key.as_utf8()?;
+            Some(match value {
+                Value::Object(nested) => leaves + count_leaves(nested)?,
+                _ => leaves + 1,
+            })
+        })
+    }
+
+    fn walk(path: String, value: Value, names: &mut Vec<String>, values: &mut Vec<String>) {
+        match value {
+            Value::Object(object) => {
+                for_each_javascript_object_entry_owned(object, |key, value| {
+                    let key = key.as_str();
+                    // An empty path adds no separator, so `{"": {"a": 1}}` is named `a`.
+                    let mut child = String::with_capacity(path.len() + 1 + key.len());
+                    if !path.is_empty() {
+                        child.push_str(&path);
+                        child.push('.');
+                    }
+                    child.push_str(key);
+                    walk(child, value, names, values);
+                });
+            }
+            value => {
+                names.push(path);
+                values.push(stringify_value_owned(value));
+            }
+        }
+    }
+
+    let Some(leaves) = count_leaves(&value) else {
+        return flatten_object_by_key_bytes(value);
+    };
+    // Sibling keys are distinct, so only a nested object can repeat a path: `{"a.b": 1}`
+    // next to `{"a": {"b": 2}}`.
+    let is_nested = leaves != value.len() || value.values().any(Value::is_object);
+    let mut names = Vec::with_capacity(leaves);
+    let mut values = Vec::with_capacity(leaves);
+    for_each_javascript_object_entry_owned(value, |key, value| {
+        walk(key.into_utf8_lossy(), value, &mut names, &mut values);
+    });
+    if is_nested {
+        keep_first_of_each_name(&mut names, &mut values);
+    }
+    (names, values)
+}
+
+/// Drop every entry whose name already occurred, keeping the order of the rest.
+fn keep_first_of_each_name(names: &mut Vec<String>, values: &mut Vec<String>) {
+    let mut seen = HashSet::with_capacity(names.len());
+    let repeated: Vec<bool> = names
+        .iter()
+        .map(|name| !seen.insert(name.as_str()))
+        .collect();
+    if !repeated.contains(&true) {
+        return;
+    }
+    let mut repeated_names = repeated.iter();
+    names.retain(|_| !*repeated_names.next().expect("one flag per name"));
+    let mut repeated_values = repeated.iter();
+    values.retain(|_| !*repeated_values.next().expect("one flag per value"));
+}
+
+/// Flatten when some key is not valid UTF-8. Two such keys can share one lossy name, so paths
+/// are told apart by their raw key bytes.
+fn flatten_object_by_key_bytes(value: JsonObject) -> (Vec<String>, Vec<String>) {
     fn walk(
         prefix: String,
         identity: Vec<u8>,
@@ -254,8 +346,69 @@ pub(crate) fn json_storage_string(value: Option<Value>) -> Option<String> {
 mod tests {
     use crate::otel::value::{json, Value};
 
-    use super::to_clickhouse_datetime;
-    use super::{flatten_object_owned, json_storage_string, JsonObject};
+    use proptest::prelude::*;
+
+    use super::{
+        any_to_clickhouse_datetime, flatten_object_by_key_bytes, flatten_object_owned,
+        json_storage_string, to_clickhouse_datetime, utc_millisecond_datetime, JsonObject,
+    };
+
+    /// Objects whose keys can repeat a path through nesting, for example `a.b` and `a` -> `b`.
+    fn nested_metadata() -> impl Strategy<Value = JsonObject> {
+        let key = || prop::sample::select(vec!["", "a", "b", "a.b", "b.a", "a.b.a", "0", "1"]);
+        let leaf = prop_oneof![
+            Just(Value::Null),
+            Just(json!("text")),
+            Just(json!(1)),
+            Just(json!([{"a": 1}])),
+        ];
+        let value = leaf.prop_recursive(3, 24, 4, move |inner| {
+            prop::collection::vec((key(), inner), 0..4).prop_map(|entries| {
+                Value::Object(
+                    entries
+                        .into_iter()
+                        .map(|(key, value)| (key.into(), value))
+                        .collect(),
+                )
+            })
+        });
+        prop::collection::vec((key(), value), 0..5).prop_map(|entries| {
+            entries
+                .into_iter()
+                .map(|(key, value)| (key.into(), value))
+                .collect()
+        })
+    }
+
+    proptest! {
+        #[test]
+        fn flattening_utf8_keys_matches_flattening_by_key_bytes(metadata in nested_metadata()) {
+            prop_assert_eq!(
+                flatten_object_owned(metadata.clone()),
+                flatten_object_by_key_bytes(metadata)
+            );
+        }
+
+        #[test]
+        fn utc_millisecond_datetimes_match_the_general_conversion(
+            year in 0_u16..10_000,
+            month in 0_u8..14,
+            day in 0_u8..33,
+            hour in 0_u8..25,
+            minute in 0_u8..61,
+            second in 0_u8..62,
+            millis in 0_u16..1_000,
+            separator in prop::sample::select(vec!["T", "t", " "]),
+            zone in prop::sample::select(vec!["Z", "z", "+00:00", ""]),
+        ) {
+            let value = format!(
+                "{year:04}-{month:02}-{day:02}{separator}{hour:02}:{minute:02}:{second:02}.{millis:03}{zone}"
+            );
+            if let Some(datetime) = utc_millisecond_datetime(&value) {
+                prop_assert_eq!(datetime, any_to_clickhouse_datetime(&value), "{}", value);
+            }
+        }
+    }
 
     #[test]
     fn storage_strings_omit_null_but_preserve_literal_null() {

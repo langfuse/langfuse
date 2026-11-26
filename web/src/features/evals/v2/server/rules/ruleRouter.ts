@@ -1,6 +1,18 @@
+import {
+  TRACE_IDLE_MS_MAX,
+  TRACE_IDLE_MS_MIN,
+  getTracingReadinessSettings,
+  saveTracingReadinessSettings as persistTracingReadinessSettings,
+} from "@langfuse/shared/src/server";
+import { TopicsTargetObject } from "@langfuse/shared";
+import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  canUseTraceTranscriptEvals,
+  throwIfTraceTranscriptEvalsUnavailable,
+} from "@/src/features/evals/server/traceTranscriptEvalsAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -10,6 +22,7 @@ import { RuleService } from "./ruleService";
 import {
   CreateOrAttachFromEvaluatorFiltersSchema,
   CreateRuleSchema,
+  CreateTraceTranscriptRuleSchema,
   EvaluatorRulesSchema,
   ExperimentDatasetRulesSchema,
   ListRulesSchema,
@@ -24,14 +37,23 @@ import {
   UpdateRuleSchema,
 } from "./ruleTypes";
 
+/** Opts into trace transcript rules only when the session passes the evals gate. */
 function serviceForContext(ctx: ProjectAuthedContext) {
-  return new RuleService(ctx.prisma, ({ action, ruleId }) =>
-    auditLog({
-      session: ctx.session,
-      resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
-      resourceId: ruleId,
-      action,
-    }),
+  return new RuleService(
+    ctx.prisma,
+    ({ action, ruleId }) =>
+      auditLog({
+        session: ctx.session,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: ruleId,
+        action,
+      }),
+    {
+      includeTraceTranscriptRules: canUseTraceTranscriptEvals(
+        ctx.session,
+        ctx.session.projectId,
+      ),
+    },
   );
 }
 
@@ -131,6 +153,12 @@ export const ruleRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evaluationRule:CUD",
       });
+      if (input.targetObject === TopicsTargetObject) {
+        throwIfTraceTranscriptEvalsUnavailable(
+          ctx.session,
+          ctx.session.projectId,
+        );
+      }
       return serviceForContext(ctx).suggestName({
         ...input,
         projectId: ctx.session.projectId,
@@ -151,6 +179,24 @@ export const ruleRouter = createTRPCRouter({
       );
     }),
 
+  createTraceTranscriptRule: protectedProjectProcedure
+    .input(CreateTraceTranscriptRuleSchema)
+    .mutation(({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "evaluationRule:CUD",
+      });
+      throwIfTraceTranscriptEvalsUnavailable(
+        ctx.session,
+        ctx.session.projectId,
+      );
+      return serviceForContext(ctx).createTraceTranscriptRule(
+        { ...input, projectId: ctx.session.projectId },
+        ctx.session.user.id,
+      );
+    }),
+
   createOrAttachFromEvaluatorFilters: protectedProjectProcedure
     .input(CreateOrAttachFromEvaluatorFiltersSchema)
     .mutation(({ input, ctx }) => {
@@ -159,6 +205,12 @@ export const ruleRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evaluationRule:CUD",
       });
+      if (input.targetObject === TopicsTargetObject) {
+        throwIfTraceTranscriptEvalsUnavailable(
+          ctx.session,
+          ctx.session.projectId,
+        );
+      }
       return serviceForContext(ctx).createOrAttachFromEvaluatorFilters(
         { ...input, projectId: ctx.session.projectId },
         ctx.session.user.id,
@@ -173,6 +225,7 @@ export const ruleRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evaluationRule:CUD",
       });
+      // Trace transcript access is enforced on the stored rule via requireRule's visibility.
       return serviceForContext(ctx).update({
         ...input,
         projectId: ctx.session.projectId,
@@ -266,5 +319,58 @@ export const ruleRouter = createTRPCRouter({
         ...input,
         projectId: ctx.session.projectId,
       });
+    }),
+
+  tracingReadinessSettings: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(({ ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "evaluationRule:read",
+      });
+      throwIfTraceTranscriptEvalsUnavailable(
+        ctx.session,
+        ctx.session.projectId,
+      );
+      return getTracingReadinessSettings(ctx.session.projectId);
+    }),
+
+  saveTracingReadinessSettings: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        traceIdleMs: z
+          .number()
+          .int()
+          .min(TRACE_IDLE_MS_MIN)
+          .max(TRACE_IDLE_MS_MAX),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "evaluationRule:CUD",
+      });
+      throwIfTraceTranscriptEvalsUnavailable(
+        ctx.session,
+        ctx.session.projectId,
+      );
+      const before = await getTracingReadinessSettings(ctx.session.projectId);
+      const saved = await persistTracingReadinessSettings(
+        ctx.session.projectId,
+        { traceIdleMs: input.traceIdleMs },
+        { userId: ctx.session.user.id },
+      );
+      await auditLog({
+        session: ctx.session,
+        resourceType: "project",
+        resourceId: ctx.session.projectId,
+        action: "update",
+        before,
+        after: saved,
+      });
+      return saved;
     }),
 });

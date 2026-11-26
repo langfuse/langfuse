@@ -20,6 +20,16 @@ const v2Shape: WidgetQueryShape = {
   dimensions: [{ field: "experimentName" }],
 };
 
+const numericMetadataShape: WidgetQueryShape = {
+  ...v1Shape,
+  filters: [{ column: "metadata", type: "numberObject" }],
+};
+
+const stringMetadataShape: WidgetQueryShape = {
+  ...v1Shape,
+  filters: [{ column: "metadata", type: "stringObject" }],
+};
+
 const tracesShape: WidgetQueryShape = {
   view: "traces",
   dimensions: [{ field: "name" }],
@@ -31,6 +41,8 @@ describe("widget query version selection", () => {
   it.each([
     ["v1-compatible shape", v1Shape, 1],
     ["v2-only shape", v2Shape, 2],
+    ["numeric metadata filter shape", numericMetadataShape, 2],
+    ["string metadata filter shape", stringMetadataShape, 1],
     ["legacy traces shape", tracesShape, 1],
   ] as const)("classifies %s as v%s", (_name, shape, expected) => {
     expect(getWidgetRequiredVersion(shape)).toBe(expected);

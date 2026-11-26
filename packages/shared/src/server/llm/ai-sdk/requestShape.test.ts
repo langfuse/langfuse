@@ -794,6 +794,7 @@ describe("AI SDK request shapes", () => {
     secretKey?: string;
     output?: ReturnType<typeof createLLMOutput>;
     response?: unknown | ((request: CapturedRequest) => unknown);
+    customModelConfig?: Record<string, { modelFamily: "anthropic" }>;
   }) {
     const modelParams: ModelParams = {
       provider: "bedrock",
@@ -802,7 +803,12 @@ describe("AI SDK request shapes", () => {
       max_tokens: 64,
       providerOptions: { top_k: 10 },
     };
-    const llmConnectionConfig = { region: "us-east-1" };
+    const llmConnectionConfig = {
+      region: "us-east-1",
+      ...(params?.customModelConfig
+        ? { customModelConfig: params.customModelConfig }
+        : {}),
+    };
 
     const { calls, fetch } = createCaptureFetch(
       params?.response ?? BEDROCK_RESPONSE,
@@ -866,6 +872,38 @@ describe("AI SDK request shapes", () => {
     } as const;
     const { result, request } = await runBedrockCompletion({
       model: "us.anthropic.claude-sonnet-5",
+      output: createLLMOutput(schema),
+      response: {
+        ...BEDROCK_RESPONSE,
+        output: {
+          message: {
+            role: "assistant",
+            content: [{ text: '{"answer":"ok"}' }],
+          },
+        },
+      },
+    });
+
+    expect(result.output).toEqual({ answer: "ok" });
+    expect(request.body.additionalModelRequestFields).toEqual({
+      top_k: 10,
+      output_config: { format: { type: "json_schema", schema } },
+    });
+    expect(request.body).not.toHaveProperty("toolConfig");
+  });
+
+  it("Bedrock: an ARN marked as Anthropic uses native output_config, not a forced tool", async () => {
+    const model =
+      "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/profile-id";
+    const schema = {
+      type: "object",
+      properties: { answer: { type: "string" } },
+      required: ["answer"],
+      additionalProperties: false,
+    } as const;
+    const { result, request } = await runBedrockCompletion({
+      model,
+      customModelConfig: { [model]: { modelFamily: "anthropic" } },
       output: createLLMOutput(schema),
       response: {
         ...BEDROCK_RESPONSE,

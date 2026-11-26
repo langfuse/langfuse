@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Edit } from "@langfuse/icons";
-import { AutomationForm } from "./AutomationForm";
+import { ConnectedAutomationForm } from "./ConnectedAutomationForm";
 import { AutomationExecutionsTable } from "./AutomationExecutionsTable";
 import { AutomationFailureBanner } from "./AutomationFailureBanner";
 import {
@@ -13,7 +13,7 @@ import {
 } from "@langfuse/shared";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import Header from "@/src/components/layouts/header";
-import { SettingsTableCard } from "@/src/components/layouts/SettingsTableCard";
+import { TableCardContainer } from "@/src/components/layouts/TableCardContainer";
 import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 
@@ -111,7 +111,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
   return (
     <div className="flex flex-col gap-6">
       {isEditing ? (
-        <AutomationForm
+        <ConnectedAutomationForm
           projectId={projectId}
           onSuccess={handleSaveEdit}
           onCancel={handleCancelEdit}
@@ -164,7 +164,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
             )}
 
           {automation.trigger.eventSource === TriggerEventSource.Monitor ? (
-            <AutomationForm
+            <ConnectedAutomationForm
               projectId={projectId}
               automation={automationForForm}
               isEditing={false}
@@ -177,19 +177,19 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
               </Tabs.List>
 
               <Tabs.Content value="executions">
-                <div className="mt-6">
-                  <SettingsTableCard>
+                <div className="mt-6 mb-4">
+                  <TableCardContainer>
                     <AutomationExecutionsTable
                       projectId={projectId}
                       automationId={automationId}
                     />
-                  </SettingsTableCard>
+                  </TableCardContainer>
                 </div>
               </Tabs.Content>
 
               <Tabs.Content value="configuration">
                 <div className="mt-6">
-                  <AutomationForm
+                  <ConnectedAutomationForm
                     projectId={projectId}
                     automation={automationForForm}
                     isEditing={false}

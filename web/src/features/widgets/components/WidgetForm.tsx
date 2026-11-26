@@ -1,3 +1,4 @@
+/* oxlint-disable radix -- baseline before rule enablement */
 /* eslint-disable no-nested-ternary */
 import {
   Card,
@@ -12,6 +13,7 @@ import { type ImportedWidgetFormSnapshot } from "@/src/features/widgets/utils/im
 import {
   buildWidgetOrderBy,
   getValidAggregationsForMeasureType,
+  isNumericMetadataFilter,
   isV2BreakdownChart,
   validateQuery,
   viewDeclarations,
@@ -23,7 +25,8 @@ import {
 } from "@langfuse/shared/query";
 import {
   mapWidgetUiTableFilterToView,
-  partitionWidgetUiTableFiltersToView,
+  partitionWidgetQueryFiltersToView,
+  UNSUPPORTED_NUMERIC_METADATA_REASON,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import React, { useMemo, useRef } from "react";
 import {
@@ -97,10 +100,6 @@ import {
   type WidgetInitialValues,
   type WidgetSavePayload,
 } from "./widgetFormSchema";
-
-// Re-exported from the schema module so co-located tests keep importing it from
-// this file; it now backs the shared normalizeWidgetFormValues healing.
-export { resolveAggregationAndChartType } from "./widgetFormSchema";
 
 type ChartType = {
   group: "time-series" | "total-value";
@@ -1685,23 +1684,31 @@ export function useWidgetFormState({
       setTimeRange({ range: option });
     }
   };
-  const unsupportedFilters = useMemo(
+  const { mappedFilters: normalizedUserFilters, unsupportedFilters } = useMemo(
     () =>
-      partitionWidgetUiTableFiltersToView(selectedView, values.filters)
-        .unsupportedFilters,
-    [selectedView, values.filters],
+      partitionWidgetQueryFiltersToView(
+        selectedView,
+        viewVersion,
+        values.filters,
+      ),
+    [selectedView, viewVersion, values.filters],
   );
-  const unsupportedFilterColumns = useMemo(
-    () =>
-      Array.from(
-        new Set(unsupportedFilters.map((filter) => filter.column)),
-      ).join(", "),
-    [unsupportedFilters],
-  );
-  const normalizedUserFilters = useMemo(
-    () => mapWidgetUiTableFilterToView(selectedView, values.filters),
-    [selectedView, values.filters],
-  );
+  const { unsupportedFilterColumns, hasUnsupportedNumericMetadata } =
+    useMemo(() => {
+      return {
+        unsupportedFilterColumns: Array.from(
+          new Set(
+            unsupportedFilters
+              // Numeric metadata gets its own reason below, not "legacy column".
+              .filter((filter) => !isNumericMetadataFilter(filter))
+              .map((filter) => filter.column),
+          ),
+        ).join(", "),
+        hasUnsupportedNumericMetadata: unsupportedFilters.some(
+          isNumericMetadataFilter,
+        ),
+      };
+    }, [unsupportedFilters]);
 
   const previewSortState = effectiveSort ?? null;
   const pivotDimensionFields = values.dimensions.map((d) => d.field);
@@ -1790,15 +1797,26 @@ export function useWidgetFormState({
 
   const queryValidation = useMemo(() => {
     if (unsupportedFilters.length > 0) {
+      const reasons = [
+        hasUnsupportedNumericMetadata && UNSUPPORTED_NUMERIC_METADATA_REASON,
+        unsupportedFilterColumns &&
+          `Unsupported legacy filter column(s): ${unsupportedFilterColumns}.`,
+      ].filter(Boolean);
       return {
         valid: false as const,
         reason:
-          `Unsupported legacy filter column(s): ${unsupportedFilterColumns}. ` +
+          `${reasons.join(" ")} ` +
           "Remove them or switch to a compatible view before saving this widget.",
       };
     }
     return validateQuery(query, viewVersion);
-  }, [query, unsupportedFilterColumns, unsupportedFilters.length, viewVersion]);
+  }, [
+    query,
+    unsupportedFilterColumns,
+    hasUnsupportedNumericMetadata,
+    unsupportedFilters.length,
+    viewVersion,
+  ]);
 
   useCaptureWidgetHighCardinalityError({
     validation: queryValidation,

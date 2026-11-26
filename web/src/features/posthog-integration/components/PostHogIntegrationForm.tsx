@@ -3,7 +3,7 @@ import {
   validateExportSource,
   type ExportSourceContext,
 } from "@langfuse/shared";
-import { ExternalLink } from "@langfuse/icons";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
 import { useMemo } from "react";
 import { useWatch } from "react-hook-form";
 import { type z } from "zod";
@@ -231,7 +231,7 @@ export function PostHogIntegrationForm({
                       className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                     >
                       For further information see
-                      <ExternalLink size="sm" />
+                      <SquareArrowOutUpRight size="sm" />
                     </a>
                   </div>
                 </div>

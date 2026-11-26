@@ -1,12 +1,11 @@
-import { useId } from "react";
 import { useController, type Control } from "react-hook-form";
 
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { localDateInputValue } from "@/src/features/apiKey/fns/localDateInputValue";
 import { gatewayApiKeyExpirationOptions } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
-import { PresetOption } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/PresetOption/PresetOption";
 import type { GatewayApiKeyFormValues } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
 
 // The section is removed instead of choosing "never".
@@ -23,8 +22,6 @@ export function GatewayApiKeyExpirationField({
   control,
   disabled,
 }: GatewayApiKeyExpirationFieldProps) {
-  const radioName = useId();
-
   return (
     <CustomTooltip
       content={
@@ -43,24 +40,23 @@ export function GatewayApiKeyExpirationField({
         >
           {(field) => (
             <div className="flex flex-col gap-2">
-              <div
-                id={field.id}
-                role="radiogroup"
-                aria-label="Expiration"
-                aria-disabled={disabled || undefined}
-                className="flex flex-wrap gap-2"
-              >
-                {sectionExpirationOptions.map((option) => (
-                  <PresetOption
-                    key={option.value}
-                    name={radioName}
-                    value={option.value}
-                    label={option.label}
-                    checked={field.value === option.value}
-                    disabled={disabled}
-                    onSelect={field.onChange}
-                  />
-                ))}
+              <div id={field.id}>
+                <Tabs
+                  activationMode="manual"
+                  value={field.value}
+                  onValueChange={field.onChange}
+                >
+                  <Tabs.List variant="inset" size="md" aria-label="Expiration">
+                    {sectionExpirationOptions.map((option) => (
+                      <Tabs.Trigger
+                        key={option.value}
+                        value={option.value}
+                        label={option.label}
+                        disabled={disabled}
+                      />
+                    ))}
+                  </Tabs.List>
+                </Tabs>
               </div>
               {field.value === "custom" ? (
                 <CustomExpirationInput control={control} disabled={disabled} />

@@ -1,3 +1,6 @@
+// Golden SQL for the events repository read families (point reads,
+// aggregates, IO, exports, row selection, filtered streams).
+
 import {
   afterAll,
   afterEach,
@@ -18,14 +21,14 @@ import {
   formatSql,
   normalizeCapturedQueries,
   resetCaptures,
-} from "./goldenHarness";
+} from "./__tests__/goldenHarness";
 
 // Record the exec seam instead of hitting ClickHouse. The factory is hoisted
 // above imports, so it pulls the harness in via dynamic import; the captured
 // store is a module singleton shared with the assertions below.
 vi.mock("./clickhouse", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./clickhouse")>();
-  const { buildClickhouseMock } = await import("./goldenHarness.js");
+  const { buildClickhouseMock } = await import("./__tests__/goldenHarness.js");
   return buildClickhouseMock(actual);
 });
 
@@ -638,8 +641,7 @@ describeWithClickhouse("golden: observations public API filters family", () => {
     expect(await captureV2List({ parentObservationId: "" })).toMatchSnapshot();
   });
 
-  // Oddity: an empty environment list renders `IN ([])` and matches nothing.
-  // Clients rely on that empty page, so the read must keep it.
+  // An empty environment list adds no environment condition.
   it("getObservationsV2FromEventsTableForPublicApi simple=environment empty", async () => {
     expect(await captureV2List({ environment: [] })).toMatchSnapshot();
   });
@@ -762,8 +764,7 @@ describeWithClickhouse("golden: observations public API filters family", () => {
         value: "needle",
       },
     ],
-    // Numeric metadata is rejected with a 400: the native `metadata` column
-    // is typed `stringObject`.
+    // Numeric metadata compares the parsed value of the key.
     [
       "metadata numberObject",
       {
@@ -783,9 +784,8 @@ describeWithClickhouse("golden: observations public API filters family", () => {
     },
   );
 
-  // Oddity: a `positionInTrace` filter is dropped without an error
-  // (`createFilterFromFilterState` skips the type), so the read is unfiltered.
-  // Clients receive unfiltered rows for it, so the read must keep that.
+  // A `positionInTrace` filter selects by place in the trace, not by a row
+  // condition, so the endpoint rejects it before sending a query.
   it("getObservationsV2FromEventsTableForPublicApi advanced=positionInTrace", async () => {
     expect(
       await captureV2List({
@@ -895,12 +895,13 @@ describeWithClickhouse("golden: observations public API filters family", () => {
   });
 
   it.each([
-    // Not in the native column definitions.
+    // Not a field of the events predicate source.
     [
       "unknown column",
       { column: "doesNotExist", type: "string", operator: "=", value: "x" },
     ],
-    // Score columns exist only in the UI planner, not the native definitions.
+    // Score columns have no events lowering. Only the UI planner filters on
+    // scores, through its own score CTEs and join.
     [
       "scores_avg",
       {
@@ -916,7 +917,7 @@ describeWithClickhouse("golden: observations public API filters family", () => {
       "input non-string type",
       { column: "input", type: "null", operator: "is not null", value: "" },
     ],
-    // `validateIndexedInputOutputFilters`: an IO filter needs a `matches` or
+    // `assertIndexedIoFilters`: an IO filter needs a `matches` or
     // `=` IO filter next to it.
     [
       "input contains without matches",

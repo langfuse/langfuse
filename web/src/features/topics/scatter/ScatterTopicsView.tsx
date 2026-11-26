@@ -38,6 +38,7 @@ import {
 import { type useTopicTraceFilters } from "../useTopicTraceFilters";
 import { useTopicResultsTraceSuggestions } from "../useTopicTraceFilter";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
+import { useTopicsCapture } from "../useTopicsCapture";
 import { ScatterMap } from "./ScatterMap";
 
 /** The scatter above one-line topic rows, with the selected topic's traces beside them. */
@@ -54,6 +55,7 @@ export function ScatterTopicsView({
 }: ScatterTopicsViewProps) {
   // A dot click opens its trace in the peek; the map keeps that dot's card open while the peek shows it.
   const router = useRouter();
+  const capture = useTopicsCapture();
   const peekTraceId =
     typeof router.query.peek === "string" ? router.query.peek : null;
   // The rows are the map's legend, so they take the scatter's colors.
@@ -96,7 +98,13 @@ export function ScatterTopicsView({
   }
   // Picking a topic replaces the search and topic filters with its filter; picking it
   // again, or null, clears it. Trace field filters stay.
-  function selectTopic(topicId: string | null) {
+  function selectTopic(topicId: string | null, surface: "row" | "map") {
+    if (topicId !== null && topicId !== selectedTopicId)
+      capture("topics:topic_selected", {
+        view: "scatter",
+        surface,
+        isUnassigned: topicId === UNASSIGNED_TOPIC_ID,
+      });
     traceFilters.setSearchQuery(null);
     traceFilters.setFilters([
       ...(topicId === null || topicId === selectedTopicId
@@ -107,7 +115,7 @@ export function ScatterTopicsView({
   }
   // Map resets (Fit, Escape, an empty click) drop a picked topic but keep a typed search.
   function clearPickedTopic() {
-    if (selected) selectTopic(null);
+    if (selected) selectTopic(null, "map");
   }
   function listTitle() {
     if (isSearching) return "Matching traces";
@@ -196,7 +204,7 @@ export function ScatterTopicsView({
             topic={topic}
             maxCount={maxCount}
             selected={topic.id === selected?.id}
-            onSelect={() => selectTopic(topic.id)}
+            onSelect={() => selectTopic(topic.id, "row")}
           />
         </li>
       ))}
@@ -228,11 +236,16 @@ export function ScatterTopicsView({
                     query={mapResult}
                     topics={mapTopics}
                     selectedTopic={null}
+                    pickedTopic={
+                      selectedTopicId === UNASSIGNED_TOPIC_ID
+                        ? null
+                        : selectedTopicId
+                    }
                     matchingTraceIds={highlightedTraceIds}
                     onSelectTopic={(topicId) =>
                       topicId === null
                         ? clearPickedTopic()
-                        : selectTopic(topicId)
+                        : selectTopic(topicId, "map")
                     }
                     onSelectTrace={(traceId) => {
                       if (!traceId) return clearPickedTopic();

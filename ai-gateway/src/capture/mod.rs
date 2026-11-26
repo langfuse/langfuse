@@ -58,22 +58,28 @@ enum ProtocolCapture {
 }
 
 impl ProtocolCapture {
-    fn new(api_format: ApiFormat, headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
+    fn new(
+        api_format: ApiFormat,
+        headers: &HeaderMap,
+        input: RequestInput,
+        mode: IngestionMode,
+    ) -> Self {
+        let request = RawRequest::from_input(headers, input);
         match api_format {
             ApiFormat::OpenAiResponses => {
-                Self::OpenAiResponses(OpenAiResponsesCapture::new(headers, body, mode))
+                Self::OpenAiResponses(OpenAiResponsesCapture::new(request, mode))
             }
             ApiFormat::OpenAiChatCompletions => {
-                Self::OpenAiChatCompletions(OpenAiChatCompletionsCapture::new(headers, body, mode))
+                Self::OpenAiChatCompletions(OpenAiChatCompletionsCapture::new(request, mode))
             }
             ApiFormat::OpenAiDecisions => {
-                Self::OpenAiDecisions(OpenAiDecisionsCapture::new(headers, body, mode))
+                Self::OpenAiDecisions(OpenAiDecisionsCapture::new(request, mode))
             }
             ApiFormat::OpenAiEmbeddings => {
-                Self::OpenAiEmbeddings(OpenAiEmbeddingsCapture::new(headers, body, mode))
+                Self::OpenAiEmbeddings(OpenAiEmbeddingsCapture::new(request, mode))
             }
             ApiFormat::AnthropicMessages => {
-                Self::AnthropicMessages(AnthropicMessagesCapture::new(headers, body, mode))
+                Self::AnthropicMessages(AnthropicMessagesCapture::new(request, mode))
             }
         }
     }
@@ -165,6 +171,33 @@ impl ProtocolCapture {
     }
 }
 
+/// The top-level members of a request in `api_format` that hold the conversation
+/// guardrails scan.
+pub(crate) fn guardrail_members(api_format: ApiFormat) -> &'static [&'static str] {
+    match api_format {
+        ApiFormat::OpenAiChatCompletions => openai_chat_completions::GUARDRAIL_MEMBERS,
+        ApiFormat::OpenAiResponses => openai_responses::GUARDRAIL_MEMBERS,
+        ApiFormat::AnthropicMessages => anthropic_messages::GUARDRAIL_MEMBERS,
+        ApiFormat::OpenAiEmbeddings => openai_embeddings::GUARDRAIL_MEMBERS,
+        ApiFormat::OpenAiDecisions => openai_decisions::GUARDRAIL_MEMBERS,
+    }
+}
+
+/// Finds the request's last turn in the members of [`guardrail_members`] that
+/// `member` returns.
+pub(crate) fn guardrail_turn<'a>(
+    api_format: ApiFormat,
+    member: impl Fn(&str) -> Option<&'a str>,
+) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
+    match api_format {
+        ApiFormat::OpenAiChatCompletions => openai_chat_completions::guardrail_turn(member),
+        ApiFormat::OpenAiResponses => openai_responses::guardrail_turn(member),
+        ApiFormat::AnthropicMessages => anthropic_messages::guardrail_turn(member),
+        ApiFormat::OpenAiEmbeddings => Ok(openai_embeddings::guardrail_turn(member)),
+        ApiFormat::OpenAiDecisions => Ok(openai_decisions::guardrail_turn(member)),
+    }
+}
+
 /// Owned before dispatch and moved into the response body. Drop also covers a
 /// cancelled provider future before response headers have arrived.
 pub(crate) struct ExecutionCapture {
@@ -218,9 +251,10 @@ impl ExecutionCapture {
         api_format: ApiFormat,
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
-        body: &[u8],
+        input: RequestInput,
     ) -> Self {
         let started = Instant::now();
+        let request_body_bytes = input.body_bytes;
         let start_time_unix_ms = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -241,13 +275,13 @@ impl ExecutionCapture {
             })
             .collect();
         let span = tracing::Span::current();
-        // Parsing the whole request is CPU-bound and scales with the body.
+        // Projecting the parsed members into the input is CPU-bound and scales with the body.
         let protocol = tracing::info_span!(
             "request.capture",
             otel.kind = "internal",
-            http.request.body.size = i64::try_from(body.len()).unwrap_or(i64::MAX)
+            http.request.body.size = i64::try_from(request_body_bytes).unwrap_or(i64::MAX)
         )
-        .in_scope(|| ProtocolCapture::new(api_format, headers, body, context.ingestion_mode()));
+        .in_scope(|| ProtocolCapture::new(api_format, headers, input, context.ingestion_mode()));
         Self {
             span,
             protocol: Some(protocol),
@@ -257,7 +291,7 @@ impl ExecutionCapture {
             completion_start_ms: None,
             http_status: None,
             retry_after_ms: None,
-            request_body_bytes: body.len(),
+            request_body_bytes,
             response_body_bytes: 0,
             metadata: json!({
                 "organization_id": attribution.organization_id().as_str(),
@@ -298,9 +332,11 @@ impl ExecutionCapture {
             return;
         };
         correlation.record_generation(delivery.generation_ids());
-        self.metadata["request_id"] = json!(correlation.id());
-        if let Some(client_id) = correlation.client_id() {
-            self.metadata["client_request_id"] = json!(client_id);
+        if let Some(metadata) = self.metadata.as_object_mut() {
+            metadata.insert("request_id".into(), json!(correlation.id()));
+            if let Some(client_id) = correlation.client_id() {
+                metadata.insert("client_request_id".into(), json!(client_id));
+            }
         }
         self.delivery = Some((telemetry, delivery));
     }
@@ -320,6 +356,16 @@ impl ExecutionCapture {
 
     pub(crate) fn set_provider_model(&mut self, model: &str) {
         self.provider_model = bounded_string(model);
+    }
+
+    /// Lists the guardrails the request matched in the generation's metadata, by id,
+    /// action and location, so generations can be filtered by each.
+    pub(crate) fn record_guardrails(&mut self, guardrails: &[crate::guardrails::Finding]) {
+        if !guardrails.is_empty()
+            && let Some(metadata) = self.metadata.as_object_mut()
+        {
+            metadata.insert("guardrails".into(), json!(guardrails));
+        }
     }
 
     pub(crate) fn record_response(&mut self, status: u16, headers: &HeaderMap) {
@@ -463,23 +509,85 @@ impl RawRequest {
     }
 }
 
-fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<RawRequest, InputOmission> {
-    let reason = if !identity_encoding(headers) {
-        InputOmissionReason::ContentEncoding
-    } else if body.len() > MAX_INPUT_CAPTURE_BYTES {
-        InputOmissionReason::SizeLimit
-    } else if let Ok(members) = serde_json::from_slice(body) {
-        return Ok(RawRequest {
+/// The caller body's top-level members, parsed when capture starts (after
+/// resolution, spend limits, and guardrails) so the gateway does not hold a
+/// second copy of the body across pre-upstream waits or uncaptured requests.
+pub(crate) struct RequestInput {
+    /// `None` when the body is larger than `MAX_INPUT_CAPTURE_BYTES`.
+    members: Option<BTreeMap<String, Box<RawValue>>>,
+    body_bytes: usize,
+}
+
+impl RequestInput {
+    /// Skips parsing the body when telemetry delivery is disabled or
+    /// `IngestionMode::None`, while still preserving `body_bytes` for metrics.
+    pub(crate) fn omitted(body_bytes: usize) -> Self {
+        Self {
+            members: None,
+            body_bytes,
+        }
+    }
+
+    /// Parses the top-level members of a validated JSON request body, unless
+    /// the body is larger than `MAX_INPUT_CAPTURE_BYTES`.
+    pub(crate) fn from_body(body: &[u8]) -> Self {
+        let members = (body.len() <= MAX_INPUT_CAPTURE_BYTES)
+            .then(|| {
+                serde_json::from_slice::<BTreeMap<String, &RawValue>>(body)
+                    .ok()
+                    .map(|parsed| {
+                        parsed
+                            .into_iter()
+                            .map(|(key, value)| (key, value.to_owned()))
+                            .collect()
+                    })
+            })
+            .flatten();
+        Self {
             members,
-            parse_budget: MAX_PROJECTED_BYTES,
-        });
-    } else {
-        InputOmissionReason::InvalidJson
-    };
-    Err(InputOmission {
-        reason,
-        body_bytes: body.len(),
-    })
+            body_bytes: body.len(),
+        }
+    }
+
+    /// Parses `body` on `cpu` while holding `reservation` inside the job so
+    /// request cancellation cannot release memory budget before the blocking
+    /// worker drops the body and parsed members.
+    pub(crate) async fn parse_on_cpu<R: Send + 'static>(
+        cpu: &crate::cpu::CpuWork,
+        body: axum::body::Bytes,
+        reservation: R,
+    ) -> Option<(Self, R)> {
+        let parse_bytes = if body.len() <= MAX_INPUT_CAPTURE_BYTES {
+            body.len()
+        } else {
+            0
+        };
+        cpu.run(crate::cpu::CpuJob::ParseRequest, parse_bytes, move || {
+            let input = Self::from_body(&body);
+            (input, reservation)
+        })
+        .await
+    }
+}
+
+impl RawRequest {
+    /// The already parsed members, or why capture cannot record the input.
+    fn from_input(headers: &HeaderMap, input: RequestInput) -> Result<Self, InputOmission> {
+        let reason = if !identity_encoding(headers) {
+            InputOmissionReason::ContentEncoding
+        } else if let Some(members) = input.members {
+            return Ok(Self {
+                members,
+                parse_budget: MAX_PROJECTED_BYTES,
+            });
+        } else {
+            InputOmissionReason::SizeLimit
+        };
+        Err(InputOmission {
+            reason,
+            body_bytes: input.body_bytes,
+        })
+    }
 }
 
 /// Only the delay-seconds form; an HTTP-date would make the value depend on clock skew.

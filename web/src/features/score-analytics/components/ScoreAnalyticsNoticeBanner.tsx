@@ -1,4 +1,5 @@
-import { Clock, Info } from "@langfuse/icons";
+import { Clock } from "@langfuse/icons";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { assertUnreachable } from "@/src/utils/types";
 import type { ScoreAnalyticsContextValue } from "./ScoreAnalyticsProvider";
 import { SamplingDetailsHoverCard } from "./SamplingDetailsHoverCard";
@@ -23,28 +24,27 @@ export function ScoreAnalyticsNoticeBanner(
     );
 
     return (
-      <div className="bg-muted mb-4 rounded-md px-4 py-3">
-        <div className="flex items-start gap-3">
-          <Clock size="base" color="muted" __rawClassName="mt-0.5" />
-          <div className="flex-1 space-y-1">
-            <div className="text-sm font-bold">
-              {showLargeDataset
-                ? "Processing large dataset..."
-                : "Loading analytics..."}
-            </div>
-            {estimate && (
-              <div className="text-muted-foreground text-sm">
-                {estimate.mode === "single"
-                  ? `Analyzing ~${estimate.score1Count.toLocaleString()} scores`
-                  : `Analyzing ~${estimate.score1Count.toLocaleString()} (Score 1) and ~${estimate.score2Count.toLocaleString()} (Score 2) scores`}
-                {estimate.willSample && " • Sampling will be applied"}
-                {estimate.estimatedQueryTime && (
-                  <> • Est. time: {estimate.estimatedQueryTime}</>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+      <div className="mb-4">
+        <Banner
+          icon={Clock}
+          title={
+            showLargeDataset
+              ? "Processing large dataset..."
+              : "Loading analytics..."
+          }
+        >
+          {estimate && (
+            <>
+              {estimate.mode === "single"
+                ? `Analyzing ~${estimate.score1Count.toLocaleString()} scores`
+                : `Analyzing ~${estimate.score1Count.toLocaleString()} (Score 1) and ~${estimate.score2Count.toLocaleString()} (Score 2) scores`}
+              {estimate.willSample && " • Sampling will be applied"}
+              {estimate.estimatedQueryTime && (
+                <> • Est. time: {estimate.estimatedQueryTime}</>
+              )}
+            </>
+          )}
+        </Banner>
       </div>
     );
   }
@@ -53,24 +53,18 @@ export function ScoreAnalyticsNoticeBanner(
     const { data } = props;
 
     return (
-      <div className="bg-muted mb-4 rounded-md px-4 py-3">
-        <div className="flex items-start gap-3">
-          <Info size="base" color="muted" __rawClassName="mt-0.5" />
-          <div className="flex-1 space-y-1">
-            <div className="flex items-center gap-2 text-sm font-bold">
-              Sampled Data
-              <SamplingDetailsHoverCard
-                samplingMetadata={data.samplingMetadata}
-                mode={data.metadata.mode}
-              />
-            </div>
-            <div className="text-muted-foreground text-sm">
-              {data.metadata.mode === "single"
-                ? `Results based on a ${(data.samplingMetadata.samplingRate * 100).toFixed(2)}% sample of ~${data.samplingMetadata.preflightEstimates?.score1Count.toLocaleString()} scores.`
-                : `Results based on a ${(data.samplingMetadata.samplingRate * 100).toFixed(2)}% sample of ~${data.samplingMetadata.preflightEstimates?.score1Count.toLocaleString()} Score 1 and ~${data.samplingMetadata.preflightEstimates?.score2Count.toLocaleString()} Score 2 data.`}
-            </div>
-          </div>
-        </div>
+      <div className="mb-4">
+        <Banner title="Sampled data">
+          {data.metadata.mode === "single"
+            ? `Results based on a ${(data.samplingMetadata.samplingRate * 100).toFixed(2)}% sample of ~${data.samplingMetadata.preflightEstimates?.score1Count.toLocaleString()} scores.`
+            : `Results based on a ${(data.samplingMetadata.samplingRate * 100).toFixed(2)}% sample of ~${data.samplingMetadata.preflightEstimates?.score1Count.toLocaleString()} Score 1 and ~${data.samplingMetadata.preflightEstimates?.score2Count.toLocaleString()} Score 2 data.`}{" "}
+          <span className="inline-flex align-middle">
+            <SamplingDetailsHoverCard
+              samplingMetadata={data.samplingMetadata}
+              mode={data.metadata.mode}
+            />
+          </span>
+        </Banner>
       </div>
     );
   }

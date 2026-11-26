@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import {
   Dialog,
   DialogBody,
@@ -63,19 +64,18 @@ export function CloudRegionPicker({
         </Select>
 
         {selectedRegion?.name === "HIPAA" && (
-          <div className="bg-muted/50 text-muted-foreground mt-2 rounded-md p-3 text-xs">
-            <p>
+          <div className="mt-2">
+            <Banner
+              actions={[
+                {
+                  text: "Learn more about HIPAA compliance",
+                  href: "https://langfuse.com/security/hipaa",
+                },
+              ]}
+            >
               The Business Associate Agreement (BAA) is only effective on the
-              Cloud Pro and Teams plans.{" "}
-              <a
-                href="https://langfuse.com/security/hipaa"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-link hover:text-link-hover underline"
-              >
-                Learn more about HIPAA compliance →
-              </a>
-            </p>
+              Cloud Pro and Teams plans.
+            </Banner>
           </div>
         )}
       </div>

@@ -89,6 +89,7 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   proposeRedirect: "Opening page",
   queryMetrics: "Checking metrics",
   read: "Reading file",
+  renderWidget: "Charting metrics",
   runBatchEvaluation: "Running batch evaluation",
   setDefaultEvaluationModel: "Setting default evaluation model",
   submitFeedback: "Submitting user feedback",
@@ -188,6 +189,7 @@ function getAutoInAppAgentToolProgressLabel(strippedName: string): string {
     .join(" ");
 }
 
+/** @internal */
 export function getInAppAgentToolProgressLabelResolution(toolName: string): {
   source: "docs" | "skill" | "override" | "auto";
   label: string;
@@ -212,6 +214,7 @@ export function getInAppAgentToolProgressLabelResolution(toolName: string): {
   };
 }
 
+/** @internal */
 export function getInAppAgentToolProgressLabel(toolName: string): string {
   return getInAppAgentToolProgressLabelResolution(toolName).label;
 }

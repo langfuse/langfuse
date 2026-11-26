@@ -24,9 +24,12 @@ import { createObservationEvalSchedulerDeps } from "../../features/evaluation/ob
 import { Prisma } from "@langfuse/shared/src/db";
 import { observationForEvalSchema, TopicsTargetObject } from "@langfuse/shared";
 import {
+  getTraceEvalsProcessingSampling,
+  isTraceEvalsProcessingActive,
+} from "@langfuse/shared/src/server";
+import {
   getTopicsProcessingSampling,
   isTopicsProcessingActive,
-  isTopicsProjectEnabled,
 } from "@langfuse/shared/topics/server";
 import { processOtelEvents } from "../../features/otel-ingestion/processOtelEvents";
 import { recordTraceActivity } from "../../features/traceDispatch/traceRuleRecording";
@@ -36,6 +39,9 @@ import {
 } from "../../features/evaluation/observationEval/__tests__/fixtures";
 import { prepareOtelBatch } from "../../features/otel-ingestion/prepareOtelBatch";
 import { processRustOtelEvents } from "../../features/otel-ingestion/processRustOtelEvents";
+import { productionRustOtelWrites } from "../../features/otel-ingestion/otelWrites";
+import { productionEvalWrites } from "../../features/evaluation/scheduleEvals";
+import { encodeOtelLookups } from "../../features/otel-ingestion/encodeOtelLookups";
 import {
   batchContainsLangfuseScope,
   checkHeaderBasedDirectWrite,
@@ -49,8 +55,10 @@ import {
   type SdkInfo,
 } from "../otelIngestionQueue";
 
-// The shared upload pool reads this setting when the module is first imported.
-vi.hoisted(() => vi.stubEnv("LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY", "5"));
+vi.hoisted(() => {
+  vi.stubEnv("LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY", "5");
+  vi.stubEnv("LANGFUSE_EVENTS_DISPATCH_ENABLED", undefined);
+});
 afterAll(() => vi.unstubAllEnvs());
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
@@ -62,6 +70,8 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   recordIncrement: vi.fn(),
   recordDistribution: vi.fn(),
   uploadMediaForTrace: vi.fn(),
+  isTraceEvalsProcessingActive: vi.fn().mockResolvedValue(false),
+  getTraceEvalsProcessingSampling: vi.fn().mockResolvedValue(0),
 }));
 vi.mock("../../features/evaluation/fetchEvalRules", () => ({
   fetchEvalRules: vi.fn().mockResolvedValue({
@@ -194,20 +204,18 @@ describe("Rust OTEL events-only queue path", () => {
 });
 
 describe("native Rust trace activity", () => {
-  it("records accepted sampled rows without projecting eval observations", async () => {
+  it("records accepted sampled rows by default without projecting eval observations", async () => {
     const { processRustOtelEvents: processNative } = await vi.importActual<
       typeof import("../../features/otel-ingestion/processRustOtelEvents")
     >("../../features/otel-ingestion/processRustOtelEvents");
     const original = {
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-      LANGFUSE_EVENTS_DISPATCH_ENABLED: env.LANGFUSE_EVENTS_DISPATCH_ENABLED,
       LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED:
         env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED,
       LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
     };
     Object.assign(env, {
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "DEV",
-      LANGFUSE_EVENTS_DISPATCH_ENABLED: "true",
       LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: "false",
       LANGFUSE_MIGRATION_V4_WRITE_MODE: "events_only",
     });
@@ -245,7 +253,7 @@ describe("native Rust trace activity", () => {
     );
     const processing = {
       complete: vi.fn().mockResolvedValue({
-        finalized: { events: records, evaluationRows: [] },
+        finalized: { events: records },
         overflowRequests: [],
       }),
       dispose: vi.fn().mockResolvedValue(undefined),
@@ -256,6 +264,7 @@ describe("native Rust trace activity", () => {
 
     try {
       await processNative({
+        writes: productionRustOtelWrites(),
         batch: {
           process: vi.fn().mockResolvedValue({
             batch: processing,
@@ -277,9 +286,9 @@ describe("native Rust trace activity", () => {
 
       expect(processing.complete).toHaveBeenCalledWith(
         [],
-        [],
+        encodeOtelLookups([]),
         undefined,
-        false,
+        undefined,
         traceIds,
       );
       expect(addToQueue).toHaveBeenCalledTimes(records.length);
@@ -360,10 +369,7 @@ describe("native Rust trace activity", () => {
       byteLength: 2048,
       sha256Hash: `hash-${index}`,
     }));
-    const finalize = vi.fn().mockResolvedValue({
-      events: [],
-      evaluationRows: [],
-    });
+    const finalize = vi.fn().mockResolvedValue({ events: [] });
     const processing = {
       complete: vi.fn().mockResolvedValue({
         finalized: undefined,
@@ -384,6 +390,7 @@ describe("native Rust trace activity", () => {
         traceIds: [],
       });
       const replay = processNative({
+        writes: productionRustOtelWrites(),
         batch: {
           process: processBatch,
         } as never,
@@ -416,7 +423,7 @@ describe("native Rust trace activity", () => {
           index,
           reference: `@@@langfuseMedia:type=text/plain|id=media-${index}|source=field_size_limit@@@`,
         })),
-        false,
+        undefined,
         undefined,
       );
     } finally {
@@ -428,6 +435,107 @@ describe("native Rust trace activity", () => {
       vi.clearAllMocks();
     }
   });
+
+  it("reaches media storage and the events writer only through its writes", async () => {
+    const { processRustOtelEvents: processNative } = await vi.importActual<
+      typeof import("../../features/otel-ingestion/processRustOtelEvents")
+    >("../../features/otel-ingestion/processRustOtelEvents");
+    const original = {
+      LANGFUSE_EVENTS_DISPATCH_ENABLED: env.LANGFUSE_EVENTS_DISPATCH_ENABLED,
+      LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED:
+        env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED,
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+    };
+    Object.assign(env, {
+      LANGFUSE_EVENTS_DISPATCH_ENABLED: "false",
+      LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: "true",
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "media-bucket",
+    });
+    vi.mocked(fetchEvalRules).mockResolvedValue({
+      observationRules: [],
+      traceTranscriptRules: [],
+    });
+    const productionWriter = vi.spyOn(ClickhouseWriter, "getNativeInstance");
+    const writes = {
+      uploadMedia: vi
+        .fn()
+        .mockResolvedValue({ mediaId: "media", outcome: "uploaded" }),
+      linkMedia: vi.fn(),
+      evalWrites: vi.fn(),
+      writeEvent: vi.fn(),
+    };
+    const record = {
+      event: { ids: { id: "span" } },
+      traceId: "trace",
+      startTimeIso: "2026-10-29T10:00:00.000Z",
+      environment: "default",
+    };
+    const target = { traceId: "trace", observationId: "span" };
+    const processing = {
+      mediaBody: vi.fn().mockResolvedValue(Buffer.from("image")),
+      overflowBody: vi.fn().mockResolvedValue(Buffer.from("text")),
+      complete: vi.fn().mockResolvedValue({
+        overflowRequests: [
+          {
+            ...target,
+            index: 0,
+            field: "output",
+            byteLength: 2048,
+            sha256Hash: "overflow-hash",
+          },
+        ],
+      }),
+      finalize: vi.fn().mockResolvedValue({ events: [record] }),
+      dispose: vi.fn().mockResolvedValue(undefined),
+    };
+
+    try {
+      await processNative({
+        writes,
+        batch: {
+          process: vi.fn().mockResolvedValue({
+            batch: processing,
+            mediaRequests: [
+              {
+                ...target,
+                index: 0,
+                mediaIndex: 0,
+                kind: "base64_data_uri",
+                contentType: "image/png",
+                field: "input",
+                sha256Hash: "media-hash",
+                originalByteLength: 5,
+                reference:
+                  "@@@langfuseMedia:type=image/png|id=pending|source=base64_data_uri@@@",
+              },
+            ],
+            lookupRequests: [],
+            traceIds: [],
+          }),
+        } as never,
+        context: {
+          projectId: "project",
+          fileKey: "writes.json",
+          now: "2026-10-29T10:00:00.000Z",
+          isLangfuseInternal: false,
+          ingestionApiKey: "",
+          ingestionSdkName: "test",
+          ingestionSdkVersion: "test",
+        },
+      });
+
+      expect(
+        writes.uploadMedia.mock.calls.map(([upload]) => upload.sha256Hash),
+      ).toEqual(["media-hash", "overflow-hash"]);
+      expect(writes.writeEvent).toHaveBeenCalledExactlyOnceWith(record);
+      expect(uploadMediaForTrace).not.toHaveBeenCalled();
+      expect(productionWriter).not.toHaveBeenCalled();
+    } finally {
+      Object.assign(env, original);
+      productionWriter.mockRestore();
+      vi.clearAllMocks();
+    }
+  });
 });
 
 vi.mock("../../features/traceDispatch/traceRuleRecording", () => ({
@@ -436,8 +544,6 @@ vi.mock("../../features/traceDispatch/traceRuleRecording", () => ({
 
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
-  isTopicsEnabled: vi.fn().mockReturnValue(false),
-  isTopicsProjectEnabled: vi.fn().mockReturnValue(false),
   isTopicsProcessingActive: vi.fn().mockResolvedValue(false),
   getTopicsProcessingSampling: vi.fn().mockResolvedValue(0),
 }));
@@ -470,7 +576,20 @@ describe("trace-rule recording at the evaluation stage", () => {
       shouldWriteToEventsTable: true,
       writeFails: false,
       topicsEnabled: false,
+      traceEvalsEnabled: false,
       observationRulesEnabled: false,
+    },
+    {
+      mode: "project not on the trace evals list",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+      traceEvalsEnabled: false,
+    },
+    {
+      mode: "project only on the trace evals list",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+      topicsEnabled: false,
     },
     {
       mode: "accepted write",
@@ -486,20 +605,28 @@ describe("trace-rule recording at the evaluation stage", () => {
       invalidSpanId,
       ingestionEnabled = true,
       topicsEnabled = true,
+      traceEvalsEnabled = true,
       observationRulesEnabled = true,
     }) => {
       const original = { ...env };
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-      vi.mocked(isTopicsProjectEnabled).mockReturnValue(topicsEnabled);
       vi.mocked(isTopicsProcessingActive).mockResolvedValue(topicsEnabled);
       vi.mocked(getTopicsProcessingSampling).mockResolvedValue(
         topicsEnabled ? 1 : 0,
+      );
+      vi.mocked(isTraceEvalsProcessingActive).mockResolvedValue(
+        traceEvalsEnabled,
+      );
+      vi.mocked(getTraceEvalsProcessingSampling).mockResolvedValue(
+        traceEvalsEnabled ? 1 : 0,
       );
       env.LANGFUSE_EVENTS_DISPATCH_ENABLED = ingestionEnabled
         ? "true"
         : "false";
       const includeTraceTranscriptRules =
-        shouldWriteToEventsTable && ingestionEnabled && topicsEnabled;
+        shouldWriteToEventsTable &&
+        ingestionEnabled &&
+        (topicsEnabled || traceEvalsEnabled);
       env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
       const projectId = "recording-test";
       const observationRule = createTestEvalConfig({ projectId });
@@ -575,6 +702,7 @@ describe("trace-rule recording at the evaluation stage", () => {
         );
         await expect(
           processOtelEvents({
+            evalWrites: productionEvalWrites,
             processor: {
               processToEvent: () => inputs,
             } as unknown as OtelIngestionProcessor,
@@ -595,7 +723,8 @@ describe("trace-rule recording at the evaluation stage", () => {
                 {
                   traceId: "trace",
                   spanStartTimeISO: inputs[0].startTimeISO,
-                  ruleIds: ["trace-rule"],
+                  // A judge rule is recorded only for a project on the trace evals list.
+                  ruleIds: traceEvalsEnabled ? ["trace-rule"] : [],
                   serializedEventBytes: Buffer.byteLength(
                     JSON.stringify(persistedMatch),
                   ),
@@ -648,9 +777,10 @@ describe("trace-rule recording at the evaluation stage", () => {
         });
       } finally {
         Object.assign(env, original);
-        vi.mocked(isTopicsProjectEnabled).mockReturnValue(false);
         vi.mocked(isTopicsProcessingActive).mockResolvedValue(false);
         vi.mocked(getTopicsProcessingSampling).mockResolvedValue(0);
+        vi.mocked(isTraceEvalsProcessingActive).mockResolvedValue(false);
+        vi.mocked(getTraceEvalsProcessingSampling).mockResolvedValue(0);
         vi.clearAllMocks();
       }
     },
@@ -702,6 +832,7 @@ describe("trace-rule recording at the evaluation stage", () => {
         );
 
         await processOtelEvents({
+          evalWrites: productionEvalWrites,
           processor: {
             processToEvent: () => inputs,
           } as unknown as OtelIngestionProcessor,
@@ -722,7 +853,7 @@ describe("trace-rule recording at the evaluation stage", () => {
         });
 
         expect(normalize).not.toHaveBeenCalled();
-        if (rate > 0 && ingestionEnabled && cloud) {
+        if (rate > 0 && ingestionEnabled) {
           expect(recordTraceActivity).toHaveBeenCalledExactlyOnceWith(
             projectId,
             expect.any(Array),

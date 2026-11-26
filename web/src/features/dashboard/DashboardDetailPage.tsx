@@ -71,10 +71,8 @@ import {
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
 
-import {
-  convertSelectedEnvironmentsToFilter,
-  useEnvironmentFilter,
-} from "@/src/hooks/useEnvironmentFilter";
+import { useEnvironmentFilter } from "@/src/hooks/useEnvironmentFilter";
+import { convertSelectedEnvironmentsToFilter } from "@/src/utils/environmentFilter";
 import {
   DashboardQuerySchedulerProvider,
   getDashboardQuerySchedulerMaxConcurrent,
