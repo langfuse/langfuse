@@ -1505,6 +1505,81 @@ describe("InAppAgentBackgroundClient reconnect", () => {
     expect(fetchMock).toHaveBeenCalledTimes(7);
   });
 
+  it("removes the reconnect abort listener after the wait expires", async () => {
+    vi.useFakeTimers();
+    const addEventListenerSpy = vi.spyOn(
+      AbortSignal.prototype,
+      "addEventListener",
+    );
+    const removeEventListenerSpy = vi.spyOn(
+      AbortSignal.prototype,
+      "removeEventListener",
+    );
+    const responses = [
+      new Response(""),
+      new Response(sseFrame({ type: "done" })),
+    ];
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () => responses.shift() ?? new Response(""),
+    );
+    const client = new InAppAgentBackgroundClient({
+      projectId: "project-1",
+      conversationId: "conversation-1",
+      cursor: -1,
+      startRun: vi.fn(),
+    });
+    const result = new Promise<void>((resolve, reject) => {
+      client.connect().subscribe({ error: reject, complete: resolve });
+    });
+
+    await vi.runAllTimersAsync();
+    await result;
+
+    const abortRegistration = addEventListenerSpy.mock.calls.find(
+      ([type]) => type === "abort",
+    );
+    expect(abortRegistration).toBeDefined();
+    expect(removeEventListenerSpy).toHaveBeenCalledWith(
+      "abort",
+      abortRegistration?.[1],
+    );
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("cleans up the reconnect wait when watching is stopped", async () => {
+    vi.useFakeTimers();
+    const addEventListenerSpy = vi.spyOn(
+      AbortSignal.prototype,
+      "addEventListener",
+    );
+    const removeEventListenerSpy = vi.spyOn(
+      AbortSignal.prototype,
+      "removeEventListener",
+    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(""));
+    const client = new InAppAgentBackgroundClient({
+      projectId: "project-1",
+      conversationId: "conversation-1",
+      cursor: -1,
+      startRun: vi.fn(),
+    });
+
+    const subscription = client.connect().subscribe();
+    await vi.advanceTimersByTimeAsync(0);
+    const abortRegistration = addEventListenerSpy.mock.calls.find(
+      ([type]) => type === "abort",
+    );
+    expect(abortRegistration).toBeDefined();
+
+    subscription.unsubscribe();
+
+    expect(removeEventListenerSpy).toHaveBeenCalledWith(
+      "abort",
+      abortRegistration?.[1],
+    );
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("fails visibly when the watch returns an invalid frame", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
