@@ -1,5 +1,5 @@
 import { EventType } from "@ag-ui/core";
-import { Processor } from "bullmq";
+import { DelayedError, type Job, type Processor } from "bullmq";
 import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { DashboardWidgetChartType, type ModelScope } from "@prisma/client";
@@ -39,7 +39,7 @@ const CORE_DATA_EXPORT_PART_SIZE_BYTES = 100 * 1024 * 1024;
 // (default: 5 connections) so other queue jobs on the same worker never
 // starve on connection acquisition.
 const CORE_DATA_EXPORT_TABLE_CONCURRENCY = 3;
-const MEDIA_USAGE_BACKFILL_DELAY_MS = 60_000;
+const MEDIA_USAGE_EXPORT_RETRY_DELAY_MS = 60_000;
 const MEDIA_USAGE_EXPORT_LOCK_KEY = "langfuse:core-data:media-usage-export";
 // Frees the lock if a worker dies mid-run. A run that outlives it cannot move
 // the watermark back.
@@ -1897,37 +1897,46 @@ export const coreDataTableExports: Array<
     }),
 ];
 
-// A media usage backfill or catch-up continues in media-only follow-up jobs, so
-// the other core data tables are not re-exported for it. The job id names the
-// next pending day, so producers racing on the same step enqueue one job. The
-// lock keeps one media usage export running at a time, e.g. when a retried
-// daily job overlaps a follow-up; the run holding it queues the next step.
-const exportMediaUsageAndContinueBackfill = async (args: {
-  s3Client: StorageService;
-  uploadPrefix: string;
-}) => {
+const enqueueMediaUsageExport = async (jobId: string, delay = 0) => {
+  await CoreDataS3ExportQueue.getInstance()?.add(
+    QueueJobs.CoreDataMediaUsageExportJob,
+    {},
+    { jobId, delay },
+  );
+};
+
+// The media usage export runs only in its own job, one at a time under the
+// lock. A job that finds the lock held waits and retries instead of finishing,
+// so a lock left by a dead worker delays the export by at most the lock TTL.
+// While closed days remain, the run enqueues the next step from the
+// watermark; producers racing on the same step share its job id.
+/** @internal */
+export const processMediaUsageExportJob = async (
+  job: Job,
+  args: { s3Client: StorageService; uploadPrefix: string },
+) => {
   const result = await new RedisLock(MEDIA_USAGE_EXPORT_LOCK_KEY, {
     ttlSeconds: MEDIA_USAGE_EXPORT_LOCK_TTL_SECONDS,
     name: "core-data-media-usage-export",
   }).withLock(() => exportMediaUsageHourly(args));
   if (!result) {
     logger.info(
-      "[CORE DATA] Skipping media usage export, another run holds the lock",
+      "[CORE DATA] Media usage export lock is held by another run, retrying later",
     );
-    return;
+    await job.moveToDelayed(
+      Date.now() + MEDIA_USAGE_EXPORT_RETRY_DELAY_MS,
+      job.token,
+    );
+    throw new DelayedError();
   }
 
   const { exportedUntil, hasMoreDays } = result;
   if (!hasMoreDays || !exportedUntil) {
     return;
   }
-  await CoreDataS3ExportQueue.getInstance()?.add(
-    QueueJobs.CoreDataMediaUsageBackfillJob,
-    {},
-    {
-      jobId: `media-usage-backfill-${formatUtcDay(exportedUntil)}`,
-      delay: MEDIA_USAGE_BACKFILL_DELAY_MS,
-    },
+  await enqueueMediaUsageExport(
+    `media-usage-export-from-${formatUtcDay(exportedUntil)}`,
+    MEDIA_USAGE_EXPORT_RETRY_DELAY_MS,
   );
   logger.info(
     `[CORE DATA] Queued media usage export follow-up from ${formatUtcDay(exportedUntil)}`,
@@ -1949,8 +1958,8 @@ export const coreDataS3ExportProcessor: Processor = async (
   );
   const uploadPrefix = env.LANGFUSE_S3_CORE_DATA_UPLOAD_PREFIX;
 
-  if (job.name === QueueJobs.CoreDataMediaUsageBackfillJob) {
-    await exportMediaUsageAndContinueBackfill({ s3Client, uploadPrefix });
+  if (job.name === QueueJobs.CoreDataMediaUsageExportJob) {
+    await processMediaUsageExportJob(job, { s3Client, uploadPrefix });
     return;
   }
 
@@ -1958,9 +1967,13 @@ export const coreDataS3ExportProcessor: Processor = async (
 
   const limit = pLimit(CORE_DATA_EXPORT_TABLE_CONCURRENCY);
   const results = await Promise.allSettled(
-    [...coreDataTableExports, exportMediaUsageAndContinueBackfill].map(
-      (exportTable) => limit(() => exportTable({ s3Client, uploadPrefix })),
+    coreDataTableExports.map((exportTable) =>
+      limit(() => exportTable({ s3Client, uploadPrefix })),
     ),
+  );
+  // One media usage export per UTC day; a retried daily job reuses the id.
+  await enqueueMediaUsageExport(
+    `media-usage-export-${formatUtcDay(new Date())}`,
   );
 
   const failures = results.filter(

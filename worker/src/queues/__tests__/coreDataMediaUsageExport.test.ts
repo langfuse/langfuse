@@ -1,8 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
+import { DelayedError, type Job } from "bullmq";
 import { describe, expect, it, vi } from "vitest";
 import {
   createOrgProjectAndApiKey,
+  redis,
   type StorageService,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -14,6 +16,7 @@ import {
   mediaUsageWatermarkKey,
   readMediaUsageWatermark,
 } from "../coreDataMediaUsageExport";
+import { processMediaUsageExportJob } from "../coreDataS3ExportQueue";
 
 const day = (value: string) => new Date(`${value}T00:00:00.000Z`);
 
@@ -530,5 +533,28 @@ describe("exportMediaUsageHourly", () => {
         hasMoreDays: false,
       },
     ]);
+  });
+});
+
+describe("processMediaUsageExportJob", () => {
+  it("defers the job without exporting while another run holds the lock", async () => {
+    const lockKey = "langfuse:core-data:media-usage-export";
+    await redis!.set(lockKey, "other-run", "EX", 60);
+    const { s3Client } = createInMemoryStorage();
+    const moveToDelayed = vi.fn().mockResolvedValue(undefined);
+
+    try {
+      const thrown = await processMediaUsageExportJob(
+        { token: "token-1", moveToDelayed } as unknown as Job,
+        { s3Client, uploadPrefix: "core/" },
+      ).catch((error: unknown) => error);
+
+      expect(thrown).toBeInstanceOf(DelayedError);
+      expect(moveToDelayed).toHaveBeenCalledWith(expect.any(Number), "token-1");
+      expect(s3Client.uploadFileBuffered).not.toHaveBeenCalled();
+      await expect(redis!.get(lockKey)).resolves.toBe("other-run");
+    } finally {
+      await redis!.del(lockKey);
+    }
   });
 });
