@@ -57,6 +57,7 @@ import {
 import { EvaluatorSampleDetail } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorSampleDetail/EvaluatorSampleDetail";
 import { orderSamplesByTrace } from "@/src/features/evals/v2/fns/evaluatorTesting/orderSamplesByTrace";
 import { useEvaluatorSampleTraceCount } from "@/src/features/evals/v2/hooks/useEvaluatorSampleTraceCount";
+import { useEvaluatorTraceMatches } from "@/src/features/evals/v2/hooks/useEvaluatorTraceMatches";
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import type { RuleTargetObject } from "@/src/features/evals/v2/types/rules";
@@ -69,8 +70,7 @@ const PAGE_SIZE = 25;
 /** Trace samples keep loading observation pages until this many traces show up. */
 const MIN_SAMPLE_TRACES = 5;
 const MAX_TRACE_SAMPLE_PAGES = 8;
-/** Matching observations loaded for the trace of the sample on show. */
-const TRACE_MATCH_LIMIT = 100;
+const NO_SAMPLES: SampleObservation[] = [];
 
 const EXAMPLES = [
   {
@@ -474,37 +474,65 @@ export function SampleObservationSelectorBase(
         )?.traceId ?? pickedTraceId)
       : null;
   // Every match in the sample's trace, so each can be picked from the tree.
-  const traceMatchesQuery = api.events.listCursor.useQuery(
-    {
-      projectId,
-      filter: [
-        ...effectiveFilters,
-        {
-          column: "traceId",
-          type: "string" as const,
-          operator: "=" as const,
-          value: sampleTraceId ?? "",
-        },
-      ],
-      searchQuery,
-      searchType,
-      limit: TRACE_MATCH_LIMIT,
-    },
-    { enabled: sampleTraceId !== null },
+  const sampleTraceMatches = useEvaluatorTraceMatches({
+    projectId,
+    filter: effectiveFilters,
+    searchQuery,
+    searchType,
+    traceId: sampleTraceId,
+  });
+  // The next trace loads ahead, so stepping into it lands on its first match.
+  const nextTraceId = useMemo(() => {
+    if (sampleTraceId === null) return null;
+    const traceIds = [
+      ...new Set(
+        observationPages.flat().flatMap(({ traceId }) => traceId ?? []),
+      ),
+    ];
+    const index = traceIds.indexOf(sampleTraceId);
+    return index === -1 ? null : (traceIds[index + 1] ?? null);
+  }, [observationPages, sampleTraceId]);
+  const nextTraceMatches = useEvaluatorTraceMatches({
+    projectId,
+    filter: effectiveFilters,
+    searchQuery,
+    searchType,
+    traceId: nextTraceId,
+  });
+  const traceMatches = useMemo(
+    () => [...sampleTraceMatches, ...nextTraceMatches],
+    [sampleTraceMatches, nextTraceMatches],
   );
-  const traceMatches = traceMatchesQuery.data?.observations;
+  // Matches of traces already stepped through stay in the list, so stepping back retraces them.
+  const matchScope = JSON.stringify([
+    effectiveFilters,
+    searchQuery,
+    searchType,
+  ]);
+  const [visitedMatches, setVisitedMatches] = useState({
+    scope: matchScope,
+    samples: NO_SAMPLES,
+  });
+  const keptMatches =
+    visitedMatches.scope === matchScope ? visitedMatches.samples : NO_SAMPLES;
   const detailObservations = useMemo(() => {
     const loaded = observationPages.flat();
     if (isTraceTarget) return matchingTraces(loaded);
     if (!showTraceDetail) return loaded;
-    const loadedIds = new Set(loaded.map((observation) => observation.id));
-    return orderSamplesByTrace([
-      ...loaded,
-      ...(traceMatches ?? []).filter(
-        (observation) => !loadedIds.has(observation.id),
-      ),
-    ]);
-  }, [isTraceTarget, showTraceDetail, observationPages, traceMatches]);
+    const seen = new Set(loaded.map((observation) => observation.id));
+    const extras = [...keptMatches, ...traceMatches].filter((observation) => {
+      if (seen.has(observation.id)) return false;
+      seen.add(observation.id);
+      return true;
+    });
+    return orderSamplesByTrace([...loaded, ...extras]);
+  }, [
+    isTraceTarget,
+    showTraceDetail,
+    observationPages,
+    keptMatches,
+    traceMatches,
+  ]);
   const detailSelectionToReconcile = querySettled
     ? resolveSelection(detailObservations, selectedObservationId)
     : undefined;
@@ -781,6 +809,14 @@ export function SampleObservationSelectorBase(
             onSelect={(observation) => {
               setAutoPageLimit(loadedPageCount + MAX_TRACE_SAMPLE_PAGES);
               setPickedTraceId(observation?.traceId ?? null);
+              const keptIds = new Set(keptMatches.map(({ id }) => id));
+              setVisitedMatches({
+                scope: matchScope,
+                samples: [
+                  ...keptMatches,
+                  ...traceMatches.filter(({ id }) => !keptIds.has(id)),
+                ],
+              });
               onSelect(observation);
             }}
           />
