@@ -674,18 +674,16 @@ function TraceContent({
                 {panels}
               </Tabs.Content>
               <Tabs.Content value="messages" layout="fill">
-                <div className="min-h-0 flex-1 p-4">
-                  <TraceMessagesView
-                    onOpenObservation={(traceId, observationId) => {
-                      const params = new URLSearchParams({
-                        peek: traceId,
-                        observation: observationId,
-                        aggregation: "trace",
-                      });
-                      openTracePeek(params.toString());
-                    }}
-                  />
-                </div>
+                <TraceMessagesView
+                  onOpenObservation={(traceId, observationId) => {
+                    const params = new URLSearchParams({
+                      peek: traceId,
+                      observation: observationId,
+                      aggregation: "trace",
+                    });
+                    openTracePeek(params.toString());
+                  }}
+                />
               </Tabs.Content>
             </Tabs>
           ) : (
