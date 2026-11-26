@@ -19,9 +19,10 @@
   transition-duration: 130ms;
 }
 
+/* Collision opacity follows the camera directly: a delayed fade would keep a
+   rejected label visible while its rectangle already overlaps another. */
 .backgroundLabel {
   animation: labelEnter 180ms ease-out;
-  transition: opacity 180ms ease-out;
   /* Stacked halo in the stage colour keeps labels readable over dense dots. */
   text-shadow:
     0 0 1px hsl(var(--background)),
@@ -30,6 +31,10 @@
     0 0 4px hsl(var(--background)),
     0 0 6px hsl(var(--background)),
     0 0 8px hsl(var(--background));
+}
+
+.labelEmphasis {
+  transition: opacity 180ms ease-out;
 }
 
 .labelTitle {
@@ -57,7 +62,8 @@
 @media (prefers-reduced-motion: reduce) {
   .enter,
   .exit,
-  .backgroundLabel {
+  .backgroundLabel,
+  .labelEmphasis {
     animation-duration: 1ms;
     transition-duration: 1ms;
   }

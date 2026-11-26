@@ -713,29 +713,34 @@ function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
               opacity: label.opacity,
             }}
           >
-            <span
-              className={cn(
-                "line-clamp-2 block leading-[1.2]",
-                label.kind === "zone" && "font-bold",
-                styles.labelTitle,
-              )}
-              style={
-                {
-                  fontSize: label.fontSize,
-                  "--label-color": label.color,
-                } as CSSProperties
-              }
+            <div
+              className={styles.labelEmphasis}
+              style={{ opacity: label.emphasis }}
             >
-              {label.title}
-            </span>
-            {label.description.length > 0 && (
               <span
-                className="mt-1 line-clamp-2 block text-[11px] leading-relaxed"
-                style={{ opacity: label.detailOpacity }}
+                className={cn(
+                  "line-clamp-2 block leading-[1.2]",
+                  label.kind === "zone" && "font-bold",
+                  styles.labelTitle,
+                )}
+                style={
+                  {
+                    fontSize: label.fontSize,
+                    "--label-color": label.color,
+                  } as CSSProperties
+                }
               >
-                {label.description}
+                {label.title}
               </span>
-            )}
+              {label.description.length > 0 && (
+                <span
+                  className="mt-1 line-clamp-2 block text-[11px] leading-relaxed"
+                  style={{ opacity: label.detailOpacity }}
+                >
+                  {label.description}
+                </span>
+              )}
+            </div>
           </div>
         ))}
     </div>

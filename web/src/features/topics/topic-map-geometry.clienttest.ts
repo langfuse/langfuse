@@ -525,6 +525,29 @@ describe("background group labels", () => {
     expect(visibleAt({ ...fit, zoom: 4 }).length).toBeGreaterThan(atFit.length);
   });
 
+  it("fades a lower-ranked name continuously while a nearly hidden name between them clears the top name", () => {
+    const three = ["a", "b", "c"].map((id) => ({ id, name: `Topic ${id}` }));
+    const model = prepareTopicMap(
+      data([
+        ...[0, 1, 2].map((i) => point(`a-${i}`, -10, 0, { topicId: "a" })),
+        ...[0, 1].map((i) => point(`b-${i}`, 0, 0, { topicId: "b" })),
+        point("c-0", 4, 0, { topicId: "c" }),
+      ]),
+      three,
+    );
+    const fit = fitCamera(model.bounds, model.bounds, size);
+    let previous: number | undefined;
+    for (let zoom = 0.05; zoom <= 0.5; zoom += 0.0002) {
+      const labels = prepareMapTextLabels(
+        prepareMapNodes(model, { ...fit, zoom }, size, pointer),
+      );
+      const c = labels.find((label) => label.id === "c")?.opacity ?? 0;
+      if (previous !== undefined)
+        expect(Math.abs(c - previous)).toBeLessThan(0.1);
+      previous = c;
+    }
+  });
+
   it("keeps one Unassigned label within the viewport when the group center is offscreen", () => {
     const model = prepareTopicMap(
       data([

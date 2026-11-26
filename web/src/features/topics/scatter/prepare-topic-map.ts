@@ -278,12 +278,23 @@ type MapTextLabel = {
   description: string;
   rect: MapRectangle;
   fontSize: number;
+  /** Collision visibility; follows the camera and must not lag behind it. */
   opacity: number;
+  /** Selection and filter dimming, independent of placement. */
+  emphasis: number;
   detailOpacity: number;
 };
 
 /** Pixels of clear space over which a crowded label fades back in. */
-const labelFadeGap = 12;
+const labelFadeGap = 16;
+
+/** Estimated bold title width in ems: wide scripts take a full em per character. */
+function titleEms(title: string) {
+  let ems = 0;
+  for (const char of title)
+    ems += (char.codePointAt(0) ?? 0) >= 0x2e80 ? 1 : 0.62;
+  return ems;
+}
 
 /** Largest axis gap between two rectangles; negative only when they intersect. */
 function rectangleGap(a: MapRectangle, b: MapRectangle) {
@@ -315,8 +326,7 @@ export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
     rect.x < size.width &&
     rect.y < size.height;
   for (const zone of frame.zones) {
-    // Bold title glyphs average at most ~0.62em, so a single word is not clipped.
-    const titleWidth = zone.name.length * fontSize * 0.62;
+    const titleWidth = titleEms(zone.name) * fontSize;
     const width = Math.min(
       // Short names hug their text until the description needs room.
       Math.max(64 + 136 * detailOpacity, titleWidth),
@@ -376,18 +386,21 @@ export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
       description: zone.description,
       rect,
       fontSize,
-      opacity:
+      opacity: 1,
+      emphasis:
         (readingTopic && readingTopic !== zone.id ? 0.4 : 1) *
         (matchesFilters ? 1 : 0.15),
       detailOpacity,
     });
   }
 
-  // Greedy placement: a label fades out as its clear space to any placed label
-  // shrinks and is fully hidden before the rectangles touch, so visible labels
-  // never overlap. Filter dimming does not affect placement, so filtering never
-  // reshuffles which names are shown.
-  const placed: MapTextLabel[] = [];
+  // Greedy placement in rank order. A label's placement drops as its clear
+  // space to earlier labels shrinks, weighted by how strongly each earlier
+  // label claims its spot. A label claims fully before it becomes visible, so
+  // visible labels never overlap, and every step is continuous in the camera,
+  // so names fade rather than pop while zooming or panning. Dimming does not
+  // affect placement, so filtering never reshuffles which names are shown.
+  const placed: { rect: MapRectangle; claim: number }[] = [];
   const byRank = labels
     .map((label, order) => ({
       label,
@@ -400,10 +413,18 @@ export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
     for (const other of placed)
       placement = Math.min(
         placement,
-        smoothStep(0, labelFadeGap, rectangleGap(label.rect, other.rect)),
+        1 -
+          other.claim *
+            (1 -
+              smoothStep(
+                0,
+                labelFadeGap,
+                rectangleGap(label.rect, other.rect),
+              )),
       );
-    label.opacity *= placement;
-    if (placement > 0) placed.push(label);
+    label.opacity = smoothStep(0.5, 1, placement);
+    const claim = smoothStep(0, 0.5, placement);
+    if (claim > 0) placed.push({ rect: label.rect, claim });
   }
   return labels;
 }
