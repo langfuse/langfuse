@@ -25,8 +25,10 @@ const facets = [{ facetId: "intent" }, { facetId: "sentiment" }];
 function setup(
   initialSearch = "",
   projectId = "project",
-  mapId: string | null = null,
+  ...map: [mapId?: string | null]
 ) {
+  // An explicit undefined means the shown map is not known yet; omitted means no map.
+  const mapId = map.length > 0 ? map[0] : null;
   let search = initialSearch;
   let navigate: (search: string) => void = () => {};
   const Adapter: QueryParamAdapterComponent = ({ children }) => {
@@ -109,6 +111,20 @@ describe("Topics facet-local filters", () => {
     const other = setup("", "project", "map-b");
     expect(other.result.current.filters).toEqual([]);
     other.unmount();
+    expect(setup("", "project", "map-a").result.current.filters).toEqual([
+      topic,
+    ]);
+  });
+
+  it("reads empty filters and keeps no writes until the shown map is known", () => {
+    const known = setup("", "project", "map-a");
+    act(() => known.result.current.setFilters([topic]));
+    known.unmount();
+    const pending = setup("", "project", undefined);
+    expect(pending.result.current.filters).toEqual([]);
+    act(() => pending.result.current.setFilters([assignment]));
+    expect(pending.result.current.filters).toEqual([]);
+    pending.unmount();
     expect(setup("", "project", "map-a").result.current.filters).toEqual([
       topic,
     ]);

@@ -461,10 +461,16 @@ function TopicsWorkspaceContent({
       }
     : results;
   const scope = analysisId ? { analysisId } : { ruleId: selectedRule?.id };
+  // Until the maps load, or while the previous map's results are still shown,
+  // filters stay unscoped so no click writes into another map's filters.
+  const filterMapId =
+    !maps.data || (!analysisId && results.isPlaceholderData)
+      ? undefined
+      : (analysisId ?? selectedRule?.id ?? null);
   const traceFilters = useTopicTraceFilters(
     projectId,
     shownResults.data?.facets ?? [],
-    analysisId ?? selectedRule?.id ?? null,
+    filterMapId,
   );
   const { selectedFacetId } = traceFilters;
   const capture = useTopicsCapture();

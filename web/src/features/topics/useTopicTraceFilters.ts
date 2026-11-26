@@ -18,11 +18,14 @@ const snapshotsSchema = z.record(z.string(), snapshotSchema);
 const emptySnapshot: FacetFilterSnapshot = { filter: "", search: null };
 const emptySnapshots: Record<string, FacetFilterSnapshot> = {};
 
-/** `mapId` scopes the filters to one map: topic IDs belong to the map that created them. */
+/**
+ * `mapId` scopes the filters to one map: topic IDs belong to the map that created them.
+ * `undefined` means the shown map is not known yet; filters read empty and writes are ignored.
+ */
 export function useTopicTraceFilters(
   projectId: string,
   facets: readonly { facetId: string }[],
-  mapId: string | null = null,
+  mapId: string | null | undefined,
 ) {
   const [facetId, setFacetId] = useQueryParam("topicFacet", StringParam);
   const selectedFacetId = resolveTopicFacetId(facets, facetId ?? undefined);
@@ -35,14 +38,17 @@ export function useTopicTraceFilters(
   const storageKey = JSON.stringify(
     mapId ? [projectId, mapId, selectedFacetId] : [projectId, selectedFacetId],
   );
-  const snapshot = snapshots[storageKey] ?? emptySnapshot;
+  const snapshot =
+    mapId === undefined
+      ? emptySnapshot
+      : (snapshots[storageKey] ?? emptySnapshot);
   const filters = useMemo(
     () => decodeAndNormalizeFilters(snapshot.filter, columns),
     [snapshot.filter],
   );
 
   function updateSnapshot(patch: Partial<FacetFilterSnapshot>) {
-    if (!selectedFacetId) return;
+    if (!selectedFacetId || mapId === undefined) return;
     setStored((previous: unknown) => {
       const parsedPrevious = snapshotsSchema.safeParse(previous);
       const snapshots = parsedPrevious.success
