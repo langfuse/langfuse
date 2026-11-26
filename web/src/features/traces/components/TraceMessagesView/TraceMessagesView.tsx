@@ -52,7 +52,7 @@ function SingleTraceMessagesView({
   const { selectNode } = useSelection();
   const [, setTraceView] = useQueryParam("traceView", StringParam);
   const router = useRouter();
-  const { presentation } = useTracePresentation();
+  const { presentation, isEmbedded } = useTracePresentation();
   const { messageTrace, sessionNavigation } = useTraceMessagesNavigation();
   const { data, state } = useTraceMessagesTranscript(
     {
@@ -101,7 +101,8 @@ function SingleTraceMessagesView({
       }
     >
       <div className="flex h-full min-h-0 w-full flex-col">
-        {sessionNavigation ? (
+        {/* An embed has its own way to step through traces. */}
+        {sessionNavigation && !isEmbedded ? (
           <SessionTraceNavigationBar
             position={sessionNavigation.position}
             total={sessionNavigation.total}
