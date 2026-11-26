@@ -11,6 +11,7 @@ import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
 import { useIsCloudBillingAvailable } from "../utils/isCloudBilling";
+import { planDialogHref } from "../utils/planDialogLink";
 import { CouponRedemptionForm } from "./CouponRedemptionForm";
 import { useBillingProvider } from "./useBillingProvider";
 
@@ -109,7 +110,12 @@ function CouponRedemptionContent() {
       <Banner
         variant="info"
         title="Upgrade to a paid plan first"
-        actions={[{ text: "Open billing settings", href: billingPath }]}
+        actions={[
+          {
+            text: "Open billing settings",
+            href: planDialogHref(organization.id, "coupon"),
+          },
+        ]}
       >
         Credits are applied to a paid subscription. Choose a plan in the billing
         settings, then come back to this page to redeem your coupon.

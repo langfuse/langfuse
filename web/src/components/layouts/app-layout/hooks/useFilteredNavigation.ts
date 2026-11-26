@@ -181,13 +181,14 @@ export function useFilteredNavigation(
         v4Enabled: session?.user?.v4BetaEnabled === true,
         forceV3Experience,
       });
-      const url = pathname
-        .replace("[projectId]", routerProjectId ?? "")
-        .replace("[organizationId]", routerOrganizationId ?? "")
-        .replace(
-          "[gatewayIngestionProjectId]",
-          gatewayIngestionProjectId ?? "",
-        );
+      const url =
+        pathname
+          .replace("[projectId]", routerProjectId ?? "")
+          .replace("[organizationId]", routerOrganizationId ?? "")
+          .replace(
+            "[gatewayIngestionProjectId]",
+            gatewayIngestionProjectId ?? "",
+          ) + (route.search ?? "");
 
       // Recursively map nested items (already filtered by applyNavigationFilters)
       const items: NavigationItem[] | undefined = route.items

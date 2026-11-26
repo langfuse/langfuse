@@ -32,6 +32,7 @@ import { type ReactNode } from "react";
 import { type Session } from "next-auth";
 import { type OrganizationScope } from "@langfuse/shared/rbac";
 import { SupportButton } from "@/src/components/nav/SupportButton";
+import { planDialogSearch } from "@/src/ee/features/billing/utils/planDialogLink";
 import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { BookACallButton } from "@/src/components/nav/BookACallButton";
@@ -80,6 +81,8 @@ export type Route = {
   organizationRbacScope?: OrganizationScope;
   icon?: IconComponent; // ignored for nested routes
   href: string;
+  /** Query string added to the link, e.g. "?tab=x"; not part of matching the active route. */
+  search?: string;
   isActive?: (pathname: string, asPath: string) => boolean;
   legacyPathname?: string; // link used when the V4 preview is disabled
   items?: Array<Route>; // folder
@@ -363,6 +366,7 @@ export const ROUTES: Route[] = [
     title: "Upgrade plan",
     icon: Sparkle,
     href: "/project/[projectId]/settings/billing",
+    search: planDialogSearch("sidebar"),
     section: RouteSection.Secondary,
     entitlements: ["cloud-billing"],
     organizationRbacScope: "langfuseCloudBilling:CRUD",
@@ -374,6 +378,7 @@ export const ROUTES: Route[] = [
     title: "Upgrade plan",
     icon: Sparkle,
     href: "/organization/[organizationId]/settings/billing",
+    search: planDialogSearch("sidebar"),
     section: RouteSection.Secondary,
     entitlements: ["cloud-billing"],
     organizationRbacScope: "langfuseCloudBilling:CRUD",

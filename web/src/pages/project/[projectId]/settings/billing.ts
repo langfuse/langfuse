@@ -9,7 +9,13 @@ export default function ProjectBillingRedirect() {
 
   useEffect(() => {
     if (organization) {
-      router.replace(`/organization/${organization.id}/settings/billing`);
+      // Keeps a link's query, so ?plans=open still opens the plan dialog.
+      const search = router.asPath.includes("?")
+        ? router.asPath.slice(router.asPath.indexOf("?"))
+        : "";
+      router.replace(
+        `/organization/${organization.id}/settings/billing${search}`,
+      );
     }
   }, [organization, router]);
 

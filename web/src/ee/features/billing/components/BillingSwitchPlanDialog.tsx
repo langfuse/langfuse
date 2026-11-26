@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 // Langfuse Cloud only
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { nanoid } from "nanoid";
@@ -26,6 +26,10 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useBillingInformation } from "@/src/ee/features/billing/components/useBillingInformation";
 import { api } from "@/src/utils/api";
+import {
+  planDialogSourceFromQuery,
+  withoutPlanDialogParams,
+} from "@/src/ee/features/billing/utils/planDialogLink";
 import { StripeCancellationButton } from "./StripeCancellationButton";
 import { StripeSwitchPlanButton } from "./StripeSwitchPlanButton";
 import { StripeKeepPlanButton } from "./StripeKeepPlanButton";
@@ -51,8 +55,51 @@ export const BillingSwitchPlanDialog = ({
     isLegacySubscription,
     hasValidPaymentMethod,
     currentProductId,
+    isLoading,
   } = useBillingInformation();
   const capture = usePostHogClientCapture();
+
+  // A link can ask for the dialog (?plans=open). It opens once billing has loaded, so the card
+  // around this trigger has settled, and the parameters go when the dialog closes.
+  const [isOpenedByClick, setIsOpenedByClick] = useState(false);
+  const linkSource =
+    router.isReady && !isLoading && !disabled
+      ? planDialogSourceFromQuery(router.query)
+      : null;
+  const plan = organization?.plan ?? null;
+  const hasCapturedLinkOpen = useRef(false);
+  useEffect(() => {
+    if (!linkSource || hasCapturedLinkOpen.current) return;
+    hasCapturedLinkOpen.current = true;
+    // An effect that throws takes the page down, so tracking is guarded here.
+    try {
+      capture("project_settings:pricing_dialog_opened", {
+        source: linkSource,
+        plan,
+      });
+    } catch {}
+  }, [linkSource, plan, capture]);
+
+  const onOpenChange = (open: boolean) => {
+    setIsOpenedByClick(open);
+    if (open) {
+      capture("project_settings:pricing_dialog_opened", {
+        source: "billing_page",
+        plan,
+      });
+      return;
+    }
+    if (linkSource) {
+      router.replace(
+        {
+          pathname: router.pathname,
+          query: withoutPlanDialogParams(router.query),
+        },
+        undefined,
+        { shallow: true },
+      );
+    }
+  };
 
   const mutCreateCheckoutSession =
     api.cloudBilling.createStripeCheckoutSession.useMutation({
@@ -74,11 +121,8 @@ export const BillingSwitchPlanDialog = ({
 
   return (
     <Dialog
-      onOpenChange={(open) => {
-        if (open) {
-          capture("project_settings:pricing_dialog_opened");
-        }
-      }}
+      open={isOpenedByClick || Boolean(linkSource)}
+      onOpenChange={onOpenChange}
     >
       <DialogTrigger asChild>
         <Button disabled={disabled} variant={variant}>
