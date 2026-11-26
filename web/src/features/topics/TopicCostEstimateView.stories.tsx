@@ -21,6 +21,19 @@ const meta = preview.meta({
 
 export const NotStarted = meta.story({});
 
+// Usage needs only the trace count, so it waits on that and not on the estimate.
+export const CountingTraces = meta.story({ args: { dailyTraces: null } });
+
+export const Snapshot = meta.story({
+  args: {
+    estimate: estimate(),
+    samplingPercent: undefined,
+    dailyTraces: undefined,
+    backfillTraces: undefined,
+    newTraces: 340,
+  },
+});
+
 export const Running = meta.story({
   args: {
     estimate: estimate({
@@ -86,6 +99,17 @@ export const LabelsEstimate = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Estimate cost" }),
     ).toBeDisabled();
+  },
+});
+
+export const TestBillableUnitsWithoutEstimate = meta.story({
+  name: "(Test) Projects daily billable units before any estimate runs",
+  args: { samplingPercent: 50, facetCount: 3 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // 954 traces a day × 50% × 3 questions
+    await expect(canvas.getByText("~1.4K")).toBeVisible();
+    await expect(canvas.getByText(/billable units per day/)).toBeVisible();
   },
 });
 
