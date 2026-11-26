@@ -144,7 +144,7 @@ export async function listModelDefinitions(params: {
   searchString: string;
   /** Restricts the rows to these scopes; all visible scopes when omitted. */
   scopes?: ModelScope[];
-  /** Zero-based. */
+  /** Starts at 1. */
   page: number;
   limit: number;
 }) {
@@ -177,7 +177,7 @@ export async function listModelDefinitions(params: {
         m.created_at DESC NULLS LAST,
         m.id
       LIMIT ${limit}
-      OFFSET ${limit * page}
+      OFFSET ${limit * (page - 1)}
     `,
     prisma.$queryRaw<{ count: number }[]>`
       SELECT COUNT(DISTINCT (m.scope, m.model_name))
