@@ -1,5 +1,10 @@
 import { createElement } from "react";
-import { addons, types, useStorybookState } from "storybook/manager-api";
+import {
+  addons,
+  types,
+  useStorybookApi,
+  useStorybookState,
+} from "storybook/manager-api";
 import { IconButton } from "storybook/internal/components";
 
 import {
@@ -11,9 +16,14 @@ import {
 const ADDON_ID = "langfuse/component-relationships";
 
 function ComponentRelationshipsTool() {
+  const api = useStorybookApi();
   const { index, storyId, refId } = useStorybookState();
   const entry = storyId ? index?.[storyId] : undefined;
-  if (refId || !entry?.tags?.includes(COMPONENT_RELATIONSHIP_STORY_TAG)) {
+  if (
+    refId ||
+    entry?.type !== "story" ||
+    !entry.tags?.includes(COMPONENT_RELATIONSHIP_STORY_TAG)
+  ) {
     return null;
   }
   const componentId = componentIdForDesignSystemStory(entry.importPath);
@@ -25,15 +35,11 @@ function ComponentRelationshipsTool() {
       title: "View component relationships",
       "aria-label": "View component relationships",
       onClick: () => {
-        const url = new URL(window.location.href);
-        url.searchParams.set(
-          "path",
-          "/docs/design-component-relationships--docs",
-        );
-        url.searchParams.set(COMPONENT_RELATIONSHIP_QUERY, componentId);
-        url.searchParams.delete("args");
-        url.hash = "";
-        window.location.assign(url.href);
+        api.setQueryParams({
+          args: null,
+          [COMPONENT_RELATIONSHIP_QUERY]: componentId,
+        });
+        api.selectStory("design-component-relationships--docs");
       },
     },
     "Relationships",

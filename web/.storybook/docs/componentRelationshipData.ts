@@ -54,7 +54,7 @@ const STATIC_IMPORT_PATTERN =
 
 function normalizePath(path: string) {
   const segments: string[] = [];
-  for (const segment of path.split("/")) {
+  for (const segment of path.replaceAll("\\", "/").split("/")) {
     if (segment === "" || segment === ".") continue;
     if (segment === "..") {
       segments.pop();
@@ -87,7 +87,7 @@ export const COMPONENT_RELATIONSHIP_STORY_TAG = "component-relationships";
 export const COMPONENT_RELATIONSHIP_QUERY = "relationshipComponent";
 
 export function componentIdForDesignSystemStory(path: string) {
-  const relativePath = relativeDesignSystemPath(path.replaceAll("\\", "/"));
+  const relativePath = relativeDesignSystemPath(path);
   if (!relativePath || !/\.stories\.[cm]?[jt]sx?$/.test(relativePath)) {
     return null;
   }

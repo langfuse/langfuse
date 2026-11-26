@@ -23,6 +23,18 @@ describe("componentIdForDesignSystemStory", () => {
 });
 
 describe("buildComponentRelationshipGraph", () => {
+  it("matches Windows source paths to their story node IDs", () => {
+    const graph = buildComponentRelationshipGraph({
+      "src\\components\\design-system\\Button\\Button.tsx": "",
+    });
+
+    expect(graph.nodes.map(({ id }) => id)).toEqual([
+      componentIdForDesignSystemStory(
+        "src\\components\\design-system\\Button\\Button.stories.tsx",
+      ),
+    ]);
+  });
+
   it("builds component-level edges from alias and relative imports", () => {
     const graph = buildComponentRelationshipGraph({
       "../../src/components/design-system/Button/Button.tsx": "export {}",

@@ -1,4 +1,4 @@
-import { X } from "@langfuse/icons";
+import { ChevronDown, ChevronRight, X } from "@langfuse/icons";
 import { select } from "d3-selection";
 import { zoom, zoomIdentity } from "d3-zoom";
 import type { ElkNode } from "elkjs";
@@ -31,9 +31,16 @@ const NODE_HEIGHT = 42;
 const PADDING = 40;
 const SEARCH_FOCUS_NODE_WIDTH = 240;
 
-type Layout = {
-  graph: GraphData;
+type ViewTarget = { nodeId: string } | "fit";
+
+type LayoutRequest = {
+  selection?: { nodeId: string; focusDirection?: RelationshipFocus };
   collapsedGroups: ReadonlySet<string>;
+  viewTarget?: ViewTarget;
+};
+
+type Layout = {
+  viewTarget?: ViewTarget;
   width: number;
   height: number;
   nodes: {
@@ -48,7 +55,7 @@ type Layout = {
   groupAreas: {
     label: string;
     status: "expanded" | "collapsed";
-    componentCount: number;
+    memberCount: number;
     x: number;
     y: number;
     width: number;
@@ -79,12 +86,13 @@ function initialGraphSelection() {
       // A cross-origin Storybook host cannot supply the manager query string.
     }
   }
-  return id && graph.nodes.some((node) => node.id === id) ? { id } : undefined;
+  return id && graph.nodes.some((node) => node.id === id) ? id : undefined;
 }
 
 async function layoutGraph(
   graph: GraphData,
   collapsedGroups: ReadonlySet<string>,
+  viewTarget: ViewTarget | undefined,
 ) {
   const elk = new ELK();
   const groupedNodes = new Map<string, typeof graph.nodes>();
@@ -180,13 +188,7 @@ async function layoutGraph(
     groupAreas.push({
       label,
       status: collapsedGroups.has(label) ? "collapsed" : "expanded",
-      componentCount:
-        groupedNodes
-          .get(label)
-          ?.filter(
-            (member) =>
-              member.kind === "component" || member.kind === "internal",
-          ).length ?? 0,
+      memberCount: groupedNodes.get(label)?.length ?? 0,
       x,
       y,
       width: node.width ?? 0,
@@ -233,8 +235,7 @@ async function layoutGraph(
   });
 
   return {
-    graph,
-    collapsedGroups,
+    viewTarget,
     width: result.width ?? 1,
     height: result.height ?? 1,
     nodes,
@@ -245,15 +246,20 @@ async function layoutGraph(
 
 export function ComponentRelationshipGraph() {
   const [layout, setLayout] = useState<Layout>();
-  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
+  const [request, setRequest] = useState<LayoutRequest>(() => {
+    const selectedNodeId = initialGraphSelection();
+    return {
+      selection: selectedNodeId
+        ? { nodeId: selectedNodeId, focusDirection: "both" }
+        : undefined,
+      collapsedGroups: new Set(),
+      viewTarget: selectedNodeId ? { nodeId: selectedNodeId } : undefined,
+    };
+  });
+  const { selection, collapsedGroups, viewTarget } = request;
+  const highlightedNodeId = selection?.nodeId;
+  const focusDirection = selection?.focusDirection;
   const [searchQuery, setSearchQuery] = useState("");
-  const [selection, setSelection] = useState(initialGraphSelection);
-  const highlightedNodeId = selection?.id;
-  const [focusDirection, setFocusDirection] = useState<RelationshipFocus>(
-    selection ? "both" : undefined,
-  );
   const visibleGraph = useMemo(
     () =>
       highlightedNodeId && focusDirection
@@ -268,85 +274,84 @@ export function ComponentRelationshipGraph() {
   const selectedNode = graph.nodes.find(
     (node) => node.id === highlightedNodeId,
   );
-  const focusedGroup = focusDirection ? selectedNode?.group : null;
+  const selectedGroup = selectedNode?.group;
   const collapsibleGroups = new Set(
     visibleGraph.nodes.flatMap(({ group }) =>
-      group === null || group === focusedGroup ? [] : [group],
+      group === null || group === selectedGroup ? [] : [group],
     ),
   );
-  const pendingFocus = useRef<string | null>(selection?.id ?? null);
-  const pendingFit = useRef(false);
   const svgRef = useRef<SVGSVGElement>(null);
   const contentRef = useRef<SVGGElement>(null);
-  const zoomBehavior = useMemo(
-    () =>
-      zoom<SVGSVGElement, unknown>()
-        .scaleExtent([0.25, 8])
-        .on("zoom", (event) => {
-          contentRef.current?.setAttribute("transform", event.transform);
-        }),
-    [],
-  );
+  const zoomBehavior = useMemo(() => {
+    const behavior = zoom<SVGSVGElement, unknown>().scaleExtent([0.25, 8]);
+    const defaultFilter = behavior.filter();
+    return behavior
+      .filter(function (event: Event, datum) {
+        if (
+          event.type !== "wheel" &&
+          event.target instanceof Element &&
+          event.target.closest("[data-group-toggle]")
+        ) {
+          return false;
+        }
+        return defaultFilter.call(this, event, datum);
+      })
+      .on("zoom", (event) => {
+        contentRef.current?.setAttribute("transform", event.transform);
+      });
+  }, []);
 
   useEffect(() => {
     let active = true;
-    layoutGraph(visibleGraph, collapsedGroups).then((nextLayout) => {
-      if (active) setLayout(nextLayout);
-    });
+    layoutGraph(visibleGraph, collapsedGroups, viewTarget).then(
+      (nextLayout) => {
+        if (active) setLayout(nextLayout);
+      },
+    );
     return () => {
       active = false;
     };
-  }, [collapsedGroups, visibleGraph]);
+  }, [collapsedGroups, visibleGraph, viewTarget]);
 
   useEffect(() => {
     const svg = svgRef.current;
-    if (!svg) return;
-    select(svg).call(zoomBehavior);
+    if (!svg || !layout) return;
+    const viewport = select(svg).call(zoomBehavior);
+    const target = layout.viewTarget;
+    if (target === "fit") {
+      viewport.call(zoomBehavior.transform, zoomIdentity);
+    } else if (target) {
+      const node = layout.nodes.find((node) => node.id === target.nodeId);
+      if (node) {
+        const viewportScale = Math.min(
+          svg.clientWidth / layout.width,
+          svg.clientHeight / layout.height,
+        );
+        const targetWidth = Math.min(
+          SEARCH_FOCUS_NODE_WIDTH,
+          svg.clientWidth / 2,
+        );
+        const [minZoom, maxZoom] = zoomBehavior.scaleExtent();
+        const scale =
+          viewportScale > 0
+            ? Math.min(
+                maxZoom,
+                Math.max(minZoom, targetWidth / (NODE_WIDTH * viewportScale)),
+              )
+            : minZoom;
+        viewport.call(
+          zoomBehavior.transform,
+          zoomIdentity
+            .translate(layout.width / 2, layout.height / 2)
+            .scale(scale)
+            .translate(-node.x - NODE_WIDTH / 2, -node.y - NODE_HEIGHT / 2),
+        );
+      }
+    }
     return () => {
-      select(svg).on(".zoom", null);
+      viewport.on(".zoom", null);
     };
   }, [layout, zoomBehavior]);
-
-  useEffect(() => {
-    const svg = svgRef.current;
-    if (
-      !layout ||
-      layout.graph !== visibleGraph ||
-      layout.collapsedGroups !== collapsedGroups ||
-      !svg
-    ) {
-      return;
-    }
-    if (pendingFit.current) {
-      pendingFit.current = false;
-      select(svg).call(zoomBehavior.transform, zoomIdentity);
-      return;
-    }
-    if (pendingFocus.current === null) return;
-    const node = layout.nodes.find((node) => node.id === pendingFocus.current);
-    if (!node) return;
-    pendingFocus.current = null;
-    const viewportScale = Math.min(
-      svg.clientWidth / layout.width,
-      svg.clientHeight / layout.height,
-    );
-    const targetWidth = Math.min(SEARCH_FOCUS_NODE_WIDTH, svg.clientWidth / 2);
-    const [minZoom, maxZoom] = zoomBehavior.scaleExtent();
-    const scale =
-      viewportScale > 0
-        ? Math.min(
-            maxZoom,
-            Math.max(minZoom, targetWidth / (NODE_WIDTH * viewportScale)),
-          )
-        : minZoom;
-    select(svg).call(
-      zoomBehavior.transform,
-      zoomIdentity
-        .translate(layout.width / 2, layout.height / 2)
-        .scale(scale)
-        .translate(-node.x - NODE_WIDTH / 2, -node.y - NODE_HEIGHT / 2),
-    );
-  }, [collapsedGroups, layout, selection, visibleGraph, zoomBehavior]);
 
   const query = searchQuery.trim().toLowerCase();
   const allGroupsCollapsed = [...collapsibleGroups].every((group) =>
@@ -394,10 +399,10 @@ export function ComponentRelationshipGraph() {
                     label: "Clear component selection",
                     appearance: "inline",
                     onClick: () => {
-                      pendingFit.current = false;
-                      pendingFocus.current = null;
-                      setSelection(undefined);
-                      setFocusDirection(undefined);
+                      setRequest((current) => ({
+                        collapsedGroups: current.collapsedGroups,
+                        viewTarget: "fit",
+                      }));
                       for (const target of new Set([window, window.parent])) {
                         try {
                           const url = new URL(target.location.href);
@@ -416,7 +421,6 @@ export function ComponentRelationshipGraph() {
                           // A cross-origin manager owns its own URL.
                         }
                       }
-                      resetZoom();
                     },
                   }
                 : undefined
@@ -429,16 +433,15 @@ export function ComponentRelationshipGraph() {
             onValueChange={({ value }) => {
               const node = graph.nodes.find((node) => node.id === value);
               if (!node) return;
-              pendingFit.current = false;
-              pendingFocus.current = node.id;
-              setFocusDirection("both");
-              setSelection({ id: node.id });
-              const group = node.group;
-              if (group !== null && collapsedGroups.has(group)) {
-                const next = new Set(collapsedGroups);
-                next.delete(group);
-                setCollapsedGroups(next);
-              }
+              setRequest((current) => {
+                const next = new Set(current.collapsedGroups);
+                if (node.group !== null) next.delete(node.group);
+                return {
+                  selection: { nodeId: node.id, focusDirection: "both" },
+                  collapsedGroups: next,
+                  viewTarget: { nodeId: node.id },
+                };
+              });
             }}
           />
         </div>
@@ -455,20 +458,17 @@ export function ComponentRelationshipGraph() {
                 { value: "dependencies", label: "Dependencies" },
                 { value: "dependents", label: "Dependents" },
               ]}
-              onValueChange={(direction) => {
-                if (direction !== "full") {
-                  setFocusDirection(direction);
-                  const group = selectedNode.group;
-                  if (group !== null && collapsedGroups.has(group)) {
-                    const next = new Set(collapsedGroups);
-                    next.delete(group);
-                    setCollapsedGroups(next);
-                  }
-                } else {
-                  setFocusDirection(undefined);
-                }
-                resetZoom();
-              }}
+              onValueChange={(direction) =>
+                setRequest((current) => ({
+                  ...current,
+                  selection: {
+                    nodeId: selectedNode.id,
+                    focusDirection:
+                      direction === "full" ? undefined : direction,
+                  },
+                  viewTarget: "fit",
+                }))
+              }
             />
           </div>
         )}
@@ -479,18 +479,20 @@ export function ComponentRelationshipGraph() {
                 allGroupsCollapsed ? "Expand all groups" : "Collapse all groups"
               }
               variant="secondary"
-              onClick={() => {
-                pendingFocus.current = null;
-                pendingFit.current = true;
-                setCollapsedGroups((current) => {
-                  const next = new Set(current);
+              onClick={() =>
+                setRequest((current) => {
+                  const next = new Set(current.collapsedGroups);
                   for (const group of collapsibleGroups) {
                     if (allGroupsCollapsed) next.delete(group);
                     else next.add(group);
                   }
-                  return next;
-                });
-              }}
+                  return {
+                    ...current,
+                    collapsedGroups: next,
+                    viewTarget: "fit",
+                  };
+                })
+              }
             />
           )}
           <Button text="Reset view" variant="secondary" onClick={resetZoom} />
@@ -557,36 +559,41 @@ export function ComponentRelationshipGraph() {
                       className="fill-muted/30 stroke-border stroke-dashed"
                     />
                     <foreignObject
-                      x={area.x + 8}
-                      y={area.y + 6}
-                      width={area.width - 16}
-                      height={30}
+                      x={area.x + 4}
+                      y={area.y + 2}
+                      width={area.width - 8}
+                      height={34}
                     >
-                      <button
-                        type="button"
-                        disabled={area.label === focusedGroup}
-                        aria-label={`${area.status === "collapsed" ? "Expand" : "Collapse"} ${area.label}`}
-                        aria-expanded={area.status === "expanded"}
-                        className="text-muted-foreground hover:bg-muted focus-visible:ring-ring cursor-pointer rounded px-1 py-1 text-left text-[10px] font-medium tracking-wide uppercase focus-visible:ring-2 focus-visible:outline-none"
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onDoubleClick={(event) => event.stopPropagation()}
-                        onTouchStart={(event) => event.stopPropagation()}
-                        onClick={() =>
-                          setCollapsedGroups((current) => {
-                            const next = new Set(current);
-                            if (next.has(area.label)) next.delete(area.label);
-                            else next.add(area.label);
-                            return next;
-                          })
-                        }
-                      >
-                        <span aria-hidden="true">
-                          {area.status === "collapsed" ? "▸" : "▾"}
-                        </span>{" "}
-                        {area.label}
-                        {area.status === "collapsed" &&
-                          ` (${area.componentCount})`}
-                      </button>
+                      <div data-group-toggle className="inline-flex p-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          icon={
+                            area.status === "collapsed"
+                              ? ChevronRight
+                              : ChevronDown
+                          }
+                          text={
+                            area.status === "collapsed"
+                              ? `${area.label} (${area.memberCount})`
+                              : area.label
+                          }
+                          disabled={area.label === selectedGroup}
+                          aria-expanded={area.status === "expanded"}
+                          onClick={() =>
+                            setRequest((current) => {
+                              const next = new Set(current.collapsedGroups);
+                              if (next.has(area.label)) next.delete(area.label);
+                              else next.add(area.label);
+                              return {
+                                ...current,
+                                collapsedGroups: next,
+                                viewTarget: undefined,
+                              };
+                            })
+                          }
+                        />
+                      </div>
                     </foreignObject>
                   </g>
                 ))}
@@ -608,7 +615,7 @@ export function ComponentRelationshipGraph() {
                         width={NODE_WIDTH + 8}
                         height={NODE_HEIGHT + 8}
                         rx="10"
-                        className="pointer-events-none fill-none stroke-blue-600 stroke-[3] dark:stroke-blue-400"
+                        className="stroke-ring pointer-events-none fill-none stroke-[3]"
                       />
                     )}
                     <rect
