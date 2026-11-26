@@ -487,12 +487,14 @@ export class DashboardService {
       }),
     ]);
 
-    const domainWidgets = widgets.map((widget) =>
-      WidgetDomainSchema.parse({
+    const domainWidgets = widgets.flatMap((widget) => {
+      const parsed = WidgetDomainSchema.safeParse({
         ...widget,
         owner: widget.projectId ? "PROJECT" : "LANGFUSE",
-      }),
-    );
+      });
+      // Unsupported saved formats must not prevent other widgets from loading.
+      return parsed.success ? [parsed.data] : [];
+    });
 
     return {
       widgets: domainWidgets,
@@ -553,10 +555,11 @@ export class DashboardService {
       return null;
     }
 
-    return WidgetDomainSchema.parse({
+    const parsed = WidgetDomainSchema.safeParse({
       ...widget,
       owner: widget.projectId ? "PROJECT" : "LANGFUSE",
     });
+    return parsed.success ? parsed.data : null;
   }
 
   /**

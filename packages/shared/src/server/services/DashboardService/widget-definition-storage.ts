@@ -265,10 +265,21 @@ export async function saveWidgetDefinition(
     if (parsed.widgetId) {
       const existing = await tx.dashboardWidget.findFirst({
         where: { id: parsed.widgetId, projectId },
-        select: { minVersion: true },
+        select: { minVersion: true, definition: true, revision: true },
       });
       if (!existing)
         throw new LangfuseNotFoundError("Dashboard widget not found");
+      if (existing.revision !== parsed.expectedRevision)
+        throw new LangfuseConflictError(
+          "This widget changed or is unavailable. Reload it and try again.",
+        );
+      if (
+        existing.definition != null &&
+        !dashboardBlockContentSchema.safeParse(existing.definition).success
+      )
+        throw new LangfuseConflictError(
+          "This widget definition cannot be edited by this version of Langfuse.",
+        );
       data.minVersion = Math.max(data.minVersion, existing.minVersion);
       const result = await tx.dashboardWidget.updateMany({
         where: {

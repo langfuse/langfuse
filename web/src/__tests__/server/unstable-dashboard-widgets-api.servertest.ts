@@ -9,6 +9,10 @@ import {
   PostUnstableDashboardWidgetResponse,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
 import { StructuredPublicApiErrorResponse } from "@/src/features/public-api/types/structuredPublicApiErrorSchema";
+import {
+  GetUnstableDashboardResponse,
+  PatchUnstableDashboardResponse,
+} from "@/src/features/public-api/types/unstable-dashboards";
 import { DashboardWidgetViews, prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
@@ -51,6 +55,123 @@ const expectUnstableError = (
 };
 
 describe("/api/public/unstable/dashboard-widgets API", () => {
+  it("isolates unreadable widget definitions and preserves their placements and stored content", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+    const classic = await DashboardService.createWidget(
+      projectId,
+      legacyTracesWidgetInput,
+    );
+    const definition = {
+      kind: "markdown" as const,
+      config: { version: 1 as const, title: "Note", content: "Supported" },
+    };
+    const { widget: supported } = await DashboardService.saveWidgetDefinition(
+      projectId,
+      { definition },
+    );
+    const unreadable = await Promise.all(
+      [
+        {
+          kind: "markdown",
+          config: { version: 999, content: "Future content" },
+        },
+        { kind: "multiQuery", config: { version: 2, tabs: "invalid" } },
+      ].map(async (stored) => {
+        const widget = await DashboardService.createWidget(
+          projectId,
+          legacyTracesWidgetInput,
+        );
+        return prisma.dashboardWidget.update({
+          where: { id: widget.id },
+          data: { definition: stored, revision: 1 },
+        });
+      }),
+    );
+    const list = await makeZodVerifiedAPICall(
+      GetUnstableDashboardWidgetsResponse,
+      "GET",
+      "/api/public/unstable/dashboard-widgets",
+      undefined,
+      auth,
+    );
+    expect(list.status).toBe(200);
+    expect(list.body.data.map((row) => row.id).sort()).toEqual(
+      [classic.id, supported.id].sort(),
+    );
+    expect(list.body.meta.totalItems).toBe(4);
+    for (const widget of unreadable) {
+      await expect(
+        DashboardService.getWidget(widget.id, projectId),
+      ).resolves.toBeNull();
+      expect(
+        (
+          await makeAPICall(
+            "GET",
+            `/api/public/unstable/dashboard-widgets/${widget.id}`,
+            undefined,
+            auth,
+          )
+        ).status,
+      ).toBe(404);
+      await expect(
+        DashboardService.saveWidgetDefinition(projectId, {
+          widgetId: widget.id,
+          expectedRevision: 1,
+          definition,
+        }),
+      ).rejects.toThrow("cannot be edited");
+    }
+    const dashboard = await prisma.dashboard.create({
+      data: {
+        projectId,
+        name: "Future widgets",
+        description: "",
+        definition: {
+          widgets: unreadable.map((widget, index) => ({
+            type: "widget",
+            id: `placement-${index}`,
+            widgetId: widget.id,
+            x: index * 6,
+            y: 0,
+            x_size: 6,
+            y_size: 4,
+          })),
+        },
+      },
+    });
+    const path = `/api/public/unstable/dashboards/${dashboard.id}`;
+    const read = await makeZodVerifiedAPICall(
+      GetUnstableDashboardResponse,
+      "GET",
+      path,
+      undefined,
+      auth,
+    );
+    expect(read.status).toBe(200);
+    const placements = read.body.definition.widgets ?? [];
+    expect(placements).toHaveLength(unreadable.length);
+    const moved = {
+      widgets: placements.map((placement) => ({
+        ...placement,
+        y: 4,
+      })),
+    };
+    const saved = await makeZodVerifiedAPICall(
+      PatchUnstableDashboardResponse,
+      "PATCH",
+      path,
+      { definition: moved },
+      auth,
+    );
+    expect(saved.status).toBe(200);
+    expect(saved.body.definition.widgets).toEqual(moved.widgets);
+    for (const widget of unreadable) {
+      await expect(
+        prisma.dashboardWidget.findUnique({ where: { id: widget.id } }),
+      ).resolves.toMatchObject({ definition: widget.definition, revision: 1 });
+    }
+  });
+
   it("returns complete reusable widget definitions and rejects lossy classic writes", async () => {
     const { auth, projectId } = await createOrgProjectAndApiKey();
     const definition = {

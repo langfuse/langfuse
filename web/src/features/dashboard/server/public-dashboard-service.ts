@@ -10,6 +10,7 @@ import {
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   DashboardSchema,
   type DashboardPlacementSchema,
@@ -155,12 +156,14 @@ async function assertPlacementReferences(params: {
         }
         return;
       }
-      // getWidget resolves project-owned and Langfuse-managed (projectId
-      // null) widgets; both are placeable, matching the UI.
-      const widget = await DashboardService.getWidget(
-        placement.widgetId,
-        params.projectId,
-      );
+      // A placement can reference an unsupported format without decoding it.
+      const widget = await prisma.dashboardWidget.findFirst({
+        where: {
+          id: placement.widgetId,
+          OR: [{ projectId: params.projectId }, { projectId: null }],
+        },
+        select: { id: true },
+      });
       if (!widget) {
         throw new LangfuseNotFoundError(
           `Dashboard widget ${placement.widgetId} not found`,
