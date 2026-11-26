@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
+/* eslint-disable @repo/single-function-export-matching-filename */
 import Decimal from "decimal.js";
 import { type TreeNode } from "@/src/features/traces/types/treeNode";
 

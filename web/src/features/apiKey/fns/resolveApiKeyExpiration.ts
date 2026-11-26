@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
+/* eslint-disable @repo/single-function-export-matching-filename */
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   apiKeyExpirationOptions,

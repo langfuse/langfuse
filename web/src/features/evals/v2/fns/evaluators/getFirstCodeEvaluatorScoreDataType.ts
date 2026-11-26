@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
+/* eslint-disable @repo/single-function-export-matching-filename */
 export type AlertScoreDataType = "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
 
 const ALERT_SCORE_DATA_TYPES = new Set<AlertScoreDataType>([

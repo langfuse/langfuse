@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
+/* eslint-disable @repo/single-function-export-matching-filename */
 /**
  * Size gate for the unvirtualized "JSON" IO view (LFE-10989, part of the
  * LFE-10152 large-traces work).

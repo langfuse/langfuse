@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
+/* eslint-disable @repo/single-function-export-matching-filename */
 // Foundry resource names become the subdomain of the resource endpoint.
 const RESOURCE_NAME = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/;
 const RESOURCE_HOST =

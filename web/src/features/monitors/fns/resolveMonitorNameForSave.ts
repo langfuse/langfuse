@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
+/* eslint-disable @repo/single-function-export-matching-filename */
 /** Resolves a monitor name at save time, preserving why a blank name could not be resolved. */
 export async function resolveMonitorNameForSave({
   name,

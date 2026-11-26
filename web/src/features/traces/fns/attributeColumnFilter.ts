@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
+/* eslint-disable @repo/single-function-export-matching-filename */
 /** Which table column can filter each attribute. */
 
 import { type FilterState } from "@langfuse/shared";

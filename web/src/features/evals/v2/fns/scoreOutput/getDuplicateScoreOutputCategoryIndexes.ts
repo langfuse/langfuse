@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
+/* eslint-disable @repo/single-function-export-matching-filename */
 import { getCategoricalCategoryRuleViolations } from "@langfuse/shared";
 
 export const DUPLICATE_CATEGORY_NAMES_MESSAGE =

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
+/* eslint-disable @repo/single-function-export-matching-filename */
 import { type ScoreColumnAggregate } from "./summariseScoreColumn";
 
 export const formatScoreValue = (value: number) => value.toFixed(2);
