@@ -64,7 +64,7 @@ export * from "./features/entitlements/entitlements";
 export * from "./features/entitlements/stripeProducts";
 export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
-export * from "./features/dashboards/blocks";
+export { compileMultiQueryFormula } from "./features/dashboards/multiQueryFormula";
 export * from "./features/dashboards/multiQuery";
 export * from "./features/dashboards/widgetDefinition";
 export * from "./domain/webhooks";

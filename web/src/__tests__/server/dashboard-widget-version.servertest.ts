@@ -461,35 +461,38 @@ describe("dashboard widget minVersion", () => {
       expect(res.homeDashboardId).toBe(dashboard.id);
       expect(res.dashboard?.id).toBe(dashboard.id);
       expect(res.dashboard?.owner).toBe("PROJECT");
-      expect(res.dashboard?.hasDashboardBlocks).toBe(false);
+      expect(res.dashboard?.definition.widgets).toEqual([]);
 
-      await DashboardService.patchDashboardBlock(
+      const { widget } = await DashboardService.saveWidgetDefinition(
         projectId,
-        dashboard.id,
         {
-          op: "upsert",
-          id: uuidv4(),
-          expectedRevision: 0,
-          kind: "markdown",
-          config: { version: 1, title: "Notes", content: "Read by everyone" },
+          dashboardId: dashboard.id,
+          definition: {
+            version: 1,
+            kind: "markdown",
+            config: { title: "Notes", content: "Read by everyone" },
+          },
         },
-        { canAuthorWidgets: true },
       );
       const detail = await caller.dashboard.getDashboard({
         projectId,
         dashboardId: dashboard.id,
       });
-      expect(detail.hasDashboardBlocks).toBe(true);
+      expect(detail.definition.widgets).toContainEqual(
+        expect.objectContaining({ type: "widget", widgetId: widget.id }),
+      );
       const homeWithNote = await caller.dashboard.getHomeDashboard({
         projectId,
       });
-      expect(homeWithNote.dashboard?.hasDashboardBlocks).toBe(true);
+      expect(homeWithNote.dashboard?.definition).toEqual(detail.definition);
 
       await caller.dashboard.setHomeDashboard({ projectId, dashboardId: null });
       const cleared = await caller.dashboard.getHomeDashboard({ projectId });
       expect(cleared.homeDashboardId).toBeNull();
       expect(cleared.dashboard?.id).toBe(LANGFUSE_HOME_DASHBOARD_ID);
-      expect(cleared.dashboard?.hasDashboardBlocks).toBe(false);
+      expect(cleared.dashboard?.definition).toEqual(
+        LANGFUSE_HOME_DASHBOARD_DEFINITION,
+      );
     });
 
     it("rejects pointing at a nonexistent dashboard", async () => {

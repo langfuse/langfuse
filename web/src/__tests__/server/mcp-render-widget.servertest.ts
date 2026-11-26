@@ -51,9 +51,9 @@ describe("renderWidget", () => {
       const result = (await handleRenderWidget(
         {
           definition: {
+            version: 1,
             kind: "multiQuery",
             config: {
-              version: 2,
               title: "Partial results",
               description: "",
               tabs: [
@@ -67,8 +67,7 @@ describe("renderWidget", () => {
                       ...query,
                       id: "b",
                       label: "Home scores",
-                      view: "scores-numeric",
-                      homeScoreAggregate: true,
+                      view: "scores",
                     },
                     { ...query, id: "c", label: "Traces", view: "traces" },
                   ],
@@ -108,13 +107,13 @@ describe("renderWidget", () => {
   });
 
   it("returns actionable invalid-request errors for unsupported chart plans", async () => {
-    for (const homeScoreAggregate of [false, true]) {
+    for (const allScoreTypes of [false, true]) {
       const error = await handleRenderWidget(
         {
           definition: {
+            version: 1,
             kind: "multiQuery",
             config: {
-              version: 2,
               title: "Scores",
               description: "",
               tabs: [
@@ -125,15 +124,12 @@ describe("renderWidget", () => {
                     {
                       id: "a",
                       label: "Scores",
-                      view: "scores-numeric",
+                      view: allScoreTypes ? "scores" : "scores-numeric",
                       metrics: [
                         { id: "count", measure: "count", aggregation: "count" },
                       ],
-                      dimensions: homeScoreAggregate
-                        ? []
-                        : [{ field: "sessionId" }],
+                      dimensions: allScoreTypes ? [] : [{ field: "sessionId" }],
                       filters: [],
-                      homeScoreAggregate,
                     },
                   ],
                   display: { chartType: "LINE_TIME_SERIES" },
@@ -148,10 +144,12 @@ describe("renderWidget", () => {
         (error: unknown) => error,
       );
       expect(formatErrorForUser(error)).toEqual({
-        code: ProtocolErrorCode.InvalidRequest,
+        code: allScoreTypes
+          ? ProtocolErrorCode.InvalidParams
+          : ProtocolErrorCode.InvalidRequest,
         message: expect.stringContaining(
-          homeScoreAggregate
-            ? "Home score records support counts and numeric means"
+          allScoreTypes
+            ? "Score summary supports counts and numeric means"
             : "cannot be used with timeDimension unless an 'any of' filter",
         ),
       });
@@ -168,9 +166,9 @@ describe("renderWidget", () => {
     const { projectId } = await createOrgProjectAndApiKey();
     const { widget } = await DashboardService.saveWidgetDefinition(projectId, {
       definition: {
+        version: 1,
         kind: "markdown",
         config: {
-          version: 1,
           title: "Explanation",
           content: "Read this context",
         },
@@ -234,9 +232,9 @@ describe("renderWidget", () => {
     };
     const { widget } = await DashboardService.saveWidgetDefinition(projectId, {
       definition: {
+        version: 1,
         kind: "multiQuery",
         config: {
-          version: 2,
           title: "Operations",
           description: "Two views",
           tabs: [
@@ -267,8 +265,7 @@ describe("renderWidget", () => {
                 {
                   ...query,
                   label: "Scores",
-                  view: "scores-numeric",
-                  homeScoreAggregate: true,
+                  view: "scores",
                   metrics: [
                     { id: "count", measure: "count", aggregation: "sum" },
                   ],

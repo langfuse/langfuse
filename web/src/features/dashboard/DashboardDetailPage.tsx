@@ -1,3 +1,4 @@
+import { widgetDefinitionSchema } from "@langfuse/shared/dashboards";
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useRouter } from "next/router";
@@ -16,7 +17,6 @@ import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
-  dashboardBlockContentSchema,
   type ColumnDefinition,
   type FilterState,
   LANGFUSE_HOME_DASHBOARD_ID,
@@ -99,7 +99,7 @@ import { useCopyHomeWidget } from "@/src/features/dashboard-blocks/useCopyHomeWi
 import { type PresetSelection } from "@/src/features/dashboard/components/home-preset-registry";
 import { DashboardBlocksProvider } from "@/src/features/dashboard-blocks/DashboardBlocksProvider";
 import { DashboardBlocksAddMenu } from "@/src/features/dashboard-blocks/DashboardBlocksAddMenu";
-import { DashboardBlocksCanvas } from "@/src/features/dashboard-blocks/DashboardBlocksCanvas";
+import { DashboardWidgetsGrid } from "@/src/features/dashboard-blocks/DashboardWidgetsGrid";
 
 // Position for a tile inserted "next to" an anchor tile: same size,
 // immediately to the right when that fits the 12-column grid, otherwise
@@ -659,7 +659,7 @@ function DashboardDetailView({
         const result = widget.definition
           ? await saveDefinitionAsync({
               projectId,
-              definition: dashboardBlockContentSchema.parse({
+              definition: widgetDefinitionSchema.parse({
                 ...widget.definition,
                 config: {
                   ...widget.definition.config,
@@ -1520,7 +1520,6 @@ function DashboardDetailView({
                   dateRange={absoluteTimeRange}
                   filterState={gridFilterState}
                   widgets={dashboardDefinition?.widgets ?? []}
-                  hasDashboardBlocks={dashboard.data?.hasDashboardBlocks}
                   dashboardReady={
                     !dashboard.isPending && Boolean(dashboard.data)
                   }
@@ -1748,7 +1747,7 @@ function DashboardDetailView({
                       dashboardDefinition &&
                       !dashboard.isError && (
                         <div>
-                          <DashboardBlocksCanvas
+                          <DashboardWidgetsGrid
                             key={gridResetKey}
                             dashboardName={dashboard.data?.name}
                             gridProps={{

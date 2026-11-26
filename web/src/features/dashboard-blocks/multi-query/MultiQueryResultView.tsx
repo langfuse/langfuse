@@ -6,7 +6,7 @@ import {
 } from "./multiQueryPresentation";
 import { useMemo, useState } from "react";
 import { groupedMetricTable, returnedRowsSubtotal } from "./multiQueryTable";
-import { type MultiQueryConfig } from "@langfuse/shared";
+import { type MultiQueryTab } from "@langfuse/shared/dashboards";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import {
   VisualizationFrame,
@@ -52,7 +52,7 @@ export function MultiQueryResultView({
   runtime,
   asTable = false,
 }: {
-  config: MultiQueryConfig;
+  config: MultiQueryTab;
   runtime: MultiQueryRuntime;
   asTable?: boolean;
 }) {
@@ -244,7 +244,7 @@ export function MultiQueryResultView({
   return (
     <div
       className="ph-no-capture flex min-h-0 flex-1 flex-col"
-      aria-label={config.title}
+      aria-label={config.label}
     >
       {result.failures.length > 0 && result.status !== "error" ? (
         <div
@@ -339,7 +339,7 @@ function MultiQueryUnitChart({
   values,
   bucketTimes,
 }: {
-  config: MultiQueryConfig;
+  config: MultiQueryTab;
   unit: string | undefined;
   series: MultiQuerySeries[];
   values: MultiQueryValue[];

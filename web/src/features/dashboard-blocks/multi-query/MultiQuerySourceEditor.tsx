@@ -28,7 +28,10 @@ import {
   multiQueryMetricLabel,
 } from "./multiQueryModel";
 
-import { type MultiQueryTab } from "@langfuse/shared/dashboards";
+import {
+  type MultiQueryTab,
+  getWidgetQueryView,
+} from "@langfuse/shared/dashboards";
 
 type MultiQuerySource = MultiQueryTab["queries"][number];
 
@@ -60,13 +63,62 @@ export function MultiQuerySourceEditor({
     baseMinVersion: 1,
     activeVersion: context.readPath === "v4" ? "v2" : "v1",
     shape: {
-      view: source.view,
+      view: getWidgetQueryView(source.view),
       dimensions: source.dimensions,
       measures: source.metrics,
       filters: source.filters,
     },
   });
-  const declaration = getViewDeclaration(source.view, version);
+  const declaration = getViewDeclaration(
+    getWidgetQueryView(source.view),
+    version,
+  );
+  const isScoreSummary = source.view === "scores";
+  const availableMeasures = isScoreSummary
+    ? ["count", "value"]
+    : Object.keys(declaration.measures);
+  const defaultAggregation = (measure: string) => {
+    if (isScoreSummary)
+      return measure === "value" ? ("avg" as const) : ("count" as const);
+    return (
+      declaration.measures[measure]?.defaultAggregation ??
+      (measure === "count" ? ("count" as const) : ("sum" as const))
+    );
+  };
+  const availableAggregations = (
+    metric: MultiQuerySource["metrics"][number],
+  ) => {
+    if (isScoreSummary) {
+      const allowed: (typeof metric.aggregation)[] = [];
+      if (metric.measure === "count") allowed.push("count", "sum");
+      if (metric.measure === "value") allowed.push("avg");
+      return [...new Set([...allowed, metric.aggregation])];
+    }
+    if (metric.measure === "count") return ["count" as const];
+    return getValidAggregationsForMeasureType(
+      declaration.measures[metric.measure]?.type,
+    );
+  };
+  const nextMeasure = availableMeasures.find(
+    (measure) =>
+      !source.metrics.some(
+        (metric) =>
+          metric.measure === measure &&
+          metric.aggregation === defaultAggregation(measure),
+      ),
+  );
+  const groupingFields = isScoreSummary
+    ? [
+        ...new Set([
+          "name",
+          "source",
+          "dataType",
+          ...source.dimensions.map((dimension) => dimension.field),
+        ]),
+      ]
+    : Object.entries(declaration.dimensions)
+        .filter(([, definition]) => !definition.uiHidden)
+        .map(([field]) => field);
   const capture = usePostHogClientCapture();
   const track = (action: string, count?: number) =>
     capture("dashboard:block_interaction", {
@@ -171,18 +223,9 @@ export function MultiQuerySourceEditor({
             <SelectInput
               aria-label="Data source"
               placeholder="Choose data"
-              value={
-                source.homeScoreAggregate ? "homeScoreRecords" : source.view
-              }
+              value={source.view}
               options={[
-                ...(source.homeScoreAggregate
-                  ? [
-                      {
-                        value: "homeScoreRecords" as const,
-                        label: "Home score records",
-                      },
-                    ]
-                  : []),
+                { value: "scores", label: "Score summary" },
                 ...views.options
                   .filter(
                     (view) =>
@@ -195,14 +238,11 @@ export function MultiQuerySourceEditor({
                   })),
               ]}
               onValueChange={(view) => {
-                if (view === "homeScoreRecords") return;
                 const score =
                   view === "scores-numeric" || view === "scores-boolean";
                 onChange({
                   ...source,
                   view,
-                  homeScoreAggregate: undefined,
-                  homeCategoryFallback: undefined,
                   metrics: [
                     {
                       id: "value",
@@ -217,10 +257,10 @@ export function MultiQuerySourceEditor({
               }}
             />
           </label>
-          {source.view.startsWith("scores-") && (
+          {source.view.startsWith("scores") && (
             <p className="text-muted-foreground text-xs">
-              {source.homeScoreAggregate
-                ? "Uses the Home score aggregate and score timestamps, including text and correction records when the selected data types allow them."
+              {source.view === "scores"
+                ? "Full-period counts and numeric means. On the current observations read path, this includes numeric, boolean and categorical scores; the legacy trace read path also includes text and correction scores."
                 : "Individual score records · score timestamp · all attachment types unless filtered."}
             </p>
           )}
@@ -238,12 +278,13 @@ export function MultiQuerySourceEditor({
                       aria-label="Metric"
                       placeholder="Choose metric"
                       value={metric.measure}
-                      options={Object.keys(declaration.measures).map(
-                        (measure) => ({
-                          value: measure,
-                          label: readableMultiQueryField(measure),
-                        }),
-                      )}
+                      options={(isScoreSummary
+                        ? [...new Set([...availableMeasures, metric.measure])]
+                        : availableMeasures
+                      ).map((measure) => ({
+                        value: measure,
+                        label: readableMultiQueryField(measure),
+                      }))}
                       onValueChange={(measure) =>
                         updateMetrics(
                           source.metrics.map((item) =>
@@ -251,10 +292,7 @@ export function MultiQuerySourceEditor({
                               ? {
                                   ...item,
                                   measure,
-                                  aggregation:
-                                    declaration.measures[measure]
-                                      ?.defaultAggregation ??
-                                    (measure === "count" ? "count" : "sum"),
+                                  aggregation: defaultAggregation(measure),
                                 }
                               : item,
                           ),
@@ -307,17 +345,14 @@ export function MultiQuerySourceEditor({
                       aria-label="Aggregation"
                       placeholder="Choose aggregation"
                       value={metric.aggregation}
-                      options={(metric.measure === "count"
-                        ? ["count" as const]
-                        : getValidAggregationsForMeasureType(
-                            declaration.measures[metric.measure]?.type,
-                          )
-                      ).map((aggregation) => ({
-                        value: aggregation,
-                        label: aggregation.startsWith("p")
-                          ? `${aggregation.slice(1)}th percentile`
-                          : readableMultiQueryField(aggregation),
-                      }))}
+                      options={availableAggregations(metric).map(
+                        (aggregation) => ({
+                          value: aggregation,
+                          label: aggregation.startsWith("p")
+                            ? `${aggregation.slice(1)}th percentile`
+                            : readableMultiQueryField(aggregation),
+                        }),
+                      )}
                       onValueChange={(aggregation) =>
                         updateMetrics(
                           source.metrics.map((item) =>
@@ -360,24 +395,14 @@ export function MultiQuerySourceEditor({
                 </details>
               </div>
             ))}
-            {source.metrics.length < 5 ? (
+            {source.metrics.length < 5 && (!isScoreSummary || nextMeasure) ? (
               <Button
                 text="Add metric"
                 icon={PlusIcon}
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  const measure = Object.keys(declaration.measures).find(
-                    (measure) =>
-                      !source.metrics.some(
-                        (metric) =>
-                          metric.measure === measure &&
-                          metric.aggregation ===
-                            (declaration.measures[measure]
-                              ?.defaultAggregation ??
-                              (measure === "count" ? "count" : "sum")),
-                      ),
-                  );
+                  const measure = nextMeasure;
                   if (!measure) return;
                   let index = 1;
                   while (
@@ -391,9 +416,7 @@ export function MultiQuerySourceEditor({
                     {
                       id: `metric_${index}`,
                       measure,
-                      aggregation:
-                        declaration.measures[measure]?.defaultAggregation ??
-                        (measure === "count" ? "count" : "sum"),
+                      aggregation: defaultAggregation(measure),
                     },
                   ]);
                 }}
@@ -405,12 +428,10 @@ export function MultiQuerySourceEditor({
             <MultiSelectTagInput
               aria-label="Group by"
               value={source.dimensions.map((dimension) => dimension.field)}
-              options={Object.entries(declaration.dimensions)
-                .filter(([, definition]) => !definition.uiHidden)
-                .map(([field]) => ({
-                  value: field,
-                  label: readableMultiQueryField(field),
-                }))}
+              options={groupingFields.map((field) => ({
+                value: field,
+                label: readableMultiQueryField(field),
+              }))}
               placeholder="Everything"
               searchPlaceholder="Find a field"
               emptyMessage="No grouping fields"
@@ -440,7 +461,7 @@ export function MultiQuerySourceEditor({
             <ConnectedMetricsFilterBuilder
               onHasInvalidFiltersChange={onHasInvalidFiltersChange}
               version={version}
-              view={source.view}
+              view={getWidgetQueryView(source.view)}
               projectId={context.projectId}
               dateRange={context.dateRange}
               filters={source.filters}

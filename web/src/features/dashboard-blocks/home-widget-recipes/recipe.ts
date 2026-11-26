@@ -1,6 +1,6 @@
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import {
-  type MultiQueryConfigV2,
+  type MultiQueryConfig,
   type MultiQueryTab,
 } from "@langfuse/shared/dashboards";
 import { type ViewVersion } from "@langfuse/shared/query";
@@ -17,7 +17,7 @@ export type HomeWidgetRecipeContext = {
 };
 
 type ReadyRecipe = {
-  config: MultiQueryConfigV2;
+  config: MultiQueryConfig;
   initialTabId?: string;
   limitations: string[];
 };
@@ -100,7 +100,6 @@ export function recipe(
   )?.id;
   return {
     config: {
-      version: 2,
       title,
       description,
       tabs: tabs.map((tab) => structuredClone(tab)),

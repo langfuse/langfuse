@@ -1,3 +1,4 @@
+import { widgetDefinitionSchema } from "@langfuse/shared/dashboards";
 import { z } from "zod";
 import {
   getValidAggregationsForMeasureType,
@@ -15,7 +16,6 @@ import {
 import startCase from "lodash/startCase";
 import {
   ChartConfigSchema,
-  dashboardBlockContentSchema,
   DimensionSchema,
   MetricSchema,
   singleFilterList,
@@ -53,7 +53,7 @@ const widgetImportBaseSchema = z
     chartType: dashboardWidgetChartTypeSchema,
     chartConfig: ChartConfigSchema,
     minVersion: z.number().int().optional(),
-    definition: dashboardBlockContentSchema.nullish(),
+    definition: widgetDefinitionSchema.nullish(),
   })
   .loose();
 

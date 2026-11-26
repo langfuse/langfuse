@@ -1,8 +1,5 @@
 import { useState } from "react";
-import {
-  multiQueryTabAsChart,
-  normalizeMultiQueryConfig,
-} from "@langfuse/shared/dashboards";
+import {} from "@langfuse/shared/dashboards";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { TabBar } from "@/src/components/design-system/TabBar/TabBar";
 import { DashboardMarkdown } from "@/src/features/dashboard-blocks/DashboardMarkdown";
@@ -36,7 +33,7 @@ export function RichWidgetChart({
         content={rich.definition.config.content}
       />
     );
-  const config = normalizeMultiQueryConfig(rich.definition.config);
+  const config = rich.definition.config;
   const tab =
     config.tabs.find((tab) => tab.id === rich.activeTabId) ?? config.tabs[0]!;
   const raw = rich.result;
@@ -60,7 +57,7 @@ export function RichWidgetChart({
   ) : (
     <div className="flex h-[440px] min-h-0 flex-col">
       <MultiQueryResultView
-        config={multiQueryTabAsChart(tab)}
+        config={tab}
         runtime={{
           result,
           hiddenSeries: hiddenByTab[tab.id] ?? new Set(),

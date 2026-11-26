@@ -39,6 +39,7 @@ export function useCopyHomeWidget({
       const { widget } = await create.mutateAsync({
         projectId,
         definition: {
+          version: 1,
           kind: "multiQuery",
           config: {
             ...recipe.config,

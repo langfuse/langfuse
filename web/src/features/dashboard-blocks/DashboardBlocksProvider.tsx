@@ -5,19 +5,21 @@ import {
   getPendingPresetEdit,
   clearPendingPresetEdit,
 } from "./homePresetNavigation";
-import { type FilterState, type SavedDashboardBlock } from "@langfuse/shared";
+import { type FilterState, HOME_DASHBOARD_PRESET_IDS } from "@langfuse/shared";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { type DashboardPlacement } from "@/src/features/widgets/components/DashboardGrid";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { getHomePresetMetadata } from "@/src/features/dashboard/components/home-preset-registry";
+import { api } from "@/src/utils/api";
 import {
   DashboardBlocksContext,
   type BlockEditorRequest,
   type DashboardBlocksContextValue,
 } from "./dashboard-block-context";
-import { useDashboardBlocksData } from "./useDashboardBlocksData";
+import { useDashboardBlockCapabilities } from "./useDashboardBlockCapabilities";
 
 const DashboardBlockEditor = dynamic(
   () =>
@@ -35,26 +37,6 @@ const DashboardBlockEditor = dynamic(
   },
 );
 
-const DashboardBlockPositionEditor = dynamic(
-  () =>
-    import("./DashboardBlockPositionEditor").then(
-      (module) => module.DashboardBlockPositionEditor,
-    ),
-  {
-    loading: () => (
-      <Dialog title="Edit position" noCapture>
-        <Dialog.Body>
-          <Skeleton className="h-24 w-full" />
-        </Dialog.Body>
-      </Dialog>
-    ),
-  },
-);
-
-type DashboardBlockDialogRequest =
-  | { intent: "content"; request: BlockEditorRequest }
-  | { intent: "position"; block: SavedDashboardBlock };
-
 export function DashboardBlocksProvider({
   projectId,
   dashboardId,
@@ -64,7 +46,6 @@ export function DashboardBlocksProvider({
   dateRange,
   filterState,
   widgets,
-  hasDashboardBlocks,
   dashboardReady = true,
   children,
 }: {
@@ -76,7 +57,6 @@ export function DashboardBlocksProvider({
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
   widgets: DashboardPlacement[];
-  hasDashboardBlocks?: boolean;
   dashboardReady?: boolean;
   children: ReactNode;
 }) {
@@ -86,30 +66,49 @@ export function DashboardBlocksProvider({
   );
   const presetInCopy = pendingEdit?.preset;
   const dismissPreset = useRef(presetInCopy?.source.presetId);
-  const [savedPresetTabs, setSavedPresetTabs] = useState<
-    ReadonlyMap<string, string>
-  >(() => new Map());
   useEffect(() => {
     if (pendingEdit) clearPendingPresetEdit(pendingEdit);
   }, [pendingEdit]);
   const authoringEnabled = useIsFeatureEnabled("dashboardBlockAuthoring");
-  const {
-    capabilities,
-    capabilitiesPending,
-    blocksPending,
-    blocks,
-    placementOptions,
-    loadError,
-  } = useDashboardBlocksData({
-    projectId,
-    dashboardId,
-    canEdit: canEdit || canCloneToEdit,
-    readPath,
-    widgets,
-    hasDashboardBlocks,
-    dashboardReady,
-    authoringEnabled,
-  });
+  const canAuthor =
+    dashboardReady && authoringEnabled && (canEdit || canCloneToEdit);
+  const capabilitiesQuery = useDashboardBlockCapabilities(projectId, canAuthor);
+  const capabilities = canAuthor
+    ? (capabilitiesQuery.data ?? { multiQuery: false, markdown: false })
+    : { multiQuery: false, markdown: false };
+  const capabilitiesPending = canAuthor && capabilitiesQuery.isPending;
+  const widgetNames = api.dashboardWidgets.all.useQuery(
+    { projectId, orderBy: { column: "updatedAt", order: "DESC" } },
+    {
+      enabled: canAuthor && widgets.some((widget) => widget.type === "widget"),
+      staleTime: 60_000,
+    },
+  );
+  const names = new Map(
+    widgetNames.data?.widgets.map((widget) => [widget.id, widget.name]),
+  );
+  const placementOptions = [
+    { value: null, label: "After all chart rows" },
+    ...[...widgets]
+      .sort((a, b) => a.y - b.y || a.x - b.x)
+      .map((widget, index) => {
+        const preset =
+          widget.type === "preset"
+            ? HOME_DASHBOARD_PRESET_IDS.find((id) => id === widget.presetId)
+            : undefined;
+        let name: string | undefined;
+        if (preset)
+          name = getHomePresetMetadata(
+            preset,
+            readPath === "v4" ? "v2" : "v1",
+          ).name;
+        else if (widget.type === "widget") name = names.get(widget.widgetId);
+        return {
+          value: widget.id,
+          label: `Before row containing ${name ?? `chart ${index + 1}`}`,
+        };
+      }),
+  ];
   const track: DashboardBlocksContextValue["track"] = (
     action,
     blockKind,
@@ -124,66 +123,24 @@ export function DashboardBlocksProvider({
       isV4: readPath === "v4",
     });
   return (
-    <DialogController<DashboardBlockDialogRequest>
+    <DialogController<BlockEditorRequest>
       initialState={() =>
-        presetInCopy && {
-          intent: "content",
-          request: { kind: "multiQuery", preset: presetInCopy },
-        }
+        presetInCopy && { kind: "multiQuery", preset: presetInCopy }
       }
-      onDismiss={() => {
-        if (dismissPreset.current)
-          track("cancel", "multiQuery", false, dismissPreset.current);
-        else track("cancel");
-      }}
-      renderDialog={({ state, closeDialog }) => {
-        const kind =
-          state.intent === "position" ? state.block.kind : state.request.kind;
+      onDismiss={() =>
+        track(
+          "cancel",
+          dismissPreset.current ? "multiQuery" : undefined,
+          false,
+          dismissPreset.current,
+        )
+      }
+      renderDialog={({ state: request, closeDialog }) => {
         const preset =
-          state.intent === "content" && state.request.kind === "multiQuery"
-            ? state.request.preset
-            : undefined;
-        const isNew =
-          state.intent === "content" && !state.request.block && !preset;
-        const existingInCopy =
-          preset && preset === presetInCopy
-            ? blocks.find(
-                (block) =>
-                  block.kind === "multiQuery" &&
-                  block.sourcePreset?.placementId === preset.source.placementId,
-              )
-            : undefined;
-        const allowed = canEdit && capabilities[kind];
-        const onSaved = () => {
-          track(
-            preset && !existingInCopy ? "preset_convert" : "save",
-            kind,
-            isNew,
-            preset?.source.presetId,
-          );
-          closeDialog();
-        };
-        const onCancel = () => {
-          track("cancel", kind, isNew, preset?.source.presetId);
-          closeDialog();
-        };
-        const onPlacementChanged = () => track("placement", kind, isNew);
-        if (state.intent === "position")
-          return (
-            <DashboardBlockPositionEditor
-              block={state.block}
-              projectId={projectId}
-              dashboardId={dashboardId}
-              canEdit={allowed}
-              options={placementOptions}
-              onSaved={onSaved}
-              onCancel={onCancel}
-              onPositionChanged={onPlacementChanged}
-            />
-          );
-        let request = state.request;
+          request.kind === "multiQuery" ? request.preset : undefined;
+        const isNew = !request.definition && !preset;
         if (preset && preset === presetInCopy) {
-          if (!dashboardReady || capabilitiesPending || blocksPending)
+          if (!dashboardReady || capabilitiesPending)
             return (
               <Dialog title="Opening widget" noCapture>
                 <Dialog.Body>
@@ -192,48 +149,45 @@ export function DashboardBlocksProvider({
               </Dialog>
             );
           const placement = widgets.find(
-            (w) => w.id === preset.source.placementId,
+            (widget) => widget.id === preset.source.placementId,
           );
           if (
-            loadError ||
             placement?.type !== "preset" ||
             placement.presetId !== preset.source.presetId
           )
             return (
               <Dialog title="Edit Home card" closeLabel="Close" noCapture>
                 <Dialog.Body>
-                  {loadError
-                    ? "The dashboard could not be loaded. Refresh and try again."
-                    : "This copy no longer contains the selected Home card."}
+                  This copy no longer contains the selected Home card.
                 </Dialog.Body>
               </Dialog>
             );
-          if (existingInCopy)
-            request = { kind: "multiQuery", block: existingInCopy };
         }
-        if (preset)
-          request = {
-            ...request,
-            onTabSaved: (tabId) => {
-              setSavedPresetTabs((previous) =>
-                new Map(previous).set(preset.source.placementId, tabId),
-              );
-            },
-          };
         return (
           <DashboardBlockEditor
             request={request}
             projectId={projectId}
             dashboardId={dashboardId}
-            canEdit={allowed}
+            canEdit={canEdit && capabilities[request.kind]}
             {...(pendingEdit && preset === pendingEdit.preset
               ? pendingEdit.preview
               : { readPath, dateRange, filterState })}
             placementOptions={placementOptions}
-            onPlacementChanged={onPlacementChanged}
-            onPreview={() => track("preview", kind, isNew)}
-            onSaved={onSaved}
-            onCancel={onCancel}
+            onPlacementChanged={() => track("placement", request.kind, isNew)}
+            onPreview={() => track("preview", request.kind, isNew)}
+            onSaved={() => {
+              track(
+                preset ? "preset_convert" : "save",
+                request.kind,
+                isNew,
+                preset?.source.presetId,
+              );
+              closeDialog();
+            }}
+            onCancel={() => {
+              track("cancel", request.kind, isNew, preset?.source.presetId);
+              closeDialog();
+            }}
           />
         );
       }}
@@ -248,19 +202,7 @@ export function DashboardBlocksProvider({
             dateRange,
             filterState,
             capabilitiesPending,
-            blocksPending,
             capabilities,
-            blocks,
-            savedPresetTabs,
-            widgets,
-            placementOptions,
-            loadError,
-            openPositionEditor: (block) => {
-              if (!canEdit || !capabilities[block.kind]) return;
-              dismissPreset.current = undefined;
-              track("placement", block.kind, false);
-              openDialog({ intent: "position", block });
-            },
             openEditor: (request) => {
               if (!canEdit || !capabilities[request.kind]) return;
               dismissPreset.current =
@@ -276,11 +218,11 @@ export function DashboardBlocksProvider({
                 );
               else
                 track(
-                  request.block ? "edit" : "add",
+                  request.definition ? "edit" : "add",
                   request.kind,
-                  !request.block,
+                  !request.definition,
                 );
-              openDialog({ intent: "content", request });
+              openDialog(request);
             },
             track,
           }}

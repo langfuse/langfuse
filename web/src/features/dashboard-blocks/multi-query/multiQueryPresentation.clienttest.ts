@@ -3,7 +3,7 @@ import { usePreparedWidgetChart } from "@/src/features/widgets/components/usePre
 import { prepareMultiQueryTimeSeriesData } from "./multiQueryTimeSeries";
 import { describe, expect, it } from "vitest";
 import {
-  createMultiQueryConfig,
+  createMultiQueryTab,
   type MultiQuerySeries,
   type MultiQueryValue,
 } from "./multiQueryModel";
@@ -38,7 +38,7 @@ it("keeps ranked models and their metric columns together, including unattribute
     { ...example, dimensions: { providedModelName: null }, value: 5 },
     { ...example, dimensions: { providedModelName: "Alpha" }, value: 0 },
   ];
-  const config = createMultiQueryConfig();
+  const config = createMultiQueryTab();
   config.queries[0] = {
     ...config.queries[0]!,
     id: "costs",
@@ -92,7 +92,7 @@ it("shows zero for an absent filtered count only if all its groups were returned
     },
   ];
   const queries = ["all", "zero"].map((id) => ({
-    ...createMultiQueryConfig().queries[0]!,
+    ...createMultiQueryTab().queries[0]!,
     id,
     dimensions: [{ field: "name" }],
   }));
@@ -106,7 +106,7 @@ it("shows zero for an absent filtered count only if all its groups were returned
 
 describe("multi-query value presentation", () => {
   it("shows an empty score mean as no measured value while keeping a genuine zero", () => {
-    const config = createMultiQueryConfig();
+    const config = createMultiQueryTab();
     config.display.chartType = "NUMBER";
     const series: MultiQuerySeries = {
       id: "a.score",
@@ -146,7 +146,7 @@ describe("multi-query value presentation", () => {
 });
 
 it("shows the empty population when a comparison contains only zero record counts", () => {
-  const config = createMultiQueryConfig();
+  const config = createMultiQueryTab();
   const series = {
     id: "a.count",
     label: "A",
@@ -175,7 +175,7 @@ it("shows the empty population when a comparison contains only zero record count
 it.each(["bar", "horizontal-bar"] as const)(
   "keeps a value from each independent query when the %s chart requests one row per series",
   (type) => {
-    const config = createMultiQueryConfig();
+    const config = createMultiQueryTab();
     config.display.rowLimit = 1;
     const series = ["Support", "Search"].map((label) => ({
       id: label,

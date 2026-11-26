@@ -81,7 +81,6 @@ export function modelRecipe(
           [dimension],
           filters,
         ),
-        homeCategoryFallback: true,
       },
       { timeBuckets: "auto" },
     );

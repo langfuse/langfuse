@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
   errors: ./errors.yml
-  dashboards: ./dashboards.yml
   pagination: ../utils/pagination.yml
 
 service:
@@ -363,9 +362,11 @@ types:
   WidgetDefinition:
     docs: Complete widget content. When present, use this definition to render every tab, formula or Markdown. Flat fields describe a compatibility projection only. Employee authoring is required to change this definition.
     discriminant: kind
+    base-properties:
+      version: WidgetDefinitionVersion
     union:
-      multiQuery: dashboards.MultiQueryDashboardBlock
-      markdown: dashboards.MarkdownDashboardBlock
+      multiQuery: MultiQueryWidget
+      markdown: MarkdownWidget
 
   DashboardWidget:
     properties:
@@ -396,3 +397,123 @@ types:
         type: DashboardWidgetChartType
       chartConfig:
         type: DashboardWidgetChartConfig
+
+  WidgetDefinitionVersion:
+    type: integer
+    validation:
+      min: 1
+      max: 1
+  WidgetQueryView:
+    docs: |
+      `scores` provides full-period counts and numeric means. On the current
+      observations read path it includes numeric, boolean and categorical scores;
+      the legacy trace read path also includes text and correction scores.
+    enum:
+      - observations
+      - traces
+      - scores
+      - scores-numeric
+      - scores-boolean
+      - scores-categorical
+  MarkdownWidget:
+    properties:
+      config: DashboardMarkdownConfig
+  MultiQueryWidget:
+    properties:
+      config: DashboardMultiQueryConfig
+  DashboardMarkdownConfig:
+    properties:
+      title: string
+      content:
+        type: string
+        docs: Markdown content, at most 100000 characters.
+  DashboardMultiQueryConfig:
+    properties:
+      title: string
+      description: string
+      tabs:
+        type: list<DashboardMultiQueryTab>
+        docs: One to nine ordered independent tabs with unique IDs. The first tab is shown by default.
+  DashboardMultiQueryTab:
+    properties:
+      id: string
+      label: string
+      queries:
+        type: list<DashboardMultiQueryTabSource>
+        docs: Between one and five independent source queries.
+      display: DashboardMultiQueryDisplay
+      formulas:
+        type: optional<list<DashboardMultiQueryFormula>>
+        docs: Up to five calculations over metrics in this tab.
+  DashboardMultiQueryFormula:
+    properties:
+      id: string
+      label:
+        type: string
+        docs: Set to an empty string to display the formula expression with the current series names. References in the stored expression use query and metric IDs.
+      expression:
+        type: string
+        docs: Arithmetic on queryId.metricId references from this tab, numeric literals, and parentheses. Null or missing operands and division by zero have no value.
+      format: DashboardMultiQueryFormulaFormat
+      hidden: optional<boolean>
+  DashboardMultiQueryFormulaFormat:
+    enum:
+      - number
+      - percent
+  DashboardMultiQueryTabSource:
+    properties:
+      id: string
+      label: string
+      view: WidgetQueryView
+      metrics: list<DashboardMultiQueryTabMetric>
+      dimensions: list<DashboardWidgetDimension>
+      filters: list<DashboardWidgetFilter>
+      orderBy: optional<nullable<list<DashboardMultiQueryOrder>>>
+      hidden:
+        type: optional<boolean>
+        docs: Keep the source available for formulas without plotting its metrics.
+  DashboardMultiQueryTabMetric:
+    extends: DashboardMultiQueryMetric
+    properties:
+      hidden: optional<boolean>
+  DashboardMultiQueryMetric:
+    properties:
+      id:
+        type: string
+        docs: At most 64 characters, starting with a letter and containing only letters, digits and underscores.
+      label: optional<string>
+      measure: string
+      aggregation: DashboardWidgetMetricAggregation
+  DashboardMultiQueryOrder:
+    properties:
+      field: string
+      direction: DashboardMultiQuerySortDirection
+  DashboardMultiQuerySortDirection:
+    enum:
+      - asc
+      - desc
+  DashboardMultiQueryDisplay:
+    properties:
+      chartType: DashboardWidgetChartType
+      defaultSort: optional<DashboardWidgetDefaultSort>
+      showValueLabels: optional<boolean>
+      rowLimit:
+        type: optional<integer>
+        docs: Between 1 and 1000.
+      bins:
+        type: optional<integer>
+        docs: Between 1 and 100.
+      legend: optional<boolean>
+      subtotalMetric:
+        type: optional<string>
+        docs: A source.metric reference to a count or sum. The subtotal includes returned groups before table display filters.
+      hideUnattributedRows:
+        type: optional<boolean>
+        docs: Hide table rows with a missing breakdown value.
+      timeBuckets:
+        type: optional<DashboardTimeBuckets>
+        docs: Use the dashboard's time interval or let the analytics query choose one.
+  DashboardTimeBuckets:
+    enum:
+      - auto
+      - dashboard

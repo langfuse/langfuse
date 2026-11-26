@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { storedInlineDashboardWidgetSchema } from "./blocks";
 
 export const DashboardDefinitionWidgetWidgetSchema = z.object({
   type: z.literal("widget"),
@@ -31,19 +30,8 @@ export const DashboardDefinitionSchema = z.object({
   widgets: z.array(DashboardDefinitionWidgetSchema),
 });
 
-/** Version 1 mirrors classic placements in widgets; blocks carries the complete layout. */
-export const DashboardDefinitionV1Schema = DashboardDefinitionSchema.extend({
-  version: z.literal("1"),
-  blocks: z.array(
-    z.union([
-      DashboardDefinitionWidgetSchema,
-      storedInlineDashboardWidgetSchema,
-    ]),
-  ),
-});
-
 export type DashboardDefinition = z.infer<typeof DashboardDefinitionSchema>;
 
-export * from "./blocks";
+export { compileMultiQueryFormula } from "./multiQueryFormula";
 export * from "./multiQuery";
 export * from "./widgetDefinition";

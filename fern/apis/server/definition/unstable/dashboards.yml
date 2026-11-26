@@ -32,12 +32,7 @@ service:
         - errors.TooManyRequestsError
         - errors.InternalServerError
     create:
-      docs: |
-        Create a dashboard from a legacy `widgets` definition or a version 1
-        `blocks` definition. Project API credentials can create classic widget
-        and preset placements. Creating inline Markdown or multi-query widgets
-        requires the employee feature preview in the application; public API
-        credentials cannot create them.
+      docs: Create a dashboard.
       method: POST
       path: /dashboards
       request: CreateDashboardRequest
@@ -51,12 +46,7 @@ service:
         - errors.TooManyRequestsError
         - errors.InternalServerError
     get:
-      docs: |
-        Get a dashboard by id, including supported inline Markdown and
-        multi-query widgets. Classic and version 1 definitions return version 1
-        with a deprecated `widgets` mirror. If the stored root format is newer
-        than this server supports, only its legacy `widgets` projection is
-        returned; the server does not label that projection version 1.
+      docs: Get a dashboard by id.
       method: GET
       path: /dashboards/{dashboardId}
       path-parameters:
@@ -71,28 +61,7 @@ service:
         - errors.TooManyRequestsError
         - errors.InternalServerError
     update:
-      docs: |
-        Update a dashboard's name, description, definition, or filters.
-
-        A legacy `widgets` definition updates classic placements while
-        preserving inline widgets. For a version 1 edit, update `blocks` and
-        omit `widgets` or mirror the classic placements there. Editing classic
-        placements in `blocks` and echoing the unchanged current `widgets`
-        returns `400`. Omit the old mirror before retrying. A client may
-        also edit only `widgets` on a definition returned by GET and echo
-        `blocks` unchanged. A concurrent classic move, resize, or change to
-        the original placement used as an inline anchor returns `409` when
-        it conflicts with that snapshot. Fetch the current definition before retrying.
-
-        Project API credentials may round-trip existing inline widgets unchanged
-        while editing classic placements. If a saved widget has a newer
-        revision, reload the dashboard after the `409` response before retrying.
-        Creating, editing, removing, or reordering inline widgets returns
-        `403`. A stale snapshot with different inline membership or order also
-        returns `403`. Refetch it before reapplying a classic layout edit.
-        Use the application's employee feature preview to change inline
-        content. Unsupported future entries are preserved in storage, and
-        definitions with an unsupported root version cannot be edited.
+      docs: Update a dashboard's name, description, definition, or filters.
       method: PATCH
       path: /dashboards/{dashboardId}
       path-parameters:
@@ -104,7 +73,6 @@ service:
         - errors.UnauthorizedError
         - errors.AccessDeniedError
         - errors.NotFoundError
-        - errors.ConflictError
         - errors.MethodNotAllowedError
         - errors.TooManyRequestsError
         - errors.InternalServerError
@@ -135,9 +103,6 @@ service:
         The referenced widget must exist in the same project or be a
         Langfuse-managed widget. The API returns `409` if a placement with
         the same `id` already exists on the dashboard.
-
-        This endpoint manages classic placements only and preserves inline
-        Markdown and multi-query widgets.
       method: POST
       path: /dashboards/{dashboardId}/placements
       path-parameters:
@@ -159,9 +124,6 @@ service:
         required. Omitted fields keep their current value. The placement's
         content (widget/preset reference) and id cannot change — delete and
         re-add the placement to swap content. Returns the updated placement.
-
-        This endpoint manages classic placements only and preserves inline
-        Markdown and multi-query widgets.
       method: PATCH
       path: /dashboards/{dashboardId}/placements/{placementId}
       path-parameters:
@@ -178,9 +140,7 @@ service:
         - errors.TooManyRequestsError
         - errors.InternalServerError
     deletePlacement:
-      docs: |
-        Remove a classic placement from a dashboard grid without deleting the
-        referenced widget. Inline Markdown and multi-query widgets are preserved.
+      docs: Remove a placement from a dashboard grid without deleting the referenced widget.
       method: DELETE
       path: /dashboards/{dashboardId}/placements/{placementId}
       path-parameters:
@@ -287,267 +247,8 @@ types:
     properties:
       message: string
   DashboardDefinition:
-    docs: |
-      Version 1 is returned for classic and supported version 1 dashboards.
-      The legacy shape is returned only when the stored root format is newer
-      than this server supports. Unsupported entries within a version 1
-      document are omitted from the response and preserved in storage.
-    discriminated: false
-    union:
-      - DashboardDefinitionV1
-      - LegacyDashboardDefinition
-  LegacyDashboardDefinition:
-    extra-properties: false
     properties:
-      widgets:
-        type: list<DashboardPlacement>
-        availability:
-          status: deprecated
-          message: Use version 1 with blocks instead. Legacy writes remain supported and preserve inline widgets.
-        docs: Classic widget and preset placements. Kept for existing clients.
-  DashboardDefinitionV1:
-    properties:
-      version: literal<"1">
-      blocks: list<DashboardBlock>
-      widgets:
-        type: list<DashboardPlacement>
-        availability:
-          status: deprecated
-          message: Read blocks instead. This field is a compatibility mirror of classic placements in blocks.
-        docs: Compatibility mirror of the classic placements in blocks.
-  DashboardDefinitionInput:
-    discriminated: false
-    union:
-      - DashboardDefinitionV1Input
-      - LegacyDashboardDefinition
-  DashboardDefinitionV1Input:
-    docs: |
-      Supply the complete layout in `blocks`. On create, `widgets` must match
-      the classic placements when supplied. On update, clients editing only
-      `widgets` may echo the current `blocks` returned by GET. Placement and
-      widget IDs must be unique.
-      Existing inline widgets must be echoed without changing their content,
-      revision, order, or anchor; public credentials cannot mutate them.
-    properties:
-      version: literal<"1">
-      blocks: list<DashboardBlock>
-      widgets:
-        type: optional<list<DashboardPlacement>>
-        availability:
-          status: deprecated
-          message: Prefer blocks. Existing clients can edit widgets on a GET response and echo the current blocks unchanged on update.
-  DashboardBlock:
-    discriminated: false
-    union:
-      - DashboardPlacement
-      - InlineDashboardBlock
-  InlineDashboardBlock:
-    discriminant: kind
-    base-properties:
-      id:
-        type: uuid
-        docs: Stable widget identifier.
-      revision:
-        type: integer
-        docs: Positive revision. Echo the current value unchanged when round-tripping.
-      beforePlacementId:
-        type: nullable<string>
-        docs: Classic placement id before which this widget appears, or null to append.
-    union:
-      markdown: MarkdownDashboardBlock
-      multiQuery: MultiQueryDashboardBlock
-      convertedPreset: ConvertedDashboardPreset
-  ConvertedDashboardPreset:
-    docs: Replaces the contents of the referenced preset placement while retaining its grid position and size. Render the chart in that placement. Its beforePlacementId is null.
-    properties:
-      sourcePreset: DashboardPresetSource
-      config: DashboardMultiQueryConfigV2
-  DashboardPresetSource:
-    properties:
-      placementId: string
-      presetId: string
-  MarkdownDashboardBlock:
-    properties:
-      config: DashboardMarkdownConfig
-  MultiQueryDashboardBlock:
-    properties:
-      config: DashboardMultiQueryConfig
-  DashboardMarkdownConfig:
-    properties:
-      version:
-        type: integer
-        docs: Configuration version. Currently 1.
-      title:
-        type: string
-        docs: At most 255 characters.
-      content:
-        type: string
-        docs: Markdown content, at most 100000 characters.
-  DashboardMultiQueryConfig:
-    discriminated: false
-    union:
-      - DashboardMultiQueryConfigV1
-      - DashboardMultiQueryConfigV2
-  DashboardMultiQueryFormatV1:
-    type: integer
-    docs: Legacy single-chart configuration. The format version is 1.
-    validation:
-      min: 1
-      max: 1
-  DashboardMultiQueryConfigV1:
-    properties:
-      version: DashboardMultiQueryFormatV1
-      title:
-        type: string
-        docs: A nonempty chart name.
-      description:
-        type: string
-        docs: At most 10000 characters.
-      queries:
-        type: list<DashboardMultiQuerySource>
-        docs: Between 1 and 5 independent source queries with unique ids.
-      display: DashboardMultiQueryDisplay
-      views:
-        type: optional<list<DashboardMultiQueryView>>
-        docs: At most 8 named query subsets with unique ids.
-      defaultViewId:
-        type: optional<string>
-        docs: Id of an existing named view.
-  DashboardMultiQueryFormatV2:
-    type: integer
-    docs: Independent tab configurations. The format version is 2.
-    validation:
-      min: 2
-      max: 2
-  DashboardMultiQueryConfigV2:
-    properties:
-      version: DashboardMultiQueryFormatV2
-      title: string
-      description: string
-      tabs:
-        type: list<DashboardMultiQueryTab>
-        docs: One to nine ordered tabs with unique IDs. The first tab is shown by default.
-  DashboardMultiQueryTab:
-    properties:
-      id: string
-      label: string
-      queries:
-        type: list<DashboardMultiQueryTabSource>
-        docs: Between one and five independent source queries.
-      display: DashboardMultiQueryDisplay
-      formulas:
-        type: optional<list<DashboardMultiQueryFormula>>
-        docs: Up to five calculations over metrics in this tab.
-  DashboardMultiQueryFormula:
-    properties:
-      id: string
-      label:
-        type: string
-        docs: Set to an empty string to display the formula expression with the current series names. References in the stored expression use query and metric IDs.
-      expression:
-        type: string
-        docs: Arithmetic on queryId.metricId references from this tab, numeric literals, and parentheses. Null or missing operands and division by zero have no value.
-      format: DashboardMultiQueryFormulaFormat
-      hidden: optional<boolean>
-  DashboardMultiQueryFormulaFormat:
-    enum:
-      - number
-      - percent
-  DashboardMultiQueryTabSource:
-    properties:
-      id: string
-      label: string
-      view: dashboardWidgets.DashboardWidgetViewWithLegacy
-      homeCategoryFallback: optional<boolean>
-      homeScoreAggregate: optional<boolean>
-      metrics: list<DashboardMultiQueryTabMetric>
-      dimensions: list<dashboardWidgets.DashboardWidgetDimension>
-      filters: list<dashboardWidgets.DashboardWidgetFilter>
-      orderBy: optional<nullable<list<DashboardMultiQueryOrder>>>
-      hidden:
-        type: optional<boolean>
-        docs: Keep the source available for formulas without plotting its metrics.
-  DashboardMultiQueryTabMetric:
-    extends: DashboardMultiQueryMetric
-    properties:
-      hidden: optional<boolean>
-  DashboardMultiQuerySource:
-    properties:
-      id:
-        type: string
-        docs: At most 64 characters, starting with a letter and containing only letters, digits and underscores.
-      label:
-        type: string
-        docs: Between 1 and 200 characters.
-      view: dashboardWidgets.DashboardWidgetViewWithLegacy
-      homeCategoryFallback:
-        type: optional<boolean>
-        docs: Read an observation cost or usage category time series from its Home data source on the legacy read path.
-      homeScoreAggregate:
-        type: optional<boolean>
-        docs: Use the Home score aggregate on the project's read path. Supports score-record counts and numeric means, grouped by name, source or data type. Use the scores-numeric source with explicit data type filters to select a population.
-      metrics:
-        type: list<DashboardMultiQueryMetric>
-        docs: Between 1 and 10 metrics with unique ids and distinct measure/aggregation pairs.
-      dimensions:
-        type: list<dashboardWidgets.DashboardWidgetDimension>
-        docs: At most 3 grouping dimensions.
-      filters: list<dashboardWidgets.DashboardWidgetFilter>
-      orderBy:
-        type: optional<nullable<list<DashboardMultiQueryOrder>>>
-        docs: At most 4 sort fields.
-  DashboardMultiQueryMetric:
-    properties:
-      id:
-        type: string
-        docs: At most 64 characters, starting with a letter and containing only letters, digits and underscores.
-      label: optional<string>
-      measure: string
-      aggregation: dashboardWidgets.DashboardWidgetMetricAggregation
-  DashboardMultiQueryOrder:
-    properties:
-      field: string
-      direction: DashboardMultiQuerySortDirection
-  DashboardMultiQuerySortDirection:
-    enum:
-      - asc
-      - desc
-  DashboardMultiQueryDisplay:
-    properties:
-      chartType: dashboardWidgets.DashboardWidgetChartType
-      defaultSort: optional<dashboardWidgets.DashboardWidgetDefaultSort>
-      showValueLabels: optional<boolean>
-      rowLimit:
-        type: optional<integer>
-        docs: Between 1 and 1000.
-      bins:
-        type: optional<integer>
-        docs: Between 1 and 100.
-      legend: optional<boolean>
-      subtotalMetric:
-        type: optional<string>
-        docs: A source.metric reference to a count or sum. The subtotal includes returned groups before table display filters.
-      hideUnattributedRows:
-        type: optional<boolean>
-        docs: Hide table rows with a missing breakdown value.
-      timeBuckets:
-        type: optional<DashboardTimeBuckets>
-        docs: Use the dashboard's time interval or let the analytics query choose one.
-  DashboardTimeBuckets:
-    enum:
-      - auto
-      - dashboard
-  DashboardMultiQueryView:
-    properties:
-      id:
-        type: string
-        docs: At most 64 characters, starting with a letter and containing only letters, digits and underscores.
-      label:
-        type: string
-        docs: Between 1 and 100 characters.
-      queryIds:
-        type: list<string>
-        docs: Between 1 and 5 distinct ids of existing source queries.
+      widgets: list<DashboardPlacement>
   Dashboard:
     properties:
       id: string
@@ -567,13 +268,13 @@ types:
     properties:
       name: string
       description: optional<string>
-      definition: optional<DashboardDefinitionInput>
+      definition: optional<DashboardDefinition>
       filters: optional<list<dashboardWidgets.DashboardWidgetFilter>>
   UpdateDashboardRequest:
     properties:
       name: optional<string>
       description: optional<string>
-      definition: optional<DashboardDefinitionInput>
+      definition: optional<DashboardDefinition>
       filters: optional<list<dashboardWidgets.DashboardWidgetFilter>>
   DeleteDashboardResponse:
     properties:

@@ -1,9 +1,36 @@
 import { z } from "zod";
-import { dashboardBlockContentSchema } from "./blocks";
+import {
+  multiQueryConfigSchema,
+  multiQueryConfigSaveSchema,
+} from "./multiQuery";
 import { persistedWidgetViewToQueryView } from "../query/types";
 import type { FilterState } from "../../types";
 
-export type WidgetDefinition = z.infer<typeof dashboardBlockContentSchema>;
+export const dashboardMarkdownConfigSchema = z.object({
+  title: z.string().max(255),
+  content: z.string().max(100_000),
+});
+
+const markdownDefinition = z.object({
+  version: z.literal(1),
+  kind: z.literal("markdown"),
+  config: dashboardMarkdownConfigSchema,
+});
+const chartDefinition = z.object({
+  version: z.literal(1),
+  kind: z.literal("multiQuery"),
+  config: multiQueryConfigSchema,
+});
+
+export const widgetDefinitionSchema = z.discriminatedUnion("kind", [
+  markdownDefinition,
+  chartDefinition,
+]);
+export const widgetDefinitionSaveSchema = z.discriminatedUnion("kind", [
+  markdownDefinition,
+  chartDefinition.extend({ config: multiQueryConfigSaveSchema }),
+]);
+export type WidgetDefinition = z.infer<typeof widgetDefinitionSchema>;
 
 /** Interpret a classic saved widget as one tab without changing its stored record. */
 export function toWidgetDefinition(widget: {
@@ -24,15 +51,15 @@ export function toWidgetDefinition(widget: {
   definition?: unknown;
 }): WidgetDefinition {
   if (widget.definition != null)
-    return dashboardBlockContentSchema.parse(widget.definition);
+    return widgetDefinitionSchema.parse(widget.definition);
   const view =
     persistedWidgetViewToQueryView[
       widget.view as keyof typeof persistedWidgetViewToQueryView
     ] ?? widget.view;
-  return dashboardBlockContentSchema.parse({
+  return widgetDefinitionSchema.parse({
+    version: 1,
     kind: "multiQuery",
     config: {
-      version: 2,
       title: widget.name,
       description: widget.description,
       tabs: [

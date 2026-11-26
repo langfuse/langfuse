@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HOME_DASHBOARD_PRESET_IDS } from "@langfuse/shared";
-import { multiQueryConfigV2Schema } from "@langfuse/shared/dashboards";
+import { multiQueryConfigSaveSchema } from "@langfuse/shared/dashboards";
 import { buildMultiQueryPlan } from "./multi-query/multiQueryModel";
 import { homeScoreRows } from "./multi-query/homeScoreAggregate";
 import {
@@ -30,13 +30,12 @@ describe.each(["v1", "v2"] as const)(
       "builds a saved, executable %s using the project's read path",
       (preset) => {
         const { config } = editable(preset, { version, models, scores });
-        multiQueryConfigV2Schema.parse(config);
+        multiQueryConfigSaveSchema.parse(config);
         for (const tab of config.tabs) {
           const plan = buildMultiQueryPlan(
             {
-              version: 1,
-              title: config.title,
-              description: config.description,
+              id: tab.id,
+              label: tab.label,
               queries: tab.queries,
               display: tab.display,
             },
@@ -152,7 +151,9 @@ describe.each(["v1", "v2"] as const)(
         ["ones", 1],
       ] as const) {
         const source = table.tabs[0]!.queries.find((q) => q.id === id)!;
-        expect(source.view).toBe("scores-numeric");
+        expect(source.view).toBe(
+          version === "v1" ? "scores" : "scores-numeric",
+        );
         expect(source.filters).toContainEqual({
           column: "value",
           type: "number",
@@ -164,7 +165,7 @@ describe.each(["v1", "v2"] as const)(
       if (version === "v1") {
         expect(total.queries).toHaveLength(1);
         expect(total.queries[0]).toMatchObject({
-          homeScoreAggregate: true,
+          view: "scores",
           dimensions: [],
           filters: [],
         });
@@ -177,9 +178,8 @@ describe.each(["v1", "v2"] as const)(
         });
         const plan = buildMultiQueryPlan(
           {
-            version: 1,
-            title: "Total",
-            description: "",
+            id: total.id,
+            label: total.label,
             queries: total.queries,
             display: total.display,
           },
@@ -238,9 +238,8 @@ it("regroups all Home score records before ranking and keeps categorical placeho
   const tab = recipe.config.tabs[0]!;
   const query = buildMultiQueryPlan(
     {
-      version: 1,
-      title: "Mean per source",
-      description: "",
+      id: tab.id,
+      label: "Mean per source",
       queries: [
         {
           ...tab.queries[0]!,

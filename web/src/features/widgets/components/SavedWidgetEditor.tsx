@@ -13,7 +13,6 @@ import {
   HOME_DASHBOARD_PRESET_IDS,
   type HomeDashboardPresetId,
 } from "@langfuse/shared";
-import { normalizeMultiQueryConfig } from "@langfuse/shared/dashboards";
 import { toSavedWidgetEditorDefinition } from "@/src/features/widgets/utils/widget-definition";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
@@ -71,15 +70,16 @@ export function SavedWidgetEditor({
     adapted.definition ??
     (!widget && router.query.kind === "markdown"
       ? {
+          version: 1 as const,
           kind: "markdown" as const,
-          config: { version: 1 as const, title: "", content: "" },
+          config: { title: "", content: "" },
         }
       : undefined);
   const requestedTabId =
     typeof router.query.tabId === "string" ? router.query.tabId : undefined;
   const selectedTabId =
     definition?.kind === "multiQuery"
-      ? normalizeMultiQueryConfig(definition.config).tabs.find(
+      ? definition.config.tabs.find(
           (tab) => tab.id === (selectedTabOverride ?? requestedTabId),
         )?.id
       : undefined;
@@ -231,7 +231,9 @@ export function SavedWidgetEditor({
               error={error}
               onPlacementChange={() => {}}
               onPreview={() => {}}
-              onSave={(config) => save({ kind: "markdown", config })}
+              onSave={(config) =>
+                save({ version: 1, kind: "markdown", config })
+              }
               onCancel={() => {
                 back();
               }}
@@ -247,7 +249,9 @@ export function SavedWidgetEditor({
             readPath={readPath}
             savePending={mutation.isPending}
             saveError={error}
-            onSave={(config) => save({ kind: "multiQuery", config })}
+            onSave={(config) =>
+              save({ version: 1, kind: "multiQuery", config })
+            }
             onCancel={() => {
               back();
             }}

@@ -9,10 +9,7 @@ import { SelectInput } from "@/src/components/design-system/SelectInput/SelectIn
 import { Input } from "@/src/components/design-system/Input/Input";
 import { MultiQuerySourceEditor } from "./MultiQuerySourceEditor";
 import { MultiQueryFormulaEditor } from "./MultiQueryFormulaEditor";
-import {
-  createMultiQueryConfig,
-  multiQueryMetricLabel,
-} from "./multiQueryModel";
+import { createMultiQueryTab, multiQueryMetricLabel } from "./multiQueryModel";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import { nextEditorId } from "./multiQueryTabEditing";
 import { type MultiQueryWidgetContext } from "./useMultiQueryWidget";
@@ -48,7 +45,7 @@ export function MultiQueryTabSources({
           label: (source.label + " copy").slice(0, 200),
         }
       : {
-          ...createMultiQueryConfig().queries[0]!,
+          ...createMultiQueryTab().queries[0]!,
           id,
           label: "Series " + String.fromCharCode(65 + tab.queries.length),
         };

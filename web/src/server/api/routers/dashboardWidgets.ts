@@ -82,25 +82,6 @@ export const dashboardWidgetRouter = createTRPCRouter({
         ctx.session.user.id,
       );
     }),
-  migrateInlineWidgets: protectedProjectProcedure
-    .input(z.object({ projectId: z.string(), dashboardId: z.string() }))
-    .mutation(async ({ ctx, input }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "dashboards:CUD",
-      });
-      if (!canAuthorDashboardBlocks(ctx.session))
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Widget authoring requires the employee feature flag.",
-        });
-      return DashboardService.migrateInlineWidgets(
-        input.projectId,
-        input.dashboardId,
-        ctx.session.user.id,
-      );
-    }),
   create: protectedProjectProcedure
     .input(CreateDashboardWidgetInput)
     .mutation(async ({ input, ctx }) => {

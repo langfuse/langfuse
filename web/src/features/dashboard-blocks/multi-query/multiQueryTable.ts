@@ -1,7 +1,4 @@
-import {
-  type MultiQueryConfig,
-  type MultiQueryTab,
-} from "@langfuse/shared/dashboards";
+import { type MultiQueryTab } from "@langfuse/shared/dashboards";
 import { type Visualization } from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
 import { toFullMetricString } from "@/src/features/widgets/chart-library/utils";
 import {
@@ -14,7 +11,7 @@ import { multiQueryFormatter } from "./multiQueryPresentation";
 type DataTableProps = Omit<Extract<Visualization, { type: "table" }>, "type">;
 
 export function returnedRowsSubtotal(
-  queries: MultiQueryConfig["queries"],
+  queries: MultiQueryTab["queries"],
   ref: string | undefined,
   values: MultiQueryValue[],
 ) {

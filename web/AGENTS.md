@@ -39,7 +39,7 @@
   `src/server/**`, `src/pages/api/**`, and server tests.
 - Use `@langfuse/shared/src/db` only in backend or test code that needs direct
   Prisma access; never route it into client bundles.
-- Dashboard editors use `@langfuse/shared/dashboards` for saved layouts, blocks and multi-query configuration.
+- Dashboard editors use `@langfuse/shared/dashboards` for saved layouts, widget definitions and multi-query configuration.
 - Use narrower subpaths such as `@langfuse/shared/src/env` or
   `@langfuse/shared/encryption` only when that focused surface is the clearest
   dependency.
@@ -125,7 +125,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   must be installed, ask the user before doing so.
 - When you surface a score in the UI, always show its level
   (trace/observation/session/experiment) with the `<ScoreTag>` component
-    (`src/components/ScoreTag.tsx`) and its global color coding (see the
+  (`src/components/ScoreTag.tsx`) and its global color coding (see the
   ScoreTag Storybook story).
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.

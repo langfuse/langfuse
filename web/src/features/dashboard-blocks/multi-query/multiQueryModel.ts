@@ -2,8 +2,9 @@ import { InvalidRequestError, type FilterState } from "@langfuse/shared";
 import { homeCategoryQuery } from "./homeCategoryQuery";
 import { homeScoreAggregate } from "./homeScoreAggregate";
 import {
-  multiQueryConfigSchema,
-  type MultiQueryConfig,
+  multiQueryTabSaveSchema,
+  getWidgetQueryView,
+  type MultiQueryTab,
 } from "@langfuse/shared/dashboards";
 import {
   getResultUnit,
@@ -26,7 +27,7 @@ import {
   findClosestDashboardInterval,
 } from "@/src/utils/date-range-utils";
 
-export type MultiQuerySource = MultiQueryConfig["queries"][number];
+export type MultiQuerySource = MultiQueryTab["queries"][number];
 export type MultiQueryContext = {
   dateRange: { from: Date; to: Date };
   filterState: FilterState;
@@ -90,11 +91,10 @@ export function multiQueryMetricLabel(
   return `${aggregation} ${readableMultiQueryField(metric.measure).toLowerCase()}`;
 }
 
-export function createMultiQueryConfig(): MultiQueryConfig {
+export function createMultiQueryTab(): MultiQueryTab {
   return {
-    version: 1,
-    title: "New chart",
-    description: "",
+    id: "chart",
+    label: "Chart",
     queries: [
       {
         id: "a",
@@ -115,20 +115,22 @@ export function createMultiQueryConfig(): MultiQueryConfig {
 }
 
 /** Rendering choices with the same query grain reuse the production query cache. */
-function queryChartType(type: MultiQueryConfig["display"]["chartType"]) {
+function queryChartType(type: MultiQueryTab["display"]["chartType"]) {
   if (isTimeSeriesChart(type)) return "LINE_TIME_SERIES";
   if (type === "HORIZONTAL_BAR") return "VERTICAL_BAR";
   return type;
 }
 
 export function buildMultiQueryPlan(
-  config: MultiQueryConfig,
+  config: MultiQueryTab,
   context: MultiQueryContext,
   selectedQueryIds?: readonly string[],
 ): MultiQueryPlan {
-  const parsed = multiQueryConfigSchema.safeParse({
+  const parsed = multiQueryTabSaveSchema.safeParse({
     ...config,
-    title: config.title || "Preview",
+    // Formulas run on returned data and must not interrupt their input queries.
+    formulas: undefined,
+    label: config.label || "Preview",
     queries: config.queries.map((source) => ({
       ...source,
       label: source.label || "Series",
@@ -147,20 +149,24 @@ export function buildMultiQueryPlan(
     )
     .map((source): PlannedMultiQuery => {
       const readVersion = context.readPath === "v4" ? "v2" : "v1";
-      const version = source.homeScoreAggregate
-        ? readVersion
-        : resolveWidgetRenderVersion({
-            newestReadableVersion: readVersion,
-            shape: {
-              view: source.view,
-              measures: source.metrics,
-              dimensions: source.dimensions,
-              filters: [...source.filters, ...context.filterState],
-            },
-          });
-      const declaration = getViewDeclaration(source.view, version);
+      const version =
+        source.view === "scores"
+          ? readVersion
+          : resolveWidgetRenderVersion({
+              newestReadableVersion: readVersion,
+              shape: {
+                view: getWidgetQueryView(source.view),
+                measures: source.metrics,
+                dimensions: source.dimensions,
+                filters: [...source.filters, ...context.filterState],
+              },
+            });
+      const declaration = getViewDeclaration(
+        getWidgetQueryView(source.view),
+        version,
+      );
       const localFilters = mapLegacyUiTableFilterToView(
-        source.view,
+        getWidgetQueryView(source.view),
         source.filters,
       );
       if (localFilters.length !== source.filters.length)
@@ -168,15 +174,15 @@ export function buildMultiQueryPlan(
           `${source.label}: remove filters that are not supported by this data source`,
         );
       const mappedGlobal = mapLegacyUiTableFilterToView(
-        source.view,
+        getWidgetQueryView(source.view),
         context.filterState,
       );
       if (
-        source.homeScoreAggregate &&
+        source.view === "scores" &&
         mappedGlobal.length !== context.filterState.length
       ) {
         throw new InvalidRequestError(
-          `${source.label}: a dashboard filter is unavailable for Home score records`,
+          `${source.label}: a dashboard filter is unavailable for this score query`,
         );
       }
       if (mappedGlobal.length !== context.filterState.length)
@@ -207,11 +213,8 @@ export function buildMultiQueryPlan(
       const needsBucketCount =
         (timeSeries &&
           dimensions.length > 0 &&
-          !(
-            source.homeCategoryFallback &&
-            metrics.some((metric) =>
-              ["usageByType", "costByType"].includes(metric.measure),
-            )
+          !metrics.some((metric) =>
+            ["usageByType", "costByType"].includes(metric.measure),
           )) ||
         metrics.some(
           (metric) =>
@@ -226,11 +229,11 @@ export function buildMultiQueryPlan(
       )
         metrics.push({ measure: "count", aggregation: "count" });
       const query: QueryType = {
-        view: source.view,
+        view: getWidgetQueryView(source.view),
         metrics,
         dimensions: dimensions.map((field) => ({ field })),
         filters: mergeWidgetAndDashboardFilters({
-          view: source.view,
+          view: getWidgetQueryView(source.view),
           widgetFilters: source.filters,
           dashboardFilters: context.filterState,
         }),
@@ -278,12 +281,9 @@ export function buildMultiQueryPlan(
       if (!validation.valid)
         throw new InvalidRequestError(`${source.label}: ${validation.reason}`);
       const homeCategory =
-        context.readPath === "v3" && source.homeCategoryFallback
-          ? homeCategoryQuery(query)
-          : undefined;
-      const homeScoreFilters = source.homeScoreAggregate
-        ? homeScoreAggregate(query)
-        : undefined;
+        context.readPath === "v3" ? homeCategoryQuery(query) : undefined;
+      const homeScoreFilters =
+        source.view === "scores" ? homeScoreAggregate(query) : undefined;
       return {
         source,
         query,
@@ -336,7 +336,10 @@ export function normalizeMultiQueryResults(
       continue;
     }
     const resultVersion = item.homeCategory ? "v2" : item.version;
-    const declaration = getViewDeclaration(item.source.view, resultVersion);
+    const declaration = getViewDeclaration(
+      getWidgetQueryView(item.source.view),
+      resultVersion,
+    );
     for (const row of result.data ?? []) {
       const dimensions = Object.fromEntries(
         item.dimensions.map((field) => [
@@ -356,10 +359,9 @@ export function normalizeMultiQueryResults(
         item.dimensions.length > 0 &&
         Object.values(dimensions).every((value) => value === null) &&
         (count === 0 ||
-          (item.source.homeCategoryFallback &&
-            item.source.metrics.some((metric) =>
-              ["costByType", "usageByType"].includes(metric.measure),
-            )))
+          item.source.metrics.some((metric) =>
+            ["costByType", "usageByType"].includes(metric.measure),
+          ))
       )
         continue;
       for (const metric of item.source.metrics) {
@@ -376,7 +378,7 @@ export function normalizeMultiQueryResults(
         if (dimensionLabel) labels.push(dimensionLabel);
         const label = labels.join(" · ");
         const bucketUnit = getResultUnit(
-          item.source.view,
+          getWidgetQueryView(item.source.view),
           metric.measure,
           metric.aggregation,
           resultVersion,

@@ -3,7 +3,7 @@
 
 import { buildMultiQueryPlan } from "@/src/features/dashboard-blocks/multi-query/multiQueryModel";
 import { type FilterState } from "@langfuse/shared";
-import { multiQueryConfigSchema } from "@langfuse/shared/dashboards";
+import { multiQueryTabSchema } from "@langfuse/shared/dashboards";
 import { toSavedWidgetEditorDefinition } from "@/src/features/widgets/utils/widget-definition";
 import startCase from "lodash/startCase";
 import { type z } from "zod";
@@ -769,122 +769,109 @@ describe("saved widget editor adaptation", () => {
       filters,
       chartType: "NUMBER",
     });
-    if (adapted.kind !== "multiQuery" || adapted.config.version !== 2)
-      throw new Error("Expected tabbed chart");
+    if (adapted.kind !== "multiQuery") throw new Error("Expected tabbed chart");
     expect(adapted.config.tabs[0].queries[0].filters).toEqual(filters);
   });
 
-  it.each([1, 2] as const)(
-    "canonicalizes rich v%s labels without dropping unsupported filters",
-    (version) => {
-      const sourceFilters = [
+  it("canonicalizes saved widget labels without dropping unsupported filters", () => {
+    const sourceFilters = [
+      {
+        column: "Release",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "release-1",
+      },
+      {
+        column: "Score Name",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "quality",
+      },
+      {
+        column: "futureField",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "keep",
+      },
+      {
+        column: "release",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "observation-release",
+      },
+    ];
+    const tab = {
+      id: "main",
+      label: "Main",
+      queries: [
         {
-          column: "Release",
-          type: "string" as const,
-          operator: "=" as const,
-          value: "release-1",
+          id: "a",
+          label: "Observations",
+          view: "observations",
+          metrics: [{ id: "m0", measure: "count", aggregation: "count" }],
+          dimensions: [],
+          filters: sourceFilters,
         },
-        {
-          column: "Score Name",
-          type: "string" as const,
-          operator: "=" as const,
-          value: "quality",
-        },
-        {
-          column: "futureField",
-          type: "string" as const,
-          operator: "=" as const,
-          value: "keep",
-        },
-        {
-          column: "release",
-          type: "string" as const,
-          operator: "=" as const,
-          value: "observation-release",
-        },
-      ];
-      const tab = {
-        id: "main",
-        label: "Main",
-        queries: [
-          {
-            id: "a",
-            label: "Observations",
-            view: "observations",
-            metrics: [{ id: "m0", measure: "count", aggregation: "count" }],
-            dimensions: [],
-            filters: sourceFilters,
-          },
-        ],
-        display: { chartType: "NUMBER" },
-      };
-      const widget = {
-        name: "Compatibility filters",
-        description: "",
-        view: "observations",
-        metrics: [{ measure: "count", agg: "count" }],
-        dimensions: [],
-        filters: sourceFilters,
-        chartType: "NUMBER",
-      };
-      const legacy = toSavedWidgetEditorDefinition(widget);
-      if (legacy.kind !== "multiQuery" || legacy.config.version !== 2)
-        throw new Error("Expected chart");
-      expect(
-        legacy.config.tabs[0].queries[0].filters.find(
-          (filter) => filter.value === "release-1",
-        )?.column,
-      ).toBe("traceRelease");
-      const adapted = toSavedWidgetEditorDefinition({
-        ...widget,
-        definition: {
-          kind: "multiQuery",
-          config:
-            version === 2
-              ? { version, title: widget.name, description: "", tabs: [tab] }
-              : { ...tab, version, title: widget.name, description: "" },
-        },
-      });
-      if (adapted.kind !== "multiQuery") throw new Error("Expected chart");
-      const queries =
-        adapted.config.version === 2
-          ? adapted.config.tabs[0].queries
-          : adapted.config.queries;
-      const context = {
-        readPath: "v4" as const,
-        filterState: [],
-        dateRange: { from: new Date("2026-11-01"), to: new Date("2026-11-02") },
-      };
-      const plannedFilters = (filters: FilterState) =>
-        buildMultiQueryPlan(
-          multiQueryConfigSchema.parse({
-            ...tab,
-            version: 1,
-            title: widget.name,
-            description: "",
-            queries: [{ ...tab.queries[0], filters }],
-          }),
-          context,
-        ).queries[0].query.filters;
-      const before = plannedFilters([sourceFilters[0], sourceFilters[3]]);
-      const after = plannedFilters(
-        queries[0].filters.filter((filter) =>
-          ["release-1", "observation-release"].includes(String(filter.value)),
-        ),
-      );
-      expect(after).toEqual(before);
-      expect(queries[0].filters).toHaveLength(4);
-      expect(queries[0].filters).toEqual(
-        expect.arrayContaining([
-          { ...sourceFilters[0], column: "traceRelease" },
-          sourceFilters[1],
-          sourceFilters[2],
-          sourceFilters[3],
-        ]),
-      );
-      expect(
-        toSavedWidgetEditorDefinition({ ...widget, definition: adapted }),
-      ).toEqual(adapted);
-    },
-  );
+      ],
+      display: { chartType: "NUMBER" },
+    };
+    const widget = {
+      name: "Compatibility filters",
+      description: "",
+      view: "observations",
+      metrics: [{ measure: "count", agg: "count" }],
+      dimensions: [],
+      filters: sourceFilters,
+      chartType: "NUMBER",
+    };
+    const legacy = toSavedWidgetEditorDefinition(widget);
+    if (legacy.kind !== "multiQuery") throw new Error("Expected chart");
+    expect(
+      legacy.config.tabs[0].queries[0].filters.find(
+        (filter) => filter.value === "release-1",
+      )?.column,
+    ).toBe("traceRelease");
+    const adapted = toSavedWidgetEditorDefinition({
+      ...widget,
+      definition: {
+        version: 1,
+        kind: "multiQuery",
+        config: { title: widget.name, description: "", tabs: [tab] },
+      },
+    });
+    if (adapted.kind !== "multiQuery") throw new Error("Expected chart");
+    const queries = adapted.config.tabs[0].queries;
+    const context = {
+      readPath: "v4" as const,
+      filterState: [],
+      dateRange: { from: new Date("2026-11-01"), to: new Date("2026-11-02") },
+    };
+    const plannedFilters = (filters: FilterState) =>
+      buildMultiQueryPlan(
+        multiQueryTabSchema.parse({
+          ...tab,
+          queries: [{ ...tab.queries[0], filters }],
+        }),
+        context,
+      ).queries[0].query.filters;
+    const before = plannedFilters([sourceFilters[0], sourceFilters[3]]);
+    const after = plannedFilters(
+      queries[0].filters.filter((filter) =>
+        ["release-1", "observation-release"].includes(String(filter.value)),
+      ),
+    );
+    expect(after).toEqual(before);
+    expect(queries[0].filters).toHaveLength(4);
+    expect(queries[0].filters).toEqual(
+      expect.arrayContaining([
+        { ...sourceFilters[0], column: "traceRelease" },
+        sourceFilters[1],
+        sourceFilters[2],
+        sourceFilters[3],
+      ]),
+    );
+    expect(
+      toSavedWidgetEditorDefinition({ ...widget, definition: adapted }),
+    ).toEqual(adapted);
+  });
 });

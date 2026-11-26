@@ -131,7 +131,7 @@ export function buildScoreRecordsHref(
   view: ViewName,
   filters: FilterState,
   dateRange: { from: Date; to: Date },
-  options: { homeScoreAggregate?: boolean; dimensions?: string[] } = {},
+  options: { allScoreTypes?: boolean; dimensions?: string[] } = {},
 ): TableFilterHrefResult {
   const supported = new Set(scoresTableCols.map((column) => column.id));
   const related = new Set(["traceName", "userId", "tags", "sessionId"]);
@@ -166,7 +166,7 @@ export function buildScoreRecordsHref(
         `${dimension} grouping can exclude scores whose related record is outside the chart's lookback`,
       );
   }
-  if (!options.homeScoreAggregate) {
+  if (!options.allScoreTypes) {
     mapped.push({
       column: "dataType",
       type: "stringOptions",
@@ -193,7 +193,7 @@ export function buildScoreRecordsHref(
     });
   }
   const { encoded, droppedForLength } = encodeFiltersWithinBudget(mapped);
-  const range = options.homeScoreAggregate
+  const range = options.allScoreTypes
     ? {
         from: new Date(dateRange.from.getTime() + 1),
         to: new Date(dateRange.to.getTime() - 1),

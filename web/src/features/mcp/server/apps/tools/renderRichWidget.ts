@@ -1,9 +1,5 @@
 import { InvalidRequestError, singleFilterList } from "@langfuse/shared";
-import {
-  dashboardBlockContentSchema,
-  multiQueryTabAsChart,
-  normalizeMultiQueryConfig,
-} from "@langfuse/shared/dashboards";
+import { widgetDefinitionSchema } from "@langfuse/shared/dashboards";
 import { executeQuery } from "@langfuse/shared/query/server";
 import { getEnvironmentsForProject } from "@langfuse/shared/src/server";
 import {
@@ -51,7 +47,7 @@ export async function renderRichWidget({
   };
   url: string;
 }) {
-  const definition = dashboardBlockContentSchema.parse(rawDefinition);
+  const definition = widgetDefinitionSchema.parse(rawDefinition);
   const dates = {
     from: window.fromTimestamp.toISOString(),
     to: window.toTimestamp.toISOString(),
@@ -83,7 +79,7 @@ export async function renderRichWidget({
       meta: { widget: payload },
     });
   }
-  const config = normalizeMultiQueryConfig(definition.config);
+  const config = definition.config;
   const tab = tabId
     ? config.tabs.find((tab) => tab.id === tabId)
     : config.tabs[0];
@@ -97,7 +93,7 @@ export async function renderRichWidget({
     projectId,
     fromTimestamp: window.fromTimestamp,
   });
-  const plan = buildMultiQueryPlan(multiQueryTabAsChart(tab), {
+  const plan = buildMultiQueryPlan(tab, {
     dateRange: { from: window.fromTimestamp, to: window.toTimestamp },
     readPath: "v4",
     filterState: convertSelectedEnvironmentsToFilter(
@@ -158,6 +154,7 @@ export async function renderRichWidget({
   // metric IDs and display options to calculate formulas and draw the data.
   payload.rich = {
     definition: {
+      version: 1,
       kind: "multiQuery",
       config: {
         ...config,

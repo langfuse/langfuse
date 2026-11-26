@@ -1,7 +1,7 @@
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import { type FilterState } from "@langfuse/shared";
-import { type SavedMultiQueryConfig } from "@langfuse/shared/dashboards";
+import { type WidgetDefinition } from "@langfuse/shared/dashboards";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { api } from "@/src/utils/api";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
@@ -63,8 +63,8 @@ export function DashboardBlockEditor({
         })
       : undefined,
   );
-  const [beforePlacementId, setBeforePlacementId] = useState(
-    request.block?.beforePlacementId ?? null,
+  const [beforePlacementId, setBeforePlacementId] = useState<string | null>(
+    null,
   );
   const updatePlacement = (next: string | null) => {
     if (next === beforePlacementId) return;
@@ -84,23 +84,14 @@ export function DashboardBlockEditor({
     onSaved();
   };
   const error = saveErrorMessage(mutation.isError, mutation.error?.data?.code);
-  const save = (
-    content:
-      | {
-          kind: "markdown";
-          config: { version: 1; title: string; content: string };
-        }
-      | { kind: "multiQuery"; config: SavedMultiQueryConfig },
-    activeTabId?: string,
-  ) => {
+  const save = (content: WidgetDefinition, activeTabId?: string) => {
     if (!canEdit || mutation.isPending) return;
     mutation.mutate(
       {
         projectId,
         dashboardId,
         widgetId: request.widgetId,
-        expectedRevision: request.expectedRevision ?? request.block?.revision,
-        sourceBlockId: request.widgetId ? undefined : request.block?.id,
+        expectedRevision: request.expectedRevision,
         beforePlacementId: beforePlacementId ?? undefined,
         definition: content,
       },
@@ -122,16 +113,16 @@ export function DashboardBlockEditor({
       <DashboardMarkdownEditor
         sharedWidget={Boolean(request.widgetId)}
         initial={
-          request.block?.kind === "markdown"
-            ? request.block.config
-            : { version: 1, title: "", content: "" }
+          request.definition?.kind === "markdown"
+            ? request.definition.config
+            : { title: "", content: "" }
         }
         beforePlacementId={beforePlacementId}
-        placementOptions={request.block ? [] : placementOptions}
+        placementOptions={request.definition ? [] : placementOptions}
         pending={mutation.isPending}
         error={error}
         onPlacementChange={updatePlacement}
-        onSave={(config) => save({ kind: "markdown", config })}
+        onSave={(config) => save({ version: 1, kind: "markdown", config })}
         onCancel={onCancel}
         onPreview={onPreview}
       />
@@ -168,8 +159,8 @@ export function DashboardBlockEditor({
     <MultiQueryEditor
       initialTabId={recipe?.initialTabId ?? request.initialTabId}
       initial={
-        request.block?.kind === "multiQuery"
-          ? request.block.config
+        request.definition?.kind === "multiQuery"
+          ? request.definition.config
           : recipe?.config
       }
       projectId={projectId}
@@ -180,7 +171,7 @@ export function DashboardBlockEditor({
       saveError={error}
       onSave={(config, activeTabId) => {
         if (!request.preset)
-          return save({ kind: "multiQuery", config }, activeTabId);
+          return save({ version: 1, kind: "multiQuery", config }, activeTabId);
         if (!canEdit || mutation.isPending) return;
         mutation.mutate(
           {
@@ -192,21 +183,23 @@ export function DashboardBlockEditor({
             replacePresetId: request.preset.template
               ? undefined
               : request.preset.source.presetId,
-            definition: { kind: "multiQuery", config },
+            definition: { version: 1, kind: "multiQuery", config },
           },
           { onSuccess: () => finishSave(activeTabId) },
         );
       }}
       onCancel={onCancel}
     >
-      {!request.block && !request.preset && placementOptions.length > 1 && (
-        <DashboardBlockPlacement
-          value={beforePlacementId}
-          options={placementOptions}
-          disabled={mutation.isPending}
-          onChange={updatePlacement}
-        />
-      )}
+      {!request.definition &&
+        !request.preset &&
+        placementOptions.length > 1 && (
+          <DashboardBlockPlacement
+            value={beforePlacementId}
+            options={placementOptions}
+            disabled={mutation.isPending}
+            onChange={updatePlacement}
+          />
+        )}
       {request.widgetId && (
         <p className="text-muted-foreground text-sm">
           Changes apply wherever this widget is used.

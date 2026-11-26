@@ -33,7 +33,6 @@ import {
   paginationZod,
   orderBy,
   StringNoHTML,
-  dashboardBlockPatchSchema,
   InvalidRequestError,
   singleFilterList,
   LANGFUSE_HOME_DASHBOARD_ID,
@@ -66,16 +65,9 @@ const GetDashboardInput = z.object({
   dashboardId: z.string(),
 });
 
-const UpdateDashboardDefinitionInput = z.union([
-  GetDashboardInput.extend({
-    definition: DashboardDefinitionSchema,
-    blockPatch: z.never().optional(),
-  }),
-  GetDashboardInput.extend({
-    blockPatch: dashboardBlockPatchSchema,
-    definition: z.never().optional(),
-  }),
-]);
+const UpdateDashboardDefinitionInput = GetDashboardInput.extend({
+  definition: DashboardDefinitionSchema,
+});
 
 // Update dashboard input schema
 const UpdateDashboardInput = z.object({
@@ -568,30 +560,6 @@ export const dashboardRouter = createTRPCRouter({
       return { multiQuery: enabled, markdown: enabled };
     }),
 
-  getDashboardBlocks: protectedProjectProcedure
-    .input(
-      GetDashboardInput.extend({
-        kinds: z.array(z.enum(["multiQuery", "markdown"])).optional(),
-        includeConvertedPresets: z.boolean().optional(),
-      }),
-    )
-    .query(async ({ ctx, input }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "dashboards:read",
-      });
-      const blocks = await DashboardService.getDashboardBlocks(
-        input.projectId,
-        input.dashboardId,
-        input.includeConvertedPresets,
-      );
-      const { kinds } = input;
-      return kinds
-        ? blocks.filter((block) => kinds.includes(block.kind))
-        : blocks;
-    }),
-
   createDashboard: protectedProjectProcedure
     .input(CreateDashboardInput)
     .mutation(async ({ ctx, input }) => {
@@ -620,22 +588,11 @@ export const dashboardRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
-      if (input.definition) {
-        return DashboardService.updateDashboardDefinition(
-          input.dashboardId,
-          input.projectId,
-          input.definition,
-          ctx.session.user.id,
-        );
-      }
-      return DashboardService.patchDashboardBlock(
-        input.projectId,
+      return DashboardService.updateDashboardDefinition(
         input.dashboardId,
-        input.blockPatch,
-        {
-          canAuthorWidgets: canAuthorDashboardBlocks(ctx.session),
-          userId: ctx.session.user.id,
-        },
+        input.projectId,
+        input.definition,
+        ctx.session.user.id,
       );
     }),
 

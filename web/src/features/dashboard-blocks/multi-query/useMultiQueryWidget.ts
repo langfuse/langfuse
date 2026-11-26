@@ -1,9 +1,6 @@
 import { useState } from "react";
 import { type FilterState } from "@langfuse/shared";
-import {
-  multiQueryTabAsChart,
-  type MultiQueryTab,
-} from "@langfuse/shared/dashboards";
+import { type MultiQueryTab } from "@langfuse/shared/dashboards";
 import { applyMultiQueryFormulas } from "./multiQueryFormulas";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { buildMultiQueryPlan, type MultiQueryPlan } from "./multiQueryModel";
@@ -32,7 +29,7 @@ export function useMultiQueryWidget(
   const [hiddenByTab, setHiddenByTab] = useState<
     Map<string, ReadonlySet<string>>
   >(() => new Map());
-  const config = multiQueryTabAsChart(tab);
+  const config = tab;
   let plan: MultiQueryPlan | undefined;
   let validationError: string | null = null;
   try {

@@ -148,7 +148,7 @@ export function scoreTable(ctx: HomeWidgetRecipeContext): HomeWidgetRecipe {
   tabs.push(totals);
   if (legacy)
     for (const chart of tabs)
-      for (const series of chart.queries) series.homeScoreAggregate = true;
+      for (const series of chart.queries) series.view = "scores";
   return recipe(
     "Scores",
     "Counts score records by score timestamp, name, source and data type across attachment targets. A trace filter can narrow the score population.",

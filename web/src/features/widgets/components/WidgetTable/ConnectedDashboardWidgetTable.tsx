@@ -1,4 +1,4 @@
-import { dashboardBlockContentSchema } from "@langfuse/shared";
+import { widgetDefinitionSchema } from "@langfuse/shared/dashboards";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -197,7 +197,7 @@ function ConnectedDashboardWidgetTableContent({
         if (exportSource.definition) {
           await saveDefinitionAsync({
             projectId,
-            definition: dashboardBlockContentSchema.parse({
+            definition: widgetDefinitionSchema.parse({
               ...exportSource.definition,
               config: {
                 ...exportSource.definition.config,

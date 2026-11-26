@@ -293,9 +293,9 @@ describe("parsePastedWidget", () => {
 
   it("retains a saved Markdown definition through export and clipboard import", () => {
     const definition = {
+      version: 1 as const,
       kind: "markdown" as const,
       config: {
-        version: 1 as const,
         title: "Context",
         content: "## Weekly report",
       },

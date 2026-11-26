@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { type MultiQueryConfig } from "@langfuse/shared";
 import {
-  normalizeMultiQueryConfig,
   multiQueryTabSchema,
+  multiQueryTabSaveSchema,
+  type MultiQueryTab,
 } from "@langfuse/shared/dashboards";
 import { applyMultiQueryFormulas } from "./multiQueryFormulas";
 import {
@@ -14,10 +14,9 @@ import {
   normalizeMultiQueryResults,
 } from "./multiQueryModel";
 
-const config: MultiQueryConfig = {
-  version: 1,
-  title: "Metadata populations",
-  description: "",
+const config: MultiQueryTab = {
+  id: "main",
+  label: "Metadata populations",
   display: { chartType: "VERTICAL_BAR" },
   queries: ["abc", "bbc"].map((key, index) => ({
     id: index ? "b" : "a",
@@ -46,6 +45,23 @@ const context = {
 };
 
 describe("multi-query ordinary query composition", () => {
+  it("keeps source queries running while a formula is incomplete, but rejects invalid queries and saves", () => {
+    const draft: MultiQueryTab = {
+      ...config,
+      formulas: [
+        { id: "f", label: "", expression: "a.count +", format: "number" },
+      ],
+    };
+    expect(buildMultiQueryPlan(draft, context)).toEqual(
+      buildMultiQueryPlan(config, context),
+    );
+    expect(multiQueryTabSaveSchema.safeParse(draft).success).toBe(false);
+    const invalid = structuredClone(draft);
+    invalid.queries[0]!.metrics[0]!.measure = "missingMeasure";
+    expect(() => buildMultiQueryPlan(invalid, context)).toThrow(
+      /Unknown measure/,
+    );
+  });
   it("preserves a classic pivot table's saved dimension sort", () => {
     const pivot = structuredClone(config);
     pivot.display = {
@@ -66,7 +82,6 @@ describe("multi-query ordinary query composition", () => {
         id: "usage",
         label: "Usage by type",
         view: "observations",
-        homeCategoryFallback: true,
         dimensions: [{ field: "usageType" }],
         metrics: [{ id: "tokens", measure: "usageByType", aggregation: "sum" }],
         filters: [
@@ -125,78 +140,8 @@ describe("multi-query ordinary query composition", () => {
       buildMultiQueryPlan(categories, { ...context, readPath: "v3" }),
     ).toThrow(/category/i);
   });
-  it("keeps a comparison together and converts a saved default view to an independent first tab", () => {
-    const views = [
-      { id: "abc", label: "Has abc", queryIds: ["a"] },
-      { id: "bbc", label: "Has bbc", queryIds: ["b"] },
-    ];
-    const comparison = normalizeMultiQueryConfig({ ...config, views });
-    expect(
-      comparison.tabs.map((tab) => tab.queries.map((query) => query.id)),
-    ).toEqual([["a", "b"]]);
-    const custom = normalizeMultiQueryConfig({
-      ...config,
-      views: [
-        { id: "customers", label: "Paying customers", queryIds: ["a"] },
-        { id: "both", label: "All traffic", queryIds: ["a", "b"] },
-      ],
-    });
-    expect(custom.tabs.map((tab) => tab.id)).toEqual([
-      "chart",
-      "customers",
-      "both",
-    ]);
-    const migrated = normalizeMultiQueryConfig({
-      ...config,
-      views,
-      defaultViewId: "bbc",
-    });
-    expect(migrated.tabs[0]).toMatchObject({
-      id: "bbc",
-      queries: [{ id: "b" }],
-    });
-    expect(
-      migrated.tabs.flatMap((tab) => tab.queries.map((query) => query.id)),
-    ).toContain("a");
-  });
-
-  it("preserves the query and its top-group ranking when upgrading mixed-unit panels", () => {
-    const source = {
-      ...config.queries[0]!,
-      metrics: [
-        { id: "cost", measure: "totalCost", aggregation: "sum" as const },
-        { id: "tokens", measure: "totalTokens", aggregation: "sum" as const },
-      ],
-      orderBy: [{ field: "sum_totalCost", direction: "desc" as const }],
-    };
-    const { tabs } = normalizeMultiQueryConfig({
-      ...config,
-      queries: [source],
-    });
-    expect(
-      tabs.map((t) =>
-        t.queries[0]!.metrics.filter((m) => !m.hidden).map((m) => m.id),
-      ),
-    ).toEqual([["cost"], ["tokens"]]);
-    expect(tabs.map((t) => t.queries[0]!.orderBy)).toEqual([
-      source.orderBy,
-      source.orderBy,
-    ]);
-    const tab = tabs[0]!;
-    for (const expression of ["a.cost + a.tokens", "outside.cost / a.cost"]) {
-      const parsed = multiQueryTabSchema.safeParse({
-        ...tab,
-        formulas: [
-          { id: "invalid", label: "Invalid", expression, format: "number" },
-        ],
-      });
-      expect(parsed.success).toBe(false);
-    }
-  });
   it("aligns hidden formula operands by bucket and breakdown, retaining null for missing or zero denominators", () => {
-    const {
-      tabs: [base],
-    } = normalizeMultiQueryConfig(config);
+    const base = config;
     const tab = {
       ...base!,
       queries: base!.queries.map((q) => ({
@@ -267,7 +212,7 @@ describe("multi-query ordinary query composition", () => {
   });
 
   it("labels unnamed formulas with their tab expression until a name is supplied", () => {
-    const tab = normalizeMultiQueryConfig(config).tabs[0]!;
+    const tab = structuredClone(config);
     const result = normalizeMultiQueryResults(
       buildMultiQueryPlan(config, context),
       config.queries.map(() => ({
@@ -298,7 +243,7 @@ describe("multi-query ordinary query composition", () => {
   });
 
   it("round-trips duplicate series names alongside a literal name that looks like their qualifier", () => {
-    const tab = normalizeMultiQueryConfig(config).tabs[0]!;
+    const tab = structuredClone(config);
     const source = tab.queries[0]!;
     tab.queries = [
       { ...source, id: "a", label: "Count" },
@@ -357,7 +302,7 @@ describe("multi-query ordinary query composition", () => {
     expect(plan.queries.every((item) => item.version === "v2")).toBe(true);
     expect(plan.warnings).toHaveLength(1);
     const presentationOnly = structuredClone(local);
-    presentationOnly.title = "Different title";
+    presentationOnly.label = "Different title";
     presentationOnly.queries[0]!.label = "Different name";
     expect(
       buildMultiQueryPlan(presentationOnly, context).queries.map(
@@ -369,7 +314,7 @@ describe("multi-query ordinary query composition", () => {
   });
 
   it("distinguishes an actual zero score mean from an empty bucket and preserves completed series on partial failure", () => {
-    const score: MultiQueryConfig = {
+    const score: MultiQueryTab = {
       ...config,
       display: { chartType: "LINE_TIME_SERIES" },
       queries: [
@@ -466,7 +411,7 @@ it("keeps an oversized result inside the chart's error state", () => {
 });
 
 it("preserves successful grouped bucket markers without inventing series for empty or failed queries", () => {
-  const grouped: MultiQueryConfig = {
+  const grouped: MultiQueryTab = {
     ...config,
     display: { chartType: "LINE_TIME_SERIES" },
     queries: config.queries.map((source) => ({

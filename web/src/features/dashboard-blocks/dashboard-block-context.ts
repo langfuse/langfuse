@@ -1,15 +1,11 @@
 import { createContext, useContext } from "react";
-import {
-  type SavedDashboardBlock,
-  type HomeDashboardPresetId,
-  type FilterState,
-} from "@langfuse/shared";
-import { type DashboardPlacement } from "@/src/features/widgets/components/DashboardGrid";
+import { type HomeDashboardPresetId, type FilterState } from "@langfuse/shared";
+import { type WidgetDefinition } from "@langfuse/shared/dashboards";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import type { PresetSelection } from "@/src/features/dashboard/components/home-preset-registry";
 
 export type HomePresetDraft = {
-  source: NonNullable<SavedDashboardBlock["sourcePreset"]>;
+  source: { placementId: string; presetId: HomeDashboardPresetId };
   selection: PresetSelection;
   template?: boolean;
 };
@@ -17,13 +13,13 @@ export type HomePresetDraft = {
 export type BlockEditorRequest = (
   | {
       kind: "multiQuery" | "markdown";
-      block?: SavedDashboardBlock;
+      definition?: WidgetDefinition;
       initialTabId?: string;
       preset?: never;
     }
   | {
       kind: "multiQuery";
-      block?: never;
+      definition?: never;
       initialTabId?: never;
       preset: HomePresetDraft;
     }
@@ -41,15 +37,8 @@ export type DashboardBlocksContextValue = {
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
   capabilitiesPending: boolean;
-  blocksPending: boolean;
   capabilities: { multiQuery: boolean; markdown: boolean };
-  blocks: SavedDashboardBlock[];
-  savedPresetTabs?: ReadonlyMap<string, string>;
-  widgets: DashboardPlacement[];
-  placementOptions: { value: string | null; label: string }[];
-  loadError: boolean;
   openEditor: (request: BlockEditorRequest) => void;
-  openPositionEditor: (block: SavedDashboardBlock) => void;
   track: (
     action:
       | "preview"
@@ -60,11 +49,8 @@ export type DashboardBlocksContextValue = {
       | "duplicate"
       | "preset_edit"
       | "preset_convert"
-      | "preset_restore"
       | "remove"
-      | "placement"
-      | "layout_open"
-      | "layout_close",
+      | "placement",
     kind?: "multiQuery" | "markdown",
     isNew?: boolean,
     presetId?: HomeDashboardPresetId,

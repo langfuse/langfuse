@@ -62,8 +62,9 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
       legacyTracesWidgetInput,
     );
     const definition = {
+      version: 1 as const,
       kind: "markdown" as const,
-      config: { version: 1 as const, title: "Note", content: "Supported" },
+      config: { title: "Note", content: "Supported" },
     };
     const { widget: supported } = await DashboardService.saveWidgetDefinition(
       projectId,
@@ -72,10 +73,11 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
     const unreadable = await Promise.all(
       [
         {
+          version: 999,
           kind: "markdown",
-          config: { version: 999, content: "Future content" },
+          config: { content: "Future content" },
         },
-        { kind: "multiQuery", config: { version: 2, tabs: "invalid" } },
+        { version: 1, kind: "multiQuery", config: { tabs: "invalid" } },
       ].map(async (stored) => {
         const widget = await DashboardService.createWidget(
           projectId,
@@ -175,9 +177,9 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
   it("returns complete reusable widget definitions and rejects lossy classic writes", async () => {
     const { auth, projectId } = await createOrgProjectAndApiKey();
     const definition = {
+      version: 1 as const,
       kind: "markdown" as const,
       config: {
-        version: 1 as const,
         title: "Saved note",
         content: "**Full content**",
       },

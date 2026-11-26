@@ -1,4 +1,4 @@
-import { type MultiQueryConfig } from "@langfuse/shared";
+import { type MultiQueryTab } from "@langfuse/shared/dashboards";
 import { type Visualization } from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
 import { type MetricFormatterFunction } from "@/src/features/widgets/chart-library/chart-props";
 import {
@@ -28,7 +28,7 @@ const formatMultiQueryValue = (
     : toFullMetricString(multiQueryFormatter(unit)(value, { style: "full" }));
 
 export function prepareMultiQueryUnitVisualization(
-  config: MultiQueryConfig,
+  config: MultiQueryTab,
   series: MultiQuerySeries[],
   rows: MultiQueryValue[],
   prepared: { visualization: Visualization; confirmation?: Visualization },

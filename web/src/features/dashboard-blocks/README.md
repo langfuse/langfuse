@@ -6,19 +6,19 @@ Employees enable **Dashboard widget authoring** in Feature preview. With project
 
 ## Storage and compatibility
 
-The existing `DashboardWidget` record owns the content. Its nullable `definition` JSON contains either `{ kind: "multiQuery", config }` or `{ kind: "markdown", config }`. The config carries its format version. `revision` increments on definition saves and detects concurrent edits. A widget with no definition uses its existing view, metrics, dimensions, filters, chart type and chart configuration.
+The existing `DashboardWidget` record owns the content. Its nullable `definition` JSON contains either `{ version: 1, kind: "multiQuery", config }` or `{ version: 1, kind: "markdown", config }`. A chart config contains named tabs; each tab owns its queries, display settings and formulas. `revision` increments on definition saves and detects concurrent edits. A widget with no definition uses its existing view, metrics, dimensions, filters, chart type and chart configuration.
 
 The PostgreSQL migration `20261126090000_add_widget_definition` adds `definition` and `revision` to `dashboard_widgets`. Existing rows retain their original content and start with revision zero. The migration requires no data backfill.
 
 The original columns provide a compatibility projection of a rich widget's first query. Applications predating the definition field display that projection. They cannot display the complete tabs, formulas or Markdown. Current servers reject classic updates that would overwrite a rich widget through the old editor or API. Deploy the schema migration before the updated application and deploy the new reader to all web replicas before enabling authoring.
 
-Prefer turning off authoring on the updated application to rolling back its binaries. Before restoring an older binary, suspend writes to rich widgets; if the deployment cannot isolate those writes, suspend all widget mutations at the application or traffic layer. An older server can update the classic columns without changing the saved definition or revision. Those edits will not appear in the rich renderer after upgrading again and can be overwritten by a subsequent definition save. Retain both additive columns during rollback. Dropping them destroys saved rich content. Widgets whose definition is null continue to use the classic columns.
+The migration `20261126180000_guard_versioned_widget_updates` also installs a PostgreSQL trigger. Updates to a rich widget's content or compatibility projection must advance its revision. This rejects writes from older binaries, including attempts to clear the definition, while classic widgets and unchanged updates remain writable. Old clients may show a generic save error; the database preserves the saved rich content.
+
+Prefer turning off authoring on the updated application to rolling back its binaries. A rollback can still read the first-query projection, but cannot edit rich widgets. Retain both additive columns and the trigger during rollback. Dropping the columns destroys saved rich content. Widgets whose definition is null continue to use the classic columns.
 
 Dashboards use their existing `widgets` array of placements. Saving a chart creates or updates a widget record. Adding it to a dashboard creates a placement with that widget ID. Replacing a Home card keeps the placement ID and geometry. The chart content is saved on the widget.
 
-Earlier dashboard documents may contain inline `blocks`, including converted Home cards. Readers continue to understand those documents. An explicit conversion materializes supported inline entries into widget records and placements in one transaction. Converted presets retain their original grid position. Inline notes and charts use their saved row anchors to determine placement. Repeating the conversion is safe. An unsupported configuration aborts the transaction so that its content remains available for a compatible reader.
-
-Layout writes preserve unrelated top-level document fields and untouched inline entries in PostgreSQL, including numeric values that cannot be represented exactly in JavaScript.
+Dashboard documents contain placements only. Existing classic widgets remain readable without a JSON definition. All newly authored charts and Markdown use the widget definition above.
 
 ## Home card templates
 
@@ -44,10 +44,14 @@ Direct saved-widget links also render for readers without the authoring flag. MC
 
 The `multi-query/` subtree owns query editing, execution, formulas and chart rendering. `DashboardBlockEditor` hosts the content editor. Dashboard and widget entry points supply saved widget identity and revision, and save through the widget service. Widget rendering is available independently of authoring eligibility.
 
-Compatibility readers under `dashboard-blocks` handle older inline dashboard documents. Their names describe the stored format they read. New content is saved as widgets with dashboard placements.
+`DashboardWidgetsGrid` supplies Home-card editing and clone-first behavior around the regular placement grid. There is no inline dashboard content renderer or separate layout mode.
 
 ## Local structure inspector
 
 In a development server, choose **Inspect structure** from either the Dashboards or Widgets section. The route is `/project/[projectId]/dashboards/debug`. Select a dashboard to inspect its persisted layout, then select a referenced widget ID to inspect its saved content, original fields and revision. **Refresh stored data** reloads the database values after an edit.
 
 The inspector requires dashboard read access to the selected project and is unavailable when `NODE_ENV` is production or test. Database queries select only dashboard and widget fields, including project-owned and Langfuse-managed definitions. The raw JSON view is excluded from session replay. Each selector shows at most 500 records, and direct `dashboardId` or `widgetId` query parameters can select another authorized record.
+
+## Converting local prototype data
+
+Unreleased prototype formats are not part of the application reader. For a local developer database, run `node --env-file=.env scripts/convert-prototype-dashboards.mjs --project PROJECT` to preview conversion. To apply it, add `--apply --backup /tmp/dashboard-backup.json` with a new backup filename. The script converts only the selected project, preserves existing chart views through the archived prototype converter, and writes an exclusive backup before its transaction changes any rows. Unknown formats or bindings stop conversion. It is not a production migration.

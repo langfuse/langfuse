@@ -162,10 +162,7 @@ export function DashboardWidgetTable({
         range: "decorative",
         accessorFn: (row) => {
           if (row.definition?.kind === "markdown") return "Text";
-          if (
-            row.definition?.kind === "multiQuery" &&
-            row.definition.config.version === 2
-          )
+          if (row.definition?.kind === "multiQuery")
             return `${row.definition.config.tabs.length} chart tabs`;
           return chartDisplayModes[row.chartType as DashboardWidgetChartType];
         },

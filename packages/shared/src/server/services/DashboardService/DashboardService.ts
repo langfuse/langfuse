@@ -1,7 +1,4 @@
-import {
-  saveWidgetDefinition,
-  migrateInlineWidgets,
-} from "./widget-definition-storage";
+import { saveWidgetDefinition } from "./widget-definition-storage";
 import { prisma, Prisma } from "../../../db";
 import { isPrismaRecordNotFoundError } from "../../prismaErrors";
 import { escapeSqlLikePattern } from "../../utils/sqlLike";
@@ -25,15 +22,6 @@ import {
   dashboardWidgetViewToQueryView,
 } from "./types";
 import { z } from "zod";
-import {
-  getDashboardBlocks,
-  hasDashboardBlocks,
-  newDashboardDefinition,
-  updateClassicLayout,
-  patchDashboardBlock,
-  patchPublicDashboard,
-  toPublicDashboard,
-} from "./dashboard-definition-storage";
 
 import {
   getValidAggregationsForMeasureType,
@@ -125,10 +113,6 @@ type DashboardPageOptions = {
 
 export class DashboardService {
   public static saveWidgetDefinition = saveWidgetDefinition;
-  public static migrateInlineWidgets = migrateInlineWidgets;
-  public static getDashboardBlocks = getDashboardBlocks;
-  public static patchDashboardBlock = patchDashboardBlock;
-  public static patchPublicDashboard = patchPublicDashboard;
 
   private static async findDashboardPage(props: DashboardPageOptions) {
     const {
@@ -178,31 +162,6 @@ export class DashboardService {
     };
   }
 
-  public static async listPublicDashboards(props: {
-    projectId: string;
-    page: number;
-    limit: number;
-  }) {
-    const { dashboards, totalCount } = await this.findDashboardPage({
-      ...props,
-      includeLangfuseOwned: false,
-    });
-    return {
-      dashboards: dashboards.map(toPublicDashboard),
-      totalItems: totalCount,
-    };
-  }
-
-  public static async getPublicDashboard(
-    projectId: string,
-    dashboardId: string,
-  ) {
-    const dashboard = await prisma.dashboard.findFirst({
-      where: { id: dashboardId, projectId },
-    });
-    return dashboard ? toPublicDashboard(dashboard) : null;
-  }
-
   /**
    * Creates a new dashboard.
    */
@@ -223,7 +182,7 @@ export class DashboardService {
         projectId,
         createdBy: userId,
         updatedBy: userId,
-        definition: newDashboardDefinition(initialDefinition),
+        definition: DashboardDefinitionSchema.parse(initialDefinition),
         ...(filters !== undefined && { filters }),
       },
     });
@@ -283,42 +242,13 @@ export class DashboardService {
             ),
           },
         });
-        // Copy same-project content inside PostgreSQL, including unknown formats or
-        // numbers that JavaScript cannot represent. Revisions belong to the clone.
-        await tx.$executeRaw`
-          UPDATE dashboards AS target SET definition = CASE
-            WHEN source.definition->'version' = '"1"'::jsonb AND jsonb_typeof(source.definition->'blocks') = 'array'
-            THEN jsonb_set(source.definition, '{blocks}', (
-              SELECT COALESCE(jsonb_agg(CASE WHEN entry->>'kind' IN ('markdown', 'multiQuery', 'convertedPreset')
-                AND jsonb_typeof(entry->'revision') = 'number'
-                THEN jsonb_set(entry, '{revision}', '1'::jsonb) ELSE entry END ORDER BY ord), '[]'::jsonb)
-              FROM jsonb_array_elements(source.definition->'blocks') WITH ORDINALITY AS stored(entry, ord)
-            )) ELSE source.definition END
-          FROM dashboards AS source
-          WHERE target.id = ${clone.id} AND target.project_id = ${projectId}
-            AND source.id = ${dashboardId} AND source.project_id = ${projectId}
-            AND (source.definition ? 'version' OR source.definition ? 'blocks')
-        `;
-        let result = DashboardDomainSchema.parse({
-          ...clone,
-          owner: "PROJECT",
-        });
-        if (definition) {
-          result = await updateClassicLayout(
-            tx,
-            projectId,
-            clone.id,
-            () => definition,
-            userId,
-          );
-        }
         if (setAsHome) {
           await tx.project.update({
             where: { id: projectId },
             data: { homeDashboardId: clone.id },
           });
         }
-        return result;
+        return DashboardDomainSchema.parse({ ...clone, owner: "PROJECT" });
       },
       { isolationLevel: "RepeatableRead" },
     );
@@ -366,9 +296,10 @@ export class DashboardService {
     definition: z.infer<typeof DashboardDefinitionSchema>,
     userId?: string,
   ): Promise<DashboardDomain> {
-    return prisma.$transaction((tx) =>
-      updateClassicLayout(tx, projectId, dashboardId, () => definition, userId),
-    );
+    return this.updateDashboardRecord(dashboardId, projectId, {
+      definition: DashboardDefinitionSchema.parse(definition),
+      updatedBy: userId,
+    });
   }
 
   /**
@@ -409,7 +340,7 @@ export class DashboardService {
   public static async getDashboard(
     dashboardId: string,
     projectId: string,
-  ): Promise<(DashboardDomain & { hasDashboardBlocks: boolean }) | null> {
+  ): Promise<DashboardDomain | null> {
     const dashboard = await prisma.dashboard.findFirst({
       where: {
         id: dashboardId,
@@ -421,16 +352,10 @@ export class DashboardService {
       return null;
     }
 
-    const classic = DashboardDomainSchema.parse({
+    return DashboardDomainSchema.parse({
       ...dashboard,
       owner: dashboard.projectId ? "PROJECT" : "LANGFUSE",
     });
-    return {
-      ...classic,
-      hasDashboardBlocks:
-        dashboard.projectId !== null &&
-        hasDashboardBlocks(dashboard.definition, classic.definition),
-    };
   }
 
   /**
@@ -744,19 +669,27 @@ export class DashboardService {
         },
       });
 
-      await updateClassicLayout(
-        tx,
-        projectId,
-        dashboardId,
-        ({ widgets }) => ({
-          widgets: widgets.map((placement) =>
-            placement.type === "widget" && placement.id === placementId
-              ? { ...placement, widgetId: newWidget.id }
-              : placement,
-          ),
-        }),
-        userId,
-      );
+      const [dashboard] = await tx.$queryRaw<
+        { definition: Prisma.JsonValue }[]
+      >`
+        SELECT definition FROM dashboards
+        WHERE id = ${dashboardId} AND project_id = ${projectId} FOR UPDATE
+      `;
+      if (!dashboard) throw new LangfuseNotFoundError("Dashboard not found");
+      const layout = DashboardDefinitionSchema.parse(dashboard.definition);
+      await tx.dashboard.update({
+        where: { id: dashboardId, projectId },
+        data: {
+          updatedBy: userId,
+          definition: {
+            widgets: layout.widgets.map((placement) =>
+              placement.type === "widget" && placement.id === placementId
+                ? { ...placement, widgetId: newWidget.id }
+                : placement,
+            ),
+          },
+        },
+      });
 
       return newWidget.id;
     });

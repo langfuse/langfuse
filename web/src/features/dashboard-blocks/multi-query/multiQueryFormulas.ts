@@ -1,5 +1,6 @@
 import {
   compileMultiQueryFormula,
+  getWidgetQueryView,
   type MultiQueryTab,
 } from "@langfuse/shared/dashboards";
 import {
@@ -29,7 +30,7 @@ export function multiQueryMetricUnit(
   const version = resolveWidgetRenderVersion({
     newestReadableVersion: readPath === "v4" ? "v2" : "v1",
     shape: {
-      view: source.view,
+      view: getWidgetQueryView(source.view),
       measures: source.metrics,
       dimensions: source.dimensions,
       filters: source.filters,
@@ -37,7 +38,12 @@ export function multiQueryMetricUnit(
   });
   return metric.aggregation === "histogram"
     ? "integer"
-    : getResultUnit(source.view, metric.measure, metric.aggregation, version);
+    : getResultUnit(
+        getWidgetQueryView(source.view),
+        metric.measure,
+        metric.aggregation,
+        version,
+      );
 }
 
 /** Unit groups use every configured visible metric, including a series with no returned observations. */

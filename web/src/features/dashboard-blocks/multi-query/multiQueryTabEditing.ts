@@ -3,7 +3,7 @@ import {
   type MultiQueryTab,
 } from "@langfuse/shared/dashboards";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
-import { createMultiQueryConfig } from "./multiQueryModel";
+import { createMultiQueryTab } from "./multiQueryModel";
 import { multiQueryMetricUnit, multiQueryTabUnits } from "./multiQueryFormulas";
 
 export function nextEditorId(prefix: string, existing: { id: string }[]) {
@@ -13,7 +13,7 @@ export function nextEditorId(prefix: string, existing: { id: string }[]) {
 }
 
 export function createEditorTab(id: string, label: string): MultiQueryTab {
-  const { queries, display } = createMultiQueryConfig();
+  const { queries, display } = createMultiQueryTab();
   return { id, label, queries, display, formulas: [] };
 }
 

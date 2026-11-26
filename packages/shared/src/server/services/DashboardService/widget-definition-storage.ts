@@ -2,15 +2,15 @@ import { randomUUID } from "node:crypto";
 import { Prisma, prisma } from "../../../db";
 import { z } from "zod";
 import {
-  dashboardBlockContentSchema,
+  widgetDefinitionSchema,
+  widgetDefinitionSaveSchema,
+  getWidgetQueryView,
   DashboardDefinitionSchema,
-  storedInlineDashboardWidgetSchema,
   type WidgetDefinition,
   type DashboardDefinition,
 } from "../../../features/dashboards";
 import { LangfuseConflictError } from "../../../errors/ConflictError";
 import { LangfuseNotFoundError } from "../../../errors/NotFoundError";
-import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import {
   resolveDashboardWidgetMinVersion,
   validateDashboardWidgetQuery,
@@ -25,12 +25,11 @@ export const SaveWidgetDefinitionInput = z
   .object({
     widgetId: z.string().optional(),
     expectedRevision: z.number().int().nonnegative().optional(),
-    definition: dashboardBlockContentSchema,
+    definition: widgetDefinitionSaveSchema,
     dashboardId: z.string().optional(),
     replacePlacementId: z.string().optional(),
     replacePresetId: z.string().optional(),
     beforePlacementId: z.string().optional(),
-    sourceBlockId: z.string().optional(),
   })
   .superRefine((input, ctx) => {
     if (input.widgetId && input.expectedRevision === undefined)
@@ -39,16 +38,14 @@ export const SaveWidgetDefinitionInput = z
         message: "An existing widget requires its revision.",
       });
     if (
-      (input.replacePlacementId ||
-        input.beforePlacementId ||
-        input.sourceBlockId) &&
+      (input.replacePlacementId || input.beforePlacementId) &&
       !input.dashboardId
     )
       ctx.addIssue({
         code: "custom",
         message: "Placement changes require a dashboard.",
       });
-    if (input.widgetId && (input.replacePlacementId || input.sourceBlockId))
+    if (input.widgetId && input.replacePlacementId)
       ctx.addIssue({
         code: "custom",
         message: "A conversion creates a new widget.",
@@ -69,29 +66,28 @@ function projectedWidget(definition: WidgetDefinition) {
       minVersion: 1,
     };
   const config = definition.config;
-  const tab = config.version === 2 ? config.tabs[0] : config;
+  const tab = config.tabs[0];
   const query = tab.queries[0];
-  const queries =
-    config.version === 2
-      ? config.tabs.flatMap((item) => item.queries)
-      : config.queries;
+  const queries = config.tabs.flatMap((item) =>
+    item.queries.map((source) => ({ source, display: item.display })),
+  );
   const minVersion = Math.max(
-    ...queries.map((source) => {
+    ...queries.map(({ source, display }) => {
       const input = {
         name: config.title,
         description: config.description,
-        view: queryViewToDashboardWidgetView[source.view],
+        view: queryViewToDashboardWidgetView[getWidgetQueryView(source.view)],
         dimensions: source.dimensions,
         filters: source.filters,
         metrics: source.metrics.map((metric) => ({
           measure: metric.measure,
           agg: metric.aggregation,
         })),
-        chartType: tab.display.chartType,
-        chartConfig: ChartConfigSchema.parse({ type: tab.display.chartType }),
+        chartType: display.chartType,
+        chartConfig: ChartConfigSchema.parse({ type: display.chartType }),
       };
       const required = resolveDashboardWidgetMinVersion({
-        view: source.view,
+        view: getWidgetQueryView(source.view),
         dimensions: source.dimensions,
         measures: input.metrics,
         filters: source.filters,
@@ -103,7 +99,7 @@ function projectedWidget(definition: WidgetDefinition) {
   return {
     name: config.title,
     description: config.description,
-    view: queryViewToDashboardWidgetView[query.view],
+    view: queryViewToDashboardWidgetView[getWidgetQueryView(query.view)],
     dimensions: query.dimensions,
     metrics: query.metrics.map((metric) => ({
       measure: metric.measure,
@@ -131,51 +127,7 @@ async function lockDashboard(
     SELECT definition FROM dashboards WHERE id=${dashboardId} AND project_id=${projectId} FOR UPDATE
   `;
   if (!row) throw new LangfuseNotFoundError("Dashboard not found");
-  const raw = row.definition as Record<string, Prisma.JsonValue>;
-  if (raw.version !== undefined && raw.version !== "1")
-    throw new LangfuseConflictError("This dashboard version cannot be edited.");
-  return { raw, layout: DashboardDefinitionSchema.parse(raw) };
-}
-
-async function writeLayout(
-  tx: Prisma.TransactionClient,
-  projectId: string,
-  dashboardId: string,
-  layout: DashboardDefinition,
-  retainedInlineOrdinals: number[],
-  userId?: string,
-) {
-  const classic = Prisma.sql`${JSON.stringify(layout)}::jsonb`;
-  // Keep opaque fields and untouched inline values inside PostgreSQL so numeric
-  // precision is not reduced by a round trip through JavaScript numbers.
-  const updated = retainedInlineOrdinals.length
-    ? Prisma.sql`(SELECT definition || grid || jsonb_build_object('version', '1', 'blocks', (grid->'widgets') || COALESCE((
-        SELECT jsonb_agg(entry ORDER BY ord)
-        FROM jsonb_array_elements(definition->'blocks') WITH ORDINALITY AS stored(entry, ord)
-        WHERE ord IN (${Prisma.join(retainedInlineOrdinals)})
-      ), '[]'::jsonb)) FROM (SELECT ${classic} AS grid) AS layout)`
-    : Prisma.sql`(definition - 'version' - 'blocks') || ${classic}`;
-  await tx.$executeRaw`
-    UPDATE dashboards SET definition = ${updated}, updated_at = CURRENT_TIMESTAMP,
-      updated_by = COALESCE(${userId ?? null}, updated_by)
-    WHERE id = ${dashboardId} AND project_id = ${projectId}
-  `;
-}
-
-function inlineEntries(raw: Record<string, Prisma.JsonValue>) {
-  if (raw.blocks === undefined) return [];
-  if (!Array.isArray(raw.blocks))
-    throw new InvalidRequestError("Unsupported dashboard layout.");
-  return raw.blocks.flatMap((entry, index) => {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry))
-      throw new InvalidRequestError("Unsupported dashboard entry.");
-    if ("kind" in entry) return [{ value: entry, ordinal: index + 1 }];
-    if (
-      !DashboardDefinitionSchema.shape.widgets.element.safeParse(entry).success
-    )
-      throw new InvalidRequestError("Unsupported dashboard entry.");
-    return [];
-  });
+  return DashboardDefinitionSchema.parse(row.definition);
 }
 
 function addPlacement(
@@ -241,21 +193,6 @@ export async function saveWidgetDefinition(
     const dashboard = parsed.dashboardId
       ? await lockDashboard(tx, projectId, parsed.dashboardId)
       : undefined;
-    const remaining = dashboard ? inlineEntries(dashboard.raw) : [];
-    const source = parsed.sourceBlockId
-      ? remaining.find((entry) => entry.value.id === parsed.sourceBlockId)
-      : undefined;
-    if (parsed.sourceBlockId && !source)
-      throw new LangfuseConflictError(
-        "This dashboard widget was already converted or removed.",
-      );
-    const sourceBlock = source
-      ? storedInlineDashboardWidgetSchema.parse(source.value)
-      : undefined;
-    if (sourceBlock && sourceBlock.revision !== parsed.expectedRevision)
-      throw new LangfuseConflictError(
-        "This widget changed. Reload it and try again.",
-      );
     const data = {
       ...projectedWidget(parsed.definition),
       definition: parsed.definition as Prisma.InputJsonValue,
@@ -275,7 +212,7 @@ export async function saveWidgetDefinition(
         );
       if (
         existing.definition != null &&
-        !dashboardBlockContentSchema.safeParse(existing.definition).success
+        !widgetDefinitionSchema.safeParse(existing.definition).success
       )
         throw new LangfuseConflictError(
           "This widget definition cannot be edited by this version of Langfuse.",
@@ -303,132 +240,34 @@ export async function saveWidgetDefinition(
     }
     let placementId: string | undefined;
     if (dashboard && parsed.dashboardId && !parsed.widgetId) {
-      const replaceId =
-        sourceBlock?.kind === "convertedPreset"
-          ? sourceBlock.sourcePreset.placementId
-          : parsed.replacePlacementId;
-      const preset = replaceId
-        ? dashboard.layout.widgets.find((item) => item.id === replaceId)
-        : undefined;
+      const replaceId = parsed.replacePlacementId;
       if (replaceId) {
+        const preset = dashboard.widgets.find((item) => item.id === replaceId);
         if (
           preset?.type !== "preset" ||
           (parsed.replacePresetId !== undefined &&
-            preset.presetId !== parsed.replacePresetId) ||
-          (sourceBlock?.kind === "convertedPreset" &&
-            preset.presetId !== sourceBlock.sourcePreset.presetId)
+            preset.presetId !== parsed.replacePresetId)
         )
           throw new LangfuseConflictError(
             "The Home card has already been replaced.",
           );
       }
       const { placement, layout } = addPlacement(
-        dashboard.layout,
+        dashboard,
         widget.id,
         replaceId,
-        sourceBlock?.beforePlacementId ?? parsed.beforePlacementId,
+        parsed.beforePlacementId,
         parsed.definition.kind === "markdown" ? 2 : 5,
       );
       placementId = placement.id;
-      await writeLayout(
-        tx,
-        projectId,
-        parsed.dashboardId,
-        layout,
-        remaining
-          .filter((entry) => {
-            if (entry === source) return false;
-            const binding = entry.value.sourcePreset;
-            const replacesOverlay =
-              preset?.type === "preset" &&
-              entry.value.kind === "convertedPreset" &&
-              binding &&
-              typeof binding === "object" &&
-              !Array.isArray(binding) &&
-              binding.placementId === preset.id &&
-              binding.presetId === preset.presetId;
-            if (
-              replacesOverlay &&
-              !storedInlineDashboardWidgetSchema.safeParse(entry.value).success
-            )
-              throw new LangfuseConflictError(
-                "This Home card has a saved widget definition that this version of Langfuse cannot edit.",
-              );
-            return !replacesOverlay;
-          })
-          .map((entry) => entry.ordinal),
-        userId,
-      );
+      await tx.dashboard.update({
+        where: { id: parsed.dashboardId, projectId },
+        data: { definition: layout, updatedBy: userId },
+      });
     }
     return {
       widget: WidgetDomainSchema.parse({ ...widget, owner: "PROJECT" }),
       placementId,
     };
-  });
-}
-
-/** Materialize supported inline content as ordinary widgets and preserve existing placements. */
-export async function migrateInlineWidgets(
-  projectId: string,
-  dashboardId: string,
-  userId?: string,
-) {
-  return prisma.$transaction(async (tx) => {
-    const { raw, layout: initialLayout } = await lockDashboard(
-      tx,
-      projectId,
-      dashboardId,
-    );
-    let layout = initialLayout;
-    const entries = inlineEntries(raw);
-    const parsed = entries.map((entry) => {
-      const block = storedInlineDashboardWidgetSchema.safeParse(entry.value);
-      if (!block.success)
-        throw new InvalidRequestError(
-          "This dashboard contains a widget format this server cannot migrate.",
-        );
-      return block.data;
-    });
-    for (const block of parsed) {
-      const definition = dashboardBlockContentSchema.parse({
-        kind: block.kind === "convertedPreset" ? "multiQuery" : block.kind,
-        config: block.config,
-      });
-      const widget = await tx.dashboardWidget.create({
-        data: {
-          ...projectedWidget(definition),
-          definition: definition as Prisma.InputJsonValue,
-          projectId,
-          createdBy: userId,
-          updatedBy: userId,
-          revision: 1,
-        },
-      });
-      const replaceId =
-        block.kind === "convertedPreset"
-          ? block.sourcePreset.placementId
-          : undefined;
-      if (replaceId) {
-        const preset = layout.widgets.find((item) => item.id === replaceId);
-        if (
-          preset?.type !== "preset" ||
-          (block.kind === "convertedPreset" &&
-            preset.presetId !== block.sourcePreset.presetId)
-        )
-          throw new LangfuseConflictError(
-            "The original Home card placement changed.",
-          );
-      }
-      layout = addPlacement(
-        layout,
-        widget.id,
-        replaceId,
-        block.beforePlacementId ?? undefined,
-        definition.kind === "markdown" ? 2 : 5,
-      ).layout;
-    }
-    if (entries.length)
-      await writeLayout(tx, projectId, dashboardId, layout, [], userId);
-    return { migrated: entries.length };
   });
 }

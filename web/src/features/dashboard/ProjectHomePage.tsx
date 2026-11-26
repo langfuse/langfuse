@@ -49,7 +49,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Button } from "@/src/components/ui/button";
 import { DashboardBlocksProvider } from "@/src/features/dashboard-blocks/DashboardBlocksProvider";
-import { DashboardBlocksCanvas } from "@/src/features/dashboard-blocks/DashboardBlocksCanvas";
+import { DashboardWidgetsGrid } from "@/src/features/dashboard-blocks/DashboardWidgetsGrid";
 import { ConnectedHomeDashboardSelect } from "@/src/features/dashboard/components/ConnectedHomeDashboardSelect";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
@@ -554,7 +554,6 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
           dateRange={absoluteTimeRange}
           filterState={gridFilterState}
           widgets={definition.widgets}
-          hasDashboardBlocks={displayedDashboard?.hasDashboardBlocks}
           dashboardReady={!isResolvingDashboard}
         >
           {!isDashboardDataReady || isResolvingDashboard ? (
@@ -562,7 +561,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
               <Skeleton className="h-full w-full" />
             </div>
           ) : (
-            <DashboardBlocksCanvas
+            <DashboardWidgetsGrid
               dashboardName={dashboardName}
               gridProps={{
                 widgets: definition.widgets,

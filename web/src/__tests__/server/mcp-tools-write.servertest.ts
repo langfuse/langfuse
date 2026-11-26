@@ -1744,7 +1744,7 @@ describe("MCP Write Tools", () => {
         {
           name: `mcp-dashboard-${nanoid()}`,
           description: "",
-          definition: { version: "1", blocks: [] },
+          definition: { widgets: [] },
         },
         setup.context,
       )) as { id: string };
@@ -1752,7 +1752,7 @@ describe("MCP Write Tools", () => {
       const edit = {
         dashboardId: dashboard.id,
         name: "MCP dashboard updated",
-        definition: { version: "1" as const, blocks: [] },
+        definition: { widgets: [] },
       };
       for (const [tool, input] of [
         [createDashboardTool, { name: edit.name, definition: edit.definition }],
@@ -1768,7 +1768,7 @@ describe("MCP Write Tools", () => {
       ).resolves.toMatchObject({
         id: dashboard.id,
         name: "MCP dashboard updated",
-        definition: { version: "1", widgets: [], blocks: [] },
+        definition: { widgets: [] },
       });
 
       const added = (await handleAddDashboardPlacement(
@@ -1803,7 +1803,7 @@ describe("MCP Write Tools", () => {
           setup.context,
         ),
       ).resolves.toMatchObject({
-        definition: { widgets: [resized], blocks: [resized] },
+        definition: { widgets: [resized] },
       });
 
       await expect(

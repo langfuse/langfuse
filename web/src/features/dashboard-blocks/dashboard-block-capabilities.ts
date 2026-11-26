@@ -47,11 +47,6 @@ function dashboardBlockErrorStatus(error: unknown): number | undefined {
   );
 }
 
-export function isDashboardBlockReadDenied(error: unknown) {
-  const status = dashboardBlockErrorStatus(error);
-  return status === 401 || status === 403 || status === 404;
-}
-
 function isAuthoritativeCapabilityFailure(error: unknown) {
   const status = dashboardBlockErrorStatus(error);
   return (

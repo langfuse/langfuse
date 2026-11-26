@@ -14,7 +14,7 @@ const markdownFormSchema = dashboardMarkdownConfigSchema.refine(
   (config) => config.content.trim().length > 0,
   { path: ["content"], message: "Add Markdown content." },
 );
-type MarkdownConfig = { version: 1; title: string; content: string };
+type MarkdownConfig = z.infer<typeof dashboardMarkdownConfigSchema>;
 
 export function DashboardMarkdownEditor({
   initial,

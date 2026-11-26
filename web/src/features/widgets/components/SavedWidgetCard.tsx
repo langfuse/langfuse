@@ -62,12 +62,7 @@ export function SavedWidgetCard({
     }
     context.openEditor({
       kind: definition.kind,
-      block: {
-        id: widget.id,
-        revision: widget.revision ?? 0,
-        beforePlacementId: null,
-        ...definition,
-      },
+      definition,
       widgetId: widget.id,
       expectedRevision: widget.revision,
       initialTabId: selectedTabId,

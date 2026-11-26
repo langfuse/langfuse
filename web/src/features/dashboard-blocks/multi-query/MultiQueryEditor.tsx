@@ -1,14 +1,11 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import {
-  multiQueryConfigV2Schema,
+  multiQueryConfigSaveSchema,
   multiQueryTabSchema,
-  normalizeMultiQueryConfig,
-  multiQueryTabAsChart,
-  type MultiQueryConfigV2,
+  type MultiQueryConfig,
   type MultiQueryFormula,
   type MultiQueryTab,
-  type SavedMultiQueryConfig,
 } from "@langfuse/shared/dashboards";
 import { PauseIcon, PlayIcon, RefreshCw, PencilIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -23,7 +20,7 @@ import { VisualizationFrame } from "@/src/components/design-system/charts/intern
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
 import { formatDateRange } from "@/src/utils/date-range-utils";
-import { buildMultiQueryPlan, createMultiQueryConfig } from "./multiQueryModel";
+import { buildMultiQueryPlan, createMultiQueryTab } from "./multiQueryModel";
 import { MultiQueryResultView } from "./MultiQueryResultView";
 import { ChartTypePicker } from "./ChartTypePicker";
 import { MultiQueryTabSources } from "./MultiQueryTabSources";
@@ -62,20 +59,25 @@ export function MultiQueryEditor({
   saveError,
 }: MultiQueryWidgetContext & {
   children: ReactNode;
-  initial: SavedMultiQueryConfig | undefined;
+  initial: MultiQueryConfig | undefined;
   initialTabId?: string;
   onSave: (
-    config: MultiQueryConfigV2,
+    config: MultiQueryConfig,
     activeTabId: string,
   ) => void | Promise<void>;
   onCancel: () => void;
   savePending?: boolean;
   saveError?: string;
 }) {
-  const [initialDraft] = useState(() =>
-    normalizeMultiQueryConfig(initial ?? createMultiQueryConfig()),
+  const [initialDraft] = useState(
+    () =>
+      initial ?? {
+        title: "New chart",
+        description: "",
+        tabs: [createMultiQueryTab()],
+      },
   );
-  const { watch, setValue } = useForm<MultiQueryConfigV2>({
+  const { watch, setValue } = useForm<MultiQueryConfig>({
     defaultValues: initialDraft,
   });
   const config = watch();
@@ -102,7 +104,7 @@ export function MultiQueryEditor({
   const active = config.tabs.find((t) => t.id === tabId) ?? config.tabs[0]!;
   const context = { projectId, dateRange, filterState, readPath };
   const activeFiltersComplete = !invalidFilters.get(active.id)?.size;
-  const schema = multiQueryConfigV2Schema.safeParse(config);
+  const schema = multiQueryConfigSaveSchema.safeParse(config);
   const formulaErrors = new Map<MultiQueryFormula, string>();
   for (const issue of schema.error?.issues ?? []) {
     const [tabs, tabIndex, formulas, formulaIndex, field] = issue.path;
@@ -164,7 +166,7 @@ export function MultiQueryEditor({
     if (!schema.success) return;
     for (const tab of config.tabs) {
       try {
-        buildMultiQueryPlan(multiQueryTabAsChart(tab), {
+        buildMultiQueryPlan(tab, {
           ...context,
           dateRange: runtime.dateRange,
         });

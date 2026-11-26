@@ -7485,12 +7485,7 @@ paths:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
     post:
-      description: |-
-        Create a dashboard from a legacy `widgets` definition or a version 1
-        `blocks` definition. Project API credentials can create classic widget
-        and preset placements. Creating inline Markdown or multi-query widgets
-        requires the employee feature preview in the application; public API
-        credentials cannot create them.
+      description: Create a dashboard.
       operationId: unstable_dashboards_create
       tags:
         - UnstableDashboards
@@ -7548,12 +7543,7 @@ paths:
               $ref: '#/components/schemas/unstableCreateDashboardRequest'
   /api/public/unstable/dashboards/{dashboardId}:
     get:
-      description: |-
-        Get a dashboard by id, including supported inline Markdown and
-        multi-query widgets. Classic and version 1 definitions return version 1
-        with a deprecated `widgets` mirror. If the stored root format is newer
-        than this server supports, only its legacy `widgets` projection is
-        returned; the server does not label that projection version 1.
+      description: Get a dashboard by id.
       operationId: unstable_dashboards_get
       tags:
         - UnstableDashboards
@@ -7609,47 +7599,7 @@ paths:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
     patch:
-      description: >-
-        Update a dashboard's name, description, definition, or filters.
-
-
-        A legacy `widgets` definition updates classic placements while
-
-        preserving inline widgets. For a version 1 edit, update `blocks` and
-
-        omit `widgets` or mirror the classic placements there. Editing classic
-
-        placements in `blocks` and echoing the unchanged current `widgets`
-
-        returns `400`. Omit the old mirror before retrying. A client may
-
-        also edit only `widgets` on a definition returned by GET and echo
-
-        `blocks` unchanged. A concurrent classic move, resize, or change to
-
-        the original placement used as an inline anchor returns `409` when
-
-        it conflicts with that snapshot. Fetch the current definition before
-        retrying.
-
-
-        Project API credentials may round-trip existing inline widgets unchanged
-
-        while editing classic placements. If a saved widget has a newer
-
-        revision, reload the dashboard after the `409` response before retrying.
-
-        Creating, editing, removing, or reordering inline widgets returns
-
-        `403`. A stale snapshot with different inline membership or order also
-
-        returns `403`. Refetch it before reapplying a classic layout edit.
-
-        Use the application's employee feature preview to change inline
-
-        content. Unsupported future entries are preserved in storage, and
-
-        definitions with an unsupported root version cannot be edited.
+      description: Update a dashboard's name, description, definition, or filters.
       operationId: unstable_dashboards_update
       tags:
         - UnstableDashboards
@@ -7691,12 +7641,6 @@ paths:
           content:
             application/json:
               schema: {}
-        '409':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/unstablePublicApiError'
         '429':
           description: ''
           content:
@@ -7785,9 +7729,6 @@ paths:
         The referenced widget must exist in the same project or be a
         Langfuse-managed widget. The API returns `409` if a placement with
         the same `id` already exists on the dashboard.
-
-        This endpoint manages classic placements only and preserves inline
-        Markdown and multi-query widgets.
       operationId: unstable_dashboards_addPlacement
       tags:
         - UnstableDashboards
@@ -7861,9 +7802,6 @@ paths:
         required. Omitted fields keep their current value. The placement's
         content (widget/preset reference) and id cannot change — delete and
         re-add the placement to swap content. Returns the updated placement.
-
-        This endpoint manages classic placements only and preserves inline
-        Markdown and multi-query widgets.
       operationId: unstable_dashboards_updatePlacement
       tags:
         - UnstableDashboards
@@ -7931,10 +7869,8 @@ paths:
               $ref: '#/components/schemas/unstableUpdateDashboardPlacementRequest'
     delete:
       description: >-
-        Remove a classic placement from a dashboard grid without deleting the
-
-        referenced widget. Inline Markdown and multi-query widgets are
-        preserved.
+        Remove a placement from a dashboard grid without deleting the referenced
+        widget.
       operationId: unstable_dashboards_deletePlacement
       tags:
         - UnstableDashboards
@@ -16372,10 +16308,10 @@ components:
                   type: string
                   enum:
                     - multiQuery
-            - $ref: '#/components/schemas/unstableMultiQueryDashboardBlock'
+            - $ref: '#/components/schemas/unstableMultiQueryWidget'
           required:
             - kind
-          title: UnstableMultiQueryDashboardBlock
+          title: UnstableMultiQueryWidget
         - type: object
           allOf:
             - type: object
@@ -16384,15 +16320,20 @@ components:
                   type: string
                   enum:
                     - markdown
-            - $ref: '#/components/schemas/unstableMarkdownDashboardBlock'
+            - $ref: '#/components/schemas/unstableMarkdownWidget'
           required:
             - kind
-          title: UnstableMarkdownDashboardBlock
+          title: UnstableMarkdownWidget
       description: >-
         Complete widget content. When present, use this definition to render
         every tab, formula or Markdown. Flat fields describe a compatibility
         projection only. Employee authoring is required to change this
         definition.
+      required:
+        - version
+      properties:
+        version:
+          $ref: '#/components/schemas/unstableWidgetDefinitionVersion'
     unstableDashboardWidget:
       title: unstableDashboardWidget
       type: object
@@ -16446,6 +16387,266 @@ components:
         - filters
         - chartType
         - chartConfig
+    unstableWidgetDefinitionVersion:
+      title: unstableWidgetDefinitionVersion
+      type: integer
+      enum:
+        - 1
+    unstableWidgetQueryView:
+      title: unstableWidgetQueryView
+      type: string
+      enum:
+        - observations
+        - traces
+        - scores
+        - scores-numeric
+        - scores-boolean
+        - scores-categorical
+      description: >-
+        `scores` provides full-period counts and numeric means. On the current
+
+        observations read path it includes numeric, boolean and categorical
+        scores;
+
+        the legacy trace read path also includes text and correction scores.
+    unstableMarkdownWidget:
+      title: unstableMarkdownWidget
+      type: object
+      properties:
+        config:
+          $ref: '#/components/schemas/unstableDashboardMarkdownConfig'
+      required:
+        - config
+    unstableMultiQueryWidget:
+      title: unstableMultiQueryWidget
+      type: object
+      properties:
+        config:
+          $ref: '#/components/schemas/unstableDashboardMultiQueryConfig'
+      required:
+        - config
+    unstableDashboardMarkdownConfig:
+      title: unstableDashboardMarkdownConfig
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+          description: Markdown content, at most 100000 characters.
+      required:
+        - title
+        - content
+    unstableDashboardMultiQueryConfig:
+      title: unstableDashboardMultiQueryConfig
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        tabs:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryTab'
+          description: >-
+            One to nine ordered independent tabs with unique IDs. The first tab
+            is shown by default.
+      required:
+        - title
+        - description
+        - tabs
+    unstableDashboardMultiQueryTab:
+      title: unstableDashboardMultiQueryTab
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        queries:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryTabSource'
+          description: Between one and five independent source queries.
+        display:
+          $ref: '#/components/schemas/unstableDashboardMultiQueryDisplay'
+        formulas:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryFormula'
+          nullable: true
+          description: Up to five calculations over metrics in this tab.
+      required:
+        - id
+        - label
+        - queries
+        - display
+    unstableDashboardMultiQueryFormula:
+      title: unstableDashboardMultiQueryFormula
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+          description: >-
+            Set to an empty string to display the formula expression with the
+            current series names. References in the stored expression use query
+            and metric IDs.
+        expression:
+          type: string
+          description: >-
+            Arithmetic on queryId.metricId references from this tab, numeric
+            literals, and parentheses. Null or missing operands and division by
+            zero have no value.
+        format:
+          $ref: '#/components/schemas/unstableDashboardMultiQueryFormulaFormat'
+        hidden:
+          type: boolean
+          nullable: true
+      required:
+        - id
+        - label
+        - expression
+        - format
+    unstableDashboardMultiQueryFormulaFormat:
+      title: unstableDashboardMultiQueryFormulaFormat
+      type: string
+      enum:
+        - number
+        - percent
+    unstableDashboardMultiQueryTabSource:
+      title: unstableDashboardMultiQueryTabSource
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        view:
+          $ref: '#/components/schemas/unstableWidgetQueryView'
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryTabMetric'
+        dimensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetDimension'
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+        orderBy:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryOrder'
+          nullable: true
+        hidden:
+          type: boolean
+          nullable: true
+          description: Keep the source available for formulas without plotting its metrics.
+      required:
+        - id
+        - label
+        - view
+        - metrics
+        - dimensions
+        - filters
+    unstableDashboardMultiQueryTabMetric:
+      title: unstableDashboardMultiQueryTabMetric
+      type: object
+      properties:
+        hidden:
+          type: boolean
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/unstableDashboardMultiQueryMetric'
+    unstableDashboardMultiQueryMetric:
+      title: unstableDashboardMultiQueryMetric
+      type: object
+      properties:
+        id:
+          type: string
+          description: >-
+            At most 64 characters, starting with a letter and containing only
+            letters, digits and underscores.
+        label:
+          type: string
+          nullable: true
+        measure:
+          type: string
+        aggregation:
+          $ref: '#/components/schemas/unstableDashboardWidgetMetricAggregation'
+      required:
+        - id
+        - measure
+        - aggregation
+    unstableDashboardMultiQueryOrder:
+      title: unstableDashboardMultiQueryOrder
+      type: object
+      properties:
+        field:
+          type: string
+        direction:
+          $ref: '#/components/schemas/unstableDashboardMultiQuerySortDirection'
+      required:
+        - field
+        - direction
+    unstableDashboardMultiQuerySortDirection:
+      title: unstableDashboardMultiQuerySortDirection
+      type: string
+      enum:
+        - asc
+        - desc
+    unstableDashboardMultiQueryDisplay:
+      title: unstableDashboardMultiQueryDisplay
+      type: object
+      properties:
+        chartType:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+        defaultSort:
+          $ref: '#/components/schemas/unstableDashboardWidgetDefaultSort'
+          nullable: true
+        showValueLabels:
+          type: boolean
+          nullable: true
+        rowLimit:
+          type: integer
+          nullable: true
+          description: Between 1 and 1000.
+        bins:
+          type: integer
+          nullable: true
+          description: Between 1 and 100.
+        legend:
+          type: boolean
+          nullable: true
+        subtotalMetric:
+          type: string
+          nullable: true
+          description: >-
+            A source.metric reference to a count or sum. The subtotal includes
+            returned groups before table display filters.
+        hideUnattributedRows:
+          type: boolean
+          nullable: true
+          description: Hide table rows with a missing breakdown value.
+        timeBuckets:
+          $ref: '#/components/schemas/unstableDashboardTimeBuckets'
+          nullable: true
+          description: >-
+            Use the dashboard's time interval or let the analytics query choose
+            one.
+      required:
+        - chartType
+    unstableDashboardTimeBuckets:
+      title: unstableDashboardTimeBuckets
+      type: string
+      enum:
+        - auto
+        - dashboard
     unstableDashboardPlacement:
       title: unstableDashboardPlacement
       oneOf:
@@ -16638,552 +16839,14 @@ components:
         - message
     unstableDashboardDefinition:
       title: unstableDashboardDefinition
-      oneOf:
-        - $ref: '#/components/schemas/unstableDashboardDefinitionV1'
-        - $ref: '#/components/schemas/unstableLegacyDashboardDefinition'
-      description: |-
-        Version 1 is returned for classic and supported version 1 dashboards.
-        The legacy shape is returned only when the stored root format is newer
-        than this server supports. Unsupported entries within a version 1
-        document are omitted from the response and preserved in storage.
-    unstableLegacyDashboardDefinition:
-      title: unstableLegacyDashboardDefinition
       type: object
       properties:
         widgets:
           type: array
           items:
             $ref: '#/components/schemas/unstableDashboardPlacement'
-          description: Classic widget and preset placements. Kept for existing clients.
-          deprecated: true
       required:
         - widgets
-      additionalProperties: false
-    unstableDashboardDefinitionV1:
-      title: unstableDashboardDefinitionV1
-      type: object
-      properties:
-        version:
-          type: string
-          const: '1'
-        blocks:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableDashboardBlock'
-        widgets:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableDashboardPlacement'
-          description: Compatibility mirror of the classic placements in blocks.
-          deprecated: true
-      required:
-        - version
-        - blocks
-        - widgets
-    unstableDashboardDefinitionInput:
-      title: unstableDashboardDefinitionInput
-      oneOf:
-        - $ref: '#/components/schemas/unstableDashboardDefinitionV1Input'
-        - $ref: '#/components/schemas/unstableLegacyDashboardDefinition'
-    unstableDashboardDefinitionV1Input:
-      title: unstableDashboardDefinitionV1Input
-      type: object
-      description: |-
-        Supply the complete layout in `blocks`. On create, `widgets` must match
-        the classic placements when supplied. On update, clients editing only
-        `widgets` may echo the current `blocks` returned by GET. Placement and
-        widget IDs must be unique.
-        Existing inline widgets must be echoed without changing their content,
-        revision, order, or anchor; public credentials cannot mutate them.
-      properties:
-        version:
-          type: string
-          const: '1'
-        blocks:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableDashboardBlock'
-        widgets:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableDashboardPlacement'
-          nullable: true
-          deprecated: true
-      required:
-        - version
-        - blocks
-    unstableDashboardBlock:
-      title: unstableDashboardBlock
-      oneOf:
-        - $ref: '#/components/schemas/unstableDashboardPlacement'
-        - $ref: '#/components/schemas/unstableInlineDashboardBlock'
-    unstableInlineDashboardBlock:
-      title: unstableInlineDashboardBlock
-      oneOf:
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                kind:
-                  type: string
-                  enum:
-                    - markdown
-            - $ref: '#/components/schemas/unstableMarkdownDashboardBlock'
-          required:
-            - kind
-          title: UnstableMarkdownDashboardBlock
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                kind:
-                  type: string
-                  enum:
-                    - multiQuery
-            - $ref: '#/components/schemas/unstableMultiQueryDashboardBlock'
-          required:
-            - kind
-          title: UnstableMultiQueryDashboardBlock
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                kind:
-                  type: string
-                  enum:
-                    - convertedPreset
-            - $ref: '#/components/schemas/unstableConvertedDashboardPreset'
-          required:
-            - kind
-          title: UnstableConvertedDashboardPreset
-      required:
-        - id
-        - revision
-        - beforePlacementId
-      properties:
-        id:
-          description: Stable widget identifier.
-          type: string
-          format: uuid
-        revision:
-          description: >-
-            Positive revision. Echo the current value unchanged when
-            round-tripping.
-          type: integer
-        beforePlacementId:
-          description: >-
-            Classic placement id before which this widget appears, or null to
-            append.
-          type: string
-          nullable: true
-    unstableConvertedDashboardPreset:
-      title: unstableConvertedDashboardPreset
-      type: object
-      description: >-
-        Replaces the contents of the referenced preset placement while retaining
-        its grid position and size. Render the chart in that placement. Its
-        beforePlacementId is null.
-      properties:
-        sourcePreset:
-          $ref: '#/components/schemas/unstableDashboardPresetSource'
-        config:
-          $ref: '#/components/schemas/unstableDashboardMultiQueryConfigV2'
-      required:
-        - sourcePreset
-        - config
-    unstableDashboardPresetSource:
-      title: unstableDashboardPresetSource
-      type: object
-      properties:
-        placementId:
-          type: string
-        presetId:
-          type: string
-      required:
-        - placementId
-        - presetId
-    unstableMarkdownDashboardBlock:
-      title: unstableMarkdownDashboardBlock
-      type: object
-      properties:
-        config:
-          $ref: '#/components/schemas/unstableDashboardMarkdownConfig'
-      required:
-        - config
-    unstableMultiQueryDashboardBlock:
-      title: unstableMultiQueryDashboardBlock
-      type: object
-      properties:
-        config:
-          $ref: '#/components/schemas/unstableDashboardMultiQueryConfig'
-      required:
-        - config
-    unstableDashboardMarkdownConfig:
-      title: unstableDashboardMarkdownConfig
-      type: object
-      properties:
-        version:
-          type: integer
-          description: Configuration version. Currently 1.
-        title:
-          type: string
-          description: At most 255 characters.
-        content:
-          type: string
-          description: Markdown content, at most 100000 characters.
-      required:
-        - version
-        - title
-        - content
-    unstableDashboardMultiQueryConfig:
-      title: unstableDashboardMultiQueryConfig
-      oneOf:
-        - $ref: '#/components/schemas/unstableDashboardMultiQueryConfigV1'
-        - $ref: '#/components/schemas/unstableDashboardMultiQueryConfigV2'
-    unstableDashboardMultiQueryFormatV1:
-      title: unstableDashboardMultiQueryFormatV1
-      type: integer
-      description: Legacy single-chart configuration. The format version is 1.
-      enum:
-        - 1
-    unstableDashboardMultiQueryConfigV1:
-      title: unstableDashboardMultiQueryConfigV1
-      type: object
-      properties:
-        version:
-          $ref: '#/components/schemas/unstableDashboardMultiQueryFormatV1'
-        title:
-          type: string
-          description: A nonempty chart name.
-        description:
-          type: string
-          description: At most 10000 characters.
-        queries:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableDashboardMultiQuerySource'
-          description: Between 1 and 5 independent source queries with unique ids.
-        display:
-          $ref: '#/components/schemas/unstableDashboardMultiQueryDisplay'
-        views:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableDashboardMultiQueryView'
-          nullable: true
-          description: At most 8 named query subsets with unique ids.
-        defaultViewId:
-          type: string
-          nullable: true
-          description: Id of an existing named view.
-      required:
-        - version
-        - title
-        - description
-        - queries
-        - display
-    unstableDashboardMultiQueryFormatV2:
-      title: unstableDashboardMultiQueryFormatV2
-      type: integer
-      description: Independent tab configurations. The format version is 2.
-      enum:
-        - 2
-    unstableDashboardMultiQueryConfigV2:
-      title: unstableDashboardMultiQueryConfigV2
-      type: object
-      properties:
-        version:
-          $ref: '#/components/schemas/unstableDashboardMultiQueryFormatV2'
-        title:
-          type: string
-        description:
-          type: string
-        tabs:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableDashboardMultiQueryTab'
-          description: >-
-            One to nine ordered tabs with unique IDs. The first tab is shown by
-            default.
-      required:
-        - version
-        - title
-        - description
-        - tabs
-    unstableDashboardMultiQueryTab:
-      title: unstableDashboardMultiQueryTab
-      type: object
-      properties:
-        id:
-          type: string
-        label:
-          type: string
-        queries:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableDashboardMultiQueryTabSource'
-          description: Between one and five independent source queries.
-        display:
-          $ref: '#/components/schemas/unstableDashboardMultiQueryDisplay'
-        formulas:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableDashboardMultiQueryFormula'
-          nullable: true
-          description: Up to five calculations over metrics in this tab.
-      required:
-        - id
-        - label
-        - queries
-        - display
-    unstableDashboardMultiQueryFormula:
-      title: unstableDashboardMultiQueryFormula
-      type: object
-      properties:
-        id:
-          type: string
-        label:
-          type: string
-          description: >-
-            Set to an empty string to display the formula expression with the
-            current series names. References in the stored expression use query
-            and metric IDs.
-        expression:
-          type: string
-          description: >-
-            Arithmetic on queryId.metricId references from this tab, numeric
-            literals, and parentheses. Null or missing operands and division by
-            zero have no value.
-        format:
-          $ref: '#/components/schemas/unstableDashboardMultiQueryFormulaFormat'
-        hidden:
-          type: boolean
-          nullable: true
-      required:
-        - id
-        - label
-        - expression
-        - format
-    unstableDashboardMultiQueryFormulaFormat:
-      title: unstableDashboardMultiQueryFormulaFormat
-      type: string
-      enum:
-        - number
-        - percent
-    unstableDashboardMultiQueryTabSource:
-      title: unstableDashboardMultiQueryTabSource
-      type: object
-      properties:
-        id:
-          type: string
-        label:
-          type: string
-        view:
-          $ref: '#/components/schemas/unstableDashboardWidgetViewWithLegacy'
-        homeCategoryFallback:
-          type: boolean
-          nullable: true
-        homeScoreAggregate:
-          type: boolean
-          nullable: true
-        metrics:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableDashboardMultiQueryTabMetric'
-        dimensions:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableDashboardWidgetDimension'
-        filters:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
-        orderBy:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableDashboardMultiQueryOrder'
-          nullable: true
-        hidden:
-          type: boolean
-          nullable: true
-          description: Keep the source available for formulas without plotting its metrics.
-      required:
-        - id
-        - label
-        - view
-        - metrics
-        - dimensions
-        - filters
-    unstableDashboardMultiQueryTabMetric:
-      title: unstableDashboardMultiQueryTabMetric
-      type: object
-      properties:
-        hidden:
-          type: boolean
-          nullable: true
-      allOf:
-        - $ref: '#/components/schemas/unstableDashboardMultiQueryMetric'
-    unstableDashboardMultiQuerySource:
-      title: unstableDashboardMultiQuerySource
-      type: object
-      properties:
-        id:
-          type: string
-          description: >-
-            At most 64 characters, starting with a letter and containing only
-            letters, digits and underscores.
-        label:
-          type: string
-          description: Between 1 and 200 characters.
-        view:
-          $ref: '#/components/schemas/unstableDashboardWidgetViewWithLegacy'
-        homeCategoryFallback:
-          type: boolean
-          nullable: true
-          description: >-
-            Read an observation cost or usage category time series from its Home
-            data source on the legacy read path.
-        homeScoreAggregate:
-          type: boolean
-          nullable: true
-          description: >-
-            Use the Home score aggregate on the project's read path. Supports
-            score-record counts and numeric means, grouped by name, source or
-            data type. Use the scores-numeric source with explicit data type
-            filters to select a population.
-        metrics:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableDashboardMultiQueryMetric'
-          description: >-
-            Between 1 and 10 metrics with unique ids and distinct
-            measure/aggregation pairs.
-        dimensions:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableDashboardWidgetDimension'
-          description: At most 3 grouping dimensions.
-        filters:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
-        orderBy:
-          type: array
-          items:
-            $ref: '#/components/schemas/unstableDashboardMultiQueryOrder'
-          nullable: true
-          description: At most 4 sort fields.
-      required:
-        - id
-        - label
-        - view
-        - metrics
-        - dimensions
-        - filters
-    unstableDashboardMultiQueryMetric:
-      title: unstableDashboardMultiQueryMetric
-      type: object
-      properties:
-        id:
-          type: string
-          description: >-
-            At most 64 characters, starting with a letter and containing only
-            letters, digits and underscores.
-        label:
-          type: string
-          nullable: true
-        measure:
-          type: string
-        aggregation:
-          $ref: '#/components/schemas/unstableDashboardWidgetMetricAggregation'
-      required:
-        - id
-        - measure
-        - aggregation
-    unstableDashboardMultiQueryOrder:
-      title: unstableDashboardMultiQueryOrder
-      type: object
-      properties:
-        field:
-          type: string
-        direction:
-          $ref: '#/components/schemas/unstableDashboardMultiQuerySortDirection'
-      required:
-        - field
-        - direction
-    unstableDashboardMultiQuerySortDirection:
-      title: unstableDashboardMultiQuerySortDirection
-      type: string
-      enum:
-        - asc
-        - desc
-    unstableDashboardMultiQueryDisplay:
-      title: unstableDashboardMultiQueryDisplay
-      type: object
-      properties:
-        chartType:
-          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
-        defaultSort:
-          $ref: '#/components/schemas/unstableDashboardWidgetDefaultSort'
-          nullable: true
-        showValueLabels:
-          type: boolean
-          nullable: true
-        rowLimit:
-          type: integer
-          nullable: true
-          description: Between 1 and 1000.
-        bins:
-          type: integer
-          nullable: true
-          description: Between 1 and 100.
-        legend:
-          type: boolean
-          nullable: true
-        subtotalMetric:
-          type: string
-          nullable: true
-          description: >-
-            A source.metric reference to a count or sum. The subtotal includes
-            returned groups before table display filters.
-        hideUnattributedRows:
-          type: boolean
-          nullable: true
-          description: Hide table rows with a missing breakdown value.
-        timeBuckets:
-          $ref: '#/components/schemas/unstableDashboardTimeBuckets'
-          nullable: true
-          description: >-
-            Use the dashboard's time interval or let the analytics query choose
-            one.
-      required:
-        - chartType
-    unstableDashboardTimeBuckets:
-      title: unstableDashboardTimeBuckets
-      type: string
-      enum:
-        - auto
-        - dashboard
-    unstableDashboardMultiQueryView:
-      title: unstableDashboardMultiQueryView
-      type: object
-      properties:
-        id:
-          type: string
-          description: >-
-            At most 64 characters, starting with a letter and containing only
-            letters, digits and underscores.
-        label:
-          type: string
-          description: Between 1 and 100 characters.
-        queryIds:
-          type: array
-          items:
-            type: string
-          description: Between 1 and 5 distinct ids of existing source queries.
-      required:
-        - id
-        - label
-        - queryIds
     unstableDashboard:
       title: unstableDashboard
       type: object
@@ -17238,7 +16901,7 @@ components:
           type: string
           nullable: true
         definition:
-          $ref: '#/components/schemas/unstableDashboardDefinitionInput'
+          $ref: '#/components/schemas/unstableDashboardDefinition'
           nullable: true
         filters:
           type: array
@@ -17258,7 +16921,7 @@ components:
           type: string
           nullable: true
         definition:
-          $ref: '#/components/schemas/unstableDashboardDefinitionInput'
+          $ref: '#/components/schemas/unstableDashboardDefinition'
           nullable: true
         filters:
           type: array

@@ -1,5 +1,5 @@
 import { useRef, useState, type KeyboardEvent } from "react";
-import { type MultiQueryConfig } from "@langfuse/shared";
+import { type MultiQueryTab } from "@langfuse/shared/dashboards";
 import { CheckIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
@@ -18,7 +18,7 @@ const chartOptions = [
   { value: "NUMBER", label: "Big number" },
   { value: "HISTOGRAM", label: "Histogram" },
 ] satisfies {
-  value: MultiQueryConfig["display"]["chartType"];
+  value: MultiQueryTab["display"]["chartType"];
   label: string;
 }[];
 
@@ -27,8 +27,8 @@ export function ChartTypePicker({
   onValueChange,
   onOpenChartType,
 }: {
-  value: MultiQueryConfig["display"]["chartType"];
-  onValueChange: (value: MultiQueryConfig["display"]["chartType"]) => void;
+  value: MultiQueryTab["display"]["chartType"];
+  onValueChange: (value: MultiQueryTab["display"]["chartType"]) => void;
   onOpenChartType?: () => void;
 }) {
   const selectedIndex = Math.max(

@@ -69,9 +69,7 @@ function WidgetRow({
     if (widget.definition?.kind === "markdown") return "Markdown";
     if (widget.definition?.kind === "multiQuery") {
       const config = widget.definition.config;
-      return config.version === 2
-        ? `${config.tabs.length} chart ${config.tabs.length === 1 ? "tab" : "tabs"}`
-        : "Chart";
+      return `${config.tabs.length} chart ${config.tabs.length === 1 ? "tab" : "tabs"}`;
     }
     return `${getChartTypeDisplayName(widget.chartType as DashboardWidgetChartType)} · ${startCase(widget.view.toLowerCase())}`;
   })();

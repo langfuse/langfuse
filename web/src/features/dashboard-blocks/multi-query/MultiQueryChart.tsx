@@ -8,8 +8,8 @@ import {
   buildScoreRecordsHref,
 } from "@/src/features/dashboard/lib/buildTableFilterHref";
 import {
-  normalizeMultiQueryConfig,
-  type SavedMultiQueryConfig,
+  type MultiQueryConfig,
+  getWidgetQueryView,
 } from "@langfuse/shared/dashboards";
 import {
   DataCardActionBar,
@@ -25,18 +25,17 @@ import {
 import { MultiQueryResultView } from "./MultiQueryResultView";
 
 export function MultiQueryChart({
-  config: savedConfig,
+  config,
   selectedTabId,
   onSelectTab,
   actions,
   ...context
 }: MultiQueryWidgetContext & {
-  config: SavedMultiQueryConfig;
+  config: MultiQueryConfig;
   selectedTabId?: string;
   onSelectTab: (id: string) => void;
   actions?: DataCardActions;
 }) {
-  const config = normalizeMultiQueryConfig(savedConfig);
   const active =
     config.tabs.find((tab) => tab.id === selectedTabId) ?? config.tabs[0]!;
   const runtime = useMultiQueryWidget(active, context, true);
@@ -86,14 +85,14 @@ export function MultiQueryChart({
                         explore its records.
                       </p>
                     );
-                  const target = source.view.startsWith("scores-")
+                  const target = source.view.startsWith("scores")
                     ? buildScoreRecordsHref(
                         context.projectId,
-                        source.view,
+                        getWidgetQueryView(source.view),
                         query.filters,
                         runtime.dateRange,
                         {
-                          homeScoreAggregate: source.homeScoreAggregate,
+                          allScoreTypes: source.view === "scores",
                           dimensions: source.dimensions.map(
                             (dimension) => dimension.field,
                           ),
@@ -101,7 +100,7 @@ export function MultiQueryChart({
                       )
                     : buildTableFilterHref(
                         context.projectId,
-                        source.view,
+                        getWidgetQueryView(source.view),
                         query.filters,
                         runtime.dateRange,
                         context.readPath,
