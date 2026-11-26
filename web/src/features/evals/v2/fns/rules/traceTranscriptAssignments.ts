@@ -3,6 +3,7 @@ import {
   TRACE_TRANSCRIPT_EVAL_COLUMN,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
+import isEqual from "lodash/isEqual";
 
 import type { EvaluatorTargetObject } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
@@ -96,8 +97,8 @@ export function rulesNeedingOverride(
 }
 
 /**
- * An assignment without an override inherits the evaluator's mapping (null)
- * when that mapping already reads threads; otherwise it stores the converted one.
+ * An assignment inherits the evaluator's mapping (null) unless the rule changes it.
+ * A mapping that does not read threads cannot be inherited, so it is stored converted.
  */
 export function traceTranscriptAssignments(
   assignments: {
@@ -108,17 +109,15 @@ export function traceTranscriptAssignments(
 ) {
   return assignments.map((assignment) => {
     const defaultMapping = assignment.defaultVariableMapping ?? [];
+    const variableMapping = traceTranscriptMapping(
+      assignment.variableMapping ?? defaultMapping,
+    );
     if (
-      assignment.variableMapping === null &&
-      readsOnlyThreads(defaultMapping)
+      readsOnlyThreads(defaultMapping) &&
+      isEqual(variableMapping, traceTranscriptMapping(defaultMapping))
     ) {
       return { evaluatorId: assignment.evaluatorId, variableMapping: null };
     }
-    return {
-      evaluatorId: assignment.evaluatorId,
-      variableMapping: traceTranscriptMapping(
-        assignment.variableMapping ?? defaultMapping,
-      ),
-    };
+    return { evaluatorId: assignment.evaluatorId, variableMapping };
   });
 }

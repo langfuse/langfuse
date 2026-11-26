@@ -32,6 +32,11 @@ describe("traceTranscriptAssignments", () => {
           defaultVariableMapping: threadsMapping,
         },
         {
+          evaluatorId: "unchanged",
+          variableMapping: threadsMapping,
+          defaultVariableMapping: threadsMapping,
+        },
+        {
           evaluatorId: "converted",
           variableMapping: null,
           defaultVariableMapping: observationMapping,
@@ -44,6 +49,7 @@ describe("traceTranscriptAssignments", () => {
       ]),
     ).toEqual([
       { evaluatorId: "inherits", variableMapping: null },
+      { evaluatorId: "unchanged", variableMapping: null },
       {
         evaluatorId: "converted",
         variableMapping: [
