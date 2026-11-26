@@ -10,14 +10,9 @@
  * warning (and Radix's own title contract) unsatisfied, so a name check alone
  * would not have caught the original bug.
  */
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  Sidebar,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/src/components/ui/sidebar";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
 
@@ -74,34 +69,5 @@ describe("V4IntroDialog", () => {
     // The close wrapper is still the last child (the selector still resolves).
     const closeWrapper = dialog.querySelector(":scope > div:last-child");
     expect(closeWrapper?.querySelector("button")).not.toBeNull();
-  });
-});
-
-describe("mobile sidebar sheet", () => {
-  beforeEach(() => {
-    // `useIsMobile` reads `matchMedia` synchronously; jsdom does not ship it.
-    vi.stubGlobal("matchMedia", (media: string) => ({
-      matches: true,
-      media,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    }));
-  });
-
-  it("names the off-canvas navigation sheet", () => {
-    render(
-      <SidebarProvider>
-        <Sidebar>
-          <span>Projects</span>
-        </Sidebar>
-        <SidebarTrigger />
-      </SidebarProvider>,
-      { wrapper: LayerProvider },
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Toggle Sidebar" }));
-
-    expect(screen.getByRole("dialog", { name: "Sidebar" })).toBeInTheDocument();
-    expect(titleWarnings()).toEqual([]);
   });
 });

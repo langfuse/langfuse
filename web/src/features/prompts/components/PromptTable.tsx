@@ -14,7 +14,9 @@ import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
-import { DeletePrompt } from "@/src/features/prompts/components/DeletePrompt";
+import { DeletePromptDialogController } from "@/src/features/prompts/components/DeletePromptDialogController";
+import { Button } from "@/src/components/ui/button";
+import { Trash } from "@langfuse/icons";
 import { DeleteFolder } from "@/src/features/prompts/components/DeleteFolder";
 import { DuplicateFolderButton } from "@/src/features/prompts/components/DuplicateFolderButton";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -428,7 +430,21 @@ export function PromptTable() {
         }
 
         const promptPath = rowData.fullPath;
-        return <DeletePrompt promptName={promptPath} />;
+        return (
+          <DeletePromptDialogController promptName={promptPath}>
+            {({ disabled, onClick }) => (
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                disabled={disabled}
+                onClick={onClick}
+              >
+                <Trash size="sm" color="default" />
+              </Button>
+            )}
+          </DeletePromptDialogController>
+        );
       },
     },
   ];

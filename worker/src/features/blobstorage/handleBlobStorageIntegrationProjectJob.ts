@@ -64,6 +64,7 @@ import {
   recordTerminalExportError,
 } from "./terminalExportError";
 import { processBlobStorageExport } from "./exportTable";
+import { getBlobExportShutdownSignal } from "./inFlightExports";
 
 // KMS SSE is not supported for this integration.
 type BlobStorageConnectionConfig = {
@@ -605,6 +606,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
       `[BLOB INTEGRATION] Successfully processed blob storage integration for project ${projectId}`,
     );
   } catch (error) {
+    // A shutdown abort is not an export failure: record nothing and notify no
+    // one. The processor re-queues the job; lastSyncAt did not advance, so the
+    // re-run exports the same window.
+    if (getBlobExportShutdownSignal().aborted) {
+      throw error;
+    }
+
     // A part-count-limit exhaustion is terminal, not transient: the window is
     // too large for the configured part size and no retry can shrink it safely.
     // Fail loud and stop before BullMQ burns its remaining attempts re-querying

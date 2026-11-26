@@ -21,6 +21,7 @@ import {
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
+  GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
   GATEWAY_GUARDRAIL_FLAGGED_WINDOW_DAYS,
   GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_MAX_BULK_DELETE,
@@ -46,23 +47,49 @@ import {
 } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { ProviderCredentialRejectedError } from "@/src/features/ai-gateway/server/provider/connection/ProviderCredentialRejectedError";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
-import type { GatewayCachedGuardrails } from "@/src/features/ai-gateway/server/provider/registry";
+import type {
+  GatewayCachedGuardrails,
+  GatewayResolveGuardrailAction,
+  GatewayResolveGuardrailScope,
+} from "@/src/features/ai-gateway/server/provider/registry";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GATEWAY_USER_SCOPE } from "@/src/features/ai-gateway/server/team/gatewayTeamService";
 import {
   compileGuardrailConfigPatterns,
   deduplicateContainsWords,
+  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
   GatewayBedrockGuardrailConfigSchema,
   GatewayGuardrailCustomRegexSchema,
+  GatewayGuardrailRedactionLabelSchema,
   GatewayRegexGuardrailConfigSchema,
   isKnownGuardrailPreset,
+  resolveSupportedGuardrailAction,
+  resolveSupportedGuardrailScope,
   type GatewayBedrockGuardrailConfig,
+  type GatewayGuardrailActionForType,
   type GatewayGuardrailAssignmentInput,
   type GatewayGuardrailPreset,
-  type GatewayGuardrailUiAction,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { assertUnreachable } from "@/src/utils/types";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
+
+const RESOLVE_GUARDRAIL_ACTION = {
+  BLOCK: "block",
+  LOG: "log",
+  REDACT: "redact",
+  ENFORCE: "enforce",
+} as const satisfies Record<
+  GatewayGuardrailRecord["action"],
+  GatewayResolveGuardrailAction
+>;
+
+const RESOLVE_GUARDRAIL_SCOPE = {
+  LAST_TURN: "last_turn",
+  ENTIRE_INPUT: "entire_input",
+} as const satisfies Record<
+  GatewayGuardrailRecord["scope"],
+  GatewayResolveGuardrailScope
+>;
 
 const GATEWAY_MEMBER_ROLES = Object.values(Role).filter((role) =>
   organizationRoleAccessRights[role].includes(GATEWAY_USER_SCOPE),
@@ -98,9 +125,18 @@ export class GatewayGuardrailService {
   }): Promise<GatewayCachedGuardrails> {
     const guardrails = await this.repository.findAssigned(params);
     return guardrails.flatMap<GatewayCachedGuardrails[number]>((guardrail) => {
-      // The gateway does not redact yet; shipping these would turn them into another action.
-      if (guardrail.action === "REDACT") return [];
-      const action = guardrail.action === "BLOCK" ? "block" : "log";
+      const supportedAction = resolveSupportedGuardrailAction(
+        guardrail.type,
+        guardrail.action,
+      );
+      const action = RESOLVE_GUARDRAIL_ACTION[supportedAction];
+      const scope =
+        RESOLVE_GUARDRAIL_SCOPE[
+          resolveSupportedGuardrailScope(
+            supportedAction,
+            guardrail.scope ?? "LAST_TURN",
+          )
+        ];
       switch (guardrail.type) {
         case "REGEX": {
           const config = GatewayRegexGuardrailConfigSchema.safeParse(
@@ -123,7 +159,15 @@ export class GatewayGuardrailService {
               name: guardrail.name,
               type: "regex" as const,
               action,
+              scope,
               patterns,
+              ...(action === "redact"
+                ? {
+                    redaction_label:
+                      guardrail.redactionLabel ||
+                      GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
+                  }
+                : {}),
             },
           ];
         }
@@ -145,6 +189,7 @@ export class GatewayGuardrailService {
                 name: guardrail.name,
                 type: "fail_closed" as const,
                 action,
+                scope,
                 patterns: [] as [],
               },
             ];
@@ -155,6 +200,7 @@ export class GatewayGuardrailService {
               name: guardrail.name,
               type: "bedrock" as const,
               action,
+              scope,
               guardrail_id: config.data.guardrailId,
               guardrail_version: config.data.guardrailVersion,
               region: config.data.region,
@@ -329,12 +375,14 @@ export class GatewayGuardrailService {
     params: {
       organizationId: string;
       name: string;
-      action: GatewayGuardrailUiAction;
+      scope?: GatewayGuardrailRecord["scope"];
       assignments: GatewayGuardrailAssignmentInput[];
       session: OrgAuthedContext["session"];
     } & (
       | {
           type: "REGEX";
+          action: GatewayGuardrailActionForType<"REGEX">;
+          redactionLabel?: string;
           presets: GatewayGuardrailPreset[];
           secretPrefixes?: string[];
           containsWords?: string[];
@@ -342,10 +390,16 @@ export class GatewayGuardrailService {
         }
       | {
           type: "BEDROCK";
+          action: GatewayGuardrailActionForType<"BEDROCK">;
           bedrock: GatewayBedrockGuardrailConfig & { apiKey: string };
         }
     ),
   ) {
+    const redactionLabel = normalizeRedactionLabel(
+      params.type,
+      params.action,
+      params.type === "REGEX" ? params.redactionLabel : undefined,
+    );
     let config: Prisma.InputJsonValue;
     let encryptedCredential: string | null = null;
     let compiledPatterns: string[] | null = null;
@@ -395,6 +449,11 @@ export class GatewayGuardrailService {
         name: params.name,
         type: params.type,
         action: params.action,
+        scope: resolveSupportedGuardrailScope(
+          params.action,
+          params.scope ?? "LAST_TURN",
+        ),
+        redactionLabel,
         config,
         encryptedCredential,
         assignments,
@@ -420,12 +479,14 @@ export class GatewayGuardrailService {
       organizationId: string;
       id: string;
       name: string;
-      action: GatewayGuardrailUiAction;
+      scope?: GatewayGuardrailRecord["scope"];
       assignments: GatewayGuardrailAssignmentInput[];
       session: OrgAuthedContext["session"];
     } & (
       | {
           type: "REGEX";
+          action: GatewayGuardrailActionForType<"REGEX">;
+          redactionLabel?: string;
           presets: GatewayGuardrailPreset[];
           secretPrefixes?: string[];
           containsWords?: string[];
@@ -433,10 +494,16 @@ export class GatewayGuardrailService {
         }
       | {
           type: "BEDROCK";
+          action: GatewayGuardrailActionForType<"BEDROCK">;
           bedrock: GatewayBedrockGuardrailConfig & { apiKey?: string };
         }
     ),
   ) {
+    const redactionLabel = normalizeRedactionLabel(
+      params.type,
+      params.action,
+      params.type === "REGEX" ? params.redactionLabel : undefined,
+    );
     if (params.type === "BEDROCK") {
       const existingCredential = await this.repository.findCredentialById({
         organizationId: params.organizationId,
@@ -546,6 +613,11 @@ export class GatewayGuardrailService {
         id: existing.id,
         name: params.name,
         action: params.action,
+        scope: resolveSupportedGuardrailScope(
+          params.action,
+          params.scope ?? existing.scope,
+        ),
+        redactionLabel,
         config,
         encryptedCredential,
         assignments,
@@ -1049,6 +1121,27 @@ async function assertOrgSizeLimit(
   }
 }
 
+function normalizeRedactionLabel(
+  type: GatewayGuardrailRecord["type"],
+  action: GatewayGuardrailRecord["action"],
+  rawLabel: string | undefined,
+): string | null {
+  if (
+    !GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[type].supportsRedactionLabel ||
+    action !== "REDACT"
+  ) {
+    return null;
+  }
+  if (rawLabel === undefined) return GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL;
+  const parsed = GatewayGuardrailRedactionLabelSchema.safeParse(rawLabel);
+  if (!parsed.success) {
+    throw new InvalidRequestError(
+      parsed.error.issues[0]?.message ?? "Enter a valid replacement label",
+    );
+  }
+  return parsed.data;
+}
+
 function toGuardrailDto(
   record: GatewayGuardrailRecord,
   flaggedCounts: Map<string, number> | null,
@@ -1075,11 +1168,15 @@ function toGuardrailDto(
     : null;
   const bedrock = parsedBedrock?.success ? parsedBedrock.data : null;
 
+  const action = resolveSupportedGuardrailAction(record.type, record.action);
+
   return {
     id: record.id,
     name: record.name,
     type: record.type,
-    action: record.action,
+    action,
+    scope: resolveSupportedGuardrailScope(action, record.scope),
+    redactionLabel: record.redactionLabel,
     presets,
     secretPrefixes,
     containsWords,

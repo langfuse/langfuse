@@ -5,6 +5,10 @@ import {
   type TopicCostEstimatePrices,
 } from "@langfuse/shared/topics";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { Info } from "@langfuse/icons";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { cn } from "@/src/utils/tailwind";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { usdFormatter } from "@/src/utils/numbers";
 
@@ -44,6 +48,41 @@ const approxCount = (count: number) =>
     maximumFractionDigits: 1,
   }).format(Math.round(count))}`;
 
+// Every facet summarized on a trace is one billable unit. Null hides the row
+// while the trace count is unknown or nothing is selected.
+function usageSummary({
+  facetCount,
+  samplingPercent,
+  sampledDailyTraces,
+  backfillTraces,
+  newTraces,
+}: {
+  facetCount: number;
+  samplingPercent?: number;
+  sampledDailyTraces: number | null;
+  backfillTraces?: number | null;
+  newTraces?: number;
+}) {
+  if (facetCount === 0) return null;
+  const facets = `${facetCount} ${facetCount === 1 ? "facet" : "facets"}`;
+  const rule = "Each facet summarized on a trace is one billable unit.";
+  if (newTraces !== undefined)
+    return {
+      units: newTraces * facetCount,
+      period: "for this snapshot",
+      explanation: `${facets} × up to ${newTraces.toLocaleString("en-US")} new traces. ${rule}`,
+    };
+  if (sampledDailyTraces === null) return null;
+  const backfill = backfillTraces
+    ? `, plus ${approxCount(backfillTraces * facetCount)} once for the first backfill`
+    : "";
+  return {
+    units: sampledDailyTraces * facetCount,
+    period: "per day",
+    explanation: `${facets} × ${approxCount(sampledDailyTraces)} traces a day at ${samplingPercent}% sampling${backfill}. ${rule}`,
+  };
+}
+
 export type TopicEstimateControls = {
   estimate: Estimate | null;
   facetCount: number;
@@ -60,19 +99,18 @@ export function TopicCostEstimateView({
   backfillTraces,
   newTraces,
   onAddModelPrice,
+  showUsage,
   starting,
   facetCount,
   error,
   onStart,
 }: TopicEstimateVolume &
-  TopicEstimateControls & { onAddModelPrice?: () => void }) {
-  if (facetCount > TOPICS_COST_ESTIMATE_MAX_FACETS)
-    return (
-      <p className="text-muted-foreground text-sm">
-        Cost estimates support up to {TOPICS_COST_ESTIMATE_MAX_FACETS} selected
-        questions.
-      </p>
-    );
+  TopicEstimateControls & {
+    onAddModelPrice?: () => void;
+    /** Billable units exist only on Langfuse Cloud. */
+    showUsage: boolean;
+  }) {
+  const oversized = facetCount > TOPICS_COST_ESTIMATE_MAX_FACETS;
   const running = estimate?.status === "running";
   const done = estimate?.status === "done";
   const measured = done && estimate.sampled > 0;
@@ -98,129 +136,176 @@ export function TopicCostEstimateView({
     ? ""
     : " You don't have permission to add one.";
 
+  const usage = !showUsage
+    ? null
+    : usageSummary({
+        facetCount,
+        samplingPercent,
+        sampledDailyTraces,
+        backfillTraces,
+        newTraces,
+      });
+
   return (
-    <div className="flex flex-col gap-2 rounded-md border px-3.5 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium">
-          {newTraces === undefined
-            ? "Cost estimate"
-            : "Summary and embedding cost"}
-        </span>
-        {running ? (
-          <span className="text-muted-foreground flex items-center gap-2 text-xs">
-            <Spinner size="sm" />
-            Measuring recent traces
+    <div className="flex flex-col gap-3 rounded-md border px-3.5 py-3">
+      {usage && (
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <span className="flex items-center gap-1 text-sm font-bold">
+            Langfuse usage
+            <Tooltip label={usage.explanation}>
+              {({ getTriggerProps }) => (
+                <IconButton
+                  {...getTriggerProps()}
+                  icon={Info}
+                  label="About Langfuse usage"
+                  size="sm"
+                  variant="ghost"
+                />
+              )}
+            </Tooltip>
           </span>
-        ) : (
-          <Button
-            text="Estimate cost"
-            variant="outline"
-            size="sm"
-            loading={starting}
-            // The same inputs give the same estimate, so a measured one is not run again.
-            disabled={facetCount === 0 || measured}
-            onClick={onStart}
-          />
-        )}
-      </div>
-
-      {!estimate ? (
-        <span className="text-muted-foreground text-sm">
-          Measures {TOPICS_COST_ESTIMATE_SAMPLE_SIZE} recent matching traces
-          against your models&apos; prices. No model is called.
-        </span>
-      ) : null}
-
-      {perTraceUsd !== null && newTraces !== undefined && (
-        <div className="text-sm">
-          <span className="text-lg font-medium tabular-nums">
-            {approxUsd(perTraceUsd * newTraces)}
-          </span>{" "}
-          for up to {newTraces.toLocaleString("en-US")} new{" "}
-          {newTraces === 1 ? "trace" : "traces"}
+          <span className="text-sm">
+            <span className="font-bold tabular-nums">
+              {approxCount(usage.units)}
+            </span>{" "}
+            billable units {usage.period}
+          </span>
         </div>
       )}
 
-      {perTraceUsd !== null && newTraces === undefined && (
-        <>
-          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <span>
-              <span className="text-lg font-medium tabular-nums">
-                {approxUsd(perTraceUsd)}
-              </span>{" "}
-              <span className="text-muted-foreground text-sm">per trace</span>
+      <div className={cn("flex flex-col gap-2", usage && "border-t pt-3")}>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-bold">
+            Model cost{" "}
+            <span className="text-muted-foreground font-normal">
+              · billed by your LLM provider
             </span>
-            <span>
-              <span className="text-lg font-medium tabular-nums">
-                {approxUsd(perTraceUsd * 1000)}
-              </span>{" "}
-              <span className="text-muted-foreground text-sm">
-                per 1k traces
-              </span>
-            </span>
-          </div>
-          {sampledDailyTraces !== null && (
-            <span className="text-sm">
-              {approxUsd(perTraceUsd * sampledDailyTraces)} per day at{" "}
-              {samplingPercent}% sampling
-              <span className="text-muted-foreground">
-                {" "}
-                · {approxCount(sampledDailyTraces)} traces a day
-                {backfillTraces
-                  ? ` · ${approxUsd(perTraceUsd * backfillTraces)} for the first backfill of ${backfillTraces.toLocaleString("en-US")} traces`
-                  : ""}
-              </span>
+          </span>
+          {running && (
+            <span className="text-muted-foreground flex items-center gap-2 text-xs">
+              <Spinner size="sm" />
+              Measuring recent traces
             </span>
           )}
-        </>
-      )}
-
-      {tokensPerTrace ? (
-        <div className="flex flex-col gap-1 text-sm">
-          <span>
-            {approxCount(tokensPerTrace.input)} input and{" "}
-            {approxCount(tokensPerTrace.output)} output tokens per trace
-          </span>
-          <span className="text-muted-foreground">
-            No price is set for {unpriced.join(" and ")}.{addPriceHint}
-          </span>
-          <span>
+          {!running && !oversized && (
             <Button
-              text="Add model price"
+              text="Estimate cost"
               variant="outline"
               size="sm"
-              disabled={!onAddModelPrice}
-              onClick={onAddModelPrice}
+              loading={starting}
+              // The same inputs give the same estimate, so a measured one is not run again.
+              disabled={facetCount === 0 || measured}
+              onClick={onStart}
             />
-          </span>
+          )}
         </div>
-      ) : null}
 
-      {done && estimate.sampled === 0 ? (
-        <span className="text-muted-foreground text-sm">
-          No finished traces match in the last 7 days, so there is nothing to
-          measure yet.
-        </span>
-      ) : null}
+        {oversized && (
+          <span className="text-muted-foreground text-sm">
+            Cost estimates support up to {TOPICS_COST_ESTIMATE_MAX_FACETS}{" "}
+            selected questions.
+          </span>
+        )}
+        {!oversized && !estimate && (
+          <span className="text-muted-foreground text-sm">
+            Measures {TOPICS_COST_ESTIMATE_SAMPLE_SIZE} recent matching traces
+            against your models&apos; prices. No model is called.
+          </span>
+        )}
 
-      {done && estimate.sampled > 0 && (
-        <span className="text-muted-foreground text-xs">
-          {newTraces === undefined
-            ? `Estimated from ${estimate.sampled} recent traces. Actual cost depends on your provider.`
-            : `Based on ${estimate.sampled} matching traces from the last 7 days.`}
-        </span>
-      )}
+        {perTraceUsd !== null && newTraces !== undefined && (
+          <div className="text-sm">
+            <span className="text-lg tabular-nums">
+              {approxUsd(perTraceUsd * newTraces)}
+            </span>{" "}
+            for up to {newTraces.toLocaleString("en-US")} new{" "}
+            {newTraces === 1 ? "trace" : "traces"}
+          </div>
+        )}
 
-      {newTraces !== undefined ? (
-        <span className="text-muted-foreground text-xs">
-          Topic naming may incur an additional charge.
-        </span>
-      ) : null}
+        {perTraceUsd !== null && newTraces === undefined && (
+          <>
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <span>
+                <span className="text-lg tabular-nums">
+                  {approxUsd(perTraceUsd)}
+                </span>{" "}
+                <span className="text-muted-foreground text-sm">per trace</span>
+              </span>
+              <span>
+                <span className="text-lg tabular-nums">
+                  {approxUsd(perTraceUsd * 1000)}
+                </span>{" "}
+                <span className="text-muted-foreground text-sm">
+                  per 1k traces
+                </span>
+              </span>
+            </div>
+            {sampledDailyTraces !== null && (
+              <span className="text-sm">
+                {approxUsd(perTraceUsd * sampledDailyTraces)} per day at{" "}
+                {samplingPercent}% sampling
+                {backfillTraces ? (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {approxUsd(perTraceUsd * backfillTraces)} for the first
+                    backfill of {backfillTraces.toLocaleString("en-US")} traces
+                  </span>
+                ) : null}
+              </span>
+            )}
+          </>
+        )}
 
-      {estimate?.status === "failed" ? (
-        <span className="text-destructive text-sm">{estimate.error}</span>
-      ) : null}
-      {error ? <span className="text-destructive text-sm">{error}</span> : null}
+        {tokensPerTrace ? (
+          <div className="flex flex-col gap-1 text-sm">
+            <span>
+              {approxCount(tokensPerTrace.input)} input and{" "}
+              {approxCount(tokensPerTrace.output)} output tokens per trace
+            </span>
+            <span className="text-muted-foreground">
+              No price is set for {unpriced.join(" and ")}.{addPriceHint}
+            </span>
+            <span>
+              <Button
+                text="Add model price"
+                variant="outline"
+                size="sm"
+                disabled={!onAddModelPrice}
+                onClick={onAddModelPrice}
+              />
+            </span>
+          </div>
+        ) : null}
+
+        {done && estimate.sampled === 0 ? (
+          <span className="text-muted-foreground text-sm">
+            No finished traces match in the last 7 days, so there is nothing to
+            measure yet.
+          </span>
+        ) : null}
+
+        {done && estimate.sampled > 0 && (
+          <span className="text-muted-foreground text-xs">
+            {newTraces === undefined
+              ? `Estimated from ${estimate.sampled} recent traces. Actual cost depends on your provider.`
+              : `Based on ${estimate.sampled} matching traces from the last 7 days.`}
+          </span>
+        )}
+
+        {newTraces !== undefined ? (
+          <span className="text-muted-foreground text-xs">
+            Topic naming may incur an additional charge.
+          </span>
+        ) : null}
+
+        {estimate?.status === "failed" ? (
+          <span className="text-destructive text-sm">{estimate.error}</span>
+        ) : null}
+        {error ? (
+          <span className="text-destructive text-sm">{error}</span>
+        ) : null}
+      </div>
     </div>
   );
 }

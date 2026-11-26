@@ -312,6 +312,39 @@ describe("stable evaluators public API", () => {
       },
     ]);
 
+    const { auth: otherProjectAuth } = await createOrgProjectAndApiKey();
+    const crossProjectPatch = await makeAPICall(
+      "PATCH",
+      `/api/public/v2/evaluators/${created.body.id}`,
+      {
+        name: "cross-project rename",
+        type: "decision_model",
+        questions,
+        modelConfig: { provider: "typesafe", model: "jev-2" },
+        variableMapping: [{ variable: "answer", source: "output" }],
+      },
+      otherProjectAuth,
+    );
+    expect(crossProjectPatch.status).toBe(404);
+    expect(PublicApiError.parse(crossProjectPatch.body)).toMatchObject({
+      code: "resource_not_found",
+      message: "Evaluator not found",
+    });
+    await expect(
+      prisma.evaluator.findUniqueOrThrow({
+        where: { id: created.body.id },
+        select: {
+          projectId: true,
+          name: true,
+          _count: { select: { versions: true } },
+        },
+      }),
+    ).resolves.toEqual({
+      projectId,
+      name: "decision evaluator",
+      _count: { versions: 1 },
+    });
+
     const replaced = await makeZodVerifiedAPICall(
       Evaluator,
       "PATCH",
