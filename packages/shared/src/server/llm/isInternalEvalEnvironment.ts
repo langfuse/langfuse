@@ -5,7 +5,7 @@ export const INTERNAL_EVAL_ENVIRONMENT_PREFIX = "langfuse";
 // `langfuse-llm-as-a-judge` -> `llm-as-a-judge` and
 // `langfuse-topics-internal` -> `topics-internal`.
 const PUBLIC_LLM_JUDGE_ENVIRONMENT = "llm-as-a-judge";
-export const PUBLIC_TOPICS_ENVIRONMENT = "topics-internal";
+const PUBLIC_TOPICS_ENVIRONMENT = "topics-internal";
 
 export const PUBLIC_INTERNAL_EVAL_ENVIRONMENTS = [
   PUBLIC_LLM_JUDGE_ENVIRONMENT,
