@@ -79,7 +79,7 @@ export const ShortTrace = meta.story({
   },
   play: async ({ canvas }) => {
     const track = canvas.getByRole("progressbar");
-    const active = track.querySelector(".bg-primary");
+    const active = track.querySelector(".bg-accent-dark-blue");
     if (!(active instanceof HTMLElement))
       throw new Error("Missing active segment");
     expect(active.getBoundingClientRect().width).toBeGreaterThanOrEqual(4);

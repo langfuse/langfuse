@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, Clock } from "@langfuse/icons";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
+import { Separator } from "@/src/components/ui/separator";
 import { Progress } from "@/src/components/design-system/Progress/Progress";
 import {
   buildSessionTraceProgress,
@@ -32,7 +33,7 @@ export function SessionTraceNavigationBar({
   return (
     <div
       ref={rootRef}
-      className="bg-muted/40 @container/sessionnav sticky top-0 z-1 flex h-8 shrink-0 items-center gap-3 border-b px-2"
+      className="bg-muted/40 @container/sessionnav sticky top-0 z-1 flex h-8 shrink-0 items-center gap-2 border-b px-2 @min-[520px]/sessionnav:gap-5"
     >
       <Link
         href={sessionHref}
@@ -47,7 +48,9 @@ export function SessionTraceNavigationBar({
           Trace {position} of {total}
         </span>
       </Link>
+      <Separator orientation="vertical" className="h-4" />
       {progress ? <SessionTraceProgress progress={progress} /> : null}
+      <Separator orientation="vertical" className="h-4" />
       <div className="flex shrink-0 items-center gap-0.5">
         <HeaderActionButton
           label="Previous trace in session"
@@ -74,11 +77,11 @@ function SessionTraceProgress({
   progress: NonNullable<ReturnType<typeof buildSessionTraceProgress>>;
 }) {
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-4">
-      <span className="text-primary ph-no-capture hidden shrink-0 text-xs tabular-nums @min-[460px]/sessionnav:inline">
+    <div className="flex min-w-0 flex-1 items-center gap-2 @min-[520px]/sessionnav:gap-4">
+      <span className="text-accent-dark-blue ph-no-capture hidden shrink-0 text-xs tabular-nums @min-[460px]/sessionnav:inline">
         {progress.label}
       </span>
-      <div className="min-w-0 flex-1 @min-[460px]/sessionnav:min-w-24">
+      <div className="min-w-6 flex-1 @min-[460px]/sessionnav:min-w-24">
         <Progress
           size="sm"
           value={progress.value}

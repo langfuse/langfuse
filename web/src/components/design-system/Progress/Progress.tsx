@@ -27,7 +27,7 @@ type ProgressProps = Required<
 };
 
 const segmentClassName = {
-  muted: "bg-foreground/25",
+  muted: "bg-accent-dark-blue/35",
   idle: "bg-background bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.22)_0_1px,transparent_1px_4px)]",
 } as const;
 
@@ -109,7 +109,7 @@ function ProgressSegments({
           <span
             key={index}
             className={cn(
-              "bg-primary absolute rounded-full",
+              "bg-accent-dark-blue absolute rounded-full",
               raised
                 ? "top-1/2 h-2 min-w-1 -translate-y-1/2"
                 : "inset-y-0 min-w-1",
