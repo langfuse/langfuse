@@ -18,7 +18,7 @@ export function EvaluatorSetupLoadingState({
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto @3xl:grid @3xl:grid-cols-[minmax(0,3fr)_minmax(360px,2fr)] @3xl:overflow-hidden">
         <div className="shrink-0 p-6 @3xl:min-h-0 @3xl:overflow-hidden">
           <div className="flex gap-3">
-            <div className="bg-primary text-primary-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold">
+            <div className="bg-primary text-primary-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-xs font-bold">
               1
             </div>
             <div className="min-w-0 flex-1">
@@ -28,7 +28,7 @@ export function EvaluatorSetupLoadingState({
           </div>
 
           <div className="mt-8 flex gap-3">
-            <div className="bg-primary text-primary-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold">
+            <div className="bg-primary text-primary-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-xs font-bold">
               2
             </div>
             <div className="min-w-0 flex-1">
