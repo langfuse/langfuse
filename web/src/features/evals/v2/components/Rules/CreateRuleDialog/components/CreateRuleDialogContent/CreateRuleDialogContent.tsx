@@ -45,6 +45,7 @@ export function CreateRuleDialogContent({
   initialFilter,
   initialTargetObject,
   targetObject,
+  lockScope,
   evaluatorSearch,
   successNotification,
   onCreated,
@@ -58,7 +59,10 @@ export function CreateRuleDialogContent({
   initialDraft: RuleDraft | undefined;
   initialFilter: FilterState | undefined;
   initialTargetObject?: RuleTargetObject;
-  targetObject?: Extract<EvalTargetObject, "event" | "experiment">;
+  targetObject?:
+    | Extract<EvalTargetObject, "event" | "experiment">
+    | typeof TopicsTargetObject;
+  lockScope?: boolean;
   evaluatorSearch: string;
   successNotification: "toast" | "none";
   onCreated?: () => void;
@@ -71,14 +75,22 @@ export function CreateRuleDialogContent({
   const nameAIAssistanceAvailable =
     isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
   const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
+  const observationTargetObject =
+    targetObject === TopicsTargetObject ? undefined : targetObject;
   const [ruleSetupStore] = useState(() => {
     const ruleTargetObject =
-      traceEvalsAvailable && initialTargetObject === TopicsTargetObject
+      traceEvalsAvailable &&
+      (initialTargetObject === TopicsTargetObject ||
+        targetObject === TopicsTargetObject)
         ? TopicsTargetObject
-        : (targetObject ?? EvalTargetObject.EVENT);
-    const observationFilter = resolveInitialRuleFilters(initialFilter);
+        : (observationTargetObject ?? EvalTargetObject.EVENT);
     const defaultFilterFor = (target: RuleTargetObject): FilterState =>
-      target === TopicsTargetObject ? [] : observationFilter;
+      resolveInitialRuleFilters(
+        target === TopicsTargetObject && ruleTargetObject !== TopicsTargetObject
+          ? undefined
+          : initialFilter,
+        target,
+      );
     return createRuleSetupStore(
       {
         name: initialDraft?.name ?? "",
@@ -122,6 +134,10 @@ export function CreateRuleDialogContent({
       projectId,
       filter: state.filter,
       sampling: state.sampling,
+      targetObject:
+        state.targetObject === TopicsTargetObject
+          ? TopicsTargetObject
+          : EvalTargetObject.EVENT,
     });
     const name = suggested?.trim() || null;
     if (name) state.actions.setName(name);
@@ -154,7 +170,9 @@ export function CreateRuleDialogContent({
             filter: draft.filter,
             sampling: draft.sampling,
             enabled: true,
-            ...(targetObject ? { targetObject } : {}),
+            ...(observationTargetObject
+              ? { targetObject: observationTargetObject }
+              : {}),
             evaluatorAssignments: draft.assignments.map((assignment) => ({
               evaluatorId: assignment.evaluatorId,
               variableMapping: assignment.variableMapping,
@@ -217,6 +235,7 @@ export function CreateRuleDialogContent({
                 projectId={projectId}
                 store={ruleSetupStore}
                 mode="create"
+                lockScope={lockScope}
               />
             }
             projectId={projectId}

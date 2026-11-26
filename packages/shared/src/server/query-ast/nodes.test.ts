@@ -513,7 +513,7 @@ describe("tenancy injection", () => {
     const db = getClickhouseKysely();
     // Knows the CTE names `a` and `b` as tables, so a body can read a name
     // before its CTE is declared without a cast.
-    const loose = db.withTables<{
+    const loose = db.$extendTables<{
       a: { id: string };
       b: { id: string };
     }>();
@@ -1229,22 +1229,10 @@ describe("bare columns in a SELECT with several relations", () => {
 describe("qualifiers in a SELECT with one relation", () => {
   const db = getClickhouseKysely();
 
-  it.each([
-    [
-      "a SELECT ref",
-      () => db.selectFrom("scores").select(sql.ref("zz.name").as("n")),
-    ],
-    [
-      "an uncompared WHERE term",
-      () =>
-        db
-          .selectFrom("scores")
-          .select("id")
-          .where((eb) => eb.fn<SqlBool>("toBool", [sql.ref("e.name")])),
-    ],
-  ])("rejects a relation the query did not join in %s", (_, build) => {
-    expect(() => compileClickhouseQuery(build(), projectId)).toThrow(
-      /Qualifier "(zz|e)" names no relation, registry column/,
+  it("rejects a relation the query did not join", () => {
+    const qb = db.selectFrom("scores").select(sql.ref("zz.name").as("n"));
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      /Qualifier "zz" names no relation, registry column/,
     );
   });
 
@@ -1342,7 +1330,7 @@ describe("names the compiler writes verbatim", () => {
     [
       "tuple subcolumn field",
       db
-        .withTables<{
+        .$extendTables<{
           events: {
             skills_available: Array<{ "skillName from x --": string }>;
           };

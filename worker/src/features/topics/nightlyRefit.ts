@@ -22,6 +22,7 @@ import {
 } from "@langfuse/shared/topics";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
+import { TopicMetrics } from "./metrics";
 
 const DAY_MS = 86_400_000;
 const RECENT_FIT_MS = 3_600_000;
@@ -177,7 +178,7 @@ async function refitRuleFacet({
   });
   if (recent) return false;
   // A fit still open from an earlier slot was interrupted; this slot replaces it.
-  await prisma.topicClusteringRun.updateMany({
+  const interrupted = await prisma.topicClusteringRun.updateManyAndReturn({
     where: {
       projectId,
       ruleId,
@@ -189,7 +190,15 @@ async function refitRuleFacet({
       error: "Replaced by the next nightly refit.",
       finishedAt: now,
     },
+    select: { config: true },
   });
+  for (const { config } of interrupted)
+    new TopicMetrics().ruleFit(
+      "interrupted",
+      (config as { refresh?: unknown }).refresh === true
+        ? "manual"
+        : "automatic",
+    );
   const run = {
     id: runId,
     projectId,

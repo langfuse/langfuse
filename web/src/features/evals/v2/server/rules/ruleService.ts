@@ -212,11 +212,12 @@ export class RuleService {
     projectId: string;
     filter: FilterState;
     sampling: number;
+    targetObject?: typeof EvalTargetObject.EVENT | typeof TopicsTargetObject;
   }) {
-    const filter = this.validateRuleFilters(
-      EvalTargetObject.EVENT,
-      params.filter,
-    );
+    const targetObject = params.targetObject ?? EvalTargetObject.EVENT;
+    const scopeLabel =
+      targetObject === TopicsTargetObject ? "trace" : "observation";
+    const filter = this.validateRuleFilters(targetObject, params.filter);
     const availability = await resolveLangfuseAiFeatureAvailability({
       prisma: this.prisma,
       projectId: params.projectId,
@@ -228,8 +229,7 @@ export class RuleService {
         messages: [
           {
             role: ChatMessageRole.System,
-            content:
-              "Return only a concise, human-readable evaluation rule name of at most six words. Describe the observation scope. Do not use quotes or punctuation at the end.",
+            content: `Return only a concise, human-readable evaluation rule name of at most six words. Describe the ${scopeLabel} scope. Do not use quotes or punctuation at the end.`,
             type: ChatMessageType.System,
           },
           {
@@ -350,10 +350,8 @@ export class RuleService {
     input: CreateOrAttachFromEvaluatorFiltersInput,
     createdByUserId: string | null,
   ) {
-    const filter = this.validateRuleFilters(
-      EvalTargetObject.EVENT,
-      input.filter,
-    );
+    const targetObject = input.targetObject ?? EvalTargetObject.EVENT;
+    const filter = this.validateRuleFilters(targetObject, input.filter);
     const attachToMatch = async () => {
       const matchingRule =
         await repository.findActiveRuleWithMatchingFilterAndSampling({
@@ -361,6 +359,8 @@ export class RuleService {
           projectId: input.projectId,
           filter,
           sampling: input.sampling,
+          targetObject,
+          visibility: this.visibility,
         });
       if (!matchingRule) return null;
 
@@ -387,6 +387,7 @@ export class RuleService {
       projectId: input.projectId,
       filter,
       sampling: input.sampling,
+      targetObject,
     });
 
     // Check again after name generation because another request may have
@@ -396,20 +397,26 @@ export class RuleService {
       return { action: "attached" as const, rule: concurrentlyCreatedRule };
     }
 
-    const rule = await this.create(
-      {
-        projectId: input.projectId,
-        name: suggestedName ?? fallbackRuleName(filter),
-        targetObject: EvalTargetObject.EVENT,
-        filter,
-        sampling: input.sampling,
-        enabled: true,
-        evaluatorAssignments: [
-          { evaluatorId: input.evaluatorId, variableMapping: null },
-        ],
-      },
-      createdByUserId,
-    );
+    const newRule = {
+      projectId: input.projectId,
+      name: suggestedName ?? fallbackRuleName(filter, targetObject),
+      filter,
+      sampling: input.sampling,
+      enabled: true,
+      evaluatorAssignments: [
+        { evaluatorId: input.evaluatorId, variableMapping: null },
+      ],
+    };
+    const rule =
+      targetObject === TopicsTargetObject
+        ? await this.createTraceTranscriptRule(
+            { ...newRule, targetObject: TopicsTargetObject },
+            createdByUserId,
+          )
+        : await this.create(
+            { ...newRule, targetObject: EvalTargetObject.EVENT },
+            createdByUserId,
+          );
     return { action: "created" as const, rule };
   }
 
@@ -763,12 +770,7 @@ export class RuleService {
           ? await this.assertTraceTranscriptAssignments({
               prisma,
               projectId: params.projectId,
-              assignments: [
-                {
-                  evaluatorId: params.assignment.evaluatorId,
-                  variableMapping: params.assignment.variableMapping ?? [],
-                },
-              ],
+              assignments: [params.assignment],
             })
           : await this.prepareModernAssignments({
               prisma,
@@ -938,8 +940,13 @@ export class RuleService {
       }
       // Code evaluators read the whole transcript, so they have no mapping to check.
       if (evaluator.type === EvalTemplateType.CODE) continue;
-      // A null mapping normalizes to empty so validation rejects it, not crashes.
-      const variableMapping = assignment.variableMapping ?? [];
+      // A null assignment mapping inherits the evaluator version's mapping.
+      const variableMapping =
+        assignment.variableMapping ??
+        prepareModernRuleVariableMapping(
+          latestVersion.variableMapping,
+          evaluator.type,
+        ).defaultVariableMapping;
       const extracted = extractTranscriptEvalVariables(null, variableMapping);
       if (!extracted.ok) throw new InvalidRequestError(extracted.error);
       assertCompleteEvaluatorVariableMapping({
