@@ -1,4 +1,4 @@
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useCanAuthorDashboardWidgets } from "@/src/features/feature-flags/hooks/useCanAuthorDashboardWidgets";
 import dynamic from "next/dynamic";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
@@ -69,7 +69,7 @@ export function DashboardBlocksProvider({
   useEffect(() => {
     if (pendingEdit) clearPendingPresetEdit(pendingEdit);
   }, [pendingEdit]);
-  const authoringEnabled = useIsFeatureEnabled("dashboardBlockAuthoring");
+  const authoringEnabled = useCanAuthorDashboardWidgets();
   const canAuthor =
     dashboardReady && authoringEnabled && (canEdit || canCloneToEdit);
   const capabilitiesQuery = useDashboardBlockCapabilities(projectId, canAuthor);

@@ -1,6 +1,6 @@
 import { widgetDefinitionSchema } from "@langfuse/shared/dashboards";
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useCanAuthorDashboardWidgets } from "@/src/features/feature-flags/hooks/useCanAuthorDashboardWidgets";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import {
@@ -163,7 +163,7 @@ function DashboardDetailView({
 }) {
   const router = useRouter();
   const utils = api.useUtils();
-  const authoringEnabled = useIsFeatureEnabled("dashboardBlockAuthoring");
+  const authoringEnabled = useCanAuthorDashboardWidgets();
   const capture = usePostHogClientCapture();
 
   const { addWidgetId } = router.query as { addWidgetId?: string };
@@ -1344,7 +1344,17 @@ function DashboardDetailView({
 
   useEffect(() => {
     if (dashboardDefinition && widgetToAdd.data && addWidgetId) {
-      if (
+      if (widgetToAdd.data.invalid) {
+        showErrorToast(
+          "Cannot add widget",
+          "Repair this widget's configuration before adding it to a dashboard.",
+          {
+            operation: "widget.create",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
+        );
+      } else if (
         !dashboardDefinition.widgets.some(
           (w) => w.type === "widget" && w.widgetId === addWidgetId,
         )

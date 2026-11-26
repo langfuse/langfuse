@@ -1,6 +1,5 @@
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useCanAuthorDashboardWidgets } from "@/src/features/feature-flags/hooks/useCanAuthorDashboardWidgets";
 import { useRouter } from "next/router";
-import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import Page from "@/src/components/layouts/Page";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -13,7 +12,7 @@ import {
 
 export default function WidgetsPage() {
   const router = useRouter();
-  const authoring = useIsFeatureEnabled("dashboardBlockAuthoring");
+  const authoring = useCanAuthorDashboardWidgets();
   const { projectId } = router.query as { projectId: string };
   const hasCUDAccess = useHasProjectAccess({
     projectId,
@@ -34,14 +33,6 @@ export default function WidgetsPage() {
         },
         actionButtonsRight: (
           <>
-            {process.env.NODE_ENV === "development" && (
-              <Link
-                className="text-muted-foreground px-2 text-sm underline"
-                href={`/project/${projectId}/dashboards/debug`}
-              >
-                Inspect structure
-              </Link>
-            )}
             {authoring && (
               <ActionButton
                 icon={

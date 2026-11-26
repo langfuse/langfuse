@@ -74,7 +74,8 @@ export const dashboardWidgetRouter = createTRPCRouter({
       if (!canAuthorDashboardBlocks(ctx.session))
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Widget authoring requires the employee feature flag.",
+          message:
+            "Widget authoring requires an employee account in Internal view.",
         });
       return DashboardService.saveWidgetDefinition(
         input.projectId,
@@ -147,12 +148,8 @@ export const dashboardWidgetRouter = createTRPCRouter({
         });
       }
 
-      return {
-        ...widget,
-        view: dashboardWidgetViewToQueryView[widget.view],
-        metrics: widget.metrics,
-        owner: widget.owner,
-      };
+      if (widget.invalid) return widget;
+      return { ...widget, view: dashboardWidgetViewToQueryView[widget.view] };
     }),
 
   update: protectedProjectProcedure

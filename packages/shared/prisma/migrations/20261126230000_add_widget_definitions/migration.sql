@@ -1,5 +1,9 @@
 BEGIN;
 
+ALTER TABLE "dashboard_widgets"
+ADD COLUMN "definition" JSONB,
+ADD COLUMN "revision" INTEGER NOT NULL DEFAULT 0;
+
 -- Classic writers update only the display projection and cannot advance the
 -- versioned definition's revision. Accepting that write would hide the edit.
 CREATE FUNCTION reject_unversioned_widget_update() RETURNS trigger

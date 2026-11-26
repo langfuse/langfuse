@@ -42,7 +42,6 @@ describe("project dashboard blocks", () => {
     role: "ADMIN" | "VIEWER" = "ADMIN",
     {
       email = "author@langfuse.com",
-      optedIn = true,
       experimental = false,
       internalView = true,
     } = {},
@@ -52,7 +51,6 @@ describe("project dashboard blocks", () => {
         id: userId,
         email,
         featureFlags: testFeatureFlags({
-          dashboardBlockAuthoring: optedIn,
           internalFeatures: internalView,
         }),
       },
@@ -122,6 +120,7 @@ describe("project dashboard blocks", () => {
         config: { title: "Section", content: "Before these charts" },
       },
     });
+    expect(saved.widget.description).toContain("Before these charts");
     const updated = await prisma.dashboard.findUniqueOrThrow({
       where: { id: dashboard.id },
     });
@@ -143,7 +142,7 @@ describe("project dashboard blocks", () => {
 
   it("stores rich content on reusable widgets and replaces a Home placement atomically", async () => {
     const author = caller(projectId);
-    const reader = caller(projectId, "VIEWER", { optedIn: false });
+    const reader = caller(projectId, "VIEWER", { internalView: false });
     const placement = {
       type: "preset" as const,
       id: "model-costs",
@@ -174,7 +173,16 @@ describe("project dashboard blocks", () => {
     };
     await expect(
       caller(projectId, "ADMIN", {
-        optedIn: false,
+        internalView: false,
+      }).dashboardWidgets.saveDefinition(input),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      caller(projectId, "VIEWER").dashboardWidgets.saveDefinition(input),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      caller(projectId, "ADMIN", {
+        email: "external@example.com",
+        experimental: true,
       }).dashboardWidgets.saveDefinition(input),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(
@@ -286,7 +294,7 @@ describe("project dashboard blocks", () => {
 
   it("saves every Home template on both read paths without losing its query definition", async () => {
     const author = caller(projectId);
-    const reader = caller(projectId, "VIEWER", { optedIn: false });
+    const reader = caller(projectId, "VIEWER", { internalView: false });
     const failures: string[] = [];
     for (const version of ["v1", "v2"] as const) {
       for (const preset of HOME_DASHBOARD_PRESET_IDS) {
@@ -364,7 +372,7 @@ describe("project dashboard blocks", () => {
       where: { id: widget.id, projectId },
       data: { definition: invalid, revision: { increment: 1 } },
     });
-    const reader = caller(projectId, "VIEWER", { optedIn: false });
+    const reader = caller(projectId, "VIEWER", { internalView: false });
     await expect(
       reader.dashboardWidgets.get({ projectId, widgetId: widget.id }),
     ).resolves.toMatchObject({ definition: invalid });
@@ -387,8 +395,70 @@ describe("project dashboard blocks", () => {
     ).rejects.toThrow();
   });
 
+  it("keeps unreadable widget rows visible with their raw content and rejects lossy edits", async () => {
+    const rawDefinition = {
+      version: 99,
+      kind: "future",
+      config: { content: "Keep this" },
+    };
+    const row = await prisma.dashboardWidget.create({
+      data: {
+        projectId,
+        name: "Unavailable chart",
+        description: "Retained context",
+        view: "OBSERVATIONS",
+        chartType: "NUMBER",
+        chartConfig: { type: "future" },
+        dimensions: [],
+        metrics: { future: true },
+        filters: [],
+        definition: rawDefinition,
+        revision: -1,
+      },
+    });
+    const reader = caller(projectId, "VIEWER", { internalView: false });
+    await expect(
+      reader.dashboardWidgets.get({ projectId, widgetId: row.id }),
+    ).resolves.toMatchObject({
+      id: row.id,
+      name: row.name,
+      invalid: true,
+      definition: rawDefinition,
+      metrics: { future: true },
+      revision: -1,
+    });
+    const list = await reader.dashboardWidgets.all({
+      projectId,
+      limit: 100,
+      page: 1,
+      orderBy: null,
+    });
+    expect(list.widgets).toContainEqual(
+      expect.objectContaining({ id: row.id, invalid: true }),
+    );
+    await expect(
+      caller(projectId).dashboardWidgets.saveDefinition({
+        projectId,
+        widgetId: row.id,
+        expectedRevision: 1,
+        definition: {
+          version: 1,
+          kind: "markdown",
+          config: { title: "Replacement", content: "" },
+        },
+      }),
+    ).rejects.toThrow("changed or is unavailable");
+    expect(
+      await prisma.dashboardWidget.findUniqueOrThrow({ where: { id: row.id } }),
+    ).toMatchObject({
+      definition: rawDefinition,
+      metrics: { future: true },
+      revision: -1,
+    });
+  });
+
   it("keeps classic layout edits and clones as plain widget placements", async () => {
-    const author = caller(projectId, "ADMIN", { optedIn: false });
+    const author = caller(projectId, "ADMIN", { internalView: false });
     const placement = {
       id: "home-card",
       type: "preset" as const,

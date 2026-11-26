@@ -104,7 +104,7 @@ service:
       path: /dashboard-widgets/{widgetId}
       path-parameters:
         widgetId: string
-      response: DashboardWidget
+      response: DashboardWidgetRead
       errors:
         - errors.BadRequestError
         - errors.UnauthorizedError
@@ -303,9 +303,6 @@ types:
 
   CreateDashboardWidgetRequest:
     properties:
-      definition:
-        type: optional<nullable<WidgetDefinition>>
-        docs: Versioned content is read-only to project API keys. Supplying a non-null definition returns 403 during employee-only authoring.
       name:
         type: string
       description:
@@ -327,9 +324,6 @@ types:
 
   UpdateDashboardWidgetRequest:
     properties:
-      definition:
-        type: optional<nullable<WidgetDefinition>>
-        docs: Versioned content is read-only to project API keys. Supplying a non-null definition returns 403 during employee-only authoring.
       name:
         type: optional<string>
       description:
@@ -350,7 +344,7 @@ types:
   DashboardWidgetList:
     properties:
       data:
-        type: list<DashboardWidget>
+        type: list<DashboardWidgetRead>
       meta:
         type: pagination.MetaResponse
 
@@ -360,7 +354,7 @@ types:
         type: string
 
   WidgetDefinition:
-    docs: Complete widget content. When present, use this definition to render every tab, formula or Markdown. Flat fields describe a compatibility projection only. Employee authoring is required to change this definition.
+    docs: Read-only widget content. When present, use this definition to render every tab, formula or Markdown. The flat fields describe its classic projection.
     discriminant: kind
     base-properties:
       version: WidgetDefinitionVersion
@@ -368,10 +362,15 @@ types:
       multiQuery: MultiQueryWidget
       markdown: MarkdownWidget
 
-  DashboardWidget:
+  DashboardWidgetRead:
+    docs: A saved widget. Check invalid before rendering a widget whose content this server cannot interpret.
+    discriminated: false
+    union:
+      - DashboardWidget
+      - InvalidDashboardWidget
+
+  DashboardWidgetMetadata:
     properties:
-      definition:
-        type: optional<nullable<WidgetDefinition>>
       revision:
         type: optional<integer>
         docs: Optimistic edit revision. Classic widgets begin at zero.
@@ -385,18 +384,38 @@ types:
         type: string
       description:
         type: string
+
+  DashboardWidget:
+    extends: DashboardWidgetMetadata
+    properties:
+      definition:
+        type: optional<nullable<WidgetDefinition>>
+      invalid: optional<literal<false>>
       view:
         type: DashboardWidgetViewWithLegacy
+      chartType:
+        type: DashboardWidgetChartType
       dimensions:
         type: list<DashboardWidgetDimension>
       metrics:
         type: list<DashboardWidgetMetric>
       filters:
         type: list<DashboardWidgetFilter>
-      chartType:
-        type: DashboardWidgetChartType
       chartConfig:
         type: DashboardWidgetChartConfig
+
+  InvalidDashboardWidget:
+    docs: The original JSON fields are returned as stored for a widget this server cannot interpret.
+    extends: DashboardWidgetMetadata
+    properties:
+      invalid: literal<true>
+      view: string
+      chartType: string
+      definition: unknown
+      dimensions: unknown
+      metrics: unknown
+      filters: unknown
+      chartConfig: unknown
 
   WidgetDefinitionVersion:
     type: integer

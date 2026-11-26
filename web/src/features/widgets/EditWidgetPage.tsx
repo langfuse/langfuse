@@ -1,4 +1,5 @@
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useCanAuthorDashboardWidgets } from "@/src/features/feature-flags/hooks/useCanAuthorDashboardWidgets";
+import { INVALID_WIDGET_MESSAGE } from "./components/InvalidWidgetCard";
 import { SavedWidgetEditor } from "./components/SavedWidgetEditor";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/Page";
@@ -16,7 +17,7 @@ import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export default function EditWidgetPage() {
   const router = useRouter();
-  const authoringEnabled = useIsFeatureEnabled("dashboardBlockAuthoring");
+  const authoringEnabled = useCanAuthorDashboardWidgets();
   const { projectId, widgetId, dashboardId } = router.query as {
     projectId: string;
     widgetId: string;
@@ -109,6 +110,20 @@ export default function EditWidgetPage() {
         <ErrorPage
           title="Widget unavailable"
           message="This widget could not be loaded. It may have been removed, use an unsupported format, or be unavailable to your account."
+          additionalButton={{
+            label: "Back to widgets",
+            href: `/project/${projectId}/widgets`,
+          }}
+        />
+      </Page>
+    );
+
+  if (widgetData?.invalid)
+    return (
+      <Page withPadding headerProps={{ title: widgetData.name }}>
+        <ErrorPage
+          title="Invalid widget configuration"
+          message={INVALID_WIDGET_MESSAGE}
           additionalButton={{
             label: "Back to widgets",
             href: `/project/${projectId}/widgets`,

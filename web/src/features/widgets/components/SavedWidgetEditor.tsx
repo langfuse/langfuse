@@ -23,7 +23,10 @@ import { DashboardMarkdownEditor } from "@/src/features/dashboard-blocks/Dashboa
 import { useDashboardBlockCapabilities } from "@/src/features/dashboard-blocks/useDashboardBlockCapabilities";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
-type Widget = NonNullable<RouterOutputs["dashboardWidgets"]["get"]>;
+type Widget = Exclude<
+  NonNullable<RouterOutputs["dashboardWidgets"]["get"]>,
+  { invalid: true }
+>;
 
 export function SavedWidgetEditor({
   projectId,
@@ -179,7 +182,7 @@ export function SavedWidgetEditor({
           return (
             <Dialog title="Widget authoring unavailable" noCapture>
               <Dialog.Body>
-                Enable Dashboard widget authoring to edit this widget.
+                Widget authoring is available to employees in Internal view.
               </Dialog.Body>
             </Dialog>
           );

@@ -19,7 +19,6 @@ import {
 import { setUserFeaturePreview } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 import {
   hasInternalAccess,
-  hasInternalEmailDomain,
   isInternalViewEnabled,
 } from "@/src/features/feature-flags/utils";
 import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
@@ -159,17 +158,6 @@ export const userAccountRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
-
-      if (
-        input.flag === "dashboardBlockAuthoring" &&
-        !hasInternalEmailDomain(ctx.session.user.email) &&
-        (input.enabled ||
-          !ctx.session.user.featureFlags.dashboardBlockAuthoring)
-      ) {
-        throw new ForbiddenError(
-          "This feature preview is available to employees only.",
-        );
-      }
 
       if (
         isInternalFeaturePreviewFlag(input.flag) &&

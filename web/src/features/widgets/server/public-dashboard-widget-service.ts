@@ -6,6 +6,7 @@ import {
   queryViewToDashboardWidgetView,
   resolveDashboardWidgetMinVersion,
   type WidgetDomain,
+  type WidgetReadDomain,
   type ApiAccessScope,
 } from "@langfuse/shared/src/server";
 import {
@@ -17,6 +18,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { createStructuredPublicApiError } from "@/src/features/public-api/types/structuredPublicApiError";
 import {
   PostUnstableDashboardWidgetResponse,
+  GetUnstableDashboardWidgetResponse,
   type DashboardWidgetViewOutputType,
   type PostUnstableDashboardWidgetBodyType,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
@@ -24,7 +26,7 @@ import {
 import {
   ChartConfigSchema,
   LangfuseNotFoundError,
-  ForbiddenError,
+  LangfuseConflictError,
 } from "@langfuse/shared";
 import {
   getWidgetImportFilterConfig,
@@ -260,8 +262,9 @@ export function validatePublicDashboardWidgetInput(
   }
 }
 
-function toApiDashboardWidget(widget: WidgetDomain) {
-  return PostUnstableDashboardWidgetResponse.parse({
+function publicWidgetFields(widget: WidgetReadDomain) {
+  return {
+    invalid: widget.invalid,
     id: widget.id,
     definition: widget.definition ?? null,
     revision: widget.revision ?? 0,
@@ -269,13 +272,23 @@ function toApiDashboardWidget(widget: WidgetDomain) {
     updatedAt: widget.updatedAt,
     name: widget.name,
     description: widget.description,
-    view: dashboardWidgetViewToQueryView[widget.view],
+    view: widget.invalid
+      ? widget.view
+      : dashboardWidgetViewToQueryView[widget.view],
     dimensions: widget.dimensions,
     metrics: widget.metrics,
     filters: widget.filters,
     chartType: widget.chartType,
     chartConfig: widget.chartConfig,
-  });
+  };
+}
+
+function toApiDashboardWidget(widget: WidgetDomain) {
+  return PostUnstableDashboardWidgetResponse.parse(publicWidgetFields(widget));
+}
+
+function toApiDashboardWidgetRead(widget: WidgetReadDomain) {
+  return GetUnstableDashboardWidgetResponse.parse(publicWidgetFields(widget));
 }
 
 export async function createPublicDashboardWidget(params: {
@@ -283,10 +296,6 @@ export async function createPublicDashboardWidget(params: {
   input: PostUnstableDashboardWidgetBodyType;
   auditScope: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
-  if (params.input.definition != null)
-    throw new ForbiddenError(
-      "Versioned widget authoring requires an opted-in employee.",
-    );
   const input = normalizePublicDashboardWidgetInput(params.input);
   validatePublicDashboardWidgetInput(input);
 
@@ -334,7 +343,7 @@ export async function listPublicDashboardWidgets(params: {
 }) {
   const result = await DashboardService.listWidgets(params);
   return {
-    data: result.widgets.map(toApiDashboardWidget),
+    data: result.widgets.map(toApiDashboardWidgetRead),
     meta: {
       page: params.page,
       limit: params.limit,
@@ -348,7 +357,7 @@ export async function getPublicDashboardWidget(params: {
   projectId: string;
   widgetId: string;
 }) {
-  return toApiDashboardWidget(
+  return toApiDashboardWidgetRead(
     await getProjectWidgetOrThrow(params.projectId, params.widgetId),
   );
 }
@@ -359,14 +368,14 @@ export async function updatePublicDashboardWidget(params: {
   input: Partial<PostUnstableDashboardWidgetBodyType>;
   auditScope: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
-  if (params.input.definition != null)
-    throw new ForbiddenError(
-      "Versioned widget authoring requires an opted-in employee.",
-    );
   const current = await getProjectWidgetOrThrow(
     params.projectId,
     params.widgetId,
   );
+  if (current.invalid)
+    throw new LangfuseConflictError(
+      "This widget has an unsupported configuration and cannot be edited",
+    );
   const currentPublic = toPublicWidgetInput(current);
   const chartTypeChanged =
     params.input.chartType !== undefined &&
@@ -427,6 +436,6 @@ export async function deletePublicDashboardWidget(params: {
     projectId: params.projectId,
     orgId: params.auditScope.orgId,
     apiKeyId: params.auditScope.apiKeyId,
-    before: toApiDashboardWidget(current),
+    before: toApiDashboardWidgetRead(current),
   });
 }

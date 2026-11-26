@@ -833,7 +833,10 @@ export { WidgetListResponseSchema } from "./services/DashboardService/types";
 export { type DashboardDefinition } from "./services/DashboardService/types";
 export { type DashboardDomain } from "./services/DashboardService/types";
 export { type DashboardListResponse } from "./services/DashboardService/types";
-export { type WidgetDomain } from "./services/DashboardService/types";
+export {
+  type WidgetDomain,
+  type WidgetReadDomain,
+} from "./services/DashboardService/types";
 export { type CreateWidgetInput } from "./services/DashboardService/types";
 export { type WidgetListResponse } from "./services/DashboardService/types";
 export { TableViewService } from "./services/TableViewService/TableViewService";

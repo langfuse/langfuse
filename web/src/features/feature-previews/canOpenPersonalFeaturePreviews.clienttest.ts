@@ -30,8 +30,6 @@ it("opens personal previews for eligible users on self-hosted deployments", () =
 
   session.user.featureFlags.internalFeatures = false;
   expect(canOpenPersonalFeaturePreviews(input)).toBe(false);
-  session.user.featureFlags.dashboardBlockAuthoring = true;
-  expect(canOpenPersonalFeaturePreviews(input)).toBe(true);
 
   session.user.email = "member@example.com";
   expect(canOpenPersonalFeaturePreviews(input)).toBe(false);

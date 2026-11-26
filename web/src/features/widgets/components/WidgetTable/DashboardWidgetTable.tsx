@@ -1,5 +1,5 @@
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
-import { type RouterOutputs } from "@/src/utils/api";
+import { useCanAuthorDashboardWidgets } from "@/src/features/feature-flags/hooks/useCanAuthorDashboardWidgets";
+import { type WidgetDefinition } from "@langfuse/shared/dashboards";
 import { useCallback, useMemo } from "react";
 import { Copy, CopyPlus, FileJson, Trash } from "@langfuse/icons";
 import startCase from "lodash/startCase";
@@ -68,9 +68,8 @@ export type WidgetTableRow = {
   description: string;
   view: string;
   chartType: string;
-  definition?: NonNullable<
-    RouterOutputs["dashboardWidgets"]["get"]
-  >["definition"];
+  definition?: WidgetDefinition | null;
+  invalid?: boolean;
   createdAt: Date;
   updatedAt: Date;
   owner: "PROJECT" | "LANGFUSE";
@@ -101,7 +100,7 @@ export function DashboardWidgetTable({
   onDownload: (widget: WidgetTableRow) => void;
   onDuplicate: (widget: WidgetTableRow) => void;
 }) {
-  const authoring = useIsFeatureEnabled("dashboardBlockAuthoring");
+  const authoring = useCanAuthorDashboardWidgets();
   const columns = useMemo<LangfuseColumnDef<WidgetTableRow>[]>(
     () => [
       createLinkTableColumn<WidgetTableRow>({
@@ -161,6 +160,7 @@ export function DashboardWidgetTable({
       createBadgeTableColumn<WidgetTableRow>({
         range: "decorative",
         accessorFn: (row) => {
+          if (row.invalid) return "Invalid configuration";
           if (row.definition?.kind === "markdown") return "Text";
           if (row.definition?.kind === "multiQuery")
             return `${row.definition.config.tabs.length} chart tabs`;
@@ -205,6 +205,9 @@ export function DashboardWidgetTable({
         type: "item",
         title: "Copy widget",
         icon: Copy,
+        disabled: row.invalid
+          ? { reason: "Repair this widget's configuration before copying it" }
+          : undefined,
         onClick: () => onCopy(row),
       },
       {
@@ -213,11 +216,16 @@ export function DashboardWidgetTable({
         title: "Clone",
         icon: CopyPlus,
         disabled: (() => {
+          if (row.invalid)
+            return {
+              reason: "Repair this widget's configuration before cloning it",
+            };
           if (!hasCUDAccess)
             return { reason: "You do not have permission to clone widgets" };
           if (row.definition && !authoring)
             return {
-              reason: "Enable Dashboard widget authoring to clone this widget",
+              reason:
+                "Widget authoring is available to employees in Internal view",
             };
           return undefined;
         })(),
@@ -228,6 +236,9 @@ export function DashboardWidgetTable({
         type: "item",
         title: "Download as JSON",
         icon: FileJson,
+        disabled: row.invalid
+          ? { reason: "This widget's configuration cannot be exported" }
+          : undefined,
         onClick: () => onDownload(row),
       },
       { id: "delete-separator", type: "separator" },

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useCanAuthorDashboardWidgets } from "@/src/features/feature-flags/hooks/useCanAuthorDashboardWidgets";
 import { SavedWidgetEditor } from "./components/SavedWidgetEditor";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/Page";
@@ -26,7 +26,7 @@ import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingF
 export default function NewWidgetPage() {
   const route = useReadyRouteParams(["projectId"]);
   const router = useRouter();
-  const authoringEnabled = useIsFeatureEnabled("dashboardBlockAuthoring");
+  const authoringEnabled = useCanAuthorDashboardWidgets();
   if (!route.ready) return <RouteParamsPendingFallback />;
   if (authoringEnabled)
     return (

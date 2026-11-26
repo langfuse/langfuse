@@ -114,6 +114,10 @@ function ConnectedDashboardWidgetTableContent({
         { staleTime: 30_000 },
       );
 
+      if (widget.invalid)
+        throw new Error(
+          "This widget's configuration is invalid or unsupported.",
+        );
       return {
         definition: widget.definition ?? undefined,
         name: widget.name,
@@ -301,7 +305,13 @@ function ConnectedDashboardWidgetTableContent({
       return { status: "error", error: widgetError.message };
     }
     if (widgetStatus === "success") {
-      return { status: "success", data: widgetData.widgets };
+      return {
+        status: "success",
+        data: widgetData.widgets.map((widget) => ({
+          ...widget,
+          definition: widget.invalid ? undefined : widget.definition,
+        })),
+      };
     }
 
     return assertUnreachable(widgetStatus);

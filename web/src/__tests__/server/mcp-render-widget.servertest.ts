@@ -183,16 +183,18 @@ describe("renderWidget", () => {
       widget.definition,
     );
     expect((result.meta.widget as WidgetPayload).rows).toEqual([]);
-    const definition = (result.meta.widget as WidgetPayload).rich!.definition;
+    const savedContent = {
+      definition: (result.meta.widget as WidgetPayload).rich!.definition,
+    };
     const adHoc = (await handleRenderWidget(
-      { definition },
+      savedContent,
       mockServerContext({ projectId }),
     )) as AppToolResult;
     expect(JSON.parse(adHoc.text).markdown).toBe("Read this context");
-    expect(createDashboardWidgetTool.inputSchema.properties).toHaveProperty(
+    expect(createDashboardWidgetTool.inputSchema.properties).not.toHaveProperty(
       "definition",
     );
-    expect(updateDashboardWidgetTool.inputSchema.properties).toHaveProperty(
+    expect(updateDashboardWidgetTool.inputSchema.properties).not.toHaveProperty(
       "definition",
     );
     await expect(
@@ -205,17 +207,17 @@ describe("renderWidget", () => {
           dimensions: [],
           filters: [],
           chartType: "NUMBER",
-          definition,
+          ...savedContent,
         },
         mockServerContext({ projectId }),
       ),
-    ).rejects.toThrow("opted-in employee");
+    ).rejects.toThrow("Widget definition is read-only");
     await expect(
       handleUpdateDashboardWidget(
-        { widgetId: widget.id, definition },
+        { widgetId: widget.id, ...savedContent },
         mockServerContext({ projectId }),
       ),
-    ).rejects.toThrow("opted-in employee");
+    ).rejects.toThrow("Widget definition is read-only");
   });
 
   it("renders named tabs and computes formulas from the same operands as the dashboard", async () => {

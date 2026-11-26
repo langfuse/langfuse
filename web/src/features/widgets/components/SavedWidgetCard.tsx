@@ -25,22 +25,28 @@ import { DashboardMarkdown } from "@/src/features/dashboard-blocks/DashboardMark
 import { type DashboardWidget } from "./DashboardWidget";
 import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useCanAuthorDashboardWidgets } from "@/src/features/feature-flags/hooks/useCanAuthorDashboardWidgets";
 
 export function SavedWidgetCard({
   widget,
   ...props
 }: Parameters<typeof DashboardWidget>[0] & {
-  widget: NonNullable<RouterOutputs["dashboardWidgets"]["get"]> & {
+  widget: Exclude<
+    NonNullable<RouterOutputs["dashboardWidgets"]["get"]>,
+    { invalid: true }
+  > & {
     definition: NonNullable<
-      NonNullable<RouterOutputs["dashboardWidgets"]["get"]>["definition"]
+      Exclude<
+        NonNullable<RouterOutputs["dashboardWidgets"]["get"]>,
+        { invalid: true }
+      >["definition"]
     >;
   };
 }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const context = useContext(DashboardBlocksContext);
-  const authoring = useIsFeatureEnabled("dashboardBlockAuthoring");
+  const authoring = useCanAuthorDashboardWidgets();
   const permission = useHasProjectAccess({
     projectId: props.projectId,
     scope: "dashboards:CUD",

@@ -5,6 +5,7 @@ import {
   InvalidRequestError,
   isoDateTime,
   LangfuseNotFoundError,
+  widgetDefinitionSaveSchema,
 } from "@langfuse/shared";
 import {
   getResultUnit,
@@ -30,7 +31,7 @@ import {
 } from "@/src/features/widgets/server/public-dashboard-widget-service";
 import { sanitizePivotTableDefaultSort } from "@/src/features/widgets/utils";
 import {
-  PostUnstableDashboardWidgetBody,
+  ClassicDashboardWidgetBody,
   type PostUnstableDashboardWidgetBodyType,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
 import { defineTool } from "../../../core/define-tool";
@@ -49,7 +50,6 @@ import {
 } from "../../../core/widget-payload";
 import {
   CreateDashboardWidgetBaseSchema,
-  SavedDashboardWidgetDefinitionBaseSchema,
   throwActionableDashboardWidgetError,
 } from "../../dashboardWidgets/tools/createDashboardWidget";
 import { WIDGET_APP_RESOURCE_URI } from "../resources";
@@ -104,9 +104,20 @@ const renderOptions = {
 const RenderWidgetBaseSchema = CreateDashboardWidgetBaseSchema.partial().extend(
   {
     ...renderOptions,
-    definition: SavedDashboardWidgetDefinitionBaseSchema.optional().describe(
-      "Render a tabbed multi-query chart or Markdown without saving. No classic fields are needed when definition is supplied.",
-    ),
+    definition: z
+      .object({
+        version: z.literal(1),
+        kind: z.enum(["multiQuery", "markdown"]),
+        config: z
+          .looseObject({})
+          .describe(
+            "Markdown has title and content. Charts have title, description and tabs with queries, display and optional formulas. Use the same structure returned by getDashboardWidget.",
+          ),
+      })
+      .optional()
+      .describe(
+        "Render a tabbed multi-query chart or Markdown without saving. No classic fields are needed when definition is supplied.",
+      ),
     name: z
       .string()
       .optional()
@@ -120,8 +131,11 @@ const RenderWidgetBaseSchema = CreateDashboardWidgetBaseSchema.partial().extend(
   },
 );
 
-const RenderWidgetInputSchema = PostUnstableDashboardWidgetBody.partial()
-  .extend(renderOptions)
+const RenderWidgetInputSchema = ClassicDashboardWidgetBody.partial()
+  .extend({
+    ...renderOptions,
+    definition: widgetDefinitionSaveSchema.optional(),
+  })
   .superRefine((input, ctx) => {
     if (
       (input.fromTimestamp === undefined) !==
@@ -186,6 +200,10 @@ const loadSavedWidget = async (widgetId: string, context: ServerContext) => {
   if (!widget) {
     throw new LangfuseNotFoundError(`Dashboard widget ${widgetId} not found`);
   }
+  if (widget.invalid)
+    throw new InvalidRequestError(
+      "This widget has an unsupported configuration and cannot be rendered",
+    );
   return { ...toPublicWidgetInput(widget), definition: widget.definition };
 };
 
@@ -441,7 +459,7 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
   description: [
     "Render a saved Langfuse widget, including named tabs, multiple queries, computed formulas and Markdown, inline in the chat. Also supports ad-hoc big numbers, time series, breakdowns, tables and histograms.",
     "Use it whenever a metrics question is better answered visually, e.g. 'what is our average cost?', 'latency by model this week', or to show a saved dashboard widget (pass widgetId).",
-    "For an unsaved tabbed chart or Markdown, pass definition with kind and config in the shape returned by getDashboardWidget; it is rendered without saving or requiring authoring access. Select a tab with tabId.",
+    "For an unsaved tabbed chart or Markdown, pass definition with version, kind and config in the shape returned by getDashboardWidget; it is rendered without saving or requiring authoring access. Select a tab with tabId.",
     "For an ad-hoc chart pass a widget definition in the same shape as createDashboardWidget (view, metrics with agg, dimensions, filters, chartType, chartConfig); it is rendered, not saved. To save the chart, pass the same arguments to createDashboardWidget.",
     "Pick the time range with timeRange, or a custom window with fromTimestamp and toTimestamp, and call the tool again for another range. The text result summarizes the chart (totals, peaks, latest values per series) and links to Langfuse; no follow-up query is needed to describe it.",
   ].join(" "),

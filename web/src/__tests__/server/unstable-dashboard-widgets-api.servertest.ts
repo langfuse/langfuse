@@ -5,6 +5,7 @@ import {
 import {
   DeleteUnstableDashboardWidgetResponse,
   GetUnstableDashboardWidgetsResponse,
+  GetUnstableDashboardWidgetResponse,
   PatchUnstableDashboardWidgetResponse,
   PostUnstableDashboardWidgetResponse,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
@@ -55,7 +56,7 @@ const expectUnstableError = (
 };
 
 describe("/api/public/unstable/dashboard-widgets API", () => {
-  it("isolates unreadable widget definitions and preserves their placements and stored content", async () => {
+  it("returns unreadable widget definitions and preserves their placements and stored content", async () => {
     const { auth, projectId } = await createOrgProjectAndApiKey();
     const classic = await DashboardService.createWidget(
       projectId,
@@ -78,14 +79,18 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
           config: { content: "Future content" },
         },
         { version: 1, kind: "multiQuery", config: { tabs: "invalid" } },
-      ].map(async (stored) => {
+      ].map(async (stored, index) => {
         const widget = await DashboardService.createWidget(
           projectId,
           legacyTracesWidgetInput,
         );
         return prisma.dashboardWidget.update({
           where: { id: widget.id },
-          data: { definition: stored, revision: 1 },
+          data: {
+            definition: stored,
+            chartConfig: { type: "FUTURE_CHART" },
+            revision: index === 0 ? -1 : 1,
+          },
         });
       }),
     );
@@ -98,30 +103,48 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
     );
     expect(list.status).toBe(200);
     expect(list.body.data.map((row) => row.id).sort()).toEqual(
-      [classic.id, supported.id].sort(),
+      [
+        classic.id,
+        supported.id,
+        ...unreadable.map((widget) => widget.id),
+      ].sort(),
     );
     expect(list.body.meta.totalItems).toBe(4);
     for (const widget of unreadable) {
-      await expect(
-        DashboardService.getWidget(widget.id, projectId),
-      ).resolves.toBeNull();
+      const expected = {
+        id: widget.id,
+        invalid: true,
+        view: widget.view,
+        chartType: widget.chartType,
+        revision: widget.revision,
+        definition: widget.definition,
+        filters: widget.filters,
+        dimensions: widget.dimensions,
+        metrics: widget.metrics,
+        chartConfig: widget.chartConfig,
+      };
       expect(
-        (
-          await makeAPICall(
-            "GET",
-            `/api/public/unstable/dashboard-widgets/${widget.id}`,
-            undefined,
-            auth,
-          )
-        ).status,
-      ).toBe(404);
+        list.body.data.find((item) => item.id === widget.id),
+      ).toMatchObject(expected);
+      const get = await makeZodVerifiedAPICall(
+        GetUnstableDashboardWidgetResponse,
+        "GET",
+        `/api/public/unstable/dashboard-widgets/${widget.id}`,
+        undefined,
+        auth,
+      );
+      expect(get.status).toBe(200);
+      expect(get.body).toMatchObject(expected);
+      expect(get.body).not.toHaveProperty("projectId");
       await expect(
         DashboardService.saveWidgetDefinition(projectId, {
           widgetId: widget.id,
           expectedRevision: 1,
           definition,
         }),
-      ).rejects.toThrow("cannot be edited");
+      ).rejects.toThrow(
+        widget.revision < 0 ? "changed or is unavailable" : "cannot be edited",
+      );
     }
     const dashboard = await prisma.dashboard.create({
       data: {
@@ -170,7 +193,10 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
     for (const widget of unreadable) {
       await expect(
         prisma.dashboardWidget.findUnique({ where: { id: widget.id } }),
-      ).resolves.toMatchObject({ definition: widget.definition, revision: 1 });
+      ).resolves.toMatchObject({
+        definition: widget.definition,
+        revision: widget.revision,
+      });
     }
   });
 
@@ -214,7 +240,14 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
       { ...baseWidgetBody, definition },
       auth,
     );
-    expect(recreate.status).toBe(403);
+    expectUnstableError(recreate, { status: 400, code: "invalid_body" });
+    const redefine = await makeAPICall(
+      "PATCH",
+      route,
+      { definition, name: "Changed" },
+      auth,
+    );
+    expectUnstableError(redefine, { status: 400, code: "invalid_body" });
     const overwrite = await makeAPICall(
       "PATCH",
       route,

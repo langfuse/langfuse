@@ -1761,7 +1761,14 @@ describe("MCP Write Tools", () => {
         const schema: ReturnType<typeof z.toJSONSchema> = JSON.parse(
           JSON.stringify(tool.inputSchema),
         );
-        expect(z.fromJSONSchema(schema).safeParse(input).success).toBe(true);
+        const fields = z.fromJSONSchema(schema);
+        expect(fields.safeParse(input).success).toBe(true);
+        expect(
+          fields.safeParse({
+            ...input,
+            definition: { widgets: [], blocks: [] },
+          }).success,
+        ).toBe(false);
       }
       await expect(
         handleUpdateDashboard(edit, setup.context),

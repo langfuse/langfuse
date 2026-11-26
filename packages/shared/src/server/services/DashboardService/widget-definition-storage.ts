@@ -56,7 +56,7 @@ function projectedWidget(definition: WidgetDefinition) {
   if (definition.kind === "markdown")
     return {
       name: definition.config.title || "Text",
-      description: "",
+      description: `Text widget; upgrade to view formatted content.\n\n${definition.config.content}`,
       view: queryViewToDashboardWidgetView.observations,
       dimensions: [],
       metrics: [],

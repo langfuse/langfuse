@@ -1,3 +1,4 @@
+import type { DashboardWidget } from "@prisma/client";
 import { saveWidgetDefinition } from "./widget-definition-storage";
 import { prisma, Prisma } from "../../../db";
 import { isPrismaRecordNotFoundError } from "../../prismaErrors";
@@ -13,6 +14,8 @@ import { env } from "../../../env";
 import {
   CreateWidgetInput,
   WidgetDomain,
+  WidgetReadDomain,
+  InvalidWidgetDomainSchema,
   WidgetListResponse,
   DashboardDomain,
   DashboardListResponse,
@@ -110,6 +113,37 @@ type DashboardPageOptions = {
   /** Include Langfuse-managed dashboards (projectId null). Defaults to true. */
   includeLangfuseOwned?: boolean;
 };
+
+function readWidget(widget: DashboardWidget): WidgetReadDomain {
+  const owner = widget.projectId ? "PROJECT" : "LANGFUSE";
+  const parsed = WidgetDomainSchema.safeParse({
+    ...widget,
+    owner,
+    invalid: false,
+  });
+  if (parsed.success) return parsed.data;
+  return InvalidWidgetDomainSchema.parse({
+    invalid: true,
+    id: widget.id,
+    createdAt: widget.createdAt,
+    updatedAt: widget.updatedAt,
+    createdBy: widget.createdBy,
+    updatedBy: widget.updatedBy,
+    projectId: widget.projectId,
+    name: widget.name,
+    description: widget.description,
+    view: widget.view,
+    dimensions: widget.dimensions,
+    metrics: widget.metrics,
+    filters: widget.filters,
+    chartType: widget.chartType,
+    chartConfig: widget.chartConfig,
+    definition: widget.definition,
+    revision: widget.revision,
+    minVersion: widget.minVersion,
+    owner,
+  });
+}
 
 export class DashboardService {
   public static saveWidgetDefinition = saveWidgetDefinition;
@@ -416,14 +450,7 @@ export class DashboardService {
       }),
     ]);
 
-    const domainWidgets = widgets.flatMap((widget) => {
-      const parsed = WidgetDomainSchema.safeParse({
-        ...widget,
-        owner: widget.projectId ? "PROJECT" : "LANGFUSE",
-      });
-      // Unsupported saved formats must not prevent other widgets from loading.
-      return parsed.success ? [parsed.data] : [];
-    });
+    const domainWidgets = widgets.map(readWidget);
 
     return {
       widgets: domainWidgets,
@@ -472,7 +499,7 @@ export class DashboardService {
   public static async getWidget(
     widgetId: string,
     projectId: string,
-  ): Promise<WidgetDomain | null> {
+  ): Promise<WidgetReadDomain | null> {
     const widget = await prisma.dashboardWidget.findFirst({
       where: {
         id: widgetId,
@@ -484,11 +511,7 @@ export class DashboardService {
       return null;
     }
 
-    const parsed = WidgetDomainSchema.safeParse({
-      ...widget,
-      owner: widget.projectId ? "PROJECT" : "LANGFUSE",
-    });
-    return parsed.success ? parsed.data : null;
+    return readWidget(widget);
   }
 
   /**

@@ -2,7 +2,8 @@
 import React, { useContext, useEffect, useRef } from "react";
 import { DashboardBlocksContext } from "@/src/features/dashboard-blocks/dashboard-block-context";
 import { useRouter } from "next/router";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { api } from "@/src/utils/api";
+import { type WidgetDefinition } from "@langfuse/shared/dashboards";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   Dialog,
@@ -37,9 +38,8 @@ export type WidgetItem = {
   description: string;
   view: string;
   chartType: string;
-  definition?: NonNullable<
-    RouterOutputs["dashboardWidgets"]["get"]
-  >["definition"];
+  definition?: WidgetDefinition | null;
+  invalid?: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -66,6 +66,8 @@ function WidgetRow({
   onClick: () => void;
 }) {
   const summary = (() => {
+    if (widget.invalid)
+      return "Invalid configuration — repair this widget before adding it";
     if (widget.definition?.kind === "markdown") return "Markdown";
     if (widget.definition?.kind === "multiQuery") {
       const config = widget.definition.config;
@@ -74,7 +76,12 @@ function WidgetRow({
     return `${getChartTypeDisplayName(widget.chartType as DashboardWidgetChartType)} · ${startCase(widget.view.toLowerCase())}`;
   })();
   return (
-    <button type="button" onClick={onClick} className={rowClassName}>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={widget.invalid}
+      className={rowClassName}
+    >
       <RowIllustration type={widget.chartType} />
       <div className="min-w-0 flex-1">
         <div className="truncate font-bold" title={widget.name}>
@@ -147,9 +154,13 @@ export function SelectWidgetDialog({
   // Legacy trace widgets stay listed and editable under /widgets. (LFE-14444)
   const { isV4, isResolved } = useReadPath();
   const suggestedVersion: ViewVersion = isV4 ? "v2" : "v1";
-  const allProjectWidgets = widgets.data?.widgets ?? [];
+  const allProjectWidgets = (widgets.data?.widgets ?? []).map((widget) => ({
+    ...widget,
+    definition: widget.invalid ? undefined : widget.definition,
+  }));
   const projectWidgets = allProjectWidgets.filter(
     (widget) =>
+      widget.invalid ||
       widget.definition != null ||
       isSuggestedWidgetView(widget.view, suggestedVersion),
   );

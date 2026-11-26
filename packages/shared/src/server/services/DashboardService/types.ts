@@ -134,6 +134,7 @@ export const DashboardListResponseSchema = z.object({
 
 // Define the widget domain object
 export const WidgetDomainSchema = z.object({
+  invalid: z.literal(false).optional(),
   id: z.string(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -155,6 +156,23 @@ export const WidgetDomainSchema = z.object({
   owner: OwnerEnum,
 });
 
+export const InvalidWidgetDomainSchema = WidgetDomainSchema.extend({
+  invalid: z.literal(true),
+  revision: z.number().int().optional(),
+  view: z.string(),
+  chartType: z.string(),
+  dimensions: z.unknown(),
+  metrics: z.unknown(),
+  filters: z.unknown(),
+  chartConfig: z.unknown(),
+  definition: z.unknown(),
+});
+
+const WidgetReadDomainSchema = z.discriminatedUnion("invalid", [
+  WidgetDomainSchema,
+  InvalidWidgetDomainSchema,
+]);
+
 // Define create widget input schema
 export const CreateWidgetInputSchema = z.object({
   name: z.string().min(1, "Widget name is required"),
@@ -169,7 +187,7 @@ export const CreateWidgetInputSchema = z.object({
 
 // Define the widget list response
 export const WidgetListResponseSchema = z.object({
-  widgets: z.array(WidgetDomainSchema),
+  widgets: z.array(WidgetReadDomainSchema),
   totalCount: z.number(),
 });
 
@@ -177,5 +195,6 @@ export const WidgetListResponseSchema = z.object({
 export type DashboardDomain = z.infer<typeof DashboardDomainSchema>;
 export type DashboardListResponse = z.infer<typeof DashboardListResponseSchema>;
 export type WidgetDomain = z.infer<typeof WidgetDomainSchema>;
+export type WidgetReadDomain = z.infer<typeof WidgetReadDomainSchema>;
 export type CreateWidgetInput = z.infer<typeof CreateWidgetInputSchema>;
 export type WidgetListResponse = z.infer<typeof WidgetListResponseSchema>;

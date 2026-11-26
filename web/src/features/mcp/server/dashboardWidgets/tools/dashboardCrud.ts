@@ -6,7 +6,6 @@ import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 import {
   DashboardWidgetChartConfigBaseSchema,
   DashboardWidgetFilterBaseSchema,
-  SavedDashboardWidgetDefinitionBaseSchema,
 } from "@/src/features/mcp/server/dashboardWidgets/tools/createDashboardWidget";
 import {
   buildDashboardUrl,
@@ -64,7 +63,6 @@ const placementPatchBaseSchema = z.object({
   height: z.number().int().positive().optional(),
 });
 const dashboardWidgetPatchBaseSchema = z.object({
-  definition: SavedDashboardWidgetDefinitionBaseSchema.optional(),
   widgetId: z.string(),
   name: z.string().min(1).optional(),
   description: z.string().optional(),
@@ -91,49 +89,13 @@ const classicPlacementBaseSchema = placementCreateBaseSchema.required({
   width: true,
   height: true,
 });
-const publicBlockBaseSchema = classicPlacementBaseSchema
-  .partial({
-    type: true,
-    x: true,
-    y: true,
-    width: true,
-    height: true,
-  })
-  .extend({
-    kind: z.enum(["markdown", "multiQuery", "convertedPreset"]).optional(),
-    sourcePreset: z
-      .object({ placementId: z.string(), presetId: z.string() })
-      .optional()
-      .describe(
-        "For a converted preset, echo the original grid placement and preset IDs.",
-      ),
-    revision: z.number().int().positive().optional(),
-    beforePlacementId: z
-      .unknown()
-      .optional()
-      .describe("Placement id or null on a saved inline widget."),
-    config: z
-      .looseObject({})
-      .optional()
-      .describe("Copy the saved versioned configuration from getDashboard."),
-  });
-const dashboardDefinitionBaseSchema = z
-  .object({
-    version: z.literal("1").optional(),
-    blocks: z
-      .array(publicBlockBaseSchema)
-      .optional()
-      .describe(
-        "Version 1 placements and saved inline widgets. Copy inline widgets unchanged from getDashboard when editing classic placements.",
-      ),
-    widgets: z
-      .array(classicPlacementBaseSchema)
-      .optional()
-      .describe(
-        "Deprecated classic placement list. On create, match the classic entries in blocks. On update, you may edit only widgets and echo the current blocks from getDashboard.",
-      ),
-  })
-  .describe("Supply version 1 with blocks, or supply the legacy widgets list.");
+const dashboardDefinitionBaseSchema = z.object({
+  widgets: z.array(classicPlacementBaseSchema),
+});
+const dashboardWriteDefinition = PostUnstableDashboardBody.shape.definition
+  .unwrap()
+  .strict()
+  .optional();
 const dashboardPatchBaseSchema = z.object({
   dashboardId: z.string(),
   name: z.string().min(1).optional(),
@@ -262,9 +224,7 @@ export const [updateDashboardWidgetTool, handleUpdateDashboardWidget] =
     description: "Partially update a dashboard widget.",
     action: "dashboards:CUD",
     baseSchema: dashboardWidgetPatchBaseSchema,
-    inputSchema: DashboardWidgetIdQuery.extend(
-      PatchUnstableDashboardWidgetBody.shape,
-    ).superRefine(requirePatchField(["widgetId"])),
+    inputSchema: DashboardWidgetIdQuery.and(PatchUnstableDashboardWidgetBody),
     annotations: { destructiveHint: true },
     handler: ({ widgetId, ...patch }, context) =>
       runMcpTool({
@@ -336,7 +296,7 @@ export const [getDashboardTool, handleGetDashboard] = defineTool({
   name: "getDashboard",
   action: "dashboards:read",
   description:
-    "Get an editable dashboard by ID. Version 1 definition.blocks lists classic placements and saved Markdown or multi-query widgets. Classic placements use x, y, width and height in a 12-column grid. The deprecated widgets list mirrors classic placements.",
+    "Get an editable dashboard by ID. Its definition.widgets array places saved widgets and presets on a 12-column grid.",
   baseSchema: DashboardIdQuery,
   inputSchema: DashboardIdQuery,
   annotations: { readOnlyHint: true },
@@ -358,11 +318,12 @@ export const [getDashboardTool, handleGetDashboard] = defineTool({
 });
 export const [createDashboardTool, handleCreateDashboard] = defineTool({
   name: "createDashboard",
-  description:
-    "Create an editable dashboard with classic widget or preset placements. Project API keys can read saved Markdown and multi-query widgets.",
+  description: "Create a dashboard with saved widget or preset placements.",
   action: "dashboards:CUD",
   baseSchema: dashboardCreateBaseSchema,
-  inputSchema: PostUnstableDashboardBody,
+  inputSchema: PostUnstableDashboardBody.extend({
+    definition: dashboardWriteDefinition,
+  }),
   annotations: { destructiveHint: true },
   handler: (input, context) =>
     runMcpTool({
@@ -379,12 +340,13 @@ export const [createDashboardTool, handleCreateDashboard] = defineTool({
 export const [updateDashboardTool, handleUpdateDashboard] = defineTool({
   name: "updateDashboard",
   description:
-    "Update dashboard metadata, filters, or classic placements. Keep existing inline widgets unchanged. Edit version 1 blocks, send a widgets-only layout, or edit widgets on a getDashboard response and echo the current blocks.",
+    "Update dashboard metadata, filters, or the complete definition.widgets placement list.",
   action: "dashboards:CUD",
   baseSchema: dashboardPatchBaseSchema,
-  inputSchema: DashboardIdQuery.extend(
-    PatchUnstableDashboardBody.shape,
-  ).superRefine(requirePatchField(["dashboardId"])),
+  inputSchema: DashboardIdQuery.extend({
+    ...PatchUnstableDashboardBody.shape,
+    definition: dashboardWriteDefinition,
+  }).superRefine(requirePatchField(["dashboardId"])),
   annotations: { destructiveHint: true },
   handler: ({ dashboardId, ...patch }, context) =>
     runMcpTool({

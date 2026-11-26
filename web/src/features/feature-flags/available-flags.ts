@@ -17,10 +17,7 @@ export const featurePreviewFlags = [...userFeaturePreviewFlags] as const;
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
-const internalFeaturePreviewFlags = [
-  "traceTranscriptEvals",
-  "dashboardBlockAuthoring",
-] as const;
+const internalFeaturePreviewFlags = ["traceTranscriptEvals"] as const;
 
 export const personalFeaturePreviewFlags = [
   ...userFeaturePreviewFlags,
@@ -69,7 +66,6 @@ export const featurePreviewLabels = {
   sessionViewV2: "Redesigned Session View",
   sessionViewV2Timeline: "Session Timeline",
   traceTranscriptEvals: "Trace transcript evals",
-  dashboardBlockAuthoring: "Dashboard widget authoring",
   unifiedTraceSessionView: "Unified Trace and Session View",
 } satisfies Record<FeaturePreviewFlag | PersonalFeaturePreviewFlag, string>;
 

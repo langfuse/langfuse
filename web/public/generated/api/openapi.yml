@@ -7240,7 +7240,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/unstableDashboardWidget'
+                $ref: '#/components/schemas/unstableDashboardWidgetRead'
         '400':
           description: ''
           content:
@@ -16197,12 +16197,6 @@ components:
       title: unstableCreateDashboardWidgetRequest
       type: object
       properties:
-        definition:
-          $ref: '#/components/schemas/unstableWidgetDefinition'
-          nullable: true
-          description: >-
-            Versioned content is read-only to project API keys. Supplying a
-            non-null definition returns 403 during employee-only authoring.
         name:
           type: string
         description:
@@ -16240,12 +16234,6 @@ components:
       title: unstableUpdateDashboardWidgetRequest
       type: object
       properties:
-        definition:
-          $ref: '#/components/schemas/unstableWidgetDefinition'
-          nullable: true
-          description: >-
-            Versioned content is read-only to project API keys. Supplying a
-            non-null definition returns 403 during employee-only authoring.
         name:
           type: string
           nullable: true
@@ -16283,7 +16271,7 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/unstableDashboardWidget'
+            $ref: '#/components/schemas/unstableDashboardWidgetRead'
         meta:
           $ref: '#/components/schemas/utilsMetaResponse'
       required:
@@ -16325,22 +16313,26 @@ components:
             - kind
           title: UnstableMarkdownWidget
       description: >-
-        Complete widget content. When present, use this definition to render
-        every tab, formula or Markdown. Flat fields describe a compatibility
-        projection only. Employee authoring is required to change this
-        definition.
+        Read-only widget content. When present, use this definition to render
+        every tab, formula or Markdown. The flat fields describe its classic
+        projection.
       required:
         - version
       properties:
         version:
           $ref: '#/components/schemas/unstableWidgetDefinitionVersion'
-    unstableDashboardWidget:
-      title: unstableDashboardWidget
+    unstableDashboardWidgetRead:
+      title: unstableDashboardWidgetRead
+      oneOf:
+        - $ref: '#/components/schemas/unstableDashboardWidget'
+        - $ref: '#/components/schemas/unstableInvalidDashboardWidget'
+      description: >-
+        A saved widget. Check invalid before rendering a widget whose content
+        this server cannot interpret.
+    unstableDashboardWidgetMetadata:
+      title: unstableDashboardWidgetMetadata
       type: object
       properties:
-        definition:
-          $ref: '#/components/schemas/unstableWidgetDefinition'
-          nullable: true
         revision:
           type: integer
           nullable: true
@@ -16357,8 +16349,27 @@ components:
           type: string
         description:
           type: string
+      required:
+        - id
+        - createdAt
+        - updatedAt
+        - name
+        - description
+    unstableDashboardWidget:
+      title: unstableDashboardWidget
+      type: object
+      properties:
+        definition:
+          $ref: '#/components/schemas/unstableWidgetDefinition'
+          nullable: true
+        invalid:
+          type: boolean
+          const: false
+          nullable: true
         view:
           $ref: '#/components/schemas/unstableDashboardWidgetViewWithLegacy'
+        chartType:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
         dimensions:
           type: array
           items:
@@ -16371,22 +16382,47 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/unstableDashboardWidgetFilter'
-        chartType:
-          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
         chartConfig:
           $ref: '#/components/schemas/unstableDashboardWidgetChartConfig'
       required:
-        - id
-        - createdAt
-        - updatedAt
-        - name
-        - description
         - view
+        - chartType
         - dimensions
         - metrics
         - filters
-        - chartType
         - chartConfig
+      allOf:
+        - $ref: '#/components/schemas/unstableDashboardWidgetMetadata'
+    unstableInvalidDashboardWidget:
+      title: unstableInvalidDashboardWidget
+      type: object
+      description: >-
+        The original JSON fields are returned as stored for a widget this server
+        cannot interpret.
+      properties:
+        invalid:
+          type: boolean
+          const: true
+        view:
+          type: string
+        chartType:
+          type: string
+        definition: {}
+        dimensions: {}
+        metrics: {}
+        filters: {}
+        chartConfig: {}
+      required:
+        - invalid
+        - view
+        - chartType
+        - definition
+        - dimensions
+        - metrics
+        - filters
+        - chartConfig
+      allOf:
+        - $ref: '#/components/schemas/unstableDashboardWidgetMetadata'
     unstableWidgetDefinitionVersion:
       title: unstableWidgetDefinitionVersion
       type: integer
