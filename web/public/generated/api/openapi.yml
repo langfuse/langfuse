@@ -3375,8 +3375,9 @@ paths:
   /api/public/models/{id}:
     put:
       description: >-
-        Create or replace a project-owned model using its id. Built-in models
-        cannot be modified.
+        Create or replace a project-owned model using its id. Organization and
+        built-in models cannot be modified; targeting an organization model
+        returns 403.
       operationId: models_upsert
       tags:
         - Models
@@ -3471,9 +3472,9 @@ paths:
       security: *ref_0
     delete:
       description: >-
-        Delete a model. Cannot delete models managed by Langfuse. You can create
-        your own definition with the same modelName to override the definition
-        though.
+        Delete a project-owned model. Cannot delete organization models (returns
+        403) or models managed by Langfuse. You can create your own definition
+        with the same modelName to override the definition though.
       operationId: models_delete
       tags:
         - Models
@@ -4070,6 +4071,299 @@ paths:
                     the OTLP specification
               required:
                 - resourceSpans
+  /api/public/organizations/models:
+    get:
+      description: >-
+        List the model definitions of the organization. Requires an
+        organization-scoped API key.
+
+
+        Returns the organization's own models by default. Pass `scope=LANGFUSE`
+        for the read-only definitions Langfuse maintains, or `scope=ALL` for
+        both. Results are ordered by scope (organization first), then
+        `modelName`.
+      operationId: organizationModels_list
+      tags:
+        - OrganizationModels
+      parameters:
+        - name: page
+          in: query
+          description: Page number, starts at 1.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: Number of items per page. Maximum 100, default 50.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: scope
+          in: query
+          description: Which definitions to return. Defaults to `ORGANIZATION`.
+          required: false
+          schema:
+            $ref: '#/components/schemas/OrganizationModelScopeFilter'
+            nullable: true
+        - name: search
+          in: query
+          description: Case-insensitive substring match on `modelName`.
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOrganizationModels'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+      security: *ref_0
+    put:
+      description: >-
+        Create the organization's model with this `modelName`, or fully replace
+        it. Requires an organization-scoped API key.
+
+
+        Returns `201` with the created model when no organization model has this
+        `modelName`, and `200` with the replaced model otherwise; the id stays
+        the same across replaces. A tokenizer set on the model in the
+        organization settings is kept. Organization models apply to every
+        project of the organization that has no project model matching the same
+        observation. Using the `modelName` of a Langfuse model overrides it.
+
+
+        Changes apply to observations ingested after the write, typically within
+        about 10 seconds. Costs of earlier observations are not recalculated.
+        Pricing tier ids change on every write.
+
+
+        Organization API keys currently allow every organization action, not
+        only model management.
+      operationId: organizationModels_upsert
+      tags:
+        - OrganizationModels
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationModel'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertOrganizationModelRequest'
+  /api/public/organizations/models/{id}:
+    get:
+      description: >-
+        Get one model definition of the organization, or one maintained by
+        Langfuse. Requires an organization-scoped API key.
+      operationId: organizationModels_get
+      tags:
+        - OrganizationModels
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationModel'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+      security: *ref_0
+    delete:
+      description: >-
+        Delete a model definition of the organization. Requires an
+        organization-scoped API key.
+
+
+        Models maintained by Langfuse cannot be deleted; override one by
+        creating an organization model with the same `modelName`. A deleted
+        model's id does not come back if you create the name again, so
+        observations that referenced the old id no longer resolve to a model.
+      operationId: organizationModels_delete
+      tags:
+        - OrganizationModels
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteOrganizationModelResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+      security: *ref_0
   /api/public/organizations/memberships:
     get:
       description: >-
@@ -10088,8 +10382,18 @@ components:
           description: >-
             Legacy tokenizer configuration retained for API compatibility.
             Ingestion no longer uses it to infer observation usage.
+        scope:
+          $ref: '#/components/schemas/ModelScope'
+          description: >-
+            Owner of the model definition. Only `PROJECT` models can be changed
+            through the project models API.
         isLangfuseManaged:
           type: boolean
+          description: >-
+            Deprecated. Use 'scope' instead. True when the model cannot be
+            changed through the project models API, i.e. `scope` is
+            `ORGANIZATION` or `LANGFUSE`.
+          deprecated: true
         createdAt:
           type: string
           format: date-time
@@ -10143,6 +10447,7 @@ components:
         - totalPrice
         - tokenizerId
         - tokenizerConfig
+        - scope
         - isLangfuseManaged
         - createdAt
         - prices
@@ -10506,6 +10811,17 @@ components:
         - IMAGES
         - REQUESTS
       description: Unit of usage in Langfuse
+    ModelScope:
+      title: ModelScope
+      type: string
+      enum:
+        - PROJECT
+        - ORGANIZATION
+        - LANGFUSE
+      description: >-
+        Owner of a model definition. Project definitions take precedence over
+        organization definitions, which take precedence over Langfuse
+        definitions.
     ObservationLevel:
       title: ObservationLevel
       type: string
@@ -13807,6 +14123,112 @@ components:
       type: object
       description: Response from trace export request. Empty object indicates success.
       properties: {}
+    OrganizationModelScopeFilter:
+      title: OrganizationModelScopeFilter
+      type: string
+      enum:
+        - ORGANIZATION
+        - LANGFUSE
+        - ALL
+    OrganizationModel:
+      title: OrganizationModel
+      type: object
+      description: >-
+        Model definition used to calculate the USD cost of observations in the
+        organization's projects.
+      properties:
+        id:
+          type: string
+        scope:
+          $ref: '#/components/schemas/ModelScope'
+          description: >-
+            `ORGANIZATION` for the organization's own models, `LANGFUSE` for the
+            read-only models Langfuse maintains. Never `PROJECT`.
+        modelName:
+          type: string
+          description: Name of the model. Unique within the organization.
+        matchPattern:
+          type: string
+          description: Postgres regex matched against the `model` of an observation.
+        pricingTiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PricingTier'
+          description: Pricing tiers, ordered by priority.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - scope
+        - modelName
+        - matchPattern
+        - pricingTiers
+        - createdAt
+        - updatedAt
+    PaginatedOrganizationModels:
+      title: PaginatedOrganizationModels
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationModel'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    UpsertOrganizationModelRequest:
+      title: UpsertOrganizationModelRequest
+      type: object
+      description: >-
+        The complete model definition. Unknown fields, including the legacy
+        `inputPrice`, `outputPrice`, `totalPrice`, `unit`, `startDate`,
+        `tokenizerId` and `tokenizerConfig`, are rejected.
+      properties:
+        modelName:
+          type: string
+          description: >-
+            Name of the model, at most 255 characters and not blank. Identifies
+            the model to create or replace, matched exactly, including case and
+            surrounding whitespace.
+        matchPattern:
+          type: string
+          description: >-
+            Postgres regex matched against the `model` of an observation, at
+            most 1,000 characters. Anchor it, for example
+            `(?i)^(openai/)?gpt-4o$`.
+        pricingTiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PricingTierInput'
+          description: >-
+            At most 50 tiers. Exactly one tier is the default, with `priority:
+            0` and no conditions; every other tier has at least one condition.
+            Every tier prices the same usage keys as the default tier, at most
+            100 keys per tier.
+
+
+            Prices are in USD per single unit of the usage key, for example
+            `{"input": 0.0000027}` is $2.70 per million input tokens. Usage keys
+            must match the usage-detail keys observations are ingested with;
+            usage without a price for its key stays unpriced.
+      required:
+        - modelName
+        - matchPattern
+        - pricingTiers
+    DeleteOrganizationModelResponse:
+      title: DeleteOrganizationModelResponse
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
     MembershipRole:
       title: MembershipRole
       type: string

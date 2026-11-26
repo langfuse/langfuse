@@ -2,12 +2,10 @@
 
 import * as React from "react";
 import { defaultFilter } from "cmdk";
-import { X } from "@langfuse/icons";
-
 import { SelectDropdown } from "../SelectDropdown/SelectDropdown";
 import { AsyncSelectInput } from "../AsyncSelectInput/AsyncSelectInput";
-import { DropdownIndicator } from "../DropdownIndicator/DropdownIndicator";
-import { InputControl } from "../internal/InputControl/InputControl";
+import type { InputControl } from "../internal/InputControl/InputControl";
+import { SelectControl } from "../internal/SelectControl/SelectControl";
 import { cn } from "@/src/utils/tailwind";
 
 type SelectInputProps<V extends string> = Pick<
@@ -61,14 +59,10 @@ function SelectInputInner<V extends string>(
   ref: React.ForwardedRef<HTMLButtonElement>,
 ) {
   const [searchValue, setSearchValue] = React.useState("");
-  const trailingAction = clearAction
-    ? {
-        icon: X,
-        label: clearAction.label,
-        onClick: clearAction.onClear,
-        appearance: "inline" as const,
-      }
-    : undefined;
+  const clear =
+    clearAction && value
+      ? { label: clearAction.label, onClear: clearAction.onClear }
+      : undefined;
 
   if (search) {
     const flatOptions = options.flatMap((node) =>
@@ -121,7 +115,7 @@ function SelectInputInner<V extends string>(
         error={error}
         muted={muted}
         prefix={prefix}
-        trailingAction={trailingAction}
+        clearAction={clear}
       />
     );
   }
@@ -145,12 +139,11 @@ function SelectInputInner<V extends string>(
       {...triggerProps}
     >
       {({ getTriggerProps, selectedLabel }) => (
-        <InputControl
-          contentLayout="spread"
+        <SelectControl
           error={error}
           disabled={triggerProps.disabled}
           prefix={prefix}
-          trailingAction={trailingAction}
+          clear={clear}
         >
           <button {...getTriggerProps()}>
             {SelectedIcon ? (
@@ -168,9 +161,8 @@ function SelectInputInner<V extends string>(
             >
               {selectedLabel ?? placeholder}
             </span>
-            <DropdownIndicator color={error ? "destructive" : "tertiary"} />
           </button>
-        </InputControl>
+        </SelectControl>
       )}
     </SelectDropdown>
   );

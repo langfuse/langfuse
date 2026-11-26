@@ -133,6 +133,9 @@ model Organization {
   // LANGFUSE_AUDIT_LOG_ACCESS_EVENTS is "org" and the org has the audit-logs
   // entitlement.
   accessAuditLogEnabled            Boolean                  @default(false) @map("access_audit_log_enabled")
+  // While true, `public` flags on this org's traces and sessions are ignored
+  // by access checks and publishing is rejected. The flags themselves are kept.
+  publicSharingDisabled            Boolean                  @default(false) @map("public_sharing_disabled")
   featureFlagOrgDefaults           String[]                 @default([]) @map("feature_flag_org_defaults")
   // SFDC Account / Organization ID returned by the Mulesoft org endpoint on
   // Langfuse Cloud. NULL for self-hosted or pre-integration orgs. A mismatch

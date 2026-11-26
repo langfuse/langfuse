@@ -13,15 +13,18 @@ import { TraceRuleIdleTime } from "@/src/features/evals/v2/components/Rules/Rule
 import { RuleSamplingSection } from "./RuleSamplingSection";
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-/** The rule scope is chosen on create and fixed on edit. */
+/** The rule scope is chosen on create and fixed on edit, or on create when `lockScope` is set. */
 export function RuleFilterStep({
   projectId,
   store,
   mode,
+  lockScope = false,
 }: {
   projectId: string;
   store: RuleSetupStore;
   mode: "create" | "edit";
+  /** Fixes the scope on create when the caller already tested the evaluator against it. */
+  lockScope?: boolean;
 }) {
   const filter = useStore(store, (state) => state.filter);
   const selectedObservationId = useStore(
@@ -42,7 +45,11 @@ export function RuleFilterStep({
   const scopeSelectable =
     (traceEvalsAvailable || isTraceTranscript) &&
     targetObject !== EvalTargetObject.EXPERIMENT;
-  const scopeLocked = mode === "edit";
+  const scopeLocked = mode === "edit" || lockScope;
+  const scopeLockedNote =
+    mode === "edit"
+      ? "Scope is fixed after creation."
+      : "Scope matches how the evaluator was tested.";
   const copy = ruleScopeCopy(targetObject, scopeSelectable);
   return (
     <Stepper
@@ -78,7 +85,7 @@ export function RuleFilterStep({
           </label>
           {scopeLocked ? (
             <span className="text-muted-foreground text-xs">
-              Scope is fixed after creation.
+              {scopeLockedNote}
             </span>
           ) : null}
         </div>

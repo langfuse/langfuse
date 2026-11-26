@@ -40,6 +40,7 @@ Use this skill when changing the shared agent setup for the repository.
    not add skill-by-skill links to root `AGENTS.md`.
 7. When shared setup behavior changes materially, update `README.md` and
    contributor-facing docs in the same PR.
+8. Keep organization approval policy in [protected branches and PR approval](../git-workflow/references/protected-branches.md). Route agent policy and workflow changes through a PR; obtain human review where the change touches sensitive paths or security boundaries. Generated shims and local settings cannot grant an exception.
 
 ## Docker / Install-Time Constraint
 
