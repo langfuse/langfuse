@@ -1,3 +1,5 @@
+import { PINCH_ZOOM_RATE } from "@/src/utils/panZoomGestures";
+import { PAGE_SIZE } from "./TopicMobileTraceList";
 import { useState, type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
@@ -452,7 +454,7 @@ export const PreviewZoomedTreemap = meta.story({
         cancelable: true,
         ctrlKey: true,
         // Two zoom levels: four times the treemap height.
-        deltaY: -80,
+        deltaY: -2 / PINCH_ZOOM_RATE,
       }),
     );
     await waitFor(() =>
@@ -580,7 +582,7 @@ export const KeepPageAfterRefresh = meta.story({
         <Button text="Refresh traces" onClick={() => setShifted(true)} />
         <MobileExample
           {...args}
-          selectedTraceId={rows[19]!.traceId}
+          selectedTraceId={rows[PAGE_SIZE - 1]!.traceId}
           useTraces={staticTopicTraces(source)}
         />
       </>
@@ -588,7 +590,7 @@ export const KeepPageAfterRefresh = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const selectedName = `Open trace ${rows[19]!.traceId}`;
+    const selectedName = `Open trace ${rows[PAGE_SIZE - 1]!.traceId}`;
     await userEvent.click(canvas.getByRole("tab", { name: "Traces" }));
     await expect(
       canvas.getByRole("button", { name: `Open trace ${rows[0].traceId}` }),

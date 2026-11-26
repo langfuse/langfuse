@@ -1,3 +1,4 @@
+import { PINCH_ZOOM_RATE } from "@/src/utils/panZoomGestures";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
@@ -311,7 +312,7 @@ export const ZoomTreemap = meta.story({
         bubbles: true,
         cancelable: true,
         ctrlKey: true,
-        deltaY: -40,
+        deltaY: -1 / PINCH_ZOOM_RATE,
         ...at,
       }),
     );

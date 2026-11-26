@@ -3,10 +3,8 @@ import { expect, fn } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { Separator } from "@/src/components/ui/separator";
-import {
-  V4MigrationChecklist,
-  V4MigrationHeaderContent,
-} from "./V4MigrationContent";
+import { V4MigrationChecklist } from "./V4MigrationChecklist";
+import { V4MigrationHeaderContent } from "./V4MigrationContent";
 import {
   type V4MigrationSdkState,
   type V4MigrationSdkUsageSeries,

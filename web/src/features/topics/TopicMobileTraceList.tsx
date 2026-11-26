@@ -10,7 +10,8 @@ import { type TopicTracesResult } from "./facet-topics";
 import { TopicTraceLoadMore } from "./TopicTraceLoadMore";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
-const PAGE_SIZE = 20;
+/** @knipignore Storybook selects the last trace on the first page. */
+export const PAGE_SIZE = 20;
 
 type TopicMobileTraceListProps = {
   children: ReactNode;

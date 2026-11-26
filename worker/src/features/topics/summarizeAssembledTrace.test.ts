@@ -1,3 +1,4 @@
+import { MAX_TOPIC_SUMMARY_CHARACTERS } from "./summaryResult";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   recordDistribution,
@@ -416,7 +417,7 @@ describe("summarizeAssembledTrace", () => {
     state.summarize.mockResolvedValue({
       output: {
         intent_1: {
-          summary: "x".repeat(2001),
+          summary: "x".repeat(MAX_TOPIC_SUMMARY_CHARACTERS + 1),
           status: "applicable",
         },
         issues_2: { summary: "Retried a failed export.", status: "applicable" },
@@ -607,7 +608,7 @@ describe("summarizeAssembledTrace", () => {
     state.summarize.mockResolvedValue({
       output: {
         intent_1: {
-          summary: "x".repeat(2001),
+          summary: "x".repeat(MAX_TOPIC_SUMMARY_CHARACTERS + 1),
           status: "applicable",
         },
         tone_3: { summary: "", status: "not_applicable" },
@@ -735,7 +736,7 @@ describe("summarizeAssembledTrace", () => {
     state.summarize.mockResolvedValue({
       output: {
         intent_1: {
-          summary: "x".repeat(2001),
+          summary: "x".repeat(MAX_TOPIC_SUMMARY_CHARACTERS + 1),
           status: "applicable",
         },
       },
