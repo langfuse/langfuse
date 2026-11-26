@@ -20,8 +20,9 @@ export function EditDatasetItemDialogController({
 }) {
   return (
     <DialogController<EditDatasetItemDialogState>
-      renderDialog={({ state, closeDialog }) => (
+      renderDialog={({ state, isOpen, closeDialog }) => (
         <EditDatasetItemDialog
+          isOpen={isOpen}
           projectId={projectId}
           datasetId={datasetId}
           datasetItemId={state.datasetItemId}

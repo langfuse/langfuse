@@ -1,22 +1,37 @@
 import { api } from "@/src/utils/api";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useWatch } from "react-hook-form";
-import { useId, useMemo, useState } from "react";
+import { type Control, useForm, useFormState, useWatch } from "react-hook-form";
+import {
+  memo,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { Form } from "@/src/components/ui/form";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useEditDatasetItemDialogData } from "../hooks/useEditDatasetItemDialogData";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
-import { useDatasetItemMediaUpload } from "../hooks/useDatasetItemMediaUpload";
-import type { DatasetItemDomain } from "@langfuse/shared";
+import {
+  useDatasetItemMediaUpload,
+  type PendingMediaUpload,
+} from "../hooks/useDatasetItemMediaUpload";
+import type {
+  DatasetItemDomain,
+  DatasetItemMediaField,
+} from "@langfuse/shared";
 import {
   DatasetItemFields,
   type DatasetItemFormValues,
 } from "./DatasetItemFields";
 import {
   stringifyDatasetItemData,
-  toDatasetSchema,
+  type DatasetSchema,
 } from "../utils/datasetItemUtils";
 import { isValidDatasetJson } from "../utils/parseDatasetJson";
 
@@ -60,20 +75,101 @@ function datasetItemToDefaultValues(
   };
 }
 
-type EditDatasetItemDialogFormProps = {
-  projectId: string;
-  datasetItem: DatasetItemDomain;
-  dataset: ReturnType<typeof toDatasetSchema>;
-  onSuccess: () => void;
+type DialogSaveAction = {
+  label: string;
+  type: "submit";
+  form: string;
+  loading?: boolean;
+  disabled?: boolean;
 };
 
-const EditDatasetItemDialogForm = ({
+const EditDatasetItemFieldsSection = memo(
+  function EditDatasetItemFieldsSection({
+    dataset,
+    editable,
+    projectId,
+    control,
+    onUploadMedia,
+    pendingUploads,
+  }: {
+    dataset: DatasetSchema | null;
+    editable: boolean;
+    projectId: string;
+    control: Control<DatasetItemFormValues, unknown, DatasetItemFormValues>;
+    onUploadMedia:
+      | ((file: File, field: DatasetItemMediaField) => Promise<string | null>)
+      | undefined;
+    pendingUploads: PendingMediaUpload[];
+  }) {
+    return (
+      <DatasetItemFields
+        dataset={dataset}
+        editable={editable}
+        projectId={projectId}
+        control={control}
+        onUploadMedia={onUploadMedia}
+        pendingUploads={pendingUploads}
+      />
+    );
+  },
+);
+
+function useEditDatasetItemDialogSaveAction({
+  control,
+  dataset,
+  pendingUploads,
+  hasAccess,
+  isSubmitting,
+  formId,
+}: {
+  control: Control<DatasetItemFormValues, unknown, DatasetItemFormValues>;
+  dataset: DatasetSchema | null;
+  pendingUploads: PendingMediaUpload[];
+  hasAccess: boolean;
+  isSubmitting: boolean;
+  formId: string;
+}): DialogSaveAction {
+  const { isDirty } = useFormState({ control });
+  const [input, expectedOutput] = useWatch({
+    control,
+    name: ["input", "expectedOutput"],
+  });
+  const datasets = useMemo(() => (dataset ? [dataset] : []), [dataset]);
+  const validation = useDatasetItemValidation(input, expectedOutput, datasets);
+
+  const saveDisabled =
+    !isDirty ||
+    !hasAccess ||
+    (validation.hasSchemas && !validation.isValid) ||
+    pendingUploads.length > 0;
+
+  return useMemo(
+    () => ({
+      label: "Save changes",
+      type: "submit" as const,
+      form: formId,
+      loading: isSubmitting,
+      disabled: saveDisabled,
+    }),
+    [formId, isSubmitting, saveDisabled],
+  );
+}
+
+function EditDatasetItemDialogFormBody({
+  formId,
   projectId,
   datasetItem,
   dataset,
   onSuccess,
-}: EditDatasetItemDialogFormProps) => {
-  const formId = useId();
+  setSaveAction,
+}: {
+  formId: string;
+  projectId: string;
+  datasetItem: DatasetItemDomain;
+  dataset: DatasetSchema | null;
+  onSuccess: () => void;
+  setSaveAction: Dispatch<SetStateAction<DialogSaveAction>>;
+}) {
   const [formError, setFormError] = useState<string | null>(null);
   const hasAccess = useHasProjectAccess({
     projectId: projectId,
@@ -91,13 +187,6 @@ const EditDatasetItemDialogForm = ({
     datasetId: datasetItem.datasetId,
     datasetItemId: datasetItem.id,
   });
-
-  const [input, expectedOutput] = useWatch({
-    control: form.control,
-    name: ["input", "expectedOutput"],
-  });
-  const datasets = useMemo(() => (dataset ? [dataset] : []), [dataset]);
-  const validation = useDatasetItemValidation(input, expectedOutput, datasets);
 
   const updateDatasetItemMutation = api.datasets.updateDatasetItem.useMutation({
     onSuccess: () => {
@@ -118,101 +207,118 @@ const EditDatasetItemDialogForm = ({
     });
   }
 
-  const saveDisabled =
-    !form.formState.isDirty ||
-    !hasAccess ||
-    (validation.hasSchemas && !validation.isValid) ||
-    pendingUploads.length > 0;
+  const saveAction = useEditDatasetItemDialogSaveAction({
+    control: form.control,
+    dataset,
+    pendingUploads,
+    hasAccess,
+    isSubmitting: updateDatasetItemMutation.isPending,
+    formId,
+  });
+
+  useEffect(() => {
+    setSaveAction(saveAction);
+  }, [saveAction, setSaveAction]);
 
   return (
-    <Dialog
-      size="xxl"
-      title="Edit Dataset Item"
-      actions={[
-        {
-          label: "Save changes",
-          type: "submit",
-          form: formId,
-          loading: updateDatasetItemMutation.isPending,
-          disabled: saveDisabled,
-        },
-      ]}
-    >
-      <Form {...form}>
-        <form
-          id={formId}
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="flex min-h-0 flex-1 flex-col"
-        >
-          <Dialog.Body>
-            {formError ? (
-              <p className="text-destructive mb-4">
-                <span className="font-bold">Error:</span> {formError}
-              </p>
-            ) : null}
-            <DatasetItemFields
-              dataset={dataset}
-              editable={hasAccess}
-              projectId={projectId}
-              control={form.control}
-              onUploadMedia={hasAccess ? uploadFile : undefined}
-              pendingUploads={pendingUploads}
-            />
-          </Dialog.Body>
-        </form>
-      </Form>
-    </Dialog>
+    <Form {...form}>
+      <form
+        id={formId}
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        {formError ? (
+          <p className="text-destructive mb-4">
+            <span className="font-bold">Error:</span> {formError}
+          </p>
+        ) : null}
+        <EditDatasetItemFieldsSection
+          dataset={dataset}
+          editable={hasAccess}
+          projectId={projectId}
+          control={form.control}
+          onUploadMedia={hasAccess ? uploadFile : undefined}
+          pendingUploads={pendingUploads}
+        />
+      </form>
+    </Form>
   );
-};
+}
 
 export function EditDatasetItemDialog({
+  isOpen,
   projectId,
   datasetId,
   datasetItemId,
   onSuccess,
 }: {
+  isOpen: boolean;
   projectId: string;
   datasetId: string;
   datasetItemId: string;
   onSuccess: () => void;
 }) {
-  const datasetItem = api.datasets.itemById.useQuery({
-    projectId,
-    datasetId,
-    datasetItemId,
-  });
-  const dataset = api.datasets.byId.useQuery({
-    projectId,
-    datasetId,
+  const formId = useId();
+  const [saveAction, setSaveAction] = useState<DialogSaveAction>({
+    label: "Save changes",
+    type: "submit",
+    form: formId,
+    disabled: true,
   });
 
-  if (datasetItem.isPending || dataset.isPending) {
-    return (
-      <Dialog size="xxl" title="Edit Dataset Item">
+  const { datasetItem, dataset, isLoading, isNotFound } =
+    useEditDatasetItemDialogData({
+      projectId,
+      datasetId,
+      datasetItemId,
+      enabled: isOpen,
+    });
+
+  const showForm = datasetItem != null;
+
+  function renderBody() {
+    if (!isOpen) {
+      return <Dialog.Body>{null}</Dialog.Body>;
+    }
+    if (isLoading) {
+      return (
         <Dialog.Body>
           <Skeleton className="h-[50vh] w-full" />
         </Dialog.Body>
-      </Dialog>
-    );
-  }
-
-  if (!datasetItem.data) {
-    return (
-      <Dialog
-        size="xxl"
-        title="Edit Dataset Item"
-        text="Dataset item not found."
-      />
-    );
+      );
+    }
+    if (isNotFound) {
+      return (
+        <Dialog.Body>
+          <p>Dataset item not found.</p>
+        </Dialog.Body>
+      );
+    }
+    if (showForm) {
+      return (
+        <Dialog.Body>
+          <EditDatasetItemDialogFormBody
+            key={datasetItem.id}
+            formId={formId}
+            projectId={projectId}
+            datasetItem={datasetItem}
+            dataset={dataset}
+            onSuccess={onSuccess}
+            setSaveAction={setSaveAction}
+          />
+        </Dialog.Body>
+      );
+    }
+    return <Dialog.Body>{null}</Dialog.Body>;
   }
 
   return (
-    <EditDatasetItemDialogForm
-      key={datasetItemId}
-      projectId={projectId}
-      datasetItem={datasetItem.data}
-      dataset={toDatasetSchema(dataset.data ?? null)}
-      onSuccess={onSuccess}
-    />
+    <Dialog
+      size="xxl"
+      title="Edit Dataset Item"
+      actions={isOpen && showForm ? [saveAction] : undefined}
+    >
+      {renderBody()}
+    </Dialog>
   );
 }
