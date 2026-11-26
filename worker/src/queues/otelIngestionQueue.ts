@@ -585,9 +585,9 @@ export const otelIngestionQueueProcessorBuilder = (
       logger.debug(`Processing ${fileKey} for project ${projectId}`);
 
       if (
-        (await ClickhouseReadSkipCache.getInstance(
-          prisma,
-        ).shouldSkipClickHouseRead(projectId)) === null
+        await ClickhouseReadSkipCache.getInstance(prisma).isProjectMissing(
+          projectId,
+        )
       ) {
         return;
       }

@@ -122,9 +122,9 @@ export const ingestionQueueProcessorBuilder = (
       // Check if project should be redirected to secondary queue
       const projectId = job.data.payload.authCheck.scope.projectId;
       if (
-        (await ClickhouseReadSkipCache.getInstance(
-          prisma,
-        ).shouldSkipClickHouseRead(projectId)) === null
+        await ClickhouseReadSkipCache.getInstance(prisma).isProjectMissing(
+          projectId,
+        )
       ) {
         return;
       }

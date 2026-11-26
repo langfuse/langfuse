@@ -113,11 +113,25 @@ export class ClickhouseReadSkipCache {
     }
   }
 
-  // null: the project row does not exist. Callers drop the job.
+  // True when the skip lookup found no project row. Callers drop the job.
+  public async isProjectMissing(projectId: string): Promise<boolean> {
+    return (await this.resolveProjectRead(projectId)) === "missing";
+  }
+
   public async shouldSkipClickHouseRead(
     projectId: string,
     minProjectCreateDate?: string,
-  ): Promise<boolean | null> {
+  ): Promise<boolean> {
+    return (
+      (await this.resolveProjectRead(projectId, minProjectCreateDate)) ===
+      "skip"
+    );
+  }
+
+  private async resolveProjectRead(
+    projectId: string,
+    minProjectCreateDate?: string,
+  ): Promise<"skip" | "read" | "missing"> {
     // Check explicit project ID list first
     if (
       env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS &&
@@ -125,7 +139,7 @@ export class ClickhouseReadSkipCache {
         ",",
       ).includes(projectId)
     ) {
-      return true;
+      return "skip";
     }
 
     // If no cutoff date configuration, don't skip
@@ -133,7 +147,7 @@ export class ClickhouseReadSkipCache {
       !env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_MIN_PROJECT_CREATE_DATE &&
       !minProjectCreateDate
     ) {
-      return false;
+      return "read";
     }
 
     // Ensure the cache is initialized
@@ -143,11 +157,11 @@ export class ClickhouseReadSkipCache {
 
     // Check if we have the project in our cache
     if (this.projectSkipMap.has(projectId)) {
-      return this.projectSkipMap.get(projectId) ?? false;
+      return this.projectSkipMap.get(projectId) ? "skip" : "read";
     }
 
     if (this.missingProjects.get(projectId)) {
-      return null;
+      return "missing";
     }
 
     // If not in cache, we need to fetch the project
@@ -170,7 +184,7 @@ export class ClickhouseReadSkipCache {
         logger.warn(
           `Project ${projectId} not found for ClickHouse skip check; skipping ingestion`,
         );
-        return null;
+        return "missing";
       }
 
       const cutoffDate = new Date(
@@ -184,7 +198,7 @@ export class ClickhouseReadSkipCache {
       // Cache the result for future use
       this.projectSkipMap.set(projectId, shouldSkip);
 
-      return shouldSkip;
+      return shouldSkip ? "skip" : "read";
     } catch (error) {
       logger.error(
         `Failed to fetch project ${projectId} for ClickHouse skip check`,

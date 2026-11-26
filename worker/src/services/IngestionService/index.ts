@@ -206,9 +206,9 @@ export class IngestionService {
     // A missing project is cached by the skip check. Drop the write so the
     // queue job completes instead of retrying.
     if (
-      (await ClickhouseReadSkipCache.getInstance(
-        this.prisma,
-      ).shouldSkipClickHouseRead(projectId)) === null
+      await ClickhouseReadSkipCache.getInstance(this.prisma).isProjectMissing(
+        projectId,
+      )
     ) {
       return;
     }
