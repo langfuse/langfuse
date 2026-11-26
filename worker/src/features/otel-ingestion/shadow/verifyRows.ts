@@ -237,38 +237,73 @@ const sortedMaps = PreparedEvent.columns()
   .filter(({ columnType }) => columnType.startsWith("Map("))
   .map(({ name }) => `mapSort(${name}) AS ${name}`)
   .join(", ");
-// The write-time clocks always differ, and event_bytes follows from the other columns.
 
+// The write-time clocks always differ, and event_bytes follows from the other columns.
 const comparedColumns = `* EXCEPT (created_at, updated_at, event_ts, event_bytes) REPLACE (${sortedMaps})`;
 
-// tuple() names its elements after the columns only with
-// enable_named_columns_in_function_tuple, and while no alias in this select
-// list reuses a compared column's name.
-
-const side = (name: "ts" | "rust", table: string) => `
-    SELECT '${name}' AS side, blob_storage_file_path AS file,
-      trace_id, span_id, start_time, event_ts,
-      mapFromArrays(
+/**
+ * A map from column name to a hash of the column's value, so a difference can
+ * be named by column without reading a value. tuple() names its elements after
+ * the columns only with enable_named_columns_in_function_tuple, and while no
+ * alias in the select list reuses a compared column's name.
+ */
+const columnHashes = `mapFromArrays(
         tupleNames(tuple(${comparedColumns})),
         [${comparedColumns} APPLY (x -> sipHash64(tuple(x)))]
-      ) AS hashes
+      )`;
+
+/** The primary key prefix of the wanted rows, so only granules that can hold one are read. */
+const inWantedGranules = `(project_id, toStartOfMinute(start_time), xxHash32(trace_id)) IN
+        (SELECT id.2, toStartOfMinute(id.5), xxHash32(id.3) FROM (SELECT arrayJoin(ids) AS id))`;
+
+/** Exactly the wanted rows. An id starts with its file's position in {files}. */
+const isWantedRow = `(indexOf({files: Array(String)}, blob_storage_file_path), project_id, trace_id, span_id, start_time) IN ids`;
+
+/** The wanted rows one table stores, each with its column hashes. */
+const storedRows = (side: "ts" | "rust", table: string) => `
+    SELECT '${side}' AS side, blob_storage_file_path AS file,
+      trace_id, span_id, start_time, event_ts,
+      ${columnHashes} AS hashes
     FROM ${table}
-    WHERE (project_id, toStartOfMinute(start_time), xxHash32(trace_id)) IN
-        (SELECT id.2, toStartOfMinute(id.5), xxHash32(id.3) FROM (SELECT arrayJoin(ids) AS id))
-      AND (indexOf({files: Array(String)}, blob_storage_file_path), project_id, trace_id, span_id, start_time) IN ids`;
+    WHERE ${inWantedGranules}
+      AND ${isWantedRow}`;
 
 /**
  * Reads the given rows of many files from both tables in one pass and returns
- * one row per file: counts, column names and span ids. A row has a counterpart
- * only under the same file, trace, span and start time, so `different` always
- * means that the two sides stored different values for the same row.
+ * one row per file: counts, column names and span ids.
+ *
+ * - `ids`: the wanted rows, sent as a few array parameters.
+ * - `ts_stored`, `rust_stored`: what each table stores of them.
+ * - `paired`: one row per file, trace, span and start time, with how many
+ *   copies each side has and the columns whose hashes differ.
+ *
+ * A row has a counterpart only under the same file, trace, span and start
+ * time, so `different` always means that the two sides stored different
+ * values for the same row.
  */
 const query = (idFields: number) => `
-WITH arrayConcat(${Array.from(
-  { length: idFields },
-  (_, field) =>
-    `{ids${field}: Array(Tuple(UInt64, String, String, String, DateTime64(6, 'UTC')))}`,
-).join(", ")}) AS ids
+WITH
+  arrayConcat(${Array.from(
+    { length: idFields },
+    (_, field) =>
+      `{ids${field}: Array(Tuple(UInt64, String, String, String, DateTime64(6, 'UTC')))}`,
+  ).join(", ")}) AS ids,
+  ts_stored AS (${storedRows("ts", "events_full")}
+  ),
+  rust_stored AS (${storedRows("rust", "events_native_test")}
+  ),
+  paired AS (
+    SELECT
+      file, trace_id, span_id, start_time,
+      countIf(side = 'ts') AS ts_rows,
+      countIf(side = 'rust') AS rust_rows,
+      argMaxIf(hashes, event_ts, side = 'ts') AS ts,
+      argMaxIf(hashes, event_ts, side = 'rust') AS rust,
+      if(ts_rows > 0 AND rust_rows > 0,
+         arrayFilter(name -> ts[name] != rust[name], mapKeys(ts)), []) AS changed
+    FROM (SELECT * FROM ts_stored UNION ALL SELECT * FROM rust_stored)
+    GROUP BY file, trace_id, span_id, start_time
+  )
 SELECT
   file,
   toUInt32(count()) AS found,
@@ -277,20 +312,7 @@ SELECT
   toUInt32(countIf(notEmpty(changed))) AS different,
   groupUniqArrayArray(changed) AS changedColumns,
   groupArrayIf(3)(span_id, ts_rows = 0 OR rust_rows = 0 OR notEmpty(changed)) AS exampleSpanIds
-FROM (
-  SELECT
-    file, trace_id, span_id, start_time,
-    countIf(side = 'ts') AS ts_rows,
-    countIf(side = 'rust') AS rust_rows,
-    argMaxIf(hashes, event_ts, side = 'ts') AS ts,
-    argMaxIf(hashes, event_ts, side = 'rust') AS rust,
-    if(ts_rows > 0 AND rust_rows > 0,
-       arrayFilter(name -> ts[name] != rust[name], mapKeys(ts)), []) AS changed
-  FROM (${side("ts", "events_full")}
-    UNION ALL${side("rust", "events_native_test")}
-  )
-  GROUP BY file, trace_id, span_id, start_time
-)
+FROM paired
 GROUP BY file`;
 
 const nothingFound = (file: string): Comparison => ({
