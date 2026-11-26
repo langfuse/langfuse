@@ -103,8 +103,8 @@ function SingleTraceMessagesView({
             position={sessionNavigation.position}
             total={sessionNavigation.total}
             sessionHref={sessionNavigation.sessionHref}
-            traceName={messageTrace.name}
-            timestamp={messageTrace.timestamp}
+            currentTraceId={sessionNavigation.currentTraceId}
+            timeline={sessionNavigation.timeline}
             onPrevious={openNeighbor(router, sessionNavigation.previous)}
             onNext={openNeighbor(router, sessionNavigation.next)}
           />

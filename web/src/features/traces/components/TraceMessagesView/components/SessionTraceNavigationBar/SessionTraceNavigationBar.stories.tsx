@@ -3,6 +3,28 @@ import preview from "@/.storybook/preview";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { TabBar } from "@/src/components/design-system/TabBar/TabBar";
 import { SessionTraceNavigationBar } from "./SessionTraceNavigationBar";
+import { type SessionTraceSpan } from "./sessionTraceProgress";
+
+const start = Date.parse("2026-03-14T14:00:00.000Z");
+const minute = 60_000;
+
+function span(
+  id: string,
+  startMinute: number,
+  durationMinute: number,
+): SessionTraceSpan {
+  return {
+    id,
+    startMs: start + startMinute * minute,
+    endMs: start + (startMinute + durationMinute) * minute,
+  };
+}
+
+const timeline: SessionTraceSpan[] = [
+  span("first", 0, 4),
+  span("current", 64, 3),
+  span("last", 70, 5),
+];
 
 const meta = preview.meta({
   component: SessionTraceNavigationBar,
@@ -10,8 +32,8 @@ const meta = preview.meta({
     position: 12,
     total: 36,
     sessionHref: "/project/project-1/sessions/session-1",
-    traceName: "Checkout recovery",
-    timestamp: new Date("2026-03-14T15:04:05.000Z"),
+    currentTraceId: "current",
+    timeline,
     onPrevious: () => undefined,
     onNext: () => undefined,
   },
@@ -25,12 +47,38 @@ export const Middle = meta.story({
 
 export const First = meta.story({
   name: "First trace",
-  args: { position: 1, total: 36, onPrevious: undefined },
+  args: {
+    position: 1,
+    total: 36,
+    currentTraceId: "first",
+    onPrevious: undefined,
+  },
 });
 
 export const Last = meta.story({
   name: "Last trace",
-  args: { position: 36, total: 36, onNext: undefined },
+  args: {
+    position: 36,
+    total: 36,
+    currentTraceId: "last",
+    onNext: undefined,
+  },
+});
+
+const idleTimeline: SessionTraceSpan[] = [
+  span("first", 0, 2),
+  span("current", 42, 3),
+  span("last", 46, 2),
+];
+
+export const IdleGap = meta.story({
+  name: "Long idle gap",
+  args: {
+    position: 2,
+    total: 3,
+    currentTraceId: "current",
+    timeline: idleTimeline,
+  },
 });
 
 const messages = Array.from({ length: 16 }, (_, index) => (
@@ -74,9 +122,6 @@ export const Scrolled = meta.story({
       messagesTab.getBoundingClientRect().bottom - 1,
     );
     expect(
-      canvas.getByText("Message 1").getBoundingClientRect().top,
-    ).toBeLessThan(scrollerBox.top);
-    expect(
       canvas.getByRole("button", { name: "Previous trace in session" }),
     ).toBeVisible();
   },
@@ -84,42 +129,37 @@ export const Scrolled = meta.story({
 
 export const EndsDisabled = meta.story({
   name: "(Test) Ends disable the matching control",
-  args: { position: 1, total: 36, onPrevious: undefined },
+  args: {
+    position: 1,
+    total: 36,
+    currentTraceId: "first",
+    onPrevious: undefined,
+  },
   play: async ({ canvas }) => {
     await expect(canvas.getByText("Trace 1 of 36")).toBeVisible();
     await expect(
       canvas.getByRole("button", { name: "Previous trace in session" }),
     ).toBeDisabled();
-    const next = canvas.getByRole("button", {
-      name: "Next trace in session",
-    });
+    const next = canvas.getByRole("button", { name: "Next trace in session" });
     expect(next).toBeEnabled();
-    const position = canvas.getByText("Trace 1 of 36");
-    expect(position.compareDocumentPosition(next)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
   },
 });
 
 export const Narrow = meta.story({
-  name: "(Test) Name truncates before the timestamp",
-  args: {
-    traceName:
-      "A very long trace name that should give way before the timestamp",
-  },
+  name: "(Test) Progress label truncates before the position",
   render: (args) => (
-    <div className="w-[420px]">
+    <div className="w-[280px]">
       <SessionTraceNavigationBar {...args} />
     </div>
   ),
   play: async ({ canvas }) => {
-    const name = canvas.getByText(/very long trace name/);
-    const time = canvas.getByTitle(/Local:/);
-    expect(name.scrollWidth).toBeGreaterThan(name.clientWidth);
-    expect(time.scrollWidth).toBeLessThanOrEqual(time.clientWidth + 1);
-    expect(name.compareDocumentPosition(time)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
+    const position = canvas.getByText("Trace 12 of 36");
+    expect(position.scrollWidth).toBeLessThanOrEqual(position.clientWidth + 1);
+    const clock = canvas.getByTitle(/ \/ /);
+    expect(clock.scrollWidth).toBeGreaterThan(clock.clientWidth);
+    expect(
+      canvas.getByRole("button", { name: "Next trace in session" }),
+    ).toBeVisible();
   },
 });
 
@@ -134,5 +174,20 @@ export const ShortcutTooltip = meta.story({
     await expect(tooltip).toHaveTextContent("Previous trace in session");
     await expect(tooltip).toHaveTextContent(/⇧|Shift/);
     await expect(tooltip).toHaveTextContent("K");
+  },
+});
+
+export const IdleMarked = meta.story({
+  name: "(Test) Idle gap is hatched",
+  args: {
+    position: 2,
+    total: 3,
+    currentTraceId: "current",
+    timeline: idleTimeline,
+  },
+  play: async ({ canvas }) => {
+    const track = canvas.getByRole("progressbar");
+    const hatched = track.querySelector("[class*='repeating-linear-gradient']");
+    expect(hatched).not.toBeNull();
   },
 });

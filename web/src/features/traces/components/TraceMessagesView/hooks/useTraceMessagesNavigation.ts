@@ -76,6 +76,13 @@ export function useTraceMessagesNavigation() {
             query: router.query,
             projectId: trace.projectId,
           }),
+          currentTraceId: messageTrace.id,
+          timeline: sessionTraces.map((sessionTrace) => ({
+            id: sessionTrace.id,
+            startMs: sessionTrace.timestamp.getTime(),
+            endMs:
+              sessionTrace.timestamp.getTime() + (sessionTrace.latencyMs ?? 0),
+          })),
         };
 
   return { messageTrace, sessionNavigation };
