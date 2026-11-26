@@ -134,9 +134,17 @@ type TabsListProps = {
   gap?: "none" | "sm" | "lg";
   layout?: "default" | "full" | "packed";
 } & (
-  | { variant: "inset"; size: TabsInsetSize; overflow?: never; divider?: never }
+  | {
+      variant: "inset";
+      size: TabsInsetSize;
+      overflow?: never;
+      divider?: never;
+      /** `strong`: the selected tab takes the primary fill, for a choice that changes the whole view. */
+      emphasis?: "strong";
+    }
   | {
       variant: "underline";
+      emphasis?: never;
       /** Omit the list divider when its containing bar already draws one. */
       divider?: "line" | "none";
       size?: never;
@@ -153,6 +161,7 @@ type TabsListProps = {
 const TabsListContext = React.createContext<{
   look: TabsVariant;
   size?: TabsInsetSize;
+  emphasis?: "strong";
 } | null>(null);
 
 /** Outside a `Tabs` root the list is page navigation: a `<nav>` of link triggers, not a tablist. */
@@ -165,6 +174,7 @@ function TabsList({
   divider,
   size,
   variant,
+  emphasis,
 }: TabsListProps) {
   const inRoot = React.use(TabsRootContext) !== null;
   const look = variant;
@@ -282,7 +292,7 @@ function TabsList({
   }
 
   return (
-    <TabsListContext value={{ look, size }}>
+    <TabsListContext value={{ look, size, emphasis }}>
       <TabsPrimitive.List
         ref={listRef}
         aria-label={ariaLabel}
@@ -293,7 +303,12 @@ function TabsList({
             ref={indicatorRef}
             data-tabs-indicator=""
             aria-hidden="true"
-            className="bg-background dark:bg-control-track pointer-events-none absolute inset-y-0.5 left-0 z-0 rounded-sm opacity-0 shadow-sm data-[ready=true]:transition-[width,transform] data-[ready=true]:duration-200 data-[ready=true]:ease-out motion-reduce:transition-none dark:shadow-none"
+            className={cn(
+              "pointer-events-none absolute inset-y-0.5 left-0 z-0 rounded-sm opacity-0 data-[ready=true]:transition-[width,transform] data-[ready=true]:duration-200 data-[ready=true]:ease-out motion-reduce:transition-none",
+              emphasis === "strong"
+                ? "bg-primary"
+                : "bg-background dark:bg-control-track shadow-sm dark:shadow-none",
+            )}
           />
         ) : null}
         {children}
@@ -351,6 +366,8 @@ function TabsTrigger(props: TabsTriggerProps) {
     props;
   const className = cn(
     tabsTriggerVariants({ look: list.look, size: list.size }),
+    list.emphasis === "strong" &&
+      "data-[state=active]:text-primary-foreground dark:data-[state=active]:text-primary-foreground",
   );
   const nativeTitle = tooltip ? undefined : (labelText(label, count) ?? title);
   const disabledReason = getDisabledReason(disabled);

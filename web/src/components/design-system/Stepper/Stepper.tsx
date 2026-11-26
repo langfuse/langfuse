@@ -6,7 +6,7 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
 const markerVariants = cva(
-  "flex shrink-0 items-center justify-center rounded-full",
+  "flex shrink-0 items-center justify-center font-bold",
   {
     variants: {
       variant: {
@@ -15,8 +15,9 @@ const markerVariants = cva(
           "bg-background text-foreground border-border-contrast border font-bold",
       },
       size: {
-        default: "size-7 text-sm",
-        sm: "size-5 text-xs",
+        default: "size-7 rounded-lg text-sm",
+        md: "size-6 rounded-lg text-xs",
+        sm: "size-5 rounded-md text-xs",
       },
       status: {
         current: null,
@@ -31,6 +32,7 @@ const headerVariants = cva("flex items-center gap-1.5 text-left", {
   variants: {
     size: {
       default: "min-h-7",
+      md: "min-h-6",
       sm: "min-h-5",
     },
   },
@@ -40,6 +42,7 @@ const titleVariants = cva("font-bold", {
   variants: {
     size: {
       default: "text-lg",
+      md: "text-base",
       sm: "text-sm",
     },
     status: {
@@ -54,6 +57,7 @@ const descriptionVariants = cva("text-muted-foreground", {
   variants: {
     size: {
       default: "text-sm",
+      md: "text-sm",
       sm: "text-xs",
     },
   },
@@ -66,7 +70,7 @@ type StepperProps = {
   tooltipText?: string;
   description?: ReactNode;
   variant?: "filled" | "outline";
-  size?: "default" | "sm";
+  size?: "default" | "md" | "sm";
   /** Complete swaps the number for a check; upcoming mutes the step. */
   status?: "current" | "complete" | "upcoming";
   compactBottomSpacing?: boolean;
@@ -129,7 +133,7 @@ export function Stepper({
             number
           )}
         </div>
-        <div className="bg-border my-1 w-px flex-1 group-last/step:hidden" />
+        <div className="border-border-contrast my-1 w-0 flex-1 border-l border-dotted mask-y-from-[calc(100%-var(--spacing)*4)] group-last/step:hidden" />
       </div>
 
       <div
