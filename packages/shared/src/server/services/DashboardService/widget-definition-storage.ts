@@ -339,15 +339,22 @@ export async function saveWidgetDefinition(
           .filter((entry) => {
             if (entry === source) return false;
             const binding = entry.value.sourcePreset;
-            return !(
+            const replacesOverlay =
               preset?.type === "preset" &&
               entry.value.kind === "convertedPreset" &&
               binding &&
               typeof binding === "object" &&
               !Array.isArray(binding) &&
               binding.placementId === preset.id &&
-              binding.presetId === preset.presetId
-            );
+              binding.presetId === preset.presetId;
+            if (
+              replacesOverlay &&
+              !storedInlineDashboardWidgetSchema.safeParse(entry.value).success
+            )
+              throw new LangfuseConflictError(
+                "This Home card has a saved widget definition that this version of Langfuse cannot edit.",
+              );
+            return !replacesOverlay;
           })
           .map((entry) => entry.ordinal),
         userId,

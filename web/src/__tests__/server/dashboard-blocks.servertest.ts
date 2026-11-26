@@ -433,12 +433,36 @@ describe("project dashboard blocks", () => {
       },
     });
     const target = { projectId, dashboardId: dashboard.id };
-    const { widget } = await author.dashboardWidgets.saveDefinition({
+    const input = {
       ...target,
       replacePlacementId: preset.id,
       replacePresetId: preset.presetId,
-      definition: { kind: "multiQuery", config: multiQueryConfig },
+      definition: { kind: "multiQuery" as const, config: multiQueryConfig },
+    };
+    await prisma.$executeRaw`
+      UPDATE dashboards SET definition = jsonb_set(definition, '{blocks,1,config,version}', '3'::jsonb)
+      WHERE id = ${dashboard.id} AND project_id = ${projectId}
+    `;
+    const storedBytes = () => prisma.$queryRaw<{ definition: Uint8Array }[]>`
+      SELECT jsonb_send(definition) AS definition FROM dashboards
+      WHERE id = ${dashboard.id} AND project_id = ${projectId}
+    `;
+    const future = await storedBytes();
+    const widgetCount = await prisma.dashboardWidget.count({
+      where: { projectId },
     });
+    await expect(
+      author.dashboardWidgets.saveDefinition(input),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await storedBytes()).toEqual(future);
+    expect(await prisma.dashboardWidget.count({ where: { projectId } })).toBe(
+      widgetCount,
+    );
+    await prisma.$executeRaw`
+      UPDATE dashboards SET definition = jsonb_set(definition, '{blocks,1,config,version}', '2'::jsonb)
+      WHERE id = ${dashboard.id} AND project_id = ${projectId}
+    `;
+    const { widget } = await author.dashboardWidgets.saveDefinition(input);
     const saved = await prisma.dashboard.findUniqueOrThrow({
       where: { id: dashboard.id, projectId },
     });

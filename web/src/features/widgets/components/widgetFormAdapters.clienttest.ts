@@ -1,6 +1,9 @@
 /* eslint-disable no-nested-ternary */
 // @vitest-environment node
 
+import { buildMultiQueryPlan } from "@/src/features/dashboard-blocks/multi-query/multiQueryModel";
+import { type FilterState } from "@langfuse/shared";
+import { multiQueryConfigSchema } from "@langfuse/shared/dashboards";
 import { toSavedWidgetEditorDefinition } from "@/src/features/widgets/utils/widget-definition";
 import startCase from "lodash/startCase";
 import { type z } from "zod";
@@ -793,6 +796,12 @@ describe("saved widget editor adaptation", () => {
           operator: "=" as const,
           value: "keep",
         },
+        {
+          column: "release",
+          type: "string" as const,
+          operator: "=" as const,
+          value: "observation-release",
+        },
       ];
       const tab = {
         id: "main",
@@ -841,12 +850,36 @@ describe("saved widget editor adaptation", () => {
         adapted.config.version === 2
           ? adapted.config.tabs[0].queries
           : adapted.config.queries;
-      expect(queries[0].filters).toHaveLength(3);
+      const context = {
+        readPath: "v4" as const,
+        filterState: [],
+        dateRange: { from: new Date("2026-11-01"), to: new Date("2026-11-02") },
+      };
+      const plannedFilters = (filters: FilterState) =>
+        buildMultiQueryPlan(
+          multiQueryConfigSchema.parse({
+            ...tab,
+            version: 1,
+            title: widget.name,
+            description: "",
+            queries: [{ ...tab.queries[0], filters }],
+          }),
+          context,
+        ).queries[0].query.filters;
+      const before = plannedFilters([sourceFilters[0], sourceFilters[3]]);
+      const after = plannedFilters(
+        queries[0].filters.filter((filter) =>
+          ["release-1", "observation-release"].includes(String(filter.value)),
+        ),
+      );
+      expect(after).toEqual(before);
+      expect(queries[0].filters).toHaveLength(4);
       expect(queries[0].filters).toEqual(
         expect.arrayContaining([
-          { ...sourceFilters[0], column: "release" },
+          { ...sourceFilters[0], column: "traceRelease" },
           sourceFilters[1],
           sourceFilters[2],
+          sourceFilters[3],
         ]),
       );
       expect(

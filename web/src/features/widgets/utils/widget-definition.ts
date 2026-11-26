@@ -3,10 +3,7 @@ import {
   type MultiQueryTab,
   type WidgetDefinition,
 } from "@langfuse/shared/dashboards";
-import {
-  partitionStoredUiTableFiltersToView,
-  partitionWidgetUiTableFiltersToView,
-} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { partitionStoredUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 
 export function toSavedWidgetEditorDefinition(
   widget: Parameters<typeof toWidgetDefinition>[0],
@@ -14,9 +11,8 @@ export function toSavedWidgetEditorDefinition(
   const definition = toWidgetDefinition(widget);
   if (definition.kind === "markdown") return definition;
   const normalizeSource = (source: MultiQueryTab["queries"][number]) => {
-    const { mappedFilters, unsupportedFilters } = widget.definition
-      ? partitionWidgetUiTableFiltersToView(source.view, source.filters)
-      : partitionStoredUiTableFiltersToView(source.view, source.filters);
+    const { mappedFilters, unsupportedFilters } =
+      partitionStoredUiTableFiltersToView(source.view, source.filters);
     return {
       ...source,
       filters: [...mappedFilters, ...unsupportedFilters],
