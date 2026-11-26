@@ -86,6 +86,37 @@ describe("fillCategoricalTimeSeriesGaps", () => {
     ]);
   });
 
+  it("retains UTC bucket timestamps in a local date range", () => {
+    const fromDate = new Date("2026-01-01T05:10:00Z");
+    const toDate = new Date("2026-01-05T05:05:00Z");
+    const data = [
+      {
+        timestamp: new Date("2026-01-01T00:00:00Z"),
+        category: "ok",
+        count: 10,
+      },
+      {
+        timestamp: new Date("2026-01-04T00:00:00Z"),
+        category: "ok",
+        count: 20,
+      },
+    ];
+
+    expect(
+      fillCategoricalTimeSeriesGaps(data, fromDate, toDate, {
+        count: 2,
+        unit: "day",
+      }),
+    ).toEqual([
+      {
+        timestamp: new Date("2026-01-03T05:05:00Z"),
+        category: "ok",
+        count: 10,
+      },
+      { timestamp: toDate, category: "ok", count: 20 },
+    ]);
+  });
+
   it("does not drop categorical data points for multi-unit intervals (Issue #17157 regression)", () => {
     const data = [
       {

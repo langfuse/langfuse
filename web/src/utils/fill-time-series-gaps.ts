@@ -176,24 +176,6 @@ function aggregateIntoMultiUnitBuckets<
     return [];
   }
 
-  // Helper: Get single-unit timestamp normalizer
-  const toStartOfSingleUnit = (date: Date): Date => {
-    switch (unit) {
-      case "second":
-        return startOfSecond(date);
-      case "minute":
-        return startOfMinute(date);
-      case "hour":
-        return startOfHour(date);
-      case "day":
-        return startOfDay(date);
-      case "month":
-        return startOfMonth(date);
-      case "year":
-        return startOfYear(date);
-    }
-  };
-
   // Helper: Subtract single units
   const subtractSingleUnit = (date: Date): Date => {
     switch (unit) {
@@ -251,12 +233,11 @@ function aggregateIntoMultiUnitBuckets<
     }
   }
 
-  const firstUnitStart = toStartOfSingleUnit(fromDate).getTime();
   // Check the newest bucket first so interior boundary points belong to it.
   for (const dataPoint of data) {
-    const unitStart = toStartOfSingleUnit(dataPoint.timestamp);
-    // ClickHouse timestamps the first partial unit at its start.
-    const ts = unitStart.getTime() === firstUnitStart ? fromDate : unitStart;
+    // ClickHouse filters scores to the range before flooring their timestamps.
+    // A bucket starting before the range contains only in-range scores.
+    const ts = dataPoint.timestamp < fromDate ? fromDate : dataPoint.timestamp;
 
     for (let i = buckets.length - 1; i >= 0; i--) {
       const bucket = buckets[i];
@@ -491,23 +472,6 @@ function aggregateCategoricalIntoMultiUnitBuckets<
     return [];
   }
 
-  const toStartOfSingleUnit = (date: Date): Date => {
-    switch (unit) {
-      case "second":
-        return startOfSecond(date);
-      case "minute":
-        return startOfMinute(date);
-      case "hour":
-        return startOfHour(date);
-      case "day":
-        return startOfDay(date);
-      case "month":
-        return startOfMonth(date);
-      case "year":
-        return startOfYear(date);
-    }
-  };
-
   const subtractSingleUnit = (date: Date): Date => {
     switch (unit) {
       case "second":
@@ -567,12 +531,11 @@ function aggregateCategoricalIntoMultiUnitBuckets<
     }
   }
 
-  const firstUnitStart = toStartOfSingleUnit(fromDate).getTime();
   // Check the newest bucket first so interior boundary points belong to it.
   for (const dataPoint of data) {
-    const unitStart = toStartOfSingleUnit(dataPoint.timestamp);
-    // ClickHouse timestamps the first partial unit at its start.
-    const ts = unitStart.getTime() === firstUnitStart ? fromDate : unitStart;
+    // ClickHouse filters scores to the range before flooring their timestamps.
+    // A bucket starting before the range contains only in-range scores.
+    const ts = dataPoint.timestamp < fromDate ? fromDate : dataPoint.timestamp;
 
     for (let i = buckets.length - 1; i >= 0; i--) {
       const bucket = buckets[i];
