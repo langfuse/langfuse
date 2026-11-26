@@ -94,3 +94,18 @@ test("wasm32 preview returns UTF-16 match spans and typed validation errors", ()
   assert.equal(bounded.truncated, true);
   assert.ok(bounded.matches.length > 0);
 });
+
+test("wasm32 accepts explicit hidden Unicode code-point ranges including U+E0000-U+E007F", () => {
+  const hiddenUnicode = String.raw`[\u{00AD}\u{061C}\u{200B}-\u{200F}\u{202A}-\u{202E}\u{2060}\u{2066}-\u{2069}\u{FEFF}\u{E0000}-\u{E007F}]+`;
+  const report = validate([hiddenUnicode], RULE_LIMIT_BYTES);
+  assert.equal(report.ok, true);
+  assert.ok(report.set_bytes > 0);
+
+  const sample = "a\u200Bb \u202Ertl\u202C \u{E0041}\u{E0042}";
+  const res = preview(hiddenUnicode, sample, RULE_LIMIT_BYTES);
+  assert.equal(res.valid, true);
+  assert.deepEqual(
+    res.matches.map(({ start, end }) => sample.slice(start, end)),
+    ["\u200B", "\u202E", "\u202C", "\u{E0041}\u{E0042}"],
+  );
+});

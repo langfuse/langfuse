@@ -1038,4 +1038,26 @@ mod tests {
         let large_set = compile_set(&large_patterns).unwrap();
         assert!(large_set.is_match("contains word_0399_token here"));
     }
+
+    #[test]
+    fn explicit_unicode_code_point_ranges_validate_and_compile_for_gateway() {
+        let pattern = r"[\u{00AD}\u{061C}\u{200B}-\u{200F}\u{202A}-\u{202E}\u{2060}\u{2066}-\u{2069}\u{FEFF}\u{E0000}-\u{E007F}]+";
+        let report = validate(&[pattern.to_string()], RULE_LIMIT_BYTES);
+        assert!(report.ok);
+
+        let sample = "a\u{200B}b \u{202E}c\u{202C} \u{E0041}\u{E0042} plain";
+        let set = compile_set(&[pattern]).unwrap();
+        assert!(set.is_match(sample));
+        assert!(!set.is_match("Plain ASCII, café, 日本語, 😀"));
+
+        let captures = compile_captures_set(&[pattern]).unwrap();
+        let mut caps = captures.create_captures();
+        captures.captures(sample, &mut caps);
+        let matched = caps.get_match().unwrap();
+        assert_eq!(&sample[matched.start()..matched.end()], "\u{200B}");
+
+        let preview_res = preview(pattern, sample, RULE_LIMIT_BYTES);
+        assert!(preview_res.valid);
+        assert_eq!(preview_res.matches.len(), 4);
+    }
 }

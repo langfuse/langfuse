@@ -150,7 +150,7 @@ function TemplateCardContent({
           aria-hidden="true"
           className={cn(
             styles.preview,
-            "flex h-24 items-center justify-center overflow-hidden rounded-md px-3",
+            "flex h-20 items-center justify-center overflow-hidden rounded-md px-3",
           )}
         >
           <TemplatePreview preview={template.preview} />

@@ -95,6 +95,9 @@ const piiTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find((t) => t.id === "pii")!;
 const secretsTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
   (t) => t.id === "secrets",
 )!;
+const promptInjectionTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
+  (t) => t.id === "prompt_injection",
+)!;
 const containsTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
   (t) => t.id === "contains",
 )!;
@@ -147,6 +150,28 @@ export const CreateSecretDetection = meta.story({
       targets: [EVERYONE_TARGET_OPTION],
     },
     initialTestText: secretsTemplate.sampleTestText,
+    isSubmitting: false,
+    errorMessage: null,
+    onBack: fn(),
+  },
+});
+
+export const CreatePromptInjection = meta.story({
+  args: {
+    title: promptInjectionTemplate.name,
+    submitLabel: "Add guardrail",
+    templateKind: "prompt_injection",
+    availablePresets: promptInjectionTemplate.presets,
+    initialValues: {
+      name: promptInjectionTemplate.name,
+      presets: [...promptInjectionTemplate.defaultPresets],
+      secretPrefixes: [],
+      containsWords: [],
+      action: promptInjectionTemplate.defaultAction ?? "LOG",
+      scope: "LAST_TURN",
+      targets: [EVERYONE_TARGET_OPTION],
+    },
+    initialTestText: promptInjectionTemplate.sampleTestText,
     isSubmitting: false,
     errorMessage: null,
     onBack: fn(),

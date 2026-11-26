@@ -17,13 +17,52 @@ import {
   GATEWAY_GUARDRAIL_SECRET_PREFIX_MIN_LENGTH,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 
-export type GatewayGuardrailPresetGroup = "pii" | "secrets";
+export type GatewayGuardrailPresetGroup =
+  | "pii"
+  | "secrets"
+  | "prompt_injection";
+
+const REGEX_META_CHARS = /[.*+?^${}()|[\]\\]/g;
+
+function escapeRegexLiteral(literal: string) {
+  return literal.replace(REGEX_META_CHARS, "\\$&");
+}
+
+function escapeAsciiCaseInsensitive(literal: string) {
+  let out = "";
+  for (const char of literal) {
+    const code = char.charCodeAt(0);
+    if (code >= 65 && code <= 90) {
+      out += `[${char}${char.toLowerCase()}]`;
+    } else if (code >= 97 && code <= 122) {
+      out += `[${char.toUpperCase()}${char}]`;
+    } else {
+      out += escapeRegexLiteral(char);
+    }
+  }
+  return out;
+}
+
+function ciAlt(...words: string[]) {
+  return `(?:${words.map(escapeAsciiCaseInsensitive).join("|")})`;
+}
+
+function ciPlural(word: string) {
+  return `${escapeAsciiCaseInsensitive(word)}[Ss]?`;
+}
+
+function ciPluralAlt(...words: string[]) {
+  return `(?:${words.map(ciPlural).join("|")})`;
+}
 
 /**
  * Built-in rules a regex guardrail can use. Resolve sends the patterns, so the
  * gateway holds no preset logic and a pattern change ships with the control
- * plane. The gateway compiles them in ASCII mode without Unicode, so classes
- * are spelled out (no `(?i)`), and must not use lookaround or backreferences.
+ * plane. The engine enforces ASCII semantics for `\w`, `\d`, `\s`, and `\b`
+ * and rejects `\p{..}`, `(?u)`, lookaround, and backreferences; explicit
+ * `\u{...}` code-point escapes are supported in both Rust and JS `u` mode.
+ * Case-insensitive character classes are spelled out (no `(?i)`) so client
+ * preview regexes stay compatible with JavaScript `RegExp`.
  */
 export const GATEWAY_GUARDRAIL_PRESETS = {
   email: {
@@ -36,6 +75,43 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
     group: "pii",
     patterns: [
       String.raw`\b(?:00[1-9]|0[1-9]\d|[1-578]\d\d|6[0-57-9]\d|66[0-57-9])-(?:0[1-9]|[1-9]\d)-(?:000[1-9]|00[1-9]\d|0[1-9]\d\d|[1-9]\d{3})\b`,
+    ],
+  },
+  us_itin: {
+    group: "pii",
+    patterns: [
+      // IRS ITIN: 9XX-(50-65 | 70-88 | 90-92 | 94-99)-XXXX.
+      String.raw`\b9\d{2}-(?:5\d|6[0-5]|7\d|8[0-8]|9[0-24-9])-\d{4}\b`,
+    ],
+  },
+  uk_nino: {
+    group: "pii",
+    patterns: [
+      // HMRC NINO: excludes D,F,I,Q,U,V (1st), D,F,I,O,Q,U,V (2nd), and forbidden pairs BG,GB,KN,NK,NT,TN,ZZ.
+      String.raw`\b(?:[ACEHJLMOPRSW-Y][A-CEGHJ-NPR-TW-Z]|B[A-CEHJ-NPR-TW-Z]|G[ACEGHJ-NPR-TW-Z]|[KT][A-CEGHJ-MPR-TW-Z]|N[A-CEGHJL-PRSW-Z]|Z[A-CEGHJ-NPR-TW-Y])(?: ?\d{2} ?\d{2} ?\d{2} ?|-\d{2}-\d{2}-\d{2}-)[A-D]\b`,
+    ],
+  },
+  eu_vat_id: {
+    group: "pii",
+    patterns: [
+      String.raw`\b(?:ATU\d{8}|BE[01]\d{9}|BG\d{9,10}|CY\d{8}[A-Z]|CZ\d{8,10}|(?:DK|FI|HU|LU|MT|SI)\d{8}|(?:DE|EE|EL|PT)\d{9}|ES(?:[A-Z]\d{7}[A-Z0-9]|\d{8}[A-Z])|FR[A-HJ-NP-Z0-9]{2}\d{9}|(?:HR|IT|LV)\d{11}|IE(?:\d[A-Z0-9+*]\d{5}[A-Z]|\d{7}[A-Z]{1,2})|LT(?:\d{9}|\d{12})|NL\d{9}B\d{2}|(?:PL|SK)\d{10}|RO\d{6,10}|SE\d{10}01)\b`,
+    ],
+  },
+  german_steuer_id: {
+    group: "pii",
+    patterns: [
+      // Anchored to a German tax-ID keyword so bare 11-digit numbers never match;
+      // named capture group `__lf_match` isolates the 11-digit ID for redaction.
+      String.raw`\b(?:${escapeAsciiCaseInsensitive("steuer")}(?:[ -]?${escapeAsciiCaseInsensitive("id")}(?:${escapeAsciiCaseInsensitive("nr")}\.?)?|[ -]?${escapeAsciiCaseInsensitive("identifikationsnummer")})|${escapeAsciiCaseInsensitive("id")}[ ._-]?${escapeAsciiCaseInsensitive("nr")}\.?)(?:[ \t]*[:=#-][ \t]*|[ \t]+(?:${ciAlt("ist", "is")}[ \t]+)?)(?<__lf_match>[1-9]\d{10}|[1-9]\d \d{3} \d{3} \d{3}|[1-9]\d-\d{3}-\d{3}-\d{3})\b`,
+    ],
+  },
+  phone_number: {
+    group: "pii",
+    patterns: [
+      // International E.164 or formatted number with leading `+` country code (8-15 digits).
+      String.raw`(?:^|[^A-Za-z0-9_+.-])(?<__lf_match>\+[1-9](?:\d{7,14}|\d{0,2}(?:(?:[ .-]\(0\))?[ .-]\(?\d{1,4}\)?[ .-]\d{3,4}[ .-]\d{4}|(?:[ .-]\(0\))?[ .-]\(?\d{2,5}\)?[ .-]\d{5,10}|[ .-]\d{1,3}(?:[ .-]\d{2}){4}|[ .-]\d{2}[ .-]\d{3}(?:[ .-]\d{2}){2}|[ .-]\d{6,12})))(?:$|[^A-Za-z0-9_.-])`,
+      // Formatted North American (NANP) number with explicit separators; never bare digit runs.
+      String.raw`(?:^|[^A-Za-z0-9_.-])(?<__lf_match>(?:1[ .-])?(?:\([2-9]\d{2}\)[ .-]?[2-9]\d{2}[ .-]\d{4}|[2-9]\d{2}-[2-9]\d{2}-\d{4}|[2-9]\d{2}\.[2-9]\d{2}\.\d{4}|[2-9]\d{2} [2-9]\d{2} \d{4}))(?:$|[^A-Za-z0-9_.-])`,
     ],
   },
   credit_card: {
@@ -65,7 +141,7 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
   },
   aws_access_key_id: {
     group: "secrets",
-    patterns: [String.raw`\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`],
+    patterns: [String.raw`\b(?:AKIA|ASIA|ABIA|ACCA)[A-Z0-9]{16}\b`],
   },
   langfuse_api_key: {
     group: "secrets",
@@ -74,7 +150,7 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
   openai_api_key: {
     group: "secrets",
     patterns: [
-      String.raw`\bsk-(?:proj|svcacct)-[A-Za-z0-9_-]{20,}\b`,
+      String.raw`\bsk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}\b`,
       String.raw`\bsk-[A-Za-z0-9]{32,}\b`,
     ],
   },
@@ -82,23 +158,101 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
     group: "secrets",
     patterns: [String.raw`\bsk-ant-[A-Za-z0-9_-]{20,}\b`],
   },
+  openrouter_api_key: {
+    group: "secrets",
+    patterns: [String.raw`\bsk-or-v1-[0-9a-f]{64}\b`],
+  },
+  huggingface_token: {
+    group: "secrets",
+    patterns: [String.raw`\bhf_[A-Za-z0-9]{30,}\b`],
+  },
   github_token: {
     group: "secrets",
     patterns: [
       String.raw`\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,})\b`,
     ],
   },
+  gitlab_token: {
+    group: "secrets",
+    patterns: [
+      String.raw`(?:^|[^A-Za-z0-9_-])(?<__lf_match>glpat-[A-Za-z0-9_-]{20,}(?:\.[A-Za-z0-9_-]+)*)(?:$|[^A-Za-z0-9_-])`,
+    ],
+  },
+  npm_token: {
+    group: "secrets",
+    patterns: [String.raw`\bnpm_[A-Za-z0-9]{36}\b`],
+  },
+  pypi_token: {
+    group: "secrets",
+    patterns: [
+      String.raw`(?:^|[^A-Za-z0-9_-])(?<__lf_match>pypi-AgE(?:IcHlwaS5vcmc|NdGVzdC5weXBpLm9yZw)[A-Za-z0-9_-]{40,})(?:$|[^A-Za-z0-9_-])`,
+    ],
+  },
   stripe_api_key: {
     group: "secrets",
     patterns: [String.raw`\b(?:sk|rk)_live_[A-Za-z0-9]{16,}\b`],
+  },
+  stripe_test_key: {
+    group: "secrets",
+    patterns: [String.raw`\b(?:sk|rk)_test_[A-Za-z0-9]{16,}\b`],
   },
   slack_token: {
     group: "secrets",
     patterns: [String.raw`\bxox[bpoas]-[A-Za-z0-9-]{10,}\b`],
   },
+  slack_app_token: {
+    group: "secrets",
+    patterns: [String.raw`\bxapp-\d-[A-Za-z0-9]+-\d+-[A-Za-z0-9]{16,}\b`],
+  },
+  slack_webhook_url: {
+    group: "secrets",
+    patterns: [
+      String.raw`\bhttps://hooks\.slack(?:-gov)?\.com/(?:services|workflows|triggers)/[A-Za-z0-9_-]{6,}(?:/[A-Za-z0-9_-]{6,}){2,}\b`,
+    ],
+  },
+  sendgrid_api_key: {
+    group: "secrets",
+    patterns: [
+      String.raw`(?:^|[^A-Za-z0-9_-])(?<__lf_match>SG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{32,})(?:$|[^A-Za-z0-9_-])`,
+    ],
+  },
   google_api_key: {
     group: "secrets",
     patterns: [String.raw`\bAIza[0-9A-Za-z_-]{35}\b`],
+  },
+  google_oauth_client_secret: {
+    group: "secrets",
+    patterns: [
+      String.raw`(?:^|[^A-Za-z0-9_-])(?<__lf_match>GOCSPX-[A-Za-z0-9_-]{20,})(?:$|[^A-Za-z0-9_-])`,
+    ],
+  },
+  databricks_token: {
+    group: "secrets",
+    patterns: [String.raw`\bdapi[0-9a-f]{32}(?:-\d)?\b`],
+  },
+  atlassian_api_token: {
+    group: "secrets",
+    patterns: [
+      String.raw`(?:^|[^A-Za-z0-9_-])(?<__lf_match>ATATT3[A-Za-z0-9_=-]{20,})(?:$|[^A-Za-z0-9_-])`,
+    ],
+  },
+  linear_api_key: {
+    group: "secrets",
+    patterns: [String.raw`\blin_api_[A-Za-z0-9]{32,}\b`],
+  },
+  shopify_token: {
+    group: "secrets",
+    patterns: [String.raw`\bshp(?:at|ca|pa|ss)_[0-9a-fA-F]{32}\b`],
+  },
+  digitalocean_token: {
+    group: "secrets",
+    patterns: [String.raw`\bdo[pors]_v1_[0-9a-f]{64}\b`],
+  },
+  database_connection_string: {
+    group: "secrets",
+    patterns: [
+      String.raw`\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|rediss?|amqps?)://[^\s/:@"'<>]+:[^\s/@"'<>]+@(?:[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*|\[[0-9A-Fa-f:]+\])(?::\d{1,5})?(?:/(?:[A-Za-z0-9._~/%?&+=:@-]*[A-Za-z0-9_~/%?&+=:@-])?)?`,
+    ],
   },
   private_key: {
     group: "secrets",
@@ -113,6 +267,41 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
     group: "secrets",
     patterns: [
       String.raw`\beyJ[A-Za-z0-9_-]{6,}\.eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\b`,
+    ],
+  },
+  prompt_injection_instruction_override: {
+    group: "prompt_injection",
+    patterns: [
+      String.raw`\b${ciAlt("ignore", "disregard", "forget")}\s+(?:(?:${ciAlt("all", "any", "the", "your")}\s+)?${ciAlt("previous", "prior", "above", "earlier")}|${escapeAsciiCaseInsensitive("all")})\s+(?:${ciAlt("safety", "security", "system", "original", "initial")}\s+)?${ciPluralAlt("instruction", "rule", "guideline", "directive", "constraint")}\b`,
+      String.raw`\b${escapeAsciiCaseInsensitive("override")}\s+(?:(?:${ciAlt("all", "any", "the", "your")}\s+)?${ciAlt("previous", "prior", "system", "original", "safety", "security")}|${escapeAsciiCaseInsensitive("your")})\s+${ciPluralAlt("instruction", "rule", "guideline", "directive", "constraint")}\b`,
+      String.raw`\b${escapeAsciiCaseInsensitive("do")}\s+${escapeAsciiCaseInsensitive("not")}\s+${escapeAsciiCaseInsensitive("follow")}\s+(?:${ciAlt("the", "your")}\s+)?${ciAlt("system", "developer", "previous", "prior", "original")}\s+${ciPluralAlt("prompt", "instruction", "rule", "guideline")}\b`,
+      String.raw`\b(?:${escapeAsciiCaseInsensitive("all")}\s+)?${ciAlt("previous", "prior")}\s+${ciPlural("instruction")}\s+${ciAlt("are", "is")}\s+(?:${escapeAsciiCaseInsensitive("now")}\s+)?${ciAlt("void", "invalid", "null", "obsolete", "cancelled", "canceled", "revoked")}\b`,
+    ],
+  },
+  prompt_injection_prompt_extraction: {
+    group: "prompt_injection",
+    patterns: [
+      String.raw`\b${ciAlt("reveal", "print", "show", "output", "display", "leak", "dump", "expose")}\s+(?:${escapeAsciiCaseInsensitive("me")}\s+)?${ciAlt("your", "the")}\s+(?:${ciAlt("full", "hidden", "complete", "internal", "secret", "original", "initial", "exact")}\s+)?${escapeAsciiCaseInsensitive("system")}\s+${ciPluralAlt("prompt", "instruction")}\b`,
+      String.raw`\b${ciAlt("reveal", "print", "output", "leak", "dump", "expose")}\s+(?:${escapeAsciiCaseInsensitive("me")}\s+)?${ciAlt("your", "the")}\s+${ciAlt("hidden", "secret", "initial", "original", "internal")}\s+${ciPluralAlt("prompt", "instruction")}\b`,
+      String.raw`\b${escapeAsciiCaseInsensitive("repeat")}\s+(?:${ciAlt("the", "all")}\s+)?(?:${ciAlt("text", "words")}|${ciPluralAlt("prompt", "instruction")})\s+(?:${escapeAsciiCaseInsensitive("above")}|${escapeAsciiCaseInsensitive("before")}\s+${escapeAsciiCaseInsensitive("this")})\b`,
+    ],
+  },
+  prompt_injection_jailbreak: {
+    group: "prompt_injection",
+    patterns: [
+      String.raw`\b${escapeAsciiCaseInsensitive("you")}\s+${escapeAsciiCaseInsensitive("are")}\s+${escapeAsciiCaseInsensitive("now")}\s+(?:${escapeAsciiCaseInsensitive("in")}\s+)?(?:DAN|${ciAlt("developer", "jailbreak", "jailbroken", "unrestricted", "god")}\s+${escapeAsciiCaseInsensitive("mode")})\b`,
+      String.raw`\bDAN\b[\x20-\x7E]{0,40}\b${escapeAsciiCaseInsensitive("do")}\s+${escapeAsciiCaseInsensitive("anything")}\s+${escapeAsciiCaseInsensitive("now")}\b`,
+      String.raw`\b(?:${ciAlt("enter", "activate")}\s+${ciAlt("developer", "jailbreak", "unrestricted")}\s+${escapeAsciiCaseInsensitive("mode")}|${ciAlt("jailbreak", "jailbroken")}\s+${ciAlt("mode", "prompt")})\b`,
+      String.raw`\b${escapeAsciiCaseInsensitive("you")}\s+${escapeAsciiCaseInsensitive("are")}\s+${escapeAsciiCaseInsensitive("no")}\s+${escapeAsciiCaseInsensitive("longer")}\s+${ciAlt("bound", "restricted", "limited")}\b`,
+      String.raw`\b${escapeAsciiCaseInsensitive("act")}\s+${escapeAsciiCaseInsensitive("as")}\s+${escapeAsciiCaseInsensitive("if")}\s+(?:${escapeAsciiCaseInsensitive("you")}(?:'${escapeAsciiCaseInsensitive("re")}|\s+${escapeAsciiCaseInsensitive("are")})\s+)?${escapeAsciiCaseInsensitive("not")}\s+${escapeAsciiCaseInsensitive("bound")}\b`,
+      String.raw`\b${ciAlt("bypass", "disable", "ignore", "disregard")}\s+(?:${escapeAsciiCaseInsensitive("all")}\s+)?(?:${escapeAsciiCaseInsensitive("your")}\s+)?${ciAlt("safety", "security", "ethical", "content")}\s+(?:${ciPluralAlt("filter", "measure", "guideline", "restriction", "guardrail")}|${ciAlt("policies", "policy")})\b`,
+    ],
+  },
+  hidden_unicode: {
+    group: "prompt_injection",
+    patterns: [
+      // Zero-width/invisible format chars, bidi control chars, and Unicode Tags (U+E0000-U+E007F).
+      String.raw`[\u{00AD}\u{061C}\u{200B}-\u{200F}\u{202A}-\u{202E}\u{2060}\u{2066}-\u{2069}\u{FEFF}\u{E0000}-\u{E007F}]+`,
     ],
   },
 } as const satisfies Record<
@@ -135,6 +324,9 @@ export const GATEWAY_GUARDRAIL_PRESETS_BY_GROUP: Record<
   ),
   secrets: GATEWAY_GUARDRAIL_PRESET_KEYS.filter(
     (key) => GATEWAY_GUARDRAIL_PRESETS[key].group === "secrets",
+  ),
+  prompt_injection: GATEWAY_GUARDRAIL_PRESET_KEYS.filter(
+    (key) => GATEWAY_GUARDRAIL_PRESETS[key].group === "prompt_injection",
   ),
 };
 
@@ -403,27 +595,6 @@ export function isKnownGuardrailPreset(
   preset: string,
 ): preset is GatewayGuardrailPreset {
   return Object.hasOwn(GATEWAY_GUARDRAIL_PRESETS, preset);
-}
-
-const REGEX_META_CHARS = /[.*+?^${}()|[\]\\]/g;
-
-function escapeRegexLiteral(literal: string) {
-  return literal.replace(REGEX_META_CHARS, "\\$&");
-}
-
-function escapeAsciiCaseInsensitive(literal: string) {
-  let out = "";
-  for (const char of literal) {
-    const code = char.charCodeAt(0);
-    if (code >= 65 && code <= 90) {
-      out += `[${char}${char.toLowerCase()}]`;
-    } else if (code >= 97 && code <= 122) {
-      out += `[${char.toUpperCase()}${char}]`;
-    } else {
-      out += escapeRegexLiteral(char);
-    }
-  }
-  return out;
 }
 
 /**

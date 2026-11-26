@@ -423,9 +423,12 @@ export function GatewayGuardrailFormDialog({
   );
   const guardrailType = getGuardrailTypeForTemplate(templateKind);
   const capabilities = GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[guardrailType];
-  const externalTemplate =
-    GATEWAY_GUARDRAIL_TEMPLATES.find((template) => template.id === templateKind)
-      ?.external ?? null;
+  const activeTemplate =
+    GATEWAY_GUARDRAIL_TEMPLATES.find(
+      (template) => template.id === templateKind,
+    ) ?? null;
+  const externalTemplate = activeTemplate?.external ?? null;
+  const templateNotice = activeTemplate?.notice ?? null;
   const isExternal = externalTemplate !== null;
   const isTesting = externalTest?.isPending ?? false;
   const isBusy = isSubmitting || isTesting;
@@ -599,6 +602,9 @@ export function GatewayGuardrailFormDialog({
             actions={[]}
             onSubmit={form.handleSubmit(handleValidSubmit)}
           >
+            {templateNotice ? (
+              <Banner variant="info">{templateNotice}</Banner>
+            ) : null}
             <FormField control={form.control} name="name" label="Name">
               {({ id, inputDescribedById, error, ...field }) => (
                 <Input
