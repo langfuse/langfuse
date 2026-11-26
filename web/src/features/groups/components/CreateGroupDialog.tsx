@@ -11,6 +11,7 @@ import {
 import { memberCountLabel } from "@/src/features/groups/groupMember";
 import { noOrgRoleDescription } from "@/src/features/groups/groupRoles";
 import { RoleField } from "@/src/features/rbac/components/RoleField";
+import { RolePermissionsLink } from "@/src/features/rbac/components/RolePermissionsLink";
 
 export type NewGroup = { displayName: string; role: Role; userIds: string[] };
 
@@ -30,6 +31,7 @@ export function CreateGroupDialog({
   onSubmit: (group: NewGroup) => void;
 }) {
   const formId = useId();
+  const roleId = useId();
   const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("NONE");
   const [userIds, setUserIds] = useState<string[]>([]);
@@ -70,17 +72,24 @@ export function CreateGroupDialog({
               />
             )}
           </FormField>
-          <FormField label="Role in the organization">
-            {({ id }) => (
-              <RoleField
-                id={id}
-                roles={roles}
-                value={role}
-                onChange={setRole}
-                noneDescription={noOrgRoleDescription}
-              />
-            )}
-          </FormField>
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between gap-3">
+              <label
+                htmlFor={roleId}
+                className="text-sm leading-none font-bold"
+              >
+                Role in the organization
+              </label>
+              {role !== "NONE" && <RolePermissionsLink role={role} />}
+            </div>
+            <RoleField
+              id={roleId}
+              roles={roles}
+              value={role}
+              onChange={setRole}
+              noneDescription={noOrgRoleDescription}
+            />
+          </div>
           <FormField label="Members">
             {({ id }) => (
               <MultiSelectInput

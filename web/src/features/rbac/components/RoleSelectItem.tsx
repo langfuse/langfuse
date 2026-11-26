@@ -27,7 +27,7 @@ export const RoleSelectItem = ({
   showPermissionCount?: boolean;
   onViewPermissions: (role: SystemRole) => void;
 }) => {
-  const { name: label, description, Icon } = display(role);
+  const { name: label, description } = display(role);
   const keepDefaultNote = role === "NONE" && isProjectRole;
 
   return (
@@ -37,7 +37,6 @@ export const RoleSelectItem = ({
       className="group pl-2 [&>span:not([data-checkmark])]:flex-1 [&>span[data-checkmark]]:hidden"
     >
       <div className="flex w-full items-start gap-2 text-left">
-        <Icon size="base" __rawClassName="mt-1" />
         <div className="flex flex-col">
           <span className="font-bold">
             {label}

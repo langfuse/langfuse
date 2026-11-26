@@ -10,7 +10,7 @@ export const GROUP_SOURCE_DISPLAY = {
       "Synced from your identity provider. Its name and members are managed there.",
   },
   MANUAL: {
-    label: "Manual",
+    label: "Created in Langfuse",
     description:
       "Created by an admin in Langfuse. Your identity provider cannot see or change it.",
   },

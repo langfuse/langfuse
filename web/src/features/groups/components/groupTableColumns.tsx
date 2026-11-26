@@ -28,7 +28,7 @@ export function groupTableColumns<T extends GroupTableRow>() {
       enableHiding: true,
       headerTooltip: {
         description:
-          "SCIM: synced from your identity provider, so its name and members are managed there. Manual: created here by an admin.",
+          "SCIM: synced from your identity provider, so its name and members are managed there. Created in Langfuse: added here by an admin.",
       },
       size: 180,
       cell: ({ row }) => (

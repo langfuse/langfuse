@@ -18,6 +18,7 @@ import {
 } from "@/src/features/groups/groupRoles";
 import { SCIM_MANAGED_LABEL } from "@/src/features/groups/groupSource";
 import { RoleField } from "@/src/features/rbac/components/RoleField";
+import { RolePermissionsLink } from "@/src/features/rbac/components/RolePermissionsLink";
 import { roleName } from "@/src/features/rbac/components/roleDisplay";
 
 export type GroupRoleDialogProps = {
@@ -58,9 +59,13 @@ export function GroupRoleDialog({
   const levelOrgRole = onProject ? onProjectLevel(orgRole) : orgRole;
   const resolved = resolveGroupRole(level, orgRole, projectRole);
   const [selected, setSelected] = useState<Role>(resolved.editing);
+  const noneDescription = onProject
+    ? inheritedRoleDescription(levelOrgRole)
+    : noOrgRoleDescription;
+  const roleNote = onProject ? undefined : orgRoleNote(selected);
   const notes = [
     disabledReason,
-    onProject ? undefined : orgRoleNote(selected),
+    selected === "NONE" ? noneDescription : roleNote,
     roleFootnote,
   ].filter(Boolean);
 
@@ -105,11 +110,14 @@ export function GroupRoleDialog({
     >
       <Dialog.Body separators="both">
         <div className="flex flex-col gap-2">
-          <label htmlFor={fieldId} className="font-bold">
-            {onProject
-              ? `Role in ${projectName ?? "this project"}`
-              : "Role in the organization"}
-          </label>
+          <div className="flex items-baseline justify-between gap-3">
+            <label htmlFor={fieldId} className="font-bold">
+              {onProject
+                ? `Role in ${projectName ?? "this project"}`
+                : "Role in the organization"}
+            </label>
+            {selected !== "NONE" && <RolePermissionsLink role={selected} />}
+          </div>
           <RoleField
             id={fieldId}
             roles={groupRoleOptions(level, isAiGatewayEnabled)}
@@ -117,11 +125,7 @@ export function GroupRoleDialog({
             onChange={setSelected}
             disabled={disabledReason !== undefined}
             noneLabel={onProject ? "Inherit from organization" : undefined}
-            noneDescription={
-              onProject
-                ? inheritedRoleDescription(levelOrgRole)
-                : noOrgRoleDescription
-            }
+            noneDescription={noneDescription}
             optionDisabledReason={optionDisabledReason}
           />
           {notes.map((note) => (

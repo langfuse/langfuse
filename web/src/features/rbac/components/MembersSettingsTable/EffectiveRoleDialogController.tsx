@@ -9,10 +9,10 @@ import {
   type AccessLevel,
 } from "@langfuse/shared/rbac";
 
-import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { GroupNameLabel } from "@/src/features/groups/components/GroupNameLabel";
@@ -22,8 +22,7 @@ import {
   projectGroupDialogHref,
 } from "@/src/features/groups/groupDialogLink";
 import { RoleField } from "@/src/features/rbac/components/RoleField";
-import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
-import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
+import { RolePermissionsLink } from "@/src/features/rbac/components/RolePermissionsLink";
 import { roleName } from "@/src/features/rbac/components/roleDisplay";
 import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
 import { type MemberGroupRole } from "./MembersSettingsTable";
@@ -302,6 +301,17 @@ function SourceRow({
   );
 }
 
+function ReadOnlyRole({ role }: { role: Role }) {
+  return (
+    <span className="inline-flex items-center gap-1 border border-transparent pr-1.5">
+      {roleName(role)}
+      <span className="invisible inline-flex" aria-hidden="true">
+        <DropdownIndicator />
+      </span>
+    </span>
+  );
+}
+
 function EffectiveMarker() {
   return (
     <Tooltip label="This role applies">
@@ -341,7 +351,6 @@ function RoleDialog({
 }: EffectiveRoleSourceProps & { onDone: () => void }) {
   const onProject = Boolean(projectId);
   const [selected, setSelected] = useState<Role>(editor.value);
-  const [permissionsRole, setPermissionsRole] = useState<Role | null>(null);
   // Previews the role being picked, before it is saved.
   const effective =
     selected === editor.value
@@ -378,7 +387,7 @@ function RoleDialog({
   const picker = (
     <RoleField
       aria-label="Directly assigned role"
-      variant="compact"
+      variant="inline"
       roles={editor.roles}
       value={selected}
       onChange={setSelected}
@@ -418,26 +427,21 @@ function RoleDialog({
               {groups.length > 0 ? "Access granted through" : "Access"}
             </h3>
             {effective.role !== "NONE" && (
-              <Button
-                variant="text"
-                size="sm"
-                text={`View ${rolePermissionCountLabel(effective.role)}`}
-                onClick={() => setPermissionsRole(effective.role)}
-              />
+              <RolePermissionsLink role={effective.role} />
             )}
           </div>
           <ul className="flex flex-col divide-y rounded-lg border">
             {groups.map((group) => (
               <SourceRow key={group.key} label={<GroupName group={group} />}>
                 {isEffective(group.role) && <EffectiveMarker />}
-                <span>{roleName(group.role)}</span>
+                <ReadOnlyRole role={group.role} />
               </SourceRow>
             ))}
             {organizationRole && (
               <SourceRow label="Organization role">
                 {!isOrganizationRoleReplaced &&
                   isEffective(organizationRole) && <EffectiveMarker />}
-                <span>{roleName(organizationRole)}</span>
+                <ReadOnlyRole role={organizationRole} />
               </SourceRow>
             )}
             <SourceRow label="Directly assigned">
@@ -459,13 +463,6 @@ function RoleDialog({
           )}
         </section>
       </Dialog.Body>
-      <RolePermissionPopup
-        open={permissionsRole !== null}
-        onOpenChange={(next) => {
-          if (!next) setPermissionsRole(null);
-        }}
-        role={permissionsRole}
-      />
     </Dialog>
   );
 }
