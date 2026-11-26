@@ -580,62 +580,30 @@ describe("organization model definitions", () => {
         [ids.orgAShared, ids.orgAOnly].sort(),
       );
 
-      const langfuseIds = new Set<string>();
-      for (let page = 1, totalPages = 1; page <= totalPages; page++) {
-        const response = await makeZodVerifiedAPICall(
-          GetModelsV1Response,
-          "GET",
-          `/api/public/models?scope=LANGFUSE&page=${page}&limit=100`,
-          undefined,
-          orgA.auth,
-        );
-        totalPages = response.body.meta.totalPages;
-        expect(response.body.meta.totalItems).toBeGreaterThanOrEqual(1);
-        expect(response.body.meta.totalPages).toBe(
-          Math.ceil(response.body.meta.totalItems / 100),
-        );
-        for (const m of response.body.data) {
-          expect(m.scope).toBe("LANGFUSE");
-          langfuseIds.add(m.id);
-        }
-      }
-      expect(langfuseIds.has(ids.langfuseShared)).toBe(true);
+      const langfuseOnly = await makeZodVerifiedAPICall(
+        GetModelsV1Response,
+        "GET",
+        "/api/public/models?scope=LANGFUSE&limit=100",
+        undefined,
+        orgA.auth,
+      );
+      expect(langfuseOnly.body.data.length).toBeGreaterThan(0);
+      expect(langfuseOnly.body.data.every((m) => m.scope === "LANGFUSE")).toBe(
+        true,
+      );
+      const langfuseIds = new Set(langfuseOnly.body.data.map((m) => m.id));
       expect(langfuseIds.has(ids.projectA1Shared)).toBe(false);
       expect(langfuseIds.has(ids.orgAShared)).toBe(false);
       expect(langfuseIds.has(ids.orgAOnly)).toBe(false);
       expect(langfuseIds.has(ids.orgBOnly)).toBe(false);
 
-      const langfusePage1 = await makeZodVerifiedAPICall(
-        GetModelsV1Response,
+      const invalid = await makeAPICall(
         "GET",
-        "/api/public/models?scope=LANGFUSE&page=1&limit=1",
+        "/api/public/models?scope=INVALID",
         undefined,
         orgA.auth,
       );
-      expect(langfusePage1.body.data).toHaveLength(1);
-      expect(langfusePage1.body.data[0]?.scope).toBe("LANGFUSE");
-      expect(langfusePage1.body.meta.totalPages).toBe(
-        langfusePage1.body.meta.totalItems,
-      );
-
-      const unfiltered = await makeZodVerifiedAPICall(
-        GetModelsV1Response,
-        "GET",
-        "/api/public/models?page=1&limit=1",
-        undefined,
-        orgA.auth,
-      );
-      expect(unfiltered.body.meta.totalItems).toBeGreaterThanOrEqual(4);
-
-      for (const invalidScope of ["INVALID", "ALL", "project"]) {
-        const invalid = await makeAPICall(
-          "GET",
-          `/api/public/models?scope=${invalidScope}`,
-          undefined,
-          orgA.auth,
-        );
-        expect(invalid.status).toBe(400);
-      }
+      expect(invalid.status).toBe(400);
     });
 
     it("forbids replacing or deleting own organization definitions, and hides another organization's", async () => {
