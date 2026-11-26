@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronRight, Loader2 } from "@langfuse/icons";
 
 import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { EvaluatorTestResult } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorTestResult/EvaluatorTestResult";
 import {
   TestResultTraceActionsDropdownMenu,
@@ -47,19 +48,11 @@ export function EvaluatorTestStripView({
   return (
     <div className="flex min-h-0 flex-col">
       <div className="flex h-11 shrink-0 items-center gap-3 px-4">
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 text-sm font-bold"
-          aria-expanded={showResult}
-          onClick={() => onOpenChange(!open)}
-        >
-          {showResult ? (
-            <ChevronDown size="sm" color="muted" />
-          ) : (
-            <ChevronRight size="sm" color="muted" />
-          )}
-          Test
-        </button>
+        <TestToggle
+          hasResult={hasResult}
+          expanded={showResult}
+          onToggle={() => onOpenChange(!open)}
+        />
         {isPending ? (
           <Loader2
             size="base"
@@ -108,5 +101,57 @@ export function EvaluatorTestStripView({
         />
       ) : null}
     </div>
+  );
+}
+
+/** Expands the result. Before a run there is nothing to expand, and it says so. */
+function TestToggle({
+  hasResult,
+  expanded,
+  onToggle,
+}: {
+  hasResult: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const content = (
+    <>
+      {expanded ? (
+        <ChevronDown size="sm" color="muted" />
+      ) : (
+        <ChevronRight size="sm" color="muted" />
+      )}
+      Test
+    </>
+  );
+  const className = "inline-flex items-center gap-1.5 text-sm font-bold";
+
+  if (hasResult) {
+    return (
+      <button
+        type="button"
+        className={className}
+        aria-expanded={expanded}
+        onClick={onToggle}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <Tooltip label="Run a test to see the result">
+      {({ getTriggerProps }) => (
+        <button
+          {...getTriggerProps()}
+          type="button"
+          className={`${className} cursor-default`}
+          aria-disabled
+          aria-expanded={false}
+        >
+          {content}
+        </button>
+      )}
+    </Tooltip>
   );
 }
