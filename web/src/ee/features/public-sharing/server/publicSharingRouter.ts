@@ -6,7 +6,7 @@ import {
   createTRPCRouter,
   protectedOrganizationProcedure,
 } from "@/src/server/api/trpc";
-import { TRPCError } from "@trpc/server";
+import { ForbiddenError, LangfuseNotFoundError } from "@langfuse/shared";
 import * as z from "zod";
 
 export const publicSharingRouter = createTRPCRouter({
@@ -28,10 +28,9 @@ export const publicSharingRouter = createTRPCRouter({
         });
       }
       if (isPublicSharingDisabledByInstance()) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "Public sharing is disabled by the instance administrator.",
-        });
+        throw new ForbiddenError(
+          "Public sharing is disabled by the instance administrator.",
+        );
       }
 
       const before = await ctx.prisma.organization.findUnique({
@@ -39,10 +38,7 @@ export const publicSharingRouter = createTRPCRouter({
         select: { publicSharingDisabled: true },
       });
       if (!before) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Organization not found",
-        });
+        throw new LangfuseNotFoundError("Organization not found");
       }
       const after = await ctx.prisma.organization.update({
         where: { id: input.orgId },

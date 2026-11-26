@@ -12,7 +12,9 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
  * Publish menu items for a trace or session detail header: Make Public while
  * private, Copy share link + Unshare while public. Publishing copies the link
  * and toasts. While sharing is disabled for the org or instance, a stored
- * public flag grants no access, so only a disabled Make Public is shown.
+ * public flag grants no access: Make Public is disabled, and a public object
+ * offers only Unshare, so members can clear the flag before sharing is
+ * turned back on.
  */
 export function useShareMenuItems({
   kind,
@@ -33,9 +35,7 @@ export function useShareMenuItems({
   const label = kind === "trace" ? "Trace" : "Session";
 
   let disabled: { reason: string } | undefined;
-  if (publish.sharingDisabledReason) {
-    disabled = { reason: publish.sharingDisabledReason };
-  } else if (!publish.hasAccess) {
+  if (!publish.hasAccess) {
     disabled = { reason: `You don't have permission to share this ${kind}.` };
   } else if (publish.isPending) {
     disabled = { reason: "Updating sharing status." };
@@ -58,7 +58,16 @@ export function useShareMenuItems({
       .catch(() => undefined);
   };
 
-  if (isPublic && !publish.sharingDisabledReason) {
+  if (isPublic) {
+    const unshare: DropdownMenuItemDefinition = {
+      type: "item",
+      id: "unshare",
+      title: "Unshare",
+      icon: Globe,
+      disabled,
+      onClick: () => toggle(false),
+    };
+    if (publish.sharingDisabledReason) return [unshare];
     return [
       {
         type: "item",
@@ -69,14 +78,7 @@ export function useShareMenuItems({
           copyTextToClipboard(getShareUrl(shareUrl));
         },
       },
-      {
-        type: "item",
-        id: "unshare",
-        title: "Unshare",
-        icon: Globe,
-        disabled,
-        onClick: () => toggle(false),
-      },
+      unshare,
     ];
   }
 
@@ -86,7 +88,9 @@ export function useShareMenuItems({
       id: "share",
       title: "Make Public",
       icon: Share2,
-      disabled,
+      disabled: publish.sharingDisabledReason
+        ? { reason: publish.sharingDisabledReason }
+        : disabled,
       onClick: () => toggle(true),
     },
   ];
