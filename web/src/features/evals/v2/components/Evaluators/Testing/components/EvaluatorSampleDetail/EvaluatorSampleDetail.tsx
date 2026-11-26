@@ -140,9 +140,27 @@ export function EvaluatorSampleDetail({
           {null}
         </SampleHeader>
         <div className={SAMPLE_CARD_CLASS_NAME}>
-          <div className="text-muted-foreground flex min-h-0 flex-1 items-center justify-center p-6 text-sm">
-            {pending ? "Loading samples…" : "No samples in this time range."}
-          </div>
+          {/* Loaded samples without a selection yet are about to get one. */}
+          {pending || observations.length > 0 ? (
+            <div className="min-h-0 flex-1">
+              <TracePresentationProvider
+                presentation={isTraceTarget ? "messages" : "observation"}
+              >
+                <TraceDetailBody
+                  trace={undefined}
+                  context="peek"
+                  header={{
+                    variant: "page",
+                    headerProps: { title: "Sample", itemType: "TRACE" },
+                  }}
+                />
+              </TracePresentationProvider>
+            </div>
+          ) : (
+            <div className="text-muted-foreground flex min-h-0 flex-1 items-center justify-center p-6 text-sm">
+              No samples in this time range.
+            </div>
+          )}
         </div>
       </div>
     );

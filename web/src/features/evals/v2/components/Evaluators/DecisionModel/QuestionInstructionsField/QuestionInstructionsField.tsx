@@ -82,7 +82,7 @@ export function QuestionInstructionsField({
             type="button"
             onClick={() => insertKey(key)}
             title={`Insert \`${key}\` at the cursor`}
-            className="text-muted-foreground hover:bg-muted rounded border px-1.5 py-0.5 font-mono transition-colors"
+            className="text-primary-accent hover:bg-muted rounded px-1 py-0.5 font-bold transition-colors"
           >
             {key}
           </button>

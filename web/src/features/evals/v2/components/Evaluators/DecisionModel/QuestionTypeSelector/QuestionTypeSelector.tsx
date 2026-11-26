@@ -2,13 +2,11 @@ import { useId } from "react";
 import { DecisionModelQuestionType } from "@langfuse/shared";
 import {
   Gauge,
-  Info,
   ListChecks,
   ToggleLeft,
   type IconComponent,
 } from "@langfuse/icons";
 
-import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
@@ -60,7 +58,7 @@ const ORDER: DecisionModelQuestionType[] = [
 
 /**
  * Picks the question type. All three primitives stay visible with their
- * descriptor so the model's vocabulary is learned where it is used.
+ * descriptor; an example and when to use each sit in the card's tooltip.
  */
 export function QuestionTypeSelector({
   value,
@@ -84,55 +82,45 @@ export function QuestionTypeSelector({
           const copy = QUESTION_TYPE_COPY[type];
           const selected = type === value;
           const helpId = `${helpIdPrefix}-${type}`;
-          const explanation = `Writes ${copy.writes}. ${copy.whenToUse}`;
+          const explanation = `e.g. “${copy.example}”\nWrites ${copy.writes}. ${copy.whenToUse}`;
           return (
             <div
               key={type}
               className={cn(
-                "relative rounded-md border text-sm transition-colors",
+                "rounded-md border text-sm transition-colors",
                 "hover:bg-muted/50",
                 selected
-                  ? "border-primary-accent bg-primary-accent/5 ring-primary-accent ring-1"
+                  ? "border-primary ring-primary ring-1"
                   : "border-border",
                 disabled && "opacity-60",
               )}
             >
-              <button
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                aria-describedby={helpId}
-                disabled={disabled}
-                onClick={() => onValueChange(type)}
-                className={cn(
-                  "flex w-full flex-col gap-1 p-3 pr-10 text-left",
-                  "focus-visible:ring-ring rounded-md focus-visible:ring-2 focus-visible:outline-hidden",
-                  disabled && "cursor-not-allowed",
+              <Tooltip label={explanation}>
+                {({ getTriggerProps }) => (
+                  <button
+                    {...getTriggerProps()}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    aria-describedby={helpId}
+                    disabled={disabled}
+                    onClick={() => onValueChange(type)}
+                    className={cn(
+                      "flex w-full flex-col gap-1 p-3 text-left",
+                      "focus-visible:ring-ring rounded-md focus-visible:ring-2 focus-visible:outline-hidden",
+                      disabled && "cursor-not-allowed",
+                    )}
+                  >
+                    <span className="flex items-center gap-1.5 font-bold">
+                      <copy.icon size="base" />
+                      {copy.label}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {copy.summary}
+                    </span>
+                  </button>
                 )}
-              >
-                <span className="flex items-center gap-1.5 font-bold">
-                  <copy.icon size="base" />
-                  {copy.label}
-                </span>
-                <span className="text-muted-foreground">{copy.summary}</span>
-                <span className="text-muted-foreground text-xs italic">
-                  e.g. “{copy.example}”
-                </span>
-              </button>
-              <div className="absolute top-2 right-1.5">
-                <Tooltip label={explanation}>
-                  {({ getTriggerProps }) => (
-                    <IconButton
-                      {...getTriggerProps()}
-                      icon={Info}
-                      label={`About ${copy.label}`}
-                      size="sm"
-                      variant="ghost"
-                      disabled={disabled}
-                    />
-                  )}
-                </Tooltip>
-              </div>
+              </Tooltip>
               <span id={helpId} className="sr-only">
                 {explanation}
               </span>
