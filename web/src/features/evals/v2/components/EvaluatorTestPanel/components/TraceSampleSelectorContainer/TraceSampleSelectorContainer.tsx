@@ -60,7 +60,7 @@ export function TraceSampleSelectorContainer({
       matchingTooltip=""
       filterTitle="Filter traces"
       formatCount={(count) =>
-        `· ${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"}`
+        `${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"}`
       }
       mapObservedOptions={preserveObservedOptions}
       samplePresentation="detail"
