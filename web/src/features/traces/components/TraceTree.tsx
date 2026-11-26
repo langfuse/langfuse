@@ -146,6 +146,7 @@ function LoadedTraceTree() {
       onToggleCollapse={toggleCollapsed}
       onSelectNode={handleSelectNode}
       visibleNodeIds={visibleNodeIds}
+      paddingStart={fold ? 0 : undefined}
       renderNode={({ node, ...row }) => {
         const typedNode = node as TreeNode;
         const isFaded = fold != null && typedNode.id !== fold.targetId;

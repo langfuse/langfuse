@@ -54,6 +54,7 @@ export function SampleScopeSwitcher({
                 value={TopicsTargetObject}
                 label="Traces"
                 tooltip="Evaluate all the messages within a trace as one transcript."
+                internal
               />
             ) : (
               <Tabs.Trigger

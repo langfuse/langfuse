@@ -367,7 +367,7 @@ function TabsTrigger(props: TabsTriggerProps) {
   const className = cn(
     tabsTriggerVariants({ look: list.look, size: list.size }),
     list.emphasis === "strong" &&
-      "data-[state=active]:text-primary-foreground dark:data-[state=active]:text-primary-foreground",
+      "group/tab data-[state=active]:text-primary-foreground dark:data-[state=active]:text-primary-foreground",
   );
   const nativeTitle = tooltip ? undefined : (labelText(label, count) ?? title);
   const disabledReason = getDisabledReason(disabled);
@@ -449,7 +449,7 @@ function TabsTriggerContent({
       )}
       {/* In a tight row the badge gives way before the label. */}
       {internal ? (
-        <span className="flex min-w-0 shrink-100 overflow-hidden">
+        <span className="group-data-[state=active]/tab:bg-background flex min-w-0 shrink-100 overflow-hidden rounded-sm">
           <TabsInternalBadge />
         </span>
       ) : null}
