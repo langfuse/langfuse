@@ -303,6 +303,8 @@ function TabsList({
 }
 
 type TabsTriggerProps = {
+  /** Id of an element that describes the tab to assistive technology. */
+  "aria-describedby"?: string;
   /** With a reason, hovering the disabled tab explains why it can't be selected. */
   disabled?: boolean | { disabledReason: string };
   icon?: IconComponent;
@@ -375,6 +377,7 @@ function TabsTrigger(props: TabsTriggerProps) {
         aria-disabled={Boolean(disabled) || undefined}
         tabIndex={disabled ? -1 : undefined}
         data-state={props.active ? "active" : "inactive"}
+        aria-describedby={props["aria-describedby"]}
         title={nativeTitle}
         className={className}
       >
@@ -384,6 +387,7 @@ function TabsTrigger(props: TabsTriggerProps) {
       <TabsPrimitive.Trigger
         value={props.value}
         disabled={Boolean(disabled)}
+        aria-describedby={props["aria-describedby"]}
         title={nativeTitle}
         className={className}
       >

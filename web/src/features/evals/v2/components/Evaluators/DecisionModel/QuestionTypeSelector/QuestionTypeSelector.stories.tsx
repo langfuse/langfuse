@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { DecisionModelQuestionType } from "@langfuse/shared";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn } from "storybook/test";
 
 import preview from "../../../../../../../../.storybook/preview";
 import { QuestionTypeSelector } from "./QuestionTypeSelector";
@@ -27,31 +27,39 @@ export const Default = meta.story({
   },
 });
 
-export const ShowsGuidanceFromTheInfoIcon = meta.story({
-  name: "(Test) Shows type guidance from the info icon",
+export const DescribesEachTypeWithoutRenamingItsTab = meta.story({
+  name: "(Test) Describes each type without renaming its tab",
   args: {
     value: DecisionModelQuestionType.CHOICE,
     onValueChange: fn(),
   },
-  play: async ({ canvas, userEvent }) => {
-    await userEvent.hover(canvas.getByLabelText("About Choice"));
+  play: async ({ canvas }) => {
+    const choice = canvas.getByRole("tab", { selected: true });
 
-    await expect(
-      await within(document.body).findByRole("tooltip"),
-    ).toHaveTextContent("Writes a categorical score.");
+    await expect(choice).toHaveAccessibleName("Choice");
+    await expect(choice).toHaveAccessibleDescription(
+      expect.stringContaining("Writes a categorical score."),
+    );
   },
 });
 
-export const KeepsTheTypeWhenTheInfoIconIsPressed = meta.story({
-  name: "(Test) Keeps the type when the info icon is pressed",
+export const ArrowKeysMoveFocusWithoutSelecting = meta.story({
+  name: "(Test) Arrow keys move focus without selecting",
   args: {
     value: DecisionModelQuestionType.SCORE,
     onValueChange: fn(),
   },
   play: async ({ args, canvas, userEvent }) => {
-    await userEvent.click(canvas.getByLabelText("About Choice"));
+    canvas.getByRole("tab", { selected: true }).focus();
+    await userEvent.keyboard("{ArrowRight}");
 
     await expect(args.onValueChange).not.toHaveBeenCalled();
+
+    await userEvent.keyboard("{Enter}");
+
+    await expect(args.onValueChange).toHaveBeenCalledWith(
+      DecisionModelQuestionType.NOUL,
+    );
   },
 });
 
