@@ -65,7 +65,7 @@ describe("computeMediaUsageExportDays", () => {
     {
       name: "first run backfills every closed day from the backfill start",
       now: "2026-03-04T03:15:00.000Z",
-      watermark: null,
+      exportedUntil: null,
       backfillStart: "2026-02-27T17:42:00.000Z",
       expected: [
         "2026-02-27",
@@ -78,14 +78,14 @@ describe("computeMediaUsageExportDays", () => {
     {
       name: "steady state re-exports only the lookback window",
       now: "2026-03-10T03:15:00.000Z",
-      watermark: "2026-03-08",
+      exportedUntil: "2026-03-09",
       backfillStart: null,
       expected: ["2026-03-07", "2026-03-08", "2026-03-09"],
     },
     {
-      name: "missed runs catch up from the day after the watermark",
+      name: "missed runs catch up from the watermark",
       now: "2026-03-10T03:15:00.000Z",
-      watermark: "2026-03-01",
+      exportedUntil: "2026-03-02",
       backfillStart: null,
       expected: [
         "2026-03-02",
@@ -101,28 +101,28 @@ describe("computeMediaUsageExportDays", () => {
     {
       name: "the current UTC day stays open until midnight UTC",
       now: "2026-03-10T23:59:59.999Z",
-      watermark: "2026-03-09",
+      exportedUntil: "2026-03-10",
       backfillStart: null,
       expected: ["2026-03-07", "2026-03-08", "2026-03-09"],
     },
     {
       name: "a day closes exactly at midnight UTC",
       now: "2026-03-11T00:00:00.000Z",
-      watermark: "2026-03-09",
+      exportedUntil: "2026-03-10",
       backfillStart: null,
       expected: ["2026-03-08", "2026-03-09", "2026-03-10"],
     },
     {
       name: "nothing to export without a watermark or any project",
       now: "2026-03-10T03:15:00.000Z",
-      watermark: null,
+      exportedUntil: null,
       backfillStart: null,
       expected: [],
     },
-  ])("$name", ({ now, watermark, backfillStart, expected }) => {
+  ])("$name", ({ now, exportedUntil, backfillStart, expected }) => {
     const days = computeMediaUsageExportDays({
       now: new Date(now),
-      watermark: watermark ? day(watermark) : null,
+      exportedUntil: exportedUntil ? day(exportedUntil) : null,
       backfillStart: backfillStart ? new Date(backfillStart) : null,
       lookbackDays: 3,
     });
@@ -197,7 +197,7 @@ describe("exportMediaUsageHourly", () => {
     const { objects, s3Client } = createInMemoryStorage();
     objects.set(
       mediaUsageWatermarkKey("core/"),
-      JSON.stringify({ exportedThroughDate: "2026-02-28" }),
+      JSON.stringify({ exportedUntil: "2026-03-01T00:00:00.000Z" }),
     );
 
     try {
@@ -335,7 +335,7 @@ describe("exportMediaUsageHourly", () => {
       ]);
       expect([...objects.values()].join("\n")).not.toContain(secret);
       await expect(readMediaUsageWatermark(s3Client, "core/")).resolves.toEqual(
-        day("2026-03-02"),
+        day("2026-03-03"),
       );
 
       // The pending upload finishes after its day closed, and a row is
@@ -398,7 +398,7 @@ describe("exportMediaUsageHourly", () => {
         },
       ]);
       await expect(readMediaUsageWatermark(s3Client, "core/")).resolves.toEqual(
-        day("2026-03-03"),
+        day("2026-03-04"),
       );
 
       const afterSecondRun = new Map(objects);
@@ -420,7 +420,7 @@ describe("exportMediaUsageHourly", () => {
     const { objects, failNextUploadOf, s3Client } = createInMemoryStorage();
     objects.set(
       mediaUsageWatermarkKey("core/"),
-      JSON.stringify({ exportedThroughDate: "2026-03-01" }),
+      JSON.stringify({ exportedUntil: "2026-03-02T00:00:00.000Z" }),
     );
     const now = new Date("2026-03-08T03:15:00.000Z");
     failNextUploadOf.add(mediaUsageDayObjectKey("core/", day("2026-03-05")));
@@ -429,7 +429,7 @@ describe("exportMediaUsageHourly", () => {
       exportMediaUsageHourly({ s3Client, uploadPrefix: "core/", now }),
     ).rejects.toThrow("Injected upload failure");
     await expect(readMediaUsageWatermark(s3Client, "core/")).resolves.toEqual(
-      day("2026-03-04"),
+      day("2026-03-05"),
     );
 
     const uploadFileBuffered = vi.mocked(s3Client.uploadFileBuffered);
@@ -444,7 +444,59 @@ describe("exportMediaUsageHourly", () => {
       ),
     );
     await expect(readMediaUsageWatermark(s3Client, "core/")).resolves.toEqual(
-      day("2026-03-07"),
+      day("2026-03-08"),
     );
+  });
+
+  it("caps the days per run and continues from the watermark until no closed day is pending", async () => {
+    const { objects, s3Client } = createInMemoryStorage();
+    objects.set(
+      mediaUsageWatermarkKey("core/"),
+      JSON.stringify({ exportedUntil: "2026-03-02T00:00:00.000Z" }),
+    );
+    const now = new Date("2026-03-10T03:15:00.000Z");
+    const uploadFileBuffered = vi.mocked(s3Client.uploadFileBuffered);
+
+    const runs = [];
+    for (let run = 0; run < 4; run++) {
+      uploadFileBuffered.mockClear();
+      const result = await exportMediaUsageHourly({
+        s3Client,
+        uploadPrefix: "core/",
+        now,
+        lookbackDays: 3,
+        maxDaysPerRun: 3,
+      });
+      runs.push({
+        uploadedDays: uploadFileBuffered.mock.calls.map(([{ fileName }]) =>
+          fileName.replace(/^.*date=(\d{4}-\d{2}-\d{2})\/.*$/, "$1"),
+        ),
+        exportedUntil: result.exportedUntil?.toISOString(),
+        hasMoreDays: result.hasMoreDays,
+      });
+    }
+
+    expect(runs).toEqual([
+      {
+        uploadedDays: ["2026-03-02", "2026-03-03", "2026-03-04"],
+        exportedUntil: "2026-03-05T00:00:00.000Z",
+        hasMoreDays: true,
+      },
+      {
+        uploadedDays: ["2026-03-05", "2026-03-06", "2026-03-07"],
+        exportedUntil: "2026-03-08T00:00:00.000Z",
+        hasMoreDays: true,
+      },
+      {
+        uploadedDays: ["2026-03-07", "2026-03-08", "2026-03-09"],
+        exportedUntil: "2026-03-10T00:00:00.000Z",
+        hasMoreDays: false,
+      },
+      {
+        uploadedDays: ["2026-03-07", "2026-03-08", "2026-03-09"],
+        exportedUntil: "2026-03-10T00:00:00.000Z",
+        hasMoreDays: false,
+      },
+    ]);
   });
 });

@@ -16,7 +16,9 @@ import {
   TriggerEventSourceSchema,
 } from "@langfuse/shared";
 import {
+  CoreDataS3ExportQueue,
   logger,
+  QueueJobs,
   StorageServiceFactory,
   storageKeys,
   type StorageService,
@@ -24,7 +26,10 @@ import {
 import { metricAggregations, viewDeclarations } from "@langfuse/shared/query";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
-import { exportMediaUsageHourly } from "./coreDataMediaUsageExport";
+import {
+  exportMediaUsageHourly,
+  formatUtcDay,
+} from "./coreDataMediaUsageExport";
 
 const CORE_DATA_EXPORT_PAGE_SIZE = 1_000;
 const CORE_DATA_EXPORT_PART_SIZE_BYTES = 100 * 1024 * 1024;
@@ -33,6 +38,7 @@ const CORE_DATA_EXPORT_PART_SIZE_BYTES = 100 * 1024 * 1024;
 // (default: 5 connections) so other queue jobs on the same worker never
 // starve on connection acquisition.
 const CORE_DATA_EXPORT_TABLE_CONCURRENCY = 3;
+const MEDIA_USAGE_BACKFILL_DELAY_MS = 60_000;
 
 let s3StorageServiceClient: StorageService;
 
@@ -1886,7 +1892,33 @@ export const coreDataTableExports: Array<
     }),
 ];
 
-export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
+// A media usage backfill or catch-up continues in media-only follow-up jobs, so
+// the other core data tables are not re-exported for it. The job id names the
+// next pending day, so producers racing on the same step enqueue one job.
+const exportMediaUsageAndContinueBackfill = async (args: {
+  s3Client: StorageService;
+  uploadPrefix: string;
+}) => {
+  const { exportedUntil, hasMoreDays } = await exportMediaUsageHourly(args);
+  if (!hasMoreDays || !exportedUntil) {
+    return;
+  }
+  await CoreDataS3ExportQueue.getInstance()?.add(
+    QueueJobs.CoreDataMediaUsageBackfillJob,
+    {},
+    {
+      jobId: `media-usage-backfill-${formatUtcDay(exportedUntil)}`,
+      delay: MEDIA_USAGE_BACKFILL_DELAY_MS,
+    },
+  );
+  logger.info(
+    `[CORE DATA] Queued media usage export follow-up from ${formatUtcDay(exportedUntil)}`,
+  );
+};
+
+export const coreDataS3ExportProcessor: Processor = async (
+  job,
+): Promise<void> => {
   if (!env.LANGFUSE_S3_CORE_DATA_UPLOAD_BUCKET) {
     logger.error("[CORE DATA] No bucket name provided for core data S3 export");
     throw new Error(
@@ -1894,17 +1926,22 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
     );
   }
 
-  logger.info("[CORE DATA] Starting core data S3 export");
-
   const s3Client = getS3StorageServiceClient(
     env.LANGFUSE_S3_CORE_DATA_UPLOAD_BUCKET,
   );
   const uploadPrefix = env.LANGFUSE_S3_CORE_DATA_UPLOAD_PREFIX;
 
+  if (job.name === QueueJobs.CoreDataMediaUsageBackfillJob) {
+    await exportMediaUsageAndContinueBackfill({ s3Client, uploadPrefix });
+    return;
+  }
+
+  logger.info("[CORE DATA] Starting core data S3 export");
+
   const limit = pLimit(CORE_DATA_EXPORT_TABLE_CONCURRENCY);
   const results = await Promise.allSettled(
-    [...coreDataTableExports, exportMediaUsageHourly].map((exportTable) =>
-      limit(() => exportTable({ s3Client, uploadPrefix })),
+    [...coreDataTableExports, exportMediaUsageAndContinueBackfill].map(
+      (exportTable) => limit(() => exportTable({ s3Client, uploadPrefix })),
     ),
   );
 
