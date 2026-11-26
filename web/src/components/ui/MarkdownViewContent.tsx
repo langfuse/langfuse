@@ -95,6 +95,7 @@ const transformListItemChildren = (children: ReactNode) =>
  * Only root-relative paths are rewritten — absolute URLs (with a scheme),
  * protocol-relative (`//`), hash (`#`), search (`?`), and `./`/`../` refs are
  * left untouched (Next's `<Link>` did not prepend the base path to those either).
+ * @internal
  */
 export const prependBasePathToInternalHref = (
   href: string,

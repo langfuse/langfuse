@@ -23,7 +23,7 @@
 //! shares a parsed tree through `Rc`, so recursive tool extraction can hold it
 //! while parsing nested strings.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use num_bigint::BigUint;
 use num_traits::{Num, ToPrimitive};
 use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, SeqAccess, Visitor};
@@ -141,8 +141,12 @@ pub(crate) fn retain_evaluation_value(
 ///
 /// Consumes wrappers and reuses their payload allocations.
 pub fn any_value_to_json(value: Value) -> Value {
-    let Value::Object(mut object) = value else {
-        return value;
+    let mut object = match value {
+        Value::Object(object) => object,
+        // Text passes through: the decoder hands on a wrapper too deep to parse as its JSON text.
+        Value::Null | Value::String(_) => return value,
+        // Any other value without a wrapper is read as its JSON text, like an unrecognized wrapper.
+        value => return Value::String(javascript_json_stringify(&value).into()),
     };
 
     if object.is_empty() {
@@ -488,7 +492,9 @@ fn bytes_to_hex(bytes: &[u8]) -> String {
 }
 
 /// Convert an OTLP nanosecond timestamp to the millisecond precision used by JS `Date`.
-pub fn nano_timestamp_to_iso(value: Option<&Value>) -> Option<String> {
+/// The outer `None` is a missing or unreadable timestamp. The inner `None` is a time outside
+/// years 0000-9999, which ClickHouse cannot store.
+fn nano_timestamp_to_iso(value: Option<&Value>) -> Option<Option<String>> {
     let value = value?;
     let millis = match value {
         Value::String(value) => value.as_utf8()?.parse::<i128>().ok()? / 1_000_000,
@@ -503,25 +509,33 @@ pub fn nano_timestamp_to_iso(value: Option<&Value>) -> Option<String> {
         }
         _ => return None,
     };
-    let millis = i64::try_from(millis).ok()?;
-    DateTime::<Utc>::from_timestamp_millis(millis)
-        .map(|date| date.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
+    // JS `Date` holds 8.64e15 milliseconds either side of the epoch; more is an invalid date,
+    // which TypeScript reads as a missing timestamp.
+    let millis = i64::try_from(millis)
+        .ok()
+        .filter(|millis| millis.unsigned_abs() <= 8_640_000_000_000_000)?;
+    Some(
+        DateTime::<Utc>::from_timestamp_millis(millis)
+            .filter(|date| (0..=9999).contains(&date.year()))
+            .map(|date| date.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)),
+    )
 }
 
-/// Resolve missing OTLP span endpoints exactly once at the processing boundary.
+/// Resolve missing OTLP span endpoints exactly once at the processing boundary. Returns `None`
+/// when an endpoint lies outside years 0000-9999; the caller drops that span.
 pub fn resolve_timestamps(
     start: Option<&Value>,
     end: Option<&Value>,
     fallback: &str,
-) -> (String, String) {
+) -> Option<(String, String)> {
     let start = nano_timestamp_to_iso(start);
     let end = nano_timestamp_to_iso(end);
-    match (start, end) {
-        (Some(start), Some(end)) => (start, end),
-        (Some(start), None) => (start.clone(), start),
-        (None, Some(end)) => (end.clone(), end),
+    Some(match (start, end) {
+        (Some(start), Some(end)) => (start?, end?),
+        (Some(start), None) => (start.clone()?, start?),
+        (None, Some(end)) => (end.clone()?, end?),
         (None, None) => (fallback.to_owned(), fallback.to_owned()),
-    }
+    })
 }
 
 pub fn value_as_string(value: &Value) -> Option<String> {
@@ -1117,13 +1131,47 @@ mod tests {
         ] {
             assert_eq!(
                 resolve_timestamps(Some(&start), None, "fallback"),
-                (expected.to_owned(), expected.to_owned())
+                Some((expected.to_owned(), expected.to_owned()))
             );
         }
         assert_eq!(
             resolve_timestamps(None, None, "fallback"),
-            ("fallback".to_owned(), "fallback".to_owned())
+            Some(("fallback".to_owned(), "fallback".to_owned()))
         );
+    }
+
+    #[test]
+    fn rejects_timestamps_outside_four_digit_years() {
+        for (start, end, expected) in [
+            // Year 10000, the millisecond before year 0000, microseconds sent as milliseconds.
+            ("253402300800000000000", None, None),
+            ("-62167219200001000000", None, None),
+            ("1750000000123000000000", None, None),
+            // Only the end is out of range.
+            ("1000000000", Some("253402300800000000000"), None),
+            // The first and the last millisecond ClickHouse stores.
+            (
+                "-62167219200000000000",
+                None,
+                Some("0000-01-01T00:00:00.000Z"),
+            ),
+            (
+                "253402300799999000000",
+                None,
+                Some("9999-12-31T23:59:59.999Z"),
+            ),
+            // The last instant of JS `Date` is a date; one millisecond later is a missing timestamp.
+            ("8640000000000000000000", None, None),
+            ("8640000000000001000000", None, Some("fallback")),
+        ] {
+            let end = end.map(|end| json!(end));
+            let resolved = resolve_timestamps(Some(&json!(start)), end.as_ref(), "fallback");
+            assert_eq!(
+                resolved.map(|(start, _)| start).as_deref(),
+                expected,
+                "{start}"
+            );
+        }
     }
 
     #[test]
@@ -1213,6 +1261,20 @@ mod tests {
                     {"key": "payload", "value": {"nested": {"stringValue": "keep"}}}
                 ]),
                 json!({"payload": r#"{"nested":{"stringValue":"keep"}}"#}),
+            ),
+            (
+                json!([
+                    {"key": "number", "value": 5},
+                    {"key": "flag", "value": false},
+                    {"key": "list", "value": ["a", 1]},
+                    {"key": "wrapped", "value": {"arrayValue": {"values": [1, null]}}}
+                ]),
+                json!({
+                    "number": "5",
+                    "flag": "false",
+                    "list": r#"["a",1]"#,
+                    "wrapped": ["1", null]
+                }),
             ),
         ] {
             let expected = expected.as_object().unwrap().clone();

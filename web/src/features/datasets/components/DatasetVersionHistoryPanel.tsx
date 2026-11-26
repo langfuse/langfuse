@@ -4,7 +4,12 @@ import { Button } from "@/src/components/ui/button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { api } from "@/src/utils/api";
 import { useDatasetVersion } from "../hooks/useDatasetVersion";
-import { Clock, MoreVertical, Copy, ExternalLink } from "@langfuse/icons";
+import {
+  Clock,
+  MoreVertical,
+  Copy,
+  SquareArrowOutUpRight,
+} from "@langfuse/icons";
 import {
   format,
   isToday,
@@ -187,7 +192,7 @@ export function DatasetVersionHistoryPanel({
                 type: "item",
                 id: "documentation",
                 title: "How to use in experiments",
-                icon: ExternalLink,
+                icon: SquareArrowOutUpRight,
                 onClick: openDocumentation,
               },
             ]}

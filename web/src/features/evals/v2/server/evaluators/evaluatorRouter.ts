@@ -70,6 +70,7 @@ export const evaluatorRouter = createTRPCRouter({
       return serviceForContext(ctx).list({
         ...input,
         projectId: ctx.session.projectId,
+        includeTraceTranscriptAssignments: true,
       });
     }),
 

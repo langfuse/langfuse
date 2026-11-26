@@ -7,7 +7,7 @@
  * for wheel and touch while keyboard navigation still works.
  */
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { Combobox } from "@/src/components/ui/Combobox";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   Popover,
   PopoverContent,
@@ -91,7 +91,10 @@ describe("overlay content keeps scroll events local", () => {
   it("disabling a combobox suspends an already open portal", async () => {
     const onValueChange = vi.fn();
     const selector = (disabled: boolean) => (
-      <Combobox
+      <SelectInput
+        value=""
+        placeholder="Select an option"
+        search={{ placeholder: "Search options" }}
         options={[{ value: "one", label: "First option" }]}
         onValueChange={onValueChange}
         disabled={disabled}

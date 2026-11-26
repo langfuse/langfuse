@@ -1,7 +1,8 @@
 import { useState, type ComponentProps } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { ErrorBoundary } from "@sentry/nextjs";
-import { Banner } from "@/src/components/design-system/Banner/Banner";
+import { GitBranch } from "@langfuse/icons";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import {
   useTraceData,
@@ -92,19 +93,10 @@ function SingleTraceMessagesView({
     >
       <div className="flex h-full min-h-0 w-full flex-col">
         {state.type === "transcript" && hiddenThreadCount > 0 && (
-          <div className="shrink-0">
-            <Banner
-              actions={[
-                {
-                  text: "Show nested threads",
-                  onClick: () => setExpandedTraceId(messageTrace.id),
-                },
-              ]}
-            >
-              {hiddenThreadCount} nested{" "}
-              {hiddenThreadCount === 1 ? "thread is" : "threads are"} hidden.
-            </Banner>
-          </div>
+          <HiddenThreadsDivider
+            count={hiddenThreadCount}
+            onShow={() => setExpandedTraceId(messageTrace.id)}
+          />
         )}
         {data?.cutoff && (!data.transcript || entries.length <= 1) && (
           <div className="text-muted-foreground p-3 text-sm">
@@ -119,5 +111,31 @@ function SingleTraceMessagesView({
         />
       </div>
     </ErrorBoundary>
+  );
+}
+
+function HiddenThreadsDivider({
+  count,
+  onShow,
+}: {
+  count: number;
+  onShow: () => void;
+}) {
+  const label = `${count} nested ${count === 1 ? "thread" : "threads"} hidden`;
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className="text-muted-foreground flex shrink-0 items-center gap-3 pb-6 text-xs"
+    >
+      <div className="border-border min-w-0 flex-1 border-t border-dashed" />
+      <span className="flex items-center gap-1.5">
+        <GitBranch size="sm" aria-hidden="true" />
+        {label}
+      </span>
+      <span aria-hidden="true">·</span>
+      <Button variant="text" size="sm" text="Show" onClick={onShow} />
+      <div className="border-border min-w-0 flex-1 border-t border-dashed" />
+    </div>
   );
 }

@@ -208,6 +208,7 @@ export function useFilteredNavigation(
         disabledReason:
           route.gatewayPage === GATEWAY_PAGE_SLUGS.models ||
           route.gatewayPage === GATEWAY_PAGE_SLUGS.budgets ||
+          route.gatewayPage === GATEWAY_PAGE_SLUGS.guardrails ||
           route.gatewayPage === GATEWAY_PAGE_SLUGS.apiKeys
             ? gatewaySetupRequiredReason
             : undefined,

@@ -18,6 +18,7 @@ import {
  * envelope. A dashboard file inlines each referenced widget's portable
  * configuration (widgets are recreated on import — DB widget ids do not
  * travel across projects/instances).
+ * @internal
  */
 export const DASHBOARD_FILE_FORMAT_VERSION = 1;
 
@@ -34,6 +35,7 @@ function isLangfuseDashboardPayload(parsed: unknown): boolean {
  * Preset cards (curated Home components) have no widget configuration — the
  * portable payload is just the preset id in its own envelope, so copy-paste
  * works uniformly across every tile on a dashboard.
+ * @internal
  */
 export const PRESET_FILE_FORMAT_VERSION = 1;
 
@@ -149,7 +151,7 @@ const dashboardImportSchema = z
   })
   .loose();
 
-export type DashboardExportPlacement =
+type DashboardExportPlacement =
   | ({ type: "widget"; widgetId: string } & PlacementPosition)
   | ({ type: "preset"; presetId: string } & PlacementPosition);
 
@@ -160,6 +162,7 @@ export type DashboardExportPlacement =
  * export covers sharing; Clone covers same-project duplication) — this
  * builder documents the format and backs the import round-trip tests.
  * Placements whose widget cannot be resolved are skipped and counted.
+ * @internal
  */
 export function buildDashboardExport(params: {
   name: string;

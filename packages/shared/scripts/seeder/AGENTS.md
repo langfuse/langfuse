@@ -42,6 +42,7 @@ NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- evaluator-gall
 pnpm run seed -- assistant-skills  # bundled assistant skills as production versions tagged in-app-agent; unchanged versions are reused
 pnpm run seed -- assistant-skills --demo  # adds an instructions-only local-assistant-check skill with a fixed response
 pnpm run seed -- assistant-skills --demo-files 25  # adds local-many-files with SKILL.md and 24 references for scrolling checks
+pnpm run seed -- gateway-guardrails  # AI Gateway guardrails: org-wide email logging + SSN/card blocking on a seeded gateway key (printed)
 pnpm run seed -- annotation-queue --review-sources  # annotation + eval + API + off-queue annotation on the first trace, observation, and session items
 ```
 

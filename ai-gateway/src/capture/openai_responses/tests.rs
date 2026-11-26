@@ -850,6 +850,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
             &crate::resolution::ControlPlaneConfig::new(&collector.url, "test-service-key")
                 .unwrap(),
             telemetry::DEFAULT_RETAINED_BYTES,
+            Duration::from_millis(telemetry::DEFAULT_BATCH_LINGER_MS),
         )
         .unwrap();
         let context = resolved_request_context_with_mode("provider-secret", "full").await;
@@ -923,6 +924,7 @@ async fn codex_body_metadata_reaches_the_generation_without_agent_headers() {
     let telemetry = telemetry::Telemetry::new(
         &crate::resolution::ControlPlaneConfig::new(&collector.url, "test-service-key").unwrap(),
         telemetry::DEFAULT_RETAINED_BYTES,
+        Duration::from_millis(telemetry::DEFAULT_BATCH_LINGER_MS),
     )
     .unwrap();
     let context = resolved_request_context_with_mode("provider-secret", "full").await;
@@ -1139,4 +1141,127 @@ async fn downstream_cancellation_does_not_erase_completed_capture() {
         assert_eq!(facts[0]["output_complete"], true);
         assert_eq!(facts[0]["capture_complete"], true);
     }
+}
+
+fn guardrail_scan(instructions: &str, input: &str) -> Vec<String> {
+    guardrail_scan_members(&[("instructions", instructions), ("input", input)])
+}
+
+fn guardrail_scan_members(members: &[(&str, &str)]) -> Vec<String> {
+    let mut texts = Vec::new();
+    let member = |name: &str| {
+        members
+            .iter()
+            .find(|(member, _)| *member == name)
+            .map(|(_, value)| *value)
+    };
+    guardrail_turn(member)
+        .unwrap()
+        .read(member, &mut |text: &str| texts.push(text.to_owned()))
+        .unwrap();
+    texts
+}
+
+#[test]
+fn the_last_turn_follows_the_last_item_the_model_produced() {
+    assert_eq!(guardrail_scan(r#""sys""#, r#""hello""#), ["hello", "sys"]);
+    assert_eq!(
+        guardrail_scan(
+            r#""sys""#,
+            r#"[{"role":"user","content":[{"type":"input_text","text":"old"}]},
+            {"type":"reasoning","summary":[]},
+            {"type":"function_call","call_id":"a","name":"f","arguments":"{}"},
+            {"type":"function_call","call_id":"b","name":"f","arguments":"{}"},
+            {"type":"function_call_output","call_id":"a","output":"result a"},
+            {"type":"function_call_output","call_id":"b","output":[{"type":"input_text","text":"result b"}]}]"#
+        ),
+        ["result a", "result b"]
+    );
+}
+
+#[test]
+fn instructions_are_scanned_only_when_no_earlier_turn_is_stored_upstream() {
+    let scan = |previous: (&str, &str)| {
+        guardrail_scan_members(&[
+            ("instructions", r#""sys""#),
+            ("input", r#"[{"role":"user","content":"hello"}]"#),
+            previous,
+        ])
+    };
+    assert_eq!(scan(("previous_response_id", r#""resp_1""#)), ["hello"]);
+    assert_eq!(scan(("conversation", r#""conv_1""#)), ["hello"]);
+    assert_eq!(scan(("previous_response_id", "null")), ["hello", "sys"]);
+}
+
+#[test]
+fn prompt_variables_are_scanned_on_every_turn() {
+    assert_eq!(
+        guardrail_scan_members(&[
+            (
+                "input",
+                r#"[{"role":"assistant","content":"hi"},{"role":"user","content":"go"}]"#
+            ),
+            ("previous_response_id", r#""resp_1""#),
+            (
+                "prompt",
+                r#"{"id":"pmpt_1","variables":{"name":"ssn 123-45-6789","doc":{"type":"input_text","text":"card"},"img":{"type":"input_image","image_url":"https://x"}}}"#,
+            ),
+        ]),
+        ["go", "ssn 123-45-6789", "card"]
+    );
+}
+
+#[test]
+fn every_output_answering_the_newest_calls_is_scanned_when_calls_and_outputs_interleave() {
+    let interleaved = r#"[{"role":"user","content":"old"},
+        {"type":"reasoning","summary":[]},
+        {"type":"function_call","call_id":"a","name":"f","arguments":"{}"},
+        {"type":"function_call_output","call_id":"a","output":"result a"},
+        {"type":"function_call","call_id":"b","name":"f","arguments":"{}"},
+        {"type":"function_call_output","call_id":"b","output":"result b"}]"#;
+    assert_eq!(
+        guardrail_scan(r#""sys""#, interleaved),
+        ["result a", "result b"]
+    );
+    // Without a reasoning item, the caller message that led to the calls stays out.
+    let without_reasoning = r#"[{"role":"user","content":"old"},
+        {"type":"function_call","call_id":"a","name":"f","arguments":"{}"},
+        {"type":"function_call_output","call_id":"a","output":"result a"},
+        {"type":"function_call","call_id":"b","name":"f","arguments":"{}"},
+        {"type":"function_call_output","call_id":"b","output":"result b"},
+        {"role":"user","content":"new"}]"#;
+    assert_eq!(
+        guardrail_scan(r#""sys""#, without_reasoning),
+        ["result a", "result b", "new"]
+    );
+}
+
+#[test]
+fn a_model_item_after_the_newest_user_message_does_not_hide_it() {
+    assert_eq!(
+        guardrail_scan(
+            r#""sys""#,
+            r#"[{"role":"user","content":"ssn 123-45-6789"},
+            {"type":"web_search_call","id":"ws_1","status":"completed"}]"#
+        ),
+        ["ssn 123-45-6789", "sys"]
+    );
+}
+
+#[test]
+fn model_items_between_the_newest_calls_neither_hide_outputs_nor_get_scanned() {
+    assert_eq!(
+        guardrail_scan(
+            r#""sys""#,
+            r#"[{"role":"user","content":"old"},
+            {"type":"reasoning","summary":[]},
+            {"type":"function_call","call_id":"a","name":"f","arguments":"{}"},
+            {"type":"function_call_output","call_id":"a","output":"result a"},
+            {"type":"reasoning","summary":[]},
+            {"role":"assistant","content":[{"type":"output_text","text":"model text"}]},
+            {"type":"function_call","call_id":"b","name":"f","arguments":"{}"},
+            {"type":"function_call_output","call_id":"b","output":"result b"}]"#
+        ),
+        ["result a", "result b"]
+    );
 }

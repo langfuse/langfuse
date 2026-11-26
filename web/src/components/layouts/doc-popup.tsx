@@ -3,7 +3,7 @@ import { useState, type ComponentProps } from "react";
 import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
-import { ExternalLink, Info } from "@langfuse/icons";
+import { SquareArrowOutUpRight, Info } from "@langfuse/icons";
 
 export function DocPopupTrigger({
   triggerProps,
@@ -83,7 +83,7 @@ export default function DocPopup({
               className="text-muted-foreground hover:text-primary mt-2 inline-flex items-center gap-1 text-xs underline underline-offset-2"
             >
               Read docs
-              <ExternalLink size="sm" />
+              <SquareArrowOutUpRight size="sm" />
             </a>
           )}
         </div>

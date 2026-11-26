@@ -8,7 +8,6 @@ import {
   hasCompatibleTopicSummaries,
   getTopicRuleMap,
   isTopicRuleSetupActive,
-  isTopicsEnabled,
   listTopicFacets,
   listTopicRules,
   readTopicRuleSetup,
@@ -23,6 +22,7 @@ import {
 } from "@langfuse/shared/topics";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
+import { TopicMetrics } from "./metrics";
 
 const DAY_MS = 86_400_000;
 const RECENT_FIT_MS = 3_600_000;
@@ -37,6 +37,7 @@ const NIGHTLY_REFIT_PRIORITY = 10;
  * The latest daily refit time at or before `now`: the configured UTC hour plus
  * a stable per-project offset within the spread window, so projects in one
  * deployment do not all refit at the same moment.
+ * @internal
  */
 export function nightlyRefitSlot(
   projectId: string,
@@ -59,12 +60,12 @@ export function nightlyRefitSlot(
  * run row with the rule's ID, whose ID derives from the slot, so a slot is
  * handled at most once; a slot with nothing to fit leaves a skipped run.
  * After downtime, only the latest slot runs.
+ * @internal
  */
 export async function scheduleNightlyTopicRefits(
   now: Date,
   onProgress: () => Promise<void> = async () => {},
 ): Promise<number> {
-  if (!isTopicsEnabled()) return 0;
   const projects = [...(await getAllEnabledTopicsModels()).values()]
     .map((models) => ({
       projectId: models.projectId,
@@ -177,7 +178,7 @@ async function refitRuleFacet({
   });
   if (recent) return false;
   // A fit still open from an earlier slot was interrupted; this slot replaces it.
-  await prisma.topicClusteringRun.updateMany({
+  const interrupted = await prisma.topicClusteringRun.updateManyAndReturn({
     where: {
       projectId,
       ruleId,
@@ -189,7 +190,15 @@ async function refitRuleFacet({
       error: "Replaced by the next nightly refit.",
       finishedAt: now,
     },
+    select: { config: true },
   });
+  for (const { config } of interrupted)
+    new TopicMetrics().ruleFit(
+      "interrupted",
+      (config as { refresh?: unknown }).refresh === true
+        ? "manual"
+        : "automatic",
+    );
   const run = {
     id: runId,
     projectId,

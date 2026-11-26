@@ -323,7 +323,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         }),
       );
 
-    const processedAt = new Date().toISOString();
+    const createdAt = new Date().toISOString();
     const source = (index: number) => ({
       traceId: traceIds[index]!,
       sessionId: null,
@@ -369,7 +369,7 @@ export const topicsMapScenario: ScenarioDefinition = {
           usageDetails: {},
           providedCostDetails: {},
           costDetails: {},
-          processedAt,
+          createdAt,
           metadata: {},
         };
       });
@@ -499,7 +499,7 @@ export const topicsMapScenario: ScenarioDefinition = {
             ...source(index),
             facetId: map.facet.id,
             facetVersion: map.facet.version,
-            summaryProcessedAt: map.summaries[index]!.processedAt,
+            summaryProcessedAt: map.summaries[index]!.createdAt,
             runId: map.runId,
             ruleId: map.rule.id,
             topicId: definition?.topicId ?? null,
@@ -508,7 +508,7 @@ export const topicsMapScenario: ScenarioDefinition = {
             runnerUpDistance: definition ? 0.5 + rng.next() * 0.3 : null,
             origin: "initial",
             coordinates: coordinates(k, map.topics.length, rng),
-            assignedAt: processedAt,
+            createdAt,
           },
         ];
       });
@@ -519,9 +519,9 @@ export const topicsMapScenario: ScenarioDefinition = {
         facetId: map.facet.id,
         facetVersion: map.facet.version,
         status: "completed",
-        createdAt: processedAt,
-        startedAt: processedAt,
-        finishedAt: processedAt,
+        createdAt,
+        startedAt: createdAt,
+        finishedAt: createdAt,
         config,
         error: null,
         topics: definitions,

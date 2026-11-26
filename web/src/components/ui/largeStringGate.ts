@@ -17,21 +17,7 @@
  * preview + download, matching the JSON-tab field size gate (LFE-10989).
  */
 
-/**
- * Character ceiling for rendering a single top-level string through the Pretty
- * / JSON viewers. Mirrors the JSON view's field limit (LFE-10989): the safe
- * main-thread parse bounds elsewhere are 300–500K, and this sits ~4–6× above
- * them while staying 100–1000× larger than typical trace I/O (KB-scale), so
- * real traces are never gated. Measures UTF-16 length (`.length` = chars).
- */
-export const LARGE_STRING_RENDER_CHAR_LIMIT = 2_000_000;
-
-/**
- * How much of the string the bounded preview head shows. Fixed regardless of
- * payload size — the full value is reachable via download (and the header copy
- * button).
- */
-export const LARGE_STRING_PREVIEW_CHARS = 4_000;
+import { LARGE_STRING_RENDER_CHAR_LIMIT } from "./constants";
 
 /**
  * Whether `value` is a plain string large enough to bypass the Pretty / JSON

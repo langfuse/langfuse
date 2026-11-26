@@ -2,7 +2,6 @@
 /* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 import {
   type default as React,
-  createContext,
   useContext,
   useState,
   useEffect,
@@ -90,16 +89,7 @@ import { DataTableAIFilters } from "@/src/components/table/DataTableAIFilters";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { type FilterState } from "@langfuse/shared";
 
-interface ControlsContextType {
-  open: boolean;
-  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  tableName?: string;
-  /** Below `md` the panel renders inside a bottom Sheet (not the desktop rail),
-   *  so its header shows a plain close instead of the collapse-to-rail chrome. */
-  isMobile: boolean;
-}
-
-export const ControlsContext = createContext<ControlsContextType | null>(null);
+import { ControlsContext } from "./ControlsContext";
 
 export function DataTableControlsProvider({
   children,
@@ -155,9 +145,10 @@ export function useDataTableControls() {
     };
   }
 
-  return context as ControlsContextType;
+  return context;
 }
 
+/** @internal */
 export interface QueryFilter {
   filters: UIFilter[];
   expanded: string[];
@@ -1476,6 +1467,7 @@ function FilterAccordionItem({
   );
 }
 
+/** @internal */
 export function CategoricalFacet({
   conditionCount,
   label,

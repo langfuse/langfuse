@@ -94,6 +94,7 @@ export function DatePicker({
  * which otherwise extends a complete range (the original "sticky" bug), clears
  * the selection when the single day of a same-day range is re-clicked, or
  * extends a left-over start that survived a closed popover.
+ * @internal
  */
 export function nextRangeForDayClick(
   current: RDPDateRange | undefined,
@@ -111,6 +112,7 @@ export function nextRangeForDayClick(
   return { from: clickedDay, to: undefined };
 }
 
+/** @internal */
 export function isRangeWithinMaxDuration(
   range: RDPDateRange | undefined,
   maxDurationMs: number | undefined,
@@ -136,6 +138,8 @@ export type TimeRangePickerProps = {
   compact?: boolean;
   disabled?: boolean | { before?: Date; after?: Date } | Date | Date[];
   maxRangeMs?: number;
+  /** Called after the presets/calendar popover opened or closed. */
+  onAfterOpenChange?: (open: boolean) => void;
 };
 
 export function TimeRangePicker({
@@ -147,6 +151,7 @@ export function TimeRangePicker({
   onTimeRangeChange,
   disabled,
   maxRangeMs,
+  onAfterOpenChange,
 }: TimeRangePickerProps) {
   // Determine the range type
   const rangeType: "named" | "custom" | null = timeRange
@@ -305,6 +310,7 @@ export function TimeRangePicker({
   const handleOpenChange = useCallback(
     (open: boolean) => {
       setIsOpen(open);
+      onAfterOpenChange?.(open);
       if (open) {
         setTab("presets");
       } else {
@@ -314,7 +320,7 @@ export function TimeRangePicker({
         setInternalDateRange(committedDateRange);
       }
     },
-    [committedDateRange],
+    [committedDateRange, onAfterOpenChange],
   );
 
   const getDisplayContent = () => {
@@ -454,7 +460,7 @@ export function TimeRangePicker({
                     className="hover:bg-accent hover:text-accent-foreground flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm"
                     onClick={() => {
                       onPresetSelection(presetKey);
-                      setIsOpen(false);
+                      handleOpenChange(false);
                     }}
                   >
                     <span className="bg-muted h-5 w-10 rounded px-1.5 text-center text-xs leading-5">

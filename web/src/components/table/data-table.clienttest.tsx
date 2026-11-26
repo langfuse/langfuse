@@ -3,10 +3,10 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { DataTable } from "@/src/components/table/data-table";
 import {
-  useRowHeightRendering,
   type RowHeight,
   type CustomHeights,
 } from "@/src/components/table/data-table-row-height-switch";
+import { useRowHeightRendering } from "./RowHeightRenderingProvider";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type OrderByState } from "@langfuse/shared";
 

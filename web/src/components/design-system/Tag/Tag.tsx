@@ -9,7 +9,9 @@ const tagVariants = cva(
   {
     variants: {
       status: {
-        default: "border-transparent bg-muted text-foreground-secondary",
+        /** Translucent, so the chip stays visible on muted, hovered and selected rows. */
+        default:
+          "border-transparent bg-foreground/5 text-foreground-secondary dark:bg-foreground/10",
         warning:
           "border-yellow-100 bg-yellow-50 text-yellow-800 dark:border-transparent dark:bg-light-yellow/80 dark:text-dark-yellow",
         error:
@@ -42,10 +44,30 @@ export function TagShell({ asChild = false, status, ...props }: TagShellProps) {
   return <Component className={tagVariants({ status })} {...props} />;
 }
 
+export const markerColors = {
+  foreground: "bg-foreground",
+  pink: "bg-pink-500/80 dark:bg-pink-400/80",
+  amber: "bg-amber-500/80 dark:bg-amber-400/80",
+  orange: "bg-orange-500/80 dark:bg-orange-400/80",
+  emerald: "bg-emerald-500/80 dark:bg-emerald-400/80",
+  yellow: "bg-yellow-500/80 dark:bg-yellow-400/80",
+  green: "bg-green-500/80 dark:bg-green-400/80",
+  blue: "bg-blue-500/80 dark:bg-blue-400/80",
+  purple: "bg-purple-500/80 dark:bg-purple-400/80",
+  violet: "bg-violet-500/80 dark:bg-violet-400/80",
+  teal: "bg-teal-500/80 dark:bg-teal-400/80",
+} as const;
+
+const markerVariants = cva("size-2 shrink-0 rounded-full", {
+  variants: { color: markerColors },
+});
+
 type TagProps = {
   text: string;
   /** Muted text after the value, e.g. `(current)`. */
   secondaryText?: string;
+  /** Color of the leading dot. */
+  color?: NonNullable<VariantProps<typeof markerVariants>["color"]>;
   /** Shown before the text. */
   icon?: IconComponent;
   /** Warning and error tint the chip; default keeps the filled look. */
@@ -58,6 +80,7 @@ type TagProps = {
 export function Tag({
   text,
   secondaryText,
+  color,
   icon: Icon,
   status,
   remove,
@@ -69,18 +92,17 @@ export function Tag({
 
   return (
     <TagShell status={status}>
+      {color && <span aria-hidden className={markerVariants({ color })} />}
       {Icon && <Icon size="sm" color="tertiary" aria-hidden />}
       <span
         className="min-w-0 truncate py-0.5"
         title={[text, secondaryText].filter(Boolean).join(" ")}
       >
         {text}
+        {secondaryText && (
+          <span className="text-foreground-tertiary ml-1">{secondaryText}</span>
+        )}
       </span>
-      {secondaryText && (
-        <span className="text-foreground-tertiary shrink-0 py-0.5">
-          {secondaryText}
-        </span>
-      )}
       {remove && (
         <button
           type="button"

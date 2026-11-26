@@ -21,5 +21,5 @@ export const [listSkillsTool, handleListSkills] = defineTool({
           input,
         }),
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

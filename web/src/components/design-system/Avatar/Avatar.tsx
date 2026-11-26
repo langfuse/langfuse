@@ -110,7 +110,7 @@ const Avatar = React.forwardRef<
                 "flex h-full w-full items-center justify-center rounded-[inherit]",
                 tone === "tinted"
                   ? tintedFallbackClass(normalizedDisplayName)
-                  : "bg-muted",
+                  : "bg-foreground/5 dark:bg-foreground/10",
               )}
             >
               {initials}

@@ -465,24 +465,31 @@ async function resolveModelSettings(
 ): Promise<{ settings: ResolvedModelSettings; keys: LlmApiKeys[] }> {
   const candidates = await findProjectLlmApiKeyCandidates({ projectId });
   const keys: LlmApiKeys[] = [];
-  const slot = (
-    requested: TopicsModelSettings[TopicsModelSlotName],
-  ): ConnectionSlot => {
+  const slot = (name: TopicsModelSlotName): ConnectionSlot => {
+    const requested = settings[name];
     if (!requested) return null;
     const key = effectiveConnection(candidates, requested.provider);
-    if (!key)
+    if (!key) {
+      logger.error("Topics setup model test failed", {
+        projectId,
+        slot: name,
+        provider: requested.provider,
+        model: requested.model,
+        kind: "connection_not_found",
+      });
       throw new InvalidRequestError(
         "LLM connection not found in this project.",
       );
+    }
     keys.push(key);
     return { llmApiKeyId: key.id, model: requested.model };
   };
   return {
     settings: {
-      summary: slot(settings.summary),
-      embedding: slot(settings.embedding),
+      summary: slot("summary"),
+      embedding: slot("embedding"),
       embeddingDimensions: settings.embeddingDimensions,
-      clustering: slot(settings.clustering),
+      clustering: slot("clustering"),
     },
     keys,
   };
@@ -689,14 +696,30 @@ async function testTopicsModelSlots(
       const llmApiKey = keys.find(
         (candidate) => candidate.id === slot.llmApiKeyId,
       );
+      // Provider messages can echo credentials, so only our own check messages are logged.
+      const logFailure = (details: Record<string, unknown>) =>
+        logger.error("Topics setup model test failed", {
+          projectId,
+          slot: name,
+          adapter: llmApiKey?.adapter,
+          provider: llmApiKey?.provider,
+          model: slot.model,
+          baseUrlHost:
+            llmApiKey?.baseURL && URL.canParse(llmApiKey.baseURL)
+              ? new URL(llmApiKey.baseURL).hostname
+              : undefined,
+          ...details,
+        });
       if (!llmApiKey) {
         errors[name] = "LLM connection not found in this project.";
+        logFailure({ kind: "connection_not_found" });
         return;
       }
       try {
         const resolved = resolveSlot(name, llmApiKey, slot.model, projectId);
         if (!resolved) {
           errors[name] = "LLM connection not found in this project.";
+          logFailure({ kind: "connection_not_found" });
           return;
         }
         if (name !== "embedding") {
@@ -724,21 +747,17 @@ async function testTopicsModelSlots(
           dimensions: settings.embeddingDimensions,
         });
         if (embeddings.length !== 2)
-          throw new Error(
+          throw new ModelCheckError(
             "The model must embed several texts in one request. Choose an embedding model or endpoint that supports batched input.",
           );
         const wrong = embeddings.find(
           (vector) => vector.length !== settings.embeddingDimensions,
         );
         if (wrong)
-          throw new Error(
+          throw new ModelCheckError(
             `The model returned ${wrong.length} dimensions instead of ${settings.embeddingDimensions}. Choose a size this model supports.`,
           );
       } catch (error) {
-        errors[name] =
-          error instanceof Error
-            ? error.message.slice(0, 300)
-            : "The test call failed.";
         const info = getLLMErrorInfo(error);
         // Bedrock InvokeModel failures are plain errors that carry `status`.
         const status =
@@ -750,30 +769,40 @@ async function testTopicsModelSlots(
           status === 408 ||
           status === 429 ||
           (typeof status === "number" && status >= 500);
-        // The test prompt is static, so provider messages carry no customer content.
-        if (!transient)
-          logger.warn("Topics setup model test failed", {
-            projectId,
-            slot: name,
-            adapter: llmApiKey.adapter,
-            provider: llmApiKey.provider,
-            model: slot.model,
-            baseUrlHost:
-              llmApiKey.baseURL && URL.canParse(llmApiKey.baseURL)
-                ? new URL(llmApiKey.baseURL).hostname
-                : undefined,
-            status,
-            kind: info?.kind,
-            error: errors[name],
-            ...providerErrorCode(info?.providerError?.data),
-          });
+        const detail =
+          error instanceof Error
+            ? error.message.slice(0, 300)
+            : "The test call failed.";
+        const hint = modelTestHint(status, transient);
+        errors[name] = hint ? `${hint} Provider error: ${detail}` : detail;
+        logFailure({
+          status,
+          kind: info?.kind,
+          transient,
+          ...(error instanceof ModelCheckError && { error: detail }),
+          ...providerErrorCode(info?.providerError?.data),
+        });
       }
     }),
   );
   return errors;
 }
 
+/** How to fix the common failures; other provider errors speak for themselves. */
+function modelTestHint(status: unknown, transient: boolean) {
+  if (transient)
+    return "The provider is busy or unreachable right now. Try again in a moment.";
+  if (status === 401 || status === 403)
+    return "Check the connection's API key and that it may use this model.";
+  if (status === 404)
+    return "The connection's endpoint doesn't serve this model. Choose another model or check the connection's base URL.";
+  return null;
+}
+
 /** OpenAI-style `error.code` and `error.param` only; free-text bodies can echo request details. */
+/** A model check failure Topics itself detected, whose message is safe to log. */
+class ModelCheckError extends Error {}
+
 function providerErrorCode(data: unknown): { code?: string; param?: string } {
   const error = (data as { error?: { code?: unknown; param?: unknown } } | null)
     ?.error;

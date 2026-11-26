@@ -128,7 +128,7 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
       {children(resolvedOpen)}
       <PopoverContent
         align={align}
-        className="w-(--radix-popover-trigger-width) max-w-[calc(100vw-2rem)] p-0"
+        className="ph-no-capture w-(--radix-popover-trigger-width) max-w-[calc(100vw-2rem)] p-0"
         onWheel={(event) => event.stopPropagation()}
       >
         <Command shouldFilter={onSearchChange === undefined}>

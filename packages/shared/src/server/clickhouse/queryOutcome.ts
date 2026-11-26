@@ -1,3 +1,6 @@
+// Classifies each ClickHouse query's terminal outcome, table, route and shape,
+// and records them as metrics.
+
 import { ClickHouseError, parseError } from "@clickhouse/client";
 import { recordDistribution, recordIncrement } from "../instrumentation";
 import { type NormalizedClickHouseQueryTags } from "./queryTags";
@@ -11,6 +14,7 @@ import { type ClickhouseService } from "./client";
  * callers as UNPROCESSABLE_CONTENT, so status-code-derived signals cannot
  * distinguish them from a caller's malformed request. This metric is the
  * signal that can: it is emitted where the resource error is classified.
+ * @internal
  */
 export const CLICKHOUSE_QUERY_OUTCOME_METRIC =
   "langfuse.clickhouse.query.outcome";
@@ -20,6 +24,7 @@ export const CLICKHOUSE_QUERY_OUTCOME_METRIC =
  * header and emitted unsampled with the outcome metric's tags. APM keeps only a
  * small sample of query spans, so this is the series to track query runtime
  * over time per route, table, shape and ClickHouse service.
+ * @internal
  */
 export const CLICKHOUSE_QUERY_ELAPSED_MS_METRIC =
   "langfuse.clickhouse.query.elapsed_ms";
@@ -84,6 +89,7 @@ const OTHER_ROUTE_LABEL = "other";
  * SLO and dashboard queries can filter both signals the same way. Datadog tag
  * values cannot contain spaces or brackets, so the method is folded in with an
  * underscore and a `[param]` placeholder is rendered as `_param_`.
+ * @internal
  */
 export function clickHouseQueryOutcomeRouteLabel(route?: string): string {
   if (!route) return OTHER_ROUTE_LABEL;

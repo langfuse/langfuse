@@ -1,3 +1,5 @@
+// Pins how the routing pass maps logical events to events_core/events_full.
+
 import {
   AliasNode,
   FromNode,
@@ -40,7 +42,7 @@ import {
   useFinal,
 } from "./extensions";
 import { finalTable } from "./nodes";
-import { applyPassOnly, renderPassOutput } from "./passHarness";
+import { applyPassOnly, renderPassOutput } from "./__tests__/passHarness";
 import type { ClickHouseDatabase } from "./schema";
 
 // Raw compiler output, so these run without a `clickhouse` binary. The routing

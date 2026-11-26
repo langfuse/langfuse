@@ -1,6 +1,9 @@
 import { type ComponentProps } from "react";
 import { type Facet } from "./facet-topics";
-import { type TopicDisplay } from "./prepare-topic-display";
+import {
+  type TopicDisplay,
+  UNASSIGNED_TOPIC_ID,
+} from "./prepare-topic-display";
 import { type MobileTopicsVisualization } from "./TopicsResultsViewSelect";
 import { ScatterMap } from "./scatter/ScatterMap";
 import { TopicTreemap } from "./TopicTreemap";
@@ -62,6 +65,9 @@ export function MobileTopicVisualization({
         query={mapResult}
         topics={facet.map.topics}
         selectedTopic={null}
+        pickedTopic={
+          selectedTopicId === UNASSIGNED_TOPIC_ID ? null : selectedTopicId
+        }
         selectedTraceId={selectedTraceId}
         matchingTraceIds={matchingTraceIds}
         onSelectTopic={selectMapTopic}

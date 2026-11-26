@@ -27,7 +27,7 @@ import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
-import { ExternalLinkIcon, Pen } from "@langfuse/icons";
+import { Pen } from "@langfuse/icons";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/TablePeekViewEvaluatorConfigDetail";
 import {
@@ -276,11 +276,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               );
             }}
           >
-            <ExternalLinkIcon
-              size="base"
-              color="default"
-              __rawClassName="mr-1"
-            />
             View
           </Button>
         );

@@ -27,7 +27,7 @@ export type ConfigureTopicsSaveDraft = {
   idleSeconds: string;
 };
 
-export type ConfigureTopicsDraft = {
+type ConfigureTopicsDraft = {
   summary: JudgeModel | null;
   embedding: JudgeModel | null;
   embeddingDimensions: string;
@@ -289,6 +289,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                   type="number"
                   inputMode="numeric"
                   min={60}
+                  max={3600}
                   value={idleSeconds}
                   onChange={(event) => setIdleSeconds(event.target.value)}
                 />

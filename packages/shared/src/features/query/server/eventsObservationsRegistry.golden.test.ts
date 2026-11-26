@@ -1,3 +1,5 @@
+// Pins that the AST registry and eventsObservationsView SQL strings agree.
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -9,7 +11,7 @@ import { QueryCompileError } from "../../../server/query-ast/errors";
 import {
   clickhouseLocalAvailable,
   executeClickhouseLocal,
-} from "../../../server/repositories/goldenHarness";
+} from "../../../server/repositories/__tests__/goldenHarness";
 import { arrayJoin, literal } from "../../../server/query-ast/extensions";
 import type { ClickHouseDatabase } from "../../../server/query-ast/schema";
 import { eventsObservationsView } from "../dataModel";
@@ -65,7 +67,7 @@ const LEGACY_ALIAS = "events_observations";
 /** Columns the view's measure strings read without a relation alias. */
 const LEGACY_BARE_COLUMNS = ["usage_details", "cost_details", "total_cost"];
 
-/** The legacy `@@AGGn@@` substitution of `queryBuilder.ts`, per query level. */
+/** The legacy `@@AGGn@@` substitution of `sqlTextQuery.ts`, per query level. */
 function legacyMeasureSql(
   sql: string,
   aggs: Record<string, string>,

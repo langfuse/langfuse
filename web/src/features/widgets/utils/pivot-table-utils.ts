@@ -104,6 +104,7 @@ export interface DatabaseRow {
  *
  * @param config - Pivot table configuration to validate
  * @throws Error if configuration is invalid
+ * @internal
  */
 export function validatePivotTableConfig(config: PivotTableConfig): void {
   if (config.dimensions.length > MAX_PIVOT_TABLE_DIMENSIONS) {
@@ -137,6 +138,7 @@ export function validatePivotTableConfig(config: PivotTableConfig): void {
  * @param type - Type of row (data, subtotal, total)
  * @param level - Indentation level for the row
  * @returns Unique string identifier for the row
+ * @internal
  */
 export function generateRowId(
   dimensionValues: Record<string, string>,
@@ -157,6 +159,7 @@ export function generateRowId(
  *
  * @param metrics - Array of metric field names
  * @returns Object with all metrics initialized to 0
+ * @internal
  */
 export function createEmptyMetricValues(
   metrics: string[],
@@ -393,6 +396,7 @@ export function extractMetricValues(
  *
  * @param row - Pivot table row to check
  * @returns True if the row contains actual data, false for summary rows
+ * @internal
  */
 export function isDataRow(row: PivotTableRow): boolean {
   return row.type === "data";
@@ -403,6 +407,7 @@ export function isDataRow(row: PivotTableRow): boolean {
  *
  * @param row - Pivot table row to check
  * @returns True if the row is a subtotal, false otherwise
+ * @internal
  */
 export function isSubtotalRow(row: PivotTableRow): boolean {
   return row.type === "subtotal" || row.isSubtotal === true;
@@ -413,6 +418,7 @@ export function isSubtotalRow(row: PivotTableRow): boolean {
  *
  * @param row - Pivot table row to check
  * @returns True if the row is the grand total, false otherwise
+ * @internal
  */
 export function isTotalRow(row: PivotTableRow): boolean {
   return row.type === "total" || row.isTotal === true;
@@ -425,6 +431,7 @@ export function isTotalRow(row: PivotTableRow): boolean {
  * @param data - Array of database rows to group
  * @param dimensionField - Field name to group by
  * @returns Object with dimension values as keys and arrays of rows as values
+ * @internal
  */
 export function groupDataByDimension(
   data: DatabaseRow[],
@@ -566,6 +573,7 @@ function weightedMean(
  * @param data - Array of database rows to calculate subtotals for
  * @param metrics - Array of metric field names to aggregate
  * @returns Object with metric names as keys and calculated totals as values
+ * @internal
  */
 export function calculateSubtotals(
   data: DatabaseRow[],
@@ -621,6 +629,7 @@ export function calculateSubtotals(
  * @param data - Array of database rows to calculate grand totals for
  * @param metrics - Array of metric field names to aggregate
  * @returns Object with metric names as keys and calculated grand totals as values
+ * @internal
  */
 export function calculateGrandTotals(
   data: DatabaseRow[],
@@ -637,6 +646,7 @@ export function calculateGrandTotals(
  * @param subtotalValues - Calculated subtotal values for metrics
  * @param level - Indentation level for the row
  * @returns Formatted pivot table subtotal row
+ * @internal
  */
 export function createSubtotalRow(
   dimensionValue: string,
@@ -663,6 +673,7 @@ export function createSubtotalRow(
  * @param metrics - Array of metric field names
  * @param grandTotalValues - Calculated grand total values for metrics
  * @returns Formatted pivot table grand total row
+ * @internal
  */
 export function createGrandTotalRow(
   metrics: string[],

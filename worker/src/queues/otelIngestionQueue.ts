@@ -53,10 +53,13 @@ import {
   prepareOtelBatch,
 } from "../features/otel-ingestion/prepareOtelBatch";
 import { processRustOtelEvents } from "../features/otel-ingestion/processRustOtelEvents";
+import { productionRustOtelWrites } from "../features/otel-ingestion/otelWrites";
+import { productionEvalWrites } from "../features/evaluation/scheduleEvals";
 
 /**
  * Legacy media processing follows legacy persistence, independently of
  * whether the same batch also qualifies for a direct events-table write.
+ * @internal
  */
 export function shouldProcessLegacyOtelMedia(params: {
   mediaUploadEnabled: boolean;
@@ -73,6 +76,7 @@ export function shouldProcessLegacyOtelMedia(params: {
  * - x-langfuse-sdk-name "python" with x-langfuse-sdk-version >= 4.0.0
  * - x-langfuse-sdk-name "javascript" with x-langfuse-sdk-version >= 5.0.0
  * - x-langfuse-ingestion-version === "4" (custom OTel exporter opt-in)
+ * @internal
  */
 export function checkHeaderBasedDirectWrite(params: {
   sdkName?: string;
@@ -115,7 +119,7 @@ export function checkHeaderBasedDirectWrite(params: {
   return false;
 }
 
-export type OtelWritePath =
+type OtelWritePath =
   | "dual"
   | "direct_header"
   | "direct_env"
@@ -131,6 +135,7 @@ export type OtelWritePath =
  * "langfuse"-prefixed instrumentation scope. A third party that sets the
  * header anyway is treated as SDK traffic, which is the conservative direction
  * — it keeps the established write path.
+ * @internal
  */
 export function isLangfuseSdkTraffic(params: {
   sdkName?: string;
@@ -156,6 +161,7 @@ export function isLangfuseSdkTraffic(params: {
  * scopes in any order, and one Langfuse scope anywhere is enough to keep the
  * whole batch on its established write path. Scans scope metadata only — no
  * span bodies are touched.
+ * @internal
  */
 export function batchContainsLangfuseScope(
   resourceSpans: ResourceSpan[],
@@ -196,6 +202,7 @@ export function batchContainsLangfuseScope(
  * The rule is Cloud-only, gated at the call site
  * (isProjectOrgPastOtelDirectWriteCutoff): self-hosted deployments move the
  * whole deployment at once via LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR.
+ * @internal
  */
 export function isOrgPastOtelDirectWriteCutoff(params: {
   /** Organization signup date; nullish when it could not be resolved. */
@@ -299,6 +306,7 @@ async function isProjectOrgPastOtelDirectWriteCutoff(
  * synthetic root observation that only the dual path materializes — so flipping
  * it would change data those users already read. A plain OTel exporter has no
  * such prior expectation, and is the case the cutoff exists for.
+ * @internal
  */
 export function resolveOtelWritePath(params: {
   headerBasedDirectWrite: boolean;
@@ -350,6 +358,7 @@ function extractBaseSdkVersion(sdkVersion: string): string {
 
 /**
  * SDK information extracted from OTEL resourceSpans.
+ * @internal
  */
 export type SdkInfo = {
   scopeName: string | null;
@@ -360,6 +369,7 @@ export type SdkInfo = {
 /**
  * Extract SDK information from resourceSpans.
  * Gets scope name/version and telemetry SDK language from the OTEL structure.
+ * @internal
  */
 export function getSdkInfoFromResourceSpans(
   resourceSpans: ResourceSpan,
@@ -390,6 +400,7 @@ export function getSdkInfoFromResourceSpans(
  * - Scope name must contain 'langfuse' (case-insensitive)
  * - Python SDK: scope_version >= 3.9.0
  * - JS/JavaScript SDK: scope_version >= 4.4.0
+ * @internal
  */
 export function checkSdkVersionRequirements(
   sdkInfo: SdkInfo,
@@ -939,6 +950,7 @@ export const otelIngestionQueueProcessorBuilder = (
             ingestionSdkName: attribution.ingestionSdkName,
             ingestionSdkVersion: attribution.ingestionSdkVersion,
           },
+          writes: productionRustOtelWrites(),
         });
         mediaPresence = combineOtelMediaPresence(
           mediaPresence,
@@ -954,6 +966,7 @@ export const otelIngestionQueueProcessorBuilder = (
           processor,
           resourceSpans: parsedSpans,
           ingestionService: getIngestionService(),
+          evalWrites: productionEvalWrites,
           projectId,
           fileKey,
           shouldWriteToEventsTable,
