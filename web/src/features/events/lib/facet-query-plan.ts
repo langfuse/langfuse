@@ -4,7 +4,7 @@ import {
   type TimeFilter,
 } from "@langfuse/shared";
 
-// Pure query planning for the events filter options (LFE-14489): which facet
+// Pure query planning for the events filter options: which facet
 // columns share one bulk query, which need a self-excluded per-column query,
 // and the refining filter each carries. useEventsFilterOptions executes the plan.
 

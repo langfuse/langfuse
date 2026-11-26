@@ -1,3 +1,6 @@
+// Query-AST compiler entry points: run every compiler pass over a Kysely query
+// or condition and render ClickHouse SQL with its binds.
+
 import {
   AliasNode,
   createQueryId,

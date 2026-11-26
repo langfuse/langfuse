@@ -4,10 +4,7 @@ import {
   RESOURCE_MIME_TYPE,
   RESOURCE_URI_META_KEY,
 } from "@modelcontextprotocol/ext-apps/server";
-import {
-  CLIENT_CAPABILITIES_META_KEY,
-  type ClientCapabilities,
-} from "@modelcontextprotocol/server";
+import type { ClientCapabilities } from "@modelcontextprotocol/server";
 
 /**
  * MCP Apps support (https://github.com/modelcontextprotocol/ext-apps).
@@ -28,19 +25,16 @@ export const MCP_APPS_EXTENSION = { [EXTENSION_ID]: {} };
  * (in their `_meta` envelope); 2025-era clients declare theirs once in
  * `initialize`, which this stateless endpoint does not keep. So only a client
  * that declared capabilities without the MCP Apps extension is known not to
- * render apps; others keep app tools, which also answer in text.
+ * render apps; others keep app tools, which also answer in text. The
+ * capabilities are read before the SDK validates the request, so malformed
+ * ones count as no MCP Apps support.
  */
-export const clientMayRenderApps = (ctx: { mcpReq: { envelope?: object } }) => {
-  const capabilities = (
-    ctx.mcpReq.envelope as
-      | Record<string, ClientCapabilities | undefined>
-      | undefined
-  )?.[CLIENT_CAPABILITIES_META_KEY];
-  return (
-    capabilities === undefined ||
-    (getUiCapability(capabilities)?.mimeTypes?.includes(RESOURCE_MIME_TYPE) ??
-      false)
-  );
+export const clientMayRenderApps = (
+  capabilities: ClientCapabilities | undefined,
+) => {
+  if (capabilities === undefined) return true;
+  const mimeTypes: unknown = getUiCapability(capabilities)?.mimeTypes;
+  return Array.isArray(mimeTypes) && mimeTypes.includes(RESOURCE_MIME_TYPE);
 };
 
 /** Whether a tool definition renders its results with a `ui://` resource. */

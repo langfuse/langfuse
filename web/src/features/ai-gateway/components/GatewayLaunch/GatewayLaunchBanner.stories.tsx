@@ -10,11 +10,6 @@ const acmeRobotics = {
   organizationName: "Acme Robotics",
   canManage: true,
 };
-const acmeResearch = {
-  organizationId: "org-acme-research",
-  organizationName: "Acme Research",
-  canManage: true,
-};
 
 const capture = fn<PostHog["capture"]>();
 const client = new PostHog();
@@ -49,17 +44,6 @@ export const Setup = meta.story({
   },
 });
 
-export const SetupSeveralOrgs = meta.story({
-  args: {
-    userId: "user-maya",
-    target: {
-      organizationId: acmeRobotics.organizationId,
-      state: "setup",
-      setupOptions: [acmeRobotics, acmeResearch],
-    },
-  },
-});
-
 export const AskAdmin = meta.story({
   args: {
     userId: "user-priya",
@@ -82,26 +66,21 @@ export const GetApiKey = meta.story({
   },
 });
 
-export const OpensOrgPicker = SetupSeveralOrgs.extend({
-  name: "(Test) Opens Org Picker",
+export const OpensDialog = Setup.extend({
+  name: "(Test) Opens Dialog",
   play: async ({ canvas, canvasElement, userEvent }) => {
     const body = within(canvasElement.ownerDocument.body);
 
     await userEvent.click(canvas.getByRole("button", { name: "Set up" }));
     await expect(capture).toHaveBeenCalledWith(
       "ai_gateway_launch:banner_cta_clicked",
-      { state: "setup", orgCount: 2 },
+      { state: "setup", orgCount: 1 },
       undefined,
     );
 
-    await userEvent.click(body.getByRole("button", { name: "Set up gateway" }));
-    // The dialog fades in, so wait until its menu is fully shown.
     await waitFor(async () => {
       await expect(
-        body.getByRole("menuitem", { name: "Acme Robotics" }),
-      ).toBeVisible();
-      await expect(
-        body.getByRole("menuitem", { name: "Acme Research" }),
+        body.getByRole("link", { name: "Set up gateway" }),
       ).toBeVisible();
     });
   },

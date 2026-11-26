@@ -20,15 +20,15 @@ changing how it emits SQL.
 - `tenancy.ts` — the tenancy injection pass.
 - `schema.ts` — the physical table registry: one `defineTable` declaration per relation drives the Kysely row types (`ClickHouseDatabase`), the runtime column-type map (`COLUMN_DATA_TYPES`), the tenanted-table set (`TENANTED_TABLES`), and the per-table dedup specs (`DEDUP_SPECS`) — instead of hand-maintained tables that drift.
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
-- `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `withFill`, `useFinal`) and typed ClickHouse functions and aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`, `firstMetadataValue`, `arrayDistinct`, `countEqual`, `tupleArrayField`, `toNullable`, `typedNull`, `formatDateTime`, `templateAggregate`, `quantile`, `histogram`, `toStartOfInterval`, `interval`, `literal`, …) that take `eb.ref(...)` expressions. `interval(count, unit)` takes an `IntervalUnit`: `minute`, `hour`, `day`, `week` or `month`.
+- `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `withFill`, `useFinal`) and typed ClickHouse functions and aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`, `firstMetadataValue`, `mapContains`, `arrayDistinct`, `countEqual`, `tupleArrayField`, `toNullable`, `toBool`, `typedNull`, `formatDateTime`, `templateAggregate`, `quantile`, `histogram`, `toStartOfInterval`, `interval`, `literal`, …) that take `eb.ref(...)` expressions. `interval(count, unit)` takes an `IntervalUnit`: `minute`, `hour`, `day`, `week` or `month`.
 - `views.ts` / `dedup.ts` — virtual views as CTEs and per-table dedup lowering.
-- `fixtures/catalog.ts` — test-only catalog of builder queries exercising the
+- `catalog.ts` — test-only catalog of builder queries exercising the
   dialect's expressivity.
 - `passHarness.ts` — test-only: applies one compiler pass alone, for the pass suites ([Testing a pass](#testing-a-pass)).
 - `catalog.golden.test.ts` — catalog SQL baselines.
 - `DECISIONS.md` — the compiler's standing design rules, one record each, with the code and test that enforce it.
 
-The golden-SQL harness lives in `../repositories/goldenHarness.ts` (it captures
+The golden-SQL harness lives in `goldenHarness.ts` (it captures
 SQL at the `repositories/clickhouse.ts` exec seam in test mode, then normalizes
 it via `clickhouse format` + positional param names for snapshot comparison — no
 ClickHouse server needed). Each migrated call site keeps its SQL baseline next to
@@ -135,7 +135,17 @@ must carry the `.golden.test.ts` suffix to run there.
   `scopedToEvents`. A module-level constant built from a detached
   `expressionBuilder()` loses the check entirely: helper results don't carry
   their table scope in their type, and Kysely's `select()` / `where()` accept
-  any expression.
+  any expression. A query that adds its joins conditionally builds with a
+  detached builder typed over every relation it may join:
+  `scoresExpressionBuilder()` in
+  `../../features/query/server/scoresRegistry.ts` for the v2 score views, and
+  `expressionBuilder<ObservationsDb, "e" | "scores">()` for the observations
+  view's `countScores` measure. It type-checks a ref to a relation the query
+  did not join. The compiler rejects that ref in any clause. In a query over
+  one relation, `q.x` also compiles when `q` is a registry column of that
+  relation (`metadata.keys`); a column the registry does not model must be
+  added to it first. The compiler does not check `x`: `scores.nope` compiles,
+  and only ClickHouse rejects the query.
 - **Helpers take columns as expressions.** A helper parameter that names a
   column is an `Expression<T>` the caller builds (`eb.ref("e.col")`), never a
   column-name string, so the calling query's builder checks the column. Don't
@@ -368,7 +378,7 @@ as an entry. `@ts-expect-error` lines there must stay live.
 
 Production compiles through `compileClickhouseQuery` and `compileClickhouseCondition`, which run every pass of `compilerPasses`. `renderClickhouseExpression` and `renderClickhouseSelections` run none: they render a fragment with no FROM of its own (a subquery or raw relation throws) for a raw-SQL query that owns the FROM, so there is nothing for tenancy, routing or dedup to act on.
 
-A pass's guarantee is tested with only that pass applied, so another pass cannot mask a gap in it. `passHarness.ts` (test-only) applies one pass (`applyPassOnly(query, pass)`) and renders the tree with no further pass (`renderPassOutput(node)`). A row check runs that SQL in `clickhouse local` with `substituteNamedParams` and `executeClickhouseLocal` from `../repositories/goldenHarness`. The suites, with the pass each applies:
+A pass's guarantee is tested with only that pass applied, so another pass cannot mask a gap in it. `passHarness.ts` (test-only) applies one pass (`applyPassOnly(query, pass)`) and renders the tree with no further pass (`renderPassOutput(node)`). A row check runs that SQL in `clickhouse local` with `substituteNamedParams` and `executeClickhouseLocal` from `goldenHarness.ts`. The suites, with the pass each applies:
 
 - tenancy, `new TenancyInjectionPlugin(projectId)` from `./tenancy`: `tenancy.golden.test.ts`, every join type × FROM table or subquery × ON scope, caller WHERE scope or a caller WHERE on `project_id` that does not scope, plus reads in an IN subquery, a scalar subquery and a CTE body, each rejected or executed with no other project's row surviving; the other tenancy rejections in "tenancy injection" in `nodes.test.ts`;
 - dedup, `new DedupLoweringPlugin()` from `./dedup`: `dedup.golden.test.ts`, one row per key, the latest version, per read shape;

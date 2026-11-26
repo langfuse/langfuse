@@ -1,70 +1,46 @@
-import { ProtocolError, ProtocolErrorCode } from "@modelcontextprotocol/server";
+import type { ClientCapabilities } from "@modelcontextprotocol/server";
+import { LANGFUSE_SKILLS } from "@repo/langfuse-skills";
 import { recordIncrement } from "@langfuse/shared/src/server";
-import type { createMcpServer } from "./mcpServer";
-import {
-  resourceNotFound,
-  resourceResultCache,
-} from "../core/resource-results";
-import { listSkillResources, readSkillResource } from "./skills/resources";
 import { clientMayRenderApps } from "../core/mcp-app";
-import { listAppResources, readAppResource } from "./apps/resources";
+import { WIDGET_APP_RESOURCE_URI } from "./apps/resources";
 
-/**
- * Tags of `langfuse.mcp.resource_read`. Only known URIs become tag values: the
- * set is bounded by the bundled skills and MCP Apps, whereas a caller can send
- * any string.
- */
-const resourceReadTags = ({
-  uri,
-  found,
-  isApp,
-}: {
-  uri: string;
-  found: boolean;
-  isApp: boolean;
-}) => {
-  if (!found) return { kind: "unknown", uri: "unknown", outcome: "not_found" };
-  return { kind: isApp ? "app" : "skill", uri, outcome: "success" };
+const SKILL_FILE_URIS = new Set(
+  LANGFUSE_SKILLS.flatMap((skill) => skill.resources.map(({ uri }) => uri)),
+);
+
+const resourceReadTags = (
+  uri: unknown,
+  clientCapabilities: ClientCapabilities | undefined,
+) => {
+  if (
+    uri === WIDGET_APP_RESOURCE_URI &&
+    clientMayRenderApps(clientCapabilities)
+  ) {
+    return { kind: "app", uri, outcome: "success" };
+  }
+  if (typeof uri === "string" && SKILL_FILE_URIS.has(uri)) {
+    return { kind: "skill", uri, outcome: "success" };
+  }
+  return { kind: "unknown", uri: "unknown", outcome: "not_found" };
 };
 
 /**
- * Registers the MCP resource handlers: bundled skill files and the `ui://`
- * documents of MCP App tools.
+ * Counts a `resources/read` request body as `langfuse.mcp.resource_read`,
+ * tagged by kind, URI and outcome. Only URIs this server serves to the client
+ * become tag values: the set is bounded by the bundled skills and MCP Apps,
+ * whereas a caller can send any string.
  */
-export function registerResources(server: ReturnType<typeof createMcpServer>) {
-  server.setRequestHandler("resources/list", async (request, ctx) => {
-    if (request.params?.cursor !== undefined) {
-      throw new ProtocolError(
-        ProtocolErrorCode.InvalidParams,
-        "Invalid resources cursor",
-      );
-    }
-    return {
-      ...resourceResultCache,
-      resources: [
-        ...listSkillResources(),
-        ...(clientMayRenderApps(ctx) ? listAppResources() : []),
-      ],
-    };
-  });
-  server.setRequestHandler("resources/templates/list", async () => ({
-    ...resourceResultCache,
-    resourceTemplates: [],
-  }));
-  server.setRequestHandler("resources/read", async (request) => {
-    const uri = request.params.uri;
-    const appResource = await readAppResource(uri);
-    const resource = appResource ?? readSkillResource(uri);
-    recordIncrement(
-      "langfuse.mcp.resource_read",
-      1,
-      resourceReadTags({
-        uri,
-        found: resource !== undefined,
-        isApp: appResource !== undefined,
-      }),
-    );
-    if (!resource) throw resourceNotFound();
-    return { ...resourceResultCache, contents: [resource] };
-  });
-}
+export const recordResourceRead = (
+  body: unknown,
+  clientCapabilities: ClientCapabilities | undefined,
+) => {
+  const { method, params } =
+    (body as { method?: unknown; params?: { uri?: unknown } } | undefined) ??
+    {};
+  if (method !== "resources/read") return;
+  recordIncrement(
+    "langfuse.mcp.resource_read",
+    1,
+    resourceReadTags(params?.uri, clientCapabilities),
+  );
+};

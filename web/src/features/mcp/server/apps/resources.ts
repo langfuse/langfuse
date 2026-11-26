@@ -1,6 +1,10 @@
 import { env } from "@/src/env.mjs";
 import { getProductBaseUrl, logger } from "@langfuse/shared/src/server";
-import { RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
+import {
+  RESOURCE_MIME_TYPE,
+  registerAppResource,
+} from "@modelcontextprotocol/ext-apps/server";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { McpUiResourceMeta } from "@modelcontextprotocol/ext-apps";
 
 export const WIDGET_APP_RESOURCE_URI = "ui://langfuse/widget.html";
@@ -147,24 +151,26 @@ const resourceMeta = (): { ui: McpUiResourceMeta } => {
   };
 };
 
-const RESOURCE = {
-  uri: WIDGET_APP_RESOURCE_URI,
-  name: "Langfuse widget",
-  description:
-    "Chart for renderWidget results (MCP App). Hosts render it inline next to the tool call.",
-  mimeType: RESOURCE_MIME_TYPE,
-};
-
-/** MCP App documents listed as resources. */
-export const listAppResources = () => [{ ...RESOURCE, _meta: resourceMeta() }];
-
-/** Contents of one MCP App document, or undefined for other URIs. */
-export const readAppResource = async (uri: string) => {
-  if (uri !== RESOURCE.uri) return undefined;
-  return {
-    uri: RESOURCE.uri,
-    mimeType: RESOURCE.mimeType,
-    text: await loadPage(),
-    _meta: resourceMeta(),
-  };
-};
+/** Registers the widget page as the `ui://` resource of the renderWidget tool. */
+export const registerWidgetAppResource = (server: McpServer) =>
+  registerAppResource(
+    server,
+    "Langfuse widget",
+    WIDGET_APP_RESOURCE_URI,
+    {
+      description:
+        "Chart for renderWidget results (MCP App). Hosts render it inline next to the tool call.",
+      mimeType: RESOURCE_MIME_TYPE,
+      _meta: resourceMeta(),
+    },
+    async () => ({
+      contents: [
+        {
+          uri: WIDGET_APP_RESOURCE_URI,
+          mimeType: RESOURCE_MIME_TYPE,
+          text: await loadPage(),
+          _meta: resourceMeta(),
+        },
+      ],
+    }),
+  );

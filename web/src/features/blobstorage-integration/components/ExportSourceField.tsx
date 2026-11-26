@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+// Export source form field of the blob storage integration settings.
+
 import { useWatch } from "react-hook-form";
 import { Info, SquareArrowOutUpRight } from "@langfuse/icons";
 import { Banner } from "@/src/components/design-system/Banner/Banner";

@@ -53,6 +53,8 @@ import {
   prepareOtelBatch,
 } from "../features/otel-ingestion/prepareOtelBatch";
 import { processRustOtelEvents } from "../features/otel-ingestion/processRustOtelEvents";
+import { productionRustOtelWrites } from "../features/otel-ingestion/otelWrites";
+import { productionEvalWrites } from "../features/evaluation/scheduleEvals";
 
 /**
  * Legacy media processing follows legacy persistence, independently of
@@ -948,6 +950,7 @@ export const otelIngestionQueueProcessorBuilder = (
             ingestionSdkName: attribution.ingestionSdkName,
             ingestionSdkVersion: attribution.ingestionSdkVersion,
           },
+          writes: productionRustOtelWrites(),
         });
         mediaPresence = combineOtelMediaPresence(
           mediaPresence,
@@ -963,6 +966,7 @@ export const otelIngestionQueueProcessorBuilder = (
           processor,
           resourceSpans: parsedSpans,
           ingestionService: getIngestionService(),
+          evalWrites: productionEvalWrites,
           projectId,
           fileKey,
           shouldWriteToEventsTable,

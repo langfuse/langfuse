@@ -54,7 +54,7 @@ async function contextFor(key: {
 
 /** Connects an MCP client to the real server for one key's context. */
 async function connect(context: ServerContext) {
-  const server = createMcpServer(context);
+  const server = await createMcpServer(context);
   const client = new Client({ name: "topics-access-test", version: "1.0.0" });
   const [serverTransport, clientTransport] =
     InMemoryTransport.createLinkedPair();
@@ -122,7 +122,7 @@ describe("Topics MCP tools access", () => {
     const byTopic = [
       {
         type: "stringOptions",
-        column: "topicId",
+        column: "topicStableId",
         operator: "any of",
         value: [owner.topicId],
       },
