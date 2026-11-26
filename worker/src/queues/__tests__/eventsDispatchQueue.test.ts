@@ -63,6 +63,7 @@ vi.mock("@langfuse/shared/src/db", async (importOriginal) => ({
         {
           id: "assignment",
           evaluatorId: "evaluator",
+          evaluator: { type: "LLM_AS_JUDGE" },
           evaluationRule: { id: "judge", delay: null },
         },
       ]),
