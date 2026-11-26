@@ -3,7 +3,6 @@ import type { ConfigureTopicsSaveDraft } from "./ConfigureTopicsDialog";
 import {
   getOpenRouterProviders,
   hasSelectedOpenRouterProvider,
-  isOpenRouterBaseURL,
   topicsSetupPayload,
 } from "./topics-setup";
 
@@ -54,14 +53,19 @@ describe("topicsSetupPayload", () => {
 
 describe("OpenRouter connection detection", () => {
   it("matches OpenRouter endpoints and rejects lookalike hosts", () => {
-    expect(isOpenRouterBaseURL("https://openrouter.ai/api/v1")).toBe(true);
-    expect(isOpenRouterBaseURL("https://eu.openrouter.ai/api/v1")).toBe(true);
-    expect(isOpenRouterBaseURL("https://openrouter.ai./api/v1")).toBe(true);
-    expect(isOpenRouterBaseURL("https://openrouter.ai.example.com/v1")).toBe(
-      false,
-    );
-    expect(isOpenRouterBaseURL("https://api.openai.com/v1")).toBe(false);
-    expect(isOpenRouterBaseURL(null)).toBe(false);
+    expect(
+      getOpenRouterProviders([
+        { provider: "root", baseURL: "https://openrouter.ai/api/v1" },
+        { provider: "regional", baseURL: "https://eu.openrouter.ai/api/v1" },
+        { provider: "trailing-dot", baseURL: "https://openrouter.ai./api/v1" },
+        {
+          provider: "lookalike",
+          baseURL: "https://openrouter.ai.example.com/v1",
+        },
+        { provider: "openai", baseURL: "https://api.openai.com/v1" },
+        { provider: "default", baseURL: null },
+      ]),
+    ).toEqual(["root", "regional", "trailing-dot"]);
   });
 
   it("detects when any selected Topics slot uses an OpenRouter connection", () => {

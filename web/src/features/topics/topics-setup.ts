@@ -4,9 +4,7 @@ import type { ConfigureTopicsSaveDraft } from "./ConfigureTopicsDialog";
 export const OPENROUTER_BROADCAST_TOPICS_NOTICE =
   "If you use OpenRouter Broadcast to send traces to Langfuse, exclude this API key in OpenRouter Broadcast settings so Topics model calls don't create extra traces toward your usage quota.";
 
-export function isOpenRouterBaseURL(
-  baseURL: string | null | undefined,
-): boolean {
+function isOpenRouterBaseURL(baseURL: string | null | undefined): boolean {
   if (!baseURL) return false;
   try {
     const url = new URL(baseURL.replace("{model}", "model"));
