@@ -150,7 +150,8 @@ export async function ensureDefaultTopicFacets(
   await prisma.$transaction(async (tx) => {
     const projects = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM projects WHERE id = ${projectId} FOR UPDATE`;
-    if (projects.length === 0) throw new InvalidRequestError("Project not found.");
+    if (projects.length === 0)
+      throw new InvalidRequestError("Project not found.");
     const existing = await tx.evaluator.findMany({
       where: { projectId, type: "FACET", isBuiltIn: true },
       select: { name: true },
@@ -696,12 +697,13 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
   const definitionTimes = run.topics.map((topic) =>
     Date.parse(topic.createdAt),
   );
-  const definitionTimeRange = definitionTimes.length > 0
-    ? topicTimeRangeSchema.parse({
-        from: new Date(Math.min(...definitionTimes)),
-        to: new Date(Math.max(...definitionTimes) + 1),
-      })
-    : null;
+  const definitionTimeRange =
+    definitionTimes.length > 0
+      ? topicTimeRangeSchema.parse({
+          from: new Date(Math.min(...definitionTimes)),
+          to: new Date(Math.max(...definitionTimes) + 1),
+        })
+      : null;
   const config = { ...run.config };
   if (definitionTimeRange)
     config.definitionTimeRange = {

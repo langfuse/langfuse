@@ -623,7 +623,8 @@ function TableViewPresetsDrawerContentBody({
               <CommandEmpty>No views found</CommandEmpty>
               <CommandGroup className="pb-0">
                 {/* System Preset: Langfuse Default - hidden when page-specific presets exist */}
-                {(systemFilterPresets == null || systemFilterPresets.length === 0) && (
+                {(systemFilterPresets == null ||
+                  systemFilterPresets.length === 0) && (
                   <CommandItem
                     key={SYSTEM_PRESETS.DEFAULT.id}
                     onSelect={() => handleSetViewId(null)}
@@ -669,7 +670,10 @@ function TableViewPresetsDrawerContentBody({
                 ))}
 
                 {/* Separator between system and user presets */}
-                {(systemFilterPresets != null && systemFilterPresets.length > 0) && (drawerPresetList != null && drawerPresetList.length > 0) ? (
+                {systemFilterPresets != null &&
+                systemFilterPresets.length > 0 &&
+                drawerPresetList != null &&
+                drawerPresetList.length > 0 ? (
                   <Separator className="my-2" />
                 ) : null}
 

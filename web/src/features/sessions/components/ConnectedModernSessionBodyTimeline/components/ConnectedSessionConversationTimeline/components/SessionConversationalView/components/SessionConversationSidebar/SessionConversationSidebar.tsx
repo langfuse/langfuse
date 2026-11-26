@@ -421,7 +421,7 @@ export function SessionConversationSidebar(
                       {!isCollapsed && (
                         <div
                           className={
-                            (transcriptRows != null && transcriptRows.length > 0)
+                            transcriptRows != null && transcriptRows.length > 0
                               ? "mt-2 overflow-hidden"
                               : "-mx-1"
                           }

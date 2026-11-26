@@ -672,7 +672,8 @@ export class SlackService {
           attachments: params.attachments as any,
           text:
             params.text ||
-            (params.blocks != null && params.blocks.length > 0 || (params.attachments != null && params.attachments.length > 0)
+            ((params.blocks != null && params.blocks.length > 0) ||
+            (params.attachments != null && params.attachments.length > 0)
               ? undefined
               : "Langfuse Notification"),
           unfurl_links: false,

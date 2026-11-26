@@ -303,7 +303,7 @@ const getBlockedEvaluatorConfigNotifications = (
   blockedByReason: BlockedEvaluatorConfigIdsByReason,
 ): BlockedEvaluatorConfigNotification[] =>
   Object.entries(blockedByReason).flatMap(([blockReason, blockedIds]) =>
-    (blockedIds != null && blockedIds.length > 0)
+    blockedIds != null && blockedIds.length > 0
       ? [
           {
             blockReason: blockReason as EvaluatorBlockReason,

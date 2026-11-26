@@ -18,9 +18,8 @@ export function getSessionConversationEntries(
   );
   return traces.flatMap(({ trace, transcript }, traceIndex) => {
     const { visibleThreads } = visibility[traceIndex]!;
-    const threads = visibleThreads.length > 0
-      ? visibleThreads
-      : [{ threadIndex: undefined }];
+    const threads =
+      visibleThreads.length > 0 ? visibleThreads : [{ threadIndex: undefined }];
     return threads.map(({ threadIndex }, visibleIndex) => ({
       itemId:
         threadIndex === undefined ? trace.id : `${trace.id}:${threadIndex}`,

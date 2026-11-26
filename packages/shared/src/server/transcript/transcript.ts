@@ -78,9 +78,8 @@ export function assembleTranscript(
     append(thread, observation, input, output, toolCalls);
   }
 
-  const transcript = threads.length > 0
-    ? { threads: threads.map(splitTurn) }
-    : null;
+  const transcript =
+    threads.length > 0 ? { threads: threads.map(splitTurn) } : null;
   onTimings?.({
     normalizationMs,
     matchingMs: performance.now() - startedAt - normalizationMs,

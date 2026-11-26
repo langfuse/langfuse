@@ -47,9 +47,10 @@ export function EditScoreConfigDialogController({
               projectId,
               id: defaultValues.id,
               description: values.description ?? null,
-              categories: (values.categories != null && values.categories.length > 0)
-                ? values.categories
-                : undefined,
+              categories:
+                values.categories != null && values.categories.length > 0
+                  ? values.categories
+                  : undefined,
             });
             capture("score_configs:update_form_submit", {
               dataType: values.dataType,

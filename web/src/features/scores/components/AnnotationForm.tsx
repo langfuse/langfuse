@@ -246,7 +246,8 @@ export function AnnotationFormContent({
       !isTextDataType(field.dataType) &&
       !isNumericDataType(field.dataType) &&
       !config.isArchived &&
-      (config.categories != null && config.categories.length > 0)
+      config.categories != null &&
+      config.categories.length > 0
     );
   }).length;
   const hasEditableRow = visibleFields.some(

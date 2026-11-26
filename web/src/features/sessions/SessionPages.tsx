@@ -1379,7 +1379,8 @@ const LoadedSessionEventsPage: React.FC<{
       ?.name ?? null;
   const hasSessionControls =
     !isModernSessionEnabled ||
-    (session.users != null && session.users.length > 0 || session.scores.length > 0);
+    (session.users != null && session.users.length > 0) ||
+    session.scores.length > 0;
   const filterObservationsByName = useCallback(
     (name: string, operator: "any of" | "none of") => {
       if (operator === "any of") {

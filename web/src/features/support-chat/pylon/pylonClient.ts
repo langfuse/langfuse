@@ -59,8 +59,10 @@ export async function createPylonIssue(
   if (requesterName) body.requester_name = requesterName;
   if (tags != null && tags.length > 0) body.tags = tags;
   if (priority) body.priority = priority;
-  if (attachmentUrls != null && attachmentUrls.length > 0) body.attachment_urls = attachmentUrls;
-  if (params.customFields != null && params.customFields.length > 0) body.custom_fields = params.customFields;
+  if (attachmentUrls != null && attachmentUrls.length > 0)
+    body.attachment_urls = attachmentUrls;
+  if (params.customFields != null && params.customFields.length > 0)
+    body.custom_fields = params.customFields;
 
   const res = await fetch(`${PYLON_API_BASE}/issues`, {
     method: "POST",

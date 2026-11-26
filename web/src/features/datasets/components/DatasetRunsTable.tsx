@@ -280,11 +280,11 @@ function DatasetRunsTableInternal(
       projectId: props.projectId,
       filter:
         datasetRuns && datasetRuns.length > 0
-        ? scoreFilters.forDatasetRunItems({
-            datasetRunIds: datasetRuns.map((r) => r.id),
-            datasetId: props.datasetId,
-          })
-        : [],
+          ? scoreFilters.forDatasetRunItems({
+              datasetRunIds: datasetRuns.map((r) => r.id),
+              datasetId: props.datasetId,
+            })
+          : [],
       isFilterDataPending: runs.isPending,
     });
 
@@ -294,10 +294,10 @@ function DatasetRunsTableInternal(
       projectId: props.projectId,
       filter:
         datasetRuns && datasetRuns.length > 0
-        ? scoreFilters.forDatasetRuns({
-            datasetRunIds: datasetRuns.map((r) => r.id),
-          })
-        : [],
+          ? scoreFilters.forDatasetRuns({
+              datasetRunIds: datasetRuns.map((r) => r.id),
+            })
+          : [],
       prefix: "Run-level",
       isFilterDataPending: runs.isPending,
     });
@@ -307,11 +307,11 @@ function DatasetRunsTableInternal(
       projectId: props.projectId,
       filter:
         datasetRuns && datasetRuns.length > 0
-        ? scoreFilters.forDatasetRunItems({
-            datasetRunIds: datasetRuns.map((r) => r.id),
-            datasetId: props.datasetId,
-          })
-        : [],
+          ? scoreFilters.forDatasetRunItems({
+              datasetRunIds: datasetRuns.map((r) => r.id),
+              datasetId: props.datasetId,
+            })
+          : [],
     },
     {
       enabled: runs.isSuccess,

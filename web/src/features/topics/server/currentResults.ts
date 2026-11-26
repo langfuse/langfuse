@@ -137,9 +137,8 @@ async function resolveFacetMaps(
     : rules;
   if (scope.ruleId && scoped.length === 0)
     throw new LangfuseNotFoundError("Topic rule not found in this project.");
-  const enabledFacetIds = scoped.length > 0
-    ? new Set(scoped.flatMap((rule) => rule.facetIds))
-    : null;
+  const enabledFacetIds =
+    scoped.length > 0 ? new Set(scoped.flatMap((rule) => rule.facetIds)) : null;
   const enabled = facets.filter(
     (facet) => !enabledFacetIds || enabledFacetIds.has(facet.id),
   );
@@ -336,9 +335,8 @@ async function currentTopicRows(
   if (!hasStoredSummaries) return { hasStoredSummaries, facets: [] };
   // Only facets enabled on a rule get tabs; without rules, all show.
   const rules = await listTopicRules(projectId);
-  const enabledFacetIds = rules.length > 0
-    ? new Set(rules.flatMap((rule) => rule.facetIds))
-    : null;
+  const enabledFacetIds =
+    rules.length > 0 ? new Set(rules.flatMap((rule) => rule.facetIds)) : null;
   const ruleNames = new Map(rules.map((rule) => [rule.id, rule.name]));
   const shown = facets.filter(
     (facet) => !enabledFacetIds || enabledFacetIds.has(facet.id),
@@ -508,19 +506,20 @@ export async function listTopicTraces(input: {
     includeAssignment: true,
     truncateSummaries: false,
     // Same matching as a rule filter: any observation that starts within the margin after the trace.
-    traceFilter: (input.filter != null && input.filter.length > 0)
-      ? ({ from, to, traceIds }) =>
-          topicMatchingTraceIdsQuery(
-            {
-              projectId: input.projectId,
-              filter: input.filter!,
-              from,
-              to: new Date(to.getTime() + TRACE_SPAN_MARGIN_MS),
-              traceIds,
-            },
-            prisma,
-          )
-      : undefined,
+    traceFilter:
+      input.filter != null && input.filter.length > 0
+        ? ({ from, to, traceIds }) =>
+            topicMatchingTraceIdsQuery(
+              {
+                projectId: input.projectId,
+                filter: input.filter!,
+                from,
+                to: new Date(to.getTime() + TRACE_SPAN_MARGIN_MS),
+                traceIds,
+              },
+              prisma,
+            )
+        : undefined,
   });
   const names = new Map(
     run?.topics.map((topic) => [topic.topicVersionId, topic.name]),

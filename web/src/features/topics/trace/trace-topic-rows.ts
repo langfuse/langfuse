@@ -21,19 +21,23 @@ export function traceTopicRows(facets: TraceTopicFacet[]) {
       label: results[0].name,
       description:
         results.find((result) => result.summary)?.summary ?? undefined,
-      values: assigned.length > 0
-        ? assigned.map((result) => ({
-            text: result.topicName!,
-            caption:
-              assigned.length > 1 ? (result.ruleName ?? undefined) : undefined,
-            color: treemapBadgeColor(result.topicIndex),
-          }))
-        : [
-            {
-              text: status.outcome?.replaceAll("_", " ") ?? "Not analyzed yet",
-              color: "filled" as const,
-            },
-          ],
+      values:
+        assigned.length > 0
+          ? assigned.map((result) => ({
+              text: result.topicName!,
+              caption:
+                assigned.length > 1
+                  ? (result.ruleName ?? undefined)
+                  : undefined,
+              color: treemapBadgeColor(result.topicIndex),
+            }))
+          : [
+              {
+                text:
+                  status.outcome?.replaceAll("_", " ") ?? "Not analyzed yet",
+                color: "filled" as const,
+              },
+            ],
     };
   });
 }

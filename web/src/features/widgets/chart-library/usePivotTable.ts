@@ -108,8 +108,8 @@ export function usePivotTable({
           id: "dimension",
           label:
             config?.dimensions && config.dimensions.length > 0
-            ? config.dimensions.map(formatMetricName).join(" / ")
-            : "Dimension",
+              ? config.dimensions.map(formatMetricName).join(" / ")
+              : "Dimension",
         },
         ...metrics.map((metric) => {
           const sort = (() => {

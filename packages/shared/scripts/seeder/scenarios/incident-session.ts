@@ -945,7 +945,9 @@ const planSteps = (args: {
       modelParameters: {
         temperature: step.temperature ?? 0.2,
         max_tokens: 2048,
-        ...(step.toolCalls != null && step.toolCalls.length > 0 ? { tool_choice: "auto" } : {}),
+        ...(step.toolCalls != null && step.toolCalls.length > 0
+          ? { tool_choice: "auto" }
+          : {}),
       },
       usage: [estimateTokens(input) + 350, estimateTokens(output)],
       ttft: step.ttft,

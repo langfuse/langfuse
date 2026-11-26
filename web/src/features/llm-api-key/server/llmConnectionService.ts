@@ -420,9 +420,10 @@ async function testLlmConnection(
     const iamRole = isBedrockIamRole(params.adapter, params.secretKey);
     const roleOwner = iamRole ? params.bedrockIamRole?.owner : undefined;
 
-    const model = (params.customModels != null && params.customModels.length > 0)
-      ? params.customModels[0]
-      : supportedModels[params.adapter][0];
+    const model =
+      params.customModels != null && params.customModels.length > 0
+        ? params.customModels[0]
+        : supportedModels[params.adapter][0];
     if (!model) {
       throw new Error("No model found");
     }

@@ -1044,7 +1044,8 @@ function DropdownMenuNode({
               <div
                 className={menuBodyVariants({
                   hasTitle: hasHeader || Boolean(search),
-                  showBottomGradient: bottom && (footerItems == null || footerItems.length === 0),
+                  showBottomGradient:
+                    bottom && (footerItems == null || footerItems.length === 0),
                   showTopGradient: top,
                 })}
               >

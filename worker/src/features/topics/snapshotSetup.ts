@@ -132,12 +132,13 @@ async function seed(
           (timeRange.to.getTime() - timeRange.from.getTime()) / DAY_MS,
         ),
     ) ?? TOPIC_SETUP_WINDOW_DAYS[0];
-  const matching = analysis!.filter.length > 0
-    ? await topicMatchingTraceIdsQuery(
-        { projectId, filter: analysis!.filter, ...timeRange },
-        prisma,
-      )
-    : undefined;
+  const matching =
+    analysis!.filter.length > 0
+      ? await topicMatchingTraceIdsQuery(
+          { projectId, filter: analysis!.filter, ...timeRange },
+          prisma,
+        )
+      : undefined;
   // Twice the idle wait, so a trace's live processing has most likely finished too.
   const traceIds =
     matching === null

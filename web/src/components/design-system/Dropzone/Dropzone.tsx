@@ -109,10 +109,12 @@ export const Dropzone = ({
 
   const emptyStateTitle = `Upload ${maxFiles === 1 ? "a file" : "files"}`;
   const emptyStateDescription = "Drag and drop or click to upload";
-  const panelTitle = (src != null && src.length > 0) ? contentText : emptyStateTitle;
-  const panelDescription = (src != null && src.length > 0)
-    ? "Drag and drop or click to replace"
-    : emptyStateDescription;
+  const panelTitle =
+    src != null && src.length > 0 ? contentText : emptyStateTitle;
+  const panelDescription =
+    src != null && src.length > 0
+      ? "Drag and drop or click to replace"
+      : emptyStateDescription;
 
   return (
     <DropzoneController
@@ -160,7 +162,9 @@ export const Dropzone = ({
                   "text-muted-foreground w-full text-xs text-wrap",
                   (src == null || src.length === 0) && "truncate",
                 )}
-                title={(src != null && src.length > 0) ? undefined : panelDescription}
+                title={
+                  src != null && src.length > 0 ? undefined : panelDescription
+                }
               >
                 {panelDescription}
               </p>

@@ -338,7 +338,8 @@ export function renderTranscript(
     const sameSection = available?.filter(
       (candidate) => candidate.history === history,
     );
-    const candidates = (sameSection != null && sameSection.length > 0) ? sameSection : available;
+    const candidates =
+      sameSection != null && sameSection.length > 0 ? sameSection : available;
     const call = newest ? candidates?.at(-1) : candidates?.[0];
     if (call) matchedCalls.add(call);
     return call?.callNumber;

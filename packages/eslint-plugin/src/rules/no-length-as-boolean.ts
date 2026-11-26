@@ -43,7 +43,10 @@ const rule = createRule({
             ) {
               return null;
             }
-            if (accessCanBeNullish(node) && nullishCoalesceOwnsValue(expression)) {
+            if (
+              accessCanBeNullish(node) &&
+              nullishCoalesceOwnsValue(expression)
+            ) {
               return null;
             }
 

@@ -183,7 +183,7 @@ export function DistributionNumericCard() {
   const { mode } = metadata;
   const { score1, score2 } = params;
 
-  const hasData = (distribution1Data != null && distribution1Data.length > 0);
+  const hasData = distribution1Data != null && distribution1Data.length > 0;
   const showTabs = mode === "two";
 
   // Build full tab labels for title attribute (hover tooltip)

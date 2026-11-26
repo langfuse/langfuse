@@ -41,10 +41,10 @@ export const CreateCommentData = z
   .refine(
     (data) => {
       const hasDataField = data.dataField != null;
-      const hasPath = (data.path != null && data.path.length > 0);
+      const hasPath = data.path != null && data.path.length > 0;
       const hasRangeStart =
-        (data.rangeStart != null && data.rangeStart.length > 0);
-      const hasRangeEnd = (data.rangeEnd != null && data.rangeEnd.length > 0);
+        data.rangeStart != null && data.rangeStart.length > 0;
+      const hasRangeEnd = data.rangeEnd != null && data.rangeEnd.length > 0;
 
       // All must be set together, or all must be null/empty
       if (hasDataField || hasPath || hasRangeStart || hasRangeEnd) {

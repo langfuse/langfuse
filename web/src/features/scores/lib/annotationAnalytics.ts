@@ -171,7 +171,11 @@ export function createAnnotationAnalytics(
               baseline.stringValue !== field.stringValue;
       };
       const valueChanged = changed(previous);
-      if (!valueChanged && (pendingValues.get(field.configId)?.length ?? 0) === 0) return;
+      if (
+        !valueChanged &&
+        (pendingValues.get(field.configId)?.length ?? 0) === 0
+      )
+        return;
 
       const next = { ...field };
       const operation = { field: next, sequence: ++sequence };

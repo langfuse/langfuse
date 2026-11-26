@@ -6,7 +6,8 @@ const NON_ACTIONABLE_API_CALLER_USER_AGENT = /(claude|codex|curl)/i;
 export const isActionableLegacyApiUsage = (row: {
   callers?: { userAgent?: string; isOther?: true }[];
 }) =>
-  (row.callers == null || row.callers.length === 0) ||
+  row.callers == null ||
+  row.callers.length === 0 ||
   row.callers.some(
     (caller) =>
       caller.isOther ||

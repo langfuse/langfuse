@@ -100,9 +100,8 @@ const getWinstonLogger = (
     winston.format.printf((info) => {
       // `splat` is winston's positional-args carrier, not output.
       const { timestamp, level, message, stack, splat, ...meta } = info;
-      const rendered = Object.keys(meta).length > 0
-        ? ` ${stringifyMeta(meta)}`
-        : "";
+      const rendered =
+        Object.keys(meta).length > 0 ? ` ${stringifyMeta(meta)}` : "";
       const logMessage = `${timestamp} ${level} ${message}${rendered}`;
       return stack ? `${logMessage}\n${stack}` : logMessage;
     }),

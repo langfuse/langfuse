@@ -1283,7 +1283,9 @@ function getAgentRunMessages(messages: AgUiMessage[]): AgentRunChatMessage[] {
           role: "assistant",
           ...(message.name ? { name: message.name } : {}),
           content: message.content ?? "",
-          ...(toolCalls != null && toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+          ...(toolCalls != null && toolCalls.length > 0
+            ? { tool_calls: toolCalls }
+            : {}),
         },
       ];
     }

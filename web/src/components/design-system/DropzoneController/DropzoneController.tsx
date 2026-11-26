@@ -80,7 +80,8 @@ export function DropzoneController({
       zone.getInputProps({
         ...props,
         onChange: (event) => {
-          if (event.target.files != null && event.target.files.length > 0) onProcessingChange?.(true);
+          if (event.target.files != null && event.target.files.length > 0)
+            onProcessingChange?.(true);
           props?.onChange?.(event);
         },
       }),

@@ -186,9 +186,10 @@ export function ScoreAnalytics(props: {
             <VisualizationFrame
               content={{
                 type: "empty",
-                message: scoreSelectorOptions.length > 0
-                  ? "Select a score to view analytics"
-                  : "No data",
+                message:
+                  scoreSelectorOptions.length > 0
+                    ? "Select a score to view analytics"
+                    : "No data",
               }}
             />
           )}

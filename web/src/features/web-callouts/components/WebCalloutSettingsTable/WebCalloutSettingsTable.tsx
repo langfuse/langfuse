@@ -41,7 +41,8 @@ export function WebCalloutSettingsTable({
       createTextTableColumn<WebCalloutEndpoint, string[]>({
         accessorKey: "requestHeaderKeys",
         header: "Headers",
-        mapValue: (headers) => (headers != null && headers.length > 0 ? headers.join(", ") : "None"),
+        mapValue: (headers) =>
+          headers != null && headers.length > 0 ? headers.join(", ") : "None",
       }),
       createStatusTableColumn<WebCalloutEndpoint, boolean>({
         accessorKey: "enabled",

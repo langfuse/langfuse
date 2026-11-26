@@ -160,17 +160,18 @@ async function resolveConfigs(
       ),
     ),
   ];
-  const keys = providers.length > 0
-    ? await prisma.llmApiKeys.findMany({
-        where: {
-          provider: { in: providers },
-          OR: [
-            { projectId: { in: rows.map((row) => row.projectId) } },
-            { organizationId: { in: rows.map((row) => row.project.orgId) } },
-          ],
-        },
-      })
-    : [];
+  const keys =
+    providers.length > 0
+      ? await prisma.llmApiKeys.findMany({
+          where: {
+            provider: { in: providers },
+            OR: [
+              { projectId: { in: rows.map((row) => row.projectId) } },
+              { organizationId: { in: rows.map((row) => row.project.orgId) } },
+            ],
+          },
+        })
+      : [];
   return rows.flatMap((row) => {
     const resolved = resolveModels(row, {
       projectConnections: keys.filter((key) => key.projectId === row.projectId),

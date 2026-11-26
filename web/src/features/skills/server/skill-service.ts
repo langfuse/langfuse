@@ -427,16 +427,17 @@ export class SkillService {
       }),
       this.prisma.skill.count({ where }),
     ]);
-    const productionVersions = latestVersions.length > 0
-      ? await this.prisma.skill.findMany({
-          where: {
-            projectId: params.projectId,
-            name: { in: latestVersions.map(({ name }) => name) },
-            labels: { has: SKILL_PRODUCTION_LABEL },
-          },
-          select: { name: true, version: true },
-        })
-      : [];
+    const productionVersions =
+      latestVersions.length > 0
+        ? await this.prisma.skill.findMany({
+            where: {
+              projectId: params.projectId,
+              name: { in: latestVersions.map(({ name }) => name) },
+              labels: { has: SKILL_PRODUCTION_LABEL },
+            },
+            select: { name: true, version: true },
+          })
+        : [];
     const productionVersionByName = new Map(
       productionVersions.map(({ name, version }) => [name, version]),
     );
@@ -674,7 +675,8 @@ export class SkillService {
         include: skillFilesInclude,
         orderBy: { version: "asc" },
       });
-      if (versions.length === 0) throw new LangfuseNotFoundError("Skill not found");
+      if (versions.length === 0)
+        throw new LangfuseNotFoundError("Skill not found");
       await this.requireProtectedLabelAccess({
         prisma: tx,
         projectId: params.projectId,
@@ -865,15 +867,16 @@ export class SkillService {
         ),
       ),
     ];
-    const referencedBlobs = referencedHashes.length > 0
-      ? await this.prisma.skillBlob.findMany({
-          where: {
-            projectId: params.projectId,
-            sha256Hash: { in: referencedHashes },
-          },
-          select: { id: true, sha256Hash: true, contentLength: true },
-        })
-      : [];
+    const referencedBlobs =
+      referencedHashes.length > 0
+        ? await this.prisma.skillBlob.findMany({
+            where: {
+              projectId: params.projectId,
+              sha256Hash: { in: referencedHashes },
+            },
+            select: { id: true, sha256Hash: true, contentLength: true },
+          })
+        : [];
     const referencedBlobByHash = new Map(
       referencedBlobs.map((blob) => [blob.sha256Hash, blob]),
     );
@@ -978,15 +981,16 @@ export class SkillService {
         skipDuplicates: true,
       });
     }
-    const blobs = uniqueFiles.length > 0
-      ? await params.tx.skillBlob.findMany({
-          where: {
-            projectId: params.projectId,
-            sha256Hash: { in: uniqueFiles.map((file) => file.sha256Hash) },
-          },
-          select: { id: true, sha256Hash: true },
-        })
-      : [];
+    const blobs =
+      uniqueFiles.length > 0
+        ? await params.tx.skillBlob.findMany({
+            where: {
+              projectId: params.projectId,
+              sha256Hash: { in: uniqueFiles.map((file) => file.sha256Hash) },
+            },
+            select: { id: true, sha256Hash: true },
+          })
+        : [];
     const blobIds = new Map(
       [...params.referencedBlobs.values(), ...blobs].map((blob) => [
         blob.sha256Hash,

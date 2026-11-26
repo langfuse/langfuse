@@ -225,12 +225,13 @@ async function selectAndSeed(
   for (const days of open.length > 0 ? TOPIC_SETUP_WINDOW_DAYS : []) {
     setup.days = days;
     const window = setupWindow(setup, days, now);
-    const matching = rule.filter.length > 0
-      ? await topicMatchingTraceIdsQuery(
-          { projectId, filter: rule.filter, ...window },
-          prisma,
-        )
-      : undefined;
+    const matching =
+      rule.filter.length > 0
+        ? await topicMatchingTraceIdsQuery(
+            { projectId, filter: rule.filter, ...window },
+            prisma,
+          )
+        : undefined;
     if (matching === null) continue;
     const counts = await getTopicSetupSummaryCounts(
       projectId,
