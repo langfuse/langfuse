@@ -20,11 +20,9 @@ export async function readUntilVisible<T>(
     result = await read();
     attempts++;
   }
-  const outcome = !visible(result)
-    ? "not_visible"
-    : attempts === 1
-      ? "visible"
-      : "visible_after_retry";
+  let outcome = "visible";
+  if (!visible(result)) outcome = "not_visible";
+  else if (attempts > 1) outcome = "visible_after_retry";
   recordIncrement("langfuse.topics.publication_checks", 1, { check, outcome });
   if (attempts > 1)
     (outcome === "not_visible" ? logger.error : logger.warn)(
