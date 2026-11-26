@@ -40,7 +40,7 @@ type TopicErrorReason =
   | "assignment_visibility"
   | "unknown";
 
-/** Who has to act on a failure. Topics builds the request, so rejected input is ours; a trace over the size limit is the customer's. */
+/** Who has to act on a failure. Topics builds the request, so rejected input is ours; a trace over the size limit or unusable output from the customer's model is the customer's. */
 export function topicFailureOwner(
   reason: string,
 ): "platform" | "upstream" | "customer" {
@@ -51,6 +51,7 @@ export function topicFailureOwner(
       "rate_limit",
       "content_filter",
       "input_too_large",
+      "invalid_output",
     ].includes(reason)
   )
     return "customer";
