@@ -107,7 +107,6 @@ export const Default = meta.story({
     onRemoveMember: fn(),
     orgRole: "VIEWER",
     isAiGatewayEnabled: true,
-    roleFootnote: "It also has roles in 2 projects.",
     onChange: fn(),
   },
 });

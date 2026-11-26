@@ -12,15 +12,6 @@ import { useGroupOrgMembers } from "@/src/features/groups/hooks/useGroupOrgMembe
 import { useOrgGroups } from "@/src/features/groups/hooks/useOrgGroups";
 import { useRemoveGroupMember } from "@/src/features/groups/hooks/useRemoveGroupMember";
 import { useSetGroupOrgRole } from "@/src/features/groups/hooks/useSetGroupOrgRole";
-import { type RouterOutputs } from "@/src/utils/api";
-
-type Group = RouterOutputs["groups"]["list"][number];
-
-function projectRolesFootnote(group: Group) {
-  const projects = group.projectRoles.length;
-  if (projects === 0) return undefined;
-  return `It also has roles in ${projects} ${projects === 1 ? "project" : "projects"}.`;
-}
 
 export function GroupDialog({
   orgId,
@@ -71,7 +62,6 @@ export function GroupDialog({
       orgRole={group.orgRole}
       isAiGatewayEnabled={isAiGatewayEnabled}
       disabledReason={canEdit ? undefined : NO_GROUP_EDIT_REASON}
-      roleFootnote={projectRolesFootnote(group)}
       onChange={(role) => setOrgRole.mutate({ orgId, groupId: group.id, role })}
       onDone={onDone}
     >

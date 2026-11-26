@@ -32,7 +32,6 @@ export type GroupRoleDialogProps = {
   grantableRoles?: Role[];
   isAiGatewayEnabled?: boolean;
   disabledReason?: string;
-  roleFootnote?: string;
   onChange: (role: GroupRole | null) => void;
   children?: React.ReactNode;
 };
@@ -48,7 +47,6 @@ export function GroupRoleDialog({
   grantableRoles,
   isAiGatewayEnabled = false,
   disabledReason,
-  roleFootnote,
   onChange,
   onDone,
   children,
@@ -66,7 +64,6 @@ export function GroupRoleDialog({
   const notes = [
     disabledReason,
     selected === "NONE" ? noneDescription : roleNote,
-    roleFootnote,
   ].filter(Boolean);
 
   const optionDisabledReason = (role: Role) => {
