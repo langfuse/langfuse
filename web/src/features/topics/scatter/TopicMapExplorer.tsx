@@ -67,6 +67,7 @@ export function TopicMapExplorer({
   data,
   topics,
   selectedTopic,
+  pickedTopic = null,
   onSelectTopic,
   onSelectTrace,
   selectedTraceId,
@@ -449,7 +450,7 @@ export function TopicMapExplorer({
           selectedTraceId={selectedTraceId}
           matchingTraceIds={matchingTraceIds}
         />
-        <MapBackgroundLabels store={store} />
+        <MapBackgroundLabels store={store} pickedTopic={pickedTopic} />
         <MapLabels
           model={model}
           size={size}
@@ -688,7 +689,13 @@ function MapLabels({
   );
 }
 
-function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
+function MapBackgroundLabels({
+  store,
+  pickedTopic,
+}: {
+  store: TopicMapStore;
+  pickedTopic: string | null;
+}) {
   const frame = useStore(store, (state) => state.frame);
   return (
     <div
@@ -696,7 +703,7 @@ function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
       aria-hidden
     >
       {frame &&
-        prepareMapTextLabels(frame).map((label) => (
+        prepareMapTextLabels(frame, pickedTopic).map((label) => (
           <div
             key={label.id}
             data-topic-background-label={label.id}
@@ -713,29 +720,36 @@ function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
               opacity: label.opacity,
             }}
           >
-            <span
-              className={cn(
-                "line-clamp-2 block leading-[1.2]",
-                label.kind === "zone" && "font-bold",
-                styles.labelTitle,
-              )}
-              style={
-                {
-                  fontSize: label.fontSize,
-                  "--label-color": label.color,
-                } as CSSProperties
-              }
+            <div
+              className={styles.labelEmphasis}
+              style={{ opacity: label.emphasis }}
             >
-              {label.title}
-            </span>
-            {label.description.length > 0 && (
               <span
-                className="mt-1 line-clamp-2 block text-[11px] leading-relaxed"
-                style={{ opacity: label.detailOpacity }}
+                className={cn(
+                  "line-clamp-2 block leading-[1.2]",
+                  label.kind === "zone" && "font-bold",
+                  label.selected
+                    ? styles.labelTitleSelected
+                    : styles.labelTitle,
+                )}
+                style={
+                  {
+                    fontSize: label.fontSize,
+                    "--label-color": label.color,
+                  } as CSSProperties
+                }
               >
-                {label.description}
+                {label.title}
               </span>
-            )}
+              {label.description.length > 0 && (
+                <span
+                  className="mt-1 line-clamp-2 block text-[11px] leading-relaxed"
+                  style={{ opacity: label.detailOpacity }}
+                >
+                  {label.description}
+                </span>
+              )}
+            </div>
           </div>
         ))}
     </div>
@@ -772,6 +786,8 @@ function mapCoverageLabel(
 export type TopicMapExplorerProps = {
   data: MapData;
   topics: MapTopic[];
+  /** A topic chosen outside the map; its name is emphasized without moving the camera. */
+  pickedTopic?: string | null;
   selectedTopic: string | null;
   onSelectTopic: (id: string | null) => void;
   onSelectTrace: (traceId: string | null) => void;

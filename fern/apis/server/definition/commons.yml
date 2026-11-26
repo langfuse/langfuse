@@ -720,6 +720,12 @@ types:
       - SECONDS
       - IMAGES
       - REQUESTS
+  ModelScope:
+    docs: Owner of a model definition. Project definitions take precedence over organization definitions, which take precedence over Langfuse definitions.
+    enum:
+      - PROJECT
+      - ORGANIZATION
+      - LANGFUSE
   ObservationLevel:
     enum:
       - DEBUG

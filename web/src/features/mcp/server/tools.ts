@@ -92,7 +92,10 @@ const MCP_FEATURES = [
 export type McpToolName =
   (typeof MCP_FEATURES)[number]["tools"][number]["definition"]["name"];
 
-/** Every tool of every feature, enabled or not. */
+/**
+ * Every tool of every feature, enabled or not.
+ * @knipignore Lets policy tests check the complete registry, including disabled tools.
+ */
 export const MCP_TOOLS: readonly RegisteredTool[] = MCP_FEATURES.flatMap(
   (feature: McpFeatureModule) => feature.tools,
 );

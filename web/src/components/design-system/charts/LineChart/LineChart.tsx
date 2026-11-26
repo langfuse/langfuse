@@ -7,7 +7,6 @@ import { SeriesChartCore } from "@/src/components/design-system/internal/charts/
 export type {
   ChartLegendInteraction,
   LineChartLegend,
-  LineChartSeries,
   LineChartThreshold,
 } from "@/src/components/design-system/internal/charts/SeriesChartCore";
 

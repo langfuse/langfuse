@@ -1,3 +1,4 @@
+/* oxlint-disable radix -- baseline before rule enablement */
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import {

@@ -151,7 +151,7 @@ export function clampViewport(
   };
 }
 
-export type ZoomAxes = "both" | "x" | "y";
+type ZoomAxes = "both" | "x" | "y";
 
 /**
  * Zoom about a point in the box, given as ratios of its width and height.

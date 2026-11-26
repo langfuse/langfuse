@@ -8,6 +8,7 @@ export function ScatterMap({
   query,
   topics,
   selectedTopic,
+  pickedTopic = null,
   onSelectTopic,
   onSelectTrace,
   selectedTraceId,
@@ -34,6 +35,7 @@ export function ScatterMap({
       data={query.data}
       topics={topics}
       selectedTopic={selectedTopic}
+      pickedTopic={pickedTopic}
       onSelectTopic={onSelectTopic}
       onSelectTrace={onSelectTrace}
       selectedTraceId={selectedTraceId}
@@ -52,6 +54,7 @@ type ScatterMapProps = {
   };
   topics: Topic[];
   selectedTopic: string | null;
+  pickedTopic?: string | null;
   onSelectTopic: (id: string | null) => void;
   onSelectTrace: (traceId: string | null) => void;
   selectedTraceId: string | null;

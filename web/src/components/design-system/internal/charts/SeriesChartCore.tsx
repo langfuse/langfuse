@@ -19,7 +19,7 @@ type LineChartValues = {
 type TimeLineChartDatum = LineChartValues & { x: Date };
 type CategoryLineChartDatum = LineChartValues & { x: string };
 
-export type LineChartSeries = {
+type LineChartSeries = {
   id: string;
   label: string;
   color: string;
