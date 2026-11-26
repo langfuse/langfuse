@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { Prisma, Role } from "@langfuse/shared";
+import { InvalidRequestError, Prisma, Role } from "@langfuse/shared";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type { SetUserRoleInput } from "@/src/ee/features/sfdc-sync/server/sfdcService";
@@ -38,12 +38,12 @@ type MemberInviteTarget = {
   project: { id: string } | null;
 };
 
-/** Why one email of a request was not invited; codes and messages stay the ones callers show. */
-export class MemberInviteError extends TRPCError {
+/** Why one email of a request was not invited; a 400 whose message callers show. */
+export class MemberInviteError extends InvalidRequestError {
   readonly reason: "already_member" | "pending_invite";
 
   constructor(reason: MemberInviteError["reason"], message: string) {
-    super({ code: "BAD_REQUEST", message });
+    super(message);
     this.reason = reason;
   }
 }
