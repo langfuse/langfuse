@@ -161,12 +161,7 @@ export async function testEvaluatorOnTrace(params: {
       variables: [],
     };
   }
-  let variables: ExtractedVariable[] = [
-    {
-      var: TRACE_TRANSCRIPT_EVAL_COLUMN,
-      value: toCodeEvalThreads(transcript.threads),
-    },
-  ];
+  let variables: ExtractedVariable[];
   if (variableMapping) {
     const extracted = extractTranscriptEvalVariables(
       transcript.threads,
@@ -174,6 +169,13 @@ export async function testEvaluatorOnTrace(params: {
     );
     if (!extracted.ok) throw new InvalidRequestError(extracted.error);
     variables = extracted.variables;
+  } else {
+    variables = [
+      {
+        var: TRACE_TRANSCRIPT_EVAL_COLUMN,
+        value: toCodeEvalThreads(transcript.threads),
+      },
+    ];
   }
 
   const executionData = buildEvalExecutionData({
