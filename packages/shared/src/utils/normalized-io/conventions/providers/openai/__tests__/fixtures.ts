@@ -90,13 +90,16 @@ export const documentedResponsesFixtures: NormalizedIOFixture[] = [
             {
               type: "tool-result",
               toolCallId: "call_shell_1",
-              output: [
-                {
-                  stdout: "1 failed",
-                  stderr: "",
-                  outcome: { type: "exit", exit_code: 1 },
-                },
-              ],
+              output: {
+                type: "json",
+                value: [
+                  {
+                    stdout: "1 failed",
+                    stderr: "",
+                    outcome: { type: "exit", exit_code: 1 },
+                  },
+                ],
+              },
               providerMetadata: { max_output_length: 4096 },
             },
           ],
@@ -108,7 +111,10 @@ export const documentedResponsesFixtures: NormalizedIOFixture[] = [
             {
               type: "tool-result",
               toolCallId: "call_patch_1",
-              output: "Hunk 1 does not apply to lib/fib.py",
+              output: {
+                type: "text",
+                value: "Hunk 1 does not apply to lib/fib.py",
+              },
               providerMetadata: { status: "failed" },
             },
           ],
