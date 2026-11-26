@@ -520,8 +520,8 @@ const inputTraceSchema = z.object({
   projectId: z.string(),
   timestamp: z.date().nullish(),
   fromTimestamp: z.date().nullish(),
-  // Earliest start time of the observations a batch read asks for. Routes that
-  // send it as an ISO string get no lookup anchor from it.
+  // Earliest start time of the observations a batch IO read asks for. Routes
+  // that send it as an ISO string get no lookup anchor from it.
   minStartTime: z.date().nullish().catch(undefined),
   truncated: z.boolean().default(false),
   verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
@@ -557,11 +557,11 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
         ? await getTraceByIdFromEventsTable({
             traceId,
             projectId,
-            // Each of these is a time inside the trace, so the lookup scans
-            // from the earliest start an observation of it can have instead
-            // of every row of the trace.
-            fromTimestamp:
-              fromTimestamp ?? timestamp ?? minStartTime ?? undefined,
+            // A bounded lookup aggregates only part of the trace, so its
+            // timestamp can be later than the trace start. Only batch IO
+            // reads, which never read ctx.trace, send minStartTime; routes
+            // that read ctx.trace keep the unbounded lookup.
+            fromTimestamp: minStartTime ?? undefined,
             excludeInputOutput: true,
             excludeMetadata: true,
             renderingProps: {

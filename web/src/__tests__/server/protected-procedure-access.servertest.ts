@@ -185,7 +185,6 @@ describe("protected procedure access", () => {
       expect(mockGetTraceByIdFromEventsTable).toHaveBeenCalledWith({
         traceId: "trace-id",
         projectId: "project-id",
-        fromTimestamp: timestamp,
         excludeInputOutput: true,
         excludeMetadata: true,
         renderingProps: {
