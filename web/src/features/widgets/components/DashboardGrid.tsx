@@ -12,7 +12,9 @@ import {
 } from "../components/PresetDashboardWidget";
 import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type FilterState } from "@langfuse/shared";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback } from "react";
+import { flushSync } from "react-dom";
+import { reduceWidthSample } from "@/src/features/widgets/dashboardGridWidth";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 
 export type DashboardPlacement = WidgetPlacement | PresetPlacement;
@@ -21,24 +23,36 @@ function useDebouncedContainerWidth(delayMs: number) {
   const [element, setElement] = useState<HTMLDivElement | null>(null);
   const [width, setWidth] = useState<number | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!element) return;
 
+    let phase: "quiet" | "pending" = "quiet";
+    let committed: number | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const publish = (next: number) => {
-      if (next <= 0) return;
-      setWidth((current) => (current === next ? current : next));
-    };
-    const schedule = () => {
-      clearTimeout(timer);
-      timer = setTimeout(
-        () => publish(Math.round(element.clientWidth)),
-        delayMs,
-      );
+
+    const publish = (next: number, sync: boolean) => {
+      if (next <= 0 || next === committed) return;
+      committed = next;
+      const apply = () => setWidth(next);
+      if (sync) flushSync(apply);
+      else apply();
     };
 
-    publish(Math.round(element.clientWidth));
-    const observer = new ResizeObserver(schedule);
+    const onSample = (sync: boolean) => {
+      const next = Math.round(element.clientWidth);
+      const decision = reduceWidthSample(phase, next, committed);
+      phase = decision.phase;
+      if (decision.publish !== null) publish(decision.publish, sync);
+      if (!decision.armTimer) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        phase = "quiet";
+        publish(Math.round(element.clientWidth), false);
+      }, delayMs);
+    };
+
+    onSample(false);
+    const observer = new ResizeObserver(() => onSample(true));
     observer.observe(element);
     return () => {
       clearTimeout(timer);
