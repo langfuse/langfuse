@@ -64,7 +64,9 @@
         "design-components-horizontalbarchart--category-colors",
         "design-components-horizontalbarchart--long-and-duplicate-labels",
         "design-components-horizontalbarchart--many-rows",
-        "design-components-horizontalbarchart--side-tooltip"
+        "design-components-horizontalbarchart--side-tooltip",
+        "design-components-horizontalbarchart--zero-negative-and-missing",
+        "design-components-horizontalbarchart--tiny-bars-beside-outlier"
       ]
     },
     "LineChart": {
@@ -90,7 +92,8 @@
         "design-components-selectinput--test-forwards-trigger-props",
         "design-components-selectinput--test-keeps-badged-label-readable",
         "design-components-selectinput--test-keeps-badged-label-readable-without-search",
-        "design-components-selectinput--test-disabled-option-shows-reason"
+        "design-components-selectinput--test-disabled-option-shows-reason",
+        "design-components-selectinput--test-caret-opens-menu"
       ]
     },
     "StackedBarChart": {
@@ -201,7 +204,8 @@
     },
     "Input": {
       "skip": [
-        "design-components-input--test-accepts-text"
+        "design-components-input--test-accepts-text",
+        "design-components-input--with-prefixes"
       ]
     },
     "SearchInput": {
@@ -262,7 +266,8 @@
       "cardMode": "column",
       "skip": [
         "playground-keyvaluefilterbuilder--test-observed-key-suggestion-preserves-value",
-        "playground-keyvaluefilterbuilder--test-session-replay-block"
+        "playground-keyvaluefilterbuilder--test-session-replay-block",
+        "playground-keyvaluefilterbuilder--test-replaces-filled-value"
       ]
     },
     "MediaTag": {
@@ -282,7 +287,10 @@
     },
     "AppSidebar": {
       "cardMode": "single",
-      "primaryStory": "Default"
+      "primaryStory": "Default",
+      "skip": [
+        "playground-appsidebar--ai-gateway-navigation-disabled-reason"
+      ]
     },
     "GroupedScoreBadges": {
       "skip": [
@@ -354,7 +362,11 @@
       "cardMode": "column"
     },
     "DataCard": {
-      "cardMode": "column"
+      "cardMode": "column",
+      "skip": [
+        "design-components-datacard--short-table",
+        "design-components-datacard--consistent-header-height"
+      ]
     },
     "LangfuseWordmark": {
       "cardMode": "column"
