@@ -103,5 +103,5 @@ For `duration_ms`, compare only batches tagged `side_effects:none` and `write_mo
 
 - A failed TypeScript media upload shows as a `different` row, because the Rust run does not upload.
 - Rows that reach ClickHouse after the comparison read count as missing, or as `not_found` when both sides are late.
-- A span that arrives in two files keeps one row in `events_full`, so the sampled file's span can count as `missing_ts`.
+- A span sent twice, such as an exporter retry, is stored in two files but keeps one row in `events_full`. When the kept row belongs to the other file, the sampled file's span counts as `missing_ts`.
 - A batch whose TypeScript processing fails before the direct step is not compared.
