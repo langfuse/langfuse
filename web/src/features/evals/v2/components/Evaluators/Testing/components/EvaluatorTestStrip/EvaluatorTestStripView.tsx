@@ -73,6 +73,8 @@ export function EvaluatorTestStripView({
             disabledReason={disabledReason}
             onRun={onRunTest}
             label="Run test"
+            showIcon={false}
+            size="md"
           />
         )}
         {hasResult ? (

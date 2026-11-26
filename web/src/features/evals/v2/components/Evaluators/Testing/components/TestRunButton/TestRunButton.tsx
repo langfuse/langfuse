@@ -2,6 +2,7 @@ import { Play } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { cn } from "@/src/utils/tailwind";
 
 /** Starts a test run for the evaluator's currently selected sample. */
 export function TestRunButton({
@@ -17,23 +18,27 @@ export function TestRunButton({
   disabledReason: string | null;
   label?: string;
   showIcon?: boolean;
-  size?: "sm" | "default";
+  /** `md` sits between the two legacy button heights. */
+  size?: "sm" | "md" | "default";
 }) {
   const button = (
     <Button
       type="button"
       variant="outline"
-      size={size}
+      size={size === "md" ? "sm" : size}
       loading={isPending}
       disabled={Boolean(disabledReason)}
       title={
         disabledReason ? undefined : "Run the evaluator on the selected sample"
       }
-      className={disabledReason ? "pointer-events-none" : undefined}
+      className={cn(
+        size === "md" && "h-7 px-3",
+        disabledReason && "pointer-events-none",
+      )}
       onClick={onRun}
     >
       {showIcon ? (
-        <Play size="sm" color="default" __rawClassName="mr-1.5 fill-current" />
+        <Play size="base" color="default" __rawClassName="mr-1.5" />
       ) : null}
       {label}
     </Button>
