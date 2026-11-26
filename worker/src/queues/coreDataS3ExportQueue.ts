@@ -1,5 +1,5 @@
 import { EventType } from "@ag-ui/core";
-import { DelayedError, type Job, type Processor } from "bullmq";
+import { Processor } from "bullmq";
 import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { DashboardWidgetChartType, type ModelScope } from "@prisma/client";
@@ -16,9 +16,7 @@ import {
   TriggerEventSourceSchema,
 } from "@langfuse/shared";
 import {
-  CoreDataS3ExportQueue,
   logger,
-  QueueJobs,
   StorageServiceFactory,
   storageKeys,
   type StorageService,
@@ -26,11 +24,7 @@ import {
 import { metricAggregations, viewDeclarations } from "@langfuse/shared/query";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
-import { RedisLock } from "../utils/RedisLock";
-import {
-  exportMediaUsageHourly,
-  formatUtcDay,
-} from "./coreDataMediaUsageExport";
+import { exportMediaUsageHourly } from "./coreDataMediaUsageExport";
 
 const CORE_DATA_EXPORT_PAGE_SIZE = 1_000;
 const CORE_DATA_EXPORT_PART_SIZE_BYTES = 100 * 1024 * 1024;
@@ -39,11 +33,6 @@ const CORE_DATA_EXPORT_PART_SIZE_BYTES = 100 * 1024 * 1024;
 // (default: 5 connections) so other queue jobs on the same worker never
 // starve on connection acquisition.
 const CORE_DATA_EXPORT_TABLE_CONCURRENCY = 3;
-const MEDIA_USAGE_EXPORT_RETRY_DELAY_MS = 60_000;
-const MEDIA_USAGE_EXPORT_LOCK_KEY = "langfuse:core-data:media-usage-export";
-// Frees the lock if a worker dies mid-run. A run that outlives it cannot move
-// the watermark back.
-const MEDIA_USAGE_EXPORT_LOCK_TTL_SECONDS = 60 * 60;
 
 let s3StorageServiceClient: StorageService;
 
@@ -1897,74 +1886,7 @@ export const coreDataTableExports: Array<
     }),
 ];
 
-// Failed jobs are retained under their id, which would turn a re-add into a
-// no-op, so a failed job with the same id is retried instead.
-const enqueueMediaUsageExport = async (jobId: string, delay = 0) => {
-  const queue = CoreDataS3ExportQueue.getInstance();
-  if (!queue) {
-    return;
-  }
-  const existing = await queue.getJob(jobId);
-  if (existing && (await existing.isFailed())) {
-    try {
-      await existing.retry("failed", { resetAttemptsMade: true });
-      return;
-    } catch (error) {
-      // Only a job that left the failed set meanwhile (retried or removed) is
-      // handed to the add below, which dedupes or re-creates it. Anything else
-      // fails the caller so BullMQ retries it.
-      if (await existing.isFailed()) {
-        throw error;
-      }
-      logger.warn(
-        `[CORE DATA] Media usage export job ${jobId} left the failed state before its retry`,
-        error,
-      );
-    }
-  }
-  await queue.add(QueueJobs.CoreDataMediaUsageExportJob, {}, { jobId, delay });
-};
-
-// The media usage export runs only in its own job, one at a time under the
-// lock. A job that finds the lock held waits and retries instead of finishing,
-// so a lock left by a dead worker delays the export by at most the lock TTL.
-// While closed days remain, the run enqueues the next step from the
-// watermark; producers racing on the same step share its job id.
-const processMediaUsageExportJob = async (
-  job: Job,
-  args: { s3Client: StorageService; uploadPrefix: string },
-) => {
-  const result = await new RedisLock(MEDIA_USAGE_EXPORT_LOCK_KEY, {
-    ttlSeconds: MEDIA_USAGE_EXPORT_LOCK_TTL_SECONDS,
-    name: "core-data-media-usage-export",
-  }).withLock(() => exportMediaUsageHourly(args));
-  if (!result) {
-    logger.info(
-      "[CORE DATA] Media usage export lock is held by another run, retrying later",
-    );
-    await job.moveToDelayed(
-      Date.now() + MEDIA_USAGE_EXPORT_RETRY_DELAY_MS,
-      job.token,
-    );
-    throw new DelayedError();
-  }
-
-  const { exportedUntil, hasMoreDays } = result;
-  if (!hasMoreDays || !exportedUntil) {
-    return;
-  }
-  await enqueueMediaUsageExport(
-    `media-usage-export-from-${formatUtcDay(exportedUntil)}`,
-    MEDIA_USAGE_EXPORT_RETRY_DELAY_MS,
-  );
-  logger.info(
-    `[CORE DATA] Queued media usage export follow-up from ${formatUtcDay(exportedUntil)}`,
-  );
-};
-
-export const coreDataS3ExportProcessor: Processor = async (
-  job,
-): Promise<void> => {
+export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
   if (!env.LANGFUSE_S3_CORE_DATA_UPLOAD_BUCKET) {
     logger.error("[CORE DATA] No bucket name provided for core data S3 export");
     throw new Error(
@@ -1972,27 +1894,18 @@ export const coreDataS3ExportProcessor: Processor = async (
     );
   }
 
+  logger.info("[CORE DATA] Starting core data S3 export");
+
   const s3Client = getS3StorageServiceClient(
     env.LANGFUSE_S3_CORE_DATA_UPLOAD_BUCKET,
   );
   const uploadPrefix = env.LANGFUSE_S3_CORE_DATA_UPLOAD_PREFIX;
 
-  if (job.name === QueueJobs.CoreDataMediaUsageExportJob) {
-    await processMediaUsageExportJob(job, { s3Client, uploadPrefix });
-    return;
-  }
-
-  logger.info("[CORE DATA] Starting core data S3 export");
-
   const limit = pLimit(CORE_DATA_EXPORT_TABLE_CONCURRENCY);
   const results = await Promise.allSettled(
-    coreDataTableExports.map((exportTable) =>
+    [...coreDataTableExports, exportMediaUsageHourly].map((exportTable) =>
       limit(() => exportTable({ s3Client, uploadPrefix })),
     ),
-  );
-  // One media usage export per UTC day; a retried daily job reuses the id.
-  await enqueueMediaUsageExport(
-    `media-usage-export-${formatUtcDay(new Date())}`,
   );
 
   const failures = results.filter(

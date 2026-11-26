@@ -1,6 +1,7 @@
 import { Readable } from "node:stream";
 import { logger, type StorageService } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { env } from "../env";
 
 // Mirrors the ClickHouse analytics views (analytics_traces, analytics_scores,
 // analytics_observations): one row per project and UTC hour, exported only for
@@ -12,9 +13,6 @@ const MEDIA_USAGE_TABLE_NAME = "mediaUsageHourly";
 // status updates and rows committed just after midnight still land in their
 // day. Changes to older days are not re-exported.
 const MEDIA_USAGE_LOOKBACK_DAYS = 3;
-// Bounds the work of one job run. A backfill or catch-up longer than this
-// continues in follow-up runs from the watermark.
-const MEDIA_USAGE_MAX_DAYS_PER_RUN = 30;
 const MEDIA_USAGE_PROJECT_BATCH_SIZE = 1_000;
 const MEDIA_USAGE_PART_SIZE_BYTES = 100 * 1024 * 1024;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -27,7 +25,7 @@ const toUtcDay = (date: Date) =>
 const addUtcDays = (day: Date, days: number) =>
   new Date(day.getTime() + days * DAY_MS);
 
-export const formatUtcDay = (day: Date) => day.toISOString().slice(0, 10);
+const formatUtcDay = (day: Date) => day.toISOString().slice(0, 10);
 
 // `created_at` is `timestamp without time zone` and is read as UTC wall-clock
 // time, as Prisma does. Bounds are passed as plain timestamps so the comparison
@@ -122,12 +120,19 @@ const writeMediaUsageWatermark = (
   });
 
 // Media rows reference an existing project, so they cannot predate the oldest
-// project.
-const getMediaUsageBackfillStart = async (): Promise<Date | null> => {
+// project. `minStartDay` raises the start for the first run only; once a
+// watermark exists it is ignored.
+const getMediaUsageBackfillStart = async (
+  minStartDay: Date | null,
+): Promise<Date | null> => {
   const { _min } = await prisma.project.aggregate({
     _min: { createdAt: true },
   });
-  return _min.createdAt;
+  const oldestProject = _min.createdAt;
+  if (!oldestProject || !minStartDay) {
+    return oldestProject ?? minStartDay;
+  }
+  return oldestProject > minStartDay ? oldestProject : minStartDay;
 };
 
 type MediaUsageHourlyQueryRow = {
@@ -255,8 +260,9 @@ const uploadMediaUsageDay = async ({
 /**
  * Writes one JSONL object per closed UTC day with media counts and bytes per
  * project, hour, content type and upload status, one day at a time, advancing
- * the watermark after each day. Processes at most `maxDaysPerRun` days and
- * reports whether closed days remain. Counts and bytes only: ids, hashes,
+ * the watermark after each written day. Stops starting new days once
+ * `timeBudgetMs` has elapsed; the next run continues from the watermark. At
+ * least one day is attempted per run. Counts and bytes only: ids, hashes,
  * bucket locations, upload errors and media association tables are not
  * exported.
  */
@@ -265,37 +271,51 @@ export const exportMediaUsageHourly = async ({
   uploadPrefix,
   now = new Date(),
   lookbackDays = MEDIA_USAGE_LOOKBACK_DAYS,
-  maxDaysPerRun = MEDIA_USAGE_MAX_DAYS_PER_RUN,
+  timeBudgetMs = env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_TIME_BUDGET_MINUTES *
+    60_000,
+  minStartDay = env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_MIN_START_DATE
+    ? new Date(
+        `${env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_MIN_START_DATE}T00:00:00.000Z`,
+      )
+    : null,
   projectBatchSize = MEDIA_USAGE_PROJECT_BATCH_SIZE,
 }: {
   s3Client: StorageService;
   uploadPrefix: string;
   now?: Date;
   lookbackDays?: number;
-  maxDaysPerRun?: number;
+  timeBudgetMs?: number;
+  minStartDay?: Date | null;
   projectBatchSize?: number;
-}): Promise<{ exportedUntil: Date | null; hasMoreDays: boolean }> => {
+}): Promise<void> => {
+  const startedAt = Date.now();
   const watermark = await readMediaUsageWatermark(s3Client, uploadPrefix);
-  const pendingDays = computeMediaUsageExportDays({
+  const days = computeMediaUsageExportDays({
     now,
     exportedUntil: watermark,
-    backfillStart: watermark ? null : await getMediaUsageBackfillStart(),
+    backfillStart: watermark
+      ? null
+      : await getMediaUsageBackfillStart(minStartDay),
     lookbackDays,
   });
-  const days = pendingDays.slice(0, maxDaysPerRun);
 
   if (days.length === 0) {
     logger.info(
       `[CORE DATA] No closed days to export for ${MEDIA_USAGE_TABLE_NAME}`,
     );
-    return { exportedUntil: watermark, hasMoreDays: false };
+    return;
   }
   logger.info(
-    `[CORE DATA] Exporting ${MEDIA_USAGE_TABLE_NAME} for ${days.length} of ${pendingDays.length} pending days (${formatUtcDay(days[0])} to ${formatUtcDay(days[days.length - 1])}, exported until ${watermark?.toISOString() ?? "none"})`,
+    `[CORE DATA] Exporting ${MEDIA_USAGE_TABLE_NAME} for up to ${days.length} days (${formatUtcDay(days[0])} to ${formatUtcDay(days[days.length - 1])}, exported until ${watermark?.toISOString() ?? "none"})`,
   );
 
   let exportedUntil = watermark;
+  let exportedDays = 0;
   for (const day of days) {
+    if (exportedDays > 0 && Date.now() - startedAt >= timeBudgetMs) {
+      break;
+    }
+
     try {
       const rowCount = await uploadMediaUsageDay({
         s3Client,
@@ -313,6 +333,7 @@ export const exportMediaUsageHourly = async ({
       );
       throw error;
     }
+    exportedDays++;
 
     const dayEnd = addUtcDays(day, 1);
     if (!exportedUntil || dayEnd > exportedUntil) {
@@ -328,12 +349,8 @@ export const exportMediaUsageHourly = async ({
     }
   }
 
-  // Compared against the watermark rather than the slice, so lookback days
-  // that are re-exported but already covered never count as pending.
-  const lastClosedDayEnd = addUtcDays(pendingDays[pendingDays.length - 1], 1);
-  const hasMoreDays = !exportedUntil || exportedUntil < lastClosedDayEnd;
+  const lastClosedDayEnd = addUtcDays(days[days.length - 1], 1);
   logger.info(
-    `[CORE DATA] Finished ${MEDIA_USAGE_TABLE_NAME} (exported until ${exportedUntil?.toISOString()}, more days pending: ${hasMoreDays})`,
+    `[CORE DATA] Finished ${MEDIA_USAGE_TABLE_NAME} (exported ${exportedDays} days, exported until ${exportedUntil?.toISOString()}${exportedUntil && exportedUntil < lastClosedDayEnd ? ", backfill continues in the next run" : ""})`,
   );
-  return { exportedUntil, hasMoreDays };
 };
