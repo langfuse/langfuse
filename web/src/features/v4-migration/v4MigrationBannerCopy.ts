@@ -1,10 +1,10 @@
 export const V4_MIGRATION_TOP_BANNER_MESSAGE =
   "Action required: Some features may stop working for at least one of your projects.";
 
-export const V4_MIGRATION_DELAYED_DEADLINE_MESSAGE =
+const V4_MIGRATION_DELAYED_DEADLINE_MESSAGE =
   "Action required: Deadline delayed by one week, until November 23, 2026. Some features may stop working after that for at least one of your projects.";
 
-export const V4_MIGRATION_DECEMBER_DEADLINE_MESSAGE =
+const V4_MIGRATION_DECEMBER_DEADLINE_MESSAGE =
   "Action required: Deadline delayed until December 31, 2026. Some features may stop working after that for at least one of your projects.";
 
 export const V4_MIGRATION_STATUS_HREF = "/v4-migration";

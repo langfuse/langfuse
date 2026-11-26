@@ -1,18 +1,11 @@
 /* eslint-disable no-nested-ternary */
-import { fn } from "storybook/test";
+import { expect, fn } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { Separator } from "@/src/components/ui/separator";
 import {
-  V4MigrationApisSection,
+  V4MigrationChecklist,
   V4MigrationHeaderContent,
-  V4MigrationCustomInstrumentationSection,
-  V4MigrationDetectedInstrumentationSection,
-  V4MigrationEvalsSection,
-  V4MigrationExperimentsSection,
-  V4MigrationIntegrationsSection,
-  V4MigrationOtelSection,
-  V4MigrationSdkSection,
 } from "./V4MigrationContent";
 import {
   type V4MigrationSdkState,
@@ -331,10 +324,11 @@ function MigrationPanelPreview({
           SDK, instrumentation, experiment, and API checks cover activity from
           the last 3 days.
         </p>
-        <V4MigrationSdkSection sdk={sdk} defaultOpen />
-        <V4MigrationOtelSection sdk={sdk} defaultOpen />
-        <V4MigrationCustomInstrumentationSection sdk={sdk} defaultOpen />
-        <V4MigrationDetectedInstrumentationSection sdk={sdk} />
+        <V4MigrationChecklist
+          migrationData={{ ...cleanData, sdk }}
+          assistant={null}
+          defaultOpen
+        />
       </div>
     </div>
   );
@@ -401,44 +395,25 @@ const apiUsage = [
 
 const integrations = ["PostHog", "Mixpanel", "Blob Storage"];
 
+const cleanData: Parameters<typeof V4MigrationChecklist>[0]["migrationData"] = {
+  sdk: detectedInstrumentationState,
+  evals: { status: "loaded", count: 0 },
+  experiments: { status: "loaded", result: "not_required" },
+  experimentInstrumentationUpgradePath: null,
+  apis: { status: "loaded", count: 0 },
+  exports: { status: "loaded", count: 0 },
+  apiUsage: [],
+  legacyIntegrations: [],
+};
+
 const meta = preview.meta({
-  component: V4MigrationSdkSection,
-});
-
-export const SdkOutdated = meta.story({
-  args: { sdk: sdkOutdatedState, defaultOpen: true },
-});
-
-export const UnrecognizedSdkName = meta.story({
-  render: () => (
-    <V4MigrationCustomInstrumentationSection
-      sdk={unrecognizedSdkState}
-      defaultOpen
-    />
-  ),
-});
-
-export const SdkChecking = meta.story({
-  args: { sdk: makeSdkState({ status: "checking" }), defaultOpen: true },
-});
-
-export const SdkCheckFailed = meta.story({
-  args: { sdk: makeSdkState({ status: "error" }), defaultOpen: true },
-});
-
-export const OtelHeaderRequired = meta.story({
-  render: () => (
-    <V4MigrationOtelSection sdk={otelHeaderRequiredState} defaultOpen />
-  ),
-});
-
-export const UpgradeInstrumentation = meta.story({
-  render: () => (
-    <V4MigrationCustomInstrumentationSection
-      sdk={customInstrumentationState}
-      defaultOpen
-    />
-  ),
+  component: V4MigrationChecklist,
+  args: {
+    assistant: { onMigrate: fn() },
+    evalsUrl: "/project/demo/evals",
+    integrationsUrl: "/project/demo/settings/integrations",
+    defaultOpen: true,
+  },
 });
 
 export const PanelActionNeeded = meta.story({
@@ -458,265 +433,118 @@ export const PanelMigrated = meta.story({
   ),
 });
 
-export const DetectedInstrumentation = meta.story({
-  render: () => (
-    <V4MigrationDetectedInstrumentationSection
-      sdk={detectedInstrumentationState}
-    />
-  ),
+export const SdkOutdated = meta.story({
+  args: { migrationData: { ...cleanData, sdk: sdkOutdatedState } },
 });
-
-export const EvalsDeprecated = meta.story({
-  render: () => (
-    <V4MigrationEvalsSection
-      state={{ status: "loaded", count: 3 }}
-      assistant={{ onMigrate: fn() }}
-      evalsUrl="/project/demo/evals"
-      defaultOpen
-    />
-  ),
+export const UnrecognizedSdkName = meta.story({
+  args: { migrationData: { ...cleanData, sdk: unrecognizedSdkState } },
 });
-
-export const ExperimentsUpdateRequired = meta.story({
-  render: () => (
-    <V4MigrationExperimentsSection
-      state={{ status: "loaded", result: "required" }}
-      upgradePath="api"
-      defaultOpen
-    />
-  ),
-});
-
-export const ApisDeprecated = meta.story({
-  render: () => (
-    <V4MigrationApisSection
-      state={{ status: "loaded", count: apiUsage.length }}
-      usage={apiUsage}
-      defaultOpen
-    />
-  ),
-});
-
-export const IntegrationsDeprecated = meta.story({
-  render: () => (
-    <V4MigrationIntegrationsSection
-      state={{ status: "loaded", count: integrations.length }}
-      integrations={integrations}
-      integrationsUrl="/project/demo/settings/integrations"
-      defaultOpen
-    />
-  ),
-});
-
-// Action sections hide when nothing needs action; Detected still surfaces
-// compatible SDK / realtime OTel rows with path labels.
-export const HiddenWhenClean = meta.story({
-  render: () => {
-    const sdk = detectedInstrumentationState;
-    return (
-      <div>
-        <V4MigrationSdkSection sdk={sdk} />
-        <V4MigrationOtelSection sdk={sdk} />
-        <V4MigrationCustomInstrumentationSection sdk={sdk} />
-        <V4MigrationDetectedInstrumentationSection sdk={sdk} />
-      </div>
-    );
+export const SdkChecking = meta.story({
+  args: {
+    migrationData: { ...cleanData, sdk: makeSdkState({ status: "checking" }) },
   },
 });
-
-export const VariantMatrix = meta.story({
-  render: () => (
-    <div className="flex max-w-xl flex-col gap-8">
-      {(
-        [
-          [
-            "1. SDK outdated (mixed rows)",
-            <V4MigrationSdkSection
-              key="1"
-              sdk={sdkOutdatedState}
-              defaultOpen
-            />,
-          ],
-          [
-            "2. Unrecognized SDK name (renders as custom instrumentation)",
-            <V4MigrationCustomInstrumentationSection
-              key="2"
-              sdk={unrecognizedSdkState}
-              defaultOpen
-            />,
-          ],
-          [
-            "3. SDK checking",
-            <V4MigrationSdkSection
-              key="3"
-              sdk={makeSdkState({ status: "checking" })}
-              defaultOpen
-            />,
-          ],
-          [
-            "4. SDK check failed",
-            <V4MigrationSdkSection
-              key="4"
-              sdk={makeSdkState({ status: "error" })}
-              defaultOpen
-            />,
-          ],
-          [
-            "5. OTel header required (delayed exporters only)",
-            <V4MigrationOtelSection
-              key="5"
-              sdk={otelHeaderRequiredState}
-              defaultOpen
-            />,
-          ],
-          [
-            "6. Upgrade Instrumentation (ingestion API without SDK header)",
-            <V4MigrationCustomInstrumentationSection
-              key="6"
-              sdk={customInstrumentationState}
-              defaultOpen
-            />,
-          ],
-          [
-            "7. Detected V4-compatible instrumentation (compatible SDK + realtime OTel)",
-            <V4MigrationDetectedInstrumentationSection
-              key="7"
-              sdk={detectedInstrumentationState}
-            />,
-          ],
-          [
-            "8. Evals deprecated (assistant can migrate)",
-            <V4MigrationEvalsSection
-              key="8"
-              state={{ status: "loaded", count: 3 }}
-              assistant={{ onMigrate: fn() }}
-              evalsUrl="/project/demo/evals"
-              defaultOpen
-            />,
-          ],
-          [
-            "9. Evals deprecated, single (assistant plans the order, no auto-migrate)",
-            <V4MigrationEvalsSection
-              key="9"
-              state={{ status: "loaded", count: 1 }}
-              assistant={{ onMigrate: fn() }}
-              evalsUrl="/project/demo/evals"
-              defaultOpen
-            />,
-          ],
-          [
-            "10. Experiments update required (deprecated API call)",
-            <V4MigrationExperimentsSection
-              key="10"
-              state={{ status: "loaded", result: "required" }}
-              upgradePath="api"
-              defaultOpen
-            />,
-          ],
-          [
-            "11. Experiments update required (outdated SDK)",
-            <V4MigrationExperimentsSection
-              key="11"
-              state={{ status: "loaded", result: "required" }}
-              upgradePath="sdk"
-              defaultOpen
-            />,
-          ],
-          [
-            "12. Experiments needs review (inconclusive SDK usage)",
-            <V4MigrationExperimentsSection
-              key="12"
-              state={{ status: "loaded", result: "sdk_usage_inconclusive" }}
-              upgradePath="sdk"
-              defaultOpen
-            />,
-          ],
-          [
-            "13. Deprecated APIs called",
-            <V4MigrationApisSection
-              key="13"
-              state={{ status: "loaded", count: apiUsage.length }}
-              usage={apiUsage}
-              defaultOpen
-            />,
-          ],
-          [
-            "14. Deprecated integrations exporting",
-            <V4MigrationIntegrationsSection
-              key="14"
-              state={{ status: "loaded", count: integrations.length }}
-              integrations={integrations}
-              integrationsUrl="/project/demo/settings/integrations"
-              defaultOpen
-            />,
-          ],
-          [
-            "15. Checker still loading (evals shown; same chip on all checkers)",
-            <V4MigrationEvalsSection
-              key="15"
-              state={{ status: "loading", count: 0 }}
-              assistant={null}
-              defaultOpen
-            />,
-          ],
-          [
-            "16. Checker failed (evals shown; same chip on all checkers)",
-            <V4MigrationEvalsSection
-              key="16"
-              state={{ status: "error", count: 0 }}
-              assistant={null}
-              defaultOpen
-            />,
-          ],
-          [
-            "17. Clean sections collapse into one summary line",
-            <p key="17" className="text-muted-foreground py-1.5 text-sm">
-              Evals, experiments, APIs and integrations are up to date.
-            </p>,
-          ],
-          [
-            "18. Everything at once",
-            <div key="18">
-              <V4MigrationSdkSection sdk={combinedState} defaultOpen />
-              <V4MigrationOtelSection sdk={combinedState} defaultOpen />
-              <V4MigrationCustomInstrumentationSection
-                sdk={combinedState}
-                defaultOpen
-              />
-              <V4MigrationDetectedInstrumentationSection sdk={combinedState} />
-              <V4MigrationEvalsSection
-                state={{ status: "loaded", count: 2 }}
-                assistant={{ onMigrate: fn() }}
-                evalsUrl="/project/demo/evals"
-                defaultOpen
-              />
-              <V4MigrationExperimentsSection
-                state={{ status: "loaded", result: "required" }}
-                upgradePath="api"
-                defaultOpen
-              />
-              <V4MigrationApisSection
-                state={{ status: "loaded", count: apiUsage.length }}
-                usage={apiUsage}
-                defaultOpen
-              />
-              <V4MigrationIntegrationsSection
-                state={{ status: "loaded", count: integrations.length }}
-                integrations={integrations}
-                integrationsUrl="/project/demo/settings/integrations"
-                defaultOpen
-              />
-            </div>,
-          ],
-        ] as const
-      ).map(([label, node]) => (
-        <div key={label} className="flex flex-col gap-2">
-          <p className="text-muted-foreground text-xs tracking-wide uppercase">
-            {label}
-          </p>
-          {node}
-        </div>
-      ))}
-    </div>
-  ),
+export const SdkCheckFailed = meta.story({
+  args: {
+    migrationData: { ...cleanData, sdk: makeSdkState({ status: "error" }) },
+  },
+});
+export const OtelHeaderRequired = meta.story({
+  args: { migrationData: { ...cleanData, sdk: otelHeaderRequiredState } },
+});
+export const UpgradeInstrumentation = meta.story({
+  args: { migrationData: { ...cleanData, sdk: customInstrumentationState } },
+});
+export const HiddenWhenClean = meta.story({
+  args: { migrationData: cleanData },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.getByText(
+        "Evals, experiments, APIs and integrations are up to date.",
+      ),
+    ).toBeVisible();
+    await expect(canvas.queryByText("Update Evals")).not.toBeInTheDocument();
+  },
+});
+export const EvalsDeprecated = meta.story({
+  args: {
+    migrationData: { ...cleanData, evals: { status: "loaded", count: 3 } },
+  },
+});
+export const SingleEvalDeprecated = meta.story({
+  args: {
+    migrationData: { ...cleanData, evals: { status: "loaded", count: 1 } },
+  },
+});
+export const ExperimentsUpdateRequired = meta.story({
+  args: {
+    migrationData: {
+      ...cleanData,
+      experiments: { status: "loaded", result: "required" },
+      experimentInstrumentationUpgradePath: "api",
+    },
+  },
+});
+export const ExperimentsSdkUpdateRequired = meta.story({
+  args: {
+    migrationData: {
+      ...cleanData,
+      experiments: { status: "loaded", result: "required" },
+      experimentInstrumentationUpgradePath: "sdk",
+    },
+  },
+});
+export const ExperimentsNeedsReview = meta.story({
+  args: {
+    migrationData: {
+      ...cleanData,
+      experiments: { status: "loaded", result: "sdk_usage_inconclusive" },
+      experimentInstrumentationUpgradePath: "sdk",
+    },
+  },
+});
+export const ApisDeprecated = meta.story({
+  args: {
+    migrationData: {
+      ...cleanData,
+      apis: { status: "loaded", count: apiUsage.length },
+      apiUsage,
+    },
+  },
+});
+export const IntegrationsDeprecated = meta.story({
+  args: {
+    migrationData: {
+      ...cleanData,
+      exports: { status: "loaded", count: integrations.length },
+      legacyIntegrations: integrations,
+    },
+  },
+});
+export const EvalCheckLoading = meta.story({
+  args: {
+    assistant: null,
+    migrationData: { ...cleanData, evals: { status: "loading", count: 0 } },
+  },
+});
+export const EvalCheckFailed = meta.story({
+  args: {
+    assistant: null,
+    migrationData: { ...cleanData, evals: { status: "error", count: 0 } },
+  },
+});
+export const EverythingAtOnce = meta.story({
+  args: {
+    migrationData: {
+      ...cleanData,
+      sdk: combinedState,
+      evals: { status: "loaded", count: 2 },
+      experiments: { status: "loaded", result: "required" },
+      experimentInstrumentationUpgradePath: "api",
+      apis: { status: "loaded", count: apiUsage.length },
+      apiUsage,
+      exports: { status: "loaded", count: integrations.length },
+      legacyIntegrations: integrations,
+    },
+  },
 });

@@ -108,7 +108,7 @@ function enforceRouteSettings(
 }
 
 /** ApiKeyAuthParams is the request headers plus the route's key-kind opt-ins. */
-export type ApiKeyAuthParams = {
+type ApiKeyAuthParams = {
   headers: IncomingHttpHeaders;
   allowInAppAgentKey?: boolean;
   isAdminApiKeyAuthAllowed?: boolean;

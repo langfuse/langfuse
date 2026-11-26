@@ -27,7 +27,7 @@ import { DetailViewHeaderTitleRow } from "@/src/features/traces/components/Detai
 import { Metric } from "@/src/components/design-system/Metric/Metric";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
-import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
+import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/ConnectedDetailHeaderActionsMenuController";
 import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";

@@ -60,7 +60,7 @@ const actionsVariants = cva("flex", {
 const actionClasses =
   "inline-flex items-center gap-1.5 rounded-sm text-sm font-bold hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50";
 
-export type CalloutAction =
+type CalloutAction =
   | {
       type: "button";
       label: string;

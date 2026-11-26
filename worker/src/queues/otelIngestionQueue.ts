@@ -119,7 +119,7 @@ export function checkHeaderBasedDirectWrite(params: {
   return false;
 }
 
-export type OtelWritePath =
+type OtelWritePath =
   | "dual"
   | "direct_header"
   | "direct_env"

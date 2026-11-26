@@ -546,7 +546,7 @@ function SdkUsageSeriesRows({
 // Also carries the transient
 // checking/error states so they are not silently lost.
 // Exported for the state-gallery story.
-export function V4MigrationSdkSection({
+function V4MigrationSdkSection({
   sdk,
   defaultOpen,
   projectId,
@@ -636,7 +636,7 @@ export function V4MigrationSdkSection({
 // Renders only while at least one OTel exporter still ingests through the
 // delayed path; the SDK section above owns the checking/error states.
 // Exported for the state-gallery story.
-export function V4MigrationOtelSection({
+function V4MigrationOtelSection({
   sdk,
   defaultOpen,
   projectId,
@@ -699,7 +699,7 @@ export function V4MigrationOtelSection({
 // Renders only while ingestion-API traffic without a Langfuse SDK header is
 // detected: custom instrumentation against POST /api/public/ingestion, or an
 // SDK too old to send attribution headers. Exported for the gallery story.
-export function V4MigrationCustomInstrumentationSection({
+function V4MigrationCustomInstrumentationSection({
   sdk,
   defaultOpen,
   projectId,
@@ -767,7 +767,7 @@ export function V4MigrationCustomInstrumentationSection({
   );
 }
 
-export function V4MigrationDetectedInstrumentationSection({
+function V4MigrationDetectedInstrumentationSection({
   sdk,
   projectId,
 }: {
@@ -823,7 +823,7 @@ export function V4MigrationDetectedInstrumentationSection({
 // The four checker sections below are presentational (data via props) so the
 // state gallery story can render every variant without tRPC or router mocks.
 
-export function V4MigrationEvalsSection({
+function V4MigrationEvalsSection({
   state,
   assistant,
   evalsUrl,
@@ -917,7 +917,7 @@ export function V4MigrationEvalsSection({
   );
 }
 
-export function V4MigrationExperimentsSection({
+function V4MigrationExperimentsSection({
   state,
   upgradePath,
   defaultOpen,
@@ -1005,7 +1005,7 @@ export function V4MigrationExperimentsSection({
   );
 }
 
-export function V4MigrationApisSection({
+function V4MigrationApisSection({
   state,
   usage,
   defaultOpen,
@@ -1271,7 +1271,7 @@ export function V4MigrationApisSection({
   );
 }
 
-export function V4MigrationIntegrationsSection({
+function V4MigrationIntegrationsSection({
   state,
   integrations,
   integrationsUrl,
@@ -1670,6 +1670,111 @@ export function V4MigrationAgentUpgradeSection({
   );
 }
 
+/** @knipignore Storybook renders the same checklist as the panel with fixture data. */
+export function V4MigrationChecklist({
+  migrationData,
+  evidenceProjectId,
+  assistant,
+  evalsUrl,
+  integrationsUrl,
+  onNavigate,
+  defaultOpen,
+}: {
+  migrationData: Omit<
+    ReturnType<typeof useProjectV4MigrationData>,
+    "forceV3Experience"
+  >;
+  evidenceProjectId?: string;
+  assistant: Parameters<typeof V4MigrationEvalsSection>[0]["assistant"];
+  evalsUrl?: string;
+  integrationsUrl?: string;
+  onNavigate?: () => void;
+  defaultOpen?: boolean;
+}) {
+  const evalsClean =
+    migrationData.evals.status === "loaded" && migrationData.evals.count === 0;
+  const experimentsClean =
+    migrationData.experiments.status === "loaded" &&
+    migrationData.experiments.result === "not_required";
+  const apisClean =
+    migrationData.apis.status === "loaded" && migrationData.apis.count === 0;
+  const exportsClean =
+    migrationData.exports.status === "loaded" &&
+    migrationData.exports.count === 0;
+  const cleanLabels = [
+    evalsClean ? "evals" : null,
+    experimentsClean ? "experiments" : null,
+    apisClean ? "APIs" : null,
+    exportsClean ? "integrations" : null,
+  ].filter((label): label is string => label !== null);
+  const cleanSummary =
+    cleanLabels.length > 1
+      ? `${cleanLabels.slice(0, -1).join(", ")} and ${cleanLabels.at(-1)}`
+      : cleanLabels[0];
+
+  return (
+    <>
+      <V4MigrationSdkSection
+        sdk={migrationData.sdk}
+        projectId={evidenceProjectId}
+        defaultOpen={defaultOpen}
+      />
+      <V4MigrationOtelSection
+        sdk={migrationData.sdk}
+        projectId={evidenceProjectId}
+        defaultOpen={defaultOpen}
+      />
+      <V4MigrationCustomInstrumentationSection
+        sdk={migrationData.sdk}
+        projectId={evidenceProjectId}
+        defaultOpen={defaultOpen}
+      />
+      {!evalsClean && (
+        <V4MigrationEvalsSection
+          state={migrationData.evals}
+          assistant={assistant}
+          evalsUrl={evalsUrl}
+          onNavigate={onNavigate}
+          defaultOpen={defaultOpen}
+        />
+      )}
+      {!experimentsClean && (
+        <V4MigrationExperimentsSection
+          state={migrationData.experiments}
+          upgradePath={migrationData.experimentInstrumentationUpgradePath}
+          defaultOpen={defaultOpen}
+        />
+      )}
+      {!apisClean && (
+        <V4MigrationApisSection
+          state={migrationData.apis}
+          usage={migrationData.apiUsage}
+          defaultOpen={defaultOpen}
+        />
+      )}
+      {!exportsClean && (
+        <V4MigrationIntegrationsSection
+          state={migrationData.exports}
+          integrations={migrationData.legacyIntegrations}
+          integrationsUrl={integrationsUrl}
+          onNavigate={onNavigate}
+          defaultOpen={defaultOpen}
+        />
+      )}
+      {cleanSummary && (
+        <p className="text-muted-foreground flex items-center gap-2.5 py-2.5 text-sm">
+          <V4MigrationStatusDot variant="done" />
+          {`${cleanSummary.charAt(0).toUpperCase()}${cleanSummary.slice(1)} are up to date.`}
+        </p>
+      )}
+      <V4MigrationDetectedInstrumentationSection
+        sdk={migrationData.sdk}
+        projectId={evidenceProjectId}
+      />
+    </>
+  );
+}
+
 // The migration checklist sections, agent CTA, compare-traces toggle row, and
 // footer links. onNavigate fires when an internal link is followed so the
 // hosting surface (panel or modal) can close itself.
@@ -1749,32 +1854,6 @@ export function V4MigrationDetailsContent({
     });
   }, [checksSettled, readiness, migrationData, capture]);
 
-  // Sections in a good state collapse into one summary sentence instead of
-  // rendering their own (green) rows. Loading and error states keep the row.
-  const evalsClean =
-    migrationData.evals.status === "loaded" && migrationData.evals.count === 0;
-  const experimentsClean =
-    migrationData.experiments.status === "loaded" &&
-    migrationData.experiments.result === "not_required";
-  const apisClean =
-    migrationData.apis.status === "loaded" && migrationData.apis.count === 0;
-  const exportsClean =
-    migrationData.exports.status === "loaded" &&
-    migrationData.exports.count === 0;
-  const cleanSectionLabels = [
-    evalsClean ? "evals" : null,
-    experimentsClean ? "experiments" : null,
-    apisClean ? "APIs" : null,
-    exportsClean ? "integrations" : null,
-  ].filter((label): label is string => label !== null);
-  const joinedCleanLabels =
-    cleanSectionLabels.length > 1
-      ? `${cleanSectionLabels.slice(0, -1).join(", ")} and ${cleanSectionLabels[cleanSectionLabels.length - 1]}`
-      : cleanSectionLabels[0];
-  const cleanSummary = joinedCleanLabels
-    ? `${joinedCleanLabels.charAt(0).toUpperCase()}${joinedCleanLabels.slice(1)} are up to date.`
-    : null;
-
   const handleEmailEngineer = () => {
     capture("v4_migration:contact_support_clicked");
     onNavigate?.();
@@ -1823,67 +1902,17 @@ export function V4MigrationDetailsContent({
           yet.
         </p>
         <div>
-          <V4MigrationSdkSection
-            sdk={migrationData.sdk}
-            projectId={evidenceProjectId}
-          />
-          <V4MigrationOtelSection
-            sdk={migrationData.sdk}
-            projectId={evidenceProjectId}
-          />
-          <V4MigrationCustomInstrumentationSection
-            sdk={migrationData.sdk}
-            projectId={evidenceProjectId}
-          />
-          {!evalsClean && (
-            <V4MigrationEvalsSection
-              state={migrationData.evals}
-              assistant={
-                isInAppAgentLauncherVisible
-                  ? {
-                      onMigrate: handleMigrateEvalsWithAgent,
-                      aiFeaturesEnabled,
-                    }
-                  : null
-              }
-              evalsUrl={evalsUrl}
-              onNavigate={onNavigate}
-            />
-          )}
-
-          {!experimentsClean && (
-            <V4MigrationExperimentsSection
-              state={migrationData.experiments}
-              upgradePath={migrationData.experimentInstrumentationUpgradePath}
-            />
-          )}
-
-          {!apisClean && (
-            <V4MigrationApisSection
-              state={migrationData.apis}
-              usage={migrationData.apiUsage}
-            />
-          )}
-
-          {!exportsClean && (
-            <V4MigrationIntegrationsSection
-              state={migrationData.exports}
-              integrations={migrationData.legacyIntegrations}
-              integrationsUrl={integrationsUrl}
-              onNavigate={onNavigate}
-            />
-          )}
-
-          {cleanSummary && (
-            <p className="text-muted-foreground flex items-center gap-2.5 py-2.5 text-sm">
-              <V4MigrationStatusDot variant="done" />
-              {cleanSummary}
-            </p>
-          )}
-
-          <V4MigrationDetectedInstrumentationSection
-            sdk={migrationData.sdk}
-            projectId={evidenceProjectId}
+          <V4MigrationChecklist
+            migrationData={migrationData}
+            evidenceProjectId={evidenceProjectId}
+            assistant={
+              isInAppAgentLauncherVisible
+                ? { onMigrate: handleMigrateEvalsWithAgent, aiFeaturesEnabled }
+                : null
+            }
+            evalsUrl={evalsUrl}
+            integrationsUrl={integrationsUrl}
+            onNavigate={onNavigate}
           />
 
           {/* Always the last checklist row. Hides itself when the session

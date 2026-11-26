@@ -176,7 +176,11 @@ export function mapValues<V>(
   return functionCall("mapValues", [map]);
 }
 
-/** ClickHouse `mapContains(map, key)`: the map has an entry for `key`. */
+/**
+ * ClickHouse `mapContains(map, key)`: the map has an entry for `key`.
+ *
+ * @knipignore Keep this query compiler wrapper; it currently has only test callers.
+ */
 export function mapContains(
   map: Expression<Record<string, unknown>>,
   key: Expression<string>,
@@ -192,6 +196,8 @@ export function uniq(value: Expression<unknown>): ChExpression<number> {
 /**
  * ClickHouse `uniqCombined(value)`, an approximate distinct count with a
  * fixed-size state, more accurate than `uniq` and exact for small counts.
+ *
+ * @knipignore Keep this query compiler wrapper; it currently has only test callers.
  */
 export function uniqCombined(value: Expression<unknown>): ChExpression<number> {
   return aggregate("uniqCombined", [value]);
@@ -710,7 +716,11 @@ export function uniqIf(
   return aggregate("uniqIf", [value, condition]);
 }
 
-/** ClickHouse `uniqCombinedIf(value, condition)`, see {@link uniqCombined}. */
+/**
+ * ClickHouse `uniqCombinedIf(value, condition)`, see {@link uniqCombined}.
+ *
+ * @knipignore Keep this query compiler wrapper; it currently has only test callers.
+ */
 export function uniqCombinedIf(
   value: Expression<unknown>,
   condition: Expression<SqlBool>,
@@ -906,6 +916,8 @@ export function xxHash32(expression: Expression<string>): ChExpression<number> {
 /**
  * ClickHouse `cityHash64(first, ...rest)`: one UInt64 hash over all
  * arguments, e.g. a seeded sampling order `cityHash64(trace_id, {seed})`.
+ *
+ * @knipignore Keep this query compiler wrapper; it currently has only test callers.
  */
 export function cityHash64(
   first: Expression<unknown>,

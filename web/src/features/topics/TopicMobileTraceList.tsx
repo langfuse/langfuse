@@ -10,7 +10,7 @@ import { type TopicTracesResult } from "./facet-topics";
 import { TopicTraceLoadMore } from "./TopicTraceLoadMore";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
-export const PAGE_SIZE = 20;
+const PAGE_SIZE = 20;
 
 type TopicMobileTraceListProps = {
   children: ReactNode;

@@ -7,7 +7,7 @@ import {
   applyPick,
   planInputCompletions,
 } from "@/src/features/search-bar/lib/completions";
-import { runSearchBarInvariants } from "@/src/features/search-bar/lib/searchBarInvariants";
+import { runSearchBarInvariants } from "@/src/features/search-bar/__tests__/searchBarInvariants";
 
 const registry = DATASET_ITEMS_FIELD_REGISTRY;
 const metadataFilter: FilterState = [

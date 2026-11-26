@@ -8,7 +8,7 @@ export type TopicModelUsage = Pick<
   | "costDetails"
 >;
 
-export const MAX_TOPIC_SUMMARY_CHARACTERS = 2000;
+const MAX_TOPIC_SUMMARY_CHARACTERS = 2000;
 
 export function topicSummaryOutputError(output: {
   summary: string;
