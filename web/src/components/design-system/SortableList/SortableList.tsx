@@ -9,7 +9,10 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import {
+  restrictToParentElement,
+  restrictToVerticalAxis,
+} from "@dnd-kit/modifiers";
 import {
   SortableContext,
   sortableKeyboardCoordinates,
@@ -20,6 +23,10 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
+
+const LIST_MODIFIERS = [restrictToVerticalAxis];
+// A table clips its rows, so a dragged row stays inside it.
+const TABLE_MODIFIERS = [restrictToVerticalAxis, restrictToParentElement];
 
 function SortableRow({
   id,
@@ -147,7 +154,7 @@ export function SortableList<T>({
   return (
     <DndContext
       collisionDetection={closestCenter}
-      modifiers={[restrictToVerticalAxis]}
+      modifiers={variant === "table" ? TABLE_MODIFIERS : LIST_MODIFIERS}
       sensors={sensors}
       onDragStart={() => setIsDragging(true)}
       onDragCancel={() => setIsDragging(false)}
