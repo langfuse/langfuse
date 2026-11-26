@@ -133,7 +133,7 @@ ruleTester.run("no-length-as-boolean", rule, {
     },
     {
       code: `if (items.length ?? fallback) {}`,
-      output: `if (items.length > 0 ?? fallback) {}`,
+      output: null,
       errors: [{ messageId: "lengthAsBoolean" }],
     },
     {

@@ -72,6 +72,7 @@ const rule = createRule({
             }
 
             if (!truthyFixPreservesValue(expression)) return null;
+            if (comparisonWouldBindInsideNullish(node)) return null;
             const truthy = optionalObject
               ? `(${optionalObject} != null && ${optionalObject}.length > 0)`
               : `${lengthText} > 0`;
@@ -282,6 +283,12 @@ function isTransparentWrapper(
       parent.type === AST_NODE_TYPES.TSTypeAssertion) &&
     parent.expression === child
   );
+}
+
+/** `length > 0 ?? fallback` parses as `(length > 0) ?? fallback` and drops the fallback. */
+function comparisonWouldBindInsideNullish(member: TSESTree.Node): boolean {
+  const parent = parentOf(member);
+  return isNullish(parent) && parent.left === member;
 }
 
 function isJsxChild(expression: TSESTree.Node): boolean {
