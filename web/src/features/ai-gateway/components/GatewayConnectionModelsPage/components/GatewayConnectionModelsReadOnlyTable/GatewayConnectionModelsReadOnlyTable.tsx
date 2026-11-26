@@ -74,6 +74,8 @@ const columns: LangfuseColumnDef<ReadOnlyModelRow>[] = [
 export type GatewayConnectionModelsReadOnlyTableProps = {
   connectionName: string;
   provider: GatewayProvider;
+  /** The connection's custom base URL, if any. */
+  baseURL?: string | null;
   models: string[];
   /** The formats of the models the provider's catalog reports them for. */
   modelApiFormats?: Readonly<Record<string, GatewayApiFormat[]>>;
@@ -86,6 +88,7 @@ export type GatewayConnectionModelsReadOnlyTableProps = {
 export function GatewayConnectionModelsReadOnlyTable({
   connectionName,
   provider,
+  baseURL,
   models,
   modelApiFormats,
   enabledModels,
@@ -112,6 +115,7 @@ export function GatewayConnectionModelsReadOnlyTable({
         provider,
         id,
         modelApiFormats?.[id],
+        baseURL,
       ),
     })),
     selectedApiFormats,

@@ -2,6 +2,8 @@ import type {
   GatewayApiFamily,
   GatewayProvider,
 } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { findBaseUrlPreset } from "@/src/components/BaseUrlPicker/fns/findBaseUrlPreset";
+import { openAiBaseUrlPresets } from "@/src/constants/openAiBaseUrlPresets";
 import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
 import { isGeminiEmbeddingModel } from "@/src/features/ai-gateway/fns/isGeminiEmbeddingModel";
 import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
@@ -19,15 +21,25 @@ const apiFormatLabels = {
   "anthropic.messages": "Anthropic Messages",
 } as const satisfies Record<GatewayApiFormat, string>;
 
-/** `reportedFormats` are the formats the provider's catalog lists the model for. */
+/** An OpenAI-compatible server behind a custom base URL may serve any model kind, so its formats are not guessed. */
+function isCustomOpenAiEndpoint(baseURL: string | null | undefined): boolean {
+  return !findBaseUrlPreset(openAiBaseUrlPresets, baseURL ?? "");
+}
+
+/**
+ * `reportedFormats` are the formats the provider's catalog lists the model for.
+ * `baseURL` is the connection's custom base URL, if any.
+ */
 export function getGatewayModelApiFormats(
   provider: GatewayProvider,
   modelId: string,
   reportedFormats?: readonly GatewayApiFormat[],
+  baseURL?: string | null,
 ): ApiFormat[] {
   if (reportedFormats) {
     return reportedFormats.map((apiFormat) => apiFormatLabels[apiFormat]);
   }
+  if (provider === "OPENAI" && isCustomOpenAiEndpoint(baseURL)) return [];
   if (provider === "OPENROUTER" || provider === "VERCEL") {
     return [
       apiFormatLabels["openai.responses"],

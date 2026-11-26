@@ -141,12 +141,15 @@ export class GatewayModelCatalogService {
       organizationId,
       "ENABLED",
     );
-    return connections.map(({ id, name, provider, allowedModels }) => ({
-      id,
-      name,
-      provider,
-      allowedModels,
-    }));
+    return connections.map(
+      ({ id, name, provider, baseURL, allowedModels }) => ({
+        id,
+        name,
+        provider,
+        baseURL,
+        allowedModels,
+      }),
+    );
   }
 
   async refreshModels(params: {

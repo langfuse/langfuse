@@ -66,6 +66,7 @@ export function ConnectionModelsEditor({
     <GatewayConnectionModelsTable
       connectionName={connection.name}
       provider={connection.provider}
+      baseURL={connection.baseURL}
       models={models}
       modelApiFormats={modelApiFormats}
       customModels={connection.customModels}

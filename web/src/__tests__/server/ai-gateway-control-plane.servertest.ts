@@ -1068,6 +1068,7 @@ describe("AI gateway control plane", () => {
           id: connection.id,
           name: "Shared-OpenAI",
           provider: "OPENAI",
+          baseURL: null,
           allowedModels: ["enabled-model"],
         },
       ]);
