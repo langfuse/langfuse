@@ -1,6 +1,0 @@
-interface:
-  display_name: "Skill Creator"
-  short_description: "Create or update Codex skills"
-  icon_small: "./assets/skill-creator-small.svg"
-  icon_large: "./assets/skill-creator.png"
-  default_prompt: "Use $skill-creator to create or refine a concise Codex skill."

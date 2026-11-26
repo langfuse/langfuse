@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE "scores" ALTER COLUMN "value" SET DATA TYPE DOUBLE PRECISION;

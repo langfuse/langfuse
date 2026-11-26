@@ -1,8 +1,0 @@
-{
-  "$schema": "../node_modules/oxfmt/configuration_schema.json",
-  "printWidth": 80,
-  "trailingComma": "all",
-  "sortImports": false,
-  "sortPackageJson": false,
-  "sortTailwindcss": {}
-}

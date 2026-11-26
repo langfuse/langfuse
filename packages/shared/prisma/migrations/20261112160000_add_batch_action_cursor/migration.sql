@@ -1,1 +1,0 @@
-ALTER TABLE "batch_actions" ADD COLUMN IF NOT EXISTS "cursor" JSONB;

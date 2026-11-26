@@ -1,4 +1,0 @@
-interface:
-  display_name: "Seed Test Data"
-  short_description: "One-command Langfuse test data seeding"
-  default_prompt: "Use $seed-test-data to seed the local Langfuse data this task needs (complex traces, long sessions, bulk traces, v4 events)."

@@ -1,1 +1,0 @@
-ALTER TYPE "ApiKeyScope" ADD VALUE 'USER';

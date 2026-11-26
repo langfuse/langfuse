@@ -1,1 +1,0 @@
-ALTER TABLE "projects" ADD COLUMN "has_traces" BOOLEAN NOT NULL DEFAULT false;

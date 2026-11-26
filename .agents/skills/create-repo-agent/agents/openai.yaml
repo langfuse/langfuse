@@ -1,4 +1,0 @@
-interface:
-  display_name: "Create Repo Agent"
-  short_description: "Build hardened repo agents for this repository."
-  default_prompt: "Use $create-repo-agent when designing, implementing, or reviewing a scheduled repo agent."

@@ -1,1 +1,0 @@
-ALTER TABLE "dashboard_widgets" ADD COLUMN IF NOT EXISTS "min_version" INTEGER NOT NULL DEFAULT 1;

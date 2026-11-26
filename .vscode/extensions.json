@@ -1,9 +1,0 @@
-{
-  "recommendations": [
-    "oxc.oxc-vscode",
-    "bradlc.vscode-tailwindcss",
-    "unifiedjs.vscode-mdx",
-    "yoavbls.pretty-ts-errors",
-    "Prisma.prisma"
-  ]
-}
