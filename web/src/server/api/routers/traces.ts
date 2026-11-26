@@ -77,6 +77,7 @@ import {
 } from "@/src/utils/clientSideDomainTypes";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { throwIfPublicSharingDisabled } from "@/src/ee/features/public-sharing/server/publicSharing";
+import { getUiExportsDisabledReasonForProject } from "@/src/ee/features/ui-exports/server/uiExports";
 import partition from "lodash/partition";
 import chunk from "lodash/chunk";
 
@@ -412,19 +413,24 @@ export const traceRouter = createTRPCRouter({
         });
       }
 
-      const [observations, traceScores] = await Promise.all([
-        getObservationsForTrace({
-          traceId: input.traceId,
-          projectId: input.projectId,
-          timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
-          includeIO: false,
-        }),
-        getScoresAndCorrectionsForTraces({
-          projectId: input.projectId,
-          traceIds: [input.traceId],
-          timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
-        }),
-      ]);
+      const [observations, traceScores, uiExportsDisabledReason] =
+        await Promise.all([
+          getObservationsForTrace({
+            traceId: input.traceId,
+            projectId: input.projectId,
+            timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
+            includeIO: false,
+          }),
+          getScoresAndCorrectionsForTraces({
+            projectId: input.projectId,
+            traceIds: [input.traceId],
+            timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
+          }),
+          getUiExportsDisabledReasonForProject({
+            prisma: ctx.prisma,
+            projectId: input.projectId,
+          }),
+        ]);
 
       const validatedScores = filterAndValidateDbScoreList({
         scores: traceScores,
@@ -480,6 +486,7 @@ export const traceRouter = createTRPCRouter({
         scores: scoresDomain,
         corrections,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
+        uiExportsDisabledReason,
         observations: observations.map((o) => ({
           ...toDomainWithStringifiedMetadata(o),
           output: undefined,

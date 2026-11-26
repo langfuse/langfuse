@@ -7,6 +7,7 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgMembership } from "@langfuse/shared/memberships";
+import { createTrace, createTracesCh } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
@@ -270,5 +271,48 @@ describe("uiExports tRPC", () => {
         startTime: new Date(),
       }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("propagates uiExportsDisabledReason on public trace and session reads for anonymous viewers", async () => {
+    const { projectId } = await setup({
+      role: Role.OWNER,
+      plan: "cloud:enterprise",
+      uiExportsDisabled: true,
+    });
+    const sessionId = `pub-session-${uuidv4()}`;
+    const trace = createTrace({
+      project_id: projectId,
+      session_id: sessionId,
+      public: true,
+    });
+    await prisma.traceSession.create({
+      data: {
+        id: sessionId,
+        projectId,
+        public: true,
+      },
+    });
+    await createTracesCh([trace]);
+
+    const anonCaller = appRouter.createCaller({
+      ...createInnerTRPCContext({ session: null, headers: {} }),
+      prisma,
+    });
+
+    const traceResult = await anonCaller.traces.byIdWithObservationsAndScores({
+      projectId,
+      traceId: trace.id,
+    });
+    expect(traceResult.uiExportsDisabledReason).toBe(
+      "UI exports are disabled for this organization.",
+    );
+
+    const sessionResult = await anonCaller.sessions.byIdWithScores({
+      projectId,
+      sessionId,
+    });
+    expect(sessionResult.uiExportsDisabledReason).toBe(
+      "UI exports are disabled for this organization.",
+    );
   });
 });

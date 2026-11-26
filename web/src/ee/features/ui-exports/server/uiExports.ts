@@ -1,4 +1,8 @@
 import { env } from "@/src/env.mjs";
+import {
+  UI_EXPORTS_DISABLED_BY_INSTANCE_REASON,
+  UI_EXPORTS_DISABLED_BY_ORG_REASON,
+} from "@/src/ee/features/ui-exports/constants";
 import { ForbiddenError, hasEntitlementBasedOnPlan } from "@langfuse/shared";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import { getSelfHostedInstancePlanServerSide } from "@langfuse/shared/src/server";
@@ -15,21 +19,26 @@ export function isUiExportsDisabledByInstance(): boolean {
 }
 
 /**
- * Whether UI-based data exports and downloads are disabled for this project.
- * The org setting applies on every plan: the entitlement only gates turning
- * exports off, so a downgrade never silently re-enables exports the org disabled.
- * Not cached, so disabling takes effect on the next request.
+ * User-facing reason UI exports and downloads are disabled for this project,
+ * or null when allowed. The org setting applies on every plan: the entitlement
+ * only gates turning exports off, so a downgrade never silently re-enables
+ * exports the org disabled. Not cached, so disabling takes effect on the next
+ * request.
  */
-async function isUiExportsDisabledForProject(params: {
+export async function getUiExportsDisabledReasonForProject(params: {
   prisma: PrismaClient;
   projectId: string;
-}): Promise<boolean> {
-  if (isUiExportsDisabledByInstance()) return true;
+}): Promise<string | null> {
+  if (isUiExportsDisabledByInstance()) {
+    return UI_EXPORTS_DISABLED_BY_INSTANCE_REASON;
+  }
   const project = await params.prisma.project.findUnique({
     where: { id: params.projectId },
     select: { organization: { select: { uiExportsDisabled: true } } },
   });
-  return project?.organization.uiExportsDisabled ?? false;
+  return project?.organization.uiExportsDisabled
+    ? UI_EXPORTS_DISABLED_BY_ORG_REASON
+    : null;
 }
 
 /** Rejects UI-based data export and download requests while exports are disabled. */
@@ -37,7 +46,8 @@ export async function throwIfUiExportsDisabled(params: {
   prisma: PrismaClient;
   projectId: string;
 }): Promise<void> {
-  if (await isUiExportsDisabledForProject(params)) {
-    throw new ForbiddenError("UI exports are disabled for this organization.");
+  const reason = await getUiExportsDisabledReasonForProject(params);
+  if (reason) {
+    throw new ForbiddenError(reason);
   }
 }

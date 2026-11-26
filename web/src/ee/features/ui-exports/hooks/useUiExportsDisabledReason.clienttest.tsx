@@ -6,6 +6,11 @@ import type { Session } from "next-auth";
 import type { ReactNode } from "react";
 
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { UiExportsPolicyProvider } from "@/src/ee/features/ui-exports/components/UiExportsPolicyProvider";
+import {
+  UI_EXPORTS_DISABLED_BY_INSTANCE_REASON,
+  UI_EXPORTS_DISABLED_BY_ORG_REASON,
+} from "@/src/ee/features/ui-exports/constants";
 import { useUiExportsDisabledReason } from "./useUiExportsDisabledReason";
 
 const mockRouter = {
@@ -121,6 +126,69 @@ describe("useUiExportsDisabledReason", () => {
     expect(
       renderHook(() => useUiExportsDisabledReason({ projectId: "project-1" }))
         .result.current,
+    ).toBeNull();
+  });
+
+  it("falls back to UiExportsPolicyProvider or fallbackReason for public anonymous and cross-org viewers", () => {
+    const withPolicy = (
+      session: Session | null,
+      disabledReason: string | null,
+    ) =>
+      function PolicyWrapper({ children }: { children: ReactNode }) {
+        return (
+          <RouterContext.Provider value={mockRouter}>
+            <SessionProvider session={session}>
+              <UiExportsPolicyProvider disabledReason={disabledReason}>
+                {children}
+              </UiExportsPolicyProvider>
+            </SessionProvider>
+          </RouterContext.Provider>
+        );
+      };
+
+    // Anonymous viewer on a public trace/session
+    expect(
+      renderHook(
+        () => useUiExportsDisabledReason({ projectId: "other-proj" }),
+        {
+          wrapper: withPolicy(null, UI_EXPORTS_DISABLED_BY_INSTANCE_REASON),
+        },
+      ).result.current,
+    ).toBe(UI_EXPORTS_DISABLED_BY_INSTANCE_REASON);
+
+    // Signed-in non-member viewing another org's public trace/session
+    expect(
+      renderHook(
+        () => useUiExportsDisabledReason({ projectId: "other-proj" }),
+        {
+          wrapper: withPolicy(
+            makeSession({}),
+            UI_EXPORTS_DISABLED_BY_ORG_REASON,
+          ),
+        },
+      ).result.current,
+    ).toBe(UI_EXPORTS_DISABLED_BY_ORG_REASON);
+
+    // Direct fallbackReason when no provider wraps the caller
+    expect(
+      renderHook(
+        () =>
+          useUiExportsDisabledReason({
+            projectId: "other-proj",
+            fallbackReason: UI_EXPORTS_DISABLED_BY_ORG_REASON,
+          }),
+        { wrapper: wrap(null) },
+      ).result.current,
+    ).toBe(UI_EXPORTS_DISABLED_BY_ORG_REASON);
+
+    // Org member's own live session takes precedence over a stale context reason
+    expect(
+      renderHook(() => useUiExportsDisabledReason({ projectId: "project-1" }), {
+        wrapper: withPolicy(
+          makeSession({ uiExportsDisabled: false }),
+          UI_EXPORTS_DISABLED_BY_ORG_REASON,
+        ),
+      }).result.current,
     ).toBeNull();
   });
 });

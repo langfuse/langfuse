@@ -145,6 +145,7 @@ function LoadedTraceDetailActions({
   });
   const uiExportsDisabledReason = useUiExportsDisabledReason({
     projectId: trace.projectId,
+    fallbackReason: trace.uiExportsDisabledReason,
   });
   return (
     <DeleteTraceDialogController

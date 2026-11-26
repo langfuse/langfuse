@@ -17,6 +17,7 @@ import { getTraceScopeTabs } from "./fns/getTraceScopeTabs";
 import { getTraceScopeQuery } from "./fns/getTraceScopeQuery";
 import { resolveTraceScope } from "./fns/resolveTraceScope";
 import { api } from "@/src/utils/api";
+import { UiExportsPolicyProvider } from "@/src/ee/features/ui-exports/components/UiExportsPolicyProvider";
 
 export function TracePage({
   traceId,
@@ -193,43 +194,47 @@ export function TracePage({
   >["headerProps"];
 
   return (
-    <Page
-      headerProps={{
-        title: headerProps.title,
-        hideTitleRow: true,
-        breadcrumb: [
-          { name: "Traces", href: `/project/${routeProjectId}/traces` },
-        ],
-        showSidebarTrigger: !showPublicIndicators,
-        leadingControl,
-        breadcrumbBadges: sharedBadge,
-      }}
+    <UiExportsPolicyProvider
+      disabledReason={trace.data?.uiExportsDisabledReason}
     >
-      <div className="flex max-h-full min-h-0 flex-1 overflow-hidden">
-        <TraceDetailActions
-          isPlaceholderData={trace.isPlaceholderData}
-          trace={trace.data}
-          traceContext={traceContext}
-          timestamp={timestamp}
-          deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
-        >
-          {(traceActions) => (
-            <TraceDetailBody
-              trace={trace.data}
-              context={traceContext}
-              truncatedAtObservations={trace.truncatedAtObservations}
-              isPlaceholderData={trace.isPlaceholderData}
-              header={{
-                variant: "page",
-                headerProps: {
-                  ...headerProps,
-                  actions: [...headerProps.actions, ...traceActions],
-                },
-              }}
-            />
-          )}
-        </TraceDetailActions>
-      </div>
-    </Page>
+      <Page
+        headerProps={{
+          title: headerProps.title,
+          hideTitleRow: true,
+          breadcrumb: [
+            { name: "Traces", href: `/project/${routeProjectId}/traces` },
+          ],
+          showSidebarTrigger: !showPublicIndicators,
+          leadingControl,
+          breadcrumbBadges: sharedBadge,
+        }}
+      >
+        <div className="flex max-h-full min-h-0 flex-1 overflow-hidden">
+          <TraceDetailActions
+            isPlaceholderData={trace.isPlaceholderData}
+            trace={trace.data}
+            traceContext={traceContext}
+            timestamp={timestamp}
+            deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
+          >
+            {(traceActions) => (
+              <TraceDetailBody
+                trace={trace.data}
+                context={traceContext}
+                truncatedAtObservations={trace.truncatedAtObservations}
+                isPlaceholderData={trace.isPlaceholderData}
+                header={{
+                  variant: "page",
+                  headerProps: {
+                    ...headerProps,
+                    actions: [...headerProps.actions, ...traceActions],
+                  },
+                }}
+              />
+            )}
+          </TraceDetailActions>
+        </div>
+      </Page>
+    </UiExportsPolicyProvider>
   );
 }

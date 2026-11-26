@@ -75,7 +75,10 @@ import {
 import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
 import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/fns/mapAgentGraphRecord";
 import { throwIfPublicSharingDisabled } from "@/src/ee/features/public-sharing/server/publicSharing";
-import { throwIfUiExportsDisabled } from "@/src/ee/features/ui-exports/server/uiExports";
+import {
+  getUiExportsDisabledReasonForProject,
+  throwIfUiExportsDisabled,
+} from "@/src/ee/features/ui-exports/server/uiExports";
 
 const storableSessionIdInput = z.string().refine(isStorableTraceSessionId, {
   message:
@@ -742,7 +745,7 @@ export const sessionRouter = createTRPCRouter({
     ),
     { resourceType: "session", action: "read", idKey: "sessionId" },
     async ({ input, ctx, audit }) => {
-      const [scores, session] = await Promise.all([
+      const [scores, session, uiExportsDisabledReason] = await Promise.all([
         getScoresForSessions({
           projectId: input.projectId,
           sessionIds: [input.sessionId],
@@ -751,6 +754,10 @@ export const sessionRouter = createTRPCRouter({
           sessionId: input.sessionId,
           projectId: input.projectId,
           ctx,
+        }),
+        getUiExportsDisabledReasonForProject({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
         }),
       ]);
 
@@ -772,6 +779,7 @@ export const sessionRouter = createTRPCRouter({
       return {
         ...session,
         scores: toDomainArrayWithStringifiedMetadata(validatedScores),
+        uiExportsDisabledReason,
       };
     },
   ),
@@ -843,39 +851,44 @@ export const sessionRouter = createTRPCRouter({
     ),
     { resourceType: "session", action: "read", idKey: "sessionId" },
     async ({ input, ctx, audit }) => {
-      const [scores, sessionMetrics, postgresSession] = await Promise.all([
-        getScoresForSessions({
-          projectId: input.projectId,
-          sessionIds: [input.sessionId],
-        }),
-        getSessionMetricsFromEvents({
-          projectId: input.projectId,
-          sessionIds: [input.sessionId],
-          fields: [
-            "user_ids",
-            "trace_count",
-            "session_total_cost",
-            "session_input_usage",
-            "session_output_usage",
-            "session_total_usage",
-            "min_timestamp",
-            "max_timestamp",
-            "environment",
-          ],
-        }).then((rows) => rows[0]),
-        isStorableTraceSessionId(input.sessionId)
-          ? ctx.prisma.traceSession.findFirst({
-              where: {
-                id: input.sessionId,
-                projectId: input.projectId,
-              },
-              select: {
-                bookmarked: true,
-                public: true,
-              },
-            })
-          : null,
-      ]);
+      const [scores, sessionMetrics, postgresSession, uiExportsDisabledReason] =
+        await Promise.all([
+          getScoresForSessions({
+            projectId: input.projectId,
+            sessionIds: [input.sessionId],
+          }),
+          getSessionMetricsFromEvents({
+            projectId: input.projectId,
+            sessionIds: [input.sessionId],
+            fields: [
+              "user_ids",
+              "trace_count",
+              "session_total_cost",
+              "session_input_usage",
+              "session_output_usage",
+              "session_total_usage",
+              "min_timestamp",
+              "max_timestamp",
+              "environment",
+            ],
+          }).then((rows) => rows[0]),
+          isStorableTraceSessionId(input.sessionId)
+            ? ctx.prisma.traceSession.findFirst({
+                where: {
+                  id: input.sessionId,
+                  projectId: input.projectId,
+                },
+                select: {
+                  bookmarked: true,
+                  public: true,
+                },
+              })
+            : null,
+          getUiExportsDisabledReasonForProject({
+            prisma: ctx.prisma,
+            projectId: input.projectId,
+          }),
+        ]);
 
       if (!sessionMetrics) {
         throw new TRPCError({
@@ -916,6 +929,7 @@ export const sessionRouter = createTRPCRouter({
         ),
         environment: sessionMetrics?.environment,
         scores: toDomainArrayWithStringifiedMetadata(validatedScores),
+        uiExportsDisabledReason,
       };
     },
   ),
