@@ -100,6 +100,7 @@ export function fitCamera(bounds: Bounds, whole: Bounds, size: Size): Camera {
   };
 }
 
+/** @knipignore Shared projection for geometry tests and plot interaction stories. */
 export function screenPoint(
   point: { x: number; y: number },
   camera: Camera,

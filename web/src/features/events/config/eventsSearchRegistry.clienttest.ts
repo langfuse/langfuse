@@ -5,7 +5,7 @@ import type { FilterState } from "@langfuse/shared";
 import { EVENTS_FIELD_REGISTRY } from "@/src/features/search-bar/lib/fields";
 import { planCommit } from "@/src/features/search-bar/lib/commit";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
-import { runSearchBarInvariants } from "@/src/features/search-bar/lib/searchBarInvariants";
+import { runSearchBarInvariants } from "@/src/features/search-bar/__tests__/searchBarInvariants";
 
 import { eventsSearchRegistry } from "./eventsSearchRegistry";
 

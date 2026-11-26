@@ -4,7 +4,7 @@ import { fn } from "storybook/test";
 import { RefreshCw } from "@langfuse/icons";
 
 import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
-import { ControlsContext } from "@/src/components/table/data-table-controls";
+import { ControlsContext } from "@/src/components/table/ControlsContext";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";

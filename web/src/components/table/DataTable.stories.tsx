@@ -10,17 +10,17 @@ import {
 import { type OrderByState } from "@langfuse/shared";
 import Decimal from "decimal.js";
 
+import { DataTable } from "@/src/components/table/data-table";
 import {
-  DataTable,
+  type LangfuseColumnDef,
   type AsyncTableData,
-} from "@/src/components/table/data-table";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
+} from "@/src/components/table/types";
 import {
   resolveRowHeightRendering,
-  useRowHeightRendering,
   type CustomHeights,
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
+import { useRowHeightRendering } from "./RowHeightRenderingProvider";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";

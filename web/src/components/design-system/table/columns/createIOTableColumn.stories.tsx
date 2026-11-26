@@ -4,10 +4,8 @@ import { expect } from "storybook/test";
 
 import { MediaTag } from "@/src/components/MediaTag/MediaTag";
 import { type IOTableCellVariant } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
-import {
-  DataTable,
-  type AsyncTableData,
-} from "@/src/components/table/data-table";
+import { DataTable } from "@/src/components/table/data-table";
+import type { AsyncTableData } from "@/src/components/table/types";
 import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
 import { createIOTableColumn } from "./createIOTableColumn";
 
