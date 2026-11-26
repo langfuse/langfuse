@@ -13,7 +13,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
     title: "Langfuse MCP server",
     description:
-      "Manage evaluators, scores, datasets, experiments and prompts, and read traces and metrics in a Langfuse project over MCP.",
+      "Manage evaluators, scores, datasets and prompts; read experiments, traces and metrics in Langfuse.",
     websiteUrl: "https://langfuse.com",
     repository: {
       url: "https://github.com/langfuse/langfuse",
