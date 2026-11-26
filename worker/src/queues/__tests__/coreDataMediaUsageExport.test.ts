@@ -28,6 +28,7 @@ const readStream = async (stream: Readable): Promise<string> => {
 const createInMemoryStorage = () => {
   const objects = new Map<string, string>();
   const failNextUploadOf = new Set<string>();
+  const onUploadOf = new Map<string, () => void>();
   const put = async ({
     fileName,
     data,
@@ -39,6 +40,7 @@ const createInMemoryStorage = () => {
     if (failNextUploadOf.delete(fileName)) {
       throw new Error(`Injected upload failure for ${fileName}`);
     }
+    onUploadOf.get(fileName)?.();
     objects.set(fileName, body);
   };
   const s3Client = {
@@ -57,7 +59,7 @@ const createInMemoryStorage = () => {
     uploadFileBuffered: vi.fn(put),
   } as unknown as StorageService;
 
-  return { objects, failNextUploadOf, s3Client };
+  return { objects, failNextUploadOf, onUploadOf, s3Client };
 };
 
 describe("computeMediaUsageExportDays", () => {
@@ -443,6 +445,36 @@ describe("exportMediaUsageHourly", () => {
         mediaUsageDayObjectKey("core/", day(value)),
       ),
     );
+    await expect(readMediaUsageWatermark(s3Client, "core/")).resolves.toEqual(
+      day("2026-03-08"),
+    );
+  });
+
+  it("never moves the watermark back when an overlapping run advanced it", async () => {
+    const { objects, onUploadOf, s3Client } = createInMemoryStorage();
+    const watermarkKey = mediaUsageWatermarkKey("core/");
+    objects.set(
+      watermarkKey,
+      JSON.stringify({ exportedUntil: "2026-03-02T00:00:00.000Z" }),
+    );
+    onUploadOf.set(mediaUsageDayObjectKey("core/", day("2026-03-02")), () =>
+      objects.set(
+        watermarkKey,
+        JSON.stringify({ exportedUntil: "2026-03-08T00:00:00.000Z" }),
+      ),
+    );
+
+    const result = await exportMediaUsageHourly({
+      s3Client,
+      uploadPrefix: "core/",
+      now: new Date("2026-03-08T03:15:00.000Z"),
+      maxDaysPerRun: 2,
+    });
+
+    expect(result).toEqual({
+      exportedUntil: day("2026-03-08"),
+      hasMoreDays: false,
+    });
     await expect(readMediaUsageWatermark(s3Client, "core/")).resolves.toEqual(
       day("2026-03-08"),
     );

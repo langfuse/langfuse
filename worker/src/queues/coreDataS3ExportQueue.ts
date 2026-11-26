@@ -26,6 +26,7 @@ import {
 import { metricAggregations, viewDeclarations } from "@langfuse/shared/query";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
+import { RedisLock } from "../utils/RedisLock";
 import {
   exportMediaUsageHourly,
   formatUtcDay,
@@ -39,6 +40,10 @@ const CORE_DATA_EXPORT_PART_SIZE_BYTES = 100 * 1024 * 1024;
 // starve on connection acquisition.
 const CORE_DATA_EXPORT_TABLE_CONCURRENCY = 3;
 const MEDIA_USAGE_BACKFILL_DELAY_MS = 60_000;
+const MEDIA_USAGE_EXPORT_LOCK_KEY = "langfuse:core-data:media-usage-export";
+// Frees the lock if a worker dies mid-run. A run that outlives it cannot move
+// the watermark back.
+const MEDIA_USAGE_EXPORT_LOCK_TTL_SECONDS = 60 * 60;
 
 let s3StorageServiceClient: StorageService;
 
@@ -1894,12 +1899,25 @@ export const coreDataTableExports: Array<
 
 // A media usage backfill or catch-up continues in media-only follow-up jobs, so
 // the other core data tables are not re-exported for it. The job id names the
-// next pending day, so producers racing on the same step enqueue one job.
+// next pending day, so producers racing on the same step enqueue one job. The
+// lock keeps one media usage export running at a time, e.g. when a retried
+// daily job overlaps a follow-up; the run holding it queues the next step.
 const exportMediaUsageAndContinueBackfill = async (args: {
   s3Client: StorageService;
   uploadPrefix: string;
 }) => {
-  const { exportedUntil, hasMoreDays } = await exportMediaUsageHourly(args);
+  const result = await new RedisLock(MEDIA_USAGE_EXPORT_LOCK_KEY, {
+    ttlSeconds: MEDIA_USAGE_EXPORT_LOCK_TTL_SECONDS,
+    name: "core-data-media-usage-export",
+  }).withLock(() => exportMediaUsageHourly(args));
+  if (!result) {
+    logger.info(
+      "[CORE DATA] Skipping media usage export, another run holds the lock",
+    );
+    return;
+  }
+
+  const { exportedUntil, hasMoreDays } = result;
   if (!hasMoreDays || !exportedUntil) {
     return;
   }

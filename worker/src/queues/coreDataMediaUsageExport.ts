@@ -320,8 +320,15 @@ export const exportMediaUsageHourly = async ({
 
     const dayEnd = addUtcDays(day, 1);
     if (!exportedUntil || dayEnd > exportedUntil) {
-      await writeMediaUsageWatermark(s3Client, uploadPrefix, dayEnd);
-      exportedUntil = dayEnd;
+      // An overlapping run may have moved the watermark further; never move
+      // it back.
+      const stored = await readMediaUsageWatermark(s3Client, uploadPrefix);
+      if (stored && stored >= dayEnd) {
+        exportedUntil = stored;
+      } else {
+        await writeMediaUsageWatermark(s3Client, uploadPrefix, dayEnd);
+        exportedUntil = dayEnd;
+      }
     }
   }
 
