@@ -252,7 +252,20 @@ describe("summarizeAssembledTrace", () => {
         models,
         facets: [facet],
       });
-      expect(result).toBe("disabled");
+      expect(result).toBe("summarized");
+      expect(summaries).toEqual([
+        expect.objectContaining({
+          projectId: "project-a",
+          traceId: "trace-self",
+          facetId: facet.id,
+          state: "empty_input",
+          summary: "",
+          embedding: [],
+          usageDetails: {},
+          costDetails: {},
+          metadata: { input: "topics-text", skippedReason: "self_trace" },
+        }),
+      ]);
       expect(state.summarize).not.toHaveBeenCalled();
       expect(state.embed).not.toHaveBeenCalled();
       expect(recordIncrement).toHaveBeenCalledWith(
