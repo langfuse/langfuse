@@ -21,7 +21,7 @@ export function traceTopicRows(facets: TraceTopicFacet[]) {
       label: results[0].name,
       description:
         results.find((result) => result.summary)?.summary ?? undefined,
-      values: assigned.length
+      values: assigned.length > 0
         ? assigned.map((result) => ({
             text: result.topicName!,
             caption:

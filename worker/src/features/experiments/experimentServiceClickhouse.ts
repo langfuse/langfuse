@@ -278,7 +278,7 @@ async function getItemsToProcess(
       };
     });
 
-  if (!validatedDatasetItems.length) {
+  if (validatedDatasetItems.length === 0) {
     logger.info(
       `No Dataset ${datasetId} item input matches expected prompt variable format`,
     );

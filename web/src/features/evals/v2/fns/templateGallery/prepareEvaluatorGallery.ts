@@ -100,7 +100,7 @@ export function prepareEvaluatorGallery({
   const sections: GallerySection[] = [
     ...managedCatalog.categories.flatMap((category) => {
       const templates = managedByCategory.get(category.key) ?? [];
-      return templates.length
+      return templates.length > 0
         ? [
             {
               key: category.key,

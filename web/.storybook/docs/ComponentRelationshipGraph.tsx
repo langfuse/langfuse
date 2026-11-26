@@ -361,7 +361,7 @@ export function ComponentRelationshipGraph() {
     const matchingPaths = node.paths.filter((path) =>
       path.toLowerCase().includes(query),
     );
-    if (!node.label.toLowerCase().includes(query) && !matchingPaths.length) {
+    if (!node.label.toLowerCase().includes(query) && matchingPaths.length === 0) {
       return [];
     }
     return [

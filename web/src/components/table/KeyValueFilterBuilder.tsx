@@ -499,7 +499,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
         // live-typed row keys, so a facet with nothing enumerated would flip
         // from free text to pick-only after the first keystroke and trap the
         // user at one character.
-        const hasKeyOptions = !suggestKeys && (keyOptions?.length ?? 0) > 0;
+        const hasKeyOptions = !suggestKeys && (keyOptions != null && keyOptions.length > 0);
 
         return (
           <div

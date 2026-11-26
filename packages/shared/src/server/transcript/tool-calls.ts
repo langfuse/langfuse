@@ -181,7 +181,7 @@ export function createToolCallRegistry() {
     output: NormalizedMessage[],
   ) {
     const parts = output.flatMap((message) => message.parts);
-    if (!parts.length) return;
+    if (parts.length === 0) return;
 
     let hasId = false;
     for (const part of parts) {

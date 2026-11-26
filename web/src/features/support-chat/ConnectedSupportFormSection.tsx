@@ -73,7 +73,7 @@ export function ConnectedSupportFormSection({
     // (which surfaces the error via form.setError) instead of silently
     // dropping the user's files while still creating the thread.
     let pylonAttachmentUrls: string[] = [];
-    if (files.length) {
+    if (files.length > 0) {
       pylonAttachmentUrls = await uploadFilesToPylon(files);
     }
 

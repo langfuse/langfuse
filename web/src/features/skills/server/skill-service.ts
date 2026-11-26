@@ -363,7 +363,7 @@ export class SkillService {
     const where: Prisma.SkillWhereInput = {
       projectId: params.projectId,
       labels: { has: SKILL_LATEST_LABEL },
-      ...(filters.length ? { AND: filters } : {}),
+      ...(filters.length > 0 ? { AND: filters } : {}),
       ...(params.input.search
         ? {
             OR: [
@@ -427,7 +427,7 @@ export class SkillService {
       }),
       this.prisma.skill.count({ where }),
     ]);
-    const productionVersions = latestVersions.length
+    const productionVersions = latestVersions.length > 0
       ? await this.prisma.skill.findMany({
           where: {
             projectId: params.projectId,
@@ -470,7 +470,7 @@ export class SkillService {
           `Unsupported skill filter: ${filter.column} (${filter.type})`,
         );
       }
-      if (!filter.value.length) return {};
+      if (filter.value.length === 0) return {};
       switch (filter.operator) {
         case "any of":
           return { tags: { hasSome: filter.value } };
@@ -674,7 +674,7 @@ export class SkillService {
         include: skillFilesInclude,
         orderBy: { version: "asc" },
       });
-      if (!versions.length) throw new LangfuseNotFoundError("Skill not found");
+      if (versions.length === 0) throw new LangfuseNotFoundError("Skill not found");
       await this.requireProtectedLabelAccess({
         prisma: tx,
         projectId: params.projectId,
@@ -865,7 +865,7 @@ export class SkillService {
         ),
       ),
     ];
-    const referencedBlobs = referencedHashes.length
+    const referencedBlobs = referencedHashes.length > 0
       ? await this.prisma.skillBlob.findMany({
           where: {
             projectId: params.projectId,
@@ -965,7 +965,7 @@ export class SkillService {
           .map((file) => [file.sha256Hash, file]),
       ).values(),
     ].sort((a, b) => a.sha256Hash.localeCompare(b.sha256Hash));
-    if (uniqueFiles.length) {
+    if (uniqueFiles.length > 0) {
       await params.tx.skillBlob.createMany({
         data: uniqueFiles.map((file) => ({
           id: randomUUID(),
@@ -978,7 +978,7 @@ export class SkillService {
         skipDuplicates: true,
       });
     }
-    const blobs = uniqueFiles.length
+    const blobs = uniqueFiles.length > 0
       ? await params.tx.skillBlob.findMany({
           where: {
             projectId: params.projectId,

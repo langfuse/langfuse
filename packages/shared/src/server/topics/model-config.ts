@@ -160,7 +160,7 @@ async function resolveConfigs(
       ),
     ),
   ];
-  const keys = providers.length
+  const keys = providers.length > 0
     ? await prisma.llmApiKeys.findMany({
         where: {
           provider: { in: providers },
@@ -197,7 +197,7 @@ export async function getTopicsModels(
 export async function getEnabledTopicsModels(
   projectIds: string[],
 ): Promise<Map<string, TopicsModels>> {
-  if (!projectIds.length) return new Map();
+  if (projectIds.length === 0) return new Map();
   return findEnabledTopicsModels({ projectId: { in: projectIds } });
 }
 
@@ -827,7 +827,7 @@ async function testTopicsModels(
       ? [`${TOPICS_MODEL_SLOT_DETAILS[name].label} (${slot.model}): ${message}`]
       : [];
   });
-  if (failures.length)
+  if (failures.length > 0)
     throw new InvalidRequestError(
       `The test call failed for ${failures.join("; ")}`,
     );

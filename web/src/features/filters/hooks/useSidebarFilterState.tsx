@@ -647,7 +647,7 @@ export function useSidebarFilterStateCore(
   const omittedColumns = config.omittedFilterColumns;
   const stripOmittedColumns = useCallback(
     (filters: FilterState): FilterState =>
-      !omittedColumns?.length
+      (omittedColumns == null || omittedColumns.length === 0)
         ? filters
         : filters.filter((filter) => !omittedColumns.includes(filter.column)),
     [omittedColumns],

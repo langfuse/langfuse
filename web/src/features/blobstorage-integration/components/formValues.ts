@@ -95,7 +95,7 @@ export function buildBlobStorageFormValues(
     // Empty array in the DB means "export everything" (the worker falls back
     // to all groups), so surface it as the full selection in the form.
     exportFieldGroups: withTraceFieldGroups(
-      state?.exportFieldGroups?.length
+      state?.exportFieldGroups && state.exportFieldGroups.length > 0
         ? (state.exportFieldGroups as ExportFieldGroup[])
         : [...OBSERVATION_FIELD_GROUPS_FULL],
     ),

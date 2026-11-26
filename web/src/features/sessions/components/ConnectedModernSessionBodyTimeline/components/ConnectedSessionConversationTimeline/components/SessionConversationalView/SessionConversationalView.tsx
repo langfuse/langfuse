@@ -95,7 +95,7 @@ export function SessionConversationalView(
           range.setStart(node, offsets[index] ?? index);
           range.setEnd(
             node,
-            offsets.length
+            offsets.length > 0
               ? offsets[index + query.length - 1]! + 1
               : index + query.length,
           );

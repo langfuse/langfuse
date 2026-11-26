@@ -97,7 +97,7 @@ function generateStructured(path: string, targetBytes: number): void {
         buf = "";
       }
     }
-    if (buf.length) write(buf);
+    if (buf.length > 0) write(buf);
     write("]");
   } finally {
     closeSync(fd);
@@ -117,7 +117,7 @@ function generateWide(path: string, count: number): void {
         buf = "";
       }
     }
-    if (buf.length) writeSync(fd, buf);
+    if (buf.length > 0) writeSync(fd, buf);
     writeSync(fd, "]");
   } finally {
     closeSync(fd);

@@ -182,11 +182,11 @@ export function ScoreAnalytics(props: {
         {!props.isLoading &&
           !scoreKeysAndProps.isPending &&
           !scoreKeysAndProps.isError &&
-          !scoreAnalyticsValues.length && (
+          scoreAnalyticsValues.length === 0 && (
             <VisualizationFrame
               content={{
                 type: "empty",
-                message: scoreSelectorOptions.length
+                message: scoreSelectorOptions.length > 0
                   ? "Select a score to view analytics"
                   : "No data",
               }}

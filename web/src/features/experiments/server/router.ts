@@ -973,7 +973,7 @@ export const experimentsRouter = createTRPCRouter({
             .filter((datasetId): datasetId is string => Boolean(datasetId)),
         ),
       ];
-      const datasets = datasetIds.length
+      const datasets = datasetIds.length > 0
         ? await ctx.prisma.dataset.findMany({
             where: { projectId: input.projectId, id: { in: datasetIds } },
             select: { id: true, name: true },

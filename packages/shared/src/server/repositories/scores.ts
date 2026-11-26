@@ -3361,7 +3361,7 @@ function buildDynamicFilters(params: ListFilterParams): {
 
   for (const { key, field } of STRING_OPTIONS_FILTERS) {
     const values = params[key];
-    if (values?.length) {
+    if (values && values.length > 0) {
       filterList.push(
         new StringOptionsFilter({
           clickhouseTable: "scores",
@@ -3421,7 +3421,11 @@ function buildDynamicFilters(params: ListFilterParams): {
   const extraClauses: string[] = [];
   const extraParams: Record<string, unknown> = {};
 
-  if (params.value?.length && params.dataType?.length === 1) {
+  if (
+    params.value &&
+    params.value.length > 0 &&
+    params.dataType?.length === 1
+  ) {
     const dt = params.dataType[0] as ScoreDataTypeType;
     const uid = clickhouseCompliantRandomCharacters();
     const varName = `valueFilter${uid}`;

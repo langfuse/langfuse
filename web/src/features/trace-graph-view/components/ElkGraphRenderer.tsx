@@ -361,7 +361,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     if (fit) applyTransform(fit);
   };
 
-  if (!graph.nodes.length) {
+  if (graph.nodes.length === 0) {
     return (
       <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
         No graph data available

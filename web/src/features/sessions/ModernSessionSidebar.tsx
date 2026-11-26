@@ -242,9 +242,9 @@ const TurnCard = React.memo(
       hasMatchingTraceLevelIO && observations?.length === 0;
     const observationListClassName = useMemo(() => {
       if (isTraceLevelIOOnly) return "-mx-1 mt-2";
-      if (observations?.length) return "mt-2";
+      if (observations != null && observations.length > 0) return "mt-2";
       return "-mx-1";
-    }, [isTraceLevelIOOnly, observations?.length]);
+    }, [isTraceLevelIOOnly, observations]);
 
     return (
       <div

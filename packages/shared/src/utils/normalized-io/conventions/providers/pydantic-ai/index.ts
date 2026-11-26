@@ -54,7 +54,8 @@ function pydanticAiMessages(
   kind: "input" | "output",
 ): MessageSource[] {
   const history = parseArray(parseRecord(root._state)?.message_history);
-  if (!history?.length || !history.every(isPydanticMessage)) return [];
+  if (!history || history.length === 0 || !history.every(isPydanticMessage))
+    return [];
 
   recordKeyAsParsed(root, "_state", "message_history");
   return [

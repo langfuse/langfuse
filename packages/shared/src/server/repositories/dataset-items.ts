@@ -741,7 +741,7 @@ export async function createManyDatasetItems(props: {
   // unresolvable reference (missing or not-yet-uploaded media) against its item
   // and drop the item, so the early return below handles schema and media
   // failures uniformly.
-  const unresolvableMedia = preparedItems.length
+  const unresolvableMedia = preparedItems.length > 0
     ? await findUnresolvableMediaReferences({
         projectId: props.projectId,
         items: preparedItems,

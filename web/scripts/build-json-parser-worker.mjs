@@ -84,7 +84,7 @@ export const JSON_PARSER_WORKER_SOURCE = ${JSON.stringify(bundled)};
     moduleText,
     /** @type {import("oxfmt").FormatConfig} */ (formatterConfig),
   );
-  if (errors.length) {
+  if (errors.length > 0) {
     throw new Error(errors.map((error) => error.message).join("\n"));
   }
   return code;

@@ -44,14 +44,14 @@ export class SkillCacheService {
     }
 
     const missing = versions.filter((_, index) => !cachedIds[index]);
-    const fetched = missing.length
+    const fetched = missing.length > 0
       ? await this.prisma.skill.findMany({
           where: { projectId, OR: missing },
           select: { id: true, name: true, version: true },
         })
       : [];
 
-    if (this.cacheEnabled && this.redis && fetched.length) {
+    if (this.cacheEnabled && this.redis && fetched.length > 0) {
       try {
         const pipeline = this.redis.pipeline();
         for (const skill of fetched) {

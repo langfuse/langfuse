@@ -97,7 +97,7 @@ async function lookupProcessingSampling(projectId: string): Promise<number> {
     },
     select: { sampling: true },
   });
-  if (!rules.length) return 0;
+  if (rules.length === 0) return 0;
   // Rules sample on the same deterministic trace-ID value, so the largest rate admits every rule's sample.
   const sampling = Math.max(...rules.map((rule) => Number(rule.sampling)));
   return Math.min(1, Math.max(0, sampling));

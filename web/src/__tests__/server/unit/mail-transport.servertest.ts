@@ -9,7 +9,7 @@ const { parseSesRegion } = __testing;
 function nextAuthMerge(target: any, ...sources: any[]): any {
   const isObject = (item: unknown) =>
     item != null && typeof item === "object" && !Array.isArray(item);
-  if (!sources.length) return target;
+  if (sources.length === 0) return target;
   const source = sources.shift();
   if (isObject(target) && isObject(source)) {
     for (const key in source) {

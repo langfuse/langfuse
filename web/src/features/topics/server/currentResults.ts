@@ -135,9 +135,9 @@ async function resolveFacetMaps(
   const scoped = scope.ruleId
     ? rules.filter((rule) => rule.id === scope.ruleId)
     : rules;
-  if (scope.ruleId && !scoped.length)
+  if (scope.ruleId && scoped.length === 0)
     throw new LangfuseNotFoundError("Topic rule not found in this project.");
-  const enabledFacetIds = scoped.length
+  const enabledFacetIds = scoped.length > 0
     ? new Set(scoped.flatMap((rule) => rule.facetIds))
     : null;
   const enabled = facets.filter(
@@ -286,7 +286,7 @@ export async function currentTopicResults(
   const facets = (await listTopicFacets(projectId)).filter(
     (facet) => !facetIds || facetIds.includes(facet.id),
   );
-  if (!facets.length) return { hasStoredSummaries: false, facets: [] };
+  if (facets.length === 0) return { hasStoredSummaries: false, facets: [] };
   const hasStoredSummaries = await hasStoredTopicSummaries(projectId);
   if (!hasStoredSummaries) return { hasStoredSummaries, facets: [] };
   const maps = await resolveFacetMaps(projectId, { ruleId }, facets, timeRange);
@@ -336,7 +336,7 @@ async function currentTopicRows(
   if (!hasStoredSummaries) return { hasStoredSummaries, facets: [] };
   // Only facets enabled on a rule get tabs; without rules, all show.
   const rules = await listTopicRules(projectId);
-  const enabledFacetIds = rules.length
+  const enabledFacetIds = rules.length > 0
     ? new Set(rules.flatMap((rule) => rule.facetIds))
     : null;
   const ruleNames = new Map(rules.map((rule) => [rule.id, rule.name]));
@@ -372,7 +372,7 @@ async function currentTopicRows(
       ]);
       const summaries = storedSummaries.filter((row) => row.traceId !== null);
       // Rules sharing the facet each keep a map; a trace has a result in each.
-      return (maps.length ? maps : [null]).map((map) => {
+      return (maps.length > 0 ? maps : [null]).map((map) => {
         const run = runs.find((item) => item.id === map?.run.id);
         const assignmentByTrace = new Map(
           storedAssignments
@@ -508,7 +508,7 @@ export async function listTopicTraces(input: {
     includeAssignment: true,
     truncateSummaries: false,
     // Same matching as a rule filter: any observation that starts within the margin after the trace.
-    traceFilter: input.filter?.length
+    traceFilter: (input.filter != null && input.filter.length > 0)
       ? ({ from, to, traceIds }) =>
           topicMatchingTraceIdsQuery(
             {

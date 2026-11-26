@@ -55,7 +55,7 @@ export function scoreHistogramToDataPoints(
   chartLabels: string[],
 ): DataPoint[] {
   return chartData.map((bin) => {
-    const metric = chartLabels.length
+    const metric = chartLabels.length > 0
       ? chartLabels.reduce(
           (sum, label) =>
             sum + (Number((bin as Record<string, number>)[label]) || 0),

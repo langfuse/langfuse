@@ -222,10 +222,10 @@ async function selectAndSeed(
   );
   const open = setup.facets.filter((facet) => facet.state !== "has_map");
   let seeded: string[] = [];
-  for (const days of open.length ? TOPIC_SETUP_WINDOW_DAYS : []) {
+  for (const days of open.length > 0 ? TOPIC_SETUP_WINDOW_DAYS : []) {
     setup.days = days;
     const window = setupWindow(setup, days, now);
-    const matching = rule.filter.length
+    const matching = rule.filter.length > 0
       ? await topicMatchingTraceIdsQuery(
           { projectId, filter: rule.filter, ...window },
           prisma,
@@ -269,7 +269,7 @@ async function selectAndSeed(
     now,
   ).from;
   setup.from = windowFrom.toISOString();
-  if (seeded.length) {
+  if (seeded.length > 0) {
     await writeTopicRuleSetupTraces(setup, seeded);
     const bounds = await getTopicSetupTraceBounds({
       projectId,
@@ -330,7 +330,7 @@ async function fitSettledFacets(
   const waiting = setup.facets.filter(
     (facet) => facet.state === "short" && !facet.runId,
   );
-  if (waiting.length) {
+  if (waiting.length > 0) {
     const counts = await countTopicTraceSummaries(
       setup.projectId,
       facetRefs(waiting),

@@ -443,16 +443,14 @@ function isResponsesRequest(root: Record<string, unknown>): boolean {
     return true;
   }
   const responseInput = parseArray(root.input);
-  return Boolean(
-    responseInput?.length &&
-    responseInput.every((item) => {
-      const record = asRecord(item);
-      return (
-        record &&
-        (typeof record.role === "string" || typeof record.type === "string")
-      );
-    }),
-  );
+  if (!responseInput || responseInput.length === 0) return false;
+  return responseInput.every((item) => {
+    const record = asRecord(item);
+    return (
+      record &&
+      (typeof record.role === "string" || typeof record.type === "string")
+    );
+  });
 }
 
 /**

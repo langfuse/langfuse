@@ -111,7 +111,7 @@ export function useLineChartTimeSeries({
       const date = parseChartTimestamp(datum.time_dimension);
       return date ? [date.getTime()] : [];
     });
-    return dates.length ? prepareTimeAxis(dates) : timeAxis;
+    return dates.length > 0 ? prepareTimeAxis(dates) : timeAxis;
   }, [groupedData, timeAxis]);
   const formatValue = useMemo(
     () => (value: number) =>

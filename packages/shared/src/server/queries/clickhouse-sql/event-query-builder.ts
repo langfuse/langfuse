@@ -105,7 +105,7 @@ const buildOrderByClause = (
   entries: OrderByEntry[],
   options: OrderByColumnsOptions = {},
 ) => {
-  if (!entries.length) {
+  if (entries.length === 0) {
     return undefined;
   }
 

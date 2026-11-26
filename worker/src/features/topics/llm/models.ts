@@ -761,7 +761,7 @@ export async function nameTopicGroup(
     previousTopic && `"previousTopic":${previousTopic.json}`,
     conflictingTopic && `"conflictingTopic":${conflictingTopic.json}`,
   ].filter(Boolean);
-  const input = extra.length
+  const input = extra.length > 0
     ? `${group.input.slice(0, -1)},${extra.join(",")}}`
     : group.input;
   const inputLimit = namingInputTokens(

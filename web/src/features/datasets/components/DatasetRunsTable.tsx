@@ -271,14 +271,17 @@ function DatasetRunsTableInternal(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runs.isSuccess, runs.data]);
 
+  const datasetRuns = runs.data?.runs;
+
   const { scoreColumns, isLoading: isColumnLoading } =
     useScoreColumns<DatasetRunRowData>({
       displayFormat: "aggregate",
       scoreColumnKey: "runItemScores",
       projectId: props.projectId,
-      filter: runs.data?.runs?.length
+      filter:
+        datasetRuns && datasetRuns.length > 0
         ? scoreFilters.forDatasetRunItems({
-            datasetRunIds: runs.data.runs.map((r) => r.id),
+            datasetRunIds: datasetRuns.map((r) => r.id),
             datasetId: props.datasetId,
           })
         : [],
@@ -289,9 +292,10 @@ function DatasetRunsTableInternal(
     useScoreColumns<DatasetRunRowData>({
       scoreColumnKey: "runScores",
       projectId: props.projectId,
-      filter: runs.data?.runs?.length
+      filter:
+        datasetRuns && datasetRuns.length > 0
         ? scoreFilters.forDatasetRuns({
-            datasetRunIds: runs.data?.runs.map((r) => r.id),
+            datasetRunIds: datasetRuns.map((r) => r.id),
           })
         : [],
       prefix: "Run-level",
@@ -301,9 +305,10 @@ function DatasetRunsTableInternal(
   const scoreKeysAndProps = api.scores.getScoreColumns.useQuery(
     {
       projectId: props.projectId,
-      filter: runs.data?.runs?.length
+      filter:
+        datasetRuns && datasetRuns.length > 0
         ? scoreFilters.forDatasetRunItems({
-            datasetRunIds: runs.data?.runs.map((r) => r.id),
+            datasetRunIds: datasetRuns.map((r) => r.id),
             datasetId: props.datasetId,
           })
         : [],

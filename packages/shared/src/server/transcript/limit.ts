@@ -67,7 +67,7 @@ export function limitTranscript(
     })),
   ]);
   const build = (selected: Entry[], textLimit: number): Transcript | null => {
-    if (!selected.length) return null;
+    if (selected.length === 0) return null;
     const threads = new Map<number, Thread>();
     for (const entry of selected) {
       let thread = threads.get(entry.threadIndex);

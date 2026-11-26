@@ -94,7 +94,7 @@ export function NumericScoreHistogramCard(props: {
         content={{ type: "error", message: histogram.error.message }}
       />
     );
-  if (!chartData.length)
+  if (chartData.length === 0)
     return <DataCard {...card} content={{ type: "empty" }} />;
 
   if (shouldWarn) {
@@ -109,7 +109,7 @@ export function NumericScoreHistogramCard(props: {
     );
   }
 
-  if (!prepared.visualization.data.length)
+  if (prepared.visualization.data.length === 0)
     return <DataCard {...card} content={{ type: "empty" }} />;
   return <DataCard {...card} {...prepared} content={prepared.visualization} />;
 }

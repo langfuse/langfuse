@@ -35,7 +35,7 @@ export async function getTopicRuleRefreshStatuses(
   projectId: string,
   ruleIds: string[],
 ): Promise<TopicRuleRefreshStatus[]> {
-  if (!ruleIds.length) return [];
+  if (ruleIds.length === 0) return [];
   const [open, cooldowns, setups] = await Promise.all([
     prisma.topicClusteringRun.findMany({
       where: {
@@ -115,7 +115,7 @@ export async function startTopicRuleRefresh({
       ? [{ facetId: facet.id, facetVersion: version }]
       : [];
   });
-  if (!facets.length)
+  if (facets.length === 0)
     throw new InvalidRequestError("This map has no questions to refresh.");
   const runs = facets.map((facet) => ({
     ...facet,

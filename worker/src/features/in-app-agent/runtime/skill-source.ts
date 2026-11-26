@@ -120,7 +120,7 @@ export class InAppAgentSkillSource implements SkillSource {
       const [child, ...rest] = file.path.slice(prefix.length).split("/");
       entries.set(child, {
         name: child,
-        type: rest.length ? "directory" : "file",
+        type: rest.length > 0 ? "directory" : "file",
       });
     }
     return [...entries.values()];

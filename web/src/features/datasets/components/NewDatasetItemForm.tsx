@@ -360,7 +360,7 @@ function InitializedNewDatasetItemForm({
     });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    if (submissionOwner.current.pending || pendingUploads.length) return;
+    if (submissionOwner.current.pending || pendingUploads.length > 0) return;
     if (props.traceId) {
       capture("dataset_item:new_from_trace_form_submit", {
         object: props.observationId ? "observation" : "trace",

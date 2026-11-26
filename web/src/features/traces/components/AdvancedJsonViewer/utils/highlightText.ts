@@ -30,7 +30,7 @@ export function highlightTextWithComments(
   preview?: string;
 }> {
   if (
-    !commentRanges?.length &&
+    (commentRanges == null || commentRanges.length === 0) &&
     (searchStart === undefined || searchEnd === undefined)
   ) {
     return [{ text, type: null }];

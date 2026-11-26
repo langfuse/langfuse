@@ -47,7 +47,7 @@ export function EditScoreConfigDialogController({
               projectId,
               id: defaultValues.id,
               description: values.description ?? null,
-              categories: values.categories?.length
+              categories: (values.categories != null && values.categories.length > 0)
                 ? values.categories
                 : undefined,
             });

@@ -1410,11 +1410,11 @@ function mergeToolCalls(
   existing: Extract<AgUiMessage, { role: "assistant" }>["toolCalls"],
   next: Extract<AgUiMessage, { role: "assistant" }>["toolCalls"],
 ) {
-  if (!existing?.length) {
+  if (!existing || existing.length === 0) {
     return next;
   }
 
-  if (!next?.length) {
+  if (!next || next.length === 0) {
     return existing;
   }
 

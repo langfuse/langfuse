@@ -440,7 +440,7 @@ export function rule1(files, exportsOf) {
       );
     else if (PASCAL.test(stem(f)) && comps[0].name !== stem(f))
       issues.push(`component ${comps[0].name} != filename`);
-    if (issues.length) out.push(v(`${f}: ${issues.join("; ")}`, f));
+    if (issues.length > 0) out.push(v(`${f}: ${issues.join("; ")}`, f));
   }
   return out;
 }
@@ -460,7 +460,7 @@ export function rule2(files, exportsOf) {
       (e) =>
         e.kind === "value" && !PASCAL.test(e.name) && e.name !== "(default)",
     );
-    if (extra.length)
+    if (extra.length > 0)
       out.push(
         v(`${f}: extra exports: ${extra.map((e) => e.name).join(", ")}`, f),
       );
@@ -490,7 +490,7 @@ export function rule3(files, exportsOf) {
           e.name !== `${root}Provider` &&
           !e.name.startsWith(`use${root}`),
       );
-      if (stray.length)
+      if (stray.length > 0)
         out.push(
           v(
             `${f}: beyond the context pattern: ${stray.map((e) => e.name).join(", ")}`,
@@ -503,7 +503,7 @@ export function rule3(files, exportsOf) {
     if (!CAMEL.test(s)) issues.push("filename not camelCase");
     else if (!exportsOf(f).some((e) => e.name === s))
       issues.push(`no export named ${s}`);
-    if (issues.length) out.push(v(`${f}: ${issues.join("; ")}`, f));
+    if (issues.length > 0) out.push(v(`${f}: ${issues.join("; ")}`, f));
   }
   return out;
 }
@@ -525,7 +525,7 @@ export function rule4(files, exportsOf) {
         `${values.length} exports: ${values.map((e) => e.name).join(", ")}` +
           ` (one per file, or a module folder here)`,
       );
-    if (issues.length) out.push(v(`${f}: ${issues.join("; ")}`, f));
+    if (issues.length > 0) out.push(v(`${f}: ${issues.join("; ")}`, f));
   }
   return out;
 }

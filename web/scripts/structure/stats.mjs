@@ -319,7 +319,7 @@ if (flag("next")) {
     for (const s of it.samples) console.log(dim(`         e.g. ${s}`));
     console.log();
   });
-  if (!items.length)
+  if (items.length === 0)
     console.log(
       `Nothing left to fix here — ${where} might already be the best project structure ever 🏆`,
     );
@@ -398,7 +398,7 @@ if (flag("diff")) {
     const base = new Set(baselineKeys(r.id) ?? []);
     const fixed = [...base].filter((k) => !now.has(k));
     const added = [...now].filter((k) => !base.has(k));
-    if (!fixed.length && !added.length) continue;
+    if (fixed.length === 0 && added.length === 0) continue;
     anything = true;
     console.log(
       bold(`rule ${r.id} — ${r.title}  (${fmtDelta(now.size - base.size)})`),

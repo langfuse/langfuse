@@ -127,7 +127,7 @@ export function createSkillEditorStore(
                     ([, file]) =>
                       file.currentSha === null && file.content === content,
                   );
-                  if (!matchingFiles.length) return state;
+                  if (matchingFiles.length === 0) return state;
                   return {
                     files: {
                       ...state.files,

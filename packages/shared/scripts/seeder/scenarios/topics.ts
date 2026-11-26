@@ -239,7 +239,7 @@ export const topicsScenario: ScenarioDefinition = {
     );
     await createTracesCh(traces);
     await createObservationsCh(observations);
-    if (events.length) await createEventsCh(events);
+    if (events.length > 0) await createEventsCh(events);
 
     const queryParams = { projectId: ctx.projectId, traceIds };
     const verified: Record<string, number> = {

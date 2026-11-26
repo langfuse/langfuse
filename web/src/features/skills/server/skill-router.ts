@@ -119,7 +119,7 @@ export const skillRouter = createTRPCRouter({
       const userIds = [
         ...new Set(history.items.map((item) => item.createdBy)),
       ].filter((id) => id !== "API");
-      const users = userIds.length
+      const users = userIds.length > 0
         ? await ctx.prisma.user.findMany({
             select: { id: true, name: true },
             where: {

@@ -95,7 +95,7 @@ export function ProjectNotificationChannelsList({
       )}
 
       {/* One channel per project: adding is only offered while none exists. */}
-      {!isLoading && !channels?.length && (
+      {!isLoading && (channels == null || channels.length === 0) && (
         <div>
           <Button variant="secondary" onClick={onAdd}>
             <Plus size="base" __rawClassName="mr-2" />

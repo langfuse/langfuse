@@ -323,7 +323,7 @@ async function publishedTopicMap(input: {
       cohortRange.data,
     )
   ).sort((a, b) => (a.traceId ?? "").localeCompare(b.traceId ?? ""));
-  if (!discoveryAssignments.length)
+  if (discoveryAssignments.length === 0)
     return {
       ...unavailable,
       reason: "The discovery cohort is unavailable for this map.",

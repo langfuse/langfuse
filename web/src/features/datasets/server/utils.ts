@@ -37,7 +37,7 @@ export const calculateRecursiveMetricsForRunItems = <
 
   for (const runItem of observationLevelRunItems) {
     const observations = observationsByTraceId.get(runItem.traceId);
-    if (observations?.length) {
+    if (observations != null && observations.length > 0) {
       const observationId = runItem.observationId!;
 
       // Find target observation and extract latency

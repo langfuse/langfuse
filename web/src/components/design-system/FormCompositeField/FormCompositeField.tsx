@@ -33,7 +33,7 @@ export function FormCompositeField({
       label={label}
       labelId={`${id}-label`}
       sublabel={sublabel}
-      description={description?.length ? description : undefined}
+      description={(description != null && description.length > 0) ? description : undefined}
       descriptionId={`${id}-description`}
       registerLabelTooltip={registerLabelTooltip}
       required={required}

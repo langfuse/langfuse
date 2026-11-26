@@ -304,7 +304,7 @@ export const sessionViewsRouter = createTRPCRouter({
         });
         // Lock surviving views before writing their references. A concurrent
         // deletion then behaves like any other stale ID in the request.
-        const views = candidates.length
+        const views = candidates.length > 0
           ? await tx.$queryRaw<{ id: string }[]>`
               SELECT id FROM session_views
               WHERE project_id = ${projectId}

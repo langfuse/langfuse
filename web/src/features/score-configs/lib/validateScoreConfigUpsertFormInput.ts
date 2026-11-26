@@ -31,7 +31,7 @@ export const validateScoreConfigUpsertFormInput = (
 ): string | null => {
   const result = ScoreConfigValidationSchema.safeParse({
     ...values,
-    categories: values.categories?.length ? values.categories : undefined,
+    categories: (values.categories != null && values.categories.length > 0) ? values.categories : undefined,
   });
 
   return result.error

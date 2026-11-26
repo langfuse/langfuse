@@ -778,7 +778,7 @@ function topTopicsOf(
   const topics = [...facet.topics]
     .sort((a, b) => b.count - a.count)
     .slice(0, TOP_TOPICS);
-  return topics.length ? { facetName: facet.name, topics } : null;
+  return topics.length > 0 ? { facetName: facet.name, topics } : null;
 }
 
 /** The question's largest topics, colored like the treemap's first tiles. */

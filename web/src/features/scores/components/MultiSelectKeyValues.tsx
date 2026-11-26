@@ -130,7 +130,7 @@ export function MultiSelectKeyValues<
           }
           const filterValues = formatFilterValues();
           onValueChange(
-            filterValues.length ? filterValues : [],
+            filterValues.length > 0 ? filterValues : [],
             value,
             selectedValueKeys,
           );

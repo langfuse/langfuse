@@ -427,7 +427,7 @@ export function sameTopicGeometry(
     Math.abs(a - b) <=
       8 * Number.EPSILON * Math.max(1, Math.abs(a), Math.abs(b));
   if (
-    !left.centroid.length ||
+    left.centroid.length === 0 ||
     left.centroid.length !== right.centroid.length ||
     !sameNumber(left.radius, right.radius)
   )

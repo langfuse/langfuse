@@ -39,7 +39,7 @@ function mergeDetails(
       (stage.total ??
         Object.values(stage).reduce((sum, value) => sum + value, 0)) * units,
     );
-  if (Object.keys(details).length)
+  if (Object.keys(details).length > 0)
     details.total = (total(summary) + total(embedding)) / units;
   return details;
 }

@@ -1533,7 +1533,7 @@ class FinalPlugin implements KyselyPlugin {
       // cloneWithFroms appends; replacing the list avoids
       // `FROM scores AS s, scores AS s FINAL`.
       ...(node.from ? { from: FromNode.create(froms) } : {}),
-      ...(joins.length ? { joins } : {}),
+      ...(joins.length > 0 ? { joins } : {}),
     } as RootOperationNode;
   }
 

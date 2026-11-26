@@ -57,7 +57,7 @@ export async function importSkillFiles(
       addTextFile(path, bytes);
     }
   }
-  if (!imports.length) return [];
+  if (imports.length === 0) return [];
   const state = store.getState();
   const nextFiles = { ...state.files };
   const nextDeletedFiles = { ...state.deletedFiles };

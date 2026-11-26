@@ -1451,7 +1451,7 @@ const generateExecutionsQuery = (
   page: number,
   jobConfigurationIds?: string[],
 ) => {
-  const configCondition = jobConfigurationIds?.length
+  const configCondition = (jobConfigurationIds != null && jobConfigurationIds.length > 0)
     ? Prisma.sql`AND je.job_configuration_id IN (${Prisma.join(jobConfigurationIds)})`
     : Prisma.empty;
 

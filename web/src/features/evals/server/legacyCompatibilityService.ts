@@ -798,7 +798,7 @@ export class LegacyEvalCompatibilityService {
     ]);
 
     const ids = rows.map(({ id }) => id);
-    const rules = ids.length
+    const rules = ids.length > 0
       ? await this.prisma.evaluationRule.findMany({
           where: { id: { in: ids }, projectId: params.projectId },
           include: ruleInclude,
@@ -880,7 +880,7 @@ export class LegacyEvalCompatibilityService {
       ? runnableManagedCatalog()
       : [];
     return evaluators.flatMap((evaluator) => {
-      if (catalog.length && findManagedOriginal(evaluator, catalog)) return [];
+      if (catalog.length > 0 && findManagedOriginal(evaluator, catalog)) return [];
       const template = toLegacyEvaluatorTemplate(evaluator);
       return template && isRunnableTemplate(template) ? [template] : [];
     });

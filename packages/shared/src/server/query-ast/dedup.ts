@@ -123,7 +123,7 @@ function assertLowerable(
 }
 
 function singlePhysicalFrom(node: SelectQueryNode): PhysicalFrom | undefined {
-  if (node.joins?.length) return undefined;
+  if (node.joins != null && node.joins.length > 0) return undefined;
   const froms = node.from?.froms ?? [];
   if (froms.length !== 1) return undefined;
   const { node: fromItem, table, alias } = describeRelation(froms[0]);

@@ -379,7 +379,7 @@ export function useTableViewManager({
 
       if (
         setExpandedFiltersRef.current &&
-        validationContext.expandableFilterColumns?.length
+        (validationContext.expandableFilterColumns != null && validationContext.expandableFilterColumns.length > 0)
       ) {
         const nextExpandedFilters = Array.from(
           new Set([

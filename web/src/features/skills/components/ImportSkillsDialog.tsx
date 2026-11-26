@@ -138,7 +138,7 @@ export function ImportSkillsDialog({
   };
 
   const importSelected = async (closeDialog: () => void) => {
-    if (inFlight.current || !discovery || !selectedSkills.length) return;
+    if (inFlight.current || !discovery || selectedSkills.length === 0) return;
     inFlight.current = true;
     setIsImporting(true);
     const source = discovery;

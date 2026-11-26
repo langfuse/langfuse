@@ -64,7 +64,7 @@ export const GenerationOutput = () => {
   const plusIcon = <Plus size="sm" />;
 
   const copyButton =
-    output || outputToolCalls.length ? (
+    output || outputToolCalls.length > 0 ? (
       <div className="absolute top-2 right-3 flex space-x-1 opacity-50">
         <Button
           size="icon"

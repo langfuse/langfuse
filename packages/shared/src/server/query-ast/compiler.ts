@@ -1029,7 +1029,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       this.compileDistinctOn(node.distinctOn);
     }
 
-    if (node.frontModifiers?.length) {
+    if (node.frontModifiers && node.frontModifiers.length > 0) {
       this.append(" ");
       this.compileList(node.frontModifiers, " ");
     }
@@ -1055,7 +1055,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     }
 
     const chNode = node as ClickHouseSelectQueryNode;
-    if (chNode.arrayJoins?.length) {
+    if (chNode.arrayJoins && chNode.arrayJoins.length > 0) {
       for (const arrayJoin of chNode.arrayJoins) {
         this.append(" ");
         this.visitArrayJoin(arrayJoin);
@@ -1117,7 +1117,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       this.visitNode(node.fetch);
     }
 
-    if (node.endModifiers?.length) {
+    if (node.endModifiers && node.endModifiers.length > 0) {
       this.append(" ");
       this.compileList(this.sortSelectModifiers(node.endModifiers), " ");
     }

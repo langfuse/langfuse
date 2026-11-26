@@ -57,7 +57,7 @@ export const PromptChatMessages: React.FC<PromptChatMessagesProps> = ({
     const parsedMessages =
       PromptChatMessageListSchema.safeParse(initialMessages);
 
-    if (!parsedMessages.success || !parsedMessages.data.length) {
+    if (!parsedMessages.success || parsedMessages.data.length === 0) {
       setMessages([
         createEmptyMessage({
           type: ChatMessageType.System,

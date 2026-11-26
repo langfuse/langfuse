@@ -85,7 +85,7 @@ export function createBadgeListTableColumn<
     ...options,
     loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
     renderCell: (values, context) => {
-      if (!values?.length) return <EmptyValue />;
+      if (values == null || values.length === 0) return <EmptyValue />;
 
       const badges = values.map((value, index) => {
         const badge =

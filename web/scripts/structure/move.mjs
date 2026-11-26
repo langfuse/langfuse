@@ -302,13 +302,13 @@ for (const m of plan.values()) {
 
 const hasCaseOnly = pending.some(isCaseOnly);
 
-if (!pending.length) {
+if (pending.length === 0) {
   console.log(
     `${green("already applied")} — ${done.length} path${done.length === 1 ? "" : "s"} already at ${toDir}`,
   );
   process.exit(0);
 }
-if (done.length)
+if (done.length > 0)
   console.log(
     dim(`${done.length} of ${plan.size} already at ${toDir} — moving the rest`),
   );
@@ -674,12 +674,12 @@ const git = (cmd, cmdArgs) =>
 
 // Rewriting a file that already has uncommitted work in it also runs Oxfmt
 // over that work — worth saying out loud before it happens.
-if (importerFiles.length) {
+if (importerFiles.length > 0) {
   const rels = importerFiles.map((f) => relative(webRoot, f));
   const dirty = git("status", ["--porcelain", "--", ...rels])
     .split("\n")
     .filter(Boolean);
-  if (dirty.length) {
+  if (dirty.length > 0) {
     console.log(
       red(
         `${dirty.length} file${dirty.length === 1 ? "" : "s"} to rewrite already ha${dirty.length === 1 ? "s" : "ve"} uncommitted changes:`,
@@ -700,7 +700,7 @@ if (dryRun) {
 // that rather than a reset — including when the apply itself dies halfway.
 /** @type {(moves: Move[]) => void} */
 function printRevert(moves) {
-  if (!moves.length) return;
+  if (moves.length === 0) return;
   console.log();
   console.log(dim("revert:"));
   // a renamed file's inverse is a rename, not a move into its old directory —
@@ -751,7 +751,7 @@ try {
   }
   const rewritten = [...new Set([...importerFiles, ...followed.keys()])];
   for (const f of rewritten) writeFileSync(f, currentText(f) ?? "", "utf8");
-  if (rewritten.length)
+  if (rewritten.length > 0)
     // A specifier gets longer or shorter, so Oxfmt may re-wrap the line.
     execFileSync(
       "pnpm",
@@ -814,7 +814,7 @@ for (const m of pending) {
   }
 }
 console.log();
-if (dangling.length) {
+if (dangling.length > 0) {
   console.log(
     red(
       `${dangling.length} reference${dangling.length === 1 ? "" : "s"} to the old path survive as strings — tsc cannot see these:`,

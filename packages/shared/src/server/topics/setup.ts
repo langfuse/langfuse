@@ -164,7 +164,7 @@ export async function setTopicsAutomaticProcessing(
     prisma.topicConfig.findUnique({ where: { projectId } }),
     listTopicRules(projectId),
   ]);
-  if (!config || !rules.length)
+  if (!config || rules.length === 0)
     throw new InvalidRequestError(
       "Save the Topics setup in Configure Topics first.",
     );
