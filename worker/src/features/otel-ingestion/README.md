@@ -85,7 +85,7 @@ With TypeScript as the direct writer, `LANGFUSE_OTEL_NATIVE_SHADOW_SAMPLE_RATE` 
 
 `batch` by `result`:
 
-- `both_ok`, `rust_failed`, `ts_failed`, `both_failed`: which path failed, with the failure class in `ts_error` and `rust_error`. `eval_writes` and `eval_snapshots` say whether both made the same evaluation writes.
+- `both_ok`, `rust_failed`, `ts_failed`, `both_failed`: which path failed, with the failure class in `ts_error` and `rust_error`. `row_keys` says whether both wrote the same rows in this attempt; rows left by an earlier attempt of the same file can make the stored rows match when the attempts did not. It is `unchecked` when TypeScript could not build or write a span's row. `eval_writes` and `eval_snapshots` say whether both made the same evaluation writes, and are `unchecked` when one of TypeScript's evaluation writes failed.
 - `throttled`: selected by the rate but not sampled, because too many rows waited to be compared on that worker. An `OTEL shadow sampling is throttled` warning gives the effective rate.
 - `skipped`: sampled, but the worker was at its limit of Rust runs in flight.
 
@@ -105,3 +105,5 @@ For `duration_ms`, compare only batches tagged `side_effects:none` and `write_mo
 - Rows that reach ClickHouse after the comparison read count as missing, or as `not_found` when both sides are late.
 - A span sent twice, such as an exporter retry, is stored in two files but keeps one row in `events_full`. When the kept row belongs to the other file, the sampled file's span counts as `missing_ts`.
 - A batch whose TypeScript processing fails before the direct step is not compared.
+- The Rust addon records five counters under their production names, so they read high by the sample rate: `langfuse.ingestion.otel.conversion_failure`, `langfuse.ingestion.metadata_dropped`, `langfuse.ingestion.metadata_undecoded`, `langfuse.ingestion.usage_details.validation_failure` and `langfuse.ingestion.usage_details.total_mismatch`.
+- A model, prompt or rule lookup that fails during the Rust run only, or a rule lookup that fails for TypeScript only, can show as `different` in `row_keys` or `eval_writes`.

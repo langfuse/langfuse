@@ -116,7 +116,7 @@ export function queueRowVerification(sample: {
 }
 
 /** The start time as ClickHouse stores it: UTC with six fractional digits. */
-function storedStartTime(startTime: string): string | undefined {
+export function storedStartTime(startTime: string): string | undefined {
   const match =
     /^(\d{4}-\d\d-\d\d)[ T](\d\d:\d\d:\d\d)(?:\.(\d{1,9}))?Z?$/.exec(startTime);
   return match

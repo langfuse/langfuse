@@ -999,6 +999,7 @@ export const otelIngestionQueueProcessorBuilder = (
                 {
                   input: shadowInput,
                   context: nativeContext,
+                  fallbackTime,
                   extractMedia,
                   typeScriptPreparationMs: inputPreparationDurationMs,
                 },

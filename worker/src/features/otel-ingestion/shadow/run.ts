@@ -27,6 +27,7 @@ import {
   hasComparisonCapacity,
   queueRowVerification,
   type ShadowRowKey,
+  storedStartTime,
 } from "./verifyRows";
 
 const SHADOW_RUN = "otel-rust-shadow";
@@ -35,6 +36,8 @@ const METRIC_PREFIX = "langfuse.ingestion.otel.shadow.";
 type Sample = {
   input: Buffer;
   context: Omit<OtelProcessingContext, "now">;
+  /** The time TypeScript gave spans without a start and end time. */
+  fallbackTime: string;
   extractMedia: boolean;
   typeScriptPreparationMs?: number;
 };
@@ -42,8 +45,12 @@ type Sample = {
 /** What one implementation did with a batch. */
 type Recorded = {
   rows: ShadowRowKey[];
+  /** Spans whose row could not be built or written. */
+  failedRows: number;
   /** One key per evaluation write, built from ids only. */
   evalWrites: string[];
+  /** Evaluation writes that were requested and then failed. */
+  failedEvalWrites: number;
   /** Per observation snapshot, a digest of each top-level field. */
   snapshots: Map<string, Record<string, string>>;
   mediaUploads: number;
@@ -51,7 +58,9 @@ type Recorded = {
 
 const newRecorded = (): Recorded => ({
   rows: [],
+  failedRows: 0,
   evalWrites: [],
+  failedEvalWrites: 0,
   snapshots: new Map(),
   mediaUploads: 0,
 });
@@ -159,17 +168,30 @@ function recordTypeScriptWrites(direct: DirectStep): {
   const recorded = newRecorded();
   const step: DirectStep = {
     ...direct,
+    // The direct step skips a span whose row cannot be built or written, so
+    // such a span is missing from this side for a reason Rust does not share.
     ingestionService: {
-      createEventRecord: (...args) =>
-        direct.ingestionService.createEventRecord(...args),
+      createEventRecord: async (...args) => {
+        try {
+          return await direct.ingestionService.createEventRecord(...args);
+        } catch (failure) {
+          recorded.failedRows++;
+          throw failure;
+        }
+      },
       writeEventRecord: async (...args) => {
-        const row = await direct.ingestionService.writeEventRecord(...args);
-        recorded.rows.push({
-          traceId: row.trace_id,
-          spanId: row.span_id,
-          startTime: row.start_time,
-        });
-        return row;
+        try {
+          const row = await direct.ingestionService.writeEventRecord(...args);
+          recorded.rows.push({
+            traceId: row.trace_id,
+            spanId: row.span_id,
+            startTime: row.start_time,
+          });
+          return row;
+        } catch (failure) {
+          recorded.failedRows++;
+          throw failure;
+        }
       },
     },
     evalWrites: () => recordEvalWrites(recorded, direct.evalWrites()),
@@ -177,30 +199,42 @@ function recordTypeScriptWrites(direct: DirectStep): {
   return { step, recorded };
 }
 
-/** Record a key per evaluation write, then let `next` perform or skip it. */
+/**
+ * Record a key per evaluation write, then let `next` perform or skip it. A
+ * write that fails is counted: the scheduler stops at it, so the writes that
+ * follow are missing from this side for a reason the other side does not share.
+ */
 function recordEvalWrites(recorded: Recorded, next: EvalWrites): EvalWrites {
   const record = (key: string) => recorded.evalWrites.push(key);
+  const counted = async <T>(write: () => Promise<T>): Promise<T> => {
+    try {
+      return await write();
+    } catch (failure) {
+      recorded.failedEvalWrites++;
+      throw failure;
+    }
+  };
   return {
     upsertJobExecution: (params) => {
       record(`job:${params.id}`);
-      return next.upsertJobExecution(params);
+      return counted(() => next.upsertJobExecution(params));
     },
     uploadObservationToS3: (params) => {
       const observation = `${params.traceId}/${params.observationId}`;
       record(`snapshot:${observation}`);
       recorded.snapshots.set(observation, fieldDigests(params.data));
-      return next.uploadObservationToS3(params);
+      return counted(() => next.uploadObservationToS3(params));
     },
     enqueueEvalJob: (params) => {
       record(`enqueue:${params.jobExecutionId}`);
-      return next.enqueueEvalJob(params);
+      return counted(() => next.enqueueEvalJob(params));
     },
     recordTraceActivity: (projectId, activity) => {
       for (const { traceId, spanStartTimeISO, ruleIds } of activity)
         record(
           `activity:${traceId}@${spanStartTimeISO}:${[...ruleIds].sort().join(",")}`,
         );
-      return next.recordTraceActivity(projectId, activity);
+      return counted(() => next.recordTraceActivity(projectId, activity));
     },
   };
 }
@@ -279,7 +313,9 @@ async function runRust(sample: Sample): Promise<RustRun> {
             try {
               await processRustOtelEvents({
                 batch,
-                context: { ...sample.context, now: new Date().toISOString() },
+                // Rust gives spans without a start and end time this time,
+                // so they get the start time TypeScript gave them.
+                context: { ...sample.context, now: sample.fallbackTime },
                 writes,
               });
             } finally {
@@ -350,14 +386,26 @@ function report(
   const { projectId, fileKey } = sample.context;
   const bothOk = typeScript.error === undefined && rust.failedAt === undefined;
   // A failed side stopped part-way, so its writes say nothing about parity.
-  const evalWrites = bothOk
+  // The same holds for a span TypeScript skipped, and for evaluation writes
+  // after one of TypeScript's failed.
+  const rowsComparable = bothOk && typeScript.recorded.failedRows === 0;
+  const evalComparable =
+    rowsComparable && typeScript.recorded.failedEvalWrites === 0;
+  const evalWrites = evalComparable
     ? compareEvalWrites(typeScript.recorded, rust.recorded)
     : { onlyTypeScript: [], onlyRust: [], snapshotFields: [] };
   const evalWritesMatch =
     evalWrites.onlyTypeScript.length + evalWrites.onlyRust.length === 0;
   const snapshotsMatch = evalWrites.snapshotFields.length === 0;
-  const parity = (same: boolean) => {
-    if (!bothOk) return "unchecked";
+  // The stored rows are compared later, and rows of an earlier attempt can
+  // stand in for one this attempt did not write. The keys cannot.
+  const rowKeys = rowsComparable
+    ? compareRowKeys(typeScript.recorded, rust.recorded)
+    : { onlyTypeScript: [], onlyRust: [] };
+  const rowKeysMatch =
+    rowKeys.onlyTypeScript.length + rowKeys.onlyRust.length === 0;
+  const parity = (comparable: boolean, same: boolean) => {
+    if (!comparable) return "unchecked";
     return same ? "match" : "different";
   };
   const result = batchResult(
@@ -371,13 +419,14 @@ function report(
     ts_error: typeScript.error ?? "none",
     rust_error: rust.error ?? "none",
     rust_stage: rust.failedAt ?? "none",
-    eval_writes: parity(evalWritesMatch),
-    eval_snapshots: parity(snapshotsMatch),
+    row_keys: parity(rowsComparable, rowKeysMatch),
+    eval_writes: parity(evalComparable, evalWritesMatch),
+    eval_snapshots: parity(evalComparable, snapshotsMatch),
     write_mode: writeMode,
   });
   recordDurations(sample, typeScript, rust, writeMode);
 
-  if (!bothOk || !evalWritesMatch || !snapshotsMatch) {
+  if (!bothOk || !rowKeysMatch || !evalWritesMatch || !snapshotsMatch) {
     logger.warn("OTEL shadow batch differs", {
       projectId,
       fileKey,
@@ -387,8 +436,10 @@ function report(
       rustStage: rust.failedAt,
       typeScriptRows: typeScript.recorded.rows.length,
       rustRows: rust.recorded.rows.length,
-      evalWritesOnlyTypeScript: evalWrites.onlyTypeScript.slice(0, 5),
-      evalWritesOnlyRust: evalWrites.onlyRust.slice(0, 5),
+      rowKeysOnlyTypeScript: logged(rowKeys.onlyTypeScript),
+      rowKeysOnlyRust: logged(rowKeys.onlyRust),
+      evalWritesOnlyTypeScript: logged(evalWrites.onlyTypeScript),
+      evalWritesOnlyRust: logged(evalWrites.onlyRust),
       evalSnapshotFields: evalWrites.snapshotFields,
     });
   }
@@ -407,6 +458,19 @@ function batchResult(typeScriptOk: boolean, rustOk: boolean): string {
   return rustOk ? "ts_failed" : "both_failed";
 }
 
+/** The rows only one side wrote in this attempt, by trace, span and stored start time. */
+function compareRowKeys(typeScript: Recorded, rust: Recorded) {
+  const keys = ({ rows }: Recorded) =>
+    rows.map(
+      ({ traceId, spanId, startTime }) =>
+        `${traceId}/${spanId}@${storedStartTime(startTime) ?? startTime}`,
+    );
+  return {
+    onlyTypeScript: unmatched(keys(typeScript), keys(rust)),
+    onlyRust: unmatched(keys(rust), keys(typeScript)),
+  };
+}
+
 /** How the evaluation writes of the two sides differ. */
 function compareEvalWrites(typeScript: Recorded, rust: Recorded) {
   return {
@@ -414,6 +478,11 @@ function compareEvalWrites(typeScript: Recorded, rust: Recorded) {
     onlyRust: unmatched(rust.evalWrites, typeScript.evalWrites),
     snapshotFields: changedSnapshotFields(typeScript.snapshots, rust.snapshots),
   };
+}
+
+/** A few keys for a log line. Ids in JSON input can be any string, so each is cut. */
+function logged(keys: string[]): string[] {
+  return keys.slice(0, 5).map((key) => key.slice(0, 5_000));
 }
 
 /** Keys of `a` that `b` lacks, counting repeats. */
