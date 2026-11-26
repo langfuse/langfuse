@@ -2,18 +2,18 @@ import { ArrowRight, X } from "@langfuse/icons";
 import { useState } from "react";
 
 import { DismissController } from "@/src/components/DismissController";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Button } from "@/src/components/ui/button";
-import styles from "@/src/features/ai-gateway/components/GatewayLaunch/gatewayLaunch.module.css";
+import { GatewayFanOutDiagram } from "@/src/features/ai-gateway/components/GatewayFanOutDiagram/GatewayFanOutDiagram";
+import diagramStyles from "@/src/features/ai-gateway/components/GatewayFanOutDiagram/gatewayFanOutDiagram.module.css";
 import { GatewayLaunchDialog } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayLaunchDialog";
-import { GatewaySwitchboard } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewaySwitchboard";
 import {
   type GatewayLaunchState,
   type GatewayLaunchTarget,
 } from "@/src/features/ai-gateway/hooks/useGatewayLaunchEligibility";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 function ctaLabel(state: GatewayLaunchState) {
   if (state === "get-key") return "Get gateway key";
@@ -51,26 +51,22 @@ export function GatewayLaunchBanner({
         {({ onDismiss }) => (
           <div
             className={cn(
-              "bg-surface-section relative mt-2 mb-4 flex h-24 items-center gap-6 overflow-hidden rounded-lg pr-12 pl-6",
-              styles.dotGrid,
-              styles.bannerDots,
+              "relative mt-2 mb-4 flex min-h-24 items-center gap-6 overflow-hidden rounded-lg py-4 pr-12 pl-6",
+              diagramStyles.panel,
             )}
           >
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <div className="flex items-center gap-2">
                 <span className="text-base font-bold">AI Gateway</span>
-                <Badge text="Beta" color="blue" size="sm" font="mono" />
+                <FeatureReleaseStatus status="beta" />
               </div>
-              <p
-                className="text-muted-foreground truncate text-base"
-                title="Trace and monitor your AI usage by installing the Langfuse AI Gateway in 2 minutes."
-              >
+              <p className="text-muted-foreground text-base">
                 Trace and monitor your AI usage by installing the Langfuse AI
                 Gateway in 2 minutes.
               </p>
             </div>
-            <div className="mr-12 hidden h-full w-72 shrink-0 xl:block">
-              <GatewaySwitchboard variant="banner" />
+            <div className="-my-4 mr-6 hidden h-24 w-84 shrink-0 xl:block">
+              <GatewayFanOutDiagram sources={[]} density="compact" />
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <Button
@@ -101,7 +97,6 @@ export function GatewayLaunchBanner({
         key={organizationId}
         organizationId={organizationId}
         state={state}
-        setupOptions={setupOptions}
         open={open}
         onOpenChange={setOpen}
       />

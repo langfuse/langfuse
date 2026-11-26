@@ -17,6 +17,7 @@ import {
   canUseBedrockDefaultCredentials,
   resolveBedrockProviderAuth,
 } from "../llm/ai-sdk/providers/bedrock";
+import { isOpenRouterEndpoint } from "../llm/ai-sdk/providers/openai";
 import { isPlainObject } from "../llm/ai-sdk/providers/utils";
 import { generateLLMText } from "../llm/llmText";
 import { LLMAdapter, type TraceSinkParams } from "../llm/types";
@@ -26,6 +27,8 @@ import { writeInternalTraceViaOtelIngestion } from "../otel/internalTraceOtelWri
 import type { TopicsModel } from "./model-config";
 
 const TIMEOUT_MS = 60_000;
+/** Output floor when Topics cannot turn reasoning off; common models cap output at or above it. */
+export const TOPICS_REASONING_OUTPUT_TOKENS = 4_096;
 
 // Error identity and lifetime are preserved, including for frozen SDK errors.
 const responseMetadataByError = new WeakMap<
@@ -63,8 +66,19 @@ const RAW_FINISH_REASONS = new Set([
  * use InvokeModel at the same regional endpoint and model ID.
  */
 export async function generateTopicText<T>(
-  params: TopicTextParams<T>,
-): Promise<TopicTextResult> {
+  requested: TopicTextParams<T>,
+): Promise<TopicTextResult & TopicTextUsageDetails> {
+  // Reasoning we cannot turn off spends output tokens before the JSON starts.
+  const params =
+    topicReasoning(requested.model) === undefined
+      ? {
+          ...requested,
+          maxOutputTokens: Math.max(
+            requested.maxOutputTokens,
+            TOPICS_REASONING_OUTPUT_TOKENS,
+          ),
+        }
+      : requested;
   const startTimeISO = new Date().toISOString();
   let result: TopicTextResult | undefined;
   let responseMetadata: TopicTextResponseMetadata | undefined;
@@ -81,7 +95,7 @@ export async function generateTopicText<T>(
       isBedrockGPT(params.model) && params.system.some((part) => part.cache)
         ? await invokeWithCache(params, recordResponse)
         : await generateWithConnection(params, recordResponse);
-    return result;
+    return { ...result, ...textUsageDetails(result) };
   } catch (error) {
     failure = error;
     // Responses refusal blocks can fail SDK validation before onEnd runs.
@@ -98,13 +112,22 @@ export async function generateTopicText<T>(
     if (responseMetadata && error !== null && typeof error === "object") {
       responseMetadataByError.set(error, responseMetadata);
     }
-    if (NoObjectGeneratedError.isInstance(error)) {
+    if (!result && NoObjectGeneratedError.isInstance(error)) {
       result = { output: error.text, usage: topicUsage(error.usage) };
     }
+    if (result && params.onFailedResponseUsage)
+      await params.onFailedResponseUsage(textUsageDetails(result));
     throw error;
   } finally {
     await writeTopicTrace(params, startTimeISO, result, failure);
   }
+}
+
+function textUsageDetails(result: TopicTextResult): TopicTextUsageDetails {
+  return {
+    usageDetails: topicTraceUsage(result.usage) ?? {},
+    providedCostDetails: result.providedCostDetails ?? {},
+  };
 }
 
 /** Bounded response diagnostics for the existing Topics failure log; no content. */
@@ -143,6 +166,7 @@ async function writeTopicTrace<T>(
           input: JSON.stringify(topicMessages(params)),
           output: JSON.stringify(result?.output),
           providedUsageDetails: topicTraceUsage(result?.usage),
+          providedCostDetails: result?.providedCostDetails,
           metadata: trace.metadata ?? {},
           userId: trace.userId,
           sessionId: trace.sessionId,
@@ -161,10 +185,14 @@ function topicTraceUsage(usage: TopicTextResult["usage"] | undefined) {
   if (!usage) return undefined;
   const details: Record<string, number | undefined> = {
     input: undefined,
-    output: usage.outputTokens,
+    output:
+      usage.outputTokens === undefined
+        ? undefined
+        : Math.max(0, usage.outputTokens - (usage.reasoningTokens ?? 0)),
     total: usage.totalTokens,
     input_cached_tokens: usage.cacheReadTokens,
     input_cache_creation: usage.cacheWriteTokens,
+    output_reasoning_tokens: usage.reasoningTokens,
   };
   /** Standard input excludes cached tokens, which have their own prices. */
   if (usage.inputTokens !== undefined) {
@@ -206,14 +234,46 @@ export function topicMessages(params: {
 
 function topicUsage(
   usage: LanguageModelUsage | undefined,
+  responseBody?: unknown,
 ): TopicTextResult["usage"] {
+  const raw = responseUsage(responseBody);
+  const details = isPlainObject(raw.prompt_tokens_details)
+    ? raw.prompt_tokens_details
+    : {};
   return {
     inputTokens: usage?.inputTokens,
     outputTokens: usage?.outputTokens,
     totalTokens: usage?.totalTokens,
     cacheReadTokens: usage?.inputTokenDetails?.cacheReadTokens,
-    cacheWriteTokens: usage?.inputTokenDetails?.cacheWriteTokens,
+    // Compatible adapters can retain cache writes only in the raw response.
+    cacheWriteTokens:
+      usage?.inputTokenDetails?.cacheWriteTokens ??
+      nonNegativeNumber(details.cache_write_tokens),
+    reasoningTokens: usage?.outputTokenDetails?.reasoningTokens || undefined,
   };
+}
+
+function responseUsage(body: unknown): Record<string, unknown> {
+  return isPlainObject(body) && isPlainObject(body.usage) ? body.usage : {};
+}
+
+function nonNegativeNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+function openRouterCost(body: unknown): number | undefined {
+  const usage = responseUsage(body);
+  const cost = nonNegativeNumber(usage.cost);
+  if (cost === undefined || usage.is_byok !== true) return cost;
+  const upstreamCost = isPlainObject(usage.cost_details)
+    ? nonNegativeNumber(usage.cost_details.upstream_inference_cost)
+    : undefined;
+  // BYOK bills the provider separately; an incomplete total uses catalog pricing.
+  return upstreamCost === undefined
+    ? undefined
+    : nonNegativeNumber(cost + upstreamCost);
 }
 
 async function generateWithConnection<T>(
@@ -223,11 +283,20 @@ async function generateWithConnection<T>(
     metadata: TopicTextResponseMetadata,
   ) => void,
 ): Promise<TopicTextResult> {
-  const nativeOpenAI = isFirstPartyOpenAI(params.model);
+  const isOpenRouter =
+    params.model.adapter === LLMAdapter.OpenAI &&
+    isOpenRouterEndpoint(params.model.connection.baseURL);
+  const suppliedCosts = (body: unknown): Record<string, number> => {
+    const total = isOpenRouter ? openRouterCost(body) : undefined;
+    return total === undefined ? {} : { total };
+  };
   const result = await generateLLMText({
     model: { adapter: params.model.adapter, id: params.model.model },
     connection: params.model.connection,
-    openAIChatProvider: nativeOpenAI ? "native" : undefined,
+    // Custom base URLs (gateways, proxies) also need max_completion_tokens for
+    // OpenAI reasoning models; the compatible adapter only sends max_tokens.
+    openAIChatProvider:
+      params.model.adapter === LLMAdapter.OpenAI ? "native" : undefined,
     // The static system prompt comes first so providers with automatic prefix
     // caching can reuse it across traces.
     messages: topicMessages(params),
@@ -245,8 +314,12 @@ async function generateWithConnection<T>(
           },
         }
       : {}),
+    // @ai-sdk/openai detects reasoning models by ID prefix, which gateway slugs hide.
+    ...(isOpenAIReasoningModel(params.model)
+      ? { providerOptions: { openai: { forceReasoning: true } } }
+      : {}),
     // The AI SDK retries 429 and 5xx responses with exponential backoff.
-    maxRetries: 2,
+    maxRetries: params.maxRetries ?? 2,
     timeout: params.timeoutMs ?? TIMEOUT_MS,
     // Retain wire refusal markers in memory; diagnostics only expose their classification.
     include: { responseBody: true },
@@ -254,15 +327,21 @@ async function generateWithConnection<T>(
     onEnd: ({ finalStep }) => {
       const text = finalStep.text;
       recordResponse(
-        { output: text, usage: topicUsage(finalStep.usage) },
+        {
+          output: text,
+          usage: topicUsage(finalStep.usage, finalStep.response.body),
+          providedCostDetails: suppliedCosts(finalStep.response.body),
+        },
         responseAttributes(finalStep, text.length, params.maxOutputTokens),
       );
     },
   });
-  const usage = topicUsage(result.usage);
+  const body = result.finalStep.response.body;
+  const usage = topicUsage(result.usage, body);
   return {
     output: result.output,
     usage,
+    providedCostDetails: suppliedCosts(body),
   };
 }
 
@@ -293,7 +372,19 @@ function responseAttributes(
     ...(step.usage.outputTokens !== undefined && {
       "langfuse.topics.response.output_tokens": step.usage.outputTokens,
     }),
+    ...(step.usage.outputTokenDetails?.reasoningTokens !== undefined && {
+      "langfuse.topics.response.reasoning_tokens":
+        step.usage.outputTokenDetails.reasoningTokens,
+    }),
   };
+}
+
+function invokeFinishReason(json: {
+  choices?: { finish_reason?: string }[];
+}): string {
+  if (hasOpenAIRefusal(json)) return "content-filter";
+  const reason = json.choices?.[0]?.finish_reason ?? "";
+  return RAW_FINISH_REASONS.has(reason) ? reason : "other";
 }
 
 /** Inspect wire markers only; generated text and exception messages are not signals. */
@@ -326,6 +417,11 @@ function topicReasoning(
   model: TopicsModel,
 ): "none" | "minimal" | "low" | undefined {
   if (isFirstPartyOpenAI(model)) return openAIReasoning(model.model);
+  const effort =
+    model.adapter === LLMAdapter.OpenAI
+      ? openAIReasoning(providerModelId(model))
+      : undefined;
+  if (effort) return effort;
   /** Compatible endpoints choose their own supported reasoning settings. */
   if (
     model.adapter === LLMAdapter.OpenAI &&
@@ -349,6 +445,17 @@ function isFirstPartyOpenAI(model: TopicsModel): boolean {
   } catch {
     return false;
   }
+}
+
+/** AI gateway model IDs are `<connection>:<provider model>`. */
+function providerModelId(model: TopicsModel): string {
+  return model.model.slice(model.model.indexOf(":") + 1);
+}
+
+function isOpenAIReasoningModel(model: TopicsModel): boolean {
+  if (model.adapter !== LLMAdapter.OpenAI) return false;
+  const id = providerModelId(model);
+  return openAIReasoning(id) !== undefined || /^o\d+(?:-|$)/.test(id);
 }
 
 /** Selects low-latency reasoning only for known models; others use their defaults. */
@@ -419,6 +526,8 @@ async function bedrockRequestHeaders(
     allowDefaultCredentials: canUseBedrockDefaultCredentials(
       model.connection.projectId,
     ),
+    projectId: model.connection.projectId,
+    externalId: model.connection.externalId,
   });
   if (auth.apiKey)
     return { ...headers, authorization: `Bearer ${auth.apiKey}` };
@@ -507,6 +616,7 @@ async function invokeWithCache(
         cached_tokens?: number;
         cache_write_tokens?: number;
       };
+      completion_tokens_details?: { reasoning_tokens?: number };
     };
   };
   const message = json.choices?.[0]?.message;
@@ -518,15 +628,22 @@ async function invokeWithCache(
       totalTokens: json.usage?.total_tokens,
       cacheReadTokens: json.usage?.prompt_tokens_details?.cached_tokens,
       cacheWriteTokens: json.usage?.prompt_tokens_details?.cache_write_tokens,
+      reasoningTokens:
+        json.usage?.completion_tokens_details?.reasoning_tokens || undefined,
     },
   };
   // Retain paid usage and the original response if parsing or validation fails.
-  recordResponse(
-    result,
-    hasOpenAIRefusal(json)
-      ? { "langfuse.topics.response.finish_reason": "content-filter" }
-      : undefined,
-  );
+  recordResponse(result, {
+    "langfuse.topics.response.finish_reason": invokeFinishReason(json),
+    "langfuse.topics.response.text_characters": message?.content?.length ?? 0,
+    "langfuse.topics.response.max_output_tokens": params.maxOutputTokens,
+    ...(result.usage.outputTokens !== undefined && {
+      "langfuse.topics.response.output_tokens": result.usage.outputTokens,
+    }),
+    ...(result.usage.reasoningTokens !== undefined && {
+      "langfuse.topics.response.reasoning_tokens": result.usage.reasoningTokens,
+    }),
+  });
 
   if (!message?.content || json.choices?.[0]?.finish_reason === "length")
     throw Object.assign(
@@ -546,14 +663,21 @@ export type TopicPromptPart = { text: string; cache?: boolean };
 
 type TopicTextResponseMetadata = Record<string, string | number>;
 
+export type TopicTextUsageDetails = {
+  usageDetails: Record<string, number>;
+  providedCostDetails: Record<string, number>;
+};
+
 type TopicTextResult = {
   output: unknown;
+  providedCostDetails?: Record<string, number>;
   usage: {
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
     cacheReadTokens?: number;
     cacheWriteTokens?: number;
+    reasoningTokens?: number;
   };
 };
 
@@ -564,5 +688,9 @@ type TopicTextParams<T> = {
   schema: z.ZodType<T>;
   maxOutputTokens: number;
   timeoutMs?: number;
+  /** AI SDK retries of 429 and 5xx responses; callers with their own backoff pass 0. */
+  maxRetries?: number;
   trace?: TraceSinkParams;
+  /** A provider may report usage before its response fails structured-output validation. */
+  onFailedResponseUsage?: (usage: TopicTextUsageDetails) => Promise<void>;
 };

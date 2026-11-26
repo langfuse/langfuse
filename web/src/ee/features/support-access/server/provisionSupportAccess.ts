@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 
@@ -36,6 +37,17 @@ async function findUser(email: string) {
 
 type User = NonNullable<Awaited<ReturnType<typeof findUser>>>;
 
+async function resolveOrgId(orgOrProjectId: string): Promise<string | null> {
+  const project = await prisma.project.findFirst({
+    where: {
+      deletedAt: null,
+      OR: [{ id: orgOrProjectId }, { orgId: orgOrProjectId }],
+    },
+    select: { orgId: true },
+  });
+  return project?.orgId ?? null;
+}
+
 async function grant(
   request: GrantRequest,
   user: User | null,
@@ -55,19 +67,21 @@ async function grant(
     );
   }
 
-  const org = await prisma.organization.findUnique({
-    where: { id: request.orgId },
-    select: { id: true },
-  });
-  if (!org) {
-    return rejected(`Organization ${request.orgId} not found in this region.`);
+  const orgId = await resolveOrgId(request.orgOrProjectId);
+  if (!orgId) {
+    return rejected(
+      `Organization or project ${request.orgOrProjectId} not found in this region.`,
+    );
+  }
+  if ((env.LANGFUSE_SUPPORT_ACCESS_DENIED_ORG_IDS ?? []).includes(orgId)) {
+    return rejected(`Support access is disabled for organization ${orgId}.`);
   }
 
   const expiresAt = new Date(now.getTime() + request.durationMs);
-  await grantSupportAccess(user.id, org.id, expiresAt);
+  await grantSupportAccess(user.id, orgId, expiresAt);
   logger.info("ConductorOne support access granted", {
     userId: user.id,
-    orgId: org.id,
+    orgId,
     expiresAt: expiresAt.toISOString(),
     c1TaskId: request.taskId,
   });

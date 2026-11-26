@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
 import type { EvalOnboardingEventMap } from "@/src/features/evals/v2/types/evalOnboardingAnalytics";
 import type { AiGatewayEventMap } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
+import type { TopicsEventMap } from "@/src/features/topics/topicsAnalytics";
 import type {
   ToastInteractionEventProperties,
   ToastShownEventProperties,
@@ -235,7 +236,6 @@ const events = {
     "gallery_creation_source_select",
     "empty_state_template_select",
     "empty_state_browse_library",
-    "empty_state_detect_topics",
     "alert_create_clicked",
   ],
   evaluation_rules: [
@@ -438,6 +438,7 @@ const events = {
     "feature_flag_default_toggled",
     "personal_feature_previews_opened",
     "user_feature_flag_toggled",
+    "enterprise_trial_redeemed",
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
@@ -447,11 +448,24 @@ const events = {
     "message_sent",
     "community_hours_click",
   ], // also used on landing page for consistency
+  // Typed in features/topics/topicsAnalytics.ts. Metadata only, and every
+  // event carries projectId and orgId.
   topics: [
+    "page_viewed",
+    "setup_flow_opened",
+    "setup_flow_step_completed",
+    "setup_flow_error",
+    "setup_flow_finished",
+    "map_viewed",
+    "map_created",
+    "map_refreshed",
+    "snapshot_started",
+    "map_selected",
+    "topic_selected",
     "results_view_select",
-    "setup_opened",
-    "setup_step_saved",
-    "setup_started",
+    "cost_estimate_started",
+    "stripe_toggle",
+    "feedback_open",
   ],
   in_app_agent: [
     "activity_opened",
@@ -473,16 +487,29 @@ const events = {
     "provider_credential_deleted",
     "team_invite_sent",
     "api_key_created",
+    "api_key_updated",
     "api_key_revoked",
     "api_key_secret_copied",
     "api_key_secret_revealed",
     "model_access_changed",
     "model_name_copied",
+    "custom_model_added",
+    "custom_model_removed",
+    "budget_saved",
+    "budget_removed",
+    "budget_reset",
     "agent_setup_instructions_viewed",
     "agent_setup_instructions_copied",
   ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
+  // Sidebar presentation and shell adoption, using state flags and static sources.
+  app_shell: [
+    "sidebar_pin_toggled",
+    "sidebar_expansion_toggled",
+    "variant_switched",
+  ],
   spend_alert: ["created", "updated", "deleted"],
+  billing_coupon: ["submitted"],
   // Launch surfaces answer "which entry point and state lead people into
   // gateway setup or key creation?" Props are state enums and counts only.
   ai_gateway_launch: [
@@ -515,8 +542,11 @@ const events = {
     "status_row_clicked",
     "update_required_badge_clicked",
     "migrate_evals_with_agent_clicked",
-    "overview_banner_status_clicked",
-    "overview_banner_docs_clicked",
+    // Legacy v3 strip in the top-banner stack. Both carry
+    // { severity, actionNeededCount, variant }; cta_clicked also carries `cta`.
+    // `variant` is deadline, delayed (November 23), or december (December 31).
+    "top_banner_shown",
+    "top_banner_cta_clicked",
     // Opt-out users on the legacy-UI top strip → migration status page.
     "legacy_ui_banner_status_clicked",
     "panel_docs_link_clicked",
@@ -555,12 +585,15 @@ const events = {
 
 // type that represents all possible event names, e.g. "trace:delete"
 type EventName = {
-  [Resource in keyof typeof events]: `${Resource}:${(typeof events)[Resource][number]}`;
+  [
+    Resource in keyof typeof events
+  ]: `${Resource}:${(typeof events)[Resource][number]}`;
 }[keyof typeof events];
 
 type TypedEventMap = AnnotationEventMap &
   EvalOnboardingEventMap &
   AiGatewayEventMap &
+  TopicsEventMap &
   ToastEventMap;
 
 type EventProperties = TypedEventMap & {

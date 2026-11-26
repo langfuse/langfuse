@@ -1,15 +1,25 @@
+// Pins the SQL the dedup pass emits per table, alone and with every pass.
+
+import type { Kysely } from "kysely";
 import { describe, expect, it } from "vitest";
 
-import { compileClickhouseQuery } from "./compile";
+import { compileClickhouseQuery, type ClickhouseCompilable } from "./compile";
+import { DedupLoweringPlugin } from "./dedup";
 import { getClickhouseKysely } from "./dialect";
 import { limitBy, useFinal } from "./extensions";
-import { DEDUP_SPECS } from "./schema";
+import { applyPassOnly, renderPassOutput } from "./__tests__/passHarness";
+import { DEDUP_SPECS, type ClickHouseDatabase } from "./schema";
 
-const projectId = "proj-1";
-
-function compile(builder: Parameters<typeof compileClickhouseQuery>[0]) {
-  return compileClickhouseQuery(builder, projectId);
+// The dedup pass alone, so the physical `events_core` is read directly and no
+// tenancy scope appears in the SQL.
+function compile(builder: ClickhouseCompilable) {
+  return renderPassOutput(applyPassOnly(builder, new DedupLoweringPlugin()));
 }
+
+/** The compile DB with `events_core`, which call sites reach only through routing. */
+const eventsCoreDb = getClickhouseKysely() as unknown as Kysely<{
+  events_core: ClickHouseDatabase["events"];
+}>;
 
 describe("per-table dedup lowering", () => {
   it("declares events_core as immutable (no query-time collapse)", () => {
@@ -21,9 +31,7 @@ describe("per-table dedup lowering", () => {
 
   it("does not inject LIMIT BY or FINAL on events_core row reads", () => {
     const { sql } = compile(
-      getClickhouseKysely()
-        .selectFrom("events")
-        .select(["span_id", "project_id"]),
+      eventsCoreDb.selectFrom("events_core").select(["span_id", "project_id"]),
     );
     const lower = sql.toLowerCase();
     expect(lower).not.toContain("limit 1 by");
@@ -32,10 +40,7 @@ describe("per-table dedup lowering", () => {
 
   it("does not wrap events_core DISTINCT", () => {
     const { sql } = compile(
-      getClickhouseKysely()
-        .selectFrom("events")
-        .select("environment")
-        .distinct(),
+      eventsCoreDb.selectFrom("events_core").select("environment").distinct(),
     );
     const lower = sql.toLowerCase();
     expect(lower).not.toContain("limit 1 by");
@@ -44,8 +49,8 @@ describe("per-table dedup lowering", () => {
 
   it("does not wrap events_core aggregations", () => {
     const { sql } = compile(
-      getClickhouseKysely()
-        .selectFrom("events")
+      eventsCoreDb
+        .selectFrom("events_core")
         .select((eb) => ["environment", eb.fn.countAll().as("n")])
         .groupBy("environment"),
     );
@@ -57,8 +62,8 @@ describe("per-table dedup lowering", () => {
 
   it("still emits an explicit caller LIMIT BY", () => {
     const { sql } = compile(
-      getClickhouseKysely()
-        .selectFrom("events")
+      eventsCoreDb
+        .selectFrom("events_core")
         .select("span_id")
         .orderBy("event_ts", "desc")
         .$call(
@@ -82,7 +87,61 @@ describe("per-table dedup lowering", () => {
         getClickhouseKysely().selectFrom("traces as t").select("t.id"),
       );
       expect(sql).toBe(
-        "select t.id from traces as t where t.project_id = {p1:String} order by t.event_ts desc limit 1 by t.id",
+        "select t.id from traces as t order by t.event_ts desc limit 1 by t.id",
+      );
+    } finally {
+      delete DEDUP_SPECS.traces;
+    }
+  });
+
+  it.each([
+    [
+      "an inner join",
+      () =>
+        getClickhouseKysely()
+          .selectFrom("traces as t")
+          .innerJoin("observations as o", "o.trace_id", "t.id")
+          .select(["t.id", "o.start_time"]),
+      "select t.id, o.start_time from traces as t inner join observations as o on o.trace_id = t.id",
+    ],
+    [
+      "a comma FROM",
+      () =>
+        getClickhouseKysely()
+          .selectFrom(["traces as t", "observations as o"])
+          .select(["t.id", "o.start_time"]),
+      "select t.id, o.start_time from traces as t, observations as o",
+    ],
+  ])("leaves a select with %s unlowered", (_shape, build, expected) => {
+    // LIMIT 1 BY the FROM key would drop every joined row but one per key.
+    DEDUP_SPECS.traces = {
+      strategy: "limitBy",
+      key: ["id"],
+      version: "event_ts",
+    };
+    try {
+      expect(compile(build()).sql).toBe(expected);
+    } finally {
+      delete DEDUP_SPECS.traces;
+    }
+  });
+
+  it("appends the version as a tiebreaker to a caller ORDER BY under its LIMIT BY", () => {
+    DEDUP_SPECS.traces = {
+      strategy: "limitBy",
+      key: ["id"],
+      version: "event_ts",
+    };
+    try {
+      const { sql } = compile(
+        getClickhouseKysely()
+          .selectFrom("traces as t")
+          .select(["t.id", "t.environment"])
+          .orderBy("t.environment")
+          .$call(limitBy({ count: 1, columns: (eb) => [eb.ref("t.id")] })),
+      );
+      expect(sql).toMatch(
+        /order by t\.environment, t\.event_ts desc limit 1 by t\.id$/,
       );
     } finally {
       delete DEDUP_SPECS.traces;
@@ -113,7 +172,7 @@ describe("per-table dedup lowering", () => {
           .select((eb) => eb.fn.countAll().as("n")),
       );
       expect(sql).toBe(
-        "select count(*) as n from (select * from scores as s where s.project_id = {p1:String} order by s.event_ts desc limit 1 by s.id) as s",
+        "select count(*) as n from (select * from scores as s order by s.event_ts desc limit 1 by s.id) as s",
       );
     } finally {
       delete DEDUP_SPECS.scores;
@@ -173,5 +232,55 @@ describe("per-table dedup lowering", () => {
     );
     expect(sql.toLowerCase()).not.toContain("limit 1 by");
     expect(sql.toLowerCase()).not.toMatch(/\bfinal\b/);
+  });
+});
+
+// Every compile pass: the project scope lands inside the dedup wrap, before
+// LIMIT BY picks one version per key, so another project's newer version of a
+// shared key cannot hide this project's row.
+describe("dedup lowering with every compile pass", () => {
+  it.each([
+    [
+      "a row read",
+      "traces" as const,
+      () => getClickhouseKysely().selectFrom("traces as t").select("t.id"),
+      "select t.id from traces as t where t.project_id = {p1:String} order by t.event_ts desc limit 1 by t.id",
+    ],
+    [
+      "a wrapped aggregate",
+      "scores" as const,
+      () =>
+        getClickhouseKysely()
+          .selectFrom("scores as s")
+          .select((eb) => eb.fn.countAll().as("n")),
+      "select count(*) as n from (select * from scores as s where s.project_id = {p1:String} order by s.event_ts desc limit 1 by s.id) as s",
+    ],
+  ])("scopes %s before LIMIT BY", (_shape, table, build, expected) => {
+    DEDUP_SPECS[table] = {
+      strategy: "limitBy",
+      key: ["id"],
+      version: "event_ts",
+    };
+    try {
+      expect(compileClickhouseQuery(build(), "proj-1").sql).toBe(expected);
+    } finally {
+      delete DEDUP_SPECS[table];
+    }
+  });
+
+  // An execution's cost sums every summary row it wrote, re-written ones too.
+  it("compiles a Topics cost sum unwrapped, with column-typed binds", () => {
+    const query = getClickhouseKysely()
+      .selectFrom("topic_facet_summaries as s")
+      .select((eb) => [
+        "s.execution_id as id",
+        eb.fn.sum("s.total_cost").as("cost"),
+      ])
+      .where("s.facet_version", "=", 3)
+      .where("s.unit_start_time", ">=", new Date("2026-01-01T00:00:00.000Z"))
+      .groupBy("s.execution_id");
+    expect(compileClickhouseQuery(query, "proj-1").sql).toBe(
+      "select s.execution_id as id, sum(s.total_cost) as cost from topic_facet_summaries as s where s.project_id = {p1:String} and s.facet_version = {p2:UInt32} and s.unit_start_time >= {p3:DateTime64(3, 'UTC')} group by s.execution_id",
+    );
   });
 });

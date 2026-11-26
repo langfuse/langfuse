@@ -1,28 +1,12 @@
-/**
- * TracePanelDetail - Pure content component for detail panel
- *
- * Responsibility:
- * - Decide which detail view to show (Trace/Observation)
- * - Minimal wrapper (scrollable container) for layout consistency
- *
- * Hooks:
- * - useSelection() - for selected node state
- * - useTraceData() - for trace, observations, scores
- * - useSelectedObservation() - resolves the selected observation off the tree
- *
- * Re-renders when:
- * - Selection changes (clicking nodes)
- * - Trace data changes (rare)
- * - Does NOT re-render when search changes (isolated)
- */
-
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
 import { SkeletonGroup } from "@/src/components/ui/skeleton";
 import { TraceDetailView } from "./TraceDetailView/TraceDetailView";
 import { ConnectedObservationDetailView } from "./ObservationDetailView/ConnectedObservationDetailView";
-import { useMemo } from "react";
+import { traceNodeId } from "../fns/treeBuilding";
+import { useTraceDetailData } from "../hooks/useTraceDetailData";
+import { useSessionMessageTraces } from "../hooks/useSessionMessageTraces";
 
 function PanelMessage({ title, body }: { title: string; body: string }) {
   return (
@@ -48,66 +32,164 @@ export function TracePanelDetail({
 function TracePanelDetailContent() {
   const { selectedNodeId } = useSelection();
   const {
-    trace,
+    trace: anchorTrace,
+    projectId,
+    sessionId,
+    scope,
     observations,
     serverScores: scores,
     corrections,
     isPlaceholderData,
   } = useTraceData();
+  const sessionTraces = scope.type === "session" ? scope.traces : undefined;
+  const sessionMessageTraces = useSessionMessageTraces({
+    projectId,
+    sessionId: sessionId ?? "",
+    enabled:
+      !!sessionTraces &&
+      !!sessionId &&
+      !!selectedNodeId?.startsWith("trace-") &&
+      !sessionTraces.some((entry) => traceNodeId(entry.id) === selectedNodeId),
+  });
+  const trace =
+    sessionTraces?.find((entry) => traceNodeId(entry.id) === selectedNodeId) ??
+    anchorTrace;
+  const selectedSessionTrace = sessionTraces
+    ? sessionMessageTraces.data?.find(
+        (entry) => traceNodeId(entry.id) === selectedNodeId,
+      )
+    : undefined;
 
   // Resolved from the selected id, not from the tree: the observation list is
   // capped, so a selected observation may be missing from the tree while its
   // data is perfectly fetchable.
   const selected = useSelectedObservation({
     selectedNodeId,
-    traceId: trace.id,
-    projectId: trace.projectId,
+    traceId: trace?.id ?? "",
+    projectId,
     observations,
+    sessionId: sessionTraces ? (sessionId ?? undefined) : undefined,
     enabled: !isPlaceholderData,
   });
 
-  // Memoize to prevent recreation when deps haven't changed
-  return useMemo(() => {
-    switch (selected.kind) {
-      case "observation":
+  if (
+    selected.kind === "trace" &&
+    selectedSessionTrace &&
+    selectedSessionTrace.id !== anchorTrace?.id
+  ) {
+    return (
+      <ConnectedSessionTraceDetail
+        projectId={projectId}
+        traceId={selectedSessionTrace.id}
+        timestamp={selectedSessionTrace.timestamp}
+      />
+    );
+  }
+
+  switch (selected.kind) {
+    case "observation":
+      return (
+        <ConnectedObservationDetailView
+          observation={selected.observation}
+          projectId={projectId}
+          traceId={selected.observation.traceId}
+        />
+      );
+    case "loading":
+      // The observation view shares this shell, so nothing moves when it lands.
+      return (
+        <SkeletonGroup className="h-full w-full">
+          <TraceDetailView isLoading />
+        </SkeletonGroup>
+      );
+    case "not-found":
+      return (
+        <PanelMessage
+          title="Observation not found"
+          body="This observation is not part of this trace. It may have been deleted."
+        />
+      );
+    case "error":
+      return (
+        <PanelMessage
+          title="Could not load observation"
+          body="Loading this observation failed. Reload the page to try again."
+        />
+      );
+    case "trace":
+      if (!trace) {
         return (
-          <ConnectedObservationDetailView
-            observation={selected.observation}
+          <PanelMessage
+            title={
+              sessionTraces !== undefined && sessionTraces.length > 0
+                ? "Select a trace or observation"
+                : "This session has no observations"
+            }
+            body="Select an item in the session to inspect its details."
+          />
+        );
+      }
+      if (trace.id !== anchorTrace?.id) {
+        return (
+          <ConnectedSessionTraceDetail
             projectId={trace.projectId}
             traceId={trace.id}
+            timestamp={trace.timestamp}
           />
         );
-      case "loading":
-        // The observation view shares this shell, so nothing moves when it lands.
-        return (
-          <SkeletonGroup className="h-full w-full">
-            <TraceDetailView isLoading />
-          </SkeletonGroup>
-        );
-      case "not-found":
-        return (
-          <PanelMessage
-            title="Observation not found"
-            body="This observation is not part of this trace. It may have been deleted."
-          />
-        );
-      case "error":
-        return (
-          <PanelMessage
-            title="Could not load observation"
-            body="Loading this observation failed. Reload the page to try again."
-          />
-        );
-      case "trace":
-        return (
-          <TraceDetailView
-            trace={trace}
-            observations={observations}
-            scores={scores}
-            corrections={corrections}
-            projectId={trace.projectId}
-          />
-        );
-    }
-  }, [selected, trace, observations, scores, corrections]);
+      }
+      return (
+        <TraceDetailView
+          trace={trace}
+          observations={observations.filter(
+            (observation) => observation.traceId === trace.id,
+          )}
+          scores={scores.filter((score) => score.traceId === trace.id)}
+          corrections={corrections.filter(
+            (score) => score.traceId === trace.id,
+          )}
+          projectId={trace.projectId}
+        />
+      );
+  }
+}
+
+function ConnectedSessionTraceDetail({
+  projectId,
+  traceId,
+  timestamp,
+}: {
+  projectId: string;
+  traceId: string;
+  timestamp: Date;
+}) {
+  const result = useTraceDetailData({ projectId, traceId, timestamp });
+  if (result.isError) {
+    return (
+      <PanelMessage
+        title="Could not load trace"
+        body="Loading this trace failed. Reload the page to try again."
+      />
+    );
+  }
+  if (result.isNotFound) {
+    return (
+      <PanelMessage
+        title="Trace not found"
+        body="This trace may have been deleted."
+      />
+    );
+  }
+  if (!result.data || result.isPlaceholderData || result.data.id !== traceId) {
+    return <TraceDetailView isLoading />;
+  }
+  return (
+    <TraceDetailView
+      trace={result.data}
+      observations={result.data.observations}
+      scores={result.data.scores}
+      corrections={result.data.corrections}
+      projectId={projectId}
+    />
+  );
 }

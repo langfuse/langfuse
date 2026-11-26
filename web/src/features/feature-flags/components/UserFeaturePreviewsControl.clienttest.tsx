@@ -146,9 +146,9 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
-        externalMediaStorage: false,
         sessionViewV2: true,
         sessionViewV2Timeline: false,
+        unifiedTraceSessionView: false,
       },
       management: { allowed: true },
     });
@@ -169,9 +169,9 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
-        externalMediaStorage: false,
         sessionViewV2: false,
         sessionViewV2Timeline: false,
+        unifiedTraceSessionView: false,
       },
       management: {
         allowed: false,
@@ -193,9 +193,9 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
-        externalMediaStorage: false,
         sessionViewV2: false,
         sessionViewV2Timeline: false,
+        unifiedTraceSessionView: false,
       },
       management: { allowed: true },
     });
@@ -240,9 +240,9 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
-        externalMediaStorage: false,
         sessionViewV2: false,
         sessionViewV2Timeline: false,
+        unifiedTraceSessionView: false,
       },
       management: { allowed: true },
     });
@@ -272,9 +272,9 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
-        externalMediaStorage: false,
         sessionViewV2: false,
         sessionViewV2Timeline: false,
+        unifiedTraceSessionView: false,
       },
       management: { allowed: true },
     });

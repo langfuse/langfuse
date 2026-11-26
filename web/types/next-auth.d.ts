@@ -3,9 +3,9 @@ import {
   type User as PrismaUser,
   type Project as PrismaProject,
   type Organization as PrismaOrganization,
-  type Role,
 } from "@langfuse/shared/src/db";
 import { type Flags } from "@/src/features/feature-flags/types";
+import { type Policy } from "@/src/features/rbac/types";
 import { type CloudConfigSchema, type Plan } from "@langfuse/shared";
 
 /**
@@ -21,9 +21,7 @@ declare module "next-auth" {
           id: PrismaUser["id"];
           name?: PrismaUser["name"];
           email?: PrismaUser["email"];
-          emailSupportHash?: string | null;
           image?: PrismaUser["image"];
-          admin?: PrismaUser["admin"];
           v4BetaEnabled?: boolean;
           canToggleV4?: boolean;
           // Whether this deployment shows the v4 migration UI (sidebar pill,
@@ -32,12 +30,10 @@ declare module "next-auth" {
           // isV4UpgradeUiAvailable. This is the gate every migration surface
           // reads, via useV4UpgradeUiEnabled; there is no per-user opt-in.
           v4UpgradeUiAvailable?: boolean;
-          emailVerified?: string | null; // iso datetime string, need to stringify as JWT & useSession do not support Date objects
           canCreateOrganizations: boolean; // default true, allowlist can be set via LANGFUSE_ALLOWED_ORGANIZATION_CREATORS
           organizations: {
             id: PrismaOrganization["id"];
             name: PrismaOrganization["name"];
-            role: Role;
             supportAccess?: boolean; // granted through a ConductorOne support access request, not a real membership
             cloudConfig: CloudConfigSchema | undefined;
             plan: Plan;
@@ -54,10 +50,10 @@ declare module "next-auth" {
               deletedAt: PrismaProject["deletedAt"];
               retentionDays: PrismaProject["retentionDays"];
               hasTraces: PrismaProject["hasTraces"];
-              topicsEnabled?: boolean; // deployment allowlist, resolved server-side; absent = off
+              traceEvalsEnabled?: boolean; // deployment allowlist, resolved server-side; absent = off
               scoreEditsDisabled?: boolean; // scores are read without dedup, so existing scores stay immutable; absent = off
+              forceV3Experience?: boolean; // LANGFUSE_FORCE_V3_EXPERIENCE allowlist, resolved server-side; absent = off
               metadata: Record<string, unknown>;
-              role: Role; // include only projects where user has a role
               createdAt: string; // iso datetime string — JWT does not support Date objects
             }[];
           }[];
@@ -65,6 +61,9 @@ declare module "next-auth" {
           hasPassword?: boolean;
         } & DefaultSession["user"])
       | null; // null if user does not exist anymore in the database but has active jwt
+
+    // The user's policy sets; empty when the session has no user.
+    policies: Policy[][];
 
     environment: {
       // Run-time environment variables that need to be available client-side
@@ -76,8 +75,9 @@ declare module "next-auth" {
       // opt out of product traces. Optional so existing session mocks need
       // not set it.
       aiFeaturesTracingConfigured?: boolean;
-      // False only on self-hosted instances without LANGFUSE_AI_GATEWAY_DEPLOYED;
-      // Cloud, development and preview always run a gateway. Optional so
+      // False only on self-hosted instances without both gateway keys or with
+      // LANGFUSE_AI_GATEWAY_DEPLOYED=false; Cloud, development and preview
+      // always run a gateway. Optional so
       // existing session mocks need not set it.
       aiGatewayDeployed?: boolean;
       // Enables features that are only available under an enterprise/commercial license when self-hosting Langfuse

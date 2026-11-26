@@ -3,6 +3,7 @@ import {
   resolveMediaStorageEndpoints,
   type StorageService,
   StorageServiceFactory,
+  storageKeys,
 } from "@langfuse/shared/src/server";
 
 let s3StorageServiceClient: StorageService;
@@ -17,8 +18,10 @@ export const getMediaStorageServiceClient = (
     });
     s3StorageServiceClient = StorageServiceFactory.getInstance({
       bucketName,
-      accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
+      credentials: storageKeys(
+        env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
+        env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
+      ),
       ...endpoints,
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",

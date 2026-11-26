@@ -78,12 +78,22 @@ function UserDetailView({
   };
 
   const handleTabChange = async (tab: string) => {
-    if (router.query.filter || router.query.orderBy) {
-      const newQuery = { ...router.query };
-      delete newQuery.filter;
-      delete newQuery.orderBy;
-      await router.replace({ query: newQuery });
+    const newQuery = { ...router.query };
+    for (const key of [
+      "filter",
+      "orderBy",
+      "peek",
+      "peekView",
+      "sessionPeek",
+      "traceId",
+      "observation",
+      "timestamp",
+      "aggregation",
+      "traceView",
+    ]) {
+      delete newQuery[key];
     }
+    await router.replace({ query: newQuery });
     setCurrentTab(tab);
   };
 
@@ -117,23 +127,23 @@ function UserDetailView({
         {user.data && (
           <div className="flex flex-wrap gap-2 px-4 py-4">
             <Badge
-              color="primary"
+              color="outline"
               text={`Observations: ${compactNumberFormatter(user.data.totalObservations)}`}
             />
             <Badge
-              color="primary"
+              color="outline"
               text={`Traces: ${compactNumberFormatter(user.data.totalTraces)}`}
             />
             <Badge
-              color="primary"
+              color="outline"
               text={`Total Tokens: ${compactNumberFormatter(user.data.totalTokens)}`}
             />
             <Badge
-              color="primary"
+              color="outline"
               text={`Total Cost: ${usdFormatter(user.data.sumCalculatedTotalCost)}`}
             />
             <Badge
-              color="primary"
+              color="outline"
               text={`Active: ${
                 user.data.firstTrace
                   ? `${user.data.firstTrace.toLocaleString()} - ${user.data.lastTrace?.toLocaleString()}`

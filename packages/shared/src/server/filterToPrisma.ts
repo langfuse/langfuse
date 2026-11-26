@@ -75,7 +75,14 @@ export function tableColumnsToSqlFilter(
     };
   });
 
-  const statements = internalFilters.map((filterAndColumn) => {
+  // An empty `all of` / `none of` array selection is a facet waiting for a
+  // selection (see `arrayOptionsFilter`); it constrains nothing.
+  const activeFilters = internalFilters.filter(
+    ({ condition }) =>
+      condition.type !== "arrayOptions" || condition.value.length > 0,
+  );
+
+  const statements = activeFilters.map((filterAndColumn) => {
     const filter = filterAndColumn.condition;
     const operatorPrisma = (() => {
       if (filter.type === "arrayOptions") {
@@ -219,7 +226,7 @@ export const datetimeFilterToPrismaSql = (
     throw new Error("Invalid operator: " + operator);
   }
   if (isNaN(value.getTime())) {
-    throw new Error("Invalid date: " + value.toString());
+    throw new TypeError("Invalid date: " + value.toString());
   }
 
   return Prisma.sql`AND ${Prisma.raw(safeColumn)} ${Prisma.raw(

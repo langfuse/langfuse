@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ExternalLink } from "@langfuse/icons";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
 
 import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
 import { Button } from "@/src/components/ui/button";
@@ -89,7 +89,7 @@ export function MediaFileView({
             title={`Open ${fileName} in new tab`}
             className="shrink-0"
           >
-            <ExternalLink size="base" color="default" />
+            <SquareArrowOutUpRight size="base" color="default" />
           </Button>
         </div>
       ) : (

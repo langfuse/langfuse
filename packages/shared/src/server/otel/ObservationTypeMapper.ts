@@ -137,16 +137,14 @@ function matchesVercelAiSdkOperation(
   const operationName = attributes["operation.name"];
   const operationId = attributes["ai.operationId"];
 
-  if (hasMeaningfulValue(operationName)) {
-    const opNameStr = operationName as string;
-    if (prefixes.some((prefix) => opNameStr.startsWith(prefix))) {
+  if (typeof operationName === "string") {
+    if (prefixes.some((prefix) => operationName.startsWith(prefix))) {
       return true;
     }
   }
 
-  if (hasMeaningfulValue(operationId)) {
-    const opIdStr = operationId as string;
-    if (prefixes.includes(opIdStr)) {
+  if (typeof operationId === "string") {
+    if (prefixes.includes(operationId)) {
       return true;
     }
   }
@@ -245,6 +243,16 @@ export class ObservationTypeMapperRegistry {
       GUARDRAIL: "GUARDRAIL",
       EVALUATOR: "EVALUATOR",
     }),
+
+    // Priority 2.5: the Claude Platform request span wraps the
+    // anthropic.model_request child that carries the actual model call.
+    new CustomAttributeMapper(
+      "ClaudePlatformRequestSpan",
+      2.5,
+      (_attributes, _resourceAttributes, scopeData, spanName) =>
+        isClaudePlatformRequestSpan(scopeData?.name, spanName),
+      () => "SPAN",
+    ),
 
     // Priority 3: OpenTelemetry GenAI operation
     new SimpleAttributeMapper(
@@ -355,10 +363,9 @@ export class ObservationTypeMapperRegistry {
         const operationId = attributes["ai.operationId"];
 
         const hasAiOperation =
-          (hasMeaningfulValue(operationName) &&
-            (operationName as string).startsWith("ai.")) ||
-          (hasMeaningfulValue(operationId) &&
-            (operationId as string).startsWith("ai."));
+          (typeof operationName === "string" &&
+            operationName.startsWith("ai.")) ||
+          (typeof operationId === "string" && operationId.startsWith("ai."));
 
         if (!hasAiOperation) {
           return false;
@@ -523,6 +530,21 @@ export class ObservationTypeMapperRegistry {
   getMappersForDebugging(): ReadonlyArray<ObservationTypeMapper> {
     return [...this.mappers];
   }
+}
+
+/**
+ * Claude Platform emits anthropic.messages.create for the API request and an
+ * anthropic.model_request child per model call. Both report the same usage, so
+ * only the child is priced.
+ */
+export function isClaudePlatformRequestSpan(
+  scopeName: unknown,
+  spanName?: string,
+): boolean {
+  return (
+    scopeName === "com.anthropic.claude-platform" &&
+    spanName === "anthropic.messages.create"
+  );
 }
 
 /** CMA session creation configures a model without executing a model call. */

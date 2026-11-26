@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useEffect } from "react";
 import {
   type ObservationType,
@@ -68,6 +67,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
   status?: ObservationStatusMessage;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
+  traceOutputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -118,6 +118,7 @@ export function IOPreview({
   output,
   status,
   outputCorrection,
+  traceOutputCorrection,
   metadata,
   parsedInput,
   parsedOutput,
@@ -195,6 +196,7 @@ export function IOPreview({
     output,
     status,
     outputCorrection,
+    traceOutputCorrection,
     metadata,
     parsedInput,
     parsedOutput,
@@ -252,7 +254,7 @@ export function IOPreview({
        * Trade-off: scroll/expansion state is lost when toggling views,
        * but this eliminates UI freeze with large observations.
        */}
-      {selectedView === "json-beta" ? (
+      {selectedView === "json-beta" && (
         <IOPreviewJSON
           hideMetadata
           input={input}
@@ -261,6 +263,7 @@ export function IOPreview({
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
           outputCorrection={outputCorrection}
+          traceOutputCorrection={traceOutputCorrection}
           isParsing={isParsing}
           hideIfNull={hideIfNull}
           hideInput={hideInput}
@@ -278,13 +281,15 @@ export function IOPreview({
           environment={environment}
           showCorrections={showCorrections}
         />
-      ) : selectedView === "json" ? (
+      )}
+      {selectedView === "json" && (
         <IOPreviewJSONSimple
           hideMetadata
           input={input}
           output={output}
           status={status}
           outputCorrection={outputCorrection}
+          traceOutputCorrection={traceOutputCorrection}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
           isLoading={isLoading}
@@ -305,7 +310,8 @@ export function IOPreview({
           environment={environment}
           showCorrections={showCorrections}
         />
-      ) : (
+      )}
+      {selectedView !== "json-beta" && selectedView !== "json" && (
         <IOPreviewPretty
           {...sharedProps}
           contentMode={contentMode}

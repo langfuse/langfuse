@@ -49,6 +49,8 @@ const APIModelDefinition = z
     unit: APIModelUsageUnit.nullish(),
     tokenizerId: z.string().nullable(),
     tokenizerConfig: z.any(), // Assuming Prisma.JsonValue is any type
+    scope: z.enum(["PROJECT", "ORGANIZATION", "LANGFUSE"]),
+    /** Deprecated: true when the model cannot be changed through the project, use `scope`. */
     isLangfuseManaged: z.boolean(),
     createdAt: z.coerce.date(),
     prices: z.record(z.string(), z.object({ price: z.number() })),
@@ -61,7 +63,9 @@ const APIModelDefinition = z
  */
 
 export function prismaToApiModelDefinition({
+  scope,
   projectId,
+  organizationId,
   inputPrice,
   outputPrice,
   totalPrice,
@@ -105,7 +109,8 @@ export function prismaToApiModelDefinition({
     outputPrice: flatPrices.output?.price ?? outputPrice?.toNumber() ?? null,
     totalPrice: flatPrices.total?.price ?? totalPrice?.toNumber() ?? null,
     prices: flatPrices,
-    isLangfuseManaged: !Boolean(projectId),
+    scope,
+    isLangfuseManaged: scope !== "PROJECT",
     pricingTiers:
       pricingTiers?.map((tier) => ({
         id: tier.id,

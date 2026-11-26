@@ -5,11 +5,12 @@ import {
   instrumentAsync,
 } from "@langfuse/shared/src/server";
 import { SpanKind, type Span } from "@opentelemetry/api";
+import { isInputRequiredResult } from "@modelcontextprotocol/server";
 import { ZodError } from "zod";
 
 import { StructuredPublicApiError } from "@/src/features/public-api/types/structuredPublicApiError";
 
-import { isUserInputError } from "./errors";
+import { isUserInputError, McpQueryCooldownError } from "./errors";
 import type { ServerContext } from "../types";
 
 type McpToolAttribute = string | number | boolean;
@@ -49,9 +50,19 @@ export const runMcpTool = async <TResult>({
 
       try {
         const result = await fn(span);
-        span.setAttribute("mcp.outcome", "success");
+        // Asking the client for input is a normal round, not a failure.
+        span.setAttribute(
+          "mcp.outcome",
+          isInputRequiredResult(result) ? "input_required" : "success",
+        );
         return result;
       } catch (error) {
+        if (error instanceof McpQueryCooldownError) {
+          span.setAttribute("mcp.outcome", "throttled");
+          span.setAttribute("mcp.retry_after_seconds", error.retryAfterSeconds);
+          throw error;
+        }
+
         // Keep telemetry aligned with formatErrorForUser: resource limits
         // return actionable query guidance, not an unexpected server failure.
         // Response validators should wrap schema drift in a server-side BaseError.

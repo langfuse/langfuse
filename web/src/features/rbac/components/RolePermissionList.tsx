@@ -82,7 +82,7 @@ export const RolePermissionList = ({ role }: { role: SystemRole }) => {
     );
 
   return (
-    <div className="grid grid-cols-[max-content_1fr] items-center gap-x-6 gap-y-2 pb-5">
+    <div className="grid grid-cols-1 items-center gap-x-6 gap-y-1 pb-5 sm:grid-cols-[max-content_1fr] sm:gap-y-2">
       {resourceKindOrder.map((kind) => {
         const scopes = policies
           .filter((policy) => policy.resourceKind === kind)
@@ -97,13 +97,12 @@ export const RolePermissionList = ({ role }: { role: SystemRole }) => {
                 <span className="pl-4 text-xs leading-tight font-bold whitespace-nowrap">
                   {group.title}
                 </span>
-                <div className="flex flex-wrap gap-1 pr-4">
+                <div className="flex flex-wrap gap-1 px-4 pb-2 sm:pb-0 sm:pl-0">
                   {group.actions.map((action) => (
                     <Badge
                       key={action}
-                      color="primary"
+                      color="outline"
                       size="sm"
-                      font="mono"
                       text={action}
                     />
                   ))}
@@ -141,7 +140,7 @@ const SectionHeader = ({ label }: { label: string }) => {
     <span
       ref={ref}
       className={cn(
-        "bg-modal text-muted-foreground sticky -top-px z-10 col-span-2 block px-4 pt-4 pb-2 text-[0.65rem] font-bold tracking-wider uppercase",
+        "bg-modal text-muted-foreground sticky -top-px z-10 col-span-full block px-4 pt-4 pb-2 text-[0.65rem] font-bold tracking-wider uppercase",
         stuck && "shadow-[0_8px_8px_-4px_hsl(var(--modal))]",
       )}
     >

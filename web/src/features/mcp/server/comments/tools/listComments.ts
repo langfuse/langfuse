@@ -57,5 +57,5 @@ export const [listCommentsTool, handleListComments] = defineTool({
         };
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

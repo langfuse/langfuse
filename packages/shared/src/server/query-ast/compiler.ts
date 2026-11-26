@@ -9,6 +9,7 @@ import {
   FunctionNode,
   IdentifierNode,
   InsertQueryNode,
+  OperatorNode,
   ParensNode,
   RawNode,
   ReferenceNode,
@@ -22,8 +23,10 @@ import {
   type CommonTableExpressionNameNode,
   type CommonTableExpressionNode,
   type OperationNode,
+  type OrderByItemNode,
   type PrimitiveValueListNode,
   type RootOperationNode,
+  type SelectModifierNode,
   type SelectionNode,
   type ValueListNode,
 } from "kysely";
@@ -32,10 +35,14 @@ import { TupleParam } from "@clickhouse/client";
 
 import {
   ArrayJoinNode,
-  ArrayIndexNode,
-  FinalTableNode,
+  PLAIN_IDENTIFIER,
+  TypedParam,
+  asCustomNode,
+  compileCustomNode,
+  isRawReference,
   type ClickHouseSelectQueryNode,
   type LimitByNode,
+  type WithFillNode,
 } from "./nodes";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
 import { selectRelations } from "./relations";
@@ -49,8 +56,42 @@ const ARRAY_JOIN_SQL: Record<ArrayJoinNode["variant"], string> = {
   inner: "inner array join",
 };
 
-const PLAIN_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const TUPLE_INDEX = /^[1-9][0-9]*$/;
+
+/**
+ * Operators ClickHouse parses as operators. Kysely also builds others that
+ * ClickHouse reads as SQL text: `#` opens a line comment. `and` and `or` stay
+ * out: they compile as AndNode / OrNode, which the tenancy AND brackets.
+ */
+const CLICKHOUSE_OPERATORS = new Set([
+  "=",
+  "==",
+  "!=",
+  "<>",
+  "<",
+  "<=",
+  ">",
+  ">=",
+  "+",
+  "-",
+  "*",
+  "/",
+  "%",
+  "||",
+  "not",
+  "in",
+  "not in",
+  "is",
+  "is not",
+  "like",
+  "not like",
+  "ilike",
+  "not ilike",
+  "between",
+  "exists",
+  "not exists",
+  "->",
+]);
 
 const DATE_WRAPPER_FNS = new Set([
   "toDate",
@@ -68,6 +109,9 @@ const DATE_WRAPPER_FNS = new Set([
 // branch, because `String(value)` renders every plain object as
 // `[object Object]`.
 function canonicalParamValue(value: unknown): string {
+  if (value instanceof TypedParam) {
+    return `typed:${canonicalParamValue(value.value)}`;
+  }
   if (value instanceof Date) return `d:${value.toISOString()}`;
   if (value instanceof TupleParam) {
     return `t:${JSON.stringify(value.values)}`;
@@ -80,9 +124,11 @@ function canonicalParamValue(value: unknown): string {
 
 // A Date binds as the `YYYY-MM-DD hh:mm:ss.sss` UTC wall-clock string that
 // ingestion writes (`toClickhouseDateTime`). ClickHouse parses both in the
-// server timezone, so binds line up with stored rows on any server timezone.
+// column's timezone (the server's unless the type names one), so binds line
+// up with stored rows on any server timezone.
 // The string form also covers instants before 1970.
 function serializeParamValue(value: unknown): unknown {
+  if (value instanceof TypedParam) return value.value;
   if (value instanceof Date) {
     return value.toISOString().replace("T", " ").replace("Z", "");
   }
@@ -168,13 +214,7 @@ function typePreservedOperand(node: OperationNode): OperationNode {
 function columnReference(
   node: OperationNode,
 ): { column: string; qualifier: string | undefined } | undefined {
-  if (
-    RawNode.is(node) &&
-    node.parameters.length === 1 &&
-    node.sqlFragments.every((fragment) => fragment === "")
-  ) {
-    return columnReference(node.parameters[0]);
-  }
+  if (isRawReference(node)) return columnReference(node.parameters[0]);
   if (ColumnNode.is(node)) {
     return { column: node.column.name, qualifier: undefined };
   }
@@ -185,6 +225,21 @@ function columnReference(
     };
   }
   return undefined;
+}
+
+/**
+ * The leading name of a reference's table part: `t` for `t.col`, and `e` for
+ * `e.skills_available.skillName`, whose table part is `e.skills_available`.
+ */
+function qualifierOf(table: TableNode): string {
+  return table.table.schema?.name ?? table.table.identifier.name;
+}
+
+/** `asc` / `desc`, as Kysely builds the direction of `orderBy("t.x", "desc")`. */
+function isRawDirection(node: OperationNode): boolean {
+  if (!RawNode.is(node) || node.parameters.length > 0) return false;
+  const [text] = node.sqlFragments;
+  return text === "asc" || text === "desc";
 }
 
 type SelectScope = {
@@ -203,6 +258,8 @@ type SelectScope = {
    * name reads the relations: `sumIf(total_cost, total_cost > 1) AS total_cost`.
    */
   compilingAlias?: string;
+  /** FROM items plus JOINs, subqueries and CTE reads included; ARRAY JOIN is not one. */
+  relationCount: number;
 };
 
 /**
@@ -236,35 +293,44 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * operand looks up its table here to pick its registry bind type.
    */
   private selectScopes: SelectScope[] = [];
+  /**
+   * Parameters of the `->` lambdas enclosing the node being compiled. `x` and
+   * `x.1` in `arrayExists(x -> x.1 = 'a', arr)` read the array element, which
+   * binds by value.
+   */
+  private lambdaParams: string[] = [];
+  /**
+   * Set while visiting the column of a qualified reference, so
+   * {@link visitColumn} does not check it as bare. Reset by that visit.
+   */
+  private visitingQualifiedColumn = false;
+  /** Raw `asc` / `desc` nodes in an ORDER BY item's direction slot. */
+  private readonly directions = new WeakSet<OperationNode>();
 
-  constructor() {
+  /** Placeholders are named `<paramPrefix>1`, `<paramPrefix>2`, … */
+  constructor(private readonly paramPrefix = "p") {
     super();
-    // ArrayIndexNode is a custom node kind Kysely's dispatch cannot reach and
-    // Kysely has no public hook to register one, so we patch its private
-    // visitNode/nodeStack to route the node to visitArrayIndex. Kysely is
-    // pinned to 0.28.17 for this; see README.md ("upgrade hazard").
+    // A `CustomNode` (nodes.ts) is a kind Kysely's dispatch cannot reach and
+    // Kysely has no public hook to register one, so we patch its protected
+    // readonly visitNode/nodeStack to route each to `compileCustomNode`. Kysely
+    // is pinned to 0.29.9 for this; see README.md ("upgrade hazard").
     const parentVisit = this.visitNode.bind(this);
-    // Anti-pattern: cast through `unknown` once to reach Kysely's private
-    // `visitNode` / `nodeStack` (not part of the public type). Deliberate, to
-    // avoid a fork.
+    // Anti-pattern: cast through `unknown` once to reassign Kysely's readonly
+    // `visitNode` and read `nodeStack`.
     const self = this as unknown as {
       visitNode: (node: OperationNode) => void;
       nodeStack: OperationNode[];
     };
     self.visitNode = (node: OperationNode) => {
-      if (ArrayIndexNode.is(node)) {
-        self.nodeStack.push(node);
-        this.visitArrayIndex(node);
-        self.nodeStack.pop();
-        return;
-      }
-      if (FinalTableNode.is(node)) {
-        self.nodeStack.push(node);
-        this.visitFinalTable(node);
-        self.nodeStack.pop();
-        return;
-      }
-      parentVisit(node);
+      const custom = asCustomNode(node);
+      if (!custom) return parentVisit(node);
+      self.nodeStack.push(node);
+      compileCustomNode(
+        custom,
+        (child) => this.visitNode(child),
+        (sql) => this.append(sql),
+      );
+      self.nodeStack.pop();
     };
   }
 
@@ -272,6 +338,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.namedParameters = {};
     this.intern = new Map();
     this.selectScopes = [];
+    this.lambdaParams = [];
     assertTenancyStamped(node);
     return super.compileQuery(node, queryId);
   }
@@ -291,6 +358,55 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     return this.getSql();
   }
 
+  /**
+   * The WHERE of `node` as SQL, on a fresh compiler.
+   *
+   * Input: a select the plugin chain of `compileClickhouseCondition` returned.
+   *
+   * Output: `{ sql, params }` of its WHERE only; values take bind types from
+   * the FROM relations, as in a full compile.
+   *
+   * Errors: `node` was not stamped by the tenancy pass, or has no WHERE.
+   * The caller checks the condition is relation-free and that no pass
+   * changed more than the WHERE.
+   */
+  compileCondition(node: SelectQueryNode): {
+    sql: string;
+    params: Record<string, unknown>;
+  } {
+    assertTenancyStamped(node);
+    if (!node.where) {
+      throw new QueryCompileError("compileCondition needs a WHERE clause.");
+    }
+    this.selectScopes.push(this.selectScopeOf(node, []));
+    try {
+      this.visitNode(node.where.where);
+    } finally {
+      this.selectScopes.pop();
+    }
+    return { sql: this.getSql(), params: { ...this.namedParameters } };
+  }
+
+  /**
+   * Kysely writes unary minus without a space, so before an operand that
+   * starts with `-` (`-1`, `-x`) it would write the comment `--`. Reporting
+   * no operator as minus makes Kysely space every unary operator: `- -1`.
+   */
+  protected override isMinusOperator(
+    _node: OperationNode,
+  ): _node is OperatorNode {
+    return false;
+  }
+
+  protected override visitOperator(node: OperatorNode): void {
+    if (!CLICKHOUSE_OPERATORS.has(node.operator)) {
+      throw new UnscopedRelationError(
+        `Operator "${node.operator}" is rejected: ClickHouse does not parse it as an operator. Use a function from extensions.ts or eb.fn.`,
+      );
+    }
+    super.visitOperator(node);
+  }
+
   // Emit identifiers unquoted. `clickhouse format` normalizes to unquoted
   // identifiers, so returning empty wrappers is what keeps raw compiler output
   // byte-comparable with the golden snapshots. Dropping the quotes is safe
@@ -304,8 +420,8 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   }
 
   /**
-   * Every identifier (column, table, schema, alias, CTE name, `sql.ref`,
-   * `sql.id`) is written unquoted, so a name that is not a plain identifier
+   * Every identifier (column, table, schema, alias, CTE name, `sql.ref`) is
+   * written unquoted, so a name that is not a plain identifier
    * would be raw SQL: the alias `x from scores --` comments out the tenancy
    * predicate after it.
    */
@@ -330,11 +446,120 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       ColumnNode.is(node.column) &&
       TUPLE_INDEX.test(node.column.column.name)
     ) {
+      this.assertQualifierResolves(qualifierOf(node.table));
       this.visitNode(node.table);
       this.append(`.${node.column.column.name}`);
       return;
     }
-    super.visitReference(node);
+    if (!node.table) {
+      super.visitReference(node);
+      return;
+    }
+    this.assertQualifierResolves(qualifierOf(node.table));
+    this.visitNode(node.table);
+    this.append(".");
+    this.visitingQualifiedColumn = true;
+    try {
+      this.visitNode(node.column);
+    } finally {
+      this.visitingQualifiedColumn = false;
+    }
+  }
+
+  /**
+   * ClickHouse binds an unqualified column of a SELECT with several relations
+   * to the left-most one that has it, without an ambiguity error. There, a
+   * bare name must be an enclosing lambda's parameter or an output alias of
+   * that SELECT, ARRAY JOIN aliases included; anything else throws. An alias
+   * read inside its own expression reads the relations, so
+   * `max(timestamp) AS timestamp` and `ARRAY JOIN tags AS tags` throw too.
+   * Each SELECT is checked against its own relations: a single-relation
+   * subquery may use bare names.
+   */
+  protected override visitColumn(node: ColumnNode): void {
+    if (!this.visitingQualifiedColumn) {
+      this.assertBareNameResolves(node.column.name);
+    }
+    this.visitingQualifiedColumn = false;
+    super.visitColumn(node);
+  }
+
+  /**
+   * Raw SQL compiles only in the shapes Kysely builds for builder calls: a
+   * column reference (`sql.ref("t.x")`) and an ORDER BY direction (`asc` /
+   * `desc`). Any other raw SQL (`` sql`…` ``, `sql.raw`, `sql.lit`, `sql.id`,
+   * `sql.table`, `sql.join`) writes text the passes cannot read, which can
+   * read a relation unscoped or leave its slot.
+   */
+  protected override visitRaw(node: RawNode): void {
+    if (!isRawReference(node) && !this.directions.has(node)) {
+      throw new UnscopedRelationError(
+        "Raw SQL is rejected: only sql.ref(...) and an ORDER BY direction compile. Use builder expressions, a function from extensions.ts (or eb.fn for one on the allowlist), sql.ref(...) for a column, literal(...) / typedValue(...) / emptyMap() for a constant, or a bound value.",
+      );
+    }
+    super.visitRaw(node);
+  }
+
+  protected override visitOrderByItem(node: OrderByItemNode): void {
+    if (node.direction && isRawDirection(node.direction)) {
+      this.directions.add(node.direction);
+    }
+    super.visitOrderByItem(node);
+  }
+
+  /** `modifyFront` / `modifyEnd` write raw SQL before or after a select. */
+  protected override visitSelectModifier(node: SelectModifierNode): void {
+    if (node.rawModifier) {
+      throw new UnscopedRelationError(
+        "modifyFront/modifyEnd are rejected: raw text before or after a select can rewrite what the tenancy pass scoped. Express the clause with the builder or an extensions.ts helper.",
+      );
+    }
+    super.visitSelectModifier(node);
+  }
+
+  private assertBareNameResolves(name: string): void {
+    const scope = this.selectScopes.at(-1);
+    if (!scope || scope.relationCount <= 1) return;
+    if (this.resolvesToLambdaOrAlias(name, scope)) return;
+    throw new QueryCompileError(
+      `Column "${name}" is unqualified in a SELECT that reads ${scope.relationCount} relations; ClickHouse would bind it to the left-most relation that has it. Qualify it with its relation's alias, e.g. "<alias>.${name}".`,
+    );
+  }
+
+  /**
+   * The qualifier of `q.x` must name a relation in scope, a lambda parameter
+   * or an output alias. Otherwise `q` is a bare column and `.x` its subcolumn
+   * or tuple element (`metadata.keys`, `tags.1`). A SELECT with one relation
+   * reads that from its relation, so `q` must be one of its registry columns;
+   * with several, ClickHouse reads it from the left-most relation that has `q`.
+   */
+  private assertQualifierResolves(qualifier: string): void {
+    const scope = this.selectScopes.at(-1);
+    if (!scope || scope.relationCount === 0) return;
+    if (this.selectScopes.some((s) => s.relations.has(qualifier))) return;
+    if (this.resolvesToLambdaOrAlias(qualifier, scope)) return;
+    if (scope.relationCount === 1) {
+      if (this.relationHasColumn(scope, qualifier)) return;
+      throw new QueryCompileError(
+        `Qualifier "${qualifier}" names no relation, registry column, lambda parameter or output alias of its SELECT. Qualify the column with an alias the query declares, join the relation it reads, or add the column to the registry in schema.ts.`,
+      );
+    }
+    throw new QueryCompileError(
+      `Qualifier "${qualifier}" names no relation of a SELECT that reads ${scope.relationCount} relations; as a column, ClickHouse would read it from the left-most relation that has it. Qualify it with its relation's alias, e.g. "<alias>.${qualifier}".`,
+    );
+  }
+
+  /** An opaque relation counts as lacking the column, so the check fails closed. */
+  private relationHasColumn(scope: SelectScope, column: string): boolean {
+    return [...scope.relations.values()].some(
+      (columns) =>
+        !(columns instanceof OpaqueRelation) && Object.hasOwn(columns, column),
+    );
+  }
+
+  private resolvesToLambdaOrAlias(name: string, scope: SelectScope): boolean {
+    if (this.lambdaParams.includes(name)) return true;
+    return scope.aliases.has(name) && scope.compilingAlias !== name;
   }
 
   /**
@@ -362,6 +587,35 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     );
   }
 
+  /**
+   * Every string the compiler inlines (`literal(...)`) passes here.
+   * Kysely doubles `'` but leaves `\`, which ClickHouse reads as an escape:
+   * `'a\'` would not end the string, and the next literal's text would run
+   * as SQL.
+   */
+  protected override sanitizeStringLiteral(value: string): string {
+    if (value.includes("\\")) {
+      throw new QueryCompileError(
+        `An inlined string literal holds a backslash, which ClickHouse reads as an escape: ${value}. Bind the value instead.`,
+      );
+    }
+    return super.sanitizeStringLiteral(value);
+  }
+
+  /** `eb.ref(col, "->>$")` writes `->` / `->>`, which ClickHouse cannot parse. */
+  protected override visitJSONReference(): void {
+    throw new QueryCompileError(
+      "JSON references (eb.ref(col, '->')) are not supported: ClickHouse has no -> or ->> operator. Use a function from extensions.ts or eb.fn.",
+    );
+  }
+
+  /** `eb.jsonPath()` inlines its keys into a string literal unchecked. */
+  protected override visitJSONPath(): void {
+    throw new QueryCompileError(
+      "JSON paths (eb.jsonPath()) are not supported. Bind the path as a value instead.",
+    );
+  }
+
   protected override appendValue(parameter: unknown): void {
     this.append(this.bindValue(parameter, this.pendingBindType));
   }
@@ -371,14 +625,32 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * registry type so an integer compared to a Float column still emits
    * `{p:Float64}` rather than inferred `{p:Int64}`.
    */
+  /**
+   * Kysely accepts any expression as a binary operator. A reference there
+   * writes a bare keyword such as `or`, which escapes the tenancy predicate.
+   */
   protected override visitBinaryOperation(node: BinaryOperationNode): void {
-    const columnType =
-      this.bindTypeOfColumnOperand(node.leftOperand) ??
-      this.bindTypeOfColumnOperand(node.rightOperand);
+    if (!OperatorNode.is(node.operator)) {
+      throw new UnscopedRelationError(
+        `The ${node.operator.kind} in an operator slot is not an operator. Pass the operator as a string.`,
+      );
+    }
+    const params = lambdaParams(node);
+    if (params) this.lambdaParams.push(...params);
+    const columnType = params
+      ? undefined
+      : (this.bindTypeOfColumnOperand(node.leftOperand) ??
+        this.bindTypeOfColumnOperand(node.rightOperand));
     const previous = this.pendingBindType;
-    if (columnType) this.pendingBindType = columnType;
-    super.visitBinaryOperation(node);
-    this.pendingBindType = previous;
+    // A lambda body's values are not compared to the enclosing operand.
+    if (params) this.pendingBindType = undefined;
+    else if (columnType) this.pendingBindType = columnType;
+    try {
+      super.visitBinaryOperation(node);
+    } finally {
+      if (params) this.lambdaParams.length -= params.length;
+      this.pendingBindType = previous;
+    }
   }
 
   /**
@@ -498,6 +770,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       cte: this.cteLookup(node, enclosing),
       relations: new Map(),
       aliases: new Map(),
+      relationCount: selectRelations(node).length,
     };
     for (const { selection } of node.selections ?? []) {
       if (AliasNode.is(selection) && IdentifierNode.is(selection.alias)) {
@@ -571,10 +844,19 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     super.visitCommonTableExpressionName(node);
   }
 
-  /** A CTE body does not see the declaring SELECT's FROM relations. */
+  /**
+   * A CTE body does not see the declaring SELECT's FROM relations. A body
+   * that is not a select writes `with x as <expr>`, a WITH alias: `FROM x`
+   * then reads the physical table `x`, which the tenancy pass took for the CTE.
+   */
   protected override visitCommonTableExpression(
     node: CommonTableExpressionNode,
   ): void {
+    if (!SelectQueryNode.is(node.expression)) {
+      throw new UnscopedRelationError(
+        `CTE "${cteName(node)}" has a body that is not a select query: ClickHouse reads it as a WITH alias, so FROM "${cteName(node)}" would read a table of that name. Write the body as a select.`,
+      );
+    }
     const declaring = this.selectScopes.pop();
     if (!declaring) {
       super.visitCommonTableExpression(node);
@@ -587,6 +869,16 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       this.selectScopes.pop();
       this.selectScopes.push(declaring);
     }
+  }
+
+  /** A UNION / INTERSECT / EXCEPT operand that is not a select names a relation the passes never scoped. */
+  protected override visitSetOperation(node: SetOperationNode): void {
+    if (!SelectQueryNode.is(node.expression)) {
+      throw new UnscopedRelationError(
+        `A ${node.operator} operand is not a select query, so the compiler passes cannot scope what it reads. Write the operand as a select.`,
+      );
+    }
+    super.visitSetOperation(node);
   }
 
   /**
@@ -638,7 +930,9 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * select takes the type of the column it names, through a type-preserving
    * aggregate and through other aliases (`count() AS value, value AS v2`); a
    * computed or ARRAY JOIN alias binds by value. An alias read inside its own
-   * expression reads the relations: `max(start_time) AS start_time`.
+   * expression reads the relations: `max(start_time) AS start_time`. An
+   * enclosing lambda's parameter, or a tuple element of it, binds by value:
+   * the parameter shadows any column or alias of the same name.
    */
   private columnBindType(
     column: string,
@@ -646,6 +940,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     scopes: readonly SelectScope[] = this.selectScopes,
     resolving: ReadonlySet<string> = new Set(),
   ): BindType | undefined {
+    if (this.lambdaParams.includes(qualifier ?? column)) return undefined;
     if (qualifier) return qualifiedBindType(column, qualifier, scopes);
     const scope = scopes.at(-1);
     const aliased =
@@ -694,15 +989,17 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 
   /**
    * Wholesale copy of Kysely's `DefaultQueryCompiler.visitSelectQuery` (kept in
-   * sync with the pinned 0.28.17) with two ClickHouse-only insertions:
+   * sync with the pinned 0.29.9) with three ClickHouse-only insertions:
    *   - the ARRAY JOIN block, emitted after JOINs and before WHERE (line ~193)
+   *   - the WITH FILL block, emitted right after ORDER BY
    *   - the LIMIT BY block, emitted before LIMIT (line ~225)
-   * Both read extra fields off {@link ClickHouseSelectQueryNode}. Every other
+   * All read extra fields off {@link ClickHouseSelectQueryNode}. Every other
    * clause mirrors the parent verbatim. We override the whole method rather
    * than call `super` because the parent emits clauses in a fixed order and
    * offers no hook to inject a clause between JOIN and WHERE.
    */
   private visitSelectQueryBody(node: SelectQueryNode): void {
+    // `(select …)` when nested, unless the parent already brackets or owns it.
     const wrapInParens =
       this.parentNode !== undefined &&
       !ParensNode.is(this.parentNode) &&
@@ -790,6 +1087,16 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       this.visitNode(node.orderBy);
     }
 
+    if (chNode.withFill) {
+      if (!node.orderBy) {
+        throw new QueryCompileError(
+          "WITH FILL fills the last ORDER BY item; add an orderBy before withFill().",
+        );
+      }
+      this.append(" ");
+      this.visitWithFill(chNode.withFill);
+    }
+
     if (chNode.limitBy) {
       this.append(" ");
       this.visitLimitBy(chNode.limitBy);
@@ -812,7 +1119,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 
     if (node.endModifiers?.length) {
       this.append(" ");
-      this.compileList(this.sortSelectModifiers([...node.endModifiers]), " ");
+      this.compileList(this.sortSelectModifiers(node.endModifiers), " ");
     }
 
     if (wrapInParens) {
@@ -820,22 +1127,32 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     }
   }
 
-  private visitArrayIndex(node: ArrayIndexNode): void {
-    this.visitNode(node.array);
-    this.append("[");
-    this.visitNode(node.index);
-    this.append("]");
-  }
-
   private visitArrayJoin(node: ArrayJoinNode): void {
     this.append(ARRAY_JOIN_SQL[node.variant]);
     this.append(" ");
+    const scope = this.selectScopes.at(-1);
     node.items.forEach((item, index) => {
       if (index > 0) this.append(", ");
-      this.visitNode(item.expression);
+      // `array join tags as tags`: inside its own expression, `tags` reads
+      // the relations, as for a select alias.
+      if (scope) scope.compilingAlias = item.alias.name;
+      try {
+        this.visitNode(item.expression);
+      } finally {
+        if (scope) scope.compilingAlias = undefined;
+      }
       this.append(" as ");
       this.visitNode(item.alias);
     });
+  }
+
+  private visitWithFill(node: WithFillNode): void {
+    this.append("with fill from ");
+    this.visitNode(node.from);
+    this.append(" to ");
+    this.visitNode(node.to);
+    this.append(" step ");
+    this.visitNode(node.step);
   }
 
   private visitLimitBy(node: LimitByNode): void {
@@ -845,11 +1162,6 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.compileList(node.columns);
   }
 
-  private visitFinalTable(node: FinalTableNode): void {
-    this.visitNode(node.table);
-    this.append(" final");
-  }
-
   private bindValue(value: unknown, type?: OperandBindType): string {
     // `type` is the caller-known ClickHouse type; when omitted we infer the
     // widest canonical type from the JS value (Int64 / Float64 / String /
@@ -857,6 +1169,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     // still coerces it to the compared column's type — so the widening cases we
     // emit are safe. Pass `type` explicitly where exact width or precision
     // matters (e.g. a Decimal column, where inferred Float64 could round).
+    assertNoNestedTypedParam(value);
     const inferred = resolveBindType(value, type);
     const key = `${inferred}:${canonicalParamValue(value)}`;
     const existing = this.intern.get(key);
@@ -864,11 +1177,27 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       return `{${existing}:${inferred}}`;
     }
     this.addParameter(value);
-    const name = `p${this.intern.size + 1}`;
+    const name = `${this.paramPrefix}${this.intern.size + 1}`;
     this.intern.set(key, name);
     this.namedParameters[name] = serializeParamValue(value);
     return `{${name}:${inferred}}`;
   }
+}
+
+/**
+ * Parameter names of an `x -> body` or `(k, v) -> body` lambda, or undefined
+ * for any other operation.
+ */
+function lambdaParams(node: BinaryOperationNode): string[] | undefined {
+  if (!OperatorNode.is(node.operator) || node.operator.operator !== "->") {
+    return undefined;
+  }
+  const params = TupleNode.is(node.leftOperand)
+    ? node.leftOperand.values
+    : [node.leftOperand];
+  return params.every(ColumnNode.is)
+    ? params.map((param) => param.column.name)
+    : undefined;
 }
 
 /**
@@ -877,7 +1206,12 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
  * earlier siblings (`ctes.ts`), so typing a body never reaches itself.
  */
 function cteBodyScope(scope: Pick<SelectScope, "cte">): SelectScope {
-  return { cte: scope.cte, relations: new Map(), aliases: new Map() };
+  return {
+    cte: scope.cte,
+    relations: new Map(),
+    aliases: new Map(),
+    relationCount: 0,
+  };
 }
 
 function assertPlainName(kind: string, name: string, fix: string): void {
@@ -894,6 +1228,23 @@ function assertNotMixedValueList(node: ValueListNode): void {
   if (hasLiteral && hasBound) {
     throw new QueryCompileError(
       "An IN list mixes literal(...) items with bound values. Wrap every item in literal(...) or none.",
+    );
+  }
+}
+
+/**
+ * A {@link TypedParam} binds with its own type only as a whole value. As an
+ * element of one array bind (`name in [typedValue("a", "LowCardinality(String)")]`
+ * → `{p:Array(String)}`), its type would be dropped and the wrapper object
+ * sent as the value.
+ */
+function assertNoNestedTypedParam(value: unknown): void {
+  let elements: readonly unknown[] = [];
+  if (value instanceof TupleParam) elements = value.values;
+  else if (Array.isArray(value)) elements = value;
+  if (elements.some((element) => element instanceof TypedParam)) {
+    throw new QueryCompileError(
+      "A typedValue(...) inside an IN list or tuple loses its type. Pass plain values (they bind with the compared column's type), or one typedValue over the whole array.",
     );
   }
 }
@@ -927,16 +1278,17 @@ function qualifiedBindType(
     return relation[column] ?? undefined;
   }
   return {
-    reason: `Cannot type the value compared to ${qualifier}.${column}: no relation in scope is named "${qualifier}". Qualify the column with an alias this query declares.`,
+    reason: `Cannot type the value compared to ${qualifier}.${column}: "${qualifier}" names no relation in scope, so it is read as a column, whose subcolumns and tuple elements the registry does not type. Bind the value with typedValue(...).`,
   };
 }
 
 /**
- * Bind type of an unqualified `column` in `scope`: the type its relations
- * agree on, or undefined when none has it or they all output it computed.
- * Unknown when an opaque relation could provide it, or when relations type
- * it differently, computed counting as a type of its own (ClickHouse then
- * reads the leftmost one).
+ * Bind type of an unqualified `column` in `scope`: its type in the relation
+ * that has it, or undefined when none has it or it is computed. Unknown when
+ * an opaque relation could provide it. A scope with several relations has
+ * the type of the left-most one that has it, as ClickHouse reads; the
+ * compiler rejects that column when it visits it ({@link
+ * ClickHouseQueryCompiler.visitColumn}).
  */
 function unqualifiedBindType(
   column: string,
@@ -967,25 +1319,20 @@ function unqualifiedBindType(
     (bindType): bindType is UnknownBindType =>
       bindType !== null && typeof bindType !== "string",
   );
-  if (unknown) return unknown;
-  if (candidates.length > 1) {
-    const types = candidates.map((bindType) => bindType ?? "a computed value");
-    return {
-      reason: `Cannot type the value compared to ${column}: the joined relations give it different types (${types.join(", ")}). Qualify the column with its relation's alias.`,
-    };
-  }
-  return candidates[0] ?? undefined;
+  return unknown ?? candidates[0] ?? undefined;
 }
 
 /**
  * The ClickHouse type `value` binds as against an operand of bind type
- * `type`: inferred from the value where `type` names none, per element for
- * a tuple. Throws where an unknown type would decide it.
+ * `type`: a {@link TypedParam}'s own type, else inferred from the value where
+ * `type` names none, per element for a tuple. Throws where an unknown type
+ * would decide it.
  */
 function resolveBindType(
   value: unknown,
   type: OperandBindType | undefined,
 ): string {
+  if (value instanceof TypedParam) return value.type;
   if (type === undefined) return inferClickHouseType(value);
   if (typeof type === "string") return type;
   if (!isTupleBindType(type)) throw new QueryCompileError(type.reason);

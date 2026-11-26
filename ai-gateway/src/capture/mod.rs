@@ -1,6 +1,8 @@
 mod anthropic_messages;
 mod facts;
 mod openai_chat_completions;
+mod openai_decisions;
+mod openai_embeddings;
 mod openai_responses;
 mod response;
 mod sse;
@@ -17,16 +19,32 @@ use tokio::time::Instant;
 use crate::{
     correlation::RequestCorrelation,
     resolution::{ApiFormat, IngestionMode, MetadataValue, ResolvedRequestContext},
-    telemetry,
+    telemetry, transport,
 };
 use anthropic_messages::AnthropicMessagesCapture;
 pub(crate) use facts::ProviderFacts;
-pub(crate) use facts::{InferenceFacts, InputOmission, InputOmissionReason, RelayOutcome};
+pub(crate) use facts::{
+    GatewayRejection, InferenceFacts, InputOmission, InputOmissionReason, RelayOutcome,
+};
 use openai_chat_completions::OpenAiChatCompletionsCapture;
+use openai_decisions::OpenAiDecisionsCapture;
+use openai_embeddings::OpenAiEmbeddingsCapture;
 use openai_responses::OpenAiResponsesCapture;
 
 pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
 pub(crate) const MAX_OUTPUT_CAPTURE_BYTES: usize = 1024 * 1024;
+/// Largest JSON body or single SSE event read for usage of a request charged to
+/// spend limits. Usage can sit next to a large output, such as a base64 image in a
+/// completed Responses event, so this is larger than the output kept for telemetry.
+/// Other requests read up to `MAX_OUTPUT_CAPTURE_BYTES`, which the fixed request
+/// overhead reservation covers; a charged one reserves the rest only once a body
+/// or event outgrows it.
+pub(crate) const MAX_RESPONSE_PARSE_BYTES: usize = 8 * 1024 * 1024;
+
+/// Reserves the memory for a response parse past `MAX_OUTPUT_CAPTURE_BYTES`, held
+/// until the execution ends; `None` when the shared budget cannot cover it.
+pub(crate) type ResponseParseGrowth =
+    Box<dyn FnOnce() -> Option<Box<dyn Send + Sync>> + Send + Sync>;
 const MAX_ITEMS: usize = 256;
 const MAX_FACT_STRING: usize = 512;
 const MAX_PROJECTED_BYTES: usize = 64 * 1024;
@@ -34,37 +52,89 @@ const MAX_PROJECTED_BYTES: usize = 64 * 1024;
 enum ProtocolCapture {
     OpenAiResponses(OpenAiResponsesCapture),
     OpenAiChatCompletions(OpenAiChatCompletionsCapture),
+    OpenAiDecisions(OpenAiDecisionsCapture),
+    OpenAiEmbeddings(OpenAiEmbeddingsCapture),
     AnthropicMessages(AnthropicMessagesCapture),
 }
 
 impl ProtocolCapture {
-    fn new(api_format: ApiFormat, headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
+    fn new(
+        api_format: ApiFormat,
+        headers: &HeaderMap,
+        input: RequestInput,
+        mode: IngestionMode,
+    ) -> Self {
+        let request = RawRequest::from_input(headers, input);
         match api_format {
             ApiFormat::OpenAiResponses => {
-                Self::OpenAiResponses(OpenAiResponsesCapture::new(headers, body, mode))
+                Self::OpenAiResponses(OpenAiResponsesCapture::new(request, mode))
             }
             ApiFormat::OpenAiChatCompletions => {
-                Self::OpenAiChatCompletions(OpenAiChatCompletionsCapture::new(headers, body, mode))
+                Self::OpenAiChatCompletions(OpenAiChatCompletionsCapture::new(request, mode))
+            }
+            ApiFormat::OpenAiDecisions => {
+                Self::OpenAiDecisions(OpenAiDecisionsCapture::new(request, mode))
+            }
+            ApiFormat::OpenAiEmbeddings => {
+                Self::OpenAiEmbeddings(OpenAiEmbeddingsCapture::new(request, mode))
             }
             ApiFormat::AnthropicMessages => {
-                Self::AnthropicMessages(AnthropicMessagesCapture::new(headers, body, mode))
+                Self::AnthropicMessages(AnthropicMessagesCapture::new(request, mode))
             }
+        }
+    }
+
+    fn api_format(&self) -> ApiFormat {
+        match self {
+            Self::OpenAiResponses(_) => ApiFormat::OpenAiResponses,
+            Self::OpenAiChatCompletions(_) => ApiFormat::OpenAiChatCompletions,
+            Self::OpenAiDecisions(_) => ApiFormat::OpenAiDecisions,
+            Self::OpenAiEmbeddings(_) => ApiFormat::OpenAiEmbeddings,
+            Self::AnthropicMessages(_) => ApiFormat::AnthropicMessages,
+        }
+    }
+
+    fn facts_mut(&mut self) -> &mut ProviderFacts {
+        match self {
+            Self::OpenAiResponses(capture) => &mut capture.facts,
+            Self::OpenAiChatCompletions(capture) => &mut capture.facts,
+            Self::OpenAiDecisions(capture) => &mut capture.facts,
+            Self::OpenAiEmbeddings(capture) => &mut capture.facts,
+            Self::AnthropicMessages(capture) => &mut capture.facts,
         }
     }
 
     fn record_response(&mut self, headers: &HeaderMap) {
+        let api_format = self.api_format();
+        self.facts_mut().provider_request_id =
+            transport::provider_request_id(headers, api_format).map(str::to_owned);
         match self {
             Self::OpenAiResponses(capture) => capture.record_response(headers),
             Self::OpenAiChatCompletions(capture) => capture.record_response(headers),
+            Self::OpenAiDecisions(capture) => capture.record_response(headers),
+            Self::OpenAiEmbeddings(capture) => capture.record_response(headers),
             Self::AnthropicMessages(capture) => capture.record_response(headers),
         }
     }
 
-    fn push_bytes(&mut self, bytes: &[u8]) -> bool {
+    fn push_bytes(&mut self, bytes: &[u8], parse_limit: usize) -> bool {
         match self {
-            Self::OpenAiResponses(capture) => capture.push_bytes(bytes),
-            Self::OpenAiChatCompletions(capture) => capture.push_bytes(bytes),
-            Self::AnthropicMessages(capture) => capture.push_bytes(bytes),
+            Self::OpenAiResponses(capture) => capture.push_bytes(bytes, parse_limit),
+            Self::OpenAiChatCompletions(capture) => capture.push_bytes(bytes, parse_limit),
+            Self::OpenAiDecisions(capture) => capture.push_bytes(bytes, parse_limit),
+            Self::OpenAiEmbeddings(capture) => capture.push_bytes(bytes),
+            Self::AnthropicMessages(capture) => capture.push_bytes(bytes, parse_limit),
+        }
+    }
+
+    /// Bytes of the JSON body or the SSE event being read.
+    fn buffered_len(&self) -> usize {
+        match self {
+            Self::OpenAiResponses(capture) => capture.body.buffered_len(),
+            Self::OpenAiChatCompletions(capture) => capture.body.buffered_len(),
+            Self::OpenAiDecisions(capture) => capture.body.buffered_len(),
+            Self::OpenAiEmbeddings(_) => 0,
+            Self::AnthropicMessages(capture) => capture.body.buffered_len(),
         }
     }
 
@@ -72,25 +142,59 @@ impl ProtocolCapture {
         match self {
             Self::OpenAiResponses(capture) => capture.end_body(),
             Self::OpenAiChatCompletions(capture) => capture.end_body(),
+            Self::OpenAiDecisions(capture) => capture.end_body(),
+            Self::OpenAiEmbeddings(capture) => capture.end_body(),
             Self::AnthropicMessages(capture) => capture.end_body(),
         }
     }
 
-    fn into_facts(self) -> (&'static str, ProviderFacts) {
-        match self {
-            Self::OpenAiResponses(capture) => ("openai.responses", capture.into_facts()),
-            Self::OpenAiChatCompletions(capture) => {
-                ("openai.chat-completions", capture.into_facts())
-            }
-            Self::AnthropicMessages(capture) => ("anthropic.messages", capture.into_facts()),
-        }
+    fn into_facts(self) -> (ApiFormat, ProviderFacts) {
+        let api_format = self.api_format();
+        let facts = match self {
+            Self::OpenAiResponses(capture) => capture.into_facts(),
+            Self::OpenAiChatCompletions(capture) => capture.into_facts(),
+            Self::OpenAiDecisions(capture) => capture.into_facts(),
+            Self::OpenAiEmbeddings(capture) => capture.into_facts(),
+            Self::AnthropicMessages(capture) => capture.into_facts(),
+        };
+        (api_format, facts)
     }
 
     fn client_metadata(&self) -> Option<&Map<String, Value>> {
         match self {
             Self::OpenAiResponses(capture) => capture.client_metadata(),
-            Self::OpenAiChatCompletions(_) | Self::AnthropicMessages(_) => None,
+            Self::OpenAiChatCompletions(_)
+            | Self::OpenAiDecisions(_)
+            | Self::OpenAiEmbeddings(_)
+            | Self::AnthropicMessages(_) => None,
         }
+    }
+}
+
+/// The top-level members of a request in `api_format` that hold the conversation
+/// guardrails scan.
+pub(crate) fn guardrail_members(api_format: ApiFormat) -> &'static [&'static str] {
+    match api_format {
+        ApiFormat::OpenAiChatCompletions => openai_chat_completions::GUARDRAIL_MEMBERS,
+        ApiFormat::OpenAiResponses => openai_responses::GUARDRAIL_MEMBERS,
+        ApiFormat::AnthropicMessages => anthropic_messages::GUARDRAIL_MEMBERS,
+        ApiFormat::OpenAiEmbeddings => openai_embeddings::GUARDRAIL_MEMBERS,
+        ApiFormat::OpenAiDecisions => openai_decisions::GUARDRAIL_MEMBERS,
+    }
+}
+
+/// Finds the request's last turn in the members of [`guardrail_members`] that
+/// `member` returns.
+pub(crate) fn guardrail_turn<'a>(
+    api_format: ApiFormat,
+    member: impl Fn(&str) -> Option<&'a str>,
+) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
+    match api_format {
+        ApiFormat::OpenAiChatCompletions => openai_chat_completions::guardrail_turn(member),
+        ApiFormat::OpenAiResponses => openai_responses::guardrail_turn(member),
+        ApiFormat::AnthropicMessages => anthropic_messages::guardrail_turn(member),
+        ApiFormat::OpenAiEmbeddings => Ok(openai_embeddings::guardrail_turn(member)),
+        ApiFormat::OpenAiDecisions => Ok(openai_decisions::guardrail_turn(member)),
     }
 }
 
@@ -110,6 +214,11 @@ pub(crate) struct ExecutionCapture {
     metadata: Value,
     provider_model: Option<String>,
     delivery: Option<(telemetry::Telemetry, telemetry::DeliveryContext)>,
+    spend_limits: Option<crate::spend::SpendRecording>,
+    /// Largest JSON body or single SSE event read from the response.
+    response_parse_limit: usize,
+    parse_growth: Option<ResponseParseGrowth>,
+    parse_reservation: Option<Box<dyn Send + Sync>>,
 }
 
 impl ExecutionCapture {
@@ -131,6 +240,10 @@ impl ExecutionCapture {
             metadata: json!({}),
             provider_model: None,
             delivery: None,
+            spend_limits: None,
+            response_parse_limit: MAX_OUTPUT_CAPTURE_BYTES,
+            parse_growth: None,
+            parse_reservation: None,
         }
     }
 
@@ -138,9 +251,10 @@ impl ExecutionCapture {
         api_format: ApiFormat,
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
-        body: &[u8],
+        input: RequestInput,
     ) -> Self {
         let started = Instant::now();
+        let request_body_bytes = input.body_bytes;
         let start_time_unix_ms = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -161,13 +275,13 @@ impl ExecutionCapture {
             })
             .collect();
         let span = tracing::Span::current();
-        // Parsing the whole request is CPU-bound and scales with the body.
+        // Projecting the parsed members into the input is CPU-bound and scales with the body.
         let protocol = tracing::info_span!(
             "request.capture",
             otel.kind = "internal",
-            http.request.body.size = i64::try_from(body.len()).unwrap_or(i64::MAX)
+            http.request.body.size = i64::try_from(request_body_bytes).unwrap_or(i64::MAX)
         )
-        .in_scope(|| ProtocolCapture::new(api_format, headers, body, context.ingestion_mode()));
+        .in_scope(|| ProtocolCapture::new(api_format, headers, input, context.ingestion_mode()));
         Self {
             span,
             protocol: Some(protocol),
@@ -177,7 +291,7 @@ impl ExecutionCapture {
             completion_start_ms: None,
             http_status: None,
             retry_after_ms: None,
-            request_body_bytes: body.len(),
+            request_body_bytes,
             response_body_bytes: 0,
             metadata: json!({
                 "organization_id": attribution.organization_id().as_str(),
@@ -194,6 +308,10 @@ impl ExecutionCapture {
             }),
             provider_model: None,
             delivery: None,
+            spend_limits: None,
+            response_parse_limit: MAX_OUTPUT_CAPTURE_BYTES,
+            parse_growth: None,
+            parse_reservation: None,
         }
     }
 
@@ -214,15 +332,40 @@ impl ExecutionCapture {
             return;
         };
         correlation.record_generation(delivery.generation_ids());
-        self.metadata["request_id"] = json!(correlation.id());
-        if let Some(client_id) = correlation.client_id() {
-            self.metadata["client_request_id"] = json!(client_id);
+        if let Some(metadata) = self.metadata.as_object_mut() {
+            metadata.insert("request_id".into(), json!(correlation.id()));
+            if let Some(client_id) = correlation.client_id() {
+                metadata.insert("client_request_id".into(), json!(client_id));
+            }
         }
         self.delivery = Some((telemetry, delivery));
     }
 
+    /// A charged request parses responses up to `MAX_RESPONSE_PARSE_BYTES` to find
+    /// their usage, growing its memory reservation once a body or event needs it.
+    pub(crate) fn charge_on_finish(
+        &mut self,
+        spend_limits: Option<crate::spend::SpendRecording>,
+        parse_growth: Option<ResponseParseGrowth>,
+    ) {
+        if spend_limits.is_some() {
+            self.parse_growth = parse_growth;
+        }
+        self.spend_limits = spend_limits;
+    }
+
     pub(crate) fn set_provider_model(&mut self, model: &str) {
         self.provider_model = bounded_string(model);
+    }
+
+    /// Lists the guardrails the request matched in the generation's metadata, by id,
+    /// action and location, so generations can be filtered by each.
+    pub(crate) fn record_guardrails(&mut self, guardrails: &[crate::guardrails::Finding]) {
+        if !guardrails.is_empty()
+            && let Some(metadata) = self.metadata.as_object_mut()
+        {
+            metadata.insert("guardrails".into(), json!(guardrails));
+        }
     }
 
     pub(crate) fn record_response(&mut self, status: u16, headers: &HeaderMap) {
@@ -242,7 +385,16 @@ impl ExecutionCapture {
                 self.first_byte_ms
                     .get_or_insert_with(|| self.started.elapsed().as_millis());
             }
-            if protocol.push_bytes(bytes) {
+            let limit = self.response_parse_limit;
+            if let Some(grow) = self
+                .parse_growth
+                .take_if(|_| protocol.buffered_len().saturating_add(bytes.len()) > limit)
+                && let Some(reservation) = grow()
+            {
+                self.parse_reservation = Some(reservation);
+                self.response_parse_limit = MAX_RESPONSE_PARSE_BYTES;
+            }
+            if protocol.push_bytes(bytes, self.response_parse_limit) {
                 self.completion_start_ms
                     .get_or_insert_with(|| self.started.elapsed().as_millis());
             }
@@ -259,11 +411,38 @@ impl ExecutionCapture {
         let span = self.span.clone();
         let _entered = span.enter();
         crate::observability::execution_failed(outcome);
-        let Some(protocol) = self.protocol.take() else {
+        let Some(mut facts) = self.take_facts(outcome) else {
             return;
         };
-        let (api_format, inference) = protocol.into_facts();
-        let facts = InferenceFacts {
+        telemetry::debug_record(&facts);
+        crate::observability::execution_finished(&facts);
+        if let Some(spend_limits) = self.spend_limits.take() {
+            let metadata = self
+                .delivery
+                .as_ref()
+                .map(|(_, context)| context.observation_metadata(&facts))
+                .unwrap_or_default();
+            facts.charged_cost_details = spend_limits.record(&facts, &metadata);
+        }
+        self.deliver(facts);
+    }
+
+    /// Records a request the gateway refused, so it reaches Langfuse without
+    /// counting as a provider execution.
+    pub(crate) fn reject(mut self, rejection: GatewayRejection) {
+        let span = self.span.clone();
+        let _entered = span.enter();
+        let Some(mut facts) = self.take_facts(RelayOutcome::Eof) else {
+            return;
+        };
+        facts.rejection = Some(rejection);
+        telemetry::debug_record(&facts);
+        self.deliver(facts);
+    }
+
+    fn take_facts(&mut self, outcome: RelayOutcome) -> Option<InferenceFacts> {
+        let (api_format, inference) = self.protocol.take()?.into_facts();
+        Some(InferenceFacts {
             api_format,
             start_time_unix_ms: self.start_time_unix_ms,
             duration_ms: self.started.elapsed().as_millis(),
@@ -276,10 +455,13 @@ impl ExecutionCapture {
             response_body_bytes: self.response_body_bytes,
             metadata: std::mem::take(&mut self.metadata),
             outcome,
+            charged_cost_details: None,
+            rejection: None,
             inference,
-        };
-        telemetry::debug_record(&facts);
-        crate::observability::execution_finished(&facts);
+        })
+    }
+
+    fn deliver(&mut self, facts: InferenceFacts) {
         if let Some((telemetry, context)) = self.delivery.take() {
             telemetry.record(context, facts);
         }
@@ -327,23 +509,85 @@ impl RawRequest {
     }
 }
 
-fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<RawRequest, InputOmission> {
-    let reason = if !identity_encoding(headers) {
-        InputOmissionReason::ContentEncoding
-    } else if body.len() > MAX_INPUT_CAPTURE_BYTES {
-        InputOmissionReason::SizeLimit
-    } else if let Ok(members) = serde_json::from_slice(body) {
-        return Ok(RawRequest {
+/// The caller body's top-level members, parsed when capture starts (after
+/// resolution, spend limits, and guardrails) so the gateway does not hold a
+/// second copy of the body across pre-upstream waits or uncaptured requests.
+pub(crate) struct RequestInput {
+    /// `None` when the body is larger than `MAX_INPUT_CAPTURE_BYTES`.
+    members: Option<BTreeMap<String, Box<RawValue>>>,
+    body_bytes: usize,
+}
+
+impl RequestInput {
+    /// Skips parsing the body when telemetry delivery is disabled or
+    /// `IngestionMode::None`, while still preserving `body_bytes` for metrics.
+    pub(crate) fn omitted(body_bytes: usize) -> Self {
+        Self {
+            members: None,
+            body_bytes,
+        }
+    }
+
+    /// Parses the top-level members of a validated JSON request body, unless
+    /// the body is larger than `MAX_INPUT_CAPTURE_BYTES`.
+    pub(crate) fn from_body(body: &[u8]) -> Self {
+        let members = (body.len() <= MAX_INPUT_CAPTURE_BYTES)
+            .then(|| {
+                serde_json::from_slice::<BTreeMap<String, &RawValue>>(body)
+                    .ok()
+                    .map(|parsed| {
+                        parsed
+                            .into_iter()
+                            .map(|(key, value)| (key, value.to_owned()))
+                            .collect()
+                    })
+            })
+            .flatten();
+        Self {
             members,
-            parse_budget: MAX_PROJECTED_BYTES,
-        });
-    } else {
-        InputOmissionReason::InvalidJson
-    };
-    Err(InputOmission {
-        reason,
-        body_bytes: body.len(),
-    })
+            body_bytes: body.len(),
+        }
+    }
+
+    /// Parses `body` on `cpu` while holding `reservation` inside the job so
+    /// request cancellation cannot release memory budget before the blocking
+    /// worker drops the body and parsed members.
+    pub(crate) async fn parse_on_cpu<R: Send + 'static>(
+        cpu: &crate::cpu::CpuWork,
+        body: axum::body::Bytes,
+        reservation: R,
+    ) -> Option<(Self, R)> {
+        let parse_bytes = if body.len() <= MAX_INPUT_CAPTURE_BYTES {
+            body.len()
+        } else {
+            0
+        };
+        cpu.run(crate::cpu::CpuJob::ParseRequest, parse_bytes, move || {
+            let input = Self::from_body(&body);
+            (input, reservation)
+        })
+        .await
+    }
+}
+
+impl RawRequest {
+    /// The already parsed members, or why capture cannot record the input.
+    fn from_input(headers: &HeaderMap, input: RequestInput) -> Result<Self, InputOmission> {
+        let reason = if !identity_encoding(headers) {
+            InputOmissionReason::ContentEncoding
+        } else if let Some(members) = input.members {
+            return Ok(Self {
+                members,
+                parse_budget: MAX_PROJECTED_BYTES,
+            });
+        } else {
+            InputOmissionReason::SizeLimit
+        };
+        Err(InputOmission {
+            reason,
+            body_bytes: input.body_bytes,
+        })
+    }
 }
 
 /// Only the delay-seconds form; an HTTP-date would make the value depend on clock skew.
@@ -356,6 +600,18 @@ fn retry_after_ms(headers: &HeaderMap) -> Option<u64> {
         .parse::<u64>()
         .ok()
         .map(|seconds| seconds.saturating_mul(1000))
+}
+
+/// Joins the error object's non-empty `keys` into one bounded `first: second` detail.
+fn error_detail(error: &Map<String, Value>, keys: [&str; 2]) -> Option<String> {
+    let detail = keys
+        .into_iter()
+        .filter_map(|key| error.get(key).and_then(Value::as_str))
+        .filter(|value| !value.is_empty())
+        .map(|value| &value[..value.floor_char_boundary(MAX_FACT_STRING)])
+        .collect::<Vec<_>>()
+        .join(": ");
+    (!detail.is_empty()).then(|| detail[..detail.floor_char_boundary(MAX_FACT_STRING)].to_owned())
 }
 
 fn bounded_string(value: &str) -> Option<String> {

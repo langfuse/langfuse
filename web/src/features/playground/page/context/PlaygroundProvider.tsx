@@ -1,3 +1,4 @@
+/* oxlint-disable unicorn/throw-new-error -- baseline before rule enablement */
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import React, {
   createContext,
@@ -468,7 +469,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         capture("playground:execute_button_click", {
           inputLength: finalMessages.length,
           modelName: modelParams.model,
-          modelProvider: modelParams.provider,
+          modelAdapter: modelParams.adapter.value,
           outputLength: response.length,
           toolCount: tools.length,
           isStructuredOutput: Boolean(structuredOutputSchema),

@@ -121,7 +121,7 @@ const sessionMocks = vi.hoisted(() => ({
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: {
-      user: { id: sessionMocks.userId, name: "Test User" },
+      user: { id: sessionMocks.userId, name: "Test User", organizations: [] },
       environment: { inAppAgentEnabled: sessionMocks.inAppAgentEnabled },
     },
   }),
@@ -142,6 +142,7 @@ vi.mock("@/src/features/projects/hooks", () => ({
   useQueryProjectOrOrganization: () => ({
     organization: { aiFeaturesEnabled: sessionMocks.aiFeaturesEnabled },
   }),
+  useProject: () => ({ project: null, organization: null }),
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({

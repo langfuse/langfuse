@@ -1,3 +1,4 @@
+/* oxlint-disable radix -- baseline before rule enablement */
 import {
   createHttpHeaderFromRateLimit,
   RATE_LIMIT_REDIS_KEY_PREFIX,
@@ -320,26 +321,6 @@ describe("RateLimitService", () => {
     expect(result?.res).toBeUndefined();
   });
 
-  // Not applicable now that the RateLimitService instantiates its own Redis
-  // it("should not apply rate limits when redis is not defined", async () => {
-  //   const scope = {
-  //     orgId: orgId,
-  //     plan: "cloud:hobby" as const,
-  //     projectId,
-  //     accessLevel: "project" as const,
-  //     rateLimitOverrides: [
-  //       { resource: "public-api" as const, points: 5, durationInSec: 10 },
-  //     ],
-  //   };
-  //
-  //   const rateLimitService = new RateLimitService(null);
-  //
-  //   const result = await rateLimitService.rateLimitRequest(asScope(scope), "public-api");
-  //
-  //   expect(result?.res).toBeUndefined();
-  //   expect(result?.isRateLimited()).toBe(false);
-  // });
-
   it("should not apply rate limits for OSS plan", async () => {
     const scope = {
       orgId: orgId,
@@ -426,6 +407,45 @@ describe("RateLimitService", () => {
         isFirstInDuration: true,
       });
       expect(result?.isRateLimited()).toBe(false);
+    }
+  });
+
+  it("should allow 5 coupon redemptions per minute on every cloud plan", async () => {
+    const plans = [
+      "cloud:hobby",
+      "cloud:core",
+      "cloud:pro",
+      "cloud:team",
+      "cloud:enterprise",
+    ] as const;
+
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
+
+    for (const plan of plans) {
+      await redis.del(
+        `${RATE_LIMIT_REDIS_KEY_PREFIX}:coupon-redemption:${orgId}`,
+      );
+      const scope = asScope({
+        orgId,
+        plan,
+        projectId: null,
+        accessLevel: "organization",
+        rateLimitOverrides: [],
+      });
+
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        const result = await rateLimitService.rateLimitRequest(
+          scope,
+          "coupon-redemption",
+        );
+        expect(result.isRateLimited()).toBe(false);
+      }
+      const sixth = await rateLimitService.rateLimitRequest(
+        scope,
+        "coupon-redemption",
+      );
+      expect(sixth.isRateLimited()).toBe(true);
+      expect(sixth.res?.msBeforeNext).toBeLessThanOrEqual(60_000);
     }
   });
 

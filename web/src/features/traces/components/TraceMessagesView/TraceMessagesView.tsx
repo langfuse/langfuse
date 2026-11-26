@@ -1,8 +1,13 @@
 import { useState, type ComponentProps } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { ErrorBoundary } from "@sentry/nextjs";
+import { GitBranch } from "@langfuse/icons";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import {
+  useTraceData,
+  useSingleTraceData,
+} from "@/src/features/traces/contexts/TraceDataProvider";
 import { useTraceMessagesNavigation } from "./hooks/useTraceMessagesNavigation";
 import { useTraceMessagesTranscript } from "./hooks/useTraceMessagesTranscript";
 // TODO: Before TraceMessagesView leaves internal preview, rename the components
@@ -11,15 +16,38 @@ import { SessionConversationTimeline } from "@/src/features/sessions/components/
 import { getSessionConversationEntries } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionConversationEntries";
 import { useSessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
+import { ConnectedSessionMessagesView } from "../ConnectedSessionMessagesView/ConnectedSessionMessagesView";
 
-export function TraceMessagesView() {
-  const { trace, isPlaceholderData } = useTraceData();
+export function TraceMessagesView({
+  onOpenObservation,
+}: {
+  onOpenObservation: (traceId: string, observationId: string) => void;
+}) {
+  const { projectId, scope, isPlaceholderData } = useTraceData();
+  if (scope.type === "session") {
+    return (
+      <ConnectedSessionMessagesView
+        key={`${projectId}:${scope.sessionId}`}
+        projectId={projectId}
+        sessionId={scope.sessionId}
+        enabled={!isPlaceholderData}
+      />
+    );
+  }
+  return <SingleTraceMessagesView onOpenObservation={onOpenObservation} />;
+}
+
+function SingleTraceMessagesView({
+  onOpenObservation,
+}: Pick<ComponentProps<typeof TraceMessagesView>, "onOpenObservation">) {
+  const { trace, isPlaceholderData } = useSingleTraceData();
   const [expandedTraceId, setExpandedTraceId] = useState<string | null>(null);
-  const { selectNode, setSelectedTab } = useSelection();
+  const { selectNode } = useSelection();
   const [, setTraceView] = useQueryParam("traceView", StringParam);
   const { messageTrace, navigation } = useTraceMessagesNavigation();
   const { data, state } = useTraceMessagesTranscript(
     {
+      context: "other",
       projectId: trace.projectId,
       traceId: messageTrace.id,
       timestamp: messageTrace.timestamp,
@@ -48,9 +76,7 @@ export function TraceMessagesView() {
         selectNode(null);
       },
       onOpenObservation: (observationId) => {
-        setTraceView(undefined, "pushIn");
-        setSelectedTab("preview");
-        selectNode(observationId);
+        onOpenObservation(messageTrace.id, observationId);
       },
       scrollTarget: null,
     }));
@@ -67,22 +93,10 @@ export function TraceMessagesView() {
     >
       <div className="flex h-full min-h-0 w-full flex-col">
         {state.type === "transcript" && hiddenThreadCount > 0 && (
-          <div
-            role="status"
-            className="text-muted-foreground flex shrink-0 items-center justify-between gap-3 rounded-md border p-3 text-sm"
-          >
-            <span>
-              {hiddenThreadCount} nested{" "}
-              {hiddenThreadCount === 1 ? "thread is" : "threads are"} hidden.
-            </span>
-            <button
-              type="button"
-              className="text-foreground shrink-0 underline underline-offset-4"
-              onClick={() => setExpandedTraceId(messageTrace.id)}
-            >
-              Show nested threads
-            </button>
-          </div>
+          <HiddenThreadsDivider
+            count={hiddenThreadCount}
+            onShow={() => setExpandedTraceId(messageTrace.id)}
+          />
         )}
         {data?.cutoff && (!data.transcript || entries.length <= 1) && (
           <div className="text-muted-foreground p-3 text-sm">
@@ -97,5 +111,31 @@ export function TraceMessagesView() {
         />
       </div>
     </ErrorBoundary>
+  );
+}
+
+function HiddenThreadsDivider({
+  count,
+  onShow,
+}: {
+  count: number;
+  onShow: () => void;
+}) {
+  const label = `${count} nested ${count === 1 ? "thread" : "threads"} hidden`;
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className="text-muted-foreground flex shrink-0 items-center gap-3 pb-6 text-xs"
+    >
+      <div className="border-border min-w-0 flex-1 border-t border-dashed" />
+      <span className="flex items-center gap-1.5">
+        <GitBranch size="sm" aria-hidden="true" />
+        {label}
+      </span>
+      <span aria-hidden="true">·</span>
+      <Button variant="text" size="sm" text="Show" onClick={onShow} />
+      <div className="border-border min-w-0 flex-1 border-t border-dashed" />
+    </div>
   );
 }

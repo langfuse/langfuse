@@ -220,5 +220,5 @@ export const [
       },
     });
   },
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

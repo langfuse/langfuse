@@ -1,6 +1,7 @@
 import { useRouter } from "next/router";
 import type { EvalTemplateType } from "@langfuse/shared";
 import { EvaluatorSetupLoadingPage } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupLoadingPage/EvaluatorSetupLoadingPage";
+import { useEvaluatorInitialTargetObject } from "@/src/features/evals/v2/hooks/useEvaluatorInitialTargetObject";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { EvaluatorSetupPage } from "./EvaluatorSetupPage";
@@ -53,7 +54,13 @@ export default function EvaluatorDetailPage() {
     { enabled: Boolean(projectId && evaluatorId) },
   );
 
-  if (evaluator.isPending) {
+  const target = useEvaluatorInitialTargetObject({
+    projectId,
+    evaluatorId,
+    evaluatorType: evaluator.data?.type,
+  });
+
+  if (evaluator.isPending || target.isPending) {
     return <EvaluatorSetupLoadingPage mode="edit" projectId={projectId} />;
   }
   if (!evaluator.data?.versions[0] || evaluator.data.type === "FACET") {
@@ -67,6 +74,7 @@ export default function EvaluatorDetailPage() {
       mode="edit"
       key={`${evaluator.data.id}-${latest.id}`}
       projectId={projectId}
+      initialTargetObject={target.initialTargetObject}
       initialEvaluator={{
         id: evaluator.data.id,
         name: evaluator.data.name,

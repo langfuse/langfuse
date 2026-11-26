@@ -26,10 +26,8 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import Page from "@/src/components/layouts/Page";
 
-import {
-  convertSelectedEnvironmentsToFilter,
-  useEnvironmentFilter,
-} from "@/src/hooks/useEnvironmentFilter";
+import { useEnvironmentFilter } from "@/src/hooks/useEnvironmentFilter";
+import { convertSelectedEnvironmentsToFilter } from "@/src/utils/environmentFilter";
 import {
   useReadPath,
   type ResolvedReadPath,
@@ -37,7 +35,7 @@ import {
 
 import { type ViewVersion } from "@langfuse/shared/query";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   DashboardQuerySchedulerProvider,
   getDashboardQuerySchedulerMaxConcurrent,
@@ -51,7 +49,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Button } from "@/src/components/ui/button";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
-import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
+import { ConnectedHomeDashboardSelect } from "@/src/features/dashboard/components/ConnectedHomeDashboardSelect";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
 
@@ -64,7 +62,9 @@ export default function ProjectHomePage() {
   if (readPath === "unknown") {
     return (
       <Page withPadding scrollable headerProps={{ title: "Home" }}>
-        <NoDataOrLoading isLoading />
+        <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
+          <Skeleton className="h-full w-full" />
+        </div>
       </Page>
     );
   }
@@ -377,7 +377,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
           ),
           actionButtonsRight: (
             <>
-              <HomeDashboardSelect
+              <ConnectedHomeDashboardSelect
                 projectId={projectId}
                 value={dashboardId}
                 defaultDashboardId={appliedDefaultId}
@@ -437,7 +437,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                   Dashboard
                 </span>
                 <div className="[&_[role=combobox]]:w-full [&_[role=combobox]]:max-w-none">
-                  <HomeDashboardSelect
+                  <ConnectedHomeDashboardSelect
                     projectId={projectId}
                     value={dashboardId}
                     defaultDashboardId={appliedDefaultId}
@@ -546,7 +546,9 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
           />
         </PageHeaderControlsPortal>
         {!isDashboardDataReady || isResolvingDashboard ? (
-          <NoDataOrLoading isLoading />
+          <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
+            <Skeleton className="h-full w-full" />
+          </div>
         ) : (
           <DashboardGrid
             widgets={definition.widgets}

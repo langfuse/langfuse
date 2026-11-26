@@ -7,7 +7,7 @@ import {
   applyPick,
   planInputCompletions,
 } from "@/src/features/search-bar/lib/completions";
-import { runSearchBarInvariants } from "@/src/features/search-bar/lib/searchBarInvariants";
+import { runSearchBarInvariants } from "@/src/features/search-bar/__tests__/searchBarInvariants";
 
 const registry = DATASET_ITEMS_FIELD_REGISTRY;
 const metadataFilter: FilterState = [
@@ -132,7 +132,18 @@ describe("dataset item search contract", () => {
         sidebarFilters: [metadataFilter],
       }),
     ).toEqual([]);
-    for (const query of ["status:ACTIVE", "scores.quality:1", "traceId:abc"]) {
+    expect(planCommit("status:ACTIVE", undefined, registry)).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "status",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["ACTIVE"],
+        },
+      ],
+    });
+    for (const query of ["scores.quality:1", "traceId:abc"]) {
       expect(planCommit(query, undefined, registry).status).toBe("invalid");
     }
   });

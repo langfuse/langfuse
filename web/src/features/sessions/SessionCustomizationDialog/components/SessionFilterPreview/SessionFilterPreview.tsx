@@ -1,7 +1,12 @@
 import { type RouterOutputs } from "@/src/utils/api";
-import { useMemo, useState } from "react";
+import { type ComponentProps, useMemo, useState } from "react";
 import { type FilterState } from "@langfuse/shared";
-import { MoreHorizontal } from "@langfuse/icons";
+import {
+  ArrowLeft,
+  ArrowRight,
+  ChevronRight,
+  MoreHorizontal,
+} from "@langfuse/icons";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { VirtualizedTree } from "@/src/features/traces/components/VirtualizedTree";
 import { VirtualizedTreeNodeWrapper } from "@/src/features/traces/components/VirtualizedTreeNodeWrapper";
@@ -80,7 +85,7 @@ function PreviewRow({
             type="button"
             disabled={disabled || name === null}
             aria-label={`Filter ${column === "traceName" ? "trace" : "observation"} ${name ?? "Unnamed"}`}
-            className="hover:bg-accent ml-auto shrink-0 rounded px-2"
+            className="ml-auto shrink-0 rounded px-2"
             {...getTriggerProps({
               onClick: (event) => event.stopPropagation(),
             })}
@@ -93,13 +98,107 @@ function PreviewRow({
   );
 }
 
+type PreviewNodeRenderProps = Parameters<
+  ComponentProps<typeof VirtualizedTree<PreviewNode>>["renderNode"]
+>[0] &
+  Pick<ComponentProps<typeof PreviewRow>, "disabled" | "onFilter">;
+
+function TracePreviewHeader({
+  node,
+  isCollapsed,
+  onToggleCollapse,
+  disabled,
+  onFilter,
+  isFirst,
+}: PreviewNodeRenderProps & { isFirst: boolean }) {
+  const collapseLabel = isCollapsed ? "Expand" : "Collapse";
+  return (
+    <header className={isFirst ? "" : "pt-2"}>
+      <h4 className="bg-muted/50 hover:bg-accent dark:text-muted-foreground flex min-w-0 items-center rounded pl-2 text-xs">
+        <PreviewRow
+          name={node.name}
+          matches={node.matches}
+          column="traceName"
+          disabled={disabled}
+          onFilter={onFilter}
+        />
+        <div className="flex w-7 shrink-0 justify-end pr-1">
+          {node.children.length > 0 && (
+            <button
+              type="button"
+              aria-label={`${collapseLabel} trace ${node.name ?? "Unnamed"}`}
+              aria-expanded={!isCollapsed}
+              onClick={onToggleCollapse}
+              className="text-muted-foreground hover:text-foreground hover:bg-primary/10 focus-visible:ring-ring inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md focus-visible:ring-2 focus-visible:outline-none"
+            >
+              <span
+                className={
+                  isCollapsed ? "inline-flex" : "inline-flex rotate-90"
+                }
+              >
+                <ChevronRight size="base" />
+              </span>
+            </button>
+          )}
+        </div>
+      </h4>
+    </header>
+  );
+}
+
+function ObservationPreviewRow({
+  node,
+  treeMetadata,
+  isCollapsed,
+  onToggleCollapse,
+  onSelect,
+  disabled,
+  onFilter,
+}: PreviewNodeRenderProps) {
+  return (
+    <div role="group" aria-label={`Observation ${node.name ?? "Unnamed"}`}>
+      <VirtualizedTreeNodeWrapper
+        className="rounded-md [&_[data-expand-button]>span]:inline-flex [&_[data-expand-button]>span]:items-center [&_[data-expand-button]>span]:justify-center"
+        metadata={{
+          ...treeMetadata,
+          depth: treeMetadata.depth - 1,
+          treeLines: treeMetadata.treeLines.slice(1),
+        }}
+        nodeType={node.type}
+        hasChildren={node.children.length > 0}
+        isCollapsed={isCollapsed}
+        onToggleCollapse={onToggleCollapse}
+        isSelected={false}
+        onSelect={onSelect}
+      >
+        <PreviewRow
+          name={node.name}
+          matches={node.matches}
+          column="name"
+          disabled={disabled}
+          onFilter={onFilter}
+        />
+      </VirtualizedTreeNodeWrapper>
+    </div>
+  );
+}
+
 export function SessionFilterPreview({
   traces,
+  navigation,
   pending,
   error,
   invalid,
   onFilter,
 }: {
+  navigation?: {
+    sessionId: string;
+    isCurrentSession: boolean;
+    position: number;
+    total: number;
+    onPrevious: (() => void) | undefined;
+    onNext: (() => void) | undefined;
+  };
   traces:
     | Array<
         Pick<
@@ -188,16 +287,64 @@ export function SessionFilterPreview({
   return (
     <section
       aria-label="Filter preview"
-      className="ph-no-capture bg-muted/30 min-w-0 border-t md:border-t-0 md:border-l"
+      className="ph-no-capture bg-muted/30 flex min-w-0 flex-col border-t md:min-h-0 md:overflow-hidden md:border-t-0 md:border-l"
     >
-      <header className="bg-modal sticky top-0 z-10 border-b p-4">
-        <h3 className="font-bold">Filter preview</h3>
+      <header className="bg-modal sticky top-0 z-10 flex shrink-0 flex-col gap-2 border-b p-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-1 items-baseline gap-2">
+            <h3 className="shrink-0 font-bold">Filter preview</h3>
+            {navigation ? (
+              <span
+                className="text-muted-foreground truncate text-xs"
+                title={navigation.sessionId}
+              >
+                {navigation.isCurrentSession
+                  ? "(Current session)"
+                  : `(Session: ${navigation.sessionId})`}
+              </span>
+            ) : null}
+          </div>
+          {navigation ? (
+            <div
+              className="ml-auto flex shrink-0 items-center gap-2"
+              aria-label="Preview session navigation"
+            >
+              <button
+                type="button"
+                aria-label="Previous session"
+                className="text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:ring-ring inline-flex h-7 w-7 items-center justify-center rounded-md focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+                disabled={!navigation.onPrevious}
+                onClick={navigation.onPrevious}
+              >
+                <ArrowLeft size="sm" aria-hidden="true" />
+              </button>
+              <span
+                className="text-muted-foreground text-xs"
+                aria-live="polite"
+              >
+                {navigation.position} / {navigation.total}
+              </span>
+              <button
+                type="button"
+                aria-label="Next session"
+                className="text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:ring-ring inline-flex h-7 w-7 items-center justify-center rounded-md focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+                disabled={!navigation.onNext}
+                onClick={navigation.onNext}
+              >
+                <ArrowRight size="sm" aria-hidden="true" />
+              </button>
+            </div>
+          ) : null}
+        </div>
         <p className="text-muted-foreground text-xs">
           Previewing the first 5 traces, with up to 200 observations per trace.
           Observations that don’t match your filters are dimmed.
         </p>
       </header>
-      <div className="flex h-[45vh] min-h-40 flex-col" aria-busy={pending}>
+      <div
+        className="flex h-[45vh] min-h-40 flex-col md:h-auto md:min-h-0 md:flex-1"
+        aria-busy={pending}
+      >
         {pending || error || traces?.length === 0 ? (
           <div className="space-y-2 p-4">
             {pending ? <p role="status">Updating preview…</p> : null}
@@ -216,37 +363,25 @@ export function SessionFilterPreview({
             onSelectNode={(id) => {
               if (id !== null) toggleCollapsed(id);
             }}
-            renderNode={({
-              node,
-              treeMetadata,
-              isCollapsed,
-              onToggleCollapse,
-              onSelect,
-            }) => (
-              <div
-                role="group"
-                aria-label={`${node.column === "traceName" ? "Trace" : "Observation"} ${node.name ?? "Unnamed"}`}
-              >
-                <VirtualizedTreeNodeWrapper
-                  className="rounded-md [&_[data-expand-button]>span]:inline-flex [&_[data-expand-button]>span]:items-center [&_[data-expand-button]>span]:justify-center"
-                  metadata={treeMetadata}
-                  nodeType={node.type}
-                  hasChildren={node.children.length > 0}
-                  isCollapsed={isCollapsed}
-                  onToggleCollapse={onToggleCollapse}
-                  isSelected={false}
-                  onSelect={onSelect}
-                >
-                  <PreviewRow
-                    name={node.name}
-                    matches={node.matches}
-                    column={node.column}
+            renderNode={(props) => {
+              if (props.node.column === "traceName") {
+                return (
+                  <TracePreviewHeader
+                    {...props}
+                    isFirst={props.node.id === roots[0]?.id}
                     disabled={invalid || pending}
                     onFilter={onFilter}
                   />
-                </VirtualizedTreeNodeWrapper>
-              </div>
-            )}
+                );
+              }
+              return (
+                <ObservationPreviewRow
+                  {...props}
+                  disabled={invalid || pending}
+                  onFilter={onFilter}
+                />
+              );
+            }}
           />
         </div>
       </div>

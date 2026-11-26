@@ -1,5 +1,5 @@
-import type { Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import {
+  type Entitlement,
   type ProjectScope,
   type BatchActionType,
   type ActionId,

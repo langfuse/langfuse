@@ -1,3 +1,5 @@
+// Random startup delay so workers booting together spread their Redis setup.
+
 import { logger, sleep } from "@langfuse/shared/src/server";
 
 /**
@@ -5,6 +7,7 @@ import { logger, sleep } from "@langfuse/shared/src/server";
  *
  * Used to spread out the Redis connection setup of workers that boot at the
  * same time, e.g. when autoscaling adds many tasks in one step.
+ * @internal
  */
 export const getStartupJitterMs = (
   maxMs: number,

@@ -1,10 +1,9 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 import { format, setHours, startOfDay, subDays } from "date-fns";
 import preview from "../../../.storybook/preview";
-import { type RouterOutputs } from "@/src/utils/api";
 import { TopicRunHistoryList } from "./TopicRunHistoryList";
+import { type TopicRunWithCost as Run } from "./topic-run-labels";
 
-type Run = RouterOutputs["topics"]["executions"][number];
 type Counts = Partial<Run["facets"][number]["counts"]>;
 
 const facetRefs = [
@@ -55,7 +54,7 @@ function processRun(
   id: string,
   status: Run["status"],
   createdAt: string,
-  estimatedCost: number,
+  estimatedCost: number | null,
   counts: Counts = {},
   error: string | null = null,
 ): Run {
@@ -67,7 +66,10 @@ function processRun(
     createdAt,
     updatedAt: createdAt,
     error,
-    estimatedCost,
+    costBreakdown: {
+      summaries: estimatedCost,
+      naming: null,
+    },
     facets: facetRefs.map(({ facetId, version }) =>
       facetProgress(facetId, version, counts),
     ),
@@ -77,8 +79,6 @@ function processRun(
       requestId: `request-${id}`,
       facets: facetRefs,
       embeddingConfig: { embeddingDimensions: 1024 },
-      reuseExistingSummaries: false,
-      processingConfig: { maxInputTokens: 120_000, maxOutputTokens: 512 },
     },
   };
 }
@@ -88,7 +88,7 @@ function updateRun(
   status: Run["status"],
   createdAt: string,
   error: string | null = null,
-): Run {
+) {
   return {
     id,
     projectId: "project",
@@ -97,7 +97,7 @@ function updateRun(
     createdAt,
     updatedAt: createdAt,
     error,
-    estimatedCost: 0,
+    costBreakdown: { summaries: null, naming: null },
     facets: facetRefs
       .slice(0, 2)
       .map(({ facetId, version }) =>
@@ -115,15 +115,48 @@ function updateRun(
       },
       exploratory: false,
     },
+  } satisfies Run;
+}
+
+// A snapshot that summarizes before it groups shows a progress bar while running.
+function summarizingSnapshot(id: string, createdAt: string): Run {
+  const run = updateRun(id, "running", createdAt);
+  return {
+    ...run,
+    phase: "summarizing",
+    costBreakdown: {
+      summaries: 0.31,
+      naming: 0,
+    },
+    input: {
+      ...run.input,
+      analysis: {
+        label: "Checkout",
+        filter: [],
+        seed: "seed",
+        summarize: { limit: 500, selection: "latest" },
+      },
+    },
+    facets: run.facets.map((facet) => ({
+      ...facet,
+      outcome: "pending",
+      counts: { ...facet.counts, requested: 1_280, complete: 640 },
+    })),
   };
 }
 
 const runs: Run[] = [
-  processRun("run-9", "running", hoursAgo(0.4), 1.84, {
-    requested: 1_280,
-    complete: 640,
-  }),
-  updateRun("run-8", "queued", hoursAgo(0.3)),
+  summarizingSnapshot("run-9", hoursAgo(0.4)),
+  {
+    ...summarizingSnapshot("run-8", hoursAgo(0.3)),
+    status: "queued",
+    phase: "queued",
+    facets: [],
+    costBreakdown: {
+      summaries: null,
+      naming: null,
+    },
+  },
   processRun("run-7", "completed", hoursAgo(17), 4.2, { requested: 1_412 }),
   processRun("run-6", "completed_with_errors", hoursAgo(46), 3.95, {
     requested: 1_330,
@@ -131,7 +164,7 @@ const runs: Run[] = [
     failed: 12,
   }),
   updateRun("run-5", "failed", hoursAgo(67), "Embedding model returned 429."),
-  processRun("run-4", "completed", hoursAgo(97), 0.97, { requested: 326 }),
+  processRun("run-4", "completed", hoursAgo(97), 0, { requested: 326 }),
   updateRun("run-3", "completed", hoursAgo(98)),
   processRun("run-2", "completed", hoursAgo(118), 3.3, {
     requested: 1_105,
@@ -167,19 +200,19 @@ export const PinsRunningAndGroupsByDay = meta.story({
   name: "(Test) Pins the running run and groups past runs by day",
   args: {
     executions: [
-      updateRun("regenerate-done", "completed", atDaysAgo(4, 10)),
-      processRun("analyze-running", "running", atDaysAgo(0, 9), 1.84, {
-        requested: 1_280,
-        complete: 640,
-      }),
-      processRun("analyze-done", "completed", atDaysAgo(1, 10), 4.2, {
+      {
+        ...updateRun("regenerate-done", "completed", atDaysAgo(4, 10)),
+        costBreakdown: { summaries: null, naming: 0 },
+      },
+      summarizingSnapshot("snapshot-running", atDaysAgo(0, 9)),
+      processRun("analyze-done", "completed", atDaysAgo(1, 10), 0, {
         requested: 1_412,
       }),
       processRun(
         "analyze-issues",
         "completed_with_errors",
         atDaysAgo(2, 10),
-        3.95,
+        null,
         { requested: 1_330, complete: 1_318, failed: 12 },
       ),
       updateRun(
@@ -193,8 +226,10 @@ export const PinsRunningAndGroupsByDay = meta.story({
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const active = canvas.getByRole("status");
-    await expect(active).toHaveTextContent("Analyze traces");
+    await expect(active).toHaveTextContent("Snapshot · Checkout");
     await expect(active).toHaveTextContent("640 / 1,280");
+    await expect(active).toHaveTextContent("Estimated cost:");
+    await expect(active).toHaveTextContent("~$0.31");
     await expect(
       within(active).getByRole("img", { name: "Running" }),
     ).toBeVisible();
@@ -204,19 +239,23 @@ export const PinsRunningAndGroupsByDay = meta.story({
     ).toEqual(["Yesterday", dayLabel(2), dayLabel(3), dayLabel(4)]);
 
     await userEvent.click(
-      within(active).getByRole("button", { name: /Analyze traces/ }),
+      within(active).getByRole("button", { name: /Snapshot · Checkout/ }),
     );
-    await expect(args.onOpen).toHaveBeenCalledWith("analyze-running");
+    await expect(args.onOpen).toHaveBeenCalledWith("snapshot-running");
 
     const rows = canvas
       .getAllByRole("button")
       .filter((row) => !active.contains(row));
-    await expect(rows.map((row) => row.textContent)).toEqual([
-      expect.stringContaining("Analyze traces1,412 traces · $4.20"),
-      expect.stringContaining("Analyze traces12 traces failed"),
-      expect.stringContaining("Regenerate topicsEmbedding model returned 429."),
-      expect.stringMatching(/Regenerate topicsComplete$/),
-    ]);
+    await expect(rows[0]).toHaveTextContent(
+      "1,412 traces · Estimated cost: ~$0.00",
+    );
+    await expect(rows[1]).toHaveTextContent(
+      "1,330 traces · Estimated cost: Unavailable",
+    );
+    await expect(rows[1]).toHaveTextContent("12 traces failed");
+    await expect(rows[2]).toHaveTextContent("Estimated cost: Unavailable");
+    await expect(rows[2]).toHaveTextContent("Embedding model returned 429.");
+    await expect(rows[3]).toHaveTextContent("Estimated cost: ~$0.00");
     await expect(within(rows[1]).getByText("Done with issues")).toBeVisible();
     await expect(within(rows[2]).getByText("Failed")).toBeVisible();
 
@@ -228,7 +267,7 @@ export const PinsRunningAndGroupsByDay = meta.story({
 export const ShowsRefetchErrorAboveRuns = meta.story({
   name: "(Test) A refetch error shows above the cached runs",
   args: {
-    executions: runs.slice(2, 4),
+    executions: runs.slice(1, 3),
     errorMessage: "Request timed out.",
   },
   play: async ({ canvasElement }) => {
@@ -237,6 +276,9 @@ export const ShowsRefetchErrorAboveRuns = meta.story({
       "Request timed out.",
     );
     await expect(canvas.getAllByRole("button")).toHaveLength(2);
+    await expect(
+      canvas.getByRole("button", { name: /Snapshot · Checkout.*Queued/ }),
+    ).toHaveTextContent("Estimated cost: Unavailable");
   },
 });
 

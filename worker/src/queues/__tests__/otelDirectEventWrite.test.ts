@@ -1,11 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterAll, describe, it, expect, vi } from "vitest";
 import { type Job } from "bullmq";
 import type { EarlyOtelBatch } from "@langfuse/native";
 import {
+  createEvent,
   getS3EventStorageClient,
   markProjectIngestFailure,
   OtelIngestionProcessor,
   QueueJobs,
+  recordDistribution,
+  recordIncrement,
+  uploadMediaForTrace,
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
@@ -14,8 +18,30 @@ import * as otelPreparation from "../../features/otel-ingestion/prepareOtelBatch
 import * as mediaRestoration from "../../features/otel-media/resolveExtractedMedia";
 import { IngestionService } from "../../services/IngestionService";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
-import { fetchObservationEvalRules } from "../../features/evaluation/observationEval/fetchObservationEvalRules";
-import { trackTraceBatchActivity } from "../../features/traceBatching/traceBatching";
+import { fetchEvalRules } from "../../features/evaluation/fetchEvalRules";
+import { scheduleObservationEvals } from "../../features/evaluation/observationEval/scheduleObservationEvals";
+import { createObservationEvalSchedulerDeps } from "../../features/evaluation/observationEval/createSchedulerDeps";
+import { Prisma } from "@langfuse/shared/src/db";
+import { observationForEvalSchema, TopicsTargetObject } from "@langfuse/shared";
+import {
+  getTraceEvalsProcessingSampling,
+  isTraceEvalsProcessingActive,
+} from "@langfuse/shared/src/server";
+import {
+  getTopicsProcessingSampling,
+  isTopicsProcessingActive,
+} from "@langfuse/shared/topics/server";
+import { processOtelEvents } from "../../features/otel-ingestion/processOtelEvents";
+import { recordTraceActivity } from "../../features/traceDispatch/traceRuleRecording";
+import {
+  createTestEvalConfig,
+  createMockSchedulerDeps,
+} from "../../features/evaluation/observationEval/__tests__/fixtures";
+import { prepareOtelBatch } from "../../features/otel-ingestion/prepareOtelBatch";
+import { processRustOtelEvents } from "../../features/otel-ingestion/processRustOtelEvents";
+import { productionRustOtelWrites } from "../../features/otel-ingestion/otelWrites";
+import { productionEvalWrites } from "../../features/evaluation/scheduleEvals";
+import { encodeOtelLookups } from "../../features/otel-ingestion/encodeOtelLookups";
 import {
   batchContainsLangfuseScope,
   checkHeaderBasedDirectWrite,
@@ -29,160 +55,830 @@ import {
   type SdkInfo,
 } from "../otelIngestionQueue";
 
+vi.hoisted(() => {
+  vi.stubEnv("LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY", "5");
+  vi.stubEnv("LANGFUSE_EVENTS_DISPATCH_ENABLED", undefined);
+});
+afterAll(() => vi.unstubAllEnvs());
+
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
+  // Queue construction requires Redis; its service methods are mocked below.
+  redis: {},
   getS3EventStorageClient: vi.fn(),
   markProjectIngestFailure: vi.fn(),
+  recordIncrement: vi.fn(),
+  recordDistribution: vi.fn(),
+  uploadMediaForTrace: vi.fn(),
+  isTraceEvalsProcessingActive: vi.fn().mockResolvedValue(false),
+  getTraceEvalsProcessingSampling: vi.fn().mockResolvedValue(0),
+}));
+vi.mock("../../features/evaluation/fetchEvalRules", () => ({
+  fetchEvalRules: vi.fn().mockResolvedValue({
+    observationRules: [],
+    traceTranscriptRules: [],
+  }),
 }));
 vi.mock(
-  "../../features/evaluation/observationEval/fetchObservationEvalRules",
-  async (importOriginal) => ({
-    ...(await importOriginal<
-      typeof import("../../features/evaluation/observationEval/fetchObservationEvalRules")
-    >()),
-    fetchObservationEvalRules: vi.fn(),
+  "../../features/evaluation/observationEval/createSchedulerDeps",
+  () => ({
+    createObservationEvalSchedulerDeps: vi.fn(),
   }),
 );
-vi.mock("../../features/traceBatching/traceBatching", () => ({
-  trackTraceBatchActivity: vi.fn(),
+vi.mock(
+  "../../features/evaluation/observationEval/scheduleObservationEvals",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../features/evaluation/observationEval/scheduleObservationEvals")
+    >()),
+    scheduleObservationEvals: vi.fn(),
+  }),
+);
+vi.mock(
+  "../../features/otel-ingestion/prepareOtelBatch",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../features/otel-ingestion/prepareOtelBatch")
+    >()),
+    prepareOtelBatch: vi.fn(),
+  }),
+);
+vi.mock("../../features/otel-ingestion/processRustOtelEvents", () => ({
+  processRustOtelEvents: vi.fn(),
 }));
 
-describe("direct-v4 trace batch tracking", () => {
-  it("tracks accepted writes together and excludes failed writes, disabled intake, and legacy writes", async () => {
+describe("Rust OTEL events-only queue path", () => {
+  it("skips legacy TypeScript conversion and sends the prepared batch to Rust", async () => {
     const original = {
-      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-      LANGFUSE_TRACE_BATCH_INGESTION_ENABLED:
-        env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED,
-      LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-      LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED:
-        env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED,
       LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED:
         env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED,
       LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS:
         env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS,
+      LANGFUSE_OTEL_DIRECT_IMPLEMENTATION:
+        env.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION,
+      LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED:
+        env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED,
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+      LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+      LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR:
+        env.LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR,
     };
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
-    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
-    env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
-    env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED = "true";
-    env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS = ["*"];
+    Object.assign(env, {
+      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED: "true",
+      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS: ["project"],
+      LANGFUSE_OTEL_DIRECT_IMPLEMENTATION: "rust",
+      LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: "true",
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "media-bucket",
+      LANGFUSE_MIGRATION_V4_WRITE_MODE: "events_only",
+      LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR: "direct",
+    });
+
+    const batch = {
+      copyJsonBuffer: vi.fn(async () => Buffer.from("[]")),
+      media: [],
+      dispose: vi.fn(),
+    };
+    const processToIngestionEvents = vi
+      .spyOn(OtelIngestionProcessor.prototype, "processToIngestionEvents")
+      .mockResolvedValue([]);
+    const processRust = vi
+      .mocked(processRustOtelEvents)
+      .mockResolvedValue(undefined);
 
     try {
       vi.mocked(getS3EventStorageClient).mockReturnValue({
-        downloadBytes: vi.fn().mockResolvedValue(Buffer.from("[]")),
+        downloadBytes: vi.fn().mockResolvedValue(Uint8Array.from([91, 93])),
       } as unknown as ReturnType<typeof getS3EventStorageClient>);
-      vi.spyOn(otelPreparation, "prepareOtelBatch").mockResolvedValue({
-        sourceUnchanged: false,
-        batch: {
-          takeJsonBuffer: () => Buffer.from("[]"),
-          dispose: vi.fn(),
-        } as unknown as EarlyOtelBatch,
-      });
-      const restore = vi
-        .spyOn(mediaRestoration, "restoreInlineMedia")
-        .mockResolvedValue(undefined);
-      vi.mocked(fetchObservationEvalRules).mockResolvedValue([]);
+      vi.mocked(prepareOtelBatch).mockResolvedValue({ batch: batch as never });
       vi.spyOn(ClickhouseWriter, "getInstance").mockReturnValue(
         {} as ClickhouseWriter,
       );
-      vi.spyOn(
-        OtelIngestionProcessor.prototype,
-        "processToIngestionEvents",
-      ).mockResolvedValue([]);
-      const inputs = [
-        { traceId: "accepted", spanId: "first" },
-        { traceId: "accepted", spanId: "second" },
-        { traceId: "write-failed", spanId: "third" },
-        { traceId: "conversion-failed", spanId: "fourth" },
-      ].map((entry, index) => ({
-        ...entry,
-        projectId: "project",
-        startTimeISO: new Date(1_000 + index * 1_000).toISOString(),
-      }));
-      vi.spyOn(
-        OtelIngestionProcessor.prototype,
-        "processToEvent",
-      ).mockReturnValue(
-        inputs as ReturnType<OtelIngestionProcessor["processToEvent"]>,
-      );
-      vi.spyOn(
-        IngestionService.prototype,
-        "createEventRecord",
-      ).mockImplementation(async (input) => {
-        if (input.traceId === "conversion-failed") throw new Error("invalid");
-        return { span_id: input.spanId, event_bytes: 10_000 } as Awaited<
-          ReturnType<IngestionService["createEventRecord"]>
-        >;
-      });
-      const write = vi
-        .spyOn(IngestionService.prototype, "writeEventRecord")
-        .mockImplementation(async (record) => {
-          if (record.span_id === "third") throw new Error("write rejected");
-          return record.span_id === "first" ? 101 : 202;
-        });
+
       const processor = otelIngestionQueueProcessorBuilder(false);
-      const job = {
-        data: {
-          id: "ingestion",
-          timestamp: new Date(),
-          name: QueueJobs.OtelIngestionJob,
-          payload: {
-            data: { fileKey: "synthetic.json" },
-            authCheck: {
-              validKey: true,
-              scope: {
-                projectId: "project",
-                orgId: "org",
-                accessLevel: "project",
+      await processor(
+        {
+          data: {
+            id: "ingestion",
+            timestamp: new Date(),
+            name: QueueJobs.OtelIngestionJob,
+            payload: {
+              data: { fileKey: "synthetic.json" },
+              authCheck: {
+                validKey: true,
+                scope: {
+                  projectId: "project",
+                  orgId: "org",
+                  accessLevel: "project",
+                },
               },
             },
-            ingestionVersion: "4",
           },
-        },
-      } as Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>;
-
-      await processor(job, undefined);
-      expect(restore.mock.calls.map(([, records]) => records)).toEqual([
-        inputs,
-      ]);
-      expect(write).toHaveBeenCalledTimes(3);
-      expect(trackTraceBatchActivity).toHaveBeenCalledExactlyOnceWith(
-        "project",
-        inputs.slice(0, 2).map(({ traceId, startTimeISO }, index) => ({
-          traceId,
-          startTimeISO,
-          serializedEventBytes: index === 0 ? 101 : 202,
-        })),
+        } as Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>,
+        undefined,
       );
 
-      vi.mocked(trackTraceBatchActivity).mockClear();
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-      await processor(job, undefined);
-      expect(trackTraceBatchActivity).not.toHaveBeenCalled();
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
-      await processor(job, undefined);
-      expect(trackTraceBatchActivity).not.toHaveBeenCalled();
-
-      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
-      write.mockRejectedValue(new Error("all writes rejected"));
-      await processor(job, undefined);
-      expect(trackTraceBatchActivity).not.toHaveBeenCalled();
-
-      env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
-      write.mockClear();
-      restore.mockClear();
-      await processor(job, undefined);
-      expect(restore.mock.calls.map(([, records]) => records)).toEqual([[]]);
-      expect(write).not.toHaveBeenCalled();
-      expect(trackTraceBatchActivity).not.toHaveBeenCalled();
+      expect(processToIngestionEvents).not.toHaveBeenCalled();
+      expect(batch.copyJsonBuffer).not.toHaveBeenCalled();
+      expect(prepareOtelBatch).toHaveBeenCalledWith(
+        expect.objectContaining({ retainNativeBatch: true }),
+      );
+      expect(processRust).toHaveBeenCalledOnce();
+      expect(processRust).toHaveBeenCalledWith(
+        expect.objectContaining({ batch }),
+      );
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.ingestion.otel.write_path",
+        1,
+        { path: "direct_env" },
+      );
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.ingestion.otel.skipped_legacy_writes",
+        1,
+      );
     } finally {
       Object.assign(env, original);
       vi.restoreAllMocks();
       vi.clearAllMocks();
     }
   });
+});
+
+describe("native Rust trace activity", () => {
+  it("records accepted sampled rows by default without projecting eval observations", async () => {
+    const { processRustOtelEvents: processNative } = await vi.importActual<
+      typeof import("../../features/otel-ingestion/processRustOtelEvents")
+    >("../../features/otel-ingestion/processRustOtelEvents");
+    const original = {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED:
+        env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED,
+      LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    };
+    Object.assign(env, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "DEV",
+      LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: "false",
+      LANGFUSE_MIGRATION_V4_WRITE_MODE: "events_only",
+    });
+    vi.mocked(getTopicsProcessingSampling).mockResolvedValue(1);
+    const projectId = "project";
+    vi.mocked(fetchEvalRules).mockResolvedValue({
+      observationRules: [],
+      traceTranscriptRules: [],
+    });
+    let recordedActivity: unknown;
+    vi.mocked(recordTraceActivity).mockImplementation(
+      async (_projectId, activity) => {
+        recordedActivity = structuredClone(activity);
+      },
+    );
+    const records = (
+      [
+        ["trace-a", "same", "production", 11],
+        ["trace-b", "same", "production", 22],
+        ["trace-c", "third", "langfuse-llm-as-a-judge", 33],
+      ] as const
+    ).map(([traceId, id, environment, serializedEventBytes], index) => ({
+      event: { ids: { project_id: projectId, trace_id: traceId, id } },
+      traceId,
+      startTimeIso: new Date(Date.UTC(2026, 9, 29, 10, 0, index)).toISOString(),
+      environment,
+      serializedEventBytes,
+    }));
+    const traceIds = records.map(({ traceId }) => traceId);
+    const addToQueue = vi.fn(
+      (_table: unknown, event: { ids: { trace_id: string } }) => {
+        if (event.ids.trace_id === "trace-b")
+          throw new Error("writer rejected");
+      },
+    );
+    const processing = {
+      complete: vi.fn().mockResolvedValue({
+        finalized: { events: records },
+        overflowRequests: [],
+      }),
+      dispose: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.spyOn(ClickhouseWriter, "getNativeInstance").mockReturnValue({
+      addToQueue,
+    } as unknown as ClickhouseWriter);
+
+    try {
+      await processNative({
+        writes: productionRustOtelWrites(),
+        batch: {
+          process: vi.fn().mockResolvedValue({
+            batch: processing,
+            mediaRequests: [],
+            lookupRequests: [],
+            traceIds,
+          }),
+        } as never,
+        context: {
+          projectId,
+          fileKey: "native.json",
+          ingestionApiKey: "",
+          ingestionSdkName: "test",
+          ingestionSdkVersion: "test",
+          now: "2026-10-29T10:00:00.000Z",
+          isLangfuseInternal: false,
+        },
+      });
+
+      expect(processing.complete).toHaveBeenCalledWith(
+        [],
+        encodeOtelLookups([]),
+        undefined,
+        undefined,
+        traceIds,
+      );
+      expect(addToQueue).toHaveBeenCalledTimes(records.length);
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.ingestion.otel.trace_count",
+        records.length,
+      );
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.ingestion.otel.observation_count",
+        records.length,
+      );
+      expect(recordTraceActivity).toHaveBeenCalledOnce();
+      expect(recordedActivity).toEqual([
+        {
+          traceId: "trace-a",
+          spanStartTimeISO: records[0].startTimeIso,
+          ruleIds: [],
+          serializedEventBytes: records[0].serializedEventBytes,
+        },
+      ]);
+    } finally {
+      Object.assign(env, original);
+      vi.mocked(getTopicsProcessingSampling).mockResolvedValue(0);
+      vi.restoreAllMocks();
+      vi.clearAllMocks();
+    }
+  });
+
+  it("uploads overflow fields through the bounded scheduler and restores request order", async () => {
+    const { processRustOtelEvents: processNative } = await vi.importActual<
+      typeof import("../../features/otel-ingestion/processRustOtelEvents")
+    >("../../features/otel-ingestion/processRustOtelEvents");
+    const original = {
+      LANGFUSE_EVENTS_DISPATCH_ENABLED: env.LANGFUSE_EVENTS_DISPATCH_ENABLED,
+      LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED:
+        env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED,
+      LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES:
+        env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES,
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+    };
+    Object.assign(env, {
+      LANGFUSE_EVENTS_DISPATCH_ENABLED: "false",
+      LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: "true",
+      LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES: 1024,
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "media-bucket",
+    });
+    vi.mocked(fetchEvalRules).mockResolvedValue({
+      observationRules: [],
+      traceTranscriptRules: [],
+    });
+
+    const uploads = Array.from({ length: 6 }, () =>
+      Promise.withResolvers<{ mediaId: string; outcome: "uploaded" }>(),
+    );
+    const started: number[] = [];
+    let active = 0;
+    let peak = 0;
+    vi.mocked(uploadMediaForTrace).mockImplementation(
+      async ({ contentBytes }) => {
+        const index = Number(Buffer.from(contentBytes).toString().slice(5));
+        started.push(index);
+        active += 1;
+        peak = Math.max(peak, active);
+        try {
+          return await uploads[index]!.promise;
+        } finally {
+          active -= 1;
+        }
+      },
+    );
+    const overflowRequests = Array.from({ length: 6 }, (_, index) => ({
+      index,
+      eventIndex: index,
+      traceId: `trace-${index}`,
+      observationId: `span-${index}`,
+      field: "output",
+      metadataIndex: undefined,
+      byteLength: 2048,
+      sha256Hash: `hash-${index}`,
+    }));
+    const finalize = vi.fn().mockResolvedValue({ events: [] });
+    const processing = {
+      complete: vi.fn().mockResolvedValue({
+        finalized: undefined,
+        overflowRequests,
+      }),
+      overflowBody: vi.fn(async (index: number) =>
+        Buffer.from(`body-${index}`),
+      ),
+      finalize,
+      dispose: vi.fn().mockResolvedValue(undefined),
+    };
+
+    try {
+      const processBatch = vi.fn().mockResolvedValue({
+        batch: processing,
+        mediaRequests: [],
+        lookupRequests: [],
+        traceIds: [],
+      });
+      const replay = processNative({
+        writes: productionRustOtelWrites(),
+        batch: {
+          process: processBatch,
+        } as never,
+        context: {
+          projectId: "project",
+          fileKey: "overflow.json",
+          now: "2026-10-29T10:00:00.000Z",
+          isLangfuseInternal: false,
+          ingestionApiKey: "",
+          ingestionSdkName: "test",
+          ingestionSdkVersion: "test",
+        },
+      });
+
+      await vi.waitFor(() => expect(started).toHaveLength(5));
+      expect(peak).toBe(5);
+      uploads[1]!.resolve({ mediaId: "media-1", outcome: "uploaded" });
+      await vi.waitFor(() => expect(started).toHaveLength(6));
+      for (const index of [4, 0, 5, 3, 2]) {
+        uploads[index]!.resolve({
+          mediaId: `media-${index}`,
+          outcome: "uploaded",
+        });
+      }
+
+      await replay;
+      expect(peak).toBe(5);
+      expect(finalize).toHaveBeenCalledWith(
+        overflowRequests.map(({ index }) => ({
+          index,
+          reference: `@@@langfuseMedia:type=text/plain|id=media-${index}|source=field_size_limit@@@`,
+        })),
+        undefined,
+        undefined,
+      );
+    } finally {
+      for (const upload of uploads) {
+        upload.resolve({ mediaId: "cleanup", outcome: "uploaded" });
+      }
+      Object.assign(env, original);
+      vi.mocked(uploadMediaForTrace).mockReset();
+      vi.clearAllMocks();
+    }
+  });
+
+  it("reaches media storage and the events writer only through its writes", async () => {
+    const { processRustOtelEvents: processNative } = await vi.importActual<
+      typeof import("../../features/otel-ingestion/processRustOtelEvents")
+    >("../../features/otel-ingestion/processRustOtelEvents");
+    const original = {
+      LANGFUSE_EVENTS_DISPATCH_ENABLED: env.LANGFUSE_EVENTS_DISPATCH_ENABLED,
+      LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED:
+        env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED,
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+    };
+    Object.assign(env, {
+      LANGFUSE_EVENTS_DISPATCH_ENABLED: "false",
+      LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: "true",
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "media-bucket",
+    });
+    vi.mocked(fetchEvalRules).mockResolvedValue({
+      observationRules: [],
+      traceTranscriptRules: [],
+    });
+    const productionWriter = vi.spyOn(ClickhouseWriter, "getNativeInstance");
+    const writes = {
+      uploadMedia: vi
+        .fn()
+        .mockResolvedValue({ mediaId: "media", outcome: "uploaded" }),
+      linkMedia: vi.fn(),
+      evalWrites: vi.fn(),
+      writeEvent: vi.fn(),
+    };
+    const record = {
+      event: { ids: { id: "span" } },
+      traceId: "trace",
+      startTimeIso: "2026-10-29T10:00:00.000Z",
+      environment: "default",
+    };
+    const target = { traceId: "trace", observationId: "span" };
+    const processing = {
+      mediaBody: vi.fn().mockResolvedValue(Buffer.from("image")),
+      overflowBody: vi.fn().mockResolvedValue(Buffer.from("text")),
+      complete: vi.fn().mockResolvedValue({
+        overflowRequests: [
+          {
+            ...target,
+            index: 0,
+            field: "output",
+            byteLength: 2048,
+            sha256Hash: "overflow-hash",
+          },
+        ],
+      }),
+      finalize: vi.fn().mockResolvedValue({ events: [record] }),
+      dispose: vi.fn().mockResolvedValue(undefined),
+    };
+
+    try {
+      await processNative({
+        writes,
+        batch: {
+          process: vi.fn().mockResolvedValue({
+            batch: processing,
+            mediaRequests: [
+              {
+                ...target,
+                index: 0,
+                mediaIndex: 0,
+                kind: "base64_data_uri",
+                contentType: "image/png",
+                field: "input",
+                sha256Hash: "media-hash",
+                originalByteLength: 5,
+                reference:
+                  "@@@langfuseMedia:type=image/png|id=pending|source=base64_data_uri@@@",
+              },
+            ],
+            lookupRequests: [],
+            traceIds: [],
+          }),
+        } as never,
+        context: {
+          projectId: "project",
+          fileKey: "writes.json",
+          now: "2026-10-29T10:00:00.000Z",
+          isLangfuseInternal: false,
+          ingestionApiKey: "",
+          ingestionSdkName: "test",
+          ingestionSdkVersion: "test",
+        },
+      });
+
+      expect(
+        writes.uploadMedia.mock.calls.map(([upload]) => upload.sha256Hash),
+      ).toEqual(["media-hash", "overflow-hash"]);
+      expect(writes.writeEvent).toHaveBeenCalledExactlyOnceWith(record);
+      expect(uploadMediaForTrace).not.toHaveBeenCalled();
+      expect(productionWriter).not.toHaveBeenCalled();
+    } finally {
+      Object.assign(env, original);
+      productionWriter.mockRestore();
+      vi.clearAllMocks();
+    }
+  });
+});
+
+vi.mock("../../features/traceDispatch/traceRuleRecording", () => ({
+  recordTraceActivity: vi.fn(),
+}));
+
+vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
+  isTopicsProcessingActive: vi.fn().mockResolvedValue(false),
+  getTopicsProcessingSampling: vi.fn().mockResolvedValue(0),
+}));
+
+describe("trace-rule recording at the evaluation stage", () => {
+  it.each([
+    { mode: "eval-only", shouldWriteToEventsTable: false, writeFails: false },
+    { mode: "failed write", shouldWriteToEventsTable: true, writeFails: true },
+    {
+      mode: "one write fails",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+      failedSpanId: "other",
+    },
+    {
+      mode: "invalid eval observation",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+      invalidSpanId: "match",
+    },
+    {
+      mode: "ingestion disabled",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+      ingestionEnabled: false,
+      observationRulesEnabled: false,
+    },
+    {
+      mode: "Topics disabled",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+      topicsEnabled: false,
+      traceEvalsEnabled: false,
+      observationRulesEnabled: false,
+    },
+    {
+      mode: "project not on the trace evals list",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+      traceEvalsEnabled: false,
+    },
+    {
+      mode: "project only on the trace evals list",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+      topicsEnabled: false,
+    },
+    {
+      mode: "accepted write",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+    },
+  ])(
+    "fetches and records transcript selections only for eligible batches ($mode)",
+    async ({
+      shouldWriteToEventsTable,
+      writeFails,
+      failedSpanId,
+      invalidSpanId,
+      ingestionEnabled = true,
+      topicsEnabled = true,
+      traceEvalsEnabled = true,
+      observationRulesEnabled = true,
+    }) => {
+      const original = { ...env };
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+      vi.mocked(isTopicsProcessingActive).mockResolvedValue(topicsEnabled);
+      vi.mocked(getTopicsProcessingSampling).mockResolvedValue(
+        topicsEnabled ? 1 : 0,
+      );
+      vi.mocked(isTraceEvalsProcessingActive).mockResolvedValue(
+        traceEvalsEnabled,
+      );
+      vi.mocked(getTraceEvalsProcessingSampling).mockResolvedValue(
+        traceEvalsEnabled ? 1 : 0,
+      );
+      env.LANGFUSE_EVENTS_DISPATCH_ENABLED = ingestionEnabled
+        ? "true"
+        : "false";
+      const includeTraceTranscriptRules =
+        shouldWriteToEventsTable &&
+        ingestionEnabled &&
+        (topicsEnabled || traceEvalsEnabled);
+      env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
+      const projectId = "recording-test";
+      const observationRule = createTestEvalConfig({ projectId });
+      const inputs = ["match", "other", "internal"].map((spanId) => ({
+        projectId,
+        traceId: "trace",
+        spanId,
+        startTimeISO: "2026-10-29T10:00:00.000Z",
+      }));
+      const createEventRecord = vi.fn(async (input: { spanId: string }) => ({
+        ...createEvent({
+          project_id: projectId,
+          trace_id: "trace",
+          span_id: input.spanId,
+          name: input.spanId,
+          environment:
+            input.spanId === "internal"
+              ? "langfuse-llm-as-a-judge"
+              : "production",
+        }),
+        // OTel attributes can contain numbers; the eval schema requires a string.
+        version: input.spanId === invalidSpanId ? 123 : "test-version",
+      }));
+      const persistedMatch = { input: "matched payload" };
+      const persistedOther = { input: "other payload 🔥" };
+      const writeEventRecord = vi.fn(async (record: { span_id: string }) => {
+        if (writeFails || record.span_id === failedSpanId)
+          throw new Error("write unavailable");
+        return record.span_id === "match" ? persistedMatch : persistedOther;
+      });
+      try {
+        vi.mocked(fetchEvalRules).mockResolvedValue({
+          observationRules: observationRulesEnabled ? [observationRule] : [],
+          traceTranscriptRules: [
+            {
+              id: "trace-rule",
+              ruleId: "trace-rule",
+              projectId,
+              targetObject: TopicsTargetObject,
+              status: "ACTIVE",
+              sampling: new Prisma.Decimal(1),
+              filter: [
+                {
+                  column: "name",
+                  type: "string",
+                  operator: "=",
+                  value: "match",
+                },
+              ],
+              assignments: [
+                {
+                  id: "assignment",
+                  evaluatorId: "evaluator",
+                  variableMapping: null,
+                  evaluator: {
+                    id: "evaluator",
+                    projectId,
+                    type: "LLM_AS_JUDGE",
+                  },
+                },
+              ],
+            },
+          ],
+        });
+        vi.mocked(createObservationEvalSchedulerDeps).mockReturnValue(
+          createMockSchedulerDeps(),
+        );
+        vi.mocked(scheduleObservationEvals).mockRejectedValue(
+          new Error("span scheduling unavailable"),
+        );
+        vi.mocked(recordTraceActivity).mockRejectedValue(
+          new Error("Redis unavailable"),
+        );
+        await expect(
+          processOtelEvents({
+            evalWrites: productionEvalWrites,
+            processor: {
+              processToEvent: () => inputs,
+            } as unknown as OtelIngestionProcessor,
+            ingestionService: {
+              createEventRecord,
+              writeEventRecord,
+            } as unknown as IngestionService,
+            resourceSpans: [],
+            projectId,
+            fileKey: "test.json",
+            shouldWriteToEventsTable,
+          }),
+        ).resolves.toBeUndefined();
+        const recordedSpans = [
+          failedSpanId === "match" || invalidSpanId === "match"
+            ? []
+            : [
+                {
+                  traceId: "trace",
+                  spanStartTimeISO: inputs[0].startTimeISO,
+                  // A judge rule is recorded only for a project on the trace evals list.
+                  ruleIds: traceEvalsEnabled ? ["trace-rule"] : [],
+                  serializedEventBytes: Buffer.byteLength(
+                    JSON.stringify(persistedMatch),
+                  ),
+                },
+              ],
+          failedSpanId === "other" || invalidSpanId === "other"
+            ? []
+            : [
+                {
+                  traceId: "trace",
+                  spanStartTimeISO: inputs[1].startTimeISO,
+                  ruleIds: [],
+                  serializedEventBytes: Buffer.byteLength(
+                    JSON.stringify(persistedOther),
+                  ),
+                },
+              ],
+        ].flat();
+        if (includeTraceTranscriptRules && !writeFails) {
+          expect(recordTraceActivity).toHaveBeenCalledExactlyOnceWith(
+            projectId,
+            recordedSpans,
+          );
+        } else {
+          expect(recordTraceActivity).not.toHaveBeenCalled();
+        }
+        expect(
+          vi
+            .mocked(scheduleObservationEvals)
+            .mock.calls.filter(([args]) => args.configs.length > 0)
+            .map(([args]) => args.configs),
+        ).toEqual(
+          observationRulesEnabled
+            ? inputs
+                .filter(
+                  ({ spanId }) =>
+                    spanId !== "internal" && spanId !== invalidSpanId,
+                )
+                .map(() => [observationRule])
+            : [],
+        );
+        if (!observationRulesEnabled && !includeTraceTranscriptRules) {
+          expect(createObservationEvalSchedulerDeps).not.toHaveBeenCalled();
+        }
+        expect(writeEventRecord).toHaveBeenCalledTimes(
+          shouldWriteToEventsTable ? 3 : 0,
+        );
+        expect(fetchEvalRules).toHaveBeenCalledExactlyOnceWith(projectId, {
+          includeTraceTranscriptRules,
+        });
+      } finally {
+        Object.assign(env, original);
+        vi.mocked(isTopicsProcessingActive).mockResolvedValue(false);
+        vi.mocked(getTopicsProcessingSampling).mockResolvedValue(0);
+        vi.mocked(isTraceEvalsProcessingActive).mockResolvedValue(false);
+        vi.mocked(getTraceEvalsProcessingSampling).mockResolvedValue(0);
+        vi.clearAllMocks();
+      }
+    },
+  );
+
+  it.each([
+    { mode: "sampled", rate: 0.1, ingestionEnabled: true, cloud: true },
+    { mode: "rate zero", rate: 0, ingestionEnabled: true, cloud: true },
+    { mode: "intake off", rate: 0.1, ingestionEnabled: false, cloud: true },
+    { mode: "self-hosted", rate: 0.1, ingestionEnabled: true, cloud: false },
+  ])(
+    "records bounds for the stable Topics sample without transcript rules ($mode)",
+    async ({ rate, ingestionEnabled, cloud }) => {
+      const original = { ...env };
+      const projectId = "sampled-recording-test";
+      const normalize = vi.spyOn(observationForEvalSchema, "parse");
+      // Deterministic sampler fixtures: 0.0593 is selected at 10%; 0.7116 is not.
+      const selected = "00000000000000000000000000000001";
+      const excluded = "00000000000000000000000000000002";
+      const inputs = [selected, excluded, selected, selected].map(
+        (traceId, index) => ({
+          projectId,
+          traceId,
+          spanId: `span-${index}`,
+          startTimeISO: "2026-10-29T10:00:00.000Z",
+          environment: index === 3 ? "langfuse-llm-as-a-judge" : "production",
+        }),
+      );
+      const persistedRecord = { input: "post-overflow 🔥" };
+      let recordedActivity: unknown;
+      try {
+        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = cloud ? "DEV" : undefined;
+        env.LANGFUSE_EVENTS_DISPATCH_ENABLED = ingestionEnabled
+          ? "true"
+          : "false";
+        vi.mocked(getTopicsProcessingSampling).mockResolvedValue(rate);
+        env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
+        vi.mocked(fetchEvalRules).mockResolvedValue({
+          observationRules: [],
+          traceTranscriptRules: [],
+        });
+        vi.mocked(createObservationEvalSchedulerDeps).mockReturnValue(
+          createMockSchedulerDeps(),
+        );
+        vi.mocked(recordTraceActivity).mockImplementation(
+          async (_, activity) => {
+            recordedActivity = structuredClone(activity);
+          },
+        );
+
+        await processOtelEvents({
+          evalWrites: productionEvalWrites,
+          processor: {
+            processToEvent: () => inputs,
+          } as unknown as OtelIngestionProcessor,
+          ingestionService: {
+            createEventRecord: async (input: (typeof inputs)[number]) =>
+              createEvent({
+                project_id: projectId,
+                trace_id: input.traceId,
+                span_id: input.spanId,
+                environment: input.environment,
+              }),
+            writeEventRecord: vi.fn().mockResolvedValue(persistedRecord),
+          } as unknown as IngestionService,
+          resourceSpans: [],
+          projectId,
+          fileKey: "sampled.json",
+          shouldWriteToEventsTable: true,
+        });
+
+        expect(normalize).not.toHaveBeenCalled();
+        if (rate > 0 && ingestionEnabled) {
+          expect(recordTraceActivity).toHaveBeenCalledExactlyOnceWith(
+            projectId,
+            expect.any(Array),
+          );
+          expect(recordedActivity).toEqual(
+            [inputs[0], inputs[2]].map((input) => ({
+              traceId: selected,
+              spanStartTimeISO: input.startTimeISO,
+              ruleIds: [],
+              serializedEventBytes: Buffer.byteLength(
+                JSON.stringify(persistedRecord),
+              ),
+            })),
+          );
+        } else {
+          expect(recordTraceActivity).not.toHaveBeenCalled();
+        }
+      } finally {
+        normalize.mockRestore();
+        Object.assign(env, original);
+        vi.mocked(getTopicsProcessingSampling).mockResolvedValue(0);
+        vi.clearAllMocks();
+      }
+    },
+  );
 });
 
 describe("early media extraction rollout", () => {

@@ -14,7 +14,7 @@ service:
       response: commons.Model
     upsert:
       method: PUT
-      docs: Create or replace a project-owned model using its id. Built-in models cannot be modified.
+      docs: Create or replace a project-owned model using its id. Organization and built-in models cannot be modified; targeting an organization model returns 403.
       path: /models/{id}
       path-parameters:
         id: string
@@ -43,14 +43,14 @@ service:
       response: commons.Model
     delete:
       method: DELETE
-      docs: Delete a model. Cannot delete models managed by Langfuse. You can create your own definition with the same modelName to override the definition though.
+      docs: Delete a project-owned model. Cannot delete organization models (returns 403) or models managed by Langfuse. You can create your own definition with the same modelName to override the definition though.
       path: /models/{id}
       path-parameters:
         id: string
 
 types:
   ModelTokenizerId:
-    docs: Tokenizer supported by Langfuse for model usage inference.
+    docs: Legacy tokenizer identifier retained for API compatibility. Ingestion no longer uses it to infer observation usage.
     enum:
       - openai
       - claude
@@ -104,8 +104,8 @@ types:
           which will automatically create a single default tier named "Standard".
         type: optional<nullable<list<commons.PricingTierInput>>>
       tokenizerId:
-        docs: Optional. Tokenizer to be applied to observations which match to this model. See docs for more details.
+        docs: Legacy tokenizer identifier retained for API compatibility. Ingestion no longer uses it to infer observation usage.
         type: optional<nullable<ModelTokenizerId>>
       tokenizerConfig:
-        docs: Optional. Configuration for the selected tokenizer. Needs to be JSON. See docs for more details.
+        docs: Legacy tokenizer configuration retained for API compatibility. Ingestion no longer uses it to infer observation usage.
         type: optional<nullable<unknown>>

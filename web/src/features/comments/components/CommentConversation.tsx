@@ -182,7 +182,7 @@ export function CommentConversation({
                 comment.dataField && comment.path.length > 0 ? (
                   <div className="flex min-w-0 items-center gap-2">
                     <Badge
-                      color="primary"
+                      color="outline"
                       size="sm"
                       text={comment.dataField.toUpperCase()}
                     />

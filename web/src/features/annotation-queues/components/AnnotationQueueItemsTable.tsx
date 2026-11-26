@@ -16,7 +16,7 @@ import { ListTree, Trash } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -36,6 +36,8 @@ import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
+import { annotationQueueItemListKey } from "@/src/features/annotation-queues/components/AnnotationQueueItemNav";
 
 const QueueItemTableMultiSelectAction = ({
   selectedItems,
@@ -212,12 +214,20 @@ export function AnnotationQueueItemsTable({
     "queueItems",
     "s",
   );
+  const { setDetailPageList } = useDetailPageLists();
   const items = api.annotationQueueItems.itemsByQueueId.useQuery({
     projectId,
     queueId,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
+  useEffect(() => {
+    if (!items.isSuccess) return;
+    setDetailPageList(
+      annotationQueueItemListKey(queueId),
+      items.data.queueItems.map((item) => ({ id: item.id })),
+    );
+  }, [items.isSuccess, items.data, queueId, setDetailPageList]);
   const selectedItems =
     items.data?.queueItems.filter((item) => selectedRows[item.id]) ?? [];
 

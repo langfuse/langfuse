@@ -7,12 +7,13 @@ import { EllipsisVertical, type IconComponent } from "@langfuse/icons";
 import Link, { type LinkProps } from "next/link";
 import { flushSync } from "react-dom";
 
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { getVisibleRowItemIndices } from "@/src/utils/getVisibleRowItemIndices";
 import { cn } from "@/src/utils/tailwind";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type TabsVariant = "inset" | "underline";
 type TabsInsetSize = "sm" | "md";
@@ -50,7 +51,7 @@ const tabsListVariants = cva(
     },
     compoundVariants: [
       { look: "inset", size: "sm", class: "h-6" },
-      { look: "inset", size: "md", class: "h-7" },
+      { look: "inset", size: "md", class: "h-8" },
       { look: "inset", layout: ["default", "packed"], class: "inline-flex" },
       {
         look: "underline",
@@ -133,13 +134,16 @@ type TabsListProps = {
   gap?: "none" | "sm" | "lg";
   layout?: "default" | "full" | "packed";
 } & (
-  | { variant: "inset"; size: TabsInsetSize; overflow?: never }
+  | { variant: "inset"; size: TabsInsetSize; overflow?: never; divider?: never }
   | {
       variant: "underline";
+      /** Omit the list divider when its containing bar already draws one. */
+      divider?: "line" | "none";
       size?: never;
       /**
        * `menu`: shows the `Tabs.Trigger` children that fit, the active one
-       * always, and lists the rest in a menu. Needs a controlled root; the
+       * always, and lists the rest in a menu; on mobile, shows a select.
+       * Needs a controlled root; the
        * list fills a flex row the caller owns, which sets height and divider.
        */
       overflow?: "menu";
@@ -158,6 +162,7 @@ function TabsList({
   gap,
   layout,
   overflow,
+  divider,
   size,
   variant,
 }: TabsListProps) {
@@ -258,7 +263,10 @@ function TabsList({
     );
   }
 
-  const className = tabsListVariants({ gap, layout, look, size });
+  const className = cn(
+    tabsListVariants({ gap, layout, look, size }),
+    divider === "none" && "border-b-0",
+  );
 
   if (!inRoot) {
     return (
@@ -295,7 +303,8 @@ function TabsList({
 }
 
 type TabsTriggerProps = {
-  disabled?: boolean;
+  /** With a reason, hovering the disabled tab explains why it can't be selected. */
+  disabled?: boolean | { disabledReason: string };
   icon?: IconComponent;
   /** Marks an internal-only feature with the Internal badge, in the row and in the overflow menu. */
   internal?: boolean;
@@ -320,7 +329,12 @@ type TabsTriggerProps = {
     }
 ) &
   (
-    | { value: string; href?: never; active?: never; onClick?: never }
+    | {
+        value: string;
+        href?: never;
+        active?: never;
+        onClick?: never;
+      }
     | {
         /** Renders a Next.js link with `aria-current` instead of a tab. */
         href: LinkProps["href"];
@@ -335,27 +349,30 @@ function TabsTrigger(props: TabsTriggerProps) {
   const list = React.use(TabsListContext) ?? { look: "underline" as const };
   const { children, count, disabled, icon, internal, label, title, tooltip } =
     props;
-  const className = tabsTriggerVariants({ look: list.look, size: list.size });
+  const className = cn(
+    tabsTriggerVariants({ look: list.look, size: list.size }),
+  );
   const nativeTitle = tooltip ? undefined : (labelText(label, count) ?? title);
+  const disabledReason = getDisabledReason(disabled);
   const content = (
     <TabsTriggerContent
       icon={icon}
       internal={internal}
       label={label}
       count={count}
-      tooltip={tooltip}
+      tooltip={disabledReason ? undefined : tooltip}
     >
       {children}
     </TabsTriggerContent>
   );
 
-  if (props.href !== undefined) {
-    return (
+  const trigger =
+    props.href !== undefined ? (
       <Link
         href={props.href}
         onClick={props.onClick}
         aria-current={props.active ? "page" : undefined}
-        aria-disabled={disabled || undefined}
+        aria-disabled={Boolean(disabled) || undefined}
         tabIndex={disabled ? -1 : undefined}
         data-state={props.active ? "active" : "inactive"}
         title={nativeTitle}
@@ -363,19 +380,35 @@ function TabsTrigger(props: TabsTriggerProps) {
       >
         {content}
       </Link>
+    ) : (
+      <TabsPrimitive.Trigger
+        value={props.value}
+        disabled={Boolean(disabled)}
+        title={nativeTitle}
+        className={className}
+      >
+        {content}
+      </TabsPrimitive.Trigger>
     );
+
+  if (!disabledReason) {
+    return trigger;
   }
 
+  // A disabled trigger gets no pointer events, so its reason sits on a wrapper.
   return (
-    <TabsPrimitive.Trigger
-      value={props.value}
-      disabled={disabled}
-      title={nativeTitle}
-      className={className}
-    >
-      {content}
-    </TabsPrimitive.Trigger>
+    <Tooltip label={disabledReason}>
+      {({ getTriggerProps }) => (
+        <span {...getTriggerProps()} className="cursor-not-allowed">
+          {trigger}
+        </span>
+      )}
+    </Tooltip>
   );
+}
+
+function getDisabledReason(disabled: TabsTriggerProps["disabled"]) {
+  return typeof disabled === "object" ? disabled.disabledReason : undefined;
 }
 
 function TabsTriggerContent({
@@ -449,7 +482,7 @@ function labelText(label: string | undefined, count: number | undefined) {
 }
 
 function TabsInternalBadge() {
-  return <Badge text="Internal" color="yellow" size="sm" />;
+  return <FeatureReleaseStatus status="internal" />;
 }
 
 /** The underline list with `overflow="menu"`; only direct `Tabs.Trigger` children take part. */
@@ -493,75 +526,110 @@ function TabsOverflowList({
 
   return (
     <TabsListContext value={{ look: "underline" }}>
-      {/* A zero flex basis makes the list the space left over by the caller's
+      <div className="flex h-full min-w-0 flex-1">
+        <div className="w-full sm:hidden">
+          <SelectInput
+            aria-label={ariaLabel ?? "Tabs"}
+            placeholder="Select tab"
+            value={root?.value ?? ""}
+            onValueChange={(value) => root?.onValueChange?.(value)}
+            options={triggers.map(({ props }) => ({
+              value: props.value,
+              label:
+                labelText(props.label, props.count) ??
+                props.title ??
+                props.value,
+              icon: props.icon,
+              badges: props.internal
+                ? [{ text: "Internal", color: "amber" as const }]
+                : undefined,
+              ...(props.disabled
+                ? {
+                    disabled: true as const,
+                    disabledReason:
+                      getDisabledReason(props.disabled) ??
+                      props.tooltip ??
+                      "Not available",
+                  }
+                : { disabled: false as const }),
+            }))}
+          />
+        </div>
+        {/* A zero flex basis makes the list the space left over by the caller's
           controls, so the triggers never feed back into the width they are
           compared against. */}
-      <TabsPrimitive.List
-        ref={availableRef}
-        aria-label={ariaLabel}
-        className="relative flex h-full min-w-0 flex-1 items-center justify-start overflow-x-clip"
-      >
-        {/* Non-interactive replicas keep every trigger measurable, including
+        <TabsPrimitive.List
+          ref={availableRef}
+          aria-label={ariaLabel}
+          className="relative hidden h-full min-w-0 flex-1 items-center justify-start overflow-x-clip sm:flex"
+        >
+          {/* Non-interactive replicas keep every trigger measurable, including
             the hidden ones, without duplicating tab semantics. */}
-        <div
-          ref={measureRef}
-          aria-hidden="true"
-          className="invisible absolute flex h-full w-max items-center"
-        >
-          {triggers.map((trigger) => (
-            <span key={trigger.props.value} className={replicaClassName}>
-              <TabsTriggerContent
-                icon={trigger.props.icon}
-                internal={trigger.props.internal}
-                label={trigger.props.label}
-                count={trigger.props.count}
-              >
-                {trigger.props.children}
-              </TabsTriggerContent>
-            </span>
-          ))}
-          <TabsOverflowTrigger tabIndex={-1} />
-        </div>
-        <div
-          ref={rowRef}
-          className={cn(
-            // A tab wider than the row truncates; the overflow trigger never clips.
-            "flex h-full min-w-0 items-center [&>[role=tab]]:min-w-0",
-            visibleIndices === null && "invisible",
-          )}
-        >
-          {triggers.map((trigger, index) =>
-            visible.has(index) ? trigger : null,
-          )}
-          {hiddenTriggers.length > 0 ? (
-            <span className="flex shrink-0">
-              <DropdownMenu
-                ariaLabel={overflowTriggerLabel}
-                items={hiddenTriggers.map((trigger) => ({
-                  badge: trigger.props.internal ? (
-                    <TabsInternalBadge />
-                  ) : undefined,
-                  disabled: trigger.props.disabled
-                    ? { reason: trigger.props.tooltip ?? "Not available" }
-                    : undefined,
-                  id: trigger.props.value,
-                  onClick: () => selectFromMenu(trigger.props.value),
-                  title:
-                    labelText(trigger.props.label, trigger.props.count) ??
-                    trigger.props.title ??
-                    trigger.props.value,
-                  tooltip: trigger.props.tooltip,
-                  type: "item" as const,
-                }))}
-              >
-                {({ getTriggerProps }) => (
-                  <TabsOverflowTrigger {...getTriggerProps()} />
-                )}
-              </DropdownMenu>
-            </span>
-          ) : null}
-        </div>
-      </TabsPrimitive.List>
+          <div
+            ref={measureRef}
+            aria-hidden="true"
+            className="invisible absolute flex h-full w-max items-center"
+          >
+            {triggers.map((trigger) => (
+              <span key={trigger.props.value} className={replicaClassName}>
+                <TabsTriggerContent
+                  icon={trigger.props.icon}
+                  internal={trigger.props.internal}
+                  label={trigger.props.label}
+                  count={trigger.props.count}
+                >
+                  {trigger.props.children}
+                </TabsTriggerContent>
+              </span>
+            ))}
+            <TabsOverflowTrigger tabIndex={-1} />
+          </div>
+          <div
+            ref={rowRef}
+            className={cn(
+              // A tab wider than the row truncates; the overflow trigger never clips.
+              "flex h-full min-w-0 items-center [&>[role=tab]]:min-w-0",
+              visibleIndices === null && "invisible",
+            )}
+          >
+            {triggers.map((trigger, index) =>
+              visible.has(index) ? trigger : null,
+            )}
+            {hiddenTriggers.length > 0 ? (
+              <span className="flex shrink-0">
+                <DropdownMenu
+                  ariaLabel={overflowTriggerLabel}
+                  items={hiddenTriggers.map((trigger) => ({
+                    badge: trigger.props.internal ? (
+                      <TabsInternalBadge />
+                    ) : undefined,
+                    disabled: trigger.props.disabled
+                      ? {
+                          reason:
+                            getDisabledReason(trigger.props.disabled) ??
+                            trigger.props.tooltip ??
+                            "Not available",
+                        }
+                      : undefined,
+                    id: trigger.props.value,
+                    onClick: () => selectFromMenu(trigger.props.value),
+                    title:
+                      labelText(trigger.props.label, trigger.props.count) ??
+                      trigger.props.title ??
+                      trigger.props.value,
+                    tooltip: trigger.props.tooltip,
+                    type: "item" as const,
+                  }))}
+                >
+                  {({ getTriggerProps }) => (
+                    <TabsOverflowTrigger {...getTriggerProps()} />
+                  )}
+                </DropdownMenu>
+              </span>
+            ) : null}
+          </div>
+        </TabsPrimitive.List>
+      </div>
     </TabsListContext>
   );
 }

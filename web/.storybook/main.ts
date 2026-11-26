@@ -27,6 +27,15 @@ const STORY_TITLE_GROUPS: StoryTitleGroup[] = [
     titlePrefix: "Design/Components/Table/Cells",
   },
   {
+    directory:
+      "src/features/ai-gateway/components/GatewayGuardrailDialogController",
+    titlePrefix: "Features/AI Gateway/Guardrails",
+  },
+  {
+    directory: "src/features/ai-gateway/components/GatewayGuardrailsPage",
+    titlePrefix: "Features/AI Gateway/Guardrails",
+  },
+  {
     directory: "src/features/ai-gateway/components",
     titlePrefix: "Features/AI Gateway",
   },
@@ -52,6 +61,8 @@ const DESIGN_REFERENCE_STORIES = [
   "ThemeTokens/Typography",
   "ThemeTokens/Layout",
   "ThemeTokens/Charts",
+  // Hidden backing stories for the Form Elements docs page (`tags: ["!dev"]`).
+  "FormElements",
 ] as const;
 
 /**
@@ -141,6 +152,11 @@ const config: StorybookConfig = {
   // pulled in transitively by the table stories). Pointing at the source makes
   // Storybook resolve named exports exactly like the app does.
   viteFinal: async (viteConfig) => {
+    viteConfig.build = {
+      ...viteConfig.build,
+      sourcemap: false,
+    };
+
     // Linked workspace packages are not prebundled by default. Bundle the icon
     // barrels so each browser worker does not request thousands of modules.
     viteConfig.optimizeDeps = {

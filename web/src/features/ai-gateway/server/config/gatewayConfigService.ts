@@ -20,13 +20,7 @@ import { GatewayConfigRepository } from "./gatewayConfigRepository";
 /** The gateway config is org-level; the org audit log only lists entries without a project. */
 function withoutProjectContext(actor: AuditLogActor): AuditLogActor {
   if ("session" in actor) {
-    return {
-      session: {
-        ...actor.session,
-        projectId: undefined,
-        projectRole: undefined,
-      },
-    };
+    return { session: { ...actor.session, projectId: undefined } };
   }
   return { ...actor, projectId: undefined };
 }
@@ -89,14 +83,34 @@ export class GatewayConfigService {
   }
 
   async getSetupStatus(organizationId: string) {
+    const { ingestionMode, activeProject } =
+      await this.getIngestionState(organizationId);
+    return {
+      isConfigured: isGatewayIngestionConfigured({
+        ingestionMode,
+        hasActiveIngestionProject: !!activeProject,
+      }),
+      /** Whether requests are recorded, which gateway analytics read. */
+      isRecording: ingestionMode !== "NONE" && !!activeProject,
+    };
+  }
+
+  /** The project gateway requests are recorded into, or null when they are not recorded. */
+  async getRecordingProjectId(organizationId: string) {
+    const { ingestionMode, activeProject } =
+      await this.getIngestionState(organizationId);
+    return ingestionMode === "NONE" ? null : (activeProject?.id ?? null);
+  }
+
+  private async getIngestionState(organizationId: string) {
     const config = await this.getConfig(organizationId);
     const project = config?.defaultIngestionProject;
     return {
-      isConfigured: isGatewayIngestionConfigured({
-        ingestionMode: config?.ingestionMode ?? "USAGE",
-        hasActiveIngestionProject:
-          !!project && !project.deletedAt && project.orgId === organizationId,
-      }),
+      ingestionMode: config?.ingestionMode ?? "USAGE",
+      activeProject:
+        project && !project.deletedAt && project.orgId === organizationId
+          ? project
+          : null,
     };
   }
 

@@ -45,6 +45,7 @@ import {
   MoreVertical,
   Plus,
   Terminal,
+  Trash,
 } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -61,13 +62,8 @@ import { useMemo, useState } from "react";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { DuplicatePromptButton } from "@/src/features/prompts/components/DuplicatePromptButton";
 import Page from "@/src/components/layouts/Page";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/src/components/ui/dropdown-menu";
-import { DeletePromptVersion } from "@/src/features/prompts/components/DeletePromptVersion";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { DeletePromptVersionDialogController } from "@/src/features/prompts/components/DeletePromptVersionDialogController";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import {
@@ -489,7 +485,7 @@ export const PromptDetail = ({
                     <History size="base" color="default" />
                     <span className="shrink-0">Version #{prompt.version}</span>
                     <span
-                      className="text-muted-foreground min-w-0 flex-1 truncate text-left font-normal"
+                      className="ph-no-capture text-muted-foreground min-w-0 flex-1 truncate text-left font-normal"
                       title={prompt.commitMessage ?? prompt.name}
                     >
                       {prompt.commitMessage ?? prompt.name}
@@ -518,11 +514,11 @@ export const PromptDetail = ({
             <div className="grid w-full grid-cols-1 items-start gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
               <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1.5">
                 <span className="mr-1 inline-flex max-w-full min-w-0 items-center gap-2">
-                  <BadgeShell color="inverted" font="mono" size="lg">
+                  <BadgeShell color="inverted" size="lg">
                     # {prompt.version}
                   </BadgeShell>
                   <span
-                    className="text-primary min-w-0 truncate text-lg leading-6 font-bold"
+                    className="ph-no-capture text-primary min-w-0 truncate text-lg leading-6 font-bold"
                     title={prompt.commitMessage ?? prompt.name}
                   >
                     {prompt.commitMessage ?? prompt.name}
@@ -643,27 +639,43 @@ export const PromptDetail = ({
                     </Button>
                   )}
                 </CommentDrawerController>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <IconButton
-                      icon={MoreVertical}
-                      label="More actions"
-                      size="sm"
-                    />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    className="flex flex-col *:w-full *:justify-start"
-                  >
-                    <DropdownMenuItem asChild>
-                      <DeletePromptVersion
-                        promptVersionId={prompt.id}
-                        version={prompt.version}
-                        countVersions={promptHistory.data.totalCount}
-                      />
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <DeletePromptVersionDialogController
+                  key={prompt.id}
+                  promptVersionId={prompt.id}
+                  version={prompt.version}
+                  countVersions={promptHistory.data.totalCount}
+                >
+                  {({ disabled, onClick }) => (
+                    <DropdownMenu
+                      placement="bottom-end"
+                      items={[
+                        {
+                          type: "item",
+                          id: "delete-version",
+                          title: "Delete version",
+                          icon: Trash,
+                          variant: "destructive",
+                          disabled: disabled
+                            ? {
+                                reason:
+                                  "Prompt version deletion is not available.",
+                              }
+                            : undefined,
+                          onClick,
+                        },
+                      ]}
+                    >
+                      {({ getTriggerProps }) => (
+                        <IconButton
+                          {...getTriggerProps()}
+                          icon={MoreVertical}
+                          label="More actions"
+                          size="sm"
+                        />
+                      )}
+                    </DropdownMenu>
+                  )}
+                </DeletePromptVersionDialogController>
               </div>
             </div>
           </DetailViewHeaderShell>

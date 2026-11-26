@@ -4,12 +4,10 @@ import { type EvalTemplate } from "@langfuse/shared";
 import {
   CheckIcon,
   Cog,
-  ExternalLink,
+  SquareArrowOutUpRight,
   AlertCircle,
-  ExternalLinkIcon,
 } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   Popover,
   PopoverContent,
@@ -42,6 +40,7 @@ import { env } from "@/src/env.mjs";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
 import { getEvalTemplateFamilyKey } from "@/src/features/evals/utils/eval-template-family";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type TemplateSelectorProps = {
   projectId: string;
@@ -226,7 +225,7 @@ export const TemplateSelector = ({
                           {template.name}
                           {isLegacy && (
                             <span className="ml-2">
-                              <Badge color="primary" text="legacy" />
+                              <FeatureReleaseStatus status="legacy" />
                             </span>
                           )}
                           {isInvalid && (
@@ -245,7 +244,7 @@ export const TemplateSelector = ({
                                   target="_blank"
                                   rel="noopener noreferrer"
                                 >
-                                  <ExternalLinkIcon size="base" />
+                                  <SquareArrowOutUpRight size="base" />
                                   Configure default model
                                 </Link>
                               </TooltipContent>
@@ -322,7 +321,7 @@ export const TemplateSelector = ({
                         />
                         {isLegacy && (
                           <span className="ml-2">
-                            <Badge color="primary" text="legacy" />
+                            <FeatureReleaseStatus status="legacy" />
                           </span>
                         )}
                         {isInvalid && (
@@ -341,7 +340,7 @@ export const TemplateSelector = ({
                                 target="_blank"
                                 rel="noopener noreferrer"
                               >
-                                <ExternalLinkIcon size="base" />
+                                <SquareArrowOutUpRight size="base" />
                                 Configure default model
                               </Link>
                             </TooltipContent>
@@ -395,7 +394,7 @@ export const TemplateSelector = ({
                   }}
                 >
                   Create custom evaluator
-                  <ExternalLink size="base" __rawClassName="ml-auto" />
+                  <SquareArrowOutUpRight size="base" __rawClassName="ml-auto" />
                 </InputCommandItem>
                 {!hasDefaultModel && (
                   <InputCommandItem
@@ -408,7 +407,10 @@ export const TemplateSelector = ({
                     }}
                   >
                     Configure default model
-                    <ExternalLink size="base" __rawClassName="ml-auto" />
+                    <SquareArrowOutUpRight
+                      size="base"
+                      __rawClassName="ml-auto"
+                    />
                   </InputCommandItem>
                 )}
               </InputCommandGroup>

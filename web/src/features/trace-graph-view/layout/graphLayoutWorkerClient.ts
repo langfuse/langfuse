@@ -24,6 +24,7 @@ import {
  * no node/edge count can predict it. ELK can't be interrupted even in a worker, so
  * the deadline is enforced by terminating the worker and showing the "too large"
  * notice. See MAX_GRAPH_LAYOUT_* for the count ceiling that stays.
+ * @internal
  */
 export const GRAPH_LAYOUT_DEADLINE_MS = 60_000;
 
@@ -33,6 +34,7 @@ export const GRAPH_LAYOUT_DEADLINE_MS = 60_000;
  * deploy, because worker chunks are deliberately kept on the app origin and the
  * app origin only serves the current build. This route resolves across deploys
  * — see `pages/api/workers/elk-worker.ts`.
+ * @internal
  */
 export const ELK_WORKER_URL = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/workers/elk-worker`;
 
@@ -53,6 +55,7 @@ let active: LayoutWorker | null = null;
 let workerUnavailable = false;
 let requestCounter = 0;
 
+/** @internal */
 export class GraphLayoutCancelledError extends Error {
   constructor() {
     super("Graph layout cancelled");

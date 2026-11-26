@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
+import { readdirSync } from "node:fs";
+import path from "node:path";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createApiKey,
   createBasicAuthHeader,
-  createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import {
   OrganizationId,
@@ -15,27 +15,27 @@ import {
   SystemRoleId,
   UserId,
 } from "@langfuse/shared/rbac";
-import {
-  createTopicFacet,
-  createTopicRun,
-  saveTopicRun,
-  writeTopicSummaries,
-} from "@langfuse/shared/topics/server";
 import topicsHandler from "@/src/pages/api/public/unstable/topics/index";
-import topicHandler from "@/src/pages/api/public/unstable/topics/[topicId]";
+import topicHandler from "@/src/pages/api/public/unstable/topics/[topicStableId]";
 import facetsHandler from "@/src/pages/api/public/unstable/topic-facets/index";
 import facetHandler from "@/src/pages/api/public/unstable/topic-facets/[facetId]";
+import { topicsProject } from "@/src/__tests__/fixtures/topics";
+import type { HttpMethod } from "@/src/features/public-api/server/withMiddlewares";
+import summariesHandler from "@/src/pages/api/public/unstable/topic-summaries/index";
+import assignmentsHandler from "@/src/pages/api/public/unstable/topic-assignments/index";
+import rulesHandler from "@/src/pages/api/public/unstable/topic-rules/index";
+import ruleHandler from "@/src/pages/api/public/unstable/topic-rules/[ruleId]";
 
 type Handler = (req: NextApiRequest, res: NextApiResponse) => Promise<void>;
 
-// In-process calls, since the Topics gate reads shared env in this process.
 async function get(
   handler: Handler,
   authorization: string,
   query: Record<string, string> = {},
+  method: HttpMethod = "GET",
 ) {
   const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
-    method: "GET",
+    method,
     query,
     headers: { authorization },
   });
@@ -43,124 +43,122 @@ async function get(
   return { status: res._getStatusCode(), body: res._getJSONData() };
 }
 
-/** A Topics-enabled project with one facet whose published run holds one topic. */
-async function topicsProject() {
-  const project = await createOrgProjectAndApiKey();
-  const facet = await createTopicFacet({
-    projectId: project.projectId,
-    name: `Facet ${randomUUID()}`,
-    description: "Private facet",
-    prompt: "Summarize the trace.",
-  });
-  const run = await createTopicRun({
-    projectId: project.projectId,
-    facetId: facet.id,
-    facetVersion: 1,
-    config: {},
-  });
-  const topicId = randomUUID();
-  const now = new Date().toISOString();
-  await saveTopicRun({
-    ...run,
-    status: "completed",
-    finishedAt: now,
-    topics: [
-      {
-        topicVersionId: randomUUID(),
-        topicId,
-        projectId: project.projectId,
-        createdByRunId: run.id,
-        createdAt: now,
-        tags: [],
-        name: "Private topic",
-        description: "Private topic description",
-        centroid: [1, 0],
-        radius: 0.5,
-        representativeSummaries: [],
-        metadata: {},
-      },
+/**
+ * Every Topics route by file: a query naming one of the project's resources,
+ * that resource's id, and the status another project's key gets for it.
+ */
+function topicsRoutes(project: Awaited<ReturnType<typeof topicsProject>>) {
+  const { topicId, facetId, ruleId, traceId } = project;
+  return {
+    "topics/index": [topicsHandler, {}, topicId, 200],
+    "topics/[topicStableId]": [
+      topicHandler,
+      { topicStableId: topicId },
+      topicId,
+      404,
     ],
-  });
-  // Topics are served only once the project has a stored summary.
-  await writeTopicSummaries([
-    {
-      projectId: project.projectId,
-      facetId: facet.id,
-      facetVersion: 1,
-      traceId: randomUUID(),
-      sessionId: null,
-      triggerType: "manual_poc",
-      environment: "production",
-      traceName: "assistant",
-      unitStartTime: now,
-      state: "complete",
-      summary: "Private summary",
-      embedding: [1, 0],
-      transcriptId: "test",
-      transcriptVersion: "test",
-      summaryModel: "summary-model",
-      embeddingModel: "embedding-model",
-      providedUsageDetails: {},
-      usageDetails: {},
-      providedCostDetails: {},
-      costDetails: {},
-      processedAt: now,
-      metadata: {},
-    },
-  ]);
-  return { ...project, facetId: facet.id, topicId };
+    "topic-facets/index": [facetsHandler, {}, facetId, 200],
+    "topic-facets/[facetId]": [facetHandler, { facetId }, facetId, 404],
+    "topic-rules/index": [rulesHandler, {}, ruleId, 200],
+    "topic-rules/[ruleId]": [ruleHandler, { ruleId }, ruleId, 404],
+    "topic-summaries/index": [summariesHandler, {}, traceId, 200],
+    "topic-assignments/index": [assignmentsHandler, {}, traceId, 200],
+  } satisfies Record<
+    string,
+    [Handler, Record<string, string>, string, 200 | 404]
+  >;
 }
 
 describe("unstable Topics public API access", () => {
-  const original = {
-    enabled: sharedEnv.LANGFUSE_TOPICS_ENABLED,
-    projectIds: sharedEnv.LANGFUSE_TOPICS_ENABLED_PROJECT_IDS,
-    region: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-  };
   let owner: Awaited<ReturnType<typeof topicsProject>>;
   let other: Awaited<ReturnType<typeof topicsProject>>;
 
   beforeAll(async () => {
     owner = await topicsProject();
     other = await topicsProject();
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
-    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS = [
-      owner.projectId,
-      other.projectId,
-    ];
   });
 
-  afterAll(() => {
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = original.enabled;
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS =
-      original.projectIds;
-    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.region;
-  });
-
-  it("does not expose a project's facets or topics to another project's key", async () => {
+  it("serves every Topics route read-only and only from the key's own project", async () => {
     const ownerAuth = createBasicAuthHeader(owner.publicKey, owner.secretKey);
     const otherAuth = createBasicAuthHeader(other.publicKey, other.secretKey);
+    const routes = topicsRoutes(owner);
+    const files = readdirSync(
+      path.resolve(process.cwd(), "src/pages/api/public/unstable"),
+      { recursive: true, encoding: "utf8" },
+    ).flatMap((file) =>
+      file.startsWith("topic") && file.endsWith(".ts")
+        ? [file.slice(0, -3)]
+        : [],
+    );
+    // A new Topics route must join the table.
+    expect(Object.keys(routes).sort()).toEqual(files.sort());
 
-    // Positive control: the owner reads both, so the 404s below are not vacuous.
-    for (const [auth, status] of [
-      [ownerAuth, 200],
-      [otherAuth, 404],
-    ] as const) {
-      expect(
-        (await get(facetHandler, auth, { facetId: owner.facetId })).status,
-      ).toBe(status);
-      expect(
-        (await get(topicHandler, auth, { topicId: owner.topicId })).status,
-      ).toBe(status);
+    for (const [route, [handler, query, id, foreignStatus]] of Object.entries(
+      routes,
+    )) {
+      // Positive control: the owner reads the id, so the checks below are not vacuous.
+      const owned = await get(handler, ownerAuth, query);
+      expect(owned.status, route).toBe(200);
+      expect(JSON.stringify(owned.body), route).toContain(id);
+
+      const foreign = await get(handler, otherAuth, query);
+      expect(foreign.status, route).toBe(foreignStatus);
+      expect(JSON.stringify(foreign.body), route).not.toContain(id);
+
+      // A write method would need its own scope test.
+      for (const method of ["POST", "PUT", "DELETE", "PATCH"] as const)
+        expect(
+          (await get(handler, ownerAuth, query, method)).status,
+          `${method} ${route}`,
+        ).toBe(405);
     }
+  });
 
-    // No Topics rule exists, so every facet counts as active and is listed.
-    const facets = await get(facetsHandler, otherAuth);
-    const topics = await get(topicsHandler, otherAuth);
-    expect(facets.status).toBe(200);
+  it("does not expose another project's rows through filters naming its ids", async () => {
+    const ownerAuth = createBasicAuthHeader(owner.publicKey, owner.secretKey);
+    const otherAuth = createBasicAuthHeader(other.publicKey, other.secretKey);
+    const filterOn = (column: string, value: string) => ({
+      filter: JSON.stringify([
+        { type: "stringOptions", column, operator: "any of", value: [value] },
+      ]),
+    });
+    // Every filter that can name another project's ids or labels.
+    const ownerFilters = [
+      filterOn("traceId", owner.traceId),
+      filterOn("topicStableId", owner.topicId),
+      filterOn("facetId", owner.facetId),
+      filterOn("ruleId", owner.ruleId),
+      filterOn("topicName", "Private topic"),
+    ];
+
+    // Positive control: the owner sees its rule and trace through every filter.
+    for (const handler of [summariesHandler, assignmentsHandler])
+      for (const query of ownerFilters) {
+        const owned = await get(handler, ownerAuth, query);
+        expect(owned.status).toBe(200);
+        expect(
+          owned.body.data.map((row: { traceId: string }) => row.traceId),
+        ).toEqual([owner.traceId]);
+      }
+    expect(
+      JSON.stringify(
+        (await get(topicsHandler, ownerAuth, filterOn("ruleId", owner.ruleId)))
+          .body,
+      ),
+    ).toContain(owner.topicId);
+
+    for (const handler of [summariesHandler, assignmentsHandler])
+      for (const query of ownerFilters) {
+        const result = await get(handler, otherAuth, query);
+        expect(result.status).toBe(200);
+        expect(JSON.stringify(result.body)).not.toContain(owner.traceId);
+      }
+    const topics = await get(
+      topicsHandler,
+      otherAuth,
+      filterOn("ruleId", owner.ruleId),
+    );
     expect(topics.status).toBe(200);
-    expect(JSON.stringify(facets.body)).not.toContain(owner.facetId);
     expect(JSON.stringify(topics.body)).not.toContain(owner.topicId);
   });
 
@@ -179,12 +177,7 @@ describe("unstable Topics public API access", () => {
       ingestKey.secretKey,
     );
 
-    for (const [handler, query] of [
-      [facetsHandler, {}],
-      [facetHandler, { facetId: owner.facetId }],
-      [topicsHandler, {}],
-      [topicHandler, { topicId: owner.topicId }],
-    ] as const)
+    for (const [handler, query] of Object.values(topicsRoutes(owner)))
       expect((await get(handler, auth, query)).status).toBe(403);
   });
 });

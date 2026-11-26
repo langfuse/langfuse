@@ -8,12 +8,6 @@ describe("stringify", () => {
     expect(JSON.parse(result).count).toBe(42);
   });
 
-  it.skip("preserves literal unicode escape sequences; skipped because exports intentionally decode unicode escapes for now", () => {
-    const data = { text: "\\\\u0041" };
-    const result = stringify(data);
-    expect(JSON.parse(result).text).toBe("\\u0041");
-  });
-
   it("uses pretty-print for comments key", () => {
     const data = { text: "hello" };
     const result = stringify(data, "comments");
@@ -53,11 +47,6 @@ describe("stringifyForCsv", () => {
   it("returns plain strings without JSON encoding", () => {
     const result = stringifyForCsv('line1\\nline2,"quoted"');
     expect(result).toBe('line1\\nline2,"quoted"');
-  });
-
-  it.skip("preserves literal unicode escape sequences in string data; skipped because exports intentionally decode unicode escapes for now", () => {
-    const result = stringifyForCsv("\\\\u0041");
-    expect(result).toBe("\\u0041");
   });
 
   it("falls back to stringify for non-string data", () => {

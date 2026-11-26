@@ -9,20 +9,22 @@ use axum::{
     routing::{get, post},
 };
 use http_body_util::BodyExt;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::value::RawValue;
 use tower_http::timeout::{RequestBodyDeadlineLayer, TimeoutError};
 use tracing::Instrument;
 
 use crate::{
+    capture::{GatewayRejection, MAX_OUTPUT_CAPTURE_BYTES, MAX_RESPONSE_PARSE_BYTES},
     correlation::{RequestCorrelation, assign_request_id},
+    guardrails::ScannedMembers,
     inference::{
         InferenceService, MemoryReservation, provider_origin, rate_limited_reason,
         resolution_origin,
     },
     observability::{ErrorOrigin, Wait},
-    providers::{ProviderError, RequestBody, Route},
-    resolution::{ApiFormat, RateLimit, ResolutionError},
+    providers::{ProviderError, RequestBody, Route, StreamOptions},
+    resolution::{ApiFormat, ResolutionError, SpendLimitExceeded},
     server::GatewayLifecycleState,
 };
 
@@ -46,6 +48,8 @@ pub fn router(inference: Option<InferenceService>, lifecycle: GatewayLifecycleSt
             post(handle_responses_compact),
         )
         .route("/openai/v1/chat/completions", post(handle_chat_completions))
+        .route("/openai/v1/decisions", post(handle_decisions))
+        .route("/openai/v1/embeddings", post(handle_embeddings))
         .route("/openai/v1/models", get(handle_openai_models))
         .route("/anthropic/v1/messages", post(handle_messages))
         .route(
@@ -80,6 +84,14 @@ async fn handle_chat_completions(
     request: Request,
 ) -> Response {
     handle_inference(state, request, Route::OpenAiChatCompletions).await
+}
+
+async fn handle_decisions(State(state): State<InferenceRouteState>, request: Request) -> Response {
+    handle_inference(state, request, Route::OpenAiDecisions).await
+}
+
+async fn handle_embeddings(State(state): State<InferenceRouteState>, request: Request) -> Response {
+    handle_inference(state, request, Route::OpenAiEmbeddings).await
 }
 
 async fn handle_openai_models(
@@ -227,17 +239,40 @@ async fn relay(
     correlation
         .observation()
         .record_request_bytes(request_bytes);
-    let request_body = request_body_and_model(bytes)?;
+    // The reservation travels with the body, so a caller that disconnects mid-parse
+    // cannot free budget while the parse still holds the body.
+    let (parsed, reservation) = inference
+        .run_cpu(crate::cpu::CpuJob::ParseRequest, request_bytes, move || {
+            (parse_request_body(bytes, route.api_format()), reservation)
+        })
+        .instrument(tracing::info_span!(
+            "request.parse",
+            otel.kind = "internal",
+            http.request.body.size = byte_count(request_bytes)
+        ))
+        .await
+        .map_err(InferenceHttpError::Resolution)?;
+    let request_body = parsed?;
+    let mut reservation = Some(reservation);
     let (permit, context) = inference
         .resolve_and_admit(
             gateway_key,
-            route.api_format(),
-            &request_body.model,
-            request_bytes,
+            route,
+            &parts.headers,
+            &request_body,
+            &mut reservation,
             correlation,
         )
         .await
         .map_err(InferenceHttpError::Resolution)?;
+    let parse_growth = permit
+        .charges_spend()
+        .then(|| {
+            reservation
+                .as_ref()
+                .map(|r| r.deferred(MAX_RESPONSE_PARSE_BYTES - MAX_OUTPUT_CAPTURE_BYTES))
+        })
+        .flatten();
     inference
         .forward(
             permit,
@@ -246,8 +281,11 @@ async fn relay(
             RequestBody {
                 bytes: request_body.bytes,
                 model_range: request_body.model_range,
+                stream_options: request_body.stream_options,
                 streaming: request_body.streaming,
-                reservation: Some(Box::new(reservation)),
+                reservation: reservation
+                    .map(|r| -> crate::providers::BodyReservation { Box::new(r) }),
+                parse_growth,
             },
             route,
             correlation,
@@ -256,47 +294,183 @@ async fn relay(
         .map_err(InferenceHttpError::Provider)
 }
 
-struct InferenceRequestBody {
+/// The caller body, parsed once on arrival.
+pub(crate) struct ParsedRequest {
     bytes: Bytes,
-    model: String,
+    pub(crate) model: String,
     model_range: Range<usize>,
+    stream_options: StreamOptions,
     streaming: bool,
+    /// Where the conversation members guardrails scan sit.
+    pub(crate) scanned: ScannedMembers,
 }
 
-#[derive(Deserialize)]
-struct InferenceRequest<'a> {
-    #[serde(borrow)]
-    model: &'a RawValue,
+impl ParsedRequest {
+    pub(crate) fn body(&self) -> &Bytes {
+        &self.bytes
+    }
+}
+
+/// The top-level members of a request body, borrowed from it.
+struct Members<'a> {
+    model: Seen<'a>,
     /// Kept raw so a non-boolean value is left for the provider to reject.
-    #[serde(borrow, default)]
-    stream: Option<&'a RawValue>,
+    stream: Seen<'a>,
+    stream_options: Seen<'a>,
+    /// The members guardrails scan, in the order of `MembersSeed::scanned`.
+    scanned: Vec<Seen<'a>>,
 }
 
-fn request_body_and_model(bytes: Bytes) -> Result<InferenceRequestBody, InferenceHttpError> {
-    let request = serde_json::from_slice::<InferenceRequest<'_>>(&bytes)
+/// How often a member the gateway reads appeared. Parsers disagree on which
+/// duplicate wins, so the gateway never picks one.
+#[derive(Clone, Copy)]
+enum Seen<'a> {
+    Absent,
+    Once(&'a RawValue),
+    Duplicated,
+}
+
+impl<'a> Seen<'a> {
+    fn record(&mut self, value: &'a RawValue) {
+        *self = match self {
+            Self::Absent => Self::Once(value),
+            Self::Once(_) | Self::Duplicated => Self::Duplicated,
+        };
+    }
+
+    /// The single value; a duplicate could route one model and send another.
+    fn unique(self) -> Result<Option<&'a RawValue>, InferenceHttpError> {
+        match self {
+            Self::Absent => Ok(None),
+            Self::Once(value) => Ok(Some(value)),
+            Self::Duplicated => Err(InferenceHttpError::InvalidBody),
+        }
+    }
+}
+
+/// Extracts only the routing/guardrail members without copying every member
+/// up front; capture parses the body only when a generation is recorded.
+#[derive(Clone, Copy)]
+struct MembersSeed {
+    /// The members of the request's format that hold the conversation.
+    scanned: &'static [&'static str],
+}
+
+impl<'de> serde::de::DeserializeSeed<'de> for MembersSeed {
+    type Value = Members<'de>;
+
+    fn deserialize<D: serde::Deserializer<'de>>(
+        self,
+        deserializer: D,
+    ) -> Result<Self::Value, D::Error> {
+        deserializer.deserialize_map(self)
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for MembersSeed {
+    type Value = Members<'de>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("a JSON object")
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+        let mut members = Members {
+            model: Seen::Absent,
+            stream: Seen::Absent,
+            stream_options: Seen::Absent,
+            scanned: vec![Seen::Absent; self.scanned.len()],
+        };
+        while let Some(key) = map.next_key::<std::borrow::Cow<'de, str>>()? {
+            let value: &'de RawValue = map.next_value()?;
+            match key.as_ref() {
+                "model" => members.model.record(value),
+                "stream" => members.stream.record(value),
+                "stream_options" => members.stream_options.record(value),
+                _ => {}
+            }
+            if let Some(seen) = self
+                .scanned
+                .iter()
+                .position(|name| *name == key)
+                .and_then(|index| members.scanned.get_mut(index))
+            {
+                seen.record(value);
+            }
+        }
+        Ok(members)
+    }
+}
+
+/// Validates the JSON body and locates the model, stream flag, `stream_options`,
+/// and conversation members scanned by guardrails.
+fn parse_request_body(
+    bytes: Bytes,
+    api_format: ApiFormat,
+) -> Result<ParsedRequest, InferenceHttpError> {
+    let seed = MembersSeed {
+        scanned: crate::capture::guardrail_members(api_format),
+    };
+    let mut deserializer = serde_json::Deserializer::from_slice(&bytes);
+    let members = serde::de::DeserializeSeed::deserialize(seed, &mut deserializer)
+        .and_then(|members| deserializer.end().map(|()| members))
         .map_err(|_| InferenceHttpError::InvalidBody)?;
-    let raw_model = request.model.get();
-    let model =
-        serde_json::from_str::<String>(raw_model).map_err(|_| InferenceHttpError::InvalidBody)?;
+    let raw_model = members
+        .model
+        .unique()?
+        .ok_or(InferenceHttpError::InvalidBody)?;
+    let model = serde_json::from_str::<String>(raw_model.get())
+        .map_err(|_| InferenceHttpError::InvalidBody)?;
     if model.is_empty() {
         return Err(InferenceHttpError::InvalidBody);
     }
-    let start = raw_model
-        .as_ptr()
-        .addr()
-        .checked_sub(bytes.as_ptr().addr())
-        .ok_or(InferenceHttpError::InvalidBody)?;
-    let end = start
-        .checked_add(raw_model.len())
-        .filter(|end| *end <= bytes.len())
-        .ok_or(InferenceHttpError::InvalidBody)?;
-    let streaming = request.stream.is_some_and(|stream| stream.get() == "true");
-    Ok(InferenceRequestBody {
+    let model_range = value_range(&bytes, raw_model).ok_or(InferenceHttpError::InvalidBody)?;
+    let streaming = members
+        .stream
+        .unique()?
+        .is_some_and(|stream| stream.get() == "true");
+    // A duplicate is forwarded as sent, without opting into usage.
+    let stream_options = match members.stream_options {
+        Seen::Absent => StreamOptions::Absent,
+        Seen::Once(raw) => {
+            StreamOptions::At(value_range(&bytes, raw).ok_or(InferenceHttpError::InvalidBody)?)
+        }
+        Seen::Duplicated => StreamOptions::Duplicated,
+    };
+    let mut scanned = ScannedMembers::default();
+    for (name, seen) in seed.scanned.iter().zip(members.scanned) {
+        match seen {
+            Seen::Absent => {}
+            Seen::Once(raw) => {
+                scanned.push(
+                    name,
+                    value_range(&bytes, raw).ok_or(InferenceHttpError::InvalidBody)?,
+                );
+            }
+            Seen::Duplicated => scanned.mark_duplicated(),
+        }
+    }
+    Ok(ParsedRequest {
         bytes,
         model,
-        model_range: start..end,
+        model_range,
+        stream_options,
         streaming,
+        scanned,
     })
+}
+
+/// The byte range of a value borrowed from `body`.
+fn value_range(body: &[u8], value: &RawValue) -> Option<Range<usize>> {
+    let start = value
+        .get()
+        .as_ptr()
+        .addr()
+        .checked_sub(body.as_ptr().addr())?;
+    let end = start
+        .checked_add(value.get().len())
+        .filter(|end| *end <= body.len())?;
+    Some(start..end)
 }
 
 /// Buffer the client body, reserving its allocation from the memory budget as bytes
@@ -382,7 +556,10 @@ fn gateway_key(headers: &HeaderMap, api_format: ApiFormat) -> Result<&str, Infer
         })
         .transpose()?;
     let api_key = match api_format {
-        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => None,
+        ApiFormat::OpenAiResponses
+        | ApiFormat::OpenAiChatCompletions
+        | ApiFormat::OpenAiDecisions
+        | ApiFormat::OpenAiEmbeddings => None,
         ApiFormat::AnthropicMessages => single_header(headers, "x-api-key")?,
     };
     let key = match (api_key, bearer) {
@@ -480,6 +657,10 @@ impl InferenceHttpError {
                     R::ModelNotAllowed => "model_not_allowed",
                     R::NoRoute => "no_route",
                     R::RateLimited(limit) => rate_limited_reason(limit.kind()),
+                    R::SpendLimitExceeded(_) => "spend_limit_exceeded",
+                    R::SpendLimitUnavailable => "spend_limit_unavailable",
+                    R::SpendLimitUnpricedModel => "spend_limit_unpriced_model",
+                    R::GuardrailBlocked(_) => "guardrail_blocked",
                     R::Busy => "capacity",
                     R::Timeout => "timeout",
                     R::Unavailable => "unavailable",
@@ -500,7 +681,7 @@ impl InferenceHttpError {
         }
     }
 
-    fn classify(&self) -> (StatusCode, &'static str, &'static str, &'static str) {
+    fn classify(&self) -> Classification {
         use ResolutionError as R;
         match self {
             Self::Credential | Self::Resolution(R::InvalidCredential | R::Authentication) => (
@@ -534,6 +715,7 @@ impl InferenceHttpError {
                 "requests",
                 "rate_limit_exceeded",
             ),
+            Self::Resolution(R::SpendLimitExceeded(_)) => SPEND_LIMIT_EXCEEDED,
             Self::Resolution(R::NoRoute) => (
                 StatusCode::NOT_FOUND,
                 "No eligible provider connection",
@@ -558,6 +740,13 @@ impl InferenceHttpError {
                 "invalid_request_error",
                 "unsupported_content_encoding",
             ),
+            Self::Resolution(R::SpendLimitUnpricedModel) => SPEND_LIMIT_UNPRICED_MODEL,
+            Self::Resolution(R::GuardrailBlocked(_)) => (
+                StatusCode::BAD_REQUEST,
+                "Request blocked by a guardrail",
+                "invalid_request_error",
+                "guardrail_blocked",
+            ),
             Self::InvalidBody => (
                 StatusCode::BAD_REQUEST,
                 "Invalid request body",
@@ -571,7 +760,9 @@ impl InferenceHttpError {
                 "invalid_model",
             ),
             Self::Unavailable
-            | Self::Resolution(R::Unavailable | R::Configuration | R::Busy)
+            | Self::Resolution(
+                R::Unavailable | R::Configuration | R::Busy | R::SpendLimitUnavailable,
+            )
             | Self::Provider(ProviderError::Configuration) => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 "Gateway temporarily unavailable",
@@ -605,6 +796,36 @@ impl InferenceHttpError {
             Self::InvalidBody => (ErrorOrigin::Client, "invalid_body"),
             Self::Resolution(error) => resolution_origin(error),
             Self::Provider(error) => provider_origin(*error),
+        }
+    }
+
+    fn spend_limit(&self) -> Option<&SpendLimitExceeded> {
+        match self {
+            Self::Resolution(ResolutionError::SpendLimitExceeded(limit)) => Some(limit.as_ref()),
+            _ => None,
+        }
+    }
+
+    /// Rate and spend limits name the exhausted limit, and guardrails the matching
+    /// guardrail, instead of the generic `message`.
+    fn message<'a>(&'a self, message: &'a str) -> &'a str {
+        match self {
+            Self::Resolution(ResolutionError::RateLimited(limit)) => limit.message(),
+            Self::Resolution(ResolutionError::GuardrailBlocked(message)) => message,
+            _ => self
+                .spend_limit()
+                .map_or(message, SpendLimitExceeded::message),
+        }
+    }
+
+    fn rejection(&self) -> GatewayRejection {
+        let (status, message, _, _) = self.classify();
+        let (origin, reason) = self.origin();
+        GatewayRejection {
+            status: status.as_u16(),
+            origin,
+            reason,
+            message: self.message(message).to_owned(),
         }
     }
 
@@ -650,9 +871,13 @@ impl InferenceHttpError {
             );
         }
         let request_id = correlation.id();
-        let message = rate_limit.map_or(message, RateLimit::message);
+        let spend_limit = self.spend_limit();
+        let message = self.message(message);
         let mut response = match api_format {
-            ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => (
+            ApiFormat::OpenAiResponses
+            | ApiFormat::OpenAiChatCompletions
+            | ApiFormat::OpenAiDecisions
+            | ApiFormat::OpenAiEmbeddings => (
                 status,
                 Json(OpenAiErrorResponse {
                     error: OpenAiErrorDetail {
@@ -683,9 +908,36 @@ impl InferenceHttpError {
                 .headers_mut()
                 .insert(header::RETRY_AFTER, limit.retry_after_secs().into());
         }
+        if let Some(retry_after_secs) = spend_limit.and_then(SpendLimitExceeded::retry_after_secs) {
+            response
+                .headers_mut()
+                .insert(header::RETRY_AFTER, retry_after_secs.into());
+        }
         response
     }
 }
+
+/// The status and message a refused resolution returns, for its generation.
+pub(crate) fn resolution_rejection(error: &ResolutionError) -> GatewayRejection {
+    InferenceHttpError::Resolution(error.clone()).rejection()
+}
+
+/// Status, message, error type and error code of a rejection.
+type Classification = (StatusCode, &'static str, &'static str, &'static str);
+
+/// `OpenAI`'s type for an exhausted budget; the message names the limit.
+const SPEND_LIMIT_EXCEEDED: Classification = (
+    StatusCode::TOO_MANY_REQUESTS,
+    "Budget exceeded",
+    "insufficient_quota",
+    "spend_limit_exceeded",
+);
+const SPEND_LIMIT_UNPRICED_MODEL: Classification = (
+    StatusCode::BAD_REQUEST,
+    "A budget applies to this API key, and Langfuse has no price for this model. Add a model price in Langfuse to use the model with this key.",
+    "invalid_request_error",
+    "spend_limit_unpriced_model",
+);
 
 fn anthropic_error_type(status: StatusCode) -> &'static str {
     match status {

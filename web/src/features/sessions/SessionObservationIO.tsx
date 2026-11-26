@@ -1,5 +1,5 @@
 import React from "react";
-import { Download, ExternalLinkIcon, Loader2 } from "@langfuse/icons";
+import { Download, SquareArrowOutUpRight, Loader2 } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
   IOPreview,
@@ -187,6 +187,9 @@ export const SessionObservationIO = ({
     onOpenInTraceView(observation.id);
   };
 
+  // Synthetic session row `t-${traceId}` is the trace itself: null-obs
+  // CORRECTIONs are trace-scoped, not observation-scoped.
+  const isSyntheticTraceRow = observation.id === `t-${traceId}`;
   const ioPreview = (
     <IOPreview
       input={observation.input ?? undefined}
@@ -198,12 +201,11 @@ export const SessionObservationIO = ({
       media={observationMedia.data}
       projectId={projectId}
       traceId={traceId}
-      observationId={
-        observation.id === `t-${traceId}` ? undefined : observation.id
-      }
+      observationId={isSyntheticTraceRow ? undefined : observation.id}
       environment={environment}
       showCorrections={showCorrections}
-      outputCorrection={outputCorrection}
+      outputCorrection={isSyntheticTraceRow ? undefined : outputCorrection}
+      traceOutputCorrection={isSyntheticTraceRow ? outputCorrection : undefined}
       contentMode={contentMode}
       showSystemPrompt={showSystemPrompt}
       currentView={currentView}
@@ -285,7 +287,11 @@ export const SessionObservationIO = ({
       )}
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={openInTraceView}>
-          <ExternalLinkIcon size="base" color="default" __rawClassName="mr-1" />
+          <SquareArrowOutUpRight
+            size="base"
+            color="default"
+            __rawClassName="mr-1"
+          />
           Open in trace view
         </Button>
         <Button

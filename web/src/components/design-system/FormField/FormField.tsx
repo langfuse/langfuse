@@ -1,6 +1,5 @@
 "use client";
 
-import { Info, SquareArrowOutUpRight } from "@langfuse/icons";
 import { useId, type ComponentProps, type ReactElement } from "react";
 import {
   Controller,
@@ -11,21 +10,7 @@ import {
   type FieldValues,
 } from "react-hook-form";
 
-import { type CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
-import { assertUnreachable } from "@/src/utils/types";
-
-type FormFieldDescription =
-  | string
-  | readonly (
-      | { type: "text"; text: string }
-      | { type: "code"; text: string }
-      | { type: "link"; text: string; href: string }
-      | { type: "strong"; text: string }
-    )[];
-
-type TooltipTriggerPropsGetter = Parameters<
-  ComponentProps<typeof CustomTooltip>["children"]
->[0]["getTriggerProps"];
+import { FormFieldLayout } from "../internal/FormFieldLayout/FormFieldLayout";
 
 export type FormFieldProps<
   TFieldValues extends FieldValues,
@@ -40,139 +25,33 @@ export type FormFieldProps<
       inputDescribedById: string | undefined;
     },
   ) => ReactElement;
-  description?: FormFieldDescription;
+  description?: ComponentProps<typeof FormFieldLayout>["description"];
+  /** Controlled fields read errors from React Hook Form. */
+  error?: never;
   label: string;
   name: TName;
-  registerLabelTooltip?: TooltipTriggerPropsGetter;
+  registerLabelTooltip?: ComponentProps<
+    typeof FormFieldLayout
+  >["registerLabelTooltip"];
   required?: boolean;
 };
 
 type StandaloneFormFieldProps = {
   control?: never;
   name?: never;
+  /** Error message for a field without React Hook Form control. */
+  error?: string;
   children: (field: {
     id: string;
     inputDescribedById: string | undefined;
   }) => ReactElement;
-  description?: FormFieldDescription;
+  description?: ComponentProps<typeof FormFieldLayout>["description"];
   label: string;
-  registerLabelTooltip?: TooltipTriggerPropsGetter;
+  registerLabelTooltip?: ComponentProps<
+    typeof FormFieldLayout
+  >["registerLabelTooltip"];
   required?: boolean;
 };
-
-function FormFieldDescription({
-  description,
-  id,
-}: {
-  description: FormFieldDescription;
-  id: string;
-}) {
-  return (
-    <p id={id} className="text-muted-foreground text-sm">
-      {typeof description === "string"
-        ? description
-        : description.map((element, index) => {
-            if (element.type === "text") {
-              return element.text;
-            }
-            if (element.type === "code") {
-              return (
-                <code
-                  key={index}
-                  className="bg-muted rounded-md px-1 py-px font-mono text-xs"
-                >
-                  {element.text}
-                </code>
-              );
-            }
-            if (element.type === "link") {
-              return (
-                <a
-                  key={index}
-                  className="text-link hover:text-link-hover underline underline-offset-2"
-                  href={element.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {element.text}
-                  <SquareArrowOutUpRight
-                    aria-hidden
-                    size="sm"
-                    color="muted"
-                    __rawClassName="ml-0.75 inline-block align-[-1px]"
-                  />
-                </a>
-              );
-            }
-            if (element.type === "strong") {
-              return (
-                <strong key={index} className="text-foreground font-bold">
-                  {element.text}
-                </strong>
-              );
-            }
-            return assertUnreachable(element);
-          })}
-    </p>
-  );
-}
-
-function FormFieldLayout({
-  label,
-  controlId,
-  description,
-  descriptionId,
-  errorMessage,
-  errorId,
-  registerLabelTooltip,
-  required,
-  children,
-}: {
-  label: string;
-  controlId: string;
-  description?: FormFieldDescription;
-  descriptionId: string;
-  errorMessage?: string;
-  errorId: string;
-  registerLabelTooltip?: TooltipTriggerPropsGetter;
-  required?: boolean;
-  children: ReactElement;
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-1.5">
-        <label htmlFor={controlId} className="text-sm leading-none font-bold">
-          {label}
-          {required ? (
-            <span aria-hidden className="text-destructive ml-1">
-              *
-            </span>
-          ) : null}
-        </label>
-        {registerLabelTooltip ? (
-          <button
-            type="button"
-            {...registerLabelTooltip()}
-            aria-label={`About ${label}`}
-          >
-            <Info aria-hidden size="base" color="muted" />
-          </button>
-        ) : null}
-      </div>
-      <div className="space-y-1">
-        {children}
-        {errorMessage ? (
-          <p id={errorId} className="text-destructive text-sm">
-            {errorMessage}
-          </p>
-        ) : null}
-      </div>
-      {description ? (
-        <FormFieldDescription id={descriptionId} description={description} />
-      ) : null}
-    </div>
-  );
-}
 
 export function FormField<
   TFieldValues extends FieldValues,
@@ -215,6 +94,7 @@ export function FormField<
             .join(" ");
           return (
             <FormFieldLayout
+              variant="field"
               label={label}
               controlId={controlId}
               description={description}
@@ -237,19 +117,30 @@ export function FormField<
     );
   }
 
+  const { error } = props;
+  const inputDescribedById = [
+    error ? errorId : undefined,
+    description ? descriptionId : undefined,
+  ]
+    .filter((value) => value !== undefined)
+    .join(" ");
+
   return (
     <FormFieldLayout
+      variant="field"
       label={label}
       controlId={controlId}
       description={description}
       descriptionId={descriptionId}
+      errorMessage={error}
       errorId={errorId}
+      announceError
       registerLabelTooltip={registerLabelTooltip}
       required={required}
     >
       {props.children({
         id: controlId,
-        inputDescribedById: description ? descriptionId : undefined,
+        inputDescribedById: inputDescribedById || undefined,
       })}
     </FormFieldLayout>
   );

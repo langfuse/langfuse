@@ -238,7 +238,9 @@ describe("PostHog integration project job — SSRF connect-time pinning", () => 
       { reason: "ssrf_blocked_endpoint" },
     );
     expect(h.posthogIntegrationUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { enabled: false } }),
+      expect.objectContaining({
+        data: expect.objectContaining({ enabled: false }),
+      }),
     );
     expect(h.dispatchProjectNotification).toHaveBeenCalled();
   }, 40_000);
@@ -307,7 +309,9 @@ describe("PostHog integration project job — SSRF block on a redirect hop", () 
       { reason: "ssrf_blocked_endpoint" },
     );
     expect(h.posthogIntegrationUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { enabled: false } }),
+      expect.objectContaining({
+        data: expect.objectContaining({ enabled: false }),
+      }),
     );
     expect(h.dispatchProjectNotification).toHaveBeenCalled();
   }, 40_000);

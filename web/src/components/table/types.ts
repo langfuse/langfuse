@@ -51,3 +51,10 @@ export type LangfuseColumnDef<
   // Enforce langfuse group columns to have children of type 'LangfuseColumnDef'
   columns?: LangfuseColumnDef<TData, TValue>[];
 };
+
+export interface AsyncTableData<T> {
+  isLoading: boolean;
+  isError: boolean;
+  data?: T;
+  error?: string;
+}

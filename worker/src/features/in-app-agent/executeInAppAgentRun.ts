@@ -70,7 +70,7 @@ import {
 import { createInAppAgentSandbox } from "./runtime/sandbox/service";
 import { createAgUiStream } from "./runtime/agent";
 import { getInAppAgentPromptClient } from "./runtime/promptClient";
-import { loadInAppAgentSkills } from "./runtime/skills";
+import { InAppAgentSkillSource } from "./runtime/skill-source";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { resolveLangfuseMcpUrl } from "./resolveLangfuseMcpUrl";
 import type { AgUiRunAgentInput } from "./runtime/types";
@@ -348,7 +348,7 @@ export async function executeInAppAgentRun(params: {
 
     const userAccess: InAppAgentUserAccess = {
       projectRole: access.projectRole,
-      isAdmin: access.isAdmin,
+      topicsAvailable: request.topicsAvailable === true,
     };
 
     // Rebuild each run so grants invalidated by role changes drop out.
@@ -622,7 +622,13 @@ export async function executeInAppAgentRun(params: {
           isV4Enabled: access.v4BetaEnabled,
         },
         useLocalPrompt: useBundledPrompt,
-        ...(await loadSkills(abortController.signal)),
+        skillSource: new InAppAgentSkillSource({
+          tag: env.LANGFUSE_IN_APP_AGENT_SKILLS_TAG,
+          baseUrl: sharedEnv.LANGFUSE_AI_FEATURES_HOST,
+          publicKey: sharedEnv.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+          secretKey: sharedEnv.LANGFUSE_AI_FEATURES_SECRET_KEY,
+          signal: abortController.signal,
+        }),
         ...(useBundledPrompt
           ? {}
           : { langfuseClient: getInAppAgentPromptClient() }),
@@ -636,7 +642,6 @@ export async function executeInAppAgentRun(params: {
             id: run.triggeredByUserId,
             email: access.email,
             projectRole: userAccess.projectRole,
-            isAdmin: userAccess.isAdmin,
           },
         }),
         sandbox: sandboxState?.sandbox,
@@ -684,40 +689,21 @@ export async function executeInAppAgentRun(params: {
   }
 }
 
-async function loadSkills(signal: AbortSignal) {
-  return loadInAppAgentSkills({
-    tag: env.LANGFUSE_IN_APP_AGENT_SKILLS_TAG,
-    baseUrl: sharedEnv.LANGFUSE_AI_FEATURES_HOST,
-    publicKey: sharedEnv.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
-    secretKey: sharedEnv.LANGFUSE_AI_FEATURES_SECRET_KEY,
-    signal,
-  });
-}
-
 async function resolveUserProjectAccess(params: {
   userId: string;
   projectId: string;
   orgId: string;
 }): Promise<{
   projectRole?: Role;
-  isAdmin: boolean;
   email: string | null;
   v4BetaEnabled: boolean;
 } | null> {
   const user = await prisma.user.findUnique({
     where: { id: params.userId },
-    select: { id: true, email: true, admin: true, v4BetaEnabled: true },
+    select: { id: true, email: true, v4BetaEnabled: true },
   });
 
   if (!user) return null;
-
-  if (user.admin) {
-    return {
-      isAdmin: true,
-      email: user.email,
-      v4BetaEnabled: user.v4BetaEnabled,
-    };
-  }
 
   const orgMembership = await prisma.organizationMembership.findFirst({
     where: { userId: params.userId, orgId: params.orgId },
@@ -740,7 +726,6 @@ async function resolveUserProjectAccess(params: {
 
   return {
     projectRole,
-    isAdmin: false,
     email: user.email,
     v4BetaEnabled: user.v4BetaEnabled,
   };
@@ -812,7 +797,6 @@ function buildTracingConfig(params: {
     id: string;
     email: string | null;
     projectRole?: Role;
-    isAdmin: boolean;
   };
 }) {
   if (!params.aiTelemetryEnabled) {
@@ -846,7 +830,6 @@ function buildTracingConfig(params: {
           id: params.user.id,
           email: params.user.email,
           projectRole: params.user.projectRole,
-          isAdmin: params.user.isAdmin,
         },
         metadata: traceSinkParams.metadata ?? {},
       }

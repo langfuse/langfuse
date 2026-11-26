@@ -35,5 +35,5 @@ export const [getHealthTool, handleGetHealth] = defineTool({
         });
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

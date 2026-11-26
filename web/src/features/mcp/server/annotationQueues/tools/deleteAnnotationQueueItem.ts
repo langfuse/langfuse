@@ -33,5 +33,5 @@ export const [deleteAnnotationQueueItemTool, handleDeleteAnnotationQueueItem] =
           return DeleteAnnotationQueueItemResponse.parse(result);
         },
       }),
-    destructiveHint: true,
+    annotations: { destructiveHint: true },
   });

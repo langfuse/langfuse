@@ -1,4 +1,8 @@
 import { z } from "zod/v4";
+import {
+  auditedQuery,
+  ref,
+} from "@/src/features/audit-logs/server/auditedQuery";
 import { randomUUID } from "crypto";
 import { addDays } from "date-fns";
 import {
@@ -15,6 +19,7 @@ import {
   getExperimentItemsBatchIO,
   getExperimentItemsCountFromEvents,
   getExperimentItemsFromEvents,
+  getExperimentsStartTime,
   getExperimentMetricsFromEvents,
   getNumericScoresGroupedByName,
   getScoresForExperimentItems,
@@ -26,7 +31,7 @@ import {
   ZodModelConfig,
   getScoresForObservations,
   getScoresForTraces,
-  traceException,
+  logger,
   getExperimentNamesFromEvents,
   getExperimentItemsFilterOptions,
   getExperimentScoreOptions,
@@ -375,14 +380,15 @@ export const experimentsRouter = createTRPCRouter({
       return { data: experiments, dateRange: { from, to } };
     }),
 
-  byId: protectedProjectProcedure
-    .input(
+  byId: auditedQuery(
+    protectedProjectProcedure.input(
       z.object({
         projectId: z.string(),
         experimentId: z.string(),
       }),
-    )
-    .query(async ({ input, ctx }) => {
+    ),
+    { resourceType: "experiment", action: "read", idKey: "experimentId" },
+    async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -409,7 +415,8 @@ export const experimentsRouter = createTRPCRouter({
       }
 
       return experiments[0];
-    }),
+    },
+  ),
 
   countAll: protectedProjectProcedure
     .input(
@@ -454,13 +461,26 @@ export const experimentsRouter = createTRPCRouter({
         return [];
       }
 
+      // A score can't predate the experiment it scores, so the experiments'
+      // earliest start bounds the item score lookup.
+      const experimentsStartTime = await getExperimentsStartTime({
+        projectId: input.projectId,
+        experimentIds: input.experimentIds,
+      });
+
       // Fetch metrics (cost, latency) and both score types in parallel
       const [metrics, itemScores, experimentScores] = await Promise.all([
         getExperimentMetricsFromEvents({
           projectId: input.projectId,
           experimentIds: input.experimentIds,
         }),
-        getScoresForExperimentItems(input.projectId, input.experimentIds),
+        experimentsStartTime
+          ? getScoresForExperimentItems(
+              input.projectId,
+              input.experimentIds,
+              experimentsStartTime,
+            )
+          : [],
         getScoresForExperiments({
           projectId: input.projectId,
           runIds: input.experimentIds, // experiment_id === dataset_run_id
@@ -635,8 +655,8 @@ export const experimentsRouter = createTRPCRouter({
       };
     }),
 
-  items: protectedProjectProcedure
-    .input(
+  items: auditedQuery(
+    protectedProjectProcedure.input(
       z.object({
         projectId: z.string(),
         baseExperimentId: z.string().nullish(),
@@ -656,12 +676,23 @@ export const experimentsRouter = createTRPCRouter({
           .default("baseline-only"),
         ...paginationZod,
       }),
-    )
-    .query(async ({ input, ctx }) => {
+    ),
+    { resourceType: "experiment", action: "list" },
+    async ({ input, ctx, audit }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "promptExperiments:read",
+      });
+
+      // A score can't predate the experiment it scores, so the experiments'
+      // earliest start bounds both the score filters and the score lookups.
+      const experimentsStartTime = await getExperimentsStartTime({
+        projectId: input.projectId,
+        experimentIds: [
+          ...(input.baseExperimentId ? [input.baseExperimentId] : []),
+          ...input.compExperimentIds,
+        ],
       });
 
       const items = await getExperimentItemsFromEvents({
@@ -674,6 +705,7 @@ export const experimentsRouter = createTRPCRouter({
         config: {
           requireBaselinePresence: input.itemVisibility === "baseline-only",
         },
+        experimentsStartTime,
       });
 
       const observationIds = Array.from(
@@ -691,6 +723,7 @@ export const experimentsRouter = createTRPCRouter({
         getScoresForObservations({
           projectId: input.projectId,
           observationIds,
+          minTimestamp: experimentsStartTime,
           excludeMetadata: true,
           includeHasMetadata: true,
           preferredClickhouseService: "ReadOnly",
@@ -698,6 +731,7 @@ export const experimentsRouter = createTRPCRouter({
         getScoresForTraces({
           projectId: input.projectId,
           traceIds,
+          timestamp: experimentsStartTime,
           level: "trace",
           excludeMetadata: true,
           includeHasMetadata: true,
@@ -708,13 +742,15 @@ export const experimentsRouter = createTRPCRouter({
         scores: observationScores,
         dataTypes: AGGREGATABLE_SCORE_TYPES,
         includeHasMetadata: true,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
       const validatedTraceScores = filterAndValidateDbScoreList({
         scores: traceScores,
         dataTypes: AGGREGATABLE_SCORE_TYPES,
         includeHasMetadata: true,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       const scoresByObservationId = new Map<
@@ -745,6 +781,15 @@ export const experimentsRouter = createTRPCRouter({
         }
       }
 
+      audit.refs(
+        items.flatMap((item) =>
+          item.experiments.flatMap((run) => [
+            ref("observation", run.observationId),
+            ref("trace", run.traceId),
+          ]),
+        ),
+      );
+      audit.count(items.length);
       return {
         data: items.map(({ itemId, experiments }) => ({
           itemId,
@@ -773,7 +818,8 @@ export const experimentsRouter = createTRPCRouter({
           ),
         })),
       };
-    }),
+    },
+  ),
 
   itemsCount: protectedProjectProcedure
     .input(
@@ -857,8 +903,8 @@ export const experimentsRouter = createTRPCRouter({
       });
     }),
 
-  batchIO: protectedProjectProcedure
-    .input(
+  batchIO: auditedQuery(
+    protectedProjectProcedure.input(
       z.object({
         projectId: z.string(),
         itemIds: z.array(z.string()),
@@ -866,8 +912,9 @@ export const experimentsRouter = createTRPCRouter({
         compExperimentIds: z.array(z.string()),
         ioCharLimit: z.number().int().positive().max(10_000).optional(),
       }),
-    )
-    .query(async ({ input, ctx }) => {
+    ),
+    { resourceType: "experiment", action: "read" },
+    async ({ input, ctx, audit }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -886,8 +933,18 @@ export const experimentsRouter = createTRPCRouter({
         ioCharLimit: input.ioCharLimit,
       });
 
+      audit.refs(
+        batchIO.flatMap((item) =>
+          item.outputs.flatMap((run) => [
+            ref("observation", run.observationId),
+            ref("trace", run.traceId),
+          ]),
+        ),
+      );
+      audit.count(batchIO.length);
       return batchIO;
-    }),
+    },
+  ),
 
   byProjectId: protectedProjectProcedure
     .input(

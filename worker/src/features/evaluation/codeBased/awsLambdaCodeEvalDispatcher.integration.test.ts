@@ -10,10 +10,9 @@ const endpoint = process.env.LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT;
 const describeWithFloci = endpoint ? describe : describe.skip;
 const FLOCI_TEST_TIMEOUT_MS = 30_000;
 
-if (process.env.AWS_ACCESS_KEY_ID === undefined) {
+// Floci enforces IAM, so the dev env's placeholder Bedrock keys are rejected.
+if (endpoint) {
   process.env.AWS_ACCESS_KEY_ID = "test";
-}
-if (process.env.AWS_SECRET_ACCESS_KEY === undefined) {
   process.env.AWS_SECRET_ACCESS_KEY = "test";
 }
 if (process.env.AWS_REGION === undefined) {

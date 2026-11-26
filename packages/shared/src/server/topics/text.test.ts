@@ -8,7 +8,11 @@ import { logger } from "../logger";
 import type { ResourceSpan } from "../otel/OtelIngestionProcessor";
 import { generateTopicEmbeddings } from "./embeddings";
 import type { TopicsModel } from "./model-config";
-import { generateTopicText, getTopicTextResponseMetadata } from "./text";
+import {
+  generateTopicText,
+  getTopicTextResponseMetadata,
+  TOPICS_REASONING_OUTPUT_TOKENS,
+} from "./text";
 
 const { publishToOtelIngestionQueue, processorConstructor } = vi.hoisted(
   () => ({
@@ -229,15 +233,21 @@ describe("generateTopicText", () => {
           }),
         ),
       );
+      const onFailedResponseUsage = vi.fn();
       const error = await generateTopicText({
         model: bedrockModel("clustering", "eu.anthropic.claude-sonnet-5-5"),
         system: [{ text: "private system prompt" }],
         input: "private input",
         schema: z.object({ name: z.string() }),
         maxOutputTokens: 256,
+        onFailedResponseUsage,
       }).catch((error: unknown) => error);
 
       expect(error).toMatchObject({ name: errorName });
+      expect(onFailedResponseUsage).toHaveBeenCalledExactlyOnceWith({
+        usageDetails: expect.objectContaining({ input: 12, output: 4 }),
+        providedCostDetails: {},
+      });
       const metadata = getTopicTextResponseMetadata(error);
       expect(metadata).toEqual({
         "langfuse.topics.response.finish_reason": finishReason,
@@ -246,7 +256,7 @@ describe("generateTopicText", () => {
         )
           ? "other"
           : stopReason,
-        "langfuse.topics.response.text_characters": 0,
+        "langfuse.topics.response.text_characters": text.length,
         "langfuse.topics.response.text_part_count": text ? 1 : 0,
         "langfuse.topics.response.reasoning_part_count": 1,
         "langfuse.topics.response.output_tokens": 4,
@@ -257,7 +267,7 @@ describe("generateTopicText", () => {
     },
   );
 
-  it("clusters with Bedrock Sonnet 5.5 without forcing tool use", async () => {
+  it("clusters with Bedrock Sonnet 5.5 through native structured output", async () => {
     const output = { name: "Account access" };
     const fetch = vi.fn<typeof globalThis.fetch>(async (...args) => {
       const body = (await new Request(...args).json()) as {
@@ -304,11 +314,10 @@ describe("generateTopicText", () => {
       "additionalModelRequestFields.thinking.type",
       "disabled",
     );
+    expect(body).toHaveProperty("system", [{ text: "Name the topic." }]);
     expect(body).toHaveProperty(
-      "system",
-      expect.arrayContaining([
-        expect.objectContaining({ text: expect.stringContaining('"name"') }),
-      ]),
+      "additionalModelRequestFields.output_config.format.type",
+      "json_schema",
     );
     expect(result.output).toEqual(output);
     expect(result.usage).toMatchObject({ inputTokens: 12, outputTokens: 4 });
@@ -369,7 +378,10 @@ describe("generateTopicText", () => {
       });
       expect(result.output).toEqual(output);
       if (modelId.includes("oss")) {
-        expect(body).not.toHaveProperty("additionalModelRequestFields");
+        // gpt-oss cannot disable reasoning, so portable "none" maps to its lowest effort.
+        expect(body).toHaveProperty("additionalModelRequestFields", {
+          reasoning_effort: "low",
+        });
       } else {
         expect(body).toHaveProperty(
           "additionalModelRequestFields.reasoning.effort",
@@ -471,6 +483,124 @@ describe("generateTopicText", () => {
       cacheReadTokens: 2840,
       cacheWriteTokens: 0,
     });
+    expect(result.usageDetails).toEqual({
+      input: 813,
+      output: 275,
+      total: 3928,
+      input_cached_tokens: 2840,
+      input_cache_creation: 0,
+    });
+    expect(result.providedCostDetails).toEqual({});
+  });
+
+  it.each([
+    { cost: 0, expectedTotal: 0 },
+    { cost: 0.012, expectedTotal: 0.012 },
+    {
+      cost: 0.001,
+      is_byok: true,
+      cost_details: { upstream_inference_cost: 0.02 },
+      expectedTotal: 0.021,
+    },
+    { cost: 0, is_byok: true, expectedTotal: undefined },
+  ])(
+    "returns and traces OpenRouter usage and supplied USD cost: %j",
+    async ({ expectedTotal, ...usageCost }) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          Response.json({
+            choices: [
+              {
+                index: 0,
+                finish_reason: "stop",
+                message: {
+                  role: "assistant",
+                  content: '{"summary":"Account access"}',
+                },
+              },
+            ],
+            usage: {
+              prompt_tokens: 100,
+              completion_tokens: 20,
+              total_tokens: 120,
+              ...usageCost,
+              prompt_tokens_details: {
+                cached_tokens: 10,
+                cache_write_tokens: 40,
+              },
+              completion_tokens_details: { reasoning_tokens: 5 },
+            },
+          }),
+        ),
+      );
+      const result = await generateTopicText({
+        model: {
+          slot: "summary",
+          provider: "openrouter",
+          adapter: LLMAdapter.OpenAI,
+          model: "openai/gpt-6-luna",
+          connection: {
+            secretKey: encrypt("sk-test"),
+            baseURL: "https://openrouter.ai/api/v1",
+          },
+        },
+        system: [{ text: "Summarize." }],
+        input: "I cannot sign in.",
+        schema: z.object({ summary: z.string() }),
+        maxOutputTokens: 256,
+        trace,
+      });
+      expect(result.usageDetails).toEqual({
+        input: 50,
+        output: 15,
+        total: 120,
+        input_cached_tokens: 10,
+        input_cache_creation: 40,
+        output_reasoning_tokens: 5,
+      });
+      const expectedCostDetails =
+        expectedTotal === undefined ? {} : { total: expectedTotal };
+      expect(result.providedCostDetails).toEqual(expectedCostDetails);
+      expect(tracedGeneration()).toMatchObject({
+        "langfuse.observation.cost_details":
+          JSON.stringify(expectedCostDetails),
+      });
+    },
+  );
+
+  it("records why InvokeModel output could not be parsed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          choices: [
+            { finish_reason: "stop", message: { content: '{"summary": "Acc' } },
+          ],
+          usage: {
+            prompt_tokens: 50,
+            completion_tokens: 40,
+            total_tokens: 90,
+            completion_tokens_details: { reasoning_tokens: 30 },
+          },
+        }),
+      ),
+    );
+    const error = await generateTopicText({
+      model: bedrockModel("summary", "us.openai.gpt-6-luna"),
+      system: [{ text: "Summarize.", cache: true }],
+      input: "Hi",
+      schema: z.object({ summary: z.string() }),
+      maxOutputTokens: 256,
+    }).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(SyntaxError);
+    expect(getTopicTextResponseMetadata(error)).toEqual({
+      "langfuse.topics.response.finish_reason": "stop",
+      "langfuse.topics.response.text_characters": 16,
+      "langfuse.topics.response.max_output_tokens": 256,
+      "langfuse.topics.response.output_tokens": 40,
+      "langfuse.topics.response.reasoning_tokens": 30,
+    });
   });
 
   it("reports the InvokeModel HTTP status so throttling is classified", async () => {
@@ -500,12 +630,9 @@ describe("generateTopicText", () => {
     ["https://EU.API.OPENAI.COM./v1", "gpt-5.6-terra", "none", true],
     [undefined, "gpt-6.1-terra", "low", true],
     ["https://eu.api.openai.com/v1", "gpt-4o", undefined, false],
-    [
-      "https://eu.api.openai.com.example.com/v1",
-      "gpt-6-luna",
-      undefined,
-      false,
-    ],
+    ["https://eu.api.openai.com.example.com/v1", "gpt-6-luna", "none", true],
+    ["https://gateway.example/openai/v1", "Prod:gpt-5-mini", "minimal", true],
+    ["https://maas.example/compatible-mode/v1", "qwen4-max", undefined, false],
   ] as const)(
     "generates and traces Topics on %s / %s",
     async (baseURL, model, reasoning, completionTokens) => {
@@ -570,7 +697,10 @@ describe("generateTopicText", () => {
       expect(body.max_completion_tokens).toBe(
         completionTokens ? 256 : undefined,
       );
-      expect(body.max_tokens).toBe(completionTokens ? undefined : 256);
+      // Without a known reasoning setting, the model's own reasoning gets headroom.
+      expect(body.max_tokens).toBe(
+        completionTokens ? undefined : TOPICS_REASONING_OUTPUT_TOKENS,
+      );
       expect(body.reasoning_effort).toBe(reasoning);
       expect(body.response_format).toMatchObject({ type: "json_schema" });
       expect(tracedGeneration()).toMatchObject({

@@ -112,7 +112,7 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       name: "Member",
       description: "Work within the organization and its projects.",
       policies: userRoleAccessRights("MEMBER"),
-      tags: ["principal:user"],
+      tags: ["principal:user", "principal:apiKey"],
     },
     VIEWER: {
       id: "VIEWER",
@@ -157,6 +157,23 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
           "project:read",
         ]),
       ],
+      tags: ["principal:apiKey", "legacy"],
+    },
+    APPLICATION: {
+      id: "APPLICATION",
+      name: "Application",
+      description:
+        "Send traces and fetch prompts and skills for your application.",
+      policies: [
+        allow("project", [
+          "traces:create",
+          "scores:save",
+          "media:create",
+          "project:read",
+          "prompts:read",
+          "skills:read",
+        ]),
+      ],
       tags: ["principal:apiKey"],
     },
     SCORES_INGEST: {
@@ -171,7 +188,14 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       name: "AI Gateway",
       description: "Route model requests through the AI Gateway.",
       policies: [allow("organization", ["gateway:read", "gateway:invoke"])],
-      tags: ["principal:user", "principal:apiKey"],
+      tags: ["principal:user"],
+    },
+    AI_GATEWAY_INFERENCE: {
+      id: "AI_GATEWAY_INFERENCE",
+      name: "AI Gateway inference",
+      description: "Route model requests through the AI Gateway.",
+      policies: [allow("organization", ["gateway:invoke"])],
+      tags: ["principal:apiKey"],
     },
   };
 

@@ -13,11 +13,7 @@
 import type { TraceSearchListItem } from "@/src/features/traces/types/traceSearchListItem";
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import {
-  type TraceDomain,
-  type ScoreDomain,
-  ObservationLevel,
-} from "@langfuse/shared";
+import { type ScoreDomain, ObservationLevel } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { type TreeNode } from "../types/treeNode";
@@ -31,19 +27,14 @@ import { type TraceMetricEmphasis } from "@/src/features/traces/fns/metricEmphas
 import { useViewPreferences } from "./ViewPreferencesProvider";
 import { useMergedScores } from "@/src/features/scores/lib/useMergedScores";
 import { traceLevelScoreOwnerIds } from "@/src/features/traces/fns/nodeScores";
-
-type TraceType = Omit<
-  WithStringifiedMetadata<TraceDomain>,
-  "input" | "output"
-> & {
-  input: string | null;
-  output: string | null;
-  /** Server-derived, in seconds. */
-  latency?: number;
-};
+import { type TraceDataTrace, type TraceScope } from "../types/traceScope";
 
 interface TraceDataContextValue {
-  trace: TraceType;
+  scope: TraceScope;
+  /** The originating trace, when this workspace was entered through a trace. */
+  trace: TraceDataTrace | null;
+  projectId: string;
+  sessionId: string | null;
   observations: ObservationReturnTypeWithMetadata[];
   serverScores: WithStringifiedMetadata<ScoreDomain>[];
   mergedScores: WithStringifiedMetadata<ScoreDomain>[];
@@ -79,6 +70,7 @@ interface TraceDataContextValue {
   truncatedAtObservations?: number;
   /** This is the previous trace, kept on screen while the next one loads. */
   isPlaceholderData: boolean;
+  isNavigationReady: boolean;
   comments: Map<string, number>;
 }
 
@@ -92,8 +84,17 @@ export function useTraceData(): TraceDataContextValue {
   return context;
 }
 
-interface TraceDataProviderProps {
-  trace: TraceType;
+export function useSingleTraceData() {
+  const data = useTraceData();
+  if (!data.trace) {
+    throw new Error("This view requires a selected trace");
+  }
+  return { ...data, trace: data.trace };
+}
+
+type TraceDataProviderProps = {
+  scope: TraceScope;
+  anchorTrace?: TraceDataTrace;
   observations: ObservationReturnTypeWithMetadata[];
   serverScores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
@@ -102,15 +103,17 @@ interface TraceDataProviderProps {
   detachedObservationIsMisplaced?: boolean;
   truncatedAtObservations?: number;
   isPlaceholderData?: boolean;
+  isNavigationReady?: boolean;
   children: ReactNode;
-}
+};
 
 /**
  * TraceDataProvider must be rendered within ViewPreferencesProvider.
  * It consumes minObservationLevel directly from ViewPreferencesContext.
  */
 export function TraceDataProvider({
-  trace,
+  scope,
+  anchorTrace,
   observations: rawObservations,
   serverScores,
   corrections,
@@ -119,8 +122,15 @@ export function TraceDataProvider({
   detachedObservationIsMisplaced = false,
   truncatedAtObservations,
   isPlaceholderData = false,
+  isNavigationReady = true,
   children,
 }: TraceDataProviderProps) {
+  const trace = scope.type === "trace" ? scope.trace : (anchorTrace ?? null);
+  const projectId =
+    scope.type === "trace" ? scope.trace.projectId : scope.projectId;
+  const sessionId =
+    scope.type === "trace" ? scope.trace.sessionId : scope.sessionId;
+  const sessionTraces = scope.type === "session" ? scope.traces : undefined;
   const { minObservationLevel } = useViewPreferences();
 
   // Collapse duplicate/colliding observation ids to one row per id up front, so
@@ -131,14 +141,28 @@ export function TraceDataProvider({
   // differ, so the timeline and the opened detail panel could silently show
   // different data. No-op (same reference) for well-formed traces.
   const observations = useMemo(
-    () => dedupeObservationsById(rawObservations),
-    [rawObservations],
+    () =>
+      sessionTraces ? rawObservations : dedupeObservationsById(rawObservations),
+    [rawObservations, sessionTraces],
   );
 
   // Build full tree (no level filtering) — only rebuilds when data changes
   const uiData = useMemo(() => {
-    return buildTraceUiData(trace, observations);
-  }, [trace, observations]);
+    return buildTraceUiData(trace, observations, sessionTraces);
+  }, [trace, observations, sessionTraces]);
+
+  const nodeComments = useMemo(() => {
+    if (!sessionTraces) return comments;
+    // Detail views still read raw object IDs; navigators read tree node IDs.
+    const counts = new Map(comments);
+    for (const node of uiData.nodeMap.values()) {
+      const objectId =
+        node.type === "TRACE" ? node.traceId : node.observationId;
+      const count = objectId ? comments.get(objectId) : undefined;
+      if (count !== undefined) counts.set(node.id, count);
+    }
+    return counts;
+  }, [comments, sessionTraces, uiData.nodeMap]);
 
   // Apply level filtering as a cheap post-processing step
   const { filteredRoots, filteredSearchItems, hiddenObservationsCount } =
@@ -182,16 +206,24 @@ export function TraceDataProvider({
   // Merge scores with optimistic cache
   const mergedScores = useMergedScores(
     serverScores,
-    {
-      type: "trace",
-      traceId: trace.id,
-    },
+    sessionTraces || !trace
+      ? (sessionTraces ?? []).map((entry) => ({
+          type: "trace" as const,
+          traceId: entry.id,
+        }))
+      : {
+          type: "trace",
+          traceId: trace.id,
+        },
     "target-and-child-scores",
   );
 
   const value = useMemo<TraceDataContextValue>(
     () => ({
+      scope,
       trace,
+      projectId,
+      sessionId,
       observations,
       serverScores: serverScores,
       mergedScores,
@@ -206,10 +238,14 @@ export function TraceDataProvider({
       detachedObservationIsMisplaced,
       truncatedAtObservations,
       isPlaceholderData,
-      comments,
+      isNavigationReady,
+      comments: nodeComments,
     }),
     [
+      scope,
       trace,
+      projectId,
+      sessionId,
       observations,
       serverScores,
       mergedScores,
@@ -222,9 +258,10 @@ export function TraceDataProvider({
       detachedObservationIsMisplaced,
       truncatedAtObservations,
       isPlaceholderData,
+      isNavigationReady,
       uiData.nodeMap,
       uiData.metricEmphasis,
-      comments,
+      nodeComments,
     ],
   );
 

@@ -1,4 +1,4 @@
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import { Label } from "@/src/components/ui/label";
 
 export function VariableMappingDescription(p: {
@@ -9,7 +9,11 @@ export function VariableMappingDescription(p: {
   return (
     <div className="flex h-8 min-w-0 flex-1 items-center">
       <Label className="text-sm font-normal">{p.title}</Label>
-      <DocPopup description={p.description} href={p.href} />
+      <DocPopup description={p.description} href={p.href}>
+        {({ getTriggerProps }) => (
+          <DocPopupTrigger triggerProps={getTriggerProps()} />
+        )}
+      </DocPopup>
     </div>
   );
 }

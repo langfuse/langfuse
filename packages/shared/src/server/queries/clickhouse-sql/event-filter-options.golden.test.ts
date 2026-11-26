@@ -35,7 +35,7 @@ import {
   clickhouseFormatAvailable,
   normalizeCapturedQueries,
   resetCaptures,
-} from "../../repositories/goldenHarness";
+} from "../../repositories/__tests__/goldenHarness";
 
 // Record the exec seam instead of hitting ClickHouse. The factory is hoisted
 // above imports, so it pulls the harness in via dynamic import; the captured
@@ -44,11 +44,16 @@ vi.mock("../../repositories/clickhouse", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("../../repositories/clickhouse")>();
   const { buildClickhouseMock } =
-    await import("../../repositories/goldenHarness.js");
+    await import("../../repositories/__tests__/goldenHarness.js");
   return buildClickhouseMock(actual);
 });
 
-import { getEventsExactFilterOptionsForColumns } from "../../repositories/events";
+import {
+  getEventsExactFilterOptionsForColumns,
+  getEventsFilterOptionsForColumns,
+  getEventsFilterOptionValuesPage,
+} from "../../repositories/events";
+import type { FilterState } from "../../../types";
 
 const FIXED_PROJECT_ID = "golden-project";
 // Fixed so the captured scope-window params are deterministic across runs.
@@ -63,6 +68,24 @@ const COLUMNS: readonly EventFilterOptionColumn[] = [
   "experimentId",
   "traceTags",
   "isRootObservation",
+];
+
+const NATIVE_FILTER: FilterState = [
+  {
+    column: "type",
+    type: "stringOptions",
+    operator: "any of",
+    value: ["GENERATION"],
+  },
+];
+const OBSERVATION_SCORE_FILTER: FilterState = [
+  {
+    column: "scores_avg",
+    type: "numberObject",
+    key: "quality",
+    operator: ">",
+    value: 0.5,
+  },
 ];
 
 // clickhouse format is the normalizer; without it a comparison would be
@@ -118,5 +141,51 @@ describeWithClickhouse(
 
       expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
     });
+
+    it("filter=native+obsScore — planner WHERE and score CTEs", async () => {
+      await getEventsExactFilterOptionsForColumns({
+        projectId: FIXED_PROJECT_ID,
+        filter: [...NATIVE_FILTER, ...OBSERVATION_SCORE_FILTER],
+        columns: COLUMNS,
+      });
+
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
   },
 );
+
+describeWithClickhouse("golden: events filter options, filtered", () => {
+  const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+  beforeEach(() => {
+    resetCaptures();
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+  });
+  afterAll(() => {
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+  });
+
+  // The approx_top_k read takes its WHERE from the row-selection planner.
+  it("getEventsFilterOptionsForColumns filter=native+obsScore", async () => {
+    await getEventsFilterOptionsForColumns({
+      projectId: FIXED_PROJECT_ID,
+      filter: [...NATIVE_FILTER, ...OBSERVATION_SCORE_FILTER],
+      columns: COLUMNS,
+    });
+
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  // The single-column page builds its own FilterList over the column mapping.
+  it("getEventsFilterOptionValuesPage filter=native", async () => {
+    await getEventsFilterOptionValuesPage({
+      projectId: FIXED_PROJECT_ID,
+      filter: NATIVE_FILTER,
+      column: "userId",
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+});

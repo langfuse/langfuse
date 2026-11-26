@@ -26,8 +26,6 @@ vi.mock("@langfuse/shared/src/server", async () => {
       mockGetEventsExactFilterOptionsForColumns,
   };
 });
-
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
@@ -53,6 +51,7 @@ import { observationScopeFilter } from "@/src/features/filters/config/scores-con
 import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
 import { planCommit } from "@/src/features/search-bar/lib/commit";
 import { randomUUID } from "crypto";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const maybeEvents =
   env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
@@ -72,41 +71,16 @@ describe("scores trpc", () => {
     mockAddBatchAction.mockClear();
     mockGetEventsExactFilterOptionsForColumns.mockClear();
 
-    const session: Session = {
-      expires: "1",
-      user: {
-        id: "user-1",
-        canCreateOrganizations: true,
-        name: "Demo User",
-        organizations: [
-          {
-            id: orgId,
-            name: "Test Organization",
-            role: "OWNER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: projectId,
-                role: "ADMIN",
-                retentionDays: 30,
-                deletedAt: null,
-                name: "Test Project",
-                hasTraces: false,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
-        featureFlags: testFeatureFlags(),
-        admin: true,
-      },
-      environment: {} as any,
-    };
+    const session: Session = createSession({
+      organizations: [
+        {
+          id: orgId,
+          role: "OWNER",
+          aiTelemetryEnabled: true,
+          projects: [{ id: projectId, role: "ADMIN" }],
+        },
+      ],
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
     caller = appRouter.createCaller({ ...ctx, prisma });
@@ -768,6 +742,51 @@ describe("scores trpc", () => {
       });
 
       expect(result.scores.map(({ id }) => id)).toContain(score.id);
+    });
+
+    it("matches the name of a trace older than the score window", async () => {
+      const traceId = randomUUID();
+      const score = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        name: "late-annotation-score",
+        value: 1,
+      });
+
+      await createEventsCh([
+        createEvent({
+          trace_id: traceId,
+          project_id: projectId,
+          parent_span_id: "",
+          name: "month-old-trace",
+          trace_name: "month-old-trace",
+          start_time: (Date.now() - 30 * 24 * 60 * 60 * 1000) * 1000,
+        }),
+      ]);
+      await createScoresCh([score]);
+
+      const result = await caller.scores.allFromEvents({
+        projectId,
+        filter: [
+          {
+            column: "timestamp",
+            operator: ">=",
+            value: new Date(Date.now() - 24 * 60 * 60 * 1000),
+            type: "datetime",
+          },
+          {
+            column: "traceName",
+            operator: "=",
+            value: "month-old-trace",
+            type: "string",
+          },
+        ],
+        orderBy: { column: "timestamp", order: "DESC" },
+        page: 0,
+        limit: 50,
+      });
+
+      expect(result.scores.map(({ id }) => id)).toEqual([score.id]);
     });
 
     it("returns every score of a trace, not one per trace", async () => {

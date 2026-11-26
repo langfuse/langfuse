@@ -12,9 +12,14 @@ on:
 permissions:
   contents: read
 
+# Cancel superseded PR runs; keep other events independent with a unique group per run.
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'pull_request_target' }}
+
 jobs:
   license_check:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       checks: write # Needed to create a check run for the license compliance check results
@@ -39,7 +44,7 @@ jobs:
 
       - name: Generate production dependency license report
         run: |
-          pnpm -r licenses list --prod --json > pnpm-licenses.json
+          pnpm -r licenses list --prod --no-optional --json > pnpm-licenses.json
           # Exempt only these package versions; upgrades receive a fresh license check.
           jq -er '
             ["axe-core@4.13.0", "dompurify@3.4.17", "elkjs@0.11.1"] as $exceptions |
@@ -73,7 +78,7 @@ jobs:
     # Same policy as license_check, applied to the Rust crates in the
     # ai-gateway binary and in the native addon shipped in the worker image;
     # the shared allow-list lives in the repository-root deny.toml.
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: read
     steps:
@@ -86,6 +91,7 @@ jobs:
         run: |
           (cd ai-gateway && rustup toolchain install --no-self-update)
           (cd packages/native && rustup toolchain install --no-self-update)
+          (cd packages/ai-gateway-guardrail-rules && rustup toolchain install --no-self-update)
 
       - name: Install cargo-deny
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
@@ -100,12 +106,16 @@ jobs:
         working-directory: packages/native
         run: cargo deny --locked check licenses
 
+      - name: Check guardrail rules dependency licenses
+        working-directory: packages/ai-gateway-guardrail-rules
+        run: cargo deny --locked check licenses
+
   # License checks are not required for merging, so a failure on main would
   # otherwise go unnoticed. PR failures already show on the PR.
   notify_failure:
     needs: [license_check, rust_license_check]
     if: ${{ failure() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: read
       actions: read # notify-slack-failure reads the failed jobs' logs

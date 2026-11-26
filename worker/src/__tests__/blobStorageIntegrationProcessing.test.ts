@@ -59,16 +59,17 @@ import {
   createEventsCh,
   StorageService,
   StorageServiceFactory,
+  storageKeys,
   BlobStorageIntegrationProcessingQueue,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Job, UnrecoverableError } from "bullmq";
+import { handleBlobStorageIntegrationProjectJob } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
+import { BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE } from "../features/blobstorage/partLimitError";
 import {
-  handleBlobStorageIntegrationProjectJob,
   BLOB_STORAGE_LAG_BUFFER_MS,
   BLOB_STORAGE_REMAINDER_COALESCE_MS,
-  BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE,
-} from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
+} from "../features/blobstorage/exportWindow";
 import { BLOB_INTEGRATION_DISABLED_METRIC } from "../features/blobstorage/isCustomerFaultError";
 import {
   BlobStorageIntegrationType,
@@ -103,16 +104,14 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
   beforeAll(async () => {
     storageService = StorageServiceFactory.getInstance({
-      accessKeyId,
-      secretAccessKey,
+      credentials: storageKeys(accessKeyId, secretAccessKey),
       bucketName,
       endpoint,
       region,
       forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
     });
     s3StorageService = StorageServiceFactory.getInstance({
-      accessKeyId: minioAccessKeyId,
-      secretAccessKey: minioAccessKeySecret,
+      credentials: storageKeys(minioAccessKeyId, minioAccessKeySecret),
       bucketName,
       endpoint: minioEndpoint,
       region,
@@ -872,6 +871,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId,
           modelName: "gpt-4-test",
           matchPattern: "gpt-4-test",
@@ -2912,6 +2912,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId,
           modelName: "gpt-4-passthrough",
           matchPattern: "gpt-4-passthrough",

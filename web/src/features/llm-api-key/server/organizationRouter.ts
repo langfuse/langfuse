@@ -12,6 +12,11 @@ import {
   protectedOrganizationProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 
+import {
+  getBedrockCrossAccountRoleArn,
+  getBedrockExternalId,
+  getBedrockIamRoleAccess,
+} from "./bedrockIamRoleAccess";
 import { LlmConnectionService } from "./llmConnectionService";
 
 const requireAccess = (params: {
@@ -57,11 +62,16 @@ export const organizationLlmApiKeyRouter = createTRPCRouter({
         orgId: input.orgId,
         scope: "organizationLlmApiKeys:CUD",
       });
-      const { orgId, ...connectionInput } = input;
+      const { orgId, bedrockExternalIdNonce, ...connectionInput } = input;
       return new LlmConnectionService().create({
         owner: { type: "organization", organizationId: orgId },
         input: connectionInput,
         actor: { session: ctx.session },
+        bedrockIamRole: getBedrockIamRoleAccess({
+          sessionUser: ctx.session.user,
+          owner: { type: "organization", organizationId: orgId },
+          externalIdNonce: bedrockExternalIdNonce,
+        }),
       });
     }),
 
@@ -73,11 +83,16 @@ export const organizationLlmApiKeyRouter = createTRPCRouter({
         orgId: input.orgId,
         scope: "organizationLlmApiKeys:CUD",
       });
-      const { orgId, ...connectionInput } = input;
+      const { orgId, bedrockExternalIdNonce, ...connectionInput } = input;
       return new LlmConnectionService().update({
         owner: { type: "organization", organizationId: orgId },
         input: connectionInput,
         actor: { session: ctx.session },
+        bedrockIamRole: getBedrockIamRoleAccess({
+          sessionUser: ctx.session.user,
+          owner: { type: "organization", organizationId: orgId },
+          externalIdNonce: bedrockExternalIdNonce,
+        }),
       });
     }),
 
@@ -108,8 +123,14 @@ export const organizationLlmApiKeyRouter = createTRPCRouter({
         orgId: input.orgId,
         scope: "organizationLlmApiKeys:CUD",
       });
-      const { orgId: _orgId, ...connectionInput } = input;
-      return new LlmConnectionService().test(connectionInput);
+      const { orgId, bedrockExternalIdNonce, ...connectionInput } = input;
+      return new LlmConnectionService().test(connectionInput, {
+        bedrockIamRole: getBedrockIamRoleAccess({
+          sessionUser: ctx.session.user,
+          owner: { type: "organization", organizationId: orgId },
+          externalIdNonce: bedrockExternalIdNonce,
+        }),
+      });
     }),
 
   testUpdate: protectedOrganizationProcedureWithoutTracing
@@ -120,10 +141,57 @@ export const organizationLlmApiKeyRouter = createTRPCRouter({
         orgId: input.orgId,
         scope: "organizationLlmApiKeys:CUD",
       });
-      const { orgId, ...connectionInput } = input;
+      const { orgId, bedrockExternalIdNonce, ...connectionInput } = input;
       return new LlmConnectionService().testUpdate({
         owner: { type: "organization", organizationId: orgId },
         input: connectionInput,
+        bedrockIamRole: getBedrockIamRoleAccess({
+          sessionUser: ctx.session.user,
+          owner: { type: "organization", organizationId: orgId },
+          externalIdNonce: bedrockExternalIdNonce,
+        }),
       });
+    }),
+
+  bedrockIamRoleAuth: protectedOrganizationProcedure
+    .input(z.object({ orgId: z.string() }))
+    .query(({ input, ctx }) => {
+      requireAccess({
+        session: ctx.session,
+        orgId: input.orgId,
+        scope: "organizationLlmApiKeys:read",
+      });
+      return {
+        crossAccountRoleArn: getBedrockCrossAccountRoleArn({
+          sessionUser: ctx.session.user,
+          owner: { type: "organization", organizationId: input.orgId },
+        }),
+      };
+    }),
+
+  bedrockExternalId: protectedOrganizationProcedureWithoutTracing
+    .input(
+      z.object({
+        orgId: z.string(),
+        nonce: z.uuid(),
+        /** An edited connection keeps the external ID it was saved with. */
+        connectionId: z.string().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      requireAccess({
+        session: ctx.session,
+        orgId: input.orgId,
+        scope: "organizationLlmApiKeys:CUD",
+      });
+      return {
+        externalId: await getBedrockExternalId({
+          prisma: ctx.prisma,
+          sessionUser: ctx.session.user,
+          owner: { type: "organization", organizationId: input.orgId },
+          nonce: input.nonce,
+          connectionId: input.connectionId,
+        }),
+      };
     }),
 });

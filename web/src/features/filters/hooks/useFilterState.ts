@@ -53,7 +53,7 @@ const getCommaArrayParam = (table: TableName) => ({
             f.type === "booleanObject" ||
             f.type === "categoryOptions" ||
             f.type === "positionInTrace"
-              ? f.key
+              ? encodeURIComponent(f.key ?? "")
               : ""
           };${f.operator};${encodeURIComponent(
             f.type === "datetime"
@@ -88,8 +88,8 @@ const getCommaArrayParam = (table: TableName) => ({
           value !== undefined ? decodeURIComponent(value) : undefined;
         const normalizedKey =
           type === "positionInTrace"
-            ? normalizeLegacySessionPositionInTraceKey(key)
-            : key;
+            ? normalizeLegacySessionPositionInTraceKey(decodeObjectKey(key))
+            : decodeObjectKey(key);
         const parsedValue = (() => {
           if (decodedValue === undefined || type === undefined) {
             return undefined;
@@ -231,4 +231,14 @@ function getColumnId(table: TableName, name: string): string | undefined {
 
 function getColumnName(table: TableName, id: string): string | undefined {
   return tableCols[table]?.find((col) => col.id === id)?.name;
+}
+
+/** decodeObjectKey percent-decodes a filter key, keeping keys from older raw links as written */
+function decodeObjectKey(key: string | undefined): string | undefined {
+  if (key === undefined) return undefined;
+  try {
+    return decodeURIComponent(key);
+  } catch {
+    return key;
+  }
 }

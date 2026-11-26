@@ -1,30 +1,40 @@
 import { restoreInlineMedia } from "../otel-media/resolveExtractedMedia";
-import type { EarlyOtelBatch } from "@langfuse/native";
+import { PreparedEvent, type EarlyOtelBatch } from "@langfuse/native";
 import { convertEventRecordToObservationForEval } from "@langfuse/shared";
 import {
+  hasUnstorableYear,
   logger,
   OtelIngestionProcessor,
   traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { fetchObservationEvalRules } from "../evaluation/observationEval/fetchObservationEvalRules";
+import { fetchEvalRules } from "../evaluation/fetchEvalRules";
 import {
-  isObservationAllowedForQueuedObservationEvals,
-  scheduleObservationEvals,
-} from "../evaluation/observationEval/scheduleObservationEvals";
-import { createObservationEvalSchedulerDeps } from "../evaluation/observationEval/createSchedulerDeps";
-import { trackTraceBatchActivity } from "../traceBatching/traceBatching";
+  createEvalSchedulerDeps,
+  scheduleEvals,
+  type EvalWrites,
+} from "../evaluation/scheduleEvals";
+import {
+  isTraceDispatchSampled,
+  resolveTraceDispatchSamplingRate,
+} from "../traceDispatch/traceDispatchSampling";
 import {
   createDirectOtelMediaTargets,
   processOtelEventMedia,
   type OtelMediaPresence,
 } from "../otel-media/processOtelMedia";
 import type { IngestionService } from "../../services/IngestionService";
+import { isEventsDispatchEnabled } from "../eventsDispatch/config";
 
 type ProcessOtelEventsParams = {
   processor: OtelIngestionProcessor;
   resourceSpans: Parameters<OtelIngestionProcessor["processToEvent"]>[0];
-  ingestionService: IngestionService;
+  ingestionService: Pick<
+    IngestionService,
+    "createEventRecord" | "writeEventRecord"
+  >;
+  /** Called once per batch, and only when a rule needs scheduling. */
+  evalWrites: () => EvalWrites;
   projectId: string;
   fileKey: string;
   shouldWriteToEventsTable: boolean;
@@ -32,6 +42,29 @@ type ProcessOtelEventsParams = {
   mediaPath?: "early" | "reference";
   inputByteLength?: number;
 };
+
+/** The nullable timestamp columns of events_full, from the native row schema. */
+const nullableTimestampColumns = PreparedEvent.columns()
+  .filter(({ columnType }) => columnType.startsWith("Nullable(DateTime64"))
+  .map(({ name }) => name);
+
+/**
+ * Returns the event row with each optional timestamp ClickHouse cannot store
+ * set to null. One such value would fail the insert of every row sent with it.
+ */
+function withoutUnstorableTimestamps<T extends Record<string, unknown>>(
+  eventRecord: T,
+): T {
+  const unstorable = nullableTimestampColumns.filter((column) => {
+    const value = eventRecord[column];
+    return typeof value === "string" && hasUnstorableYear(value);
+  });
+  if (unstorable.length === 0) return eventRecord;
+  return {
+    ...eventRecord,
+    ...Object.fromEntries(unstorable.map((column) => [column, null])),
+  };
+}
 
 /**
  * Processes a resource-spans batch for observation eval scheduling and direct
@@ -46,6 +79,7 @@ export async function processOtelEvents({
   processor,
   resourceSpans,
   ingestionService,
+  evalWrites,
   projectId,
   fileKey,
   shouldWriteToEventsTable,
@@ -53,33 +87,32 @@ export async function processOtelEvents({
   mediaPath,
   inputByteLength,
 }: ProcessOtelEventsParams): Promise<OtelMediaPresence | undefined> {
-  // Process events for observation evals and direct event writes
-  // This phase handles two independent concerns:
-  // 1. Scheduling observation-level evals (if eval configs exist)
-  // 2. Writing directly to events table (if SDK version requirements are met)
-  //
-  // Both require enriched event records with trace-level attributes
-  // (userId, sessionId, tags, release) that processToEvent provides.
+  // Evals and direct event writes share the enriched trace attributes.
   const eventInputs = processor.processToEvent(resourceSpans);
   if (eventInputs.length === 0) {
     return;
   }
 
-  const evalConfigs = await fetchObservationEvalRules(projectId).catch(
-    (error) => {
-      traceException(error);
-      logger.warn(
-        `Failed to fetch observation eval configs for project ${projectId}`,
-        error,
-      );
-
-      return [];
-    },
+  // Trace recording requires direct events-table writes.
+  const traceDispatchSamplingRate =
+    shouldWriteToEventsTable && isEventsDispatchEnabled()
+      ? await resolveTraceDispatchSamplingRate(projectId)
+      : 0;
+  const includeTraceTranscriptRules = eventInputs.some(({ traceId }) =>
+    isTraceDispatchSampled(traceId, traceDispatchSamplingRate),
   );
-  const hasEvalConfigs = evalConfigs.length > 0;
+  const rules = await fetchEvalRules(projectId, {
+    includeTraceTranscriptRules,
+  }).catch((error) => {
+    traceException(error);
+    logger.warn(`Failed to fetch eval rules for project ${projectId}`, error);
+    return { observationRules: [], traceTranscriptRules: [] };
+  });
+  const needsScheduler =
+    rules.observationRules.length > 0 || includeTraceTranscriptRules;
 
   // Early exit if no processing needed
-  if (!hasEvalConfigs && !shouldWriteToEventsTable) {
+  if (!needsScheduler && !shouldWriteToEventsTable) {
     return;
   }
 
@@ -109,16 +142,9 @@ export async function processOtelEvents({
     });
   }
 
-  // Create scheduler deps only if we have eval configs
-  const evalSchedulerDeps = hasEvalConfigs
-    ? createObservationEvalSchedulerDeps()
+  const schedulerDeps = needsScheduler
+    ? createEvalSchedulerDeps(projectId, rules, evalWrites())
     : null;
-
-  const traceBatchEvents: {
-    traceId: string;
-    startTimeISO: string;
-    serializedEventBytes: number;
-  }[] = [];
 
   await Promise.all(
     // Process each event independently
@@ -126,9 +152,8 @@ export async function processOtelEvents({
       // Step 1: Create enriched event record (required for both evals and writes)
       let eventRecord;
       try {
-        eventRecord = await ingestionService.createEventRecord(
-          eventInput,
-          fileKey,
+        eventRecord = withoutUnstorableTimestamps(
+          await ingestionService.createEventRecord(eventInput, fileKey),
         );
       } catch (error) {
         traceException(error);
@@ -140,45 +165,48 @@ export async function processOtelEvents({
         return;
       }
 
-      // Step 2: Schedule observation evals (independent of event writes).
-      // Internal langfuse-* environments are excluded to prevent
-      // eval-on-eval recursion, except experiment run-item roots; see
-      // isObservationAllowedForQueuedObservationEvals.
-      if (hasEvalConfigs && evalSchedulerDeps) {
-        try {
-          const observation =
-            convertEventRecordToObservationForEval(eventRecord);
-
-          if (isObservationAllowedForQueuedObservationEvals(observation)) {
-            await scheduleObservationEvals({
-              observation,
-              configs: evalConfigs,
-              schedulerDeps: evalSchedulerDeps,
-            });
+      // Step 2: Keep transcript matches even if observation scheduling fails.
+      const traceActivity = isTraceDispatchSampled(
+        eventInput.traceId,
+        traceDispatchSamplingRate,
+      )
+        ? {
+            traceId: eventInput.traceId,
+            spanStartTimeISO: eventInput.startTimeISO,
           }
-        } catch (error) {
-          traceException(error);
-
-          logger.error(
-            `Failed to schedule observation evals for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
-            { error, fileKey },
-          );
-        }
-      }
+        : undefined;
+      const matchedRuleIds = schedulerDeps
+        ? await scheduleEvals({
+            parseObservation: () => {
+              const observation =
+                convertEventRecordToObservationForEval(eventRecord);
+              return { observation, loadSnapshot: () => observation };
+            },
+            environment: eventRecord.environment,
+            traceActivity,
+            rules,
+            schedulerDeps,
+            buildFailureContext: () => ({
+              projectId: eventInput.projectId,
+              observationId: eventInput.spanId,
+              fileKey,
+            }),
+          })
+        : undefined;
 
       // Step 3: Write to events table (independent of eval scheduling)
       if (shouldWriteToEventsTable) {
         try {
-          const serializedEventBytes =
+          const persistedRecord =
             await ingestionService.writeEventRecord(eventRecord);
-          if (
-            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-            env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true"
-          ) {
-            traceBatchEvents.push({
-              traceId: eventInput.traceId,
-              startTimeISO: eventInput.startTimeISO,
-              serializedEventBytes,
+          // Record activity only after the event writer accepts the span.
+          if (traceActivity && schedulerDeps && matchedRuleIds !== undefined) {
+            schedulerDeps.collectTraceActivity({
+              ...traceActivity,
+              ruleIds: matchedRuleIds,
+              serializedEventBytes:
+                persistedRecord.event_bytes ??
+                Buffer.byteLength(JSON.stringify(persistedRecord), "utf8"),
             });
           }
         } catch (error) {
@@ -192,9 +220,9 @@ export async function processOtelEvents({
     }),
   );
 
-  if (traceBatchEvents.length > 0) {
-    // The writer has accepted these records; its flush completes separately.
-    await trackTraceBatchActivity(projectId, traceBatchEvents);
+  if (schedulerDeps) {
+    // Flush this batch's activity; Lua merges updates across workers.
+    await schedulerDeps.flushTraceActivity();
   }
   return mediaPresence;
 }

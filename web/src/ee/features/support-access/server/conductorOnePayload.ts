@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 
 export const C1_TEST_EVENT = "c1.webhooks.v1.PayloadTest";
+/** @internal */
 export const C1_PROVISION_EVENT = "c1.webhooks.v1.PayloadProvisionStep";
 
 export type GrantRequest = {
@@ -8,7 +9,7 @@ export type GrantRequest = {
   taskId: string;
   entitlementId: string;
   email: string;
-  orgId: string;
+  orgOrProjectId: string;
   durationMs: number | null;
 };
 export type RevokeRequest = {
@@ -97,14 +98,14 @@ export function parseProvisionPayload(
   if (!email) return null;
 
   if (grant) {
-    const orgId = task.data?.[ORG_ID_FORM_FIELD];
-    if (!orgId) return null;
+    const orgOrProjectId = task.data?.[ORG_ID_FORM_FIELD];
+    if (!orgOrProjectId) return null;
     return {
       action: "grant",
       taskId: task.id,
       entitlementId: grant.appEntitlementId,
       email,
-      orgId,
+      orgOrProjectId,
       durationMs: parseDurationMs(grant.grantDuration),
     };
   }

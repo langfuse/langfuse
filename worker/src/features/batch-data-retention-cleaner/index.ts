@@ -21,13 +21,17 @@ import {
   PeriodicExclusiveRunnerLeaseLostError,
 } from "../../utils/PeriodicExclusiveRunner";
 
-// Tables for batch data retention cleaning (ClickHouse only; also no dataset_run_items)
+// Tables for batch data retention cleaning (ClickHouse only; also no dataset_run_items).
+// Topic definitions are reused across runs, so `topics` does not expire by age.
 export const BATCH_DATA_RETENTION_TABLES = [
   "traces",
   "observations",
   "scores",
   "events_full",
   "events_core",
+  "topic_facet_summaries",
+  "topic_assignments",
+  "topic_assignments_by_trace",
 ] as const;
 
 export type BatchDataRetentionTable =
@@ -39,12 +43,16 @@ const METRIC_PREFIX = `langfuse.${RUNNER_NAME}`;
 const BATCH_DATA_RETENTION_CLEANER_LOCK_PREFIX =
   "langfuse:batch-data-retention-cleaner";
 
+/** @internal */
 export const TIMESTAMP_COLUMN_MAP: Record<BatchDataRetentionTable, string> = {
   traces: "timestamp",
   observations: "start_time",
   scores: "timestamp",
   events_full: "start_time",
   events_core: "start_time",
+  topic_facet_summaries: "unit_start_time",
+  topic_assignments: "unit_start_time",
+  topic_assignments_by_trace: "unit_start_time",
 };
 
 interface ProjectRetention {
@@ -142,7 +150,7 @@ function buildRetentionConditions(
  * BatchDataRetentionCleaner handles bulk deletion of ClickHouse data based on
  * project retention settings.
  *
- * Each instance processes one table (traces, observations, scores, events_full, events_core).
+ * Each instance processes one table from BATCH_DATA_RETENTION_TABLES.
  * Multiple workers coordinate via Redis distributed locking to ensure only one
  * worker deletes from a given table at a time.
  *
@@ -633,7 +641,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
             row.oldest_timestamp,
           );
           if (Number.isNaN(oldestTimestamp.getTime())) {
-            throw new Error(
+            throw new TypeError(
               `Invalid oldest timestamp for project ${row.project_id}`,
             );
           }

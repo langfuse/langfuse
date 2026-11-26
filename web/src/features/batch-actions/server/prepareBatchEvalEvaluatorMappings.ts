@@ -1,4 +1,5 @@
 import {
+  EvalTargetObject,
   EvalTemplateType,
   InvalidRequestError,
   type BatchEvalEvaluatorMapping,
@@ -77,6 +78,7 @@ export async function prepareBatchEvalEvaluatorMappings(params: {
         promptVariables: requiredVariables,
         variableMapping:
           storedVariableMapping ?? prepared.defaultVariableMapping,
+        targetObject: EvalTargetObject.EVENT,
       });
 
       return {

@@ -4,12 +4,13 @@ import Link from "next/link";
 import {
   BarChart4,
   ChevronDown,
-  ExternalLink,
+  SquareArrowOutUpRight,
   Download,
   FileCode2,
   GitBranch,
   TriangleAlert,
   Plus,
+  Sparkles,
   Terminal,
   Trash,
   Zap,
@@ -59,6 +60,8 @@ import {
   skillsFilterConfig,
 } from "../constants/skillsFilterConfig";
 import { ImportSkillsDialog } from "./ImportSkillsDialog";
+import { useSkillHaloActions } from "./useSkillHaloActions";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { InstallSkillDialog } from "./InstallSkillDialog";
 import { useSkillInstallOptions } from "../hooks/useSkillInstallOptions";
 import {
@@ -95,19 +98,14 @@ export function SkillsPage() {
         <Page
           headerProps={{
             title: "Skills",
-            titleBadges: (
-              <>
-                <Badge text="Beta" color="blue" size="sm" />
-                {isV3Legacy && (
-                  <Badge
-                    text="Skill tracing requires v4"
-                    title="You can still create and use skills in the legacy view."
-                    color="yellow"
-                    size="md"
-                    leadingIcon={TriangleAlert}
-                  />
-                )}
-              </>
+            titleBadges: isV3Legacy && (
+              <Badge
+                text="Skill tracing requires v4"
+                title="You can still create and use skills in the legacy view."
+                color="warning"
+                size="md"
+                leadingIcon={TriangleAlert}
+              />
             ),
             help: {
               description:
@@ -160,6 +158,8 @@ function SkillsHeaderActions({
   closeMenu,
 }: SkillsHeaderActionsProps) {
   const capture = usePostHogClientCapture();
+  const isHaloVisible = useIsInAppAgentLauncherVisible();
+  const { createSkill, isRunning: isHaloRunning } = useSkillHaloActions();
   const canReadAutomations = useHasProjectAccess({
     projectId,
     scope: "automations:read",
@@ -197,7 +197,7 @@ function SkillsHeaderActions({
             type: "item",
             id: "api",
             title: "API",
-            icon: ExternalLink,
+            icon: SquareArrowOutUpRight,
             href: "https://api.reference.langfuse.com/#tag/skills",
             linkTarget: "_blank",
           },
@@ -221,7 +221,7 @@ function SkillsHeaderActions({
               {
                 type: "item",
                 id: "create",
-                title: "Create from scratch",
+                title: "Create manually",
                 icon: Plus,
                 href: `/project/${projectId}/skills/new`,
                 onAfterNavigate: () => {
@@ -229,6 +229,27 @@ function SkillsHeaderActions({
                   capture("skills:new_form_open");
                 },
               },
+              ...(isHaloVisible
+                ? [
+                    {
+                      type: "item" as const,
+                      id: "create-with-halo",
+                      title: "Create with Halo",
+                      tooltip:
+                        "Halo asks what you need and writes the skill with you.",
+                      icon: Sparkles,
+                      disabled: isHaloRunning
+                        ? {
+                            reason: "Halo is still working on another request.",
+                          }
+                        : undefined,
+                      onClick: () => {
+                        closeMenu?.();
+                        createSkill().catch(() => undefined);
+                      },
+                    },
+                  ]
+                : []),
               {
                 type: "item",
                 id: "import",
@@ -286,10 +307,13 @@ function SkillsList({
     { projectId },
     { enabled: Boolean(projectId) },
   );
-  const observedOptions = filterOptions.data ?? { tags: [] };
+  const observedOptions = useMemo(
+    () => toObservedOptions(filterOptions.data, filterOptions.isPending),
+    [filterOptions.data, filterOptions.isPending],
+  );
   const queryFilter = useSidebarFilterState(
     skillsFilterConfig,
-    observedOptions,
+    observedOptions ?? { tags: [] },
     {
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
@@ -399,10 +423,7 @@ function SkillsList({
               registry={SKILLS_FIELD_REGISTRY}
               filterState={queryFilter.searchBarFilterState}
               setFilterState={queryFilter.setFilterState}
-              observed={toObservedOptions(
-                observedOptions,
-                filterOptions.isPending,
-              )}
+              observed={observedOptions}
               isV4={false}
               search={{
                 query: searchQuery,

@@ -30,7 +30,17 @@ type ConnectedModernSessionBodyTimelineProps = {
   projectId: string;
   sessionId: string;
   openPeek: OpenPeek;
+  activePeek?: Extract<
+    ComponentProps<typeof ConnectedSessionConversationTimeline>,
+    { state: "loaded" }
+  >["activePeek"];
   filterState?: FilterState;
+  sidebarMode: ComponentProps<
+    typeof ConnectedSessionConversationTimeline
+  >["sidebarMode"];
+  annotationActions?: ComponentProps<
+    typeof ConnectedSessionConversationTimeline
+  >["annotationActions"];
 };
 
 export function ConnectedModernSessionBodyTimeline({
@@ -39,7 +49,10 @@ export function ConnectedModernSessionBodyTimeline({
   projectId,
   sessionId,
   openPeek,
+  activePeek,
   filterState,
+  sidebarMode,
+  annotationActions,
 }: ConnectedModernSessionBodyTimelineProps) {
   const traces =
     tracesState.type === "loaded" ? tracesState.traces : EMPTY_TRACES;
@@ -113,6 +126,7 @@ export function ConnectedModernSessionBodyTimeline({
     traces.every(
       (trace) =>
         utils.events.transcriptByTraceId.getData({
+          context: "session",
           projectId,
           traceId: trace.id,
           timestamp: trace.timestamp,
@@ -242,6 +256,7 @@ export function ConnectedModernSessionBodyTimeline({
         ? { state: "loading" }
         : {
             state: "loaded",
+            activePeek,
             search,
             searchQuery,
             isSearchPending,
@@ -259,6 +274,8 @@ export function ConnectedModernSessionBodyTimeline({
       controller={timelineController}
       resultsByTraceId={resultsByTraceId}
       scrollTarget={scrollTarget}
+      sidebarMode={sidebarMode}
+      annotationActions={annotationActions}
     />
   );
 }

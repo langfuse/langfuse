@@ -11,12 +11,13 @@ import {
   writeTopicDefinitions,
   writeTopicSummaries,
   writeTopicAssignments,
-  listTopicSummaries,
   getLatestFacetSummaries,
   getTopicClusteringSummaries,
-  getTopicClusteringSummaryStats,
   getTopicSummaryCounts,
   getTopicExecutionCosts,
+  getTopicRuleProcessingCosts,
+  getTopicExecutionNamingCosts,
+  getTopicRuleMapCosts,
   getTopicTraceUnitTimeRange,
   createTopicFacet,
   createTopicFacetVersion,
@@ -31,11 +32,45 @@ import {
   readTopicExecutionSummary,
   writeTopicExecution,
   createTopicRun,
+  getPublishedTopicRun,
   getTopicRun,
   saveTopicRun,
+  readCurrentTraceTopics,
+  currentTopicTraceIdsCondition,
 } from "@langfuse/shared/topics/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
+import { getTopicFacetSummaryCountsByProjectInCreationInterval } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+
+function exampleSummary(projectId: string): TopicSummary {
+  return {
+    projectId,
+    facetId: "facet",
+    facetVersion: 1,
+    traceId: randomUUID(),
+    sessionId: null,
+    triggerType: "rule",
+    ruleIds: [],
+    executionId: null,
+    environment: "default",
+    traceName: "trace",
+    unitStartTime: "2026-08-31T23:59:59.999Z",
+    state: "complete",
+    summary: "old",
+    embedding: [1, ...Array<number>(255).fill(0)],
+    transcriptId: "poc",
+    transcriptVersion: "poc",
+    transcriptBytes: 0,
+    summaryModel: "test",
+    embeddingModel: "eu.cohere.embed-v4:0",
+    providedUsageDetails: {},
+    usageDetails: {},
+    providedCostDetails: {},
+    costDetails: {},
+    createdAt: "2026-09-01T00:00:00.000Z",
+    metadata: {},
+  };
+}
 
 describe("Topics eval-backed configuration", () => {
   const orgId = randomUUID();
@@ -68,6 +103,13 @@ describe("Topics eval-backed configuration", () => {
   });
 
   afterAll(async () => {
+    for (const table of ["topics", "topic_facet_summaries"]) {
+      await clickhouseClient().command({
+        query: `DELETE FROM ${table} WHERE project_id = {projectId:String}`,
+        query_params: { projectId },
+        clickhouse_settings: { mutations_sync: "1" },
+      });
+    }
     await prisma.organization.deleteMany({ where: { id: orgId } });
     await prisma.user.deleteMany({ where: { id: { in: userIds } } });
   });
@@ -105,11 +147,11 @@ describe("Topics eval-backed configuration", () => {
     ).rejects.toThrow(/built-in/i);
   });
 
-  it("keeps one Topics rule per project when first saves race", async () => {
+  it("keeps at most five Topics rules per project when creates race", async () => {
     const facets = await ensureDefaultTopicFacets(ruleProjectId);
     const facetIds = facets.slice(0, 2).map((facet) => facet.id);
     const saved = await Promise.allSettled(
-      [0.25, 0.5, 0.75].map((sampling) =>
+      [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7].map((sampling) =>
         saveTopicRule({
           projectId: ruleProjectId,
           filter: [],
@@ -119,15 +161,15 @@ describe("Topics eval-backed configuration", () => {
       ),
     );
 
-    // One save creates the rule; the others see it and are rejected.
     expect(
       saved.filter((result) => result.status === "fulfilled"),
-    ).toHaveLength(1);
+    ).toHaveLength(5);
     for (const result of saved.filter((r) => r.status === "rejected"))
-      expect(String(result.reason)).toMatch(/already has a Topics rule/);
+      expect(String(result.reason)).toMatch(/at most 5 Topics rules/);
     const rules = await listTopicRules(ruleProjectId);
-    expect(rules).toHaveLength(1);
-    expect(rules[0].facetIds.sort()).toEqual([...facetIds].sort());
+    expect(rules).toHaveLength(5);
+    for (const rule of rules)
+      expect(rule.facetIds.sort()).toEqual([...facetIds].sort());
   });
 
   it("leaves no rule behind when the model settings cannot be written", async () => {
@@ -213,7 +255,7 @@ describe("Topics eval-backed configuration", () => {
     ).toMatchObject({ createdByUserId: userIds[0] });
   });
 
-  it.each(["trace", "trace_transcript"])(
+  it.each(["trace_transcript"])(
     "reads and saves %s Topics rules while keeping FACET assignments project-scoped",
     async (targetObject) => {
       const { id: projectId } = await prisma.project.create({
@@ -290,9 +332,9 @@ describe("Topics eval-backed configuration", () => {
         (await listTopicRules(projectId)).map((value) => value.id),
       ).toEqual([rule.id]);
       const second = { projectId, filter: [], facetIds: [facet.id] };
-      await expect(saveTopicRule(second)).rejects.toThrow(
-        /already has a Topics rule/,
-      );
+      const created = await saveTopicRule({ ...second, name: "Another rule" });
+      expect(created.id).not.toBe(rule.id);
+      await prisma.evaluationRule.delete({ where: { id: created.id } });
       expect(
         await saveTopicRule({
           ...second,
@@ -410,36 +452,158 @@ describe("Topics eval-backed configuration", () => {
       await saveTopicRun({ ...run, status: "failed", error: "Late retry" }),
     ).toEqual(completed);
   });
+
+  it("attributes each stored topic version's naming cost only to the run that created it", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Naming costs",
+      description: "",
+      prompt: "Summarize.",
+    });
+    const rule = await saveTopicRule({
+      projectId,
+      facetIds: [facet.id],
+      filter: [],
+    });
+    const unpriced = await saveTopicRule({
+      projectId,
+      name: "Map without model calls",
+      facetIds: [facet.id],
+      filter: [],
+    });
+    const run = { projectId, facetId: facet.id, facetVersion: 1, config: {} };
+    const original = await createTopicRun({ ...run, ruleId: rule.id });
+    const snapshot = await createTopicRun({
+      ...run,
+      batchActionId: "snapshot",
+    });
+    const rename = await createTopicRun({ ...run, batchActionId: "snapshot" });
+    const free = await createTopicRun({ ...run, batchActionId: "free" });
+
+    const topic: TopicDefinition = {
+      projectId,
+      topicId: randomUUID(),
+      topicVersionId: randomUUID(),
+      createdByRunId: original.id,
+      createdAt: original.createdAt,
+      name: "Billing",
+      description: "",
+      labels: [],
+      centroid: [1, 0],
+      radius: 0.2,
+      representativeSummaries: [],
+      metadata: {},
+      costDetails: { naming_input: 0.02, naming_output: 0.01, total: 0.05 },
+    };
+    const published = await saveTopicRun({
+      ...original,
+      topics: [topic],
+      status: "completed",
+    });
+    await saveTopicRun({
+      ...snapshot,
+      topics: published.topics,
+      status: "completed",
+    });
+    expect(await getTopicExecutionNamingCosts(projectId, ["snapshot"])).toEqual(
+      {},
+    );
+
+    const renamed = {
+      ...topic,
+      topicVersionId: randomUUID(),
+      name: "Invoices",
+      createdByRunId: rename.id,
+      createdAt: rename.createdAt,
+      costDetails: { total: 0.1 + 0.2 },
+    };
+    await saveTopicRun({ ...rename, topics: [renamed], status: "completed" });
+    await saveTopicRun({
+      ...free,
+      status: "completed",
+      topics: [
+        {
+          ...topic,
+          topicVersionId: randomUUID(),
+          createdByRunId: free.id,
+          createdAt: free.createdAt,
+          costDetails: { total: 0 },
+        },
+      ],
+    });
+    await writeTopicSummaries([
+      {
+        ...exampleSummary(projectId),
+        facetId: facet.id,
+        ruleIds: [rule.id],
+        costDetails: { total: 0.04 },
+      },
+    ]);
+
+    expect(await getTopicRuleMapCosts(projectId)).toMatchObject({
+      [rule.id]: 0.09,
+      [unpriced.id]: null,
+    });
+    expect(
+      await getTopicExecutionNamingCosts(projectId, [
+        "snapshot",
+        "free",
+        "absent",
+      ]),
+    ).toEqual({ snapshot: 0.3, free: 0 });
+    expect(await getTopicRuleMapCosts(otherProjectId)).toEqual({});
+    expect(
+      await getTopicExecutionNamingCosts(otherProjectId, ["snapshot"]),
+    ).toEqual({});
+  });
+
+  it("never serves an analysis, even as the facet's newest snapshot", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Analysis serving",
+      description: "",
+      prompt: "Describe analysis serving.",
+    });
+    const update: TopicExecutionInput = {
+      projectId,
+      requestId: randomUUID(),
+      operation: "update",
+      facets: [{ facetId: facet.id, version: 1 }],
+      timeRange: { from: new Date("2026-09-01"), to: new Date("2026-10-01") },
+      embeddingConfig: {
+        embeddingModel: "eu.cohere.embed-v4:0",
+        embeddingDimensions: 256,
+      },
+      exploratory: false,
+    };
+    const complete = async (input: TopicExecutionInput) => {
+      const execution = await createTopicExecution(input, undefined, "user");
+      const run = (await getTopicRun(projectId, execution.facets[0]!.runId!))!;
+      await saveTopicRun({
+        ...run,
+        status: "completed",
+        finishedAt: new Date().toISOString(),
+      });
+      return run.id;
+    };
+    const snapshot = await complete(update);
+    await complete({
+      ...update,
+      requestId: randomUUID(),
+      analysis: { label: "Checkout", filter: [], seed: "seed" },
+    });
+    expect((await getPublishedTopicRun(projectId, facet.id))?.id).toBe(
+      snapshot,
+    );
+  });
 });
 
 describe("Topics definition persistence", () => {
   const projectId = randomUUID();
   const otherProjectId = randomUUID();
+  const telemetryProjectId = randomUUID();
 
-  const summary: TopicSummary = {
-    projectId,
-    facetId: "facet",
-    facetVersion: 1,
-    traceId: randomUUID(),
-    sessionId: null,
-    triggerType: "manual_poc",
-    environment: "default",
-    traceName: "trace",
-    unitStartTime: "2026-08-31T23:59:59.999Z",
-    state: "complete",
-    summary: "old",
-    embedding: [1, ...Array<number>(255).fill(0)],
-    transcriptId: "poc",
-    transcriptVersion: "poc",
-    summaryModel: "test",
-    embeddingModel: "eu.cohere.embed-v4:0",
-    providedUsageDetails: {},
-    usageDetails: {},
-    providedCostDetails: {},
-    costDetails: {},
-    processedAt: "2026-09-01T00:00:00.000Z",
-    metadata: {},
-  };
+  const summary = exampleSummary(projectId);
 
   afterAll(async () => {
     for (const table of [
@@ -449,9 +613,76 @@ describe("Topics definition persistence", () => {
     ])
       await clickhouseClient().command({
         query: `DELETE FROM ${table} WHERE project_id IN {projectIds:Array(String)}`,
-        query_params: { projectIds: [projectId, otherProjectId] },
+        query_params: {
+          projectIds: [projectId, otherProjectId, telemetryProjectId],
+        },
         clickhouse_settings: { mutations_sync: "1" },
       });
+  });
+
+  it("keeps a session and a trace with the same id apart after a merge", async () => {
+    // Its own month, so the forced merge stays small.
+    const unitStartTime = "2025-02-10T10:15:00.000Z";
+    const sharedId = randomUUID();
+    await writeTopicSummaries([
+      {
+        ...summary,
+        traceId: sharedId,
+        sessionId: "parent-session",
+        unitStartTime,
+      },
+      {
+        ...summary,
+        traceId: null,
+        sessionId: sharedId,
+        traceName: "",
+        unitStartTime,
+      },
+    ]);
+    await clickhouseClient().command({
+      query: "OPTIMIZE TABLE topic_facet_summaries PARTITION 202502 FINAL",
+      clickhouse_settings: { mutations_sync: "1" },
+    });
+    const rows = await clickhouseClient().query({
+      query: `SELECT unit_type FROM topic_facet_summaries
+        WHERE project_id = {projectId:String} AND unit_hash = cityHash64({sharedId:String})`,
+      query_params: { projectId, sharedId },
+      format: "JSONEachRow",
+    });
+    expect(
+      (await rows.json<{ unit_type: string }>())
+        .map((row) => row.unit_type)
+        .sort(),
+    ).toEqual(["session", "trace"]);
+  });
+
+  it("counts billable summaries processed in the telemetry interval", async () => {
+    const start = new Date("2026-09-01T00:00:00.000Z");
+    const end = new Date("2026-09-02T00:00:00.000Z");
+    const row = (createdAt: string, state: TopicSummary["state"]) => ({
+      ...summary,
+      projectId: telemetryProjectId,
+      traceId: randomUUID(),
+      state,
+      createdAt,
+    });
+    await writeTopicSummaries([
+      row(start.toISOString(), "complete"),
+      row("2026-09-01T12:00:00.000Z", "complete"),
+      row("2026-09-01T12:00:00.000Z", "not_applicable"),
+      row("2026-09-01T12:00:00.000Z", "insufficient_input"),
+      row("2026-09-01T12:00:00.000Z", "empty_input"),
+      row("2026-09-01T12:00:00.000Z", "input_too_large"),
+      row(end.toISOString(), "complete"),
+    ]);
+
+    const counts = await getTopicFacetSummaryCountsByProjectInCreationInterval({
+      start,
+      end,
+    });
+    expect(
+      counts.find((count) => count.projectId === telemetryProjectId)?.count,
+    ).toBe(4);
   });
 
   it("partitions by source time while preserving replacement and published map identities", async () => {
@@ -459,7 +690,7 @@ describe("Topics definition persistence", () => {
       ...summary,
       summary: "latest",
       sessionId: "parent-session",
-      processedAt: "2026-10-01T00:00:00.000Z",
+      createdAt: "2026-10-01T00:00:00.000Z",
     };
     await writeTopicSummaries([summary, latest]);
     const assignment: TopicAssignment = {
@@ -471,7 +702,7 @@ describe("Topics definition persistence", () => {
       environment: "default",
       traceName: "trace",
       unitStartTime: summary.unitStartTime,
-      summaryProcessedAt: summary.processedAt,
+      summaryProcessedAt: summary.createdAt,
       runId: "published",
       topicId: null,
       topicVersionId: null,
@@ -479,25 +710,25 @@ describe("Topics definition persistence", () => {
       runnerUpDistance: null,
       origin: "initial",
       coordinates: [1, 2],
-      assignedAt: "2026-09-01T00:00:00.000Z",
+      createdAt: "2026-09-01T00:00:00.000Z",
     };
     await writeTopicAssignments([
       assignment,
       {
         ...assignment,
         sessionId: "parent-session",
-        assignedAt: "2026-10-01T00:00:00.000Z",
+        createdAt: "2026-10-01T00:00:00.000Z",
       },
       {
         ...assignment,
         origin: "online",
         coordinates: null,
-        assignedAt: "2026-10-02T00:00:00.000Z",
+        createdAt: "2026-10-02T00:00:00.000Z",
       },
       {
         ...assignment,
         runId: "unpublished",
-        assignedAt: "2026-10-03T00:00:00.000Z",
+        createdAt: "2026-10-03T00:00:00.000Z",
       },
     ]);
     const summaries = await clickhouseClient().query({
@@ -536,24 +767,32 @@ describe("Topics definition persistence", () => {
         coordinates: [1, 2],
       },
     ]);
-    const filter = {
-      facetId: summary.facetId,
-      facetVersion: 1,
-      traceIds: [summary.traceId!],
-    };
+    const traceIds = [summary.traceId!];
     expect(
       (
-        await listTopicSummaries(projectId, filter, {
-          from: new Date(summary.unitStartTime),
-          to: new Date(Date.parse(summary.unitStartTime) + 1),
-        })
+        await getLatestFacetSummaries(
+          projectId,
+          summary.facetId,
+          1,
+          {
+            from: new Date(summary.unitStartTime),
+            to: new Date(Date.parse(summary.unitStartTime) + 1),
+          },
+          traceIds,
+        )
       ).map(({ summary }) => summary),
     ).toEqual(["latest"]);
     expect(
-      await listTopicSummaries(projectId, filter, {
-        from: new Date("2026-08-01T00:00:00.000Z"),
-        to: new Date(summary.unitStartTime),
-      }),
+      await getLatestFacetSummaries(
+        projectId,
+        summary.facetId,
+        1,
+        {
+          from: new Date("2026-08-01T00:00:00.000Z"),
+          to: new Date(summary.unitStartTime),
+        },
+        traceIds,
+      ),
     ).toEqual([]);
 
     const oldRange = {
@@ -568,7 +807,7 @@ describe("Topics definition persistence", () => {
       {
         ...latest,
         projectId: otherProjectId,
-        processedAt: "2026-10-04T00:00:00.000Z",
+        createdAt: "2026-10-04T00:00:00.000Z",
       },
       { ...latest, facetId: "other-facet", facetVersion: 2 },
     ]);
@@ -581,7 +820,7 @@ describe("Topics definition persistence", () => {
       state: summary.state,
       summary: summary.summary,
       unitStartTime: summary.unitStartTime,
-      processedAt: summary.processedAt,
+      createdAt: summary.createdAt,
     };
     for (const version of [1, undefined])
       expect(
@@ -591,14 +830,14 @@ describe("Topics definition persistence", () => {
           ...displaySummary,
           summary: latest.summary,
           sessionId: latest.sessionId,
-          processedAt: latest.processedAt,
+          createdAt: latest.createdAt,
         },
       ]);
 
     const moved: TopicSummary = {
       ...summary,
       unitStartTime: "2026-09-01T00:00:00.000Z",
-      processedAt: "2026-10-02T00:00:00.000Z",
+      createdAt: "2026-10-02T00:00:00.000Z",
       state: "not_applicable",
       summary: "",
       embedding: [],
@@ -611,7 +850,6 @@ describe("Topics definition persistence", () => {
     const limits = { maxRows: 2, maxBytes: 1024 * 1024 };
     expect(
       await Promise.all([
-        listTopicSummaries(projectId, filter, oldRange),
         getLatestFacetSummaries(projectId, "facet", undefined, oldRange),
         getTopicClusteringSummaries(
           projectId,
@@ -628,22 +866,12 @@ describe("Topics definition persistence", () => {
           oldRange,
         ),
       ]),
-    ).toEqual([[], [], [], [{ facetId: "facet", facetVersion: 1, count: 0 }]]);
-    expect(
-      await getTopicClusteringSummaryStats(
-        projectId,
-        "facet",
-        1,
-        embedding,
-        oldRange,
-        limits,
-      ),
-    ).toEqual({ count: 0, bytes: 0 });
+    ).toEqual([[], [], [{ facetId: "facet", facetVersion: 1, count: 0 }]]);
 
     const newerVersion = {
       ...summary,
       facetVersion: 2,
-      processedAt: "2026-09-30T00:00:00.000Z",
+      createdAt: "2026-09-30T00:00:00.000Z",
     };
     await writeTopicSummaries([newerVersion]);
     expect(
@@ -652,7 +880,7 @@ describe("Topics definition persistence", () => {
       {
         ...displaySummary,
         facetVersion: newerVersion.facetVersion,
-        processedAt: newerVersion.processedAt,
+        createdAt: newerVersion.createdAt,
       },
     ]);
     expect(
@@ -672,7 +900,7 @@ describe("Topics definition persistence", () => {
         {
           ...displaySummary,
           facetVersion: newerVersion.facetVersion,
-          processedAt: newerVersion.processedAt,
+          createdAt: newerVersion.createdAt,
         },
       ],
       [],
@@ -680,7 +908,7 @@ describe("Topics definition persistence", () => {
     expect(
       await Promise.all(
         [summary.traceId!, "other-trace"].map((traceId) =>
-          getTopicTraceUnitTimeRange(projectId, traceId, oldRange),
+          getTopicTraceUnitTimeRange(projectId, [traceId], oldRange),
         ),
       ),
     ).toEqual([
@@ -699,7 +927,7 @@ describe("Topics definition persistence", () => {
       {
         ...displaySummary,
         unitStartTime: moved.unitStartTime,
-        processedAt: moved.processedAt,
+        createdAt: moved.createdAt,
         state: moved.state,
         summary: moved.summary,
       },
@@ -731,57 +959,24 @@ describe("Topics definition persistence", () => {
         metadata: { large: "x".repeat(10_000) },
       })),
     ]);
-    const [eligible, counts, listed, latestDisplayed, stats] =
-      await Promise.all([
-        getTopicClusteringSummaries(
-          projectId,
-          internalFacet,
-          1,
-          embedding,
-          oldRange,
-          limits,
-        ),
-        getTopicSummaryCounts(
-          projectId,
-          [{ facetId: internalFacet, version: 1 }],
-          embedding,
-          oldRange,
-        ),
-        listTopicSummaries(
-          projectId,
-          {
-            facetId: internalFacet,
-            facetVersion: 1,
-            traceIds: allowedTraceIds.concat(
-              internalTraces.map(({ traceId }) => traceId),
-            ),
-          },
-          oldRange,
-        ),
-        getLatestFacetSummaries(projectId, internalFacet, undefined, oldRange),
-        getTopicClusteringSummaryStats(
-          projectId,
-          internalFacet,
-          1,
-          embedding,
-          oldRange,
-          limits,
-        ),
-      ]);
-    expect(eligible.map(({ traceId }) => traceId)).toEqual(allowedTraceIds);
-    expect(stats.count).toBe(eligible.length);
-    expect(stats.bytes).toBeGreaterThanOrEqual(
-      eligible.reduce(
-        (bytes, row) =>
-          bytes +
-          row.embedding.length * 8 +
-          2 * JSON.stringify(row.metadata).length,
-        0,
+    const [eligible, counts, latestDisplayed] = await Promise.all([
+      getTopicClusteringSummaries(
+        projectId,
+        internalFacet,
+        1,
+        embedding,
+        oldRange,
+        limits,
       ),
-    );
-    expect(listed.map(({ traceId }) => traceId).sort()).toEqual(
-      allowedTraceIds,
-    );
+      getTopicSummaryCounts(
+        projectId,
+        [{ facetId: internalFacet, version: 1 }],
+        embedding,
+        oldRange,
+      ),
+      getLatestFacetSummaries(projectId, internalFacet, undefined, oldRange),
+    ]);
+    expect(eligible.map(({ traceId }) => traceId)).toEqual(allowedTraceIds);
     expect(latestDisplayed.map(({ traceId }) => traceId).sort()).toEqual(
       allowedTraceIds,
     );
@@ -794,43 +989,109 @@ describe("Topics definition persistence", () => {
     ]);
   });
 
-  it("sums priced summary and embedding costs scoped to the project and executions", async () => {
+  it("sums stored facet costs for their snapshot or distinct live maps", async () => {
     const priced: TopicSummary = {
       ...summary,
       facetId: randomUUID(),
-      costDetails: { summary_input: 0.1, summary_output: 0.2, total: 0.3 },
-      metadata: { executionId: "priced" },
+      costDetails: {
+        summary_input: 0.05,
+        summary_output: 0.1,
+        embedding_input: 0.05,
+        total: 0.2,
+      },
+      executionId: "priced",
+      ruleIds: ["map-a"],
+    };
+    const live = {
+      ...priced,
+      traceId: "shared",
+      executionId: null,
+      ruleIds: ["map-a", "map-b", "map-a"],
+      costDetails: { total: 0.12 },
     };
     await writeTopicSummaries([
       priced,
+      { ...priced, facetVersion: 2, executionId: "edited-facet" },
       { ...priced, projectId: otherProjectId },
-      { ...priced, traceId: "other-run", metadata: { executionId: "other" } },
+      { ...priced, traceId: "other-run", executionId: "other" },
+      { ...priced, facetId: randomUUID() },
+      live,
+      // Trace and session IDs can share a hash while remaining independent sources.
+      {
+        ...live,
+        traceId: null,
+        sessionId: live.traceId,
+        ruleIds: ["free-map"],
+        costDetails: { total: 0 },
+      },
+      { ...live, projectId: otherProjectId, costDetails: { total: 10 } },
+      // These source times land in different partitions, so both owners retain their rows.
+      {
+        ...live,
+        executionId: "priced",
+        createdAt: "2026-08-01T00:00:00.000Z",
+        unitStartTime: "2026-07-01T00:00:00.000Z",
+      },
+      // Editing the facet causes a separate model call; both versions retain their owner.
+      { ...live, traceId: "new-version", ruleIds: ["map-c"] },
+      {
+        ...live,
+        traceId: "new-version",
+        facetVersion: 2,
+        ruleIds: ["previous-map"],
+        unitStartTime: "2026-07-01T00:00:00.000Z",
+        createdAt: "2026-08-01T00:00:00.000Z",
+      },
+      {
+        ...live,
+        traceId: "new-version",
+        facetVersion: 2,
+        ruleIds: ["map-a"],
+        costDetails: {},
+      },
       {
         ...priced,
-        facetId: randomUUID(),
-        costDetails: { embedding_input: 0.05, total: 0.05 },
+        traceId: "provider-total",
+        providedCostDetails: { total: 0.07 },
+        costDetails: { total: 0.07 },
       },
       {
         ...priced,
         traceId: "unpriced",
-        costDetails: {},
-        metadata: { executionId: "unpriced" },
+        costDetails: { summary_input: 0.1 },
+        executionId: "unpriced",
       },
       {
         ...priced,
         traceId: "zero",
         costDetails: { total: 0 },
-        metadata: { executionId: "zero" },
+        executionId: "zero",
       },
     ]);
-    const requested = ["priced", "unpriced", "zero"];
+    const requested = ["priced", "edited-facet", "unpriced", "zero", "missing"];
     expect(await getTopicExecutionCosts(projectId, requested)).toEqual({
-      priced: 0.35,
+      priced: 0.59,
+      "edited-facet": 0.2,
       zero: 0,
+    });
+    expect(
+      await getTopicRuleProcessingCosts(projectId, [
+        "map-a",
+        "map-b",
+        "map-c",
+        "free-map",
+        "previous-map",
+      ]),
+    ).toEqual({
+      "map-a": 0.06,
+      "map-b": 0.06,
+      "map-c": 0.12,
+      "free-map": 0,
+      "previous-map": 0.12,
     });
   });
 
-  it("round-trips Float64 geometry and normalized source references through ClickHouse", async () => {
+  it("round-trips every definition field, Float64 geometry and normalized source references through ClickHouse", async () => {
     const topic: TopicDefinition = {
       projectId,
       topicVersionId: randomUUID(),
@@ -844,7 +1105,7 @@ describe("Topics definition persistence", () => {
         i === 847 ? -0.003662027125082599 : Math.sin(i) / 32,
       ),
       radius: 0.003662027125082599,
-      tags: ["billing", "請求書"],
+      labels: ["billing", "請求書"],
       representativeSummaries: [
         {
           facetId: "facet-a",
@@ -859,7 +1120,18 @@ describe("Topics definition persistence", () => {
           sessionId: "source/請求書",
         },
       ],
-      metadata: { effectiveMemberCount: 15, lineage: [], source: "請求書" },
+      // An undefined metadata value reads back as an absent key.
+      metadata: {
+        effectiveMemberCount: 15,
+        lineage: [],
+        source: "請求書",
+        namingSampled: undefined,
+      },
+      costDetails: {
+        input: 0.000123456789,
+        output: 0.5,
+        total: 0.500123456789,
+      },
     };
     const other: TopicDefinition = {
       ...topic,
@@ -868,9 +1140,10 @@ describe("Topics definition persistence", () => {
       createdAt: "2026-09-24T21:21:07.330Z",
       centroid: [1, 0, -1],
       radius: 0,
-      tags: [],
+      labels: [],
       representativeSummaries: [],
       metadata: {},
+      costDetails: undefined,
     };
 
     await writeTopicDefinitions([
@@ -901,5 +1174,114 @@ describe("Topics definition persistence", () => {
         to: new Date("2026-10-01T00:00:00.000Z"),
       }),
     ).toEqual([]);
+  });
+
+  it("resolves the column's latest topic per rule and the tracing filter's from each rule's published map", async () => {
+    const [current, reassigned, retired, earlier] = [
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+    ];
+    await writeTopicSummaries(
+      [current, reassigned, retired, earlier].map((traceId) => ({
+        ...summary,
+        projectId: otherProjectId,
+        traceId,
+      })),
+    );
+    const assign = (
+      traceId: string,
+      topicId: string,
+      overrides: Partial<TopicAssignment> = {},
+    ): TopicAssignment => ({
+      projectId: otherProjectId,
+      facetId: summary.facetId,
+      facetVersion: 1,
+      traceId,
+      sessionId: null,
+      environment: "default",
+      traceName: "trace",
+      unitStartTime: summary.unitStartTime,
+      summaryProcessedAt: summary.createdAt,
+      runId: "serving",
+      ruleId: "rule",
+      topicId,
+      topicVersionId: `${topicId}-v1`,
+      distance: null,
+      runnerUpDistance: null,
+      origin: "online",
+      coordinates: null,
+      createdAt: "2026-09-01T00:00:00.000Z",
+      ...overrides,
+    });
+    await writeTopicAssignments([
+      assign(current, "match"),
+      assign(reassigned, "match"),
+      assign(reassigned, "other", { createdAt: "2026-09-03T00:00:00.000Z" }),
+      // An analysis's assignment never serves.
+      assign(retired, "match", { runId: "analysis", ruleId: null }),
+      // The column keeps a placement from the rule's earlier map; the filter does not.
+      assign(earlier, "match", { runId: "previous" }),
+      // Another rule's map keeps its own current topic for the same trace.
+      assign(reassigned, "match", { runId: "other-rule", ruleId: "other" }),
+      // A refit that wrote a batch and never completed does not replace the shown topic.
+      assign(current, "", {
+        runId: "unfinished",
+        topicVersionId: "",
+        createdAt: "2026-09-05T00:00:00.000Z",
+      }),
+    ]);
+    const timeRange = {
+      from: new Date("2026-08-31T00:00:00.000Z"),
+      to: new Date("2026-09-01T00:00:00.000Z"),
+    };
+    // Rows can start well after the trace's first observation (here 30 hours).
+    const rowStart = new Date(
+      Date.parse(summary.unitStartTime) + 30 * 3_600_000,
+    );
+
+    // Column: one read across facets for a page of traces.
+    const topics = await readCurrentTraceTopics(otherProjectId, {
+      traces: [current, reassigned, retired, earlier].map((traceId) => ({
+        traceId,
+        timestamp: rowStart,
+      })),
+      facetIds: [summary.facetId],
+      // The completed runs of the rules; "unfinished" is not one of them.
+      runIds: ["serving", "previous", "other-rule"],
+      includeOutliers: true,
+    });
+    expect(
+      topics.map(({ traceId, topicId }) => [traceId, topicId]).sort(),
+    ).toEqual(
+      [
+        [current, "match"],
+        [reassigned, "other"],
+        [reassigned, "match"],
+        [earlier, "match"],
+      ].sort(),
+    );
+
+    // Filter: the same membership as a prefixed subquery inside another query.
+    const condition = currentTopicTraceIdsCondition("topicFilter0", {
+      projectId: otherProjectId,
+      facetId: summary.facetId,
+      topicIds: ["match"],
+      publishedRunIds: ["serving", "other-rule"],
+      timeRange,
+      negated: false,
+    });
+    const matched = await clickhouseClient().query({
+      query: `SELECT DISTINCT e.trace_id AS traceId FROM topic_facet_summaries AS e
+        WHERE e.project_id = {projectId:String} AND ${condition.query}`,
+      query_params: { projectId: otherProjectId, ...condition.params },
+      format: "JSONEachRow",
+    });
+    expect(
+      ((await matched.json()) as { traceId: string }[])
+        .map(({ traceId }) => traceId)
+        .sort(),
+    ).toEqual([current, reassigned].sort());
   });
 });

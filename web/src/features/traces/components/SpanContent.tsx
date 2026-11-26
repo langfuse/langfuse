@@ -30,18 +30,22 @@ import {
   isEmphasizedShare,
   type MetricEmphasisContext,
 } from "@/src/features/traces/fns/metricEmphasis";
+import { CorrectionBadge } from "@/src/features/traces/components/CorrectionBadge";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
-import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
+import {
+  selectNodeCorrections,
+  selectNodeScores,
+} from "@/src/features/traces/fns/nodeScores";
 
 interface SpanContentProps {
   node: TreeNode;
   emphasis?: MetricEmphasisContext;
   commentCount?: number;
+  /** The observation an embedder will evaluate. */
+  isSelectedObservation?: boolean;
   onSelect?: () => void;
   onHover?: () => void;
-  /** The row surface behind the content; chips flip their fill on `muted`. */
-  surface?: "default" | "muted";
   className?: string;
 }
 
@@ -73,13 +77,12 @@ function LoadedSpanContent({
   node,
   emphasis,
   commentCount,
+  isSelectedObservation = false,
   onSelect,
   onHover,
-  surface = "default",
   className,
 }: SpanContentProps) {
-  const { mergedScores } = useTraceData();
-  const chipColor = surface === "muted" ? "filledOnMuted" : "filled";
+  const { mergedScores, corrections } = useTraceData();
   const { showDuration, showCostTokens, showScores, showComments } =
     useViewPreferences();
 
@@ -114,8 +117,18 @@ function LoadedSpanContent({
 
   const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
 
-  const nodeScores = selectNodeScores(mergedScores, node.id);
+  const nodeScores = selectNodeScores(
+    mergedScores,
+    node.observationId ?? node.id,
+  ).filter((score) => node.traceId != null && score.traceId === node.traceId);
   const shouldRenderScores = showScores && nodeScores.length > 0;
+  // Observation-scoped corrections only; trace-scoped ones stay on the trace header.
+  const shouldRenderCorrection =
+    showScores &&
+    selectNodeCorrections(corrections, node.observationId ?? node.id).some(
+      (correction) =>
+        node.traceId != null && correction.traceId === node.traceId,
+    );
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
 
@@ -130,12 +143,15 @@ function LoadedSpanContent({
       // No row-level title: it would pop a native tooltip from ANYWHERE in the
       // row — stacking on the score chips' own titles and the ScoreTag level
       // tooltip. The truncating name span below carries its own title.
-      className={cn(rootClassName, className)}
+      className={cn(rootClassName, !onSelect && "cursor-default", className)}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {/* Name and badges row */}
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          <span className="shrink truncate text-sm" title={nodeDisplayName}>
+          <span
+            className="min-w-0 shrink truncate text-sm"
+            title={nodeDisplayName}
+          >
             {nodeDisplayName}
           </span>
 
@@ -143,9 +159,7 @@ function LoadedSpanContent({
             {/* Comment count */}
             {showComments &&
               commentCount !== undefined &&
-              commentCount !== 0 && (
-                <CommentCountIcon count={commentCount} color={chipColor} />
-              )}
+              commentCount !== 0 && <CommentCountIcon count={commentCount} />}
 
             {/* Level badge */}
             {node.type !== "TRACE" &&
@@ -157,7 +171,10 @@ function LoadedSpanContent({
         </div>
 
         {/* Metrics and scores row */}
-        {(shouldRenderAnyMetrics || shouldRenderScores) && (
+        {(shouldRenderAnyMetrics ||
+          shouldRenderScores ||
+          shouldRenderCorrection ||
+          isSelectedObservation) && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 font-mono">
             {/* Duration (own span) */}
             {shouldRenderDuration ? (
@@ -201,16 +218,22 @@ function LoadedSpanContent({
             ) : null}
 
             {/* Scores: one badge inline; the rest roll into a "+N" pill that
-                opens a table of all scores. */}
-            {shouldRenderScores && (
+                opens a table of all scores. Correction presence sits beside. */}
+            {(shouldRenderScores || shouldRenderCorrection) && (
               <span className="flex min-w-0 items-center gap-1">
-                <GroupedScoreBadges
-                  maxVisible={1}
-                  scores={nodeScores}
-                  color={chipColor}
-                />
+                {shouldRenderScores && (
+                  <GroupedScoreBadges maxVisible={1} scores={nodeScores} />
+                )}
+                {shouldRenderCorrection && <CorrectionBadge />}
               </span>
             )}
+
+            {isSelectedObservation ? (
+              <span className="text-dark-violet flex shrink-0 items-center gap-1.5 font-sans text-xs whitespace-nowrap">
+                <span className="bg-dark-violet size-1.5 shrink-0 rounded-full" />
+                Will be evaluated
+              </span>
+            ) : null}
           </div>
         )}
       </div>

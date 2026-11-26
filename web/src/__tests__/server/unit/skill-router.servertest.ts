@@ -3,6 +3,7 @@ import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { skillRouter } from "@/src/features/skills/server/skill-router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
@@ -41,51 +42,26 @@ function createCaller(
   role: "ADMIN" | "MEMBER" | "VIEWER",
   projectId = "project",
 ) {
-  const session: Session = {
-    expires: "1",
+  const session: Session = createSession({
     user: {
       id: "user",
       canCreateOrganizations: false,
-      admin: false,
-      organizations: [
-        {
-          id: "organization",
-          name: "Organization",
-          role,
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: projectId,
-              name: "Project",
-              role,
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: {
-        excludeClickhouseRead: false,
         templateFlag: true,
-        searchBar: false,
         v4BetaToggleVisible: false,
-        observationEvals: false,
         experimentsV4Enabled: false,
-        langfuseTopics: false,
       },
     },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
-    },
-  };
+    organizations: [
+      {
+        id: "organization",
+        role,
+        name: "Organization",
+        projects: [{ id: projectId, name: "Project" }],
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:hobby" },
+  });
 
   return skillRouter.createCaller(
     createInnerTRPCContext({ session, headers: {} }),
@@ -94,7 +70,27 @@ function createCaller(
 
 type Caller = ReturnType<typeof createCaller>;
 const version = { projectId: "project", name: "my-skill", version: 1 };
+const createVersionInput = {
+  projectId: "project",
+  files: [
+    {
+      path: "SKILL.md",
+      content:
+        "---\nname: my-skill\ndescription: Test skill\n---\nInstructions",
+    },
+  ],
+};
 const mutations = [
+  {
+    name: "create a version",
+    mutate: (caller: Caller) => caller.createVersion(createVersionInput),
+    write: mocks.createVersion,
+    params: {
+      projectId: "project",
+      createdBy: "user",
+      input: createVersionInput,
+    },
+  },
   {
     name: "delete a whole skill",
     mutate: (caller: Caller) =>
@@ -108,6 +104,13 @@ const mutations = [
       caller.setLabels({ ...version, labels: ["production"] }),
     write: mocks.setLabels,
     params: { ...version, labels: ["production"] },
+  },
+  {
+    name: "set tags",
+    mutate: (caller: Caller) =>
+      caller.setTags({ ...version, tags: ["reviewed"] }),
+    write: mocks.setTags,
+    params: { ...version, tags: ["reviewed"] },
   },
   {
     name: "delete a version",

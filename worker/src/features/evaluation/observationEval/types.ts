@@ -11,7 +11,10 @@ import { type EvalExecutionMode } from "@langfuse/shared";
 import type {
   EvalTargetObject,
   FilterState,
+  ObservationEvalFilterFields,
+  ObservationForEval,
   ObservationVariableMapping,
+  TopicsTargetObject,
 } from "@langfuse/shared";
 
 /**
@@ -22,10 +25,22 @@ import type {
  */
 export { type ObservationForEval } from "@langfuse/shared";
 
+/** One observation as the evaluation scheduler takes it. */
+export interface ObservationForScheduling {
+  /** The fields that rule matching and job creation read. */
+  observation: ObservationEvalFilterFields;
+  /**
+   * The full observation. Called once, for the snapshot upload, and only when
+   * a rule selects the observation.
+   */
+  loadSnapshot: () => ObservationForEval;
+}
+
 /**
  * Observation eval job configuration.
  * Represents a job configuration with targetObject: "event".
  * Passed to the scheduler after being fetched once per batch.
+ * @internal
  */
 export type LegacyObservationEvalConfig = Pick<
   JobConfiguration,
@@ -54,6 +69,7 @@ export type ObservationEvalAssignment = Pick<
   evaluator: Pick<Evaluator, "id" | "projectId" | "type">;
 };
 
+/** @internal */
 export type EvaluationRuleWithAssignments = Pick<
   EvaluationRule,
   "projectId" | "sampling" | "status"
@@ -68,6 +84,14 @@ export type EvaluationRuleWithAssignments = Pick<
   filter: FilterState;
   targetObject: EvalTargetObject;
   assignments: ObservationEvalAssignment[];
+};
+
+export type TraceTranscriptEvalRule = Omit<
+  EvaluationRuleWithAssignments,
+  "targetObject" | "ruleId"
+> & {
+  targetObject: typeof TopicsTargetObject;
+  ruleId: string;
 };
 
 /**
@@ -104,7 +128,7 @@ export interface ObservationEvalSchedulerDeps {
     projectId: string;
     traceId: string;
     observationId: string;
-    data: Record<string, unknown>;
+    data: ObservationForEval;
   }) => Promise<string>;
 
   /** Enqueue the eval job for execution */

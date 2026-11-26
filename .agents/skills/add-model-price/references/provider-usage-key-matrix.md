@@ -61,6 +61,10 @@ Use this mature Claude set when prompt caching is supported:
 | Five-minute cache write | `input_cache_creation_5m`                                            |
 | One-hour cache write    | `input_cache_creation_1h`                                            |
 | Cache read              | `cache_read_input_tokens`, `input_cache_read`, `input_cached_tokens` |
+| Thinking                | `output_reasoning_tokens`, `output_reasoning`, `reasoning_tokens`    |
+
+Ingestion subtracts reported thinking tokens from `output`, and Anthropic bills
+them as output, so price the thinking keys at the tier's output rate.
 
 The TTL-specific prices can differ, so do not treat the 5-minute and 1-hour
 keys as equal-price aliases. Verify which TTLs the model supports. Current

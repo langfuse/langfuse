@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-null-render, @typescript-eslint/no-use-before-define */
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import {
   CommandDialog,
   CommandEmpty,
@@ -8,8 +9,11 @@ import {
   CommandList,
   CommandSeparator,
   CommandShortcut,
+  useCommandState,
 } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
+import { flushSync } from "react-dom";
+import { useAppNavigation } from "@/src/components/nav/AppNavigationProvider";
 import {
   BotMessageSquare,
   ClipboardPen,
@@ -23,18 +27,28 @@ import {
   Plus,
   Settings,
   Sun,
+  Waypoints,
   Zap,
   type IconComponent,
 } from "@langfuse/icons";
 import { useTheme } from "next-themes";
 import { keepPreviousData } from "@tanstack/react-query";
-import { Fragment, useEffect, memo, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  memo,
+  useRef,
+  useState,
+} from "react";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
+import { useGatewayPages } from "@/src/features/ai-gateway/hooks/useGatewayPages";
+import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 import { useAccountSettingsPages } from "@/src/features/account/AccountSettingsPage";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useProjectSettingsPages } from "@/src/features/projects/ProjectSettingsPage";
@@ -164,6 +178,7 @@ const RECENT_ICON_BY_TYPE: Record<string, IconComponent> = {
   project: Grid2X2,
   project_settings: Settings,
   organization_settings: Settings,
+  ai_gateway: Waypoints,
   account_settings: Settings,
 };
 
@@ -322,6 +337,152 @@ function CreateActionItem({
       <Plus size="base" />
       {action.title}
     </CommandItem>
+  );
+}
+
+function useAssistantQueryOffer() {
+  const isLauncherVisible = useIsInAppAgentLauncherVisible();
+  const search = useCommandState((state) => state.search);
+  const filteredCount = useCommandState((state) => state.filtered.count);
+  const query = search.trim();
+
+  return {
+    query,
+    // Present for every non-empty query, so the row does not pop in after search settles.
+    offer: isLauncherVisible && query.length > 0,
+    // forceMount keeps this row out of cmdk's filtered count.
+    unmatched: filteredCount === 0,
+  };
+}
+
+function CommandMenuEmpty({
+  entitySearchPending,
+}: {
+  entitySearchPending: boolean;
+}) {
+  const { query, offer } = useAssistantQueryOffer();
+
+  if (query.length > 0 && entitySearchPending) {
+    return (
+      <CommandEmpty className="text-muted-foreground flex items-center gap-2 px-2 py-2.5 text-sm">
+        <Spinner variant="muted" size="xs" display="inline" />
+        Searching…
+      </CommandEmpty>
+    );
+  }
+
+  // Ask Halo is the unmatched state. "No results found." is only for when Halo is unavailable.
+  if (offer) return null;
+
+  return <CommandEmpty>No results found.</CommandEmpty>;
+}
+
+function useAskHalo(
+  lockRef: { current: string | null },
+  onAccepted: () => void,
+) {
+  const { openAssistant, submit } = useInAppAiAgent();
+
+  return (query: string) => {
+    // Enter on the input and a click can both reach here in one tick.
+    if (lockRef.current !== null) return;
+    lockRef.current = query;
+
+    if (!openAssistant("command_menu")) {
+      lockRef.current = null;
+      return;
+    }
+
+    // Close only after Halo accepts the question. A refusal leaves the query in the menu.
+    submit(query, {
+      newConversation: true,
+      entryPoint: "command_menu",
+    })
+      .then((accepted) => {
+        if (lockRef.current !== query) return;
+        if (!accepted) {
+          lockRef.current = null;
+          return;
+        }
+        onAccepted();
+      })
+      .catch(() => {
+        if (lockRef.current === query) lockRef.current = null;
+      });
+  };
+}
+
+function commitsImeComposition(event: {
+  isComposing: boolean;
+  keyCode?: number;
+}) {
+  // Safari reports the Enter that commits an IME composition as keyCode 229,
+  // with isComposing already false.
+  return event.isComposing || event.keyCode === 229;
+}
+
+function CommandMenuInput({
+  search,
+  onSearchChange,
+  lockRef,
+  onAccepted,
+}: {
+  search: string;
+  onSearchChange: (value: string) => void;
+  lockRef: { current: string | null };
+  onAccepted: () => void;
+}) {
+  const { offer, query, unmatched } = useAssistantQueryOffer();
+  const ask = useAskHalo(lockRef, onAccepted);
+
+  return (
+    <CommandInput
+      placeholder="Search pages, projects, dashboards…"
+      className="border-none text-lg focus:border-none focus:ring-0 focus:ring-transparent focus:outline-hidden"
+      value={search}
+      onValueChange={onSearchChange}
+      onKeyDown={(event) => {
+        if (
+          event.key !== "Enter" ||
+          commitsImeComposition(event.nativeEvent) ||
+          !offer ||
+          !unmatched ||
+          query !== search.trim()
+        ) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        ask(query);
+      }}
+    />
+  );
+}
+
+function AssistantQueryFallback({
+  lockRef,
+  onAccepted,
+}: {
+  lockRef: { current: string | null };
+  onAccepted: () => void;
+}) {
+  const { offer, query } = useAssistantQueryOffer();
+  const ask = useAskHalo(lockRef, onAccepted);
+
+  if (!offer) return null;
+
+  const label = `Ask Halo "${query}"`;
+
+  return (
+    <CommandGroup forceMount heading="Halo">
+      <CommandItem forceMount value="ask-halo" onSelect={() => ask(query)}>
+        <BotMessageSquare size="base" />
+        <span className="min-w-0 flex-1 truncate" title={label}>
+          {label}
+        </span>
+      </CommandItem>
+    </CommandGroup>
   );
 }
 
@@ -778,6 +939,60 @@ function OrganizationSettingsGroup({
   );
 }
 
+function AiGatewayGroup({
+  onNavigate,
+}: {
+  onNavigate: (entry: RecentEntry) => void;
+}) {
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const gatewayPages = useGatewayPages();
+  const { organization } = useQueryProjectOrOrganization();
+
+  if (!organization) return null;
+
+  const gatewayItems = gatewayPages
+    .filter((page) => page.show && !page.disabledReason)
+    .map((page) => ({
+      title: `AI Gateway > ${page.title}`,
+      url: buildGatewayPagePath(organization.id, page.slug),
+      keywords: page.cmdKKeywords,
+    }));
+
+  if (gatewayItems.length === 0) return null;
+
+  return (
+    <>
+      <CommandSeparator />
+      <CommandGroup heading="AI Gateway">
+        {gatewayItems.map((item) => (
+          <CommandItem
+            key={item.url}
+            value={item.title}
+            keywords={item.keywords}
+            onSelect={() => {
+              router.push(item.url);
+              capture("cmd_k_menu:navigated", {
+                type: "ai_gateway",
+                title: item.title,
+                url: item.url,
+              });
+              onNavigate({
+                title: item.title,
+                url: item.url,
+                type: "ai_gateway",
+              });
+            }}
+          >
+            <Waypoints size="base" />
+            {item.title}
+          </CommandItem>
+        ))}
+      </CommandGroup>
+    </>
+  );
+}
+
 function AccountSettingsGroup({
   onNavigate,
 }: {
@@ -835,7 +1050,9 @@ function CommandMenuComponent({
   mainNavigation: NavigationItem[];
 }) {
   const { open, setOpen } = useCommandMenu();
+  const navigation = useAppNavigation();
   const capture = usePostHogClientCapture();
+  const askLockRef = useRef<string | null>(null);
   const { project } = useQueryProjectOrOrganization();
   const { isV4 } = useReadPath();
   const [search, setSearch] = useState("");
@@ -844,7 +1061,7 @@ function CommandMenuComponent({
   const flatNavigation = flattenNavigation(mainNavigation);
   const createActions = useCreateActions(mainNavigation);
   const pageShortcuts = usePageShortcuts(mainNavigation);
-  const { entityGroups, entityBaseUrls } = useEntityGroups(
+  const { entityGroups, entityBaseUrls, entitySearchPending } = useEntityGroups(
     mainNavigation,
     search,
     debouncedSearch,
@@ -861,7 +1078,16 @@ function CommandMenuComponent({
     false,
   );
 
+  // Closing drops the pending query so the next open does not search the previous text.
+  const clearSearch = useCallback(() => {
+    askLockRef.current = null;
+    debouncedSearchChange.cancel();
+    setSearch("");
+    setDebouncedSearch("");
+  }, [debouncedSearchChange]);
+
   const navItems = mainNavigation
+    .filter((item) => !item.disabledReason)
     .flatMap((item) => {
       if (item.items) {
         // if the item has children, return the children and not the parent
@@ -887,18 +1113,21 @@ function CommandMenuComponent({
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         if (!open) {
+          if (navigation) {
+            flushSync(() => navigation.closeTransientNavigation());
+          }
           capture("cmd_k_menu:opened", {
             source: "cmd_k",
           });
         }
         const nextOpen = !open;
         setOpen(nextOpen);
-        if (!nextOpen) setSearch("");
+        if (!nextOpen) clearSearch();
       }
     };
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
-  }, [capture, setOpen, open]);
+  }, [capture, clearSearch, setOpen, open, navigation]);
 
   const shortcutItems = [
     ...[...pageShortcuts.byNavUrl.values()].flat(),
@@ -922,7 +1151,7 @@ function CommandMenuComponent({
 
   const handleNavigate = (entry?: RecentEntry) => {
     if (entry) addRecent(entry);
-    setSearch("");
+    clearSearch();
     setOpen(false);
   };
 
@@ -931,23 +1160,22 @@ function CommandMenuComponent({
       open={open}
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
-        if (!nextOpen) setSearch("");
+        if (!nextOpen) clearSearch();
       }}
       filter={(value, search, keywords) =>
         matchesSearch(`${value} ${keywords?.join(" ")}`, search) ? 1 : 0
       }
     >
-      <CommandInput
-        placeholder="Search pages, projects, dashboards…"
-        className="border-none text-lg focus:border-none focus:ring-0 focus:ring-transparent focus:outline-hidden"
-        value={search}
-        onValueChange={(value) => {
+      <CommandMenuInput
+        search={search}
+        onSearchChange={(value) => {
           setSearch(value);
           debouncedSearchChange(value);
         }}
+        lockRef={askLockRef}
+        onAccepted={handleNavigate}
       />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
         {idNavigationItem && (
           <IdNavigationGroup
             heading="Tracing"
@@ -984,7 +1212,13 @@ function CommandMenuComponent({
           ))}
         <ProjectSettingsGroup onNavigate={handleNavigate} />
         <OrganizationSettingsGroup onNavigate={handleNavigate} />
+        <AiGatewayGroup onNavigate={handleNavigate} />
         <AccountSettingsGroup onNavigate={handleNavigate} />
+        <AssistantQueryFallback
+          lockRef={askLockRef}
+          onAccepted={handleNavigate}
+        />
+        <CommandMenuEmpty entitySearchPending={entitySearchPending} />
       </CommandList>
     </CommandDialog>
   );
@@ -1001,7 +1235,9 @@ export const CommandMenu = memo(
     const isSame = prevProps.mainNavigation.every((item, idx) => {
       const nextItem = nextProps.mainNavigation[idx];
       const itemTitleUrl =
-        item.title === nextItem.title && item.url === nextItem.url;
+        item.title === nextItem.title &&
+        item.url === nextItem.url &&
+        item.disabledReason === nextItem.disabledReason;
 
       if (!itemTitleUrl) {
         return false;
@@ -1147,6 +1383,7 @@ function useEntityGroups(
 ): {
   entityGroups: EntityGroupData[];
   entityBaseUrls: string[];
+  entitySearchPending: boolean;
 } {
   const session = useSession();
   const { project } = useQueryProjectOrOrganization();
@@ -1201,6 +1438,17 @@ function useEntityGroups(
     entityBaseUrls: [promptsUrl, datasetsUrl, queuesUrl, evaluatorsUrl].filter(
       (url): url is string => url !== null,
     ),
+    // Pages and loaded name lists match on the keystroke. Only a list that is
+    // still loading, or the debounced evaluator search, can still add rows.
+    entitySearchPending:
+      (promptsUrl !== null && prompts.isPending) ||
+      (datasetsUrl !== null && datasets.isPending) ||
+      (queuesUrl !== null && queues.isPending) ||
+      (evaluatorsUrl !== null &&
+        search.trim().length > 0 &&
+        (search.trim() !== debouncedSearch.trim() ||
+          evaluators.isFetching ||
+          evaluators.isPending)),
   };
 }
 

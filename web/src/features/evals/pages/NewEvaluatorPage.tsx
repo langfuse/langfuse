@@ -6,7 +6,7 @@ import {
   BreadcrumbList,
   Breadcrumb,
 } from "@/src/components/ui/breadcrumb";
-import { Check, Info } from "@langfuse/icons";
+import { Check } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import { useRouter } from "next/router";
 import { SelectEvaluatorList } from "@/src/features/evals/components/SelectEvaluatorList";
@@ -21,8 +21,7 @@ import {
   isCodeEvalTemplate,
   shouldShowEvalTemplate,
 } from "@/src/features/evals/utils/code-eval-template-utils";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/ui/button";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { useState } from "react";
 import { Skeleton } from "@/src/components/ui/skeleton";
 
@@ -266,26 +265,19 @@ export default function NewEvaluatorPage() {
         step === "run" && evaluatorId && projectId && (
           <div className="flex flex-col gap-4">
             {hasNewerTemplate && latestTemplate && currentTemplate ? (
-              <Alert variant="info" icon={Info}>
-                <Alert.Title>Selected Evaluator has been updated</Alert.Title>
-                <Alert.Description>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <span>
-                      Click to use the latest version of your evaluator{" "}
-                      {latestTemplate.name}.
-                    </span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-fit"
-                      onClick={handleUseUpdatedEvaluator}
-                    >
-                      Use updated evaluator
-                    </Button>
-                  </div>
-                </Alert.Description>
-              </Alert>
+              <Banner
+                variant="info"
+                title="Selected evaluator has been updated"
+                actions={[
+                  {
+                    text: "Use updated evaluator",
+                    onClick: handleUseUpdatedEvaluator,
+                  },
+                ]}
+              >
+                Click to use the latest version of your evaluator{" "}
+                {latestTemplate.name}.
+              </Banner>
             ) : null}
             <RunEvaluatorForm
               projectId={projectId}

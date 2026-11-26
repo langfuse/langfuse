@@ -2,8 +2,13 @@ import {
   ChevronDown,
   ChevronRight,
   GitBranch,
+  MessageSquare,
   MessageSquareOff,
+  Pencil,
+  SquareArrowOutUpRight,
 } from "@langfuse/icons";
+import { Button } from "@/src/components/ui/button";
+import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
@@ -36,11 +41,18 @@ export function SessionConversationTimelineTrace({
   includeNestedThreads = false,
   isCollapsed = false,
   onToggleCollapsed,
+  annotationActions,
 }: {
   isCollapsed?: boolean;
   onToggleCollapsed?: () => void;
   includeNestedThreads?: boolean;
-  variant?: "session" | "single-trace";
+  annotationActions?: {
+    commentCount: number;
+    commentsDisabled: boolean;
+    onOpenComments: () => void;
+    onOpenCorrections: () => void;
+  };
+  variant?: "session" | "single-trace" | "embedded-session";
   itemId?: string;
   threadIndex?: number;
   threadNumber?: number;
@@ -69,16 +81,18 @@ export function SessionConversationTimelineTrace({
     (thread) => thread.threadIndex === threadIndex,
   );
   const showHeader =
-    variant === "session" ? visibleThreadIndex <= 0 : (threadCount ?? 0) > 1;
+    variant !== "single-trace"
+      ? visibleThreadIndex <= 0
+      : (threadCount ?? 0) > 1;
   const showThreadHeader =
-    variant === "session" &&
+    variant !== "single-trace" &&
     visibleThreads.length > 1 &&
     visibleThreadIndex >= 0;
   return (
     <div
       className={cn(
-        variant === "single-trace" ? "p-0" : "px-4 sm:px-6 lg:px-10",
-        variant === "session" && !isCollapsed && "pb-8",
+        variant !== "session" ? "p-0" : "px-4 sm:px-6 lg:px-10",
+        variant !== "single-trace" && !isCollapsed && "pb-8",
       )}
       data-session-trace-id={trace.id}
       data-session-item-id={itemId}
@@ -86,7 +100,7 @@ export function SessionConversationTimelineTrace({
       {showHeader && (
         <div
           className={cn(
-            "group/trace-header flex items-center gap-3 pt-4",
+            "group/trace-header flex flex-wrap items-center gap-3 pt-4",
             isCollapsed && "pb-1",
             !isCollapsed && (showThreadHeader ? "mb-3" : "mb-6"),
           )}
@@ -96,16 +110,16 @@ export function SessionConversationTimelineTrace({
               <span
                 className={cn(
                   "border-border bg-tertiary text-foreground flex h-4 min-w-4 items-center justify-center rounded-sm border px-0.5 font-mono text-[10px]",
-                  variant === "session" &&
+                  variant !== "single-trace" &&
                     onToggleCollapsed &&
                     "group-focus-within/trace-header:invisible group-hover/trace-header:invisible",
                 )}
               >
-                {variant === "session"
+                {variant !== "single-trace"
                   ? turnNumber
                   : (displayNumber ?? turnNumber)}
               </span>
-              {variant === "session" && onToggleCollapsed && (
+              {variant !== "single-trace" && onToggleCollapsed && (
                 <button
                   type="button"
                   onClick={onToggleCollapsed}
@@ -132,15 +146,68 @@ export function SessionConversationTimelineTrace({
               </span>
             </button>
           </div>
-          <div className="border-border min-w-0 flex-1 border-t border-dashed" />
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground hidden shrink-0 font-mono text-xs group-focus-within/trace-header:block group-hover/trace-header:block hover:underline"
-            onClick={onOpenTrace}
-          >
-            Open trace
-          </button>
-          {variant === "session" && hiddenThreadCount > 0 && (
+          <div className="border-border relative min-w-0 flex-1 border-t border-dashed">
+            {annotationActions && (
+              <div
+                role="group"
+                aria-label="Trace annotation actions"
+                className="bg-card dark:bg-background pointer-events-none absolute top-1/2 right-0 flex -translate-y-1/2 items-center gap-1 pl-2 opacity-0 group-focus-within/trace-header:pointer-events-auto group-focus-within/trace-header:opacity-100 group-hover/trace-header:pointer-events-auto group-hover/trace-header:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100"
+              >
+                {[
+                  {
+                    label: `Trace comments (${annotationActions.commentCount})`,
+                    icon: MessageSquare,
+                    onClick: annotationActions.onOpenComments,
+                    disabled: annotationActions.commentsDisabled,
+                    commentCount: annotationActions.commentCount,
+                  },
+                  {
+                    label: "Output corrections",
+                    icon: Pencil,
+                    onClick: annotationActions.onOpenCorrections,
+                  },
+                  {
+                    label: "Open trace",
+                    icon: SquareArrowOutUpRight,
+                    onClick: onOpenTrace,
+                  },
+                ].map(
+                  ({ label, icon: Icon, onClick, disabled, commentCount }) => (
+                    <Tooltip key={label} label={label}>
+                      {({ getTriggerProps }) => (
+                        <Button
+                          {...getTriggerProps()}
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={onClick}
+                          disabled={disabled}
+                          aria-label={label}
+                          className="relative"
+                        >
+                          <Icon size="sm" />
+                          {commentCount !== undefined && commentCount > 0 && (
+                            <span className="pointer-events-none absolute -top-1 -right-1">
+                              <ActionButtonCountBadge count={commentCount} />
+                            </span>
+                          )}
+                        </Button>
+                      )}
+                    </Tooltip>
+                  ),
+                )}
+              </div>
+            )}
+          </div>
+          {!annotationActions && (
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground shrink-0 font-mono text-xs opacity-0 group-focus-within/trace-header:opacity-100 group-hover/trace-header:opacity-100 hover:underline focus-visible:opacity-100"
+              onClick={onOpenTrace}
+            >
+              Open trace
+            </button>
+          )}
+          {variant !== "single-trace" && hiddenThreadCount > 0 && (
             <Tooltip
               label={`${hiddenThreadCount} nested ${hiddenThreadCount === 1 ? "thread" : "threads"} hidden`}
             >
@@ -186,7 +253,7 @@ export function SessionConversationTimelineTrace({
                 {displayNumber ?? `${turnNumber}.${visibleThreadIndex + 1}`}
               </span>
               <h3>Thread {visibleThreadIndex + 1}</h3>
-              {visibleThreadIndex > 0 && (
+              {visibleThreadIndex > 0 && !annotationActions && (
                 <>
                   <div className="border-border min-w-0 flex-1 border-t border-dashed" />
                   <button
@@ -248,7 +315,9 @@ export function SessionConversationTimelineTrace({
           {state.type === "transcript" && (
             <SessionTranscriptContent
               includeNestedThreads={includeNestedThreads}
-              variant={variant}
+              variant={
+                variant === "embedded-session" ? "single-trace" : variant
+              }
               {...state}
               onOpenObservation={onOpenObservation}
               scrollTarget={scrollTarget}

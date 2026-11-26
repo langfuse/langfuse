@@ -11,14 +11,25 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), update: vi.fn() },
-  organization: { findUnique: vi.fn(), findMany: vi.fn() },
+  organization: { findMany: vi.fn() },
+  project: { findFirst: vi.fn() },
   $executeRaw: vi.fn(),
+  $transaction: vi.fn((run: (tx: unknown) => unknown) => run(db)),
 }));
 
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: db,
   Prisma: { DbNull: "DbNull" },
   Role: { VIEWER: "VIEWER" },
+}));
+
+vi.mock("@/src/env.mjs", () => ({
+  env: { LANGFUSE_SUPPORT_ACCESS_DENIED_ORG_IDS: ["org-denied"] },
+}));
+
+vi.mock("@langfuse/shared/rbac/server", () => ({
+  replaceRolesForPrincipal: vi.fn(),
+  revokeRolesForPrincipal: vi.fn(),
 }));
 
 import { verifyConductorOneRequest } from "@/src/ee/features/support-access/server/conductorOneAuth";
@@ -156,7 +167,7 @@ describe("parseProvisionPayload", () => {
       taskId: "task-1",
       entitlementId: "ent-1",
       email: "eng@clickhouse.com",
-      orgId: "org-1",
+      orgOrProjectId: "org-1",
       durationMs: 43_200_000,
     });
   });
@@ -167,7 +178,7 @@ describe("parseProvisionPayload", () => {
     withEmpty.expanded.push({} as never);
     expect(parseProvisionPayload(withEmpty)).toMatchObject({
       action: "grant",
-      orgId: "org-1",
+      orgOrProjectId: "org-1",
     });
   });
 
@@ -219,7 +230,7 @@ describe("provisionSupportAccess", () => {
     taskId: "task-1",
     entitlementId: "ent-1",
     email: "eng@clickhouse.com",
-    orgId: "org-1",
+    orgOrProjectId: "org-1",
     durationMs: 12 * 3_600_000,
   };
   const revokeRequest: RevokeRequest = {
@@ -232,7 +243,7 @@ describe("provisionSupportAccess", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     db.user.findUnique.mockResolvedValue(user);
-    db.organization.findUnique.mockResolvedValue({ id: "org-1" });
+    db.project.findFirst.mockResolvedValue({ orgId: "org-1" });
   });
 
   it("grants VIEWER until now + duration", async () => {
@@ -270,8 +281,36 @@ describe("provisionSupportAccess", () => {
     expect(db.$executeRaw).not.toHaveBeenCalled();
   });
 
+  const grantedOrgId = () => db.$executeRaw.mock.calls[0]?.[1];
+
+  it("grants the project's organization when given a project id", async () => {
+    db.project.findFirst.mockResolvedValue({ orgId: "org-of-project" });
+    const request = { ...grantRequest, orgOrProjectId: "project-1" };
+
+    expect(
+      await provisionSupportAccess(request, entitlementId, now),
+    ).toMatchObject({ ok: true });
+    expect(db.project.findFirst).toHaveBeenCalledWith({
+      where: {
+        deletedAt: null,
+        OR: [{ id: "project-1" }, { orgId: "project-1" }],
+      },
+      select: { orgId: true },
+    });
+    expect(grantedOrgId()).toBe("org-of-project");
+  });
+
+  it("rejects an organization on the deny list", async () => {
+    db.project.findFirst.mockResolvedValue({ orgId: "org-denied" });
+
+    expect(
+      await provisionSupportAccess(grantRequest, entitlementId, now),
+    ).toMatchObject({ ok: false });
+    expect(db.$executeRaw).not.toHaveBeenCalled();
+  });
+
   it("rejects an unknown organization", async () => {
-    db.organization.findUnique.mockResolvedValue(null);
+    db.project.findFirst.mockResolvedValue(null);
     expect(
       await provisionSupportAccess(grantRequest, entitlementId, now),
     ).toMatchObject({

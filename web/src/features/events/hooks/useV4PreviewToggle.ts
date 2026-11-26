@@ -33,7 +33,7 @@ export type V4PreviewToggleSource =
   | "legacy_ui_banner";
 
 /**
- * Shared behavior for every V4 Preview toggle surface: session-backed state,
+ * Shared behavior for every V4 preview toggle surface: session-backed state,
  * intro dialog on first enable, and the datasets/experiments URL translation
  * that keeps the current page valid after switching. `source` distinguishes
  * the surfaces in the shared v4_beta_toggled event. The commit itself is the
