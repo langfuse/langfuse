@@ -442,13 +442,22 @@ fn normalize_openai_usage(object: &JsonObject, fields: &[&str; 5]) -> Option<Usa
         }
     }
     for (direction, detail_key) in [("input", fields[3]), ("output", fields[4])] {
+        // Only the Responses API nests records, the TTL breakdown of its cache writes.
+        let nested = detail_key == "input_tokens_details";
         let mut count = result.get(direction).copied();
-        for (key, value) in openai_detail_map(object.get(detail_key))? {
+        for (key, value) in openai_detail_map(object.get(detail_key), nested)? {
             let Some(value) = check_usage_upper_bound(value) else {
                 continue;
             };
             result.insert(format!("{direction}_{key}"), value);
             count = count.map(|count| (count - value).max(0.0));
+        }
+        if nested {
+            let details = object
+                .get(detail_key)
+                .and_then(Value::as_object)
+                .and_then(|details| details.get("cache_write_tokens_details"));
+            split_openai_cache_write_details(details, &mut result, &mut count);
         }
         if let Some(count) = count {
             result.insert(direction.to_owned(), count);
@@ -465,15 +474,69 @@ fn nonnegative_integer(value: Option<&Value>) -> Option<f64> {
     value?.as_f64().filter(|value| valid_usage_count(*value))
 }
 
-fn openai_detail_map(value: Option<&Value>) -> Option<Usage> {
+/// With `allow_nested`, a value may also be a record of counts; it is validated but not
+/// counted here.
+fn openai_detail_map(value: Option<&Value>, allow_nested: bool) -> Option<Usage> {
     match value {
         None | Some(Value::Null) => Some(Usage::new()),
-        Some(Value::Object(object)) => javascript_entries(object)
-            .into_iter()
-            .filter(|(_, value)| !value.is_null())
-            .map(|(key, value)| Some((key.as_str().to_owned(), nonnegative_integer(Some(value))?)))
-            .collect(),
+        Some(Value::Object(object)) => {
+            let mut usage = Usage::new();
+            for (key, value) in javascript_entries(object) {
+                match value {
+                    Value::Null => {}
+                    Value::Object(_) if allow_nested => {
+                        openai_detail_map(Some(value), false)?;
+                    }
+                    _ => {
+                        usage.insert(key.as_str().to_owned(), nonnegative_integer(Some(value))?);
+                    }
+                }
+            }
+            Some(usage)
+        }
         Some(Value::Bool(_) | Value::Number(_) | Value::String(_) | Value::Array(_)) => None,
+    }
+}
+
+const OPENAI_CACHE_WRITE_FIELDS: &[(&str, &str)] = &[
+    ("input_cache_write_30m_tokens", "ttl_30m_tokens"),
+    ("input_cache_write_12h_tokens", "ttl_12h_tokens"),
+];
+
+/// The OpenAI Responses API nests cache writes by TTL under
+/// `input_tokens_details.cache_write_tokens_details`. Store the breakdown; the aggregate
+/// `input_cache_write_tokens` keeps only the unattributed remainder so no write is counted or
+/// priced twice. Without an aggregate, the breakdown is taken out of `input` instead.
+fn split_openai_cache_write_details(
+    details: Option<&Value>,
+    result: &mut Usage,
+    input: &mut Option<f64>,
+) {
+    let Some(Value::Object(details)) = details else {
+        return;
+    };
+    let counts = OPENAI_CACHE_WRITE_FIELDS
+        .iter()
+        .filter_map(|&(destination, source)| {
+            nonnegative_integer(details.get(source))
+                .and_then(check_usage_upper_bound)
+                .map(|value| (destination.to_owned(), value))
+        })
+        .collect::<Usage>();
+    if counts.is_empty() {
+        return;
+    }
+    let attributed = counts.values().sum::<f64>();
+    result.extend(counts);
+    let aggregate = result.get("input_cache_write_tokens").copied();
+    if aggregate.is_none() && attributed > 0.0 {
+        *input = input.map(|input| (input - attributed).max(0.0));
+    }
+    let remainder = aggregate.unwrap_or(0.0) - attributed;
+    if remainder > 0.0 {
+        result.insert("input_cache_write_tokens".to_owned(), remainder);
+    } else {
+        result.shift_remove("input_cache_write_tokens");
     }
 }
 
@@ -1012,6 +1075,59 @@ mod tests {
                 ("bom".to_owned(), json!(12)),
             ])
         );
+    }
+
+    #[test]
+    fn openai_responses_cache_writes_are_split_by_ttl() {
+        for (details, input, aggregate) in [
+            // Reversed keys: the aggregate is still subtracted once.
+            (
+                json!({
+                    "cache_write_tokens_details": {"ttl_30m_tokens": 200, "ttl_12h_tokens": 300},
+                    "cache_write_tokens": 500,
+                }),
+                500,
+                None,
+            ),
+            (
+                json!({
+                    "cache_write_tokens": 600,
+                    "cache_write_tokens_details": {"ttl_30m_tokens": 200, "ttl_12h_tokens": 300},
+                }),
+                400,
+                Some(json!(100)),
+            ),
+            (
+                json!({
+                    "cache_write_tokens_details": {"ttl_30m_tokens": 200, "ttl_12h_tokens": 300},
+                }),
+                500,
+                None,
+            ),
+        ] {
+            let attributes = json!({
+                "langfuse.observation.usage_details": json!({
+                    "input_tokens": 1000,
+                    "output_tokens": 50,
+                    "total_tokens": 1050,
+                    "input_tokens_details": details,
+                }).to_string(),
+            });
+            let usage = extract_usage_details(
+                attributes.as_object().unwrap(),
+                "langfuse-sdk",
+                &mut JsonParseCache::default(),
+            );
+            assert_eq!(usage.get("input"), Some(&json!(input)), "{details}");
+            assert_eq!(
+                usage.get("input_cache_write_tokens"),
+                aggregate.as_ref(),
+                "{details}"
+            );
+            assert_eq!(usage.get("input_cache_write_30m_tokens"), Some(&json!(200)));
+            assert_eq!(usage.get("input_cache_write_12h_tokens"), Some(&json!(300)));
+            assert_eq!(usage.get("total"), Some(&json!(1050)));
+        }
     }
 
     #[test]

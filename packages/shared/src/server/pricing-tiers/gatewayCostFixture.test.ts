@@ -143,6 +143,22 @@ const CASES: FixtureCase[] = [
   },
   {
     ...base,
+    name: "OpenAI TTL cache writes fall back to the aggregate cache-write price",
+    usage_details: {
+      input: 100000,
+      input_cache_write_30m_tokens: 50000,
+      input_cache_write_12h_tokens: 50000,
+    },
+    tiers: [
+      standard({
+        input: 2.5e-6,
+        input_cache_write_tokens: 2.5e-6,
+        input_cache_write_12h_tokens: 5e-6,
+      }),
+    ],
+  },
+  {
+    ...base,
     name: "usage condition above the threshold selects the long-context tier",
     usage_details: { input: 150, input_cached_tokens: 60, output: 10 },
     tiers: [
