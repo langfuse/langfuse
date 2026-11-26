@@ -31,16 +31,6 @@ import {
 
 const SHADOW_RUN = "otel-rust-shadow";
 const METRIC_PREFIX = "langfuse.ingestion.otel.shadow.";
-/**
- * Rust runs start once their job has finished, so job concurrency does not
- * bound them. Each holds its input and a native batch until it settles; while
- * this many are going, a batch whose turn comes skips its run.
- */
-const MAX_RUST_RUNS = 2;
-let rustRuns = 0;
-/** Rust runs started and selected batches turned away in the current one-minute window. */
-const admission = { started: 0, refused: 0, since: 0 };
-const ADMISSION_WINDOW_MS = 60_000;
 
 type Sample = {
   input: Buffer;
@@ -84,30 +74,9 @@ type RustRun = {
   processMs?: number;
 };
 
-/** Close a window that is a minute old, warning when it turned batches away. */
-function closeAdmissionWindow(now: number): void {
-  if (now - admission.since < ADMISSION_WINDOW_MS) return;
-  if (admission.refused > 0) {
-    const configuredRate = env.LANGFUSE_OTEL_NATIVE_SHADOW_SAMPLE_RATE;
-    logger.warn("OTEL shadow sampling is throttled", {
-      configuredRate,
-      effectiveRate:
-        (configuredRate * admission.started) /
-        (admission.started + admission.refused),
-      startedBatches: admission.started,
-      refusedBatches: admission.refused,
-    });
-  }
-  admission.started = 0;
-  admission.refused = 0;
-  admission.since = now;
-}
-
-/** Count a selected batch that gets no Rust run. */
-function refuse(result: "throttled" | "skipped"): void {
-  admission.refused++;
-  recordIncrement(`${METRIC_PREFIX}batch`, 1, { result });
-}
+/** Rust runs started and selected batches turned away in the current one-minute window. */
+const admission = { started: 0, refused: 0, since: 0 };
+const ADMISSION_WINDOW_MS = 60_000;
 
 /**
  * Whether the Rust path also processes this batch. The rate selects a fixed
@@ -134,6 +103,31 @@ export function admitOtelShadowBatch(
   if (hasComparisonCapacity()) return true;
   refuse("throttled");
   return false;
+}
+
+/** Close a window that is a minute old, warning when it turned batches away. */
+function closeAdmissionWindow(now: number): void {
+  if (now - admission.since < ADMISSION_WINDOW_MS) return;
+  if (admission.refused > 0) {
+    const configuredRate = env.LANGFUSE_OTEL_NATIVE_SHADOW_SAMPLE_RATE;
+    logger.warn("OTEL shadow sampling is throttled", {
+      configuredRate,
+      effectiveRate:
+        (configuredRate * admission.started) /
+        (admission.started + admission.refused),
+      startedBatches: admission.started,
+      refusedBatches: admission.refused,
+    });
+  }
+  admission.started = 0;
+  admission.refused = 0;
+  admission.since = now;
+}
+
+/** Count a selected batch that gets no Rust run. */
+function refuse(result: "throttled" | "skipped"): void {
+  admission.refused++;
+  recordIncrement(`${METRIC_PREFIX}batch`, 1, { result });
 }
 
 /**
@@ -183,26 +177,6 @@ function recordTypeScriptWrites(direct: DirectStep): {
   return { step, recorded };
 }
 
-/** Start the Rust run and its comparison in the background, unless too many are going. */
-function startRustComparison(sample: Sample, typeScript: TypeScriptRun): void {
-  if (rustRuns >= MAX_RUST_RUNS) {
-    refuse("skipped");
-    return;
-  }
-  rustRuns++;
-  admission.started++;
-  runRust(sample)
-    .then((rust) => report(sample, typeScript, rust))
-    .finally(() => rustRuns--)
-    .catch((failure) =>
-      logger.warn("OTEL shadow comparison failed", {
-        projectId: sample.context.projectId,
-        fileKey: sample.context.fileKey,
-        error: errorClass(failure),
-      }),
-    );
-}
-
 /** Record a key per evaluation write, then let `next` perform or skip it. */
 function recordEvalWrites(recorded: Recorded, next: EvalWrites): EvalWrites {
   const record = (key: string) => recorded.evalWrites.push(key);
@@ -248,62 +222,32 @@ function fieldDigests(snapshot: object): Record<string, string> {
   return digests;
 }
 
-/** Fields that differ between the two snapshots of the same observation. */
-function changedSnapshotFields(
-  a: Recorded["snapshots"],
-  b: Recorded["snapshots"],
-): string[] {
-  const changed = new Set<string>();
-  for (const [observation, ours] of a) {
-    const theirs = b.get(observation);
-    if (!theirs) continue;
-    for (const field of Object.keys({ ...ours, ...theirs })) {
-      if (ours[field] !== theirs[field]) changed.add(field);
-    }
-  }
-  return [...changed].sort();
-}
-
-/** Evaluation writes that store nothing and answer as the real ones do. */
-const dryEvalWrites: EvalWrites = {
-  upsertJobExecution: async ({ id }) => ({ id }),
-  uploadObservationToS3: async () => "otel-shadow-dry-run",
-  enqueueEvalJob: async () => {},
-  recordTraceActivity: async () => {},
-};
-
 /**
- * The Rust run's writes, and a record that fills as they happen. Rows go to
- * the events_native_test writer; media and evaluation writes are counted and
- * answered without touching storage.
+ * Rust runs start once their job has finished, so job concurrency does not
+ * bound them. Each holds its input and a native batch until it settles; while
+ * this many are going, a batch whose turn comes skips its run.
  */
-function shadowRustWrites(
-  writer: ReturnType<typeof ClickhouseWriter.getNativeTestInstance>,
-): { writes: RustOtelWrites; recorded: Recorded } {
-  const recorded = newRecorded();
-  const writes: RustOtelWrites = {
-    uploadMedia: async ({ contentBytes, sha256Hash }) => {
-      recorded.mediaUploads++;
-      return {
-        mediaId: getMediaId(
-          sha256Hash ??
-            createHash("sha256").update(contentBytes).digest("base64"),
-        ),
-        outcome: "uploaded",
-      };
-    },
-    linkMedia: async () => {},
-    evalWrites: () => recordEvalWrites(recorded, dryEvalWrites),
-    writeEvent: ({ event, traceId, startTimeIso }) => {
-      writer.addToQueue(TableName.EventsNativeTest, event);
-      recorded.rows.push({
-        traceId,
-        spanId: event.ids.id,
-        startTime: startTimeIso,
-      });
-    },
-  };
-  return { writes, recorded };
+const MAX_RUST_RUNS = 2;
+let rustRuns = 0;
+
+/** Start the Rust run and its comparison in the background, unless too many are going. */
+function startRustComparison(sample: Sample, typeScript: TypeScriptRun): void {
+  if (rustRuns >= MAX_RUST_RUNS) {
+    refuse("skipped");
+    return;
+  }
+  rustRuns++;
+  admission.started++;
+  runRust(sample)
+    .then((rust) => report(sample, typeScript, rust))
+    .finally(() => rustRuns--)
+    .catch((failure) =>
+      logger.warn("OTEL shadow comparison failed", {
+        projectId: sample.context.projectId,
+        fileKey: sample.context.fileKey,
+        error: errorClass(failure),
+      }),
+    );
 }
 
 async function runRust(sample: Sample): Promise<RustRun> {
@@ -356,57 +300,46 @@ async function runRust(sample: Sample): Promise<RustRun> {
   );
 }
 
-function batchResult(typeScriptOk: boolean, rustOk: boolean): string {
-  if (typeScriptOk && rustOk) return "both_ok";
-  if (typeScriptOk) return "rust_failed";
-  return rustOk ? "ts_failed" : "both_failed";
-}
+/** Evaluation writes that store nothing and answer as the real ones do. */
+const dryEvalWrites: EvalWrites = {
+  upsertJobExecution: async ({ id }) => ({ id }),
+  uploadObservationToS3: async () => "otel-shadow-dry-run",
+  enqueueEvalJob: async () => {},
+  recordTraceActivity: async () => {},
+};
 
-/** How the evaluation writes of the two sides differ. */
-function compareEvalWrites(typeScript: Recorded, rust: Recorded) {
-  return {
-    onlyTypeScript: unmatched(typeScript.evalWrites, rust.evalWrites),
-    onlyRust: unmatched(rust.evalWrites, typeScript.evalWrites),
-    snapshotFields: changedSnapshotFields(typeScript.snapshots, rust.snapshots),
+/**
+ * The Rust run's writes, and a record that fills as they happen. Rows go to
+ * the events_native_test writer; media and evaluation writes are counted and
+ * answered without touching storage.
+ */
+function shadowRustWrites(
+  writer: ReturnType<typeof ClickhouseWriter.getNativeTestInstance>,
+): { writes: RustOtelWrites; recorded: Recorded } {
+  const recorded = newRecorded();
+  const writes: RustOtelWrites = {
+    uploadMedia: async ({ contentBytes, sha256Hash }) => {
+      recorded.mediaUploads++;
+      return {
+        mediaId: getMediaId(
+          sha256Hash ??
+            createHash("sha256").update(contentBytes).digest("base64"),
+        ),
+        outcome: "uploaded",
+      };
+    },
+    linkMedia: async () => {},
+    evalWrites: () => recordEvalWrites(recorded, dryEvalWrites),
+    writeEvent: ({ event, traceId, startTimeIso }) => {
+      writer.addToQueue(TableName.EventsNativeTest, event);
+      recorded.rows.push({
+        traceId,
+        spanId: event.ids.id,
+        startTime: startTimeIso,
+      });
+    },
   };
-}
-
-function recordDurations(
-  sample: Sample,
-  typeScript: TypeScriptRun,
-  rust: RustRun,
-  writeMode: string,
-): void {
-  // Only TypeScript performs real uploads and evaluation writes, so durations
-  // compare like for like on batches without any.
-  const sideEffects =
-    typeScript.recorded.evalWrites.length +
-      rust.recorded.evalWrites.length +
-      rust.recorded.mediaUploads >
-    0
-      ? "some"
-      : "none";
-  const record = (
-    implementation: "ts" | "rust",
-    phase: "prepare" | "process",
-    ms: number | undefined,
-  ) => {
-    if (ms === undefined) return;
-    recordDistribution(`${METRIC_PREFIX}duration_ms`, ms, {
-      implementation,
-      phase,
-      side_effects: sideEffects,
-      write_mode: writeMode,
-    });
-  };
-  if (typeScript.error === undefined) {
-    record("ts", "prepare", sample.typeScriptPreparationMs);
-    record("ts", "process", typeScript.processMs);
-  }
-  if (rust.failedAt === undefined) {
-    record("rust", "prepare", rust.prepareMs);
-    record("rust", "process", rust.processMs);
-  }
+  return { writes, recorded };
 }
 
 function report(
@@ -468,6 +401,21 @@ function report(
   }
 }
 
+function batchResult(typeScriptOk: boolean, rustOk: boolean): string {
+  if (typeScriptOk && rustOk) return "both_ok";
+  if (typeScriptOk) return "rust_failed";
+  return rustOk ? "ts_failed" : "both_failed";
+}
+
+/** How the evaluation writes of the two sides differ. */
+function compareEvalWrites(typeScript: Recorded, rust: Recorded) {
+  return {
+    onlyTypeScript: unmatched(typeScript.evalWrites, rust.evalWrites),
+    onlyRust: unmatched(rust.evalWrites, typeScript.evalWrites),
+    snapshotFields: changedSnapshotFields(typeScript.snapshots, rust.snapshots),
+  };
+}
+
 /** Keys of `a` that `b` lacks, counting repeats. */
 function unmatched(a: string[], b: string[]): string[] {
   const remaining = new Map<string, number>();
@@ -477,6 +425,60 @@ function unmatched(a: string[], b: string[]): string[] {
     if (left > 0) remaining.set(key, left - 1);
     return left === 0;
   });
+}
+
+/** Fields that differ between the two snapshots of the same observation. */
+function changedSnapshotFields(
+  a: Recorded["snapshots"],
+  b: Recorded["snapshots"],
+): string[] {
+  const changed = new Set<string>();
+  for (const [observation, ours] of a) {
+    const theirs = b.get(observation);
+    if (!theirs) continue;
+    for (const field of Object.keys({ ...ours, ...theirs })) {
+      if (ours[field] !== theirs[field]) changed.add(field);
+    }
+  }
+  return [...changed].sort();
+}
+
+function recordDurations(
+  sample: Sample,
+  typeScript: TypeScriptRun,
+  rust: RustRun,
+  writeMode: string,
+): void {
+  // Only TypeScript performs real uploads and evaluation writes, so durations
+  // compare like for like on batches without any.
+  const sideEffects =
+    typeScript.recorded.evalWrites.length +
+      rust.recorded.evalWrites.length +
+      rust.recorded.mediaUploads >
+    0
+      ? "some"
+      : "none";
+  const record = (
+    implementation: "ts" | "rust",
+    phase: "prepare" | "process",
+    ms: number | undefined,
+  ) => {
+    if (ms === undefined) return;
+    recordDistribution(`${METRIC_PREFIX}duration_ms`, ms, {
+      implementation,
+      phase,
+      side_effects: sideEffects,
+      write_mode: writeMode,
+    });
+  };
+  if (typeScript.error === undefined) {
+    record("ts", "prepare", sample.typeScriptPreparationMs);
+    record("ts", "process", typeScript.processMs);
+  }
+  if (rust.failedAt === undefined) {
+    record("rust", "prepare", rust.prepareMs);
+    record("rust", "process", rust.processMs);
+  }
 }
 
 /**

@@ -30,6 +30,27 @@ type Sample = {
   queuedAt: number;
 };
 
+/**
+ * Rows of several files that one query reads. Each row id leads with the
+ * 1-based position of its file, so a row matches only in its own file.
+ */
+type Read = {
+  idFields: [filePosition: number, ...RowId][][];
+  fileKeys: string[];
+};
+
+/** Counts are UInt32 in the query: JSON carries those as numbers, UInt64 as strings. */
+type Comparison = {
+  file: string;
+  found: number;
+  missing_ts: number;
+  missing_rust: number;
+  different: number;
+  changedColumns: string[];
+  exampleSpanIds: string[];
+  readError?: string;
+};
+
 const METRIC = "langfuse.ingestion.otel.shadow.rows";
 /** Both writers flush on an interval, so rows are read once they had time to land. */
 const SETTLE_MS = 20_000;
@@ -59,15 +80,6 @@ let current:
 /** Whether the comparison has room for the rows of another batch. */
 export const hasComparisonCapacity = (): boolean =>
   pendingRows + (current?.rows ?? 0) < MAX_WAITING_ROWS;
-
-/** The start time as ClickHouse stores it: UTC with six fractional digits. */
-function storedStartTime(startTime: string): string | undefined {
-  const match =
-    /^(\d{4}-\d\d-\d\d)[ T](\d\d:\d\d:\d\d)(?:\.(\d{1,9}))?Z?$/.exec(startTime);
-  return match
-    ? `${match[1]} ${match[2]}.${(match[3] ?? "").padEnd(6, "0").slice(0, 6)}`
-    : undefined;
-}
 
 /** Queue the rows both implementations wrote for one batch. */
 export function queueRowVerification(sample: {
@@ -103,6 +115,73 @@ export function queueRowVerification(sample: {
   });
 }
 
+/** The start time as ClickHouse stores it: UTC with six fractional digits. */
+function storedStartTime(startTime: string): string | undefined {
+  const match =
+    /^(\d{4}-\d\d-\d\d)[ T](\d\d:\d\d:\d\d)(?:\.(\d{1,9}))?Z?$/.exec(startTime);
+  return match
+    ? `${match[1]} ${match[2]}.${(match[3] ?? "").padEnd(6, "0").slice(0, 6)}`
+    : undefined;
+}
+
+/**
+ * Compares the rows of sampled batches in the background. One query reads the
+ * rows of many batches, and reads are paced to a small share of the worker's
+ * time.
+ */
+export class OtelShadowRowVerifier extends PeriodicRunner {
+  private stopped = false;
+
+  constructor() {
+    super("otel_shadow_row_verifier");
+  }
+
+  /** Samples not yet reported are dropped: the clients they read through close next. */
+  public override stop(): void {
+    this.stopped = true;
+    super.stop();
+  }
+
+  protected get name(): string {
+    return "OtelShadowRowVerifier";
+  }
+
+  protected get defaultIntervalMs(): number {
+    return 5_000;
+  }
+
+  /**
+   * Run one read of the batches being compared and report them once their
+   * last read is done. The next run waits long enough to keep reads at
+   * READ_TIME_SHARE of the worker's time.
+   */
+  protected async execute(): Promise<number | void> {
+    if (!current) current = nextGroup(Date.now());
+    const read = current?.reads.shift();
+    if (!current || !read) return;
+    const startedAt = performance.now();
+    current.found.push(...(await compare(read)));
+    const readMs = performance.now() - startedAt;
+    if (current.reads.length === 0 && !this.stopped) {
+      reportGroup(current.samples, current.found);
+      current = undefined;
+    }
+    return Math.max(this.defaultIntervalMs, readMs * (1 / READ_TIME_SHARE - 1));
+  }
+}
+
+/** The settled samples as the next group to compare, with the reads they need. */
+function nextGroup(now: number): typeof current {
+  const samples = takeSettled(now);
+  if (samples.length === 0) return undefined;
+  return {
+    samples,
+    rows: samples.reduce((sum, { rows }) => sum + rows.length, 0),
+    reads: readsOf(samples),
+    found: [],
+  };
+}
+
 /** Take the samples whose rows had time to land, one per file. */
 function takeSettled(now: number): Sample[] {
   const unsettled = pending.findIndex((s) => now - s.queuedAt < SETTLE_MS);
@@ -111,15 +190,6 @@ function takeSettled(now: number): Sample[] {
   // A retried job queues its file again; one comparison covers it.
   return [...new Map(due.map((sample) => [sample.fileKey, sample])).values()];
 }
-
-/**
- * Rows of several files that one query reads. Each row id leads with the
- * 1-based position of its file, so a row matches only in its own file.
- */
-type Read = {
-  idFields: [filePosition: number, ...RowId][][];
-  fileKeys: string[];
-};
 
 /** The samples' rows in reads whose form fields stay within their size limit. */
 function readsOf(samples: Sample[]): Read[] {
@@ -162,16 +232,19 @@ function readsOf(samples: Sample[]): Read[] {
 }
 
 // Maps hold the same entries in a different order on each side.
+
 const sortedMaps = PreparedEvent.columns()
   .filter(({ columnType }) => columnType.startsWith("Map("))
   .map(({ name }) => `mapSort(${name}) AS ${name}`)
   .join(", ");
 // The write-time clocks always differ, and event_bytes follows from the other columns.
+
 const comparedColumns = `* EXCEPT (created_at, updated_at, event_ts, event_bytes) REPLACE (${sortedMaps})`;
 
 // tuple() names its elements after the columns only with
 // enable_named_columns_in_function_tuple, and while no alias in this select
 // list reuses a compared column's name.
+
 const side = (name: "ts" | "rust", table: string) => `
     SELECT '${name}' AS side, blob_storage_file_path AS file,
       trace_id, span_id, start_time, event_ts,
@@ -220,18 +293,6 @@ FROM (
 )
 GROUP BY file`;
 
-/** Counts are UInt32 in the query: JSON carries those as numbers, UInt64 as strings. */
-type Comparison = {
-  file: string;
-  found: number;
-  missing_ts: number;
-  missing_rust: number;
-  different: number;
-  changedColumns: string[];
-  exampleSpanIds: string[];
-  readError?: string;
-};
-
 const nothingFound = (file: string): Comparison => ({
   file,
   found: 0,
@@ -274,6 +335,16 @@ async function compare({ idFields, fileKeys }: Read): Promise<Comparison[]> {
   } catch (error) {
     const readError = classifyJobFailure(error);
     return fileKeys.map((file) => ({ ...nothingFound(file), readError }));
+  }
+}
+
+function reportGroup(samples: Sample[], found: Comparison[]): void {
+  const totals = totalsByFile(found);
+  for (const sample of samples) {
+    reportFile(
+      sample,
+      totals.get(sample.fileKey) ?? nothingFound(sample.fileKey),
+    );
   }
 }
 
@@ -328,73 +399,5 @@ function reportFile(
       changedColumns,
       exampleSpanIds: total.exampleSpanIds.slice(0, 3),
     });
-  }
-}
-
-/** The settled samples as the next group to compare, with the reads they need. */
-function nextGroup(now: number): typeof current {
-  const samples = takeSettled(now);
-  if (samples.length === 0) return undefined;
-  return {
-    samples,
-    rows: samples.reduce((sum, { rows }) => sum + rows.length, 0),
-    reads: readsOf(samples),
-    found: [],
-  };
-}
-
-function reportGroup(samples: Sample[], found: Comparison[]): void {
-  const totals = totalsByFile(found);
-  for (const sample of samples) {
-    reportFile(
-      sample,
-      totals.get(sample.fileKey) ?? nothingFound(sample.fileKey),
-    );
-  }
-}
-
-/**
- * Compares the rows of sampled batches in the background. One query reads the
- * rows of many batches, and reads are paced to a small share of the worker's
- * time.
- */
-export class OtelShadowRowVerifier extends PeriodicRunner {
-  private stopped = false;
-
-  constructor() {
-    super("otel_shadow_row_verifier");
-  }
-
-  /** Samples not yet reported are dropped: the clients they read through close next. */
-  public override stop(): void {
-    this.stopped = true;
-    super.stop();
-  }
-
-  protected get name(): string {
-    return "OtelShadowRowVerifier";
-  }
-
-  protected get defaultIntervalMs(): number {
-    return 5_000;
-  }
-
-  /**
-   * Run one read of the batches being compared and report them once their
-   * last read is done. The next run waits long enough to keep reads at
-   * READ_TIME_SHARE of the worker's time.
-   */
-  protected async execute(): Promise<number | void> {
-    if (!current) current = nextGroup(Date.now());
-    const read = current?.reads.shift();
-    if (!current || !read) return;
-    const startedAt = performance.now();
-    current.found.push(...(await compare(read)));
-    const readMs = performance.now() - startedAt;
-    if (current.reads.length === 0 && !this.stopped) {
-      reportGroup(current.samples, current.found);
-      current = undefined;
-    }
-    return Math.max(this.defaultIntervalMs, readMs * (1 / READ_TIME_SHARE - 1));
   }
 }
