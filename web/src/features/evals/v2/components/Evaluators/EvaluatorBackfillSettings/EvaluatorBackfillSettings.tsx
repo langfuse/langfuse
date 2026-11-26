@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
-import { subMonths } from "date-fns";
-import { DateRangeInput } from "@/src/components/design-system/DateRangeInput/DateRangeInput";
+import { format, startOfDay, subMonths } from "date-fns";
+import { Input as DesignSystemInput } from "@/src/components/design-system/Input/Input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -104,6 +104,11 @@ export function EvaluatorBackfillSettings({
     selectedWindow === "custom"
       ? `the selected range (${rangeDays} days)`
       : (selectedWindowOption?.summaryLabel ?? "the selected range");
+  const customRangeEarliestDate = format(
+    startOfDay(subMonths(new Date(), 6)),
+    "yyyy-MM-dd",
+  );
+  const customRangeLatestDate = format(new Date(), "yyyy-MM-dd");
 
   return (
     <section className="ml-6 max-w-full min-w-0">
@@ -171,15 +176,39 @@ export function EvaluatorBackfillSettings({
           </div>
 
           {selectedWindow === "custom" ? (
-            <DateRangeInput
-              value="custom"
-              customValue="custom"
-              range={range}
-              earliestDate={subMonths(new Date(), 6)}
-              presets={[]}
-              onPresetChange={() => {}}
-              onCustomChange={onRangeChange}
-            />
+            <div className="grid w-fit max-w-full grid-cols-[minmax(0,7.5rem)_auto_minmax(0,7.5rem)] items-center gap-2">
+              <DesignSystemInput
+                aria-label="Backfill start date"
+                type="date"
+                value={format(range.from, "yyyy-MM-dd")}
+                min={customRangeEarliestDate}
+                max={format(range.to, "yyyy-MM-dd")}
+                onChange={(event) => {
+                  if (!event.target.value) return;
+                  onRangeChange({
+                    from: new Date(`${event.target.value}T00:00:00`),
+                    to: range.to,
+                  });
+                }}
+              />
+              <span className="text-muted-foreground" aria-hidden="true">
+                →
+              </span>
+              <DesignSystemInput
+                aria-label="Backfill end date"
+                type="date"
+                value={format(range.to, "yyyy-MM-dd")}
+                min={format(range.from, "yyyy-MM-dd")}
+                max={customRangeLatestDate}
+                onChange={(event) => {
+                  if (!event.target.value) return;
+                  onRangeChange({
+                    from: range.from,
+                    to: new Date(`${event.target.value}T23:59:59.999`),
+                  });
+                }}
+              />
+            </div>
           ) : null}
 
           <p className="text-muted-foreground text-xs break-words">
