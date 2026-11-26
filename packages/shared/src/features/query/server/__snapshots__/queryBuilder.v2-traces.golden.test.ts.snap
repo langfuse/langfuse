@@ -3194,33 +3194,3 @@ LIMIT 25",
   },
 ]
 `;
-
-exports[`golden: executeQuery v2 traces > root-event condition > buildEventsTraces rootEvent=above-threshold 1`] = `
-[
-  {
-    "fn": "queryClickhouse",
-    "params": {
-      "param1": "golden-project",
-      "param2": "2026-01-01 00:00:00.000",
-      "param3": "2026-01-09 00:00:00.000",
-    },
-    "route": "unknown",
-    "sql": "SELECT count(count) AS count_count
-FROM
-(
-    SELECT
-        events_core.project_id,
-        events_traces.trace_id,
-        uniq(events_traces.trace_id) AS count
-    FROM events_core AS events_traces
-    WHERE (events_core.project_id = {param1:String})
-        AND (events_core.start_time >= {param2:DateTime64(3, 'UTC')})
-        AND (events_core.start_time <= {param3:DateTime64(3, 'UTC')})
-    GROUP BY
-        events_core.project_id,
-        events_traces.trace_id
-)
-ORDER BY count_count DESC",
-  },
-]
-`;

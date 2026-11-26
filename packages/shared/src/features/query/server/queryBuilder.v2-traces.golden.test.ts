@@ -20,8 +20,9 @@
 // The default window is 72 hours, below the root-event threshold (168), so
 // the root-event subquery is part of every case unless the case says
 // otherwise: `measure=scoresCount` and `filter=metadata contains` are its
-// crosses with the scores join and with events_full. A threshold of 0 is in
-// `queryExecutor.golden.test.ts` ("root-event window"); the ORDER BY a metric
+// crosses with the scores join and with events_full. Windows above the
+// threshold and a threshold of 0 are in `queryExecutor.golden.test.ts`
+// ("root-event window"); the ORDER BY a metric
 // is the default order, so `dim=name` covers it.
 import {
   afterAll,
@@ -403,15 +404,6 @@ describeWithClickhouse("golden: executeQuery v2 traces", () => {
       await expect(
         golden({ entityDimension: { field: "name" } }),
       ).rejects.toThrowErrorMatchingSnapshot();
-    });
-  });
-
-  describe("root-event condition", () => {
-    // 8 days > 168 hours: no subquery.
-    it("buildEventsTraces rootEvent=above-threshold", async () => {
-      expect(
-        await golden({ toTimestamp: "2026-01-09T00:00:00.000Z" }),
-      ).toMatchSnapshot();
     });
   });
 
