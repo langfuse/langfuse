@@ -18,9 +18,11 @@ const snapshotsSchema = z.record(z.string(), snapshotSchema);
 const emptySnapshot: FacetFilterSnapshot = { filter: "", search: null };
 const emptySnapshots: Record<string, FacetFilterSnapshot> = {};
 
+/** `mapId` scopes the filters to one map: topic IDs belong to the map that created them. */
 export function useTopicTraceFilters(
   projectId: string,
   facets: readonly { facetId: string }[],
+  mapId: string | null = null,
 ) {
   const [facetId, setFacetId] = useQueryParam("topicFacet", StringParam);
   const selectedFacetId = resolveTopicFacetId(facets, facetId ?? undefined);
@@ -30,7 +32,9 @@ export function useTopicTraceFilters(
   );
   const parsed = snapshotsSchema.safeParse(stored);
   const snapshots = parsed.success ? parsed.data : emptySnapshots;
-  const storageKey = JSON.stringify([projectId, selectedFacetId]);
+  const storageKey = JSON.stringify(
+    mapId ? [projectId, mapId, selectedFacetId] : [projectId, selectedFacetId],
+  );
   const snapshot = snapshots[storageKey] ?? emptySnapshot;
   const filters = useMemo(
     () => decodeAndNormalizeFilters(snapshot.filter, columns),

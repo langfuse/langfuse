@@ -464,6 +464,7 @@ function TopicsWorkspaceContent({
   const traceFilters = useTopicTraceFilters(
     projectId,
     shownResults.data?.facets ?? [],
+    analysisId ?? selectedRule?.id ?? null,
   );
   const { selectedFacetId } = traceFilters;
   const capture = useTopicsCapture();

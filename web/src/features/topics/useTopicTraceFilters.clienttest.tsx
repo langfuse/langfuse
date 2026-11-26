@@ -22,7 +22,11 @@ const assignment: FilterState[number] = {
 };
 const facets = [{ facetId: "intent" }, { facetId: "sentiment" }];
 
-function setup(initialSearch = "", projectId = "project") {
+function setup(
+  initialSearch = "",
+  projectId = "project",
+  mapId: string | null = null,
+) {
   let search = initialSearch;
   let navigate: (search: string) => void = () => {};
   const Adapter: QueryParamAdapterComponent = ({ children }) => {
@@ -31,13 +35,19 @@ function setup(initialSearch = "", projectId = "project") {
     navigate = (search) => setLocation({ search });
     return children({ location, replace: setLocation, push: setLocation });
   };
-  const hook = renderHook(() => useTopicTraceFilters(projectId, facets), {
-    wrapper: ({ children }: { children: ReactNode }) => (
-      <QueryParamProvider adapter={Adapter} options={{ enableBatching: true }}>
-        {children}
-      </QueryParamProvider>
-    ),
-  });
+  const hook = renderHook(
+    () => useTopicTraceFilters(projectId, facets, mapId),
+    {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryParamProvider
+          adapter={Adapter}
+          options={{ enableBatching: true }}
+        >
+          {children}
+        </QueryParamProvider>
+      ),
+    },
+  );
   return {
     ...hook,
     getSearch: () => search,
@@ -89,6 +99,19 @@ describe("Topics facet-local filters", () => {
     );
     expect(result.current.filters).toEqual([assignment]);
     expect(result.current.searchQuery).toBe("happy customer");
+  });
+
+  it("keeps a topic filter on the map it was picked on", () => {
+    const first = setup("", "project", "map-a");
+    act(() => first.result.current.setFilters([topic]));
+    first.unmount();
+    // Topic IDs belong to one map; another map of the same facet starts empty.
+    const other = setup("", "project", "map-b");
+    expect(other.result.current.filters).toEqual([]);
+    other.unmount();
+    expect(setup("", "project", "map-a").result.current.filters).toEqual([
+      topic,
+    ]);
   });
 
   it("restores local state on a fresh visit, isolates projects and ignores URL filters", () => {
