@@ -150,13 +150,24 @@ export function SessionConversationalView(
   });
   if (props.state === "loaded" && !props.isSearchPending) {
     for (const [itemIndex, item] of timelineItems.entries()) {
-      let emptyTranscriptReason: "reasoning-only" | undefined;
-      const transcriptRows = (() => {
-        if (item.state.type === "error") return null;
-        if (item.state.type === "loading") return undefined;
-        if (item.state.type === "empty") return [];
+      const { transcriptRows, emptyTranscriptReason } = (() => {
+        if (item.state.type === "error") {
+          return { transcriptRows: null, emptyTranscriptReason: undefined };
+        }
+        if (item.state.type === "loading") {
+          return {
+            transcriptRows: undefined,
+            emptyTranscriptReason: undefined,
+          };
+        }
+        if (item.state.type === "empty") {
+          return { transcriptRows: [], emptyTranscriptReason: undefined };
+        }
         let toolGroupId: string | undefined;
-        return getSessionTranscriptRows(item.state.result.transcript)
+        let emptyTranscriptReason: "reasoning-only" | undefined;
+        const transcriptRows = getSessionTranscriptRows(
+          item.state.result.transcript,
+        )
           .filter((row) => row.threadIndex === item.threadIndex)
           .flatMap(({ id, threadIndex, row }) => {
             if (row.type !== "tool") toolGroupId = undefined;
@@ -203,6 +214,7 @@ export function SessionConversationalView(
               },
             ];
           });
+        return { transcriptRows, emptyTranscriptReason };
       })();
       const threadVisibility =
         item.state.type === "transcript"

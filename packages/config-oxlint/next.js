@@ -253,6 +253,17 @@ export default {
       },
     },
     {
+      files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
+      excludeFiles: [
+        "**/*.{test,spec,clienttest,servertest}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+        "**/{__tests__,__mocks__,tests,test,__e2e__}/**",
+      ],
+      jsPlugins: ["@repo/eslint-plugin"],
+      rules: {
+        "@repo/no-mutable-component-variables": "warn",
+      },
+    },
+    {
       files: ["**/*"],
       jsPlugins: ["eslint-plugin-turbo"],
       rules: {

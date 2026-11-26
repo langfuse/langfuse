@@ -88,25 +88,25 @@ export function ConnectedModernSessionBodyTimeline({
   const traceIndexById = new Map(
     traces.map((trace, index) => [trace.id, index] as const),
   );
-  const activeChunkIndices = new Set<number>();
-  {
-    const highestChunkIndex = Math.max(
-      debouncedSearchQuery
-        ? Math.ceil(traces.length / SIDEBAR_TRACE_CHUNK_SIZE) - 1
-        : Math.min(
-            loadedThroughChunkIndex,
-            Math.ceil(traces.length / SIDEBAR_TRACE_CHUNK_SIZE) - 1,
-          ),
-      ...[...visibleTraceIds, ...timelineVisibleTraceIds].flatMap((traceId) => {
-        const traceIndex = traceIndexById.get(traceId);
-        if (traceIndex === undefined) return [];
-        return [Math.floor(traceIndex / SIDEBAR_TRACE_CHUNK_SIZE)];
-      }),
-    );
-    for (let chunkIndex = 0; chunkIndex <= highestChunkIndex; chunkIndex++) {
-      activeChunkIndices.add(chunkIndex);
-    }
-  }
+  const highestChunkIndex = Math.max(
+    debouncedSearchQuery
+      ? Math.ceil(traces.length / SIDEBAR_TRACE_CHUNK_SIZE) - 1
+      : Math.min(
+          loadedThroughChunkIndex,
+          Math.ceil(traces.length / SIDEBAR_TRACE_CHUNK_SIZE) - 1,
+        ),
+    ...[...visibleTraceIds, ...timelineVisibleTraceIds].flatMap((traceId) => {
+      const traceIndex = traceIndexById.get(traceId);
+      if (traceIndex === undefined) return [];
+      return [Math.floor(traceIndex / SIDEBAR_TRACE_CHUNK_SIZE)];
+    }),
+  );
+  const activeChunkIndices = new Set(
+    Array.from(
+      { length: Math.max(0, highestChunkIndex + 1) },
+      (_, chunkIndex) => chunkIndex,
+    ),
+  );
 
   const activeTranscriptTraceIds = new Set(
     traces
