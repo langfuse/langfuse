@@ -6,7 +6,7 @@
  * are in `viewQuerySteps.ts`; `QueryBuilder` dispatches the view here.
  */
 import { expressionBuilder, type AliasableExpression } from "kysely";
-import { type QueryType, type ViewVersion } from "../types";
+import { type QueryType } from "../types";
 import { eventsObservationsView } from "../dataModel";
 import { conditionFromFilter } from "../../../query-ast/filterStateCodec";
 import type { PredicateCondition } from "../../../query-ast/predicate";
@@ -28,6 +28,7 @@ import {
   type ObservationsBuilder,
   type ObservationsDb,
 } from "./eventsObservationsRegistry";
+import { type BuildContext } from "./astViewQuery";
 import { type QueryLevel } from "./registryEntry";
 import {
   type AppliedDimensionType,
@@ -70,16 +71,16 @@ type DashboardFilter = {
  * untruncated values routes it to `events_full`, where the routing pass
  * cuts the selected truncated columns. Tenancy adds the project
  * conditions. Rows flagged deleted are read, as the string builder does.
- * `version` and `chartConfig` (histogram bins, row limit) are the
- * `QueryBuilder`'s.
  */
 export function buildEventsObservations(
   query: QueryType,
-  projectId: string,
-  enableSingleLevelOptimization: boolean,
-  skipScoresFinal: boolean,
-  version: ViewVersion,
-  chartConfig: { bins?: number; row_limit?: number } | undefined,
+  {
+    projectId,
+    enableSingleLevelOptimization,
+    skipScoresFinal,
+    version,
+    chartConfig,
+  }: BuildContext,
 ): { query: string; parameters: Record<string, unknown> } {
   const view = eventsObservationsView;
   const requestedDimensions = mapDimensions(query.dimensions, view);

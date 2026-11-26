@@ -14,7 +14,7 @@ import {
   scoresBooleanViewV2,
   scoresListableCountViewV2,
 } from "../dataModel";
-import type { QueryType, ViewDeclarationType, ViewVersion } from "../types";
+import type { QueryType, ViewDeclarationType } from "../types";
 import {
   SEGMENT_FILTER,
   scoresExpressionBuilder,
@@ -31,6 +31,7 @@ import {
   TRACE_ATTRIBUTE_COLUMNS,
 } from "./eventsTraceAttributes";
 import { useFinal } from "../../../server/query-ast/extensions";
+import type { BuildContext } from "./astViewQuery";
 import type { QueryLevel } from "./registryEntry";
 import {
   resolveFilterColumn,
@@ -274,17 +275,11 @@ function scoresWhere(scope: ScoresSourceScope, joined: string[]) {
  * Level: single-level only without a join, whatever
  * `enableSingleLevelOptimization` says: a join can match several rows per
  * score, so the inner select groups by score to count each score once.
- *
- * `version` and `chartConfig` (histogram bins, row limit) are the
- * `QueryBuilder`'s.
  */
 export function buildScores(
   query: QueryType,
   view: ViewDeclarationType,
-  projectId: string,
-  skipScoresFinal: boolean,
-  version: ViewVersion,
-  chartConfig: { bins?: number; row_limit?: number } | undefined,
+  { projectId, skipScoresFinal, version, chartConfig }: BuildContext,
 ): { query: string; parameters: Record<string, unknown> } {
   const requestedDimensions = mapDimensions(query.dimensions, view);
   const appliedMetrics = mapMetrics(query.metrics, view);

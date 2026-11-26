@@ -6,7 +6,7 @@
  * `viewQuerySteps.ts`; `QueryBuilder` dispatches the view here.
  */
 import { expressionBuilder, type Expression, type SqlBool } from "kysely";
-import { type QueryType, type ViewVersion } from "../types";
+import { type QueryType } from "../types";
 import { eventsTracesView } from "../dataModel";
 import { conditionFromFilter } from "../../../query-ast/filterStateCodec";
 import type { PredicateCondition } from "../../../query-ast/predicate";
@@ -32,6 +32,7 @@ import {
   type TracesBuilder,
   type TracesDb,
 } from "./eventsTracesRegistry";
+import { type BuildContext } from "./astViewQuery";
 import { type QueryLevel } from "./registryEntry";
 import {
   type AppliedDimensionType,
@@ -85,17 +86,18 @@ type TracesFilter = { pruning: boolean; conjuncts: Expression<SqlBool>[] };
  *
  * `skipScoresFinal`: the project never updates its scores
  * (`shouldSkipScoresDedup`), so the `scoresCount` join reads `scores` without
- * `FINAL` and drops deleted scores in its ON clause instead. `version` and
- * `chartConfig` (histogram bins, row limit) are the `QueryBuilder`'s.
+ * `FINAL` and drops deleted scores in its ON clause instead.
  */
 export function buildEventsTraces(
   query: QueryType,
-  projectId: string,
-  enableSingleLevelOptimization: boolean,
-  skipScoresFinal: boolean,
-  version: ViewVersion,
-  chartConfig: { bins?: number; row_limit?: number } | undefined,
-  rootEventConditionMaxWindowHours: number,
+  {
+    projectId,
+    enableSingleLevelOptimization,
+    skipScoresFinal,
+    version,
+    chartConfig,
+    rootEventConditionMaxWindowHours,
+  }: BuildContext,
 ): { query: string; parameters: Record<string, unknown> } {
   const view = eventsTracesView;
   const requestedDimensions = mapDimensions(query.dimensions, view);

@@ -20,6 +20,7 @@ import { buildScores, SCORE_VIEWS_V2 } from "./scoresQuery";
 import { buildEventsObservations } from "./eventsObservationsQuery";
 import { buildEventsTraces } from "./eventsTracesQuery";
 import { buildSqlText } from "./sqlTextQuery";
+import { type BuildContext } from "./astViewQuery";
 
 export class QueryBuilder {
   private chartConfig?: { bins?: number; row_limit?: number };
@@ -37,6 +38,21 @@ export class QueryBuilder {
 
   setRootEventConditionMaxWindowHours(hours: number): void {
     this.rootEventConditionMaxWindowHours = hours;
+  }
+
+  /** The {@link BuildContext} of a `build` call for `projectId`. */
+  private astContext(
+    projectId: string,
+    enableSingleLevelOptimization: boolean,
+  ): BuildContext {
+    return {
+      projectId,
+      version: this.version,
+      chartConfig: this.chartConfig,
+      enableSingleLevelOptimization,
+      skipScoresFinal: shouldSkipScoresDedup(projectId),
+      rootEventConditionMaxWindowHours: this.rootEventConditionMaxWindowHours,
+    };
   }
 
   private getViewDeclaration(
@@ -69,32 +85,20 @@ export class QueryBuilder {
     if (view === eventsObservationsView) {
       return buildEventsObservations(
         query,
-        projectId,
-        enableSingleLevelOptimization,
-        shouldSkipScoresDedup(projectId),
-        this.version,
-        this.chartConfig,
+        this.astContext(projectId, enableSingleLevelOptimization),
       );
     }
     if (view === eventsTracesView) {
       return buildEventsTraces(
         query,
-        projectId,
-        enableSingleLevelOptimization,
-        shouldSkipScoresDedup(projectId),
-        this.version,
-        this.chartConfig,
-        this.rootEventConditionMaxWindowHours,
+        this.astContext(projectId, enableSingleLevelOptimization),
       );
     }
     if (SCORE_VIEWS_V2.has(view)) {
       return buildScores(
         query,
         view,
-        projectId,
-        shouldSkipScoresDedup(projectId),
-        this.version,
-        this.chartConfig,
+        this.astContext(projectId, enableSingleLevelOptimization),
       );
     }
     return buildSqlText(
