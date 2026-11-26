@@ -1930,8 +1930,7 @@ const enqueueMediaUsageExport = async (jobId: string, delay = 0) => {
 // so a lock left by a dead worker delays the export by at most the lock TTL.
 // While closed days remain, the run enqueues the next step from the
 // watermark; producers racing on the same step share its job id.
-/** @internal */
-export const processMediaUsageExportJob = async (
+const processMediaUsageExportJob = async (
   job: Job,
   args: { s3Client: StorageService; uploadPrefix: string },
 ) => {

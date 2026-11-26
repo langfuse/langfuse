@@ -37,12 +37,10 @@ export const formatUtcDay = (day: Date) => day.toISOString().slice(0, 10);
 const toPgUtcTimestamp = (date: Date) =>
   date.toISOString().replace("T", " ").replace("Z", "");
 
-/** @internal */
-export const mediaUsageDayObjectKey = (uploadPrefix: string, day: Date) =>
+const mediaUsageDayObjectKey = (uploadPrefix: string, day: Date) =>
   `${uploadPrefix}${MEDIA_USAGE_TABLE_NAME}/date=${formatUtcDay(day)}/${MEDIA_USAGE_TABLE_NAME}.jsonl`;
 
-/** @internal */
-export const mediaUsageWatermarkKey = (uploadPrefix: string) =>
+const mediaUsageWatermarkKey = (uploadPrefix: string) =>
   `${uploadPrefix}${MEDIA_USAGE_TABLE_NAME}/_watermark.json`;
 
 /**
@@ -50,9 +48,8 @@ export const mediaUsageWatermarkKey = (uploadPrefix: string) =>
  * UTC day of `now`) are exported. Without a watermark the export backfills from
  * `backfillStart`; afterwards it exports every day from `exportedUntil` on,
  * plus the last `lookbackDays` closed days.
- * @internal
  */
-export const computeMediaUsageExportDays = ({
+const computeMediaUsageExportDays = ({
   now,
   exportedUntil,
   backfillStart,
@@ -85,9 +82,8 @@ export const computeMediaUsageExportDays = ({
  * The watermark is the exclusive end (00:00 UTC of the next day) of the last
  * day whose object was written. It is stored next to the day objects so it
  * lives and dies with the exported data.
- * @internal
  */
-export const readMediaUsageWatermark = async (
+const readMediaUsageWatermark = async (
   s3Client: StorageService,
   uploadPrefix: string,
 ): Promise<Date | null> => {
