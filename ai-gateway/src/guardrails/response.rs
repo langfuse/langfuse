@@ -145,6 +145,43 @@ pub(crate) struct ParsedResponse {
     api_format: ApiFormat,
     body: ParsedBody,
     blocks: Vec<ResponseBlock>,
+    /// Memory budget held for retained `ResponseBlock` strings and JSON pointers
+    /// across external guardrail I/O until `finalize_response` consumes `self`.
+    _blocks_reservation: Option<MemoryReservation>,
+}
+
+fn blocks_retained_bytes(blocks: &[ResponseBlock]) -> usize {
+    blocks.iter().fold(0usize, |total, block| {
+        let deltas_bytes: usize = block
+            .deltas
+            .iter()
+            .map(|(_, ptr)| size_of::<(usize, String)>().saturating_add(ptr.capacity()))
+            .sum();
+        let leaves_bytes: usize = block
+            .leaves
+            .iter()
+            .map(|(_, ptr)| size_of::<(Option<usize>, String)>().saturating_add(ptr.capacity()))
+            .sum();
+        total
+            .saturating_add(size_of::<ResponseBlock>())
+            .saturating_add(block.text.capacity())
+            .saturating_add(deltas_bytes)
+            .saturating_add(leaves_bytes)
+    })
+}
+
+fn reserve_retained_blocks(
+    blocks: &[ResponseBlock],
+    budget: Option<&Arc<Semaphore>>,
+) -> Result<Option<MemoryReservation>, ResponseParseError> {
+    let bytes = blocks_retained_bytes(blocks);
+    if bytes == 0 {
+        return Ok(None);
+    }
+    budget
+        .map(|budget| MemoryReservation::from_budget(budget, bytes, "guardrails"))
+        .transpose()
+        .map_err(|_| ResponseParseError::Busy)
 }
 
 enum ParsedBody {
@@ -226,6 +263,10 @@ impl ParsedResponse {
                 if !sse_edits.is_empty() {
                     return Ok(None);
                 }
+                let _out_reservation = budget
+                    .filter(|_| !raw.is_empty())
+                    .map(|budget| MemoryReservation::from_budget(budget, raw.len(), "guardrails"))
+                    .transpose()?;
                 let (mut value, _res) = match parse_unique_json(&raw, budget) {
                     Ok(parsed) => parsed,
                     Err(ResponseParseError::Busy) => return Err(ResolutionError::Busy),
@@ -244,52 +285,66 @@ impl ParsedResponse {
                 if !json_edits.is_empty() {
                     return Ok(None);
                 }
-                let Ok(text) = std::str::from_utf8(&raw) else {
-                    return Ok(None);
-                };
-                let mut out = String::with_capacity(text.len());
-                for (frame_idx, frame) in frames.iter().enumerate() {
-                    let Some(raw_slice) = text.get(frame.raw_range.clone()) else {
-                        return Ok(None);
-                    };
-                    let frame_edits = sse_edits.get(&frame_idx);
-                    if frame_edits.is_none() && !frame.has_logprobs {
-                        out.push_str(raw_slice);
-                        continue;
-                    }
-                    let Some((prefix, Some(payload))) = split_single_sse_frame(raw_slice) else {
-                        return Ok(None);
-                    };
-                    let (mut value, _res) = match parse_unique_json(payload.as_bytes(), budget) {
-                        Ok(parsed) => parsed,
-                        Err(ResponseParseError::Busy) => return Err(ResolutionError::Busy),
-                        Err(ResponseParseError::Unreadable) => return Ok(None),
-                    };
-                    if let Some(edits_for_frame) = frame_edits {
-                        for &(ptr, replacement) in edits_for_frame {
-                            let Some(target) = value.pointer_mut(ptr) else {
-                                return Ok(None);
-                            };
-                            *target = Value::String(replacement.to_owned());
-                        }
-                    }
-                    let scrubbed = scrub_logprobs_value(self.api_format, &mut value);
-                    if frame_edits.is_none() && !scrubbed {
-                        out.push_str(raw_slice);
-                        continue;
-                    }
-                    let Ok(encoded) = serde_json::to_string(&value) else {
-                        return Ok(None);
-                    };
-                    out.push_str(&prefix);
-                    out.push_str("data: ");
-                    out.push_str(&encoded);
-                    out.push_str("\n\n");
-                }
-                Ok(Some(Bytes::from(out)))
+                apply_sse_redactions(self.api_format, &raw, &frames, &sse_edits, budget)
             }
         }
     }
+}
+
+fn apply_sse_redactions(
+    api_format: ApiFormat,
+    raw: &[u8],
+    frames: &[SseFrameSpan],
+    sse_edits: &HashMap<usize, Vec<(&str, &str)>>,
+    budget: Option<&Arc<Semaphore>>,
+) -> Result<Option<Bytes>, ResolutionError> {
+    let Ok(text) = std::str::from_utf8(raw) else {
+        return Ok(None);
+    };
+    let _out_reservation = budget
+        .filter(|_| !text.is_empty())
+        .map(|budget| MemoryReservation::from_budget(budget, text.len(), "guardrails"))
+        .transpose()?;
+    let mut out = String::with_capacity(text.len());
+    for (frame_idx, frame) in frames.iter().enumerate() {
+        let Some(raw_slice) = text.get(frame.raw_range.clone()) else {
+            return Ok(None);
+        };
+        let frame_edits = sse_edits.get(&frame_idx);
+        if frame_edits.is_none() && !frame.has_logprobs {
+            out.push_str(raw_slice);
+            continue;
+        }
+        let Some((prefix, Some(payload))) = split_single_sse_frame(raw_slice) else {
+            return Ok(None);
+        };
+        let (mut value, _res) = match parse_unique_json(payload.as_bytes(), budget) {
+            Ok(parsed) => parsed,
+            Err(ResponseParseError::Busy) => return Err(ResolutionError::Busy),
+            Err(ResponseParseError::Unreadable) => return Ok(None),
+        };
+        if let Some(edits_for_frame) = frame_edits {
+            for &(ptr, replacement) in edits_for_frame {
+                let Some(target) = value.pointer_mut(ptr) else {
+                    return Ok(None);
+                };
+                *target = Value::String(replacement.to_owned());
+            }
+        }
+        let scrubbed = scrub_logprobs_value(api_format, &mut value);
+        if frame_edits.is_none() && !scrubbed {
+            out.push_str(raw_slice);
+            continue;
+        }
+        let Ok(encoded) = serde_json::to_string(&value) else {
+            return Ok(None);
+        };
+        out.push_str(&prefix);
+        out.push_str("data: ");
+        out.push_str(&encoded);
+        out.push_str("\n\n");
+    }
+    Ok(Some(Bytes::from(out)))
 }
 
 fn split_single_sse_frame(frame: &str) -> Option<(String, Option<String>)> {
@@ -577,26 +632,37 @@ fn parse_json(
     body: Bytes,
     budget: Option<&Arc<Semaphore>>,
 ) -> Result<ParsedResponse, ResponseParseError> {
-    let (value, _parse_reservation) = parse_unique_json(&body, budget)?;
-    if !value.is_object() {
-        return Err(ResponseParseError::Unreadable);
-    }
     let mut blocks = Vec::new();
-    match api_format {
-        ApiFormat::OpenAiChatCompletions => extract_chat_json(&value, &mut blocks)?,
-        ApiFormat::AnthropicMessages => extract_anthropic_json(&value, &mut blocks)?,
-        ApiFormat::OpenAiResponses => extract_responses_json(&value, "", &mut blocks)?,
-        ApiFormat::OpenAiDecisions => {
-            if let Some(answers) = value.get("answers").filter(|v| !v.is_null()) {
-                collect_all_strings(answers, None, "/answers", &["type", "name"], 0, &mut blocks)?;
-            }
+    {
+        let (value, _parse_reservation) = parse_unique_json(&body, budget)?;
+        if !value.is_object() {
+            return Err(ResponseParseError::Unreadable);
         }
-        ApiFormat::OpenAiEmbeddings => {}
+        match api_format {
+            ApiFormat::OpenAiChatCompletions => extract_chat_json(&value, &mut blocks)?,
+            ApiFormat::AnthropicMessages => extract_anthropic_json(&value, &mut blocks)?,
+            ApiFormat::OpenAiResponses => extract_responses_json(&value, "", &mut blocks)?,
+            ApiFormat::OpenAiDecisions => {
+                if let Some(answers) = value.get("answers").filter(|v| !v.is_null()) {
+                    collect_all_strings(
+                        answers,
+                        None,
+                        "/answers",
+                        &["type", "name"],
+                        0,
+                        &mut blocks,
+                    )?;
+                }
+            }
+            ApiFormat::OpenAiEmbeddings => {}
+        }
     }
+    let blocks_reservation = reserve_retained_blocks(&blocks, budget)?;
     Ok(ParsedResponse {
         api_format,
         body: ParsedBody::Json(body),
         blocks,
+        _blocks_reservation: blocks_reservation,
     })
 }
 
@@ -1126,6 +1192,8 @@ fn parse_sse(
     if !frames_budget.flush() {
         return Err(ResponseParseError::Busy);
     }
+    let blocks = collector.finish();
+    let blocks_reservation = reserve_retained_blocks(&blocks, budget)?;
     Ok(ParsedResponse {
         api_format,
         body: ParsedBody::Sse {
@@ -1133,7 +1201,8 @@ fn parse_sse(
             frames,
             _frames_reservation: frames_budget.reservation,
         },
-        blocks: collector.finish(),
+        blocks,
+        _blocks_reservation: blocks_reservation,
     })
 }
 
