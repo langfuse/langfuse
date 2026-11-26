@@ -513,6 +513,9 @@ enum GatewayGuardrailAction {
 enum GatewayGuardrailScope {
   LAST_TURN
   ENTIRE_INPUT
+  OUTPUT
+  LAST_TURN_AND_OUTPUT
+  ENTIRE_INPUT_AND_OUTPUT
 }
 
 enum GatewayGuardrailAssignmentScope {
@@ -521,8 +524,8 @@ enum GatewayGuardrailAssignmentScope {
   USER
 }
 
-// A rule set the AI gateway checks each request against. Assignments decide
-// which keys it applies to.
+// A rule set the AI gateway checks each request and/or response against.
+// Assignments decide which keys it applies to.
 model GatewayGuardrail {
   id                  String                       @id @default(cuid())
   organizationId      String                       @map("organization_id")
