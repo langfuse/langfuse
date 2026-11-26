@@ -9,7 +9,9 @@ const tagVariants = cva(
   {
     variants: {
       status: {
-        default: "border-transparent bg-muted text-foreground-secondary",
+        /** Translucent, so the chip stays visible on muted, hovered and selected rows. */
+        default:
+          "border-transparent bg-foreground/5 text-foreground-secondary dark:bg-foreground/10",
         warning:
           "border-yellow-100 bg-yellow-50 text-yellow-800 dark:border-transparent dark:bg-light-yellow/80 dark:text-dark-yellow",
         error:
