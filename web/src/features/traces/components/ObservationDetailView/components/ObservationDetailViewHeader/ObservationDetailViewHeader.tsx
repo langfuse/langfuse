@@ -381,46 +381,51 @@ export const ObservationDetailViewHeader = memo(
                             title: observation.name || observation.id,
                             itemType: observation.type as ObservationType,
                             titleLevel: observation.level,
+                            titleSize: isEmbedded ? "sm" : undefined,
                             actions: [
-                              {
-                                id: "add-to",
-                                type: "dropdown",
-                                label: "Add to",
-                                icon: PlusIcon,
-                                disabled: !observationWithIO,
-                                items: addToItems,
-                              },
-                              ...(!isAnnotationMode
-                                ? [
+                              ...(isEmbedded
+                                ? []
+                                : [
                                     {
-                                      id: "annotate",
-                                      type: "button" as const,
-                                      label: "Annotate",
-                                      icon: annotationDisabled
-                                        ? LockIcon
-                                        : SquarePen,
-                                      disabled: annotationDisabled,
-                                      onClick: annotate,
+                                      id: "add-to",
+                                      type: "dropdown" as const,
+                                      label: "Add to",
+                                      icon: PlusIcon,
+                                      disabled: !observationWithIO,
+                                      items: addToItems,
                                     },
-                                  ]
-                                : []),
-                              {
-                                id: "comment",
-                                type: "button",
-                                label: commentLabel,
-                                icon: commentDrawerControl.disabled
-                                  ? MessageSquareOff
-                                  : MessageSquare,
-                                disabled: commentDrawerControl.disabled,
-                                onClick: commentDrawerControl.openDrawer,
-                              },
+                                    ...(!isAnnotationMode
+                                      ? [
+                                          {
+                                            id: "annotate",
+                                            type: "button" as const,
+                                            label: "Annotate",
+                                            icon: annotationDisabled
+                                              ? LockIcon
+                                              : SquarePen,
+                                            disabled: annotationDisabled,
+                                            onClick: annotate,
+                                          },
+                                        ]
+                                      : []),
+                                    {
+                                      id: "comment",
+                                      type: "button" as const,
+                                      label: commentLabel,
+                                      icon: commentDrawerControl.disabled
+                                        ? MessageSquareOff
+                                        : MessageSquare,
+                                      disabled: commentDrawerControl.disabled,
+                                      onClick: commentDrawerControl.openDrawer,
+                                    },
+                                  ]),
                               {
                                 id: "options",
-                                type: "dropdown",
+                                type: "dropdown" as const,
                                 label: "Options",
                                 icon: EllipsisVertical,
                                 iconOnly: true,
-                                placement: "trailing",
+                                placement: "trailing" as const,
                                 items: utilityItems,
                               },
                             ],

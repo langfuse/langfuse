@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { VirtualizedTree } from "./VirtualizedTree";
 import {
   VirtualizedTreeNodeWrapper,
@@ -13,8 +13,6 @@ import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNo
 import { type TreeNode } from "../types/treeNode";
 import { resolveTreeNodeId } from "../fns/resolveTreeNodeId";
 import { getCollapsedAncestors } from "../fns/getCollapsedAncestors";
-import { flattenTree } from "../fns/flattenTree";
-import { foldTreeRows } from "../fns/foldTreeRows";
 import {
   metricEmphasisFor,
   type MetricEmphasisContext,
@@ -31,9 +29,8 @@ import {
  * This composition pattern allows each component to have a single responsibility.
  */
 
-/** Rows below the embedded observation that stay visible, fading out. */
-const FOLD_TRAILING_ROWS = 3;
-const FADE_CLASS_NAMES = ["opacity-50", "opacity-30", "opacity-10"];
+/** Rows the embedder does not let the user pick. */
+const UNPICKABLE_ROW_CLASS_NAME = "opacity-50";
 
 function isEmbeddedObservation(node: TreeNode, observationId: string | null) {
   return (
@@ -96,20 +93,10 @@ function LoadedTraceTree() {
   } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
   const handleSelectNode = useSelectTraceNode("tree");
-  const { presentation, preferredObservationId } = useTracePresentation();
-  const fold = useMemo(() => {
-    if (presentation !== "observation") return null;
-    return foldTreeRows(
-      flattenTree(roots, collapsedNodes),
-      (node) => isEmbeddedObservation(node, preferredObservationId),
-      FOLD_TRAILING_ROWS,
-    );
-  }, [presentation, preferredObservationId, roots, collapsedNodes]);
-  const visibleNodeIds = useMemo(
-    () =>
-      fold ? new Set([fold.targetId, ...fold.fadeSteps.keys()]) : undefined,
-    [fold],
-  );
+  const { presentation, selectableObservationIds, onSelectObservation } =
+    useTracePresentation();
+  const picksObservation =
+    presentation === "observation" && selectableObservationIds != null;
   const scope = traceScope.type;
   const previousScope = useRef(scope);
   const selectedTreeNodeId = resolveTreeNodeId(
@@ -145,20 +132,26 @@ function LoadedTraceTree() {
       isScrollReady={isNavigationReady}
       onToggleCollapse={toggleCollapsed}
       onSelectNode={handleSelectNode}
-      visibleNodeIds={visibleNodeIds}
-      paddingStart={fold ? 0 : undefined}
+      paddingStart={presentation === "observation" ? 0 : undefined}
       renderNode={({ node, ...row }) => {
         const typedNode = node as TreeNode;
-        const isFaded = fold != null && typedNode.id !== fold.targetId;
+        const observationId = typedNode.observationId ?? typedNode.id;
+        const isPickable =
+          picksObservation &&
+          typedNode.type !== "TRACE" &&
+          selectableObservationIds.has(observationId);
+        const browse = selectionLocked ? undefined : row.onSelect;
+        // Every row opens in the details pane; a match also becomes the sample.
+        const pick = () => {
+          row.onSelect();
+          if (isPickable) onSelectObservation?.(observationId);
+        };
         return (
           <TraceTreeRow
             {...row}
-            onSelect={selectionLocked ? undefined : row.onSelect}
+            onSelect={picksObservation ? pick : browse}
             node={typedNode}
-            fadeStep={
-              isFaded ? (fold.fadeSteps.get(typedNode.id) ?? 0) : undefined
-            }
-            isFolded={fold != null}
+            isDimmed={picksObservation && !isPickable}
             emphasis={metricEmphasisFor(typedNode, metricEmphasis)}
             commentCount={comments.get(typedNode.id)}
             onHover={() => handleHover(typedNode)}
@@ -180,8 +173,7 @@ function TraceTreeRow({
   emphasis,
   commentCount,
   onHover,
-  fadeStep,
-  isFolded,
+  isDimmed,
 }: {
   node: TreeNode;
   treeMetadata: TreeNodeMetadata;
@@ -192,9 +184,7 @@ function TraceTreeRow({
   emphasis: MetricEmphasisContext | undefined;
   commentCount: number | undefined;
   onHover: () => void;
-  /** Index into the fade scale; undefined leaves the row at full strength. */
-  fadeStep: number | undefined;
-  isFolded: boolean;
+  isDimmed: boolean;
 }) {
   const { isEmbedded, preferredObservationId } = useTracePresentation();
   const isSelectedObservation =
@@ -211,10 +201,7 @@ function TraceTreeRow({
       surfaceClassName={
         isSelectedObservation ? "bg-light-blue text-foreground" : undefined
       }
-      className={
-        fadeStep === undefined ? undefined : FADE_CLASS_NAMES[fadeStep]
-      }
-      showFoldButton={!isFolded}
+      className={isDimmed ? UNPICKABLE_ROW_CLASS_NAME : undefined}
     >
       <SpanContent
         node={node}
