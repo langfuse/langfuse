@@ -6,7 +6,10 @@ import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { setSigtermReceived } from "../features/health";
 import { server } from "../index";
 import { WorkerManager } from "../queues/workerManager";
-import { logInFlightBlobExportsOnShutdown } from "../features/blobstorage/inFlightExports";
+import {
+  abortBlobExportsForShutdown,
+  logInFlightBlobExportsOnShutdown,
+} from "../features/blobstorage/inFlightExports";
 import { abortActiveInAppAgentRuns } from "../features/in-app-agent/executeInAppAgentRun";
 import { prisma } from "@langfuse/shared/src/db";
 import { BackgroundMigrationManager } from "../backgroundMigrations/backgroundMigrationManager";
@@ -108,6 +111,9 @@ const runDrainAndClose = async () => {
 
   // Before closeWorkers(), while the registry is still populated (LFE-10388).
   logInFlightBlobExportsOnShutdown();
+  // Abort running exports so closeWorkers() can re-queue their jobs instead
+  // of waiting until ECS kills the task.
+  abortBlobExportsForShutdown();
 
   // Abort in-flight agent loops at their next step boundary so closeWorkers()
   // does not wait out a full agent turn; each run finishes FAILED

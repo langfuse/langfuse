@@ -25,6 +25,7 @@ import {
 import {
   registerInFlightBlobExport,
   unregisterInFlightBlobExport,
+  getBlobExportShutdownSignal,
   BLOB_TABLE_EXPORT_METRIC,
   type BlobTableExportOutcome,
 } from "./inFlightExports";
@@ -621,6 +622,17 @@ export const processBlobStorageExport = async (config: {
         try {
           uploadStartMs = performance.now();
 
+          // Destroying the upload's source tears down the whole pipeline (CH
+          // read included) and rejects the upload, so the job can be re-queued
+          // before ECS kills the task.
+          const shutdownSignal = getBlobExportShutdownSignal();
+          const abortOnShutdown = () =>
+            fileStream.destroy(shutdownSignal.reason);
+          if (shutdownSignal.aborted) abortOnShutdown();
+          shutdownSignal.addEventListener("abort", abortOnShutdown, {
+            once: true,
+          });
+
           try {
             await storageService.uploadFileBuffered({
               fileName: filePath,
@@ -636,6 +648,8 @@ export const processBlobStorageExport = async (config: {
             // still classified as ch-error by its preserved cause chain.
             abortTracker.record("upload", uploadError);
             throw uploadError;
+          } finally {
+            shutdownSignal.removeEventListener("abort", abortOnShutdown);
           }
           // Record at the upload boundary so a throw in the `finally` below
           // can't miscount a real success as a failure.
@@ -831,7 +845,8 @@ export const processBlobStorageExport = async (config: {
             table: config.table,
           });
         }
-        logger.error(
+        // A shutdown abort is routine (the job is re-queued), not an error.
+        logger[origin.reason === "shutdown" ? "warn" : "error"](
           `[BLOB INTEGRATION] Error exporting ${config.table} for project ${config.projectId} ` +
             `(jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID} ` +
             `abortReason=${origin.reason} abortStage=${origin.stage}` +
