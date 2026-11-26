@@ -89,6 +89,7 @@ export class BufferedStreamUploader {
   private currentBuffer: Buffer[] = [];
   private currentBufferSize = 0;
   private isCompleted = false;
+  private sourceFailed = false;
   private inFlightUploads: Map<symbol, Promise<void>> = new Map();
   private readonly errors = new ErrorSink();
   private readonly stats: UploadPartStats;
@@ -107,7 +108,7 @@ export class BufferedStreamUploader {
     try {
       await this.params.strategy.initialize();
 
-      for await (const chunk of stream) {
+      for await (const chunk of this.trackSourceFailure(stream)) {
         if (this.errors.hasError()) break;
 
         const buf = Buffer.isBuffer(chunk)
@@ -268,6 +269,17 @@ export class BufferedStreamUploader {
     this.inFlightUploads.set(id, promise);
   }
 
+  // A failed source (e.g. a shutdown abort) dooms the upload, so in-flight
+  // parts stop retrying instead of holding up the rejection.
+  private async *trackSourceFailure(stream: Readable): AsyncGenerator<unknown> {
+    try {
+      yield* stream;
+    } catch (error) {
+      this.sourceFailed = true;
+      throw error;
+    }
+  }
+
   private async uploadPartWithRetry(
     data: Buffer,
     partNumber: number,
@@ -278,7 +290,7 @@ export class BufferedStreamUploader {
       timeMultiple: 2,
       maxDelay: 10_000,
       retry: (error: Error, attemptNumber: number) => {
-        if (!isTransientError(error)) {
+        if (this.sourceFailed || !isTransientError(error)) {
           return false;
         }
         // backoff also invokes this on the final failing attempt; skip counting

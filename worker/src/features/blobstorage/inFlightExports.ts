@@ -88,9 +88,12 @@ export const getBlobExportShutdownSignal = (): AbortSignal =>
   shutdownController.signal;
 
 export const abortBlobExportsForShutdown = (): void => {
-  shutdownController.abort(
-    new Error("Blob storage export aborted by worker shutdown (SIGTERM)"),
+  // AbortError lets the storage layer log the teardown as a warning.
+  const reason = new Error(
+    "Blob storage export aborted by worker shutdown (SIGTERM)",
   );
+  reason.name = "AbortError";
+  shutdownController.abort(reason);
 };
 
 // Test helper — an aborted controller cannot be reset, so replace it.

@@ -377,7 +377,7 @@ export const processBlobStorageExport = async (config: {
           if (err) {
             // The pipeline source is the ClickHouse read.
             abortTracker.record("ch-read", err);
-            logger.error(
+            logger[getBlobExportShutdownSignal().aborted ? "warn" : "error"](
               "[BLOB INTEGRATION] Getting data from DB for blob storage integration failed: ",
               err,
             );
@@ -837,8 +837,10 @@ export const processBlobStorageExport = async (config: {
         span.setAttribute("blob.abortReason", origin.reason);
         span.setAttribute("blob.abortStage", origin.stage);
 
-        // Skip if `success` already fired (a later step threw post-upload).
-        if (!uploadSucceeded) {
+        // Skip if `success` already fired (a later step threw post-upload), or
+        // on shutdown, whose single outcome is the `aborted` count taken when
+        // SIGTERM arrived.
+        if (!uploadSucceeded && origin.reason !== "shutdown") {
           recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
             outcome: "failure" satisfies BlobTableExportOutcome,
             abortReason: origin.reason,
