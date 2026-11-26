@@ -689,16 +689,17 @@ export function SampleObservationSelectorBase(
             queryOnlyColumnIds={queryOnlyColumnIds}
           />
         )}
-        {showTraceDetail ? (
+        {showTraceDetail && (
           <div className="flex items-center gap-2">
             <div className="text-muted-foreground -ml-2 flex min-w-0 flex-wrap gap-0.5">
               {presetButtons}
             </div>
             <div className="ml-auto shrink-0">{filterModeControl}</div>
           </div>
-        ) : presetButtons ? (
+        )}
+        {!showTraceDetail && presetButtons && (
           <div className="-ml-3 flex flex-wrap">{presetButtons}</div>
-        ) : null}
+        )}
       </section>
 
       {showTraceDetail && (
