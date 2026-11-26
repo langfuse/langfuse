@@ -16,6 +16,7 @@ import type {
   StringReference,
 } from "kysely";
 import { getClickhouseKysely } from "../../../server/query-ast/dialect";
+import { QueryCompileError } from "../../../server/query-ast/errors";
 import type { QueryType, ViewDeclarationType, ViewVersion } from "../types";
 import type { QueryLevel } from "./registryEntry";
 import {
@@ -168,6 +169,12 @@ export type AstViewBuilder = (
   ctx: BuildContext,
 ) => { query: string; parameters: Record<string, unknown> };
 
+/** An {@link AstView} as `QueryBuilder` dispatches to it. */
+type DefinedAstView = {
+  serves: readonly ViewDeclarationType[];
+  build: AstViewBuilder;
+};
+
 /**
  * `spec` as the declarations it serves and their builder, whose type hides
  * the spec's type parameters. The builder runs, in order: map dimensions and
@@ -179,11 +186,32 @@ export type AstViewBuilder = (
  */
 export function defineAstView<DB, Base extends keyof DB & string, F, P>(
   spec: AstView<DB, Base, F, P>,
-): { serves: readonly ViewDeclarationType[]; build: AstViewBuilder } {
+): DefinedAstView {
   return {
     serves: spec.serves,
     build: (query, view, ctx) => buildAstViewQuery(spec, query, view, ctx),
   };
+}
+
+/**
+ * The builders of `astViews`, keyed by the declaration objects they serve.
+ * Throws `QueryCompileError` for a declaration two of them serve.
+ */
+export function astViewsByDeclaration(
+  astViews: readonly DefinedAstView[],
+): ReadonlyMap<ViewDeclarationType, AstViewBuilder> {
+  const byDeclaration = new Map<ViewDeclarationType, AstViewBuilder>();
+  for (const { serves, build } of astViews) {
+    for (const declaration of serves) {
+      if (byDeclaration.has(declaration)) {
+        throw new QueryCompileError(
+          `View "${declaration.name}" is served by two AST views.`,
+        );
+      }
+      byDeclaration.set(declaration, build);
+    }
+  }
+  return byDeclaration;
 }
 
 function buildAstViewQuery<DB, Base extends keyof DB & string, F, P>(

@@ -9,18 +9,24 @@ import {
   SCORES_LISTABLE_COUNT_VIEW,
 } from "../types";
 
-import {
-  eventsObservationsView,
-  eventsTracesView,
-  getViewDeclaration,
-} from "../dataModel";
+import { getViewDeclaration } from "../dataModel";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { env } from "../../../env";
 import { scoresAstView } from "./scoresQuery";
 import { eventsObservationsAstView } from "./eventsObservationsQuery";
 import { eventsTracesAstView } from "./eventsTracesQuery";
 import { buildSqlText } from "./sqlTextQuery";
-import { type BuildContext } from "./astViewQuery";
+import { astViewsByDeclaration, type BuildContext } from "./astViewQuery";
+
+/**
+ * The builder of each declaration that compiles through the query AST;
+ * `QueryBuilder.build` assembles every other one as SQL text.
+ */
+export const AST_VIEWS = astViewsByDeclaration([
+  eventsObservationsAstView,
+  eventsTracesAstView,
+  scoresAstView,
+]);
 
 export class QueryBuilder {
   private chartConfig?: { bins?: number; row_limit?: number };
@@ -62,11 +68,9 @@ export class QueryBuilder {
   }
 
   /**
-   * The ClickHouse SQL and parameters of `query` for `projectId`. The v2
-   * observations view ({@link buildEventsObservations}), the v2 traces view
-   * ({@link buildEventsTraces}) and the v2 score views ({@link buildScores})
-   * compile through the query AST; every other view and version is
-   * assembled as SQL text ({@link buildSqlText}).
+   * The ClickHouse SQL and parameters of `query` for `projectId`. The
+   * declarations in {@link AST_VIEWS} compile through the query AST; every
+   * other view and version is assembled as SQL text ({@link buildSqlText}).
    *
    * Errors: `InvalidRequestError` for a query the schema or the view rejects.
    */
@@ -82,22 +86,9 @@ export class QueryBuilder {
       );
     }
     const view = this.getViewDeclaration(query.view);
-    if (view === eventsObservationsView) {
-      return eventsObservationsAstView.build(
-        query,
-        view,
-        this.astContext(projectId, enableSingleLevelOptimization),
-      );
-    }
-    if (view === eventsTracesView) {
-      return eventsTracesAstView.build(
-        query,
-        view,
-        this.astContext(projectId, enableSingleLevelOptimization),
-      );
-    }
-    if (scoresAstView.serves.includes(view)) {
-      return scoresAstView.build(
+    const astView = AST_VIEWS.get(view);
+    if (astView) {
+      return astView(
         query,
         view,
         this.astContext(projectId, enableSingleLevelOptimization),
