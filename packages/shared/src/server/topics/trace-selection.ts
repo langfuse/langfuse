@@ -18,7 +18,7 @@ import { queryClickhouse } from "../repositories/clickhouse";
 import type { TopicCohortTraces } from "./clickhouse";
 import {
   INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-  PUBLIC_LLM_JUDGE_ENVIRONMENT,
+  PUBLIC_INTERNAL_EVAL_ENVIRONMENTS,
 } from "../llm/isInternalEvalEnvironment";
 
 type PreviewRow = {
@@ -32,7 +32,7 @@ type PreviewRow = {
 // A summary dates from its trace's first event, and the matching observation
 // can follow later in the trace. A trace that matches more than an hour after
 // it starts is missed when it starts within that hour before the window's end.
-const TRACE_SPAN_MARGIN_MS = 60 * 60_000;
+export const TRACE_SPAN_MARGIN_MS = 60 * 60_000;
 const NO_COHORT_TRACES = { query: "SELECT '' AS id LIMIT 0", params: {} };
 
 /**
@@ -157,16 +157,89 @@ export async function summarizedTopicMatchesQuery(
  * a subquery; null when nothing can match.
  */
 export async function topicMatchingTraceIdsQuery(
-  input: Parameters<typeof matchingObservationsQuery>[0],
+  input: Parameters<typeof matchingObservationsQuery>[0] & {
+    /** Limits the read to these traces; the trace ID bloom index skips the rest. */
+    traceIds?: string[];
+  },
   prisma: PrismaClient,
 ): Promise<{ query: string; params: Record<string, unknown> } | null> {
-  const matching = await matchingObservationsQuery(input, prisma, false);
+  const matching = await matchingObservationsQuery(
+    input,
+    prisma,
+    false,
+    input.traceIds && {
+      condition: "e.trace_id IN {matchTraceIds: Array(String)}",
+      params: { matchTraceIds: input.traceIds },
+    },
+  );
   return matching
     ? {
         query: `SELECT DISTINCT id FROM (${matching.query})`,
         params: matching.params,
       }
     : null;
+}
+
+/**
+ * IDs of a map's discovery-cohort traces that meet a tracing filter. The run's
+ * initial assignments bound the events read, so at most every map point returns.
+ */
+export async function selectTopicMapMatches(
+  input: {
+    projectId: string;
+    runId: string;
+    facet: TopicFacetRef;
+    timeRange: { from: Date; to: Date };
+    filter: Parameters<typeof matchingObservationsQuery>[0]["filter"];
+  },
+  prisma: PrismaClient,
+): Promise<string[]> {
+  const { from, to } = input.timeRange;
+  const matching = await matchingObservationsQuery(
+    {
+      projectId: input.projectId,
+      filter: input.filter,
+      from,
+      to: new Date(to.getTime() + TRACE_SPAN_MARGIN_MS),
+    },
+    prisma,
+    false,
+    {
+      condition: `e.trace_id IN (
+        SELECT trace_id
+        FROM topic_assignments
+        WHERE project_id = {mapProjectId: String}
+          AND unit_start_time >= {mapFrom: DateTime64(3)}
+          AND unit_start_time < {mapTo: DateTime64(3)}
+          AND facet_id = {mapFacetId: String}
+          AND facet_version = {mapFacetVersion: UInt32}
+          AND clustering_run_id = {mapRunId: String}
+          AND origin = 'initial'
+          AND trace_id != ''
+      )`,
+      params: {
+        mapProjectId: input.projectId,
+        mapFacetId: input.facet.facetId,
+        mapFacetVersion: input.facet.version,
+        mapRunId: input.runId,
+        mapFrom: convertDateToClickhouseDateTime(from),
+        mapTo: convertDateToClickhouseDateTime(to),
+      },
+    },
+  );
+  if (!matching) return [];
+  const rows = await queryClickhouse<{ id: string }>({
+    query: `SELECT DISTINCT id FROM (${matching.query})`,
+    params: matching.params,
+    preferredClickhouseService: "EventsReadOnly",
+    tags: { projectId: input.projectId, route: "topics-map-matches" },
+    clickhouseSettings: {
+      max_threads: 2,
+      max_execution_time: 30,
+      timeout_overflow_mode: "throw",
+    },
+  });
+  return rows.map((row) => row.id);
 }
 
 /** The same subquery for clustering joins, which need one even when nothing matches. */
@@ -226,10 +299,10 @@ export async function selectTopicTraceRows(
     )
     .groupBy("m.id")
     .havingRaw(
-      "NOT startsWith(environment, {internalEnvironmentPrefix:String}) AND environment != {publicLlmJudgeEnvironment:String}",
+      "NOT startsWith(environment, {internalEnvironmentPrefix:String}) AND environment NOT IN {publicInternalEnvironments:Array(String)}",
       {
         internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-        publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+        publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
       },
     )
     .buildWithParams();

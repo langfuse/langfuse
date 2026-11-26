@@ -66,14 +66,18 @@ const createModel = async (
   return id;
 };
 
-const createCaller = (orgId: string, projectId: string) => {
+const createCaller = (
+  orgId: string,
+  projectId: string,
+  role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" = "OWNER",
+) => {
   const session = createSession({
     user: { id: `user-${v4()}`, name: "Org models test user" },
     organizations: [
       {
         id: orgId,
         name: orgId,
-        role: "OWNER",
+        role,
         plan: "cloud:team",
         projects: [
           {
@@ -269,28 +273,293 @@ describe("organization model definitions", () => {
         }),
       ).rejects.toThrow("Model not found");
     });
+
+    it("marks definitions whose name a higher-precedence scope also defines", async () => {
+      const caller = createCaller(orgA.orgId, orgA.projectId);
+      const { models } = await caller.models.getAll({
+        projectId: orgA.projectId,
+        page: 0,
+        limit: 100,
+        searchString: suffix,
+      });
+
+      expect(
+        Object.fromEntries(models.map((m) => [m.id, m.isOverridden])),
+      ).toEqual({
+        [ids.projectA1Shared]: false,
+        [ids.orgAShared]: true,
+        [ids.langfuseShared]: true,
+        [ids.orgAOnly]: false,
+      });
+    });
+
+    it("pages definitions across scopes with a stable total", async () => {
+      const caller = createCaller(orgA.orgId, orgA.projectId);
+      const getPage = (page: number, limit: number) =>
+        caller.models.getAll({
+          projectId: orgA.projectId,
+          page,
+          limit,
+          searchString: suffix,
+        });
+
+      const all = await getPage(0, 100);
+      const pages = await Promise.all([0, 1, 2].map((p) => getPage(p, 3)));
+
+      expect(pages.map((p) => p.models.length)).toEqual([3, 1, 0]);
+      expect(pages.map((p) => p.totalCount)).toEqual([4, 4, 4]);
+      expect(pages.flatMap((p) => p.models.map((m) => m.id))).toEqual(
+        all.models.map((m) => m.id),
+      );
+      expect(all.models.map((m) => m.id)).toEqual([
+        ids.projectA1Shared,
+        ids.orgAOnly,
+        ids.orgAShared,
+        ids.langfuseShared,
+      ]);
+    });
+  });
+
+  describe("tRPC organization models router", () => {
+    it("lists the organization's own and Langfuse definitions, never project ones", async () => {
+      const caller = createCaller(orgA.orgId, orgA.projectId, "ADMIN");
+      const { models, totalCount } = await caller.organizationModels.getAll({
+        orgId: orgA.orgId,
+        page: 0,
+        limit: 100,
+        searchString: suffix,
+      });
+
+      expect(totalCount).toBe(3);
+      expect(
+        Object.fromEntries(models.map((m) => [m.id, m.isOverridden])),
+      ).toEqual({
+        [ids.orgAShared]: false,
+        [ids.orgAOnly]: false,
+        [ids.langfuseShared]: true,
+      });
+    });
+
+    it("lets admins create, edit and delete definitions that apply to every project, with audit logs", async () => {
+      const caller = createCaller(orgA.orgId, orgA.projectId, "ADMIN");
+      const modelName = `org-crud-${suffix}`;
+      const resolve = async () =>
+        (await findModel({ projectId: projectA2Id, model: modelName })).model
+          ?.id ?? null;
+      const upsert = (modelId: string | null, input: string) =>
+        caller.organizationModels.upsert({
+          orgId: orgA.orgId,
+          modelId,
+          modelName,
+          matchPattern: exact(modelName),
+          pricingTiers: [
+            {
+              name: "Standard",
+              isDefault: true,
+              priority: 0,
+              conditions: [],
+              prices: { input: Number(input) },
+            },
+          ],
+        });
+
+      // Caches a miss, which the write must invalidate for every project.
+      expect(await resolve()).toBeNull();
+
+      const created = await upsert(null, "0.1");
+      expect(created).toMatchObject({
+        scope: "ORGANIZATION",
+        organizationId: orgA.orgId,
+        projectId: null,
+      });
+      expect(await resolve()).toBe(created.id);
+
+      await upsert(created.id, "0.2");
+      const match = await caller.organizationModels.testMatch({
+        orgId: orgA.orgId,
+        modelName,
+      });
+      expect(match.matched && match.matchedTier.prices).toEqual({
+        input: 0.2,
+      });
+
+      await caller.organizationModels.delete({
+        orgId: orgA.orgId,
+        modelId: created.id,
+      });
+      expect(await resolve()).toBeNull();
+
+      const logs = await prisma.auditLog.findMany({
+        where: { resourceType: "model", resourceId: created.id },
+      });
+      expect(
+        logs.map((log) => [log.action, log.orgId, log.projectId]).sort(),
+      ).toEqual([
+        ["create", orgA.orgId, null],
+        ["delete", orgA.orgId, null],
+        ["update", orgA.orgId, null],
+      ]);
+      const update = logs.find((log) => log.action === "update");
+      expect(update?.before).toContain('"0.1"');
+      expect(update?.after).toContain('"0.2"');
+    });
+
+    it("forbids members and viewers", async () => {
+      const member = createCaller(orgA.orgId, orgA.projectId, "MEMBER");
+      const viewer = createCaller(orgA.orgId, orgA.projectId, "VIEWER");
+
+      await expect(
+        member.organizationModels.getAll({
+          orgId: orgA.orgId,
+          page: 0,
+          limit: 10,
+          searchString: "",
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(
+        viewer.organizationModels.delete({
+          orgId: orgA.orgId,
+          modelId: ids.orgAOnly,
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("treats definitions owned by anyone else as missing", async () => {
+      const caller = createCaller(orgA.orgId, orgA.projectId, "OWNER");
+      const orgId = orgA.orgId;
+
+      for (const modelId of [ids.orgBOnly, ids.projectA1Shared]) {
+        await expect(
+          caller.organizationModels.getById({ orgId, modelId }),
+        ).rejects.toThrow("Model not found");
+      }
+      for (const modelId of [
+        ids.orgBOnly,
+        ids.projectA1Shared,
+        ids.langfuseShared,
+      ]) {
+        await expect(
+          caller.organizationModels.upsert({
+            orgId,
+            modelId,
+            modelName: `hijack-${suffix}`,
+            matchPattern: "x",
+            pricingTiers: [
+              {
+                name: "Standard",
+                isDefault: true,
+                priority: 0,
+                conditions: [],
+                prices: { input: 1 },
+              },
+            ],
+          }),
+        ).rejects.toThrow("Model not found");
+        await expect(
+          caller.organizationModels.delete({ orgId, modelId }),
+        ).rejects.toThrow("Model not found");
+      }
+    });
+
+    it("previews matches against organization and Langfuse definitions only", async () => {
+      const caller = createCaller(orgA.orgId, orgA.projectId);
+      const testMatch = (modelName: string) =>
+        caller.organizationModels.testMatch({ orgId: orgA.orgId, modelName });
+
+      const shared = await testMatch(sharedName);
+      expect(shared.matched && shared.model.id).toBe(ids.orgAShared);
+      expect((await testMatch(orgBName)).matched).toBe(false);
+    });
   });
 
   describe("public models API", () => {
-    it("lists own organization definitions as not Langfuse managed", async () => {
-      const listed = new Map<string, boolean>();
+    it("lists each definition's scope and marks organization definitions as read-only", async () => {
+      const listed = new Map<
+        string,
+        { scope: string; isLangfuseManaged: boolean }
+      >();
       for (let page = 1, totalPages = 1; page <= totalPages; page++) {
         const response = await makeZodVerifiedAPICall(
           GetModelsV1Response,
           "GET",
           `/api/public/models?page=${page}&limit=100`,
           undefined,
-          orgB.auth,
+          orgA.auth,
         );
         totalPages = response.body.meta.totalPages;
         for (const m of response.body.data) {
-          listed.set(m.id, m.isLangfuseManaged);
+          listed.set(m.id, {
+            scope: m.scope,
+            isLangfuseManaged: m.isLangfuseManaged,
+          });
         }
       }
 
-      expect(listed.get(ids.orgBOnly)).toBe(false);
-      expect(listed.has(ids.orgAOnly)).toBe(false);
-      expect(listed.has(ids.orgAShared)).toBe(false);
+      expect(listed.get(ids.projectA1Shared)).toEqual({
+        scope: "PROJECT",
+        isLangfuseManaged: false,
+      });
+      expect(listed.get(ids.orgAOnly)).toEqual({
+        scope: "ORGANIZATION",
+        isLangfuseManaged: true,
+      });
+      expect(listed.get(ids.langfuseShared)).toEqual({
+        scope: "LANGFUSE",
+        isLangfuseManaged: true,
+      });
+      expect(listed.has(ids.orgBOnly)).toBe(false);
+    });
+
+    it("forbids replacing or deleting own organization definitions, and hides another organization's", async () => {
+      const body = {
+        modelName: orgOnlyName,
+        matchPattern: exact(orgOnlyName),
+        unit: "TOKENS",
+        inputPrice: 1,
+      };
+
+      const put = await makeAPICall<{ message: string }>(
+        "PUT",
+        `/api/public/models/${ids.orgAOnly}`,
+        body,
+        orgA.auth,
+      );
+      expect(put.status).toBe(403);
+      expect(put.body.message).toContain("defined by the organization");
+
+      const del = await makeAPICall(
+        "DELETE",
+        `/api/public/models/${ids.orgAOnly}`,
+        undefined,
+        orgA.auth,
+      );
+      expect(del.status).toBe(403);
+
+      const unchanged = await prisma.model.findUniqueOrThrow({
+        where: { id: ids.orgAOnly },
+        include: { pricingTiers: { include: { prices: true } } },
+      });
+      expect(unchanged.scope).toBe("ORGANIZATION");
+      expect(unchanged.projectId).toBeNull();
+      expect(unchanged.pricingTiers[0]?.prices[0]?.price.toString()).toBe(
+        "0.004",
+      );
+
+      const otherPut = await makeAPICall(
+        "PUT",
+        `/api/public/models/${ids.orgBOnly}`,
+        { ...body, modelName: orgBName, matchPattern: exact(orgBName) },
+        orgA.auth,
+      );
+      expect(otherPut.status).toBe(404);
+
+      const otherDelete = await makeAPICall(
+        "DELETE",
+        `/api/public/models/${ids.orgBOnly}`,
+        undefined,
+        orgA.auth,
+      );
+      expect(otherDelete.status).toBe(404);
     });
 
     it("gets own organization definitions but not another organization's", async () => {

@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { PopoverTrigger } from "@/src/components/ui/popover";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../../../../../../../../../.storybook/preview";
 import { CategoryEditorPopover } from "./CategoryEditorPopover";
@@ -40,5 +40,20 @@ export const Add = meta.story({
     onChange: fn(),
     onDelete: null,
     onDone: fn(),
+  },
+});
+
+export const TestConfirmOnEnter = meta.story({
+  name: "(Test) Confirms the category name when Enter is pressed",
+  args: Edit.input.args,
+  play: async ({ canvasElement, args }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const input = body.getByRole("textbox", { name: "Category label" });
+    await expect(input).toHaveValue("Correct");
+    await userEvent.click(input);
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onDone).toHaveBeenCalledOnce();
+    await expect(args.onOpenChange).not.toHaveBeenCalled();
+    await expect(args.onDelete).not.toHaveBeenCalled();
   },
 });

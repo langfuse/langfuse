@@ -1,5 +1,6 @@
 import { useMemo, type ComponentProps, type ReactNode } from "react";
 import { useRouter } from "next/router";
+import { keepPreviousData } from "@tanstack/react-query";
 import { type FilterState } from "@langfuse/shared";
 import { useMediaQuery } from "react-responsive";
 import {
@@ -9,6 +10,7 @@ import {
   useDefaultLayout,
 } from "@/src/components/ui/resizable";
 import { cn } from "@/src/utils/tailwind";
+import { api } from "@/src/utils/api";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { TopicsEmptyState } from "../TopicsEmptyState";
 import {
@@ -28,8 +30,15 @@ import {
   scatterSwatchColor,
   UNASSIGNED_SWATCH_COLOR,
 } from "../topic-map-colors";
-import { filterTopicTraces, topicTraceQuery } from "../topic-trace-filters";
+import {
+  filterTopicTraces,
+  splitTopicTraceFilters,
+  topicTraceQuery,
+} from "../topic-trace-filters";
 import { type useTopicTraceFilters } from "../useTopicTraceFilters";
+import { useTopicResultsTraceSuggestions } from "../useTopicTraceFilter";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
+import { useTopicsCapture } from "../useTopicsCapture";
 import { ScatterMap } from "./ScatterMap";
 
 /** The scatter above one-line topic rows, with the selected topic's traces beside them. */
@@ -46,6 +55,7 @@ export function ScatterTopicsView({
 }: ScatterTopicsViewProps) {
   // A dot click opens its trace in the peek; the map keeps that dot's card open while the peek shows it.
   const router = useRouter();
+  const capture = useTopicsCapture();
   const peekTraceId =
     typeof router.query.peek === "string" ? router.query.peek : null;
   // The rows are the map's legend, so they take the scatter's colors.
@@ -54,9 +64,15 @@ export function ScatterTopicsView({
   );
   // A stable list keeps the highlight set, and so a pinned card, across selection re-renders.
   const searchTopics = useMemo(() => orderedFacetTopics(facet), [facet]);
+  const traceFieldSuggestions = useTopicResultsTraceSuggestions(projectId);
+  // Trace field filters (session, user, tags, …) narrow whatever the topic filters select.
+  const [topicFieldFilters, traceFieldFilters] = splitTopicTraceFilters(
+    traceFilters.filters,
+  );
+  const hasTraceFieldFilters = traceFieldFilters.length > 0;
   // The search bar holds the selection: picking a topic writes its filter there.
   const selectedTopicId = pickedTopicId(
-    traceFilters.filters,
+    topicFieldFilters,
     traceFilters.searchQuery,
   );
   const selected = topics.find((topic) => topic.id === selectedTopicId);
@@ -73,21 +89,33 @@ export function ScatterTopicsView({
         searchTopics,
         { assignedOnly: !showUnassigned },
       );
-    if (selected) return topicQuery(selected.id);
+    if (selected)
+      return {
+        ...topicQuery(selected.id),
+        ...(hasTraceFieldFilters && { filter: traceFieldFilters }),
+      };
     return showUnassigned ? {} : { assigned: true };
   }
-  // Picking a topic replaces the search with its filter; picking it again, or null, clears it.
-  function selectTopic(topicId: string | null) {
+  // Picking a topic replaces the search and topic filters with its filter; picking it
+  // again, or null, clears it. Trace field filters stay.
+  function selectTopic(topicId: string | null, surface: "row" | "map") {
+    if (topicId !== null && topicId !== selectedTopicId)
+      capture("topics:topic_selected", {
+        view: "scatter",
+        surface,
+        isUnassigned: topicId === UNASSIGNED_TOPIC_ID,
+      });
     traceFilters.setSearchQuery(null);
-    traceFilters.setFilters(
-      topicId === null || topicId === selectedTopicId
+    traceFilters.setFilters([
+      ...(topicId === null || topicId === selectedTopicId
         ? []
-        : topicFilters(topicId),
-    );
+        : topicFilters(topicId)),
+      ...traceFieldFilters,
+    ]);
   }
   // Map resets (Fit, Escape, an empty click) drop a picked topic but keep a typed search.
   function clearPickedTopic() {
-    if (selected) selectTopic(null);
+    if (selected) selectTopic(null, "map");
   }
   function listTitle() {
     if (isSearching) return "Matching traces";
@@ -95,7 +123,7 @@ export function ScatterTopicsView({
   }
   function listCount() {
     // A search's total is unknown; the list only holds the loaded pages.
-    if (isSearching) return null;
+    if (isSearching || hasTraceFieldFilters) return null;
     return selected ? selected.count : facet.counts.total;
   }
   // Bars scale to the biggest real topic; Unassigned would flatten the rest.
@@ -112,7 +140,7 @@ export function ScatterTopicsView({
     traceFilters.filters,
     traceFilters.searchQuery,
   ]);
-  const highlightedTraceIds = useMemo(() => {
+  const topicHighlightIds = useMemo(() => {
     if (mapData?.status !== "ready") return undefined;
     // A search highlights its matches on the map; otherwise the picked topic does.
     if (isSearching) {
@@ -145,6 +173,17 @@ export function ScatterTopicsView({
         .map((point) => point.traceId),
     );
   }, [mapData, selectedTopicId, isSearching, searchKey, searchTopics]);
+  const { ids: traceFieldMatches, error: traceFieldMatchesError } =
+    useTraceFieldMatches(projectId, facet.map?.runId, traceFieldFilters);
+  // Topic filters and trace field filters both have to match for a dot to stay lit.
+  const highlightedTraceIds = useMemo(() => {
+    if (!traceFieldMatches || mapData?.status !== "ready")
+      return topicHighlightIds;
+    if (!topicHighlightIds) return traceFieldMatches;
+    return new Set(
+      [...topicHighlightIds].filter((id) => traceFieldMatches.has(id)),
+    );
+  }, [topicHighlightIds, traceFieldMatches, mapData?.status]);
   // The map shows a selection only while it still matches, like the list.
   const mapSelectedTraceId =
     peekTraceId &&
@@ -165,7 +204,7 @@ export function ScatterTopicsView({
             topic={topic}
             maxCount={maxCount}
             selected={topic.id === selected?.id}
-            onSelect={() => selectTopic(topic.id)}
+            onSelect={() => selectTopic(topic.id, "row")}
           />
         </li>
       ))}
@@ -180,25 +219,46 @@ export function ScatterTopicsView({
         facet.map ? (
           <MapAndRowsSplit
             map={
-              <ScatterMap
-                key={facet.map.runId}
-                query={mapResult}
-                topics={mapTopics}
-                selectedTopic={null}
-                matchingTraceIds={highlightedTraceIds}
-                onSelectTopic={(topicId) =>
-                  topicId === null ? clearPickedTopic() : selectTopic(topicId)
-                }
-                onSelectTrace={(traceId) => {
-                  if (!traceId) return clearPickedTopic();
-                  if (document.fullscreenElement)
-                    document.exitFullscreen().catch(() => undefined);
-                  onOpenTrace(traceId);
-                }}
-                selectedTraceId={mapSelectedTraceId}
-                pinSelection
-                fillContainer
-              />
+              <>
+                {traceFieldMatchesError && (
+                  <div className="p-2">
+                    <Banner variant="error">
+                      <p className="break-words">
+                        Matching dots could not load:{" "}
+                        {traceFieldMatchesError.message}
+                      </p>
+                    </Banner>
+                  </div>
+                )}
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <ScatterMap
+                    key={facet.map.runId}
+                    query={mapResult}
+                    topics={mapTopics}
+                    selectedTopic={null}
+                    pickedTopic={
+                      selectedTopicId === UNASSIGNED_TOPIC_ID
+                        ? null
+                        : selectedTopicId
+                    }
+                    matchingTraceIds={highlightedTraceIds}
+                    onSelectTopic={(topicId) =>
+                      topicId === null
+                        ? clearPickedTopic()
+                        : selectTopic(topicId, "map")
+                    }
+                    onSelectTrace={(traceId) => {
+                      if (!traceId) return clearPickedTopic();
+                      if (document.fullscreenElement)
+                        document.exitFullscreen().catch(() => undefined);
+                      onOpenTrace(traceId);
+                    }}
+                    selectedTraceId={mapSelectedTraceId}
+                    pinSelection
+                    fillContainer
+                  />
+                </div>
+              </>
             }
             rows={rows}
           />
@@ -227,7 +287,9 @@ export function ScatterTopicsView({
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           divider="none"
-          emptyMessage={isSearching ? "No matches." : undefined}
+          emptyMessage={
+            isSearching || hasTraceFieldFilters ? "No matches." : undefined
+          }
           topicColors={new Map(topics.map((topic) => [topic.id, topic.color]))}
           search={{
             projectId,
@@ -236,6 +298,7 @@ export function ScatterTopicsView({
             onFiltersChange: traceFilters.setFilters,
             searchQuery: traceFilters.searchQuery,
             onSearchQueryChange: traceFilters.setSearchQuery,
+            traceFields: traceFieldSuggestions,
           }}
         />
       }
@@ -370,6 +433,30 @@ function useScatterMapTopics(facet: Facet) {
       };
     });
   }, [mapTopics, rankKey]);
+}
+
+/**
+ * The map's traces that meet the trace field filters; undefined while there are none
+ * or before the first answer. A changed filter keeps the last highlight until it loads.
+ */
+function useTraceFieldMatches(
+  projectId: string,
+  runId: string | undefined,
+  filters: FilterState,
+) {
+  const enabled = Boolean(runId) && filters.length > 0;
+  const matches = api.topics.mapMatches.useQuery(
+    { projectId, runId: runId ?? "", filter: filters },
+    { enabled, placeholderData: keepPreviousData },
+  );
+  const traceIds = enabled ? matches.data?.traceIds : undefined;
+  const failed = enabled && matches.isError;
+  const ids = useMemo(
+    // A failed match dims every dot rather than lighting traces that may not match.
+    () => (failed ? new Set<string>() : traceIds && new Set(traceIds)),
+    [failed, traceIds],
+  );
+  return { ids, error: failed ? matches.error : null };
 }
 
 /** One topic picked in the list or on the map, as a search-bar filter. */

@@ -60,6 +60,7 @@ export function widgetChartTypeSupportsBreakdown(type: string): boolean {
  * (running the function again on its own output always returns null). This
  * prevents infinite React state-update loops when constraints conflict — e.g.
  * HISTOGRAM requires "histogram" aggregation but "count" measure forces "count".
+ * @internal
  */
 export function resolveAggregationAndChartType(params: {
   chartType: string;

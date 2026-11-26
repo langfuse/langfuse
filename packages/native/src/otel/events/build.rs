@@ -4,6 +4,8 @@
 //! Stages share the source's parse cache and metadata diagnostics. The returned event
 //! owns its data after that per-span parsing state is dropped.
 
+use std::rc::Rc;
+
 use super::super::attributes::{
     attributes_to_map, is_js_truthy, parse_id, resolve_timestamps, retain_evaluation_value,
     value_as_string, AttributeSource, EventAttributes, JsonParseCache,
@@ -18,8 +20,8 @@ use super::super::providers::{
     claude_managed_agent_session_id, extract_completion_start_time, extract_cost_details,
     extract_input_output, extract_is_app_root, extract_model_name, extract_model_parameters,
     extract_name, extract_prompt_version, extract_prompt_version_lookup, extract_public,
-    extract_tags, extract_usage_details, observation_type, should_skip_model_usage_and_cost,
-    ProviderIO,
+    extract_tags, extract_usage_details, filter_attributes, observation_type,
+    should_skip_model_usage_and_cost, ProviderIO,
 };
 use super::super::tools::normalize_tools_for_observation;
 use super::super::types::{JsonObject, OwnedEvent};
@@ -28,7 +30,14 @@ use super::EventBuildConfig;
 
 use crate::native_schema::OtelStorageRow;
 
-const INTERNAL_LLM_JUDGE_ENVIRONMENT: &str = "langfuse-llm-as-a-judge";
+const INTERNAL_TRACE_ENVIRONMENTS: &[&str] = &[
+    "langfuse-prompt-experiment",
+    "langfuse-llm-as-a-judge",
+    "langfuse-code-eval",
+    "langfuse-natural-language-filter",
+    "langfuse-in-app-agent",
+    "langfuse-topics-internal",
+];
 pub(super) const AI_GATEWAY_SERVICE_NAME: &str = "langfuse-ai-gateway";
 const AI_GATEWAY_INGESTION_API_KEY_PREFIX: &str = "gateway:";
 const AI_GATEWAY_KEY_ID_METADATA_KEY: &str = "langfuse.gateway.api_key.id";
@@ -83,7 +92,7 @@ impl<'a> EventAssembly<'a> {
         }
         let mut source = EventSource::new(span, resource, scope_name, scope_version, config);
         let (row, evaluation_fields) =
-            source.row(trace_id, span_id, resource, scope, scope_version, config);
+            source.row(trace_id, span_id, resource, scope, scope_version, config)?;
         let event = OwnedEvent {
             row,
             evaluation_fields,
@@ -113,9 +122,7 @@ impl<'a> EventAssembly<'a> {
         let payloads = self.source.payloads(&self.event.row);
         self.event.input = payloads.input;
         self.event.output = payloads.output;
-        self.event.metadata = self
-            .source
-            .metadata(payloads.filtered_attributes, resource, scope);
+        self.event.metadata = self.source.metadata(resource, scope);
         self
     }
 
@@ -247,7 +254,8 @@ impl<'a> EventAssembly<'a> {
 /// Source data and per-span parsing state shared by the assembly stages.
 struct EventSource<'a> {
     span: Span,
-    attributes: JsonObject,
+    /// Shared with `cache`, which remembers parses by attribute position.
+    attributes: Rc<JsonObject>,
     scope_name: &'a str,
     cache: JsonParseCache,
     diagnostics: MetadataDiagnostics<'a>,
@@ -262,12 +270,14 @@ impl<'a> EventSource<'a> {
         scope_version: Option<&str>,
         config: &'a EventBuildConfig,
     ) -> Self {
-        let attributes = object_attributes(span.attributes.take().map(|value| value.into_value()));
+        let attributes = Rc::new(object_attributes(
+            span.attributes.take().map(|value| value.into_value()),
+        ));
         Self {
             span,
+            cache: JsonParseCache::for_attributes(Rc::clone(&attributes)),
             attributes,
             scope_name,
-            cache: JsonParseCache::default(),
             diagnostics: MetadataDiagnostics::new(
                 &config.project_id,
                 &config.ingestion_sdk_name,
@@ -301,7 +311,7 @@ impl<'a> EventSource<'a> {
         scope: &Object,
         scope_version: Option<&str>,
         config: &EventBuildConfig,
-    ) -> (OtelStorageRow, Option<Box<JsonObject>>) {
+    ) -> Option<(OtelStorageRow, Option<Box<JsonObject>>)> {
         let parent_span_id = self
             .span
             .parent_span_id
@@ -324,11 +334,20 @@ impl<'a> EventSource<'a> {
             self.scope_name,
             &mut evaluation_fields,
         );
-        let (start_time, end_time) = resolve_timestamps(
+        let Some((start_time, end_time)) = resolve_timestamps(
             self.span.start_time.as_deref(),
             self.span.end_time.as_deref(),
             &config.fallback_time,
-        );
+        ) else {
+            // ClickHouse cannot store such a time. Dropping only this span preserves its siblings.
+            // A wrong time unit hits every span of an exporter, so this is counted, not logged.
+            metrics::counter!(
+                "langfuse.ingestion.otel.conversion_failure",
+                "failure_type" => "timestamp_out_of_range", "timestamp_field" => "unknown"
+            )
+            .increment(1);
+            return None;
+        };
         let mut attributes = EventAttributes {
             span: &self.attributes,
             resource,
@@ -377,7 +396,7 @@ impl<'a> EventSource<'a> {
             ingestion_sdk_version: config.ingestion_sdk_version.clone(),
             ..row
         };
-        (row, evaluation_fields)
+        Some((row, evaluation_fields))
     }
 
     fn payloads(&mut self, row: &OtelStorageRow) -> ProviderIO {
@@ -396,16 +415,12 @@ impl<'a> EventSource<'a> {
         )
     }
 
-    fn metadata(
-        &mut self,
-        filtered_attributes: JsonObject,
-        resource: &JsonObject,
-        scope: &Object,
-    ) -> JsonObject {
+    fn metadata(&mut self, resource: &JsonObject, scope: &Object) -> JsonObject {
         let mut metadata = JsonObject::new();
         // SDK scopes use root-level metadata; other spans retain the diagnostic attribute map.
         if !self.scope_name.starts_with("langfuse-sdk") {
-            metadata.insert("attributes".into(), Value::Object(filtered_attributes));
+            let attributes = filter_attributes(&self.attributes, self.scope_name);
+            metadata.insert("attributes".into(), Value::Object(attributes));
         }
         metadata.insert("resourceAttributes".into(), Value::Object(resource.clone()));
         metadata.insert("scope".into(), Value::Object(scope.clone()));
@@ -598,27 +613,24 @@ fn extract_environment(
         }
     }
 
-    // An OpenRouter failure payload with a null completion and the reserved raw-request
-    // environment uses the internal evaluator environment from the legacy recovery rule.
+    // An OpenRouter failure payload with a null completion and a reserved raw-request
+    // environment recovers that internal environment before public normalization.
     if resource.get("service.name").and_then(Value::as_str) == Some("openrouter")
         && attributes.get("openrouter.source").and_then(Value::as_str) == Some("openrouter")
     {
         let completion = attributes
             .get("gen_ai.completion")
             .and_then(|value| parse_json_value(value, parse_cache));
-        if completion
+        if let Some(raw_environment) = completion
             .as_ref()
-            .and_then(|value| value.get("completion"))
-            .is_some_and(Value::is_null)
-            && completion
-                .as_ref()
-                .and_then(|value| value.path(["rawRequest", "trace", "environment"]))
-                .and_then(Value::as_str)
-                == Some(INTERNAL_LLM_JUDGE_ENVIRONMENT)
+            .filter(|value| value.get("completion").is_some_and(Value::is_null))
+            .and_then(|value| value.path(["rawRequest", "trace", "environment"]))
+            .and_then(Value::as_str)
+            .filter(|environment| INTERNAL_TRACE_ENVIRONMENTS.contains(environment))
         {
-            // The fallback normalizes the reserved environment with internal=false, matching the
-            // public processor contract.
-            return normalize_environment(INTERNAL_LLM_JUDGE_ENVIRONMENT, false);
+            // The fallback normalizes the reserved environment with internal=false, matching
+            // the public processor contract.
+            return normalize_environment(raw_environment, false);
         }
     }
 

@@ -7,6 +7,8 @@ import preview from "../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { NewMapDialogView } from "./NewMapDialogView";
+import { costEstimateFixture } from "@/.storybook/fixtures/topicCostEstimateFixture";
+import { TopicCostEstimateView } from "./TopicCostEstimateView";
 import { TopicSliceFields } from "./TopicSliceFields";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 import {
@@ -106,6 +108,20 @@ function NewMapStory({
           onChange={setSamplingPercent}
           dailyTraces={1_240}
           tooltip="Share of new matching traces this map analyzes."
+        />
+      }
+      costEstimateField={
+        <TopicCostEstimateView
+          showUsage
+          estimate={costEstimateFixture()}
+          samplingPercent={samplingPercent}
+          dailyTraces={1_240}
+          backfillTraces={412}
+          onAddModelPrice={fn()}
+          starting={false}
+          facetCount={facetIds.length}
+          error={null}
+          onStart={fn()}
         />
       }
       canStart={name.trim().length > 0 && facetIds.length > 0}

@@ -1,7 +1,7 @@
 import { type ReactNode, useId } from "react";
 import { type IconComponent } from "@langfuse/icons";
 
-import styles from "@/src/features/ai-gateway/components/GatewayLaunch/gatewayLaunch.module.css";
+import diagramStyles from "@/src/features/ai-gateway/components/GatewayFanOutDiagram/gatewayFanOutDiagram.module.css";
 import { cn } from "@/src/utils/tailwind";
 
 function GatewayPlaceholderFrame({
@@ -18,13 +18,15 @@ function GatewayPlaceholderFrame({
   return (
     <section
       aria-labelledby={titleId}
-      className="mx-auto flex w-full max-w-3xl flex-col items-center gap-6 py-6"
+      className="mx-auto flex w-full max-w-4xl flex-col items-center gap-8 py-6"
     >
-      <div className="flex flex-col items-center gap-2 text-center">
-        <h2 id={titleId} className="text-2xl font-bold">
+      <div className="flex flex-col items-center gap-3 text-center">
+        <h2 id={titleId} className="text-3xl font-bold tracking-tight">
           {title}
         </h2>
-        <p className="text-muted-foreground max-w-lg text-sm">{description}</p>
+        <p className="text-foreground-secondary max-w-lg text-base">
+          {description}
+        </p>
       </div>
       {children}
     </section>
@@ -42,12 +44,7 @@ function GatewayPlaceholderActions({ children }: { children: ReactNode }) {
 /** A dotted panel holding a diagram; `children` sets the diagram's size. */
 function GatewayPlaceholderDiagram({ children }: { children: ReactNode }) {
   return (
-    <div
-      className={cn(
-        "bg-surface-section w-full rounded-lg border px-6 py-8",
-        styles.dotGrid,
-      )}
-    >
+    <div className={cn("w-full rounded-xl px-6 py-5", diagramStyles.panel)}>
       {children}
     </div>
   );

@@ -63,6 +63,14 @@ migration. Do not edit the materialized files. They are intentionally not
 ignored by Git so an incomplete cleanup or stale generated tree remains visible
 in `git status`.
 
+## Migrations with JWT authentication
+
+With `CLICKHOUSE_AUTH_MODE=jwt` the scripts run `clickhouse-jwt-migrate` (`clickhouse/jwt-migrate`) in place of the `migrate` CLI, which cannot send an access token. It opens the connection with the configured token source and hands it to the same `golang-migrate` driver, so both tools read and write the same `schema_migrations` table and can be used on the same database.
+
+- `CLICKHOUSE_MIGRATION_SSL=true` is required and the server certificate is verified. For a private CA set `SSL_CERT_FILE` to its bundle; `NODE_EXTRA_CA_CERTS` does not apply to this binary.
+- Setting `CLICKHOUSE_MIGRATION_USER` and `CLICKHOUSE_MIGRATION_PASSWORD` keeps migrations on the `migrate` CLI with that user.
+- The web image contains the binary. In a source checkout, build it with `go build -o clickhouse-jwt-migrate .` in `clickhouse/jwt-migrate` and put it on `PATH`; run its tests with `go test ./...`.
+
 ## Helm chart with a custom cluster name
 
 The ClickHouse cluster bundled with the current Helm chart uses the name

@@ -502,39 +502,6 @@ describe("withMiddlewares error handling", () => {
     });
   });
 
-  describe("ServiceUnavailableError handling", () => {
-    it("should handle ServiceUnavailableError with 503 status", async () => {
-      const error = new ServiceUnavailableError(
-        "Storage service temporarily unavailable due to network issues",
-      );
-
-      const handler = withMiddlewares({
-        POST: async () => {
-          throw error;
-        },
-      });
-
-      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
-        method: "POST",
-        headers: {
-          "x-langfuse-public-key": "test-key",
-        },
-      });
-
-      await handler(req, res);
-
-      expect(res._getStatusCode()).toBe(503);
-      const jsonData = JSON.parse(res._getData());
-      expect(jsonData).toMatchObject({
-        message:
-          "Storage service temporarily unavailable due to network issues",
-        error: "ServiceUnavailableError",
-      });
-      // Should trace 5xx errors
-      expect(traceException).toHaveBeenCalledWith(error);
-    });
-  });
-
   describe("Generic error handling", () => {
     it("should keep handler RangeError instances on the generic 500 path", async () => {
       const error = new RangeError("Invalid string length");
@@ -595,6 +562,7 @@ describe("withMiddlewares error handling", () => {
     it("should handle non-Error thrown values with 500 status", async () => {
       const handler = withMiddlewares({
         PATCH: async () => {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentional non-Error for middleware coverage
           throw "string error";
         },
       });
@@ -619,6 +587,7 @@ describe("withMiddlewares error handling", () => {
     it("should handle null/undefined errors with 500 status", async () => {
       const handler = withMiddlewares({
         PUT: async () => {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentional non-Error for middleware coverage
           throw null;
         },
       });

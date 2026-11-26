@@ -32,7 +32,7 @@ const StructuredPublicApiValidationIssue = z
   })
   .loose();
 
-export const StructuredPublicApiErrorDetails = z
+const StructuredPublicApiErrorDetails = z
   .object({
     issues: z.array(StructuredPublicApiValidationIssue).optional(),
     field: z.string().optional(),
@@ -52,6 +52,7 @@ export const StructuredPublicApiErrorDetails = z
   })
   .strict();
 
+/** @internal */
 export const StructuredPublicApiErrorResponse = z
   .object({
     message: z.string(),

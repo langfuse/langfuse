@@ -1,5 +1,5 @@
 /* eslint-disable react/no-unstable-nested-components */
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import { TableCard } from "@/src/components/TableCard/TableCard";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -151,7 +151,7 @@ export function BatchExportsTable({
   );
 
   return (
-    <SettingsTable
+    <TableCard
       tableName="batchExports"
       columns={columns}
       data={data}

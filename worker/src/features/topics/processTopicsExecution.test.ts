@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import type {
   TopicAssignment,
   TopicEmbeddingConfig,
@@ -10,7 +11,10 @@ import type {
   TopicTimeRange,
 } from "@langfuse/shared/topics";
 import { getTopicClusteringSummaries } from "@langfuse/shared/topics/server";
-import { TOPICS_TEXT_VERSION } from "@langfuse/shared/src/server";
+import {
+  recordIncrement,
+  TOPICS_TEXT_VERSION,
+} from "@langfuse/shared/src/server";
 import { topicExecutionInputSchema } from "@langfuse/shared/topics";
 import { TopicsProviderUnavailable } from "./provider-error";
 const { topicSourceKey } = vi.hoisted(() => ({
@@ -34,12 +38,39 @@ const state = vi.hoisted(() => ({
   assignments: new Map<string, TopicAssignment>(),
   facets: new Map<string, TopicFacetVersion>(),
   visible: true,
+  hiddenSources: 0,
   resultReads: vi.fn(),
   assignmentWrites: vi.fn(),
   saveExecution: vi.fn(),
   name: vi.fn(),
   sampleNaming: false,
   numeric: vi.fn(),
+}));
+// Replayed refits fail their run with a conditional update on the run row.
+vi.mock("@langfuse/shared/src/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/src/db")>()),
+  prisma: {
+    topicClusteringRun: {
+      updateMany: vi.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { id: string; status: string };
+          data: { status: TopicRun["status"]; error: string; finishedAt: Date };
+        }) => {
+          const run = state.runs.get(where.id);
+          if (run?.status !== where.status) return { count: 0 };
+          state.runs.set(where.id, {
+            ...run,
+            ...data,
+            finishedAt: data.finishedAt.toISOString(),
+          });
+          return { count: 1 };
+        },
+      ),
+    },
+  },
 }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
@@ -61,7 +92,6 @@ vi.mock("@langfuse/shared/topics/server", () => {
       sample: { seed: "seed", limit: 20_000 },
     }),
     getTopicTextResponseMetadata: () => undefined,
-    isTopicsEnabled: () => true,
     // A refit's rule selects every trace.
     getTopicRule: async () => ({ filter: [] }),
     getTopicsModels: async () => {
@@ -229,6 +259,36 @@ vi.mock("@langfuse/shared/topics/server", () => {
         ),
       );
     },
+    readUntilVisible: <T>(
+      _check: string,
+      _context: unknown,
+      read: () => Promise<T>,
+    ) => read(),
+    TopicAssignmentVisibilityError: class extends Error {
+      readonly name = "TopicAssignmentVisibilityError";
+    },
+    countTopicAssignmentSources: async (
+      projectId: string,
+      facet: TopicFacetRef,
+      runId: string,
+      timeRange: TopicTimeRange,
+    ) => {
+      if (!state.visible) return 0;
+      const sources = new Set(
+        [...state.assignments.values()]
+          .filter(
+            (row) =>
+              row.projectId === projectId &&
+              row.facetId === facet.facetId &&
+              row.facetVersion === facet.version &&
+              row.runId === runId &&
+              row.origin === "initial" &&
+              inTimeRange(row, timeRange),
+          )
+          .map(topicSourceKey),
+      );
+      return Math.max(0, sources.size - state.hiddenSources);
+    },
     readTopicAssignments: async (
       projectId: string,
       facet: TopicFacetRef,
@@ -250,7 +310,7 @@ vi.mock("@langfuse/shared/topics/server", () => {
     },
   };
 });
-vi.mock("./models", () => ({
+vi.mock("./llm/models", () => ({
   prepareTopicNamingGroup: async (group: {
     members: { summary: string }[];
     contrasts: { id: string; summary: string }[];
@@ -330,7 +390,7 @@ function seedSummaries(
         usageDetails: {},
         providedCostDetails: {},
         costDetails: {},
-        processedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
         metadata: {},
       };
       state.summaries.set(topicSourceKey(summary), summary);
@@ -428,6 +488,7 @@ beforeEach(() => {
   state.assignments.clear();
   state.facets.clear();
   state.visible = true;
+  state.hiddenSources = 0;
   state.sampleNaming = false;
   state.numeric.mockImplementation(async (vectors: number[][]) => ({
     status: "complete",
@@ -476,11 +537,14 @@ describe("Topics execution", () => {
   it("publishes filtered naming groups and later retries their labels without changing membership", async () => {
     const facets = [facet, { ...facet, facetId: "sibling" }];
     seedSummaries(100, undefined, facets);
-    state.name.mockRejectedValueOnce(
-      new TopicsProviderUnavailable(
-        "The model filtered this response.",
-        "content_filter",
-      ),
+    state.name.mockImplementationOnce(
+      async (_group, _metadata, _conflict, onCost) => {
+        onCost?.({ naming_input: 0.001, total: 0.001 });
+        throw new TopicsProviderUnavailable(
+          "The model filtered this response.",
+          "content_filter",
+        );
+      },
     );
     state.executions.set("filtered", execution("filtered", 0, facets));
 
@@ -514,6 +578,7 @@ describe("Topics execution", () => {
     )!;
     const named = published.topics.find((topic) => topic !== placeholder)!;
     expect(placeholder).toMatchObject({
+      costDetails: { naming_input: 0.001, total: 0.001 },
       name: expect.any(String),
       description: expect.stringMatching(/filter/i),
     });
@@ -554,8 +619,7 @@ describe("Topics execution", () => {
     seedSummaries(100);
     await updateSelection("published");
     const published = [...state.runs.values()].at(-1)!;
-    for (const summary of state.summaries.values())
-      summary.embedding[3] += 0.001;
+    for (const summary of state.summaries.values()) summary.embedding[4] = 0.75;
     const naming = state.name.getMockImplementation()!;
     state.name
       .mockImplementationOnce(naming)
@@ -835,7 +899,7 @@ describe("Topics execution", () => {
   });
 
   it.each(["centroid", "radius"] as const)(
-    "creates a new version with the same stable identity when its %s changes",
+    "creates a new version with the same stable identity, named with its previous name as context, when its %s changes",
     async (changed) => {
       seedSummaries(100);
       const members = [...state.summaries.values()].filter(
@@ -865,6 +929,9 @@ describe("Topics execution", () => {
         first.topics.find((topic) => topic.centroid[1] > 0.5),
       );
       expect(state.name).toHaveBeenCalledTimes(3);
+      expect(state.name.mock.calls[2][0]).toMatchObject({
+        previousTopic: { name: old.name, description: old.description },
+      });
       expect(state.runs.get(first.id)).toEqual(first);
     },
   );
@@ -878,7 +945,7 @@ describe("Topics execution", () => {
       const first = [...state.runs.values()].at(-1)!;
       const unchanged = first.topics.find((topic) => topic.centroid[1] > 0.5)!;
       for (const summary of state.summaries.values()) {
-        if (summary.embedding[0] > 0.5) summary.embedding[3] += 0.001;
+        if (summary.embedding[0] > 0.5) summary.embedding[4] = 0.75;
       }
       const colliding = {
         output: {
@@ -887,10 +954,21 @@ describe("Topics execution", () => {
           evidenceSummaryIds: ["m1"],
         },
       };
-      state.name.mockResolvedValueOnce(colliding);
-      if (retry === "repeated") state.name.mockResolvedValueOnce(colliding);
-      if (retry === "failed")
-        state.name.mockRejectedValueOnce(new Error("Naming unavailable"));
+      state.name.mockImplementationOnce(
+        async (_group, _metadata, _conflict, onCost) => {
+          onCost?.({ naming_input: 0.1, naming_output: 0.02, total: 0.09 });
+          return colliding;
+        },
+      );
+      state.name.mockImplementationOnce(
+        async (_group, _metadata, _conflict, onCost) => {
+          onCost?.({ naming_input: 0.2, naming_cache_read: 0.01, total: 0.25 });
+          if (retry === "failed") throw new Error("Invalid naming response");
+          return retry === "repeated"
+            ? colliding
+            : { output: { ...colliding.output, name: "Distinct topic" } };
+        },
+      );
       const calls = state.name.mock.calls.length;
       await updateSelection("second");
       const [, conflictCall] = state.name.mock.calls.slice(calls);
@@ -899,6 +977,16 @@ describe("Topics execution", () => {
         description: unchanged.description,
       });
       const second = [...state.runs.values()].at(-1)!;
+      expect(second.topics).toContainEqual(unchanged);
+      expect(
+        second.topics.find((topic) => topic.createdByRunId === second.id)
+          ?.costDetails,
+      ).toEqual({
+        naming_input: 0.3,
+        naming_output: 0.02,
+        naming_cache_read: 0.01,
+        total: 0.34,
+      });
       expect(second.status).toBe("completed");
       expect(
         second.topics.filter((topic) => topic.name === unchanged.name),
@@ -943,6 +1031,11 @@ describe("Topics execution", () => {
 
       const refit = state.runs.get("refit")!;
       expect(refit).toMatchObject({ status: "completed", ruleId: "rule" });
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.topics.rule_fits",
+        1,
+        { outcome: "published", trigger: "automatic" },
+      );
       const sameTopics = refit.topics.some((topic) =>
         published.topics.some((other) => other.topicId === topic.topicId),
       );
@@ -956,7 +1049,87 @@ describe("Topics execution", () => {
     },
   );
 
-  it("bounds assignment writes and retries publication when a batch is not visible", async () => {
+  it("fails a manual refresh replayed after its fit started and counts it as an interrupted manual fit", async () => {
+    seedSummaries(100);
+    await updateSelection("published");
+    state.runs.set("refit", {
+      ...pendingRun({
+        id: "refit",
+        projectId: "project",
+        facetId: facet.facetId,
+        facetVersion: facet.version,
+        config: {
+          embeddingModel: "eu.cohere.embed-v4:0",
+          dimensions: 256,
+          timeRange: {
+            from: "2026-01-01T00:00:00.000Z",
+            to: "2026-01-08T00:00:00.000Z",
+          },
+          refresh: true,
+        },
+      }),
+      ruleId: "rule",
+    });
+    // The worker dies during the numerical fit, leaving the row as it was then.
+    const fit = state.numeric.getMockImplementation()!;
+    let midFit: TopicRun | undefined;
+    state.numeric.mockImplementationOnce(async (...args) => {
+      midFit = structuredClone(state.runs.get("refit"));
+      return fit(...args);
+    });
+    await processTopicRuleRefit({ projectId: "project", runId: "refit" });
+    state.runs.set("refit", midFit!);
+    vi.mocked(recordIncrement).mockClear();
+
+    await processTopicRuleRefit({ projectId: "project", runId: "refit" });
+
+    expect(state.runs.get("refit")?.status).toBe("failed");
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.rule_fits",
+      1,
+      { outcome: "interrupted", trigger: "manual", owner: "platform" },
+    );
+  });
+
+  it("counts a refit whose naming output fails validation as a customer failure", async () => {
+    seedSummaries(100);
+    await updateSelection("published");
+    // Another rule's map is not continued, so the refit names its topics.
+    const published = [...state.runs.values()].at(-1)!;
+    state.runs.set(published.id, { ...published, ruleId: "other-rule" });
+    state.runs.set("refit", {
+      ...pendingRun({
+        id: "refit",
+        projectId: "project",
+        facetId: facet.facetId,
+        facetVersion: facet.version,
+        config: {
+          embeddingModel: "eu.cohere.embed-v4:0",
+          dimensions: 256,
+          timeRange: {
+            from: "2026-01-01T00:00:00.000Z",
+            to: "2026-01-08T00:00:00.000Z",
+          },
+        },
+      }),
+      ruleId: "rule",
+    });
+    // The model's naming response fails our local schema check.
+    state.name.mockImplementation(async () =>
+      z.object({ name: z.string() }).parse({}),
+    );
+
+    await processTopicRuleRefit({ projectId: "project", runId: "refit" });
+
+    expect(state.runs.get("refit")?.status).toBe("failed");
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.rule_fits",
+      1,
+      { outcome: "failed", trigger: "automatic", owner: "customer" },
+    );
+  });
+
+  it("publishes a map once 99% of its sources are readable and retries publication below that", async () => {
     seedSummaries(1);
     const template = [...state.summaries.values()][0];
     for (let index = 1; index < 2001; index++) {
@@ -968,19 +1141,18 @@ describe("Topics execution", () => {
       labels: vectors.map(() => -1),
       coordinates: vectors.map(() => [0, 0]),
     }));
-    state.assignmentWrites.mockImplementation(async () => {
-      // A late visibility failure must prevent publication of the whole map.
-      if (state.assignmentWrites.mock.calls.length === 3) state.visible = false;
-    });
+    // 21 of 2,001 sources unreadable is below 99% coverage, so the map is not published.
+    state.hiddenSources = 21;
     await updateSelection("batched");
     expect(
       state.assignmentWrites.mock.calls.map(([rows]) => rows.length),
-    ).toEqual([1000, 1000, 1]);
+    ).toEqual([2001]);
     expect([...state.runs.values()].at(-1)?.status).toBe("failed");
     expect(state.executions.get("batched")?.facets[0].error).toContain(
       "not fully visible",
     );
-    state.visible = true;
+    // 20 unreadable is exactly 99%: published, the rest appear as they become readable.
+    state.hiddenSources = 20;
     await processTopicUpdateExecution({
       projectId: "project",
       executionId: "batched",

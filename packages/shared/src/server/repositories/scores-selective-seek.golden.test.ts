@@ -1,3 +1,6 @@
+// Pins when score reads emit the selective-seek phase, its SQL, its parity
+// with FINAL, and the skip-dedup plain scan.
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // A hand-written exec-seam mock (no importOriginal) records each query and keeps
@@ -60,7 +63,7 @@ import {
   executeClickhouseLocal,
   normalizeCapturedQueries,
   substituteNamedParams,
-} from "./goldenHarness";
+} from "./__tests__/goldenHarness";
 
 const PROJECT_ID = "seek-project";
 const ORDER_BY = { column: "timestamp", order: "DESC" as const };

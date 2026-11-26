@@ -133,5 +133,5 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
       },
     });
   },
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

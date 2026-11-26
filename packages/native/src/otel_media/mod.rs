@@ -123,7 +123,7 @@ impl WalkStats {
 pub use normalized::{extract_normalized_media, MediaReferenceCollector};
 pub use payload::EarlyMediaError;
 pub use payload::{validate, EarlyMediaResult, ExtractedMedia, ValidatedPayload};
-pub(crate) use rules::may_contain_media_candidate;
+pub(crate) use rules::{find_media_reference_prefix, may_contain_media_candidate};
 pub use source_text::rewrite_known_references;
 
 use scanner::MAX_EMBEDDED_JSON_DEPTH;

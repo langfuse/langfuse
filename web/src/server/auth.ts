@@ -1,6 +1,5 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { type GetServerSidePropsContext } from "next";
-import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import {
   getServerSession,
   type NextAuthOptions,
@@ -17,7 +16,7 @@ import {
 import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
-} from "@/src/features/feature-flags/server/parseFlags";
+} from "@/src/features/feature-flags/utils";
 import {
   isGatewayDeployedOnInstance,
   isGatewayEnabledForOrganization,
@@ -94,9 +93,11 @@ import {
   isLangfuseAITracingConfigured,
   shouldSkipScoresDedup,
   isForceV3ExperienceProject,
+  isTraceEvalsProjectEnabled,
   getOrganizationPlanServerSide,
   getSelfHostedInstancePlanServerSide,
 } from "@langfuse/shared/src/server";
+import { isPublicSharingDisabledByInstance } from "@/src/ee/features/public-sharing/server/publicSharing";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import {
   type EmailCodeRequest,
@@ -1006,6 +1007,8 @@ export async function getAuthOptions(
                 env.API_AUTH_MIGRATION === "enforce" &&
                 env.API_KEY_ORG_ROLES_ENABLE === "true",
               accessAuditLogMode: env.LANGFUSE_AUDIT_LOG_ACCESS_EVENTS,
+              publicSharingDisabledByInstance:
+                isPublicSharingDisabledByInstance(),
             },
             user:
               dbUser !== null
@@ -1059,6 +1062,8 @@ export async function getAuthOptions(
                             orgMembership.organization.aiTelemetryEnabled,
                           accessAuditLogEnabled:
                             orgMembership.organization.accessAuditLogEnabled,
+                          publicSharingDisabled:
+                            orgMembership.organization.publicSharingDisabled,
                           featureFlags: parseFlagsWithOrganizationDefaults(
                             dbUser.featureFlags,
                             orgMembership.organization.featureFlagOrgDefaults,
@@ -1087,7 +1092,7 @@ export async function getAuthOptions(
                                 name: project.name,
                                 retentionDays: project.retentionDays,
                                 hasTraces: project.hasTraces,
-                                topicsEnabled: isTopicsProjectEnabled(
+                                traceEvalsEnabled: isTraceEvalsProjectEnabled(
                                   project.id,
                                 ),
                                 scoreEditsDisabled: shouldSkipScoresDedup(

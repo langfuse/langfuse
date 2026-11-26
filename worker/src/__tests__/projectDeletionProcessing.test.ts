@@ -2,6 +2,7 @@ import { expect, it, describe, beforeAll, beforeEach, afterEach } from "vitest";
 import { env, v4WritesToEventsTable } from "../env";
 import { randomUUID } from "crypto";
 import {
+  clickhouseClient,
   convertDateToClickhouseDateTime,
   createObservation,
   createObservationsCh,
@@ -13,9 +14,11 @@ import {
   getObservationById,
   getScoreById,
   getTraceById,
+  queryClickhouse,
   StorageService,
   StorageServiceFactory,
   storageKeys,
+  toClickhouseDateTime,
   upsertTrace,
   deleteTracesByProjectId,
   deleteObservationsByProjectId,
@@ -203,6 +206,86 @@ describe("ProjectDeletionProcessingJob", () => {
       scoreId: `${baseId}-score`,
     });
     expect(score).toBeUndefined();
+  });
+
+  it("should delete Topics data on project delete without affecting other projects", async () => {
+    const projectId = randomUUID();
+    const otherProjectId = randomUUID();
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: `Project-${randomUUID()}` },
+    });
+    const now = toClickhouseDateTime(new Date());
+    const projectIds = [projectId, otherProjectId];
+    await Promise.all([
+      clickhouseClient().insert({
+        table: "topic_facet_summaries",
+        format: "JSONEachRow",
+        values: projectIds.map((project_id) => ({
+          project_id,
+          facet_id: "intent",
+          facet_version: 1,
+          trace_id: randomUUID(),
+          environment: "default",
+          unit_start_time: now,
+          processing_state: "complete",
+          summary: "A trace summary.",
+          created_at: now,
+        })),
+      }),
+      clickhouseClient().insert({
+        table: "topic_assignments",
+        format: "JSONEachRow",
+        values: projectIds.map((project_id) => ({
+          project_id,
+          facet_id: "intent",
+          clustering_run_id: randomUUID(),
+          facet_version: 1,
+          trace_id: randomUUID(),
+          environment: "default",
+          unit_start_time: now,
+          summary_processed_at: now,
+          origin: "online",
+          created_at: now,
+        })),
+      }),
+      clickhouseClient().insert({
+        table: "topics",
+        format: "JSONEachRow",
+        values: projectIds.map((project_id) => ({
+          project_id,
+          id: randomUUID(),
+          stable_id: randomUUID(),
+          created_by_run_id: randomUUID(),
+          created_at: now,
+          name: "Billing",
+          description: "Billing questions.",
+          centroid: [],
+          radius: 0,
+          representative_summaries: [],
+          metadata: "{}",
+        })),
+      }),
+    ]);
+
+    await projectDeleteProcessor({
+      data: { payload: { projectId, orgId } },
+    } as Job);
+
+    for (const table of [
+      "topic_facet_summaries",
+      "topic_assignments",
+      "topic_assignments_by_trace",
+      "topics",
+    ]) {
+      const rows = await queryClickhouse<{ project_id: string }>({
+        query: `SELECT project_id FROM ${table} WHERE project_id IN {projectIds: Array(String)}`,
+        params: { projectIds },
+      });
+      expect(
+        rows.map((row) => row.project_id),
+        table,
+      ).toEqual([otherProjectId]);
+    }
   });
 
   maybeEventsIt(

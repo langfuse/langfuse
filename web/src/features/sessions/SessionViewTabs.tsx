@@ -18,7 +18,9 @@ export function SessionViewTabs({
   canManageViews,
   onViewAction,
   onSetDefaultPin,
+  leadingTab,
 }: {
+  leadingTab?: React.ComponentProps<typeof TabBar>["tabs"][number];
   value: string;
   hasUnsavedView: boolean;
   isMessagesPinned: boolean;
@@ -48,6 +50,7 @@ export function SessionViewTabs({
       <TabBar
         label="Session views"
         tabs={[
+          ...(leadingTab ? [leadingTab] : []),
           ...(isMessagesPinned
             ? [
                 {

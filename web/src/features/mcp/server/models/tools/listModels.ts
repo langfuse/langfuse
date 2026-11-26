@@ -43,5 +43,5 @@ export const [listModelsTool, handleListModels] = defineTool({
         };
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

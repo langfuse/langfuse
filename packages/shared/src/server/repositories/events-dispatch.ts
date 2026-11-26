@@ -251,3 +251,88 @@ export async function* getEventsDispatchEventStream(
     },
   });
 }
+
+/**
+ * Full payloads of a few traces of one project that may lie days apart, for
+ * the Topics cost estimate, with the same columns as trace dispatch reads.
+ * Each trace keeps its own plain time window: unlike the grouped array
+ * predicate above, ClickHouse uses these for primary-key pruning, so a batch
+ * spread over a week reads only the granules around each trace.
+ */
+export async function* getTopicCostEstimateEventStream(props: {
+  projectId: string;
+  traces: ReadonlyArray<{
+    traceId: string;
+    minStart: number;
+    maxStart: number;
+  }>;
+}): AsyncGenerator<EventsDispatchEventRow> {
+  if (props.traces.length === 0) return;
+  const windowParams: Record<string, unknown> = {};
+  const windowPredicates = props.traces.map((trace, index) => {
+    windowParams[`w${index}t`] = trace.traceId;
+    windowParams[`w${index}l`] = trace.minStart - TRACE_QUERY_BUFFER_MS;
+    windowParams[`w${index}u`] = trace.maxStart + TRACE_QUERY_BUFFER_MS;
+    return `(e.trace_id = {w${index}t: String} AND e.start_time BETWEEN fromUnixTimestamp64Milli({w${index}l: Int64}) AND fromUnixTimestamp64Milli({w${index}u: Int64}))`;
+  });
+  const { query, params } = new EventsQueryBuilder({
+    projectId: props.projectId,
+  })
+    .selectRaw(
+      "e.project_id",
+      "e.trace_id",
+      "e.session_id",
+      "e.environment",
+      "e.trace_name",
+      "e.span_id",
+      "e.parent_span_id",
+      "e.start_time",
+      "e.event_ts",
+      "e.type",
+      "e.name",
+      "e.level",
+      "e.status_message",
+    )
+    .selectIO(false)
+    .selectMetadataExpanded()
+    .selectFieldSet("tools")
+    .forceFullTable()
+    .whereRaw("e.trace_id IN ({traceIds: Array(String)})", {
+      traceIds: props.traces.map(({ traceId }) => traceId),
+    })
+    .whereRaw(
+      "xxHash32(e.trace_id) IN (SELECT arrayJoin(arrayMap(id -> xxHash32(id), {traceIds: Array(String)})))",
+    )
+    .whereRaw(
+      "e.start_time >= fromUnixTimestamp64Milli({batchMinStart: Int64}) AND e.start_time <= fromUnixTimestamp64Milli({batchMaxStart: Int64})",
+      {
+        batchMinStart:
+          Math.min(...props.traces.map(({ minStart }) => minStart)) -
+          TRACE_QUERY_BUFFER_MS,
+        batchMaxStart:
+          Math.max(...props.traces.map(({ maxStart }) => maxStart)) +
+          TRACE_QUERY_BUFFER_MS,
+      },
+    )
+    .whereRaw(`(${windowPredicates.join(" OR ")})`, windowParams)
+    .orderByColumns([{ column: "e.trace_id", direction: "ASC" }])
+    .buildWithParams();
+  yield* queryClickhouseStream<EventsDispatchEventRow>({
+    query,
+    params,
+    useMultipartParamsAuto: true,
+    tags: {
+      route: "topics-cost-estimate-events",
+      projectId: props.projectId,
+    },
+    preferredClickhouseService: "EventsReadOnly",
+    clickhouseConfigs: { compression: { response: true } },
+    clickhouseSettings: {
+      max_threads: 2,
+      max_execution_time: 30,
+      timeout_overflow_mode: "throw",
+      max_result_bytes: String(64 * 1024 * 1024),
+      result_overflow_mode: "throw",
+    },
+  });
+}

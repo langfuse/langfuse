@@ -27,6 +27,15 @@ const STORY_TITLE_GROUPS: StoryTitleGroup[] = [
     titlePrefix: "Design/Components/Table/Cells",
   },
   {
+    directory:
+      "src/features/ai-gateway/components/GatewayGuardrailDialogController",
+    titlePrefix: "Features/AI Gateway/Guardrails",
+  },
+  {
+    directory: "src/features/ai-gateway/components/GatewayGuardrailsPage",
+    titlePrefix: "Features/AI Gateway/Guardrails",
+  },
+  {
     directory: "src/features/ai-gateway/components",
     titlePrefix: "Features/AI Gateway",
   },
@@ -52,6 +61,8 @@ const DESIGN_REFERENCE_STORIES = [
   "ThemeTokens/Typography",
   "ThemeTokens/Layout",
   "ThemeTokens/Charts",
+  // Hidden backing stories for the Form Elements docs page (`tags: ["!dev"]`).
+  "FormElements",
 ] as const;
 
 /**

@@ -43,6 +43,8 @@ declare module "next-auth" {
             // Optional so existing session mocks need not set it; the session
             // callback and the admin org fallback always populate it.
             accessAuditLogEnabled?: boolean;
+            // Optional so existing session mocks need not set it.
+            publicSharingDisabled?: boolean;
             featureFlags?: Flags;
             projects: {
               id: PrismaProject["id"];
@@ -50,7 +52,7 @@ declare module "next-auth" {
               deletedAt: PrismaProject["deletedAt"];
               retentionDays: PrismaProject["retentionDays"];
               hasTraces: PrismaProject["hasTraces"];
-              topicsEnabled?: boolean; // deployment allowlist, resolved server-side; absent = off
+              traceEvalsEnabled?: boolean; // deployment allowlist, resolved server-side; absent = off
               scoreEditsDisabled?: boolean; // scores are read without dedup, so existing scores stay immutable; absent = off
               forceV3Experience?: boolean; // LANGFUSE_FORCE_V3_EXPERIENCE allowlist, resolved server-side; absent = off
               metadata: Record<string, unknown>;
@@ -94,6 +96,9 @@ declare module "next-auth" {
       // Mirrors LANGFUSE_AUDIT_LOG_ACCESS_EVENTS. Optional so existing session
       // mocks need not set it.
       accessAuditLogMode?: "org" | "enforced" | "disabled";
+      // LANGFUSE_DISABLE_PUBLIC_SHARING, applied only with an enterprise
+      // license. Optional so existing session mocks need not set it.
+      publicSharingDisabledByInstance?: boolean;
     };
   }
 

@@ -17,6 +17,7 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
 
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
+- Across Langfuse repositories, all default-branch changes go through a PR with required approval; never push directly, force-push, or delete the default branch. Follow `git-workflow` for Bugbot freshness, human review of sensitive paths and public forks, automation identities, and emergency escalation.
 - Before creating a new component or reusing one from elsewhere in
   `web/src/components`, first check `web/src/components/design-system` for an
   existing component that satisfies the use case. Prefer the design-system
@@ -74,7 +75,7 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
   video, or before/after) — not only in chat. Humans can ask for more
   detail.
 - Open PRs as reviewable, not as drafts, unless a human asks for a draft.
-- When Claude, Greptile, or Codex (`chatgpt-codex-connector[bot]`) review comments appear on a PR you own, resolve each bot thread you fixed or skipped after the fix is pushed, even when the prompt only says to fix, address, or reply (see `git-workflow`). Skip only when you are sure it is wrong: tell the human in plain language, invite them to doubt that skip, then resolve it. If the task asked for a reply, post it and then resolve. Do not post `@claude review` again unless a human asks for another pass.
+- When Bugbot, Claude, Greptile, or Codex (`chatgpt-codex-connector[bot]`) review comments appear on a PR you own, resolve each bot thread you fixed or skipped after the fix is pushed, even when the prompt only says to fix, address, or reply (see `git-workflow`). Skip only when you are sure it is wrong: tell the human in plain language, invite them to doubt that skip, then resolve it. If the task asked for a reply, post it and then resolve. Do not post `@claude review` again unless a human asks for another pass. Resolving threads does not supply PR approval; a skipped Bugbot finding requires teammate approval under `git-workflow`.
 
 ## Context Handover
 

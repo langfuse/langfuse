@@ -7,20 +7,14 @@
 import {
   useEffect,
   useState,
-  type ComponentProps,
   type PropsWithChildren,
+  type ReactNode,
 } from "react";
 import Head from "next/head";
 import { useInternalViewMode } from "@/src/features/feature-flags/hooks/useInternalViewMode";
 import { InternalViewModeDialog } from "@/src/features/feature-flags/components/InternalViewModeDialog";
 import { useRouter, type NextRouter } from "next/router";
-import {
-  SidebarProvider,
-  SidebarInset,
-  useSidebar,
-} from "@/src/components/ui/sidebar";
-import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
-import { SidebarPresenceProvider } from "@/src/components/nav/SidebarPresenceProvider";
+import { type UserNavigationItem } from "@/src/components/nav/UserMenuItems";
 import { Toaster } from "@/src/components/ui/Toaster";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { VersionUpdateBanner } from "@/src/features/version-update/VersionUpdateBanner";
@@ -39,17 +33,10 @@ import dynamic from "next/dynamic";
 import { canOpenPersonalFeaturePreviews } from "@/src/features/feature-previews/canOpenPersonalFeaturePreviews";
 import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
 import { InAppAgentWindowHost } from "@/src/features/in-app-agent/components/InAppAgentWindowHost";
-import {
-  useV4UpgradeUiEnabled,
-  useV4UpgradeUiFlag,
-} from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { findCurrentInstance } from "@/src/ee/features/ui-customization/instanceLinks";
-import { api } from "@/src/utils/api";
-import { usePlan } from "@/src/features/entitlements/hooks";
 import { env } from "@/src/env.mjs";
-import useLocalStorage from "@/src/components/useLocalStorage";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useSession } from "next-auth/react";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { CustomerDataWarningBannerView } from "@/src/features/customer-data-warning/CustomerDataWarningBannerView";
@@ -59,14 +46,13 @@ import {
   LegacyUiBanner,
   useLegacyUiBannerVisible,
 } from "@/src/features/v4-migration/LegacyUiBanner";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { PaymentBannerView } from "@/src/features/payment-banner/PaymentBannerView";
 import { usePaymentBanner } from "@/src/features/payment-banner/PaymentBanner";
 import { useTopBannerHeight } from "@/src/features/top-banner/useTopBannerHeight";
 import { useV4MigrationTopBanner } from "@/src/features/v4-migration/hooks/useV4MigrationTopBanner";
 import { V4MigrationTopBannerView } from "@/src/features/v4-migration/V4MigrationTopBannerView";
-
-const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
+import { AppShell } from "@/src/features/app-shell/components/AppShell";
+import { AppShellSidebarPanel } from "@/src/features/app-shell/components/AppShellSidebarPanel";
 
 const CommandMenu = dynamic(
   () =>
@@ -115,9 +101,8 @@ type AuthenticatedLayoutProps = PropsWithChildren<{
 
 /**
  * Full authenticated layout with all features:
- * - AppSidebar with navigation
+ * - App sidebar with navigation
  * - Payment banner (conditional)
- * - Legacy API shutdown banner (conditional, Langfuse Cloud)
  * - Support drawer
  * - Command menu (Cmd/Ctrl+K)
  * - Toast notifications
@@ -131,39 +116,17 @@ export function AuthenticatedLayout({
   onSignOut,
 }: AuthenticatedLayoutProps) {
   const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
-  const { data: session } = useSession();
   const [featurePreviewOpen, setFeaturePreviewOpen] = useState(false);
   const [internalViewModeOpen, setInternalViewModeOpen] = useState(false);
   const internalViewMode = useInternalViewMode();
   const router = useRouter();
+  const { data: session } = useSession();
   useProjectCookie(router);
   const uiCustomization = useUiCustomization();
-  const versionUpdatePrompt = useVersionUpdatePrompt();
-  const paymentBanner = usePaymentBanner();
-  const v4MigrationTopBanner = useV4MigrationTopBanner();
-  const topBannerRef = useTopBannerHeight();
   // Account-level entry: use the raw flag (same as account settings tabs), not
   // project-scoped force-v3 suppression.
   const showV4Migration = useV4UpgradeUiFlag();
-  const { organization: currentOrganization, project: currentProject } =
-    useQueryProjectOrOrganization();
-  const routerProjectId =
-    typeof router.query.projectId === "string"
-      ? router.query.projectId
-      : undefined;
-  const showLegacyUiBanner = useLegacyUiBannerVisible(routerProjectId);
-  const customerDataWarning = getCustomerDataWarning({
-    email: user.email,
-    isLangfuseCloud,
-    projectId: routerProjectId ?? null,
-    organizationId:
-      typeof router.query.organizationId === "string"
-        ? router.query.organizationId
-        : null,
-    memberships: user.organizations,
-    organizationName: currentOrganization?.name ?? null,
-    projectName: currentProject?.name ?? null,
-  });
+  const { organization: currentOrganization } = useQueryProjectOrOrganization();
 
   const regionMenuItems = getAvailableCloudRegionOptions(currentRegion).map(
     (region) => ({
@@ -209,12 +172,13 @@ export function AuthenticatedLayout({
     email: user.email ?? "",
     avatar: user.image ?? "",
   };
-  const userMenuItems = [
+  const userMenuItems: UserNavigationItem[] = [
     ...(internalViewMode.available
       ? [
           {
             type: "action" as const,
             name: "View mode",
+            handoff: "dialog" as const,
             onClick: () => setInternalViewModeOpen(true),
           },
         ]
@@ -244,6 +208,7 @@ export function AuthenticatedLayout({
           {
             type: "action" as const,
             name: "Feature preview",
+            handoff: "dialog" as const,
             onClick: () => setFeaturePreviewOpen(true),
           },
         ]
@@ -285,6 +250,25 @@ export function AuthenticatedLayout({
     { type: "action" as const, name: "Sign out", onClick: onSignOut },
   ];
 
+  const content = (
+    <>
+      <AppContentWithRightDrawer>{children}</AppContentWithRightDrawer>
+      {/* Toasts render in the `toast` overlay layer — the last layer
+            in LAYER_ORDER — so they paint above every overlay (incl. a
+            non-modal peek) by DOM order alone, no z-index. Sonner's
+            Toaster is position:fixed, so nesting it in the fixed
+            full-screen layer container is positionally identical. */}
+      <Layer name="toast">
+        <Toaster visibleToasts={1} />
+      </Layer>
+      <CommandMenu mainNavigation={navigation.navigation} />
+      {/* Assistant window host lives here (not in PageHeader with
+            its launcher button) so the open window and its geometry
+            survive route changes. */}
+      <InAppAgentWindowHost />
+    </>
+  );
+
   return (
     <>
       <Head>
@@ -309,217 +293,104 @@ export function AuthenticatedLayout({
         />
       </Head>
 
-      <SidebarPresenceProvider>
-        <SidebarProvider>
-          <div className="flex h-dvh w-full flex-col">
-            <div
-              ref={topBannerRef}
-              className="fixed top-0 z-51 flex w-full flex-col"
-            >
-              {customerDataWarning && (
-                <CustomerDataWarningBannerView {...customerDataWarning} />
-              )}
-              {showLegacyUiBanner && <LegacyUiBanner />}
-              {paymentBanner && (
-                <PaymentBannerView
-                  organizationName={paymentBanner.organizationName}
-                  billingSettingsHref={paymentBanner.billingSettingsHref}
-                  severity={paymentBanner.severity}
-                />
-              )}
-              {v4MigrationTopBanner && (
-                <V4MigrationTopBannerView {...v4MigrationTopBanner} />
-              )}
-              {env.NEXT_PUBLIC_PREVIEW_PR_URL && (
-                <PreviewDeploymentBanner
-                  prUrl={env.NEXT_PUBLIC_PREVIEW_PR_URL}
-                />
-              )}
-            </div>
-            {versionUpdatePrompt.isVisible && (
-              <VersionUpdateBanner
-                onReload={versionUpdatePrompt.reload}
-                onDismiss={versionUpdatePrompt.dismiss}
-              />
-            )}
-            <div className="pt-banner-offset flex min-h-0 flex-1">
-              <ConnectedAppSidebar
-                navItems={navigation.mainNavigation}
-                secondaryNavItems={navigation.secondaryNavigation}
-                user={sidebarUser}
-                userMenuItems={userMenuItems}
-                isLangfuseCloud={isLangfuseCloud}
-                routerProjectId={routerProjectId}
-              />
-              {/* `min-w-0`, not a `100vw`-derived width: viewport units ignore
-                    scrollbars, and a definite width also floors `min-width:
-                    auto`, so on a wide page the inset stayed pinned 15px past
-                    the space beside the sidebar once a space-taking vertical
-                    scrollbar showed — spawning a horizontal one. Flex already
-                    sizes the inset to that space. */}
-              <SidebarInset className="h-screen-with-banner max-w-full min-w-0">
-                <AppContentWithRightDrawer>
-                  {children}
-                </AppContentWithRightDrawer>
-                {/* Toasts render in the `toast` overlay layer — the last layer
-                      in LAYER_ORDER — so they paint above every overlay (incl. a
-                      non-modal peek) by DOM order alone, no z-index. Sonner's
-                      Toaster is position:fixed, so nesting it in the fixed
-                      full-screen layer container is positionally identical. */}
-                <Layer name="toast">
-                  <Toaster visibleToasts={1} />
-                </Layer>
-                <CommandMenu mainNavigation={navigation.navigation} />
-                {/* Assistant window host lives here (not in PageHeader with
-                      its launcher button) so the open window and its geometry
-                      survive route changes. */}
-                <InAppAgentWindowHost />
-              </SidebarInset>
-            </div>
-            {internalViewMode.available && (
-              <InternalViewModeDialog
-                open={internalViewModeOpen}
-                onOpenChange={setInternalViewModeOpen}
-              />
-            )}
-            {hasFeaturePreviews ? (
-              <ControlledFeaturePreviewModal
-                open={featurePreviewOpen}
-                onOpenChange={setFeaturePreviewOpen}
-              />
-            ) : null}
-          </div>
-        </SidebarProvider>
-      </SidebarPresenceProvider>
+      <AppFrame user={user}>
+        <AppShell
+          sidebar={
+            <AppShellSidebarPanel
+              mainNavigation={navigation.mainNavigation}
+              secondaryNavigation={navigation.secondaryNavigation}
+              user={sidebarUser}
+              userMenuItems={userMenuItems}
+              isLangfuseCloud={isLangfuseCloud}
+            />
+          }
+        >
+          {content}
+        </AppShell>
+      </AppFrame>
+      {internalViewMode.available && (
+        <InternalViewModeDialog
+          open={internalViewModeOpen}
+          onOpenChange={setInternalViewModeOpen}
+        />
+      )}
+      {hasFeaturePreviews ? (
+        <ControlledFeaturePreviewModal
+          open={featurePreviewOpen}
+          onOpenChange={setFeaturePreviewOpen}
+        />
+      ) : null}
     </>
   );
 }
 
-function ConnectedAppSidebar({
-  navItems,
-  secondaryNavItems,
+/** Full-height column: top banners, then the sidebar and the page side by side. */
+function AppFrame({
   user,
-  userMenuItems,
-  isLangfuseCloud,
-  routerProjectId,
+  children,
 }: {
-  navItems: GroupedNavigation;
-  secondaryNavItems: GroupedNavigation;
-  user: ComponentProps<typeof AppSidebar>["user"];
-  userMenuItems: ComponentProps<typeof AppSidebar>["userMenuItems"];
-  isLangfuseCloud: boolean;
-  routerProjectId?: string;
+  user: NonNullable<Session["user"]>;
+  children: ReactNode;
 }) {
-  const { isMobile } = useSidebar();
-  const uiCustomization = useUiCustomization();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(routerProjectId);
-  const plan = usePlan();
-  const capture = usePostHogClientCapture();
-  const session = useSession();
-  const { organization, project } = useQueryProjectOrOrganization();
-  const canCreateProjects = useHasOrganizationAccess({
-    organizationId: organization?.id,
-    scope: "projects:create",
+  const router = useRouter();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const versionUpdatePrompt = useVersionUpdatePrompt();
+  const paymentBanner = usePaymentBanner();
+  const v4MigrationTopBanner = useV4MigrationTopBanner();
+  const topBannerRef = useTopBannerHeight();
+  const { organization: currentOrganization, project: currentProject } =
+    useQueryProjectOrOrganization();
+  const routerProjectId =
+    typeof router.query.projectId === "string"
+      ? router.query.projectId
+      : undefined;
+  const showLegacyUiBanner = useLegacyUiBannerVisible(routerProjectId);
+  const customerDataWarning = getCustomerDataWarning({
+    email: user.email,
+    isLangfuseCloud,
+    projectId: routerProjectId ?? null,
+    organizationId:
+      typeof router.query.organizationId === "string"
+        ? router.query.organizationId
+        : null,
+    memberships: user.organizations,
+    organizationName: currentOrganization?.name ?? null,
+    projectName: currentProject?.name ?? null,
   });
-  const [dismissedNotificationIds, setDismissedNotificationIds] =
-    useLocalStorage<string[]>(DISMISSED_SIDEBAR_NOTIFICATIONS_KEY, []);
-
-  const backgroundMigrationStatus = api.backgroundMigrations.status.useQuery(
-    undefined,
-    {
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      enabled: !isLangfuseCloud,
-      throwOnError: false,
-    },
-  );
-
-  const checkUpdate = api.public.checkUpdate.useQuery(undefined, {
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    enabled: !isLangfuseCloud,
-    throwOnError: false,
-  });
-
-  const selfHostedPlan =
-    plan === "self-hosted:pro" ||
-    plan === "self-hosted:enterprise" ||
-    plan === "self-hosted:gov"
-      ? plan
-      : "oss";
-
-  const versionState: ComponentProps<typeof AppSidebar>["versionState"] =
-    isLangfuseCloud
-      ? { deployment: "cloud" }
-      : {
-          deployment: "self-hosted",
-          plan: selfHostedPlan,
-          release: checkUpdate.data?.updateType
-            ? {
-                status: "update-available",
-                updateType: checkUpdate.data.updateType,
-                latestRelease: checkUpdate.data.latestRelease,
-              }
-            : { status: "current" },
-          migration:
-            backgroundMigrationStatus.data &&
-            backgroundMigrationStatus.data.status !== "FINISHED"
-              ? {
-                  status: "in-progress",
-                  phase: backgroundMigrationStatus.data.status.toLowerCase(),
-                }
-              : { status: "idle" },
-        };
 
   return (
-    <AppSidebar
-      navItems={navItems}
-      secondaryNavItems={secondaryNavItems}
-      user={user}
-      userMenuItems={userMenuItems}
-      isMobile={isMobile}
-      logo={{
-        lightModeHref: uiCustomization?.logoLightModeHref,
-        darkModeHref: uiCustomization?.logoDarkModeHref,
-      }}
-      versionState={versionState}
-      v4UpgradeUiEnabled={v4UpgradeUiEnabled}
-      notificationState={{
-        dismissedIds: dismissedNotificationIds,
-        onDismiss: (id) => {
-          capture("notification:dismiss_notification", {
-            notification_id: id,
-          });
-          setDismissedNotificationIds((current) => [...current, id]);
-        },
-        onLinkClick: (id) => {
-          capture("notification:click_link", {
-            notification_id: id,
-          });
-        },
-      }}
-      organization={
-        organization ? { id: organization.id, name: organization.name } : null
-      }
-      project={project ? { id: project.id, name: project.name } : null}
-      organizations={session.data?.user?.organizations ?? null}
-      canCreateOrganizations={
-        session.data?.user?.canCreateOrganizations ?? false
-      }
-      canCreateProjects={canCreateProjects}
-      showDemoBadge={Boolean(
-        env.NEXT_PUBLIC_DEMO_ORG_ID &&
-        env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-        routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-        isLangfuseCloud,
+    <div className="flex h-dvh w-full flex-col">
+      <div ref={topBannerRef} className="fixed top-0 z-51 flex w-full flex-col">
+        {customerDataWarning && (
+          <CustomerDataWarningBannerView {...customerDataWarning} />
+        )}
+        {showLegacyUiBanner && <LegacyUiBanner />}
+        {paymentBanner && (
+          <PaymentBannerView
+            organizationName={paymentBanner.organizationName}
+            billingSettingsHref={paymentBanner.billingSettingsHref}
+            severity={paymentBanner.severity}
+          />
+        )}
+        {v4MigrationTopBanner && (
+          <V4MigrationTopBannerView {...v4MigrationTopBanner} />
+        )}
+        {env.NEXT_PUBLIC_PREVIEW_PR_URL && (
+          <PreviewDeploymentBanner prUrl={env.NEXT_PUBLIC_PREVIEW_PR_URL} />
+        )}
+      </div>
+      {versionUpdatePrompt.isVisible && (
+        <VersionUpdateBanner
+          onReload={versionUpdatePrompt.reload}
+          onDismiss={versionUpdatePrompt.dismiss}
+        />
       )}
-    />
+      <div className="pt-banner-offset flex min-h-0 flex-1">{children}</div>
+    </div>
   );
 }
 
-/** useProjectCookie pings the visit beacon so the project sentinel can route the user back here. */
+/** useProjectCookie pings the visit beacon so the project sentinel and `/` can route the user back here. */
 function useProjectCookie(router: NextRouter) {
   const projectId = router.query.projectId;
   useEffect(() => {

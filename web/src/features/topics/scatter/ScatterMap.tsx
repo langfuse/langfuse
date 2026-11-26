@@ -8,6 +8,7 @@ export function ScatterMap({
   query,
   topics,
   selectedTopic,
+  pickedTopic = null,
   onSelectTopic,
   onSelectTrace,
   selectedTraceId,
@@ -25,15 +26,16 @@ export function ScatterMap({
   if (!query.data) return <ScatterMapLoading fillContainer={fillContainer} />;
   if (query.data.status !== "ready")
     return (
-      <p className="text-muted-foreground rounded-lg border p-4 text-sm">
+      <Banner>
         {query.data.reason ?? "This map has no saved embedding projection."}
-      </p>
+      </Banner>
     );
   return (
     <TopicMapExplorer
       data={query.data}
       topics={topics}
       selectedTopic={selectedTopic}
+      pickedTopic={pickedTopic}
       onSelectTopic={onSelectTopic}
       onSelectTrace={onSelectTrace}
       selectedTraceId={selectedTraceId}
@@ -52,6 +54,7 @@ type ScatterMapProps = {
   };
   topics: Topic[];
   selectedTopic: string | null;
+  pickedTopic?: string | null;
   onSelectTopic: (id: string | null) => void;
   onSelectTrace: (traceId: string | null) => void;
   selectedTraceId: string | null;

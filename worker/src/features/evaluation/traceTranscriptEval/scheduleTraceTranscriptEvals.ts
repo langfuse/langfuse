@@ -1,4 +1,4 @@
-import type { ObservationForEval } from "../observationEval/types";
+import type { ObservationEvalFilterFields } from "@langfuse/shared";
 import { isInternalEvalEnvironment } from "@langfuse/shared/src/server";
 import type { EvalSchedulerDeps } from "../scheduleEvals";
 import { getMatchingTraceDispatchRuleIds } from "../../traceDispatch/traceDispatchRules";
@@ -13,7 +13,7 @@ export async function scheduleTraceTranscriptEvals({
   traceActivity,
   schedulerDeps,
 }: {
-  observation: ObservationForEval;
+  observation: ObservationEvalFilterFields;
   /** Present only for direct event writes. */
   traceActivity?: Omit<TraceSpanActivity, "ruleIds" | "serializedEventBytes">;
   schedulerDeps: EvalSchedulerDeps;

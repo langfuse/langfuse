@@ -51,9 +51,6 @@ import {
 } from "@/src/utils/trpcResponseParseError";
 import { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
 
-export { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
-export { EXPECTED_TRPC_BAD_REQUEST_PATHS } from "@/src/utils/trpcErrorClassification";
-
 setUpSuperjson();
 
 const getBaseUrl = () => {
@@ -106,6 +103,7 @@ const hasReportedFailedFetchMessage = (error: unknown): boolean => {
   return REPORTED_FAILED_FETCH_MESSAGE.test(error.message);
 };
 
+/** @internal */
 export const isNetworkConnectivityError = (error: unknown): boolean => {
   if (!(error instanceof TRPCClientError)) return false;
 
@@ -165,6 +163,7 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  * A 5xx (`INTERNAL_SERVER_ERROR`), a non-Zod `BAD_REQUEST` outside the
  * allowlist, a CONFLICT outside the allowlist, an unrecognized code, or
  * any non-tRPC error is not expected and keeps flowing to Sentry.
+ * @internal
  */
 export const EXPECTED_TRPC_ERROR_CODES = [
   "NOT_FOUND",
@@ -185,6 +184,7 @@ export const EXPECTED_TRPC_ERROR_CODES = [
  * constraint. `rethrowIfMembershipExists` in `@langfuse/shared` returns
  * 409 with the already-member sentence, and the invite form shows it on
  * the email field. The pre-check for the same state is BAD_REQUEST.
+ * @internal
  */
 export const EXPECTED_TRPC_CONFLICT_PATHS = [
   "inAppAgent.decideToolApproval",
@@ -233,6 +233,7 @@ export const getTrpcErrorPath = (error: unknown): string | undefined => {
  * See {@link EXPECTED_TRPC_ERROR_CODES}, {@link EXPECTED_TRPC_CONFLICT_PATHS},
  * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}, and
  * {@link EXPECTED_TRPC_PRECONDITION_FAILED_PATHS}.
+ * @internal
  */
 export const isExpectedTrpcClientError = (error: unknown): boolean => {
   const code = getTrpcErrorCode(error);
@@ -288,6 +289,7 @@ const REQUEST_TOO_LARGE_STATUSES = [414, 431];
  * Both `httpLink` and `httpBatchLink` drop `meta.response` when `res.json()`
  * throws, so the safe correlation headers are copied onto that error.
  * Exported for tests.
+ * @internal
  */
 export const fetchWithParseErrorStatus: typeof fetch = async (input, init) => {
   const response = await fetch(input, init);
@@ -346,6 +348,7 @@ const TRPC_GATEWAY_RESPONSE_STATUSES = [502, 503, 504] as const;
  * A gateway non-JSON response (502/503/504) groups by status instead. Those
  * share one stack and, on Safari, one message; the procedure path stays a
  * tag so the group does not split per procedure or collide with app errors.
+ * @internal
  */
 export const getTrpcErrorFingerprint = (error: unknown): string[] => {
   if (isTrpcNonJsonBodyError(error)) {
@@ -387,6 +390,7 @@ export const getTrpcErrorFingerprint = (error: unknown): string[] => {
  * Safari's failure is a DOMException named `SyntaxError`, not a JS
  * `SyntaxError`. {@link isTrpcNonJsonBodyError} accepts that, a real
  * `SyntaxError` (Chrome / Firefox), and {@link TrpcNonJsonResponseError}.
+ * @internal
  */
 export const isTrpcResponseParseError = (error: unknown): boolean => {
   if (!isTrpcNonJsonBodyError(error)) return false;
@@ -402,10 +406,14 @@ export const isTrpcResponseParseError = (error: unknown): boolean => {
  * (`MAX_URL_FILTER_QUERY_LENGTH`) but independent of it: this bounds the full
  * tRPC GET URL (path + superjson-serialized input), not the `?filter=` param.
  * Queries whose GET URL would exceed this are sent as POST.
+ * @internal
  */
 export const MAX_TRPC_GET_URL_BYTES = 4_000;
 
-/** Approximate GET URL size for a tRPC query, matching the live httpLink encoding. */
+/**
+ * Approximate GET URL size for a tRPC query, matching the live httpLink encoding.
+ * @internal
+ */
 export const getApproxTrpcGetUrlBytes = (
   path: string,
   input: unknown,
@@ -439,6 +447,7 @@ export const sendAsPostOption = {
   trpc: { context: { sendAsPost: true } },
 } as const;
 
+/** @internal */
 export const shouldSendQueryAsPost = (
   op: Pick<Operation, "type" | "path" | "input" | "context">,
 ): boolean => {
@@ -647,6 +656,7 @@ export const reportTrpcErrorWithoutToast = (
 // and error — so a mismatch is detected on the first response after a deploy,
 // not only when a stale chunk 404s. Exported so tests can inject an observed
 // build id without going through the tRPC link.
+/** @internal */
 export const captureBuildId = (response: unknown) => {
   if (!(response instanceof Response)) return;
   const observed = response.headers.get("x-build-id");
@@ -655,6 +665,7 @@ export const captureBuildId = (response: unknown) => {
 };
 
 // Track the build id serving tRPC responses to compare against the running one.
+/** @internal */
 export const buildIdLink = (): TRPCLink<AppRouter> => () => {
   return ({ next, op }) => {
     return observable((observer) => {

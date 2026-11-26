@@ -14,6 +14,7 @@ export const planLabels = {
   "cloud:pro": "Pro",
   "cloud:team": "Team",
   "cloud:enterprise": "Enterprise",
+  "cloud:enterprise-trial": "Enterprise trial",
   "self-hosted:pro": "Pro (self-hosted)",
   "self-hosted:enterprise": "Enterprise (self-hosted)",
   "self-hosted:gov": "Government (self-hosted)",

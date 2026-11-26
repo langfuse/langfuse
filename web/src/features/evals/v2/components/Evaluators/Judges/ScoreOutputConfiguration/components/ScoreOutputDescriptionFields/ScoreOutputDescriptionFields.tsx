@@ -22,7 +22,7 @@ function DescriptionLabel({
   return (
     <Label className="flex items-center gap-1.5">
       {children}
-      <span className="text-muted-foreground font-regular">(optional)</span>
+      <span className="text-muted-foreground font-normal">(optional)</span>
       {!disabled ? (
         <InfoTooltip label={`About ${children.toLowerCase()}`}>
           {tooltip}

@@ -1,9 +1,19 @@
 /* eslint-disable no-nested-ternary */
+import {
+  isTraceTranscriptEvalType,
+  TopicsTargetObject,
+} from "@langfuse/shared";
 import { useStore } from "zustand";
 
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import { EvaluatorAssignmentsEditor } from "@/src/features/evals/v2/components/Rules/EvaluatorAssignmentsEditor/EvaluatorAssignmentsEditor";
+import {
+  EvalVariableSourceColumnsProvider,
+  TRACE_TRANSCRIPT_SOURCE_COLUMNS,
+  useEvalVariableSourceColumns,
+} from "@/src/features/evals/v2/contexts/EvalVariableSourceColumnsProvider";
 import { buildSelectedSampleObject } from "@/src/features/evals/v2/fns/evaluatorTesting/buildSelectedSampleObject";
+import { useEvaluatorTraceSample } from "@/src/features/evals/v2/hooks/useEvaluatorTraceSample";
 import type {
   RuleEvaluatorOption,
   RuleSetupStore,
@@ -31,6 +41,12 @@ export function RuleEvaluatorsStep({
     store,
     (state) => state.selectedObservation,
   );
+  const isTraceTranscript = useStore(
+    store,
+    (state) => state.targetObject === TopicsTargetObject,
+  );
+  const sourceColumns = useEvalVariableSourceColumns();
+  const traceSample = useEvaluatorTraceSample({ projectId, store });
   const selectedObservationDetails = api.events.experimentBatchIO.useQuery(
     {
       projectId,
@@ -48,6 +64,7 @@ export function RuleEvaluatorsStep({
     {
       ...sendAsPostOption,
       enabled: Boolean(
+        !isTraceTranscript &&
         selectedObservation?.id &&
         selectedObservation.traceId &&
         selectedObservation.startTime,
@@ -55,10 +72,29 @@ export function RuleEvaluatorsStep({
       select: (data) => data[0],
     },
   );
-  const sampleObject = buildSelectedSampleObject({
-    observation: selectedObservation,
-    eventDetails: selectedObservationDetails.data,
-  });
+  const target = isTraceTranscript
+    ? {
+        noun: "traces",
+        sourceColumns: TRACE_TRANSCRIPT_SOURCE_COLUMNS,
+        evaluatorOptions: evaluatorOptions.filter(({ type }) =>
+          isTraceTranscriptEvalType(type),
+        ),
+        sampleObject: traceSample.sourceObject,
+        sourceUnavailableMessage:
+          "No sample trace is available to validate JSON paths.",
+        emptyDescription: "Attach an evaluator to run on matching traces.",
+      }
+    : {
+        noun: "observations",
+        sourceColumns,
+        evaluatorOptions,
+        sampleObject: buildSelectedSampleObject({
+          observation: selectedObservation,
+          eventDetails: selectedObservationDetails.data,
+        }),
+        sourceUnavailableMessage: undefined,
+        emptyDescription: undefined,
+      };
   const assignments = useStore(store, (state) => state.assignments);
   const costEstimate = useRuleCostEstimate({ projectId, store });
   const availableEstimates = costEstimate.estimates.filter(
@@ -69,7 +105,7 @@ export function RuleEvaluatorsStep({
     0,
   );
   const total =
-    assignments.length > 0 ? (
+    assignments.length > 0 && !isTraceTranscript ? (
       <div className="w-48 border-t pt-2 text-right text-sm">
         {availableEstimates.length > 0 ? (
           <div>
@@ -103,18 +139,22 @@ export function RuleEvaluatorsStep({
     <Stepper
       number={2}
       title="Attach evaluators"
-      description="Choose which evaluators should run on matching observations."
+      description={`Choose which evaluators should run on matching ${target.noun}.`}
     >
-      <EvaluatorAssignmentsEditor
-        evaluatorOptions={evaluatorOptions}
-        store={store}
-        search={search}
-        onSearchChange={onSearchChange}
-        sampleObject={sampleObject}
-        costEstimates={costEstimate.estimates}
-        estimatingEvaluatorIds={costEstimate.estimatingEvaluatorIds}
-        footerTrailing={total}
-      />
+      <EvalVariableSourceColumnsProvider value={target.sourceColumns}>
+        <EvaluatorAssignmentsEditor
+          evaluatorOptions={target.evaluatorOptions}
+          store={store}
+          search={search}
+          onSearchChange={onSearchChange}
+          sampleObject={target.sampleObject}
+          sourceUnavailableMessage={target.sourceUnavailableMessage}
+          emptyDescription={target.emptyDescription}
+          costEstimates={costEstimate.estimates}
+          estimatingEvaluatorIds={costEstimate.estimatingEvaluatorIds}
+          footerTrailing={total}
+        />
+      </EvalVariableSourceColumnsProvider>
       {costEstimate.status === "error" && assignments.length > 0 ? (
         <p className="text-muted-foreground text-xs">
           Cost estimates are temporarily unavailable.

@@ -20,10 +20,8 @@ import { ListTree } from "@langfuse/icons";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  DatasetItemIOCell,
-  TraceObservationIOCell,
-} from "@/src/features/datasets/components/DatasetIOCells";
+import { DatasetItemIOCell } from "@/src/features/datasets/components/DatasetItemIOCell";
+import { TraceObservationIOCell } from "@/src/features/datasets/components/TraceObservationIOCell";
 import { datasetRunItemsTableColsWithOptions } from "@langfuse/shared";
 import { convertRunItemToItemsByRunUiTableRow } from "@/src/features/datasets/lib/convertRunItemDataToUiTableRow";
 import { type DatasetRunItemByRunRowData } from "@/src/features/datasets/lib/types";

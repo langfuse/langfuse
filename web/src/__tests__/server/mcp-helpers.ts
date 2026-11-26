@@ -17,6 +17,7 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 import type { ServerContext } from "@/src/features/mcp/types";
+import type { RegisteredTool } from "@/src/features/mcp/server/tools";
 import { authenticator } from "@/src/features/apiKey/authenticator";
 
 /**
@@ -270,11 +271,10 @@ export async function createPromptInDb(params: {
  * Helper to check if a tool has the correct MCP annotations.
  */
 export function verifyToolAnnotations(
-  toolDefinition: { annotations?: Record<string, boolean> },
+  toolDefinition: { annotations?: Record<string, unknown> },
   expectedAnnotations: {
     readOnlyHint?: boolean;
     destructiveHint?: boolean;
-    expensiveHint?: boolean;
   },
 ): void {
   const annotations = toolDefinition.annotations ?? {};
@@ -288,10 +288,20 @@ export function verifyToolAnnotations(
       expectedAnnotations.destructiveHint,
     );
   }
+}
 
-  if (expectedAnnotations.expensiveHint !== undefined) {
-    expect(annotations.expensiveHint).toBe(expectedAnnotations.expensiveHint);
-  }
+/** The tool with this name, when the context may list and call it. */
+export async function findCallableTool(
+  name: string,
+  context: ServerContext,
+): Promise<RegisteredTool | undefined> {
+  // Imported on use: the tool list loads every feature module, which fails in
+  // tests that import these helpers while partially mocking their dependencies
+  // (such as `@langfuse/shared/src/db` in the v4 migration tests).
+  const { canCallTool, getEnabledTool } =
+    await import("@/src/features/mcp/server/tools");
+  const tool = await getEnabledTool(name, context);
+  return tool && canCallTool(tool, context) ? tool : undefined;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import type { FilterState } from "@langfuse/shared";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import {
@@ -11,6 +11,8 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { TopicSetupFlowDialog } from "./TopicSetupFlowDialog";
+import { costEstimateFixture } from "@/.storybook/fixtures/topicCostEstimateFixture";
+import { TopicCostEstimateView } from "./TopicCostEstimateView";
 import {
   TOPIC_SETUP_QUESTIONS,
   type TopicSetupQuestion,
@@ -40,13 +42,17 @@ const questions: TopicSetupQuestion[] = TOPIC_SETUP_QUESTIONS.map(
 function SetupStory({
   step,
   connection = "ready",
+  slotErrors,
 }: {
   step: "questions" | "traces" | "review";
   /** "none": no AI connection yet; "viewer": none, and this user cannot add one. */
   connection?: "ready" | "none" | "viewer";
+  slotErrors?: ComponentProps<typeof TopicSetupFlowDialog>["slotErrors"];
 }) {
   const [selected, setSelected] = useState(questions);
   const [filter, setFilter] = useState<FilterState>([]);
+  const [samplePercent, setSamplePercent] = useState(100);
+  const [name, setName] = useState("Default");
   // The query editor's Ask AI needs tRPC, which stories don't provide.
   const [mode, setMode] = useState<EvaluatorFilterExperience>("builder");
   const traceFilterState = useTopicTraceFilterState({
@@ -62,6 +68,20 @@ function SetupStory({
       advancedOpen={false}
       busy={false}
       canWrite
+      costEstimate={
+        <TopicCostEstimateView
+          showUsage
+          estimate={costEstimateFixture()}
+          samplingPercent={samplePercent}
+          dailyTraces={180}
+          backfillTraces={412}
+          onAddModelPrice={fn()}
+          starting={false}
+          facetCount={selected.filter((question) => question.enabled).length}
+          error={null}
+          onStart={fn()}
+        />
+      }
       clustering={{
         provider: "Amazon Bedrock",
         model: "us.anthropic.claude-sonnet-5-5",
@@ -75,6 +95,7 @@ function SetupStory({
       }}
       embeddingProviderGroups={providerGroups}
       error={null}
+      slotErrors={slotErrors}
       onAdvancedOpenChange={fn()}
       onBack={fn()}
       onClusteringChange={fn()}
@@ -82,6 +103,8 @@ function SetupStory({
       connectionSettingsUrl="https://cloud.langfuse.com/project/demo-project/settings/llm-connections"
       onEdit={fn()}
       onEmbeddingChange={fn()}
+      name={name}
+      onNameChange={setName}
       onNext={fn()}
       onQuestionEnabled={(name, enabled) =>
         setSelected((current) =>
@@ -90,13 +113,13 @@ function SetupStory({
           ),
         )
       }
-      onSamplePercentChange={fn()}
+      onSamplePercentChange={setSamplePercent}
       onSummaryChange={fn()}
       onWaitMinutesChange={fn()}
       pastCount={{ status: "ready", matched: 412, dailyTraces: 180 }}
       providerGroups={providerGroups}
       questions={selected}
-      samplePercent={100}
+      samplePercent={samplePercent}
       projectId="demo-project"
       filter={filter}
       onFilterChange={setFilter}
@@ -165,12 +188,40 @@ export const NoConnectionViewer = meta.story({
   args: { step: "questions", connection: "viewer" },
 });
 
+export const ModelTestFailed = meta.story({
+  name: "Model test failed",
+  args: {
+    step: "questions",
+    slotErrors: {
+      embedding:
+        "The connection's endpoint doesn't serve this model. Choose another model or check the connection's base URL. Provider error: 404 The model `us.cohere.embed-v4:0` does not exist.",
+    },
+  },
+});
+
 export const Traces = meta.story({
   args: { step: "traces" },
 });
 
 export const Review = meta.story({
   args: { step: "review" },
+});
+
+export const RequiresAName = meta.story({
+  name: "(Test) Start stays disabled without a map name",
+  args: { step: "review" },
+  play: async () => {
+    const body = within(document.body);
+    const start = body.getByRole("button", { name: "Start analyzing" });
+    expect(start).toBeEnabled();
+    await userEvent.clear(body.getByRole("textbox", { name: "Map name" }));
+    expect(start).toBeDisabled();
+    await userEvent.type(
+      body.getByRole("textbox", { name: "Map name" }),
+      "Support agent",
+    );
+    expect(start).toBeEnabled();
+  },
 });
 
 export const RequiresAQuestion = meta.story({

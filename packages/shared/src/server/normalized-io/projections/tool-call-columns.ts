@@ -2,6 +2,7 @@ import type {
   NormalizedIO,
   ToolColumns,
 } from "../../../utils/normalized-io/types";
+import { defineOwnValue } from "../../../utils/objects";
 
 /**
  * NormalizedIO -> ClickHouse tool-call columns. Shape matches
@@ -45,13 +46,18 @@ export function toToolColumns(io: NormalizedIO): ToolColumns {
 
   const tool_definitions: Record<string, string> = {};
   for (const definition of io.toolDefinitions) {
-    tool_definitions[definition.name] = JSON.stringify({
-      description: definition.description ?? "",
-      parameters:
-        definition.inputSchema !== undefined
-          ? JSON.stringify(definition.inputSchema)
-          : "",
-    });
+    // Bracket assignment drops a definition named `__proto__`.
+    defineOwnValue(
+      tool_definitions,
+      definition.name,
+      JSON.stringify({
+        description: definition.description ?? "",
+        parameters:
+          definition.inputSchema !== undefined
+            ? JSON.stringify(definition.inputSchema)
+            : "",
+      }),
+    );
   }
 
   return { tool_definitions, tool_calls, tool_call_names };

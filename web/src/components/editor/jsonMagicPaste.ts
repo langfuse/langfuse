@@ -41,11 +41,13 @@ import { extractTransferFiles } from "@/src/components/editor/fileDropPaste";
  * control chars (`\n` `\r` `\t` `\b` `\f` and `\uXXXX`). U+2028/U+2029 are valid
  * unescaped inside a JSON string, so they're intentionally left as-is.
  */
+/** @internal */
 export function escapeForJsonStringBody(text: string): string {
   return JSON.stringify(text).slice(1, -1);
 }
 
 /** Whether `text` is, on its own, syntactically valid JSON. */
+/** @internal */
 export function isValidJson(text: string): boolean {
   const trimmed = text.trim();
   if (trimmed === "") return false;
@@ -66,6 +68,7 @@ export function isValidJson(text: string): boolean {
  * then pasted) isn't a `String` node in the Lezer grammar — the scanner treats
  * it as "still open", which is exactly what we want.
  */
+/** @internal */
 export function isInsideJsonString(state: EditorState, pos: number): boolean {
   return isInsideJsonStringPrefix(state.doc.sliceString(0, pos));
 }
@@ -120,7 +123,7 @@ function selectionStaysInJsonString(
   return true;
 }
 
-export type MagicPastePlan = {
+type MagicPastePlan = {
   kind: "escape" | "wrap";
   from: number;
   to: number;
@@ -133,6 +136,7 @@ export type MagicPastePlan = {
 /**
  * Decides how a pasted text should be transformed at the current selection, or
  * returns null when the paste should be handled normally by the editor.
+ * @internal
  */
 export function planMagicPaste(
   state: EditorState,

@@ -64,11 +64,6 @@ const EnvSchema = z.object({
   // CHB's resource-server identifier. Defaulted because it is the same value
   // in every CHB tenant, and overridable in case that stops being true.
   CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
-  // Compares each metered Stripe interval with the billable_events ledger and
-  // reports the gap.
-  LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
 
   LANGFUSE_S3_BATCH_EXPORT_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_S3_BATCH_EXPORT_BUCKET: z.string().optional(),
@@ -146,11 +141,11 @@ const EnvSchema = z.object({
       message:
         'Use "*" alone to select all projects, or a comma-separated list of project IDs',
     }),
-  // Cloud only: records trace activity at ingestion; the events-dispatch consumer host also runs the dispatcher.
-  LANGFUSE_EVENTS_DISPATCH_ENABLED: z.enum(["true", "false"]).default("false"),
+  // Records trace activity at ingestion; the events-dispatch consumer host also runs the dispatcher.
+  LANGFUSE_EVENTS_DISPATCH_ENABLED: z.enum(["true", "false"]).default("true"),
   QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
   // How long a trace's Redis bounds survive its latest activity; late spans merge within it.
   LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS: z.coerce
     .number()
@@ -181,6 +176,12 @@ const EnvSchema = z.object({
     .min(0)
     .max(23)
     .default(4),
+  // Rendered transcript characters per Topics summary request; ~135k-150k o200k tokens at typical density.
+  LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(500_000),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
@@ -216,10 +217,11 @@ const EnvSchema = z.object({
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
 
   CLICKHOUSE_URL: z.url(),
-  CLICKHOUSE_USER: z.string(),
+  // Required unless CLICKHOUSE_AUTH_MODE is jwt; validated in the shared env.
+  CLICKHOUSE_USER: z.string().optional(),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
-  CLICKHOUSE_PASSWORD: z.string(),
+  CLICKHOUSE_PASSWORD: z.string().optional(),
   CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_EVAL_CREATOR_LIMITER_DURATION: z.coerce
     .number()

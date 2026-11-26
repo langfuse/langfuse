@@ -3,10 +3,13 @@ import { vi } from "vitest";
 
 import { useSessionHeaderMenuItems } from "@/src/features/sessions/useSessionHeaderMenuItems";
 
-const { mockUseInternalFeaturesEnabled, copy } = vi.hoisted(() => ({
-  mockUseInternalFeaturesEnabled: vi.fn(),
-  copy: vi.fn(),
-}));
+const { mockUseInternalFeaturesEnabled, copy, getShareUrl, publish } =
+  vi.hoisted(() => ({
+    mockUseInternalFeaturesEnabled: vi.fn(),
+    copy: vi.fn(),
+    getShareUrl: vi.fn(() => "https://example.com"),
+    publish: { sharingDisabledReason: null as string | null },
+  }));
 
 vi.mock(
   "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled",
@@ -20,10 +23,11 @@ vi.mock("next/router", () => ({
 }));
 
 vi.mock("@/src/components/usePublishObject", () => ({
-  getShareUrl: () => "https://example.com",
+  getShareUrl,
   usePublishObject: () => ({
     hasAccess: true,
     isPending: false,
+    sharingDisabledReason: publish.sharingDisabledReason,
     toggle: vi.fn(() => Promise.resolve()),
   }),
 }));
@@ -36,10 +40,50 @@ vi.mock("@/src/hooks/useCopyToClipboard", () => ({
   useCopyToClipboard: () => ({ copy }),
 }));
 
+vi.mock("@/src/utils/clipboard", () => ({
+  copyTextToClipboard: vi.fn(),
+}));
+
 describe("useSessionHeaderMenuItems", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseInternalFeaturesEnabled.mockReturnValue(false);
+    publish.sharingDisabledReason = null;
+  });
+
+  it("copies the session URL override rather than the surrounding trace URL", () => {
+    const shareUrl = "/project/project-id/sessions/session-id";
+    const { result } = renderHook(() =>
+      useSessionHeaderMenuItems({
+        projectId: "project-id",
+        sessionId: "session-id",
+        isPublic: true,
+        shareUrl,
+      }),
+    );
+    const item = result.current.find((item) => item.id === "copy-share-link");
+    if (item?.type !== "item") throw new Error("Expected share link action");
+    item.onClick?.();
+    expect(getShareUrl).toHaveBeenCalledWith(shareUrl);
+  });
+
+  it("keeps Unshare available for a public session while sharing is disabled", () => {
+    publish.sharingDisabledReason =
+      "Public sharing is disabled for this organization.";
+    const { result } = renderHook(() =>
+      useSessionHeaderMenuItems({
+        projectId: "project-id",
+        sessionId: "session-id",
+        isPublic: true,
+      }),
+    );
+    const ids = result.current.map((item) => item.id);
+    expect(ids).not.toContain("copy-share-link");
+    expect(ids).not.toContain("share");
+    expect(result.current.find((item) => item.id === "unshare")).toMatchObject({
+      type: "item",
+      disabled: undefined,
+    });
   });
 
   it.each(["events_full", "events_core"])(

@@ -305,7 +305,7 @@
     "ioredis": "^5.10.1",
     "ipaddr.js": "^2.2.0",
     "jsonpath-plus": "10.3.0",
-    "kysely": "0.28.17",
+    "kysely": "0.29.9",
     "lodash": "^4.18.1",
     "lossless-json": "^4.1.1",
     "lru-cache": "^11.2.7",

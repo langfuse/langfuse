@@ -75,12 +75,11 @@ describe("getV4MigrationData MCP tool", () => {
     });
   });
 
-  it("is discoverable as a read-only, expensive tool without project input", () => {
+  it("is discoverable as a read-only tool without project input", () => {
     expect(getV4MigrationDataTool).toMatchObject({
       name: "getV4MigrationData",
       annotations: {
         readOnlyHint: true,
-        expensiveHint: true,
       },
       inputSchema: {
         type: "object",

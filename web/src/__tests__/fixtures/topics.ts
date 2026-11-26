@@ -85,7 +85,7 @@ export async function topicsProject() {
       usageDetails: {},
       providedCostDetails: {},
       costDetails: {},
-      processedAt: now,
+      createdAt: now,
       metadata: {},
     },
   ]);
@@ -101,8 +101,15 @@ export async function topicsProject() {
       runnerUpDistance: 0.2,
       origin: "initial",
       coordinates: null,
-      assignedAt: now,
+      createdAt: now,
     },
   ]);
-  return { ...project, facetId: facet.id, ruleId: rule.id, topicId, traceId };
+  return {
+    ...project,
+    facetId: facet.id,
+    ruleId: rule.id,
+    runId: run.id,
+    topicId,
+    traceId,
+  };
 }

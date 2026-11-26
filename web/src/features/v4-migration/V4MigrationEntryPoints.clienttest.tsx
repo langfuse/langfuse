@@ -9,7 +9,9 @@ import {
 
 function V4MigrationNavItemHarness() {
   const project = useV4MigrationNavItemProject();
-  return project && <V4MigrationNavItem project={project} />;
+  return (
+    project && <V4MigrationNavItem project={project} isCollapsed={false} />
+  );
 }
 import { V4MigrationProjectChip } from "./V4MigrationProjectChip";
 import { type ProjectMigrationStatus } from "./migrationData";
@@ -17,24 +19,10 @@ import { type ProjectMigrationStatus } from "./migrationData";
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   openMigrationPanel: vi.fn(),
-  setOpenMobileSidebar: vi.fn(),
   migrationData: undefined as unknown as ProjectMigrationStatus,
   cachedActionNeeded: false,
   upgradeUiEnabled: true,
   migrationActions: vi.fn(),
-}));
-
-vi.mock("@/src/components/ui/sidebar", () => ({
-  SidebarMenuButton: ({
-    children,
-    ...props
-  }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button {...props}>{children}</button>
-  ),
-  useSidebar: () => ({
-    isMobile: false,
-    setOpenMobile: mocks.setOpenMobileSidebar,
-  }),
 }));
 
 vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({

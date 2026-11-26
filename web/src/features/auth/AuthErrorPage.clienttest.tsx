@@ -11,7 +11,7 @@ vi.mock("next/router", () => ({
   useRouter: () => ({ query: routerState.query }),
 }));
 
-vi.mock("@/src/components/error-page", () => ({
+vi.mock("@/src/components/ErrorPageWithSentry", () => ({
   ErrorPageWithSentry: ({ message }: { message: string }) => <p>{message}</p>,
 }));
 

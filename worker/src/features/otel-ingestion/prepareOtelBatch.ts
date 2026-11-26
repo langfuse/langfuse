@@ -99,7 +99,7 @@ export async function prepareOtelBatch(params: {
       {
         body: (input) => {
           if (!(input.bytes.buffer instanceof ArrayBuffer)) {
-            throw new Error(
+            throw new TypeError(
               "masking body must have an ArrayBuffer backing store",
             );
           }

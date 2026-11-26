@@ -226,7 +226,7 @@ export const datetimeFilterToPrismaSql = (
     throw new Error("Invalid operator: " + operator);
   }
   if (isNaN(value.getTime())) {
-    throw new Error("Invalid date: " + value.toString());
+    throw new TypeError("Invalid date: " + value.toString());
   }
 
   return Prisma.sql`AND ${Prisma.raw(safeColumn)} ${Prisma.raw(

@@ -2,7 +2,11 @@ import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
-import { TopicsMapPicker, type UsePreviewTopics } from "./TopicsMapPicker";
+import {
+  TopicsMapPicker,
+  type UsePickerCost,
+  type UsePreviewTopics,
+} from "./TopicsMapPicker";
 import { TopicMapStrip } from "./TopicMapStrip";
 import { TopicRuleBuildingState } from "./TopicRuleBuildingState";
 import { refreshMapDisabledReason } from "./prepare-topics-actions";
@@ -53,6 +57,7 @@ const overview: TopicMapsOverview = {
       ],
       sampling: 1,
       lastRefitAt: hoursAgo(26),
+      refresh: { availableAt: null, running: true },
     }),
     rule({
       id: "rule-checkout",
@@ -120,6 +125,15 @@ const useStoryPreviewTopics: UsePreviewTopics = (_projectId, map) => ({
     : undefined,
 });
 
+const storyCosts: Record<string, string> = {
+  "rule-all": "~$0.32",
+  "rule-support": "~$0.14",
+  "analysis-refunds": "~$0.50",
+  "analysis-beta": "~$0.08",
+};
+const useStoryPickerCost: UsePickerCost = (_projectId, map) =>
+  map ? (storyCosts[map.id] ?? "Unavailable") : "Loading…";
+
 /** The Topics page header flow: pick a map, see its strip, or the building state of a new map. */
 function MapSwitcher({
   initial,
@@ -152,6 +166,7 @@ function MapSwitcher({
           facetId="intent"
           onSelect={setSelection}
           usePreviewTopics={useStoryPreviewTopics}
+          usePickerCost={useStoryPickerCost}
           processingOn
           create={{
             map: { onSelect: fn() },
@@ -163,16 +178,13 @@ function MapSwitcher({
           })}
         />
       </div>
-      {selectedRule ? (
-        <TopicMapStrip.Rule rule={selectedRule} now={now} />
-      ) : null}
-      {selectedAnalysis ? (
+      {selectedRule && <TopicMapStrip.Rule rule={selectedRule} now={now} />}
+      {selectedAnalysis && (
         <TopicMapStrip.Analysis
           analysis={selectedAnalysis}
-          estimatedCost={selectedAnalysis.summarize ? 0.42 : null}
           onViewRun={() => onViewRun(selectedAnalysis.id)}
         />
-      ) : null}
+      )}
       {selectedRule?.enabled !== false && selectedRule?.lastRefitAt === null ? (
         <TopicRuleBuildingState rule={selectedRule} mapBuilt={false} />
       ) : (
@@ -242,13 +254,11 @@ export const TestSwitchesMaps = meta.story({
       canvas.getByRole("button", { name: "Topic map: Refund complaints" }),
     ).toBeVisible();
     await expect(canvas.getByText(/1,840 traces/)).toBeVisible();
-    await expect(
-      canvas.getByText("Summaries and embeddings · ~$0.42"),
-    ).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "View run" }));
     await expect(args.onViewRun).toHaveBeenCalledWith("analysis-refunds");
 
     picker = await openPicker(canvasElement);
+    await expect(picker.getByText("~$0.50")).toBeVisible();
     await userEvent.click(
       picker.getByRole("button", { name: /Checkout assistant/ }),
     );
@@ -300,6 +310,8 @@ export const TestKeepsHeightWhilePreviewing = meta.story({
         "dialog",
         { name: "Topic maps" },
       );
+      // Exercise wider font metrics consistently across platforms.
+      dialog.style.fontFamily = "monospace";
       // The selected live map: three top topics, a one-line filter, and Refresh available.
       await expect(
         picker.getByRole("button", { name: "Refresh" }),
@@ -339,10 +351,16 @@ export const TestPausedLast = meta.story({
 });
 
 export const TestRefreshPreviewedMap = meta.story({
-  name: "(Test) Refresh acts on the previewed map",
+  name: "(Test) Cost and refresh follow the previewed map",
   args: { onRefresh: fn() },
   play: async ({ args, canvasElement }) => {
     const picker = await openPicker(canvasElement);
+    await expect(picker.getByText("Estimated cost:")).toBeVisible();
+    await expect(picker.getByText("~$0.32")).toBeVisible();
+    await userEvent.hover(
+      picker.getByRole("button", { name: /^Checkout assistant/ }),
+    );
+    await expect(picker.getByText("Unavailable")).toBeVisible();
     await userEvent.hover(
       picker.getByRole("button", { name: /^Support agent/ }),
     );
@@ -351,8 +369,33 @@ export const TestRefreshPreviewedMap = meta.story({
         picker.getByText("Support agent", { selector: ".font-bold" }),
       ).toBeVisible(),
     );
+    await expect(picker.getByText("~$0.14")).toBeVisible();
+    await userEvent.hover(picker.getByText("~$0.14"));
+    await expect(
+      await within(canvasElement.ownerDocument.body).findByRole("tooltip"),
+    ).toHaveTextContent("Please confirm with your model provider.");
     await userEvent.click(picker.getByRole("button", { name: "Refresh" }));
     await expect(args.onRefresh).toHaveBeenCalledWith("rule-support");
+  },
+});
+
+export const TestPhoneShowsSelectedMapCost = meta.story({
+  name: "(Test) Phone footer keeps the selected map’s cost while browsing",
+  globals: { viewport: { value: "phone", isRotated: false } },
+  parameters: {
+    viewport: {
+      options: {
+        phone: { name: "Phone", styles: { width: "390px", height: "844px" } },
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const picker = await openPicker(canvasElement);
+    await userEvent.hover(
+      picker.getByRole("button", { name: /^Support agent/ }),
+    );
+    await expect(picker.getByText("~$0.32")).toBeVisible();
+    await expect(picker.queryByText("~$0.14")).not.toBeInTheDocument();
   },
 });
 

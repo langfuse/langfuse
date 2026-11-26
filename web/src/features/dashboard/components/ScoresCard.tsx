@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-style-props */
 import { useMemo } from "react";
 import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
 import { type ScoreDataTypeType, type FilterState } from "@langfuse/shared";
@@ -21,7 +20,8 @@ import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hook
 
 export function ScoresCard(props: {
   actions?: DataCardActions;
-  className?: string;
+  /** When false (content-height presets), the card grows with content; otherwise it fills the grid cell. */
+  fillHeight?: boolean;
   agg: DashboardDateRangeAggregationOption;
   globalFilterState: FilterState;
   fromTimestamp: Date;
@@ -108,7 +108,7 @@ export function ScoresCard(props: {
   );
 
   return (
-    <div className={props.className}>
+    <div className={props.fillHeight ? "h-full" : "min-h-full"}>
       <WidgetChartCard
         chartType="LINE_TIME_SERIES"
         actions={props.actions}

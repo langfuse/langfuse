@@ -237,8 +237,16 @@ fn claude_managed_agent_lifecycle_respects_provider_priority() {
             "anthropic.messages.create",
             Some("chat"),
             None,
-            "GENERATION",
+            "SPAN",
             "anthropic.messages.create",
+            true,
+        ),
+        (
+            "anthropic.model_request",
+            Some("chat"),
+            None,
+            "GENERATION",
+            "anthropic.model_request",
             false,
         ),
         (
@@ -587,21 +595,52 @@ fn prompt_lookup_preserves_raw_name_truthiness_and_alias_precedence() {
 
 #[test]
 fn recovers_internal_environment_from_failed_openrouter_request() {
-    let input = json!([{
-        "resource": {"attributes": [
-            {"key":"service.name","value":{"stringValue":"openrouter"}}
-        ]},
-        "scopeSpans": [{"scope":{"name":"otel.scope"},"spans":[{
-            "traceId":"trace","spanId":"span","name":"chat",
-            "startTimeUnixNano":"1000000000","endTimeUnixNano":"2000000000",
-            "attributes":[
-                {"key":"openrouter.source","value":{"stringValue":"openrouter"}},
-                {"key":"gen_ai.completion","value":{"stringValue":"{\"completion\":null,\"rawRequest\":{\"trace\":{\"environment\":\"langfuse-llm-as-a-judge\"}}}"}}
-            ]
-    }]}]
-    }]);
-    let events = process_json(&input, &EventBuildConfig::default()).unwrap();
-    assert_eq!(events[0].environment, "llm-as-a-judge");
+    for (raw_env, expected) in [
+        ("langfuse-llm-as-a-judge", "llm-as-a-judge"),
+        ("langfuse-topics-internal", "topics-internal"),
+    ] {
+        let input = json!([{
+            "resource": {"attributes": [
+                {"key":"service.name","value":{"stringValue":"openrouter"}}
+            ]},
+            "scopeSpans": [{"scope":{"name":"otel.scope"},"spans":[{
+                "traceId":"trace","spanId":"span","name":"chat",
+                "startTimeUnixNano":"1000000000","endTimeUnixNano":"2000000000",
+                "attributes":[
+                    {"key":"openrouter.source","value":{"stringValue":"openrouter"}},
+                    {"key":"gen_ai.completion","value":{"stringValue": format!("{{\"completion\":null,\"rawRequest\":{{\"trace\":{{\"environment\":\"{raw_env}\"}}}}}}")}}
+                ]
+        }]}]
+        }]);
+        let events = process_json(&input, &EventBuildConfig::default()).unwrap();
+        assert_eq!(events[0].environment, expected, "{raw_env}");
+    }
+}
+
+#[test]
+fn strips_public_langfuse_topics_internal_without_touching_customer_topics() {
+    for (input_env, internal, expected) in [
+        ("langfuse-topics-internal", false, "topics-internal"),
+        ("langfuselangfuse-topics-internal", false, "topics-internal"),
+        ("topics", false, "topics"),
+        ("langfuse-topics-internal", true, "langfuse-topics-internal"),
+    ] {
+        let input = json!([{
+            "scopeSpans": [{"scope":{"name":"otel.scope"},"spans":[{
+                "traceId":"trace","spanId":"span","name":"chat",
+                "startTimeUnixNano":"1000000000","endTimeUnixNano":"2000000000",
+                "attributes":[
+                    {"key":"langfuse.environment","value":{"stringValue": input_env}}
+                ]
+            }]}]
+        }]);
+        let config = EventBuildConfig {
+            is_langfuse_internal: internal,
+            ..EventBuildConfig::default()
+        };
+        let events = process_json(&input, &config).unwrap();
+        assert_eq!(events[0].environment, expected, "{input_env} ({internal})");
+    }
 }
 
 #[test]

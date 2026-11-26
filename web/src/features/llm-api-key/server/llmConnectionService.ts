@@ -202,6 +202,29 @@ function resolveBedrockExternalId(params: {
   );
 }
 
+/**
+ * Drops Bedrock `customModelConfig` entries whose model is no longer a custom
+ * model. Returns `config` itself when nothing is dropped.
+ */
+function pruneBedrockCustomModelConfig(
+  config: LLMConnectionConfig | undefined,
+  customModels: string[],
+): LLMConnectionConfig | undefined {
+  const customModelConfig = config?.customModelConfig;
+  if (!config || typeof customModelConfig !== "object") {
+    return config;
+  }
+  const entries = Object.entries(customModelConfig);
+  const keptEntries = entries.filter(([model]) => customModels.includes(model));
+  if (keptEntries.length === entries.length) {
+    return config;
+  }
+  const { customModelConfig: _removed, ...rest } = config;
+  return keptEntries.length > 0
+    ? { ...rest, customModelConfig: Object.fromEntries(keptEntries) }
+    : rest;
+}
+
 function getDisplaySecretKey(secretKey: string): string {
   if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
     return "Default AWS credentials";
@@ -435,8 +458,7 @@ async function testLlmConnection(
 
     let parsedConfig: LLMConnectionConfig | null = null;
     if (params.config && params.adapter === LLMAdapter.Bedrock) {
-      const config = BedrockConfigSchema.parse(params.config);
-      parsedConfig = { region: config.region };
+      parsedConfig = BedrockConfigSchema.parse(params.config);
     } else if (params.config && params.adapter === LLMAdapter.OpenAI) {
       parsedConfig = OpenAIConfigSchema.parse(params.config);
     } else if (params.config && params.adapter === LLMAdapter.VertexAI) {
@@ -616,6 +638,10 @@ export class LlmConnectionService {
     )
       ? resolveBedrockExternalId({ bedrockIamRole: params.bedrockIamRole })
       : undefined;
+    const config = pruneBedrockCustomModelConfig(
+      params.input.config,
+      params.input.customModels ?? [],
+    );
 
     let key: LlmApiKeys;
     try {
@@ -638,7 +664,7 @@ export class LlmConnectionService {
             baseURL: params.input.baseURL,
             withDefaultModels: params.input.withDefaultModels,
             customModels: params.input.customModels,
-            config: params.input.config,
+            config,
             extraHeaders: params.input.extraHeaders
               ? encrypt(JSON.stringify(params.input.extraHeaders))
               : undefined,
@@ -695,6 +721,10 @@ export class LlmConnectionService {
     const extraHeaderKeys = params.input.extraHeaders
       ? Object.keys(params.input.extraHeaders)
       : undefined;
+    const config = pruneBedrockCustomModelConfig(
+      params.input.config,
+      params.input.customModels ?? [],
+    );
     const { connection, existing } = await this.db.$transaction(async (tx) => {
       const repository = this.repository.withDb(tx);
       const existing = await repository.findByProvider({
@@ -720,7 +750,7 @@ export class LlmConnectionService {
           baseURL: params.input.baseURL,
           withDefaultModels: params.input.withDefaultModels,
           customModels: params.input.customModels,
-          config: params.input.config,
+          config,
           extraHeaders: encryptedExtraHeaders,
           extraHeaderKeys,
         },
@@ -731,9 +761,7 @@ export class LlmConnectionService {
           baseURL: params.input.baseURL ?? null,
           withDefaultModels: params.input.withDefaultModels,
           customModels: params.input.customModels ?? [],
-          ...(params.input.config !== undefined
-            ? { config: params.input.config ?? Prisma.DbNull }
-            : {}),
+          ...(config !== undefined ? { config } : {}),
           extraHeaders: encryptedExtraHeaders ?? null,
           extraHeaderKeys: extraHeaderKeys ?? [],
         },
@@ -823,25 +851,58 @@ export class LlmConnectionService {
       extraHeaderKeys = [];
     }
 
-    const key = await this.repository.update({
-      owner: params.owner,
-      id: params.input.id,
-      data: {
-        ...(params.input.secretKey
-          ? {
-              secretKey: encrypt(params.input.secretKey),
-              displaySecretKey: getDisplaySecretKey(params.input.secretKey),
-            }
-          : {}),
-        externalId,
-        extraHeaders: encryptedExtraHeaders,
-        extraHeaderKeys,
-        baseURL: params.input.baseURL,
-        withDefaultModels: params.input.withDefaultModels,
-        customModels: params.input.customModels,
-        config: params.input.config,
-      },
-    });
+    const customModels = params.input.customModels ?? existingKey.customModels;
+    let config = pruneBedrockCustomModelConfig(
+      params.input.config,
+      customModels,
+    );
+    let writesBackStoredConfig = false;
+    if (!params.input.config && params.input.customModels) {
+      const storedConfig =
+        LLMConnectionConfigSchema.nullable().parse(existingKey.config) ??
+        undefined;
+      const prunedConfig = pruneBedrockCustomModelConfig(
+        storedConfig,
+        customModels,
+      );
+      if (prunedConfig !== storedConfig) {
+        config = prunedConfig;
+        writesBackStoredConfig = true;
+      }
+    }
+
+    // Writing back the stored config must not overwrite a concurrent change.
+    const key = await this.repository
+      .update({
+        owner: params.owner,
+        id: params.input.id,
+        expectedUpdatedAt: writesBackStoredConfig
+          ? existingKey.updatedAt
+          : undefined,
+        data: {
+          ...(params.input.secretKey
+            ? {
+                secretKey: encrypt(params.input.secretKey),
+                displaySecretKey: getDisplaySecretKey(params.input.secretKey),
+              }
+            : {}),
+          externalId,
+          extraHeaders: encryptedExtraHeaders,
+          extraHeaderKeys,
+          baseURL: params.input.baseURL,
+          withDefaultModels: params.input.withDefaultModels,
+          customModels: params.input.customModels,
+          config,
+        },
+      })
+      .catch((error: unknown) => {
+        if (writesBackStoredConfig && isPrismaRecordNotFoundError(error)) {
+          throw new LangfuseConflictError(
+            "The LLM connection was changed by another request. Reload and try again.",
+          );
+        }
+        throw error;
+      });
 
     await auditLog({
       ...params.actor,

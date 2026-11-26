@@ -76,6 +76,7 @@ import {
   toDomainArrayWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { throwIfPublicSharingDisabled } from "@/src/ee/features/public-sharing/server/publicSharing";
 import partition from "lodash/partition";
 import chunk from "lodash/chunk";
 
@@ -663,6 +664,12 @@ export const traceRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "objects:publish",
       });
+      if (input.public) {
+        await throwIfPublicSharingDisabled({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+        });
+      }
       await auditLog({
         session: ctx.session,
         resourceType: "trace",

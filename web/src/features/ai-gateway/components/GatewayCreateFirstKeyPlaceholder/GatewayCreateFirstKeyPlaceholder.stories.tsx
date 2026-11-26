@@ -11,11 +11,6 @@ const meta = preview.meta({
 export const Default = meta.story({
   args: {
     organizationName: "Acme",
-    providers: [
-      { provider: "ANTHROPIC", isConnected: true },
-      { provider: "OPENAI", isConnected: true },
-      { provider: "BEDROCK", isConnected: false },
-    ],
     onCreateKey: fn(),
     usageInstructionsHref: GATEWAY_FIRST_REQUEST_DOCS_URL,
     modelsHref: "/organization/org-1/ai-gateway/models",

@@ -1,11 +1,15 @@
 import { useEffect } from "react";
+import { type LinkProps } from "next/link";
 import { useRouter } from "next/router";
+import { type ParsedUrlQuery } from "querystring";
 import { api } from "@/src/utils/api";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { useSingleTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 
+export type TraceMessagesNeighbor = Pick<LinkProps, "href" | "shallow">;
+
 export function useTraceMessagesNavigation() {
-  const { trace, isPlaceholderData } = useTraceData();
+  const { trace, isPlaceholderData } = useSingleTraceData();
   const { isPeekMode, isAnnotationMode } = useViewPreferences();
   const router = useRouter();
   const utils = api.useUtils();
@@ -51,48 +55,84 @@ export function useTraceMessagesNavigation() {
       );
     }
   }, [isPlaceholderData, previousTrace, nextTrace, trace.projectId, utils]);
-  const [previousTraceLink, nextTraceLink] = [previousTrace, nextTrace].map(
-    (target, directionIndex) => {
-      if (isAnnotationMode || !target) return undefined;
-      const count =
-        directionIndex === 0
-          ? traceIndex
-          : (sessionTraces?.length ?? 0) - traceIndex - 1;
-      if (isPeekMode) {
-        const query = { ...router.query };
-        delete query.observation;
-        return {
-          count,
-          href: {
+  const sessionNavigation =
+    !trace.sessionId || isAnnotationMode || !sessionTraces || traceIndex < 0
+      ? null
+      : {
+          position: traceIndex + 1,
+          total: sessionTraces.length,
+          sessionHref: `/project/${trace.projectId}/sessions/${encodeURIComponent(trace.sessionId)}`,
+          previous: neighborLink({
+            target: previousTrace,
+            isPeekMode,
             pathname: router.pathname,
-            query: {
-              ...query,
-              traceId: target.id,
-              timestamp: target.timestamp.toISOString(),
-              traceView: "messages",
-            },
-          },
-          shallow: true,
+            query: router.query,
+            projectId: trace.projectId,
+          }),
+          next: neighborLink({
+            target: nextTrace,
+            isPeekMode,
+            pathname: router.pathname,
+            query: router.query,
+            projectId: trace.projectId,
+          }),
+          currentTraceId: messageTrace.id,
+          timeline: sessionTraces.map((sessionTrace) => ({
+            id: sessionTrace.id,
+            name: sessionTrace.name,
+            startMs: sessionTrace.timestamp.getTime(),
+            endMs:
+              sessionTrace.timestamp.getTime() + (sessionTrace.latencyMs ?? 0),
+            link: neighborLink({
+              target: sessionTrace,
+              isPeekMode,
+              pathname: router.pathname,
+              query: router.query,
+              projectId: trace.projectId,
+            }),
+          })),
         };
-      }
-      return {
-        count,
-        href: {
-          pathname: `/project/${trace.projectId}/traces/${target.id}`,
-          query: {
-            timestamp: target.timestamp.toISOString(),
-            traceView: "messages",
-          },
-        },
-      };
-    },
-  );
 
+  return { messageTrace, sessionNavigation };
+}
+
+function neighborLink({
+  target,
+  isPeekMode,
+  pathname,
+  query,
+  projectId,
+}: {
+  target: { id: string; timestamp: Date } | undefined;
+  isPeekMode: boolean;
+  pathname: string;
+  query: ParsedUrlQuery;
+  projectId: string;
+}): TraceMessagesNeighbor | undefined {
+  if (!target) return undefined;
+  if (isPeekMode) {
+    const nextQuery = { ...query };
+    delete nextQuery.observation;
+    return {
+      href: {
+        pathname,
+        query: {
+          ...nextQuery,
+          traceId: target.id,
+          timestamp: target.timestamp.toISOString(),
+          traceView: "messages",
+        },
+      },
+      shallow: true,
+    };
+  }
   return {
-    messageTrace,
-    navigation: {
-      previousTrace: previousTraceLink,
-      nextTrace: nextTraceLink,
+    href: {
+      pathname: `/project/${projectId}/traces/${target.id}`,
+      query: {
+        timestamp: target.timestamp.toISOString(),
+        traceView: "messages",
+      },
     },
   };
 }

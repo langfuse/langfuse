@@ -55,24 +55,34 @@ export function MetricsFilterBuilder({
   );
   const unsupportedColumns = Array.from(
     new Set(
-      editorFilters
-        .filter((filter) => !resolvesToColumn(filter, columns))
-        .map((filter) => displayNameForFilterColumn(filter.column)),
+      hiddenEditorFilters(view, filters, columns).map(unsupportedFilterLabel),
     ),
   ).join(", ");
 
   return (
     <div className="space-y-2">
       {unsupportedColumns.length > 0 && (
-        <Banner variant="warning" title="Unsupported filters">
-          {`These filter columns are not supported for ${startCase(view)} and were dropped: ${unsupportedColumns}. Switch back to a compatible view to restore them.`}
+        <Banner
+          variant="warning"
+          title="Unsupported filters"
+          actions={[
+            {
+              text: "Remove hidden filters",
+              onClick: () =>
+                onChange(editorFiltersToViewFilters(view, renderable)),
+            },
+          ]}
+        >
+          {`These filters are not supported for ${startCase(view)} and are hidden: `}
+          <span className="ph-no-capture">{unsupportedColumns}</span>
+          {". Switch back to a compatible view to edit them, or remove them."}
         </Banner>
       )}
       <InlineFilterBuilder
         columns={columns}
         filterState={renderable}
         onChange={(next: FilterState) =>
-          onChange(editorFiltersToViewFilters(view, next))
+          onChange(applyEditorChange(view, columns, filters, next))
         }
         columnsWithCustomSelect={columnsWithCustomSelect}
         stringObjectValueOptions={stringObjectValueOptions}
@@ -222,26 +232,78 @@ const editorFiltersToViewFilters = (
   return [...mappedFilters, ...unsupportedFilters];
 };
 
-/** resolvesToColumn reports whether the builder has a column definition able to render the row. */
+/**
+ * resolvesToColumn reports whether the builder has a column definition able to
+ * render the row. A numeric (`numberObject`) row on a stringObject column
+ * resolves only if the column has `numericValues`: a widget
+ * switched away from the v2 observations view keeps its numeric metadata
+ * filters in the form, which the other views reject.
+ */
 const resolvesToColumn = (
   filter: FilterState[number],
   columns: ColumnDefinition[],
 ): boolean =>
   columns.some(
     (column) =>
-      column.id === filter.column ||
-      column.name === filter.column ||
-      column.aliases?.includes(filter.column) === true,
+      (column.id === filter.column ||
+        column.name === filter.column ||
+        column.aliases?.includes(filter.column) === true) &&
+      !(
+        filter.type === "numberObject" &&
+        column.type === "stringObject" &&
+        !column.numericValues
+      ),
   );
+
+/** hiddenEditorFilters lists the editor rows no column of the view can render. */
+const hiddenEditorFilters = (
+  view: z.infer<typeof views>,
+  filters: FilterState,
+  columns: ColumnDefinition[],
+): FilterState =>
+  viewFiltersToEditorFilters(view, filters).filter(
+    (filter) => !resolvesToColumn(filter, columns),
+  );
+
+/**
+ * applyEditorChange turns the builder's edited rows into the new form value.
+ * The builder only sees rendered rows, so the hidden ones are re-appended:
+ * an edit keeps them and switching back to a compatible view restores them.
+ * Rows the builder emits that the view cannot render are stale copies from
+ * before a view switch; the form value stays their only source.
+ */
+const applyEditorChange = (
+  view: z.infer<typeof views>,
+  columns: ColumnDefinition[],
+  filters: FilterState,
+  next: FilterState,
+): FilterState =>
+  editorFiltersToViewFilters(view, [
+    ...next.filter((filter) => resolvesToColumn(filter, columns)),
+    ...hiddenEditorFilters(view, filters, columns),
+  ]);
+
+/**
+ * unsupportedFilterLabel names a hidden row in the banner. A numeric key/value
+ * row names its key: the column's text rows may still render.
+ */
+const unsupportedFilterLabel = (filter: FilterState[number]): string => {
+  const column = displayNameForFilterColumn(filter.column);
+  return filter.type === "numberObject"
+    ? `${column}.${filter.key} (numeric)`
+    : column;
+};
 
 /** EventFilterOptionsColumn is one facet column the events filter-options endpoint understands. */
 export type EventFilterOptionsColumn = NonNullable<
   RouterInputs["events"]["filterOptions"]["columns"]
 >[number];
 
+/** @internal */
 export const __test = {
   buildV2FilterColumnsParams,
   viewFiltersToEditorFilters,
   editorFiltersToViewFilters,
   resolvesToColumn,
+  applyEditorChange,
 };

@@ -1,14 +1,17 @@
+import { PINCH_ZOOM_RATE } from "@/src/utils/panZoomGestures";
+import { PAGE_SIZE } from "./TopicMobileTraceList";
 import { useState, type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { PINCH_ZOOM_RATE } from "@/src/utils/panZoomGestures";
 import preview from "../../../.storybook/preview";
 import { MobileTopicsView } from "./MobileTopicsView";
-import { PAGE_SIZE } from "./TopicMobileTraceList";
 import { TopicsMobileControls } from "./TopicsMobileControls";
 import { prepareTopicsActions } from "./prepare-topics-actions";
-import { staticTopicTraces, storyFacet } from "./topic-story-traces";
+import {
+  staticTopicTraces,
+  storyFacet,
+} from "@/.storybook/fixtures/topic-story-traces";
 
 const topics = [
   {

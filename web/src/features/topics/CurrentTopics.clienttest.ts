@@ -1,10 +1,10 @@
-import { createElement, type ReactNode } from "react";
-import { act, renderHook } from "@testing-library/react";
+import { type ComponentProps, createElement, type ReactNode } from "react";
+import { act, render, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { decodeFiltersGeneric } from "@langfuse/shared";
 import { TOPICS_MAX_TIME_RANGE_MS } from "@langfuse/shared/topics";
-import { __test } from "./CurrentTopics";
+import { __test, CurrentTopics } from "./CurrentTopics";
 import {
   type Facet,
   type TopicTraceQuery,
@@ -13,9 +13,19 @@ import {
   useTracesWithSelection,
 } from "./facet-topics";
 
-const { fetchResults, resetTraces } = vi.hoisted(() => ({
+const { fetchResults, resetTraces, capture } = vi.hoisted(() => ({
   fetchResults: vi.fn(),
   resetTraces: vi.fn(),
+  capture: vi.fn(),
+}));
+vi.mock("@/src/features/projects/hooks", () => ({
+  useQueryProject: () => ({
+    project: { id: "project" },
+    organization: { id: "org" },
+  }),
+}));
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
+  usePostHogClientCapture: () => capture,
 }));
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -71,6 +81,31 @@ it("persists mobile selection on remount and clears it on facet changes", () => 
 });
 
 describe("current Topics query", () => {
+  it("names the map of results kept on screen while another map loads", async () => {
+    fetchResults
+      .mockReset()
+      .mockResolvedValueOnce({ hasStoredSummaries: true, facets: [] })
+      .mockImplementationOnce(() => new Promise(() => undefined));
+    const props = {
+      projectId: "project",
+      running: false,
+      refreshAfter: 0,
+      ruleId: "rule-a",
+    };
+    const view = renderHook(__test.useCurrentTopics, {
+      initialProps: props,
+      wrapper: ({ children }: { children: ReactNode }) =>
+        createElement(QueryClientProvider, { client }, children),
+    });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(view.result.current.data?.fetchedForRuleId).toBe("rule-a");
+    // While rule B loads, rule A's results stay and still name rule A.
+    view.rerender({ ...props, ruleId: "rule-b" });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(view.result.current.isPlaceholderData).toBe(true);
+    expect(view.result.current.data?.fetchedForRuleId).toBe("rule-a");
+  });
+
   it("fetches final results while an old poll is in flight, then stops polling", async () => {
     resetTraces.mockReset();
     const facet = {
@@ -102,6 +137,7 @@ describe("current Topics query", () => {
     expect(view.result.current.data).toEqual({
       hasStoredSummaries: false,
       facets: [facet],
+      fetchedForRuleId: null,
     });
 
     let finishOldPoll:
@@ -150,6 +186,7 @@ describe("current Topics query", () => {
     expect(view.result.current.data).toEqual({
       hasStoredSummaries: true,
       facets: completed,
+      fetchedForRuleId: null,
     });
     expect(resetTraces).toHaveBeenCalledOnce();
 
@@ -254,4 +291,33 @@ describe("Open in Tracing", () => {
     expect(until).toBe(to.getTime());
     expect(until + 1 - from).toBe(TOPICS_MAX_TIME_RANGE_MS);
   });
+});
+
+it("counts a map view only once the selected map's own results arrived", () => {
+  const facets = [{ facetId: "intent", topics: [{ id: "billing" }] }];
+  // No selected facet, so only the map-level capture runs.
+  const props = (isPlaceholderData: boolean) =>
+    ({
+      projectId: "project",
+      scope: { ruleId: "rule" },
+      result: {
+        data: { facets },
+        isLoading: false,
+        error: null,
+        isPlaceholderData,
+      },
+      selectedFacetId: undefined,
+      view: "treemap",
+    }) as unknown as ComponentProps<typeof CurrentTopics>;
+
+  // A map switch still shows the previous map's results.
+  const view = render(createElement(CurrentTopics, props(true)));
+  expect(capture).not.toHaveBeenCalled();
+
+  view.rerender(createElement(CurrentTopics, props(false)));
+  expect(capture).toHaveBeenCalledTimes(1);
+  expect(capture).toHaveBeenCalledWith(
+    "topics:map_viewed",
+    expect.objectContaining({ mapKind: "rule", topicCount: 1, facetCount: 1 }),
+  );
 });

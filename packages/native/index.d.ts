@@ -39,12 +39,21 @@ export declare class PreparedEvent {
 export declare class RustOtelBatch {
   /** Release the native batch and its retained event and media allocations. */
   dispose(): Promise<void>
+  /**
+   * Move one evaluation snapshot to JavaScript, without the columns its filter row already
+   * carries. Each row can be taken once, before disposal.
+   */
+  takeEvaluationRow(index: number): object
   mediaBody(index: number): Promise<Buffer>
-  /** Apply media and lookup results; return final handles or oversized-field upload requests. */
-  complete(mediaResults: OtelMediaResolution[], lookups: object[], overflowLimitBytes: number | undefined, includeEvaluationRows: boolean, traceActivityIds?: string[]): Promise<OtelCompletion>
+  /**
+   * Apply media results and one lookup result per lookup request; return final handles or
+   * oversized-field upload requests. With `evaluationFilterColumns`, the batch keeps an
+   * evaluation snapshot of every row and returns those columns of each as filter rows.
+   */
+  complete(mediaResults: OtelMediaResolution[], lookups: EncodedOtelLookups, overflowLimitBytes: number | undefined, evaluationFilterColumns: string[] | undefined, traceActivityIds?: string[]): Promise<OtelCompletion>
   overflowBody(index: number): Promise<Buffer>
   /** Apply oversized-field upload results and return immutable handles to the ClickHouse writer. */
-  finalize(overflow: Array<OtelMediaResolution>, includeEvaluationRows: boolean, traceActivityIds?: Array<string> | undefined | null): Promise<FinalizedOtelBatch>
+  finalize(overflow: Array<OtelMediaResolution>, evaluationFilterColumns?: Array<string> | undefined | null, traceActivityIds?: Array<string> | undefined | null): Promise<FinalizedOtelBatch>
 }
 
 export declare class ValidatedOtelJson {
@@ -76,6 +85,21 @@ export declare function clusterTopicEmbeddings(embeddings: Array<Array<number>>,
  */
 export declare function encodeClickhouseEvents(rows: PreparedEvent[], maxRowsPerBlock: number): Promise<NativeEventBlock[]>
 
+/**
+ * Lookup results in the flat form written by the worker's `encodeOtelLookups`.
+ *
+ * `lengths` and `numbers` are typed arrays because a typed array is handed to Rust as a
+ * whole, while a plain array is read one element at a time on Node's main thread.
+ */
+export interface EncodedOtelLookups {
+  /** Every text field in a fixed order, each followed by a line feed. */
+  text: string
+  /** The length of each text field in UTF-16 code units. */
+  lengths: Uint32Array
+  /** Counts, flags and numeric fields in the order they are read. */
+  numbers: Float64Array
+}
+
 export interface ExtractedOtelMedia {
   index: number
   reference: string
@@ -95,8 +119,13 @@ export declare function extractOtelMedia(bytes: Buffer): Promise<EarlyOtelBatch 
 
 export interface FinalizedOtelBatch {
   events: Array<FinalizedOtelEvent>
-  /** Evaluation snapshots preserve full fields before oversized-field replacements. */
-  evaluationRows: object[]
+  /**
+   * The columns named by `evaluationFilterColumns`, as JSON arrays that together hold one
+   * object per event, in event order. A large batch spans several texts because a single one
+   * could exceed the longest string JavaScript can hold. The full rows stay in the batch for
+   * `takeEvaluationRow`.
+   */
+  evaluationFilterRows?: Array<string>
 }
 
 export interface FinalizedOtelEvent {
@@ -150,6 +179,10 @@ export interface OtelCompletion {
   overflowRequests: Array<OtelOverflowRequest>
 }
 
+/**
+ * One lookup the worker resolves. Events that would make the same request share it;
+ * `span_id` names the first of them.
+ */
 export interface OtelLookupRequest {
   spanId: string
   eventType: string

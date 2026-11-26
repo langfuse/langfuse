@@ -259,7 +259,7 @@ export const DECISION_MODEL_ADAPTERS: readonly LLMAdapter[] = [
 
 /**
  * Decision models that text adapters serve, in default-preference order. These
- * APIs take one `input` and plain-text questions, unlike TypeSafe's keyed state.
+ * APIs receive the keyed state as one JSON text input with plain-text questions.
  */
 export const TEXT_ADAPTER_DECISION_MODEL_IDS: Partial<
   Record<LLMAdapter, readonly string[]>
@@ -586,7 +586,7 @@ export enum LangfuseInternalTraceEnvironment {
   CodeEval = "langfuse-code-eval",
   NaturalLanguageFilter = "langfuse-natural-language-filter",
   InAppAgent = "langfuse-in-app-agent",
-  Topics = "langfuse-topics",
+  Topics = "langfuse-topics-internal",
 }
 
 export type ProcessedTraceEvent = {

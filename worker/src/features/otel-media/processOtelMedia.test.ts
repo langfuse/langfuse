@@ -670,6 +670,10 @@ describe("processOtelEventMedia", () => {
       contentType: "image/png",
       byteLengthUpperBound: 5,
       loadBody,
+      writes: {
+        uploadMedia: mocks.uploadMediaForTrace,
+        linkMedia: mocks.linkMediaToTraceOrObservation,
+      },
     });
 
     expect(result).toEqual({

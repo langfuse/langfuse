@@ -139,7 +139,7 @@ describe("Topics trace selection", () => {
         usageDetails: {},
         providedCostDetails: {},
         costDetails: {},
-        processedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
         metadata: {},
       })),
     );
@@ -216,7 +216,7 @@ describe("Topics trace selection", () => {
         usageDetails: {},
         providedCostDetails: {},
         costDetails: {},
-        processedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
         metadata: {},
       })),
     );
@@ -244,6 +244,55 @@ describe("Topics trace selection", () => {
       expect(rows.length).toBeGreaterThan(30);
     }
     expect(overlap(second)).toEqual(overlap(first));
+  });
+
+  it("widens a refit to 14 days before the whole window when 7 days hold too few summaries", async () => {
+    const stepProject = randomUUID();
+    const facet = { facetId: "facet", version: 1 };
+    const day = 86_400_000;
+    const end = Date.parse("2026-09-30T00:00:00.000Z");
+    // One summary every 12 hours for 30 days: 14 in the last 7 days, 28 in the last 14.
+    await writeTopicSummaries(
+      Array.from({ length: 60 }, (_, index) => ({
+        projectId: stepProject,
+        facetId: facet.facetId,
+        facetVersion: facet.version,
+        traceId: `half-day-${index}`,
+        sessionId: null,
+        triggerType: "rule" as const,
+        ruleIds: [],
+        executionId: null,
+        environment: "test",
+        traceName: "agent-turn",
+        unitStartTime: new Date(end - (index + 1) * (day / 2)).toISOString(),
+        state: "complete" as const,
+        summary: "summary",
+        embedding: [1, 0],
+        transcriptId: "transcript",
+        transcriptVersion: "v1",
+        transcriptBytes: 0,
+        summaryModel: "summary",
+        embeddingModel: "embed",
+        providedUsageDetails: {},
+        usageDetails: {},
+        providedCostDetails: {},
+        costDetails: {},
+        createdAt: new Date().toISOString(),
+        metadata: {},
+      })),
+    );
+    const { summaries, timeRange } = await getSampledTopicClusteringSummaries(
+      stepProject,
+      facet,
+      { embeddingModel: "embed", embeddingDimensions: 2 },
+      { from: new Date(end - 30 * day), to: new Date(end) },
+      { maxRows: 20, maxBytes: 1_000_000 },
+    );
+    expect(timeRange.from).toEqual(new Date(end - 14 * day));
+    expect(summaries.length).toBeLessThanOrEqual(20);
+    expect(summaries.length).toBeGreaterThan(10);
+    for (const { unitStartTime } of summaries)
+      expect(Date.parse(unitStartTime)).toBeGreaterThanOrEqual(end - 14 * day);
   });
 
   it("filters latest matching environments before counting and limiting", async () => {
@@ -371,7 +420,7 @@ describe("Topics setup backfill selection", () => {
     usageDetails: {},
     providedCostDetails: {},
     costDetails: {},
-    processedAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
     metadata: {},
   });
   const select = (
@@ -384,7 +433,6 @@ describe("Topics setup backfill selection", () => {
       idleMs: 60_000,
       now,
       days: 7,
-      sampling: 1,
       seed: "rule",
       summarized: {
         facets: [

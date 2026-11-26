@@ -11,10 +11,11 @@ import {
   deleteScoresByTraceIds,
   getBillableUnitCountsByProjectAndBucket,
   getBillableUnitCountsByProjectInWindow,
+  getBillableUnitCountsForAllProjectsInRange,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
-// import type { TopicSummary } from "@langfuse/shared/topics";
-// import { writeTopicSummaries } from "@langfuse/shared/topics/server";
+import type { TopicSummary } from "@langfuse/shared/topics";
+import { writeTopicSummaries } from "@langfuse/shared/topics/server";
 
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
@@ -334,74 +335,94 @@ describe("billable_events materialized views", () => {
     ]);
   });
 
-  // it("bills a Topics facet summary once per source and facet version", async () => {
-  //   const projectId = randomUUID();
-  //   const traceId = randomUUID();
-  //   const summary: TopicSummary = {
-  //     projectId,
-  //     facetId: "facet",
-  //     facetVersion: 1,
-  //     traceId,
-  //     sessionId: null,
-  //     triggerType: "automatic",
-  //     environment: "production",
-  //     traceName: "trace",
-  //     unitStartTime: new Date(Date.now() - HOUR).toISOString(),
-  //     state: "complete",
-  //     summary: "summary",
-  //     embedding: [1, ...Array<number>(255).fill(0)],
-  //     transcriptId: "transcript",
-  //     transcriptVersion: "1",
-  //     summaryModel: "test",
-  //     embeddingModel: "test",
-  //     providedUsageDetails: {},
-  //     usageDetails: {},
-  //     providedCostDetails: {},
-  //     costDetails: {},
-  //     processedAt: new Date().toISOString(),
-  //     metadata: {},
-  //   };
+  it("bills a Topics facet summary once per source and facet version", async () => {
+    const projectId = randomUUID();
+    const traceId = randomUUID();
+    const summary: TopicSummary = {
+      projectId,
+      facetId: "facet",
+      facetVersion: 1,
+      traceId,
+      sessionId: null,
+      triggerType: "rule",
+      ruleIds: [],
+      executionId: null,
+      environment: "production",
+      traceName: "trace",
+      unitStartTime: new Date(Date.now() - HOUR).toISOString(),
+      state: "complete",
+      summary: "summary",
+      embedding: [1, ...Array<number>(255).fill(0)],
+      transcriptId: "transcript",
+      transcriptVersion: "1",
+      transcriptBytes: 1234,
+      summaryModel: "test",
+      embeddingModel: "test",
+      providedUsageDetails: {},
+      usageDetails: {},
+      providedCostDetails: {},
+      costDetails: {},
+      createdAt: new Date().toISOString(),
+      metadata: {},
+    };
 
-  //   await writeTopicSummaries([summary]);
-  //   await writeTopicSummaries([
-  //     // A duplicate write of the same summary
-  //     { ...summary, processedAt: new Date(Date.now() + SECOND).toISOString() },
-  //     // The trace joined a session after its first summary
-  //     { ...summary, sessionId: "late-session" },
-  //     { ...summary, facetVersion: 2 },
-  //     { ...summary, traceId: null, sessionId: "session", traceName: "" },
-  //     // A re-insert of an older summary is not new usage
-  //     {
-  //       ...summary,
-  //       facetId: "backfilled",
-  //       processedAt: new Date(THREE_DAYS_AGO).toISOString(),
-  //     },
-  //     // No model call happens for insufficient input, so it is not usage
-  //     {
-  //       ...summary,
-  //       facetId: "insufficient",
-  //       state: "insufficient_input",
-  //       summary: "",
-  //       embedding: [],
-  //     },
-  //   ]);
+    await writeTopicSummaries([summary]);
+    await writeTopicSummaries([
+      // A duplicate write of the same summary
+      { ...summary, createdAt: new Date(Date.now() + SECOND).toISOString() },
+      // The trace joined a session after its first summary
+      { ...summary, sessionId: "late-session" },
+      { ...summary, facetVersion: 2 },
+      { ...summary, traceId: null, sessionId: "session", traceName: "" },
+      // A re-insert of an older summary is not new usage
+      {
+        ...summary,
+        facetId: "backfilled",
+        createdAt: new Date(THREE_DAYS_AGO).toISOString(),
+      },
+      // A facet with nothing to describe is still usage
+      {
+        ...summary,
+        facetId: "not-applicable",
+        state: "not_applicable",
+        summary: "",
+        embedding: [],
+      },
+      // The model judged the input insufficient: still usage
+      {
+        ...summary,
+        facetId: "insufficient",
+        state: "insufficient_input",
+        summary: "",
+        embedding: [],
+      },
+      // Skipped model calls are not usage
+      ...(["empty_input", "input_too_large"] as const).map((state) => ({
+        ...summary,
+        facetId: state,
+        state,
+        summary: "",
+        embedding: [],
+        transcriptBytes: 0,
+      })),
+    ]);
 
-  //   expect(await billedUnitsAroundNow(projectId)).toEqual({
-  //     topic_facet_summary: 3,
-  //   });
-  //   const ledgerRows = await queryClickhouse<{
-  //     environment: string;
-  //     event_bytes: string;
-  //   }>({
-  //     query: `SELECT DISTINCT environment, toString(event_bytes) AS event_bytes
-  //             FROM billable_events
-  //             WHERE project_id = {projectId: String}`,
-  //     params: { projectId },
-  //   });
-  //   expect(ledgerRows).toEqual([
-  //     { environment: "production", event_bytes: "0" },
-  //   ]);
-  // });
+    expect(await billedUnitsAroundNow(projectId)).toEqual({
+      topic_facet_summary: 5,
+    });
+    const ledgerRows = await queryClickhouse<{
+      environment: string;
+      event_bytes: string;
+    }>({
+      query: `SELECT DISTINCT environment, toString(event_bytes) AS event_bytes
+              FROM billable_events
+              WHERE project_id = {projectId: String}`,
+      params: { projectId },
+    });
+    expect(ledgerRows).toEqual([
+      { environment: "production", event_bytes: "1234" },
+    ]);
+  });
 });
 
 describe("getBillableUnitCountsByProjectInWindow", () => {
@@ -545,6 +566,52 @@ describe("getBillableUnitCountsByProjectAndBucket", () => {
       { bucket: at(0).toISOString(), eventType: "observation", count: 1 },
       { bucket: at(0).toISOString(), eventType: "trace", count: 3 },
       { bucket: at(24 * HOUR).toISOString(), eventType: "trace", count: 1 },
+    ]);
+  });
+});
+
+describe("getBillableUnitCountsForAllProjectsInRange", () => {
+  const T0 = new Date("2026-01-06T00:00:00.000Z");
+  const at = (offsetMs: number) => new Date(T0.getTime() + offsetMs);
+
+  it("counts each unit once per project and event type in the range", async () => {
+    const projectA = randomUUID();
+    const projectB = randomUUID();
+    await insertBillableEvents(projectA, [
+      { eventType: "trace", eventId: "id-1", at: at(-SECOND) },
+      { eventType: "trace", eventId: "id-1", at: at(MINUTE) },
+      { eventType: "trace", eventId: "id-1", at: at(20 * HOUR) },
+      { eventType: "trace", eventId: "id-2", at: at(-SECOND) },
+      { eventType: "score", eventId: "id-1", at: at(HOUR) },
+      // `to` is exclusive.
+      { eventType: "observation", eventId: "id-3", at: at(24 * HOUR) },
+    ]);
+    await insertBillableEvents(projectB, [
+      { eventType: "observation", eventId: "id-1", at: at(MINUTE) },
+    ]);
+
+    const rows = await getBillableUnitCountsForAllProjectsInRange({
+      from: T0,
+      to: at(24 * HOUR),
+    });
+
+    expect(
+      rows
+        .filter((row) => [projectA, projectB].includes(row.projectId))
+        .map((row) => ({
+          project: row.projectId === projectA ? "A" : "B",
+          eventType: row.eventType,
+          count: row.count,
+        }))
+        .sort(
+          (a, b) =>
+            a.project.localeCompare(b.project) ||
+            a.eventType.localeCompare(b.eventType),
+        ),
+    ).toEqual([
+      { project: "A", eventType: "score", count: 1 },
+      { project: "A", eventType: "trace", count: 1 },
+      { project: "B", eventType: "observation", count: 1 },
     ]);
   });
 });

@@ -59,6 +59,7 @@ export class GatewayAnalyticsLabelsRepository {
         id: apiKey.id,
         name: apiKey.note,
         detail: apiKey.displaySecretKey,
+        ownerUserId: apiKey.user?.id ?? null,
       })),
       users: [...users.values()].map((user) => ({
         id: user.id,

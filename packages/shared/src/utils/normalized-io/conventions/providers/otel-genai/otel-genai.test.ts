@@ -4,7 +4,7 @@ import { normalizeSpanIO } from "../../../parser";
 import {
   capturedTraceFixtures,
   microsoftAgentProductionShapeFixture,
-} from "./fixtures";
+} from "./__tests__/fixtures";
 
 describe("OTel GenAI normalized I/O", () => {
   it.each([...capturedTraceFixtures, microsoftAgentProductionShapeFixture])(

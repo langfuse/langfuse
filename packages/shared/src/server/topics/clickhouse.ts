@@ -4,7 +4,9 @@ import {
 } from "../clickhouse/client";
 import { buildClickHouseLogComment } from "../clickhouse/queryTags";
 import { OBSERVATIONS_TO_TRACE_INTERVAL_DAYS } from "../repositories/constants";
+import { env } from "../../env";
 import {
+  commandClickhouse,
   queryClickhouse,
   queryClickhouseStream,
 } from "../repositories/clickhouse";
@@ -17,6 +19,7 @@ import type {
   TopicTimeRange,
 } from "../../topics";
 import { topicSourceSchema, topicTimeRangeSchema } from "../../topics";
+import { Decimal } from "decimal.js";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
 import { redis } from "../redis/redis";
@@ -26,7 +29,7 @@ import { finished } from "node:stream/promises";
 import {
   INTERNAL_EVAL_ENVIRONMENT_PREFIX,
   isInternalEvalEnvironment,
-  PUBLIC_LLM_JUDGE_ENVIRONMENT,
+  PUBLIC_INTERNAL_EVAL_ENVIRONMENTS,
 } from "../llm/isInternalEvalEnvironment";
 
 const sourceKeySql =
@@ -136,6 +139,11 @@ async function insertTopicRows<T extends { projectId: string }>(
   await flush();
 }
 
+const numberMap = (values: Record<string, number | string>) =>
+  Object.fromEntries(
+    Object.entries(values).map(([key, value]) => [key, Number(value)]),
+  );
+
 export async function getTopicDefinitions(
   projectId: string,
   topicVersionIds: string[],
@@ -146,10 +154,11 @@ export async function getTopicDefinitions(
     const rows = await queryClickhouse<
       Omit<
         TopicDefinition,
-        "createdAt" | "metadata" | "representativeSummaries"
+        "createdAt" | "metadata" | "representativeSummaries" | "costDetails"
       > & {
         createdAtMs: string;
         metadataJson: string;
+        costDetails: Record<string, string | number>;
         representativeSummaries: {
           facet_id: string;
           facet_version: number;
@@ -162,7 +171,7 @@ export async function getTopicDefinitions(
         stable_id AS topicId, created_by_run_id AS createdByRunId,
         toUnixTimestamp64Milli(created_at) AS createdAtMs, name, description,
         centroid, radius, labels, representative_summaries AS representativeSummaries,
-        metadata AS metadataJson
+        metadata AS metadataJson, cost_details AS costDetails
         FROM topics
         WHERE project_id = {projectId:String} AND id IN {ids:Array(String)}
           AND created_at >= {from:DateTime64(3)} AND created_at < {to:DateTime64(3)}
@@ -171,8 +180,11 @@ export async function getTopicDefinitions(
       tags: { route: "topics-definitions", projectId },
     });
     definitions.push(
-      ...rows.map(({ createdAtMs, metadataJson, ...row }) => ({
+      ...rows.map(({ createdAtMs, metadataJson, costDetails, ...row }) => ({
         ...row,
+        ...(Object.keys(costDetails).length > 0 && {
+          costDetails: numberMap(costDetails),
+        }),
         createdAt: new Date(Number(createdAtMs)).toISOString(),
         representativeSummaries: row.representativeSummaries.map((source) => ({
           facetId: source.facet_id,
@@ -207,6 +219,22 @@ export async function getTopicNames(
       })),
     );
   return names;
+}
+
+/** Keep prices representable by ClickHouse Decimal(18,12) at its stored precision. */
+export function normalizeTopicDefinitionCosts(
+  details: TopicDefinition["costDetails"],
+): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(details ?? {})
+      .filter(
+        ([, cost]) => Number.isFinite(cost) && cost >= 0 && cost < 1_000_000,
+      )
+      .map(([key, cost]) => [
+        key,
+        new Decimal(cost).toDecimalPlaces(12).toNumber(),
+      ]),
+  );
 }
 
 /** RowBinary column order matches the explicit definition INSERT below. */
@@ -259,6 +287,14 @@ function encodeTopicDefinition(row: TopicDefinition): Buffer {
     string(source.traceId === null ? source.sessionId! : "");
   }
   string(JSON.stringify(row.metadata));
+  const costs = Object.entries(normalizeTopicDefinitionCosts(row.costDetails));
+  length(costs.length);
+  for (const [key, cost] of costs) {
+    string(key);
+    const scaled = Buffer.allocUnsafe(8);
+    scaled.writeBigInt64LE(BigInt(new Decimal(cost).mul(1e12).toFixed(0)));
+    parts.push(scaled);
+  }
   return Buffer.concat(parts);
 }
 
@@ -287,7 +323,7 @@ export async function writeTopicDefinitions(
     const result = await clickhouseClient().exec({
       query: `INSERT INTO topics (project_id, id, stable_id, created_by_run_id,
         created_at, name, description, centroid, radius, labels,
-        representative_summaries, metadata) FORMAT RowBinary`,
+        representative_summaries, metadata, cost_details) FORMAT RowBinary`,
       values: Readable.from(values),
       clickhouse_settings: {
         async_insert: 1,
@@ -328,25 +364,21 @@ const summaryColumns = `project_id AS projectId, facet_id AS facetId,
   summary_model AS summaryModel, embedding_model AS embeddingModel,
   provided_usage_details AS providedUsageDetails, usage_details AS usageDetails,
   provided_cost_details AS providedCostDetails, cost_details AS costDetails,
-  toUnixTimestamp64Milli(created_at) AS processedAtMs, metadata AS metadataJson`;
+  toUnixTimestamp64Milli(created_at) AS createdAtMs, metadata AS metadataJson`;
 
 type SummaryRow = Omit<
   TopicSummary,
-  "metadata" | "unitStartTime" | "processedAt" | "executionId"
+  "metadata" | "unitStartTime" | "createdAt" | "executionId"
 > & {
   metadataJson: string;
   unitStartTimeMs: string;
-  processedAtMs: string;
+  createdAtMs: string;
   executionId: string;
 };
-const numberMap = (values: Record<string, number>) =>
-  Object.fromEntries(
-    Object.entries(values).map(([key, value]) => [key, Number(value)]),
-  );
 function summarySourceAndTimestamps(
   row: Pick<
     SummaryRow,
-    "traceId" | "sessionId" | "unitStartTimeMs" | "processedAtMs"
+    "traceId" | "sessionId" | "unitStartTimeMs" | "createdAtMs"
   >,
 ) {
   return {
@@ -355,12 +387,12 @@ function summarySourceAndTimestamps(
       sessionId: row.sessionId || null,
     }),
     unitStartTime: new Date(Number(row.unitStartTimeMs)).toISOString(),
-    processedAt: new Date(Number(row.processedAtMs)).toISOString(),
+    createdAt: new Date(Number(row.createdAtMs)).toISOString(),
   };
 }
 
 function summaryResult(row: SummaryRow): TopicSummary {
-  const { metadataJson, unitStartTimeMs, processedAtMs, ...rest } = row;
+  const { metadataJson, unitStartTimeMs, createdAtMs, ...rest } = row;
   return {
     ...rest,
     ...summarySourceAndTimestamps(row),
@@ -396,13 +428,13 @@ export async function getLatestFacetSummaries(
         | "state"
         | "summary"
         | "environment"
-      > & { unitStartTimeMs: string; processedAtMs: string }
+      > & { unitStartTimeMs: string; createdAtMs: string }
     >({
       query: `SELECT project_id AS projectId, facet_id AS facetId,
       facet_version AS facetVersion, trace_id AS traceId, session_id AS sessionId,
       processing_state AS state, summary, environment,
       toUnixTimestamp64Milli(unit_start_time) AS unitStartTimeMs,
-      toUnixTimestamp64Milli(created_at) AS processedAtMs
+      toUnixTimestamp64Milli(created_at) AS createdAtMs
       FROM topic_facet_summaries
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
         ${facetVersion ? "" : `AND ${latestSummaryFilterSql(scopeSql, summarySourceKeySql)}`}
@@ -495,7 +527,7 @@ function clusteringSummariesSql(
       ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
         AND dimensions = {embeddingDimensions:UInt32}
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-        AND environment != {publicLlmJudgeEnvironment:String}${cohortFilterSql(cohort)}
+        AND environment NOT IN {publicInternalEnvironments:Array(String)}${cohortFilterSql(cohort)}
       ${cohortSampleSql(cohort)}
     )`;
 }
@@ -548,7 +580,7 @@ export async function getTopicClusteringSummaries(
         ...embeddingConfig,
         ...timeRangeParams(timeRange),
         internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-        publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+        publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
         maximumRows: limits.maxRows + 1,
       },
       tags: { route: "topics-clustering-summaries", projectId },
@@ -579,12 +611,12 @@ export async function getTopicClusteringSummaries(
 const SAMPLED_SUMMARIES_TIMEOUT_SECONDS = 60;
 
 // How far back from the window's end each step reaches; the last step reaches the window's start.
-const SAMPLED_SUMMARIES_STEP_DAYS = [7, 30];
+const SAMPLED_SUMMARIES_STEP_DAYS = [7, 14, 30];
 
 /**
  * A stable sample of compatible summaries, up to the limits: units whose unit_hash
  * falls below a bound, so overlapping windows pick the same units. The sample
- * comes from the last 7 days when they hold enough units, else from the window.
+ * comes from the shortest step (7, then 14 days) that holds enough units, else from the window.
  */
 export async function getSampledTopicClusteringSummaries(
   projectId: string,
@@ -641,7 +673,7 @@ export async function getSampledTopicClusteringSummaries(
       ...embeddingConfig,
       ...timeRangeParams(window),
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
       limit,
     };
     const [counted] = await queryClickhouse<{ count: string }>({
@@ -693,12 +725,18 @@ export async function getSampledTopicClusteringSummaries(
   return { summaries, timeRange: window };
 }
 
-export async function hasTopicEmbeddings(projectId: string): Promise<boolean> {
+/** Whether any complete summary of the project was embedded in this embedding space. */
+export async function hasTopicEmbeddings(
+  projectId: string,
+  embeddingConfig: { embeddingModel: string; embeddingDimensions: number },
+): Promise<boolean> {
   const rows = await queryClickhouse<{ found: number }>({
     query: `SELECT 1 AS found FROM topic_facet_summaries
       WHERE project_id = {projectId:String} AND processing_state = 'complete'
+        AND embedding_model = {embeddingModel:String}
+        AND embedding.size0 = {embeddingDimensions:UInt32}
       LIMIT 1`,
-    params: { projectId },
+    params: { projectId, ...embeddingConfig },
     tags: { route: "topics-has-embeddings", projectId },
   });
   return rows.length > 0;
@@ -723,7 +761,7 @@ export async function hasCompatibleTopicSummaries(
         AND embedding_model = {embeddingModel:String}
         AND embedding.size0 = {embeddingDimensions:UInt32}
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-        AND environment != {publicLlmJudgeEnvironment:String}
+        AND environment NOT IN {publicInternalEnvironments:Array(String)}
       LIMIT 1`,
     params: {
       projectId,
@@ -732,7 +770,7 @@ export async function hasCompatibleTopicSummaries(
       facetVersion: facet.version,
       ...embeddingConfig,
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
     },
     tags: { route: "topics-has-compatible-summaries", projectId },
     clickhouseSettings: { max_threads: 1 },
@@ -761,12 +799,12 @@ export async function hasStoredTopicSummaries(
       WHERE project_id = {projectId:String}
         AND unit_type = 'trace' AND processing_state = 'complete'
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-        AND environment != {publicLlmJudgeEnvironment:String}
+        AND environment NOT IN {publicInternalEnvironments:Array(String)}
       LIMIT 1`,
     params: {
       projectId,
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
     },
     tags: { route: "topics-has-summaries", projectId },
     clickhouseSettings: { max_threads: 1 },
@@ -789,32 +827,79 @@ export async function hasStoredTopicSummaries(
   return hasSummaries;
 }
 
-/** Approximate totals; retry and replacement rows can overcount until background merges. */
-export async function getTopicExecutionCosts(
+/** Estimates sum the stored rows. A retried insert can count twice until ClickHouse merges it. */
+async function readTopicCosts(
+  projectId: string,
+  ids: string[],
+  route: string,
+  query: string,
+): Promise<Record<string, number>> {
+  const costs: Record<string, number> = {};
+  try {
+    for (const batch of chunk([...new Set(ids)], LOOKUP_BATCH_SIZE)) {
+      const rows = await queryClickhouse<{ id: string; cost: string }>({
+        query,
+        params: { projectId, ids: batch },
+        preferredClickhouseService: "EventsReadOnly",
+        clickhouseSettings: { max_threads: 2, max_execution_time: 30 },
+        tags: { route, projectId },
+      });
+      for (const row of rows) costs[row.id] = Number(row.cost);
+    }
+  } catch (error) {
+    traceException(error);
+    logger.warn("Failed to estimate Topics costs", { projectId, route, error });
+  }
+  return costs;
+}
+
+export function getTopicExecutionCosts(
   projectId: string,
   executionIds: string[],
-): Promise<Record<string, number>> {
-  if (executionIds.length === 0) return {};
-  const rows = await queryClickhouse<{ executionId: string; cost: string }>({
-    query: `SELECT execution_id AS executionId,
-        sum(cost_details['total']) AS cost
-      FROM topic_facet_summaries
-      WHERE project_id = {projectId:String}
-        AND execution_id IN {executionIds:Array(String)}
-        AND mapContains(cost_details, 'total')
-      GROUP BY execution_id`,
-    params: { projectId, executionIds },
-    tags: { route: "topics-execution-costs", projectId },
-  }).catch((error: unknown) => {
-    traceException(error);
-    logger.warn("Failed to estimate Topics execution costs", {
-      projectId,
-      error,
-    });
-    return [];
-  });
-  return Object.fromEntries(
-    rows.map((row) => [row.executionId, Number(row.cost)]),
+) {
+  return readTopicCosts(
+    projectId,
+    executionIds,
+    "topics-execution-costs",
+    `
+    SELECT execution_id AS id, sum(total_cost) AS cost
+    FROM topic_facet_summaries
+    WHERE project_id = {projectId:String} AND execution_id IN {ids:Array(String)}
+      AND mapContains(cost_details, 'total')
+    GROUP BY execution_id`,
+  );
+}
+
+export function getTopicRuleProcessingCosts(
+  projectId: string,
+  ruleIds: string[],
+) {
+  return readTopicCosts(
+    projectId,
+    ruleIds,
+    "topics-rule-processing-cost",
+    `
+    WITH arrayDistinct(rule_ids) AS owners
+    SELECT arrayJoin(owners) AS id, sum(total_cost / greatest(length(owners), 1)) AS cost
+    FROM topic_facet_summaries
+    PREWHERE project_id = {projectId:String} AND empty(execution_id) AND hasAny(rule_ids, {ids:Array(String)})
+    WHERE id IN {ids:Array(String)} AND mapContains(cost_details, 'total')
+    GROUP BY id`,
+  );
+}
+
+/** Reusing a topic version leaves its naming cost with the run that created it. */
+export function getTopicRunNamingCosts(projectId: string, runIds: string[]) {
+  return readTopicCosts(
+    projectId,
+    runIds,
+    "topics-run-naming-costs",
+    `
+    SELECT created_by_run_id AS id, sum(cost_details['total']) AS cost
+    FROM topics
+    WHERE project_id = {projectId:String} AND created_by_run_id IN {ids:Array(String)}
+      AND mapContains(cost_details, 'total')
+    GROUP BY created_by_run_id`,
   );
 }
 
@@ -848,7 +933,7 @@ export async function getTopicSummaryCounts(
       ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
         AND dimensions = {embeddingDimensions:UInt32}
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-        AND environment != {publicLlmJudgeEnvironment:String}${cohortFilterSql(cohort)}
+        AND environment NOT IN {publicInternalEnvironments:Array(String)}${cohortFilterSql(cohort)}
       ${cohortSampleSql(cohort, "facet_id, facet_version")}
     )
     GROUP BY facet_id, facet_version`,
@@ -860,7 +945,7 @@ export async function getTopicSummaryCounts(
       facetVersions: facets.map(({ version }) => version),
       ...embeddingConfig,
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
     },
     tags: { route: "topics-summary-counts", projectId },
     // A cohort scans events, so keep it off the primary like the other preview reads.
@@ -913,7 +998,7 @@ export async function getTopicSetupSummaryCounts(
         AND embedding_model = {embeddingModel:String}
         AND embedding.size0 = {embeddingDimensions:UInt32}
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-        AND environment != {publicLlmJudgeEnvironment:String}${cohortFilterSql(traces && { traces })}
+        AND environment NOT IN {publicInternalEnvironments:Array(String)}${cohortFilterSql(traces && { traces })}
       GROUP BY facet_id`,
     params: {
       ...traces?.params,
@@ -923,7 +1008,7 @@ export async function getTopicSetupSummaryCounts(
       facetVersions: facets.map(({ version }) => version),
       ...embeddingConfig,
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
     },
     tags: { route: "topics-setup-summary-counts", projectId },
   });
@@ -1052,7 +1137,7 @@ export function topicSummaryRecord(row: TopicSummary) {
     usage_details: row.usageDetails,
     provided_cost_details: row.providedCostDetails,
     cost_details: row.costDetails,
-    created_at: convertDateToClickhouseDateTime(new Date(row.processedAt)),
+    created_at: convertDateToClickhouseDateTime(new Date(row.createdAt)),
     metadata: JSON.stringify(row.metadata),
   };
 }
@@ -1086,7 +1171,7 @@ export function topicAssignmentRecord(row: TopicAssignment) {
     runner_up_distance: row.runnerUpDistance,
     origin: row.origin,
     coordinates: row.coordinates ?? [],
-    created_at: convertDateToClickhouseDateTime(new Date(row.assignedAt)),
+    created_at: convertDateToClickhouseDateTime(new Date(row.createdAt)),
   };
 }
 
@@ -1105,11 +1190,11 @@ const assignmentColumns = `project_id AS projectId, facet_id AS facetId,
       clustering_run_id AS runId, rule_id AS ruleId,
       topic_stable_id AS topicId, topic_id AS topicVersionId, distance,
       runner_up_distance AS runnerUpDistance, origin,
-      toUnixTimestamp64Milli(created_at) AS assignedAtMs`;
+      toUnixTimestamp64Milli(created_at) AS createdAtMs`;
 type AssignmentRow = Omit<
   TopicAssignment,
   | "unitStartTime"
-  | "assignedAt"
+  | "createdAt"
   | "summaryProcessedAt"
   | "runId"
   | "ruleId"
@@ -1117,7 +1202,7 @@ type AssignmentRow = Omit<
 > & {
   unitStartTimeMs: string;
   summaryProcessedAtMs: string;
-  assignedAtMs: string;
+  createdAtMs: string;
   runId: string;
   ruleId: string;
   coordinates: number[];
@@ -1125,7 +1210,7 @@ type AssignmentRow = Omit<
 function assignmentResult({
   unitStartTimeMs,
   summaryProcessedAtMs,
-  assignedAtMs,
+  createdAtMs,
   ...row
 }: AssignmentRow): TopicAssignment {
   return {
@@ -1144,7 +1229,7 @@ function assignmentResult({
         : null,
     unitStartTime: new Date(Number(unitStartTimeMs)).toISOString(),
     summaryProcessedAt: new Date(Number(summaryProcessedAtMs)).toISOString(),
-    assignedAt: new Date(Number(assignedAtMs)).toISOString(),
+    createdAt: new Date(Number(createdAtMs)).toISOString(),
   };
 }
 
@@ -1211,6 +1296,31 @@ export async function readTopicMapAssignments(
     tags: { route: "topics-map", projectId },
   });
   return rows.map(assignmentResult);
+}
+
+/** Distinct sources with an initial assignment in a run; retried writes cannot inflate it. */
+export async function countTopicAssignmentSources(
+  projectId: string,
+  facet: TopicFacetRef,
+  runId: string,
+  timeRange: TopicTimeRange,
+): Promise<number> {
+  const [row] = await queryClickhouse<{ sources: string }>({
+    query: `SELECT uniqExact(trace_id, if(trace_id = '', session_id, '')) AS sources
+      FROM topic_assignments
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
+        AND facet_id = {facetId:String} AND facet_version = {facetVersion:UInt32}
+        AND clustering_run_id = {runId:String} AND origin = 'initial'`,
+    params: {
+      projectId,
+      ...timeRangeParams(timeRange),
+      facetId: facet.facetId,
+      facetVersion: facet.version,
+      runId,
+    },
+    tags: { route: "topics-assignment-coverage", projectId },
+  });
+  return Number(row?.sources ?? 0);
 }
 
 export async function readTopicAssignments(
@@ -1412,4 +1522,82 @@ export async function getTopicTraceUnitTimeRange(
     from: new Date(Number(row.fromMs)),
     to: new Date(Number(row.toMs) + 1),
   };
+}
+
+// Deletes do not propagate through the materialized view, so its target table is listed too.
+const TOPIC_CLICKHOUSE_TABLES = [
+  "topic_facet_summaries",
+  "topic_assignments",
+  "topic_assignments_by_trace",
+  "topics",
+] as const;
+
+/** Deletes a project's Topics rows from ClickHouse; returns whether any table had rows. */
+export async function deleteTopicDataByProjectId(
+  projectId: string,
+): Promise<boolean> {
+  const deleted = await Promise.all(
+    TOPIC_CLICKHOUSE_TABLES.map(async (table) => {
+      const tags = { route: "topics-project-delete", projectId };
+      const rows = await queryClickhouse<{ 1: number }>({
+        query: `SELECT 1 FROM ${table} WHERE project_id = {projectId: String} LIMIT 1`,
+        params: { projectId },
+        tags,
+      });
+      if (rows.length === 0) return false;
+      await commandClickhouse({
+        query: `DELETE FROM ${table} WHERE project_id = {projectId: String}`,
+        params: { projectId },
+        clickhouseConfigs: {
+          request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+        },
+        tags,
+      });
+      return true;
+    }),
+  );
+  return deleted.some(Boolean);
+}
+
+/**
+ * Deletes summaries and assignments whose source started before the cutoff.
+ * Topic definitions are reused across runs, so they do not expire by age.
+ */
+export async function deleteTopicResultsOlderThan(
+  projectId: string,
+  beforeDate: Date,
+): Promise<boolean> {
+  const params = {
+    projectId,
+    cutoff: convertDateToClickhouseDateTime(beforeDate),
+  };
+  const deleted = await Promise.all(
+    (
+      [
+        "topic_facet_summaries",
+        "topic_assignments",
+        "topic_assignments_by_trace",
+      ] as const
+    ).map(async (table) => {
+      const where =
+        "project_id = {projectId: String} AND unit_start_time < {cutoff: DateTime64(3)}";
+      const tags = { route: "topics-retention", projectId };
+      const rows = await queryClickhouse<{ 1: number }>({
+        query: `SELECT 1 FROM ${table} WHERE ${where} LIMIT 1`,
+        params,
+        tags,
+      });
+      if (rows.length === 0) return false;
+      await commandClickhouse({
+        query: `DELETE FROM ${table} WHERE ${where}`,
+        params,
+        clickhouseConfigs: {
+          request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+        },
+        tags,
+      });
+      return true;
+    }),
+  );
+  return deleted.some(Boolean);
 }

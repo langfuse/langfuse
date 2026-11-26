@@ -1,6 +1,6 @@
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest, bounded_string, error_detail,
-    facts::ProviderFacts, parse_request, response::ResponseBody,
+    InputOmission, MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest,
+    bounded_string, error_detail, facts::ProviderFacts, response::ResponseBody,
 };
 use crate::resolution::IngestionMode;
 use axum::http::HeaderMap;
@@ -205,7 +205,7 @@ fn block_index(event: &Map<String, Value>) -> Option<u64> {
 }
 
 impl AnthropicMessagesCapture {
-    pub(super) fn new(headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
+    pub(super) fn new(request: Result<RawRequest, InputOmission>, mode: IngestionMode) -> Self {
         let mut capture = Self {
             facts: ProviderFacts::default(),
             mode,
@@ -216,7 +216,7 @@ impl AnthropicMessagesCapture {
             request_complete: false,
             response_valid: true,
         };
-        match parse_request(headers, body) {
+        match request {
             Ok(request) => {
                 capture.capture_request(request);
                 capture.request_complete = true;
@@ -457,6 +457,165 @@ impl AnthropicMessagesCapture {
         if let Some(detail) = error_detail(error, ["type", "message"]) {
             self.facts.error_message = Some(detail);
         }
+    }
+}
+
+/// Anthropic Messages keeps the conversation in `messages` and the system prompt in
+/// `system`. The last turn is the user's message after the model last answered; tool
+/// results arrive as `tool_result` blocks of one user message. The system prompt
+/// counts only on the first turn.
+/// The top-level members guardrails scan.
+pub(super) const GUARDRAIL_MEMBERS: &[&str] = &["messages", "system"];
+
+pub(super) fn guardrail_turn<'a>(
+    member: impl Fn(&str) -> Option<&'a str>,
+) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
+    let mut turn = crate::guardrails::text::LastTurn::default();
+    let had_model_turn = match member("messages") {
+        Some(messages) => turn.push_items(
+            "messages",
+            messages,
+            crate::guardrails::text::classify_role_message,
+            crate::guardrails::text::read_role_message,
+        )?,
+        None => false,
+    };
+    if let Some(system) = member("system") {
+        if had_model_turn {
+            turn.push_earlier_member("system", system);
+        } else {
+            turn.push_member("system", system);
+        }
+    }
+    Ok(turn)
+}
+
+pub(super) fn extract_response_json(
+    value: &Value,
+    blocks: &mut Vec<crate::guardrails::response::ResponseBlock>,
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    use crate::guardrails::response::{collect_all_strings, push_leaf};
+    use crate::guardrails::text::Unreadable;
+
+    let Some(content) = value.get("content").filter(|v| !v.is_null()) else {
+        return Ok(());
+    };
+    for (index, item) in content.as_array().ok_or(Unreadable)?.iter().enumerate() {
+        let map = item.as_object().ok_or(Unreadable)?;
+        let item_ptr = format!("/content/{index}");
+        let is_signed = map
+            .get("signature")
+            .and_then(Value::as_str)
+            .is_some_and(|sig| !sig.is_empty());
+        if let Some(thinking) = map.get("thinking").and_then(Value::as_str) {
+            // Rewriting signed thinking invalidates the provider signature on later turns.
+            push_leaf(blocks, thinking, format!("{item_ptr}/thinking"), !is_signed);
+        }
+        if let Some(text) = map.get("text").and_then(Value::as_str) {
+            push_leaf(blocks, text, format!("{item_ptr}/text"), true);
+        }
+        if let Some(input) = map.get("input").filter(|v| !v.is_null()) {
+            collect_all_strings(input, &format!("{item_ptr}/input"), 0, blocks)?;
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn extract_response_sse(
+    frame_idx: usize,
+    value: &Value,
+    collector: &mut crate::guardrails::response::StreamCollector,
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    use crate::guardrails::response::{StreamKey, visit_all_strings};
+
+    let index = value.get("index").and_then(Value::as_u64).unwrap_or(0);
+    match value.get("type").and_then(Value::as_str) {
+        Some("content_block_start") => {
+            let Some(block) = value.get("content_block").and_then(Value::as_object) else {
+                return Ok(());
+            };
+            if block
+                .get("signature")
+                .and_then(Value::as_str)
+                .is_some_and(|sig| !sig.is_empty())
+            {
+                collector.mark_signed_thinking(index);
+            }
+            for key in ["text", "thinking"] {
+                if let Some(text) = block.get(key).and_then(Value::as_str) {
+                    collector.push_delta(
+                        StreamKey::Anthropic(index, key),
+                        frame_idx,
+                        format!("/content_block/{key}"),
+                        text,
+                    );
+                }
+            }
+            if let Some(input) = block.get("input").filter(|v| !v.is_null()) {
+                visit_all_strings(input, "/content_block/input", 0, &mut |leaf_ptr, text| {
+                    collector.push_leaf(frame_idx, text, leaf_ptr);
+                })?;
+            }
+        }
+        Some("content_block_delta") => {
+            if let Some(delta) = value.get("delta").and_then(Value::as_object) {
+                extract_response_sse_delta(frame_idx, index, delta, collector);
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn extract_response_sse_delta(
+    frame_idx: usize,
+    index: u64,
+    delta: &Map<String, Value>,
+    collector: &mut crate::guardrails::response::StreamCollector,
+) {
+    use crate::guardrails::response::StreamKey;
+
+    match delta.get("type").and_then(Value::as_str) {
+        Some("signature_delta") => {
+            if delta
+                .get("signature")
+                .and_then(Value::as_str)
+                .is_some_and(|sig| !sig.is_empty())
+            {
+                collector.mark_signed_thinking(index);
+            }
+        }
+        Some("text_delta") => {
+            if let Some(text) = delta.get("text").and_then(Value::as_str) {
+                collector.push_delta(
+                    StreamKey::Anthropic(index, "text"),
+                    frame_idx,
+                    "/delta/text".into(),
+                    text,
+                );
+            }
+        }
+        Some("thinking_delta") => {
+            if let Some(text) = delta.get("thinking").and_then(Value::as_str) {
+                collector.push_delta(
+                    StreamKey::Anthropic(index, "thinking"),
+                    frame_idx,
+                    "/delta/thinking".into(),
+                    text,
+                );
+            }
+        }
+        Some("input_json_delta") => {
+            if let Some(text) = delta.get("partial_json").and_then(Value::as_str) {
+                collector.push_delta(
+                    StreamKey::Anthropic(index, "partial_json"),
+                    frame_idx,
+                    "/delta/partial_json".into(),
+                    text,
+                );
+            }
+        }
+        _ => {}
     }
 }
 
