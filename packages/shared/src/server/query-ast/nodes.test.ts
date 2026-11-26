@@ -1,3 +1,5 @@
+// Pins tenancy injection and the custom AST nodes across query shapes.
+
 import {
   AliasNode,
   BinaryOperationNode,

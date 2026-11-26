@@ -75,17 +75,18 @@ describe("scores-listable-count view (internal-only, powers ScoresOutlierStrip's
 });
 
 describe("scores views for projects that skip scores dedup", () => {
+  // v1 reads `scores <view alias>`, v2 the unaliased `scores`.
   it.each([
-    ["v1", "scores-numeric", "scores_numeric"],
-    ["v1", "scores-categorical", "scores_categorical"],
-    ["v1", "scores-boolean", "scores_boolean"],
-    ["v1", SCORES_LISTABLE_COUNT_VIEW, "scores_listable_count"],
-    ["v2", "scores-numeric", "scores_numeric"],
-    ["v2", "scores-categorical", "scores_categorical"],
-    ["v2", "scores-boolean", "scores_boolean"],
+    ["v1", "scores-numeric", "FROM scores scores_numeric"],
+    ["v1", "scores-categorical", "FROM scores scores_categorical"],
+    ["v1", "scores-boolean", "FROM scores scores_boolean"],
+    ["v1", SCORES_LISTABLE_COUNT_VIEW, "FROM scores scores_listable_count"],
+    ["v2", "scores-numeric", "from scores where"],
+    ["v2", "scores-categorical", "from scores where"],
+    ["v2", "scores-boolean", "from scores where"],
   ] as const)(
     "%s %s reads the scores table without FINAL",
-    async (version, view, alias) => {
+    async (version, view, from) => {
       vi.mocked(shouldSkipScoresDedup).mockReturnValueOnce(true);
 
       const { query: compiledQuery } = await new QueryBuilder(
@@ -93,8 +94,8 @@ describe("scores views for projects that skip scores dedup", () => {
         version,
       ).build({ ...baseQuery, view }, "test-project");
 
-      expect(compiledQuery).toContain(`FROM scores ${alias}`);
-      expect(compiledQuery).not.toMatch(/\bFINAL\b/);
+      expect(compiledQuery).toContain(from);
+      expect(compiledQuery).not.toMatch(/\bfinal\b/i);
     },
   );
 });
@@ -114,9 +115,9 @@ describe("scores views without relation joins", () => {
         "v2",
       ).build({ ...baseQuery, view }, "test-project");
 
-      expect(compiledQuery).not.toMatch(/FROM\s*\(/);
-      expect(compiledQuery).not.toMatch(/GROUP BY\s+\w+\.project_id/);
-      expect(compiledQuery).toContain("GROUP BY time_dimension");
+      expect(compiledQuery).not.toMatch(/from\s*\(/i);
+      expect(compiledQuery).not.toMatch(/group by\s+\w+\.project_id/i);
+      expect(compiledQuery).toMatch(/group by time_dimension/i);
     },
   );
 
@@ -139,11 +140,17 @@ describe("scores views without relation joins", () => {
         "test-project",
       );
 
-      expect(compiledQuery).not.toMatch(/FROM\s*\(/);
+      expect(compiledQuery).not.toMatch(/from\s*\(/i);
       expect(compiledQuery).not.toContain("any(");
-      expect(compiledQuery).toMatch(/avg\(\(?value\)?\) as avg_value/);
-      expect(compiledQuery).toMatch(/min\(\(?value\)?\) as min_value/);
-      expect(compiledQuery).toMatch(/max\(\(?value\)?\) as max_value/);
+      expect(compiledQuery).toMatch(
+        /avg\(\(?(scores\.)?value\)?\) as avg_value/,
+      );
+      expect(compiledQuery).toMatch(
+        /min\(\(?(scores\.)?value\)?\) as min_value/,
+      );
+      expect(compiledQuery).toMatch(
+        /max\(\(?(scores\.)?value\)?\) as max_value/,
+      );
     },
   );
 
@@ -164,9 +171,9 @@ describe("scores views without relation joins", () => {
         "test-project",
       );
 
-      expect(compiledQuery).toContain("INNER JOIN");
-      expect(compiledQuery).toMatch(/FROM\s*\(/);
-      expect(compiledQuery).toMatch(/GROUP BY\s+\w+\.project_id, \w+\.id/);
+      expect(compiledQuery).toMatch(/inner join/i);
+      expect(compiledQuery).toMatch(/from\s*\(/i);
+      expect(compiledQuery).toMatch(/group by\s+\w+\.project_id, \w+\.id/i);
     },
   );
 });

@@ -1,3 +1,5 @@
+// Golden SQL of v2 executeQuery filters and group-bys per view and dimension.
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {

@@ -417,6 +417,11 @@ describe("Topics transcript renderer", () => {
       renderTranscript(pending, [root, generation], topicsTranscriptConfig)
         .text,
     ).toContain("last action: assistant tool call\nvisible reply: none");
+    // A run that ends on an unanswered tool call, such as an approval, is a pending call.
+    expect(
+      renderTranscript(pending, [root, generation], topicsTranscriptConfig)
+        .visibleReply,
+    ).toEqual({ value: "none", noneEnding: "pending_tool_call" });
 
     // A blank text part next to the tool call is not a reply the user can read.
     const [request, call] = messages;
@@ -437,6 +442,25 @@ describe("Topics transcript renderer", () => {
     expect(
       renderTranscript(blank, [root, generation], topicsTranscriptConfig).text,
     ).toContain("visible reply: none");
+    // Blank text after the call does not change the ending.
+    const trailing: Transcript = {
+      threads: [
+        {
+          ...pending.threads[0],
+          currentTurn: {
+            ...pending.threads[0].currentTurn,
+            messages: [
+              request,
+              { ...call, parts: [...call.parts, { type: "text", text: "  " }] },
+            ],
+          },
+        },
+      ],
+    };
+    expect(
+      renderTranscript(trailing, [root, generation], topicsTranscriptConfig)
+        .visibleReply,
+    ).toEqual({ value: "none", noneEnding: "pending_tool_call" });
   });
 
   it("marks the request after supplied context without repeating trace input", () => {

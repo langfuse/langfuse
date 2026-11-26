@@ -1,3 +1,5 @@
+// MCP listScores tool: filtered, paginated score search with subject URLs.
+
 import {
   isoDateTime,
   InvalidRequestError,

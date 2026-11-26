@@ -122,7 +122,14 @@ pub(super) fn enrich_inner(state: &mut Pipeline, lookups: &[Value]) -> NativeRes
         }
         let enrichment = otel_enrichment::enrich(&event, lookup, &mut regexes);
         let start_time_iso = event.start_time.clone();
-        let evaluation_fields = event.evaluation_fields.take();
+        let mut evaluation_fields = event.evaluation_fields.take();
+        // Evaluation parses stored model parameters back into a value. Parameters that are
+        // text before storage stay text, including text that holds JSON.
+        if let Some(text @ Value::String(_)) = &event.model_parameters {
+            evaluation_fields
+                .get_or_insert_with(Default::default)
+                .insert("model_parameters".into(), text.clone());
+        }
         let mut row = event.into_storage(enrichment, &state.context);
         if !state.source.media.is_empty() {
             row.restore_media(&mut |text| {
@@ -366,10 +373,11 @@ fn evaluation_rows(rows: &[Option<EnrichedStorageRow>]) -> NativeResult<Vec<serd
         .flatten()
         .map(|row| {
             let mut value = row.row.evaluation_value().map_err(failure)?;
-            // Evaluation snapshots carry model parameters as parsed JSON values.
+            // Evaluation snapshots carry model parameters as JavaScript parses them, so
+            // integers beyond its exact range are doubles.
             if let Some(text) = value["model_parameters"].as_str() {
-                if let Ok(parsed) = serde_json::from_str(text) {
-                    value["model_parameters"] = parsed;
+                if let Ok(parsed) = Value::parse(text) {
+                    value["model_parameters"] = parsed.into_serde_lossy();
                 }
             }
             if let Some(fields) = &row.evaluation_fields {

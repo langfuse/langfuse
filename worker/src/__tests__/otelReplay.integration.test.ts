@@ -1638,6 +1638,95 @@ describe(
       }
     });
 
+    it("drops a span whose time ClickHouse cannot store and keeps its sibling", async () => {
+      const resource = buildFocusedResourceSpans({})[0];
+      const scope = resource.scopeSpans![0];
+      const span = scope.spans![0];
+      const bytes = Buffer.from(
+        JSON.stringify([
+          {
+            ...resource,
+            scopeSpans: [
+              {
+                ...scope,
+                spans: [
+                  // Microseconds sent as milliseconds: year 57425.
+                  { ...span, startTimeUnixNano: "1750000000123000000000" },
+                  { ...span, spanId: createBufferId(SECOND_SPAN_ID) },
+                ],
+              },
+            ],
+          },
+        ]),
+      );
+      const comparison = await runOtelReplayComparison({
+        bytes,
+        projectId: `${PROJECT_ID}-unstorable-time`,
+        fileKey: `${FILE_KEY}.unstorable-time`,
+      });
+      expectRawNativeParity(comparison);
+      for (const result of Object.values(comparison)) {
+        expect(result.storedRows.map((row) => row.span_id)).toEqual([
+          SECOND_SPAN_ID,
+        ]);
+      }
+    });
+
+    it("stores a span without an optional time ClickHouse cannot store", async () => {
+      const resource = buildFocusedResourceSpans({})[0];
+      const scope = resource.scopeSpans![0];
+      const span = scope.spans![0];
+      const withAttribute = (
+        spanId: string,
+        key: string,
+        value: Record<string, unknown>,
+      ) => ({
+        ...span,
+        spanId: createBufferId(spanId),
+        attributes: [...(span.attributes ?? []), { key, value }],
+      });
+      const bytes = Buffer.from(
+        JSON.stringify([
+          {
+            ...resource,
+            scopeSpans: [
+              {
+                ...scope,
+                spans: [
+                  // Puts the completion start time in year 33713.
+                  withAttribute(FIRST_SPAN_ID, "ai.response.msToFirstChunk", {
+                    doubleValue: 1e15,
+                  }),
+                  // Year 10000 in UTC.
+                  withAttribute(
+                    SECOND_SPAN_ID,
+                    "langfuse.observation.completion_start_time",
+                    { stringValue: "9999-12-31T23:30:00-05:00" },
+                  ),
+                ],
+              },
+            ],
+          },
+        ]),
+      );
+      const comparison = await runOtelReplayComparison({
+        bytes,
+        projectId: `${PROJECT_ID}-unstorable-optional-time`,
+        fileKey: `${FILE_KEY}.unstorable-optional-time`,
+      });
+      expectRawNativeParity(comparison);
+      for (const result of Object.values(comparison)) {
+        expect(
+          result.storedRows
+            .map((row) => [row.span_id, row.completion_start_time])
+            .sort(),
+        ).toEqual([
+          [FIRST_SPAN_ID, null],
+          [SECOND_SPAN_ID, null],
+        ]);
+      }
+    });
+
     it("preserves JavaScript rounding for unsafe OTLP numbers in the raw document", async () => {
       // Keep the number literal in the S3 document. Serializing a JS object
       // first would round it before the production queue reads the bytes.
