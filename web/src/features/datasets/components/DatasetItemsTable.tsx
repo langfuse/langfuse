@@ -20,7 +20,7 @@ import {
 } from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
-import { useEffect, useRef } from "react";
+import { useEffect, type ReactNode } from "react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -74,6 +74,34 @@ export function DatasetItemsTable({
   datasetId: string;
   menuItems?: React.ReactNode;
 }) {
+  return (
+    <EditDatasetItemDialogController
+      projectId={projectId}
+      datasetId={datasetId}
+    >
+      {({ openDialog }) => (
+        <DatasetItemsTableContent
+          projectId={projectId}
+          datasetId={datasetId}
+          menuItems={menuItems}
+          openDialog={openDialog}
+        />
+      )}
+    </EditDatasetItemDialogController>
+  );
+}
+
+function DatasetItemsTableContent({
+  projectId,
+  datasetId,
+  menuItems,
+  openDialog,
+}: {
+  projectId: string;
+  datasetId: string;
+  menuItems?: ReactNode;
+  openDialog: (state: EditDatasetItemDialogState) => void;
+}) {
   const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -107,9 +135,6 @@ export function DatasetItemsTable({
     scope: "batchExports:create",
   });
   const { selectedVersion } = useDatasetVersion();
-  const openEditDialogRef = useRef<(state: EditDatasetItemDialogState) => void>(
-    () => undefined,
-  );
   const items = api.datasets.itemsByDatasetId.useQuery({
     projectId,
     datasetId,
@@ -241,7 +266,7 @@ export function DatasetItemsTable({
             <DropdownMenuItem
               disabled={!hasAccess || !!selectedVersion}
               onClick={() => {
-                openEditDialogRef.current({ datasetItemId: id });
+                openDialog({ datasetItemId: id });
               }}
             >
               <Edit size="base" color="default" __rawClassName="mr-2" />
@@ -421,15 +446,6 @@ export function DatasetItemsTable({
         onCustomRowHeightChange={rowHeights.setCustomPx}
         onSelectRowHeight={setRowHeight}
       />
-      <EditDatasetItemDialogController
-        projectId={projectId}
-        datasetId={datasetId}
-      >
-        {({ openDialog }) => {
-          openEditDialogRef.current = openDialog;
-          return null;
-        }}
-      </EditDatasetItemDialogController>
     </>
   );
 }
