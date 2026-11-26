@@ -732,6 +732,9 @@ export const otelIngestionQueueProcessorBuilder = (
         inputPreparationDurationMs = performance.now() - preparationStartedAt;
       }
 
+      // One time for the whole batch, so a span without a start and end time
+      // gets the same time each time the processor converts it.
+      const fallbackTime = new Date().toISOString();
       const processor = new OtelIngestionProcessor({
         projectId,
         publicKey: attribution.ingestionApiKey,
@@ -739,6 +742,7 @@ export const otelIngestionQueueProcessorBuilder = (
         sdkVersion: attribution.ingestionSdkVersion,
         fileKey,
         isLangfuseInternal,
+        fallbackTime,
       });
       let traces: IngestionEventType[] = [];
       let observations: IngestionEventType[] = [];
