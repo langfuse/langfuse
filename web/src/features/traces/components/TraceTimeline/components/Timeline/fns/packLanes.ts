@@ -1,8 +1,6 @@
-import type { CompactLaneRow, CompactPacking } from "../types";
+import type { PackedLaneRow, PackedPacking } from "../types";
 
-export function packCompactLanes(
-  rows: readonly CompactLaneRow[],
-): CompactPacking {
+export function packLanes(rows: readonly PackedLaneRow[]): PackedPacking {
   if (rows.length === 0) return { lanes: [], laneCount: 0 };
 
   let laneCount = 0;

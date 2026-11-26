@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { expect, fn, userEvent, waitFor } from "storybook/test";
 import preview from "../../../../../../../.storybook/preview";
 import { Timeline, type TimelineProps } from "./Timeline";
-import type { Box } from "./types";
+import type { Box, LayoutNode } from "./types";
 import {
   deepNesting,
   streamingSpan,
@@ -2623,7 +2623,7 @@ export const ARowTooTightForMetricsStillSaysThem = meta.story({
 
 /**
  * Synthetic session: each trace is its own root, with a short observation
- * stack. Used to compare the default staircase with compact packing.
+ * stack. Used to compare the default staircase with packed packing.
  */
 function sessionRoots(
   count: number,
@@ -2666,9 +2666,9 @@ function sessionRoots(
   return roots;
 }
 
-function CompactToggleStory(props: TimelineProps) {
-  // Sessions open compact. The switch still flips back to one row per span.
-  const [rowLayout, setRowLayout] = useState<"tree" | "compact">("compact");
+function PackedToggleStory(props: TimelineProps) {
+  // Sessions open packed. The switch still flips back to one row per span.
+  const [rowLayout, setRowLayout] = useState<"tree" | "packed">("packed");
   return (
     <TimelineStory
       {...props}
@@ -2690,16 +2690,16 @@ const sessionArgs = {
 
 export const SequentialSession = meta.story({
   name: "Sequential session",
-  render: (args) => <CompactToggleStory {...args} />,
+  render: (args) => <PackedToggleStory {...args} />,
   args: {
     ...sessionArgs,
     roots: sessionRoots(24),
   },
 });
 
-export const CompactPacksSequentialSession = meta.story({
-  name: "(Test) Compact layout packs sequential traces",
-  render: (args) => <CompactToggleStory {...args} />,
+export const PackedPacksSequentialSession = meta.story({
+  name: "(Test) Packed layout packs sequential traces",
+  render: (args) => <PackedToggleStory {...args} />,
   args: {
     ...sessionArgs,
     roots: sessionRoots(24),
@@ -2711,7 +2711,7 @@ export const CompactPacksSequentialSession = meta.story({
     });
     const before = canvas.getByTestId("dense-rows").textContent;
     await userEvent.click(
-      canvas.getByRole("switch", { name: "Compact layout" }),
+      canvas.getByRole("switch", { name: "Packed layout" }),
     );
     await waitFor(() => {
       const after = canvas.getByTestId("dense-rows").textContent;
@@ -2723,7 +2723,7 @@ export const CompactPacksSequentialSession = meta.story({
 
 export const ShortSession = meta.story({
   name: "Short session",
-  render: (args) => <CompactToggleStory {...args} />,
+  render: (args) => <PackedToggleStory {...args} />,
   args: {
     ...sessionArgs,
     roots: sessionRoots(2),
@@ -2734,7 +2734,7 @@ const idleRoots = sessionRoots(6, { idleAfter: 2, idleMs: 54 * 60 * 1000 });
 
 export const IdleGap = meta.story({
   name: "Idle gap",
-  render: (args) => <CompactToggleStory {...args} />,
+  render: (args) => <PackedToggleStory {...args} />,
   args: {
     ...sessionArgs,
     roots: idleRoots,
@@ -2743,10 +2743,76 @@ export const IdleGap = meta.story({
 
 export const IdleGapUncompressed = meta.story({
   name: "Idle gap uncompressed",
-  render: (args) => <CompactToggleStory {...args} />,
+  render: (args) => <PackedToggleStory {...args} />,
   args: {
     ...sessionArgs,
     roots: idleRoots,
     collapseIdleGaps: false,
+  },
+});
+
+function nestedChain(): LayoutNode {
+  const start = new Date("2024-01-01T00:00:00.000Z").getTime();
+  const durations = [256_000, 256_000, 128_000, 65_000, 6];
+  let child: LayoutNode | null = null;
+  for (let index = durations.length - 1; index >= 0; index--) {
+    child = {
+      id: `chain-${index}`,
+      name: `span-${index}`,
+      type: index === 0 ? "TRACE" : "SPAN",
+      startTime: new Date(start),
+      endTime: new Date(start + durations[index]!),
+      children: child ? [child] : [],
+    };
+  }
+  return child!;
+}
+
+const TALL = { width: 1100, height: 640 };
+
+export const PackedFillsThePanel = meta.story({
+  name: "(Test) Packed layout fills the panel",
+  args: {
+    ...sessionArgs,
+    box: TALL,
+    showReadout: false,
+    roots: sessionRoots(8),
+  },
+  render: (args) => (
+    <div
+      data-testid="packed-host"
+      style={{ height: TALL.height, width: "100%" }}
+    >
+      <PackedToggleStory {...args} />
+    </div>
+  ),
+  play: async ({ canvas }) => {
+    const frame = await canvas.findByTestId("timeline-dense-frame");
+    const host = canvas.getByTestId("packed-host");
+    const surface = canvas.getByTestId("timeline-dense-surface");
+    expect(frame.getBoundingClientRect().height).toBe(
+      host.getBoundingClientRect().height,
+    );
+    expect(surface.clientHeight).toBeGreaterThan(8 * 26);
+  },
+});
+
+export const PackedSavesNothing = meta.story({
+  name: "(Test) Packed layout stays off when it saves no rows",
+  args: {
+    ...sessionArgs,
+    roots: [nestedChain()],
+  },
+  render: (args) => <PackedToggleStory {...args} />,
+  play: async ({ canvas }) => {
+    const toggle = await canvas.findByRole("switch", { name: "Packed layout" });
+    expect((toggle as HTMLButtonElement).disabled).toBe(true);
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    expect(toggle.getAttribute("aria-disabled")).toBe("true");
+    expect(toggle.getAttribute("data-state")).toBe("unchecked");
+    expect(
+      canvas.getByTestId("timeline-dense-frame").getAttribute("data-layout"),
+    ).toBe("tree");
+    expect(canvas.getByTestId("dense-rows").textContent).toContain("of 5");
   },
 });

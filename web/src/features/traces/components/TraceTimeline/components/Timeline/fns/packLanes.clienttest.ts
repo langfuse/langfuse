@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { packCompactLanes } from "./packCompactLanes";
+import { packLanes } from "./packLanes";
 import type { LayoutNode } from "../types";
 import { layout } from "./layout";
 import { prepareTimeline } from "./prepareTimeline";
@@ -32,14 +32,14 @@ function span(
   };
 }
 
-describe("packCompactLanes", () => {
+describe("packLanes", () => {
   it("puts every depth on one row, including spans that overlap in time", () => {
     const roots = [
       span("trace-a", 0, 100, [span("a1", 0, 50, [span("a2", 10, 20)])]),
       span("trace-b", 40, 90, [span("b1", 40, 80)]),
     ];
     const prepared = prepareTimeline(roots);
-    const packing = packCompactLanes(prepared.rows);
+    const packing = packLanes(prepared.rows);
 
     expect(packing.laneCount).toBe(3);
     const laneById = new Map(
@@ -80,7 +80,7 @@ describe("packCompactLanes", () => {
       view: null,
       compress: false,
       prepared: sequential,
-      laneByRow: packCompactLanes(sequential.rows).lanes,
+      laneByRow: packLanes(sequential.rows).lanes,
       barInsetPx: 2,
     });
     const leftBar = separated.nodes.find((item) => item.id === "left")!;
@@ -94,7 +94,7 @@ describe("packCompactLanes", () => {
     );
     const roots = [span("wide", 0, 30_000, tiny)];
     const prepared = prepareTimeline(roots);
-    const laneByRow = packCompactLanes(prepared.rows).lanes;
+    const laneByRow = packLanes(prepared.rows).lanes;
     const fitted = layout({
       roots,
       box: { width: 300, height: 80 },
@@ -134,7 +134,7 @@ describe("packCompactLanes", () => {
       view: null,
       compress: false,
       prepared: session,
-      laneByRow: packCompactLanes(session.rows).lanes,
+      laneByRow: packLanes(session.rows).lanes,
     });
     expect(sessionLayout.nodes).toHaveLength(traces.length);
 
@@ -152,7 +152,7 @@ describe("packCompactLanes", () => {
       view: null,
       compress: false,
       prepared: piledPrepared,
-      laneByRow: packCompactLanes(piledPrepared.rows).lanes,
+      laneByRow: packLanes(piledPrepared.rows).lanes,
       selectedId: "second",
     });
     const piledIds = piledLayout.nodes.map((node) => node.id);
@@ -172,7 +172,7 @@ describe("packCompactLanes", () => {
     expect(zoomed.nodes.some((node) => node.id.startsWith("t"))).toBe(true);
   });
 
-  it("keeps an instantaneous span mounted in compact layout", () => {
+  it("keeps an instantaneous span mounted in packed layout", () => {
     const event = span("event", 5, 5);
     const prepared = prepareTimeline([event]);
     const positioned = layout({
@@ -183,7 +183,7 @@ describe("packCompactLanes", () => {
       view: null,
       compress: false,
       prepared,
-      laneByRow: packCompactLanes(prepared.rows).lanes,
+      laneByRow: packLanes(prepared.rows).lanes,
     });
     expect(positioned.nodes.map((node) => node.id)).toContain("event");
   });

@@ -130,7 +130,7 @@ export type LayoutInput<TNode extends LayoutNode = LayoutNode> = {
   compression?: TimeCompression;
   rowRange?: { startIndex: number; endIndex: number };
   laneByRow?: readonly number[];
-  /** Compact layout still mounts this span when it shares a pixel with another. */
+  /** Packed layout still mounts this span when it shares a pixel with another. */
   selectedId?: string | null;
   formatLabel?: (durationMs: number) => string;
   barInsetPx?: number;
@@ -145,9 +145,9 @@ export type TooltipPlacement = {
 
 export type BarTextTone = "light" | "dark";
 
-export type CompactLaneRow = { depth: number };
+export type PackedLaneRow = { depth: number };
 
-export type CompactPacking = {
+export type PackedPacking = {
   lanes: number[];
   laneCount: number;
 };

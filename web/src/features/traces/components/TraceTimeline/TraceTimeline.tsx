@@ -23,6 +23,26 @@ import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNo
 import { detectPointerModality } from "./fns/detectPointerModality";
 import { Timeline } from "./components/Timeline/Timeline";
 
+function readPackedPreference(
+  key: string,
+  legacyKey: string,
+  fallback: boolean,
+): boolean {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored != null) return JSON.parse(stored) as boolean;
+    const legacy = localStorage.getItem(legacyKey);
+    if (legacy == null) return fallback;
+    const value = JSON.parse(legacy) === true;
+    localStorage.setItem(key, JSON.stringify(value));
+    localStorage.removeItem(legacyKey);
+    return value;
+  } catch {
+    return fallback;
+  }
+}
+
 export function TraceTimeline() {
   const { roots, nodeMap, scope } = useTraceData();
   const { selectedNodeId, collapsedNodes, selectionLocked } = useSelection();
@@ -32,17 +52,25 @@ export function TraceTimeline() {
   const { showDuration, showCostTokens } = useViewPreferences();
   const isSession = scope.type === "session";
   // A session and a single trace remember the switch separately. A session
-  // opens compact until the user says otherwise; a trace opens one row per span.
-  const [traceCompact, setTraceCompact] = useLocalStorage(
-    "timelineCompactLayout",
-    false,
+  // opens packed until the user says otherwise; a trace opens one row per span.
+  const [tracePacked, setTracePacked] = useLocalStorage(
+    "timelinePackedLayout",
+    readPackedPreference(
+      "timelinePackedLayout",
+      "timelineCompactLayout",
+      false,
+    ),
   );
-  const [sessionCompact, setSessionCompact] = useLocalStorage(
-    "timelineCompactLayoutSession",
-    true,
+  const [sessionPacked, setSessionPacked] = useLocalStorage(
+    "timelinePackedLayoutSession",
+    readPackedPreference(
+      "timelinePackedLayoutSession",
+      "timelineCompactLayoutSession",
+      true,
+    ),
   );
-  const timelineCompact = isSession ? sessionCompact : traceCompact;
-  const setTimelineCompact = isSession ? setSessionCompact : setTraceCompact;
+  const timelinePacked = isSession ? sessionPacked : tracePacked;
+  const setTimelinePacked = isSession ? setSessionPacked : setTracePacked;
   const { handleHover } = useHandlePrefetchObservation();
   const selectNode = useSelectTraceNode("timeline_compact");
 
@@ -123,10 +151,8 @@ export function TraceTimeline() {
           metricsOf={metricsOf}
           showDuration={showDuration}
           search={search}
-          rowLayout={timelineCompact ? "compact" : "tree"}
-          onRowLayoutChange={(layout) =>
-            setTimelineCompact(layout === "compact")
-          }
+          rowLayout={timelinePacked ? "packed" : "tree"}
+          onRowLayoutChange={(layout) => setTimelinePacked(layout === "packed")}
         />
       ) : null}
     </div>

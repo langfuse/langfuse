@@ -61,6 +61,7 @@ import {
 import { tooltipPlacement } from "./fns/tooltipPlacement";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   TimelineRowMetrics,
   type RowMetrics,
@@ -81,7 +82,7 @@ import { layout } from "./fns/layout";
 import { prepareTimeline } from "./fns/prepareTimeline";
 import { spanOffsetsOf } from "./fns/spanOffsetsOf";
 import { timeCompressionFor } from "./fns/timeCompressionFor";
-import { packCompactLanes } from "./fns/packCompactLanes";
+import { packLanes } from "./fns/packLanes";
 import { sessionIdleCompression } from "./fns/sessionIdleCompression";
 import {
   formatIdleGap,
@@ -347,11 +348,11 @@ export type TimelineProps = {
     label: string;
   };
   /**
-   * `tree` is one row per span (the default). `compact` packs non-overlapping
+   * `tree` is one row per span (the default). `packed` packs non-overlapping
    * spans onto shared rows, stacked by nesting depth.
    */
-  rowLayout?: "tree" | "compact";
-  onRowLayoutChange?: (layout: "tree" | "compact") => void;
+  rowLayout?: "tree" | "packed";
+  onRowLayoutChange?: (layout: "tree" | "packed") => void;
   /**
    * Collapse idle time between top-level traces that exceeds the session
    * sidebar threshold. On for the product timeline; stories can turn it off
@@ -396,16 +397,12 @@ export function Timeline({
   collapseIdleGaps = true,
 }: TimelineProps) {
   const [windowState, setWindowState] = useState<{
-    layout: "tree" | "compact";
+    layout: "tree" | "packed";
     viewport: Viewport | null;
   }>({ layout: rowLayout, viewport: null });
-  const compact = rowLayout === "compact";
   // A layout switch changes how many rows exist. A window stored for the
   // other layout is ignored, so the next render fits the new row count.
-  const viewport =
-    windowState.layout === rowLayout ? windowState.viewport : null;
   const rowLayoutRef = useRef(rowLayout);
-  rowLayoutRef.current = rowLayout;
   const setViewport = (next: Viewport | null) => {
     setWindowState({ layout: rowLayoutRef.current, viewport: next });
   };
@@ -458,10 +455,16 @@ export function Timeline({
     () => prepareTimeline(roots, effectiveCollapsed),
     [roots, effectiveCollapsed],
   );
-  const packing = useMemo(
-    () => (compact ? packCompactLanes(prepared.rows) : null),
-    [compact, prepared],
-  );
+  const lanePacking = useMemo(() => packLanes(prepared.rows), [prepared]);
+  // Fewer than two rows saved still looks like one row per span, so the
+  // switch stays off and the tree stays up. The stored choice is left alone.
+  const packedSavesSpace = prepared.rows.length - lanePacking.laneCount >= 2;
+  const packed = rowLayout === "packed" && packedSavesSpace;
+  const packing = packed ? lanePacking : null;
+  const shownLayout = packed ? "packed" : "tree";
+  const viewport =
+    windowState.layout === shownLayout ? windowState.viewport : null;
+  rowLayoutRef.current = shownLayout;
   const rowCount = packing?.laneCount ?? prepared.rows.length;
   // Measured in the font the labels ACTUALLY render in, read off a probe span
   // that carries their own size — `10px ui-sans-serif` is a guess, and the
@@ -507,14 +510,14 @@ export function Timeline({
       (showReadout ? READOUT_HEIGHT : 0),
     0,
   );
-  // Compact sessions are a handful of depth rows. Keep them at a readable
-  // height and let the frame shrink instead of spreading three rows across
-  // the whole panel.
+  // Lanes stay at a readable height instead of stretching across the panel.
+  // The card itself still fills the box; the space under the last lane is
+  // the same chart background.
   const chartHeight =
-    compact && rowCount > 0
+    packed && rowCount > 0
       ? Math.min(surfaceHeight, rowCount * HUMAN_ROW_HEIGHT)
       : surfaceHeight;
-  const frameHeight = box.height - surfaceHeight + chartHeight;
+  const frameHeight = box.height;
 
   // Resolve the VERTICAL window first. It depends only on the row count and the
   // height, never on the width, so row height is known before the gutter width
@@ -563,9 +566,9 @@ export function Timeline({
     if (override === "collapsed") {
       return false;
     }
-    // Compact rows share a lane. A name beside the row would name the lane,
+    // Packed rows share a lane. A name beside the row would name the lane,
     // not a span, so the left side takes no width at all.
-    if (compact) return false;
+    if (packed) return false;
     return asked || gutterMode === "auto";
   })();
   const gutterFits =
@@ -575,9 +578,9 @@ export function Timeline({
   // A COMMITTED open takes real space and re-lays out the chart. A PEEK must
   // not: it floats over the timeline instead, so hovering the edge never shoves
   // the bars sideways while you are reading them.
-  const committedOpen = !compact && canShowNames && gutterFits && wantsOpen;
+  const committedOpen = !packed && canShowNames && gutterFits && wantsOpen;
   const railWidth = (() => {
-    if (compact || !canShowNames) return 0;
+    if (packed || !canShowNames) return 0;
     if (committedOpen) return wantedGutter;
     return RAIL_WIDTH;
   })();
@@ -625,7 +628,10 @@ export function Timeline({
   if (compressionRef.current !== compression) {
     compressionRef.current = compression;
     if (activeViewport && activeViewport !== viewport) {
-      setWindowState({ layout: rowLayout, viewport: activeViewport });
+      setWindowState({
+        layout: rowLayoutRef.current,
+        viewport: activeViewport,
+      });
     }
   }
 
@@ -654,7 +660,7 @@ export function Timeline({
   // an explicit ask still gets the names where they could not fit beside the
   // chart.
   const peekWidth =
-    !compact &&
+    !packed &&
     canShowNames &&
     !committedOpen &&
     (peeking || labelsPinned || override === "expanded")
@@ -669,7 +675,7 @@ export function Timeline({
   // gutter — both are the same ask. A time-zoomed hairline keeps Fit.
   const clockFits = current.time.duration >= limits.traceSpace.duration - 0.5;
   const offerShowLabels =
-    !compact && clockFits && !labelsShowing && (canShowLabels || canShowNames);
+    !packed && clockFits && !labelsShowing && (canShowLabels || canShowNames);
   const fitSpent = fitted && !labelsPinned;
   const barHeight = Math.max(Math.min(rowHeight - 1, MAX_BAR_HEIGHT), 1);
 
@@ -714,7 +720,7 @@ export function Timeline({
     compression,
     rowRange,
     laneByRow: packing?.lanes,
-    barInsetPx: compact ? 2 : 0,
+    barInsetPx: packed ? 2 : 0,
     selectedId,
   });
 
@@ -816,7 +822,7 @@ export function Timeline({
     lanes: packing?.lanes ?? null,
     originMs: prepared.originMs,
     compression,
-    compact,
+    packed,
   });
   layoutRef.current = {
     limits,
@@ -829,7 +835,7 @@ export function Timeline({
     lanes: packing?.lanes ?? null,
     originMs: prepared.originMs,
     compression,
-    compact,
+    packed,
   };
 
   /**
@@ -855,7 +861,7 @@ export function Timeline({
       live.rows.length,
     );
     const xInLane = at.x - live.railWidth;
-    if (live.compact && xInLane < 0) return;
+    if (live.packed && xInLane < 0) return;
     const id =
       index == null
         ? null
@@ -864,7 +870,7 @@ export function Timeline({
             lanes: live.lanes,
             originMs: live.originMs,
             compression: live.compression,
-            compact: live.compact,
+            packed: live.packed,
             lane: index,
             compressedMs:
               viewport.time.start +
@@ -1192,7 +1198,7 @@ export function Timeline({
       // takes no width, so this collapsed to "the leftmost 6px" and a tap there
       // set an override with nothing to show for it — which then sprang the names
       // open later, the moment a focus zoom grew the rows enough to honour it.
-      !compact &&
+      !packed &&
       canShowNames &&
       offsetX <= Math.max(railWidth, peekWidth) + PEEK_MARGIN_PX
     ) {
@@ -1381,7 +1387,7 @@ export function Timeline({
     const overBar =
       lane == null
         ? null
-        : hitIdAt(result.nodes, lane, offsetX - railWidth, compact);
+        : hitIdAt(result.nodes, lane, offsetX - railWidth, packed);
     if (overBar != null && lane != null)
       lastBar.current = { id: overBar, lane };
     notifyHover(current, { x: offsetX, y: offsetY });
@@ -1469,7 +1475,7 @@ export function Timeline({
           result.nodes,
           index,
           event.clientX - rect.left - railWidth,
-          compact,
+          packed,
         );
         if (id) {
           focusedByTap.current = true;
@@ -1508,9 +1514,9 @@ export function Timeline({
   const barUnderPointer =
     focusIndex == null || xInLane == null
       ? null
-      : hitIdAt(result.nodes, focusIndex, xInLane, compact);
+      : hitIdAt(result.nodes, focusIndex, xInLane, packed);
   const gutterKeeps =
-    compact &&
+    packed &&
     xInLane != null &&
     xInLane < 0 &&
     lastBar.current?.lane === focusIndex
@@ -1518,7 +1524,7 @@ export function Timeline({
       : null;
   const focusedId = barUnderPointer ?? gutterKeeps;
   const ancestorLabel =
-    compact && focusedId ? ancestorPath(roots, focusedId).join(" / ") : "";
+    packed && focusedId ? ancestorPath(roots, focusedId).join(" / ") : "";
   const focused = focusedId
     ? (result.nodes.find((node) => node.id === focusedId) ?? null)
     : null;
@@ -1532,6 +1538,8 @@ export function Timeline({
     <div
       className="bg-background border-border text-foreground flex flex-col overflow-hidden rounded border select-none"
       style={{ width: `${box.width}px`, height: `${frameHeight}px` }}
+      data-testid="timeline-dense-frame"
+      data-layout={shownLayout}
     >
       <div
         className="border-border flex shrink-0 items-center gap-1 border-b px-1"
@@ -1605,17 +1613,38 @@ export function Timeline({
               className="text-muted-foreground"
               style={{ fontSize: "10px" }}
             >
-              Compact
+              Packed
             </span>
-            <Switch
-              size="sm"
-              color="green"
-              checked={compact}
-              aria-label="Compact layout"
-              onCheckedChange={(checked) =>
-                onRowLayoutChange(checked ? "compact" : "tree")
-              }
-            />
+            {packedSavesSpace ? (
+              <Switch
+                size="sm"
+                color="green"
+                checked={packed}
+                aria-label="Packed layout"
+                onCheckedChange={(checked) =>
+                  onRowLayoutChange(checked ? "packed" : "tree")
+                }
+              />
+            ) : (
+              <Tooltip label="Packed view would not save space for this trace">
+                {({ getTriggerProps }) => (
+                  <span
+                    {...getTriggerProps()}
+                    className="inline-flex"
+                    tabIndex={0}
+                  >
+                    <Switch
+                      size="sm"
+                      color="green"
+                      checked={false}
+                      disabled
+                      aria-disabled="true"
+                      aria-label="Packed layout"
+                    />
+                  </span>
+                )}
+              </Tooltip>
+            )}
           </label>
         ) : null}
       </div>
@@ -1763,7 +1792,7 @@ export function Timeline({
                 key={node.id}
                 className={cn(
                   "absolute inset-x-0",
-                  compact && "pointer-events-none",
+                  packed && "pointer-events-none",
                   rowWashClass({
                     selected: isSelected,
                     focused: isFocused,
@@ -1772,16 +1801,16 @@ export function Timeline({
                 style={{ top: `${y}px`, height: `${rowHeight}px` }}
                 data-testid="timeline-dense-row"
                 onClick={
-                  compact
+                  packed
                     ? undefined
                     : (event) => selectRowOnClick(event, node.id)
                 }
-                onDoubleClick={compact ? undefined : () => focusRow(node.id)}
+                onDoubleClick={packed ? undefined : () => focusRow(node.id)}
               >
                 {/* Bird's-eye density has no rail; avoid invisible DOM per row.
-                    Compact lanes hold several spans, so only the span under the
+                    Packed lanes hold several spans, so only the span under the
                     pointer gets a name — the others would paint on top of it. */}
-                {railWidth > 0 && (!compact || isFocused) && (
+                {railWidth > 0 && (!packed || isFocused) && (
                   <GutterContent
                     node={node}
                     width={railWidth}
@@ -1826,16 +1855,16 @@ export function Timeline({
                       className={cn(
                         // Clicking selects, and the bar is the part that looks
                         // like it would: the row is clickable across its full
-                        // width, but only the bar reads as a thing. Compact
+                        // width, but only the bar reads as a thing. Packed
                         // rows share a lane, so the bar itself takes the click.
                         "absolute rounded-[1px]",
-                        compact && "pointer-events-auto",
+                        packed && "pointer-events-auto",
                         onSelect && "cursor-pointer",
                         barClass,
                         isSelected && "ring-foreground/80 ring-1",
                       )}
                       onClick={
-                        compact
+                        packed
                           ? (event) => {
                               event.stopPropagation();
                               selectRowOnClick(event, node.id);
@@ -1843,7 +1872,7 @@ export function Timeline({
                           : undefined
                       }
                       onDoubleClick={
-                        compact
+                        packed
                           ? (event) => {
                               event.stopPropagation();
                               focusRow(node.id);
@@ -1880,7 +1909,7 @@ export function Timeline({
                       label at the lane edge. */}
                   {presentation === "labelled" &&
                   !node.offscreen &&
-                  (!compact || node.labelPlacement === "inside") ? (
+                  (!packed || node.labelPlacement === "inside") ? (
                     <TimelineRowMetrics
                       row={node}
                       laneWidth={laneWidth}
@@ -1888,7 +1917,7 @@ export function Timeline({
                       density={density}
                       metrics={metricsOf?.(node.id) ?? {}}
                       showDuration={showDuration}
-                      insideOnly={compact}
+                      insideOnly={packed}
                       toneClass={
                         barTones[barClass] === "dark"
                           ? "text-black/85"
@@ -1929,7 +1958,7 @@ export function Timeline({
             {result.nodes.map((node) => {
               const y = (node.index - current.rows.start) * rowHeight;
               if (y + rowHeight < 0 || y > chartHeight) return null;
-              if (compact && node.id !== focused?.id) return null;
+              if (packed && node.id !== focused?.id) return null;
               return (
                 <div
                   key={node.id}
@@ -2064,7 +2093,7 @@ export function Timeline({
  * the two cannot drift apart.
  */
 /** The placement as inline style. Split out so the geometry stays pure. */
-/** Names above a span, so a compact bar still says which trace it sits under. */
+/** Names above a span, so a packed bar still says which trace it sits under. */
 function ancestorPath(roots: readonly LayoutNode[], id: string): string[] {
   const found: string[] = [];
   const visit = (node: LayoutNode, stack: string[]): boolean => {
@@ -2247,12 +2276,12 @@ function hitIdAt(
   nodes: readonly PositionedNode[],
   lane: number,
   xInLane: number,
-  compact: boolean,
+  packed: boolean,
 ): string | null {
   let hit: string | null = null;
   for (const node of nodes) {
     if (node.index !== lane) continue;
-    if (!compact) return node.id;
+    if (!packed) return node.id;
     if (node.offscreen) continue;
     if (xInLane >= node.x && xInLane < node.x + Math.max(node.width, 1)) {
       // Later nodes paint above earlier ones, so the last hit is the visible bar.
@@ -2269,11 +2298,11 @@ function spanAtPointer(args: {
   compression: {
     toCompressedMs: (ms: number) => number;
   };
-  compact: boolean;
+  packed: boolean;
   lane: number;
   compressedMs: number;
 }): string | null {
-  if (!args.compact || !args.lanes) {
+  if (!args.packed || !args.lanes) {
     return args.rows[args.lane]?.node.id ?? null;
   }
   let id: string | null = null;
