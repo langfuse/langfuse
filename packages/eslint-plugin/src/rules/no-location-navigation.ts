@@ -10,7 +10,7 @@ const BROWSER_OBJECTS = new Set(["window", "document", "globalThis"]);
 
 type RuleContext = TSESLint.RuleContext<"unexpected", []>;
 
-function isBrowserLocationIdentifier(
+function isUnboundIdentifier(
   node: TSESTree.Identifier,
   context: RuleContext,
 ): boolean {
@@ -26,7 +26,7 @@ function isBrowserLocationIdentifier(
 function isLocationObject(node: TSESTree.Node, context: RuleContext): boolean {
   if (node.type === AST_NODE_TYPES.Identifier) {
     return (
-      node.name === "location" && isBrowserLocationIdentifier(node, context)
+      node.name === "location" && isUnboundIdentifier(node, context)
     );
   }
   if (node.type !== AST_NODE_TYPES.MemberExpression || node.computed) {
@@ -40,7 +40,8 @@ function isLocationObject(node: TSESTree.Node, context: RuleContext): boolean {
   }
   return (
     node.object.type === AST_NODE_TYPES.Identifier &&
-    BROWSER_OBJECTS.has(node.object.name)
+    BROWSER_OBJECTS.has(node.object.name) &&
+    isUnboundIdentifier(node.object, context)
   );
 }
 

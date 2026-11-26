@@ -39,6 +39,18 @@ ruleTester.run("no-location-navigation", rule, {
     {
       code: `function outer() { let location = { href: "" }; function inner() { location.href = "/x"; } }`,
     },
+    {
+      code: `function update(document: { location: string }) { document.location = "/x"; }`,
+    },
+    {
+      code: `function update(window: { location: { href: string; assign: (url: string) => void } }) { window.location.href = "/x"; window.location.assign("/x"); }`,
+    },
+    {
+      code: `import { document } from "adapter"; document.location.replace("/x");`,
+    },
+    {
+      code: `function outer() { const globalThis = { location: "" }; function inner() { globalThis.location = "/x"; } }`,
+    },
     { code: `({ location } = window);` },
     { code: `window["location"].href = "/x";` },
     { code: `window.location["href"] = "/x";` },
@@ -121,6 +133,13 @@ ruleTester.run("no-location-navigation", rule, {
       code: `function inner() { location.href = "/x"; }`,
       languageOptions: {
         globals: { location: "writable" },
+      },
+      errors: [{ messageId: "unexpected" }],
+    },
+    {
+      code: `function inner() { document.location.href = "/x"; }`,
+      languageOptions: {
+        globals: { document: "readonly" },
       },
       errors: [{ messageId: "unexpected" }],
     },
