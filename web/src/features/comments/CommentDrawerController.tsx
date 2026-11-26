@@ -11,10 +11,8 @@ import {
   createCommentOverlayStore,
   type CommentTarget,
 } from "./state/commentOverlayStore";
-import {
-  CommentOverlayHost,
-  CommentOverlayState,
-} from "./components/CommentOverlayHost";
+import { CommentOverlayHost } from "./components/CommentOverlayHost";
+import { CommentOverlayState } from "./components/CommentOverlayState";
 
 export type CommentDrawerControllerProps = {
   projectId: string;
