@@ -42,7 +42,7 @@ impl State {
     }
 
     fn max_guardrailed_concurrent(&self) -> usize {
-        (self.total_permits / 5).max(1)
+        self.total_permits.div_ceil(5).max(1)
     }
 }
 
@@ -281,5 +281,13 @@ mod tests {
         drop((g1, g2));
         let st = s.0.lock().unwrap();
         assert_eq!((st.available, st.running_guardrailed), (2, 0));
+        assert_eq!(
+            Scheduler::new(8)
+                .0
+                .lock()
+                .unwrap()
+                .max_guardrailed_concurrent(),
+            2
+        );
     }
 }
