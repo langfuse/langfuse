@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import type {
   TopicAssignment,
   TopicEmbeddingConfig,
@@ -44,6 +45,32 @@ const state = vi.hoisted(() => ({
   name: vi.fn(),
   sampleNaming: false,
   numeric: vi.fn(),
+}));
+// Replayed refits fail their run with a conditional update on the run row.
+vi.mock("@langfuse/shared/src/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/src/db")>()),
+  prisma: {
+    topicClusteringRun: {
+      updateMany: vi.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { id: string; status: string };
+          data: { status: TopicRun["status"]; error: string; finishedAt: Date };
+        }) => {
+          const run = state.runs.get(where.id);
+          if (run?.status !== where.status) return { count: 0 };
+          state.runs.set(where.id, {
+            ...run,
+            ...data,
+            finishedAt: data.finishedAt.toISOString(),
+          });
+          return { count: 1 };
+        },
+      ),
+    },
+  },
 }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
@@ -1022,18 +1049,37 @@ describe("Topics execution", () => {
     },
   );
 
-  it("fails a replayed rule refit and counts it as interrupted", async () => {
+  it("fails a manual refresh replayed after its fit started and counts it as an interrupted manual fit", async () => {
+    seedSummaries(100);
+    await updateSelection("published");
     state.runs.set("refit", {
       ...pendingRun({
         id: "refit",
         projectId: "project",
         facetId: facet.facetId,
         facetVersion: facet.version,
-        config: { refresh: true },
+        config: {
+          embeddingModel: "eu.cohere.embed-v4:0",
+          dimensions: 256,
+          timeRange: {
+            from: "2026-01-01T00:00:00.000Z",
+            to: "2026-01-08T00:00:00.000Z",
+          },
+          refresh: true,
+        },
       }),
-      status: "running",
       ruleId: "rule",
     });
+    // The worker dies during the numerical fit, leaving the row as it was then.
+    const fit = state.numeric.getMockImplementation()!;
+    let midFit: TopicRun | undefined;
+    state.numeric.mockImplementationOnce(async (...args) => {
+      midFit = structuredClone(state.runs.get("refit"));
+      return fit(...args);
+    });
+    await processTopicRuleRefit({ projectId: "project", runId: "refit" });
+    state.runs.set("refit", midFit!);
+    vi.mocked(recordIncrement).mockClear();
 
     await processTopicRuleRefit({ projectId: "project", runId: "refit" });
 
@@ -1042,6 +1088,44 @@ describe("Topics execution", () => {
       "langfuse.topics.rule_fits",
       1,
       { outcome: "interrupted", trigger: "manual", owner: "platform" },
+    );
+  });
+
+  it("counts a refit whose naming output fails validation as a customer failure", async () => {
+    seedSummaries(100);
+    await updateSelection("published");
+    // Another rule's map is not continued, so the refit names its topics.
+    const published = [...state.runs.values()].at(-1)!;
+    state.runs.set(published.id, { ...published, ruleId: "other-rule" });
+    state.runs.set("refit", {
+      ...pendingRun({
+        id: "refit",
+        projectId: "project",
+        facetId: facet.facetId,
+        facetVersion: facet.version,
+        config: {
+          embeddingModel: "eu.cohere.embed-v4:0",
+          dimensions: 256,
+          timeRange: {
+            from: "2026-01-01T00:00:00.000Z",
+            to: "2026-01-08T00:00:00.000Z",
+          },
+        },
+      }),
+      ruleId: "rule",
+    });
+    // The model's naming response fails our local schema check.
+    state.name.mockImplementation(async () =>
+      z.object({ name: z.string() }).parse({}),
+    );
+
+    await processTopicRuleRefit({ projectId: "project", runId: "refit" });
+
+    expect(state.runs.get("refit")?.status).toBe("failed");
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.rule_fits",
+      1,
+      { outcome: "failed", trigger: "automatic", owner: "customer" },
     );
   });
 

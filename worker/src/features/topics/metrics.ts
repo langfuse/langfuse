@@ -59,6 +59,55 @@ export function topicFailureOwner(
   return "platform";
 }
 
+/** The failure reason of an error, from its type; unrecognized errors keep the fallback. */
+function topicErrorReason(
+  error: unknown,
+  fallbackReason: TopicErrorReason = "unknown",
+): TopicErrorReason {
+  let reason: TopicErrorReason =
+    error instanceof TopicsProviderUnavailable ? error.reason : fallbackReason;
+  if (!(error instanceof Error)) return reason;
+  if (
+    [
+      "AI_NoObjectGeneratedError",
+      "AI_NoOutputGeneratedError",
+      "ZodError",
+    ].includes(error.name)
+  )
+    reason = "invalid_output";
+  if (["AbortError", "TimeoutError"].includes(error.name)) reason = "timeout";
+  if (error.name === "TopicInputTooLarge") reason = "input_too_large";
+  if (error.name === "TopicDefinitionReadbackError")
+    reason = "definition_readback";
+  if (error.name === "TopicAssignmentVisibilityError")
+    reason = "assignment_visibility";
+  if (
+    [
+      "PrismaClientKnownRequestError",
+      "PrismaClientUnknownRequestError",
+      "PrismaClientInitializationError",
+      "PrismaClientRustPanicError",
+      "ClickHouseError",
+    ].includes(error.name)
+  )
+    reason = "storage";
+  if (ClickHouseResourceError.is(error))
+    reason = error.errorType === "TIMEOUT" ? "timeout" : "storage";
+  return reason;
+}
+
+/** Provider errors and model output decide by reason; any other error, such as our own timeout, is ours. */
+function topicErrorOwner(
+  error: unknown,
+  reason: TopicErrorReason,
+): "platform" | "upstream" | "customer" {
+  return error instanceof TopicsProviderUnavailable ||
+    reason === "input_too_large" ||
+    reason === "invalid_output"
+    ? topicFailureOwner(reason)
+    : "platform";
+}
+
 // Statuses with their own operational meaning; exact codes are on the span.
 const COUNTED_HTTP_STATUSES = new Set([400, 401, 403, 429]);
 
@@ -192,14 +241,9 @@ export class TopicMetrics {
     const tags = {
       outcome,
       trigger,
-      // An interrupted fit lost its worker or job, so it is ours.
+      // An interrupted fit has no failure, so it is ours.
       ...(outcome === "failed" || outcome === "interrupted"
-        ? {
-            owner:
-              failure instanceof TopicsProviderUnavailable
-                ? topicFailureOwner(failure.reason)
-                : "platform",
-          }
+        ? { owner: topicErrorOwner(failure, topicErrorReason(failure)) }
         : {}),
     };
     recordIncrement("langfuse.topics.rule_fits", 1, tags);
@@ -248,48 +292,12 @@ export class TopicMetrics {
       if (this.reportedErrors.has(error)) return;
       this.reportedErrors.add(error);
     }
-    let reason: TopicErrorReason =
-      error instanceof TopicsProviderUnavailable
-        ? error.reason
-        : fallbackReason;
-    if (error instanceof Error) {
-      if (
-        [
-          "AI_NoObjectGeneratedError",
-          "AI_NoOutputGeneratedError",
-          "ZodError",
-        ].includes(error.name)
-      )
-        reason = "invalid_output";
-      if (["AbortError", "TimeoutError"].includes(error.name))
-        reason = "timeout";
-      if (error.name === "TopicInputTooLarge") reason = "input_too_large";
-      if (error.name === "TopicDefinitionReadbackError")
-        reason = "definition_readback";
-      if (error.name === "TopicAssignmentVisibilityError")
-        reason = "assignment_visibility";
-      if (
-        [
-          "PrismaClientKnownRequestError",
-          "PrismaClientUnknownRequestError",
-          "PrismaClientInitializationError",
-          "PrismaClientRustPanicError",
-          "ClickHouseError",
-        ].includes(error.name)
-      )
-        reason = "storage";
-      if (ClickHouseResourceError.is(error))
-        reason = error.errorType === "TIMEOUT" ? "timeout" : "storage";
-    }
+    const reason = topicErrorReason(error, fallbackReason);
     recordIncrement("langfuse.topics.errors", 1, {
       ...this.tags,
       stage,
       reason,
-      owner:
-        error instanceof TopicsProviderUnavailable ||
-        reason === "input_too_large"
-          ? topicFailureOwner(reason)
-          : "platform",
+      owner: topicErrorOwner(error, reason),
     });
   }
 }

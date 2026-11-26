@@ -254,6 +254,8 @@ async function clusterFacet(
     // Keeps the analysis out of serving; see createTopicExecution.
     ...(scope.analysis ? { analysis: true } : {}),
     ...(scope.provisional ? { provisional: true } : {}),
+    // Interrupted fits read it back to count the right trigger.
+    ...(attempt?.config.refresh === true ? { refresh: true } : {}),
   };
   let run =
     attempt?.status === "pending"
@@ -1015,16 +1017,20 @@ export async function processTopicRuleRefit({
   if (!run?.ruleId) throw new Error("Topics rule refit run not found.");
   if (run.status === "running") {
     // A replayed job would rename the saved topics; the next slot refits instead.
-    await saveTopicRun({
-      ...run,
-      status: "failed",
-      error: "Interrupted; the next nightly refit replaces it.",
-      finishedAt: new Date().toISOString(),
+    // Only a run still running is failed and counted, never one that finished meanwhile.
+    const { count } = await prisma.topicClusteringRun.updateMany({
+      where: { projectId, id: runId, status: "running" },
+      data: {
+        status: "failed",
+        error: "Interrupted; the next nightly refit replaces it.",
+        finishedAt: new Date(),
+      },
     });
-    new TopicMetrics().ruleFit(
-      "interrupted",
-      run.config.refresh === true ? "manual" : "automatic",
-    );
+    if (count)
+      new TopicMetrics().ruleFit(
+        "interrupted",
+        run.config.refresh === true ? "manual" : "automatic",
+      );
     return;
   }
   if (run.status !== "pending") return;
