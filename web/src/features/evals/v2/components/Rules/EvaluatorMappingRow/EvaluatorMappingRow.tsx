@@ -66,6 +66,9 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
   );
   const variableMapping = useVariableMappingController();
   const isCodeEvaluator = evaluatorType === "CODE";
+  const codeEvaluatorMessage = isTraceTranscript
+    ? "The trace transcript is available directly in code evaluators, so no variable mapping is required."
+    : "Observation data is available directly in code evaluators, so no variable mapping is required.";
   const mapping = isTraceTranscript
     ? traceTranscriptMapping(variableMappingOverride ?? defaultVariableMapping)
     : (variableMappingOverride ?? defaultVariableMapping);
@@ -173,9 +176,7 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
         <CollapsibleContent className="border-t p-3">
           {isCodeEvaluator ? (
             <p className="text-muted-foreground text-sm">
-              {isTraceTranscript
-                ? "The trace transcript is available directly in code evaluators, so no variable mapping is required."
-                : "Observation data is available directly in code evaluators, so no variable mapping is required."}
+              {codeEvaluatorMessage}
             </p>
           ) : mapping.length === 0 ? (
             <p className="text-muted-foreground text-sm">
