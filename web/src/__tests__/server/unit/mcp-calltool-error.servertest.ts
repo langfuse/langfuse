@@ -18,12 +18,13 @@ import { RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 import { appToolResult } from "@/src/features/mcp/core/mcp-app";
 import { WIDGET_APP_RESOURCE_URI } from "@/src/features/mcp/server/apps/resources";
 import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
-import { toolRegistry } from "@/src/features/mcp/server/registry";
+import { getEnabledTool } from "@/src/features/mcp/server/tools";
 import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "@/src/features/mcp/types";
 
-vi.mock("@/src/features/mcp/server/registry", () => ({
-  toolRegistry: { getEnabledTool: vi.fn() },
+vi.mock("@/src/features/mcp/server/tools", () => ({
+  getEnabledTool: vi.fn(),
+  canCallTool: () => true,
 }));
 
 const context: ServerContext = {
@@ -86,10 +87,10 @@ describe("MCP tool results", () => {
           return "ok";
         },
       });
-      vi.mocked(toolRegistry.getEnabledTool).mockImplementation(async (name) =>
+      vi.mocked(getEnabledTool).mockImplementation(async (name) =>
         name === definition.name ? { definition, handler } : undefined,
       );
-      const server = createMcpServer(context);
+      const server = await createMcpServer(context);
       const client = new Client({ name: "test", version: "1.0.0" });
       const [serverTransport, clientTransport] =
         InMemoryTransport.createLinkedPair();
@@ -126,11 +127,11 @@ describe("MCP Apps", () => {
       handler: async () =>
         appToolResult({ text: "summary", meta: { widget: { name: "Cost" } } }),
     });
-    vi.mocked(toolRegistry.getEnabledTool).mockImplementation(async (name) =>
+    vi.mocked(getEnabledTool).mockImplementation(async (name) =>
       name === definition.name ? { definition, handler } : undefined,
     );
     expect(definition._meta?.ui.resourceUri).toBe(WIDGET_APP_RESOURCE_URI);
-    const server = createMcpServer(context);
+    const server = await createMcpServer(context);
     const client = new Client({ name: "app-test", version: "1.0.0" });
     const [serverTransport, clientTransport] =
       InMemoryTransport.createLinkedPair();
@@ -187,7 +188,7 @@ describe("MCP Apps", () => {
 
 describe("MCP skill resources", () => {
   it("exposes manifests separately from resource contents without leaking bundle fields", async () => {
-    const server = createMcpServer(context);
+    const server = await createMcpServer(context);
     const client = new Client({ name: "skill-test", version: "1.0.0" });
     const [serverTransport, clientTransport] =
       InMemoryTransport.createLinkedPair();
@@ -198,14 +199,16 @@ describe("MCP skill resources", () => {
         ({ uri, frontmatter, resources }) => ({
           uri,
           frontmatter,
-          resources: resources.map((resource) => {
-            const bytes = Buffer.from(resource.text);
-            return {
-              uri: resource.uri,
-              digest: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
-              size: bytes.length,
-            };
-          }),
+          resources: resources
+            .map((resource) => {
+              const bytes = Buffer.from(resource.text);
+              return {
+                uri: resource.uri,
+                digest: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+                size: bytes.length,
+              };
+            })
+            .sort((a, b) => (a.uri < b.uri ? -1 : 1)),
         }),
       );
       const listed = await client.request(

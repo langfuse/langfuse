@@ -30,9 +30,11 @@ export function assertEnabledRuleHasAssignments(params: {
  * Cap on simultaneously active evaluation rules per project. Enforced for every
  * surface (tRPC, MCP, public API) through `assertActiveRuleLimitNotExceeded`, so
  * the documented contract cannot drift per entry point.
+ * @internal
  */
 export const MAX_ACTIVE_EVALUATION_RULES = 500;
 
+/** @internal */
 export class ActiveEvaluationRuleLimitError extends LangfuseConflictError {
   readonly limit = MAX_ACTIVE_EVALUATION_RULES;
 
@@ -46,6 +48,7 @@ export class ActiveEvaluationRuleLimitError extends LangfuseConflictError {
 /**
  * Counts only the writable targets; legacy read-only rules and FACET (Topics)
  * rules cannot be freed by callers, so they are excluded.
+ * @internal
  */
 export async function countActiveEvaluationRules(params: {
   prisma: PrismaClient | Prisma.TransactionClient;

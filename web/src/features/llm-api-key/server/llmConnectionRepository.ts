@@ -232,12 +232,19 @@ export class LlmConnectionRepository {
     owner: LlmConnectionOwner;
     id: string;
     data: Prisma.LlmApiKeysUpdateInput;
+    /** Updates only if the row is unchanged since it was read; otherwise throws a record-not-found error. */
+    expectedUpdatedAt?: Date;
   }): Promise<LlmApiKeys> {
     return this.db.llmApiKeys.update({
-      where:
-        params.owner.type === "project"
-          ? { id: params.id, projectId: params.owner.projectId }
-          : { id: params.id, organizationId: params.owner.organizationId },
+      where: {
+        id: params.id,
+        ...(params.owner.type === "project"
+          ? { projectId: params.owner.projectId }
+          : { organizationId: params.owner.organizationId }),
+        ...(params.expectedUpdatedAt
+          ? { updatedAt: params.expectedUpdatedAt }
+          : {}),
+      },
       data: params.data,
     });
   }

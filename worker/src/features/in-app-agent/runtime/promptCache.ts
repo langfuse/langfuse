@@ -75,6 +75,7 @@ export function applyPromptCacheToCall<T>({
   };
 }
 
+/** @internal */
 export function applyPromptCachePoints(
   prompt: unknown,
   cacheProvider: PromptCacheProvider,

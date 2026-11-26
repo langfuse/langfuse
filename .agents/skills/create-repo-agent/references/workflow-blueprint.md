@@ -140,8 +140,8 @@ The publish job owns GitHub writes:
 - It fetches sufficient source-ref history into a clean temporary repository and checks out the triggering commit SHA exactly.
 - It applies the patch with `git am --3way`.
 - It re-checks the applied commit's changed files against the same path allowlist and runs `git diff --check HEAD^ HEAD`.
-- It pushes the bot branch with `GH_ACCESS_TOKEN` or another reviewed bot secret.
-- It creates or updates a PR against `main`.
+- It pushes only the named task branch with a reviewed scoped credential, preferably a short-lived GitHub App installation token. An existing `GH_ACCESS_TOKEN` is not evidence of a protected-branch exception; keep all write credentials outside the LLM step.
+- It creates or updates a PR against the default branch and leaves merging subject to the [approval policy](../../git-workflow/references/protected-branches.md). Workflows and other sensitive paths require a person; no publisher may self-approve or bypass those gates.
 - It requests reviewers non-fatally with `|| true`.
 - It prints the PR URL to the job summary.
 

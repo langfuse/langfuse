@@ -99,6 +99,15 @@ async function priceTopicUsage(
 /** The rendered transcript exceeds the character limit; no model call was made. */
 export class TopicInputTooLarge extends Error {
   readonly name = "TopicInputTooLarge";
+
+  constructor(
+    readonly characters: number,
+    limit: number,
+  ) {
+    super(
+      `The rendered trace transcript is ${characters} characters, above the ${limit}-character input limit. No model call was made; the transcript is never shortened per facet.`,
+    );
+  }
 }
 
 type TopicCallMetadata = Record<string, unknown> & {
@@ -125,8 +134,10 @@ async function topicModelCall<T>(
   projectId: string,
   requestBytes: number,
   metadata: TopicCallMetadata | undefined,
-  call: () => Promise<T>,
+  call: (maxRetries: number) => Promise<T>,
 ): Promise<T> {
+  // A summary 429 waits for the trace queue's backoff; other stages keep the SDK's retries.
+  const ownRetries = stage === "summary";
   return instrumentAsync(
     { name: `topics.llm.${stage}`, traceScope: "topics" },
     async (span) => {
@@ -147,34 +158,59 @@ async function topicModelCall<T>(
         if (value != null) fields[`langfuse.topics.${key}`] = value;
       span.setAttributes(fields);
       recordTopicRequestBytes(stage, model.adapter, requestBytes);
-      try {
-        const result = await call();
-        recordTopicModelCall(stage, model.adapter, {});
-        // Shared egress metric; like llmaj, counted after a successful send.
-        recordExportVolume({
-          integration: "topics",
-          bytes: requestBytes,
-          projectId,
-        });
-        return result;
-      } catch (error) {
-        const failure = topicProviderError(error, model);
-        const { httpStatus } = failure.details;
-        recordTopicModelCall(stage, model.adapter, {
-          httpStatus,
-          reason: failure.reason,
-        });
-        const failed = {
-          ...fields,
-          "langfuse.topics.error.reason": failure.reason,
-          "langfuse.topics.error.type":
-            error instanceof Error ? error.name : "unknown",
-          ...(httpStatus && { "http.status_code": httpStatus }),
-          ...getTopicTextResponseMetadata(error),
-        };
-        span.setAttributes(failed);
-        logger.warn("Topics model request failed", failed);
-        throw failure;
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const result = await call(ownRetries ? 0 : 2);
+          recordTopicModelCall(stage, model.adapter, {});
+          // Shared egress metric; like llmaj, counted after a successful send.
+          recordExportVolume({
+            integration: "topics",
+            bytes: requestBytes,
+            projectId,
+          });
+          return result;
+        } catch (error) {
+          const failure = topicProviderError(error, model);
+          const { httpStatus } = failure.details;
+          recordTopicModelCall(stage, model.adapter, {
+            httpStatus,
+            reason: failure.reason,
+          });
+          const responseMetadata = getTopicTextResponseMetadata(error);
+          const failed = {
+            ...fields,
+            "langfuse.topics.error.reason": failure.reason,
+            "langfuse.topics.error.type":
+              error instanceof Error ? error.name : "unknown",
+            ...(httpStatus && { "http.status_code": httpStatus }),
+            ...responseMetadata,
+          };
+          span.setAttributes(failed);
+          logger.warn("Topics model request failed", failed);
+          // Same 2s/4s backoff the SDK uses for 5xx; timeouts and 429s go to the queue.
+          if (
+            ownRetries &&
+            failure.reason === "provider_error" &&
+            (httpStatus ?? 0) >= 500 &&
+            attempt < 2
+          ) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, 2_000 * 2 ** attempt),
+            );
+            continue;
+          }
+          // Length constraints can be dropped, so a stopped naming response may
+          // be an empty object. Ask once more. Truncation and refusals are not.
+          if (
+            stage === "naming" &&
+            failure.reason === "invalid_output" &&
+            responseMetadata?.["langfuse.topics.response.finish_reason"] ===
+              "stop" &&
+            attempt < 1
+          )
+            continue;
+          throw failure;
+        }
       }
     },
   );
@@ -217,9 +253,10 @@ async function structuredCall<T>(
     projectId,
     llmRequestEgressBytes(topicMessages({ system, input }), schema),
     metadata,
-    () =>
+    (maxRetries) =>
       generateTopicText({
         model,
+        maxRetries,
         system,
         input,
         schema,
@@ -384,7 +421,8 @@ export async function summarizeTopicTraceFacets(
   );
   if (text.length > workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS)
     throw new TopicInputTooLarge(
-      `The rendered trace transcript is ${text.length} characters, above the ${workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS}-character input limit. No model call was made; the transcript is never shortened per facet.`,
+      text.length,
+      workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS,
     );
   return structuredCall(
     system,

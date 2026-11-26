@@ -168,6 +168,7 @@ export type TextFilterEntry = {
   value: string;
 };
 
+/** @internal */
 export interface CategoricalUIFilter extends BaseUIFilter {
   type: "categorical";
   /** Conditions that must be edited individually in the filter bar. */
@@ -235,6 +236,7 @@ export interface NumericUIFilter extends BaseUIFilter {
   unit?: string;
 }
 
+/** @internal */
 export interface StringUIFilter extends BaseUIFilter {
   type: "string";
   value: string;
@@ -287,6 +289,7 @@ interface BooleanKeyValueUIFilter extends BaseUIFilter {
   onChange: (filters: BooleanKeyValueFilterEntry[]) => void;
 }
 
+/** @internal */
 export interface StringKeyValueUIFilter extends BaseUIFilter {
   type: "stringKeyValue";
   value: StringKeyValueFilterEntry[]; // Array of active filter rows

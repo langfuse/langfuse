@@ -195,7 +195,12 @@ const STATUSES_BY_ASSIGNMENT = {
   assigned: ["assigned"],
   outlier: ["outlier"],
   awaiting_map: ["awaiting_map"],
-  no_topic: ["not_applicable", "insufficient_input"],
+  no_topic: [
+    "not_applicable",
+    "insufficient_input",
+    "empty_input",
+    "input_too_large",
+  ],
 } as const;
 type ServerStatus =
   (typeof STATUSES_BY_ASSIGNMENT)[keyof typeof STATUSES_BY_ASSIGNMENT][number];
@@ -278,6 +283,7 @@ export function topicTraceQuery(
   return query;
 }
 
+/** @internal */
 export function getTopicAssignment(outcome: string) {
   if (
     outcome === "assigned" ||

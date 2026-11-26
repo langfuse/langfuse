@@ -159,6 +159,7 @@ export function createInAppAgentInstrumentation({
   }
 }
 
+/** @internal */
 export class InAppAgentInstrumentation {
   private readonly processTracedEvents: () => Promise<void>;
   private flushPromise?: Promise<void>;

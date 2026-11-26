@@ -1,7 +1,7 @@
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { type IconComponent } from "@langfuse/icons";
-import { type ComponentPropsWithoutRef } from "react";
+import { type ComponentPropsWithoutRef, type Ref } from "react";
 import { cn } from "@/src/utils/tailwind";
 
 const inputContentVariants = cva("", {
@@ -92,6 +92,7 @@ type InputControlProps = Omit<
     "height" | "focusTarget" | "focused"
   > & {
     contentLayout: "none" | "text" | "spread";
+    ref?: Ref<HTMLDivElement>;
     error?: boolean;
     disabled?: boolean;
     prefix?:
@@ -100,6 +101,7 @@ type InputControlProps = Omit<
     trailingAction?: {
       label: string;
       icon: IconComponent;
+      appearance?: "inline" | "segmented";
       disabled?: boolean;
       pressed?: boolean;
       tabIndex?: number;
@@ -116,6 +118,7 @@ export function InputControl({
   disabled,
   trailingAction,
   prefix,
+  ref,
   ...props
 }: InputControlProps) {
   const segmented = prefix !== undefined || trailingAction !== undefined;
@@ -135,12 +138,13 @@ export function InputControl({
   );
 
   if (!segmented) {
-    return <Slot className={slotClassName} {...props} />;
+    return <Slot ref={ref} className={slotClassName} {...props} />;
   }
 
   const TrailingActionIcon = trailingAction?.icon;
   return (
     <div
+      ref={ref}
       className={cn("relative", controlClassName)}
       onMouseDown={(event) => {
         if (!prefix) return;
@@ -169,7 +173,12 @@ export function InputControl({
           aria-pressed={trailingAction.pressed}
           disabled={disabled || trailingAction.disabled}
           tabIndex={trailingAction.tabIndex}
-          className="bg-muted border-input focus-visible:ring-ring enabled:hover:bg-accent flex h-full shrink-0 cursor-pointer items-center justify-center border-l px-2.5 focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset disabled:cursor-not-allowed"
+          className={cn(
+            "focus-visible:ring-ring flex h-full shrink-0 cursor-pointer items-center justify-center px-2.5 focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset disabled:cursor-not-allowed",
+            trailingAction.appearance === "inline"
+              ? "rounded-sm enabled:hover:bg-accent"
+              : "bg-muted border-input border-l enabled:hover:bg-accent",
+          )}
           onClick={trailingAction.onClick}
         >
           <TrailingActionIcon

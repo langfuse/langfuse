@@ -439,7 +439,7 @@ describe("Native OTEL batch NAPI boundary", () => {
                 prompt_id:
                   plan.prompt && plan.outcome === "found"
                     ? `prompt-id-${index}`
-                    : null,
+                    : "",
               });
               const hasLookup = plan.model || plan.prompt;
               expect(row.skills_available).toEqual(

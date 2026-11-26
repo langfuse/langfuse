@@ -42,6 +42,8 @@ interface SpanContentProps {
   node: TreeNode;
   emphasis?: MetricEmphasisContext;
   commentCount?: number;
+  /** The observation an embedder will evaluate. */
+  isSelectedObservation?: boolean;
   onSelect?: () => void;
   onHover?: () => void;
   className?: string;
@@ -86,6 +88,7 @@ export function SpanContentView({
   node,
   emphasis,
   commentCount,
+  isSelectedObservation = false,
   onSelect,
   onHover,
   className,
@@ -183,7 +186,8 @@ export function SpanContentView({
         {/* Metrics and scores row */}
         {(shouldRenderAnyMetrics ||
           shouldRenderScores ||
-          shouldRenderCorrection) && (
+          shouldRenderCorrection ||
+          isSelectedObservation) && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 font-mono">
             {/* Duration (own span) */}
             {shouldRenderDuration ? (
@@ -236,6 +240,13 @@ export function SpanContentView({
                 {shouldRenderCorrection && <CorrectionBadge />}
               </span>
             )}
+
+            {isSelectedObservation ? (
+              <span className="text-dark-violet flex shrink-0 items-center gap-1.5 font-sans text-xs whitespace-nowrap">
+                <span className="bg-dark-violet size-1.5 shrink-0 rounded-full" />
+                Will be evaluated
+              </span>
+            ) : null}
           </div>
         )}
       </div>

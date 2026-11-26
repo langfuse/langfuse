@@ -8,7 +8,7 @@ import { applyNavigationFilters } from "./navigationFilters";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 
 it.each([
-  { flag: "langfuseTopics", enableExperimentalFeatures: true },
+  { flag: "traceTranscriptEvals", enableExperimentalFeatures: true },
   { flag: "sessionViewV2", enableExperimentalFeatures: false },
 ] as const)(
   "keeps $flag hidden without opt-in",
@@ -86,7 +86,7 @@ it.each([
   ({ projectId, visible }) => {
     const route = ROUTES.find((route) => route.title === "Topics")!;
     const session = createSession({
-      user: { featureFlags: testFeatureFlags({ langfuseTopics: true }) },
+      user: { featureFlags: testFeatureFlags() },
       organizations: [
         {
           id: "org-1",
@@ -204,9 +204,9 @@ it("shows the AI Gateway pages among the organization routes", () => {
   ).toEqual([
     "Projects",
     "Overview",
+    "Gateway keys",
     "Connections & Models",
     "Budgets",
-    "Gateway keys",
     "Tracing",
     "Settings",
   ]);

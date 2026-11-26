@@ -63,12 +63,14 @@ RUN cargo install --locked --root /usr/local --features cli cargo-about@0.9.2 &&
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} toolchain AS deps
 
-WORKDIR /app
+WORKDIR /app/ai-gateway
 
 # Fetch the locked dependency sources against empty targets, so this layer and
 # everything built on it stay cached until Cargo.toml or Cargo.lock change.
-COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
-RUN mkdir src && echo 'fn main() {}' > src/main.rs && touch src/lib.rs && \
+COPY ai-gateway/Cargo.toml ai-gateway/Cargo.lock ai-gateway/rust-toolchain.toml ./
+COPY packages/ai-gateway-guardrail-rules/Cargo.toml /app/packages/ai-gateway-guardrail-rules/Cargo.toml
+RUN mkdir -p src /app/packages/ai-gateway-guardrail-rules/src && \
+    echo 'fn main() {}' > src/main.rs && touch src/lib.rs /app/packages/ai-gateway-guardrail-rules/src/lib.rs && \
     cargo fetch --locked
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} deps AS builder
@@ -80,10 +82,11 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} deps AS builder
 # rebuild just the crate. `cargo clean -p` drops the stub's own artifacts so
 # the real sources always rebuild regardless of their mtimes.
 RUN cargo build --release --frozen && \
-    cargo clean --release --frozen -p ai-gateway && \
-    rm -rf src
+    cargo clean --release --frozen -p ai-gateway -p ai-gateway-guardrail-rules && \
+    rm -rf src /app/packages/ai-gateway-guardrail-rules/src
 
-COPY src ./src
+COPY ai-gateway/src ./src
+COPY packages/ai-gateway-guardrail-rules/src /app/packages/ai-gateway-guardrail-rules/src
 
 RUN cargo auditable build --release --frozen
 
@@ -92,7 +95,7 @@ RUN cargo auditable build --release --frozen
 # about.toml does not accept.
 FROM --platform=${TARGETPLATFORM:-linux/amd64} deps AS licenses
 
-COPY about.toml about.hbs ./
+COPY ai-gateway/about.toml ai-gateway/about.hbs ./
 RUN cargo about generate --frozen --fail about.hbs -o THIRD_PARTY_LICENSES.txt
 
 # Runtime rootfs assembled with dnf --installroot and layered onto ubi9-micro:
@@ -134,8 +137,8 @@ RUN mkdir -p /mnt/rootfs/usr/share/licenses/redhat-ubi && \
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${MICRO_BASE_IMAGE} AS runtime
 
 COPY --from=rpm-installer /mnt/rootfs /
-COPY --from=builder /app/target/release/ai-gateway /usr/local/bin/ai-gateway
-COPY --from=licenses /app/THIRD_PARTY_LICENSES.txt /usr/share/licenses/ai-gateway/THIRD_PARTY_LICENSES.txt
+COPY --from=builder /app/ai-gateway/target/release/ai-gateway /usr/local/bin/ai-gateway
+COPY --from=licenses /app/ai-gateway/THIRD_PARTY_LICENSES.txt /usr/share/licenses/ai-gateway/THIRD_PARTY_LICENSES.txt
 ARG BUILD_ID
 ENV BUILD_ID=$BUILD_ID
 

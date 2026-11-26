@@ -9,7 +9,7 @@ import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import type { ListEntry } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import {
-  ExternalLink,
+  SquareArrowOutUpRight,
   Maximize2,
   Minimize2,
   MoreHorizontal,
@@ -171,7 +171,7 @@ export function PeekHeader({
                 <IconButton
                   {...getTriggerProps()}
                   label="Open in new tab"
-                  icon={ExternalLink}
+                  icon={SquareArrowOutUpRight}
                   onClick={openInNewTab}
                 />
               )}
@@ -229,7 +229,7 @@ export function PeekHeader({
                   <Button
                     variant="ghost"
                     text="Open in new tab"
-                    icon={ExternalLink}
+                    icon={SquareArrowOutUpRight}
                     onClick={openInNewTab}
                   />
                 )}

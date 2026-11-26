@@ -40,7 +40,7 @@ export const [
         });
       },
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });
 
 export const [
@@ -70,5 +70,5 @@ export const [
         return EvaluationRuleEvaluatorMutationResponseSchema.parse(input);
       },
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

@@ -1,4 +1,4 @@
-import type { McpFeatureModule } from "../registry";
+import type { McpFeatureModule } from "../tools";
 import { listNotebooksTool, handleListNotebooks } from "./tools/listNotebooks";
 import { getNotebookTool, handleGetNotebook } from "./tools/getNotebook";
 import {

@@ -1,11 +1,22 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+// Golden SQL of v2 executeQuery filters and group-bys per view and dimension.
+
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import {
   capturedQueries,
   clickhouseFormatAvailable,
   normalizeCapturedQueries,
   resetCaptures,
-} from "../../../server/repositories/goldenHarness";
+} from "../../../server/repositories/__tests__/goldenHarness";
 
 vi.mock("../../../server/repositories/clickhouse", async (importOriginal) => {
   const actual =
@@ -13,7 +24,7 @@ vi.mock("../../../server/repositories/clickhouse", async (importOriginal) => {
       typeof import("../../../server/repositories/clickhouse")
     >();
   const { buildClickhouseMock } =
-    await import("../../../server/repositories/goldenHarness.js");
+    await import("../../../server/repositories/__tests__/goldenHarness.js");
   return buildClickhouseMock(actual);
 });
 
@@ -23,6 +34,7 @@ vi.mock("../../../server/queries/clickhouse-sql/query-options", () => ({
   shouldSkipScoresDedup: vi.fn().mockReturnValue(false),
 }));
 
+import { env } from "../../../env";
 import { type QueryType } from "../types";
 import { executeQuery } from "./queryExecutor";
 
@@ -151,4 +163,128 @@ describeWithClickhouse("golden: metrics v2 executeQuery", () => {
       }
     });
   }
+});
+
+// Chart config on v1 observations and the root-event window on v2 traces,
+// both assembled as SQL text.
+describeWithClickhouse("golden: SQL-text executeQuery options", () => {
+  const originalSingleLevel =
+    env.LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION;
+
+  // The env flag ORs into the argument; pin it off so the argument decides.
+  beforeAll(() => {
+    env.LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION = "false";
+  });
+  afterAll(() => {
+    env.LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION = originalSingleLevel;
+  });
+  beforeEach(() => resetCaptures());
+
+  describe("histogram bins", () => {
+    const histogramQuery = {
+      view: "observations",
+      dimensions: [],
+      metrics: [{ measure: "totalCost", aggregation: "histogram" }],
+      filters: [stringEq("type", "generation")],
+      timeDimension: null,
+      fromTimestamp: "2026-01-01T00:00:00.000Z",
+      toTimestamp: "2026-01-02T00:00:00.000Z",
+      orderBy: null,
+      chartConfig: { type: "HISTOGRAM", bins: 20 },
+    } as QueryType;
+
+    it("two-level", async () => {
+      await executeQuery(FIXED_PROJECT_ID, histogramQuery, "v1", false);
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+
+    it("single-level", async () => {
+      await executeQuery(FIXED_PROJECT_ID, histogramQuery, "v1", true);
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+  });
+
+  describe("row_limit", () => {
+    const tableQuery = (config: Pick<QueryType, "chartConfig">) =>
+      ({
+        view: "observations",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: "2026-01-01T00:00:00.000Z",
+        toTimestamp: "2026-01-02T00:00:00.000Z",
+        orderBy: [{ field: "name", direction: "asc" }],
+        ...config,
+      }) as QueryType;
+
+    it("set", async () => {
+      await executeQuery(
+        FIXED_PROJECT_ID,
+        tableQuery({ chartConfig: { type: "TABLE", row_limit: 5 } }),
+      );
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+
+    it("unset", async () => {
+      await executeQuery(FIXED_PROJECT_ID, tableQuery({}));
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+  });
+
+  describe("root-event window", () => {
+    // Each QueryBuilder reads the threshold from env when it is constructed.
+    const originalMaxWindowHours =
+      env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
+    function withMaxWindowHours(hours: number) {
+      env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS = hours;
+    }
+
+    afterEach(() => {
+      env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS =
+        originalMaxWindowHours;
+    });
+
+    // A 72-hour window.
+    const tracesQuery = {
+      view: "traces",
+      dimensions: [{ field: "name" }],
+      metrics: [{ measure: "count", aggregation: "count" }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: "2026-01-01T00:00:00.000Z",
+      toTimestamp: "2026-01-04T00:00:00.000Z",
+      orderBy: null,
+    } as QueryType;
+
+    it("window below the threshold", async () => {
+      withMaxWindowHours(168);
+      await executeQuery(
+        FIXED_PROJECT_ID,
+        { ...tracesQuery, timeDimension: { granularity: "day" } },
+        "v2",
+      );
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+
+    it("window above the threshold", async () => {
+      withMaxWindowHours(24);
+      await executeQuery(FIXED_PROJECT_ID, tracesQuery, "v2");
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+
+    it("threshold 0", async () => {
+      withMaxWindowHours(0);
+      await executeQuery(
+        FIXED_PROJECT_ID,
+        {
+          ...tracesQuery,
+          fromTimestamp: "2025-01-01T00:00:00.000Z",
+          toTimestamp: "2026-01-01T00:00:00.000Z",
+        },
+        "v2",
+      );
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+  });
 });

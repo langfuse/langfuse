@@ -185,6 +185,10 @@ const EnvSchema = z.object({
   CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: z
     .enum(["alter_update", "lightweight_update", "lightweight_update_force"])
     .default("alter_update"),
+  // Comma-separated tables whose DELETE FROM always runs with
+  // lightweight_delete_mode = 'alter_update'.
+  CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE_EXCLUDED_TABLES:
+    optionalCommaSeparatedLowercase,
   CLICKHOUSE_USE_LIGHTWEIGHT_UPDATE: z.enum(["true", "false"]).default("false"),
   CLICKHOUSE_UPDATE_PARALLEL_MODE: z
     .enum(["sync", "async", "auto"])

@@ -9,6 +9,7 @@ import React, {
 
 export const detailPageListKeys = {
   traces: "traces",
+  sessionTraces: "session-traces",
   observations: "observations",
   events: "events",
   sessions: "sessions",
@@ -45,7 +46,9 @@ interface ListContextType {
   ) => void;
 }
 
-const DetailPageLists = createContext<ListContextType | undefined>(undefined);
+export const DetailPageLists = createContext<ListContextType | undefined>(
+  undefined,
+);
 
 export function useDetailPageLists(): ListContextType {
   const context = useContext(DetailPageLists);

@@ -543,6 +543,114 @@ describe("Topics naming boundary", () => {
     },
   );
 
+  it("asks once more when naming returns an empty structured object", async () => {
+    const emptyNaming = '{"name":"","description":"","evidenceSummaryIds":[]}';
+    const rejection = Object.assign(
+      new Error("No object generated: response did not match schema."),
+      {
+        name: "AI_NoObjectGeneratedError",
+        text: emptyNaming,
+        finishReason: "stop",
+        usage: { inputTokens: 100, outputTokens: 28 },
+      },
+    );
+    state.responseMetadata.mockImplementation((error) =>
+      error === rejection
+        ? {
+            "langfuse.topics.response.finish_reason": "stop",
+            "langfuse.topics.response.raw_finish_reason": "end_turn",
+            "langfuse.topics.response.text_characters": emptyNaming.length,
+            "langfuse.topics.response.reasoning_part_count": 0,
+            "langfuse.topics.response.output_tokens": 28,
+          }
+        : undefined,
+    );
+    state.call
+      .mockImplementationOnce(async ({ onFailedResponseUsage }) => {
+        await onFailedResponseUsage({
+          usageDetails: { input: 100, output: 28 },
+          providedCostDetails: {},
+        });
+        throw rejection;
+      })
+      .mockResolvedValueOnce({
+        output: {
+          name: "Invoice assistance",
+          description: "Invoice requests.",
+          evidenceSummaryIds: ["m1"],
+        },
+        usage: { inputTokens: 100, outputTokens: 30 },
+        usageDetails: { input: 100, output: 30 },
+        providedCostDetails: {},
+      });
+
+    const result = await nameTopicGroup(topicsModels(), evidence);
+
+    expect(result.output).toEqual({
+      name: "Invoice assistance",
+      description: "Invoice requests.",
+      evidenceSummaryIds: ["m1"],
+    });
+    expect(state.call).toHaveBeenCalledTimes(2);
+    const [failedCost, successCost] = state.onCost.mock.calls.map(
+      ([cost]) => cost,
+    );
+    expect(failedCost).toMatchObject({
+      naming_input: 0.0001,
+      naming_output: 0.00014,
+    });
+    expect(failedCost.total).toBeCloseTo(0.00024, 10);
+    expect(successCost).toEqual({
+      naming_input: 0.0001,
+      naming_output: 0.00015,
+      total: 0.00025,
+    });
+    expect(logger.warn).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Topics model request failed",
+      expect.objectContaining({
+        "langfuse.topics.error.reason": "invalid_output",
+        "langfuse.topics.error.type": "AI_NoObjectGeneratedError",
+        "langfuse.topics.response.text_characters": 52,
+        "langfuse.topics.response.output_tokens": 28,
+        "langfuse.topics.response.reasoning_part_count": 0,
+      }),
+    );
+    expect(tokenCalls()).toEqual([
+      ["langfuse.topics.tokens", 100, { stage: "naming", direction: "input" }],
+      ["langfuse.topics.tokens", 30, { stage: "naming", direction: "output" }],
+    ]);
+  });
+
+  it("does not ask again when truncated naming output fails validation", async () => {
+    const rejection = Object.assign(
+      new Error("No object generated: could not parse the response."),
+      { name: "AI_NoObjectGeneratedError", text: '{"name":"Invoice' },
+    );
+    state.responseMetadata.mockImplementation((error) =>
+      error === rejection
+        ? {
+            "langfuse.topics.response.finish_reason": "length",
+            "langfuse.topics.response.raw_finish_reason": "max_tokens",
+          }
+        : undefined,
+    );
+    state.call.mockImplementation(async ({ onFailedResponseUsage }) => {
+      await onFailedResponseUsage({
+        usageDetails: { input: 100, output: 1000 },
+        providedCostDetails: {},
+      });
+      throw rejection;
+    });
+
+    await expect(
+      nameTopicGroup(topicsModels(), evidence),
+    ).rejects.toMatchObject({ reason: "invalid_output" });
+    expect(state.call).toHaveBeenCalledOnce();
+    expect(state.onCost).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledOnce();
+  });
+
   it.each([
     [{}, "ok"],
     [{ httpStatus: 429, reason: "rate_limit" }, "429"],
@@ -655,6 +763,56 @@ describe("Topics naming boundary", () => {
       (1060 + 2840 * 0.1 + 100 * 1.25 + 300 * 5) / 1_000_000,
       12,
     );
+  });
+
+  it("leaves a summary 429 to the queue's backoff but retries a 5xx after 2s and 4s", async () => {
+    const providerError = (statusCode: number) =>
+      Object.assign(new Error(`HTTP ${statusCode}`), {
+        name: "AI_APICallError",
+        statusCode,
+      });
+    const summarize = () =>
+      summarizeTopicTraceFacets(
+        topicsModels(),
+        [{ key: "intent_1", facet, builtIn: true }],
+        "transcript",
+        topicProcessingConfigSchema.parse({}),
+      );
+
+    state.call.mockRejectedValueOnce(providerError(429));
+    await expect(summarize()).rejects.toMatchObject({ reason: "rate_limit" });
+    expect(state.call).toHaveBeenCalledOnce();
+    expect(state.call.mock.calls[0][0].maxRetries).toBe(0);
+
+    vi.useFakeTimers();
+    try {
+      state.call
+        .mockReset()
+        .mockRejectedValueOnce(providerError(503))
+        .mockRejectedValueOnce(providerError(503))
+        .mockResolvedValueOnce({
+          output: {
+            intent_1: {
+              notes: "n",
+              summary: "Export sales.",
+              status: "applicable",
+            },
+          },
+          usage: { inputTokens: 10, outputTokens: 5 },
+          usageDetails: { input: 10, output: 5 },
+          providedCostDetails: {},
+        });
+      const result = summarize();
+      await vi.advanceTimersByTimeAsync(1_999);
+      expect(state.call).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1 + 4_000);
+      await expect(result).resolves.toMatchObject({
+        output: { intent_1: { status: "applicable" } },
+      });
+      expect(state.call).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("summarizes all facets of a trace in one request and checks its size first", async () => {

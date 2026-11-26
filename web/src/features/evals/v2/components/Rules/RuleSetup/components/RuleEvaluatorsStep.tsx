@@ -105,7 +105,7 @@ export function RuleEvaluatorsStep({
     0,
   );
   const total =
-    assignments.length > 0 ? (
+    assignments.length > 0 && !isTraceTranscript ? (
       <div className="w-48 border-t pt-2 text-right text-sm">
         {availableEstimates.length > 0 ? (
           <div>

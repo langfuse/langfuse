@@ -461,9 +461,21 @@ function TopicsWorkspaceContent({
       }
     : results;
   const scope = analysisId ? { analysisId } : { ruleId: selectedRule?.id };
+  // Until the maps load, or while another map's results are still shown, filters
+  // stay unscoped so no click writes into a different map's filters. A refetch of
+  // the same map keeps them.
+  const showsOtherMap =
+    !analysisId &&
+    results.data !== undefined &&
+    results.data.fetchedForRuleId !== (selectedRule?.id ?? null);
+  const filterMapId =
+    !maps.data || showsOtherMap
+      ? undefined
+      : (analysisId ?? selectedRule?.id ?? null);
   const traceFilters = useTopicTraceFilters(
     projectId,
     shownResults.data?.facets ?? [],
+    filterMapId,
   );
   const { selectedFacetId } = traceFilters;
   const capture = useTopicsCapture();
@@ -692,7 +704,7 @@ function TopicsWorkspaceContent({
               help: {
                 description:
                   "Topics clusters your traces into named topics, so you can spot recurring patterns without reading every trace.",
-                href: "https://langfuse.com/docs/observability/features/topics",
+                href: "https://langfuse.com/topics",
               },
               className: "@container/topics-header",
               mobileActionButtons: mapStatus ? (

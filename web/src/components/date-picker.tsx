@@ -94,6 +94,7 @@ export function DatePicker({
  * which otherwise extends a complete range (the original "sticky" bug), clears
  * the selection when the single day of a same-day range is re-clicked, or
  * extends a left-over start that survived a closed popover.
+ * @internal
  */
 export function nextRangeForDayClick(
   current: RDPDateRange | undefined,
@@ -111,6 +112,7 @@ export function nextRangeForDayClick(
   return { from: clickedDay, to: undefined };
 }
 
+/** @internal */
 export function isRangeWithinMaxDuration(
   range: RDPDateRange | undefined,
   maxDurationMs: number | undefined,

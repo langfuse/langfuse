@@ -197,14 +197,19 @@ async function waitForMapSettled(canvasElement: HTMLElement) {
   let changedAt = performance.now();
   await waitFor(
     () => {
-      const current = Array.from(
-        canvasElement.querySelectorAll<HTMLElement>(
-          "[data-topic-background-label]",
-        ),
-      )
-        .map((element) => element.getAttribute("style"))
-        .join(";");
-      expect(current).not.toBe("");
+      // The zoom readout settles with the camera, even where no topic is named.
+      const zoom =
+        canvasElement.querySelector('[aria-label="Zoom level"]')?.textContent ??
+        "";
+      expect(zoom).not.toBe("");
+      const current = [
+        zoom,
+        ...Array.from(
+          canvasElement.querySelectorAll<HTMLElement>(
+            "[data-topic-background-label]",
+          ),
+        ).map((element) => element.getAttribute("style")),
+      ].join(";");
       if (current !== previous) {
         previous = current;
         changedAt = performance.now();
@@ -538,8 +543,7 @@ export const FilteringPreservesCamera = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
-    await userEvent.click(canvas.getByRole("button", { name: "Zoom in (+)" }));
-    await userEvent.click(canvas.getByRole("button", { name: "Zoom in (+)" }));
+    // One step keeps several named topics in view; deeper, only unnamed outliers remain.
     await userEvent.click(canvas.getByRole("button", { name: "Zoom in (+)" }));
     await waitForMapSettled(canvasElement);
     const zoom = canvas.getByLabelText("Zoom level").textContent;

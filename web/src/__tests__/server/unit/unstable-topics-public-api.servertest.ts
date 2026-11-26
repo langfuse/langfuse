@@ -101,7 +101,7 @@ const summary = (traceId: string, state: string) => ({
   traceId,
   sessionId: null,
   unitStartTime,
-  processedAt: "2026-10-19T11:00:00.000Z",
+  createdAt: "2026-10-19T11:00:00.000Z",
   state,
   summary: `${traceId} summary`,
 });
@@ -120,7 +120,7 @@ const assignment = (
   runId: topic?.runId ?? "run-2",
   topicId: topic?.topicId ?? null,
   topicVersionId: topic ? `${topic.topicId}-${topic.runId}` : null,
-  assignedAt: "2026-10-19T12:00:00.000Z",
+  createdAt: "2026-10-19T12:00:00.000Z",
 });
 
 describe("unstable Topics public API", () => {
@@ -176,6 +176,8 @@ describe("unstable Topics public API", () => {
         outliers: facetId === "issues" ? 1 : 0,
         notApplicable: facetId === "issues" ? 1 : 0,
         insufficientInput: facetId === "issues" ? 1 : 0,
+        emptyInput: facetId === "issues" ? 2 : 0,
+        inputTooLarge: facetId === "issues" ? 1 : 0,
         topics:
           facetId === "issues"
             ? [
@@ -207,7 +209,7 @@ describe("unstable Topics public API", () => {
         ruleIds: ["rule-1"],
         version: 2,
         prompt: "Issues prompt",
-        publishedRun: {
+        publishedMap: {
           id: "run-2",
           completedAt: new Date("2026-10-18T03:00:00.000Z"),
           topicCount: 2,
@@ -241,7 +243,7 @@ describe("unstable Topics public API", () => {
 
     await expect(
       getPublicTopicFacet({ projectId, facetId: "custom" }),
-    ).resolves.toMatchObject({ id: "custom", publishedRun: null });
+    ).resolves.toMatchObject({ id: "custom", publishedMap: null });
     await expect(
       getPublicTopicFacet({ projectId, facetId: "missing" }),
     ).rejects.toThrow(LangfuseNotFoundError);
@@ -269,7 +271,10 @@ describe("unstable Topics public API", () => {
       "issues",
       "custom",
     ]);
-    expect(topics.data.map(({ id }) => id)).toEqual(["timeouts", "refunds"]);
+    expect(topics.data.map(({ stableId }) => stableId)).toEqual([
+      "timeouts",
+      "refunds",
+    ]);
   });
 
   it("rejects unknown filter columns with the allowed columns", async () => {
@@ -311,30 +316,55 @@ describe("unstable Topics public API", () => {
     });
     expect(result.data).toEqual([
       {
-        id: "timeouts",
+        stableId: "timeouts",
         versionId: "timeouts-run-2",
         name: "Tool call timeouts",
         description: "Tool call timeouts description",
         facet: { id: "issues", name: "Issues", version: 2 },
         ruleId: "rule-1",
-        runId: "run-2",
+        mapId: "run-2",
         traceCount: 2,
       },
-      expect.objectContaining({ id: "refunds", runId: "run-1", traceCount: 0 }),
+      expect.objectContaining({
+        stableId: "refunds",
+        mapId: "run-1",
+        traceCount: 0,
+      }),
     ]);
     expect(result.facets).toEqual([
       {
         facet: { id: "issues", name: "Issues", version: 2 },
         ruleId: "rule-1",
-        publishedRunId: "run-2",
+        publishedMapId: "run-2",
         counts: {
           assigned: 3,
           outlier: 1,
           awaitingMap: 1,
           notApplicable: 1,
           insufficientInput: 1,
+          emptyInput: 2,
+          inputTooLarge: 1,
         },
       },
+    ]);
+
+    const byStableId = await listPublicTopics({
+      projectId,
+      ...window,
+      orderBy: "name.asc",
+      page: 1,
+      limit: 50,
+      filter: [
+        {
+          type: "stringOptions",
+          column: "stableId",
+          operator: "any of",
+          value: ["refunds"],
+        },
+      ],
+    });
+    expect(byStableId.data.map(({ stableId }) => stableId)).toEqual([
+      "refunds",
     ]);
 
     const filtered = await listPublicTopics({
@@ -354,7 +384,7 @@ describe("unstable Topics public API", () => {
     });
     expect(filtered.data).toEqual([]);
     expect(filtered.facets).toEqual([]);
-    expect(readers.getTopicResultCounts).toHaveBeenCalledTimes(1);
+    expect(readers.getTopicResultCounts).toHaveBeenCalledTimes(2);
   });
 
   it("rejects windows longer than 93 days", async () => {
@@ -382,15 +412,15 @@ describe("unstable Topics public API", () => {
 
   it("gets topics of the current map by stable id", async () => {
     await expect(
-      getPublicTopic({ projectId, topicId: "timeouts", ...window }),
+      getPublicTopic({ projectId, topicStableId: "timeouts", ...window }),
     ).resolves.toMatchObject({
-      id: "timeouts",
+      stableId: "timeouts",
       inCurrentMap: true,
       traceCount: 2,
     });
-    for (const topicId of ["retired", "unknown"])
+    for (const topicStableId of ["retired", "unknown"])
       await expect(
-        getPublicTopic({ projectId, topicId, ...window }),
+        getPublicTopic({ projectId, topicStableId, ...window }),
       ).rejects.toThrow(LangfuseNotFoundError);
   });
 
@@ -403,7 +433,7 @@ describe("unstable Topics public API", () => {
       limit: 2,
     };
     const timestamp = new Date("2026-10-19T10:00:00.000Z");
-    const processedAt = new Date("2026-10-19T12:00:00.000Z");
+    const createdAt = new Date("2026-10-19T12:00:00.000Z");
     const next = { timestamp, traceId: "t1", facetId: "issues" };
 
     beforeEach(() => {
@@ -419,7 +449,7 @@ describe("unstable Topics public API", () => {
             state: "complete",
             summary: "t1 summary",
             summaryTruncated: false,
-            processedAt,
+            createdAt,
           },
         ],
         next,
@@ -435,7 +465,7 @@ describe("unstable Topics public API", () => {
             topicId: "refunds",
             topicVersionId: "refunds-run-1",
             runId: "run-1",
-            assignedAt: processedAt,
+            createdAt,
           },
         ],
       });
@@ -493,7 +523,7 @@ describe("unstable Topics public API", () => {
         status: "outlier",
         topicId: null,
         topicVersionId: null,
-        assignedAt: processedAt,
+        createdAt,
       };
       readers.listCurrentTopicAssignments.mockResolvedValue({
         rows: [
@@ -502,7 +532,7 @@ describe("unstable Topics public API", () => {
         ],
       });
       const all = await listPublicTopicAssignments(listQuery);
-      expect(all.data.map(({ runId, ruleId }) => [runId, ruleId])).toEqual([
+      expect(all.data.map(({ mapId, ruleId }) => [mapId, ruleId])).toEqual([
         ["run-1", "rule-1"],
         ["run-2", "rule-2"],
       ]);
@@ -546,6 +576,18 @@ describe("unstable Topics public API", () => {
             operator: "any of",
             value: ["assigned"],
           },
+          {
+            type: "datetime",
+            column: "createdAt",
+            operator: ">=",
+            value: createdAt,
+          },
+          {
+            type: "stringOptions",
+            column: "state",
+            operator: "any of",
+            value: ["complete", "empty_input", "input_too_large"],
+          },
         ],
       });
       expect(readers.listCurrentTopicSummaries).toHaveBeenCalledWith({
@@ -560,6 +602,17 @@ describe("unstable Topics public API", () => {
           {
             column: "assignmentStatus",
             match: { operator: "any of", values: ["assigned"] },
+          },
+          {
+            column: "createdAt",
+            match: { operator: ">=", value: createdAt },
+          },
+          {
+            column: "state",
+            match: {
+              operator: "any of",
+              values: ["complete", "empty_input", "input_too_large"],
+            },
           },
         ],
         orderBy: "timestamp.desc",
@@ -579,18 +632,48 @@ describe("unstable Topics public API", () => {
           state: "complete",
           summary: "t1 summary",
           summaryTruncated: false,
-          processedAt,
+          createdAt,
         },
       ]);
       expect(result.meta.cursor).toEqual(expect.any(String));
     });
 
-    it("names an assignment's topic from the run that assigned it", async () => {
+    it("names an assignment's topic from the map that assigned it and accepts createdAt and topicStableId filters", async () => {
       mocks.getTopicRuns.mockResolvedValue([oldRun, issuesRun]);
       mocks.getCurrentTopicMapRows.mockResolvedValue([
         { ruleId: "rule-1", run: oldRun },
       ]);
-      const result = await listPublicTopicAssignments(listQuery);
+      const result = await listPublicTopicAssignments({
+        ...listQuery,
+        filter: [
+          {
+            type: "stringOptions",
+            column: "topicStableId",
+            operator: "any of",
+            value: ["refunds"],
+          },
+          {
+            type: "datetime",
+            column: "createdAt",
+            operator: ">=",
+            value: createdAt,
+          },
+        ],
+      });
+      expect(readers.listCurrentTopicAssignments).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conditions: [
+            {
+              column: "topicId",
+              match: { operator: "any of", values: ["refunds"] },
+            },
+            {
+              column: "createdAt",
+              match: { operator: ">=", value: createdAt },
+            },
+          ],
+        }),
+      );
       expect(result.data).toEqual([
         {
           traceId: "t1",
@@ -601,12 +684,12 @@ describe("unstable Topics public API", () => {
           ruleId: "rule-1",
           status: "assigned",
           topic: {
-            id: "refunds",
+            stableId: "refunds",
             versionId: "refunds-run-1",
             name: "Refund loops",
           },
-          runId: "run-1",
-          assignedAt: processedAt,
+          mapId: "run-1",
+          createdAt,
         },
       ]);
       expect(result.meta).toEqual({ cursor: null });

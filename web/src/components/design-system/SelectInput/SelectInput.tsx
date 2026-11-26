@@ -2,11 +2,10 @@
 
 import * as React from "react";
 import { defaultFilter } from "cmdk";
-
 import { SelectDropdown } from "../SelectDropdown/SelectDropdown";
 import { AsyncSelectInput } from "../AsyncSelectInput/AsyncSelectInput";
-import { DropdownIndicator } from "../DropdownIndicator/DropdownIndicator";
-import { InputControl } from "../internal/InputControl/InputControl";
+import type { InputControl } from "../internal/InputControl/InputControl";
+import { SelectControl } from "../internal/SelectControl/SelectControl";
 import { cn } from "@/src/utils/tailwind";
 
 type SelectInputProps<V extends string> = Pick<
@@ -22,8 +21,15 @@ type SelectInputProps<V extends string> = Pick<
   | "disabled"
   | "onBlur"
 > & {
+  prefix?: React.ComponentProps<typeof InputControl>["prefix"];
+  clearAction?: { label: string; onClear: () => void };
   placeholder: string;
   search?: { placeholder: string };
+  /** Popup alignment for searchable selects. */
+  align?: React.ComponentProps<typeof AsyncSelectInput>["align"];
+  dropdownWidth?: React.ComponentProps<
+    typeof AsyncSelectInput
+  >["dropdownWidth"];
   /** Keeps the portaled option list out of session replay; not applied with `search`. */
   noCapture?: boolean;
   /** See `SelectDropdown`; not applied with `search`. */
@@ -42,13 +48,21 @@ function SelectInputInner<V extends string>(
     noCapture,
     customOption,
     search,
+    align,
+    dropdownWidth,
     error,
     muted,
+    prefix,
+    clearAction,
     ...triggerProps
   }: SelectInputProps<V>,
   ref: React.ForwardedRef<HTMLButtonElement>,
 ) {
   const [searchValue, setSearchValue] = React.useState("");
+  const clear =
+    clearAction && value
+      ? { label: clearAction.label, onClear: clearAction.onClear }
+      : undefined;
 
   if (search) {
     const flatOptions = options.flatMap((node) =>
@@ -91,13 +105,17 @@ function SelectInputInner<V extends string>(
         onValueChange={(option) => onValueChange(option.value)}
         placeholder={placeholder}
         emptyMessage={emptyMessage}
+        align={align}
+        dropdownWidth={dropdownWidth}
         search={{
-          ...search,
+          placeholder: search.placeholder,
           value: searchValue,
           onValueChange: setSearchValue,
         }}
         error={error}
         muted={muted}
+        prefix={prefix}
+        clearAction={clear}
       />
     );
   }
@@ -121,7 +139,12 @@ function SelectInputInner<V extends string>(
       {...triggerProps}
     >
       {({ getTriggerProps, selectedLabel }) => (
-        <InputControl contentLayout="spread" error={error}>
+        <SelectControl
+          error={error}
+          disabled={triggerProps.disabled}
+          prefix={prefix}
+          clear={clear}
+        >
           <button {...getTriggerProps()}>
             {SelectedIcon ? (
               // Box-centered, the icon sits above the middle of lowercase text.
@@ -138,9 +161,8 @@ function SelectInputInner<V extends string>(
             >
               {selectedLabel ?? placeholder}
             </span>
-            <DropdownIndicator color={error ? "destructive" : "tertiary"} />
           </button>
-        </InputControl>
+        </SelectControl>
       )}
     </SelectDropdown>
   );

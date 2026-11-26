@@ -5,6 +5,7 @@ import { api } from "@/src/utils/api";
 // A stored workspace that fails validation reads as inactive, same as no
 // workspace; the overview card hides the badge when none is stored (see
 // `isConfigured`).
+/** @internal */
 export function getSlackStatus(
   integration: { isConnected: boolean } | undefined,
 ): Status {

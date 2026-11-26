@@ -39,6 +39,7 @@ import { env, v4WritesToLegacyTables } from "../../env";
 // customer-config fault, tagged by `reason`. A classifier-regression
 // mass-disable shows up as a spike in the non-SSRF buckets vs a near-zero
 // baseline, separate from expected SSRF/abuse disables (mirrors blob's metric).
+/** @internal */
 export const POSTHOG_INTEGRATION_DISABLED_METRIC =
   "langfuse.posthog.integration_disabled.count";
 
@@ -94,6 +95,7 @@ type PostHogClientOptions = NonNullable<
 // Wrap the SDK's fetch transport to count gzipped on-wire upload volume for
 // the export-volume metric. Capture V0 uses /batch/ and the opt-in Capture V1
 // mode uses /i/v1/analytics/events; feature-flag requests are excluded.
+/** @internal */
 export const countingFetch =
   (volume: { bytes: number }): PostHogClientOptions["fetch"] =>
   async (url, options) => {

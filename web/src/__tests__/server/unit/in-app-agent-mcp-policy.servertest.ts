@@ -8,11 +8,11 @@ import {
   type InAppAgentLangfuseMcpToolName,
 } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import {
-  bootstrapMcpFeatures,
+  getEnabledTool,
+  getEnabledTools,
+  MCP_TOOLS,
   type McpToolName,
-} from "@/src/features/mcp/server/bootstrap";
-import { notebooksFeature } from "@/src/features/mcp/server/notebooks";
-import { ToolRegistry, toolRegistry } from "@/src/features/mcp/server/registry";
+} from "@/src/features/mcp/server/tools";
 import { skillsFeature } from "@/src/features/mcp/server/skills";
 import { ForbiddenError, UnauthorizedError } from "@langfuse/shared";
 import {
@@ -31,9 +31,10 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
     for (const { definition } of skillsFeature.tools.filter(
       ({ definition }) => definition.annotations?.readOnlyHint === true,
     )) {
-      expect(toolRegistry.getTool(definition.name)?.definition).toEqual(
-        definition,
-      );
+      expect(
+        MCP_TOOLS.find((tool) => tool.definition.name === definition.name)
+          ?.definition,
+      ).toEqual(definition);
       expect(definition.action).toBe("skills:read");
       expect(definition.annotations?.readOnlyHint).toBe(true);
       expect([...policy.available]).toContain(definition.name);
@@ -70,7 +71,9 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
       expect(getInAppAgentMcpAllowedToolNames(viewerPolicy)).not.toContain(
         toolName,
       );
-      const definition = toolRegistry.getTool(toolName)?.definition;
+      const definition = MCP_TOOLS.find(
+        (tool) => tool.definition.name === toolName,
+      )?.definition;
       expect(definition?.action).toBe("skills:CUD");
       expect(definition?.annotations?.destructiveHint).toBe(true);
       expect(definition?.annotations?.readOnlyHint).not.toBe(true);
@@ -102,7 +105,8 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
     ] as const) {
       expect(viewer.autoApproved.has(name)).toBe(true);
       expect(
-        toolRegistry.getTool(name)?.definition.annotations?.readOnlyHint,
+        MCP_TOOLS.find(({ definition }) => definition.name === name)?.definition
+          .annotations?.readOnlyHint,
       ).toBe(true);
     }
 
@@ -117,16 +121,17 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
       expect(member.autoApproved.has(name)).toBe(false);
       expect(getInAppAgentMcpAllowedToolNames(member, name)).toContain(name);
       expect(
-        toolRegistry.getTool(name)?.definition.annotations?.readOnlyHint,
+        MCP_TOOLS.find(({ definition }) => definition.name === name)?.definition
+          .annotations?.readOnlyHint,
       ).not.toBe(true);
     }
   });
 
   it("only exposes notebook tools to authenticated Halo requests and still requires mutation approval", async () => {
-    const registry = new ToolRegistry();
-    registry.register(notebooksFeature);
     const context = mockServerContext();
-    const tool = registry.getTool("create_notebook");
+    const tool = MCP_TOOLS.find(
+      ({ definition }) => definition.name === "create_notebook",
+    );
     if (!tool) throw new Error("Missing create_notebook");
 
     const create = { title: "Example" };
@@ -170,11 +175,11 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
         allowedToolNames: ["publish_notebook"],
       },
     });
-    const externalTools = (await registry.getToolDefinitions(external)).map(
-      ({ name }) => name,
+    const externalTools = (await getEnabledTools(external)).map(
+      ({ definition }) => definition.name,
     );
-    const haloTools = (await registry.getToolDefinitions(halo)).map(
-      ({ name }) => name,
+    const haloTools = (await getEnabledTools(halo)).map(
+      ({ definition }) => definition.name,
     );
     for (const name of [
       "list_notebooks",
@@ -189,15 +194,11 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
     ]) {
       expect(externalTools).not.toContain(name);
       expect(haloTools).toContain(name);
-      await expect(
-        registry.getEnabledTool(name, external),
-      ).resolves.toBeUndefined();
+      await expect(getEnabledTool(name, external)).resolves.toBeUndefined();
     }
+    await expect(getEnabledTool("list_notebooks", halo)).resolves.toBeDefined();
     await expect(
-      registry.getEnabledTool("list_notebooks", halo),
-    ).resolves.toBeDefined();
-    await expect(
-      registry.getEnabledTool("publish_notebook", halo),
+      getEnabledTool("publish_notebook", halo),
     ).resolves.toBeDefined();
     await expect(tool.handler(create, external)).rejects.toBeInstanceOf(
       ForbiddenError,
@@ -274,7 +275,7 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
       },
     },
   ])("rejects out-of-bounds input for $name", async ({ name, input }) => {
-    const tool = toolRegistry.getTool(name);
+    const tool = MCP_TOOLS.find(({ definition }) => definition.name === name);
     if (!tool) throw new Error(`Missing ${name}`);
     await expect(
       tool.handler(input, mockServerContext()),
@@ -287,7 +288,9 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
   ])(
     "accepts write_document input before checking authorization: %o",
     async (input) => {
-      const tool = toolRegistry.getTool("write_document");
+      const tool = MCP_TOOLS.find(
+        ({ definition }) => definition.name === "write_document",
+      );
       if (!tool) throw new Error("Missing write_document");
       await expect(tool.handler(input, mockServerContext())).rejects.toSatisfy(
         (error: unknown) =>
@@ -297,13 +300,11 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
   );
 
   it("classifies every Langfuse MCP tool exactly once", () => {
-    expect(bootstrapMcpFeatures).toBeTypeOf("function");
     expectTypeOf<InAppAgentLangfuseMcpToolName>().toEqualTypeOf<McpToolName>();
 
-    const registeredToolNames = toolRegistry
-      .getFeatures()
-      .flatMap((feature) => feature.tools.map((tool) => tool.definition.name))
-      .sort();
+    const registeredToolNames = MCP_TOOLS.map(
+      (tool) => tool.definition.name,
+    ).sort();
     const classifiedToolNames = Object.keys(
       IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
     ).sort();

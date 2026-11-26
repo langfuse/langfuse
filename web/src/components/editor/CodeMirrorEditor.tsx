@@ -20,7 +20,7 @@ import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
-import { useState, useCallback, useMemo, type RefObject } from "react";
+import { useCallback, useMemo, useRef, type RefObject } from "react";
 import {
   LanguageSupport,
   StreamLanguage,
@@ -73,6 +73,7 @@ const promptLanguage = StreamLanguage.define({
   },
 });
 
+/** @internal */
 export const getPromptVariableDiagnostics = (content: string): Diagnostic[] => {
   const diagnostics: Diagnostic[] = [];
 
@@ -148,6 +149,17 @@ export const getPromptVariableDiagnostics = (content: string): Diagnostic[] => {
 const promptLinter = linter((view) =>
   getPromptVariableDiagnostics(view.state.doc.toString()),
 );
+
+// Skip diagnostics on an empty JSON document so a blank field is not flagged
+// as invalid. Keep the extension mounted so typing the first character does
+// not reconfigure the editor.
+const jsonParseDiagnostics = jsonParseLinter();
+const jsonLinter = linter((view) => {
+  if (view.state.doc.length === 0) {
+    return [];
+  }
+  return jsonParseDiagnostics(view);
+});
 
 // Create a language support instance that combines the language and its configuration
 const promptSupport = new LanguageSupport(promptLanguage);
@@ -459,10 +471,8 @@ export function CodeMirrorEditor({
 }) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
-  // used to disable linter when field is empty
-  const [linterEnabled, setLinterEnabled] = useState<boolean>(
-    !!value && value !== "",
-  );
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   const handleEditorRef = useCallback(
     (instance: ReactCodeMirrorRef | null) => {
@@ -529,8 +539,7 @@ export function CodeMirrorEditor({
             }),
           ]
         : []),
-      ...(mode === "json" ? [json()] : []),
-      ...(mode === "json" && linterEnabled ? [linter(jsonParseLinter())] : []),
+      ...(mode === "json" ? [json(), jsonLinter] : []),
       // Magic paste: when editing JSON, escape pasted text inside a string (or
       // wrap a blob pasted into a blank field) so the JSON stays valid, with a
       // "Paste raw" escape hatch. Conservative — defers to normal paste otherwise.
@@ -546,7 +555,6 @@ export function CodeMirrorEditor({
       minHeight,
       maxHeight,
       mode,
-      linterEnabled,
       lineWrapping,
       appearance,
       additionalExtensions,
@@ -565,14 +573,11 @@ export function CodeMirrorEditor({
   );
 
   // Stable identity so the reconfigure effect (which lists `onChange` in its
-  // deps) doesn't fire on every render.
-  const handleChange = useCallback(
-    (c: string) => {
-      if (onChange) onChange(c);
-      setLinterEnabled(c !== "");
-    },
-    [onChange],
-  );
+  // deps) doesn't fire on every render. Route the parent handler through a ref
+  // so form render-prop onChange identities cannot rebuild the editor config.
+  const handleChange = useCallback((c: string) => {
+    onChangeRef.current?.(c);
+  }, []);
 
   return (
     <CodeMirror
@@ -582,7 +587,6 @@ export function CodeMirrorEditor({
       basicSetup={basicSetup}
       lang={mode === "json" ? "json" : undefined}
       extensions={extensions}
-      defaultValue={value}
       onChange={handleChange}
       onBlur={onBlur}
       className={cn(

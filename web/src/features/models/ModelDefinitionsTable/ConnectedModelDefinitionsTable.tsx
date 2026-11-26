@@ -7,10 +7,8 @@ import { type AsyncTableData } from "@/src/components/design-system/table/Table"
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import {
-  UpsertModelFormDialogController,
-  UpsertModelFormDialogContent,
-} from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
+import { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
+import { UpsertModelFormDialogContent } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogContent";
 import { TestModelMatchDialogContent } from "@/src/features/models/components/test-match/TestModelMatchDialogContent";
 import {
   useDeleteModelDefinition,

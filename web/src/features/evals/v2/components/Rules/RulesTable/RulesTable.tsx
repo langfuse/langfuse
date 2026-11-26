@@ -1,13 +1,7 @@
 /* eslint-disable no-nested-ternary, react/no-unstable-nested-components -- Legacy UI usage retained during migration to design-system components. */
 import { useMemo, useRef, useState } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
-import {
-  Copy,
-  ExternalLink,
-  MoreVertical,
-  Pencil,
-  Trash2,
-} from "@langfuse/icons";
+import { Copy, MoreVertical, Pencil, Trash2 } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DataTable } from "@/src/components/table/data-table";
@@ -424,7 +418,7 @@ function RulesTableContent({
                   router.push(ruleExecutionsUrl(projectId, row.original.id));
                 }}
               >
-                View traces <ExternalLink size="base" __rawClassName="ml-1" />
+                View traces
               </Button>
               <DropdownMenu
                 placement="bottom-end"

@@ -58,5 +58,5 @@ export const [listLlmConnectionsTool, handleListLlmConnections] = defineTool({
         return { data: z.array(LlmConnectionOutput).parse(data) };
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

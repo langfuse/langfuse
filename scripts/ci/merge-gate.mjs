@@ -8,6 +8,7 @@ export const requiredJobs = [
   "knip",
   "format-check",
   "tests-ai-gateway",
+  "tests-ai-gateway-guardrail-rules",
   "tests-eslint-plugin",
   "tests-in-app-agent-sandbox-runtime",
   "tests-storybook",
@@ -61,6 +62,7 @@ function allowedFilteredSkips(event, ref, needs, fork) {
   for (const [job, output] of [
     ["test-worker-llm-connections", "llm_connections"],
     ["test-ai-gateway-e2e", "ai_gateway"],
+    ["tests-ai-gateway-guardrail-rules", "ai_gateway_guardrail_rules"],
   ]) {
     if (
       selection?.result === "success" &&
@@ -83,7 +85,11 @@ function missingRequiredJobs(needs, allowedSkips, duplicate, ref) {
     if (result === "success") continue;
     const requiredOnTag =
       ref.startsWith("refs/tags/") &&
-      ["test-worker-llm-connections", "test-ai-gateway-e2e"].includes(name);
+      [
+        "test-worker-llm-connections",
+        "test-ai-gateway-e2e",
+        "tests-ai-gateway-guardrail-rules",
+      ].includes(name);
     if (
       result === "skipped" &&
       ((duplicate && !requiredOnTag) || allowedSkips.has(name))

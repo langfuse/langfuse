@@ -1,9 +1,6 @@
 /* eslint-disable @repo/no-style-props */
 import { useMemo } from "react";
-import {
-  Combobox,
-  type ComboboxOptionGroup,
-} from "@/src/components/ui/Combobox";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Button } from "@/src/components/ui/button";
 import { X } from "@langfuse/icons";
 
@@ -46,7 +43,7 @@ export function ScoreCombobox({
   }, [options, filterByDataType]);
 
   // 2. Group by dataType
-  const groupedOptions: ComboboxOptionGroup<string>[] = useMemo(() => {
+  const groupedOptions = useMemo(() => {
     const grouped = filteredOptions.reduce(
       (acc, opt) => {
         if (!acc[opt.dataType]) acc[opt.dataType] = [];
@@ -66,7 +63,9 @@ export function ScoreCombobox({
     return typeOrder
       .filter((type) => grouped[type]?.length > 0)
       .map((type) => ({
-        heading: typeLabels[type],
+        type: "group" as const,
+        id: type,
+        label: typeLabels[type],
         options: grouped[type].map((opt) => ({
           value: opt.value,
           label: `${opt.name} • ${opt.source}`,
@@ -85,16 +84,17 @@ export function ScoreCombobox({
 
   return (
     <div className="flex items-center gap-2">
-      <Combobox
-        value={value ?? ""}
-        onValueChange={handleValueChange}
-        options={groupedOptions}
-        placeholder={placeholder}
-        searchPlaceholder="Search scores..."
-        emptyText="No scores found."
-        disabled={disabled}
-        className={className}
-      />
+      <div className={className}>
+        <SelectInput
+          value={value ?? ""}
+          onValueChange={handleValueChange}
+          options={groupedOptions}
+          placeholder={placeholder}
+          search={{ placeholder: "Search scores..." }}
+          emptyMessage="No scores found."
+          disabled={disabled}
+        />
+      </div>
 
       {value && !disabled && (
         <Button

@@ -128,6 +128,10 @@ export type AiGatewayEventMap = {
     interval: GatewaySpendBudgetInterval;
   };
   "ai_gateway:budget_removed": GatewayBudgetChange;
+  "ai_gateway:budget_reset": OrganizationContext & {
+    surface: "budgets_page" | "api_keys_page";
+    scope: Extract<GatewaySpendLimitScope, "API_KEY" | "USER">;
+  };
   /** The user expanded a tool's setup steps ("Show all steps") after creating a key. */
   "ai_gateway:agent_setup_instructions_viewed": OrganizationContext & {
     agentId: AgentSetupInstructions["id"];

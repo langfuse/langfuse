@@ -104,6 +104,7 @@ const organizationSettingsPath = (organizationId: string, slug: string) =>
  * Merges account and organization settings into one nav. Pages owned by the
  * other route become internal links, so each route only renders its own
  * content while the nav looks the same on both.
+ * @internal
  */
 export function buildSettingsPages({
   scope,

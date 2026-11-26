@@ -304,16 +304,18 @@ export type TopicFacetOutcome =
   | "no_applicable_summaries"
   | "no_topics"
   | "failed";
-export type TopicSummaryState =
-  | "complete"
-  | "not_applicable"
-  | "insufficient_input"
+export const TOPIC_SUMMARY_STATES = [
+  "complete",
+  "not_applicable",
+  "insufficient_input",
   /** Written without a model call: the transcript has nothing for the model. */
-  | "empty_input"
+  "empty_input",
   /** Written without a model call: the rendered text exceeds the Topics input limit (`LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS`). */
-  | "input_too_large";
+  "input_too_large",
+] as const;
+export type TopicSummaryState = (typeof TOPIC_SUMMARY_STATES)[number];
 
-/** Results and counts report summaries written without a model call as `insufficient_input`. */
+/** Execution progress counts collapse summaries written without a model call into `insufficient_input`. */
 export function reportedTopicSummaryState(
   state: TopicSummaryState,
 ): "complete" | "not_applicable" | "insufficient_input" {
@@ -371,7 +373,7 @@ export type TopicSummary = z.infer<typeof topicSourceSchema> & {
   usageDetails: Record<string, number>;
   providedCostDetails: Record<string, number>;
   costDetails: Record<string, number>;
-  processedAt: string;
+  createdAt: string;
   metadata: Record<string, unknown>;
 };
 
@@ -392,7 +394,7 @@ export type TopicAssignment = z.infer<typeof topicSourceSchema> & {
   distance: number | null;
   runnerUpDistance: number | null;
   origin: "initial" | "online";
-  assignedAt: string;
+  createdAt: string;
 };
 export interface TopicDefinition {
   topicVersionId: string;

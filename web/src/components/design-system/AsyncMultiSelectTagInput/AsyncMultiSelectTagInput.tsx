@@ -3,14 +3,12 @@
 import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { Command as CommandPrimitive } from "cmdk";
-import { X } from "@langfuse/icons";
-import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Tag, TagShell } from "@/src/components/design-system/Tag/Tag";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
-import { InputControl } from "../internal/InputControl/InputControl";
 import { InputDropdown } from "../internal/InputDropdown/InputDropdown";
+import { SelectControl } from "../internal/SelectControl/SelectControl";
 import { OverflowList } from "@/src/components/design-system/OverflowList/OverflowList";
 
 export type MultiSelectTagOption<V> = {
@@ -19,12 +17,25 @@ export type MultiSelectTagOption<V> = {
   disabled?: boolean;
   secondaryLabel?: string;
   showSecondaryLabelInTag?: boolean;
+  badges?: string[];
+  description?: string;
+  color?: React.ComponentProps<typeof Tag>["color"];
+};
+
+type OptionGroup<V> = {
+  id: string;
+  label: string;
+  caption?: { text: string; description: string };
+  expanded: boolean;
+  onExpandedChange?: React.ComponentProps<
+    typeof InputDropdown.Group
+  >["onExpandedChange"];
+  options: MultiSelectTagOption<V>[];
 };
 
 type AsyncMultiSelectTagInputProps<V> = {
   /** The selected options, kept with their labels while the list shows others. */
   value: MultiSelectTagOption<V>[];
-  options: MultiSelectTagOption<V>[];
   onValueChange: (newValue: MultiSelectTagOption<V>[]) => void;
   placeholder: string;
   search: {
@@ -41,12 +52,24 @@ type AsyncMultiSelectTagInputProps<V> = {
   "aria-describedby"?: string;
   "aria-invalid"?: boolean;
   loading?: { message: string };
-};
+  label?: string;
+  onAfterOpenChange?: (open: boolean) => void;
+  /**
+   * Prefer `"trigger"` (the default) to match the full input width, including
+   * its prefix. Use `"wide"` or `"extra-wide"` when options need more room.
+   * Both wider presets are capped to the available viewport width.
+   */
+  dropdownWidth?: "trigger" | "wide" | "extra-wide";
+} & (
+  | { options: MultiSelectTagOption<V>[]; groups?: never }
+  | { options?: never; groups: OptionGroup<V>[] }
+);
 
 /** Search and selection are caller-owned; options are rendered without filtering. */
 export function AsyncMultiSelectTagInput<V extends string>({
   value: selected,
-  options,
+  options: flatOptions,
+  groups,
   onValueChange,
   placeholder,
   search,
@@ -59,17 +82,26 @@ export function AsyncMultiSelectTagInput<V extends string>({
   "aria-describedby": ariaDescribedBy,
   "aria-invalid": ariaInvalid,
   loading,
+  label,
+  onAfterOpenChange,
+  dropdownWidth = "trigger",
 }: AsyncMultiSelectTagInputProps<V>) {
   const container = useLayerContainer("popover");
   const [open, setOpen] = React.useState(false);
   const listId = React.useId();
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
+  const options = flatOptions ?? groups.flatMap((group) => group.options);
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (disabled) return;
+    setOpen(nextOpen);
+    onAfterOpenChange?.(nextOpen);
+    if (!nextOpen) search.onValueChange("");
+  };
   const value = selected.map((option) => option.value);
   const selectedOptions = React.useMemo(
     () =>
       selected.map((option) => ({
-        value: option.value,
-        label: option.label,
-        disabled: option.disabled,
+        ...option,
         secondaryLabel: option.showSecondaryLabelInTag
           ? option.secondaryLabel
           : undefined,
@@ -113,132 +145,174 @@ export function AsyncMultiSelectTagInput<V extends string>({
     );
   };
 
+  const renderOption = (option: MultiSelectTagOption<V>) => {
+    const isSelected = value.includes(option.value);
+    const visibleLabel = [option.label, option.secondaryLabel]
+      .filter(Boolean)
+      .join(" ");
+    return (
+      <InputDropdown.Option
+        key={option.value}
+        highlight="aria-selected"
+        checked={isSelected}
+      >
+        <CommandPrimitive.Item
+          value={option.value || option.label}
+          keywords={[visibleLabel]}
+          aria-label={visibleLabel}
+          aria-checked={isSelected}
+          disabled={option.disabled}
+          onSelect={() => {
+            if (isSelected) {
+              removeValue(option.value);
+              return;
+            }
+            changeValue([...value, option.value]);
+          }}
+        >
+          <InputDropdown.MultiSelectOptionContent
+            label={option.label}
+            secondaryLabel={option.secondaryLabel}
+            markerColor={option.color}
+            title={option.description ?? visibleLabel}
+            checked={isSelected}
+            badges={option.badges?.map((text) => ({
+              text,
+            }))}
+          />
+        </CommandPrimitive.Item>
+      </InputDropdown.Option>
+    );
+  };
+
   return (
     <PopoverPrimitive.Root
       open={!disabled && open}
-      onOpenChange={(newOpen) => {
-        if (disabled) return;
-        setOpen(newOpen);
-        if (!newOpen) search.onValueChange("");
-      }}
+      onOpenChange={handleOpenChange}
     >
-      <InputControl contentLayout="none" error={error} disabled={disabled}>
-        <PopoverPrimitive.Trigger asChild>
-          <div
-            id={id}
-            className="cursor-pointer aria-disabled:cursor-not-allowed"
-            role="combobox"
-            aria-label={ariaLabel}
-            aria-controls={listId}
-            aria-describedby={ariaDescribedBy}
-            aria-expanded={open}
-            aria-invalid={ariaInvalid}
-            aria-disabled={disabled}
-            tabIndex={disabled ? -1 : 0}
-            onPointerDown={(event) => {
-              if (disabled) event.preventDefault();
-            }}
-            onClick={(event) => {
-              if (disabled) event.preventDefault();
-            }}
-            onKeyDown={(event) => {
-              if (disabled) return;
-
-              if (event.target !== event.currentTarget) return;
-
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                setOpen((currentOpen) => !currentOpen);
-                return;
-              }
-
-              if (event.key === "Backspace" && value.length > 0) {
-                event.preventDefault();
-                const lastValue = value
-                  .filter(
-                    (selectedValue) => !disabledValues.includes(selectedValue),
-                  )
-                  .at(-1);
-                if (lastValue !== undefined) removeValue(lastValue);
-              }
-            }}
-          >
+      <PopoverPrimitive.Anchor asChild>
+        <SelectControl
+          inset="compact"
+          error={error}
+          disabled={disabled}
+          prefix={label ? { label } : undefined}
+          clear={
+            value.length > 0
+              ? {
+                  label: "Clear selection",
+                  disabled: value.every((selectedValue) =>
+                    disabledValues.includes(selectedValue),
+                  ),
+                  onClear: () => changeValue([]),
+                }
+              : undefined
+          }
+        >
+          <PopoverPrimitive.Trigger asChild>
             <div
-              data-tag-input-layout
-              className="flex h-full min-w-0 items-center gap-1 px-1.5"
-            >
-              <div data-tags-container className="min-w-0 flex-1">
-                {selectedOptions.length === 0 ? (
-                  <span className="text-muted-foreground">{placeholder}</span>
-                ) : (
-                  <OverflowList
-                    additionalOverflowCount={0}
-                    spacing="tight"
-                    minVisible={1}
-                    items={selectedOptions}
-                    getKey={(option) => option.value}
-                    renderItem={(option, { getItemProps }) => (
-                      <span
-                        {...getItemProps({
-                          className: "max-w-48 min-w-10 shrink",
-                        })}
-                        data-value={option.value}
-                      >
-                        <Tag
-                          text={option.label}
-                          secondaryText={option.secondaryLabel}
-                          remove={{
-                            onRemove: () => removeValue(option.value),
-                            disabled: disabled || option.disabled,
-                          }}
-                        />
-                      </span>
-                    )}
-                    renderOverflow={({ overflowItemCount }) => (
-                      <span
-                        data-overflow-count={overflowItemCount}
-                        aria-label={`${overflowItemCount} more selected`}
-                        title={`${overflowItemCount} more selected`}
-                        className="flex shrink-0"
-                      >
-                        <TagShell>+{overflowItemCount}</TagShell>
-                      </span>
-                    )}
-                  />
-                )}
-              </div>
-              {value.length === 0 && (
-                <DropdownIndicator color={error ? "destructive" : "tertiary"} />
-              )}
-              {value.length > 0 && (
-                <button
-                  type="button"
-                  disabled={
-                    disabled ||
-                    value.every((selectedValue) =>
-                      disabledValues.includes(selectedValue),
+              id={id}
+              className="cursor-pointer aria-disabled:cursor-not-allowed"
+              role="combobox"
+              aria-label={ariaLabel ?? label}
+              aria-controls={listId}
+              aria-describedby={ariaDescribedBy}
+              aria-expanded={open && !disabled}
+              aria-invalid={ariaInvalid}
+              aria-disabled={disabled}
+              tabIndex={disabled ? -1 : 0}
+              onPointerDown={(event) => {
+                if (disabled) event.preventDefault();
+              }}
+              onClick={(event) => {
+                if (disabled) event.preventDefault();
+              }}
+              onKeyDown={(event) => {
+                if (disabled) return;
+
+                if (event.target !== event.currentTarget) return;
+
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  handleOpenChange(!open);
+                  return;
+                }
+
+                if (event.key === "Backspace" && value.length > 0) {
+                  event.preventDefault();
+                  const lastValue = value
+                    .filter(
+                      (selectedValue) =>
+                        !disabledValues.includes(selectedValue),
                     )
-                  }
-                  data-clear-selection
-                  aria-label="Clear selection"
-                  className="text-muted-foreground hover:text-foreground ml-auto flex shrink-0 items-center rounded-sm px-1 disabled:cursor-not-allowed"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    changeValue([]);
-                  }}
-                >
-                  <X size="base" />
-                </button>
-              )}
+                    .at(-1);
+                  if (lastValue !== undefined) removeValue(lastValue);
+                }
+              }}
+            >
+              <div
+                data-tag-input-layout
+                className="flex h-full min-w-0 flex-1 items-center gap-1"
+              >
+                <div data-tags-container className="min-w-0 flex-1">
+                  {selectedOptions.length === 0 ? (
+                    <span className="text-muted-foreground">{placeholder}</span>
+                  ) : (
+                    <OverflowList
+                      additionalOverflowCount={0}
+                      spacing="tight"
+                      minVisible={1}
+                      items={selectedOptions}
+                      getKey={(option) => option.value}
+                      renderItem={(option, { getItemProps }) => (
+                        <span
+                          {...getItemProps({
+                            className: "max-w-full min-w-10 shrink",
+                          })}
+                          data-value={option.value}
+                        >
+                          <Tag
+                            text={option.label}
+                            secondaryText={option.secondaryLabel}
+                            color={option.color}
+                            remove={{
+                              onRemove: () => removeValue(option.value),
+                              disabled: disabled || option.disabled,
+                            }}
+                          />
+                        </span>
+                      )}
+                      renderOverflow={({ overflowItemCount }) => (
+                        <span
+                          data-overflow-count={overflowItemCount}
+                          aria-label={`${overflowItemCount} more selected`}
+                          title={selectedOptions
+                            .slice(-overflowItemCount)
+                            .map((option) => option.label)
+                            .join("\n")}
+                          className="flex shrink-0"
+                        >
+                          <TagShell>+{overflowItemCount}</TagShell>
+                        </span>
+                      )}
+                    />
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </PopoverPrimitive.Trigger>
-      </InputControl>
+          </PopoverPrimitive.Trigger>
+        </SelectControl>
+      </PopoverPrimitive.Anchor>
       <PopoverPrimitive.Portal container={container}>
-        <InputDropdown.Content width="popover-trigger">
+        <InputDropdown.Content width={`popover-${dropdownWidth}`}>
           <PopoverPrimitive.Content
             align="start"
             sideOffset={4}
+            collisionPadding={dropdownWidth === "trigger" ? undefined : 8}
+            onOpenAutoFocus={(event) => {
+              if (!searchInputRef.current) return;
+              event.preventDefault();
+              searchInputRef.current.focus();
+            }}
             onCloseAutoFocus={(event) => {
               if (disabled) event.preventDefault();
             }}
@@ -249,12 +323,13 @@ export function AsyncMultiSelectTagInput<V extends string>({
               <CommandPrimitive shouldFilter={false}>
                 <InputDropdown.Search>
                   <CommandPrimitive.Input
+                    ref={searchInputRef}
                     placeholder={search.placeholder}
                     value={search.value}
                     onValueChange={search.onValueChange}
                   />
                 </InputDropdown.Search>
-                {!loading && (
+                {!loading && options.length === 0 && (
                   <InputDropdown.Empty>
                     <CommandPrimitive.Empty>
                       {emptyMessage}
@@ -295,47 +370,22 @@ export function AsyncMultiSelectTagInput<V extends string>({
                       {selectAllLabel && options.length > 0 && (
                         <CommandPrimitive.Separator className="bg-border my-1 h-px" />
                       )}
-                      {options.map((option) => {
-                        const isSelected = value.includes(option.value);
-                        const visibleLabel = [
-                          option.label,
-                          option.secondaryLabel,
-                        ]
-                          .filter(Boolean)
-                          .join(" ");
-
-                        return (
-                          <InputDropdown.Option
-                            key={option.value}
-                            highlight="aria-selected"
-                            checked={isSelected}
-                          >
-                            <CommandPrimitive.Item
-                              value={option.value || option.label}
-                              keywords={[visibleLabel]}
-                              aria-label={visibleLabel}
-                              aria-checked={isSelected}
-                              disabled={option.disabled}
-                              onSelect={() => {
-                                if (isSelected) {
-                                  removeValue(option.value);
-                                  return;
-                                }
-
-                                changeValue([...value, option.value]);
-                              }}
-                            >
-                              <InputDropdown.MultiSelectOptionContent
-                                label={option.label}
-                                secondaryLabel={option.secondaryLabel}
-                                title={visibleLabel}
-                                checked={isSelected}
-                              />
-                            </CommandPrimitive.Item>
-                          </InputDropdown.Option>
-                        );
-                      })}
+                      {flatOptions?.map(renderOption)}
                     </CommandPrimitive.Group>
+                    {groups?.map((group) => (
+                      <InputDropdown.Group
+                        key={group.id}
+                        label={group.label}
+                        count={group.options.length}
+                        caption={group.caption}
+                        expanded={group.expanded}
+                        onExpandedChange={group.onExpandedChange}
+                      >
+                        <CommandPrimitive.Group>
+                          {group.options.map(renderOption)}
+                        </CommandPrimitive.Group>
+                      </InputDropdown.Group>
+                    ))}
                     {loading && (
                       <InputDropdown.Loading message={loading.message} />
                     )}

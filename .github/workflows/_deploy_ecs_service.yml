@@ -101,8 +101,9 @@ jobs:
             --build-arg BUILD_ID="$BUILD_ID" \
             --build-arg BASE_IMAGE="$BASE_IMAGE" \
             --build-arg MICRO_BASE_IMAGE="$MICRO_BASE_IMAGE" \
+            -f ai-gateway/Dockerfile \
             -t "$IMAGE" \
-            ./ai-gateway
+            .
           docker push "$IMAGE"
       - name: Build, tag, and push Docker image
         if: ${{ inputs.service != 'ai-gateway' && steps.image.outputs.exists != 'true' }}

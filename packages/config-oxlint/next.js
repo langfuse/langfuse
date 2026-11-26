@@ -182,11 +182,14 @@ export default {
         ],
         "array-callback-return": "warn",
         "no-void": "warn",
+        eqeqeq: ["warn", "always", { null: "ignore" }],
         "no-else-return": "warn",
         "default-case-last": "warn",
         "no-unneeded-ternary": "warn",
         "no-nested-ternary": "warn",
         "unicorn/throw-new-error": "warn",
+        "prefer-promise-reject-errors": "warn",
+        radix: "warn",
         "no-use-before-define": [
           "warn",
           {
@@ -274,6 +277,7 @@ export default {
           },
         ],
         "typescript/no-deprecated": "warn",
+        "typescript/only-throw-error": "warn",
       },
     },
     {
