@@ -201,7 +201,7 @@ function getProjectId(
   const selected = [
     getPathProjectId(req),
     getHeaderProjectId(req),
-    getBasicAuthProjectId(req),
+    getBasicAuthProjectId(context, req),
   ];
   if (!equal(selected)) {
     return invalidProjectError();
@@ -285,12 +285,24 @@ function getHeaderProjectId(req: NextApiRequest): string | undefined {
   return getHeaderValue(req, projectIdHeader);
 }
 
-/** getBasicAuthProjectId returns the Basic auth username as the target project, unless it is a public key. */
-function getBasicAuthProjectId(req: NextApiRequest): string | undefined {
+/** getBasicAuthProjectId returns the Basic auth username as the target project, unless it is a public key or the key's own public key. */
+function getBasicAuthProjectId(
+  context: AuthorizationContext,
+  req: NextApiRequest,
+): string | undefined {
   const credential = parseAuthorizationHeader(req.headers.authorization);
   if (credential.kind !== "basic") return undefined;
-  if (credential.publicKey.startsWith(publicKeyPrefix)) return undefined;
-  return credential.publicKey;
+  const username = credential.publicKey;
+  if (username.startsWith(publicKeyPrefix)) return undefined;
+  if (isOwnPublicKey(context, username)) return undefined;
+  return username;
+}
+
+/** isOwnPublicKey reports whether a value is the authenticated key's public key, which init-provisioned keys may set without the usual prefix. */
+function isOwnPublicKey(context: AuthorizationContext, value: string): boolean {
+  return (
+    context.principal.kind === "apiKey" && context.principal.publicKey === value
+  );
 }
 
 /** getUrlProjectId returns the target project from the URL param. */

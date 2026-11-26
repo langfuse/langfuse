@@ -266,6 +266,14 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         error: expect.any(ForbiddenError),
       });
     });
+    it("ignores a Basic auth username that is the key's own unprefixed public key", () => {
+      const key = projectKey();
+      if (key.principal.kind === "apiKey") key.principal.publicKey = "pk-1";
+      expect(getProjectId(key, req({}, basic("pk-1")))).toEqual({
+        success: true,
+        projectId: PRJ,
+      });
+    });
     it("resolves a Basic auth username agreeing with the bound project", () => {
       expect(getProjectId(projectKey(), req({}, basic(PRJ)))).toEqual({
         success: true,
