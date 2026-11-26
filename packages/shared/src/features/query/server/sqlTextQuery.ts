@@ -131,21 +131,28 @@ function buildFilterSqlWhereCondition(params: {
 }): RawSqlPart {
   const { filter, whereCols, dimensionSql, tableName } = params;
 
-  const syntheticMapping = (clickhouseSelect: string) => [
+  const syntheticMapping = (
+    clickhouseSelect: string,
+    emptyEqualsNull?: boolean,
+  ) => [
     {
       uiTableName: filter.column,
       uiTableId: filter.column,
       clickhouseTableName: tableName,
       clickhouseSelect,
       queryPrefix: "",
+      emptyEqualsNull,
     },
   ];
 
-  // Pruning: one filter per where column, OR'd together
+  // Pruning: one filter per where column, OR'd together. It must keep every
+  // row the exact match keeps. The where columns are non-Nullable Strings
+  // that store a missing value as '', so null filters treat '' as NULL;
+  // string filters match the columns as stored.
   const pruneApplied = whereCols.map((col) => {
     const filters = createFilterFromFilterState(
       [filter],
-      syntheticMapping(col),
+      syntheticMapping(col, filter.type === "null"),
     );
     return filters[0].apply();
   });
