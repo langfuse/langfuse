@@ -465,16 +465,30 @@ export function SampleObservationSelectorBase(
       : undefined;
   const querySettled =
     observationQuery.isSuccess && !observationQuery.isFetching;
+  // Matches of traces already stepped through stay in the list, so stepping back retraces them.
+  const matchScope = JSON.stringify([
+    effectiveFilters,
+    searchQuery,
+    searchType,
+  ]);
+  const [visitedMatches, setVisitedMatches] = useState({
+    scope: matchScope,
+    samples: NO_SAMPLES,
+  });
+  const keptMatches =
+    visitedMatches.scope === matchScope ? visitedMatches.samples : NO_SAMPLES;
   // A sample picked in the trace tree may sit outside the loaded pages.
-  const [pickedTraceId, setPickedTraceId] = useState<string | null>(null);
+  const isSelected = (observation: SampleObservation) =>
+    observation.id === selectedObservationId;
+  const knownSample =
+    matchingObservations.find(isSelected) ?? keptMatches.find(isSelected);
+  // Without a known sample, the next one comes from the first loaded trace.
   const sampleTraceId =
     !isTraceTarget && showTraceDetail
-      ? (matchingObservations.find(
-          (observation) => observation.id === selectedObservationId,
-        )?.traceId ?? pickedTraceId)
+      ? (knownSample?.traceId ?? matchingObservations[0]?.traceId ?? null)
       : null;
   // Every match in the sample's trace, so each can be picked from the tree.
-  const sampleTraceMatches = useEvaluatorTraceMatches({
+  const sampleTrace = useEvaluatorTraceMatches({
     projectId,
     filter: effectiveFilters,
     searchQuery,
@@ -492,7 +506,7 @@ export function SampleObservationSelectorBase(
     const index = traceIds.indexOf(sampleTraceId);
     return index === -1 ? null : (traceIds[index + 1] ?? null);
   }, [observationPages, sampleTraceId]);
-  const nextTraceMatches = useEvaluatorTraceMatches({
+  const nextTrace = useEvaluatorTraceMatches({
     projectId,
     filter: effectiveFilters,
     searchQuery,
@@ -500,21 +514,9 @@ export function SampleObservationSelectorBase(
     traceId: nextTraceId,
   });
   const traceMatches = useMemo(
-    () => [...sampleTraceMatches, ...nextTraceMatches],
-    [sampleTraceMatches, nextTraceMatches],
+    () => [...sampleTrace.samples, ...nextTrace.samples],
+    [sampleTrace.samples, nextTrace.samples],
   );
-  // Matches of traces already stepped through stay in the list, so stepping back retraces them.
-  const matchScope = JSON.stringify([
-    effectiveFilters,
-    searchQuery,
-    searchType,
-  ]);
-  const [visitedMatches, setVisitedMatches] = useState({
-    scope: matchScope,
-    samples: NO_SAMPLES,
-  });
-  const keptMatches =
-    visitedMatches.scope === matchScope ? visitedMatches.samples : NO_SAMPLES;
   const detailObservations = useMemo(() => {
     const loaded = observationPages.flat();
     if (isTraceTarget) return matchingTraces(loaded);
@@ -533,9 +535,11 @@ export function SampleObservationSelectorBase(
     keptMatches,
     traceMatches,
   ]);
-  const detailSelectionToReconcile = querySettled
-    ? resolveSelection(detailObservations, selectedObservationId)
-    : undefined;
+  // A first sample waits for every match of its trace, so none slots in ahead of it later.
+  const detailSelectionToReconcile =
+    querySettled && sampleTrace.isSettled
+      ? resolveSelection(detailObservations, selectedObservationId)
+      : undefined;
   const loadedPageCount = observationQuery.data?.pages.length ?? 0;
   const traceCount = useEvaluatorSampleTraceCount({
     projectId,
@@ -808,7 +812,6 @@ export function SampleObservationSelectorBase(
             pending={observationsPending}
             onSelect={(observation) => {
               setAutoPageLimit(loadedPageCount + MAX_TRACE_SAMPLE_PAGES);
-              setPickedTraceId(observation?.traceId ?? null);
               const keptIds = new Set(keptMatches.map(({ id }) => id));
               setVisitedMatches({
                 scope: matchScope,

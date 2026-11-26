@@ -58,12 +58,15 @@ export function useEvaluatorTraceMatches({
 
   const isComplete =
     query.isSuccess && (!query.hasNextPage || pageCount >= MAX_PAGES);
+  // Nothing to load, everything loaded, or a failed lookup that will not block.
+  const isSettled = traceId === null || isComplete || query.isError;
 
-  return useMemo(
+  const samples = useMemo(
     () =>
       traceId === null || !isComplete
         ? []
         : (pages ?? []).flatMap((page) => page.observations),
     [traceId, isComplete, pages],
   );
+  return { samples, isSettled };
 }
