@@ -1,7 +1,11 @@
 import { type NextApiRequest } from "next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ForbiddenError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  ForbiddenError,
+  InvalidRequestError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { addUserToSpan, instrumentAsync } from "@langfuse/shared/src/server";
 
@@ -93,13 +97,18 @@ const basic = (username: string) => ({
   authorization: `Basic ${btoa(`${username}:sk-lf-1`)}`,
 });
 
-const forbidden = (message: string) => ({
+const rejected = (
+  error: typeof ForbiddenError | typeof InvalidRequestError,
+  message: string,
+) => ({
   success: false,
-  error: expect.objectContaining({
-    constructor: ForbiddenError,
-    message,
-  }),
+  error: expect.objectContaining({ constructor: error, message }),
 });
+
+const forbidden = (message: string) => rejected(ForbiddenError, message);
+
+const invalidRequest = (message: string) =>
+  rejected(InvalidRequestError, message);
 
 describe("getOrgId", () => {
   it("resolves the bound org", () => {
@@ -209,7 +218,7 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         ),
       ).toEqual({ success: true, projectId: PRJ });
     });
-    it("403s an unbound key whose path and header name different projects", () => {
+    it("400s an unbound key whose path and header name different projects", () => {
       expect(
         getProjectId(
           orgKey(),
@@ -220,7 +229,7 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
           ),
         ),
       ).toMatchObject(
-        forbidden(
+        invalidRequest(
           "Project ids from the 'langfuse-project-id' header, authorization header, and url path disagree",
         ),
       );
@@ -276,14 +285,14 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         ),
       ).toEqual({ success: true, projectId: PRJ });
     });
-    it("403s when the Basic auth username and header disagree", () => {
+    it("400s when the Basic auth username and header disagree", () => {
       expect(
         getProjectId(
           orgKey(),
           req({}, { ...basic(PRJ), [projectIdHeader]: "prj_2" }),
         ),
       ).toMatchObject(
-        forbidden(
+        invalidRequest(
           "Project ids from the 'langfuse-project-id' header, authorization header, and url path disagree",
         ),
       );

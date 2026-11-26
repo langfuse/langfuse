@@ -3,6 +3,7 @@ import { type z } from "zod";
 import {
   ForbiddenError,
   InternalServerError,
+  InvalidRequestError,
   LangfuseNotFoundError,
   ServiceUnavailableError,
   UnauthorizedError,
@@ -74,6 +75,14 @@ export const unauthorizedError = (
 ): ErrorResult<UnauthorizedError> => ({
   success: false,
   error: new UnauthorizedError(message),
+});
+
+/** invalidRequestError is a 400 ErrorResult carrying an optional message. */
+export const invalidRequestError = (
+  message?: string,
+): ErrorResult<InvalidRequestError> => ({
+  success: false,
+  error: new InvalidRequestError(message),
 });
 
 /** forbiddenError is a 403 ErrorResult carrying an optional message. */

@@ -5,6 +5,7 @@ import { type Span } from "@opentelemetry/api";
 import {
   type ForbiddenError,
   type InternalServerError,
+  type InvalidRequestError,
   type LangfuseNotFoundError,
   type ServiceUnavailableError,
   type UnauthorizedError,
@@ -32,6 +33,7 @@ import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessSc
 import {
   forbiddenError,
   internalServerError,
+  invalidRequestError,
   notFoundError,
   type AuthorizationContext,
   type Decision,
@@ -45,14 +47,6 @@ export const __dangerouslySkipAuthz = "__dangerouslySkipAuthz" as const;
 
 /** projectIdHeader selects the target project for keys without a bound project. */
 const projectIdHeader = "langfuse-project-id";
-
-/** projectErrors are the 403 messages for a request whose target project cannot be resolved for the key. */
-const projectErrors = {
-  missing: `Multi-project API keys require the '${projectIdHeader}' header to select a project`,
-  mismatch: `Project ids from the '${projectIdHeader}' header, authorization header, and url path disagree`,
-  unauthorized: (projectId: string) =>
-    `The API Key is not authorized to access project '${projectId}'`,
-};
 
 /** enforceAuth authenticates the request and authorizes the action for the given endpoint, or only resolves context when the route skips authz (combines authz and authn). */
 export async function enforceAuth({
@@ -203,14 +197,14 @@ function getOrgId(
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
-): ResolvedProject | ErrorResult<ForbiddenError> {
+): ResolvedProject | ErrorResult<ForbiddenError | InvalidRequestError> {
   const selected = [
     getPathProjectId(req),
     getHeaderProjectId(req),
     getBasicAuthProjectId(req),
   ];
   if (!equal(selected)) {
-    return forbiddenError(projectErrors.mismatch);
+    return badProjectIdInputError();
   }
 
   const boundProjectId = getBoundProjectId(context);
@@ -220,16 +214,39 @@ function getProjectId(
     requestedProjectId &&
     requestedProjectId !== boundProjectId
   ) {
-    return forbiddenError(projectErrors.unauthorized(requestedProjectId));
+    return unauthorizedProjectError(requestedProjectId);
   }
 
   const projectId =
     boundProjectId ?? requestedProjectId ?? getUrlProjectId(req);
   if (!projectId) {
-    return forbiddenError(projectErrors.missing);
+    return missingProjectIdError();
   }
 
   return { success: true, projectId };
+}
+
+/** missingProjectIdError is the 403 for a multi-project key that names no project. */
+function missingProjectIdError(): ErrorResult<ForbiddenError> {
+  return forbiddenError(
+    `Multi-project API keys require the '${projectIdHeader}' header to select a project`,
+  );
+}
+
+/** badProjectIdInputError is the 400 for a request whose header, authorization header, and URL path name different projects. */
+function badProjectIdInputError(): ErrorResult<InvalidRequestError> {
+  return invalidRequestError(
+    `Project ids from the '${projectIdHeader}' header, authorization header, and url path disagree`,
+  );
+}
+
+/** unauthorizedProjectError is the 403 for a key naming a project it is not bound to. */
+function unauthorizedProjectError(
+  projectId: string,
+): ErrorResult<ForbiddenError> {
+  return forbiddenError(
+    `The API Key is not authorized to access project '${projectId}'`,
+  );
 }
 
 /** lookupProjectOrgId reads a project's org from the database, 404ing when the project is absent. */
@@ -364,6 +381,7 @@ export type EnforceAuthResult =
   | ErrorResult<
       | UnauthorizedError
       | InternalServerError
+      | InvalidRequestError
       | ForbiddenError
       | LangfuseNotFoundError
       | ServiceUnavailableError
