@@ -288,11 +288,15 @@ type MapTextLabel = {
 /** Pixels of clear space over which a crowded label fades back in. */
 const labelFadeGap = 16;
 
-/** Estimated bold title width in ems: wide scripts take a full em per character. */
+/** Upper-bound bold title width in ems, so short names are not clipped by their box. */
 function titleEms(title: string) {
-  let ems = 0;
-  for (const char of title)
-    ems += (char.codePointAt(0) ?? 0) >= 0x2e80 ? 1 : 0.62;
+  let ems = 0.5;
+  for (const char of title) {
+    const code = char.codePointAt(0) ?? 0;
+    if (code >= 0x2e80 || char === "M" || char === "W") ems += 1;
+    else if (char !== char.toLowerCase()) ems += 0.75;
+    else ems += 0.62;
+  }
   return ems;
 }
 
@@ -394,12 +398,19 @@ export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
     });
   }
 
-  // Greedy placement in rank order. A label's placement drops as its clear
-  // space to earlier labels shrinks, weighted by how strongly each earlier
-  // label claims its spot. A label claims fully before it becomes visible, so
-  // visible labels never overlap, and every step is continuous in the camera,
-  // so names fade rather than pop while zooming or panning. Dimming does not
-  // affect placement, so filtering never reshuffles which names are shown.
+  placeLabels(labels, readingTopic);
+  return labels;
+}
+
+/**
+ * Greedy placement in rank order. A label's placement drops as its clear space
+ * to earlier labels shrinks, weighted by how strongly each earlier label claims
+ * its spot. A label claims fully before it becomes visible, so visible labels
+ * never overlap, and every step is continuous in the camera, so names fade
+ * rather than pop while zooming or panning. Dimming does not affect placement,
+ * so filtering never reshuffles which names are shown.
+ */
+function placeLabels(labels: MapTextLabel[], readingTopic: string | null) {
   const placed: { rect: MapRectangle; claim: number }[] = [];
   const byRank = labels
     .map((label, order) => ({
@@ -426,7 +437,6 @@ export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
     const claim = smoothStep(0, 0.5, placement);
     if (claim > 0) placed.push({ rect: label.rect, claim });
   }
-  return labels;
 }
 
 export function hitMapNode(
