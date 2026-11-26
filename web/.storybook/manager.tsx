@@ -35,11 +35,11 @@ function ComponentRelationshipsTool() {
       title: "View component relationships",
       "aria-label": "View component relationships",
       onClick: () => {
-        api.setQueryParams({
-          args: null,
-          [COMPONENT_RELATIONSHIP_QUERY]: componentId,
-        });
-        api.selectStory("design-component-relationships--docs");
+        const query = new URLSearchParams(window.location.search);
+        query.set("path", "/docs/design-component-relationships--docs");
+        query.set(COMPONENT_RELATIONSHIP_QUERY, componentId);
+        query.delete("args");
+        api.navigateUrl(`?${query}`, {});
       },
     },
     "Relationships",
