@@ -519,9 +519,7 @@ pub(super) fn extract_response_json(
     value: &Value,
     blocks: &mut Vec<crate::guardrails::response::ResponseBlock>,
 ) -> Result<(), crate::guardrails::text::Unreadable> {
-    use crate::guardrails::response::{
-        collect_annotations, collect_text_or_parts, ptr_push, push_leaf,
-    };
+    use crate::guardrails::response::{collect_text_or_parts, ptr_push, push_leaf};
     use crate::guardrails::text::Unreadable;
 
     let Some(choices) = value.get("choices").filter(|v| !v.is_null()) else {
@@ -536,7 +534,7 @@ pub(super) fn extract_response_json(
         let map = message.as_object().ok_or(Unreadable)?;
         for key in ["content", "refusal", "reasoning", "reasoning_content"] {
             if let Some(field) = map.get(key) {
-                collect_text_or_parts(field, None, &ptr_push(&msg_ptr, key), 0, blocks)?;
+                collect_text_or_parts(field, &ptr_push(&msg_ptr, key), 0, blocks)?;
             }
         }
         if let Some(calls) = map.get("tool_calls").filter(|v| !v.is_null()) {
@@ -544,7 +542,6 @@ pub(super) fn extract_response_json(
                 if let Some(args) = call.pointer("/function/arguments").and_then(Value::as_str) {
                     push_leaf(
                         blocks,
-                        None,
                         args,
                         format!("{msg_ptr}/tool_calls/{call_idx}/function/arguments"),
                         true,
@@ -553,7 +550,6 @@ pub(super) fn extract_response_json(
                 if let Some(input) = call.pointer("/custom/input").and_then(Value::as_str) {
                     push_leaf(
                         blocks,
-                        None,
                         input,
                         format!("{msg_ptr}/tool_calls/{call_idx}/custom/input"),
                         true,
@@ -567,27 +563,10 @@ pub(super) fn extract_response_json(
         {
             push_leaf(
                 blocks,
-                None,
                 args,
                 format!("{msg_ptr}/function_call/arguments"),
                 true,
             );
-        }
-        if let Some(transcript) = message.pointer("/audio/transcript").and_then(Value::as_str) {
-            push_leaf(
-                blocks,
-                None,
-                transcript,
-                format!("{msg_ptr}/audio/transcript"),
-                true,
-            );
-        }
-        if let Some(annotations) = map.get("annotations").filter(|v| !v.is_null()) {
-            collect_annotations(
-                annotations,
-                &format!("{msg_ptr}/annotations"),
-                &mut |text, ptr| push_leaf(blocks, None, text, ptr, true),
-            )?;
         }
     }
     Ok(())
@@ -598,9 +577,7 @@ pub(super) fn extract_response_sse(
     value: &Value,
     collector: &mut crate::guardrails::response::StreamCollector,
 ) -> Result<(), crate::guardrails::text::Unreadable> {
-    use crate::guardrails::response::{
-        StreamKey, collect_annotations, ptr_push, visit_text_or_parts,
-    };
+    use crate::guardrails::response::{StreamKey, ptr_push, visit_text_or_parts};
     use crate::guardrails::text::Unreadable;
 
     let Some(choices) = value.get("choices").filter(|v| !v.is_null()) else {
@@ -674,51 +651,8 @@ pub(super) fn extract_response_sse(
                 args,
             );
         }
-        if let Some(transcript) = delta.pointer("/audio/transcript").and_then(Value::as_str) {
-            collector.push_delta(
-                StreamKey::Chat(choice_idx, "audio"),
-                frame_idx,
-                format!("{delta_ptr}/audio/transcript"),
-                transcript,
-            );
-        }
-        if let Some(annotations) = map.get("annotations").filter(|v| !v.is_null()) {
-            collect_annotations(
-                annotations,
-                &format!("{delta_ptr}/annotations"),
-                &mut |text, ptr| {
-                    collector.attach_or_push_leaf(frame_idx, text, ptr);
-                },
-            )?;
-        }
     }
     Ok(())
-}
-
-pub(super) fn has_response_logprobs(value: &Value) -> bool {
-    value
-        .get("choices")
-        .and_then(Value::as_array)
-        .is_some_and(|choices| {
-            choices
-                .iter()
-                .any(|choice| choice.get("logprobs").is_some_and(|lp| !lp.is_null()))
-        })
-}
-
-pub(super) fn scrub_response_logprobs(value: &mut Value) -> bool {
-    let mut changed = false;
-    if let Some(choices) = value.get_mut("choices").and_then(Value::as_array_mut) {
-        for choice in choices {
-            if let Some(lp) = choice.get_mut("logprobs")
-                && !lp.is_null()
-            {
-                *lp = Value::Null;
-                changed = true;
-            }
-        }
-    }
-    changed
 }
 
 #[cfg(test)]

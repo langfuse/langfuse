@@ -1,13 +1,12 @@
 //! Format-agnostic response guardrail parsing, memory budgeting, and in-place
 //! redaction for non-streaming JSON and streaming SSE provider outputs.
 //!
-//! Format-specific JSON/SSE field extraction and `logprobs` scrubbing live in
-//! the provider protocol modules under [`crate::capture`]. Each logical model
-//! output (a JSON leaf, or an SSE delta stream plus any matching summary fields)
-//! is collected once as a [`ResponseBlock`]. When no guardrail redacts the
-//! response, the caller relays the original raw bytes untouched; when redaction
-//! fires, modified strings and `logprobs` token copies are rewritten in place
-//! via JSON pointers.
+//! Format-specific JSON/SSE field extraction lives in the provider protocol
+//! modules under [`crate::capture`]. Each logical model output (a JSON leaf, or
+//! an SSE delta stream plus any matching summary fields) is collected once as a
+//! [`ResponseBlock`]. When no guardrail redacts the response, the caller relays
+//! the original raw bytes untouched; when redaction fires, modified strings are
+//! rewritten in place via JSON pointers.
 use std::{
     collections::{HashMap, HashSet},
     fmt,
@@ -145,7 +144,6 @@ pub(crate) struct ResponseBlock {
 
 /// Parsed response body paired with its extracted logical text blocks.
 pub(crate) struct ParsedResponse {
-    api_format: ApiFormat,
     body: ParsedBody,
     blocks: Vec<ResponseBlock>,
     /// Memory budget held for retained `ResponseBlock` strings and JSON pointers
@@ -157,14 +155,9 @@ enum ParsedBody {
     Json(Bytes),
     Sse {
         raw: Bytes,
-        frames: Vec<SseFrameSpan>,
+        frames: Vec<Range<usize>>,
         _frames_reservation: Option<MemoryReservation>,
     },
-}
-
-struct SseFrameSpan {
-    raw_range: Range<usize>,
-    has_logprobs: bool,
 }
 
 fn blocks_retained_bytes(blocks: &[ResponseBlock]) -> usize {
@@ -225,8 +218,8 @@ impl ParsedResponse {
         self.blocks.iter().map(|block| block.text.len()).sum()
     }
 
-    /// Rewrites every modified `(block_index, redacted_text)` in place, scrubs
-    /// `logprobs` token copies, and serializes the updated body.
+    /// Rewrites every modified `(block_index, redacted_text)` in place and
+    /// serializes the updated body.
     pub(crate) fn apply_redactions(
         self,
         edits: &[(usize, String)],
@@ -281,23 +274,21 @@ impl ParsedResponse {
                     };
                     *target = Value::String(text.to_owned());
                 }
-                capture::scrub_response_logprobs(self.api_format, &mut value);
                 Ok(serde_json::to_vec(&value).ok().map(Bytes::from))
             }
             ParsedBody::Sse { raw, frames, .. } => {
                 if !json_edits.is_empty() {
                     return Ok(None);
                 }
-                apply_sse_redactions(self.api_format, &raw, &frames, &sse_edits, budget)
+                apply_sse_redactions(&raw, &frames, &sse_edits, budget)
             }
         }
     }
 }
 
 fn apply_sse_redactions(
-    api_format: ApiFormat,
     raw: &[u8],
-    frames: &[SseFrameSpan],
+    frames: &[Range<usize>],
     sse_edits: &HashMap<usize, Vec<(&str, &str)>>,
     budget: Option<&Arc<Semaphore>>,
 ) -> Result<Option<Bytes>, ResolutionError> {
@@ -309,15 +300,14 @@ fn apply_sse_redactions(
         .map(|budget| MemoryReservation::from_budget(budget, text.len(), "guardrails"))
         .transpose()?;
     let mut out = String::with_capacity(text.len());
-    for (frame_idx, frame) in frames.iter().enumerate() {
-        let Some(raw_slice) = text.get(frame.raw_range.clone()) else {
+    for (frame_idx, raw_range) in frames.iter().enumerate() {
+        let Some(raw_slice) = text.get(raw_range.clone()) else {
             return Ok(None);
         };
-        let frame_edits = sse_edits.get(&frame_idx);
-        if frame_edits.is_none() && !frame.has_logprobs {
+        let Some(edits_for_frame) = sse_edits.get(&frame_idx) else {
             out.push_str(raw_slice);
             continue;
-        }
+        };
         let Some((prefix, Some(payload))) = split_single_sse_frame(raw_slice) else {
             return Ok(None);
         };
@@ -326,18 +316,11 @@ fn apply_sse_redactions(
             Err(ResponseParseError::Busy) => return Err(ResolutionError::Busy),
             Err(ResponseParseError::Unreadable) => return Ok(None),
         };
-        if let Some(edits_for_frame) = frame_edits {
-            for &(ptr, replacement) in edits_for_frame {
-                let Some(target) = value.pointer_mut(ptr) else {
-                    return Ok(None);
-                };
-                *target = Value::String(replacement.to_owned());
-            }
-        }
-        let scrubbed = capture::scrub_response_logprobs(api_format, &mut value);
-        if frame_edits.is_none() && !scrubbed {
-            out.push_str(raw_slice);
-            continue;
+        for &(ptr, replacement) in edits_for_frame {
+            let Some(target) = value.pointer_mut(ptr) else {
+                return Ok(None);
+            };
+            *target = Value::String(replacement.to_owned());
         }
         let Ok(encoded) = serde_json::to_string(&value) else {
             return Ok(None);
@@ -515,7 +498,6 @@ fn parse_json(
     }
     let blocks_reservation = reserve_retained_blocks(&blocks, budget)?;
     Ok(ParsedResponse {
-        api_format,
         body: ParsedBody::Json(body),
         blocks,
         _blocks_reservation: blocks_reservation,
@@ -528,18 +510,17 @@ fn parse_sse_frame(
     data_lines: &[&str],
     budget: Option<&Arc<Semaphore>>,
     collector: &mut StreamCollector,
-) -> Result<(bool, usize), ResponseParseError> {
+) -> Result<usize, ResponseParseError> {
     if data_lines.is_empty() {
-        return Ok((false, 0));
+        return Ok(0);
     }
     let payload = data_lines.join("\n");
     if payload == "[DONE]" {
-        return Ok((false, 0));
+        return Ok(0);
     }
     let (value, _frame_reservation) = parse_unique_json(payload.as_bytes(), budget)?;
-    let has_logprobs = capture::has_response_logprobs(api_format, &value);
     capture::extract_response_sse(api_format, frame_idx, &value, collector)?;
-    Ok((has_logprobs, collector.take_growth_bytes()))
+    Ok(collector.take_growth_bytes())
 }
 
 fn parse_sse(
@@ -587,20 +568,17 @@ fn parse_sse(
             _ => {}
         }
         if line.is_empty() {
-            let (has_logprobs, growth) = parse_sse_frame(
+            let growth = parse_sse_frame(
                 api_format,
                 frames.len(),
                 &data_lines,
                 budget,
                 &mut collector,
             )?;
-            if !frames_budget.charge(size_of::<SseFrameSpan>().saturating_add(growth)) {
+            if !frames_budget.charge(size_of::<Range<usize>>().saturating_add(growth)) {
                 return Err(ResponseParseError::Busy);
             }
-            frames.push(SseFrameSpan {
-                raw_range: event_start..cursor,
-                has_logprobs,
-            });
+            frames.push(event_start..cursor);
             data_lines.clear();
             event_start = cursor;
             continue;
@@ -615,20 +593,16 @@ fn parse_sse(
         return Err(ResponseParseError::Unreadable);
     }
     if event_start < bytes.len() {
-        if !frames_budget.charge(size_of::<SseFrameSpan>()) {
+        if !frames_budget.charge(size_of::<Range<usize>>()) {
             return Err(ResponseParseError::Busy);
         }
-        frames.push(SseFrameSpan {
-            raw_range: event_start..bytes.len(),
-            has_logprobs: false,
-        });
+        frames.push(event_start..bytes.len());
     }
     if !frames_budget.flush() {
         return Err(ResponseParseError::Busy);
     }
     let blocks = collector.finish();
     Ok(ParsedResponse {
-        api_format,
         body: ParsedBody::Sse {
             raw,
             frames,
@@ -786,13 +760,7 @@ pub(crate) fn ptr_index(base: &str, index: usize) -> String {
     format!("{base}/{index}")
 }
 
-pub(crate) fn push_leaf(
-    blocks: &mut Vec<ResponseBlock>,
-    frame_idx: Option<usize>,
-    text: &str,
-    ptr: String,
-    editable: bool,
-) {
+pub(crate) fn push_leaf(blocks: &mut Vec<ResponseBlock>, text: &str, ptr: String, editable: bool) {
     if text.is_empty() {
         return;
     }
@@ -800,7 +768,7 @@ pub(crate) fn push_leaf(
         text: text.to_owned(),
         editable,
         deltas: Vec::new(),
-        leaves: vec![(frame_idx, ptr)],
+        leaves: vec![(None, ptr)],
     });
 }
 
@@ -809,7 +777,6 @@ pub(crate) fn push_leaf(
 /// is rewritten together.
 pub(crate) fn attach_matching_or_push_leaf(
     blocks: &mut Vec<ResponseBlock>,
-    frame_idx: Option<usize>,
     text: &str,
     ptr: String,
 ) {
@@ -817,10 +784,10 @@ pub(crate) fn attach_matching_or_push_leaf(
         return;
     }
     if let Some(block) = blocks.iter_mut().find(|block| block.text == text) {
-        block.leaves.push((frame_idx, ptr));
+        block.leaves.push((None, ptr));
         return;
     }
-    push_leaf(blocks, frame_idx, text, ptr, true);
+    push_leaf(blocks, text, ptr, true);
 }
 
 pub(crate) fn visit_text_or_parts(
@@ -840,7 +807,7 @@ pub(crate) fn visit_text_or_parts(
                 match item {
                     Value::String(text) => visit(item_ptr, text),
                     Value::Object(map) => {
-                        for key in ["text", "refusal", "transcript", "content"] {
+                        for key in ["text", "refusal", "content"] {
                             if let Some(field) = map.get(key) {
                                 visit_text_or_parts(
                                     field,
@@ -862,20 +829,18 @@ pub(crate) fn visit_text_or_parts(
 
 pub(crate) fn collect_text_or_parts(
     value: &Value,
-    frame_idx: Option<usize>,
     ptr: &str,
     depth: usize,
     blocks: &mut Vec<ResponseBlock>,
 ) -> Result<(), Unreadable> {
     visit_text_or_parts(value, ptr, depth, &mut |leaf_ptr, text| {
-        push_leaf(blocks, frame_idx, text, leaf_ptr, true);
+        push_leaf(blocks, text, leaf_ptr, true);
     })
 }
 
 pub(crate) fn visit_all_strings(
     value: &Value,
     ptr: &str,
-    skip_keys: &[&str],
     depth: usize,
     visit: &mut impl FnMut(String, &str),
 ) -> Result<(), Unreadable> {
@@ -886,14 +851,12 @@ pub(crate) fn visit_all_strings(
         Value::String(text) => visit(ptr.to_owned(), text),
         Value::Array(items) => {
             for (index, item) in items.iter().enumerate() {
-                visit_all_strings(item, &ptr_index(ptr, index), skip_keys, depth + 1, visit)?;
+                visit_all_strings(item, &ptr_index(ptr, index), depth + 1, visit)?;
             }
         }
         Value::Object(map) => {
             for (key, field) in map {
-                if !skip_keys.contains(&key.as_str()) {
-                    visit_all_strings(field, &ptr_push(ptr, key), skip_keys, depth + 1, visit)?;
-                }
+                visit_all_strings(field, &ptr_push(ptr, key), depth + 1, visit)?;
             }
         }
         _ => {}
@@ -903,54 +866,11 @@ pub(crate) fn visit_all_strings(
 
 pub(crate) fn collect_all_strings(
     value: &Value,
-    frame_idx: Option<usize>,
     ptr: &str,
-    skip_keys: &[&str],
     depth: usize,
     blocks: &mut Vec<ResponseBlock>,
 ) -> Result<(), Unreadable> {
-    visit_all_strings(value, ptr, skip_keys, depth, &mut |leaf_ptr, text| {
-        push_leaf(blocks, frame_idx, text, leaf_ptr, true);
+    visit_all_strings(value, ptr, depth, &mut |leaf_ptr, text| {
+        push_leaf(blocks, text, leaf_ptr, true);
     })
-}
-
-pub(crate) fn collect_citation_fields(
-    citation: &Value,
-    base_ptr: &str,
-    on_field: &mut impl FnMut(&str, String),
-) {
-    let Some(map) = citation.as_object() else {
-        return;
-    };
-    for key in [
-        "cited_text",
-        "document_title",
-        "title",
-        "url",
-        "source",
-        "filename",
-        "text",
-        "quote",
-    ] {
-        if let Some(text) = map.get(key).and_then(Value::as_str) {
-            on_field(text, ptr_push(base_ptr, key));
-        }
-    }
-    for nested_key in ["url_citation", "file_citation", "file_path"] {
-        if let Some(nested) = map.get(nested_key) {
-            collect_citation_fields(nested, &ptr_push(base_ptr, nested_key), on_field);
-        }
-    }
-}
-
-pub(crate) fn collect_annotations(
-    annotations: &Value,
-    base_ptr: &str,
-    on_field: &mut impl FnMut(&str, String),
-) -> Result<(), Unreadable> {
-    for (idx, annotation) in annotations.as_array().ok_or(Unreadable)?.iter().enumerate() {
-        let ann_ptr = ptr_index(base_ptr, idx);
-        collect_citation_fields(annotation, &ann_ptr, on_field);
-    }
-    Ok(())
 }

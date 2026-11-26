@@ -701,14 +701,14 @@ fn rewritten_response_str(outcome: Outcome) -> String {
 }
 
 #[test]
-fn redacts_json_responses_across_formats_and_scrubs_logprobs() {
+fn redacts_json_responses_across_formats() {
     let guardrails = [
         redact_guardrail("email", "[EMAIL]", &[EMAIL]),
         redact_guardrail("ssn", "[SSN]", &[SSN]),
     ];
 
-    // Chat Completions: content, tool_calls (function + custom), annotations, logprobs scrub.
-    let chat = r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"Mail alice@example.com","tool_calls":[{"id":"c1","type":"function","function":{"name":"f","arguments":"{\"ssn\":\"123-45-6789\"}"}},{"id":"c2","type":"custom","custom":{"name":"sql","input":"123-45-6789"}}],"annotations":[{"type":"url_citation","url_citation":{"url":"https://ex.com/?e=alice@example.com","title":"123-45-6789"}}]},"logprobs":{"content":[{"token":"alice@example.com"}]}}]}"#;
+    // Chat Completions: content, tool_calls (function + custom), legacy function_call.
+    let chat = r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"Mail alice@example.com","tool_calls":[{"id":"c1","type":"function","function":{"name":"f","arguments":"{\"ssn\":\"123-45-6789\"}"}},{"id":"c2","type":"custom","custom":{"name":"sql","input":"123-45-6789"}}],"function_call":{"name":"legacy","arguments":"{\"email\":\"bob@example.com\"}"}}}]}"#;
     let chat_out: serde_json::Value =
         serde_json::from_str(&rewritten_response_str(check_response_local(
             &guardrails,
@@ -727,13 +727,12 @@ fn redacts_json_responses_across_formats_and_scrubs_logprobs() {
         "[SSN]"
     );
     assert_eq!(
-        chat_out["choices"][0]["message"]["annotations"][0]["url_citation"]["title"],
-        "[SSN]"
+        chat_out["choices"][0]["message"]["function_call"]["arguments"],
+        r#"{"email":"[EMAIL]"}"#
     );
-    assert!(chat_out["choices"][0]["logprobs"].is_null());
 
-    // Anthropic Messages: thinking, text, citations, tool_use.input.
-    let anthropic = r#"{"content":[{"type":"thinking","thinking":"123-45-6789"},{"type":"text","text":"Mail bob@example.com","citations":[{"cited_text":"123-45-6789"}]},{"type":"tool_use","id":"t1","name":"f","input":{"email":"carol@example.com"}}]}"#;
+    // Anthropic Messages: thinking, text, tool_use.input.
+    let anthropic = r#"{"content":[{"type":"thinking","thinking":"123-45-6789"},{"type":"text","text":"Mail bob@example.com"},{"type":"tool_use","id":"t1","name":"f","input":{"email":"carol@example.com"}}]}"#;
     let ant_out: serde_json::Value =
         serde_json::from_str(&rewritten_response_str(check_response_local(
             &guardrails,
@@ -744,11 +743,10 @@ fn redacts_json_responses_across_formats_and_scrubs_logprobs() {
         .unwrap();
     assert_eq!(ant_out["content"][0]["thinking"], "[SSN]");
     assert_eq!(ant_out["content"][1]["text"], "Mail [EMAIL]");
-    assert_eq!(ant_out["content"][1]["citations"][0]["cited_text"], "[SSN]");
     assert_eq!(ant_out["content"][2]["input"]["email"], "[EMAIL]");
 
-    // OpenAI Responses: output_text dedupe, annotations, nested action, logprobs scrub.
-    let responses = r#"{"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"SSN 123-45-6789","logprobs":[{"token":"123"}],"annotations":[{"type":"url_citation","url":"https://ex.com/?e=bob@example.com"}]}]},{"type":"local_shell_call","action":{"type":"exec","command":["echo","123-45-6789"]}}],"output_text":"SSN 123-45-6789"}"#;
+    // OpenAI Responses: output_text dedupe + function_call + mcp_call + custom_tool_call.
+    let responses = r#"{"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"SSN 123-45-6789"}]},{"type":"function_call","arguments":"{\"email\":\"bob@example.com\"}"},{"type":"custom_tool_call","input":"123-45-6789"}],"output_text":"SSN 123-45-6789"}"#;
     let parsed_resp = ParsedResponse::parse(
         ApiFormat::OpenAiResponses,
         ResponseFormat::Json,
@@ -756,7 +754,7 @@ fn redacts_json_responses_across_formats_and_scrubs_logprobs() {
         None,
     )
     .unwrap();
-    assert_eq!(parsed_resp.blocks().len(), 4);
+    assert_eq!(parsed_resp.blocks().len(), 3);
     let resp_out: serde_json::Value =
         serde_json::from_str(&rewritten_response_str(check_response_local(
             &guardrails,
@@ -767,26 +765,18 @@ fn redacts_json_responses_across_formats_and_scrubs_logprobs() {
         .unwrap();
     assert_eq!(resp_out["output"][0]["content"][0]["text"], "SSN [SSN]");
     assert_eq!(resp_out["output_text"], "SSN [SSN]");
-    assert_eq!(
-        resp_out["output"][0]["content"][0]["logprobs"],
-        serde_json::json!([])
-    );
-    assert_eq!(
-        resp_out["output"][0]["content"][0]["annotations"][0]["url"],
-        "https://ex.com/?e=[EMAIL]"
-    );
-    assert_eq!(resp_out["output"][1]["action"]["type"], "exec");
-    assert_eq!(resp_out["output"][1]["action"]["command"][1], "[SSN]");
+    assert_eq!(resp_out["output"][1]["arguments"], r#"{"email":"[EMAIL]"}"#);
+    assert_eq!(resp_out["output"][2]["input"], "[SSN]");
 }
 
 #[test]
 fn redacts_sse_responses_across_formats_and_span_boundaries() {
     let guardrails = [redact_guardrail("ssn", "[SSN]", &[SSN])];
 
-    // Chat Completions: array delta + custom tool input split across chunks + logprobs scrub.
+    // Chat Completions: array delta + tool_calls (function + custom) split across chunks.
     let chat_sse = concat!(
-        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":[{\"type\":\"text\",\"text\":\"SSN 123-\"}],\"tool_calls\":[{\"index\":0,\"custom\":{\"input\":\"123-\"}}]},\"logprobs\":{\"content\":[{\"token\":\"123-\"}]}}]}\n\n",
-        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":[{\"type\":\"text\",\"text\":\"45-6789\"}],\"tool_calls\":[{\"index\":0,\"custom\":{\"input\":\"45-6789\"}}]}}]}\n\n",
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":[{\"type\":\"text\",\"text\":\"SSN 123-\"}],\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"123-\"}},{\"index\":1,\"custom\":{\"input\":\"123-\"}}]}}]}\n\n",
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":[{\"type\":\"text\",\"text\":\"45-6789\"}],\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"45-6789\"}},{\"index\":1,\"custom\":{\"input\":\"45-6789\"}}]}}]}\n\n",
         "data: [DONE]\n\n"
     );
     let chat_out = rewritten_response_str(check_response_local(
@@ -796,15 +786,17 @@ fn redacts_sse_responses_across_formats_and_span_boundaries() {
         chat_sse,
     ));
     assert!(!chat_out.contains("123-") && !chat_out.contains("45-6789"));
-    assert!(chat_out.contains("SSN [SSN]") && chat_out.contains("\"logprobs\":null"));
+    assert!(chat_out.contains("SSN [SSN]"));
+    assert_eq!(chat_out.matches("[SSN]").count(), 3);
 
-    // Anthropic Messages: split text_delta + citations_delta + content_block_start tool content.
+    // Anthropic Messages: split text_delta + split input_json_delta.
     let anthropic_sse = concat!(
         "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
         "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"123-\"}}\n\n",
         "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"45-6789\"}}\n\n",
-        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"citations_delta\",\"citation\":{\"cited_text\":\"123-45-6789\"}}}\n\n",
-        "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"web_search_tool_result\",\"content\":[{\"type\":\"text\",\"text\":\"123-45-6789\"}]}}\n\n"
+        "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"f\",\"input\":{}}}\n\n",
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"ssn\\\":\\\"123-\"}}\n\n",
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"45-6789\\\"}\"}}\n\n"
     );
     let ant_out = rewritten_response_str(check_response_local(
         &guardrails,
@@ -813,16 +805,17 @@ fn redacts_sse_responses_across_formats_and_span_boundaries() {
         anthropic_sse,
     ));
     assert!(!ant_out.contains("123-") && !ant_out.contains("45-6789"));
-    assert_eq!(ant_out.matches("[SSN]").count(), 3);
+    assert_eq!(ant_out.matches("[SSN]").count(), 2);
 
-    // OpenAI Responses: deltas + done + annotation + action deduplicated across summaries.
+    // OpenAI Responses: output_text + function_call_arguments deltas deduplicated across summaries.
     let responses_sse = concat!(
         "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"content_index\":0,\"delta\":\"SSN 123-\"}\n\n",
         "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"content_index\":0,\"delta\":\"45-6789\"}\n\n",
         "event: response.output_text.done\ndata: {\"type\":\"response.output_text.done\",\"output_index\":0,\"content_index\":0,\"text\":\"SSN 123-45-6789\"}\n\n",
-        "event: response.output_text.annotation.added\ndata: {\"type\":\"response.output_text.annotation.added\",\"output_index\":0,\"content_index\":0,\"annotation\":{\"type\":\"url_citation\",\"title\":\"Doc 123-45-6789\"}}\n\n",
-        "event: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"output_index\":1,\"item\":{\"type\":\"local_shell_call\",\"action\":{\"type\":\"exec\",\"command\":[\"echo\",\"123-45-6789\"]}}}\n\n",
-        "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"r1\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"SSN 123-45-6789\",\"annotations\":[{\"type\":\"url_citation\",\"title\":\"Doc 123-45-6789\"}]}]},{\"type\":\"local_shell_call\",\"action\":{\"type\":\"exec\",\"command\":[\"echo\",\"123-45-6789\"]}}]}}\n\n"
+        "event: response.function_call_arguments.delta\ndata: {\"type\":\"response.function_call_arguments.delta\",\"output_index\":1,\"delta\":\"123-\"}\n\n",
+        "event: response.function_call_arguments.delta\ndata: {\"type\":\"response.function_call_arguments.delta\",\"output_index\":1,\"delta\":\"45-6789\"}\n\n",
+        "event: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"output_index\":1,\"item\":{\"type\":\"function_call\",\"arguments\":\"123-45-6789\"}}\n\n",
+        "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"r1\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"SSN 123-45-6789\"}]},{\"type\":\"function_call\",\"arguments\":\"123-45-6789\"}]}}\n\n"
     );
     let resp_out = rewritten_response_str(check_response_local(
         &guardrails,
@@ -832,7 +825,7 @@ fn redacts_sse_responses_across_formats_and_span_boundaries() {
     ));
     assert!(!resp_out.contains("123-") && !resp_out.contains("45-6789"));
     assert_eq!(resp_out.matches("SSN [SSN]").count(), 3);
-    assert_eq!(resp_out.matches("Doc [SSN]").count(), 2);
+    assert_eq!(resp_out.matches("\"[SSN]\"").count(), 3);
 }
 
 #[test]

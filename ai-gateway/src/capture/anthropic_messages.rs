@@ -494,9 +494,7 @@ pub(super) fn extract_response_json(
     value: &Value,
     blocks: &mut Vec<crate::guardrails::response::ResponseBlock>,
 ) -> Result<(), crate::guardrails::text::Unreadable> {
-    use crate::guardrails::response::{
-        collect_all_strings, collect_citation_fields, collect_text_or_parts, ptr_push, push_leaf,
-    };
+    use crate::guardrails::response::{collect_all_strings, push_leaf};
     use crate::guardrails::text::Unreadable;
 
     let Some(content) = value.get("content").filter(|v| !v.is_null()) else {
@@ -511,29 +509,13 @@ pub(super) fn extract_response_json(
             .is_some_and(|sig| !sig.is_empty());
         if let Some(thinking) = map.get("thinking").and_then(Value::as_str) {
             // Rewriting signed thinking invalidates the provider signature on later turns.
-            push_leaf(
-                blocks,
-                None,
-                thinking,
-                format!("{item_ptr}/thinking"),
-                !is_signed,
-            );
+            push_leaf(blocks, thinking, format!("{item_ptr}/thinking"), !is_signed);
         }
-        for key in ["text", "content"] {
-            if let Some(field) = map.get(key) {
-                collect_text_or_parts(field, None, &ptr_push(&item_ptr, key), 0, blocks)?;
-            }
-        }
-        if let Some(citations) = map.get("citations").filter(|v| !v.is_null()) {
-            for (cit_idx, citation) in citations.as_array().ok_or(Unreadable)?.iter().enumerate() {
-                let cit_ptr = format!("{item_ptr}/citations/{cit_idx}");
-                collect_citation_fields(citation, &cit_ptr, &mut |text, ptr| {
-                    push_leaf(blocks, None, text, ptr, true);
-                });
-            }
+        if let Some(text) = map.get("text").and_then(Value::as_str) {
+            push_leaf(blocks, text, format!("{item_ptr}/text"), true);
         }
         if let Some(input) = map.get("input").filter(|v| !v.is_null()) {
-            collect_all_strings(input, None, &format!("{item_ptr}/input"), &[], 0, blocks)?;
+            collect_all_strings(input, &format!("{item_ptr}/input"), 0, blocks)?;
         }
     }
     Ok(())
@@ -544,10 +526,7 @@ pub(super) fn extract_response_sse(
     value: &Value,
     collector: &mut crate::guardrails::response::StreamCollector,
 ) -> Result<(), crate::guardrails::text::Unreadable> {
-    use crate::guardrails::response::{
-        StreamKey, collect_citation_fields, visit_all_strings, visit_text_or_parts,
-    };
-    use crate::guardrails::text::Unreadable;
+    use crate::guardrails::response::{StreamKey, visit_all_strings};
 
     let index = value.get("index").and_then(Value::as_u64).unwrap_or(0);
     match value.get("type").and_then(Value::as_str) {
@@ -572,32 +551,10 @@ pub(super) fn extract_response_sse(
                     );
                 }
             }
-            if let Some(content) = block.get("content").filter(|v| !v.is_null()) {
-                visit_text_or_parts(
-                    content,
-                    "/content_block/content",
-                    0,
-                    &mut |leaf_ptr, text| collector.push_leaf(frame_idx, text, leaf_ptr),
-                )?;
-            }
-            if let Some(citations) = block.get("citations").filter(|v| !v.is_null()) {
-                for (cit_idx, citation) in
-                    citations.as_array().ok_or(Unreadable)?.iter().enumerate()
-                {
-                    let cit_ptr = format!("/content_block/citations/{cit_idx}");
-                    collect_citation_fields(citation, &cit_ptr, &mut |text, ptr| {
-                        collector.push_summary(None, frame_idx, ptr, text);
-                    });
-                }
-            }
             if let Some(input) = block.get("input").filter(|v| !v.is_null()) {
-                visit_all_strings(
-                    input,
-                    "/content_block/input",
-                    &[],
-                    0,
-                    &mut |leaf_ptr, text| collector.attach_or_push_leaf(frame_idx, text, leaf_ptr),
-                )?;
+                visit_all_strings(input, "/content_block/input", 0, &mut |leaf_ptr, text| {
+                    collector.push_leaf(frame_idx, text, leaf_ptr);
+                })?;
             }
         }
         Some("content_block_delta") => {
@@ -616,7 +573,7 @@ fn extract_response_sse_delta(
     delta: &Map<String, Value>,
     collector: &mut crate::guardrails::response::StreamCollector,
 ) {
-    use crate::guardrails::response::{StreamKey, collect_citation_fields};
+    use crate::guardrails::response::StreamKey;
 
     match delta.get("type").and_then(Value::as_str) {
         Some("signature_delta") => {
@@ -626,13 +583,6 @@ fn extract_response_sse_delta(
                 .is_some_and(|sig| !sig.is_empty())
             {
                 collector.mark_signed_thinking(index);
-            }
-        }
-        Some("citations_delta") => {
-            if let Some(citation) = delta.get("citation") {
-                collect_citation_fields(citation, "/delta/citation", &mut |text, ptr| {
-                    collector.push_summary(None, frame_idx, ptr, text);
-                });
             }
         }
         Some("text_delta") => {

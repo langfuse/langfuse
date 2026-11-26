@@ -241,30 +241,6 @@ pub(crate) fn extract_response_sse(
     }
 }
 
-/// Returns true when a parsed JSON/SSE response frame carries non-null `logprobs`
-/// token copies that must be scrubbed if redaction fires.
-pub(crate) fn has_response_logprobs(api_format: ApiFormat, value: &Value) -> bool {
-    match api_format {
-        ApiFormat::OpenAiChatCompletions => openai_chat_completions::has_response_logprobs(value),
-        ApiFormat::OpenAiResponses => openai_responses::has_response_logprobs(value),
-        ApiFormat::AnthropicMessages | ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => {
-            false
-        }
-    }
-}
-
-/// Scrubs non-null `logprobs` fields in place so token-level copies cannot leak
-/// redacted response text.
-pub(crate) fn scrub_response_logprobs(api_format: ApiFormat, value: &mut Value) -> bool {
-    match api_format {
-        ApiFormat::OpenAiChatCompletions => openai_chat_completions::scrub_response_logprobs(value),
-        ApiFormat::OpenAiResponses => openai_responses::scrub_response_logprobs(value),
-        ApiFormat::AnthropicMessages | ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => {
-            false
-        }
-    }
-}
-
 /// Owned before dispatch and moved into the response body. Drop also covers a
 /// cancelled provider future before response headers have arrived.
 pub(crate) struct ExecutionCapture {
