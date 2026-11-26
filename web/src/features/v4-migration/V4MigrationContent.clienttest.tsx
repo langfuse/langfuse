@@ -1426,6 +1426,21 @@ describe("V4MigrationHeaderContent", () => {
     ).toHaveClass("pr-6");
   });
 
+  it("marks the all-clear note with the same check as a migrated row", () => {
+    render(
+      <V4MigrationHeaderContent
+        readiness="action-needed"
+        remainingActionsAreMigrated
+      />,
+    );
+
+    const note = screen.getByText(/Everything looks good/);
+    expect(note.closest("div")?.querySelector("svg")).not.toBeNull();
+    expect(
+      screen.queryByText(/Complete the action items below/),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps the pitch but drops the action ask for ready or unresolved projects", () => {
     for (const readiness of [
       "ready",
