@@ -427,7 +427,7 @@ function RoleDialog({
               {groups.length > 0 ? "Access granted through" : "Access"}
             </h3>
             {effective.role !== "NONE" && (
-              <RolePermissionsLink role={effective.role} />
+              <RolePermissionsLink role={effective.roles} />
             )}
           </div>
           <ul className="flex flex-col divide-y rounded-lg border">

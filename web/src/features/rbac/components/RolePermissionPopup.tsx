@@ -13,6 +13,8 @@ import {
   RolePermissionList,
   rolePermissionCount,
   rolePermissionNoun,
+  toRoles,
+  type RoleOrRoles,
 } from "@/src/features/rbac/components/RolePermissionList";
 import {
   roleDisplay,
@@ -29,12 +31,16 @@ export function RolePermissionPopup({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  role: SystemRole | null;
+  role: RoleOrRoles | null;
   /** display overrides how the role is presented. */
   display?: (role: SystemRole) => RoleDisplay;
   emptyStateComment?: string;
 }) {
-  const shown = role ? display(role) : undefined;
+  const shownRoles = role ? toRoles(role).map(display) : [];
+  const shown = shownRoles[0] && {
+    Icon: shownRoles[0].Icon,
+    name: shownRoles.map((r) => r.name).join(" + "),
+  };
   const Icon = shown?.Icon;
   const showEmptyStateComment =
     role !== null &&
