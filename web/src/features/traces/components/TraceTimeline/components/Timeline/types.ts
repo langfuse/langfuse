@@ -130,6 +130,8 @@ export type LayoutInput<TNode extends LayoutNode = LayoutNode> = {
   compression?: TimeCompression;
   rowRange?: { startIndex: number; endIndex: number };
   laneByRow?: readonly number[];
+  /** Compact layout still mounts this span when it shares a pixel with another. */
+  selectedId?: string | null;
   formatLabel?: (durationMs: number) => string;
   barInsetPx?: number;
 };

@@ -715,6 +715,7 @@ export function Timeline({
     rowRange,
     laneByRow: packing?.lanes,
     barInsetPx: compact ? 2 : 0,
+    selectedId,
   });
 
   // What each row occupies on the time axis, in the same compressed space the

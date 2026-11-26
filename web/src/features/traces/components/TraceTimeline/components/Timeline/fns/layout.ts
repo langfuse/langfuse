@@ -107,6 +107,9 @@ export function layout<TNode extends LayoutNode>(
     barInsetPx: input.barInsetPx ?? 0,
   };
   const nodes: Array<PositionedNode<TNode>> = [];
+  // Sub-pixel spans on one lane share a bar per pixel column. Dropping them
+  // leaves a fitted session of short traces with nothing to zoom toward.
+  const claimedColumn = new Set<string>();
   const lastIndex = laneByRow ? prepared.rows.length - 1 : to;
   const firstIndex = laneByRow ? 0 : from;
   for (let index = firstIndex; index <= lastIndex; index++) {
@@ -118,24 +121,26 @@ export function layout<TNode extends LayoutNode>(
       if (spanOutsideView(row.node, prepared.originMs, compression, view)) {
         continue;
       }
-      // A span thinner than a pixel cannot be told apart at this zoom. Drawing
-      // it at the minimum bar width mounts one node per observation, which a
-      // session of thousands of short spans cannot afford. Zooming in gives
-      // those spans pixels and they come back.
+      // A span thinner than a pixel cannot be told apart at this zoom. One
+      // bar per pixel column stands for the spans that land there, drawn at
+      // the minimum width. The selected span stays mounted on its own.
       const offsets = spanOffsetsOf(row.node, prepared.originMs);
       const compressedStart = compression.toCompressedMs(offsets.startMs);
       const compressedEnd = compression.toCompressedMs(
         Math.max(offsets.endMs, offsets.startMs),
       );
-      // A zero-duration span is a marker. Its mapped width is 0 at every zoom,
-      // and the minimum bar width is what makes it visible.
+      const selected = row.node.id === input.selectedId;
       if (
+        !selected &&
         compressedEnd > compressedStart &&
         Math.abs(
           transform.toPx(compressedEnd) - transform.toPx(compressedStart),
         ) < 1
       ) {
-        continue;
+        const column = Math.floor(transform.toPx(compressedStart));
+        const key = `${lane}:${column}`;
+        if (claimedColumn.has(key)) continue;
+        claimedColumn.add(key);
       }
     }
     nodes.push(positionRow(row, lane, context));
