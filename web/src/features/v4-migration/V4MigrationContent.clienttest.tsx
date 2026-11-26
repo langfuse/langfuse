@@ -1439,6 +1439,7 @@ describe("V4MigrationHeaderContent", () => {
     expect(
       screen.queryByText(/Complete the action items below/),
     ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Migration is done/)).not.toBeInTheDocument();
   });
 
   it("keeps the pitch but drops the action ask for ready or unresolved projects", () => {

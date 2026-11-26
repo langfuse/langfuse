@@ -1495,11 +1495,9 @@ export function V4MigrationHeaderContent({
             Langfuse Halo
           </ExternalLink>
           .
-          {remainingActionsAreMigrated
-            ? " Migration is done. This banner clears on its own if things stay green."
-            : showActionPrompt
-              ? " Complete the action items below to avoid disruption."
-              : ""}{" "}
+          {showActionPrompt
+            ? " Complete the action items below to avoid disruption."
+            : ""}{" "}
           <V4MigrationDocsLink />
         </p>
         {remainingActionsAreMigrated ? (
