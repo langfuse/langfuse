@@ -4,6 +4,7 @@ import {
 } from "../evals/decisionModelEvaluatorExecution";
 import {
   isAllowedDecisionModel,
+  LangfuseInternalTraceEnvironment,
   LLMAdapter,
   unsupportedDecisionModelMessage,
 } from "./types";
@@ -17,6 +18,7 @@ export function createDecisionModelClient(params: {
   model: string;
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
+  internalEnvironment?: LangfuseInternalTraceEnvironment;
   fetchImpl?: typeof fetch;
 }): DecisionModelClient {
   if (!isAllowedDecisionModel(params.adapter, params.model)) {

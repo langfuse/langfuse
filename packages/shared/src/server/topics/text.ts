@@ -20,7 +20,11 @@ import {
 import { isOpenRouterEndpoint } from "../llm/ai-sdk/providers/openai";
 import { isPlainObject } from "../llm/ai-sdk/providers/utils";
 import { generateLLMText } from "../llm/llmText";
-import { LLMAdapter, type TraceSinkParams } from "../llm/types";
+import {
+  LangfuseInternalTraceEnvironment,
+  LLMAdapter,
+  type TraceSinkParams,
+} from "../llm/types";
 import { logger } from "../logger";
 import { parseOutboundUrl } from "../outbound-url/validation";
 import { writeInternalTraceViaOtelIngestion } from "../otel/internalTraceOtelWriter";
@@ -293,6 +297,7 @@ async function generateWithConnection<T>(
   const result = await generateLLMText({
     model: { adapter: params.model.adapter, id: params.model.model },
     connection: params.model.connection,
+    internalEnvironment: LangfuseInternalTraceEnvironment.Topics,
     // Custom base URLs (gateways, proxies) also need max_completion_tokens for
     // OpenAI reasoning models; the compatible adapter only sends max_tokens.
     openAIChatProvider:

@@ -19,7 +19,7 @@ import {
   type TopicSlotCheck,
 } from "./ConfigureTopicsDialog";
 import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
-import { topicsSetupPayload } from "./topics-setup";
+import { getOpenRouterProviders, topicsSetupPayload } from "./topics-setup";
 import { resolveTopicModelSlot } from "./topic-setup-flow";
 
 type Connection = RouterOutputs["llmApiKey"]["effective"]["data"][number];
@@ -245,6 +245,7 @@ function ConfigureTopicsSettings({
     <ConfigureTopicsDialog
       providerGroups={providerGroups}
       embeddingProviderGroups={embeddingGroups}
+      openRouterProviders={getOpenRouterProviders(connections)}
       draft={draft}
       closeDialog={closeDialog}
       canWrite={canWrite}

@@ -39,6 +39,12 @@ vi.mock("./llm/models", () => ({
 
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
 import { TopicsProviderUnavailable } from "./provider-error";
+import {
+  NAMING_SYSTEM_PROMPT,
+  SUMMARY_SYSTEM_PROMPT,
+  SUMMARY_USER_PROMPT_PREFIX,
+  SUMMARY_USER_PROMPT_SUFFIX,
+} from "./llm/prompts";
 
 const transcript: Transcript = {
   threads: [
@@ -154,22 +160,107 @@ beforeEach(() => {
 
 describe("summarizeAssembledTrace", () => {
   it("skips internal traces before calling models", async () => {
-    const result = await summarize({
-      projectId: "project-a",
-      traceId: "trace-1",
-      sessionId: null,
-      traceTimestamp: "2026-09-22T12:00:00.000Z",
-      environment: "langfuse-topics",
-      traceName: "topics-summary",
-      transcript,
-      models,
-      facets: [facet],
-    });
-    expect(result).toBe("disabled");
+    for (const environment of [
+      "langfuse-topics",
+      "topics-internal",
+      "llm-as-a-judge",
+    ]) {
+      const result = await summarize({
+        projectId: "project-a",
+        traceId: "trace-1",
+        sessionId: null,
+        traceTimestamp: "2026-09-22T12:00:00.000Z",
+        environment,
+        traceName: "topics-summary",
+        transcript,
+        models,
+        facets: [facet],
+      });
+      expect(result).toBe("disabled");
+    }
     expect(state.summarize).not.toHaveBeenCalled();
     expect(state.embed).not.toHaveBeenCalled();
     expect(summaries).toEqual([]);
   });
+
+  it("still summarizes a customer trace in an environment named topics", async () => {
+    const result = await summarize({
+      projectId: "project-a",
+      traceId: "trace-customer-topics-env",
+      sessionId: null,
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      environment: "topics",
+      traceName: "agent-turn",
+      transcript,
+      models,
+      facets: [facet],
+    });
+    expect(result).toBe("summarized");
+    expect(state.summarize).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    {
+      name: "summary system prompt",
+      role: "system" as const,
+      text: `${SUMMARY_SYSTEM_PROMPT}\n\nThis request covers 1 facets of the same run.`,
+    },
+    {
+      name: "naming system prompt",
+      role: "system" as const,
+      text: NAMING_SYSTEM_PROMPT,
+    },
+    {
+      name: "summary user framing",
+      role: "user" as const,
+      text: `${SUMMARY_USER_PROMPT_PREFIX}[user · request] Export monthly sales${SUMMARY_USER_PROMPT_SUFFIX}`,
+    },
+  ])(
+    "skips self-originated Topics traces ($name) even under default environment",
+    async ({ role, text }) => {
+      const selfTranscript: Transcript = {
+        threads: [
+          {
+            conversationHistory: [],
+            currentTurn: {
+              nestingLevel: 0,
+              observations: [],
+              messages: [
+                {
+                  observationId: "observation",
+                  traceId: "trace-self",
+                  startTime: new Date("2026-09-22T12:00:00.000Z"),
+                  endTime: new Date("2026-09-22T12:00:01.000Z"),
+                  role,
+                  source: "input",
+                  parts: [{ type: "text", text }],
+                },
+              ],
+            },
+          },
+        ],
+      };
+
+      const result = await summarize({
+        projectId: "project-a",
+        traceId: "trace-self",
+        sessionId: null,
+        traceTimestamp: "2026-09-22T12:00:00.000Z",
+        environment: "default",
+        traceName: "openrouter-broadcast",
+        transcript: selfTranscript,
+        models,
+        facets: [facet],
+      });
+      expect(result).toBe("disabled");
+      expect(state.summarize).not.toHaveBeenCalled();
+      expect(state.embed).not.toHaveBeenCalled();
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.topics.self_trace_skipped",
+        1,
+      );
+    },
+  );
 
   it("summarizes a snapshot trace into a priced row and attributes both model calls to the snapshot", async () => {
     await summarize({

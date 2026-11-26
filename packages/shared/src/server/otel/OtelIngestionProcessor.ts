@@ -26,12 +26,12 @@ import {
   normalizeToolMetadataForObservation,
   normalizeEnvironment,
   DEFAULT_TRACE_ENVIRONMENT,
-  LangfuseInternalTraceEnvironment,
   sanitizeSdkMetricTagValue,
   normalizeIngestionSdkName,
   isStructuredMetadataSdkVersion,
   type IngestionSdkCanonicalName,
 } from "../";
+import { LangfuseInternalTraceEnvironment } from "../llm/types";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
 import {
@@ -2583,7 +2583,7 @@ export class OtelIngestionProcessor {
   private extractOpenRouterFailedRequestEnvironment(
     attributes: Record<string, unknown>,
     resourceAttributes: Record<string, unknown>,
-  ): LangfuseInternalTraceEnvironment.LLMJudge | undefined {
+  ): LangfuseInternalTraceEnvironment | undefined {
     if (
       resourceAttributes["service.name"] !== "openrouter" ||
       attributes["openrouter.source"] !== "openrouter"
@@ -2602,11 +2602,15 @@ export class OtelIngestionProcessor {
     }
 
     // OpenRouter Broadcast can omit custom trace metadata when a request fails,
-    // but echoes the original request here. Recover only our reserved evaluator
-    // marker so failed judge calls cannot be scheduled as fresh evaluations.
-    return completion.rawRequest.trace.environment ===
-      LangfuseInternalTraceEnvironment.LLMJudge
-      ? LangfuseInternalTraceEnvironment.LLMJudge
+    // but echoes the original request here. Recover any reserved Langfuse
+    // internal environment marker so failed internal calls (e.g. judge evals or
+    // Topics) cannot be scheduled as fresh customer traces.
+    const rawEnvironment = completion.rawRequest.trace.environment;
+    return typeof rawEnvironment === "string" &&
+      (Object.values(LangfuseInternalTraceEnvironment) as string[]).includes(
+        rawEnvironment,
+      )
+      ? (rawEnvironment as LangfuseInternalTraceEnvironment)
       : undefined;
   }
 

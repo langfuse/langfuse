@@ -30,7 +30,15 @@ use super::EventBuildConfig;
 
 use crate::native_schema::OtelStorageRow;
 
-const INTERNAL_LLM_JUDGE_ENVIRONMENT: &str = "langfuse-llm-as-a-judge";
+const INTERNAL_TRACE_ENVIRONMENTS: &[&str] = &[
+    "langfuse-prompt-experiment",
+    "langfuse-llm-as-a-judge",
+    "langfuse-code-eval",
+    "langfuse-natural-language-filter",
+    "langfuse-in-app-agent",
+    "langfuse-topics",
+];
+const PUBLIC_TOPICS_ENVIRONMENT: &str = "topics-internal";
 pub(super) const AI_GATEWAY_SERVICE_NAME: &str = "langfuse-ai-gateway";
 const AI_GATEWAY_INGESTION_API_KEY_PREFIX: &str = "gateway:";
 const AI_GATEWAY_KEY_ID_METADATA_KEY: &str = "langfuse.gateway.api_key.id";
@@ -606,27 +614,24 @@ fn extract_environment(
         }
     }
 
-    // An OpenRouter failure payload with a null completion and the reserved raw-request
-    // environment uses the internal evaluator environment from the legacy recovery rule.
+    // An OpenRouter failure payload with a null completion and a reserved raw-request
+    // environment recovers that internal environment before public normalization.
     if resource.get("service.name").and_then(Value::as_str) == Some("openrouter")
         && attributes.get("openrouter.source").and_then(Value::as_str) == Some("openrouter")
     {
         let completion = attributes
             .get("gen_ai.completion")
             .and_then(|value| parse_json_value(value, parse_cache));
-        if completion
+        if let Some(raw_environment) = completion
             .as_ref()
-            .and_then(|value| value.get("completion"))
-            .is_some_and(Value::is_null)
-            && completion
-                .as_ref()
-                .and_then(|value| value.path(["rawRequest", "trace", "environment"]))
-                .and_then(Value::as_str)
-                == Some(INTERNAL_LLM_JUDGE_ENVIRONMENT)
+            .filter(|value| value.get("completion").is_some_and(Value::is_null))
+            .and_then(|value| value.path(["rawRequest", "trace", "environment"]))
+            .and_then(Value::as_str)
+            .filter(|environment| INTERNAL_TRACE_ENVIRONMENTS.contains(environment))
         {
-            // The fallback normalizes the reserved environment with internal=false, matching the
-            // public processor contract.
-            return normalize_environment(INTERNAL_LLM_JUDGE_ENVIRONMENT, false);
+            // The fallback normalizes the reserved environment with internal=false, matching
+            // the public processor contract.
+            return normalize_environment(raw_environment, false);
         }
     }
 
@@ -644,12 +649,17 @@ fn normalize_environment(value: &str, internal: bool) -> String {
     let mut value = value.to_owned();
     if !internal {
         value = value.to_ascii_lowercase();
+        let mut stripped_prefix = false;
         while let Some(rest) = value.strip_prefix("langfuse") {
+            stripped_prefix = true;
             value = rest
                 .strip_prefix('-')
                 .or_else(|| rest.strip_prefix('_'))
                 .unwrap_or(rest)
                 .to_owned();
+        }
+        if stripped_prefix && value == "topics" {
+            return PUBLIC_TOPICS_ENVIRONMENT.to_owned();
         }
     }
     let value = value.chars().take(40).collect::<String>();

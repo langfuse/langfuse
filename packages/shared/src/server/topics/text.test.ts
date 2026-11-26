@@ -569,6 +569,81 @@ describe("generateTopicText", () => {
     },
   );
 
+  it("stamps langfuse-topics provenance onto untraced OpenRouter text and embedding calls", async () => {
+    const captured: Array<{ headers: Headers; body: Record<string, unknown> }> =
+      [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+        const request = new Request(input, init);
+        captured.push({
+          headers: request.headers,
+          body: JSON.parse(await request.text()) as Record<string, unknown>,
+        });
+        if (request.url.endsWith("/embeddings")) {
+          return Response.json({
+            object: "list",
+            data: [{ object: "embedding", index: 0, embedding: [0.1, 0.2] }],
+            usage: { prompt_tokens: 2, total_tokens: 2 },
+          });
+        }
+        return Response.json({
+          choices: [
+            {
+              index: 0,
+              finish_reason: "stop",
+              message: {
+                role: "assistant",
+                content: '{"summary":"Account access"}',
+              },
+            },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+        });
+      }),
+    );
+
+    const openRouterConnection = {
+      secretKey: encrypt("sk-test"),
+      baseURL: "https://openrouter.ai/api/v1",
+    };
+
+    await generateTopicText({
+      model: {
+        slot: "summary",
+        provider: "openrouter",
+        adapter: LLMAdapter.OpenAI,
+        model: "openai/gpt-6-luna",
+        connection: openRouterConnection,
+      },
+      system: [{ text: "Summarize." }],
+      input: "I cannot sign in.",
+      schema: z.object({ summary: z.string() }),
+      maxOutputTokens: 256,
+    });
+
+    await generateTopicEmbeddings({
+      model: {
+        slot: "embedding",
+        provider: "openrouter",
+        adapter: LLMAdapter.OpenAI,
+        model: "openai/text-embedding-3-small",
+        connection: openRouterConnection,
+      },
+      summaries: ["Account access"],
+      dimensions: 256,
+    });
+
+    expect(captured).toHaveLength(2);
+    for (const call of captured) {
+      expect(call.headers.get("x-openrouter-trace-environment")).toBe(
+        "langfuse-topics",
+      );
+      expect(call.body.trace).toEqual({ environment: "langfuse-topics" });
+    }
+    expect(publishToOtelIngestionQueue).not.toHaveBeenCalled();
+  });
+
   it("records why InvokeModel output could not be parsed", async () => {
     vi.stubGlobal(
       "fetch",

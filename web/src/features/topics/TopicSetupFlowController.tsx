@@ -16,6 +16,7 @@ import { api } from "@/src/utils/api";
 import { useTopicsCapture } from "./useTopicsCapture";
 import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
 import { TopicCostEstimate } from "./TopicCostEstimate";
+import { getOpenRouterProviders } from "./topics-setup";
 import {
   TopicSetupFlowDialog,
   type TopicSetupPastCount,
@@ -364,6 +365,7 @@ function TopicSetupSession({
         "embedding",
         settings.stored.embedding?.model,
       )}
+      openRouterProviders={getOpenRouterProviders(connections)}
       connectionCaption={topicConnectionCaption(connections)}
       hasConnection={connections.length > 0}
       canAddConnection={canAddConnection}

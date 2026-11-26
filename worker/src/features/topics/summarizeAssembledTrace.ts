@@ -13,6 +13,7 @@ import {
   getCurrentSpan,
   instrumentAsync,
   isInternalEvalEnvironment,
+  logger,
   prepareAssembledTopicTranscript,
   recordIncrement,
   renderStoredTopicText,
@@ -29,6 +30,7 @@ import {
   summarizeTopicTraceFacets,
   TopicInputTooLarge,
 } from "./llm/models";
+import { isTopicsSelfTraceTranscript } from "./llm/prompts";
 import { TopicsProviderUnavailable } from "./provider-error";
 import {
   mergeTopicModelUsage,
@@ -111,6 +113,15 @@ export async function summarizeAssembledTrace(
 ): Promise<AssembledTraceResult> {
   if (isInternalEvalEnvironment(input.environment))
     return { outcome: "disabled", rows: [] };
+  if (isTopicsSelfTraceTranscript(input.transcript)) {
+    logger.warn("Skipping Topics summary for self-originated Topics trace", {
+      projectId: input.projectId,
+      traceId: input.traceId,
+      environment: input.environment,
+    });
+    recordIncrement("langfuse.topics.self_trace_skipped", 1);
+    return { outcome: "disabled", rows: [] };
+  }
   // The baggage tags this trace's spans and logs with its project.
   const projectContext = contextWithLangfuseProps({
     projectId: input.projectId,

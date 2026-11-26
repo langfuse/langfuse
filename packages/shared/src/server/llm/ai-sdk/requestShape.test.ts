@@ -10,6 +10,7 @@ import {
   type ChatMessage,
   ChatMessageRole,
   ChatMessageType,
+  LangfuseInternalTraceEnvironment,
   LLMAdapter,
   type ModelParams,
   type TraceSinkParams,
@@ -17,6 +18,7 @@ import {
 import { generateLangfuseAIText } from "../langfuseAiCompletion";
 import {
   createLLMOutput,
+  embedLLMText,
   generateLLMText,
   mapLegacyLLMCompletionParams,
 } from "../llmText";
@@ -183,6 +185,7 @@ async function runCompletion(params: {
   extraHeaders?: Record<string, string>;
   llmConnectionConfig?: Record<string, string | boolean>;
   openAIChatProvider?: "native";
+  internalEnvironment?: LangfuseInternalTraceEnvironment;
   output?: ReturnType<typeof createLLMOutput>;
   response: unknown;
   trace?: TraceSinkParams;
@@ -203,6 +206,7 @@ async function runCompletion(params: {
       },
     }),
     openAIChatProvider: params.openAIChatProvider,
+    internalEnvironment: params.internalEnvironment,
     timeout: 10_000,
     output: params.output,
     trace: params.trace,
@@ -416,8 +420,78 @@ describe("AI SDK request shapes", () => {
       });
 
       expect(request.body.trace).toEqual(expectedTrace);
+      expect(request.headers.get("x-openrouter-trace-environment")).toBe(
+        internalTrace.environment,
+      );
     },
   );
+
+  it("OpenRouter: stamps header and body trace.environment for native chat, responses, and embeddings without trace sink", async () => {
+    const nativeChat = await runCompletion({
+      modelParams: {
+        provider: "openrouter",
+        adapter: LLMAdapter.OpenAI,
+        model: "openai/gpt-4o-mini",
+      },
+      apiKey: "openrouter-key",
+      baseURL: "https://openrouter.ai/api/v1",
+      openAIChatProvider: "native",
+      internalEnvironment: LangfuseInternalTraceEnvironment.Topics,
+      response: OPENAI_CHAT_RESPONSE,
+    });
+    expect(
+      nativeChat.request.headers.get("x-openrouter-trace-environment"),
+    ).toBe("langfuse-topics");
+    expect(nativeChat.request.body.trace).toEqual({
+      environment: "langfuse-topics",
+    });
+
+    const responses = await runCompletion({
+      modelParams: {
+        provider: "openrouter",
+        adapter: LLMAdapter.OpenAI,
+        model: "openai/gpt-4o-mini",
+      },
+      apiKey: "openrouter-key",
+      baseURL: "https://openrouter.ai/api/v1",
+      llmConnectionConfig: { useResponsesApi: true },
+      internalEnvironment: LangfuseInternalTraceEnvironment.Topics,
+      response: OPENAI_RESPONSES_RESPONSE,
+    });
+    expect(
+      responses.request.headers.get("x-openrouter-trace-environment"),
+    ).toBe("langfuse-topics");
+    expect(responses.request.body.trace).toEqual({
+      environment: "langfuse-topics",
+    });
+
+    const { calls, fetch } = createCaptureFetch({
+      object: "list",
+      data: [{ object: "embedding", index: 0, embedding: [0.1, 0.2] }],
+      model: "openai/text-embedding-3-small",
+      usage: { prompt_tokens: 2, total_tokens: 2 },
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    await embedLLMText({
+      model: {
+        adapter: LLMAdapter.OpenAI,
+        id: "openai/text-embedding-3-small",
+      },
+      connection: {
+        secretKey: encrypt("openrouter-key"),
+        baseURL: "https://openrouter.ai/api/v1",
+      },
+      values: ["summary text"],
+      internalEnvironment: LangfuseInternalTraceEnvironment.Topics,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.headers.get("x-openrouter-trace-environment")).toBe(
+      "langfuse-topics",
+    );
+    expect(calls[0]?.body.trace).toEqual({ environment: "langfuse-topics" });
+  });
 
   it("other OpenAI-compatible endpoints keep customer trace metadata unchanged", async () => {
     const { request } = await runCompletion({
@@ -438,6 +512,7 @@ describe("AI SDK request shapes", () => {
       response: OPENAI_CHAT_RESPONSE,
     });
 
+    expect(request.headers.get("x-openrouter-trace-environment")).toBeNull();
     expect(request.body.trace).toEqual({
       environment: "customer-environment",
       feature: "support-agent",

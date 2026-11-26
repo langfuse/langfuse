@@ -1463,6 +1463,57 @@ describe("OTel Resource Span Mapping", () => {
       ]);
     });
 
+    it("recovers langfuse-topics from failed OpenRouter Broadcast requests as topics-internal", async () => {
+      const events = await convertOtelSpanToIngestionEvent(
+        createOpenRouterBroadcastSpan({
+          rawRequestEnvironment: "langfuse-topics",
+        }),
+        new Set(),
+      );
+
+      expect(events.map((event) => event.body.environment)).toEqual([
+        "topics-internal",
+        "topics-internal",
+      ]);
+    });
+
+    it("maps explicit public langfuse-topics to topics-internal while keeping customer topics untouched", async () => {
+      const bounced = await convertOtelSpanToIngestionEvent(
+        createOpenRouterBroadcastSpan({
+          explicitEnvironment: "langfuse-topics",
+        }),
+        new Set(),
+      );
+      expect(bounced.map((event) => event.body.environment)).toEqual([
+        "topics-internal",
+        "topics-internal",
+      ]);
+
+      const customer = await convertOtelSpanToIngestionEvent(
+        createOpenRouterBroadcastSpan({
+          explicitEnvironment: "topics",
+        }),
+        new Set(),
+      );
+      expect(customer.map((event) => event.body.environment)).toEqual([
+        "topics",
+        "topics",
+      ]);
+
+      const internal = await convertOtelSpanToIngestionEvent(
+        createOpenRouterBroadcastSpan({
+          explicitEnvironment: "langfuse-topics",
+        }),
+        new Set(),
+        undefined,
+        { isLangfuseInternal: true },
+      );
+      expect(internal.map((event) => event.body.environment)).toEqual([
+        "langfuse-topics",
+        "langfuse-topics",
+      ]);
+    });
+
     it("prefers an explicit environment over the OpenRouter failed-request fallback", async () => {
       const events = await convertOtelSpanToIngestionEvent(
         createOpenRouterBroadcastSpan({
