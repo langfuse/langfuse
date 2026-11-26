@@ -1897,12 +1897,19 @@ export const coreDataTableExports: Array<
     }),
 ];
 
+// Failed jobs are retained under their id, which would turn a re-add into a
+// no-op, so a failed job with the same id is retried instead.
 const enqueueMediaUsageExport = async (jobId: string, delay = 0) => {
-  await CoreDataS3ExportQueue.getInstance()?.add(
-    QueueJobs.CoreDataMediaUsageExportJob,
-    {},
-    { jobId, delay },
-  );
+  const queue = CoreDataS3ExportQueue.getInstance();
+  if (!queue) {
+    return;
+  }
+  const existing = await queue.getJob(jobId);
+  if (existing && (await existing.isFailed())) {
+    await existing.retry("failed", { resetAttemptsMade: true });
+    return;
+  }
+  await queue.add(QueueJobs.CoreDataMediaUsageExportJob, {}, { jobId, delay });
 };
 
 // The media usage export runs only in its own job, one at a time under the
