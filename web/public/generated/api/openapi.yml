@@ -16758,8 +16758,10 @@ components:
       type: http
       scheme: basic
 servers:
+  - url: /
+    description: The Langfuse instance that serves this spec
   - url: https://cloud.langfuse.com
-    description: Langfuse Cloud, EU data region (default)
+    description: Langfuse Cloud, EU data region
   - url: https://us.cloud.langfuse.com
     description: Langfuse Cloud, US data region
   - url: https://jp.cloud.langfuse.com

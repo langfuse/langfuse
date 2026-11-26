@@ -3,13 +3,20 @@
  * `fern export` writes `title: server`, `version: ''` and no `servers`, so
  * agents and API clients that read the spec learn neither which API it
  * describes nor which hosts to call.
+ *
+ * Self-hosted instances serve this same file at /api/openapi.yaml, so the
+ * first server is relative: it resolves to whichever instance serves the spec.
  */
 export const API_TITLE = "Langfuse API";
 
 export const API_SERVERS = [
   {
+    url: "/",
+    description: "The Langfuse instance that serves this spec",
+  },
+  {
     url: "https://cloud.langfuse.com",
-    description: "Langfuse Cloud, EU data region (default)",
+    description: "Langfuse Cloud, EU data region",
   },
   {
     url: "https://us.cloud.langfuse.com",
