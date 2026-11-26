@@ -1,4 +1,5 @@
 import { useState, type ComponentProps } from "react";
+import { useRouter } from "next/router";
 import { StringParam, useQueryParam } from "use-query-params";
 import { ErrorBoundary } from "@sentry/nextjs";
 import { GitBranch } from "@langfuse/icons";
@@ -8,7 +9,10 @@ import {
   useTraceData,
   useSingleTraceData,
 } from "@/src/features/traces/contexts/TraceDataProvider";
-import { useTraceMessagesNavigation } from "./hooks/useTraceMessagesNavigation";
+import {
+  useTraceMessagesNavigation,
+  type TraceMessagesNeighbor,
+} from "./hooks/useTraceMessagesNavigation";
 import { useTraceMessagesTranscript } from "./hooks/useTraceMessagesTranscript";
 // TODO: Before TraceMessagesView leaves internal preview, rename the components
 // shared by session and trace views and move them to a common location.
@@ -17,6 +21,7 @@ import { getSessionConversationEntries } from "@/src/features/sessions/component
 import { useSessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
 import { ConnectedSessionMessagesView } from "../ConnectedSessionMessagesView/ConnectedSessionMessagesView";
+import { SessionTraceNavigationBar } from "./components/SessionTraceNavigationBar/SessionTraceNavigationBar";
 
 export function TraceMessagesView({
   onOpenObservation,
@@ -44,7 +49,8 @@ function SingleTraceMessagesView({
   const [expandedTraceId, setExpandedTraceId] = useState<string | null>(null);
   const { selectNode } = useSelection();
   const [, setTraceView] = useQueryParam("traceView", StringParam);
-  const { messageTrace, navigation } = useTraceMessagesNavigation();
+  const router = useRouter();
+  const { messageTrace, sessionNavigation } = useTraceMessagesNavigation();
   const { data, state } = useTraceMessagesTranscript(
     {
       context: "other",
@@ -92,26 +98,60 @@ function SingleTraceMessagesView({
       }
     >
       <div className="flex h-full min-h-0 w-full flex-col">
-        {state.type === "transcript" && hiddenThreadCount > 0 && (
-          <HiddenThreadsDivider
-            count={hiddenThreadCount}
-            onShow={() => setExpandedTraceId(messageTrace.id)}
+        {sessionNavigation ? (
+          <SessionTraceNavigationBar
+            position={sessionNavigation.position}
+            total={sessionNavigation.total}
+            sessionHref={sessionNavigation.sessionHref}
+            currentTraceId={sessionNavigation.currentTraceId}
+            timeline={sessionNavigation.timeline}
+            onSelectTrace={(traceId) => {
+              const selected = sessionNavigation.timeline.find(
+                (span) => span.id === traceId,
+              );
+              openNeighbor(router, selected?.link)?.();
+            }}
+            onPrevious={openNeighbor(router, sessionNavigation.previous)}
+            onNext={openNeighbor(router, sessionNavigation.next)}
+            previousHref={sessionNavigation.previous?.href}
+            nextHref={sessionNavigation.next?.href}
+            previousShallow={sessionNavigation.previous?.shallow}
+            nextShallow={sessionNavigation.next?.shallow}
           />
-        )}
-        {data?.cutoff && (!data.transcript || entries.length <= 1) && (
-          <div className="text-muted-foreground p-3 text-sm">
-            This trace exceeds the observation cap. Later observations are not
-            part of the transcript.
-          </div>
-        )}
-        <SessionConversationTimeline
-          traces={traces}
-          controller={controller}
-          navigation={navigation}
-        />
+        ) : null}
+        <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+          {state.type === "transcript" && hiddenThreadCount > 0 && (
+            <HiddenThreadsDivider
+              count={hiddenThreadCount}
+              onShow={() => setExpandedTraceId(messageTrace.id)}
+            />
+          )}
+          {data?.cutoff && (!data.transcript || entries.length <= 1) && (
+            <div className="text-muted-foreground text-sm">
+              This trace exceeds the observation cap. Later observations are not
+              part of the transcript.
+            </div>
+          )}
+          <SessionConversationTimeline
+            traces={traces}
+            controller={controller}
+          />
+        </div>
       </div>
     </ErrorBoundary>
   );
+}
+
+function openNeighbor(
+  router: ReturnType<typeof useRouter>,
+  neighbor: TraceMessagesNeighbor | undefined,
+) {
+  if (!neighbor) return undefined;
+  return () => {
+    router
+      .push(neighbor.href, undefined, { shallow: neighbor.shallow })
+      .catch(() => undefined);
+  };
 }
 
 function HiddenThreadsDivider({
