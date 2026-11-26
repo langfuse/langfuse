@@ -167,6 +167,37 @@ describe("ResizeContainer", () => {
     }
   });
 
+  it("settles again after a gesture ends on the committed width", () => {
+    const view = renderContainer();
+
+    measuredWidth = 415;
+    act(() => notifyResize());
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+    measuredWidth = 400;
+    act(() => notifyResize());
+    act(() => animationFrame?.(0));
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(view.getByText("400")).toBeInTheDocument();
+    expect(containerOf(view).style.getPropertyValue("--lf-content-scale")).toBe(
+      "",
+    );
+
+    measuredWidth = 415;
+    act(() => notifyResize());
+    act(() => {
+      vi.advanceTimersByTime(199);
+    });
+    expect(view.getByText("400")).toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(view.getByText("415")).toBeInTheDocument();
+  });
+
   it("commits when the width flips between two values", () => {
     const view = renderContainer();
 

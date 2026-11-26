@@ -86,6 +86,7 @@ function useScaledElementWidth(settleMs: number) {
     };
 
     const finishGesture = () => {
+      seenWidths = new Set();
       if (frame !== 0) {
         cancelAnimationFrame(frame);
         frame = 0;
