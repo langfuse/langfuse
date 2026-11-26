@@ -245,6 +245,22 @@ describe("isTrpcResponseParseError", () => {
     expect(isTrpcResponseParseError(error)).toBe(true);
   });
 
+  it("detects Firefox truncated-body TypeError even when response headers arrived", () => {
+    // Firefox throws this while reading a body shorter than Content-Length.
+    // Headers (and therefore meta.response) can still be present — unlike
+    // Chrome's "Failed to fetch", which has no response.
+    const error = TRPCClientError.from(
+      new TypeError(
+        "Content-Length header of network response exceeds response Body.",
+      ),
+      {
+        meta: { response: new Response("", { status: 200 }) },
+      },
+    );
+
+    expect(isTrpcResponseParseError(error)).toBe(true);
+  });
+
   // Negative fixtures: real errors MUST still flow to Sentry. If any of these
   // start returning true, the suppression rule has grown a hole that hides a
   // genuine bug.
@@ -1138,7 +1154,7 @@ describe("reportTrpcErrorWithoutToast", () => {
     expect(options.fingerprint[0]).toBe("trpc-client-error");
   });
 
-  it("does not capture Safari, Chrome, or HTML gateway parse failures", async () => {
+  it("does not capture Safari, Chrome, HTML gateway, or Firefox truncated-body parse failures", async () => {
     const safari = TRPCClientError.from(
       new DOMException(
         "The string did not match the expected pattern.",
@@ -1156,12 +1172,23 @@ describe("reportTrpcErrorWithoutToast", () => {
     const html = TRPCClientError.from(new TrpcNonJsonResponseError(504));
     rememberTrpcToastOperation(html, "prompts.allVersions");
 
+    const firefox = TRPCClientError.from(
+      new TypeError(
+        "Content-Length header of network response exceeds response Body.",
+      ),
+      {
+        meta: { response: new Response("", { status: 200 }) },
+      },
+    );
+    rememberTrpcToastOperation(firefox, "events.all");
+
     reportTrpcErrorWithoutToast(safari, "prompts");
     reportTrpcErrorWithoutToast(chrome, "prompts");
     reportTrpcErrorWithoutToast(html, "prompts");
+    reportTrpcErrorWithoutToast(firefox, "traces");
 
     expect(captureExceptionMock).not.toHaveBeenCalled();
-    expect(addBreadcrumbMock).toHaveBeenCalledTimes(3);
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(4);
     expect(addBreadcrumbMock.mock.calls[1]![0].data).toMatchObject({
       status: 502,
       path: "prompts.allVersions",

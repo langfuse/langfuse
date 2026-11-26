@@ -446,6 +446,23 @@ describe("isDenylistedNoiseEvent", () => {
       expect(isDenylistedNoiseEvent(exceptionEvent("Load failed"))).toBe(true);
     });
 
+    it("drops Firefox truncated-body Content-Length TypeError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Content-Length header of network response exceeds response Body.",
+          ),
+        ),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "TRPCClientError: Content-Length header of network response exceeds response Body.",
+          ),
+        ),
+      ).toBe(true);
+    });
+
     it("drops the transport failure when wrapped by TRPCClientError", () => {
       expect(
         isDenylistedNoiseEvent(
@@ -1203,6 +1220,14 @@ describe("isDenylistedNoiseEvent", () => {
       expect(
         isDenylistedNoiseEvent(
           exceptionEvent("Failed to fetch traces (batch 3 of 5)"),
+        ),
+      ).toBe(false);
+      // Longer than the bare Firefox truncated-body sentence — must survive.
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Content-Length header of network response exceeds response Body for observation export",
+          ),
         ),
       ).toBe(false);
     });

@@ -55,6 +55,31 @@ export function isResponseJsonParseFailure(error: unknown): boolean {
   );
 }
 
+/**
+ * Firefox throws this TypeError when fetch headers arrived but the body was
+ * shorter than Content-Length (truncated connection, proxy, gzip). Chrome
+ * surfaces the same truncated body as a JSON SyntaxError; Safari as a
+ * DOMException named SyntaxError. The TypeError is not `instanceof
+ * SyntaxError`, so {@link isResponseJsonParseFailure} misses it.
+ *
+ * Stored without a trailing period because Firefox sometimes appends one.
+ */
+const FIREFOX_TRUNCATED_BODY_MESSAGE =
+  "Content-Length header of network response exceeds response Body";
+
+function isFirefoxTruncatedBodyMessage(value: string): boolean {
+  return (
+    value.trim().replace(/\.$/, "").trim() === FIREFOX_TRUNCATED_BODY_MESSAGE
+  );
+}
+
+/** True for Firefox's truncated-body fetch TypeError. */
+function isFirefoxTruncatedBodyTypeError(error: unknown): boolean {
+  return (
+    error instanceof TypeError && isFirefoxTruncatedBodyMessage(error.message)
+  );
+}
+
 type AnnotatedSyntaxError = SyntaxError & { responseStatus?: number };
 
 /** HTTP status previously attached to a JSON parse error, if any. */
@@ -77,7 +102,7 @@ export function readAnnotatedResponseStatus(
  * does not erase the remaining client-error type.
  */
 type TrpcNonJsonBodyError = TRPCClientError<any> & {
-  cause: TrpcNonJsonResponseError | SyntaxError | DOMException;
+  cause: TrpcNonJsonResponseError | SyntaxError | DOMException | TypeError;
 };
 
 /**
@@ -92,6 +117,7 @@ export function isTrpcNonJsonBodyError(
   const cause = error.cause;
   return (
     cause instanceof TrpcNonJsonResponseError ||
-    isResponseJsonParseFailure(cause)
+    isResponseJsonParseFailure(cause) ||
+    isFirefoxTruncatedBodyTypeError(cause)
   );
 }

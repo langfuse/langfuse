@@ -388,8 +388,11 @@ export const getTrpcErrorFingerprint = (error: unknown): string[] => {
  * which is why `fetchWithParseErrorStatus` exists.
  *
  * Safari's failure is a DOMException named `SyntaxError`, not a JS
- * `SyntaxError`. {@link isTrpcNonJsonBodyError} accepts that, a real
- * `SyntaxError` (Chrome / Firefox), and {@link TrpcNonJsonResponseError}.
+ * `SyntaxError`. Firefox's truncated-body failure is a TypeError
+ * ("Content-Length header of network response exceeds response Body")
+ * thrown while reading the body, before JSON.parse. {@link isTrpcNonJsonBodyError}
+ * accepts those, a real `SyntaxError` (Chrome / Firefox JSON.parse), and
+ * {@link TrpcNonJsonResponseError}.
  * @internal
  */
 export const isTrpcResponseParseError = (error: unknown): boolean => {

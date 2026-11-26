@@ -203,6 +203,10 @@ const TRANSPORT_FAILURE_MESSAGES: readonly string[] = [
   "Failed to fetch", // Chrome / Chromium fetch network failure
   "NetworkError when attempting to fetch resource", // Firefox fetch network failure
   "Load failed", // Safari / WebKit fetch network failure
+  // Firefox truncated body: headers arrived, body shorter than Content-Length.
+  // Chrome/Safari surface the same truncation as a JSON SyntaxError / DOMException
+  // already classified at the tRPC seam (`isTrpcResponseParseError`).
+  "Content-Length header of network response exceeds response Body",
 ];
 
 /**
