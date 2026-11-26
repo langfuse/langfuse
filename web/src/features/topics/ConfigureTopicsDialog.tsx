@@ -13,10 +13,6 @@ import {
   TOPICS_MAX_EMBEDDING_DIMENSIONS,
   TOPICS_MIN_EMBEDDING_DIMENSIONS,
 } from "@langfuse/shared/topics";
-import {
-  hasSelectedOpenRouterProvider,
-  OPENROUTER_BROADCAST_TOPICS_NOTICE,
-} from "./topics-setup";
 
 export type TopicSlotCheck = {
   status: "idle" | "testing" | "ok" | "error";
@@ -52,7 +48,6 @@ type ConfigureTopicsDraft = {
 type ConfigureTopicsDialogProps = {
   providerGroups: Array<[string, string[]]>;
   embeddingProviderGroups?: Array<[string, string[]]>;
-  openRouterProviders?: readonly string[];
   draft: ConfigureTopicsDraft;
   closeDialog: () => void;
   onConfigureProviders: () => void;
@@ -109,7 +104,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
     onSlotCommit,
     providerGroups,
     embeddingProviderGroups = providerGroups,
-    openRouterProviders = [],
     saveError = null,
     saving = false,
     slotChecks,
@@ -283,14 +277,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                 commitSlot("clustering", model);
               }}
             />
-            {hasSelectedOpenRouterProvider(
-              [summary, embedding, clustering],
-              openRouterProviders,
-            ) ? (
-              <Banner variant="info">
-                {OPENROUTER_BROADCAST_TOPICS_NOTICE}
-              </Banner>
-            ) : null}
           </SettingsSection>
           <SettingsSection
             title="Trace readiness"

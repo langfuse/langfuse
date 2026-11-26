@@ -25,10 +25,6 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { JudgeModelPicker } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import {
-  hasSelectedOpenRouterProvider,
-  OPENROUTER_BROADCAST_TOPICS_NOTICE,
-} from "./topics-setup";
-import {
   TOPIC_SETUP_BACKFILL_LIMIT,
   TOPIC_SETUP_WAIT_MINUTES,
   canLeaveTopicQuestions,
@@ -92,7 +88,6 @@ export type TopicSetupFlowDialogProps = {
   canAddConnection: boolean;
   embedding: JudgeModel | null;
   embeddingProviderGroups: Array<[string, string[]]>;
-  openRouterProviders?: readonly string[];
   error: string | null;
   /** Failed model test per slot, listed below the model rows. */
   slotErrors?: Partial<Record<"summary" | "embedding" | "clustering", string>>;
@@ -140,7 +135,6 @@ export function TopicSetupFlowDialog({
   canAddConnection,
   embedding,
   embeddingProviderGroups,
-  openRouterProviders = [],
   error,
   slotErrors = {},
   onAdvancedOpenChange,
@@ -299,15 +293,6 @@ export function TopicSetupFlowDialog({
                     })}
                   </div>
                 )}
-                {hasConnection &&
-                hasSelectedOpenRouterProvider(
-                  [summary, embedding, clustering],
-                  openRouterProviders,
-                ) ? (
-                  <Banner variant="info">
-                    {OPENROUTER_BROADCAST_TOPICS_NOTICE}
-                  </Banner>
-                ) : null}
                 {MODEL_ROWS.map((row) => (
                   <FormError
                     key={row.slot}

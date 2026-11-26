@@ -17,7 +17,7 @@ import {
   canUseBedrockDefaultCredentials,
   resolveBedrockProviderAuth,
 } from "../llm/ai-sdk/providers/bedrock";
-import { isOpenRouterEndpoint } from "../llm/llmBaseUrlRules";
+import { isOpenRouterEndpoint } from "../llm/ai-sdk/openRouterProvenance";
 import { isPlainObject } from "../llm/ai-sdk/providers/utils";
 import { generateLLMText } from "../llm/llmText";
 import {

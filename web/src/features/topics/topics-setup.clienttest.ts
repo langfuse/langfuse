@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ConfigureTopicsSaveDraft } from "./ConfigureTopicsDialog";
-import {
-  getOpenRouterProviders,
-  hasSelectedOpenRouterProvider,
-  topicsSetupPayload,
-} from "./topics-setup";
+import { topicsSetupPayload } from "./topics-setup";
 
 const slots = {
   summary: { provider: "key", model: "gpt" },
@@ -48,43 +44,5 @@ describe("topicsSetupPayload", () => {
     expect(() =>
       topicsSetupPayload({ ...draft, idleSeconds: "59" }, slots),
     ).toThrow();
-  });
-});
-
-describe("OpenRouter connection detection", () => {
-  it("matches OpenRouter endpoints and rejects lookalike hosts", () => {
-    expect(
-      getOpenRouterProviders([
-        { provider: "root", baseURL: "https://openrouter.ai/api/v1" },
-        { provider: "regional", baseURL: "https://eu.openrouter.ai/api/v1" },
-        { provider: "trailing-dot", baseURL: "https://openrouter.ai./api/v1" },
-        {
-          provider: "lookalike",
-          baseURL: "https://openrouter.ai.example.com/v1",
-        },
-        { provider: "openai", baseURL: "https://api.openai.com/v1" },
-        { provider: "default", baseURL: null },
-      ]),
-    ).toEqual(["root", "regional", "trailing-dot"]);
-  });
-
-  it("detects when any selected Topics slot uses an OpenRouter connection", () => {
-    const openRouterProviders = getOpenRouterProviders([
-      { provider: "openai", baseURL: null },
-      { provider: "custom-or", baseURL: "https://openrouter.ai/api/v1" },
-    ]);
-    expect(openRouterProviders).toEqual(["custom-or"]);
-    expect(
-      hasSelectedOpenRouterProvider(
-        [{ provider: "openai" }, { provider: "custom-or" }, null],
-        openRouterProviders,
-      ),
-    ).toBe(true);
-    expect(
-      hasSelectedOpenRouterProvider(
-        [{ provider: "openai" }, null, null],
-        openRouterProviders,
-      ),
-    ).toBe(false);
   });
 });

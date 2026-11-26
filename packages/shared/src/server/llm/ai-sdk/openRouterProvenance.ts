@@ -1,8 +1,24 @@
+import { parseOutboundUrl } from "../../outbound-url/validation";
 import { INTERNAL_EVAL_ENVIRONMENT_PREFIX } from "../isInternalEvalEnvironment";
-import { isOpenRouterEndpoint } from "../llmBaseUrlRules";
 import { isPlainObject } from "./providers/utils";
 
 const OPENROUTER_TRACE_ENVIRONMENT_HEADER = "x-openrouter-trace-environment";
+
+export function isOpenRouterEndpoint(
+  baseURL: string | null | undefined,
+): baseURL is string {
+  if (!baseURL) return false;
+
+  try {
+    const url = parseOutboundUrl(baseURL.replace("{model}", "model"));
+    if (!["http:", "https:"].includes(url.protocol)) return false;
+
+    const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+    return hostname === "openrouter.ai" || hostname.endsWith(".openrouter.ai");
+  } catch {
+    return false;
+  }
+}
 
 type FetchBody = NonNullable<RequestInit["body"]>;
 
