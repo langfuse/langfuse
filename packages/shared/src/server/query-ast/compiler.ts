@@ -1279,7 +1279,7 @@ function qualifiedBindType(
     return relation[column] ?? undefined;
   }
   return {
-    reason: `Cannot type the value compared to ${qualifier}.${column}: no relation in scope is named "${qualifier}". Qualify the column with an alias this query declares.`,
+    reason: `Cannot type the value compared to ${qualifier}.${column}: "${qualifier}" names no relation in scope, so it is read as a column, whose subcolumns and tuple elements the registry does not type. Bind the value with typedValue(...).`,
   };
 }
 
