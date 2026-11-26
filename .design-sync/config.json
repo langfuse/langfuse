@@ -359,7 +359,10 @@
       "cardMode": "column"
     },
     "OverflowList": {
-      "cardMode": "column"
+      "cardMode": "column",
+      "skip": [
+        "design-components-overflowlist--overflow-width-depends-on-count"
+      ]
     },
     "AvatarGroup": {
       "skip": [
