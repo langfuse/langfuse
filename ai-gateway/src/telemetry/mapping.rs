@@ -327,7 +327,7 @@ fn guardrail_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     let mut blocked = facts
         .rejection
         .as_ref()
-        .is_some_and(|rejection| rejection.reason == "guardrail_blocked");
+        .is_some_and(|rejection| rejection.reason.starts_with("guardrail_"));
     let mut redacted = false;
     let mut matched = false;
     for finding in guardrails {

@@ -12,7 +12,7 @@ use reqwest_tracing::DisableOtelPropagation;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 
-use crate::guardrails::external::{ExternalGuardrailClient, ExternalOutcome};
+use crate::guardrails::external::{ExternalFailureKind, ExternalGuardrailClient, ExternalOutcome};
 
 const MAX_BEDROCK_RESPONSE_BYTES: usize = 256 * 1024;
 const MAX_BEDROCK_ANONYMIZED_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
@@ -78,7 +78,7 @@ pub(crate) async fn evaluate_one(
             reason = "invalid_url",
             "bedrock guardrail check failed; failing closed"
         );
-        return ExternalOutcome::Failed;
+        return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
     };
     if client.policy.check_allowed_host(&url).is_err() {
         tracing::warn!(
@@ -88,7 +88,7 @@ pub(crate) async fn evaluate_one(
             reason = "blocked_destination",
             "bedrock guardrail destination blocked by outbound policy; failing closed"
         );
-        return ExternalOutcome::Failed;
+        return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
     }
     let Ok(mut authorization) =
         HeaderValue::from_str(&format!("Bearer {}", config.api_key.expose_secret()))
@@ -100,7 +100,7 @@ pub(crate) async fn evaluate_one(
             reason = "invalid_credential",
             "bedrock guardrail check failed; failing closed"
         );
-        return ExternalOutcome::Failed;
+        return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
     };
     authorization.set_sensitive(true);
 
@@ -131,7 +131,7 @@ pub(crate) async fn evaluate_one(
                 status = failure.status(),
                 "bedrock guardrail check failed; failing closed"
             );
-            ExternalOutcome::Failed
+            ExternalOutcome::Failed(failure.kind())
         }
         Err(_) => {
             tracing::warn!(
@@ -141,7 +141,7 @@ pub(crate) async fn evaluate_one(
                 reason = "timeout",
                 "bedrock guardrail check timed out; failing closed"
             );
-            ExternalOutcome::Failed
+            ExternalOutcome::Failed(ExternalFailureKind::Timeout)
         }
     }
 }
@@ -266,6 +266,17 @@ impl BedrockFailure {
             | Self::ResponseTooLarge
             | Self::InvalidResponse
             | Self::UnexpectedAction => None,
+        }
+    }
+
+    fn kind(&self) -> ExternalFailureKind {
+        match self {
+            Self::HttpStatus(StatusCode::TOO_MANY_REQUESTS) => ExternalFailureKind::RateLimited,
+            Self::HttpStatus(_)
+            | Self::Transport
+            | Self::ResponseTooLarge
+            | Self::InvalidResponse
+            | Self::UnexpectedAction => ExternalFailureKind::Unavailable,
         }
     }
 }
@@ -526,6 +537,11 @@ mod tests {
                     .status(StatusCode::BAD_REQUEST)
                     .body(Body::from(r#"{"message":"input too long"}"#))
                     .unwrap()
+            } else if path == "/guardrail/throttled/version/1/apply" {
+                Response::builder()
+                    .status(StatusCode::TOO_MANY_REQUESTS)
+                    .body(Body::from(r#"{"message":"too many requests"}"#))
+                    .unwrap()
             } else if path == "/guardrail/slow/version/1/apply" {
                 tokio::time::sleep(Duration::from_millis(250)).await;
                 Response::new(Body::from(r#"{"action":"GUARDRAIL_INTERVENED"}"#))
@@ -544,8 +560,9 @@ mod tests {
             sample_guardrail("g1", "intervene"),
             sample_guardrail("g2", "pass"),
             sample_guardrail("g3", "badinput"),
-            sample_guardrail("g4", "slow"),
-            sample_guardrail("g5", "error"),
+            sample_guardrail("g4", "throttled"),
+            sample_guardrail("g5", "slow"),
+            sample_guardrail("g6", "error"),
         ];
         let refs: Vec<&Guardrail> = guardrails.iter().collect();
         let payloads = ExternalPayloads::for_guardrails(&refs, &["hello world"]);
@@ -555,9 +572,10 @@ mod tests {
             vec![
                 ExternalOutcome::Blocked,
                 ExternalOutcome::None,
-                ExternalOutcome::Failed,
-                ExternalOutcome::Failed,
-                ExternalOutcome::Failed,
+                ExternalOutcome::Failed(ExternalFailureKind::Unavailable),
+                ExternalOutcome::Failed(ExternalFailureKind::RateLimited),
+                ExternalOutcome::Failed(ExternalFailureKind::Timeout),
+                ExternalOutcome::Failed(ExternalFailureKind::Unavailable),
             ]
         );
     }

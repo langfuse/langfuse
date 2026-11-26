@@ -1854,6 +1854,7 @@ struct BedrockGuardrailCase {
     bedrock_status: StatusCode,
     bedrock_action: &'static str,
     expected_status: StatusCode,
+    expected_error_code: Option<&'static str>,
     expected_message: Option<&'static str>,
     expected_bedrock_calls: usize,
     expected_provider_calls: usize,
@@ -2016,7 +2017,8 @@ async fn run_bedrock_guardrail_case(case: BedrockGuardrailCase) {
     if let Some(message) = case.expected_message {
         let body: serde_json::Value =
             serde_json::from_str(&response.text().await.unwrap()).unwrap();
-        assert_eq!(body["error"]["code"], "guardrail_blocked");
+        let expected_code = case.expected_error_code.unwrap_or("guardrail_blocked");
+        assert_eq!(body["error"]["code"], expected_code);
         assert_eq!(body["error"]["message"], message);
     } else {
         response.bytes().await.unwrap();
@@ -2026,11 +2028,7 @@ async fn run_bedrock_guardrail_case(case: BedrockGuardrailCase) {
         .await;
     let expected_outcome = if case.expected_message.is_some() {
         "block"
-    } else if case
-        .expected_findings
-        .iter()
-        .any(|(_, action)| *action == "redact")
-    {
+    } else if case.expected_findings.iter().any(|(_, a)| *a == "redact") {
         "redact"
     } else {
         "log"
@@ -2042,6 +2040,96 @@ async fn run_bedrock_guardrail_case(case: BedrockGuardrailCase) {
     );
 }
 
+struct BedrockErrorCase {
+    action: &'static str,
+    bedrock_status: StatusCode,
+    bedrock_action: &'static str,
+    expected_status: StatusCode,
+    expected_code: Option<&'static str>,
+    expected_message: Option<&'static str>,
+    expected_provider_calls: usize,
+    expect_finding: bool,
+}
+
+fn bedrock_error_cases() -> Vec<BedrockErrorCase> {
+    let blocked = Some(r#"Request blocked by guardrail "Bedrock safety""#);
+    let throttled = Some(r#"Guardrail "Bedrock safety" is rate limited. Try again shortly."#);
+    let failed =
+        Some(r#"Guardrail "Bedrock safety" failed to run. Check its configuration or try again."#);
+    vec![
+        BedrockErrorCase {
+            action: "block",
+            bedrock_status: StatusCode::OK,
+            bedrock_action: "GUARDRAIL_INTERVENED",
+            expected_status: StatusCode::BAD_REQUEST,
+            expected_code: Some("guardrail_blocked"),
+            expected_message: blocked,
+            expected_provider_calls: 0,
+            expect_finding: true,
+        },
+        BedrockErrorCase {
+            action: "log",
+            bedrock_status: StatusCode::OK,
+            bedrock_action: "GUARDRAIL_INTERVENED",
+            expected_status: StatusCode::OK,
+            expected_code: None,
+            expected_message: None,
+            expected_provider_calls: 1,
+            expect_finding: true,
+        },
+        BedrockErrorCase {
+            action: "block",
+            bedrock_status: StatusCode::OK,
+            bedrock_action: "NONE",
+            expected_status: StatusCode::OK,
+            expected_code: None,
+            expected_message: None,
+            expected_provider_calls: 1,
+            expect_finding: false,
+        },
+        BedrockErrorCase {
+            action: "block",
+            bedrock_status: StatusCode::TOO_MANY_REQUESTS,
+            bedrock_action: "NONE",
+            expected_status: StatusCode::TOO_MANY_REQUESTS,
+            expected_code: Some("guardrail_rate_limited"),
+            expected_message: throttled,
+            expected_provider_calls: 0,
+            expect_finding: true,
+        },
+        BedrockErrorCase {
+            action: "block",
+            bedrock_status: StatusCode::BAD_REQUEST,
+            bedrock_action: "NONE",
+            expected_status: StatusCode::SERVICE_UNAVAILABLE,
+            expected_code: Some("guardrail_unavailable"),
+            expected_message: failed,
+            expected_provider_calls: 0,
+            expect_finding: true,
+        },
+        BedrockErrorCase {
+            action: "block",
+            bedrock_status: StatusCode::SERVICE_UNAVAILABLE,
+            bedrock_action: "NONE",
+            expected_status: StatusCode::SERVICE_UNAVAILABLE,
+            expected_code: Some("guardrail_unavailable"),
+            expected_message: failed,
+            expected_provider_calls: 0,
+            expect_finding: true,
+        },
+        BedrockErrorCase {
+            action: "log",
+            bedrock_status: StatusCode::NOT_FOUND,
+            bedrock_action: "NONE",
+            expected_status: StatusCode::OK,
+            expected_code: None,
+            expected_message: None,
+            expected_provider_calls: 1,
+            expect_finding: true,
+        },
+    ]
+}
+
 #[tokio::test]
 async fn bedrock_guardrails_evaluate_last_turn_and_fail_closed_on_errors() {
     let conversation = serde_json::json!([
@@ -2049,55 +2137,13 @@ async fn bedrock_guardrails_evaluate_last_turn_and_fail_closed_on_errors() {
         {"role": "assistant", "content": "earlier reply"},
         {"role": "user", "content": "latest prompt"}
     ]);
-    for (action, status, bedrock_action, expected_status, provider_calls, expect_finding) in [
-        (
-            "block",
-            StatusCode::OK,
-            "GUARDRAIL_INTERVENED",
-            StatusCode::BAD_REQUEST,
-            0,
-            true,
-        ),
-        (
-            "log",
-            StatusCode::OK,
-            "GUARDRAIL_INTERVENED",
-            StatusCode::OK,
-            1,
-            true,
-        ),
-        ("block", StatusCode::OK, "NONE", StatusCode::OK, 1, false),
-        (
-            "block",
-            StatusCode::BAD_REQUEST,
-            "NONE",
-            StatusCode::BAD_REQUEST,
-            0,
-            true,
-        ),
-        (
-            "block",
-            StatusCode::SERVICE_UNAVAILABLE,
-            "NONE",
-            StatusCode::BAD_REQUEST,
-            0,
-            true,
-        ),
-        (
-            "log",
-            StatusCode::NOT_FOUND,
-            "NONE",
-            StatusCode::OK,
-            1,
-            true,
-        ),
-    ] {
+    for case in bedrock_error_cases() {
         run_bedrock_guardrail_case(BedrockGuardrailCase {
             guardrails: serde_json::json!([{
                 "id": "g-bedrock",
                 "name": "Bedrock safety",
                 "type": "bedrock",
-                "action": action,
+                "action": case.action,
                 "guardrail_id": "abc123def",
                 "guardrail_version": "1",
                 "region": "us-east-1",
@@ -2105,18 +2151,18 @@ async fn bedrock_guardrails_evaluate_last_turn_and_fail_closed_on_errors() {
             }]),
             input: conversation.clone(),
             expected_bedrock_text: Some("latest prompt"),
-            bedrock_status: status,
-            bedrock_action,
-            expected_status,
-            expected_message: (expected_status == StatusCode::BAD_REQUEST)
-                .then_some(r#"Request blocked by guardrail "Bedrock safety""#),
+            bedrock_status: case.bedrock_status,
+            bedrock_action: case.bedrock_action,
+            expected_status: case.expected_status,
+            expected_error_code: case.expected_code,
+            expected_message: case.expected_message,
             expected_bedrock_calls: 1,
-            expected_provider_calls: provider_calls,
-            expected_findings: if expect_finding {
-                vec![("g-bedrock", action)]
-            } else {
-                Vec::new()
-            },
+            expected_provider_calls: case.expected_provider_calls,
+            expected_findings: case
+                .expect_finding
+                .then_some(("g-bedrock", case.action))
+                .into_iter()
+                .collect(),
         })
         .await;
     }
@@ -2194,6 +2240,7 @@ async fn mixed_regex_and_bedrock_guardrails_preserve_order_and_skip_bedrock_on_l
             bedrock_status: StatusCode::OK,
             bedrock_action,
             expected_status,
+            expected_error_code: None,
             expected_message,
             expected_bedrock_calls: bedrock_calls,
             expected_provider_calls: provider_calls,
@@ -2205,20 +2252,26 @@ async fn mixed_regex_and_bedrock_guardrails_preserve_order_and_skip_bedrock_on_l
 
 #[tokio::test]
 async fn fail_closed_guardrails_enforce_action_without_calling_bedrock() {
-    for (action, expected_status, expected_message, provider_calls) in [
+    for (action, expected_status, expected_code, expected_message, provider_calls) in [
         (
             "block",
-            StatusCode::BAD_REQUEST,
-            Some(r#"Request blocked by guardrail "Broken Bedrock""#),
+            StatusCode::SERVICE_UNAVAILABLE,
+            Some("guardrail_unavailable"),
+            Some(
+                r#"Guardrail "Broken Bedrock" failed to run. Check its configuration or try again."#,
+            ),
             0,
         ),
         (
             "redact",
-            StatusCode::BAD_REQUEST,
-            Some(r#"Request blocked by guardrail "Broken Bedrock""#),
+            StatusCode::SERVICE_UNAVAILABLE,
+            Some("guardrail_unavailable"),
+            Some(
+                r#"Guardrail "Broken Bedrock" failed to run. Check its configuration or try again."#,
+            ),
             0,
         ),
-        ("log", StatusCode::OK, None, 1),
+        ("log", StatusCode::OK, None, None, 1),
     ] {
         run_bedrock_guardrail_case(BedrockGuardrailCase {
             guardrails: serde_json::json!([{
@@ -2233,6 +2286,7 @@ async fn fail_closed_guardrails_enforce_action_without_calling_bedrock() {
             bedrock_status: StatusCode::OK,
             bedrock_action: "NONE",
             expected_status,
+            expected_error_code: expected_code,
             expected_message,
             expected_bedrock_calls: 0,
             expected_provider_calls: provider_calls,
@@ -2401,23 +2455,26 @@ async fn bedrock_enforce_guardrails_anonymize_or_block_and_fail_closed() {
         "region": "us-east-1",
         "api_key": "bedrock-token"
     }]);
-    for (bedrock_status, bedrock_body, expected_status, expected_text) in [
+    for (bedrock_status, bedrock_body, expected_status, expected_code, expected_text) in [
         (
             StatusCode::OK,
             r#"{"action":"GUARDRAIL_INTERVENED","outputs":[{"text":"call {PHONE}"}],"assessments":[{"sensitiveInformationPolicy":{"piiEntities":[{"match":"555-0199","type":"PHONE","action":"ANONYMIZED","detected":true}]}}]}"#,
             StatusCode::OK,
+            None,
             Some("call {PHONE}"),
         ),
         (
             StatusCode::OK,
             r#"{"action":"GUARDRAIL_INTERVENED","outputs":[{"text":"Sorry, I cannot help with that."}],"assessments":[{"sensitiveInformationPolicy":{"piiEntities":[{"match":"555-0199","type":"PHONE","action":"ANONYMIZED","detected":true},{"match":"123-45-6789","type":"US_SOCIAL_SECURITY_NUMBER","action":"BLOCKED","detected":true}]}}]}"#,
             StatusCode::BAD_REQUEST,
+            Some("guardrail_blocked"),
             None,
         ),
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             r#"{"message":"boom"}"#,
-            StatusCode::BAD_REQUEST,
+            StatusCode::SERVICE_UNAVAILABLE,
+            Some("guardrail_unavailable"),
             None,
         ),
     ] {
@@ -2455,7 +2512,7 @@ async fn bedrock_enforce_guardrails_anonymize_or_block_and_fail_closed() {
             assert_eq!(harness.provider.calls(), 0);
             let body: serde_json::Value =
                 serde_json::from_str(&response.text().await.unwrap()).unwrap();
-            assert_eq!(body["error"]["code"], "guardrail_blocked");
+            assert_eq!(body["error"]["code"], expected_code.unwrap());
         }
         harness
             .telemetry

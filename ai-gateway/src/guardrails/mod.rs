@@ -23,11 +23,12 @@ use crate::{
     cpu::{CpuJob, CpuWork},
     http::ParsedRequest,
     inference::MemoryReservation,
+    observability::ErrorOrigin,
     providers::OutboundPolicy,
     resolution::{ApiFormat, ResolutionError, ResolvedRequestContext},
 };
 use bedrock::BedrockGuardrail;
-use external::{ExternalGuardrailClient, ExternalOutcome, ExternalPayloads};
+use external::{ExternalFailureKind, ExternalGuardrailClient, ExternalOutcome, ExternalPayloads};
 use redact::{BodyEdit, RedactionSpan};
 use regex::Compiled;
 use text::{LastTurn, Unreadable};
@@ -468,12 +469,117 @@ pub(crate) struct Finding {
     pub location: GuardrailLocation,
 }
 
+/// Why a guardrail refused the request.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BlockReason {
+    /// Policy matched a blocking rule (or external provider returned `BLOCKED`).
+    Policy,
+    /// External guardrail provider returned 429.
+    RateLimited,
+    /// External guardrail provider timed out.
+    Timeout,
+    /// External guardrail provider failed or is misconfigured.
+    Unavailable,
+    /// Local regex input exceeded `guardrail_max_scan_bytes`.
+    InputTooLarge,
+    /// Request body was unreadable or local redaction failed closed.
+    Unreadable,
+}
+
+impl From<ExternalFailureKind> for BlockReason {
+    fn from(kind: ExternalFailureKind) -> Self {
+        match kind {
+            ExternalFailureKind::RateLimited => Self::RateLimited,
+            ExternalFailureKind::Timeout => Self::Timeout,
+            ExternalFailureKind::Unavailable => Self::Unavailable,
+        }
+    }
+}
+
+/// Caller-facing rejection produced when a guardrail blocks or cannot evaluate
+/// a request.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GuardrailRejection {
+    reason: BlockReason,
+    message: Arc<str>,
+}
+
+impl GuardrailRejection {
+    fn new(name: &str, reason: BlockReason) -> Self {
+        let message = match reason {
+            BlockReason::Policy => format!("Request blocked by guardrail \"{name}\""),
+            BlockReason::RateLimited => {
+                format!("Guardrail \"{name}\" is rate limited. Try again shortly.")
+            }
+            BlockReason::Timeout => {
+                format!("Guardrail \"{name}\" timed out. Try again shortly.")
+            }
+            BlockReason::Unavailable => {
+                format!("Guardrail \"{name}\" failed to run. Check its configuration or try again.")
+            }
+            BlockReason::InputTooLarge => format!("Input too large for guardrail \"{name}\""),
+            BlockReason::Unreadable => {
+                format!("Guardrail \"{name}\" could not read the request")
+            }
+        };
+        Self {
+            reason,
+            message: message.into(),
+        }
+    }
+
+    pub(crate) fn message(&self) -> &str {
+        &self.message
+    }
+
+    pub(crate) fn http_status(&self) -> axum::http::StatusCode {
+        match self.reason {
+            BlockReason::Policy | BlockReason::Unreadable => axum::http::StatusCode::BAD_REQUEST,
+            BlockReason::RateLimited => axum::http::StatusCode::TOO_MANY_REQUESTS,
+            BlockReason::Timeout | BlockReason::Unavailable => {
+                axum::http::StatusCode::SERVICE_UNAVAILABLE
+            }
+            BlockReason::InputTooLarge => axum::http::StatusCode::PAYLOAD_TOO_LARGE,
+        }
+    }
+
+    pub(crate) fn error_type(&self) -> &'static str {
+        match self.reason {
+            BlockReason::Policy | BlockReason::InputTooLarge | BlockReason::Unreadable => {
+                "invalid_request_error"
+            }
+            BlockReason::RateLimited => "rate_limit_error",
+            BlockReason::Timeout | BlockReason::Unavailable => "server_error",
+        }
+    }
+
+    pub(crate) fn error_code(&self) -> &'static str {
+        match self.reason {
+            BlockReason::Policy => "guardrail_blocked",
+            BlockReason::RateLimited => "guardrail_rate_limited",
+            BlockReason::Timeout | BlockReason::Unavailable => "guardrail_unavailable",
+            BlockReason::InputTooLarge => "guardrail_input_too_large",
+            BlockReason::Unreadable => "guardrail_evaluation_failed",
+        }
+    }
+
+    pub(crate) fn error_origin(&self) -> ErrorOrigin {
+        match self.reason {
+            BlockReason::Policy | BlockReason::InputTooLarge | BlockReason::Unreadable => {
+                ErrorOrigin::Client
+            }
+            BlockReason::Timeout => ErrorOrigin::ProviderTransport,
+            BlockReason::RateLimited | BlockReason::Unavailable => ErrorOrigin::Provider,
+        }
+    }
+}
+
 /// The guardrails a request matched, in resolution order, together with any
 /// request body edits produced by `redact` or `enforce` guardrails.
 #[derive(Default)]
 pub(crate) struct Outcome {
     findings: Vec<Finding>,
-    blocked_index: Option<usize>,
+    blocked: Option<(usize, BlockReason)>,
     redactions: Vec<BodyEdit>,
     redaction_reservations: Vec<MemoryReservation>,
 }
@@ -481,9 +587,17 @@ pub(crate) struct Outcome {
 impl Outcome {
     /// The first blocking guardrail that matched, or the first `redact` /
     /// `enforce` rule that failed closed.
+    #[cfg(test)]
     pub(crate) fn blocking(&self) -> Option<&Finding> {
-        self.blocked_index
-            .and_then(|index| self.findings.get(index))
+        self.blocked.and_then(|(index, _)| self.findings.get(index))
+    }
+
+    /// Caller-facing rejection carrying the HTTP status, code, and message for
+    /// the first guardrail that blocked or failed closed.
+    pub(crate) fn rejection(&self) -> Option<GuardrailRejection> {
+        let (index, reason) = self.blocked?;
+        let finding = self.findings.get(index)?;
+        Some(GuardrailRejection::new(&finding.name, reason))
     }
 
     pub(crate) fn into_findings(self) -> Vec<Finding> {
@@ -522,29 +636,40 @@ fn raw_range(body: &[u8], raw: &str) -> Option<Range<usize>> {
 }
 
 /// Resolved per-rule outcome across local and external stages, ordered by severity.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RuleVerdict {
     None,
     Log,
     Redact,
-    Block,
+    Block(BlockReason),
 }
 
 impl RuleVerdict {
+    fn is_block(self) -> bool {
+        matches!(self, Self::Block(_))
+    }
+
+    fn block_reason(self) -> Option<BlockReason> {
+        match self {
+            Self::Block(reason) => Some(reason),
+            Self::None | Self::Log | Self::Redact => None,
+        }
+    }
+
     fn from_local_match(action: GuardrailAction) -> Self {
         match action {
-            GuardrailAction::Block | GuardrailAction::Enforce => Self::Block,
+            GuardrailAction::Block | GuardrailAction::Enforce => Self::Block(BlockReason::Policy),
             GuardrailAction::Redact => Self::Redact,
             GuardrailAction::Log => Self::Log,
             GuardrailAction::Unknown => Self::None,
         }
     }
 
-    fn from_fail_closed(action: GuardrailAction) -> Self {
+    fn from_fail_closed(action: GuardrailAction, reason: BlockReason) -> Self {
         match action {
             GuardrailAction::Log => Self::Log,
             GuardrailAction::Block | GuardrailAction::Redact | GuardrailAction::Enforce => {
-                Self::Block
+                Self::Block(reason)
             }
             GuardrailAction::Unknown => Self::None,
         }
@@ -553,10 +678,11 @@ impl RuleVerdict {
     fn from_external(action: GuardrailAction, outcome: &ExternalOutcome) -> Self {
         match outcome {
             ExternalOutcome::None => Self::None,
-            ExternalOutcome::Blocked | ExternalOutcome::Failed => Self::from_fail_closed(action),
+            ExternalOutcome::Blocked => Self::from_fail_closed(action, BlockReason::Policy),
+            ExternalOutcome::Failed(kind) => Self::from_fail_closed(action, (*kind).into()),
             ExternalOutcome::Anonymized(_) => match action {
                 GuardrailAction::Log => Self::Log,
-                GuardrailAction::Block => Self::Block,
+                GuardrailAction::Block => Self::Block(BlockReason::Policy),
                 GuardrailAction::Redact | GuardrailAction::Enforce => Self::Redact,
                 GuardrailAction::Unknown => Self::None,
             },
@@ -568,7 +694,7 @@ impl RuleVerdict {
             Self::None => None,
             Self::Log => Some(GuardrailAction::Log),
             Self::Redact => Some(GuardrailAction::Redact),
-            Self::Block => Some(match configured {
+            Self::Block(_) => Some(match configured {
                 GuardrailAction::Redact => GuardrailAction::Redact,
                 GuardrailAction::Block
                 | GuardrailAction::Enforce
@@ -578,8 +704,20 @@ impl RuleVerdict {
         }
     }
 
+    fn severity(self) -> u8 {
+        match self {
+            Self::None => 0,
+            Self::Log => 1,
+            Self::Redact => 2,
+            Self::Block(_) => 3,
+        }
+    }
+
     fn escalate(&mut self, next: Self) {
-        if next > *self {
+        if next.severity() > self.severity()
+            || matches!(next, Self::Block(BlockReason::Policy))
+                && !matches!(*self, Self::Block(BlockReason::Policy))
+        {
             *self = next;
         }
     }
@@ -745,9 +883,7 @@ struct GuardrailEvaluation {
 
 impl GuardrailEvaluation {
     fn is_blocking(&self) -> bool {
-        self.rules
-            .iter()
-            .any(|rule| rule.verdict == RuleVerdict::Block)
+        self.rules.iter().any(|rule| rule.verdict.is_block())
     }
 
     fn external_targets<'a>(&self, guardrails: &'a [Guardrail]) -> Vec<(usize, &'a Guardrail)> {
@@ -779,10 +915,10 @@ impl GuardrailEvaluation {
                 .blocks
                 .apply_anonymized_for_scope(guardrail.scope, outputs)
         {
-            verdict = RuleVerdict::from_fail_closed(guardrail.action);
+            verdict = RuleVerdict::from_fail_closed(guardrail.action, BlockReason::Unavailable);
         }
         rule.verdict.escalate(verdict);
-        rule.verdict == RuleVerdict::Block
+        rule.verdict.is_block()
     }
 
     /// Converts the evaluated verdicts and modified blocks into the final
@@ -802,15 +938,17 @@ impl GuardrailEvaluation {
         } else {
             for rule in &mut self.rules {
                 if let Some(guardrail) = guardrails.get(rule.guardrail_index) {
-                    rule.verdict
-                        .escalate(RuleVerdict::from_fail_closed(guardrail.action));
+                    rule.verdict.escalate(RuleVerdict::from_fail_closed(
+                        guardrail.action,
+                        BlockReason::Unreadable,
+                    ));
                 }
             }
             Vec::new()
         };
 
         let mut findings = Vec::new();
-        let mut blocked_index = None;
+        let mut blocked = None;
         for rule in &self.rules {
             let Some(guardrail) = guardrails.get(rule.guardrail_index) else {
                 continue;
@@ -818,8 +956,10 @@ impl GuardrailEvaluation {
             let Some(action) = rule.verdict.to_finding_action(guardrail.action) else {
                 continue;
             };
-            if rule.verdict == RuleVerdict::Block && blocked_index.is_none() {
-                blocked_index = Some(findings.len());
+            if let Some(reason) = rule.verdict.block_reason()
+                && blocked.is_none()
+            {
+                blocked = Some((findings.len(), reason));
             }
             findings.push(Finding {
                 id: guardrail.id.clone(),
@@ -829,7 +969,7 @@ impl GuardrailEvaluation {
             });
         }
 
-        let redaction_reservations = if blocked_index.is_some() {
+        let redaction_reservations = if blocked.is_some() {
             redactions.clear();
             Vec::new()
         } else {
@@ -837,7 +977,7 @@ impl GuardrailEvaluation {
         };
         Ok(Outcome {
             findings,
-            blocked_index,
+            blocked,
             redactions,
             redaction_reservations,
         })
@@ -1071,10 +1211,7 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
 
         if regex_last_turn || regex_entire_input {
             self.detect_leaf(leaf.text, regex_last_turn, regex_entire_input);
-            let blocking = self
-                .rules
-                .iter()
-                .any(|rule| rule.verdict == RuleVerdict::Block);
+            let blocking = self.rules.iter().any(|rule| rule.verdict.is_block());
             if !self.matched_redact_slots.is_empty() && !blocking {
                 self.collect_redact_spans(leaf.text, in_last_turn);
             }
@@ -1196,8 +1333,10 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
                         label: guardrail.redaction_label(),
                     });
                 } else {
-                    rule.verdict
-                        .escalate(RuleVerdict::from_fail_closed(guardrail.action));
+                    rule.verdict.escalate(RuleVerdict::from_fail_closed(
+                        guardrail.action,
+                        BlockReason::Unreadable,
+                    ));
                 }
             });
         }
@@ -1206,8 +1345,10 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
                 if let Some(rule) = self.rules.get_mut(slot)
                     && let Some(guardrail) = self.guardrails.get(rule.guardrail_index)
                 {
-                    rule.verdict
-                        .escalate(RuleVerdict::from_fail_closed(guardrail.action));
+                    rule.verdict.escalate(RuleVerdict::from_fail_closed(
+                        guardrail.action,
+                        BlockReason::Unreadable,
+                    ));
                 }
             }
         }
@@ -1227,17 +1368,21 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
                     GuardrailScope::EntireInput => self.entire_input.regex_exceeded,
                     GuardrailScope::Unknown => false,
                 };
-            if unreadable || regex_exceeded || matches!(guardrail.kind, GuardrailKind::FailClosed) {
+            let fail_reason = if unreadable {
+                Some(BlockReason::Unreadable)
+            } else if regex_exceeded {
+                Some(BlockReason::InputTooLarge)
+            } else if matches!(guardrail.kind, GuardrailKind::FailClosed) {
+                Some(BlockReason::Unavailable)
+            } else {
+                None
+            };
+            if let Some(reason) = fail_reason {
                 rule.verdict
-                    .escalate(RuleVerdict::from_fail_closed(guardrail.action));
+                    .escalate(RuleVerdict::from_fail_closed(guardrail.action, reason));
             }
         }
-        if unreadable
-            || self
-                .rules
-                .iter()
-                .any(|rule| rule.verdict == RuleVerdict::Block)
-        {
+        if unreadable || self.rules.iter().any(|rule| rule.verdict.is_block()) {
             self.blocks.clear();
         }
         Ok(GuardrailEvaluation {
@@ -1306,8 +1451,10 @@ fn fail_closed_spans(
         if let Some(rule) = rules.get_mut(span.priority)
             && let Some(guardrail) = guardrails.get(rule.guardrail_index)
         {
-            rule.verdict
-                .escalate(RuleVerdict::from_fail_closed(guardrail.action));
+            rule.verdict.escalate(RuleVerdict::from_fail_closed(
+                guardrail.action,
+                BlockReason::Unreadable,
+            ));
         }
     }
 }

@@ -49,7 +49,7 @@ pub(crate) fn resolution_origin(error: &ResolutionError) -> (ErrorOrigin, &'stat
         R::SpendLimitExceeded(_) => (ErrorOrigin::Client, "spend_limit_exceeded"),
         R::SpendLimitUnavailable => (ErrorOrigin::Gateway, "spend_limit_unavailable"),
         R::SpendLimitUnpricedModel => (ErrorOrigin::Client, "spend_limit_unpriced_model"),
-        R::GuardrailBlocked(_) => (ErrorOrigin::Client, "guardrail_blocked"),
+        R::GuardrailBlocked(rejection) => (rejection.error_origin(), rejection.error_code()),
         R::Unavailable => (ErrorOrigin::ControlPlane, "unavailable"),
         R::Timeout => (ErrorOrigin::ControlPlane, "timeout"),
         R::Transport => (ErrorOrigin::ControlPlane, "transport"),
@@ -426,10 +426,8 @@ impl InferenceService {
                 None
             };
             let guardrails = self.guardrails.check(api_format, &context, request).await?;
-            if let Some(blocking) = guardrails.blocking() {
-                let error = ResolutionError::GuardrailBlocked(
-                    format!("Request blocked by guardrail \"{}\"", blocking.name).into(),
-                );
+            if let Some(rejection) = guardrails.rejection() {
+                let error = ResolutionError::GuardrailBlocked(rejection);
                 let findings = guardrails.into_findings();
                 self.refuse(
                     &context,

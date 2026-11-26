@@ -338,8 +338,22 @@ fn bedrock_enforce_applies_anonymized_outputs_and_blocks_on_block_or_failure() {
     assert_eq!(content[0]["text"], "Hi {NAME}, call {PHONE}");
     assert_eq!(content[1]["text"], "mail [EMAIL]");
 
-    // 2. Blocked and Failed outcomes block the request and record action Block.
-    for external in [ExternalOutcome::Blocked, ExternalOutcome::Failed] {
+    // 2. Blocked and Failed outcomes block the request and record action Block with typed reasons.
+    for (external, expected_code) in [
+        (ExternalOutcome::Blocked, "guardrail_blocked"),
+        (
+            ExternalOutcome::Failed(ExternalFailureKind::RateLimited),
+            "guardrail_rate_limited",
+        ),
+        (
+            ExternalOutcome::Failed(ExternalFailureKind::Timeout),
+            "guardrail_unavailable",
+        ),
+        (
+            ExternalOutcome::Failed(ExternalFailureKind::Unavailable),
+            "guardrail_unavailable",
+        ),
+    ] {
         let mut eval = apply_local_guardrails(
             &guardrails,
             body.as_bytes(),
@@ -354,6 +368,10 @@ fn bedrock_enforce_applies_anonymized_outputs_and_blocks_on_block_or_failure() {
         let blocking = outcome.blocking().expect("expected blocking finding");
         assert_eq!(blocking.id, "br");
         assert_eq!(blocking.action, GuardrailAction::Block);
+        assert_eq!(
+            outcome.rejection().map(|r| r.error_code()),
+            Some(expected_code)
+        );
     }
 }
 
@@ -451,7 +469,7 @@ fn entire_input_scope_scans_earlier_turns_and_max_scan_bytes_fails_closed() {
     assert_eq!(rewritten["messages"][1]["content"], "old [EMAIL]");
     assert_eq!(rewritten["messages"][0]["content"], "sys ssn 123-45-6789");
 
-    // Exceeding max_scan_bytes fails closed (blocks) for local regex guardrails.
+    // Exceeding max_scan_bytes fails closed (413 guardrail_input_too_large) for local regex guardrails.
     let cap_outcome = apply_local_guardrails(
         &[entire_redact],
         body.as_bytes(),
@@ -466,6 +484,16 @@ fn entire_input_scope_scans_earlier_turns_and_max_scan_bytes_fails_closed() {
     assert_eq!(
         cap_outcome.blocking().map(|finding| finding.id.as_str()),
         Some("redact-all")
+    );
+    let cap_rejection = cap_outcome.rejection().unwrap();
+    assert_eq!(
+        cap_rejection.http_status(),
+        axum::http::StatusCode::PAYLOAD_TOO_LARGE
+    );
+    assert_eq!(cap_rejection.error_code(), "guardrail_input_too_large");
+    assert_eq!(
+        cap_rejection.message(),
+        r#"Input too large for guardrail "redact-all name""#
     );
 
     // External guardrails are not capped by max_scan_bytes; they forward all

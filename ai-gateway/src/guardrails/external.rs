@@ -18,6 +18,14 @@ const MAX_EXTERNAL_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(50);
 const TCP_KEEPALIVE: Duration = Duration::from_secs(30);
 
+/// Why an external guardrail provider call could not complete.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ExternalFailureKind {
+    RateLimited,
+    Timeout,
+    Unavailable,
+}
+
 /// Result of evaluating one external guardrail.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ExternalOutcome {
@@ -26,8 +34,8 @@ pub(crate) enum ExternalOutcome {
     Blocked,
     /// Provider anonymized the content blocks and returned masked outputs.
     Anonymized(Vec<String>),
-    /// Provider error, timeout, or invalid response; fails closed.
-    Failed,
+    /// Provider error, timeout, or rate limit; fails closed.
+    Failed(ExternalFailureKind),
 }
 
 /// Pre-serialized request payloads for external guardrail providers, built once
@@ -117,7 +125,7 @@ impl ExternalGuardrailClient {
                         reason = "serialization",
                         "external guardrail request failed to serialize; failing closed"
                     );
-                    return ExternalOutcome::Failed;
+                    return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
                 };
                 bedrock::evaluate_one(self, &guardrail.id, config, payload, organization_id).await
             }
