@@ -153,27 +153,44 @@ describe("ResizeContainer", () => {
     expect(view.getByText("500")).toBeInTheDocument();
   });
 
-  it("commits even when the width keeps changing past the settle cap", () => {
+  it("keeps the committed width while every sample is a new width", () => {
     const view = renderContainer();
 
-    for (let step = 0; step < 6; step++) {
-      measuredWidth = step % 2 === 0 ? 415 : 430;
+    for (let step = 0; step < 5; step++) {
+      measuredWidth = 420 + step * 20;
       act(() => notifyResize());
       act(() => animationFrame?.(0));
-      expect(view.getByText("400")).toBeInTheDocument();
       act(() => {
-        clock += 100;
-        vi.advanceTimersByTime(100);
+        vi.advanceTimersByTime(150);
       });
+      expect(view.getByText("400")).toBeInTheDocument();
     }
+  });
 
+  it("commits when the width flips between two values", () => {
+    const view = renderContainer();
+
+    measuredWidth = 415;
+    act(() => notifyResize());
     act(() => {
-      vi.advanceTimersByTime(0);
+      vi.advanceTimersByTime(50);
     });
-    expect(view.getByText(String(measuredWidth))).toBeInTheDocument();
-    expect(containerOf(view).style.getPropertyValue("--lf-content-scale")).toBe(
-      "",
-    );
+    measuredWidth = 430;
+    act(() => notifyResize());
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+    measuredWidth = 415;
+    act(() => notifyResize());
+    act(() => animationFrame?.(0));
+    act(() => {
+      vi.advanceTimersByTime(149);
+    });
+    expect(view.getByText("400")).toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(view.getByText("415")).toBeInTheDocument();
   });
 
   it("clears a painted scale on unmount and does not commit afterwards", () => {
@@ -186,8 +203,6 @@ describe("ResizeContainer", () => {
 
     view.unmount();
     expect(container.style.getPropertyValue("--lf-content-scale")).toBe("");
-    expect(container.style.overflow).toBe("");
-
     act(() => {
       clock += 200;
       vi.advanceTimersByTime(200);

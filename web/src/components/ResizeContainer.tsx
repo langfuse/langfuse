@@ -27,7 +27,10 @@ const scaledContentStyle = {
 /**
  * Measure a box and keep its child layout at the last committed width while
  * the box is still changing. Until the width has been still for `settleMs`,
- * a CSS scale fills the live box without a React update.
+ * a CSS scale fills the live box without a React update, so text is not
+ * reflowed on the way. A width already seen in this gesture does not restart
+ * the timer: a scrollbar that flips between two widths still settles, and a
+ * smooth drag does not commit in the middle.
  */
 function useScaledElementWidth(settleMs: number) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
@@ -48,8 +51,7 @@ function useScaledElementWidth(settleMs: number) {
     let settleTimer: ReturnType<typeof setTimeout> | undefined;
     let committedWidth = 0;
     let lastObservedWidth = -1;
-    let gestureStartedAt = -1;
-    const maxWaitMs = settleMs * 3;
+    let seenWidths = new Set<number>();
 
     const measure = () => Math.round(container.clientWidth);
 
@@ -79,12 +81,11 @@ function useScaledElementWidth(settleMs: number) {
     const publish = (next: number) => {
       committedWidth = next;
       lastObservedWidth = next;
-      gestureStartedAt = -1;
+      seenWidths = new Set();
       setWidth((current) => (current === next ? current : next));
     };
 
     const finishGesture = () => {
-      gestureStartedAt = -1;
       if (frame !== 0) {
         cancelAnimationFrame(frame);
         frame = 0;
@@ -97,15 +98,13 @@ function useScaledElementWidth(settleMs: number) {
     const schedule = () => {
       const live = measure();
       if (live === lastObservedWidth) return;
+      const repeated = seenWidths.has(live);
       lastObservedWidth = live;
+      seenWidths.add(live);
       if (frame === 0) frame = requestAnimationFrame(paintScale);
-      if (gestureStartedAt < 0) gestureStartedAt = performance.now();
-      const remaining = Math.max(
-        0,
-        maxWaitMs - (performance.now() - gestureStartedAt),
-      );
+      if (repeated) return;
       clearTimeout(settleTimer);
-      settleTimer = setTimeout(finishGesture, Math.min(settleMs, remaining));
+      settleTimer = setTimeout(finishGesture, settleMs);
     };
 
     publish(measure());
