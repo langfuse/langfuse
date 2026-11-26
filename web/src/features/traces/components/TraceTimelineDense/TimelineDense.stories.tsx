@@ -2579,3 +2579,116 @@ export const ARowTooTightForMetricsStillSaysThem = meta.story({
     await expect(tooltip.innerText).toContain("$0.0021");
   },
 });
+
+/**
+ * Synthetic session: each trace is its own root, with a short observation
+ * stack. Used to compare the default staircase with compact packing.
+ */
+function sessionRoots(
+  count: number,
+  overlap: boolean,
+): TimelineDenseProps["roots"] {
+  let start = 0;
+  const roots: TimelineDenseProps["roots"] = [];
+  for (let index = 0; index < count; index++) {
+    const end = start + 1_000;
+    const traceId = `trace-${index}`;
+    roots.push({
+      id: traceId,
+      name: `trace ${index + 1}`,
+      type: "TRACE",
+      startTime: new Date(start),
+      endTime: new Date(end),
+      children: [
+        {
+          id: `${traceId}-span`,
+          name: "retrieve",
+          type: "SPAN",
+          startTime: new Date(start + 40),
+          endTime: new Date(end - 40),
+          children: [
+            {
+              id: `${traceId}-gen`,
+              name: "generate",
+              type: "GENERATION",
+              startTime: new Date(start + 80),
+              endTime: new Date(start + 420),
+              children: [],
+            },
+          ],
+        },
+      ],
+    });
+    start = overlap ? start + 600 : end;
+  }
+  return roots;
+}
+
+function CompactToggleStory(props: TimelineDenseProps) {
+  const [rowLayout, setRowLayout] = useState<"tree" | "compact">("tree");
+  return (
+    <TimelineDense
+      {...props}
+      rowLayout={rowLayout}
+      onRowLayoutChange={setRowLayout}
+    />
+  );
+}
+
+const sessionArgs = {
+  box: DESKTOP,
+  gutter: "auto" as const,
+  pointer: "fine" as const,
+  barColor: "type" as const,
+  compress: false,
+  showReadout: true,
+  selectedId: null,
+};
+
+export const SequentialSession = meta.story({
+  name: "Sequential session",
+  render: (args) => <CompactToggleStory {...args} />,
+  args: {
+    ...sessionArgs,
+    roots: sessionRoots(24, false),
+  },
+});
+
+export const CompactPacksSequentialSession = meta.story({
+  name: "(Test) Compact layout packs sequential traces",
+  render: (args) => <CompactToggleStory {...args} />,
+  args: {
+    ...sessionArgs,
+    roots: sessionRoots(24, false),
+  },
+  play: async ({ canvas }) => {
+    const before = canvas.getByTestId("dense-rows").textContent;
+    await userEvent.click(
+      canvas.getByRole("switch", { name: "Compact layout" }),
+    );
+    await waitFor(() => {
+      const after = canvas.getByTestId("dense-rows").textContent;
+      if (after === before) throw new Error("row count did not change");
+      // 24 traces × 3 levels is 72 tree rows; compact packs them into 3 lanes.
+      expect(after).toContain("of 3");
+    });
+  },
+});
+
+export const OverlappingSession = meta.story({
+  name: "Overlapping session",
+  render: (args) => <CompactToggleStory {...args} />,
+  args: {
+    ...sessionArgs,
+    roots: sessionRoots(8, true),
+  },
+});
+
+export const ShortSession = meta.story({
+  name: "Short session",
+  render: (args) => <CompactToggleStory {...args} />,
+  args: {
+    ...sessionArgs,
+    roots: sessionRoots(2, false),
+  },
+});

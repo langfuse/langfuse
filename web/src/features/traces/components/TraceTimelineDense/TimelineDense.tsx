@@ -63,6 +63,7 @@ import {
   type TooltipPlacement,
 } from "../../fns/timeline/tooltipPlacement";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TimelineRowMetrics, type RowMetrics } from "./TimelineRowMetrics";
 import { cn } from "@/src/utils/tailwind";
 import { type Density, type PointerModality } from "../../fns/timeline/density";
@@ -75,6 +76,7 @@ import {
   type LayoutNode,
   type PositionedNode,
 } from "../../fns/timeline/layout";
+import { packCompactLanes } from "../../fns/timeline/compactLanes";
 import { collapsedForSearch } from "../../fns/timeline/searchMatches";
 import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
 import { resolveBarTones } from "../../fns/timeline/barContrast";
@@ -302,6 +304,12 @@ export type TimelineDenseProps = {
      * over the whole trace, which is every bar this chart lights). */
     label: string;
   };
+  /**
+   * `tree` is one row per span (the default). `compact` packs non-overlapping
+   * spans onto shared rows, stacked by nesting depth.
+   */
+  rowLayout?: "tree" | "compact";
+  onRowLayoutChange?: (layout: "tree" | "compact") => void;
 };
 
 export type GutterMode = "auto" | "expanded" | "collapsed";
@@ -335,8 +343,18 @@ export function TimelineDense({
   metricsOf,
   showDuration = true,
   search,
+  rowLayout = "tree",
+  onRowLayoutChange,
 }: TimelineDenseProps) {
   const [viewport, setViewport] = useState<Viewport | null>(null);
+  const compact = rowLayout === "compact";
+  // A layout switch changes how many rows exist. Drop the old window so the
+  // next render fits the new row count instead of clamping a staircase zoom.
+  const layoutSeen = useRef(rowLayout);
+  if (layoutSeen.current !== rowLayout) {
+    layoutSeen.current = rowLayout;
+    setViewport(null);
+  }
   const [pointerPos, setPointerPos] = useState<{
     x: number;
     y: number;
@@ -379,6 +397,11 @@ export function TimelineDense({
     () => prepareTimeline(roots, effectiveCollapsed),
     [roots, effectiveCollapsed],
   );
+  const packing = useMemo(
+    () => (compact ? packCompactLanes(prepared.rows, prepared.originMs) : null),
+    [compact, prepared],
+  );
+  const rowCount = packing?.laneCount ?? prepared.rows.length;
   // Measured in the font the labels ACTUALLY render in, read off a probe span
   // that carries their own size — `10px ui-sans-serif` is a guess, and the
   // canvas resolves it to a different face than the app's system stack, ~6px
@@ -430,7 +453,7 @@ export function TimelineDense({
   // Deciding the gutter from the *resting* row height instead left it a rail
   // forever, however far you zoomed in.
   const rowBounds = rowCountBounds({
-    rowCount: prepared.rows.length,
+    rowCount,
     boxHeight: surfaceHeight,
   });
   const liveRowCount = Math.min(
@@ -504,10 +527,10 @@ export function TimelineDense({
   const limits = useMemo(
     () => ({
       traceSpace: traceSpaceOf(compression.compressedDurationMs),
-      rowCount: prepared.rows.length,
+      rowCount,
       boxHeight: surfaceHeight,
     }),
-    [compression.compressedDurationMs, prepared.rows.length, surfaceHeight],
+    [compression.compressedDurationMs, rowCount, surfaceHeight],
   );
 
   // Re-clamped every render, so a resize can never leave the viewport looking
@@ -551,12 +574,7 @@ export function TimelineDense({
   const focusIndex =
     pointerPos == null
       ? null
-      : rowIndexAtOffset(
-          current,
-          pointerPos.y,
-          rowHeight,
-          prepared.rows.length,
-        );
+      : rowIndexAtOffset(current, pointerPos.y, rowHeight, rowCount);
   /** Last id we told the caller about, so a prefetch fires once per row. */
   const hoveredRef = useRef<string | null>(null);
   const pointerPosRef = useRef(pointerPos);
@@ -575,7 +593,7 @@ export function TimelineDense({
     [rowHeight, presentation, pointer],
   );
 
-  const rowRange = visibleRowRange(current, prepared.rows.length);
+  const rowRange = visibleRowRange(current, rowCount);
   const result = layout({
     roots,
     box: chartBox,
@@ -586,6 +604,7 @@ export function TimelineDense({
     prepared,
     compression,
     rowRange,
+    laneByRow: packing?.lanes,
   });
 
   // What each row occupies on the time axis, in the same compressed space the
@@ -593,6 +612,23 @@ export function TimelineDense({
   // thing you were looking at is still here".
   const extentOf = useCallback(
     (rowIndex: number): RowExtent | null => {
+      if (packing) {
+        let startMs = Infinity;
+        let endMs = -Infinity;
+        packing.lanes.forEach((lane, index) => {
+          if (lane !== rowIndex) return;
+          const row = prepared.rows[index];
+          if (!row) return;
+          const offsets = spanOffsetsOf(row.node, prepared.originMs);
+          startMs = Math.min(
+            startMs,
+            compression.toCompressedMs(offsets.startMs),
+          );
+          endMs = Math.max(endMs, compression.toCompressedMs(offsets.endMs));
+        });
+        if (!Number.isFinite(startMs)) return null;
+        return { startMs, endMs };
+      }
       const row = prepared.rows[rowIndex];
       if (!row) return null;
       const offsets = spanOffsetsOf(row.node, prepared.originMs);
@@ -601,7 +637,7 @@ export function TimelineDense({
         endMs: compression.toCompressedMs(offsets.endMs),
       };
     },
-    [prepared, compression],
+    [prepared, compression, packing],
   );
 
   const surfaceRef = useRef<HTMLDivElement | null>(null);
@@ -669,6 +705,8 @@ export function TimelineDense({
     extentOf,
     rowHeight,
     rows: prepared.rows,
+    hitId: (lane: number, xInLane: number) =>
+      hitIdAt(result.nodes, lane, xInLane, compact),
   });
   layoutRef.current = {
     limits,
@@ -678,6 +716,8 @@ export function TimelineDense({
     extentOf,
     rowHeight,
     rows: prepared.rows,
+    hitId: (lane: number, xInLane: number) =>
+      hitIdAt(result.nodes, lane, xInLane, compact),
   };
 
   /**
@@ -702,7 +742,7 @@ export function TimelineDense({
       live.rowHeight,
       live.rows.length,
     );
-    const id = index == null ? null : live.rows[index]?.node.id;
+    const id = index == null ? null : live.hitId(index, at.x - live.railWidth);
     if (!id || id === hoveredRef.current) return;
     hoveredRef.current = id;
     onHover(id);
@@ -798,7 +838,7 @@ export function TimelineDense({
     if (row) {
       const offsets = spanOffsetsOf(row.node, prepared.originMs);
       const revealed = revealViewport(current, limits, {
-        rowIndex: index,
+        rowIndex: packing?.lanes[index] ?? index,
         startMs: compression.toCompressedMs(offsets.startMs),
         endMs: compression.toCompressedMs(offsets.endMs),
       });
@@ -838,7 +878,7 @@ export function TimelineDense({
       const base = viewportRef.current;
       const offsets = spanOffsetsOf(row.node, prepared.originMs);
       const revealed = revealViewport(base, limits, {
-        rowIndex: index,
+        rowIndex: packing?.lanes[index] ?? index,
         startMs: compression.toCompressedMs(offsets.startMs),
         endMs: compression.toCompressedMs(offsets.endMs),
       });
@@ -917,18 +957,17 @@ export function TimelineDense({
   );
 
   /** Double-click an element: both axes move to put it on screen, readably. */
-  const focusRow = (index: number) => {
-    const positioned = result.nodes.find((node) => node.index === index);
-    const row = prepared.rows[index];
-    if (!positioned || !row) return;
+  const focusRow = (nodeId: string) => {
+    const positioned = result.nodes.find((node) => node.id === nodeId);
+    if (!positioned) return;
     // The click that opened this double-click already selected the row, and this
     // flight is about to put it exactly where it should be — so the reveal below
     // must not also chase it and cancel the animation.
-    revealedRef.current = row.node.id;
+    revealedRef.current = nodeId;
     const startMs = compression.toCompressedMs(positioned.startMs);
     flyTo(
       focusViewport(limits, {
-        rowIndex: index,
+        rowIndex: positioned.index,
         startMs,
         durationMs: compression.toCompressedMs(positioned.endMs) - startMs,
       }),
@@ -1288,11 +1327,19 @@ export function TimelineDense({
         current,
         event.clientY - rect.top,
         rowHeight,
-        prepared.rows.length,
+        rowCount,
       );
       if (index != null) {
-        focusedByTap.current = true;
-        focusRow(index);
+        const id = hitIdAt(
+          result.nodes,
+          index,
+          event.clientX - rect.left - railWidth,
+          compact,
+        );
+        if (id) {
+          focusedByTap.current = true;
+          focusRow(id);
+        }
       }
       return;
     }
@@ -1322,10 +1369,13 @@ export function TimelineDense({
     onSelect?.(nodeId);
   };
 
-  const focused =
-    focusIndex == null
+  const focusedId =
+    focusIndex == null || pointerPos == null
       ? null
-      : (result.nodes.find((node) => node.index === focusIndex) ?? null);
+      : hitIdAt(result.nodes, focusIndex, pointerPos.x - railWidth, compact);
+  const focused = focusedId
+    ? (result.nodes.find((node) => node.id === focusedId) ?? null)
+    : null;
   const windowLabel = formatDurationMs(
     compression.toRealMs(current.time.start + current.time.duration) -
       compression.toRealMs(current.time.start),
@@ -1402,6 +1452,24 @@ export function TimelineDense({
           >
             {windowHint}
           </span>
+        ) : null}
+        {onRowLayoutChange ? (
+          <label className="ml-auto flex shrink-0 items-center gap-1 pr-1">
+            <span
+              className="text-muted-foreground"
+              style={{ fontSize: "10px" }}
+            >
+              Compact
+            </span>
+            <Switch
+              size="sm"
+              checked={compact}
+              aria-label="Compact layout"
+              onCheckedChange={(checked) =>
+                onRowLayoutChange(checked ? "compact" : "tree")
+              }
+            />
+          </label>
         ) : null}
       </div>
 
@@ -1517,7 +1585,7 @@ export function TimelineDense({
             const y = (node.index - current.rows.start) * rowHeight;
             if (y + rowHeight < 0 || y > surfaceHeight) return null;
 
-            const isFocused = node.index === focusIndex;
+            const isFocused = node.id === focused?.id;
             const isSelected = node.id === selectedId;
             // A miss under a live query. Not "hidden": the row keeps its place
             // on the clock, its click target and its hover, so the matches read
@@ -1539,6 +1607,7 @@ export function TimelineDense({
                 key={node.id}
                 className={cn(
                   "absolute inset-x-0",
+                  compact && "pointer-events-none",
                   rowWashClass({
                     selected: isSelected,
                     focused: isFocused,
@@ -1546,11 +1615,17 @@ export function TimelineDense({
                 )}
                 style={{ top: `${y}px`, height: `${rowHeight}px` }}
                 data-testid="timeline-dense-row"
-                onClick={(event) => selectRowOnClick(event, node.id)}
-                onDoubleClick={() => focusRow(node.index)}
+                onClick={
+                  compact
+                    ? undefined
+                    : (event) => selectRowOnClick(event, node.id)
+                }
+                onDoubleClick={compact ? undefined : () => focusRow(node.id)}
               >
-                {/* Bird's-eye density has no rail; avoid invisible DOM per row. */}
-                {railWidth > 0 && (
+                {/* Bird's-eye density has no rail; avoid invisible DOM per row.
+                    Compact lanes hold several spans, so only the span under the
+                    pointer gets a name — the others would paint on top of it. */}
+                {railWidth > 0 && (!compact || isFocused) && (
                   <GutterContent
                     node={node}
                     width={railWidth}
@@ -1595,12 +1670,30 @@ export function TimelineDense({
                       className={cn(
                         // Clicking selects, and the bar is the part that looks
                         // like it would: the row is clickable across its full
-                        // width, but only the bar reads as a thing.
+                        // width, but only the bar reads as a thing. Compact
+                        // rows share a lane, so the bar itself takes the click.
                         "absolute rounded-[1px]",
+                        compact && "pointer-events-auto",
                         onSelect && "cursor-pointer",
                         barClass,
                         isSelected && "ring-foreground/80 ring-1",
                       )}
+                      onClick={
+                        compact
+                          ? (event) => {
+                              event.stopPropagation();
+                              selectRowOnClick(event, node.id);
+                            }
+                          : undefined
+                      }
+                      onDoubleClick={
+                        compact
+                          ? (event) => {
+                              event.stopPropagation();
+                              focusRow(node.id);
+                            }
+                          : undefined
+                      }
                       style={{
                         left: `${node.x}px`,
                         width: `${node.width}px`,
@@ -1629,7 +1722,9 @@ export function TimelineDense({
                       on whichever side layout() measured room for, rather than
                       always after the bar, which clipped a full-width bar's
                       label at the lane edge. */}
-                  {presentation === "labelled" && !node.offscreen ? (
+                  {presentation === "labelled" &&
+                  !node.offscreen &&
+                  (!compact || node.labelPlacement === "inside") ? (
                     <TimelineRowMetrics
                       row={node}
                       laneWidth={laneWidth}
@@ -1677,6 +1772,7 @@ export function TimelineDense({
             {result.nodes.map((node) => {
               const y = (node.index - current.rows.start) * rowHeight;
               if (y + rowHeight < 0 || y > surfaceHeight) return null;
+              if (compact && node.id !== focused?.id) return null;
               return (
                 <div
                   key={node.id}
@@ -1685,13 +1781,13 @@ export function TimelineDense({
                     onSelect && "cursor-pointer",
                     rowWashClass({
                       selected: node.id === selectedId,
-                      focused: node.index === focusIndex,
+                      focused: node.id === focused?.id,
                     }),
                   )}
                   style={{ top: `${y}px`, height: `${rowHeight}px` }}
                   data-testid="timeline-dense-peek-row"
                   onClick={(event) => selectRowOnClick(event, node.id)}
-                  onDoubleClick={() => focusRow(node.index)}
+                  onDoubleClick={() => focusRow(node.id)}
                 >
                   <GutterContent
                     node={node}
@@ -1786,8 +1882,7 @@ export function TimelineDense({
           </span>
           <span data-testid="dense-rows">
             rows {current.rows.start.toFixed(1)}–
-            {(current.rows.start + current.rows.count).toFixed(1)} of{" "}
-            {prepared.rows.length}
+            {(current.rows.start + current.rows.count).toFixed(1)} of {rowCount}
           </span>
           <span>{result.pxPerMs.toFixed(3)} px/ms</span>
           <span>{fitted ? "fitted" : "zoomed"}</span>
@@ -1961,6 +2056,26 @@ function GutterContent({
       )}
     </div>
   );
+}
+
+function hitIdAt(
+  nodes: readonly PositionedNode[],
+  lane: number,
+  xInLane: number,
+  compact: boolean,
+): string | null {
+  let earliest: PositionedNode | null = null;
+  for (const node of nodes) {
+    if (node.index !== lane) continue;
+    if (!compact) return node.id;
+    if (node.offscreen) continue;
+    if (xInLane >= node.x && xInLane < node.x + Math.max(node.width, 1)) {
+      return node.id;
+    }
+    if (!earliest || node.startMs < earliest.startMs) earliest = node;
+  }
+  if (compact && xInLane < 0) return earliest?.id ?? null;
+  return null;
 }
 
 function ToolbarButton({

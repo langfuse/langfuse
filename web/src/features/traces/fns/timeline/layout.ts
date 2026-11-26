@@ -159,6 +159,12 @@ export type LayoutInput<TNode extends LayoutNode = LayoutNode> = {
   /** position only these rows (the virtualizer's mounted window) */
   rowRange?: { startIndex: number; endIndex: number };
   /**
+   * Compact layout: visual lane for each prepared row. Several rows may share
+   * a lane. `rowRange` and `rowCount` are then in lanes, not input order.
+   * Absent keeps one row per node.
+   */
+  laneByRow?: readonly number[];
+  /**
    * How a row's duration reads. The layout MEASURES the text it places, so the
    * caller that RENDERS the text has to be the one that formats it: a caller
    * drawing `1h 05m 00s` where the layout measured `1h 05m` picks the side from
@@ -343,34 +349,39 @@ export function layout<TNode extends LayoutNode>(
   const transform = createViewTransform(view, { ...box, width: laneWidth });
 
   const rowHeight = density.rowHeight;
+  const laneByRow = input.laneByRow;
+  const laneCount = laneByRow
+    ? laneByRow.reduce((max, lane) => Math.max(max, lane + 1), 0)
+    : prepared.rows.length;
   const from = Math.max(input.rowRange?.startIndex ?? 0, 0);
-  const to = Math.min(
-    input.rowRange?.endIndex ?? prepared.rows.length - 1,
-    prepared.rows.length - 1,
-  );
+  const to = Math.min(input.rowRange?.endIndex ?? laneCount - 1, laneCount - 1);
 
+  const context = {
+    originMs: prepared.originMs,
+    compression,
+    transform,
+    laneWidth,
+    rowHeight,
+    density,
+    measurer,
+    formatLabel: input.formatLabel ?? formatDurationMs,
+  };
   const nodes: Array<PositionedNode<TNode>> = [];
-  for (let index = from; index <= to; index++) {
-    const row = prepared.rows[index]!;
-    nodes.push(
-      positionRow(row, index, {
-        originMs: prepared.originMs,
-        compression,
-        transform,
-        laneWidth,
-        rowHeight,
-        density,
-        measurer,
-        formatLabel: input.formatLabel ?? formatDurationMs,
-      }),
-    );
+  const lastIndex = laneByRow ? prepared.rows.length - 1 : to;
+  const firstIndex = laneByRow ? 0 : from;
+  for (let index = firstIndex; index <= lastIndex; index++) {
+    const lane = laneByRow ? laneByRow[index] : index;
+    if (lane == null || lane < from || lane > to) continue;
+    const row = prepared.rows[index];
+    if (!row) continue;
+    nodes.push(positionRow(row, lane, context));
   }
 
   return {
     nodes,
-    rowCount: prepared.rows.length,
+    rowCount: laneCount,
     rowHeight,
-    contentHeight: prepared.rows.length * rowHeight,
+    contentHeight: laneCount * rowHeight,
     traceSpace,
     view,
     pxPerMs: transform.pxPerMs,

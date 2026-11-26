@@ -28,7 +28,8 @@ export function TraceTimelineCompact() {
   // The same five switches the tree honours. They live in one place because a
   // toggle that works in one view and silently does nothing in the other is
   // worse than no toggle.
-  const { showDuration, showCostTokens } = useViewPreferences();
+  const { showDuration, showCostTokens, timelineCompact, setTimelineCompact } =
+    useViewPreferences();
   const { handleHover } = useHandlePrefetchObservation();
   const selectNode = useSelectTraceNode("timeline_compact");
 
@@ -109,6 +110,10 @@ export function TraceTimelineCompact() {
           metricsOf={metricsOf}
           showDuration={showDuration}
           search={search}
+          rowLayout={timelineCompact ? "compact" : "tree"}
+          onRowLayoutChange={(layout) =>
+            setTimelineCompact(layout === "compact")
+          }
         />
       ) : null}
     </div>
