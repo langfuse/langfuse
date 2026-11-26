@@ -41,6 +41,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { createSkillVersionFromDraft } from "@/src/features/skills/actions/createSkillVersion";
 import { downloadSkillVersion } from "@/src/features/skills/actions/downloadSkillVersion";
+import { useUiExportsDisabledReason } from "@/src/ee/features/ui-exports/hooks/useUiExportsDisabledReason";
 import { saveSkillLabels } from "@/src/features/skills/actions/saveSkillLabels";
 import { saveSkillTags } from "@/src/features/skills/actions/saveSkillTags";
 import { CreateSkillVersionDialog } from "@/src/features/skills/components/CreateSkillVersionDialog";
@@ -398,12 +399,19 @@ export function SkillEditor({
     }
   };
 
+  const uiExportsDisabledReason = useUiExportsDisabledReason({ projectId });
   const downloadTitle = isDownloading
     ? "Downloading…"
     : `Download v${baseVersion} as ZIP`;
-  const downloadDisabled = isDownloading
-    ? { reason: "Download in progress" }
-    : undefined;
+  const downloadDisabled = (() => {
+    if (uiExportsDisabledReason) {
+      return { reason: uiExportsDisabledReason };
+    }
+    if (isDownloading) {
+      return { reason: "Download in progress" };
+    }
+    return undefined;
+  })();
   const usageTab = isV4 && view.kind === "version" && baseVersion !== null && (
     <Tabs.Content value="usage" layout="fill">
       <SkillUsage

@@ -75,6 +75,7 @@ import {
 import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
 import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/fns/mapAgentGraphRecord";
 import { throwIfPublicSharingDisabled } from "@/src/ee/features/public-sharing/server/publicSharing";
+import { throwIfUiExportsDisabled } from "@/src/ee/features/ui-exports/server/uiExports";
 
 const storableSessionIdInput = z.string().refine(isStorableTraceSessionId, {
   message:
@@ -1245,7 +1246,12 @@ export const sessionRouter = createTRPCRouter({
       }),
     ),
     { resourceType: "observation", action: "read", idKey: "observationId" },
-    async ({ input, audit }) => {
+    async ({ input, ctx, audit }) => {
+      await throwIfUiExportsDisabled({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+      });
+
       const observation = await getObservationFullIOForSessionFromEventsTable({
         projectId: input.projectId,
         sessionId: input.sessionId,

@@ -232,6 +232,7 @@ export function IOPreviewJSONSimple({
               isString={inputProbe.isString}
               charCount={inputProbe.size}
               downloadFileBase={`input-${downloadName}`}
+              projectId={projectId}
             />
           </IOSection>
         ) : (
@@ -267,6 +268,7 @@ export function IOPreviewJSONSimple({
               isString={outputProbe.isString}
               charCount={outputProbe.size}
               downloadFileBase={`output-${downloadName}`}
+              projectId={projectId}
             />
           </IOSection>
         ) : (
@@ -331,6 +333,7 @@ export function IOPreviewJSONSimple({
               isString={metadataProbe.isString}
               charCount={metadataProbe.size}
               downloadFileBase={`metadata-${downloadName}`}
+              projectId={projectId}
             />
           </IOSection>
         ) : (

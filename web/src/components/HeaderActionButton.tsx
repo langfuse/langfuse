@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import { type KeyboardKey } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
@@ -17,6 +18,7 @@ type HeaderActionButtonProps = Omit<
   /** Count shown on the button, the same badge the labelled action uses. */
   count?: number;
   showLabel?: boolean;
+  disabledReason?: string;
 };
 
 function shortcutKeyList(
@@ -31,9 +33,19 @@ export const HeaderActionButton = React.forwardRef<
   HTMLButtonElement,
   HeaderActionButtonProps
 >(function HeaderActionButton(
-  { label, icon, shortcut, active = false, count, showLabel = false, ...props },
+  {
+    label,
+    icon,
+    shortcut,
+    active = false,
+    count,
+    showLabel = false,
+    disabledReason,
+    ...props
+  },
   ref,
 ) {
+  const isDisabled = props.disabled || Boolean(disabledReason);
   const button = (
     <Button
       ref={ref}
@@ -46,6 +58,7 @@ export const HeaderActionButton = React.forwardRef<
         active && "bg-accent/60 ring-primary/20 ring-2",
       )}
       {...props}
+      disabled={isDisabled}
     >
       {icon}
       {showLabel && label}
@@ -62,6 +75,13 @@ export const HeaderActionButton = React.forwardRef<
       ) : null}
     </Button>
   );
+  if (disabledReason) {
+    return (
+      <DisabledActionTooltip label={disabledReason}>
+        {button}
+      </DisabledActionTooltip>
+    );
+  }
   if (showLabel) return button;
   const shortcutKeys = shortcutKeyList(shortcut);
   return (

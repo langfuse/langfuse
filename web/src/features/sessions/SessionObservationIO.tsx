@@ -1,6 +1,8 @@
 import React from "react";
 import { Download, SquareArrowOutUpRight, Loader2 } from "@langfuse/icons";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { Button } from "@/src/components/ui/button";
+import { useUiExportsDisabledReason } from "@/src/ee/features/ui-exports/hooks/useUiExportsDisabledReason";
 import {
   IOPreview,
   type IOPreviewContentMode,
@@ -130,6 +132,7 @@ export const SessionObservationIO = ({
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const [isDownloading, setIsDownloading] = React.useState(false);
+  const uiExportsDisabledReason = useUiExportsDisabledReason({ projectId });
 
   const isIOTruncated = Boolean(
     observation.inputTruncated || observation.outputTruncated,
@@ -294,23 +297,32 @@ export const SessionObservationIO = ({
           />
           Open in trace view
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onDownload}
-          disabled={isDownloading}
-        >
-          {isDownloading ? (
-            <Loader2
-              size="base"
-              color="default"
-              __rawClassName="mr-1 animate-spin"
-            />
-          ) : (
-            <Download size="base" color="default" __rawClassName="mr-1" />
-          )}
-          Download I/O
-        </Button>
+        {uiExportsDisabledReason ? (
+          <DisabledActionTooltip label={uiExportsDisabledReason}>
+            <Button variant="outline" size="sm" disabled>
+              <Download size="base" color="default" __rawClassName="mr-1" />
+              Download I/O
+            </Button>
+          </DisabledActionTooltip>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onDownload}
+            disabled={isDownloading}
+          >
+            {isDownloading ? (
+              <Loader2
+                size="base"
+                color="default"
+                __rawClassName="mr-1 animate-spin"
+              />
+            ) : (
+              <Download size="base" color="default" __rawClassName="mr-1" />
+            )}
+            Download I/O
+          </Button>
+        )}
       </div>
     </div>
   );

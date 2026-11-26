@@ -51,6 +51,7 @@ import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
 import { promptExportLimitMessage } from "@/src/features/prompts/fns/promptExportLimit";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
+import { throwIfUiExportsDisabled } from "@/src/ee/features/ui-exports/server/uiExports";
 
 const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
   if (!pathPrefix) {
@@ -1548,6 +1549,11 @@ export const promptRouter = createTRPCRouter({
         session: ctx.session,
         projectId: input.projectId,
         scope: "prompts:read",
+      });
+
+      await throwIfUiExportsDisabled({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
       });
 
       const count = await ctx.prisma.prompt.count({

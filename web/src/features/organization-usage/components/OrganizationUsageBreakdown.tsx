@@ -2,10 +2,12 @@ import { useMemo, useState } from "react";
 import { DownloadIcon } from "@langfuse/icons";
 
 import { Card } from "@/src/components/ui/card";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { TimeRangePicker } from "@/src/components/date-picker";
+import { useUiExportsDisabledReason } from "@/src/ee/features/ui-exports/hooks/useUiExportsDisabledReason";
 import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
 import { useVerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/useVerticalBarChartTimeSeries";
 import { DEFAULT_MAX_RENDERED_SERIES } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
@@ -138,6 +140,7 @@ const toCsvFileName = (breakdown: UsageBreakdown, from: Date, to: Date) => {
 };
 
 export const OrganizationUsageBreakdown = ({ orgId }: { orgId: string }) => {
+  const uiExportsDisabledReason = useUiExportsDisabledReason({ orgId });
   const [timeRange, setTimeRange] = useState<TimeRange>({
     range: "last30Days",
   });
@@ -221,28 +224,39 @@ export const OrganizationUsageBreakdown = ({ orgId }: { orgId: string }) => {
             timeRangePresets={TIME_RANGE_PRESETS}
             maxRangeMs={USAGE_BREAKDOWN_MAX_RANGE_MS}
           />
-          <Tooltip label="Download as CSV">
-            {({ getTriggerProps }) => (
+          {uiExportsDisabledReason ? (
+            <DisabledActionTooltip label={uiExportsDisabledReason}>
               <IconButton
-                {...getTriggerProps()}
                 icon={DownloadIcon}
                 label="Download usage breakdown as CSV"
                 variant="outline"
-                disabled={!chart || chart.total === 0}
-                onClick={() => {
-                  if (!breakdown.data || !absoluteTimeRange) return;
-                  downloadChartDataCsv(
-                    toCsvRows(breakdown.data),
-                    toCsvFileName(
-                      breakdown.data,
-                      absoluteTimeRange.from,
-                      absoluteTimeRange.to,
-                    ),
-                  );
-                }}
+                disabled
               />
-            )}
-          </Tooltip>
+            </DisabledActionTooltip>
+          ) : (
+            <Tooltip label="Download as CSV">
+              {({ getTriggerProps }) => (
+                <IconButton
+                  {...getTriggerProps()}
+                  icon={DownloadIcon}
+                  label="Download usage breakdown as CSV"
+                  variant="outline"
+                  disabled={!chart || chart.total === 0}
+                  onClick={() => {
+                    if (!breakdown.data || !absoluteTimeRange) return;
+                    downloadChartDataCsv(
+                      toCsvRows(breakdown.data),
+                      toCsvFileName(
+                        breakdown.data,
+                        absoluteTimeRange.from,
+                        absoluteTimeRange.to,
+                      ),
+                    );
+                  }}
+                />
+              )}
+            </Tooltip>
+          )}
         </div>
       </div>
       <div className="h-80">

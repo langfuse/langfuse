@@ -13,6 +13,7 @@ import { useQueryParams, StringParam } from "use-query-params";
 import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
 import { ExportPromptsDialogController } from "@/src/features/prompts/components/ExportPromptsDialogController";
 import { ImportPromptsButtonDialogController } from "@/src/features/prompts/components/ImportPromptsButtonDialogController";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { Button } from "@/src/components/ui/button";
 
 export default function PromptsPage() {
@@ -100,20 +101,30 @@ export default function PromptsPage() {
             {projectId && <AutomationButton projectId={projectId} />}
             {hasReadAccess && projectId && (
               <ExportPromptsDialogController projectId={projectId}>
-                {({ isExporting, openDialog }) => (
-                  <Button
-                    variant="outline"
-                    disabled={isExporting}
-                    onClick={openDialog}
-                  >
-                    <UploadIcon
-                      size="base"
-                      color="default"
-                      __rawClassName="mr-1"
-                    />
-                    {isExporting ? "Exporting…" : "Export"}
-                  </Button>
-                )}
+                {({ isExporting, disabledReason, openDialog }) => {
+                  const button = (
+                    <Button
+                      variant="outline"
+                      disabled={isExporting || Boolean(disabledReason)}
+                      onClick={openDialog}
+                    >
+                      <UploadIcon
+                        size="base"
+                        color="default"
+                        __rawClassName="mr-1"
+                      />
+                      {isExporting ? "Exporting…" : "Export"}
+                    </Button>
+                  );
+                  if (disabledReason) {
+                    return (
+                      <DisabledActionTooltip label={disabledReason}>
+                        {button}
+                      </DisabledActionTooltip>
+                    );
+                  }
+                  return button;
+                }}
               </ExportPromptsDialogController>
             )}
             {projectId && (

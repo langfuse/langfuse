@@ -140,6 +140,7 @@ export type EntityDetailHeaderAction = {
       icon: IconComponent;
       iconOnly?: boolean;
       disabled?: boolean;
+      disabledReason?: string;
       count?: number;
       isLoading?: boolean;
       onClick: () => void;
@@ -438,7 +439,8 @@ function EntityDetailHeaderChrome({
         icon={icon}
         count={action.count}
         showLabel={!action.iconOnly && !iconOnly}
-        disabled={action.disabled}
+        disabled={action.disabled || Boolean(action.disabledReason)}
+        disabledReason={action.disabledReason}
         onClick={action.onClick}
       />
     );
@@ -455,9 +457,15 @@ function EntityDetailHeaderChrome({
             onCheckedChange: action.onCheckedChange,
           },
         ];
-      const disabled = action.disabled
-        ? { reason: "Action unavailable" }
-        : undefined;
+      const disabled = (() => {
+        if (action.type === "button" && action.disabledReason) {
+          return { reason: action.disabledReason };
+        }
+        if (action.disabled) {
+          return { reason: "Action unavailable" };
+        }
+        return undefined;
+      })();
       if (action.type === "dropdown") {
         if (action.placement === "trailing" && !action.disabled)
           return action.items;

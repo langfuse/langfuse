@@ -7,6 +7,7 @@ import {
   Sparkle,
 } from "@langfuse/icons";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -17,6 +18,7 @@ export type ActionButtonProps = Pick<
 > & {
   icon?: React.ReactNode;
   loading?: boolean;
+  disabledReason?: string;
   hasAccess?: boolean;
   hasEntitlement?: boolean;
   usageLimit?: {
@@ -44,6 +46,7 @@ export const ActionButton = React.forwardRef<
 >(function ActionButton(
   {
     loading = false,
+    disabledReason: explicitDisabledReason,
     hasAccess = true,
     hasEntitlement = true,
     usageLimit,
@@ -63,7 +66,11 @@ export const ActionButton = React.forwardRef<
     usageLimit?.current !== undefined && usageLimit.current >= usageLimit.max;
 
   const isDisabled =
-    disabled || !hasAccess || !hasEntitlement || hasReachedLimit;
+    disabled ||
+    Boolean(explicitDisabledReason) ||
+    !hasAccess ||
+    !hasEntitlement ||
+    hasReachedLimit;
 
   const usageLimitCurrent = usageLimit?.current ?? 0;
   const usageLimitMax = usageLimit?.max ?? 0;
@@ -123,6 +130,14 @@ export const ActionButton = React.forwardRef<
           <span {...getTriggerProps()}>{btnContent}</span>
         )}
       </HoverCard>
+    );
+  }
+
+  if (isDisabled && explicitDisabledReason) {
+    return (
+      <DisabledActionTooltip label={explicitDisabledReason}>
+        {btnContent}
+      </DisabledActionTooltip>
     );
   }
 

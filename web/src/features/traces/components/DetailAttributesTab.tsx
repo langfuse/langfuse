@@ -161,6 +161,7 @@ export function DetailAttributesTab({
                   isString={metadataProbe.isString}
                   charCount={metadataProbe.size}
                   downloadFileBase={`metadata-${objectId}`}
+                  projectId={projectId}
                 />
               </IOSection>
             ) : (

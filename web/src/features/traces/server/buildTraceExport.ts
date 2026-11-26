@@ -14,6 +14,7 @@ import {
 import { env } from "@langfuse/shared/src/env";
 import { prisma } from "@langfuse/shared/src/db";
 import { isPublicSharingDisabledForProject } from "@/src/ee/features/public-sharing/server/publicSharing";
+import { throwIfUiExportsDisabled } from "@/src/ee/features/ui-exports/server/uiExports";
 import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "../constants/traceDownloadConfig";
 
 /** @internal */
@@ -167,6 +168,8 @@ export async function buildTraceExport({
     projectId,
     session,
   });
+
+  await throwIfUiExportsDisabled({ prisma, projectId });
 
   const observationRecordCount = await getObservationRecordCountForTrace({
     traceId,

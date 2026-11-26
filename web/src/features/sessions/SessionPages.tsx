@@ -84,6 +84,7 @@ import {
   SESSION_DETAIL_VIEW_TRIGGER_ID,
 } from "@/src/features/sessions/session-detail-presets";
 import { downloadSessionAsJson } from "@/src/features/sessions/actions/downloadSessionAsJson";
+import { useUiExportsDisabledReason } from "@/src/ee/features/ui-exports/hooks/useUiExportsDisabledReason";
 import { SessionDetailStoreProvider } from "@/src/features/sessions/SessionDetailStoreProvider";
 import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailStore";
@@ -275,6 +276,7 @@ export const SessionPage: React.FC<{
       sessionId,
     });
   }, [session.data, sessionId, projectId, capture, sessionComments, utils]);
+  const uiExportsDisabledReason = useUiExportsDisabledReason({ projectId });
 
   const peekNavigationConfig = React.useMemo(
     () => ({
@@ -443,6 +445,8 @@ export const SessionPage: React.FC<{
                   label: "Download JSON",
                   icon: Download,
                   iconOnly: true,
+                  disabled: Boolean(uiExportsDisabledReason),
+                  disabledReason: uiExportsDisabledReason ?? undefined,
                   onClick: onDownloadSessionAsJson,
                 },
                 {
