@@ -1,25 +1,24 @@
-import { Fragment, useState } from "react";
-import { ChevronDown } from "@langfuse/icons";
+import { useState } from "react";
 
-import { Tag } from "@/src/components/design-system/Tag/Tag";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { cn } from "@/src/utils/tailwind";
 import type { TestResultPanelState } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultPanelView/TestResultPanelView";
 
-function readVariables(result: unknown) {
-  if (!result || typeof result !== "object" || !("variables" in result)) {
-    return [];
-  }
-  const variables = (result as { variables?: unknown }).variables;
-  if (!Array.isArray(variables)) return [];
-  return variables.flatMap((item) => {
-    if (!item || typeof item !== "object" || !("var" in item)) return [];
-    const variable = item as { var: unknown; value?: unknown };
-    return [{ name: String(variable.var), value: variable.value }];
-  });
-}
+/** Reasoning longer than this is clipped behind Show more. */
+const REASONING_PREVIEW_CHARACTERS = 240;
 
-function scoreText(state: TestResultPanelState) {
+const containerClassName =
+  "ph-no-capture min-h-0 overflow-y-auto px-6 pt-1 pb-3";
+
+/** A run that has ended; the run button carries the pending state on its own. */
+type FinishedTestState = Exclude<
+  TestResultPanelState,
+  { status: "empty" | "running" }
+>;
+
+function scoreText(state: FinishedTestState) {
   if (state.status === "llm-success") return state.score;
   if (state.status === "code-success") {
     return state.scores.map((score) => score.value).join(", ");
@@ -33,11 +32,10 @@ function scoreText(state: TestResultPanelState) {
       })
       .join(", ");
   }
-  if (state.status === "running") return "…";
   return "";
 }
 
-function reasoningText(state: TestResultPanelState) {
+function reasoningText(state: FinishedTestState) {
   if (state.status === "llm-success") return state.reasoning;
   if (state.status === "code-success") {
     const comments = state.scores
@@ -45,31 +43,25 @@ function reasoningText(state: TestResultPanelState) {
       .filter((comment): comment is string => Boolean(comment));
     return comments.length > 0 ? comments.join("\n") : null;
   }
-  if (state.status === "request-error" || state.status === "run-error") {
-    return state.message;
-  }
   return null;
 }
 
-/** Scrolls as one area; the parent must bound its height. */
+/** The outcome of one test run. Scrolls as one area; the parent must bound its height. */
 export function EvaluatorTestResult({
   state,
   testResult,
   rawOpen,
 }: {
-  state: TestResultPanelState;
+  state: FinishedTestState;
   testResult: unknown;
   /** Shows the whole response as JSON instead of the summary. */
   rawOpen: boolean;
 }) {
-  const [variablesOpen, setVariablesOpen] = useState(false);
-  const variables = readVariables(testResult);
-  const score = scoreText(state);
-  const reasoning = reasoningText(state);
+  const [reasoningOpen, setReasoningOpen] = useState(false);
 
   if (rawOpen && testResult != null) {
     return (
-      <div className="ph-no-capture min-h-0 overflow-y-auto px-6 pt-1 pb-3">
+      <div className={containerClassName}>
         <PrettyJsonView
           json={testResult}
           currentView="json"
@@ -81,59 +73,61 @@ export function EvaluatorTestResult({
     );
   }
 
+  if (state.status === "request-error") {
+    return (
+      <div className={containerClassName}>
+        <p className="text-destructive text-sm">{state.message}</p>
+      </div>
+    );
+  }
+  if (state.status === "run-error") {
+    return (
+      <div className={containerClassName}>
+        <Banner variant="error" title="Test run failed">
+          {state.message}
+        </Banner>
+      </div>
+    );
+  }
+
+  const reasoning = reasoningText(state);
+  const isLongReasoning =
+    (reasoning?.length ?? 0) > REASONING_PREVIEW_CHARACTERS;
+
   return (
-    <div className="ph-no-capture flex min-h-0 flex-col gap-4 overflow-y-auto px-6 pt-1 pb-3">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="min-w-0">
-          <p className="text-muted-foreground text-xs">Score</p>
-          <p className="mt-2 text-2xl font-bold break-words">{score || "—"}</p>
-        </div>
+    <div
+      className={cn(
+        containerClassName,
+        "grid grid-cols-[auto_minmax(0,1fr)] gap-8",
+      )}
+    >
+      <div className="min-w-20">
+        <p className="text-muted-foreground text-xs">Score</p>
+        <p className="mt-2 text-2xl font-bold break-words">
+          {scoreText(state)}
+        </p>
+      </div>
+      {reasoning ? (
         <div className="min-w-0">
           <p className="text-muted-foreground text-xs">Model reasoning</p>
-          <p className="mt-2 text-sm whitespace-pre-wrap">{reasoning || "—"}</p>
-        </div>
-      </div>
-      <div className="min-w-0">
-        <button
-          type="button"
-          className="text-muted-foreground flex w-fit items-center gap-1 text-xs"
-          aria-expanded={variablesOpen}
-          onClick={() => setVariablesOpen((current) => !current)}
-        >
-          Variables
-          <ChevronDown
-            size="sm"
-            color="tertiary"
-            __rawClassName={cn(
-              "transition-transform",
-              !variablesOpen && "-rotate-90",
+          <p
+            className={cn(
+              "mt-2 text-sm whitespace-pre-wrap",
+              isLongReasoning && !reasoningOpen && "line-clamp-3",
             )}
-          />
-        </button>
-        {variablesOpen && variables.length > 0 ? (
-          <dl className="mt-2 grid grid-cols-[fit-content(40%)_minmax(0,1fr)] gap-x-4 gap-y-3">
-            {variables.map((variable) => (
-              <Fragment key={variable.name}>
-                <dt className="min-w-0">
-                  <Tag text={`{{${variable.name}}}`} />
-                </dt>
-                <dd className="min-w-0">
-                  <PrettyJsonView
-                    json={variable.value}
-                    currentView="pretty"
-                    borderless
-                  />
-                </dd>
-              </Fragment>
-            ))}
-          </dl>
-        ) : null}
-        {variablesOpen && variables.length === 0 ? (
-          <p className="text-muted-foreground mt-2 text-sm">
-            {state.status === "running" ? "Running…" : "No variable result."}
+          >
+            {reasoning}
           </p>
-        ) : null}
-      </div>
+          {isLongReasoning ? (
+            <div className="mt-1">
+              <ExpandToggle
+                expanded={reasoningOpen}
+                onExpandedChange={setReasoningOpen}
+              />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

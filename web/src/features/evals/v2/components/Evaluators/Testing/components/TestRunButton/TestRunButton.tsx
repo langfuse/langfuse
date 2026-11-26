@@ -33,7 +33,7 @@ export function TestRunButton({
       onClick={onRun}
     >
       {showIcon ? (
-        <Play size="base" color="default" __rawClassName="mr-1.5" />
+        <Play size="sm" color="default" __rawClassName="mr-1.5 fill-current" />
       ) : null}
       {label}
     </Button>

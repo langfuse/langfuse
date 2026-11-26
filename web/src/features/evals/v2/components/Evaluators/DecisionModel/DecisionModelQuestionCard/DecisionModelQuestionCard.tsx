@@ -6,8 +6,8 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
 import { CollapsibleCard } from "@/src/features/evals/v2/components/CollapsibleCard/CollapsibleCard";
+import { FieldRow } from "@/src/features/evals/v2/components/Evaluators/FieldRow/FieldRow";
 import { ChoiceOptionsEditor } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/ChoiceOptionsEditor/ChoiceOptionsEditor";
 import { NoulCriteriaEditor } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/NoulCriteriaEditor/NoulCriteriaEditor";
 import { QuestionInstructionsField } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionInstructionsField/QuestionInstructionsField";
@@ -72,10 +72,13 @@ function CriteriaEditor({
       );
     case DecisionModelQuestionType.NOUL:
       return (
-        <NoulCriteriaEditor
-          criteria={question.criteria}
-          onChange={(criteria) => onChange({ ...question, criteria })}
-        />
+        // Lines up with the controls of the labelled rows.
+        <div className="pl-30">
+          <NoulCriteriaEditor
+            criteria={question.criteria}
+            onChange={(criteria) => onChange({ ...question, criteria })}
+          />
+        </div>
       );
   }
 }
@@ -141,21 +144,24 @@ export function DecisionModelQuestionCard({
         </span>
       }
     >
-      <div className="flex flex-col gap-5 p-4">
-        <div className="flex flex-col gap-1.5">
-          <Label className="flex items-center gap-1.5">
-            Type
+      <div className="flex flex-col gap-4 p-4">
+        <FieldRow
+          label="Type"
+          size="wide"
+          align="start"
+          info={
             <InfoTooltip label="About question types">
               Choice picks one of a fixed set of labels. Score rates along
               ordered levels you describe. Yes/no returns the probability that a
               statement is true. Pick the one your code can act on directly.
             </InfoTooltip>
-          </Label>
+          }
+        >
           <QuestionTypeSelector
             value={question.type}
             onValueChange={(type) => onChange({ ...question, type })}
           />
-        </div>
+        </FieldRow>
 
         <QuestionInstructionsField
           value={question.instructions}
@@ -181,20 +187,21 @@ export function DecisionModelQuestionCard({
           onChange={onChange}
         />
 
-        <div className="flex flex-col gap-1.5">
-          <Label
-            htmlFor={`${id}-score-name`}
-            className="flex items-center gap-1.5"
-          >
-            Score name
+        <FieldRow
+          label="Score name"
+          size="wide"
+          align="start"
+          info={
             <InfoTooltip label="About score names">
               Each question writes its own score under this name. Keep it
               stable: renaming starts a new score series.
             </InfoTooltip>
-          </Label>
+          }
+        >
           <div className="flex flex-wrap items-center gap-3">
             <Input
               id={`${id}-score-name`}
+              aria-label="Score name"
               value={question.scoreName}
               onChange={(event) =>
                 onChange({ ...question, scoreName: event.target.value })
@@ -211,9 +218,11 @@ export function DecisionModelQuestionCard({
             </span>
           </div>
           {errors.scoreName ? (
-            <p className="text-destructive text-xs">{errors.scoreName}</p>
+            <p className="text-destructive w-full text-xs">
+              {errors.scoreName}
+            </p>
           ) : null}
-        </div>
+        </FieldRow>
       </div>
     </CollapsibleCard>
   );

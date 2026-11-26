@@ -1,4 +1,3 @@
-import { useId } from "react";
 import { DecisionModelQuestionType } from "@langfuse/shared";
 import {
   Gauge,
@@ -7,8 +6,8 @@ import {
   type IconComponent,
 } from "@langfuse/icons";
 
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { cn } from "@/src/utils/tailwind";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 
 export const QUESTION_TYPE_COPY: Record<
   DecisionModelQuestionType,
@@ -57,8 +56,8 @@ const ORDER: DecisionModelQuestionType[] = [
 ];
 
 /**
- * Picks the question type. All three primitives stay visible with their
- * descriptor; an example and when to use each sit in the card's tooltip.
+ * Picks the question type. Each option's info icon says what it does, gives an
+ * example and when to use it.
  */
 export function QuestionTypeSelector({
   value,
@@ -69,65 +68,29 @@ export function QuestionTypeSelector({
   onValueChange: (value: DecisionModelQuestionType) => void;
   disabled?: boolean;
 }) {
-  const helpIdPrefix = useId();
-
   return (
-    <div className="@container flex flex-col gap-1.5">
-      <div
-        role="radiogroup"
-        aria-label="Question type"
-        className="grid gap-2 @lg:grid-cols-3"
-      >
+    <Tabs
+      value={value}
+      onValueChange={(next) => onValueChange(next as DecisionModelQuestionType)}
+    >
+      <Tabs.List variant="inset" size="md" aria-label="Question type">
         {ORDER.map((type) => {
           const copy = QUESTION_TYPE_COPY[type];
-          const selected = type === value;
-          const helpId = `${helpIdPrefix}-${type}`;
-          const explanation = `e.g. “${copy.example}”\nWrites ${copy.writes}. ${copy.whenToUse}`;
           return (
-            <div
-              key={type}
-              className={cn(
-                "rounded-md border text-sm transition-colors",
-                "hover:bg-muted/50",
-                selected
-                  ? "border-primary ring-primary ring-1"
-                  : "border-border",
-                disabled && "opacity-60",
-              )}
-            >
-              <Tooltip label={explanation}>
-                {({ getTriggerProps }) => (
-                  <button
-                    {...getTriggerProps()}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    aria-describedby={helpId}
-                    disabled={disabled}
-                    onClick={() => onValueChange(type)}
-                    className={cn(
-                      "flex w-full flex-col gap-1 p-3 text-left",
-                      "focus-visible:ring-ring rounded-md focus-visible:ring-2 focus-visible:outline-hidden",
-                      disabled && "cursor-not-allowed",
-                    )}
-                  >
-                    <span className="flex items-center gap-1.5 font-bold">
-                      <copy.icon size="base" />
-                      {copy.label}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {copy.summary}
-                    </span>
-                  </button>
-                )}
-              </Tooltip>
-              <span id={helpId} className="sr-only">
-                {explanation}
-              </span>
-            </div>
+            <Tabs.Trigger key={type} value={type} disabled={disabled}>
+              {copy.label}
+              <InfoTooltip label={`About ${copy.label}`}>
+                <div className="flex flex-col gap-1.5">
+                  <p className="font-bold">{copy.summary}</p>
+                  <p className="text-muted-foreground">e.g. “{copy.example}”</p>
+                  <p>Writes {copy.writes}.</p>
+                  <p>{copy.whenToUse}</p>
+                </div>
+              </InfoTooltip>
+            </Tabs.Trigger>
           );
         })}
-      </div>
-    </div>
+      </Tabs.List>
+    </Tabs>
   );
 }

@@ -2,8 +2,8 @@ import { useId, useRef } from "react";
 import { TriangleAlert } from "@langfuse/icons";
 
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
-import { Label } from "@/src/components/ui/label";
 import { Textarea } from "@/src/components/ui/textarea";
+import { FieldRow } from "@/src/features/evals/v2/components/Evaluators/FieldRow/FieldRow";
 import { extractReferencedStateKeys } from "@/src/features/evals/v2/types/decisionModel";
 import { cn } from "@/src/utils/tailwind";
 
@@ -54,51 +54,57 @@ export function QuestionInstructionsField({
   };
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={id} className="flex items-center gap-1.5">
-        Question
+    <FieldRow
+      label="Question"
+      size="wide"
+      align="start"
+      info={
         <InfoTooltip label="About questions">
           Ask for one snap judgment a knowledgeable person makes in a second.
           Name the state field the question is about in backticks, for example
           “Does `question` request a refund?”. The model reads the state as a
           JSON object, so the question does not repeat the data.
         </InfoTooltip>
-      </Label>
-      <Textarea
-        id={id}
-        ref={textareaRef}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        rows={3}
-        aria-invalid={Boolean(error) || unknown.length > 0}
-        className={cn(error && "border-destructive")}
-      />
-      <div className="flex flex-wrap items-center gap-1.5 text-xs">
-        <span className="text-muted-foreground">Insert reference:</span>
-        {stateKeys.map((key) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => insertKey(key)}
-            title={`Insert \`${key}\` at the cursor`}
-            className="text-primary-accent hover:bg-muted rounded px-1 py-0.5 font-bold transition-colors"
-          >
-            {key}
-          </button>
-        ))}
-        {unknown.map((key) => (
-          <span
-            key={key}
-            className="text-dark-yellow flex items-center gap-1 rounded border border-dashed px-1.5 py-0.5 font-mono"
-            title={`\`${key}\` is not a state field`}
-          >
-            <TriangleAlert size="sm" />
-            {key}
-          </span>
-        ))}
+      }
+    >
+      <div className="flex flex-col gap-1.5">
+        <Textarea
+          id={id}
+          aria-label="Question"
+          ref={textareaRef}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          rows={3}
+          aria-invalid={Boolean(error) || unknown.length > 0}
+          className={cn(error && "border-destructive")}
+        />
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="text-muted-foreground">Insert reference:</span>
+          {stateKeys.map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => insertKey(key)}
+              title={`Insert \`${key}\` at the cursor`}
+              className="text-primary-accent hover:bg-muted rounded px-1 py-0.5 font-bold transition-colors"
+            >
+              {key}
+            </button>
+          ))}
+          {unknown.map((key) => (
+            <span
+              key={key}
+              className="text-dark-yellow flex items-center gap-1 rounded border border-dashed px-1.5 py-0.5 font-mono"
+              title={`\`${key}\` is not a state field`}
+            >
+              <TriangleAlert size="sm" />
+              {key}
+            </span>
+          ))}
+        </div>
+        {error ? <p className="text-destructive text-xs">{error}</p> : null}
       </div>
-      {error ? <p className="text-destructive text-xs">{error}</p> : null}
-    </div>
+    </FieldRow>
   );
 }
