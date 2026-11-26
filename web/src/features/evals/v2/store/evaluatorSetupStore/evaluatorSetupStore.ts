@@ -332,12 +332,19 @@ export function createEvaluatorSetupStore({
       setType: (type) =>
         set((state) => {
           if (type === state.type) return state;
-          // Types that cannot run on a trace transcript test on observations.
-          const target =
-            state.targetObject === TopicsTargetObject &&
-            !isTraceTranscriptEvalType(type)
-              ? targetChange(state, EvalTargetObject.EVENT)
-              : {};
+          const target = (() => {
+            if (state.targetObject !== TopicsTargetObject) return {};
+            // Types that cannot run on a trace transcript test on observations.
+            if (!isTraceTranscriptEvalType(type)) {
+              return targetChange(state, EvalTargetObject.EVENT);
+            }
+            // On a trace transcript the mappings follow the type's variables.
+            const { promptMessages, variableFields } = targetChange(
+              { ...state, type },
+              TopicsTargetObject,
+            );
+            return { promptMessages, variableFields };
+          })();
           if (type === EvalTemplateTypeEnum.DECISION_MODEL) {
             return {
               ...target,
