@@ -60,6 +60,20 @@ vi.mock("@/src/components/nav/TopbarBrand", () => ({
 }));
 
 describe("app shell chrome row", () => {
+  it("sizes the page-header row to a full chrome line", () => {
+    const { container } = render(<PageHeader title="Tracing" />);
+
+    const pageHeaderRow = container.querySelector(
+      `#page-header [data-testid="${APP_SHELL_CHROME_ROW_TEST_ID}"]`,
+    );
+    expect(pageHeaderRow?.className).toContain("min-h-11");
+
+    const rowContent = pageHeaderRow?.firstElementChild;
+    expect(rowContent?.className).toContain("gap-y-px");
+    expect(rowContent?.firstElementChild?.className).toContain("min-h-[43px]");
+    expect(rowContent?.lastElementChild?.className).toContain("min-h-[43px]");
+  });
+
   it("keeps the page-header chrome divider full-width on container pages", () => {
     render(<PageHeader title="Settings" container />);
 
