@@ -21,7 +21,7 @@ const GitHubDispatchActionFormSchema = z.object({
   }),
 });
 
-type GitHubDispatchActionFormData = z.infer<
+export type GitHubDispatchActionFormData = z.infer<
   typeof GitHubDispatchActionFormSchema
 >;
 
@@ -121,12 +121,7 @@ export class GitHubDispatchActionHandler implements BaseActionHandler<GitHubDisp
     action?: ActionDomain;
   }) {
     return (
-      <GitHubDispatchActionForm
-        form={props.form}
-        disabled={props.disabled}
-        projectId={props.projectId}
-        action={props.action}
-      />
+      <GitHubDispatchActionForm form={props.form} disabled={props.disabled} />
     );
   }
 }

@@ -37,6 +37,7 @@ type TopicErrorReason =
   | "numerical"
   | "input_too_large"
   | "definition_readback"
+  | "assignment_visibility"
   | "unknown";
 
 /** Who has to act on a failure. Topics builds the request, so rejected input is ours; a trace over the size limit is the customer's. */
@@ -262,6 +263,8 @@ export class TopicMetrics {
       if (error.name === "TopicInputTooLarge") reason = "input_too_large";
       if (error.name === "TopicDefinitionReadbackError")
         reason = "definition_readback";
+      if (error.name === "TopicAssignmentVisibilityError")
+        reason = "assignment_visibility";
       if (
         [
           "PrismaClientKnownRequestError",

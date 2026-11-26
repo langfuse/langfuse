@@ -1,8 +1,9 @@
+// Deprecation and cutoff signals for legacy (v3) public API endpoints:
+// sunset dates, per-family deprecation info attached via the `deprecation`
+// route-config field, response headers, and v4 cutoff error messages.
+
 import { type NextApiResponse } from "next";
 import { type ApiDeprecationInfo } from "@langfuse/shared";
-
-// Family-level deprecation signals for legacy (v3) public API
-// endpoints. Attach one via the `deprecation` route-config field.
 
 // Sunset date for the legacy v3 public API — single source of truth. If the
 // date moves, update both constants and every Fern availability message;

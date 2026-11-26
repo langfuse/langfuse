@@ -127,8 +127,7 @@ function resolveWindow(
 
 /**
  * A facet is active when a rule uses it, or always without a rule (manual
- * runs). Until assignments carry their rule (#19553), a facet's results belong
- * to the rules it is attached to.
+ * maps).
  */
 async function loadRuleScope(projectId: string) {
   const rules = await listTopicRules(projectId);
@@ -159,7 +158,7 @@ function publicFacet(
     ruleIds: scope.ruleIdsFor(facet.id),
     version: version?.version ?? 0,
     prompt: version?.prompt ?? "",
-    publishedRun: run
+    publishedMap: run
       ? {
           id: run.id,
           completedAt: run.finishedAt ? new Date(run.finishedAt) : null,
@@ -308,13 +307,13 @@ async function loadPublicTopics(
     const ruleId = ruleIdOf(facet.facetId);
     const traceCounts = new Map(facet.topics.map((topic) => [topic.id, topic]));
     const current = (facet.map?.topics ?? []).map((topic) => ({
-      id: topic.id,
+      stableId: topic.id,
       versionId: topic.versionId,
       name: topic.name,
       description: topic.description,
       facet: ref,
       ruleId,
-      runId: topic.runId,
+      mapId: topic.runId,
       traceCount: traceCounts.get(topic.id)?.count ?? 0,
     }));
     const { total: _total, ...counts } = facet.counts;
@@ -322,7 +321,7 @@ async function loadPublicTopics(
       summary: {
         facet: ref,
         ruleId,
-        publishedRunId: facet.map?.runId ?? null,
+        publishedMapId: facet.map?.runId ?? null,
         counts,
       },
       current,
@@ -336,7 +335,7 @@ type PublicTopic = Awaited<
 
 const topicColumns: FilterColumns<PublicTopic> = {
   ...facetSummaryColumns,
-  id: { types: ["stringOptions"], value: (row) => row.id },
+  stableId: { types: ["stringOptions"], value: (row) => row.stableId },
   name: { types: ["string", "stringOptions"], value: (row) => row.name },
 };
 
@@ -396,9 +395,9 @@ const SUMMARY_COLUMNS = {
   ruleId: ["stringOptions"],
   environment: ["stringOptions"],
   timestamp: ["datetime"],
-  processedAt: ["datetime"],
+  createdAt: ["datetime"],
   state: ["stringOptions"],
-  topicId: ["stringOptions"],
+  topicStableId: ["stringOptions"],
   topicName: ["stringOptions"],
   assignmentStatus: ["stringOptions"],
 } satisfies Record<string, FilterType[]>;
@@ -410,7 +409,8 @@ const ASSIGNMENT_COLUMNS = {
   ruleId: ["stringOptions"],
   environment: ["stringOptions"],
   timestamp: ["datetime"],
-  topicId: ["stringOptions"],
+  createdAt: ["datetime"],
+  topicStableId: ["stringOptions"],
   topicName: ["stringOptions"],
   status: ["stringOptions"],
 } satisfies Record<string, FilterType[]>;
@@ -546,7 +546,7 @@ async function topicResultQuery(params: {
 
     if (condition.type === "datetime") {
       conditions.push({
-        column: column as "timestamp" | "processedAt",
+        column: column as "timestamp" | "createdAt",
         match: { operator: condition.operator, value: condition.value },
       });
       continue;
@@ -625,7 +625,7 @@ async function topicResultQuery(params: {
         });
         break;
       }
-      case "topicId": {
+      case "topicStableId": {
         if (operator === "any of")
           narrow((await topicOwners(values)) ?? facetIds, operator);
         conditions.push({ column: "topicId", match: { operator, values } });
@@ -758,7 +758,7 @@ export async function listPublicTopicSummaries(
       state: row.state,
       summary: row.state === "complete" ? row.summary : null,
       summaryTruncated: row.summaryTruncated,
-      processedAt: row.processedAt,
+      createdAt: row.createdAt,
     })),
     meta: resultMeta(result.next, result.rows.length, params.limit),
   };
@@ -832,13 +832,13 @@ export async function listPublicTopicAssignments(params: ResultListParams) {
       topic:
         row.topicId && row.topicVersionId
           ? {
-              id: row.topicId,
+              stableId: row.topicId,
               versionId: row.topicVersionId,
               name: names.get(row.topicVersionId) ?? "Unavailable topic",
             }
           : null,
-      runId: row.runId,
-      assignedAt: row.assignedAt,
+      mapId: row.runId,
+      createdAt: row.createdAt,
     })),
     meta: resultMeta(result.next, result.rows.length, params.limit),
   };
@@ -847,13 +847,15 @@ export async function listPublicTopicAssignments(params: ResultListParams) {
 /** Resolves a topic of an active facet's current map; retired topics are not found. */
 export async function getPublicTopic(params: {
   projectId: string;
-  topicId: string;
+  topicStableId: string;
   fromTimestamp?: Date;
   toTimestamp?: Date;
 }) {
   const window = resolveWindow(params.fromTimestamp, params.toTimestamp);
   for (const facet of await loadPublicTopics(params.projectId, window)) {
-    const current = facet.current.find(({ id }) => id === params.topicId);
+    const current = facet.current.find(
+      ({ stableId }) => stableId === params.topicStableId,
+    );
     if (current) return { ...current, inCurrentMap: true, window };
   }
   throw new LangfuseNotFoundError("Topic not found.");

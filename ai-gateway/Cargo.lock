@@ -21,6 +21,7 @@ dependencies = [
 name = "ai-gateway"
 version = "1.0.0"
 dependencies = [
+ "ai-gateway-guardrail-rules",
  "axum",
  "base64 0.23.1",
  "chrono",
@@ -56,6 +57,14 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "ai-gateway-guardrail-rules"
+version = "0.1.0"
+dependencies = [
+ "regex-automata",
+ "regex-syntax",
 ]
 
 [[package]]

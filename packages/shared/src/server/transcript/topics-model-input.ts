@@ -4,7 +4,11 @@ import type {
   NormalizedMessage,
   NormalizedMessagePart,
 } from "../../utils/normalized-io";
-import { redactModelPayload, renderTranscript } from "./topics-renderer";
+import {
+  redactModelPayload,
+  renderTranscript,
+  type TopicNoneReplyEnding,
+} from "./topics-renderer";
 import { topicsTranscriptConfig } from "./topics-renderer-config";
 import type { ExecutionIssue, Transcript } from "./types";
 
@@ -126,7 +130,10 @@ const UNCAPPED_TOPICS_CONFIG = {
 export function renderStoredTopicText(
   transcript: Transcript,
   executionIssues: ExecutionIssue[],
-): string {
+): {
+  text: string;
+  visibleReply: { value: string; noneEnding: TopicNoneReplyEnding | null };
+} {
   const issues = new Map(
     executionIssues.map((issue) => [issue.observationId, issue]),
   );
@@ -178,6 +185,10 @@ export function renderStoredTopicText(
       metadata: {},
     } as unknown as Observation;
   });
-  return renderTranscript(transcript, observations, UNCAPPED_TOPICS_CONFIG)
-    .text;
+  const { text, visibleReply } = renderTranscript(
+    transcript,
+    observations,
+    UNCAPPED_TOPICS_CONFIG,
+  );
+  return { text, visibleReply };
 }

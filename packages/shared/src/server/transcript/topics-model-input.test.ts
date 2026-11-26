@@ -197,7 +197,7 @@ it("renders a stored transcript with its execution issues as Topics text", () =>
     },
   ];
 
-  const text = renderStoredTopicText(transcript, executionIssues);
+  const text = renderStoredTopicText(transcript, executionIssues).text;
 
   expect(text).toContain("Run the tests");
   expect(text).toContain("[error TOOL bash] exit code 1");
@@ -243,7 +243,7 @@ it("places an issue without a message at its moment across overlapping threads",
       statusMessage: "timeout",
       startTime: at(30),
     },
-  ]);
+  ]).text;
 
   const error = text.indexOf("[error SPAN fetch] timeout");
   expect(error).toBeGreaterThan(text.indexOf("Search"));
@@ -261,7 +261,7 @@ it("places an issue without a message at its moment across overlapping threads",
       startTime: at(0),
       parentObservationId: null,
     },
-  ]);
+  ]).text;
   // "Retry" (thread 2) renders last; the run-level error comes after every thread.
   const rootError = withRoot.indexOf("[error AGENT agent] run failed");
   expect(rootError).toBeGreaterThan(withRoot.indexOf("Retry"));
@@ -299,7 +299,7 @@ it("places an issue without a message at its moment across overlapping threads",
       startTime: at(55),
       parentObservationId: "root",
     },
-  ]);
+  ]).text;
   const flat = mixed.indexOf("[error TOOL lookup] not found");
   expect(flat).toBeGreaterThan(mixed.indexOf("Search"));
   expect(flat).toBeLessThan(mixed.indexOf("Retry"));

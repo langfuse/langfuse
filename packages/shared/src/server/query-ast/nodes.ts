@@ -1,3 +1,6 @@
+// Custom Kysely nodes for ClickHouse-only syntax (ARRAY JOIN, LIMIT BY, FINAL,
+// WITH FILL, parametric aggregates, typed params) and their tree helpers.
+
 import {
   AndNode,
   FunctionNode,

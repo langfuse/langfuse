@@ -1,4 +1,8 @@
-import type { TopicTimeRange } from "../../topics";
+import {
+  TOPIC_SUMMARY_STATES,
+  type TopicSummaryState,
+  type TopicTimeRange,
+} from "../../topics";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
   INTERNAL_EVAL_ENVIRONMENT_PREFIX,
@@ -16,15 +20,7 @@ import {
   queryClickhouse,
 } from "./clickhouse";
 
-export const TOPIC_SUMMARY_STATES = [
-  "complete",
-  "not_applicable",
-  "insufficient_input",
-] as const;
-export type TopicSummaryState = (typeof TOPIC_SUMMARY_STATES)[number];
-
-/** `processing_state` as results report it; mirrors `reportedTopicSummaryState`. */
-const reportedStateSql = `if(processing_state IN ('empty_input', 'input_too_large'), 'insufficient_input', toString(processing_state))`;
+export { TOPIC_SUMMARY_STATES, type TopicSummaryState };
 
 export const TOPIC_ASSIGNMENT_STATUSES = [
   "assigned",
@@ -41,7 +37,7 @@ type DateMatch = { operator: ">" | "<" | ">=" | "<="; value: Date };
 /** Conditions on current results; text matches are case-insensitive, ids match exactly. */
 export type TopicResultCondition =
   | { column: "traceId" | "environment"; match: OptionsMatch }
-  | { column: "timestamp" | "processedAt"; match: DateMatch }
+  | { column: "timestamp" | "createdAt"; match: DateMatch }
   | {
       column: "state";
       match: { operator: "any of" | "none of"; values: TopicSummaryState[] };
@@ -83,7 +79,7 @@ export type TopicSummaryRow = {
   state: TopicSummaryState;
   summary: string;
   summaryTruncated: boolean;
-  processedAt: Date;
+  createdAt: Date;
 };
 
 export type TopicAssignmentRow = {
@@ -95,7 +91,7 @@ export type TopicAssignmentRow = {
   topicId: string | null;
   topicVersionId: string | null;
   runId: string | null;
-  assignedAt: Date;
+  createdAt: Date;
 };
 
 class SqlParams {
@@ -122,6 +118,7 @@ const dateSql = (expression: string, match: DateMatch, params: SqlParams) =>
 function summaryConditionSql(
   condition: TopicResultCondition,
   params: SqlParams,
+  kind: "summaries" | "assignments",
 ) {
   switch (condition.column) {
     case "traceId":
@@ -130,10 +127,12 @@ function summaryConditionSql(
       return inSql("environment", condition.match, params);
     case "timestamp":
       return dateSql("unit_start_time", condition.match, params);
-    case "processedAt":
-      return dateSql("created_at", condition.match, params);
+    case "createdAt":
+      return kind === "summaries"
+        ? dateSql("created_at", condition.match, params)
+        : null;
     case "state":
-      return inSql(reportedStateSql, condition.match, params);
+      return inSql("toString(processing_state)", condition.match, params);
     case "topicId":
     case "assignmentStatus":
     case "assigned":
@@ -167,10 +166,13 @@ function assignmentConditionSql(
       return condition.match
         ? "topic_status = 'assigned'"
         : "topic_status != 'assigned'";
+    case "createdAt":
+      return acrossMaps
+        ? null
+        : dateSql("assignment_created_at", condition.match, params);
     case "traceId":
     case "environment":
     case "timestamp":
-    case "processedAt":
     case "state":
       return null;
   }
@@ -229,7 +231,7 @@ function currentResultsSql(
       if(matched, a_run_id, '') AS clustering_run_id,
       a_created_at AS assignment_created_at,
       multiIf(
-        processing_state != 'complete', ${reportedStateSql},
+        processing_state != 'complete', toString(processing_state),
         NOT matched, 'awaiting_map',
         topic_stable_id != '', 'assigned',
         'outlier'
@@ -393,10 +395,14 @@ function candidateQuery(
 
   for (const condition of input.conditions) {
     if (condition.column === "traceId" || condition.column === "timestamp")
-      conditions.push(summaryConditionSql(condition, params) as string);
+      conditions.push(
+        summaryConditionSql(condition, params, input.kind) as string,
+      );
+    else if (condition.column === "createdAt" && input.kind === "assignments")
+      conditions.push(dateSql("created_at", condition.match, params));
     else if (byTraceIds) continue;
     else if (condition.column === "environment" || !fromAssignments) {
-      const sql = summaryConditionSql(condition, params);
+      const sql = summaryConditionSql(condition, params, input.kind);
       if (sql) conditions.push(sql);
     }
   }
@@ -504,7 +510,7 @@ async function listCurrentRows<T extends CandidateRow>(
     );
     const params = new SqlParams();
     const summaryConditions = input.conditions.flatMap(
-      (condition) => summaryConditionSql(condition, params) ?? [],
+      (condition) => summaryConditionSql(condition, params, input.kind) ?? [],
     );
     const traceFilter = await input.traceFilter?.({
       from: new Date(Math.min(...times)),
@@ -623,7 +629,7 @@ export async function listCurrentTopicSummaries(
     ...input,
     kind: "summaries",
     select: `trace_id, facet_id, facet_version, unit_start_time, trace_name, environment,
-      ${reportedStateSql} AS state,
+      toString(processing_state) AS state,
       {truncate:Bool} AND lengthUTF8(summary) > {previewLength:UInt32} AS summary_truncated,
       if({truncate:Bool}, leftUTF8(summary, {previewLength:UInt32}), summary) AS summary_text,
       summary_created_at${assignmentSelect}`,
@@ -643,7 +649,7 @@ export async function listCurrentTopicSummaries(
       state: row.state,
       summary: row.summary_text,
       summaryTruncated: Boolean(Number(row.summary_truncated)),
-      processedAt: parseClickhouseUTCDateTimeFormat(row.summary_created_at),
+      createdAt: parseClickhouseUTCDateTimeFormat(row.summary_created_at),
       ...(input.includeAssignment
         ? {
             assignment: {
@@ -691,7 +697,7 @@ export async function listCurrentTopicAssignments(
       topicId: row.topic_stable_id || null,
       topicVersionId: row.topic_id || null,
       runId: row.clustering_run_id || null,
-      assignedAt: parseClickhouseUTCDateTimeFormat(row.assignment_created_at),
+      createdAt: parseClickhouseUTCDateTimeFormat(row.assignment_created_at),
     })),
     next,
   };
@@ -709,6 +715,8 @@ export type TopicResultCounts = {
   outliers: number;
   notApplicable: number;
   insufficientInput: number;
+  emptyInput: number;
+  inputTooLarge: number;
   topics: { topicId: string; count: number }[];
 };
 
@@ -749,6 +757,8 @@ export async function getTopicResultCounts(input: {
       usable: string;
       not_applicable: string;
       insufficient_input: string;
+      empty_input: string;
+      input_too_large: string;
     }>({
       ...READ_OPTIONS,
       query: `SELECT facet_id, uniqCombined(trace_id) AS total,
@@ -756,7 +766,9 @@ export async function getTopicResultCounts(input: {
           uniqCombinedIf(trace_id, processing_state = 'complete'
             AND facet_version = {versions:Array(UInt32)}[indexOf({facetIds:Array(String)}, facet_id)]) AS usable,
           uniqCombinedIf(trace_id, processing_state = 'not_applicable') AS not_applicable,
-          uniqCombinedIf(trace_id, processing_state IN ('insufficient_input', 'empty_input', 'input_too_large')) AS insufficient_input
+          uniqCombinedIf(trace_id, processing_state = 'insufficient_input') AS insufficient_input,
+          uniqCombinedIf(trace_id, processing_state = 'empty_input') AS empty_input,
+          uniqCombinedIf(trace_id, processing_state = 'input_too_large') AS input_too_large
         FROM topic_facet_summaries WHERE ${scope("unit_type = 'trace'")}
         GROUP BY facet_id`,
       params,
@@ -799,6 +811,8 @@ export async function getTopicResultCounts(input: {
       outliers,
       notApplicable: Number(summary?.not_applicable ?? 0),
       insufficientInput: Number(summary?.insufficient_input ?? 0),
+      emptyInput: Number(summary?.empty_input ?? 0),
+      inputTooLarge: Number(summary?.input_too_large ?? 0),
       topics: topicRows
         .filter((row) => row.topic_stable_id !== "")
         .map((row) => ({

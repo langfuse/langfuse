@@ -1,3 +1,6 @@
+// Export volume metric: serialized egress bytes per integration export run,
+// plus a helper sizing LLM request bodies.
+
 import { z } from "zod";
 import { recordIncrement } from "@langfuse/shared/src/server";
 

@@ -124,7 +124,8 @@ function canonicalParamValue(value: unknown): string {
 
 // A Date binds as the `YYYY-MM-DD hh:mm:ss.sss` UTC wall-clock string that
 // ingestion writes (`toClickhouseDateTime`). ClickHouse parses both in the
-// server timezone, so binds line up with stored rows on any server timezone.
+// column's timezone (the server's unless the type names one), so binds line
+// up with stored rows on any server timezone.
 // The string form also covers instants before 1970.
 function serializeParamValue(value: unknown): unknown {
   if (value instanceof TypedParam) return value.value;
@@ -527,18 +528,33 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   }
 
   /**
-   * In a SELECT with several relations, the qualifier of `q.x` must name a
-   * relation in scope, a lambda parameter or an output alias. Otherwise `q` is
-   * a bare column and `.x` its subcolumn or tuple element (`metadata.keys`,
-   * `tags.1`), which ClickHouse reads from the left-most relation that has `q`.
+   * The qualifier of `q.x` must name a relation in scope, a lambda parameter
+   * or an output alias. Otherwise `q` is a bare column and `.x` its subcolumn
+   * or tuple element (`metadata.keys`, `tags.1`). A SELECT with one relation
+   * reads that from its relation, so `q` must be one of its registry columns;
+   * with several, ClickHouse reads it from the left-most relation that has `q`.
    */
   private assertQualifierResolves(qualifier: string): void {
     const scope = this.selectScopes.at(-1);
-    if (!scope || scope.relationCount <= 1) return;
+    if (!scope || scope.relationCount === 0) return;
     if (this.selectScopes.some((s) => s.relations.has(qualifier))) return;
     if (this.resolvesToLambdaOrAlias(qualifier, scope)) return;
+    if (scope.relationCount === 1) {
+      if (this.relationHasColumn(scope, qualifier)) return;
+      throw new QueryCompileError(
+        `Qualifier "${qualifier}" names no relation, registry column, lambda parameter or output alias of its SELECT. Qualify the column with an alias the query declares, join the relation it reads, or add the column to the registry in schema.ts.`,
+      );
+    }
     throw new QueryCompileError(
       `Qualifier "${qualifier}" names no relation of a SELECT that reads ${scope.relationCount} relations; as a column, ClickHouse would read it from the left-most relation that has it. Qualify it with its relation's alias, e.g. "<alias>.${qualifier}".`,
+    );
+  }
+
+  /** An opaque relation counts as lacking the column, so the check fails closed. */
+  private relationHasColumn(scope: SelectScope, column: string): boolean {
+    return [...scope.relations.values()].some(
+      (columns) =>
+        !(columns instanceof OpaqueRelation) && Object.hasOwn(columns, column),
     );
   }
 
@@ -1263,7 +1279,7 @@ function qualifiedBindType(
     return relation[column] ?? undefined;
   }
   return {
-    reason: `Cannot type the value compared to ${qualifier}.${column}: no relation in scope is named "${qualifier}". Qualify the column with an alias this query declares.`,
+    reason: `Cannot type the value compared to ${qualifier}.${column}: "${qualifier}" names no relation in scope, so it is read as a column, whose subcolumns and tuple elements the registry does not type. Bind the value with typedValue(...).`,
   };
 }
 
