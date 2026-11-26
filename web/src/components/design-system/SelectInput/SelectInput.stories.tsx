@@ -2,6 +2,7 @@ import { type ComponentProps, useState } from "react";
 import { BarChart3, LineChart } from "@langfuse/icons";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
+import { MultiSelectTagInput } from "../MultiSelectTagInput/MultiSelectTagInput";
 import { SelectInput } from "./SelectInput";
 
 const longOptionLabel =
@@ -244,6 +245,78 @@ export const Clearable = meta.story({
         />
       </div>
     );
+  },
+});
+
+const tagOptions = [
+  { value: "production", label: "production" },
+  { value: "staging", label: "staging" },
+] as const;
+
+function ClearIndicatorComparison() {
+  return (
+    <div className="flex items-start gap-4">
+      <div className="w-72">
+        <SelectInput
+          value="gpt-4.1"
+          placeholder="Select a model"
+          options={modelOptions}
+          onValueChange={() => undefined}
+          clearAction={{ label: "Clear selection", onClear: () => undefined }}
+        />
+      </div>
+      <div className="w-72">
+        <MultiSelectTagInput
+          aria-label="Tags"
+          value={["production", "staging"]}
+          options={[...tagOptions]}
+          onValueChange={() => undefined}
+          placeholder="Tags"
+          searchPlaceholder="Search tags"
+          emptyMessage="No tags"
+        />
+      </div>
+    </div>
+  );
+}
+
+const alignmentArgs = {
+  value: "gpt-4.1",
+  placeholder: "Select a model",
+  options: modelOptions,
+  onValueChange: fn(),
+} satisfies ComponentProps<typeof SelectInput>;
+
+export const ClearIndicatorAlignment = meta.story({
+  name: "Clear indicator alignment",
+  args: alignmentArgs,
+  render: () => <ClearIndicatorComparison />,
+});
+
+export const TestClearIndicatorAlignment = meta.story({
+  name: "(Test) Clear indicators align",
+  args: alignmentArgs,
+  render: () => <ClearIndicatorComparison />,
+  play: async ({ canvasElement }) => {
+    const indicators = [
+      ...canvasElement.querySelectorAll("[data-select-indicator='clear']"),
+    ];
+    await expect(indicators).toHaveLength(2);
+    const insets = indicators.map((indicator) => {
+      const field = indicator.parentElement;
+      if (!field) throw new Error("Indicator has no field");
+      const fieldBox = field.getBoundingClientRect();
+      const indicatorBox = indicator.getBoundingClientRect();
+      return {
+        right: Math.round(fieldBox.right - indicatorBox.right),
+        center: Math.round(
+          indicatorBox.top +
+            indicatorBox.height / 2 -
+            (fieldBox.top + fieldBox.height / 2),
+        ),
+      };
+    });
+    await expect(insets[0]).toEqual(insets[1]);
   },
 });
 

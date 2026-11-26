@@ -6,15 +6,9 @@ import { cn } from "@/src/utils/tailwind";
 import { DropdownIndicator } from "../../DropdownIndicator/DropdownIndicator";
 import { InputControl } from "../InputControl/InputControl";
 
-const indicatorPosition = {
-  field: "right-3",
-  compact: "right-1.5",
-} as const;
-
 const triggerPadding = {
-  // Reserves the caret's 14px box plus a 4px gap inside the field padding,
-  // so the label ends where it did when the caret was in the row.
-  field: "py-2 pl-3 pr-7.5",
+  // Reserves the shared 14px indicator, 6px from the border, plus a 4px gap.
+  field: "py-2 pl-3 pr-6",
   compact: "pl-1.5 pr-6",
 } as const;
 
@@ -24,7 +18,7 @@ type SelectControlProps = Omit<
 > & {
   children: ReactNode;
   /** `compact` matches tag inputs, whose content sits closer to the border. */
-  inset?: keyof typeof indicatorPosition;
+  inset?: keyof typeof triggerPadding;
   /**
    * Replaces the caret. Pass this only when a value is set and clearing is
    * allowed; the caret and the clear button never render together.
@@ -71,10 +65,7 @@ export function SelectControl({
         </Slot>
         <span
           data-select-indicator={clear ? "clear" : "caret"}
-          className={cn(
-            "pointer-events-none absolute top-1/2 flex size-3.5 -translate-y-1/2 items-center justify-center [&_svg]:pointer-events-none",
-            indicatorPosition[inset],
-          )}
+          className="pointer-events-none absolute top-1/2 right-1.5 flex size-3.5 -translate-y-1/2 items-center justify-center [&_svg]:pointer-events-none"
         >
           {clear ? (
             <button
