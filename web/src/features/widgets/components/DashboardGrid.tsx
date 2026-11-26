@@ -12,21 +12,21 @@ import {
 } from "../components/PresetDashboardWidget";
 import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type FilterState } from "@langfuse/shared";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 
 export type DashboardPlacement = WidgetPlacement | PresetPlacement;
 
 function useDebouncedContainerWidth(delayMs: number) {
-  const ref = useRef<HTMLDivElement>(null);
+  const [element, setElement] = useState<HTMLDivElement | null>(null);
   const [width, setWidth] = useState<number | null>(null);
 
   useEffect(() => {
-    const element = ref.current;
     if (!element) return;
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     const publish = (next: number) => {
+      if (next <= 0) return;
       setWidth((current) => (current === next ? current : next));
     };
     const schedule = () => {
@@ -44,9 +44,9 @@ function useDebouncedContainerWidth(delayMs: number) {
       clearTimeout(timer);
       observer.disconnect();
     };
-  }, [delayMs]);
+  }, [element, delayMs]);
 
-  return { ref, width };
+  return { ref: setElement, width };
 }
 
 // Hook to detect screen size
