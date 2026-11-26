@@ -32,9 +32,8 @@ import {
 
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { EditDatasetItemDialog } from "@/src/features/datasets/components/EditDatasetItemDialog";
+import { EditDatasetItemDialogController } from "@/src/features/datasets/components/EditDatasetItemDialogController";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
-import { toDatasetSchema } from "@/src/features/datasets/utils/datasetItemUtils";
 
 export const DatasetItemDetailPage = ({
   activeTab,
@@ -53,7 +52,6 @@ export const DatasetItemDetailPage = ({
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const [isArchivePopoverOpen, setIsArchivePopoverOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const { selectedVersion } = useDatasetVersion();
   const isViewingOldVersion = selectedVersion !== null;
 
@@ -156,167 +154,171 @@ export const DatasetItemDetailPage = ({
   })();
 
   return (
-    <Page
-      withPadding={withPadding}
-      headerProps={{
-        title: itemId,
-        itemType: "DATASET_ITEM",
-        breadcrumb: [
-          { name: "Datasets", href: `/project/${projectId}/datasets` },
-          {
-            name: dataset.data?.name ?? datasetId,
-            href: `/project/${projectId}/datasets/${datasetId}`,
-          },
-          {
-            name: "Items",
-            href: `/project/${projectId}/datasets/${datasetId}/items`,
-          },
-        ],
-        tabsProps: {
-          tabs,
-          activeTab,
-        },
-        actionButtonsLeft: (
-          <>
-            {item.data?.status && (
-              <Popover
-                open={isArchivePopoverOpen}
-                onOpenChange={setIsArchivePopoverOpen}
-              >
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" size="xs">
-                    {item.data.status}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80" align="start" side="bottom">
-                  <div className="flex flex-col gap-4">
-                    <div className="space-y-2">
-                      <h4 className="leading-none font-bold">
-                        {item.data.status === DatasetStatus.ACTIVE
-                          ? "Archive this item?"
-                          : "Unarchive this item?"}
-                      </h4>
-                      <p className="text-muted-foreground text-sm">
-                        {item.data.status === DatasetStatus.ACTIVE
-                          ? "Archiving an item will exclude it from new dataset runs."
-                          : "Unarchiving an item will include it back in new dataset runs."}
-                      </p>
-                    </div>
-                    <Button
-                      onClick={toggleArchiveStatus}
-                      disabled={!hasAccess || mutUpdate.isPending}
-                      variant={
-                        item.data.status === DatasetStatus.ACTIVE
-                          ? "destructive"
-                          : "default"
-                      }
-                      size="sm"
-                    >
-                      {mutUpdate.isPending
-                        ? "Processing..."
-                        : item.data.status === DatasetStatus.ACTIVE
-                          ? "Archive"
-                          : "Unarchive"}
-                    </Button>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            )}
-            {item.data?.sourceTraceId && (
-              <Button variant="ghost" size="icon-xs" asChild>
-                <Link
-                  href={`/project/${projectId}/traces/${item.data.sourceTraceId}`}
-                  title={`View source ${item.data.sourceObservationId ? "observation" : "trace"}`}
-                >
-                  <ListTree size="sm" color="default" />
-                </Link>
-              </Button>
-            )}
-          </>
-        ),
-        actionButtonsRight: (
-          <>
-            <DetailPageNav
-              currentId={itemId}
-              path={(entry) =>
-                `/project/${projectId}/datasets/${datasetId}/items/${entry.id}`
-              }
-              listKey="datasetItems"
-            />
-            {datasetItemDialogPayload ? (
-              <NewDatasetItemFromExistingObjectDialogController
-                projectId={projectId}
-              >
-                {({ openDialog }) => (
-                  <ActionButton
-                    variant="outline"
-                    size="icon"
-                    hasAccess={hasAccess}
-                    title="Copy item"
-                    aria-label="Copy item"
-                    onClick={() => openDialog(datasetItemDialogPayload)}
-                  >
-                    <CopyIcon size="sm" color="default" />
-                  </ActionButton>
-                )}
-              </NewDatasetItemFromExistingObjectDialogController>
-            ) : (
-              <Button variant="outline" size="icon" disabled>
-                <Skeleton className="h-5 w-5" />
-              </Button>
-            )}
-            <DropdownMenu
-              items={[
-                {
-                  type: "item",
-                  id: "edit",
-                  title: "Edit",
-                  icon: Pencil,
-                  onClick: () => setEditDialogOpen(true),
-                  disabled: actionDisabledReason
-                    ? { reason: actionDisabledReason }
-                    : undefined,
-                },
-                {
-                  type: "item",
-                  id: "delete",
-                  title: mutDelete.isPending ? "Deleting..." : "Delete",
-                  icon: Trash2,
-                  variant: "destructive",
-                  onClick: handleDelete,
-                  disabled:
-                    actionDisabledReason || mutDelete.isPending
-                      ? {
-                          reason:
-                            actionDisabledReason ?? "Deletion in progress.",
-                        }
-                      : undefined,
-                },
-              ]}
-            >
-              {({ getTriggerProps }) => (
-                <Button
-                  {...getTriggerProps()}
-                  variant="outline"
-                  size="icon"
-                  aria-label="Item actions"
-                >
-                  <MoreVertical size="base" color="default" />
-                </Button>
-              )}
-            </DropdownMenu>
-          </>
-        ),
-      }}
+    <EditDatasetItemDialogController
+      projectId={projectId}
+      datasetId={datasetId}
     >
-      {children}
-      <EditDatasetItemDialog
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        projectId={projectId}
-        datasetItem={item.data ?? null}
-        dataset={toDatasetSchema(dataset.data ?? null)}
-      />
-    </Page>
+      {({ openDialog }) => (
+        <Page
+          withPadding={withPadding}
+          headerProps={{
+            title: itemId,
+            itemType: "DATASET_ITEM",
+            breadcrumb: [
+              { name: "Datasets", href: `/project/${projectId}/datasets` },
+              {
+                name: dataset.data?.name ?? datasetId,
+                href: `/project/${projectId}/datasets/${datasetId}`,
+              },
+              {
+                name: "Items",
+                href: `/project/${projectId}/datasets/${datasetId}/items`,
+              },
+            ],
+            tabsProps: {
+              tabs,
+              activeTab,
+            },
+            actionButtonsLeft: (
+              <>
+                {item.data?.status && (
+                  <Popover
+                    open={isArchivePopoverOpen}
+                    onOpenChange={setIsArchivePopoverOpen}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="xs">
+                        {item.data.status}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-80"
+                      align="start"
+                      side="bottom"
+                    >
+                      <div className="flex flex-col gap-4">
+                        <div className="space-y-2">
+                          <h4 className="leading-none font-bold">
+                            {item.data.status === DatasetStatus.ACTIVE
+                              ? "Archive this item?"
+                              : "Unarchive this item?"}
+                          </h4>
+                          <p className="text-muted-foreground text-sm">
+                            {item.data.status === DatasetStatus.ACTIVE
+                              ? "Archiving an item will exclude it from new dataset runs."
+                              : "Unarchiving an item will include it back in new dataset runs."}
+                          </p>
+                        </div>
+                        <Button
+                          onClick={toggleArchiveStatus}
+                          disabled={!hasAccess || mutUpdate.isPending}
+                          variant={
+                            item.data.status === DatasetStatus.ACTIVE
+                              ? "destructive"
+                              : "default"
+                          }
+                          size="sm"
+                        >
+                          {mutUpdate.isPending
+                            ? "Processing..."
+                            : item.data.status === DatasetStatus.ACTIVE
+                              ? "Archive"
+                              : "Unarchive"}
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+                {item.data?.sourceTraceId && (
+                  <Button variant="ghost" size="icon-xs" asChild>
+                    <Link
+                      href={`/project/${projectId}/traces/${item.data.sourceTraceId}`}
+                      title={`View source ${item.data.sourceObservationId ? "observation" : "trace"}`}
+                    >
+                      <ListTree size="sm" color="default" />
+                    </Link>
+                  </Button>
+                )}
+              </>
+            ),
+            actionButtonsRight: (
+              <>
+                <DetailPageNav
+                  currentId={itemId}
+                  path={(entry) =>
+                    `/project/${projectId}/datasets/${datasetId}/items/${entry.id}`
+                  }
+                  listKey="datasetItems"
+                />
+                {datasetItemDialogPayload ? (
+                  <NewDatasetItemFromExistingObjectDialogController
+                    projectId={projectId}
+                  >
+                    {({ openDialog }) => (
+                      <ActionButton
+                        variant="outline"
+                        size="icon"
+                        hasAccess={hasAccess}
+                        title="Copy item"
+                        aria-label="Copy item"
+                        onClick={() => openDialog(datasetItemDialogPayload)}
+                      >
+                        <CopyIcon size="sm" color="default" />
+                      </ActionButton>
+                    )}
+                  </NewDatasetItemFromExistingObjectDialogController>
+                ) : (
+                  <Button variant="outline" size="icon" disabled>
+                    <Skeleton className="h-5 w-5" />
+                  </Button>
+                )}
+                <DropdownMenu
+                  items={[
+                    {
+                      type: "item",
+                      id: "edit",
+                      title: "Edit",
+                      icon: Pencil,
+                      onClick: () => openDialog({ datasetItemId: itemId }),
+                      disabled: actionDisabledReason
+                        ? { reason: actionDisabledReason }
+                        : undefined,
+                    },
+                    {
+                      type: "item",
+                      id: "delete",
+                      title: mutDelete.isPending ? "Deleting..." : "Delete",
+                      icon: Trash2,
+                      variant: "destructive",
+                      onClick: handleDelete,
+                      disabled:
+                        actionDisabledReason || mutDelete.isPending
+                          ? {
+                              reason:
+                                actionDisabledReason ?? "Deletion in progress.",
+                            }
+                          : undefined,
+                    },
+                  ]}
+                >
+                  {({ getTriggerProps }) => (
+                    <Button
+                      {...getTriggerProps()}
+                      variant="outline"
+                      size="icon"
+                      aria-label="Item actions"
+                    >
+                      <MoreVertical size="base" color="default" />
+                    </Button>
+                  )}
+                </DropdownMenu>
+              </>
+            ),
+          }}
+        >
+          {children}
+        </Page>
+      )}
+    </EditDatasetItemDialogController>
   );
 };

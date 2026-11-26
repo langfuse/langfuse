@@ -20,7 +20,7 @@ import {
 } from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -42,7 +42,10 @@ import { useFullTextSearch } from "@/src/features/search-bar/hooks/useFullTextSe
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import { DATASET_ITEMS_FIELD_REGISTRY } from "../constants/datasetItemsSearchRegistry";
 import { useDatasetVersion } from "../hooks/useDatasetVersion";
-import { EditDatasetItemDialog } from "./EditDatasetItemDialog";
+import {
+  EditDatasetItemDialogController,
+  type EditDatasetItemDialogState,
+} from "./EditDatasetItemDialogController";
 
 type RowData = {
   id: string;
@@ -104,11 +107,9 @@ export function DatasetItemsTable({
     scope: "batchExports:create",
   });
   const { selectedVersion } = useDatasetVersion();
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [selectedItemForEdit, setSelectedItemForEdit] = useState<string | null>(
-    null,
+  const openEditDialogRef = useRef<(state: EditDatasetItemDialogState) => void>(
+    () => undefined,
   );
-
   const items = api.datasets.itemsByDatasetId.useQuery({
     projectId,
     datasetId,
@@ -138,28 +139,6 @@ export function DatasetItemsTable({
   const mutDelete = api.datasets.deleteDatasetItem.useMutation({
     onSuccess: () => utils.datasets.invalidate(),
   });
-
-  // Fetch selected item and dataset for edit dialog
-  const selectedItem = api.datasets.itemById.useQuery(
-    {
-      projectId,
-      datasetId,
-      datasetItemId: selectedItemForEdit!,
-    },
-    {
-      enabled: selectedItemForEdit !== null && editDialogOpen,
-    },
-  );
-
-  const dataset = api.datasets.byId.useQuery(
-    {
-      projectId,
-      datasetId,
-    },
-    {
-      enabled: editDialogOpen,
-    },
-  );
 
   const columns: LangfuseColumnDef<RowData>[] = [
     createLinkTableColumn<RowData>({
@@ -262,8 +241,7 @@ export function DatasetItemsTable({
             <DropdownMenuItem
               disabled={!hasAccess || !!selectedVersion}
               onClick={() => {
-                setSelectedItemForEdit(id);
-                setEditDialogOpen(true);
+                openEditDialogRef.current({ datasetItemId: id });
               }}
             >
               <Edit size="base" color="default" __rawClassName="mr-2" />
@@ -443,27 +421,15 @@ export function DatasetItemsTable({
         onCustomRowHeightChange={rowHeights.setCustomPx}
         onSelectRowHeight={setRowHeight}
       />
-      <EditDatasetItemDialog
-        open={editDialogOpen}
-        onOpenChange={(open) => {
-          setEditDialogOpen(open);
-          if (!open) {
-            setSelectedItemForEdit(null);
-          }
-        }}
+      <EditDatasetItemDialogController
         projectId={projectId}
-        datasetItem={selectedItem.data ?? null}
-        dataset={
-          dataset.data
-            ? {
-                id: dataset.data.id,
-                name: dataset.data.name,
-                inputSchema: dataset.data.inputSchema ?? null,
-                expectedOutputSchema: dataset.data.expectedOutputSchema ?? null,
-              }
-            : null
-        }
-      />
+        datasetId={datasetId}
+      >
+        {({ openDialog }) => {
+          openEditDialogRef.current = openDialog;
+          return null;
+        }}
+      </EditDatasetItemDialogController>
     </>
   );
 }

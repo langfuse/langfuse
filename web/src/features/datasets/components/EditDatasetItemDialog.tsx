@@ -1,25 +1,14 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { api } from "@/src/utils/api";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type Control, useForm, useWatch } from "react-hook-form";
-import { useMemo, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
+import { useId, useMemo, useState } from "react";
 import { Form } from "@/src/components/ui/form";
-import { Button } from "@/src/components/ui/button";
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
-import {
-  useDatasetItemMediaUpload,
-  type PendingMediaUpload,
-} from "../hooks/useDatasetItemMediaUpload";
+import { useDatasetItemMediaUpload } from "../hooks/useDatasetItemMediaUpload";
 import type { DatasetItemDomain } from "@langfuse/shared";
 import {
   DatasetItemFields,
@@ -27,7 +16,7 @@ import {
 } from "./DatasetItemFields";
 import {
   stringifyDatasetItemData,
-  type DatasetSchema,
+  toDatasetSchema,
 } from "../utils/datasetItemUtils";
 import { isValidDatasetJson } from "../utils/parseDatasetJson";
 
@@ -71,63 +60,20 @@ function datasetItemToDefaultValues(
   };
 }
 
-/**
- * Submit button isolated from the dialog so schema validation (which depends on
- * the live field values) re-renders only the button as the user types, not the
- * editors. Subscribes to the values via `useWatch` rather than `form.watch` at
- * the dialog level.
- */
-const SaveChangesButton = ({
-  control,
-  dataset,
-  disabled,
-  isPending,
-  pendingUploads,
-}: {
-  control: Control<DatasetItemFormValues, unknown, DatasetItemFormValues>;
-  dataset: DatasetSchema | null;
-  disabled: boolean;
-  isPending: boolean;
-  pendingUploads: PendingMediaUpload[];
-}) => {
-  const [input, expectedOutput] = useWatch({
-    control,
-    name: ["input", "expectedOutput"],
-  });
-
-  const datasets = useMemo(() => (dataset ? [dataset] : []), [dataset]);
-  const validation = useDatasetItemValidation(input, expectedOutput, datasets);
-
-  return (
-    <Button
-      type="submit"
-      loading={isPending}
-      // Block submit while uploads are in flight: the media reference is only
-      // inserted into the form value after the upload resolves, so submitting
-      // early would persist the item without the attachment and orphan the
-      // uploaded bytes on S3.
-      disabled={
-        disabled ||
-        (validation.hasSchemas && !validation.isValid) ||
-        pendingUploads.length > 0
-      }
-    >
-      Save changes
-    </Button>
-  );
+type EditDatasetItemDialogFormProps = {
+  projectId: string;
+  datasetItem: DatasetItemDomain;
+  dataset: ReturnType<typeof toDatasetSchema>;
+  onSuccess: () => void;
 };
 
 const EditDatasetItemDialogForm = ({
   projectId,
   datasetItem,
   dataset,
-  onOpenChange,
-}: {
-  projectId: string;
-  datasetItem: DatasetItemDomain;
-  dataset: DatasetSchema | null;
-  onOpenChange: (open: boolean) => void;
-}) => {
+  onSuccess,
+}: EditDatasetItemDialogFormProps) => {
+  const formId = useId();
   const [formError, setFormError] = useState<string | null>(null);
   const hasAccess = useHasProjectAccess({
     projectId: projectId,
@@ -146,10 +92,17 @@ const EditDatasetItemDialogForm = ({
     datasetItemId: datasetItem.id,
   });
 
+  const [input, expectedOutput] = useWatch({
+    control: form.control,
+    name: ["input", "expectedOutput"],
+  });
+  const datasets = useMemo(() => (dataset ? [dataset] : []), [dataset]);
+  const validation = useDatasetItemValidation(input, expectedOutput, datasets);
+
   const updateDatasetItemMutation = api.datasets.updateDatasetItem.useMutation({
     onSuccess: () => {
       utils.datasets.invalidate();
-      onOpenChange(false);
+      onSuccess();
     },
     onError: (error) => setFormError(error.message),
   });
@@ -165,17 +118,33 @@ const EditDatasetItemDialogForm = ({
     });
   }
 
+  const saveDisabled =
+    !form.formState.isDirty ||
+    !hasAccess ||
+    (validation.hasSchemas && !validation.isValid) ||
+    pendingUploads.length > 0;
+
   return (
-    <>
-      <DialogHeader>
-        <DialogTitle>Edit Dataset Item</DialogTitle>
-      </DialogHeader>
+    <Dialog
+      size="xxl"
+      title="Edit Dataset Item"
+      actions={[
+        {
+          label: "Save changes",
+          type: "submit",
+          form: formId,
+          loading: updateDatasetItemMutation.isPending,
+          disabled: saveDisabled,
+        },
+      ]}
+    >
       <Form {...form}>
         <form
+          id={formId}
           onSubmit={form.handleSubmit(onSubmit)}
-          className="flex h-full flex-col"
+          className="flex min-h-0 flex-1 flex-col"
         >
-          <DialogBody>
+          <Dialog.Body>
             {formError ? (
               <p className="text-destructive mb-4">
                 <span className="font-bold">Error:</span> {formError}
@@ -189,62 +158,61 @@ const EditDatasetItemDialogForm = ({
               onUploadMedia={hasAccess ? uploadFile : undefined}
               pendingUploads={pendingUploads}
             />
-          </DialogBody>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={updateDatasetItemMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <SaveChangesButton
-              control={form.control}
-              dataset={dataset}
-              disabled={!form.formState.isDirty || !hasAccess}
-              isPending={updateDatasetItemMutation.isPending}
-              pendingUploads={pendingUploads}
-            />
-          </DialogFooter>
+          </Dialog.Body>
         </form>
       </Form>
-    </>
-  );
-};
-
-type EditDatasetItemDialogProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  projectId: string;
-  datasetItem: DatasetItemDomain | null;
-  dataset: DatasetSchema | null;
-};
-
-export const EditDatasetItemDialog = ({
-  open,
-  onOpenChange,
-  projectId,
-  datasetItem,
-  dataset,
-}: EditDatasetItemDialogProps) => {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="xl">
-        {datasetItem ? (
-          <EditDatasetItemDialogForm
-            key={datasetItem.id}
-            projectId={projectId}
-            datasetItem={datasetItem}
-            dataset={dataset}
-            onOpenChange={onOpenChange}
-          />
-        ) : (
-          <DialogHeader>
-            <DialogTitle>Edit Dataset Item</DialogTitle>
-          </DialogHeader>
-        )}
-      </DialogContent>
     </Dialog>
   );
 };
+
+export function EditDatasetItemDialog({
+  projectId,
+  datasetId,
+  datasetItemId,
+  onSuccess,
+}: {
+  projectId: string;
+  datasetId: string;
+  datasetItemId: string;
+  onSuccess: () => void;
+}) {
+  const datasetItem = api.datasets.itemById.useQuery({
+    projectId,
+    datasetId,
+    datasetItemId,
+  });
+  const dataset = api.datasets.byId.useQuery({
+    projectId,
+    datasetId,
+  });
+
+  if (datasetItem.isPending || dataset.isPending) {
+    return (
+      <Dialog size="xxl" title="Edit Dataset Item">
+        <Dialog.Body>
+          <Skeleton className="h-[50vh] w-full" />
+        </Dialog.Body>
+      </Dialog>
+    );
+  }
+
+  if (!datasetItem.data) {
+    return (
+      <Dialog
+        size="xxl"
+        title="Edit Dataset Item"
+        text="Dataset item not found."
+      />
+    );
+  }
+
+  return (
+    <EditDatasetItemDialogForm
+      key={datasetItemId}
+      projectId={projectId}
+      datasetItem={datasetItem.data}
+      dataset={toDatasetSchema(dataset.data ?? null)}
+      onSuccess={onSuccess}
+    />
+  );
+}
