@@ -2,8 +2,15 @@ import type { StorybookConfig } from "@storybook/nextjs-vite";
 import { storyNameFromExport, toId } from "storybook/internal/csf";
 import type { Plugin } from "vite";
 import { readFile } from "node:fs/promises";
+import { globSync } from "node:fs";
 import { basename } from "path";
+import { fileURLToPath } from "node:url";
 import * as ts from "@typescript/typescript6";
+import {
+  buildComponentRelationshipGraph,
+  COMPONENT_RELATIONSHIP_STORY_TAG,
+  componentIdForDesignSystemStory,
+} from "./docs/componentRelationshipData";
 
 const STORY_FILE_PATTERN = /\.stories\.[cm]?[jt]sx?$/;
 
@@ -140,8 +147,19 @@ function addFlatStoryTitle(
 export function flattenStoryIndexTitles(
   groups: readonly StoryTitleGroup[] = [],
 ): NonNullable<StorybookConfig["experimental_indexers"]> {
-  return async (indexers) =>
-    indexers?.map((indexer) => ({
+  return async (indexers) => {
+    const designSystemFiles = globSync(
+      "src/components/design-system/**/*.{ts,tsx}",
+      {
+        cwd: fileURLToPath(new URL("../", import.meta.url)),
+      },
+    );
+    const relationshipNodeIds = new Set(
+      buildComponentRelationshipGraph(
+        Object.fromEntries(designSystemFiles.map((path) => [path, ""])),
+      ).nodes.map(({ id }) => id),
+    );
+    return indexers?.map((indexer) => ({
       ...indexer,
       createIndex: async (fileName, options) => {
         if (!STORY_FILE_PATTERN.test(fileName)) {
@@ -150,6 +168,10 @@ export function flattenStoryIndexTitles(
 
         assertNoExplicitStoryTitle(await readFile(fileName, "utf8"), fileName);
         const entries = await indexer.createIndex(fileName, options);
+        const relationshipNodeId = componentIdForDesignSystemStory(fileName);
+        const hasRelationships =
+          relationshipNodeId !== null &&
+          relationshipNodeIds.has(relationshipNodeId);
 
         return entries.map((entry) => {
           const componentTitle = entry.title?.split("/").at(-1);
@@ -165,6 +187,9 @@ export function flattenStoryIndexTitles(
 
           return {
             ...entry,
+            tags: hasRelationships
+              ? [...(entry.tags ?? []), COMPONENT_RELATIONSHIP_STORY_TAG]
+              : entry.tags,
             title,
             __id:
               entry.__id === derivedId ? toId(title, storyName) : entry.__id,
@@ -172,6 +197,7 @@ export function flattenStoryIndexTitles(
         });
       },
     }));
+  };
 }
 
 export function flatStoryTitlesPlugin(groups: readonly StoryTitleGroup[] = []) {
