@@ -5,9 +5,14 @@ import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import {
+  GatewayGuardrailDialogController,
+  type GatewayGuardrailTemplateKind,
+} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/GatewayGuardrailDialogController";
 import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
 import { GatewayGuardrailsChart } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/components/GatewayGuardrailsChart/GatewayGuardrailsChart";
 import { ConnectedGatewayGuardrailsTable } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/components/GatewayGuardrailsTable/ConnectedGatewayGuardrailsTable";
+import { GatewayNoGuardrailsEmptyState } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/components/GatewayNoGuardrailsEmptyState/GatewayNoGuardrailsEmptyState";
 import { GATEWAY_ANALYTICS_TIME_RANGE_PRESETS } from "@/src/features/ai-gateway/constants/gatewayAnalyticsTimeRangePresets";
 import { GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import type { GatewayTimeSeriesInterval } from "@/src/features/ai-gateway/constants/gatewayTimeSeriesIntervals";
@@ -31,8 +36,12 @@ export type GatewayGuardrailsPageProps = {
 export function GatewayGuardrailsPage({
   organizationId,
 }: GatewayGuardrailsPageProps) {
-  const { canManageGateway, isIngestionConfigured, isRecording } =
-    useGatewaySettingsAccess(organizationId);
+  const {
+    canManageGateway,
+    isIngestionConfigured,
+    isRecording,
+    isSetupStatusPending,
+  } = useGatewaySettingsAccess(organizationId);
   const openLimitFeedback = useOpenGuardrailsLimitFeedback();
   const table = useGatewayGuardrailsTableState(organizationId);
   const [interval, setInterval] = useState<GatewayTimeSeriesInterval>("day");
@@ -44,8 +53,42 @@ export function GatewayGuardrailsPage({
     [timeRange],
   );
 
+  if (isSetupStatusPending) return <GuardrailsPageSkeleton />;
+
   if (!canManageGateway && isIngestionConfigured === false) {
     return <ConnectedGatewayNotSetUpNotice />;
+  }
+
+  const isInitialGuardrailsLoad =
+    table.guardrails.isPending &&
+    table.search.value.trim().length === 0 &&
+    table.pagination.state.pageIndex === 0;
+
+  if (isInitialGuardrailsLoad) return <GuardrailsPageSkeleton />;
+
+  if (table.guardrails.data?.organizationCount === 0) {
+    if (!canManageGateway) {
+      return <GatewayNoGuardrailsEmptyState mode="readOnly" />;
+    }
+
+    return (
+      <GatewayGuardrailDialogController organizationId={organizationId}>
+        {({ openDialog }) => {
+          const handleAddGuardrail = () => openDialog({ mode: "create" });
+          const handleSelectTemplate = (
+            templateKind: GatewayGuardrailTemplateKind,
+          ) => openDialog({ mode: "create", templateKind });
+
+          return (
+            <GatewayNoGuardrailsEmptyState
+              mode="manage"
+              onAddGuardrail={handleAddGuardrail}
+              onSelectTemplate={handleSelectTemplate}
+            />
+          );
+        }}
+      </GatewayGuardrailDialogController>
+    );
   }
 
   const canQueryAnalytics = isRecording === true && absoluteTimeRange !== null;
@@ -110,5 +153,14 @@ export function GatewayGuardrailsPage({
         />
       </div>
     </>
+  );
+}
+
+function GuardrailsPageSkeleton() {
+  return (
+    <div className="flex flex-col gap-2">
+      <Skeleton className="h-96 rounded-lg" />
+      <Skeleton className="h-48 rounded-lg" />
+    </div>
   );
 }

@@ -54,8 +54,10 @@ type TestGuardrailResult = RouterOutputs["aiGateway"]["guardrails"]["test"];
 type BulkTargetsInput =
   RouterInputs["aiGateway"]["guardrails"]["setAssignments"]["target"];
 
+export type { GatewayGuardrailTemplateKind };
+
 export type GuardrailDialogState =
-  | { mode: "create" }
+  | { mode: "create"; templateKind?: GatewayGuardrailTemplateKind }
   | { mode: "edit"; guardrail: GatewayGuardrailRow }
   | {
       mode: "bulkTargets";
@@ -293,10 +295,18 @@ function GuardrailDialogContent({
   onSubmitForm,
   onSubmitBulkTargets,
 }: GuardrailDialogContentProps) {
+  const initialTemplate =
+    state.mode === "create" && state.templateKind
+      ? (GATEWAY_GUARDRAIL_TEMPLATES.find(
+          (template) => template.id === state.templateKind,
+        ) ?? null)
+      : null;
   const [selectedTemplate, setSelectedTemplate] =
-    useState<GatewayGuardrailTemplate | null>(null);
+    useState<GatewayGuardrailTemplate | null>(initialTemplate);
   const [galleryTab, setGalleryTab] =
-    useState<GatewayGuardrailTemplateGalleryTab>("built-in");
+    useState<GatewayGuardrailTemplateGalleryTab>(
+      initialTemplate?.external ? "integrations" : "built-in",
+    );
 
   const needsTargets = state.mode !== "create" || selectedTemplate !== null;
   const targetPicker = useGatewayGuardrailTargetPicker(
