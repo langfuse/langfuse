@@ -19,7 +19,7 @@ export function isOpenRouterBaseURL(
 }
 
 export function getOpenRouterProviders(
-  connections: ReadonlyArray<{ provider: string; baseURL?: string | null }>,
+  connections: ReadonlyArray<{ provider: string; baseURL: string | null }>,
 ): string[] {
   return connections
     .filter((connection) => isOpenRouterBaseURL(connection.baseURL))

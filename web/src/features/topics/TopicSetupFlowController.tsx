@@ -365,7 +365,7 @@ function TopicSetupSession({
         "embedding",
         settings.stored.embedding?.model,
       )}
-      openRouterProviders={getOpenRouterProviders(connections)}
+      openRouterProviders={getOpenRouterProviders(settings.connections)}
       connectionCaption={topicConnectionCaption(connections)}
       hasConnection={connections.length > 0}
       canAddConnection={canAddConnection}
