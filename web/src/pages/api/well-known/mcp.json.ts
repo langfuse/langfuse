@@ -11,7 +11,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const payload = {
     $schema:
       "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
-    title: "Langfuse MCP server",
+    title: "Langfuse",
     description:
       "Manage evaluators, scores, datasets and prompts; read experiments, traces and metrics in Langfuse.",
     websiteUrl: "https://langfuse.com",
