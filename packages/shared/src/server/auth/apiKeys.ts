@@ -28,14 +28,15 @@ import { withTransaction } from "../utils/withTransaction";
 /** orgBoundApiKeyScopes are the scopes of keys that belong to an organization through their orgId. */
 export const orgBoundApiKeyScopes: ApiKeyScope[] = ["ORGANIZATION", "USER"];
 
-const secretKeyPattern = new RegExp(`${secretKeyPrefix}[A-Za-z0-9_-]+`, "g");
+/** secretKeyPattern matches every Langfuse secret key in a text. */
+export const secretKeyPattern = new RegExp(
+  `${secretKeyPrefix}[A-Za-z0-9_-]+`,
+  "g",
+);
 
-/** redactApiKey masks every Langfuse secret key in a value to its display form, `sk-lf-...abcd`. */
+/** redactApiKey masks an API key to its display form, `sk-lf-...abcd`. */
 export function redactApiKey(value: string): string {
-  return value.replace(
-    secretKeyPattern,
-    (secretKey) => `${secretKeyPrefix}...${secretKey.slice(-4)}`,
-  );
+  return `${value.slice(0, secretKeyPrefix.length)}...${value.slice(-4)}`;
 }
 
 const MAX_LOGGED_PUBLIC_KEY_LENGTH = 64;
@@ -45,8 +46,7 @@ export function formatSubmittedPublicKeyForLog(value: string): string {
   let formatted: string;
   if (value.startsWith(publicKeyPrefix)) formatted = value;
   else if (value.length < 12) formatted = "****";
-  else if (value.startsWith(secretKeyPrefix)) formatted = redactApiKey(value);
-  else formatted = `...${value.slice(-4)}`;
+  else formatted = redactApiKey(value);
 
   return JSON.stringify(
     formatted

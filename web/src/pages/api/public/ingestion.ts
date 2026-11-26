@@ -12,6 +12,7 @@ import {
   processEventBatch,
   type ApiAccessLevel,
   redactApiKey,
+  secretKeyPattern,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
@@ -111,8 +112,8 @@ export default async function handler(
         currentSpan?.setAttributes({
           [`langfuse.header.${header.slice(11).toLowerCase().replaceAll("_", "-")}`]:
             Array.isArray(value)
-              ? value.map(redactApiKey)
-              : redactApiKey(value),
+              ? value.map((v) => v.replace(secretKeyPattern, redactApiKey))
+              : value.replace(secretKeyPattern, redactApiKey),
         });
       }
     });

@@ -8,6 +8,7 @@ import {
   logger,
   redactApiKey,
   redis,
+  secretKeyPattern,
   traceException,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -80,7 +81,7 @@ function enforceInfrastructureError(error: unknown): ErrorResult<BaseError> {
 
 function logAuthenticationError(error: unknown): void {
   logger.error("Public API authentication failed", {
-    error: redactApiKey(errorDiagnostic(error)),
+    error: errorDiagnostic(error).replace(secretKeyPattern, redactApiKey),
   });
 }
 

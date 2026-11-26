@@ -9,6 +9,7 @@ import {
   createShaHash,
   formatSubmittedPublicKeyForLog,
   redactApiKey,
+  secretKeyPattern,
   verifySecretKey,
 } from "./apiKeys";
 import {
@@ -23,24 +24,29 @@ const SECRET_KEY = "sk-lf-0f2a4c6e-8b1d-4e3f-9a7c-5d6e7f8a9b0c";
 const PUBLIC_KEY = "pk-lf-1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
 
 describe("redactApiKey", () => {
-  it("masks a bare secret key to its display form", () => {
+  it("keeps the prefix and the last four characters", () => {
     expect(redactApiKey(SECRET_KEY)).toBe("sk-lf-...9b0c");
+    expect(redactApiKey("sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")).toBe(
+      "sk-pro...6789",
+    );
   });
 
-  it("masks every secret key embedded in a larger string", () => {
+  it("masks every secret key in a text when used with secretKeyPattern", () => {
     const input = JSON.stringify([
       SECRET_KEY,
       PUBLIC_KEY,
       "sk-lf-gw-abcdef1234",
     ]);
-    expect(redactApiKey(input)).toBe(
+    expect(input.replace(secretKeyPattern, redactApiKey)).toBe(
       JSON.stringify(["sk-lf-...9b0c", PUBLIC_KEY, "sk-lf-...1234"]),
     );
   });
 
-  it("leaves strings without a secret key unchanged", () => {
-    expect(redactApiKey(PUBLIC_KEY)).toBe(PUBLIC_KEY);
-    expect(redactApiKey("python-sdk 3.1.0")).toBe("python-sdk 3.1.0");
+  it("finds no secret key in a text without one", () => {
+    expect(PUBLIC_KEY.replace(secretKeyPattern, redactApiKey)).toBe(PUBLIC_KEY);
+    expect("python-sdk 3.1.0".replace(secretKeyPattern, redactApiKey)).toBe(
+      "python-sdk 3.1.0",
+    );
   });
 });
 
@@ -55,7 +61,7 @@ describe("formatSubmittedPublicKeyForLog", () => {
 
   it("masks non-Langfuse secrets without revealing their middle", () => {
     const openAiStyle = "sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    expect(formatSubmittedPublicKeyForLog(openAiStyle)).toBe('"...6789"');
+    expect(formatSubmittedPublicKeyForLog(openAiStyle)).toBe('"sk-pro...6789"');
   });
 
   it("does not echo short values whose head and tail would overlap", () => {
