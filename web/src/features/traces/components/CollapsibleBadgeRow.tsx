@@ -51,11 +51,11 @@ export function CollapsibleBadgeRow({
       >
         {children}
       </div>
-      <div className="mt-0.5 shrink-0">
+      <div className="mt-0.5 flex shrink-0 items-center">
         <IconButton
           type="button"
           variant="ghost"
-          size="sm"
+          size="xsTouch"
           label={expanded ? "Show fewer details" : "Show more details"}
           aria-expanded={expanded}
           icon={expanded ? ChevronUp : ChevronDown}
