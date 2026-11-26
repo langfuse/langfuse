@@ -4457,7 +4457,7 @@ export const getGatewayGuardrailFlaggedCountsFromEvents = async (params: {
 
 /**
  * Bucketed count of flagged gateway requests over `[fromTimestamp, toTimestamp]`,
- * gap-filled in ClickHouse via `WITH FILL` (matching `queryBuilder.ts` buckets).
+ * gap-filled in ClickHouse via `WITH FILL` (matching `viewQuerySteps.ts` buckets).
  * Reads `events_core` using `idx_metadata_names` without reading `metadata_values`.
  */
 export const getGatewayGuardrailFlaggedTimeSeriesFromEvents = async (params: {

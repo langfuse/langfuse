@@ -1,7 +1,7 @@
 /**
  * The steps every dashboard view query shares, whether it compiles through
  * the query AST (the v2 observations and score views) or is assembled as SQL
- * text (`QueryBuilder.buildSqlText`): mapping a query's dimensions, metrics,
+ * text (`buildSqlText`, `sqlTextQuery.ts`): mapping a query's dimensions, metrics,
  * bucket and order by onto a view declaration, and validating its filters and
  * relations, all throwing `InvalidRequestError` for what the view rejects.
  * The AST-only steps build the outer select, its `group by … order by …
@@ -962,7 +962,7 @@ function astOuterMetrics<DB, TB extends keyof DB>(
 }
 
 /**
- * `QueryBuilder.translateAggregation` of `value`; a histogram has `bins`
+ * `translateAggregation` (`sqlTextQuery.ts`) of `value`; a histogram has `bins`
  * bins (default 10).
  */
 function astAggregate<DB, TB extends keyof DB>(
