@@ -72,6 +72,7 @@ impl Guardrails {
         let body = request.body().clone();
         let scanned = request.scanned.clone();
         async move {
+            let check_started = std::time::Instant::now();
             let (turn, finding) = self
                 .cpu
                 .run(CpuJob::FindLastTurn, scanned.len(), {
@@ -110,24 +111,21 @@ impl Guardrails {
                 .await
                 .ok_or(ResolutionError::Busy)?;
             let mut local = local?;
-            let mut total_duration = finding + scanning;
-            let external_outcomes = if !local.unreadable
+            let local_duration = finding + scanning;
+            let (external_outcomes, external_duration) = if !local.unreadable
                 && !local.has_local_block(&guardrails)
                 && !local.external_blocks.is_empty()
             {
-                let (outcomes, elapsed) = self
-                    .evaluate_external(
-                        &local.external_targets(&guardrails),
-                        &mut local,
-                        &mut turn_text_reservation,
-                        &organization_id,
-                    )
-                    .await?;
-                total_duration += elapsed;
-                outcomes
+                self.evaluate_external(
+                    &local.external_targets(&guardrails),
+                    &mut local,
+                    &mut turn_text_reservation,
+                    &organization_id,
+                )
+                .await?
             } else {
                 drop(turn_text_reservation);
-                Vec::new()
+                (Vec::new(), None)
             };
             let outcome = finalize_outcome(
                 local,
@@ -135,7 +133,15 @@ impl Guardrails {
                 &external_outcomes,
                 Some(&self.memory_budget),
             )?;
-            crate::observability::guardrails_checked(&organization_id, total_duration, bytes);
+            crate::observability::guardrails_checked(
+                &organization_id,
+                crate::observability::GuardrailTimings {
+                    total: check_started.elapsed(),
+                    local: local_duration,
+                    external: external_duration,
+                },
+                bytes,
+            );
             Ok(outcome)
         }
         .instrument(tracing::info_span!(
@@ -154,11 +160,11 @@ impl Guardrails {
         local: &mut LocalEvaluation,
         turn_text_reservation: &mut Option<MemoryReservation>,
         organization_id: &str,
-    ) -> Result<(Vec<(usize, ExternalOutcome)>, Duration), ResolutionError> {
+    ) -> Result<(Vec<(usize, ExternalOutcome)>, Option<Duration>), ResolutionError> {
         if targets.is_empty() {
             local.external_blocks.clear();
             drop(turn_text_reservation.take());
-            return Ok((Vec::new(), Duration::ZERO));
+            return Ok((Vec::new(), None));
         }
         let (enforcing, observing): (Vec<_>, Vec<_>) = targets
             .iter()
@@ -217,7 +223,7 @@ impl Guardrails {
                     .map(|(&(slot, _), outcome)| (slot, outcome)),
             );
         }
-        Ok((outcomes, started.elapsed()))
+        Ok((outcomes, Some(started.elapsed())))
     }
 
     fn reserve_external_payload(

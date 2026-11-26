@@ -266,7 +266,7 @@ Gateway-specific metrics:
   `gateway.admission.rejected` (`phase`: `request`, `request_body` or
   `model_catalog`), and `gateway.telemetry.records`.
 - `gateway.spend.usd` (`langfuse.organization.id`, `langfuse.project.id`, `gateway.provider`): monotonic counter of the USD a request on a spend-limited key added to its budget counters. Each charge also logs `gateway spend charged` with `cost_usd`, `user_id`, `organization_id` and `project_id`, so per-user spend can be derived from logs.
-- `gateway.guardrails.duration` and `gateway.guardrails.scanned.size` (`langfuse.organization.id`): how long a request's guardrail check ran, excluding time waiting for the blocking pool, and the bytes of the last turn it scanned; recorded for keys with guardrails.
+- `gateway.guardrails.duration`, `gateway.guardrails.local.duration`, `gateway.guardrails.external.duration`, and `gateway.guardrails.scanned.size` (`langfuse.organization.id`): end-to-end wall-clock time of the guardrail check, CPU time of local turn extraction and regex scanning/redaction (excluding blocking-pool wait), wall-clock time of external provider calls (recorded only when external guardrails run), and the bytes of the last turn scanned; recorded for keys with guardrails.
 
 Durations use seconds; first-byte timing measures provider bytes arriving at the gateway, not first-token delivery to the caller. Metric attributes contain bounded categories, not tenant or request identifiers, except the organization and project on `gateway.spend.usd`, which per-organization spend alerts need, and the organization on the `gateway.guardrails.*` metrics, to find the organizations whose guardrails cost the most. User ids never become metric attributes.
 
