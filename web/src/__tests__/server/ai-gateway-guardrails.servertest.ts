@@ -1194,4 +1194,266 @@ describe("aiGateway guardrails tRPC", () => {
     expect(renamedLegacy.name).toBe("Legacy oversized renamed");
     expect(renamedLegacy.action).toBe("LOG");
   });
+
+  it("denies foreign-organization guardrail IDs and missing gateway:manage scope across guardrail mutations", async () => {
+    Object.assign(env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING",
+      NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+      LANGFUSE_AI_GATEWAY_ENABLED: "true",
+    });
+
+    const orgId = await createOrganization();
+    const otherOrgId = await createOrganization();
+    const owner = await createUser("Guardrail Owner");
+    const member = await createUser("Guardrail Member");
+    const otherOwner = await createUser("Other Org Owner");
+    const otherOrgKeyId = await createKey(otherOrgId, otherOwner.id, {
+      gateway: true,
+      name: "other-org-gateway-key",
+    });
+
+    const ownerCaller = createCaller({
+      orgId,
+      userId: owner.id,
+      role: Role.OWNER,
+    });
+    const memberCaller = createCaller({
+      orgId,
+      userId: member.id,
+      role: Role.MEMBER,
+    });
+    const otherOwnerCaller = createCaller({
+      orgId: otherOrgId,
+      userId: otherOwner.id,
+      role: Role.OWNER,
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ action: "NONE" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+
+    const regexGuardrail = await ownerCaller.aiGateway.guardrails.create({
+      orgId,
+      type: "REGEX",
+      name: "Org regex rule",
+      action: "BLOCK",
+      presets: ["email"],
+      assignments: [{ scope: "ORGANIZATION" }],
+    });
+    const bedrockGuardrail = await ownerCaller.aiGateway.guardrails.create({
+      orgId,
+      type: "BEDROCK",
+      name: "Org bedrock rule",
+      action: "BLOCK",
+      bedrock: {
+        guardrailId: "abc123def456",
+        guardrailVersion: "1",
+        region: "us-east-1",
+        apiKey: "victim-bedrock-secret",
+      },
+      assignments: [{ scope: "ORGANIZATION" }],
+    });
+
+    const guardrailIds = [regexGuardrail.id, bedrockGuardrail.id];
+    const readGuardrails = () =>
+      prisma.gatewayGuardrail.findMany({
+        where: { id: { in: guardrailIds } },
+        orderBy: { id: "asc" },
+        select: {
+          id: true,
+          organizationId: true,
+          name: true,
+          type: true,
+          action: true,
+          config: true,
+          encryptedCredential: true,
+          assignments: {
+            select: { scope: true, apiKeyId: true, userId: true },
+            orderBy: { scope: "asc" },
+          },
+        },
+      });
+    const guardrailsBefore = await readGuardrails();
+    const auditCountBefore = await prisma.auditLog.count({
+      where: { resourceId: { in: guardrailIds } },
+    });
+    fetchSpy.mockClear();
+
+    // Outsider targeting another organization's orgId is rejected with UNAUTHORIZED
+    const outsiderRequests = [
+      () =>
+        otherOwnerCaller.aiGateway.guardrails.previewRegex({
+          orgId,
+          pattern: "foo",
+          text: "foo",
+        }),
+      () =>
+        otherOwnerCaller.aiGateway.guardrails.test({
+          orgId,
+          id: bedrockGuardrail.id,
+          type: "BEDROCK",
+          bedrock: {
+            guardrailId: "abc123def456",
+            guardrailVersion: "1",
+            region: "us-east-1",
+          },
+        }),
+      () =>
+        otherOwnerCaller.aiGateway.guardrails.create({
+          orgId,
+          type: "REGEX",
+          name: "Outsider rule",
+          action: "LOG",
+          presets: ["email"],
+          assignments: [{ scope: "ORGANIZATION" }],
+        }),
+      () =>
+        otherOwnerCaller.aiGateway.guardrails.update({
+          orgId,
+          id: regexGuardrail.id,
+          type: "REGEX",
+          name: "Hijacked regex",
+          action: "LOG",
+          presets: ["iban"],
+          assignments: [{ scope: "ORGANIZATION" }],
+        }),
+      () =>
+        otherOwnerCaller.aiGateway.guardrails.setAssignments({
+          orgId,
+          target: { type: "ids", ids: guardrailIds },
+          assignments: [{ scope: "ORGANIZATION" }],
+        }),
+      () =>
+        otherOwnerCaller.aiGateway.guardrails.delete({
+          orgId,
+          target: { type: "ids", ids: guardrailIds },
+        }),
+    ];
+    for (const request of outsiderRequests) {
+      await expect(request()).rejects.toMatchObject({
+        code: "UNAUTHORIZED",
+        message: "User is not a member of this organization",
+      });
+    }
+
+    // Non-admins without gateway:manage cannot preview, test, or update (create, setAssignments, and delete are covered above)
+    const nonAdminRequests = [
+      () =>
+        memberCaller.aiGateway.guardrails.previewRegex({
+          orgId,
+          pattern: "foo",
+          text: "foo",
+        }),
+      () =>
+        memberCaller.aiGateway.guardrails.test({
+          orgId,
+          id: bedrockGuardrail.id,
+          type: "BEDROCK",
+          bedrock: {
+            guardrailId: "abc123def456",
+            guardrailVersion: "1",
+            region: "us-east-1",
+          },
+        }),
+      () =>
+        memberCaller.aiGateway.guardrails.update({
+          orgId,
+          id: regexGuardrail.id,
+          type: "REGEX",
+          name: "Non-admin regex edit",
+          action: "LOG",
+          presets: ["iban"],
+          assignments: [{ scope: "ORGANIZATION" }],
+        }),
+    ];
+    for (const request of nonAdminRequests) {
+      await expect(request()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    }
+
+    // Foreign-organization admin submitting another org's guardrail IDs under their own orgId
+    await expect(
+      otherOwnerCaller.aiGateway.guardrails.update({
+        orgId: otherOrgId,
+        id: regexGuardrail.id,
+        type: "REGEX",
+        name: "Cross-org regex edit",
+        action: "LOG",
+        presets: ["iban"],
+        assignments: [{ scope: "API_KEY", apiKeyId: otherOrgKeyId }],
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    await expect(
+      otherOwnerCaller.aiGateway.guardrails.update({
+        orgId: otherOrgId,
+        id: bedrockGuardrail.id,
+        type: "BEDROCK",
+        name: "Cross-org bedrock edit",
+        action: "LOG",
+        bedrock: {
+          guardrailId: "abc123def456",
+          guardrailVersion: "2",
+          region: "us-east-1",
+        },
+        assignments: [{ scope: "API_KEY", apiKeyId: otherOrgKeyId }],
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    await expect(
+      otherOwnerCaller.aiGateway.guardrails.test({
+        orgId: otherOrgId,
+        id: bedrockGuardrail.id,
+        type: "BEDROCK",
+        bedrock: {
+          guardrailId: "abc123def456",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    expect(
+      await otherOwnerCaller.aiGateway.guardrails.setAssignments({
+        orgId: otherOrgId,
+        target: { type: "ids", ids: guardrailIds },
+        assignments: [{ scope: "API_KEY", apiKeyId: otherOrgKeyId }],
+      }),
+    ).toEqual({ updatedCount: 0 });
+
+    expect(
+      await otherOwnerCaller.aiGateway.guardrails.setAssignments({
+        orgId: otherOrgId,
+        target: { type: "matching", searchQuery: "Org regex" },
+        assignments: [{ scope: "API_KEY", apiKeyId: otherOrgKeyId }],
+      }),
+    ).toEqual({ updatedCount: 0 });
+
+    expect(
+      await otherOwnerCaller.aiGateway.guardrails.delete({
+        orgId: otherOrgId,
+        target: { type: "ids", ids: guardrailIds },
+      }),
+    ).toEqual({ deletedCount: 0 });
+
+    expect(
+      await otherOwnerCaller.aiGateway.guardrails.delete({
+        orgId: otherOrgId,
+        target: { type: "matching", searchQuery: "Org regex" },
+      }),
+    ).toEqual({ deletedCount: 0 });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(await readGuardrails()).toEqual(guardrailsBefore);
+    expect(
+      await prisma.auditLog.count({
+        where: { resourceId: { in: guardrailIds } },
+      }),
+    ).toBe(auditCountBefore);
+  });
 });
