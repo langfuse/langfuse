@@ -1,6 +1,6 @@
 // Golden SQL of v2 executeQuery filters and group-bys per view and dimension.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   capturedQueries,
@@ -26,6 +26,7 @@ vi.mock("../../../server/queries/clickhouse-sql/query-options", () => ({
 }));
 
 import { type QueryType } from "../types";
+import { QueryBuilder } from "./queryBuilder";
 import { executeQuery } from "./queryExecutor";
 
 const FIXED_PROJECT_ID = "golden-project";
@@ -153,4 +154,134 @@ describeWithClickhouse("golden: metrics v2 executeQuery", () => {
       }
     });
   }
+});
+
+// Chart config on v1 observations and the root-event window on v2 traces,
+// both assembled as SQL text.
+describeWithClickhouse("golden: SQL-text executeQuery options", () => {
+  beforeEach(() => resetCaptures());
+
+  describe("histogram bins", () => {
+    const histogramQuery = {
+      view: "observations",
+      dimensions: [],
+      metrics: [{ measure: "totalCost", aggregation: "histogram" }],
+      filters: [stringEq("type", "generation")],
+      timeDimension: null,
+      fromTimestamp: "2026-01-01T00:00:00.000Z",
+      toTimestamp: "2026-01-02T00:00:00.000Z",
+      orderBy: null,
+      chartConfig: { type: "HISTOGRAM", bins: 20 },
+    } as QueryType;
+
+    it("two-level", async () => {
+      await executeQuery(FIXED_PROJECT_ID, histogramQuery, "v1", false);
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+
+    it("single-level", async () => {
+      await executeQuery(FIXED_PROJECT_ID, histogramQuery, "v1", true);
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+  });
+
+  describe("row_limit", () => {
+    const tableQuery = (
+      config: Pick<QueryType, "chartConfig"> & {
+        config?: { type: string; row_limit: number };
+      },
+    ) =>
+      ({
+        view: "observations",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: "2026-01-01T00:00:00.000Z",
+        toTimestamp: "2026-01-02T00:00:00.000Z",
+        orderBy: [{ field: "name", direction: "asc" }],
+        ...config,
+      }) as QueryType;
+
+    it("set", async () => {
+      await executeQuery(
+        FIXED_PROJECT_ID,
+        tableQuery({ chartConfig: { type: "TABLE", row_limit: 5 } }),
+      );
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+
+    it("unset", async () => {
+      await executeQuery(FIXED_PROJECT_ID, tableQuery({}));
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+
+    // The query schema rejects `chartConfig.row_limit: 0`; the executor's
+    // `config` key reaches the builder without that check.
+    it("0", async () => {
+      await executeQuery(
+        FIXED_PROJECT_ID,
+        tableQuery({ config: { type: "TABLE", row_limit: 0 } }),
+      );
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+  });
+
+  describe("root-event window", () => {
+    // executeQuery creates its own QueryBuilder, so set the window per build.
+    function withMaxWindowHours(hours: number) {
+      const build = QueryBuilder.prototype.build;
+      vi.spyOn(QueryBuilder.prototype, "build").mockImplementation(function (
+        this: QueryBuilder,
+        ...args
+      ) {
+        this.setRootEventConditionMaxWindowHours(hours);
+        return build.apply(this, args);
+      });
+    }
+
+    afterEach(() => vi.restoreAllMocks());
+
+    // A 72-hour window.
+    const tracesQuery = {
+      view: "traces",
+      dimensions: [{ field: "name" }],
+      metrics: [{ measure: "count", aggregation: "count" }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: "2026-01-01T00:00:00.000Z",
+      toTimestamp: "2026-01-04T00:00:00.000Z",
+      orderBy: null,
+    } as QueryType;
+
+    it("window below the threshold", async () => {
+      withMaxWindowHours(168);
+      await executeQuery(
+        FIXED_PROJECT_ID,
+        { ...tracesQuery, timeDimension: { granularity: "day" } },
+        "v2",
+      );
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+
+    it("window above the threshold", async () => {
+      withMaxWindowHours(24);
+      await executeQuery(FIXED_PROJECT_ID, tracesQuery, "v2");
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+
+    it("threshold 0", async () => {
+      withMaxWindowHours(0);
+      await executeQuery(
+        FIXED_PROJECT_ID,
+        {
+          ...tracesQuery,
+          fromTimestamp: "2025-01-01T00:00:00.000Z",
+          toTimestamp: "2026-01-01T00:00:00.000Z",
+        },
+        "v2",
+      );
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    });
+  });
 });
