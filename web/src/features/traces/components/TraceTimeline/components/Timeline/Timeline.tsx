@@ -284,21 +284,34 @@ function placedTickSides(
     right: item.left + item.width,
   }));
   const taken: AxisBox[] = [];
-  return ticks.map((tick) => {
-    const clear = (side: TickSide) => {
+  const sides: Array<TickSide | null> = ticks.map(() => null);
+  const claim = (index: number, order: readonly TickSide[]) => {
+    const tick = ticks[index];
+    if (!tick) return;
+    for (const side of order) {
       const box = tickLabelBox(tick.x, tick.label, side);
-      return (
-        box.left >= 0 &&
-        idleBoxes.every((other) => !boxesOverlap(box, other)) &&
-        taken.every((other) => !boxesOverlap(box, other))
-      );
-    };
-    let side: TickSide | null = null;
-    if (clear("right")) side = "right";
-    else if (clear("left")) side = "left";
-    if (side) taken.push(tickLabelBox(tick.x, tick.label, side));
-    return { tick, side };
+      const blocked =
+        box.left < 0 ||
+        idleBoxes.some((other) => boxesOverlap(box, other)) ||
+        taken.some((other) => boxesOverlap(box, other));
+      if (blocked) continue;
+      taken.push(box);
+      sides[index] = side;
+      return;
+    }
+  };
+  // The tick whose usual label runs into the idle words is the break marker.
+  // It claims a side before the ticks to its left, which are ordinary steps.
+  ticks.forEach((tick, index) => {
+    const right = tickLabelBox(tick.x, tick.label, "right");
+    const meetsIdle = idleBoxes.some((other) => boxesOverlap(right, other));
+    if (meetsIdle) claim(index, ["left", "right"]);
   });
+  ticks.forEach((_, index) => {
+    if (sides[index] != null) return;
+    claim(index, ["right", "left"]);
+  });
+  return ticks.map((tick, index) => ({ tick, side: sides[index] ?? null }));
 }
 
 function idleGapLabels(placed: readonly IdleAxisLabel[]) {
