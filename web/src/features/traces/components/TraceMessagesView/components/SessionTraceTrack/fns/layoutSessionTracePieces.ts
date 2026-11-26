@@ -1,8 +1,5 @@
 import { formatIntervalSeconds, formatLocalIsoDate } from "@/src/utils/dates";
-import {
-  computeIdleGapSeconds,
-  IDLE_GAP_THRESHOLD_SECONDS,
-} from "@/src/features/sessions/sessionIdleGap";
+import { computeIdleGapSeconds } from "@/src/features/sessions/sessionIdleGap";
 
 const MIN_SEGMENT_PERCENT = 0.8;
 
@@ -61,12 +58,11 @@ export function layoutSessionTracePieces(
       const previous = ordered[position - 1];
       const gapSeconds =
         previous === undefined ? 0 : idleGap(previous.trace.end, trace.start);
-      const idle = gapSeconds >= IDLE_GAP_THRESHOLD_SECONDS;
       pieces.push({
-        tone: idle ? "idle" : "rest",
+        tone: "idle",
         width: left - cursor,
         idle:
-          idle && previous
+          previous !== undefined
             ? {
                 fromClock: formatTraceClock(
                   previous.trace.end,
@@ -103,7 +99,7 @@ export function layoutSessionTracePieces(
     });
     cursor = Math.max(cursor, left + width);
   });
-  if (cursor < 99.8) pieces.push({ tone: "rest", width: 100 - cursor });
+  if (cursor < 99.8) pieces.push({ tone: "idle", width: 100 - cursor });
   return {
     pieces,
     startClock: formatTraceClock(sessionStart, sessionStart, sessionEnd),

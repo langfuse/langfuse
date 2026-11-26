@@ -81,6 +81,18 @@ export const ActiveMiddle = meta.story({
   name: "Active in the middle",
 });
 
+export const WideActive = meta.story({
+  name: "Wide active segment",
+  args: {
+    activeIndex: 1,
+    traces: [
+      trace("first", 0, 4),
+      trace("current", 6, 30),
+      trace("last", 38, 4),
+    ],
+  },
+});
+
 export const ActiveEnd = meta.story({
   name: "Active at the end",
   args: { activeIndex: 2 },
@@ -103,7 +115,8 @@ export const SegmentTooltip = meta.story({
     const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
       "tooltip",
     );
-    await expect(tooltip).toHaveTextContent("Trace 1 of 3 · first");
+    await expect(tooltip).toHaveTextContent("first");
+    await expect(tooltip).toHaveTextContent("Trace 1 of 3");
     await expect(tooltip).toHaveTextContent("Started");
     await expect(tooltip).toHaveTextContent("Duration");
     await expect(tooltip).toHaveTextContent("4m");
@@ -121,7 +134,7 @@ export const IdleTooltip = meta.story({
     ],
   },
   play: async ({ canvas, canvasElement }) => {
-    const gap = canvas.getByRole("img", { name: /Idle from/ });
+    const gap = canvas.getByRole("img", { name: /36m/ });
     expect(gap.tabIndex).toBe(-1);
     await userEvent.hover(gap);
     const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
