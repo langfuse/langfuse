@@ -77,6 +77,7 @@ export function SessionTraceTrack({
         );
       })}
       <TrackTimes
+        width={width}
         startClock={layout.startClock}
         endClock={layout.endClock}
         active={pieces.find((piece) => piece.tone === "fill")?.trace}
@@ -90,11 +91,13 @@ export function SessionTraceTrack({
 }
 
 function TrackTimes({
+  width,
   startClock,
   endClock,
   active,
   edgeTone,
 }: {
+  width: number;
   startClock: string;
   endClock: string;
   active?: SessionTracePiece["trace"];
@@ -180,7 +183,7 @@ function TrackTimes({
         ? current
         : next,
     );
-  }, [startClock, endClock, active?.clock, active?.endClock]);
+  }, [width, startClock, endClock, active?.index, active?.clock, active?.endClock]);
 
   const edgeClass = (tone?: SessionTracePiece["tone"]) =>
     tone === "fill" ? "text-background" : "text-foreground";

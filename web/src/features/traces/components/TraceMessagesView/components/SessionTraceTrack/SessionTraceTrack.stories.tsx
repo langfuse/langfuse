@@ -82,7 +82,7 @@ export const ActiveMiddle = meta.story({
 });
 
 export const WideActive = meta.story({
-  name: "Wide active segment",
+  name: "(Test) Active labels follow a resize",
   args: {
     activeIndex: 1,
     traces: [
@@ -90,6 +90,19 @@ export const WideActive = meta.story({
       trace("current", 6, 30),
       trace("last", 38, 4),
     ],
+  },
+  play: async ({ canvas }) => {
+    const track = canvas.getByRole("group", { name: "Session timeline" });
+    const active = track.querySelector("[data-active]");
+    const label = canvas.getByText("14:06");
+    if (!(active instanceof HTMLElement))
+      throw new Error("Missing active segment");
+    track.style.flex = "0 0 280px";
+    track.style.width = "280px";
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const segment = active.getBoundingClientRect();
+    const text = label.getBoundingClientRect();
+    expect(Math.abs(text.left - segment.left - 6)).toBeLessThan(2);
   },
 });
 
