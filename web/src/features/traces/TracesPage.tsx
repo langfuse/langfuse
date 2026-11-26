@@ -10,6 +10,7 @@ import {
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { tracingPageView } from "@/src/features/traces/fns/tracingPageView";
 import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function TracesPage() {
@@ -20,7 +21,7 @@ export default function TracesPage() {
 
   // Check if the user has tracing configured
   // Skip polling entirely if the project flag is already set in the session
-  const { data: hasTracingConfigured, isLoading } =
+  const { data: hasTracingConfigured, isPending } =
     api.traces.hasTracingConfigured.useQuery(
       { projectId },
       {
@@ -36,9 +37,9 @@ export default function TracesPage() {
       },
     );
 
-  const showOnboarding = !isLoading && !hasTracingConfigured;
+  const view = tracingPageView({ isPending, hasTracingConfigured });
 
-  if (showOnboarding) {
+  if (view !== "table") {
     return (
       <Page
         headerProps={{
@@ -52,7 +53,7 @@ export default function TracesPage() {
         }}
         scrollable
       >
-        <TracesOnboarding projectId={projectId} />
+        {view === "onboarding" && <TracesOnboarding projectId={projectId} />}
       </Page>
     );
   }

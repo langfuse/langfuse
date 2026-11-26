@@ -473,25 +473,93 @@ describe("organization model definitions", () => {
   });
 
   describe("public models API", () => {
-    it("lists own organization definitions as not Langfuse managed", async () => {
-      const listed = new Map<string, boolean>();
+    it("lists each definition's scope and marks organization definitions as read-only", async () => {
+      const listed = new Map<
+        string,
+        { scope: string; isLangfuseManaged: boolean }
+      >();
       for (let page = 1, totalPages = 1; page <= totalPages; page++) {
         const response = await makeZodVerifiedAPICall(
           GetModelsV1Response,
           "GET",
           `/api/public/models?page=${page}&limit=100`,
           undefined,
-          orgB.auth,
+          orgA.auth,
         );
         totalPages = response.body.meta.totalPages;
         for (const m of response.body.data) {
-          listed.set(m.id, m.isLangfuseManaged);
+          listed.set(m.id, {
+            scope: m.scope,
+            isLangfuseManaged: m.isLangfuseManaged,
+          });
         }
       }
 
-      expect(listed.get(ids.orgBOnly)).toBe(false);
-      expect(listed.has(ids.orgAOnly)).toBe(false);
-      expect(listed.has(ids.orgAShared)).toBe(false);
+      expect(listed.get(ids.projectA1Shared)).toEqual({
+        scope: "PROJECT",
+        isLangfuseManaged: false,
+      });
+      expect(listed.get(ids.orgAOnly)).toEqual({
+        scope: "ORGANIZATION",
+        isLangfuseManaged: true,
+      });
+      expect(listed.get(ids.langfuseShared)).toEqual({
+        scope: "LANGFUSE",
+        isLangfuseManaged: true,
+      });
+      expect(listed.has(ids.orgBOnly)).toBe(false);
+    });
+
+    it("forbids replacing or deleting own organization definitions, and hides another organization's", async () => {
+      const body = {
+        modelName: orgOnlyName,
+        matchPattern: exact(orgOnlyName),
+        unit: "TOKENS",
+        inputPrice: 1,
+      };
+
+      const put = await makeAPICall<{ message: string }>(
+        "PUT",
+        `/api/public/models/${ids.orgAOnly}`,
+        body,
+        orgA.auth,
+      );
+      expect(put.status).toBe(403);
+      expect(put.body.message).toContain("defined by the organization");
+
+      const del = await makeAPICall(
+        "DELETE",
+        `/api/public/models/${ids.orgAOnly}`,
+        undefined,
+        orgA.auth,
+      );
+      expect(del.status).toBe(403);
+
+      const unchanged = await prisma.model.findUniqueOrThrow({
+        where: { id: ids.orgAOnly },
+        include: { pricingTiers: { include: { prices: true } } },
+      });
+      expect(unchanged.scope).toBe("ORGANIZATION");
+      expect(unchanged.projectId).toBeNull();
+      expect(unchanged.pricingTiers[0]?.prices[0]?.price.toString()).toBe(
+        "0.004",
+      );
+
+      const otherPut = await makeAPICall(
+        "PUT",
+        `/api/public/models/${ids.orgBOnly}`,
+        { ...body, modelName: orgBName, matchPattern: exact(orgBName) },
+        orgA.auth,
+      );
+      expect(otherPut.status).toBe(404);
+
+      const otherDelete = await makeAPICall(
+        "DELETE",
+        `/api/public/models/${ids.orgBOnly}`,
+        undefined,
+        orgA.auth,
+      );
+      expect(otherDelete.status).toBe(404);
     });
 
     it("gets own organization definitions but not another organization's", async () => {

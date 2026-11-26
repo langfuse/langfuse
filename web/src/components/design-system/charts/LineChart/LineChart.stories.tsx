@@ -1,14 +1,15 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ComponentProps } from "react";
 import preview from "../../../../../.storybook/preview";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import {
   LineChart,
   type LineChartLegend,
-  type LineChartSeries,
   type LineChartThreshold,
 } from "./LineChart";
-import { chartColors } from "../constants";
+import { chartColors } from "../__tests__/chartStoryColors";
+
+type LineChartSeries = ComponentProps<typeof LineChart>["series"][number];
 
 type LineChartStoryProps = {
   legend?: LineChartLegend;

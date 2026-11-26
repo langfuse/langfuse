@@ -1522,6 +1522,193 @@ LIMIT 1 BY
 ]
 `;
 
+exports[`golden: events filtered streams family > buildEventsBlobExportStreamQuery cutoff=unset 1`] = `
+{
+  "queries": [
+    {
+      "fn": "buildEventsBlobExportStreamQuery",
+      "params": {
+        "param1": "golden-project",
+        "param2": "golden-project",
+        "param3": [
+          "GENERATION",
+        ],
+        "param4": 100,
+      },
+      "route": "unknown",
+      "sql": "WITH
+    scores_agg AS
+    (
+        SELECT
+            trace_id,
+            observation_id,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans,
+            groupArrayIf(
+                tuple(name, string_value, data_type),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories_tuples
+        FROM
+        (
+            SELECT
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            FINAL
+            WHERE project_id = {param1:String}
+            GROUP BY
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value
+            ORDER BY trace_id ASC
+        ) AS tmp
+        GROUP BY
+            observation_id,
+            trace_id
+    ),
+    trace_scores_agg AS
+    (
+        SELECT
+            trace_id,
+            project_id,
+            groupUniqArray(id) AS score_ids,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans,
+            groupArrayIf(
+                tuple(name, string_value, data_type),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories_tuples
+        FROM
+        (
+            SELECT
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            FINAL
+            WHERE (project_id = {param1:String})
+                AND (observation_id IS NULL)
+            GROUP BY
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value
+        ) AS tmp
+        GROUP BY
+            project_id,
+            trace_id
+    )
+SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.completion_start_time AS completion_start_time,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.provided_model_name AS provided_model_name,
+    e.model_parameters AS model_parameters,
+    e.usage_details AS usage_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.tags AS tags,
+    e.release AS release,
+    e.model_id AS model_id,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time)) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time)
+    ) AS time_to_first_token,
+    input,
+    output,
+    s.scores_avg AS scores_avg,
+    s.score_categories AS score_categories,
+    s.score_categories_tuples AS score_categories_tuples,
+    ts.scores_avg AS trace_scores_avg,
+    ts.score_categories_tuples AS trace_score_categories_tuples
+FROM events_full AS e
+LEFT JOIN scores_agg AS s ON (s.trace_id = e.trace_id) AND (s.observation_id = e.span_id)
+LEFT JOIN trace_scores_agg AS ts ON (ts.trace_id = e.trace_id) AND (ts.project_id = e.project_id)
+WHERE (e.project_id = {param1:String})
+    AND ((e.project_id = {param2:String}) AND (e.type IN ({param3:Array(String)})))
+    AND (e.is_deleted = 0)
+ORDER BY
+    e.project_id DESC,
+    toStartOfMinute(e.start_time) DESC,
+    e.start_time DESC
+LIMIT 1 BY
+    e.span_id,
+    e.project_id
+LIMIT {param4:Int32}",
+    },
+  ],
+  "startTimeFrom": null,
+}
+`;
+
 exports[`golden: events filtered streams family > buildEventsBlobExportStreamQuery filter=native 1`] = `
 {
   "queries": [
@@ -2085,6 +2272,766 @@ LIMIT {param8:Int32}",
 }
 `;
 
+exports[`golden: events filtered streams family > buildEventsBlobExportStreamQuery filter=obsScore booleanObject <> 1`] = `
+{
+  "queries": [
+    {
+      "fn": "buildEventsBlobExportStreamQuery",
+      "params": {
+        "param1": "golden-project",
+        "param2": "golden-project",
+        "param3": "2026-01-02 00:00:00.000",
+        "param4": "correct:true",
+        "param5": "correct:true",
+        "param6": 100,
+      },
+      "route": "unknown",
+      "sql": "WITH
+    scores_agg AS
+    (
+        SELECT
+            trace_id,
+            observation_id,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans,
+            groupArrayIf(
+                tuple(name, string_value, data_type),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories_tuples
+        FROM
+        (
+            SELECT
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            FINAL
+            WHERE project_id = {param1:String}
+            GROUP BY
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value
+            ORDER BY trace_id ASC
+        ) AS tmp
+        GROUP BY
+            observation_id,
+            trace_id
+    ),
+    trace_scores_agg AS
+    (
+        SELECT
+            trace_id,
+            project_id,
+            groupUniqArray(id) AS score_ids,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans,
+            groupArrayIf(
+                tuple(name, string_value, data_type),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories_tuples
+        FROM
+        (
+            SELECT
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            FINAL
+            WHERE (project_id = {param1:String})
+                AND (observation_id IS NULL)
+            GROUP BY
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value
+        ) AS tmp
+        GROUP BY
+            project_id,
+            trace_id
+    )
+SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.completion_start_time AS completion_start_time,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.provided_model_name AS provided_model_name,
+    e.model_parameters AS model_parameters,
+    e.usage_details AS usage_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.tags AS tags,
+    e.release AS release,
+    e.model_id AS model_id,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time)) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time)
+    ) AS time_to_first_token,
+    input,
+    output,
+    s.scores_avg AS scores_avg,
+    s.score_categories AS score_categories,
+    s.score_categories_tuples AS score_categories_tuples,
+    ts.scores_avg AS trace_scores_avg,
+    ts.score_categories_tuples AS trace_score_categories_tuples
+FROM events_full AS e
+LEFT JOIN scores_agg AS s ON (s.trace_id = e.trace_id) AND (s.observation_id = e.span_id)
+LEFT JOIN trace_scores_agg AS ts ON (ts.trace_id = e.trace_id) AND (ts.project_id = e.project_id)
+WHERE (e.project_id = {param1:String})
+    AND ((e.project_id = {param2:String}) AND (e.start_time < {param3:DateTime64(3, 'UTC')}))
+    AND ((NOT has(s.score_booleans, {param4:String})) AND (NOT has(ts.score_booleans, {param5:String})))
+    AND (e.is_deleted = 0)
+ORDER BY
+    e.project_id DESC,
+    toStartOfMinute(e.start_time) DESC,
+    e.start_time DESC
+LIMIT 1 BY
+    e.span_id,
+    e.project_id
+LIMIT {param6:Int32}",
+    },
+  ],
+  "startTimeFrom": null,
+}
+`;
+
+exports[`golden: events filtered streams family > buildEventsBlobExportStreamQuery filter=obsScore booleanObject = 1`] = `
+{
+  "queries": [
+    {
+      "fn": "buildEventsBlobExportStreamQuery",
+      "params": {
+        "param1": "golden-project",
+        "param2": "golden-project",
+        "param3": "2026-01-02 00:00:00.000",
+        "param4": "correct:true",
+        "param5": "correct:true",
+        "param6": 100,
+      },
+      "route": "unknown",
+      "sql": "WITH
+    scores_agg AS
+    (
+        SELECT
+            trace_id,
+            observation_id,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans,
+            groupArrayIf(
+                tuple(name, string_value, data_type),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories_tuples
+        FROM
+        (
+            SELECT
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            FINAL
+            WHERE project_id = {param1:String}
+            GROUP BY
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value
+            ORDER BY trace_id ASC
+        ) AS tmp
+        GROUP BY
+            observation_id,
+            trace_id
+    ),
+    trace_scores_agg AS
+    (
+        SELECT
+            trace_id,
+            project_id,
+            groupUniqArray(id) AS score_ids,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans,
+            groupArrayIf(
+                tuple(name, string_value, data_type),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories_tuples
+        FROM
+        (
+            SELECT
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            FINAL
+            WHERE (project_id = {param1:String})
+                AND (observation_id IS NULL)
+            GROUP BY
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value
+        ) AS tmp
+        GROUP BY
+            project_id,
+            trace_id
+    )
+SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.completion_start_time AS completion_start_time,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.provided_model_name AS provided_model_name,
+    e.model_parameters AS model_parameters,
+    e.usage_details AS usage_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.tags AS tags,
+    e.release AS release,
+    e.model_id AS model_id,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time)) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time)
+    ) AS time_to_first_token,
+    input,
+    output,
+    s.scores_avg AS scores_avg,
+    s.score_categories AS score_categories,
+    s.score_categories_tuples AS score_categories_tuples,
+    ts.scores_avg AS trace_scores_avg,
+    ts.score_categories_tuples AS trace_score_categories_tuples
+FROM events_full AS e
+LEFT JOIN scores_agg AS s ON (s.trace_id = e.trace_id) AND (s.observation_id = e.span_id)
+LEFT JOIN trace_scores_agg AS ts ON (ts.trace_id = e.trace_id) AND (ts.project_id = e.project_id)
+WHERE (e.project_id = {param1:String})
+    AND ((e.project_id = {param2:String}) AND (e.start_time < {param3:DateTime64(3, 'UTC')}))
+    AND ((has(s.score_booleans, {param4:String})) OR (has(ts.score_booleans, {param5:String})))
+    AND (e.is_deleted = 0)
+ORDER BY
+    e.project_id DESC,
+    toStartOfMinute(e.start_time) DESC,
+    e.start_time DESC
+LIMIT 1 BY
+    e.span_id,
+    e.project_id
+LIMIT {param6:Int32}",
+    },
+  ],
+  "startTimeFrom": null,
+}
+`;
+
+exports[`golden: events filtered streams family > buildEventsBlobExportStreamQuery filter=obsScore categoryOptions any of 1`] = `
+{
+  "queries": [
+    {
+      "fn": "buildEventsBlobExportStreamQuery",
+      "params": {
+        "param1": "golden-project",
+        "param2": "golden-project",
+        "param3": "2026-01-02 00:00:00.000",
+        "param4": [
+          "sentiment:positive",
+        ],
+        "param5": [
+          "sentiment:positive",
+        ],
+        "param6": 100,
+      },
+      "route": "unknown",
+      "sql": "WITH
+    scores_agg AS
+    (
+        SELECT
+            trace_id,
+            observation_id,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans,
+            groupArrayIf(
+                tuple(name, string_value, data_type),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories_tuples
+        FROM
+        (
+            SELECT
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            FINAL
+            WHERE project_id = {param1:String}
+            GROUP BY
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value
+            ORDER BY trace_id ASC
+        ) AS tmp
+        GROUP BY
+            observation_id,
+            trace_id
+    ),
+    trace_scores_agg AS
+    (
+        SELECT
+            trace_id,
+            project_id,
+            groupUniqArray(id) AS score_ids,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans,
+            groupArrayIf(
+                tuple(name, string_value, data_type),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories_tuples
+        FROM
+        (
+            SELECT
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            FINAL
+            WHERE (project_id = {param1:String})
+                AND (observation_id IS NULL)
+            GROUP BY
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value
+        ) AS tmp
+        GROUP BY
+            project_id,
+            trace_id
+    )
+SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.completion_start_time AS completion_start_time,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.provided_model_name AS provided_model_name,
+    e.model_parameters AS model_parameters,
+    e.usage_details AS usage_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.tags AS tags,
+    e.release AS release,
+    e.model_id AS model_id,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time)) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time)
+    ) AS time_to_first_token,
+    input,
+    output,
+    s.scores_avg AS scores_avg,
+    s.score_categories AS score_categories,
+    s.score_categories_tuples AS score_categories_tuples,
+    ts.scores_avg AS trace_scores_avg,
+    ts.score_categories_tuples AS trace_score_categories_tuples
+FROM events_full AS e
+LEFT JOIN scores_agg AS s ON (s.trace_id = e.trace_id) AND (s.observation_id = e.span_id)
+LEFT JOIN trace_scores_agg AS ts ON (ts.trace_id = e.trace_id) AND (ts.project_id = e.project_id)
+WHERE (e.project_id = {param1:String})
+    AND ((e.project_id = {param2:String}) AND (e.start_time < {param3:DateTime64(3, 'UTC')}))
+    AND ((hasAny(s.score_categories, {param4:Array(String)})) OR (hasAny(ts.score_categories, {param5:Array(String)})))
+    AND (e.is_deleted = 0)
+ORDER BY
+    e.project_id DESC,
+    toStartOfMinute(e.start_time) DESC,
+    e.start_time DESC
+LIMIT 1 BY
+    e.span_id,
+    e.project_id
+LIMIT {param6:Int32}",
+    },
+  ],
+  "startTimeFrom": null,
+}
+`;
+
+exports[`golden: events filtered streams family > buildEventsBlobExportStreamQuery filter=obsScore categoryOptions none of 1`] = `
+{
+  "queries": [
+    {
+      "fn": "buildEventsBlobExportStreamQuery",
+      "params": {
+        "param1": "golden-project",
+        "param2": "golden-project",
+        "param3": "2026-01-02 00:00:00.000",
+        "param4": [
+          "sentiment:negative",
+        ],
+        "param5": [
+          "sentiment:negative",
+        ],
+        "param6": 100,
+      },
+      "route": "unknown",
+      "sql": "WITH
+    scores_agg AS
+    (
+        SELECT
+            trace_id,
+            observation_id,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans,
+            groupArrayIf(
+                tuple(name, string_value, data_type),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories_tuples
+        FROM
+        (
+            SELECT
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            FINAL
+            WHERE project_id = {param1:String}
+            GROUP BY
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value
+            ORDER BY trace_id ASC
+        ) AS tmp
+        GROUP BY
+            observation_id,
+            trace_id
+    ),
+    trace_scores_agg AS
+    (
+        SELECT
+            trace_id,
+            project_id,
+            groupUniqArray(id) AS score_ids,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans,
+            groupArrayIf(
+                tuple(name, string_value, data_type),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories_tuples
+        FROM
+        (
+            SELECT
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            FINAL
+            WHERE (project_id = {param1:String})
+                AND (observation_id IS NULL)
+            GROUP BY
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value
+        ) AS tmp
+        GROUP BY
+            project_id,
+            trace_id
+    )
+SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.completion_start_time AS completion_start_time,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.provided_model_name AS provided_model_name,
+    e.model_parameters AS model_parameters,
+    e.usage_details AS usage_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.tags AS tags,
+    e.release AS release,
+    e.model_id AS model_id,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time)) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time)
+    ) AS time_to_first_token,
+    input,
+    output,
+    s.scores_avg AS scores_avg,
+    s.score_categories AS score_categories,
+    s.score_categories_tuples AS score_categories_tuples,
+    ts.scores_avg AS trace_scores_avg,
+    ts.score_categories_tuples AS trace_score_categories_tuples
+FROM events_full AS e
+LEFT JOIN scores_agg AS s ON (s.trace_id = e.trace_id) AND (s.observation_id = e.span_id)
+LEFT JOIN trace_scores_agg AS ts ON (ts.trace_id = e.trace_id) AND (ts.project_id = e.project_id)
+WHERE (e.project_id = {param1:String})
+    AND ((e.project_id = {param2:String}) AND (e.start_time < {param3:DateTime64(3, 'UTC')}))
+    AND ((NOT hasAny(s.score_categories, {param4:Array(String)})) AND (NOT hasAny(ts.score_categories, {param5:Array(String)})))
+    AND (e.is_deleted = 0)
+ORDER BY
+    e.project_id DESC,
+    toStartOfMinute(e.start_time) DESC,
+    e.start_time DESC
+LIMIT 1 BY
+    e.span_id,
+    e.project_id
+LIMIT {param6:Int32}",
+    },
+  ],
+  "startTimeFrom": null,
+}
+`;
+
 exports[`golden: events filtered streams family > buildEventsBlobExportStreamQuery filter=search 1`] = `
 {
   "queries": [
@@ -2463,6 +3410,386 @@ LIMIT {param6:Int32}",
 }
 `;
 
+exports[`golden: events filtered streams family > buildEventsBlobExportStreamQuery filter=traceScore 1`] = `
+{
+  "queries": [
+    {
+      "fn": "buildEventsBlobExportStreamQuery",
+      "params": {
+        "param1": "golden-project",
+        "param2": "golden-project",
+        "param3": "2026-01-02 00:00:00.000",
+        "param4": "quality",
+        "param5": 1,
+        "param6": 100,
+      },
+      "route": "unknown",
+      "sql": "WITH
+    scores_agg AS
+    (
+        SELECT
+            trace_id,
+            observation_id,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans,
+            groupArrayIf(
+                tuple(name, string_value, data_type),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories_tuples
+        FROM
+        (
+            SELECT
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            FINAL
+            WHERE project_id = {param1:String}
+            GROUP BY
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value
+            ORDER BY trace_id ASC
+        ) AS tmp
+        GROUP BY
+            observation_id,
+            trace_id
+    ),
+    trace_scores_agg AS
+    (
+        SELECT
+            trace_id,
+            project_id,
+            groupUniqArray(id) AS score_ids,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans,
+            groupArrayIf(
+                tuple(name, string_value, data_type),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories_tuples
+        FROM
+        (
+            SELECT
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            FINAL
+            WHERE (project_id = {param1:String})
+                AND (observation_id IS NULL)
+            GROUP BY
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value
+        ) AS tmp
+        GROUP BY
+            project_id,
+            trace_id
+    )
+SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.completion_start_time AS completion_start_time,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.provided_model_name AS provided_model_name,
+    e.model_parameters AS model_parameters,
+    e.usage_details AS usage_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.tags AS tags,
+    e.release AS release,
+    e.model_id AS model_id,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time)) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time)
+    ) AS time_to_first_token,
+    input,
+    output,
+    s.scores_avg AS scores_avg,
+    s.score_categories AS score_categories,
+    s.score_categories_tuples AS score_categories_tuples,
+    ts.scores_avg AS trace_scores_avg,
+    ts.score_categories_tuples AS trace_score_categories_tuples
+FROM events_full AS e
+LEFT JOIN scores_agg AS s ON (s.trace_id = e.trace_id) AND (s.observation_id = e.span_id)
+LEFT JOIN trace_scores_agg AS ts ON (ts.trace_id = e.trace_id) AND (ts.project_id = e.project_id)
+WHERE (e.project_id = {param1:String})
+    AND ((e.project_id = {param2:String}) AND (e.start_time < {param3:DateTime64(3, 'UTC')}))
+    AND (empty(arrayFilter(x -> (((x.1) = {param4:String}) AND ((x.2) >= {param5:Decimal128(12)})), ts.scores_avg)) = 0)
+    AND (e.is_deleted = 0)
+ORDER BY
+    e.project_id DESC,
+    toStartOfMinute(e.start_time) DESC,
+    e.start_time DESC
+LIMIT 1 BY
+    e.span_id,
+    e.project_id
+LIMIT {param6:Int32}",
+    },
+  ],
+  "startTimeFrom": null,
+}
+`;
+
+exports[`golden: events filtered streams family > buildEventsBlobExportStreamQuery filter=traceScore+obsScore 1`] = `
+{
+  "queries": [
+    {
+      "fn": "buildEventsBlobExportStreamQuery",
+      "params": {
+        "param1": "golden-project",
+        "param10": 100,
+        "param2": "golden-project",
+        "param3": "2026-01-02 00:00:00.000",
+        "param4": "accuracy",
+        "param5": 2,
+        "param6": "accuracy",
+        "param7": 2,
+        "param8": "quality",
+        "param9": 1,
+      },
+      "route": "unknown",
+      "sql": "WITH
+    scores_agg AS
+    (
+        SELECT
+            trace_id,
+            observation_id,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans,
+            groupArrayIf(
+                tuple(name, string_value, data_type),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories_tuples
+        FROM
+        (
+            SELECT
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            FINAL
+            WHERE project_id = {param1:String}
+            GROUP BY
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value
+            ORDER BY trace_id ASC
+        ) AS tmp
+        GROUP BY
+            observation_id,
+            trace_id
+    ),
+    trace_scores_agg AS
+    (
+        SELECT
+            trace_id,
+            project_id,
+            groupUniqArray(id) AS score_ids,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans,
+            groupArrayIf(
+                tuple(name, string_value, data_type),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories_tuples
+        FROM
+        (
+            SELECT
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            FINAL
+            WHERE (project_id = {param1:String})
+                AND (observation_id IS NULL)
+            GROUP BY
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value
+        ) AS tmp
+        GROUP BY
+            project_id,
+            trace_id
+    )
+SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.completion_start_time AS completion_start_time,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.provided_model_name AS provided_model_name,
+    e.model_parameters AS model_parameters,
+    e.usage_details AS usage_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.tags AS tags,
+    e.release AS release,
+    e.model_id AS model_id,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time)) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time)
+    ) AS time_to_first_token,
+    input,
+    output,
+    s.scores_avg AS scores_avg,
+    s.score_categories AS score_categories,
+    s.score_categories_tuples AS score_categories_tuples,
+    ts.scores_avg AS trace_scores_avg,
+    ts.score_categories_tuples AS trace_score_categories_tuples
+FROM events_full AS e
+LEFT JOIN scores_agg AS s ON (s.trace_id = e.trace_id) AND (s.observation_id = e.span_id)
+LEFT JOIN trace_scores_agg AS ts ON (ts.trace_id = e.trace_id) AND (ts.project_id = e.project_id)
+WHERE (e.project_id = {param1:String})
+    AND ((e.project_id = {param2:String}) AND (e.start_time < {param3:DateTime64(3, 'UTC')}))
+    AND (((empty(arrayFilter(x -> (((x.1) = {param4:String}) AND ((x.2) > {param5:Decimal128(12)})), s.scores_avg)) = 0) OR (empty(arrayFilter(x -> (((x.1) = {param6:String}) AND ((x.2) > {param7:Decimal128(12)})), ts.scores_avg)) = 0)) AND (empty(arrayFilter(x -> (((x.1) = {param8:String}) AND ((x.2) > {param9:Decimal128(12)})), ts.scores_avg)) = 0))
+    AND (e.is_deleted = 0)
+ORDER BY
+    e.project_id DESC,
+    toStartOfMinute(e.start_time) DESC,
+    e.start_time DESC
+LIMIT 1 BY
+    e.span_id,
+    e.project_id
+LIMIT {param10:Int32}",
+    },
+  ],
+  "startTimeFrom": null,
+}
+`;
+
 exports[`golden: events filtered streams family > getEventsStreamForEval cutoff=set 1`] = `
 [
   {
@@ -2610,6 +3937,189 @@ LIMIT 1 BY
 LIMIT {param4:Int32}",
   },
 ]
+`;
+
+exports[`golden: events filtered streams family > scores dedup skipped > buildEventsBlobExportStreamQuery scoresDedup=skip 1`] = `
+{
+  "queries": [
+    {
+      "fn": "buildEventsBlobExportStreamQuery",
+      "params": {
+        "param1": "golden-project",
+        "param2": "golden-project",
+        "param3": "2026-01-02 00:00:00.000",
+        "param4": 100,
+      },
+      "route": "unknown",
+      "sql": "WITH
+    scores_agg AS
+    (
+        SELECT
+            trace_id,
+            observation_id,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans,
+            groupArrayIf(
+                tuple(name, string_value, data_type),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories_tuples
+        FROM
+        (
+            SELECT
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            WHERE project_id = {param1:String}
+            GROUP BY
+                observation_id,
+                trace_id,
+                comment,
+                name,
+                data_type,
+                string_value
+            ORDER BY trace_id ASC
+        ) AS tmp
+        GROUP BY
+            observation_id,
+            trace_id
+    ),
+    trace_scores_agg AS
+    (
+        SELECT
+            trace_id,
+            project_id,
+            groupUniqArray(id) AS score_ids,
+            groupArrayIf(
+                tuple(name, avg_value, data_type, string_value),
+                (data_type IN ('NUMERIC', 'BOOLEAN'))
+            ) AS scores_avg,
+            groupArrayIf(
+                concat(name, ':', string_value),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories,
+            groupUniqArrayIf(
+                concat(name, ':', lowerUTF8(string_value)),
+                (data_type = 'BOOLEAN') AND notEmpty(string_value)
+            ) AS score_booleans,
+            groupArrayIf(
+                tuple(name, string_value, data_type),
+                (data_type IN ('CATEGORICAL', 'TEXT')) AND notEmpty(string_value)
+            ) AS score_categories_tuples
+        FROM
+        (
+            SELECT
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value,
+                avg(value) AS avg_value
+            FROM scores
+            WHERE (project_id = {param1:String})
+                AND (observation_id IS NULL)
+            GROUP BY
+                project_id,
+                trace_id,
+                id,
+                name,
+                data_type,
+                string_value
+        ) AS tmp
+        GROUP BY
+            project_id,
+            trace_id
+    )
+SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.environment AS environment,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.name AS name,
+    e.level AS level,
+    e.status_message AS status_message,
+    e.version AS version,
+    e.bookmarked AS bookmarked,
+    e.public AS public,
+    e.user_id AS user_id,
+    e.session_id AS session_id,
+    ifNull(
+        coalesce(
+            nullIf(e.trace_name, ''),
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
+        ),
+        ''
+    ) AS trace_name,
+    e.start_time AS start_time,
+    e.end_time AS end_time,
+    e.completion_start_time AS completion_start_time,
+    e.created_at AS created_at,
+    e.updated_at AS updated_at,
+    e.provided_model_name AS provided_model_name,
+    e.model_parameters AS model_parameters,
+    e.usage_details AS usage_details,
+    e.cost_details AS cost_details,
+    e.total_cost AS total_cost,
+    e.prompt_id AS prompt_id,
+    e.prompt_name AS prompt_name,
+    e.prompt_version AS prompt_version,
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    e.usage_pricing_tier_id AS usage_pricing_tier_id,
+    e.usage_pricing_tier_name AS usage_pricing_tier_name,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    e.tags AS tags,
+    e.release AS release,
+    e.model_id AS model_id,
+    if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time)) AS latency,
+    if(
+        isNull(e.completion_start_time),
+        NULL,
+        dateDiff('millisecond', e.start_time, e.completion_start_time)
+    ) AS time_to_first_token,
+    input,
+    output,
+    s.scores_avg AS scores_avg,
+    s.score_categories AS score_categories,
+    s.score_categories_tuples AS score_categories_tuples,
+    ts.scores_avg AS trace_scores_avg,
+    ts.score_categories_tuples AS trace_score_categories_tuples
+FROM events_full AS e
+LEFT JOIN scores_agg AS s ON (s.trace_id = e.trace_id) AND (s.observation_id = e.span_id)
+LEFT JOIN trace_scores_agg AS ts ON (ts.trace_id = e.trace_id) AND (ts.project_id = e.project_id)
+WHERE (e.project_id = {param1:String})
+    AND ((e.project_id = {param2:String}) AND (e.start_time < {param3:DateTime64(3, 'UTC')}))
+    AND (e.is_deleted = 0)
+ORDER BY
+    e.project_id DESC,
+    toStartOfMinute(e.start_time) DESC,
+    e.start_time DESC
+LIMIT 1 BY
+    e.span_id,
+    e.project_id
+LIMIT {param4:Int32}",
+    },
+  ],
+  "startTimeFrom": null,
+}
 `;
 
 exports[`golden: events metadata map and session resolution > getEventsDispatchEventStream 1`] = `

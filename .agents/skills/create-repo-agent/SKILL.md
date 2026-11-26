@@ -18,6 +18,7 @@ For every repo agent task, read these references before designing or editing:
 1. `references/security-standards.md`
 2. `references/workflow-blueprint.md` when implementing or changing a GitHub Actions workflow
 3. `references/review-checklist.md` before final review or PR publication
+4. [Protected branches and PR approval](../git-workflow/references/protected-branches.md) for publishing identities, merge gates, and human review of sensitive paths
 
 ## Workflow
 
@@ -26,7 +27,7 @@ For every repo agent task, read these references before designing or editing:
 3. Encode the prompt with explicit allowed edit surfaces, hard constraints, source-evidence requirements, and structured output.
 4. Give the agent only scoped file tools, domain-scoped fetch tools, and exact deterministic validator commands.
 5. Validate the diff independently of the agent, including untracked files, path allowlists, `git diff --check`, line-count limits, and domain-specific validators.
-6. Publish from a separate job or step after validation, using a bot credential only for branch push and PR create/update.
+6. Publish from a separate job or step after validation, using a scoped credential only for task-branch push and PR create/update. Do not push directly to the default branch or assume a robot user can bypass protection.
 7. If self-improvement is allowed, constrain it to named workflow or skill-reference files and require security invariants to remain unchanged.
 8. Run agent setup checks when `.agents/**` changes, then publish a normal human-reviewable PR.
 

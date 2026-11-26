@@ -10,7 +10,7 @@ import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
 
 type ClickHouseVersionTuple = readonly [number, number, number, number];
 
-export type ClickHouseVersion = {
+type ClickHouseVersion = {
   raw: string;
   major: number;
   minor: number;
@@ -19,7 +19,7 @@ export type ClickHouseVersion = {
   tuple: ClickHouseVersionTuple;
 };
 
-export type ClickHouseVersionBand = {
+type ClickHouseVersionBand = {
   minInclusive: string;
   maxExclusive?: string;
 };

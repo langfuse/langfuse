@@ -2,6 +2,8 @@
 
 Review new or worsened code. Do not require unrelated legacy cleanup. New violations of team rules must be fixed before merge, even without a bug. Exceptions need explicit human approval.
 
+A technical review or accepted convention exception does not replace [protected-branch approval](.agents/skills/git-workflow/references/protected-branches.md). Verify the latest-commit Bugbot/approver path or teammate approval and required human review of sensitive paths and public fork PRs before declaring merge readiness.
+
 ## References
 
 Read the applicable `AGENTS.md` files and references below. Report unavailable references. This file overrides conflicting guidance for reviews.
