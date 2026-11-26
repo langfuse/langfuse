@@ -110,7 +110,7 @@ function SingleTraceLoadingStory() {
 }
 
 export const StableSingleTraceLoading = meta.story({
-  name: "(Test) Single Trace Keeps Its Place After Loading",
+  name: "(Test) Loading status clears",
   render: () => <SingleTraceLoadingStory />,
   play: async ({ canvas }) => {
     expect(
