@@ -27,6 +27,17 @@ export default {
       },
     },
     {
+      files: ["**/fns/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"],
+      excludeFiles: [
+        "**/*.{test,spec,clienttest,servertest,stories,story}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+        "**/{__tests__,__mocks__,tests,test,__stories__,stories}/**",
+      ],
+      jsPlugins: ["@repo/eslint-plugin"],
+      rules: {
+        "@repo/fns-single-function-export": "error",
+      },
+    },
+    {
       files: ["**/*"],
       rules: {
         "array-callback-return": "warn",

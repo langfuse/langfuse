@@ -1,4 +1,5 @@
 import { allowedPrismaWriters } from "./prismaWriters.js";
+import { existingFnsSingleFunctionExceptions } from "./fnsSingleFunctionBaseline.js";
 
 export default {
   categories: { correctness: "off" },
@@ -27,6 +28,21 @@ export default {
       rules: {
         "@repo/no-internal-barrel-files": "warn",
       },
+    },
+    {
+      files: ["**/fns/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"],
+      excludeFiles: [
+        "**/*.{test,spec,clienttest,servertest,stories,story}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+        "**/{__tests__,__mocks__,tests,test,__stories__,stories}/**",
+      ],
+      jsPlugins: ["@repo/eslint-plugin"],
+      rules: {
+        "@repo/fns-single-function-export": "error",
+      },
+    },
+    {
+      files: existingFnsSingleFunctionExceptions,
+      rules: { "@repo/fns-single-function-export": "off" },
     },
     {
       // Next.js discovers routes by filename, not imports.

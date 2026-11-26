@@ -20,10 +20,12 @@ import { default as preferStoriesOverClientTests } from "./rules/prefer-stories-
 import { default as storybookPlayNoImplementationDetailAssertions } from "./rules/storybook-play-no-implementation-detail-assertions.js";
 
 import noInternalBarrelFiles from "./rules/no-internal-barrel-files.js";
+import fnsSingleFunctionExport from "./rules/fns-single-function-export.js";
 
 const plugin = {
   rules: {
     "no-internal-barrel-files": noInternalBarrelFiles,
+    "fns-single-function-export": fnsSingleFunctionExport,
     "component-file-structure": componentFileStructure,
     "no-abstracted-overlay-trigger": noAbstractedOverlayTrigger,
     "no-arbitrary-colors": noArbitraryColors,
