@@ -41,6 +41,7 @@ import {
   mapMetrics,
   withRequiredDimensions,
   validateFilters,
+  resolveFilterColumn,
   collectRelationTables,
   canUseSingleLevelQuery,
   pairExpandDimension,
@@ -91,7 +92,9 @@ export function buildEventsObservations(
   );
   validateFilters(query.filters, view, { numericMetadata: true });
   const filters = query.filters.map((filter): DashboardFilter => ({
-    lowering: eventsObservationsFilterLowering(filter.column),
+    lowering: eventsObservationsFilterLowering(
+      resolveFilterColumn(view, filter.column),
+    ),
     condition: conditionFromFilter(filter),
   }));
 

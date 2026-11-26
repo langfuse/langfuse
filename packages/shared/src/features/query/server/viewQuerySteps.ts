@@ -296,7 +296,7 @@ export const atLevel = <T>(value: AliasableExpression<T>, level: QueryLevel) =>
  * (`scoreName`, `traceName`), so a filter sent with the wrong column name
  * keeps working; `undefined` for any other column.
  */
-export function filterDimensionName(
+function filterDimensionName(
   column: string,
   dimensions: Readonly<Record<string, unknown>>,
 ): string | undefined {
@@ -304,6 +304,48 @@ export function filterDimensionName(
   if (column.endsWith("Name") && Object.hasOwn(dimensions, "name"))
     return "name";
   return undefined;
+}
+
+/**
+ * What a dashboard filter column names in its view: the view's time
+ * dimension, the keyed `metadata` map, or the dimension `name`. Each AST view
+ * lowers the three kinds its own way.
+ */
+export type FilterColumn =
+  | { kind: "time" }
+  | { kind: "metadata" }
+  | { kind: "dimension"; name: string };
+
+/**
+ * The {@link FilterColumn} a filter on `column` names in `view`: a dimension
+ * (with the `…Name` fallback of {@link filterDimensionName}), else its
+ * `timeDimension` (`start_time`), else `metadata`; `undefined` for any other
+ * column. Validation and lowering both classify through it, so they agree.
+ */
+function classifyFilterColumn(
+  view: ViewDeclarationType,
+  column: string,
+): FilterColumn | undefined {
+  const name = filterDimensionName(column, view.dimensions);
+  if (name !== undefined) return { kind: "dimension", name };
+  if (column === view.timeDimension) return { kind: "time" };
+  if (column === "metadata") return { kind: "metadata" };
+  return undefined;
+}
+
+/**
+ * The {@link FilterColumn} of {@link classifyFilterColumn}; throws
+ * `InvalidRequestError` for a column that names none.
+ */
+export function resolveFilterColumn(
+  view: ViewDeclarationType,
+  column: string,
+): FilterColumn {
+  const resolved = classifyFilterColumn(view, column);
+  if (resolved !== undefined) return resolved;
+  throw new InvalidRequestError(
+    `Invalid filter column ${column}. Must be one of ${Object.keys(view.dimensions)} or ${view.timeDimension}`,
+  );
 }
 
 /** Latest fill bound whose TO + one step stays below the DateTime maximum (2106-02-07T06:28:15Z). */
@@ -504,10 +546,10 @@ export function validateFilters(
   { numericMetadata = false }: { numericMetadata?: boolean } = {},
 ) {
   for (const filter of filters) {
-    // Validate filters on dimension fields
-    const dimension = resolveDimension(filter.column, view);
+    const column = classifyFilterColumn(view, filter.column);
 
-    if (dimension) {
+    if (column?.kind === "dimension") {
+      const dimension = view.dimensions[column.name];
       if (dimension.pairExpand) {
         throw new InvalidRequestError(
           `Field '${filter.column}' cannot be used as a filter.`,
@@ -543,7 +585,7 @@ export function validateFilters(
     }
 
     // Special validation for time dimension filters
-    else if (filter.column === view.timeDimension) {
+    else if (column?.kind === "time") {
       const compatibleFilterTypes: CompatibleFilterType[] = ["datetime"];
 
       if (filter.type === "null") {
@@ -560,7 +602,7 @@ export function validateFilters(
 
     // Metadata filters: the `singleFilter` schema already requires `key`
     // and a value of the filter type's kind, so only the type is checked.
-    else if (filter.column === "metadata") {
+    else if (column?.kind === "metadata") {
       const acceptedTypes: CompatibleFilterType[] = numericMetadata
         ? ["stringObject", "numberObject"]
         : ["stringObject"];

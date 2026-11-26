@@ -39,6 +39,7 @@ import {
   type BucketValues,
   type TimeBucketOf,
   type TimeWindow,
+  type FilterColumn,
   HOUR_MS,
   utcDateTime,
   assertKnownRelationTables,
@@ -48,6 +49,7 @@ import {
   mapMetrics,
   withRequiredDimensions,
   validateFilters,
+  resolveFilterColumn,
   collectRelationTables,
   canUseSingleLevelQuery,
   validateAndProcessOrderBy,
@@ -106,7 +108,10 @@ export function buildEventsTraces(
   );
   validateFilters(query.filters, view);
   const filters = query.filters.map((filter) =>
-    lowerTracesFilter(filter.column, conditionFromFilter(filter)),
+    lowerTracesFilter(
+      resolveFilterColumn(view, filter.column),
+      conditionFromFilter(filter),
+    ),
   );
 
   // No filter joins a relation: every filter lowering compares `e` columns.
@@ -206,11 +211,10 @@ export function buildEventsTraces(
  * A dashboard filter on `column` as WHERE conjuncts over `e`. The trace name
  * is an expression no skip index covers, so a `name` filter first applies
  * the same condition to its `prunedBy` columns, ORed, for their indexes to
- * skip granules; its own condition then decides which events match. Throws
- * `InvalidRequestError` for a column the view has no filter for.
+ * skip granules; its own condition then decides which events match.
  */
 function lowerTracesFilter(
-  column: string,
+  column: FilterColumn,
   condition: PredicateCondition,
 ): TracesFilter {
   const eb = expressionBuilder<TracesDb, "e">();

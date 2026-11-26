@@ -33,7 +33,7 @@ import {
 import { useFinal } from "../../../server/query-ast/extensions";
 import type { QueryLevel } from "./registryEntry";
 import {
-  filterDimensionName,
+  resolveFilterColumn,
   assertKnownRelationTables,
   type BucketValues,
   type TimeWindow,
@@ -296,9 +296,10 @@ export function buildScores(
   );
   validateFilters(query.filters, view);
   const filters = query.filters.map((filter): ScoreFilter => {
-    const dimension = filterDimensionName(filter.column, view.dimensions);
+    const column = resolveFilterColumn(view, filter.column);
+    const dimension = column.kind === "dimension" ? column.name : undefined;
     return {
-      lowering: scoreFilterLowering(filter.column, dimension, view.dimensions),
+      lowering: scoreFilterLowering(column),
       condition: conditionFromFilter(filter),
       dimension,
       relation: dimension

@@ -17,7 +17,6 @@
 import type { AliasableExpression, ExpressionBuilder } from "kysely";
 import type { z } from "zod";
 
-import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import {
   argMaxIf,
   arrayDistinct,
@@ -46,7 +45,6 @@ import {
   eventsTraceName,
   eventsTraceNameAggregate,
 } from "../../../server/repositories/events-selects";
-import { eventsTracesView } from "../dataModel";
 import type { metricAggregations } from "../types";
 import {
   entryOf,
@@ -54,7 +52,7 @@ import {
   type Read as EntryRead,
   type ScalarDimensionEntry,
 } from "./registryEntry";
-import { filterDimensionName } from "./viewQuerySteps";
+import type { FilterColumn } from "./viewQuerySteps";
 
 /** The relations a v2 traces query reads: events as `e`, and `scores`. */
 export type TracesDb = {
@@ -167,28 +165,18 @@ type TracesFilterLowering = {
 /**
  * What a dashboard filter on `column` compares: the time dimension
  * `start_time`, the keyed `metadata`, or a dimension's
- * {@link DimensionEntry.filter} and `prunedBy`; `name`'s for another `…Name`
- * column (`filterDimensionName`), so a score filter sent to this view keeps
- * working.
- *
- * Throws `InvalidRequestError` for any other column.
+ * {@link DimensionEntry.filter} and `prunedBy`.
  */
 export function eventsTracesFilterLowering(
-  column: string,
+  column: FilterColumn,
 ): TracesFilterLowering {
-  if (column === "start_time") {
+  if (column.kind === "time") {
     return {
       filter: { kind: "scalar", value: (eb) => eb.ref("e.start_time") },
     };
   }
-  if (column === "metadata") return { filter: { kind: "metadata" } };
-  const name = filterDimensionName(column, EVENTS_TRACES_DIMENSIONS);
-  if (name === undefined) {
-    throw new InvalidRequestError(
-      `Invalid filter column ${column}. Must be one of ${Object.keys(eventsTracesView.dimensions)} or ${eventsTracesView.timeDimension}`,
-    );
-  }
-  const { filter, prunedBy } = eventsTracesDimension(name);
+  if (column.kind === "metadata") return { filter: { kind: "metadata" } };
+  const { filter, prunedBy } = eventsTracesDimension(column.name);
   return { filter, prunedBy };
 }
 

@@ -21,7 +21,6 @@ import {
   type ExpressionBuilder,
 } from "kysely";
 
-import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import {
   arrayDistinct,
   countEqual,
@@ -62,11 +61,13 @@ import {
   AI_GATEWAY_SERVICE_NAME,
 } from "../../ai-gateway/constants";
 import {
+  entryOf,
   scalarDimensions,
   type QueryLevel,
   type Read as EntryRead,
   type ScalarDimensionEntry,
 } from "./registryEntry";
+import type { FilterColumn } from "./viewQuerySteps";
 
 /** The relations a v2 observations query reads: events as `e`, and `scores`. */
 export type ObservationsDb = {
@@ -413,22 +414,17 @@ export const EVENTS_OBSERVATIONS_DIMENSIONS = {
 } satisfies Record<string, DimensionEntry>;
 
 /** {@link EVENTS_OBSERVATIONS_DIMENSIONS} keyed by any string. */
-const DIMENSIONS_BY_NAME: Readonly<Partial<Record<string, DimensionEntry>>> =
+const DIMENSIONS_BY_NAME: Readonly<Record<string, DimensionEntry>> =
   EVENTS_OBSERVATIONS_DIMENSIONS;
 
-const isDimension = (name: string) =>
-  Object.hasOwn(EVENTS_OBSERVATIONS_DIMENSIONS, name);
-
 /** The dimension `name`; the caller has checked the view declares it. */
-export function eventsObservationsDimension(name: string): DimensionEntry {
-  const entry = isDimension(name) ? DIMENSIONS_BY_NAME[name] : undefined;
-  if (!entry) {
-    throw new QueryCompileError(
-      `Dimension "${name}" has no entry in EVENTS_OBSERVATIONS_DIMENSIONS.`,
-    );
-  }
-  return entry;
-}
+export const eventsObservationsDimension = (name: string): DimensionEntry =>
+  entryOf(
+    DIMENSIONS_BY_NAME,
+    name,
+    "Dimension",
+    "EVENTS_OBSERVATIONS_DIMENSIONS",
+  );
 
 /** An {@link ArrayDimension} with its `pairExpand` values. */
 type PairExpandedDimension = ArrayDimension & {
@@ -462,31 +458,23 @@ export function eventsObservationsArrayDimension(
 }
 
 /**
- * What a dashboard filter on `column` compares: a dimension's
- * {@link DimensionEntry.filter}, `name`'s for another `…Name` column (a
- * score filter sent to this view keeps working), the view's time dimension
- * `start_time`, or the keyed `metadata`. Throws `InvalidRequestError` for any
- * other column, and `QueryCompileError` for a dimension without a filter
- * lowering (the view rejects filters on those before SQL is built).
+ * What a dashboard filter on `column` compares: the view's time dimension
+ * `start_time`, the keyed `metadata`, or a dimension's
+ * {@link DimensionEntry.filter}. Throws `QueryCompileError` for a dimension
+ * without a filter lowering (the view rejects filters on those before SQL is
+ * built).
  */
 export function eventsObservationsFilterLowering(
-  column: string,
+  column: FilterColumn,
 ): EventsFieldLowering {
-  if (column === "start_time") {
+  if (column.kind === "time") {
     return { kind: "scalar", value: (eb) => eb.ref("e.start_time") };
   }
-  if (column === "metadata") return { kind: "metadata" };
-  const name =
-    isDimension(column) || !column.endsWith("Name") ? column : "name";
-  if (!isDimension(name)) {
-    throw new InvalidRequestError(
-      `Invalid filter column ${column}. Must be one of ${Object.keys(EVENTS_OBSERVATIONS_DIMENSIONS)} or start_time`,
-    );
-  }
-  const { filter } = eventsObservationsDimension(name);
+  if (column.kind === "metadata") return { kind: "metadata" };
+  const { filter } = eventsObservationsDimension(column.name);
   if (!filter) {
     throw new QueryCompileError(
-      `Dimension "${name}" has no filter lowering in EVENTS_OBSERVATIONS_DIMENSIONS.`,
+      `Dimension "${column.name}" has no filter lowering in EVENTS_OBSERVATIONS_DIMENSIONS.`,
     );
   }
   return filter;
@@ -646,21 +634,12 @@ export const EVENTS_OBSERVATIONS_MEASURES = {
 } satisfies Record<string, MeasureEntry>;
 
 /** {@link EVENTS_OBSERVATIONS_MEASURES} keyed by any string. */
-const MEASURES_BY_NAME: Readonly<Partial<Record<string, MeasureEntry>>> =
+const MEASURES_BY_NAME: Readonly<Record<string, MeasureEntry>> =
   EVENTS_OBSERVATIONS_MEASURES;
 
 /** The measure `name`; the caller has checked the view declares it. */
-export function eventsObservationsMeasure(name: string): MeasureEntry {
-  const entry = Object.hasOwn(EVENTS_OBSERVATIONS_MEASURES, name)
-    ? MEASURES_BY_NAME[name]
-    : undefined;
-  if (!entry) {
-    throw new QueryCompileError(
-      `Measure "${name}" has no entry in EVENTS_OBSERVATIONS_MEASURES.`,
-    );
-  }
-  return entry;
-}
+export const eventsObservationsMeasure = (name: string): MeasureEntry =>
+  entryOf(MEASURES_BY_NAME, name, "Measure", "EVENTS_OBSERVATIONS_MEASURES");
 
 /**
  * Join condition of the view's `scores` relation. `liveScoresOnly` also drops
