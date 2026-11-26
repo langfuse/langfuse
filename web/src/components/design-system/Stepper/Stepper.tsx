@@ -70,8 +70,9 @@ type StepperProps = {
   tooltipText?: string;
   description?: ReactNode;
   /**
-   * A control after the title; stays visible when collapsed. The title then
-   * takes a field label's width, so the control lines up with labelled rows.
+   * A control after the title; stays visible when collapsed and gets the rest
+   * of the header row. The title then takes a field label's width, so the
+   * control lines up with labelled rows.
    */
   headerEnd?: ReactNode;
   variant?: "filled" | "outline";
@@ -124,7 +125,7 @@ export function Stepper({
   const hasBody = Boolean(description) || Boolean(children);
   const titleClassName = cn(
     titleVariants({ size, status }),
-    headerEnd ? "min-w-16 text-left" : null,
+    headerEnd ? "min-w-16 shrink-0 text-left" : null,
   );
 
   const toggle = () => {
@@ -156,7 +157,10 @@ export function Stepper({
           {isCollapsible ? (
             <button
               type="button"
-              className="inline-flex items-center gap-1.5"
+              className={cn(
+                "inline-flex items-center gap-1.5",
+                headerEnd ? "shrink-0" : null,
+              )}
               aria-label={`Step ${number}: ${title}`}
               aria-expanded={expanded}
               onClick={toggle}
@@ -189,7 +193,7 @@ export function Stepper({
             </Tooltip>
           ) : null}
           {headerEnd ? (
-            <div className="-my-1 ml-0.5 flex shrink-0 items-center">
+            <div className="-my-1 ml-0.5 flex min-w-0 flex-1 items-center">
               {headerEnd}
             </div>
           ) : null}
