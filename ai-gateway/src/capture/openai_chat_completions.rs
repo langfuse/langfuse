@@ -519,7 +519,7 @@ pub(super) fn extract_response_json(
     value: &Value,
     blocks: &mut Vec<crate::guardrails::response::ResponseBlock>,
 ) -> Result<(), crate::guardrails::text::Unreadable> {
-    use crate::guardrails::response::{collect_text_or_parts, ptr_push, push_leaf};
+    use crate::guardrails::response::{collect_text_or_parts, ptr_push, push_json_leaf, push_leaf};
     use crate::guardrails::text::Unreadable;
 
     let Some(choices) = value.get("choices").filter(|v| !v.is_null()) else {
@@ -540,11 +540,10 @@ pub(super) fn extract_response_json(
         if let Some(calls) = map.get("tool_calls").filter(|v| !v.is_null()) {
             for (call_idx, call) in calls.as_array().ok_or(Unreadable)?.iter().enumerate() {
                 if let Some(args) = call.pointer("/function/arguments").and_then(Value::as_str) {
-                    push_leaf(
+                    push_json_leaf(
                         blocks,
                         args,
                         format!("{msg_ptr}/tool_calls/{call_idx}/function/arguments"),
-                        true,
                     );
                 }
                 if let Some(input) = call.pointer("/custom/input").and_then(Value::as_str) {
@@ -561,12 +560,7 @@ pub(super) fn extract_response_json(
             .pointer("/function_call/arguments")
             .and_then(Value::as_str)
         {
-            push_leaf(
-                blocks,
-                args,
-                format!("{msg_ptr}/function_call/arguments"),
-                true,
-            );
+            push_json_leaf(blocks, args, format!("{msg_ptr}/function_call/arguments"));
         }
     }
     Ok(())

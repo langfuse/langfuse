@@ -919,6 +919,16 @@ impl InferenceHttpError {
                 .headers_mut()
                 .insert(header::RETRY_AFTER, retry_after_secs.into());
         }
+        if matches!(
+            &self,
+            Self::Resolution(ResolutionError::GuardrailBlocked(rejection))
+                if rejection.disable_retry()
+        ) {
+            response.headers_mut().insert(
+                header::HeaderName::from_static("x-should-retry"),
+                header::HeaderValue::from_static("false"),
+            );
+        }
         response
     }
 }

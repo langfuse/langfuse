@@ -775,8 +775,8 @@ fn redacts_sse_responses_across_formats_and_span_boundaries() {
 
     // Chat Completions: array delta + tool_calls (function + custom) split across chunks.
     let chat_sse = concat!(
-        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":[{\"type\":\"text\",\"text\":\"SSN 123-\"}],\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"123-\"}},{\"index\":1,\"custom\":{\"input\":\"123-\"}}]}}]}\n\n",
-        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":[{\"type\":\"text\",\"text\":\"45-6789\"}],\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"45-6789\"}},{\"index\":1,\"custom\":{\"input\":\"45-6789\"}}]}}]}\n\n",
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":[{\"type\":\"text\",\"text\":\"SSN 123-\"}],\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"{\\\"ssn\\\":\\\"123-\"}},{\"index\":1,\"custom\":{\"input\":\"123-\"}}]}}]}\n\n",
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":[{\"type\":\"text\",\"text\":\"45-6789\"}],\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"45-6789\\\"}\"}},{\"index\":1,\"custom\":{\"input\":\"45-6789\"}}]}}]}\n\n",
         "data: [DONE]\n\n"
     );
     let chat_out = rewritten_response_str(check_response_local(
@@ -812,10 +812,10 @@ fn redacts_sse_responses_across_formats_and_span_boundaries() {
         "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"content_index\":0,\"delta\":\"SSN 123-\"}\n\n",
         "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"content_index\":0,\"delta\":\"45-6789\"}\n\n",
         "event: response.output_text.done\ndata: {\"type\":\"response.output_text.done\",\"output_index\":0,\"content_index\":0,\"text\":\"SSN 123-45-6789\"}\n\n",
-        "event: response.function_call_arguments.delta\ndata: {\"type\":\"response.function_call_arguments.delta\",\"output_index\":1,\"delta\":\"123-\"}\n\n",
-        "event: response.function_call_arguments.delta\ndata: {\"type\":\"response.function_call_arguments.delta\",\"output_index\":1,\"delta\":\"45-6789\"}\n\n",
-        "event: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"output_index\":1,\"item\":{\"type\":\"function_call\",\"arguments\":\"123-45-6789\"}}\n\n",
-        "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"r1\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"SSN 123-45-6789\"}]},{\"type\":\"function_call\",\"arguments\":\"123-45-6789\"}]}}\n\n"
+        "event: response.function_call_arguments.delta\ndata: {\"type\":\"response.function_call_arguments.delta\",\"output_index\":1,\"delta\":\"{\\\"ssn\\\":\\\"123-\"}\n\n",
+        "event: response.function_call_arguments.delta\ndata: {\"type\":\"response.function_call_arguments.delta\",\"output_index\":1,\"delta\":\"45-6789\\\"}\"}\n\n",
+        "event: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"output_index\":1,\"item\":{\"type\":\"function_call\",\"arguments\":\"{\\\"ssn\\\":\\\"123-45-6789\\\"}\"}}\n\n",
+        "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"r1\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"SSN 123-45-6789\"}]},{\"type\":\"function_call\",\"arguments\":\"{\\\"ssn\\\":\\\"123-45-6789\\\"}\"}]}}\n\n"
     );
     let resp_out = rewritten_response_str(check_response_local(
         &guardrails,
@@ -825,7 +825,7 @@ fn redacts_sse_responses_across_formats_and_span_boundaries() {
     ));
     assert!(!resp_out.contains("123-") && !resp_out.contains("45-6789"));
     assert_eq!(resp_out.matches("SSN [SSN]").count(), 3);
-    assert_eq!(resp_out.matches("\"[SSN]\"").count(), 3);
+    assert_eq!(resp_out.matches(r#"{\"ssn\":\"[SSN]\"}"#).count(), 3);
 }
 
 #[test]
@@ -854,6 +854,7 @@ fn response_fail_closed_cases_signed_thinking_and_memory_budget() {
         let rejection = outcome.rejection().unwrap();
         assert_eq!(rejection.http_status(), axum::http::StatusCode::BAD_GATEWAY);
         assert_eq!(rejection.error_code(), "guardrail_evaluation_failed");
+        assert!(rejection.disable_retry());
         assert_eq!(
             outcome.into_findings()[0].location,
             GuardrailLocation::Response
@@ -865,8 +866,10 @@ fn response_fail_closed_cases_signed_thinking_and_memory_budget() {
         .unwrap();
     assert_eq!(too_large.http_status(), axum::http::StatusCode::BAD_GATEWAY);
     assert_eq!(too_large.error_code(), "guardrail_response_too_large");
+    assert!(too_large.disable_retry());
 
-    // Signed Anthropic thinking fails closed on REDACT (JSON + SSE), allows LOG unchanged.
+    // Signed Anthropic thinking fails closed with non-retryable 400 on REDACT (JSON + SSE),
+    // allows LOG unchanged.
     let signed_json =
         r#"{"content":[{"type":"thinking","thinking":"123-45-6789","signature":"sig_1"}]}"#;
     let signed_sse = concat!(
@@ -879,11 +882,12 @@ fn response_fail_closed_cases_signed_thinking_and_memory_budget() {
         (ResponseFormat::Json, signed_json),
         (ResponseFormat::Sse, signed_sse),
     ] {
-        assert!(
+        let rejection =
             check_response_local(&redact_rules, ApiFormat::AnthropicMessages, wire, payload)
-                .blocking()
-                .is_some()
-        );
+                .rejection()
+                .unwrap();
+        assert_eq!(rejection.http_status(), axum::http::StatusCode::BAD_REQUEST);
+        assert_eq!(rejection.error_code(), "guardrail_blocked");
         assert!(
             check_response_local(&log_rules, ApiFormat::AnthropicMessages, wire, payload)
                 .blocking()
@@ -910,4 +914,41 @@ fn response_fail_closed_cases_signed_thinking_and_memory_budget() {
         ),
         Err(ResponseParseError::Busy)
     ));
+}
+
+#[test]
+fn tool_argument_json_corruption_fails_closed_and_compaction_skips_response_guardrails() {
+    let greedy_redact = [
+        guardrail(
+            "unrelated-block",
+            GuardrailAction::Block,
+            &["never_matches"],
+        ),
+        redact_guardrail("greedy-email", "[EMAIL]", &[r"\S+@\S+"]),
+    ];
+    for (format, wire, payload) in [
+        (
+            ApiFormat::OpenAiChatCompletions,
+            ResponseFormat::Json,
+            r#"{"choices":[{"index":0,"message":{"role":"assistant","tool_calls":[{"id":"c1","type":"function","function":{"name":"f","arguments":"{\"email\":\"alice@example.com\"}"}}]}}]}"#,
+        ),
+        (
+            ApiFormat::AnthropicMessages,
+            ResponseFormat::Sse,
+            "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"email\\\":\\\"alice@example.com\\\"}\"}}\n\n",
+        ),
+        (
+            ApiFormat::OpenAiResponses,
+            ResponseFormat::Json,
+            r#"{"output":[{"type":"function_call","arguments":"{\"email\":\"alice@example.com\"}"}]}"#,
+        ),
+    ] {
+        let outcome = check_response_local(&greedy_redact, format, wire, payload);
+        let rejection = outcome.rejection().unwrap();
+        assert_eq!(rejection.http_status(), axum::http::StatusCode::BAD_REQUEST);
+        assert_eq!(rejection.error_code(), "guardrail_blocked");
+        assert!(rejection.message().contains("greedy-email"));
+    }
+
+    assert!(!crate::providers::Route::OpenAiResponsesCompact.evaluates_response_guardrails());
 }

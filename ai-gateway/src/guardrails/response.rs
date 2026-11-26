@@ -136,10 +136,22 @@ impl ResponseFormat {
 pub(crate) struct ResponseBlock {
     pub text: String,
     pub editable: bool,
+    /// True when the string holds JSON-encoded tool arguments that must remain
+    /// valid JSON after redaction.
+    json_encoded: bool,
     /// `(frame_index, json_pointer)` slots for a streamed delta sequence.
     deltas: Vec<(usize, String)>,
     /// `(frame_index, json_pointer)` slots for complete strings (`None` = JSON body).
     leaves: Vec<(Option<usize>, String)>,
+}
+
+/// Outcome of splicing response redactions back into the raw JSON or SSE body.
+pub(crate) enum RedactionApply {
+    Rewritten(Bytes),
+    Unchanged,
+    /// Redacting a JSON-encoded tool-argument block would produce invalid JSON.
+    InvalidJson,
+    Failed,
 }
 
 /// Parsed response body paired with its extracted logical text blocks.
@@ -224,18 +236,23 @@ impl ParsedResponse {
         self,
         edits: &[(usize, String)],
         budget: Option<&Arc<Semaphore>>,
-    ) -> Result<Option<Bytes>, ResolutionError> {
+    ) -> Result<RedactionApply, ResolutionError> {
         if edits.is_empty() {
-            return Ok(None);
+            return Ok(RedactionApply::Unchanged);
         }
         let mut json_edits: Vec<(&str, &str)> = Vec::new();
         let mut sse_edits: HashMap<usize, Vec<(&str, &str)>> = HashMap::new();
         for (index, replacement) in edits {
             let Some(block) = self.blocks.get(*index) else {
-                return Ok(None);
+                return Ok(RedactionApply::Failed);
             };
             if !block.editable {
-                return Ok(None);
+                return Ok(RedactionApply::Failed);
+            }
+            if block.json_encoded
+                && serde_json::from_str::<serde::de::IgnoredAny>(replacement).is_err()
+            {
+                return Ok(RedactionApply::InvalidJson);
             }
             for (pos, (frame_idx, ptr)) in block.deltas.iter().enumerate() {
                 let text = if pos == 0 { replacement.as_str() } else { "" };
@@ -257,7 +274,7 @@ impl ParsedResponse {
         match self.body {
             ParsedBody::Json(raw) => {
                 if !sse_edits.is_empty() {
-                    return Ok(None);
+                    return Ok(RedactionApply::Failed);
                 }
                 let _out_reservation = budget
                     .filter(|_| !raw.is_empty())
@@ -266,21 +283,24 @@ impl ParsedResponse {
                 let (mut value, _res) = match parse_unique_json(&raw, budget) {
                     Ok(parsed) => parsed,
                     Err(ResponseParseError::Busy) => return Err(ResolutionError::Busy),
-                    Err(ResponseParseError::Unreadable) => return Ok(None),
+                    Err(ResponseParseError::Unreadable) => return Ok(RedactionApply::Failed),
                 };
                 for (ptr, text) in json_edits {
                     let Some(target) = value.pointer_mut(ptr) else {
-                        return Ok(None);
+                        return Ok(RedactionApply::Failed);
                     };
                     *target = Value::String(text.to_owned());
                 }
-                Ok(serde_json::to_vec(&value).ok().map(Bytes::from))
+                Ok(serde_json::to_vec(&value)
+                    .map(Bytes::from)
+                    .map_or(RedactionApply::Failed, RedactionApply::Rewritten))
             }
             ParsedBody::Sse { raw, frames, .. } => {
                 if !json_edits.is_empty() {
-                    return Ok(None);
+                    return Ok(RedactionApply::Failed);
                 }
-                apply_sse_redactions(&raw, &frames, &sse_edits, budget)
+                Ok(apply_sse_redactions(&raw, &frames, &sse_edits, budget)?
+                    .map_or(RedactionApply::Failed, RedactionApply::Rewritten))
             }
         }
     }
@@ -626,6 +646,18 @@ pub(crate) enum StreamKey {
     Responses(u64, u64, &'static str),
 }
 
+impl StreamKey {
+    fn is_json_encoded(self) -> bool {
+        matches!(
+            self,
+            Self::ChatToolArgs(_, _)
+                | Self::Chat(_, "function_call")
+                | Self::Anthropic(_, "partial_json")
+                | Self::Responses(_, _, "function_call_args" | "mcp_call_args")
+        )
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct StreamCollector {
     blocks: Vec<ResponseBlock>,
@@ -661,6 +693,7 @@ impl StreamCollector {
         self.blocks.push(ResponseBlock {
             text: owned,
             editable: true,
+            json_encoded: key.is_json_encoded(),
             deltas: vec![(frame_idx, ptr)],
             leaves: Vec::new(),
         });
@@ -688,10 +721,19 @@ impl StreamCollector {
             self.growth_bytes = self.growth_bytes.saturating_add(ptr_bytes);
             return;
         }
-        self.push_leaf(frame_idx, text, ptr);
+        self.push_leaf_inner(
+            frame_idx,
+            text,
+            ptr,
+            key.is_some_and(StreamKey::is_json_encoded),
+        );
     }
 
     pub(crate) fn push_leaf(&mut self, frame_idx: usize, text: &str, ptr: String) {
+        self.push_leaf_inner(frame_idx, text, ptr, false);
+    }
+
+    fn push_leaf_inner(&mut self, frame_idx: usize, text: &str, ptr: String, json_encoded: bool) {
         if text.is_empty() {
             return;
         }
@@ -703,6 +745,7 @@ impl StreamCollector {
         self.blocks.push(ResponseBlock {
             text: owned,
             editable: true,
+            json_encoded,
             deltas: Vec::new(),
             leaves: vec![(Some(frame_idx), ptr)],
         });
@@ -761,12 +804,27 @@ pub(crate) fn ptr_index(base: &str, index: usize) -> String {
 }
 
 pub(crate) fn push_leaf(blocks: &mut Vec<ResponseBlock>, text: &str, ptr: String, editable: bool) {
+    push_leaf_inner(blocks, text, ptr, editable, false);
+}
+
+pub(crate) fn push_json_leaf(blocks: &mut Vec<ResponseBlock>, text: &str, ptr: String) {
+    push_leaf_inner(blocks, text, ptr, true, true);
+}
+
+fn push_leaf_inner(
+    blocks: &mut Vec<ResponseBlock>,
+    text: &str,
+    ptr: String,
+    editable: bool,
+    json_encoded: bool,
+) {
     if text.is_empty() {
         return;
     }
     blocks.push(ResponseBlock {
         text: text.to_owned(),
         editable,
+        json_encoded,
         deltas: Vec::new(),
         leaves: vec![(None, ptr)],
     });

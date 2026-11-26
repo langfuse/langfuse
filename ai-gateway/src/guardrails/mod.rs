@@ -34,7 +34,7 @@ use bedrock::BedrockGuardrail;
 use external::{ExternalFailureKind, ExternalGuardrailClient, ExternalOutcome, ExternalPayloads};
 use redact::{BodyEdit, RedactionSpan};
 use regex::Compiled;
-use response::{ParsedResponse, ResponseFormat, ResponseParseError};
+use response::{ParsedResponse, RedactionApply, ResponseFormat, ResponseParseError};
 use text::{LastTurn, Unreadable};
 
 /// Evaluates local regex and external provider guardrails against a request's
@@ -754,6 +754,17 @@ impl GuardrailRejection {
             }
         }
     }
+
+    /// Deterministic 5xx response rejections (buffer cap exceeded or unreadable
+    /// response) should not be auto-retried by OpenAI/Anthropic SDKs because a
+    /// retry pays for another full generation with the same outcome.
+    pub(crate) fn disable_retry(&self) -> bool {
+        self.location == GuardrailLocation::Response
+            && matches!(
+                self.reason,
+                BlockReason::InputTooLarge | BlockReason::Unreadable
+            )
+    }
 }
 
 /// The guardrails an exchange matched, in resolution order, together with any
@@ -959,6 +970,12 @@ struct TurnBlock {
 #[derive(Default)]
 struct TurnBlocks(Vec<TurnBlock>);
 
+enum AnonymizeResult {
+    Applied,
+    Uneditable,
+    Invalid,
+}
+
 impl TurnBlocks {
     fn is_empty(&self) -> bool {
         self.0.is_empty()
@@ -1030,16 +1047,19 @@ impl TurnBlocks {
     }
 
     /// Applies one enforcing external guardrail's anonymized `outputs` 1:1 onto
-    /// the blocks covered by `scope`. Returns `false` if the outputs cannot be
-    /// mapped 1:1 or changed nothing.
-    fn apply_anonymized_for_scope(&mut self, scope: GuardrailScope, outputs: &[String]) -> bool {
+    /// the blocks covered by `scope`.
+    fn apply_anonymized_for_scope(
+        &mut self,
+        scope: GuardrailScope,
+        outputs: &[String],
+    ) -> AnonymizeResult {
         let expected = self
             .0
             .iter()
             .filter(|block| Self::matches_scope(block, scope))
             .count();
         if outputs.is_empty() || outputs.len() != expected {
-            return false;
+            return AnonymizeResult::Invalid;
         }
         let mut changed = false;
         for (block, output) in self
@@ -1052,14 +1072,18 @@ impl TurnBlocks {
                 continue;
             }
             if matches!(block.target, EditTarget::Uneditable) {
-                return false;
+                return AnonymizeResult::Uneditable;
             }
             block.text.clear();
             block.text.push_str(output);
             block.mutation = BlockMutation::External;
             changed = true;
         }
-        changed
+        if changed {
+            AnonymizeResult::Applied
+        } else {
+            AnonymizeResult::Invalid
+        }
     }
 
     fn into_body_edits(
@@ -1144,11 +1168,20 @@ impl GuardrailEvaluation {
         let mut verdict = RuleVerdict::from_external(guardrail.action, outcome);
         if guardrail.is_external_enforce()
             && let ExternalOutcome::Anonymized(outputs) = outcome
-            && !self
+        {
+            match self
                 .blocks
                 .apply_anonymized_for_scope(guardrail.scope, outputs)
-        {
-            verdict = RuleVerdict::from_fail_closed(guardrail.action, BlockReason::Unavailable);
+            {
+                AnonymizeResult::Applied => {}
+                AnonymizeResult::Uneditable => {
+                    verdict = RuleVerdict::from_fail_closed(guardrail.action, BlockReason::Policy);
+                }
+                AnonymizeResult::Invalid => {
+                    verdict =
+                        RuleVerdict::from_fail_closed(guardrail.action, BlockReason::Unavailable);
+                }
+            }
         }
         rule.verdict.escalate(verdict);
         rule.verdict.is_block()
@@ -1202,24 +1235,40 @@ impl GuardrailEvaluation {
             match self.blocks.into_response_edits() {
                 Some(edits) if edits.is_empty() => {}
                 Some(edits) => {
-                    let rewritten = match parsed {
+                    let applied = match parsed {
                         Some(parsed) => parsed.apply_redactions(&edits, budget)?,
-                        None => None,
+                        None => RedactionApply::Failed,
                     };
-                    if let Some(rewritten) = rewritten {
-                        if let Some(budget) = budget
-                            && !rewritten.is_empty()
-                        {
-                            self.redaction_reservations
-                                .push(MemoryReservation::from_budget(
-                                    budget,
-                                    rewritten.len(),
-                                    "guardrails",
-                                )?);
+                    match applied {
+                        RedactionApply::Rewritten(rewritten) => {
+                            if let Some(budget) = budget
+                                && !rewritten.is_empty()
+                            {
+                                self.redaction_reservations
+                                    .push(MemoryReservation::from_budget(
+                                        budget,
+                                        rewritten.len(),
+                                        "guardrails",
+                                    )?);
+                            }
+                            rewritten_response = Some(rewritten);
                         }
-                        rewritten_response = Some(rewritten);
-                    } else {
-                        fail_closed_rules(&mut self.rules, guardrails, BlockReason::Unreadable);
+                        RedactionApply::Unchanged => {}
+                        RedactionApply::InvalidJson => {
+                            for rule in &mut self.rules {
+                                if rule.verdict == RuleVerdict::Redact
+                                    && let Some(guardrail) = guardrails.get(rule.guardrail_index)
+                                {
+                                    rule.verdict.escalate(RuleVerdict::from_fail_closed(
+                                        guardrail.action,
+                                        BlockReason::Policy,
+                                    ));
+                                }
+                            }
+                        }
+                        RedactionApply::Failed => {
+                            fail_closed_rules(&mut self.rules, guardrails, BlockReason::Unreadable);
+                        }
                     }
                 }
                 None => fail_closed_rules(&mut self.rules, guardrails, BlockReason::Unreadable),
@@ -1791,11 +1840,11 @@ fn redact_text_block(
         return Ok(BlockRedaction::Unchanged(target));
     }
     if matches!(target, EditTarget::Uneditable) {
-        fail_closed_spans(span_scratch, guardrails, rules);
+        fail_closed_spans(span_scratch, guardrails, rules, BlockReason::Policy);
         return Ok(BlockRedaction::Unchanged(target));
     }
     let Some(capacity) = redact::prepare_redactions(text, span_scratch) else {
-        fail_closed_spans(span_scratch, guardrails, rules);
+        fail_closed_spans(span_scratch, guardrails, rules, BlockReason::Unreadable);
         return Ok(BlockRedaction::Unchanged(target));
     };
     reserve_redaction_bytes(budget, capacity, reservations)?;
@@ -1809,15 +1858,14 @@ fn fail_closed_spans(
     spans: &[RedactionSpan<'_>],
     guardrails: &[Guardrail],
     rules: &mut [RuleState],
+    reason: BlockReason,
 ) {
     for span in spans {
         if let Some(rule) = rules.get_mut(span.priority)
             && let Some(guardrail) = guardrails.get(rule.guardrail_index)
         {
-            rule.verdict.escalate(RuleVerdict::from_fail_closed(
-                guardrail.action,
-                BlockReason::Unreadable,
-            ));
+            rule.verdict
+                .escalate(RuleVerdict::from_fail_closed(guardrail.action, reason));
         }
     }
 }

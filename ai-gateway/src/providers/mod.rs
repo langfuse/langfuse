@@ -34,7 +34,11 @@ use crate::{
 pub use outbound::OutboundPolicy;
 
 /// Largest provider response body buffered for output guardrail evaluation.
-const MAX_RESPONSE_GUARDRAIL_BYTES: usize = MAX_RESPONSE_PARSE_BYTES;
+const MAX_JSON_RESPONSE_GUARDRAIL_BYTES: usize = MAX_RESPONSE_PARSE_BYTES;
+/// Streamed SSE responses carry ~200-260 bytes of JSON framing per token, so
+/// give SSE a larger raw buffer cap (still bounded by `memory_budget`) to match
+/// the generation lengths allowed for non-streaming JSON responses.
+const MAX_SSE_RESPONSE_GUARDRAIL_BYTES: usize = 32 * 1024 * 1024;
 
 /// Failures that can end [`ProviderTransport::forward_route`]
 /// before returning a provider response to the caller.
@@ -107,15 +111,13 @@ impl Route {
         )
     }
 
-    // Decisions responses only return caller-defined choices/categories;
-    // embeddings and count_tokens have no generated model text.
+    // Decisions only return caller-defined choices/categories; Responses
+    // compaction returns opaque encrypted compaction items plus retained user
+    // turns; embeddings and count_tokens have no generated model text.
     pub(crate) fn evaluates_response_guardrails(self) -> bool {
         matches!(
             self,
-            Self::OpenAiResponses
-                | Self::OpenAiResponsesCompact
-                | Self::OpenAiChatCompletions
-                | Self::AnthropicMessages
+            Self::OpenAiResponses | Self::OpenAiChatCompletions | Self::AnthropicMessages
         )
     }
 }
@@ -617,8 +619,13 @@ impl ResponseGuardrailRun {
                 BlockReason::Unreadable,
             );
         };
+        let max_bytes = match format {
+            ResponseFormat::Json => MAX_JSON_RESPONSE_GUARDRAIL_BYTES,
+            ResponseFormat::Sse => MAX_SSE_RESPONSE_GUARDRAIL_BYTES,
+        };
         let (raw_bytes, buffer_reservation) = match read_bounded_response(
             response,
+            max_bytes,
             guardrails.memory_budget(),
             self.permit.deadline,
             self.stall_timeout,
@@ -838,11 +845,12 @@ enum BufferedResponse {
     UpstreamError(ProviderError, Vec<Bytes>),
 }
 
-/// Buffers a provider response body up to [`MAX_RESPONSE_GUARDRAIL_BYTES`],
-/// reserving capacity incrementally from the shared memory budget and honoring
-/// both the execution deadline and per-chunk stall timeout.
+/// Buffers a provider response body up to `max_bytes`, reserving capacity
+/// incrementally from the shared memory budget and honoring both the execution
+/// deadline and per-chunk stall timeout.
 async fn read_bounded_response(
     mut response: reqwest::Response,
+    max_bytes: usize,
     budget: &Arc<tokio::sync::Semaphore>,
     deadline: Instant,
     stall_timeout: Duration,
@@ -850,7 +858,7 @@ async fn read_bounded_response(
     let declared = response
         .content_length()
         .map(|length| usize::try_from(length).unwrap_or(usize::MAX));
-    if declared.is_some_and(|declared| declared > MAX_RESPONSE_GUARDRAIL_BYTES) {
+    if declared.is_some_and(|declared| declared > max_bytes) {
         return BufferedResponse::TooLarge {
             prefix: Vec::new(),
             response,
@@ -860,7 +868,7 @@ async fn read_bounded_response(
     let Ok(mut reservation) = MemoryReservation::from_budget(budget, 0, "guardrails") else {
         return BufferedResponse::Busy(Vec::new());
     };
-    let capacity_limit = declared.unwrap_or(MAX_RESPONSE_GUARDRAIL_BYTES);
+    let capacity_limit = declared.unwrap_or(max_bytes);
     let mut buffer = Vec::new();
     loop {
         let chunk_deadline = deadline.min(Instant::now() + stall_timeout);
@@ -890,7 +898,7 @@ async fn read_bounded_response(
             return BufferedResponse::Complete(Bytes::from(buffer), reservation);
         };
         let total = buffer.len().saturating_add(chunk.len());
-        if total > MAX_RESPONSE_GUARDRAIL_BYTES {
+        if total > max_bytes {
             let mut prefix = Vec::with_capacity(2);
             if !buffer.is_empty() {
                 prefix.push(Bytes::from(buffer));

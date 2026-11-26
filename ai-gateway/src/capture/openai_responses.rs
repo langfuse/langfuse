@@ -443,7 +443,7 @@ pub(super) fn extract_response_json(
     blocks: &mut Vec<crate::guardrails::response::ResponseBlock>,
 ) -> Result<(), crate::guardrails::text::Unreadable> {
     use crate::guardrails::response::{
-        attach_matching_or_push_leaf, collect_text_or_parts, ptr_index, ptr_push,
+        attach_matching_or_push_leaf, collect_text_or_parts, ptr_index, ptr_push, push_json_leaf,
     };
     use crate::guardrails::text::Unreadable;
 
@@ -452,17 +452,13 @@ pub(super) fn extract_response_json(
         for (index, item) in output.as_array().ok_or(Unreadable)?.iter().enumerate() {
             let map = item.as_object().ok_or(Unreadable)?;
             let item_ptr = ptr_index(&output_ptr, index);
-            for key in [
-                "content",
-                "summary",
-                "text",
-                "refusal",
-                "arguments",
-                "input",
-            ] {
+            for key in ["content", "summary", "text", "refusal", "input"] {
                 if let Some(field) = map.get(key) {
                     collect_text_or_parts(field, &ptr_push(&item_ptr, key), 0, blocks)?;
                 }
+            }
+            if let Some(args) = map.get("arguments").and_then(Value::as_str) {
+                push_json_leaf(blocks, args, ptr_push(&item_ptr, "arguments"));
             }
         }
     }
