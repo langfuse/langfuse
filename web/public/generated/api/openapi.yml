@@ -31,6 +31,12 @@ info:
     - password: Langfuse Secret Key
 
 
+    Organization and user API keys can access more than one project. Select the
+    project with the `langfuse-project-id` header, or use the project ID as the
+    Basic auth username in place of the public key. If the URL path, the header
+    and the username name different projects, the request fails with a 400.
+
+
     ## Exports
 
 
