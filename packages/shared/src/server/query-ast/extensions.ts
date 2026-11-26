@@ -726,9 +726,49 @@ export function avgIf(
   return aggregate("avgIf", [value, condition]);
 }
 
+/** ClickHouse `minIf(value, condition)`: the smallest value among the matching rows. */
+export function minIf<T>(
+  value: Expression<T>,
+  condition: Expression<SqlBool>,
+): ChExpression<T> {
+  return aggregate("minIf", [value, condition]);
+}
+
+/** ClickHouse `maxIf(value, condition)`: the largest value among the matching rows. */
+export function maxIf<T>(
+  value: Expression<T>,
+  condition: Expression<SqlBool>,
+): ChExpression<T> {
+  return aggregate("maxIf", [value, condition]);
+}
+
+/**
+ * ClickHouse `sumIf(value, condition)`: the sum over the matching rows, NULL
+ * for a `Nullable` `value` when no row matches.
+ */
+export function sumIf<T extends number | null>(
+  value: Expression<T>,
+  condition: Expression<SqlBool>,
+): ChExpression<T> {
+  return aggregate("sumIf", [value, condition]);
+}
+
+/** ClickHouse `sumMapIf(map, condition)`: per-key sums over the matching rows. */
+export function sumMapIf<V>(
+  map: Expression<Record<string, V>>,
+  condition: Expression<SqlBool>,
+): ChExpression<Record<string, V>> {
+  return aggregate("sumMapIf", [map, condition]);
+}
+
 /** ClickHouse `groupArray(value)`. */
 export function groupArray<T>(value: Expression<T>): ChExpression<T[]> {
   return aggregate("groupArray", [value]);
+}
+
+/** ClickHouse `flatten(arrays)`: the elements of every inner array, in order. */
+export function flatten<T>(arrays: Expression<T[][]>): ChExpression<T[]> {
+  return functionCall("flatten", [arrays]);
 }
 
 /** ClickHouse `groupUniqArray(value)`. */
