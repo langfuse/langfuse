@@ -50,23 +50,21 @@ export function layoutSessionTracePieces(
         idleGap(previous.end, trace.start) >= IDLE_GAP_THRESHOLD_SECONDS;
       pieces.push({ tone: idle ? "idle" : "rest", width: left - cursor });
     }
-    const width = Math.max(right - left, index === activeIndex ? 0.8 : 0);
-    if (width > 0) {
-      pieces.push({
-        tone: index === activeIndex ? "fill" : "muted",
-        width,
-        trace: {
-          id: trace.id,
-          name: trace.name?.trim() || trace.id,
-          position: position + 1,
-          index,
-          clock: formatTraceClock(trace.start, sessionStart, sessionEnd),
-          durationLabel: formatSessionDuration(
-            Math.max(0, trace.end - trace.start) / 1000,
-          ),
-        },
-      });
-    }
+    const width = Math.max(right - left, MIN_SEGMENT_PERCENT);
+    pieces.push({
+      tone: index === activeIndex ? "fill" : "muted",
+      width,
+      trace: {
+        id: trace.id,
+        name: trace.name?.trim() || trace.id,
+        position: position + 1,
+        index,
+        clock: formatTraceClock(trace.start, sessionStart, sessionEnd),
+        durationLabel: formatSessionDuration(
+          Math.max(0, trace.end - trace.start) / 1000,
+        ),
+      },
+    });
     cursor = Math.max(cursor, left + width);
   });
   if (cursor < 99.8) pieces.push({ tone: "rest", width: 100 - cursor });
