@@ -381,6 +381,86 @@ describe("project dashboard blocks", () => {
     expect(persisted.definition).not.toHaveProperty("version");
   });
 
+  it("consumes a bound converted Home overlay when replacing its placement directly", async () => {
+    const author = caller(projectId);
+    const preset = {
+      type: "preset" as const,
+      id: "cost",
+      presetId: "home-model-costs",
+      x: 6,
+      y: 3,
+      x_size: 6,
+      y_size: 4,
+    };
+    const overlay = {
+      id: randomUUID(),
+      kind: "convertedPreset",
+      revision: 2,
+      sourcePreset: { placementId: preset.id, presetId: preset.presetId },
+      beforePlacementId: null,
+      config: {
+        version: 2,
+        title: "Converted",
+        description: "",
+        tabs: [
+          {
+            id: "main",
+            label: "Main",
+            queries: multiQueryConfig.queries,
+            display: multiQueryConfig.display,
+          },
+        ],
+      },
+    };
+    const note = {
+      id: randomUUID(),
+      kind: "markdown",
+      revision: 1,
+      beforePlacementId: null,
+      config: { version: 1, ...config },
+    };
+    const dashboard = await prisma.dashboard.create({
+      data: {
+        projectId,
+        name: "Replace converted placement",
+        description: "",
+        definition: {
+          version: "1",
+          widgets: [preset],
+          blocks: [preset, overlay, note],
+          extension: { preserved: true },
+        },
+      },
+    });
+    const target = { projectId, dashboardId: dashboard.id };
+    const { widget } = await author.dashboardWidgets.saveDefinition({
+      ...target,
+      replacePlacementId: preset.id,
+      replacePresetId: preset.presetId,
+      definition: { kind: "multiQuery", config: multiQueryConfig },
+    });
+    const saved = await prisma.dashboard.findUniqueOrThrow({
+      where: { id: dashboard.id, projectId },
+    });
+    expect(saved.definition).toEqual({
+      version: "1",
+      extension: { preserved: true },
+      widgets: [
+        { ...preset, type: "widget", widgetId: widget.id, presetId: undefined },
+      ],
+      blocks: [
+        { ...preset, type: "widget", widgetId: widget.id, presetId: undefined },
+        note,
+      ],
+    });
+    await expect(
+      author.dashboardWidgets.migrateInlineWidgets(target),
+    ).resolves.toEqual({ migrated: 1 });
+    await expect(
+      author.dashboardWidgets.migrateInlineWidgets(target),
+    ).resolves.toEqual({ migrated: 0 });
+  });
+
   it("migrates inline charts and Markdown transactionally and only once", async () => {
     const author = caller(projectId);
     const preset = {
@@ -833,6 +913,11 @@ describe("project dashboard blocks", () => {
       definition: untrusted,
     });
     const cloneTarget = { projectId, dashboardId: clone.id };
+    const persistedClone = await prisma.dashboard.findUniqueOrThrow({
+      where: { id: clone.id, projectId },
+    });
+    expect(clone.updatedAt).toEqual(persistedClone.updatedAt);
+    expect(clone.updatedBy).toBe(persistedClone.updatedBy);
     await expect(
       regular.dashboard.getDashboardBlocks(cloneTarget),
     ).resolves.toEqual(anchored.map((block) => ({ ...block, revision: 1 })));

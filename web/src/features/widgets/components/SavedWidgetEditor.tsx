@@ -13,11 +13,8 @@ import {
   HOME_DASHBOARD_PRESET_IDS,
   type HomeDashboardPresetId,
 } from "@langfuse/shared";
-import {
-  toWidgetDefinition,
-  normalizeMultiQueryConfig,
-} from "@langfuse/shared/dashboards";
-import { normalizeStoredWidgetFiltersForEditor } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { normalizeMultiQueryConfig } from "@langfuse/shared/dashboards";
+import { toSavedWidgetEditorDefinition } from "@/src/features/widgets/utils/widget-definition";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -59,17 +56,7 @@ export function SavedWidgetEditor({
   const adapted = (() => {
     try {
       return {
-        definition: widget
-          ? toWidgetDefinition({
-              ...widget,
-              filters: widget.definition
-                ? widget.filters
-                : normalizeStoredWidgetFiltersForEditor(
-                    widget.view,
-                    widget.filters,
-                  ).editorFilters,
-            })
-          : undefined,
+        definition: widget ? toSavedWidgetEditorDefinition(widget) : undefined,
         error: undefined,
       };
     } catch {

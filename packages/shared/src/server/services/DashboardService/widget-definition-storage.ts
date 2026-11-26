@@ -307,10 +307,10 @@ export async function saveWidgetDefinition(
         sourceBlock?.kind === "convertedPreset"
           ? sourceBlock.sourcePreset.placementId
           : parsed.replacePlacementId;
+      const preset = replaceId
+        ? dashboard.layout.widgets.find((item) => item.id === replaceId)
+        : undefined;
       if (replaceId) {
-        const preset = dashboard.layout.widgets.find(
-          (item) => item.id === replaceId,
-        );
         if (
           preset?.type !== "preset" ||
           (parsed.replacePresetId !== undefined &&
@@ -336,7 +336,19 @@ export async function saveWidgetDefinition(
         parsed.dashboardId,
         layout,
         remaining
-          .filter((entry) => entry !== source)
+          .filter((entry) => {
+            if (entry === source) return false;
+            const binding = entry.value.sourcePreset;
+            return !(
+              preset?.type === "preset" &&
+              entry.value.kind === "convertedPreset" &&
+              binding &&
+              typeof binding === "object" &&
+              !Array.isArray(binding) &&
+              binding.placementId === preset.id &&
+              binding.presetId === preset.presetId
+            );
+          })
           .map((entry) => entry.ordinal),
         userId,
       );

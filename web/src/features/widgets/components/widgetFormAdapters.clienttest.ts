@@ -1,6 +1,7 @@
 /* eslint-disable no-nested-ternary */
 // @vitest-environment node
 
+import { toSavedWidgetEditorDefinition } from "@/src/features/widgets/utils/widget-definition";
 import startCase from "lodash/startCase";
 import { type z } from "zod";
 
@@ -725,4 +726,132 @@ describe("buildWidgetName / buildWidgetDescription for sum of tool calls", () =>
       }),
     ).toBe("Avg Tool Calls (Observations)");
   });
+});
+
+describe("saved widget editor adaptation", () => {
+  it("keeps canonical filters when opening and saving a classic widget without edits", () => {
+    const filters = [
+      {
+        column: "type",
+        type: "stringOptions" as const,
+        operator: "any of" as const,
+        value: ["GENERATION"],
+      },
+      {
+        column: "level",
+        type: "stringOptions" as const,
+        operator: "any of" as const,
+        value: ["ERROR"],
+      },
+      {
+        column: "providedModelName",
+        type: "stringOptions" as const,
+        operator: "any of" as const,
+        value: ["model-a"],
+      },
+      {
+        column: "metadata",
+        type: "stringObject" as const,
+        key: "team",
+        operator: "=" as const,
+        value: "support",
+      },
+    ];
+    const adapted = toSavedWidgetEditorDefinition({
+      name: "Filtered observations",
+      description: "",
+      view: "OBSERVATIONS",
+      metrics: [{ measure: "count", agg: "count" }],
+      dimensions: [],
+      filters,
+      chartType: "NUMBER",
+    });
+    if (adapted.kind !== "multiQuery" || adapted.config.version !== 2)
+      throw new Error("Expected tabbed chart");
+    expect(adapted.config.tabs[0].queries[0].filters).toEqual(filters);
+  });
+
+  it.each([1, 2] as const)(
+    "canonicalizes rich v%s labels without dropping unsupported filters",
+    (version) => {
+      const sourceFilters = [
+        {
+          column: "Release",
+          type: "string" as const,
+          operator: "=" as const,
+          value: "release-1",
+        },
+        {
+          column: "Score Name",
+          type: "string" as const,
+          operator: "=" as const,
+          value: "quality",
+        },
+        {
+          column: "futureField",
+          type: "string" as const,
+          operator: "=" as const,
+          value: "keep",
+        },
+      ];
+      const tab = {
+        id: "main",
+        label: "Main",
+        queries: [
+          {
+            id: "a",
+            label: "Observations",
+            view: "observations",
+            metrics: [{ id: "m0", measure: "count", aggregation: "count" }],
+            dimensions: [],
+            filters: sourceFilters,
+          },
+        ],
+        display: { chartType: "NUMBER" },
+      };
+      const widget = {
+        name: "Compatibility filters",
+        description: "",
+        view: "observations",
+        metrics: [{ measure: "count", agg: "count" }],
+        dimensions: [],
+        filters: sourceFilters,
+        chartType: "NUMBER",
+      };
+      const legacy = toSavedWidgetEditorDefinition(widget);
+      if (legacy.kind !== "multiQuery" || legacy.config.version !== 2)
+        throw new Error("Expected chart");
+      expect(
+        legacy.config.tabs[0].queries[0].filters.find(
+          (filter) => filter.value === "release-1",
+        )?.column,
+      ).toBe("traceRelease");
+      const adapted = toSavedWidgetEditorDefinition({
+        ...widget,
+        definition: {
+          kind: "multiQuery",
+          config:
+            version === 2
+              ? { version, title: widget.name, description: "", tabs: [tab] }
+              : { ...tab, version, title: widget.name, description: "" },
+        },
+      });
+      if (adapted.kind !== "multiQuery") throw new Error("Expected chart");
+      const queries =
+        adapted.config.version === 2
+          ? adapted.config.tabs[0].queries
+          : adapted.config.queries;
+      expect(queries[0].filters).toHaveLength(3);
+      expect(queries[0].filters).toEqual(
+        expect.arrayContaining([
+          { ...sourceFilters[0], column: "release" },
+          sourceFilters[1],
+          sourceFilters[2],
+        ]),
+      );
+      expect(
+        toSavedWidgetEditorDefinition({ ...widget, definition: adapted }),
+      ).toEqual(adapted);
+    },
+  );
 });

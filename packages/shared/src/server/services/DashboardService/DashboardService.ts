@@ -299,8 +299,12 @@ export class DashboardService {
             AND source.id = ${dashboardId} AND source.project_id = ${projectId}
             AND (source.definition ? 'version' OR source.definition ? 'blocks')
         `;
+        let result = DashboardDomainSchema.parse({
+          ...clone,
+          owner: "PROJECT",
+        });
         if (definition) {
-          await updateClassicLayout(
+          result = await updateClassicLayout(
             tx,
             projectId,
             clone.id,
@@ -314,7 +318,7 @@ export class DashboardService {
             data: { homeDashboardId: clone.id },
           });
         }
-        return DashboardDomainSchema.parse({ ...clone, owner: "PROJECT" });
+        return result;
       },
       { isolationLevel: "RepeatableRead" },
     );
