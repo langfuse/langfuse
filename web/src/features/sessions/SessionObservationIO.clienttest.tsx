@@ -5,6 +5,7 @@
  * (trace view, raw download) instead of the full payload.
  */
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 
 const fullIOQuery = vi.fn();
@@ -78,9 +79,10 @@ const baseObservation = {
 const renderComponent = (
   observation: SessionTraceObservation,
   onOpenInTraceView = vi.fn(),
+  session: Session | null = null,
 ) => {
   render(
-    <SessionProvider session={null}>
+    <SessionProvider session={session}>
       <SessionObservationIO
         observation={observation}
         projectId="p1"
@@ -236,5 +238,62 @@ describe("SessionObservationIO", () => {
       screen.getByRole("button", { name: /open in trace view/i }),
     );
     expect(onOpenInTraceView).toHaveBeenCalledWith("obs-1");
+  });
+
+  it("disables Download I/O when UI exports are disabled for the organization", () => {
+    const disabledSession = {
+      expires: "2099-01-01T00:00:00.000Z",
+      policies: [],
+      environment: {
+        enableExperimentalFeatures: false,
+        selfHostedInstancePlan: null,
+      },
+      user: {
+        id: "user-1",
+        name: "Test User",
+        email: "test@example.com",
+        canCreateOrganizations: true,
+        featureFlags: {},
+        organizations: [
+          {
+            id: "org-1",
+            name: "Org 1",
+            cloudConfig: undefined,
+            plan: "cloud:enterprise",
+            metadata: {},
+            aiFeaturesEnabled: false,
+            aiTelemetryEnabled: false,
+            uiExportsDisabled: true,
+            projects: [
+              {
+                id: "p1",
+                name: "Project 1",
+                deletedAt: null,
+                retentionDays: null,
+                hasTraces: true,
+                metadata: {},
+                createdAt: "2026-01-01T00:00:00.000Z",
+              },
+            ],
+          },
+        ],
+      },
+    } as unknown as Session;
+
+    renderComponent(
+      {
+        ...baseObservation,
+        outputTruncated: true,
+      } as SessionTraceObservation,
+      vi.fn(),
+      disabledSession,
+    );
+
+    const downloadButton = screen.getByRole("button", {
+      name: /download i\/o/i,
+    });
+    expect(downloadButton).toBeDisabled();
+    fireEvent.click(downloadButton);
+    expect(fullIOQuery).not.toHaveBeenCalled();
   });
 });
