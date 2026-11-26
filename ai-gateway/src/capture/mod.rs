@@ -198,6 +198,70 @@ pub(crate) fn guardrail_turn<'a>(
     }
 }
 
+/// Extracts model output text blocks from a non-streaming JSON provider response.
+pub(crate) fn extract_response_json(
+    api_format: ApiFormat,
+    value: &Value,
+    blocks: &mut Vec<crate::guardrails::response::ResponseBlock>,
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    match api_format {
+        ApiFormat::OpenAiChatCompletions => {
+            openai_chat_completions::extract_response_json(value, blocks)
+        }
+        ApiFormat::AnthropicMessages => anthropic_messages::extract_response_json(value, blocks),
+        ApiFormat::OpenAiResponses => openai_responses::extract_response_json(value, blocks),
+        ApiFormat::OpenAiDecisions => openai_decisions::extract_response_json(value, blocks),
+        ApiFormat::OpenAiEmbeddings => Ok(()),
+    }
+}
+
+/// Extracts model output text deltas/summaries from one parsed SSE event frame.
+pub(crate) fn extract_response_sse(
+    api_format: ApiFormat,
+    frame_idx: usize,
+    value: &Value,
+    collector: &mut crate::guardrails::response::StreamCollector,
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    match api_format {
+        ApiFormat::OpenAiChatCompletions => {
+            openai_chat_completions::extract_response_sse(frame_idx, value, collector)
+        }
+        ApiFormat::AnthropicMessages => {
+            anthropic_messages::extract_response_sse(frame_idx, value, collector)
+        }
+        ApiFormat::OpenAiResponses => {
+            openai_responses::extract_response_sse(frame_idx, value, collector)
+        }
+        ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => {
+            Err(crate::guardrails::text::Unreadable)
+        }
+    }
+}
+
+/// Returns true when a parsed JSON/SSE response frame carries non-null `logprobs`
+/// token copies that must be scrubbed if redaction fires.
+pub(crate) fn has_response_logprobs(api_format: ApiFormat, value: &Value) -> bool {
+    match api_format {
+        ApiFormat::OpenAiChatCompletions => openai_chat_completions::has_response_logprobs(value),
+        ApiFormat::OpenAiResponses => openai_responses::has_response_logprobs(value),
+        ApiFormat::AnthropicMessages | ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => {
+            false
+        }
+    }
+}
+
+/// Scrubs non-null `logprobs` fields in place so token-level copies cannot leak
+/// redacted response text.
+pub(crate) fn scrub_response_logprobs(api_format: ApiFormat, value: &mut Value) -> bool {
+    match api_format {
+        ApiFormat::OpenAiChatCompletions => openai_chat_completions::scrub_response_logprobs(value),
+        ApiFormat::OpenAiResponses => openai_responses::scrub_response_logprobs(value),
+        ApiFormat::AnthropicMessages | ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => {
+            false
+        }
+    }
+}
+
 /// Owned before dispatch and moved into the response body. Drop also covers a
 /// cancelled provider future before response headers have arrived.
 pub(crate) struct ExecutionCapture {

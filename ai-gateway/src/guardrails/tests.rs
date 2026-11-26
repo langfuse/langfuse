@@ -701,647 +701,217 @@ fn rewritten_response_str(outcome: Outcome) -> String {
 }
 
 #[test]
-fn response_findings_report_response_location_and_preserve_order() {
-    let guardrails = [
-        guardrail("out", GuardrailAction::Block, &[SSN]),
-        guardrail("both", GuardrailAction::Log, &[SSN]),
-    ];
-    let resp_body =
-        r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"123-45-6789"}}]}"#;
-    let resp_outcome = check_response_local(
-        &guardrails,
-        ApiFormat::OpenAiChatCompletions,
-        ResponseFormat::Json,
-        resp_body,
-    );
-    assert_eq!(
-        resp_outcome.into_findings(),
-        [
-            Finding {
-                id: "out".into(),
-                name: "out name".into(),
-                action: GuardrailAction::Block,
-                location: GuardrailLocation::Response,
-            },
-            Finding {
-                id: "both".into(),
-                name: "both name".into(),
-                action: GuardrailAction::Log,
-                location: GuardrailLocation::Response,
-            },
-        ]
-    );
-}
-
-#[test]
-fn redacts_non_streaming_json_responses_across_all_api_formats() {
+fn redacts_json_responses_across_formats_and_scrubs_logprobs() {
     let guardrails = [
         redact_guardrail("email", "[EMAIL]", &[EMAIL]),
         redact_guardrail("ssn", "[SSN]", &[SSN]),
     ];
 
-    // 1. OpenAI Chat Completions (content + tool_calls arguments).
-    let chat = r#"{"id":"chatcmpl-1","choices":[{"index":0,"message":{"role":"assistant","content":"Email alice@example.com","tool_calls":[{"id":"c1","type":"function","function":{"name":"lookup","arguments":"{\"ssn\":\"123-45-6789\"}"}}]}}]}"#;
-    let outcome = check_response_local(
-        &guardrails,
-        ApiFormat::OpenAiChatCompletions,
-        ResponseFormat::Json,
-        chat,
-    );
-    let rewritten: serde_json::Value =
-        serde_json::from_str(&rewritten_response_str(outcome)).unwrap();
-    assert_eq!(
-        rewritten["choices"][0]["message"]["content"],
-        "Email [EMAIL]"
-    );
-    assert_eq!(
-        rewritten["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"],
-        r#"{"ssn":"[SSN]"}"#
-    );
-
-    // 2. Anthropic Messages (text + thinking + tool_use.input).
-    let anthropic = r#"{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"thinking","thinking":"Checking 123-45-6789"},{"type":"text","text":"Mail bob@example.com"},{"type":"tool_use","id":"tu_1","name":"lookup","input":{"email":"carol@example.com","count":1}}]}"#;
-    let outcome = check_response_local(
-        &guardrails,
-        ApiFormat::AnthropicMessages,
-        ResponseFormat::Json,
-        anthropic,
-    );
-    let rewritten: serde_json::Value =
-        serde_json::from_str(&rewritten_response_str(outcome)).unwrap();
-    assert_eq!(rewritten["content"][0]["thinking"], "Checking [SSN]");
-    assert_eq!(rewritten["content"][1]["text"], "Mail [EMAIL]");
-    assert_eq!(rewritten["content"][2]["input"]["email"], "[EMAIL]");
-    assert_eq!(rewritten["content"][2]["input"]["count"], 1);
-
-    // 3. OpenAI Responses (output_text + refusal + function_call arguments).
-    let responses = r#"{"id":"resp_1","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Contact dave@example.com"},{"type":"refusal","refusal":"Cannot share 123-45-6789"}]},{"type":"function_call","name":"f","arguments":"{\"e\":\"eve@example.com\"}"}]}"#;
-    let outcome = check_response_local(
-        &guardrails,
-        ApiFormat::OpenAiResponses,
-        ResponseFormat::Json,
-        responses,
-    );
-    let rewritten: serde_json::Value =
-        serde_json::from_str(&rewritten_response_str(outcome)).unwrap();
-    assert_eq!(
-        rewritten["output"][0]["content"][0]["text"],
-        "Contact [EMAIL]"
-    );
-    assert_eq!(
-        rewritten["output"][0]["content"][1]["refusal"],
-        "Cannot share [SSN]"
-    );
-    assert_eq!(rewritten["output"][1]["arguments"], r#"{"e":"[EMAIL]"}"#);
-
-    // 4. OpenAI Decisions (answers).
-    let decisions = r#"{"answers":[{"type":"text","name":"summary","text":"Found 123-45-6789"}]}"#;
-    let outcome = check_response_local(
-        &guardrails,
-        ApiFormat::OpenAiDecisions,
-        ResponseFormat::Json,
-        decisions,
-    );
-    let rewritten: serde_json::Value =
-        serde_json::from_str(&rewritten_response_str(outcome)).unwrap();
-    assert_eq!(rewritten["answers"][0]["text"], "Found [SSN]");
-    assert_eq!(rewritten["answers"][0]["name"], "summary");
-}
-
-#[test]
-fn redacts_openai_annotations_in_chat_and_responses_json_and_sse() {
-    let guardrails = [
-        redact_guardrail("email", "[EMAIL]", &[EMAIL]),
-        redact_guardrail("ssn", "[SSN]", &[SSN]),
-    ];
-
-    let chat_json = r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"See source.","annotations":[{"type":"url_citation","url_citation":{"url":"https://example.com/?e=alice@example.com","title":"Record 123-45-6789"}}]}}]}"#;
-    let chat_rewritten: serde_json::Value =
+    // Chat Completions: content, tool_calls (function + custom), annotations, logprobs scrub.
+    let chat = r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"Mail alice@example.com","tool_calls":[{"id":"c1","type":"function","function":{"name":"f","arguments":"{\"ssn\":\"123-45-6789\"}"}},{"id":"c2","type":"custom","custom":{"name":"sql","input":"123-45-6789"}}],"annotations":[{"type":"url_citation","url_citation":{"url":"https://ex.com/?e=alice@example.com","title":"123-45-6789"}}]},"logprobs":{"content":[{"token":"alice@example.com"}]}}]}"#;
+    let chat_out: serde_json::Value =
         serde_json::from_str(&rewritten_response_str(check_response_local(
             &guardrails,
             ApiFormat::OpenAiChatCompletions,
             ResponseFormat::Json,
-            chat_json,
+            chat,
         )))
         .unwrap();
+    assert_eq!(chat_out["choices"][0]["message"]["content"], "Mail [EMAIL]");
     assert_eq!(
-        chat_rewritten["choices"][0]["message"]["annotations"][0]["url_citation"]["url"],
-        "https://example.com/?e=[EMAIL]"
+        chat_out["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"],
+        r#"{"ssn":"[SSN]"}"#
     );
     assert_eq!(
-        chat_rewritten["choices"][0]["message"]["annotations"][0]["url_citation"]["title"],
-        "Record [SSN]"
+        chat_out["choices"][0]["message"]["tool_calls"][1]["custom"]["input"],
+        "[SSN]"
     );
+    assert_eq!(
+        chat_out["choices"][0]["message"]["annotations"][0]["url_citation"]["title"],
+        "[SSN]"
+    );
+    assert!(chat_out["choices"][0]["logprobs"].is_null());
 
-    let responses_json = r#"{"id":"resp_1","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"See source.","annotations":[{"type":"url_citation","url":"https://example.com/?e=bob@example.com","title":"SSN 123-45-6789"}]}]}]}"#;
-    let resp_rewritten: serde_json::Value =
+    // Anthropic Messages: thinking, text, citations, tool_use.input.
+    let anthropic = r#"{"content":[{"type":"thinking","thinking":"123-45-6789"},{"type":"text","text":"Mail bob@example.com","citations":[{"cited_text":"123-45-6789"}]},{"type":"tool_use","id":"t1","name":"f","input":{"email":"carol@example.com"}}]}"#;
+    let ant_out: serde_json::Value =
+        serde_json::from_str(&rewritten_response_str(check_response_local(
+            &guardrails,
+            ApiFormat::AnthropicMessages,
+            ResponseFormat::Json,
+            anthropic,
+        )))
+        .unwrap();
+    assert_eq!(ant_out["content"][0]["thinking"], "[SSN]");
+    assert_eq!(ant_out["content"][1]["text"], "Mail [EMAIL]");
+    assert_eq!(ant_out["content"][1]["citations"][0]["cited_text"], "[SSN]");
+    assert_eq!(ant_out["content"][2]["input"]["email"], "[EMAIL]");
+
+    // OpenAI Responses: output_text dedupe, annotations, nested action, logprobs scrub.
+    let responses = r#"{"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"SSN 123-45-6789","logprobs":[{"token":"123"}],"annotations":[{"type":"url_citation","url":"https://ex.com/?e=bob@example.com"}]}]},{"type":"local_shell_call","action":{"type":"exec","command":["echo","123-45-6789"]}}],"output_text":"SSN 123-45-6789"}"#;
+    let parsed_resp = ParsedResponse::parse(
+        ApiFormat::OpenAiResponses,
+        ResponseFormat::Json,
+        Bytes::from_static(responses.as_bytes()),
+        None,
+    )
+    .unwrap();
+    assert_eq!(parsed_resp.blocks().len(), 4);
+    let resp_out: serde_json::Value =
         serde_json::from_str(&rewritten_response_str(check_response_local(
             &guardrails,
             ApiFormat::OpenAiResponses,
             ResponseFormat::Json,
-            responses_json,
+            responses,
         )))
         .unwrap();
+    assert_eq!(resp_out["output"][0]["content"][0]["text"], "SSN [SSN]");
+    assert_eq!(resp_out["output_text"], "SSN [SSN]");
     assert_eq!(
-        resp_rewritten["output"][0]["content"][0]["annotations"][0]["url"],
-        "https://example.com/?e=[EMAIL]"
+        resp_out["output"][0]["content"][0]["logprobs"],
+        serde_json::json!([])
     );
     assert_eq!(
-        resp_rewritten["output"][0]["content"][0]["annotations"][0]["title"],
-        "SSN [SSN]"
+        resp_out["output"][0]["content"][0]["annotations"][0]["url"],
+        "https://ex.com/?e=[EMAIL]"
     );
+    assert_eq!(resp_out["output"][1]["action"]["type"], "exec");
+    assert_eq!(resp_out["output"][1]["action"]["command"][1], "[SSN]");
 
-    let responses_sse = concat!(
-        "event: response.output_text.annotation.added\ndata: {\"type\":\"response.output_text.annotation.added\",\"output_index\":0,\"content_index\":0,\"annotation\":{\"type\":\"url_citation\",\"title\":\"SSN 123-45-6789\"}}\n\n",
-        "event: response.content_part.done\ndata: {\"type\":\"response.content_part.done\",\"output_index\":0,\"content_index\":0,\"part\":{\"type\":\"output_text\",\"text\":\"ok\",\"annotations\":[{\"type\":\"url_citation\",\"title\":\"SSN 123-45-6789\"}]}}\n\n",
-        "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"ok\",\"annotations\":[{\"type\":\"url_citation\",\"title\":\"SSN 123-45-6789\"}]}]}]}}\n\n"
-    );
-    let sse_rewritten = rewritten_response_str(check_response_local(
-        &guardrails,
-        ApiFormat::OpenAiResponses,
-        ResponseFormat::Sse,
-        responses_sse,
-    ));
-    assert!(!sse_rewritten.contains("123-45-6789"));
-    assert_eq!(sse_rewritten.matches("SSN [SSN]").count(), 3);
+    // OpenAI Decisions: answers strings redacted, structural type/name preserved.
+    let decisions = r#"{"answers":[{"type":"text","name":"summary","text":"Found 123-45-6789"}]}"#;
+    let dec_out: serde_json::Value =
+        serde_json::from_str(&rewritten_response_str(check_response_local(
+            &guardrails,
+            ApiFormat::OpenAiDecisions,
+            ResponseFormat::Json,
+            decisions,
+        )))
+        .unwrap();
+    assert_eq!(dec_out["answers"][0]["text"], "Found [SSN]");
+    assert_eq!(dec_out["answers"][0]["name"], "summary");
 }
 
 #[test]
-fn redacts_span_crossing_sse_chunks_and_deduplicates_responses_summaries() {
+fn redacts_sse_responses_across_formats_and_span_boundaries() {
     let guardrails = [redact_guardrail("ssn", "[SSN]", &[SSN])];
 
-    // 1. OpenAI Chat Completions SSE with SSN split across three deltas.
+    // Chat Completions: array delta + custom tool input split across chunks + logprobs scrub.
     let chat_sse = concat!(
-        "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"}}]}\n\n",
-        "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"SSN: 123-\"}}]}\n\n",
-        "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"45-\"}}]}\n\n",
-        "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"6789 done\"}}]}\n\n",
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":[{\"type\":\"text\",\"text\":\"SSN 123-\"}],\"tool_calls\":[{\"index\":0,\"custom\":{\"input\":\"123-\"}}]},\"logprobs\":{\"content\":[{\"token\":\"123-\"}]}}]}\n\n",
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":[{\"type\":\"text\",\"text\":\"45-6789\"}],\"tool_calls\":[{\"index\":0,\"custom\":{\"input\":\"45-6789\"}}]}}]}\n\n",
         "data: [DONE]\n\n"
     );
-    let outcome = check_response_local(
+    let chat_out = rewritten_response_str(check_response_local(
         &guardrails,
         ApiFormat::OpenAiChatCompletions,
         ResponseFormat::Sse,
         chat_sse,
-    );
-    let rewritten = rewritten_response_str(outcome);
-    assert!(!rewritten.contains("123-"));
-    assert!(!rewritten.contains("6789"));
-    assert!(rewritten.contains("\"content\":\"SSN: [SSN] done\""));
-    assert!(rewritten.contains("data: [DONE]\n\n"));
+    ));
+    assert!(!chat_out.contains("123-") && !chat_out.contains("45-6789"));
+    assert!(chat_out.contains("SSN [SSN]") && chat_out.contains("\"logprobs\":null"));
 
-    // 2. Anthropic Messages SSE with SSN split across text_delta chunks.
+    // Anthropic Messages: split text_delta + citations_delta + content_block_start tool content.
     let anthropic_sse = concat!(
         "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
-        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"id 123-45\"}}\n\n",
-        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"-6789!\"}}\n\n",
-        "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"123-\"}}\n\n",
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"45-6789\"}}\n\n",
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"citations_delta\",\"citation\":{\"cited_text\":\"123-45-6789\"}}}\n\n",
+        "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"web_search_tool_result\",\"content\":[{\"type\":\"text\",\"text\":\"123-45-6789\"}]}}\n\n"
     );
-    let outcome = check_response_local(
+    let ant_out = rewritten_response_str(check_response_local(
         &guardrails,
         ApiFormat::AnthropicMessages,
         ResponseFormat::Sse,
         anthropic_sse,
-    );
-    let rewritten = rewritten_response_str(outcome);
-    assert!(!rewritten.contains("123-45"));
-    assert!(!rewritten.contains("-6789"));
-    assert!(rewritten.contains("\"text\":\"id [SSN]!\""));
+    ));
+    assert!(!ant_out.contains("123-") && !ant_out.contains("45-6789"));
+    assert_eq!(ant_out.matches("[SSN]").count(), 3);
 
-    // 3. OpenAI Responses SSE: deltas + output_text.done + content_part.done +
-    //    output_item.done + response.completed all collapse into ONE logical block
-    //    and every occurrence is rewritten consistently.
+    // OpenAI Responses: deltas + done + annotation + action deduplicated across summaries.
     let responses_sse = concat!(
         "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"content_index\":0,\"delta\":\"SSN 123-\"}\n\n",
         "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"content_index\":0,\"delta\":\"45-6789\"}\n\n",
         "event: response.output_text.done\ndata: {\"type\":\"response.output_text.done\",\"output_index\":0,\"content_index\":0,\"text\":\"SSN 123-45-6789\"}\n\n",
-        "event: response.content_part.done\ndata: {\"type\":\"response.content_part.done\",\"output_index\":0,\"content_index\":0,\"part\":{\"type\":\"output_text\",\"text\":\"SSN 123-45-6789\"}}\n\n",
-        "event: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"SSN 123-45-6789\"}]}}\n\n",
-        "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"SSN 123-45-6789\"}]}]}}\n\n"
+        "event: response.output_text.annotation.added\ndata: {\"type\":\"response.output_text.annotation.added\",\"output_index\":0,\"content_index\":0,\"annotation\":{\"type\":\"url_citation\",\"title\":\"Doc 123-45-6789\"}}\n\n",
+        "event: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"output_index\":1,\"item\":{\"type\":\"local_shell_call\",\"action\":{\"type\":\"exec\",\"command\":[\"echo\",\"123-45-6789\"]}}}\n\n",
+        "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"r1\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"SSN 123-45-6789\",\"annotations\":[{\"type\":\"url_citation\",\"title\":\"Doc 123-45-6789\"}]}]},{\"type\":\"local_shell_call\",\"action\":{\"type\":\"exec\",\"command\":[\"echo\",\"123-45-6789\"]}}]}}\n\n"
     );
-    let parsed = ParsedResponse::parse(
-        ApiFormat::OpenAiResponses,
-        ResponseFormat::Sse,
-        Bytes::from_static(responses_sse.as_bytes()),
-        None,
-    )
-    .unwrap();
-    assert_eq!(parsed.blocks().len(), 1);
-    assert_eq!(parsed.blocks()[0].text, "SSN 123-45-6789");
-
-    let outcome = check_response_local(
+    let resp_out = rewritten_response_str(check_response_local(
         &guardrails,
         ApiFormat::OpenAiResponses,
         ResponseFormat::Sse,
         responses_sse,
-    );
-    let rewritten = rewritten_response_str(outcome);
-    assert!(!rewritten.contains("123-"));
-    assert!(!rewritten.contains("45-6789"));
-    assert_eq!(rewritten.matches("SSN [SSN]").count(), 5);
-
-    // 4. Chat Completions array-shaped delta.content chunks assemble onto the choice's stream.
-    let array_chat_sse = concat!(
-        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":[{\"type\":\"text\",\"text\":\"SSN 123-\"}]}}]}\n\n",
-        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":[{\"type\":\"text\",\"text\":\"45-6789\"}]}}]}\n\n",
-        "data: [DONE]\n\n"
-    );
-    let array_outcome = check_response_local(
-        &guardrails,
-        ApiFormat::OpenAiChatCompletions,
-        ResponseFormat::Sse,
-        array_chat_sse,
-    );
-    let array_rewritten = rewritten_response_str(array_outcome);
-    assert!(!array_rewritten.contains("123-"));
-    assert!(!array_rewritten.contains("45-6789"));
-    assert!(array_rewritten.contains("SSN [SSN]"));
+    ));
+    assert!(!resp_out.contains("123-") && !resp_out.contains("45-6789"));
+    assert_eq!(resp_out.matches("SSN [SSN]").count(), 3);
+    assert_eq!(resp_out.matches("Doc [SSN]").count(), 2);
 }
 
 #[test]
-fn truncated_or_malformed_sse_fails_closed_for_output_guardrails() {
-    let guardrails = [guardrail("block", GuardrailAction::Block, &[SSN])];
-    let truncated = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"}}]}";
-    let outcome = check_response_local(
-        &guardrails,
-        ApiFormat::OpenAiChatCompletions,
-        ResponseFormat::Sse,
-        truncated,
-    );
-    assert_eq!(
-        outcome.blocking().map(|finding| finding.id.as_str()),
-        Some("block")
-    );
-    let rejection = outcome.rejection().unwrap();
-    assert_eq!(rejection.http_status(), axum::http::StatusCode::BAD_GATEWAY);
-    assert_eq!(rejection.error_code(), "guardrail_evaluation_failed");
-    assert_eq!(
-        rejection.message(),
-        r#"Guardrail "block name" could not read the response"#
-    );
+fn response_fail_closed_cases_signed_thinking_and_memory_budget() {
+    let block_rules = [guardrail("block", GuardrailAction::Block, &[SSN])];
 
-    let too_large = fail_closed_response_outcome(&guardrails, BlockReason::InputTooLarge)
+    // Truncated SSE, duplicate JSON keys, and Decisions SSE all fail closed with 502.
+    for (format, wire, payload) in [
+        (
+            ApiFormat::OpenAiChatCompletions,
+            ResponseFormat::Sse,
+            "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"}}]}",
+        ),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            ResponseFormat::Json,
+            r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"123-45-6789","content":"safe"}}]}"#,
+        ),
+        (
+            ApiFormat::OpenAiDecisions,
+            ResponseFormat::Sse,
+            "data: {\"answers\":[\"123-45-6789\"]}\n\ndata: [DONE]\n\n",
+        ),
+    ] {
+        let outcome = check_response_local(&block_rules, format, wire, payload);
+        let rejection = outcome.rejection().unwrap();
+        assert_eq!(rejection.http_status(), axum::http::StatusCode::BAD_GATEWAY);
+        assert_eq!(rejection.error_code(), "guardrail_evaluation_failed");
+        assert_eq!(
+            outcome.into_findings()[0].location,
+            GuardrailLocation::Response
+        );
+    }
+
+    let too_large = fail_closed_response_outcome(&block_rules, BlockReason::InputTooLarge)
         .rejection()
         .unwrap();
     assert_eq!(too_large.http_status(), axum::http::StatusCode::BAD_GATEWAY);
     assert_eq!(too_large.error_code(), "guardrail_response_too_large");
-    assert_eq!(
-        too_large.message(),
-        r#"Response too large for guardrail "block name""#
-    );
 
-    let duplicate_key = r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"123-45-6789","content":"safe"}}]}"#;
-    let dup_outcome = check_response_local(
-        &guardrails,
-        ApiFormat::OpenAiChatCompletions,
-        ResponseFormat::Json,
-        duplicate_key,
-    );
-    assert_eq!(
-        dup_outcome.blocking().map(|finding| finding.id.as_str()),
-        Some("block")
-    );
-
-    let decisions_sse = "data: {\"answers\":[\"123-45-6789\"]}\n\ndata: [DONE]\n\n";
-    let decisions_outcome = check_response_local(
-        &guardrails,
-        ApiFormat::OpenAiDecisions,
-        ResponseFormat::Sse,
-        decisions_sse,
-    );
-    assert_eq!(
-        decisions_outcome
-            .blocking()
-            .map(|finding| finding.id.as_str()),
-        Some("block")
-    );
-}
-
-#[test]
-fn redacting_response_scrubs_logprobs_token_copies_in_json_and_sse() {
-    let guardrails = [redact_guardrail("ssn", "[SSN]", &[SSN])];
-
-    // 1. Chat Completions JSON: logprobs scrubbed to null when redacted, kept when untouched.
-    let chat_with_secret = r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"123-45-6789"},"logprobs":{"content":[{"token":"123-45-6789","logprob":-0.1,"bytes":[49,50,51]}]}}]}"#;
-    let outcome = check_response_local(
-        &guardrails,
-        ApiFormat::OpenAiChatCompletions,
-        ResponseFormat::Json,
-        chat_with_secret,
-    );
-    let rewritten: serde_json::Value =
-        serde_json::from_str(&rewritten_response_str(outcome)).unwrap();
-    assert_eq!(rewritten["choices"][0]["message"]["content"], "[SSN]");
-    assert_eq!(rewritten["choices"][0]["logprobs"], serde_json::Value::Null);
-
-    let chat_clean = r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"logprobs":{"content":[{"token":"hello","logprob":-0.1,"bytes":[104]}]}}]}"#;
-    let outcome = check_response_local(
-        &guardrails,
-        ApiFormat::OpenAiChatCompletions,
-        ResponseFormat::Json,
-        chat_clean,
-    );
-    assert!(outcome.into_response_parts().1.is_none());
-
-    // 2. Chat Completions SSE: logprobs scrubbed to null across chunks when redacted.
-    let chat_sse = concat!(
-        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"123-\"},\"logprobs\":{\"content\":[{\"token\":\"123-\",\"bytes\":[49,50,51,45]}]}}]}\n\n",
-        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"45-6789\"},\"logprobs\":{\"content\":[{\"token\":\"45-6789\",\"bytes\":[52,53]}]}}]}\n\n",
-        "data: [DONE]\n\n"
-    );
-    let outcome = check_response_local(
-        &guardrails,
-        ApiFormat::OpenAiChatCompletions,
-        ResponseFormat::Sse,
-        chat_sse,
-    );
-    let rewritten = rewritten_response_str(outcome);
-    assert!(!rewritten.contains("123-"));
-    assert!(!rewritten.contains("45-6789"));
-    assert!(!rewritten.contains("[49,50,51,45]"));
-    assert_eq!(rewritten.matches("\"logprobs\":null").count(), 2);
-
-    // 3. OpenAI Responses JSON: array-shaped logprobs scrubbed to [] when redacted.
-    let responses_json = r#"{"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"123-45-6789","logprobs":[{"token":"123-45-6789","bytes":[49]}]}]}]}"#;
-    let outcome = check_response_local(
-        &guardrails,
-        ApiFormat::OpenAiResponses,
-        ResponseFormat::Json,
-        responses_json,
-    );
-    let rewritten: serde_json::Value =
-        serde_json::from_str(&rewritten_response_str(outcome)).unwrap();
-    assert_eq!(rewritten["output"][0]["content"][0]["text"], "[SSN]");
-    assert_eq!(
-        rewritten["output"][0]["content"][0]["logprobs"],
-        serde_json::json!([])
-    );
-}
-
-#[test]
-fn signed_anthropic_thinking_blocks_fail_closed_on_redact_or_enforce_but_allow_log() {
-    let redact = [redact_guardrail("ssn", "[SSN]", &[SSN])];
-    let log = [guardrail("ssn-log", GuardrailAction::Log, &[SSN])];
-    let bedrock_rules = [bedrock_enforce_guardrail("br-out")];
-
-    // 1. Non-streaming signed thinking block fails closed on REDACT and Bedrock anonymize.
-    let signed_json = r#"{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"thinking","thinking":"Check 123-45-6789","signature":"EqQBCgIYAhIMsigned"},{"type":"text","text":"safe"}]}"#;
-    let outcome = check_response_local(
-        &redact,
-        ApiFormat::AnthropicMessages,
-        ResponseFormat::Json,
-        signed_json,
-    );
-    assert_eq!(
-        outcome.blocking().map(|finding| finding.id.as_str()),
-        Some("ssn")
-    );
-    let log_outcome = check_response_local(
-        &log,
-        ApiFormat::AnthropicMessages,
-        ResponseFormat::Json,
-        signed_json,
-    );
-    assert!(log_outcome.blocking().is_none());
-    assert_eq!(log_outcome.into_findings().len(), 1);
-
-    let parsed = ParsedResponse::parse(
-        ApiFormat::AnthropicMessages,
-        ResponseFormat::Json,
-        Bytes::from_static(signed_json.as_bytes()),
-        None,
-    )
-    .ok();
-    let mut eval = apply_local_response_guardrails(
-        &bedrock_rules,
-        parsed.as_ref(),
-        crate::config::DEFAULT_GUARDRAIL_MAX_SCAN_BYTES,
-        None,
-    )
-    .unwrap();
-    assert!(eval.apply_external(
-        0,
-        &bedrock_rules[0],
-        &ExternalOutcome::Anonymized(vec!["Check {SSN}".into(), "safe".into()]),
-    ));
-    let br_outcome = eval
-        .finalize_response(&bedrock_rules, parsed, None)
-        .unwrap();
-    assert_eq!(
-        br_outcome.blocking().map(|finding| finding.id.as_str()),
-        Some("br-out")
-    );
-
-    // 2. Streaming SSE signed thinking block (signature_delta arrives after thinking_delta)
-    //    also fails closed on REDACT.
+    // Signed Anthropic thinking fails closed on REDACT (JSON + SSE), allows LOG unchanged.
+    let signed_json =
+        r#"{"content":[{"type":"thinking","thinking":"123-45-6789","signature":"sig_1"}]}"#;
     let signed_sse = concat!(
-        "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"\",\"signature\":\"\"}}\n\n",
-        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"Check 123-\"}}\n\n",
-        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"45-6789\"}}\n\n",
-        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"signature_delta\",\"signature\":\"EqQBCgIYAhIMsigned\"}}\n\n",
-        "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"123-45-6789\"}}\n\n",
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"signature_delta\",\"signature\":\"sig_1\"}}\n\n"
     );
-    let sse_outcome = check_response_local(
-        &redact,
-        ApiFormat::AnthropicMessages,
-        ResponseFormat::Sse,
-        signed_sse,
-    );
-    assert_eq!(
-        sse_outcome.blocking().map(|finding| finding.id.as_str()),
-        Some("ssn")
-    );
-}
+    let redact_rules = [redact_guardrail("ssn", "[SSN]", &[SSN])];
+    let log_rules = [guardrail("log", GuardrailAction::Log, &[SSN])];
+    for (wire, payload) in [
+        (ResponseFormat::Json, signed_json),
+        (ResponseFormat::Sse, signed_sse),
+    ] {
+        assert!(
+            check_response_local(&redact_rules, ApiFormat::AnthropicMessages, wire, payload)
+                .blocking()
+                .is_some()
+        );
+        assert!(
+            check_response_local(&log_rules, ApiFormat::AnthropicMessages, wire, payload)
+                .blocking()
+                .is_none()
+        );
+    }
 
-#[test]
-fn redacts_anthropic_citations_and_responses_shell_call_command_done() {
-    let guardrails = [redact_guardrail("ssn", "[SSN]", &[SSN])];
-
-    // 1. Anthropic JSON citations (cited_text, document_title, title, url, source).
-    let anthropic_json = r#"{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"See docs","citations":[{"type":"char_location","cited_text":"SSN 123-45-6789","document_title":"HR 123-45-6789"},{"type":"web_search_result_location","title":"Record 123-45-6789","url":"https://example.com/123-45-6789","source":"src-123-45-6789"}]}]}"#;
-    let outcome = check_response_local(
-        &guardrails,
-        ApiFormat::AnthropicMessages,
-        ResponseFormat::Json,
-        anthropic_json,
-    );
-    let rewritten: serde_json::Value =
-        serde_json::from_str(&rewritten_response_str(outcome)).unwrap();
-    assert_eq!(
-        rewritten["content"][0]["citations"][0]["cited_text"],
-        "SSN [SSN]"
-    );
-    assert_eq!(
-        rewritten["content"][0]["citations"][0]["document_title"],
-        "HR [SSN]"
-    );
-    assert_eq!(
-        rewritten["content"][0]["citations"][1]["title"],
-        "Record [SSN]"
-    );
-    assert_eq!(
-        rewritten["content"][0]["citations"][1]["url"],
-        "https://example.com/[SSN]"
-    );
-    assert_eq!(
-        rewritten["content"][0]["citations"][1]["source"],
-        "src-[SSN]"
-    );
-
-    // 2. Anthropic SSE citations_delta.
-    let anthropic_sse = concat!(
-        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"citations_delta\",\"citation\":{\"type\":\"char_location\",\"cited_text\":\"Quote 123-45-6789\"}}}\n\n",
-        "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
-    );
-    let outcome = check_response_local(
-        &guardrails,
-        ApiFormat::AnthropicMessages,
-        ResponseFormat::Sse,
-        anthropic_sse,
-    );
-    let rewritten = rewritten_response_str(outcome);
-    assert!(!rewritten.contains("123-45-6789"));
-    assert!(rewritten.contains("Quote [SSN]"));
-
-    // 3. OpenAI Responses SSE shell_call_command.delta + shell_call_command.done + output_item.done.
-    let shell_sse = concat!(
-        "event: response.shell_call_command.delta\ndata: {\"type\":\"response.shell_call_command.delta\",\"output_index\":0,\"delta\":\"echo 123-\"}\n\n",
-        "event: response.shell_call_command.delta\ndata: {\"type\":\"response.shell_call_command.delta\",\"output_index\":0,\"delta\":\"45-6789\"}\n\n",
-        "event: response.shell_call_command.done\ndata: {\"type\":\"response.shell_call_command.done\",\"output_index\":0,\"command\":\"echo 123-45-6789\"}\n\n",
-        "event: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"type\":\"shell_call\",\"command\":\"echo 123-45-6789\"}}\n\n"
-    );
-    let parsed = ParsedResponse::parse(
-        ApiFormat::OpenAiResponses,
-        ResponseFormat::Sse,
-        Bytes::from_static(shell_sse.as_bytes()),
-        None,
-    )
-    .unwrap();
-    assert_eq!(parsed.blocks().len(), 1);
-    let outcome = check_response_local(
-        &guardrails,
-        ApiFormat::OpenAiResponses,
-        ResponseFormat::Sse,
-        shell_sse,
-    );
-    let rewritten = rewritten_response_str(outcome);
-    assert!(!rewritten.contains("123-"));
-    assert!(!rewritten.contains("45-6789"));
-    assert_eq!(rewritten.matches("echo [SSN]").count(), 3);
-}
-
-#[test]
-fn redacts_anthropic_sse_start_tool_content_chat_array_delta_and_dedupes_output_text() {
-    let guardrails = [redact_guardrail("ssn", "[SSN]", &[SSN])];
-    let start_tool_sse = concat!(
-        "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"web_search_tool_result\",\"content\":[{\"type\":\"text\",\"text\":\"Result 123-45-6789\"}],\"citations\":[{\"url\":\"https://example.com/123-45-6789\"}],\"input\":{\"q\":\"123-45-6789\"}}}\n\n",
-        "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
-    );
-    let rewritten = rewritten_response_str(check_response_local(
-        &guardrails,
-        ApiFormat::AnthropicMessages,
-        ResponseFormat::Sse,
-        start_tool_sse,
-    ));
-    assert!(!rewritten.contains("123-45-6789"));
-    assert_eq!(rewritten.matches("[SSN]").count(), 3);
-
-    let chat_array_sse = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":[{\"type\":\"text\",\"text\":\"SSN 123-45-6789\"}]}}]}\n\ndata: [DONE]\n\n";
-    let rewritten = rewritten_response_str(check_response_local(
-        &guardrails,
-        ApiFormat::OpenAiChatCompletions,
-        ResponseFormat::Sse,
-        chat_array_sse,
-    ));
-    assert!(!rewritten.contains("123-45-6789"));
-    assert!(rewritten.contains("SSN [SSN]"));
-
-    let resp_with_output_text = r#"{"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"SSN 123-45-6789"}]}],"output_text":"SSN 123-45-6789"}"#;
-    let parsed = ParsedResponse::parse(
-        ApiFormat::OpenAiResponses,
-        ResponseFormat::Json,
-        Bytes::from_static(resp_with_output_text.as_bytes()),
-        None,
-    )
-    .unwrap();
-    assert_eq!(parsed.blocks().len(), 1);
-    let rewritten: serde_json::Value =
-        serde_json::from_str(&rewritten_response_str(check_response_local(
-            &guardrails,
-            ApiFormat::OpenAiResponses,
-            ResponseFormat::Json,
-            resp_with_output_text,
-        )))
-        .unwrap();
-    assert_eq!(rewritten["output"][0]["content"][0]["text"], "SSN [SSN]");
-    assert_eq!(rewritten["output_text"], "SSN [SSN]");
-}
-
-#[test]
-fn redacts_custom_tool_calls_and_responses_nested_action_fields() {
-    let guardrails = [redact_guardrail("ssn", "[SSN]", &[SSN])];
-
-    let chat_json = r#"{"choices":[{"index":0,"message":{"role":"assistant","tool_calls":[{"id":"call_1","type":"custom","custom":{"name":"sql","input":"SELECT '123-45-6789'"}}]}}]}"#;
-    let chat_rewritten: serde_json::Value =
-        serde_json::from_str(&rewritten_response_str(check_response_local(
-            &guardrails,
-            ApiFormat::OpenAiChatCompletions,
-            ResponseFormat::Json,
-            chat_json,
-        )))
-        .unwrap();
-    assert_eq!(
-        chat_rewritten["choices"][0]["message"]["tool_calls"][0]["custom"]["input"],
-        "SELECT '[SSN]'"
-    );
-
-    let chat_sse = concat!(
-        "data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"custom\":{\"input\":\"SELECT '123-\"}}]}}]}\n\n",
-        "data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"custom\":{\"input\":\"45-6789'\"}}]}}]}\n\n",
-        "data: [DONE]\n\n"
-    );
-    let chat_sse_rewritten = rewritten_response_str(check_response_local(
-        &guardrails,
-        ApiFormat::OpenAiChatCompletions,
-        ResponseFormat::Sse,
-        chat_sse,
-    ));
-    assert!(!chat_sse_rewritten.contains("123-"));
-    assert!(!chat_sse_rewritten.contains("45-6789"));
-    assert!(chat_sse_rewritten.contains("SELECT '[SSN]'"));
-
-    let responses_json = r#"{"output":[{"type":"local_shell_call","action":{"type":"exec","command":["echo","123-45-6789"]}},{"type":"computer_call","action":{"type":"type","text":"SSN 123-45-6789"}}]}"#;
-    let resp_rewritten: serde_json::Value =
-        serde_json::from_str(&rewritten_response_str(check_response_local(
-            &guardrails,
-            ApiFormat::OpenAiResponses,
-            ResponseFormat::Json,
-            responses_json,
-        )))
-        .unwrap();
-    assert_eq!(resp_rewritten["output"][0]["action"]["type"], "exec");
-    assert_eq!(resp_rewritten["output"][0]["action"]["command"][1], "[SSN]");
-    assert_eq!(resp_rewritten["output"][1]["action"]["type"], "type");
-    assert_eq!(resp_rewritten["output"][1]["action"]["text"], "SSN [SSN]");
-
-    let responses_sse = concat!(
-        "event: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"type\":\"local_shell_call\",\"action\":{\"type\":\"exec\",\"command\":[\"echo\",\"123-45-6789\"]}}}\n\n",
-        "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"output\":[{\"type\":\"local_shell_call\",\"action\":{\"type\":\"exec\",\"command\":[\"echo\",\"123-45-6789\"]}}]}}\n\n"
-    );
-    let resp_sse_rewritten = rewritten_response_str(check_response_local(
-        &guardrails,
-        ApiFormat::OpenAiResponses,
-        ResponseFormat::Sse,
-        responses_sse,
-    ));
-    assert!(!resp_sse_rewritten.contains("123-45-6789"));
-    assert_eq!(resp_sse_rewritten.matches("[SSN]").count(), 2);
-}
-
-#[test]
-fn response_parse_charges_dynamic_value_tree_memory_against_budget() {
-    // High-expansion JSON (`[{"":0},...]`) expands ~100x into Value nodes and
-    // must fail with Busy against a tight memory_budget instead of bypassing it.
+    // High-expansion JSON (`[{"":0},...]`) is bounded by dynamic memory_budget charging.
     let mut entries = String::from(r#"{"choices":["#);
     for idx in 0..400 {
         if idx > 0 {
@@ -1351,11 +921,13 @@ fn response_parse_charges_dynamic_value_tree_memory_against_budget() {
     }
     entries.push_str("]}");
     let tight_budget = Arc::new(Semaphore::new(24 * 1024));
-    let parsed = ParsedResponse::parse(
-        ApiFormat::OpenAiChatCompletions,
-        ResponseFormat::Json,
-        Bytes::from(entries),
-        Some(&tight_budget),
-    );
-    assert!(matches!(parsed, Err(ResponseParseError::Busy)));
+    assert!(matches!(
+        ParsedResponse::parse(
+            ApiFormat::OpenAiChatCompletions,
+            ResponseFormat::Json,
+            Bytes::from(entries),
+            Some(&tight_budget),
+        ),
+        Err(ResponseParseError::Busy)
+    ));
 }
