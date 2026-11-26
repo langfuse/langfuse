@@ -46,29 +46,31 @@ function row(overrides: Partial<PositionedNode> = {}): PositionedNode {
   } as PositionedNode;
 }
 
+// A generic family, and the SAME one the decorator renders in: a canvas
+// resolves `ui-sans-serif` to a face ~19% narrower than the DOM does, so a
+// measurer seeded with the app's stack prices text nobody renders. The app
+// avoids this by seeding from a probe; a story has to state both sides.
+const storyArgs = {
+  row: row(),
+  laneWidth: LANE,
+  measurer: createTextMeasurer("12px sans-serif"),
+  density: {
+    pointer: "fine" as const,
+    rowHeight: 26,
+    barHeight: 16,
+    labelFontPx: 12,
+    labelPaddingPx: 4,
+    labelGapPx: 6,
+    minBarWidthPx: 4,
+  },
+  metrics: {},
+  showDuration: true,
+  toneClass: "text-white/95",
+} satisfies Parameters<typeof TimelineRowMetrics>[0];
+
 const meta = preview.meta({
   component: TimelineRowMetrics,
-  args: {
-    row: row(),
-    laneWidth: LANE,
-    // A generic family, and the SAME one the decorator renders in: a canvas
-    // resolves `ui-sans-serif` to a face ~19% narrower than the DOM does, so a
-    // measurer seeded with the app's stack prices text nobody renders. The app
-    // avoids this by seeding from a probe; a story has to state both sides.
-    measurer: createTextMeasurer("12px sans-serif"),
-    density: {
-      pointer: "fine",
-      rowHeight: 26,
-      barHeight: 16,
-      labelFontPx: 12,
-      labelPaddingPx: 4,
-      labelGapPx: 6,
-      minBarWidthPx: 4,
-    },
-    metrics: {},
-    showDuration: true,
-    toneClass: "text-white/95",
-  },
+  args: storyArgs,
   decorators: [
     (Story) => (
       <div
