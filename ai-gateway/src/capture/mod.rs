@@ -210,8 +210,7 @@ pub(crate) fn extract_response_json(
         }
         ApiFormat::AnthropicMessages => anthropic_messages::extract_response_json(value, blocks),
         ApiFormat::OpenAiResponses => openai_responses::extract_response_json(value, blocks),
-        ApiFormat::OpenAiDecisions => openai_decisions::extract_response_json(value, blocks),
-        ApiFormat::OpenAiEmbeddings => Ok(()),
+        ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => Ok(()),
     }
 }
 

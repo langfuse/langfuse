@@ -140,22 +140,5 @@ pub(super) fn guardrail_turn<'a>(
     turn
 }
 
-pub(super) fn extract_response_json(
-    value: &Value,
-    blocks: &mut Vec<crate::guardrails::response::ResponseBlock>,
-) -> Result<(), crate::guardrails::text::Unreadable> {
-    if let Some(answers) = value.get("answers").filter(|v| !v.is_null()) {
-        crate::guardrails::response::collect_all_strings(
-            answers,
-            None,
-            "/answers",
-            &["type", "name"],
-            0,
-            blocks,
-        )?;
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests;

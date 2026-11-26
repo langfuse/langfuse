@@ -103,7 +103,6 @@ impl Route {
             Self::OpenAiResponses
                 | Self::OpenAiResponsesCompact
                 | Self::OpenAiChatCompletions
-                | Self::OpenAiDecisions
                 | Self::AnthropicMessages
         )
     }

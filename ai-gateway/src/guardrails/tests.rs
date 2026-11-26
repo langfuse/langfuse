@@ -777,19 +777,6 @@ fn redacts_json_responses_across_formats_and_scrubs_logprobs() {
     );
     assert_eq!(resp_out["output"][1]["action"]["type"], "exec");
     assert_eq!(resp_out["output"][1]["action"]["command"][1], "[SSN]");
-
-    // OpenAI Decisions: answers strings redacted, structural type/name preserved.
-    let decisions = r#"{"answers":[{"type":"text","name":"summary","text":"Found 123-45-6789"}]}"#;
-    let dec_out: serde_json::Value =
-        serde_json::from_str(&rewritten_response_str(check_response_local(
-            &guardrails,
-            ApiFormat::OpenAiDecisions,
-            ResponseFormat::Json,
-            decisions,
-        )))
-        .unwrap();
-    assert_eq!(dec_out["answers"][0]["text"], "Found [SSN]");
-    assert_eq!(dec_out["answers"][0]["name"], "summary");
 }
 
 #[test]
