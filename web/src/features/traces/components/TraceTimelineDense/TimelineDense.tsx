@@ -2154,15 +2154,17 @@ function hitIdAt(
   xInLane: number,
   compact: boolean,
 ): string | null {
+  let hit: string | null = null;
   for (const node of nodes) {
     if (node.index !== lane) continue;
     if (!compact) return node.id;
     if (node.offscreen) continue;
     if (xInLane >= node.x && xInLane < node.x + Math.max(node.width, 1)) {
-      return node.id;
+      // Later nodes paint above earlier ones, so the last hit is the visible bar.
+      hit = node.id;
     }
   }
-  return null;
+  return hit;
 }
 
 function spanAtPointer(args: {
