@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
 
+import { resolveTraceMatches } from "@/src/features/evals/v2/fns/evaluatorTesting/resolveTraceMatches";
 import { api } from "@/src/utils/api";
 
 const PAGE_SIZE = 100;
@@ -8,8 +9,9 @@ const MAX_PAGES = 10;
 
 /**
  * Every observation of one trace that a sample filter matches. Pages load up
- * to a cap; the result stays empty until the last one is in, so older matches
- * never slot in ahead of a sample the user is already on.
+ * to a cap; the result stays empty until the last one is in, and for good once
+ * the lookup has failed, so older matches never slot in ahead of a sample the
+ * user is already on.
  */
 export function useEvaluatorTraceMatches({
   projectId,
@@ -58,15 +60,17 @@ export function useEvaluatorTraceMatches({
 
   const isComplete =
     query.isSuccess && (!query.hasNextPage || pageCount >= MAX_PAGES);
-  // Nothing to load, everything loaded, or a failed lookup that will not block.
-  const isSettled = traceId === null || isComplete || query.isError;
+  // Stays set after a retry succeeds.
+  const hasFailed = query.errorUpdateCount > 0;
 
-  const samples = useMemo(
+  return useMemo(
     () =>
-      traceId === null || !isComplete
-        ? []
-        : (pages ?? []).flatMap((page) => page.observations),
-    [traceId, isComplete, pages],
+      resolveTraceMatches({
+        traceId,
+        isComplete,
+        hasFailed,
+        pages: (pages ?? []).map((page) => page.observations),
+      }),
+    [traceId, isComplete, hasFailed, pages],
   );
-  return { samples, isSettled };
 }
