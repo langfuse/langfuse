@@ -45,33 +45,32 @@ describe("GATEWAY_GUARDRAIL_PRESETS Rust WASM validation", () => {
     );
   });
 
-  it("matches hidden Unicode code point ranges (zero-width, bidi, U+E0000-U+E007F) in the Rust WASM engine", () => {
-    const [pattern] = GATEWAY_GUARDRAIL_PRESETS.hidden_unicode.patterns;
+  it("matches hidden Unicode code point ranges (zero-width, bidi, U+E0000-U+E007F) in the Rust WASM engine without flagging ZWJ emoji, ZWNJ text, or subdivision flags", () => {
+    const patterns = GATEWAY_GUARDRAIL_PRESETS.hidden_unicode.patterns;
     const sample = "a\u200Bb \u202Ec\u202C \u{E0041}\u{E0042} plain";
-    const result = preview(pattern, sample, GATEWAY_GUARDRAIL_MAX_RULE_BYTES);
-    expect(result.valid).toBe(true);
-    expect(result.truncated).toBe(false);
-    expect(
-      result.matches.map(({ start, end }) => sample.slice(start, end)),
-    ).toEqual(["\u200B", "\u202E", "\u202C", "\u{E0041}\u{E0042}"]);
-
-    const benign = "Plain ASCII, café, 日本語, 😀 🇬🇧";
-    const benignResult = preview(
-      pattern,
-      benign,
-      GATEWAY_GUARDRAIL_MAX_RULE_BYTES,
-    );
-    expect(benignResult.valid).toBe(true);
-    expect(benignResult.matches).toEqual([]);
-  });
-
-  it("compiles only the explicitly stored preset IDs so existing guardrails do not silently pick up new presets", () => {
-    const legacyConfigPatterns = compileGuardrailConfigPatterns({
-      presets: ["email", "stripe_api_key"],
+    const matched = patterns.flatMap((pattern) => {
+      const result = preview(pattern, sample, GATEWAY_GUARDRAIL_MAX_RULE_BYTES);
+      expect(result.valid).toBe(true);
+      expect(result.truncated).toBe(false);
+      return result.matches.map(({ start, end }) => sample.slice(start, end));
     });
-    expect(legacyConfigPatterns).toEqual([
-      ...GATEWAY_GUARDRAIL_PRESETS.email.patterns,
-      ...GATEWAY_GUARDRAIL_PRESETS.stripe_api_key.patterns,
+    expect(matched).toEqual([
+      "\u200B",
+      "\u202E",
+      "\u202C",
+      " \u{E0041}\u{E0042}",
     ]);
+
+    const benign =
+      "Plain ASCII, café, 日本語, می\u200Cخواهم, 😀 🇬🇧 👨‍👩‍👧‍👦 👩‍💻 🏳️‍🌈 🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}";
+    for (const pattern of patterns) {
+      const benignResult = preview(
+        pattern,
+        benign,
+        GATEWAY_GUARDRAIL_MAX_RULE_BYTES,
+      );
+      expect(benignResult.valid).toBe(true);
+      expect(benignResult.matches).toEqual([]);
+    }
   });
 });

@@ -55,6 +55,9 @@ function ciPluralAlt(...words: string[]) {
   return `(?:${words.map(ciPlural).join("|")})`;
 }
 
+// Explicit ASCII whitespace so browser `RegExp(..., "gu")` matches the Rust ASCII engine.
+const ASCII_WS = String.raw`[ \t\r\n]+`;
+
 /**
  * Built-in rules a regex guardrail can use. Resolve sends the patterns, so the
  * gateway holds no preset logic and a pattern change ships with the control
@@ -88,7 +91,7 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
     group: "pii",
     patterns: [
       // HMRC NINO: excludes D,F,I,Q,U,V (1st), D,F,I,O,Q,U,V (2nd), and forbidden pairs BG,GB,KN,NK,NT,TN,ZZ.
-      String.raw`\b(?:[ACEHJLMOPRSW-Y][A-CEGHJ-NPR-TW-Z]|B[A-CEHJ-NPR-TW-Z]|G[ACEGHJ-NPR-TW-Z]|[KT][A-CEGHJ-MPR-TW-Z]|N[A-CEGHJL-PRSW-Z]|Z[A-CEGHJ-NPR-TW-Y])(?: ?\d{2} ?\d{2} ?\d{2} ?|-\d{2}-\d{2}-\d{2}-)[A-D]\b`,
+      String.raw`\b(?:[ACEHJLMOPRSW-Y][A-CEGHJ-NPR-TW-Z]|B[A-CEHJ-NPR-TW-Z]|G[ACEGHJ-NPR-TW-Z]|[KT][A-CEGHJ-MPR-TW-Z]|N[A-CEGHJL-NPRSW-Z]|Z[A-CEGHJ-NPR-TW-Y])(?: ?\d{2} ?\d{2} ?\d{2} ?|-\d{2}-\d{2}-\d{2}-)[A-D]\b`,
     ],
   },
   eu_vat_id: {
@@ -272,36 +275,39 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
   prompt_injection_instruction_override: {
     group: "prompt_injection",
     patterns: [
-      String.raw`\b${ciAlt("ignore", "disregard", "forget")}\s+(?:(?:${ciAlt("all", "any", "the", "your")}\s+)?${ciAlt("previous", "prior", "above", "earlier")}|${escapeAsciiCaseInsensitive("all")})\s+(?:${ciAlt("safety", "security", "system", "original", "initial")}\s+)?${ciPluralAlt("instruction", "rule", "guideline", "directive", "constraint")}\b`,
-      String.raw`\b${escapeAsciiCaseInsensitive("override")}\s+(?:(?:${ciAlt("all", "any", "the", "your")}\s+)?${ciAlt("previous", "prior", "system", "original", "safety", "security")}|${escapeAsciiCaseInsensitive("your")})\s+${ciPluralAlt("instruction", "rule", "guideline", "directive", "constraint")}\b`,
-      String.raw`\b${escapeAsciiCaseInsensitive("do")}\s+${escapeAsciiCaseInsensitive("not")}\s+${escapeAsciiCaseInsensitive("follow")}\s+(?:${ciAlt("the", "your")}\s+)?${ciAlt("system", "developer", "previous", "prior", "original")}\s+${ciPluralAlt("prompt", "instruction", "rule", "guideline")}\b`,
-      String.raw`\b(?:${escapeAsciiCaseInsensitive("all")}\s+)?${ciAlt("previous", "prior")}\s+${ciPlural("instruction")}\s+${ciAlt("are", "is")}\s+(?:${escapeAsciiCaseInsensitive("now")}\s+)?${ciAlt("void", "invalid", "null", "obsolete", "cancelled", "canceled", "revoked")}\b`,
+      String.raw`\b${ciAlt("ignore", "disregard", "forget")}${ASCII_WS}(?:(?:${ciAlt("all", "any", "the", "your")}${ASCII_WS})?${ciAlt("previous", "prior", "above", "earlier")}|${escapeAsciiCaseInsensitive("all")})${ASCII_WS}(?:${ciAlt("safety", "security", "system", "original", "initial")}${ASCII_WS})?${ciPluralAlt("instruction", "rule", "guideline", "directive", "constraint")}\b`,
+      String.raw`\b${escapeAsciiCaseInsensitive("override")}${ASCII_WS}(?:(?:${ciAlt("all", "any", "the", "your")}${ASCII_WS})?${ciAlt("previous", "prior", "system", "original", "safety", "security")}|${escapeAsciiCaseInsensitive("your")})${ASCII_WS}${ciPluralAlt("instruction", "rule", "guideline", "directive", "constraint")}\b`,
+      String.raw`\b${escapeAsciiCaseInsensitive("do")}${ASCII_WS}${escapeAsciiCaseInsensitive("not")}${ASCII_WS}${escapeAsciiCaseInsensitive("follow")}${ASCII_WS}(?:${ciAlt("the", "your")}${ASCII_WS})?${ciAlt("system", "developer", "previous", "prior", "original")}${ASCII_WS}${ciPluralAlt("prompt", "instruction", "rule", "guideline")}\b`,
+      String.raw`\b(?:${escapeAsciiCaseInsensitive("all")}${ASCII_WS})?${ciAlt("previous", "prior")}${ASCII_WS}${ciPlural("instruction")}${ASCII_WS}${ciAlt("are", "is")}${ASCII_WS}(?:${escapeAsciiCaseInsensitive("now")}${ASCII_WS})?${ciAlt("void", "invalid", "null", "obsolete", "cancelled", "canceled", "revoked")}\b`,
     ],
   },
   prompt_injection_prompt_extraction: {
     group: "prompt_injection",
     patterns: [
-      String.raw`\b${ciAlt("reveal", "print", "show", "output", "display", "leak", "dump", "expose")}\s+(?:${escapeAsciiCaseInsensitive("me")}\s+)?${ciAlt("your", "the")}\s+(?:${ciAlt("full", "hidden", "complete", "internal", "secret", "original", "initial", "exact")}\s+)?${escapeAsciiCaseInsensitive("system")}\s+${ciPluralAlt("prompt", "instruction")}\b`,
-      String.raw`\b${ciAlt("reveal", "print", "output", "leak", "dump", "expose")}\s+(?:${escapeAsciiCaseInsensitive("me")}\s+)?${ciAlt("your", "the")}\s+${ciAlt("hidden", "secret", "initial", "original", "internal")}\s+${ciPluralAlt("prompt", "instruction")}\b`,
-      String.raw`\b${escapeAsciiCaseInsensitive("repeat")}\s+(?:${ciAlt("the", "all")}\s+)?(?:${ciAlt("text", "words")}|${ciPluralAlt("prompt", "instruction")})\s+(?:${escapeAsciiCaseInsensitive("above")}|${escapeAsciiCaseInsensitive("before")}\s+${escapeAsciiCaseInsensitive("this")})\b`,
+      String.raw`\b${ciAlt("reveal", "print", "show", "output", "display", "leak", "dump", "expose")}${ASCII_WS}(?:${escapeAsciiCaseInsensitive("me")}${ASCII_WS})?${ciAlt("your", "the")}${ASCII_WS}(?:${ciAlt("full", "hidden", "complete", "internal", "secret", "original", "initial", "exact")}${ASCII_WS})?${escapeAsciiCaseInsensitive("system")}${ASCII_WS}${ciPluralAlt("prompt", "instruction")}\b`,
+      String.raw`\b${ciAlt("reveal", "print", "output", "leak", "dump", "expose")}${ASCII_WS}(?:${escapeAsciiCaseInsensitive("me")}${ASCII_WS})?${ciAlt("your", "the")}${ASCII_WS}${ciAlt("hidden", "secret", "initial", "original", "internal")}${ASCII_WS}${ciPluralAlt("prompt", "instruction")}\b`,
+      String.raw`\b${escapeAsciiCaseInsensitive("repeat")}${ASCII_WS}(?:${ciAlt("the", "all")}${ASCII_WS})?(?:${ciAlt("text", "words")}|${ciPluralAlt("prompt", "instruction")})${ASCII_WS}(?:${escapeAsciiCaseInsensitive("above")}|${escapeAsciiCaseInsensitive("before")}${ASCII_WS}${escapeAsciiCaseInsensitive("this")})\b`,
     ],
   },
   prompt_injection_jailbreak: {
     group: "prompt_injection",
     patterns: [
-      String.raw`\b${escapeAsciiCaseInsensitive("you")}\s+${escapeAsciiCaseInsensitive("are")}\s+${escapeAsciiCaseInsensitive("now")}\s+(?:${escapeAsciiCaseInsensitive("in")}\s+)?(?:DAN|${ciAlt("developer", "jailbreak", "jailbroken", "unrestricted", "god")}\s+${escapeAsciiCaseInsensitive("mode")})\b`,
-      String.raw`\bDAN\b[\x20-\x7E]{0,40}\b${escapeAsciiCaseInsensitive("do")}\s+${escapeAsciiCaseInsensitive("anything")}\s+${escapeAsciiCaseInsensitive("now")}\b`,
-      String.raw`\b(?:${ciAlt("enter", "activate")}\s+${ciAlt("developer", "jailbreak", "unrestricted")}\s+${escapeAsciiCaseInsensitive("mode")}|${ciAlt("jailbreak", "jailbroken")}\s+${ciAlt("mode", "prompt")})\b`,
-      String.raw`\b${escapeAsciiCaseInsensitive("you")}\s+${escapeAsciiCaseInsensitive("are")}\s+${escapeAsciiCaseInsensitive("no")}\s+${escapeAsciiCaseInsensitive("longer")}\s+${ciAlt("bound", "restricted", "limited")}\b`,
-      String.raw`\b${escapeAsciiCaseInsensitive("act")}\s+${escapeAsciiCaseInsensitive("as")}\s+${escapeAsciiCaseInsensitive("if")}\s+(?:${escapeAsciiCaseInsensitive("you")}(?:'${escapeAsciiCaseInsensitive("re")}|\s+${escapeAsciiCaseInsensitive("are")})\s+)?${escapeAsciiCaseInsensitive("not")}\s+${escapeAsciiCaseInsensitive("bound")}\b`,
-      String.raw`\b${ciAlt("bypass", "disable", "ignore", "disregard")}\s+(?:${escapeAsciiCaseInsensitive("all")}\s+)?(?:${escapeAsciiCaseInsensitive("your")}\s+)?${ciAlt("safety", "security", "ethical", "content")}\s+(?:${ciPluralAlt("filter", "measure", "guideline", "restriction", "guardrail")}|${ciAlt("policies", "policy")})\b`,
+      String.raw`\b${escapeAsciiCaseInsensitive("you")}${ASCII_WS}${escapeAsciiCaseInsensitive("are")}${ASCII_WS}${escapeAsciiCaseInsensitive("now")}${ASCII_WS}(?:${escapeAsciiCaseInsensitive("in")}${ASCII_WS})?(?:DAN|${ciAlt("developer", "jailbreak", "jailbroken", "unrestricted", "god")}${ASCII_WS}${escapeAsciiCaseInsensitive("mode")})\b`,
+      String.raw`\bDAN\b[\x20-\x7E]{0,40}\b${escapeAsciiCaseInsensitive("do")}${ASCII_WS}${escapeAsciiCaseInsensitive("anything")}${ASCII_WS}${escapeAsciiCaseInsensitive("now")}\b`,
+      String.raw`\b(?:${ciAlt("enter", "activate")}${ASCII_WS}${ciAlt("developer", "jailbreak", "unrestricted")}${ASCII_WS}${escapeAsciiCaseInsensitive("mode")}|${ciAlt("jailbreak", "jailbroken")}${ASCII_WS}${ciAlt("mode", "prompt")})\b`,
+      String.raw`\b${escapeAsciiCaseInsensitive("you")}${ASCII_WS}${escapeAsciiCaseInsensitive("are")}${ASCII_WS}${escapeAsciiCaseInsensitive("no")}${ASCII_WS}${escapeAsciiCaseInsensitive("longer")}${ASCII_WS}${ciAlt("bound", "restricted", "limited")}\b`,
+      String.raw`\b${escapeAsciiCaseInsensitive("act")}${ASCII_WS}${escapeAsciiCaseInsensitive("as")}${ASCII_WS}${escapeAsciiCaseInsensitive("if")}${ASCII_WS}(?:${escapeAsciiCaseInsensitive("you")}(?:'${escapeAsciiCaseInsensitive("re")}|${ASCII_WS}${escapeAsciiCaseInsensitive("are")})${ASCII_WS})?${escapeAsciiCaseInsensitive("not")}${ASCII_WS}${escapeAsciiCaseInsensitive("bound")}\b`,
+      String.raw`\b${ciAlt("bypass", "disable", "ignore", "disregard")}${ASCII_WS}(?:${escapeAsciiCaseInsensitive("all")}${ASCII_WS})?(?:${escapeAsciiCaseInsensitive("your")}${ASCII_WS})?${ciAlt("safety", "security", "ethical", "content")}${ASCII_WS}(?:${ciPluralAlt("filter", "measure", "guideline", "restriction", "guardrail")}|${ciAlt("policies", "policy")})\b`,
     ],
   },
   hidden_unicode: {
     group: "prompt_injection",
     patterns: [
-      // Zero-width/invisible format chars, bidi control chars, and Unicode Tags (U+E0000-U+E007F).
-      String.raw`[\u{00AD}\u{061C}\u{200B}-\u{200F}\u{202A}-\u{202E}\u{2060}\u{2066}-\u{2069}\u{FEFF}\u{E0000}-\u{E007F}]+`,
+      // Zero-width/invisible format chars and bidi controls (omitting U+200C ZWNJ and U+200D ZWJ
+      // to avoid flagging Persian/Indic orthography and ZWJ emoji sequences).
+      String.raw`[\u{00AD}\u{061C}\u{200B}\u{200E}\u{200F}\u{202A}-\u{202E}\u{2060}\u{2066}-\u{2069}\u{FEFF}]+`,
+      // Unicode Tag characters (U+E0000-U+E007F) outside U+1F3F4 subdivision flag emoji sequences.
+      String.raw`(?:^|[^\u{1F3F4}\u{E0000}-\u{E007F}])(?<__lf_match>[\u{E0000}-\u{E007F}]+)`,
     ],
   },
 } as const satisfies Record<
