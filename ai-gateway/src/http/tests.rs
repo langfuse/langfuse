@@ -2970,3 +2970,354 @@ async fn only_non_streamed_generations_wait_past_the_stall_for_provider_headers(
         assert_eq!(response.unwrap().status(), status, "{path} {body}");
     }
 }
+
+async fn start_response_guardrail_harness(
+    api_format: ApiFormat,
+    guardrails: serde_json::Value,
+    provider_content_type: &'static str,
+    provider_body: &'static str,
+    bedrock: Option<&FakeServer>,
+    execution: ExecutionLimits,
+) -> (
+    Gateway,
+    FakeServer,
+    FakeServer,
+    crate::telemetry::Telemetry,
+    tokio::sync::mpsc::UnboundedReceiver<serde_json::Value>,
+) {
+    let (sent, uploads) = tokio::sync::mpsc::unbounded_channel();
+    let web = FakeServer::start(move |request| {
+        let sent = sent.clone();
+        let guardrails = guardrails.clone();
+        async move {
+            if request.uri().path().ends_with("/resolve") {
+                let bytes = to_bytes(
+                    resolution_response_for(api_format, "provider-secret").into_body(),
+                    4096,
+                )
+                .await
+                .unwrap();
+                let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                body["ingestion_mode"] = serde_json::json!("full");
+                body["response_guardrails"] = guardrails;
+                return Response::new(Body::from(body.to_string()));
+            }
+            let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+            sent.send(crate::test_support::upload_json(&bytes)).unwrap();
+            Response::new(Body::from("{}"))
+        }
+    })
+    .await;
+    let provider = FakeServer::start(move |_| async move {
+        Response::builder()
+            .status(StatusCode::OK)
+            .header("content-type", provider_content_type)
+            .body(Body::from(provider_body))
+            .unwrap()
+    })
+    .await;
+    let telemetry = crate::telemetry::Telemetry::for_test(
+        &crate::resolution::ControlPlaneConfig::new(&web.url, "service-key").unwrap(),
+    );
+    let mut service = InferenceService::for_test(
+        web.control_plane(),
+        ProviderTransport::for_test(format!("{}/v1", provider.url), ProviderLimits { execution })
+            .with_telemetry(telemetry.clone()),
+    )
+    .with_telemetry(telemetry.clone());
+    if let Some(bedrock) = bedrock {
+        service = service.with_external_guardrails(
+            crate::guardrails::external::ExternalGuardrailClient::for_test(
+                bedrock.url.clone(),
+                Duration::from_secs(2),
+            ),
+        );
+    }
+    let gateway = Gateway::start(Some(service)).await;
+    (gateway, web, provider, telemetry, uploads)
+}
+
+#[tokio::test]
+async fn response_guardrails_block_and_log_json_outputs() {
+    // 1. BLOCK on non-streaming JSON response returns 400 guardrail_blocked
+    //    and records upstream usage + response rejection metadata.
+    let block_guardrails = serde_json::json!([{
+        "id": "g-ssn-out",
+        "name": "Block output SSN",
+        "type": "regex",
+        "action": "block",
+        "patterns": [r"\b\d{3}-\d{2}-\d{4}\b"]
+    }]);
+    let (gateway, _web, provider, telemetry, mut uploads) = start_response_guardrail_harness(
+        ApiFormat::OpenAiChatCompletions,
+        block_guardrails,
+        "application/json",
+        r#"{"id":"chatcmpl-1","model":"gpt-4.1","choices":[{"index":0,"message":{"role":"assistant","content":"The SSN is 123-45-6789."},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":8,"total_tokens":18}}"#,
+        None,
+        ExecutionLimits::default(),
+    )
+    .await;
+    let response = reqwest::Client::new()
+        .post(format!("{}/openai/v1/chat/completions", gateway.url))
+        .bearer_auth("gateway-key")
+        .body(r#"{"model":"Production key:gpt-4.1","messages":[{"role":"user","content":"hi"}]}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(provider.calls(), 1);
+    let body: serde_json::Value = serde_json::from_str(&response.text().await.unwrap()).unwrap();
+    assert_eq!(body["error"]["code"], "guardrail_blocked");
+    assert_eq!(
+        body["error"]["message"],
+        r#"Response blocked by guardrail "Block output SSN""#
+    );
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    let uploaded = uploads.try_recv().unwrap();
+    assert_recorded_guardrails_with_outcome(&uploaded, &[("g-ssn-out", "block")], "block");
+    let span = &uploaded["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    let attr = |key: &str| {
+        span["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|a| a["key"] == key)
+            .and_then(|a| a["value"]["stringValue"].as_str())
+            .map(str::to_owned)
+    };
+    let metadata: serde_json::Value =
+        serde_json::from_str(&attr("langfuse.observation.metadata").unwrap()).unwrap();
+    assert_eq!(metadata["langfuse.gateway.response.status_code"], 400);
+    assert_eq!(metadata["langfuse.gateway.upstream.status_code"], 200);
+    assert!(attr("langfuse.observation.usage_details").is_some());
+
+    // 2. LOG on response forwards unchanged and records WARNING + log outcome.
+    let log_guardrails = serde_json::json!([{
+        "id": "g-email-log",
+        "name": "Log output email",
+        "type": "regex",
+        "action": "log",
+        "patterns": [r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"]
+    }]);
+    let (gateway, _web, _provider, telemetry, mut uploads) = start_response_guardrail_harness(
+        ApiFormat::AnthropicMessages,
+        log_guardrails,
+        "application/json",
+        r#"{"id":"msg_1","type":"message","role":"assistant","model":"claude-sonnet-4-5","content":[{"type":"text","text":"Write to alice@example.com"}],"stop_reason":"end_turn","usage":{"input_tokens":5,"output_tokens":5}}"#,
+        None,
+        ExecutionLimits::default(),
+    )
+    .await;
+    let response = reqwest::Client::new()
+        .post(format!("{}/anthropic/v1/messages", gateway.url))
+        .header("x-api-key", "gateway-key")
+        .body(r#"{"model":"Production key:claude","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body: serde_json::Value = serde_json::from_str(&response.text().await.unwrap()).unwrap();
+    assert_eq!(body["content"][0]["text"], "Write to alice@example.com");
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    let uploaded = uploads.try_recv().unwrap();
+    assert_recorded_guardrails_with_outcome(&uploaded, &[("g-email-log", "log")], "log");
+}
+
+#[tokio::test]
+async fn response_guardrails_redact_span_crossing_sse_output() {
+    let redact_guardrails = serde_json::json!([{
+        "id": "g-ssn-redact",
+        "name": "Redact output SSN",
+        "type": "regex",
+        "action": "redact",
+        "redaction_label": "[SSN]",
+        "patterns": [r"\b\d{3}-\d{2}-\d{4}\b"]
+    }]);
+    let sse_body = concat!(
+        "data: {\"id\":\"chatcmpl-2\",\"model\":\"gpt-4.1\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"chatcmpl-2\",\"model\":\"gpt-4.1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Your SSN is 123-\"},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"chatcmpl-2\",\"model\":\"gpt-4.1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"45-6789.\"},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"chatcmpl-2\",\"model\":\"gpt-4.1\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
+        "data: [DONE]\n\n"
+    );
+    let (gateway, _web, _provider, telemetry, mut uploads) = start_response_guardrail_harness(
+        ApiFormat::OpenAiChatCompletions,
+        redact_guardrails,
+        "text/event-stream",
+        sse_body,
+        None,
+        ExecutionLimits::default(),
+    )
+    .await;
+    let response = reqwest::Client::new()
+        .post(format!("{}/openai/v1/chat/completions", gateway.url))
+        .bearer_auth("gateway-key")
+        .body(r#"{"model":"Production key:gpt-4.1","stream":true,"messages":[{"role":"user","content":"hi"}]}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let delivered = response.text().await.unwrap();
+    assert!(!delivered.contains("123-"));
+    assert!(!delivered.contains("45-6789"));
+    assert!(delivered.contains("Your SSN is [SSN]."));
+    assert!(delivered.contains("data: [DONE]\n\n"));
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    let uploaded = uploads.try_recv().unwrap();
+    assert_recorded_guardrails_with_outcome(&uploaded, &[("g-ssn-redact", "redact")], "redact");
+    let uploaded_text = uploaded.to_string();
+    assert!(!uploaded_text.contains("123-45-6789"));
+    assert!(uploaded_text.contains("Your SSN is [SSN]."));
+}
+
+#[tokio::test]
+async fn bedrock_output_guardrail_uses_output_source_and_anonymizes_or_blocks_sse() {
+    let guardrails = serde_json::json!([{
+        "id": "g-br-out",
+        "name": "Bedrock output",
+        "type": "bedrock",
+        "action": "enforce",
+        "patterns": [],
+        "guardrail_id": "outguard",
+        "guardrail_version": "1",
+        "region": "us-east-1",
+        "api_key": "bedrock-token"
+    }]);
+    let responses_sse = concat!(
+        "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"content_index\":0,\"delta\":\"Call 555-\"}\n\n",
+        "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"content_index\":0,\"delta\":\"0199 now\"}\n\n",
+        "event: response.output_text.done\ndata: {\"type\":\"response.output_text.done\",\"output_index\":0,\"content_index\":0,\"text\":\"Call 555-0199 now\"}\n\n",
+        "event: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"Call 555-0199 now\"}]}}\n\n",
+        "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"Call 555-0199 now\"}]}]}}\n\n"
+    );
+
+    // 1. Anonymized output rewrites deltas + done + output_item.done + completed consistently.
+    let bedrock = FakeServer::start(|request| async move {
+        let body: serde_json::Value =
+            serde_json::from_slice(&to_bytes(request.into_body(), 8192).await.unwrap()).unwrap();
+        assert_eq!(body["source"], "OUTPUT");
+        assert_eq!(
+            body["content"],
+            serde_json::json!([{"text": {"text": "Call 555-0199 now"}}])
+        );
+        Response::builder()
+            .status(StatusCode::OK)
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"action":"GUARDRAIL_INTERVENED","outputs":[{"text":"Call {PHONE} now"}],"assessments":[{"sensitiveInformationPolicy":{"piiEntities":[{"match":"555-0199","type":"PHONE","action":"ANONYMIZED","detected":true}]}}]}"#,
+            ))
+            .unwrap()
+    })
+    .await;
+
+    let (gateway, _web, _provider, telemetry, mut uploads) = start_response_guardrail_harness(
+        ApiFormat::OpenAiResponses,
+        guardrails.clone(),
+        "text/event-stream",
+        responses_sse,
+        Some(&bedrock),
+        ExecutionLimits::default(),
+    )
+    .await;
+    let payload = r#"{"model":"Production key:gpt-4.1","stream":true,"input":"hi"}"#;
+    let send = |gw: &Gateway| gw.post().bearer_auth("gateway-key").body(payload).send();
+    let response = send(&gateway).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(bedrock.calls(), 1);
+    let delivered = response.text().await.unwrap();
+    assert!(!delivered.contains("555-") && !delivered.contains("0199"));
+    assert_eq!(delivered.matches("Call {PHONE} now").count(), 4);
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    let uploaded = uploads.try_recv().unwrap();
+    assert_recorded_guardrails_with_outcome(&uploaded, &[("g-br-out", "redact")], "redact");
+    assert!(!uploaded.to_string().contains("555-0199"));
+
+    // 2. Bedrock error on output fails closed with HTTP 503 guardrail_unavailable.
+    let bedrock_err = FakeServer::start(|_| async move {
+        Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(Body::from(r#"{"message":"boom"}"#))
+            .unwrap()
+    })
+    .await;
+    let (gateway, _web, _provider, telemetry, mut uploads) = start_response_guardrail_harness(
+        ApiFormat::OpenAiResponses,
+        guardrails,
+        "text/event-stream",
+        responses_sse,
+        Some(&bedrock_err),
+        ExecutionLimits::default(),
+    )
+    .await;
+    let response = send(&gateway).await.unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let body: serde_json::Value = serde_json::from_str(&response.text().await.unwrap()).unwrap();
+    assert_eq!(body["error"]["code"], "guardrail_unavailable");
+    assert_eq!(
+        body["error"]["message"],
+        r#"Guardrail "Bedrock output" failed to run. Check its configuration or try again."#
+    );
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    assert_recorded_guardrails_with_outcome(
+        &uploads.try_recv().unwrap(),
+        &[("g-br-out", "block")],
+        "block",
+    );
+}
+
+#[tokio::test]
+async fn response_guardrail_deadline_and_busy_preserve_usage_without_storing_unredacted_output() {
+    let guardrails = serde_json::json!([{
+        "id": "g-br-slow",
+        "name": "Slow Bedrock",
+        "type": "bedrock",
+        "action": "enforce",
+        "patterns": [],
+        "guardrail_id": "slowguard",
+        "guardrail_version": "1",
+        "region": "us-east-1",
+        "api_key": "bedrock-token"
+    }]);
+    let bedrock = FakeServer::start(|_| async move {
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        Response::new(Body::from(r#"{"action":"NONE"}"#))
+    })
+    .await;
+    let (gateway, _web, _provider, telemetry, mut uploads) = start_response_guardrail_harness(
+        ApiFormat::OpenAiChatCompletions,
+        guardrails,
+        "application/json",
+        r#"{"id":"c1","model":"gpt-4.1","choices":[{"index":0,"message":{"role":"assistant","content":"secret 123-45-6789"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}"#,
+        Some(&bedrock),
+        ExecutionLimits {
+            max_execution_time: Duration::from_millis(120),
+            stall_timeout: Duration::from_secs(1),
+        },
+    )
+    .await;
+    let response = reqwest::Client::new()
+        .post(format!("{}/openai/v1/chat/completions", gateway.url))
+        .bearer_auth("gateway-key")
+        .body(r#"{"model":"Production key:gpt-4.1","messages":[{"role":"user","content":"hi"}]}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::GATEWAY_TIMEOUT);
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    let uploaded = uploads.try_recv().unwrap();
+    let uploaded_text = uploaded.to_string();
+    assert!(!uploaded_text.contains("123-45-6789"));
+    assert!(uploaded_text.contains("prompt_tokens"));
+}

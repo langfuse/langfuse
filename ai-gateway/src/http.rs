@@ -23,7 +23,7 @@ use crate::{
         resolution_origin,
     },
     observability::{ErrorOrigin, Wait},
-    providers::{ProviderError, RequestBody, Route, StreamOptions},
+    providers::{ForwardError, ProviderError, RequestBody, Route, StreamOptions},
     resolution::{ApiFormat, ResolutionError, SpendLimitExceeded},
     server::GatewayLifecycleState,
 };
@@ -291,7 +291,13 @@ async fn relay(
             correlation,
         )
         .await
-        .map_err(InferenceHttpError::Provider)
+        .map_err(|error| match error {
+            ForwardError::Provider(provider) => InferenceHttpError::Provider(provider),
+            ForwardError::GuardrailBlocked(rejection) => {
+                InferenceHttpError::Resolution(ResolutionError::GuardrailBlocked(rejection))
+            }
+            ForwardError::Busy => InferenceHttpError::Resolution(ResolutionError::Busy),
+        })
 }
 
 /// The caller body, parsed once on arrival.
@@ -912,6 +918,16 @@ impl InferenceHttpError {
             response
                 .headers_mut()
                 .insert(header::RETRY_AFTER, retry_after_secs.into());
+        }
+        if matches!(
+            &self,
+            Self::Resolution(ResolutionError::GuardrailBlocked(rejection))
+                if rejection.disable_retry()
+        ) {
+            response.headers_mut().insert(
+                header::HeaderName::from_static("x-should-retry"),
+                header::HeaderValue::from_static("false"),
+            );
         }
         response
     }

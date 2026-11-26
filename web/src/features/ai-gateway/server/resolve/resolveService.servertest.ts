@@ -178,6 +178,7 @@ describe("GatewayResolveService", () => {
       },
       spend_limits: [],
       guardrails: [],
+      response_guardrails: [],
       pricing: null,
     });
   });
@@ -546,6 +547,82 @@ describe("GatewayResolveService", () => {
           type: "fail_closed",
           action: "log",
           patterns: [],
+        },
+      ],
+      response_guardrails: [],
+    });
+  });
+
+  it("partitions input, output, and combined scopes into guardrails and response_guardrails", async () => {
+    const service = serviceWith(() => Promise.resolve(row({})), "org-1", [
+      {
+        id: "gr-regex-in",
+        name: "Block input SSN",
+        type: "REGEX",
+        action: "BLOCK",
+        scope: "LAST_TURN",
+        redactionLabel: null,
+        config: { presets: ["us_ssn"] },
+        encryptedCredential: null,
+      },
+      {
+        id: "gr-regex-out",
+        name: "Redact output email",
+        type: "REGEX",
+        action: "REDACT",
+        scope: "OUTPUT",
+        redactionLabel: "[EMAIL]",
+        config: { presets: ["email"] },
+        encryptedCredential: null,
+      },
+      {
+        id: "gr-bedrock-both",
+        name: "Bedrock both",
+        type: "BEDROCK",
+        action: "ENFORCE",
+        scope: "ENTIRE_INPUT_AND_OUTPUT",
+        redactionLabel: null,
+        config: {
+          guardrailId: "abc123def",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
+        encryptedCredential: "encrypted-bedrock-guardrail",
+      },
+    ]);
+
+    const resolved = await service.resolve({
+      fastHashedSecretKey: "hashed-secret-key",
+      apiFormat: "openai.responses",
+    });
+    expect(GatewayResolveResponseSchema.parse(resolved)).toMatchObject({
+      guardrails: [
+        {
+          id: "gr-regex-in",
+          type: "regex",
+          action: "block",
+          scope: "last_turn",
+        },
+        {
+          id: "gr-bedrock-both",
+          type: "bedrock",
+          action: "enforce",
+          scope: "entire_input",
+          guardrail_id: "abc123def",
+        },
+      ],
+      response_guardrails: [
+        {
+          id: "gr-regex-out",
+          type: "regex",
+          action: "redact",
+          redaction_label: "[EMAIL]",
+        },
+        {
+          id: "gr-bedrock-both",
+          type: "bedrock",
+          action: "enforce",
+          guardrail_id: "abc123def",
         },
       ],
     });

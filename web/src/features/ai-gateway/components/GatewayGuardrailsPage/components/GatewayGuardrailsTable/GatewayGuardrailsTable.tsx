@@ -84,7 +84,7 @@ const runsOnColumn = createTextTableColumn<GatewayGuardrailRow>({
   header: "Runs on",
   tooltip: (context) =>
     GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[context.row.original.scope],
-  size: 135,
+  size: 150,
   hideBelowMd: true,
   enableResizing: false,
 });

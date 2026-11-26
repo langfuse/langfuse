@@ -40,20 +40,18 @@ impl fmt::Debug for BedrockGuardrail {
     }
 }
 
-/// Serializes `blocks` into the AWS Bedrock `ApplyGuardrail` JSON request body.
-pub(crate) fn serialize_request_blocks(blocks: &[&str]) -> Option<Bytes> {
+/// Serializes `blocks` into the AWS Bedrock `ApplyGuardrail` JSON request body
+/// for the given `source` (`"INPUT"` for requests, `"OUTPUT"` for responses).
+pub(crate) fn serialize_blocks(blocks: &[&str], source: &'static str) -> Option<Bytes> {
     let content = blocks
         .iter()
         .map(|text| GuardrailContentBlock {
             text: GuardrailTextBlock { text },
         })
         .collect();
-    serde_json::to_vec(&ApplyGuardrailRequest {
-        source: "INPUT",
-        content,
-    })
-    .ok()
-    .map(Bytes::from)
+    serde_json::to_vec(&ApplyGuardrailRequest { source, content })
+        .ok()
+        .map(Bytes::from)
 }
 
 pub(crate) async fn evaluate_one(
@@ -404,7 +402,8 @@ mod tests {
 
     use super::*;
     use crate::guardrails::{
-        Guardrail, GuardrailAction, GuardrailKind, GuardrailScope, external::ExternalPayloads,
+        Guardrail, GuardrailAction, GuardrailKind, GuardrailLocation, GuardrailScope,
+        external::ExternalPayloads,
     };
     use axum::{body::Body, http::Response};
     use http_body_util::BodyExt;
@@ -565,7 +564,8 @@ mod tests {
             sample_guardrail("g6", "error"),
         ];
         let refs: Vec<&Guardrail> = guardrails.iter().collect();
-        let payloads = ExternalPayloads::for_guardrails(&refs, &["hello world"]);
+        let payloads =
+            ExternalPayloads::for_guardrails(&refs, &["hello world"], GuardrailLocation::Request);
         let results = client.evaluate_many(&refs, &payloads, "org-1").await;
         assert_eq!(
             results,

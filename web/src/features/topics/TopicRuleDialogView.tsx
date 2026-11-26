@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { FilterState } from "@langfuse/shared";
 import type { TopicFacet } from "@langfuse/shared/topics";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
@@ -24,6 +25,7 @@ export function TopicRuleDialogView({
   samplingPercent,
   onSamplingPercentChange,
   dailyTraces,
+  costEstimateField,
   canSave,
   saving,
   saveError,
@@ -74,6 +76,7 @@ export function TopicRuleDialogView({
               tooltip="Share of new matching traces this map analyzes."
             />
           </TopicSliceFields.LiveUpdates>
+          {paused ? null : costEstimateField}
           {filterError && filter.length ? (
             <TopicsErrorMessage message={filterError} />
           ) : null}
@@ -101,6 +104,7 @@ type TopicRuleDialogViewProps = {
   onSamplingPercentChange: (percent: number) => void;
   /** Matching traces per day over the last week; null while unknown. */
   dailyTraces: number | null;
+  costEstimateField: ReactNode;
   canSave: boolean;
   saving: boolean;
   saveError: string | null;

@@ -515,5 +515,139 @@ pub(super) fn guardrail_turn<'a>(
     Ok(turn)
 }
 
+pub(super) fn extract_response_json(
+    value: &Value,
+    blocks: &mut Vec<crate::guardrails::response::ResponseBlock>,
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    use crate::guardrails::response::{collect_text_or_parts, ptr_push, push_json_leaf, push_leaf};
+    use crate::guardrails::text::Unreadable;
+
+    let Some(choices) = value.get("choices").filter(|v| !v.is_null()) else {
+        return Ok(());
+    };
+    let choices = choices.as_array().ok_or(Unreadable)?;
+    for (index, choice) in choices.iter().enumerate() {
+        let Some(message) = choice.get("message").filter(|v| !v.is_null()) else {
+            continue;
+        };
+        let msg_ptr = format!("/choices/{index}/message");
+        let map = message.as_object().ok_or(Unreadable)?;
+        for key in ["content", "refusal", "reasoning", "reasoning_content"] {
+            if let Some(field) = map.get(key) {
+                collect_text_or_parts(field, &ptr_push(&msg_ptr, key), 0, blocks)?;
+            }
+        }
+        if let Some(calls) = map.get("tool_calls").filter(|v| !v.is_null()) {
+            for (call_idx, call) in calls.as_array().ok_or(Unreadable)?.iter().enumerate() {
+                if let Some(args) = call.pointer("/function/arguments").and_then(Value::as_str) {
+                    push_json_leaf(
+                        blocks,
+                        args,
+                        format!("{msg_ptr}/tool_calls/{call_idx}/function/arguments"),
+                    );
+                }
+                if let Some(input) = call.pointer("/custom/input").and_then(Value::as_str) {
+                    push_leaf(
+                        blocks,
+                        input,
+                        format!("{msg_ptr}/tool_calls/{call_idx}/custom/input"),
+                        true,
+                    );
+                }
+            }
+        }
+        if let Some(args) = message
+            .pointer("/function_call/arguments")
+            .and_then(Value::as_str)
+        {
+            push_json_leaf(blocks, args, format!("{msg_ptr}/function_call/arguments"));
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn extract_response_sse(
+    frame_idx: usize,
+    value: &Value,
+    collector: &mut crate::guardrails::response::StreamCollector,
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    use crate::guardrails::response::{StreamKey, ptr_push, visit_text_or_parts};
+    use crate::guardrails::text::Unreadable;
+
+    let Some(choices) = value.get("choices").filter(|v| !v.is_null()) else {
+        return Ok(());
+    };
+    for (pos, choice) in choices.as_array().ok_or(Unreadable)?.iter().enumerate() {
+        let choice_idx = choice.get("index").and_then(Value::as_u64).unwrap_or(0);
+        let Some(delta) = choice.get("delta").filter(|v| !v.is_null()) else {
+            continue;
+        };
+        let delta_ptr = format!("/choices/{pos}/delta");
+        let map = delta.as_object().ok_or(Unreadable)?;
+        for key in ["content", "refusal", "reasoning", "reasoning_content"] {
+            match map.get(key) {
+                None | Some(Value::Null) => {}
+                Some(Value::String(text)) => {
+                    collector.push_delta(
+                        StreamKey::Chat(choice_idx, key),
+                        frame_idx,
+                        ptr_push(&delta_ptr, key),
+                        text,
+                    );
+                }
+                Some(field @ Value::Array(_)) => {
+                    visit_text_or_parts(
+                        field,
+                        &ptr_push(&delta_ptr, key),
+                        0,
+                        &mut |leaf_ptr, text| {
+                            collector.push_delta(
+                                StreamKey::Chat(choice_idx, key),
+                                frame_idx,
+                                leaf_ptr,
+                                text,
+                            );
+                        },
+                    )?;
+                }
+                Some(_) => return Err(Unreadable),
+            }
+        }
+        if let Some(calls) = map.get("tool_calls").filter(|v| !v.is_null()) {
+            for (call_pos, call) in calls.as_array().ok_or(Unreadable)?.iter().enumerate() {
+                let call_idx = call.get("index").and_then(Value::as_u64).unwrap_or(0);
+                if let Some(args) = call.pointer("/function/arguments").and_then(Value::as_str) {
+                    collector.push_delta(
+                        StreamKey::ChatToolArgs(choice_idx, call_idx),
+                        frame_idx,
+                        format!("{delta_ptr}/tool_calls/{call_pos}/function/arguments"),
+                        args,
+                    );
+                }
+                if let Some(input) = call.pointer("/custom/input").and_then(Value::as_str) {
+                    collector.push_delta(
+                        StreamKey::ChatToolCustomInput(choice_idx, call_idx),
+                        frame_idx,
+                        format!("{delta_ptr}/tool_calls/{call_pos}/custom/input"),
+                        input,
+                    );
+                }
+            }
+        }
+        if let Some(args) = delta
+            .pointer("/function_call/arguments")
+            .and_then(Value::as_str)
+        {
+            collector.push_delta(
+                StreamKey::Chat(choice_idx, "function_call"),
+                frame_idx,
+                format!("{delta_ptr}/function_call/arguments"),
+                args,
+            );
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests;

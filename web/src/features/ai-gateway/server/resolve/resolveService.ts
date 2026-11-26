@@ -189,7 +189,7 @@ export class GatewayResolveService {
               })
             : null,
         spend_limits: spendLimits,
-        guardrails: decryptResolvedGuardrails(
+        ...decryptResolvedGuardrails(
           context.guardrails,
           context.organizationId,
         ),
@@ -267,47 +267,93 @@ function getEnforcedSpendLimits(context: GatewayApiKeyAuthContext) {
   return getIngestionMode(context) === "NONE" ? [] : context.spendLimits;
 }
 
+function toInputWireScope(
+  scope: GatewayCachedGuardrails[number]["scope"],
+): "last_turn" | "entire_input" | null {
+  switch (scope ?? "last_turn") {
+    case "last_turn":
+    case "last_turn_and_output":
+      return "last_turn";
+    case "entire_input":
+    case "entire_input_and_output":
+      return "entire_input";
+    case "output":
+      return null;
+  }
+}
+
+function cachedScopeChecksOutput(
+  scope: GatewayCachedGuardrails[number]["scope"],
+): boolean {
+  return (
+    scope === "output" ||
+    scope === "last_turn_and_output" ||
+    scope === "entire_input_and_output"
+  );
+}
+
 function decryptResolvedGuardrails(
-  guardrails: GatewayCachedGuardrails,
+  cached: GatewayCachedGuardrails,
   organizationId: string,
-): GatewayResolveGuardrails {
-  return guardrails.map<GatewayResolveGuardrails[number]>((guardrail) => {
-    if (guardrail.type === "regex" || guardrail.type === "fail_closed") {
-      return guardrail;
+): {
+  guardrails: GatewayResolveGuardrails;
+  response_guardrails: GatewayResolveGuardrails;
+} {
+  const guardrails: GatewayResolveGuardrails = [];
+  const response_guardrails: GatewayResolveGuardrails = [];
+  for (const guardrail of cached) {
+    const resolved = decryptResolvedGuardrail(guardrail, organizationId);
+    const inputScope = toInputWireScope(guardrail.scope);
+    if (inputScope !== null) {
+      guardrails.push({ ...resolved, scope: inputScope });
     }
-    try {
-      const apiKey = decodeBedrockApiKey(
-        decrypt(guardrail.encrypted_credential),
-      );
-      return {
-        id: guardrail.id,
-        name: guardrail.name,
-        type: "bedrock" as const,
-        action: guardrail.action,
-        ...(guardrail.scope ? { scope: guardrail.scope } : {}),
-        patterns: [] as [],
-        guardrail_id: guardrail.guardrail_id,
-        guardrail_version: guardrail.guardrail_version,
-        region: guardrail.region,
-        api_key: apiKey,
-      };
-    } catch (error) {
-      logger.error(
-        "Bedrock guardrail credential could not be decrypted; failing closed",
-        {
-          guardrailId: guardrail.id,
-          organizationId,
-          error: error instanceof Error ? error.message : String(error),
-        },
-      );
-      return {
-        id: guardrail.id,
-        name: guardrail.name,
-        type: "fail_closed" as const,
-        action: guardrail.action,
-        ...(guardrail.scope ? { scope: guardrail.scope } : {}),
-        patterns: [] as [],
-      };
+    if (cachedScopeChecksOutput(guardrail.scope)) {
+      response_guardrails.push(resolved);
     }
-  });
+  }
+  return { guardrails, response_guardrails };
+}
+
+function decryptResolvedGuardrail(
+  guardrail: GatewayCachedGuardrails[number],
+  organizationId: string,
+): GatewayResolveGuardrails[number] {
+  if (guardrail.type === "regex") {
+    const { scope: _, ...wire } = guardrail;
+    return wire;
+  }
+  if (guardrail.type === "fail_closed") {
+    const { scope: _, ...wire } = guardrail;
+    return wire;
+  }
+  try {
+    const apiKey = decodeBedrockApiKey(decrypt(guardrail.encrypted_credential));
+    return {
+      id: guardrail.id,
+      name: guardrail.name,
+      type: "bedrock" as const,
+      action: guardrail.action,
+      patterns: [] as [],
+      guardrail_id: guardrail.guardrail_id,
+      guardrail_version: guardrail.guardrail_version,
+      region: guardrail.region,
+      api_key: apiKey,
+    };
+  } catch (error) {
+    logger.error(
+      "Bedrock guardrail credential could not be decrypted; failing closed",
+      {
+        guardrailId: guardrail.id,
+        organizationId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
+    return {
+      id: guardrail.id,
+      name: guardrail.name,
+      type: "fail_closed" as const,
+      action: guardrail.action,
+      patterns: [] as [],
+    };
+  }
 }
