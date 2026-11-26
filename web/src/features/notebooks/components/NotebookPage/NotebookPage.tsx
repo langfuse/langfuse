@@ -1,3 +1,4 @@
+import { api as notebookApi } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { useState } from "react";
 import { z } from "zod";
@@ -14,6 +15,7 @@ import {
 import { type RouterInput } from "@/src/utils/types";
 import { ConnectedNotebookChart } from "./components/ConnectedNotebookChart/ConnectedNotebookChart";
 import { NotebookReader } from "./components/NotebookReader/NotebookReader";
+import { ConnectedNotebookEmbed } from "./components/ConnectedNotebookEmbed/ConnectedNotebookEmbed";
 import { NotebookVersionHistory } from "./components/NotebookVersionHistory/NotebookVersionHistory";
 import { useNotebookReader } from "./useNotebookReader";
 
@@ -96,6 +98,7 @@ function ConnectedNotebookReader({
     draftDocumentId,
     version,
   });
+  const executeAction = notebookApi.notebooks.executeAction.useMutation();
   const view = notebook.data;
   const title = view?.title || "Notebook";
   const versionHistory = view && (
@@ -154,6 +157,14 @@ function ConnectedNotebookReader({
         showControlledVariables={showControlledVariables}
         isLoadingDocument={notebook.isPlaceholderData}
         onDocumentChange={onDocumentChange}
+        renderEmbed={(kind, resourceId, variableName) => (
+          <ConnectedNotebookEmbed
+            projectId={projectId}
+            kind={kind}
+            resourceId={resourceId}
+            variableName={variableName}
+          />
+        )}
         renderChart={(block, values, filters) => (
           <ConnectedNotebookChart
             block={block}

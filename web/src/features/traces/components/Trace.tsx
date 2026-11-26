@@ -24,7 +24,7 @@ import {
   useTraceGraphData,
 } from "@/src/features/traces/contexts/TraceGraphDataProvider";
 import { TraceLayoutMobile } from "@/src/features/traces/components/TraceLayoutMobile";
-import { TraceLayoutDesktop } from "@/src/features/traces/components/TraceLayoutDesktop";
+import { TraceWorkspacePanels } from "./TraceWorkspacePanels";
 import { TraceHeader } from "@/src/features/traces/components/TraceHeader";
 import { TracePanelNavigation } from "@/src/features/traces/components/TracePanelNavigation";
 import { TracePanelDetail } from "@/src/features/traces/components/TracePanelDetail";
@@ -851,24 +851,17 @@ function DesktopTraceWorkspace({
   isLoading?: boolean;
 }) {
   return (
-    <div className="h-full" data-trace-review-open={reviewOpen || undefined}>
-      <TraceLayoutDesktop
-        key={desktopLayout.groupId}
-        {...desktopLayout}
-        reviewOpen={reviewOpen}
-        reviewPanel={reviewPanel}
-      >
-        <TraceLayoutDesktop.NavigationPanel>
-          <TracePanelNavigationLayoutDesktop isLoading={isLoading}>
-            {isLoading ? <TraceTree isLoading /> : <TracePanelNavigation />}
-          </TracePanelNavigationLayoutDesktop>
-        </TraceLayoutDesktop.NavigationPanel>
-        <TraceLayoutDesktop.ResizeHandle />
-        <TraceLayoutDesktop.DetailPanel>
-          <TracePanelDetail isLoading={isLoading} />
-        </TraceLayoutDesktop.DetailPanel>
-      </TraceLayoutDesktop>
-    </div>
+    <TraceWorkspacePanels
+      {...desktopLayout}
+      reviewOpen={reviewOpen}
+      reviewPanel={reviewPanel}
+      navigation={
+        <TracePanelNavigationLayoutDesktop isLoading={isLoading}>
+          {isLoading ? <TraceTree isLoading /> : <TracePanelNavigation />}
+        </TracePanelNavigationLayoutDesktop>
+      }
+      detail={<TracePanelDetail isLoading={isLoading} />}
+    />
   );
 }
 

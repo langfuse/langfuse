@@ -27,10 +27,18 @@ export function normalizeBlock(
     return {
       id,
       schema: block.schema,
-      props: { children: block.props.children.map(normalizeBlock) },
+      props: {
+        ...block.props,
+        children: block.props.children.map(normalizeBlock),
+      },
     };
   }
-  if (block.schema === "chart@1" || block.schema === "table@1")
+  if (
+    block.schema === "chart@1" ||
+    block.schema === "table@1" ||
+    block.schema === "embed@1" ||
+    block.schema === "button@1"
+  )
     return { ...block, id };
   return assertUnreachable(block);
 }

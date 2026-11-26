@@ -106,6 +106,8 @@ function renderTextNode(node: NotebookTextNode): ReactNode {
 export function NotebookBlocks({
   blocks,
   renderChart,
+  renderButton,
+  renderEmbed,
   renderTable,
 }: {
   blocks: NotebookBlock[];
@@ -117,8 +119,14 @@ export function NotebookBlocks({
     },
     filters?: readonly string[],
   ) => ReactNode;
+  renderButton?: (
+    block: Extract<NotebookBlock, { schema: "button@1" }>,
+  ) => ReactNode;
   renderTable?: (
     block: Extract<NotebookBlock, { schema: "table@1" }>,
+  ) => ReactNode;
+  renderEmbed?: (
+    block: Extract<NotebookBlock, { schema: "embed@1" }>,
   ) => ReactNode;
 }) {
   return (
@@ -140,17 +148,36 @@ export function NotebookBlocks({
         if (block.schema === "table@1") {
           return <Fragment key={block.id}>{renderTable?.(block)}</Fragment>;
         }
+        if (block.schema === "embed@1") {
+          return <Fragment key={block.id}>{renderEmbed?.(block)}</Fragment>;
+        }
+        if (block.schema === "button@1") {
+          return <Fragment key={block.id}>{renderButton?.(block)}</Fragment>;
+        }
         if (block.schema === "row@1") {
+          const { children, widths } = block.props;
           return (
-            <div key={block.id} className="flex flex-wrap gap-4">
-              {block.props.children.map((child) => (
+            <div
+              key={block.id}
+              className={widths ? "flex gap-4" : "flex flex-wrap gap-4"}
+            >
+              {children.map((child, index) => (
                 <div
                   key={child.id}
-                  className="flex min-w-[min(100%,20rem)] flex-1 basis-0 flex-col"
+                  className={
+                    widths
+                      ? "flex min-w-0 flex-col"
+                      : "flex min-w-[min(100%,20rem)] flex-1 basis-0 flex-col"
+                  }
+                  style={
+                    widths ? { flex: `${widths[index] ?? 1} 1 0%` } : undefined
+                  }
                 >
                   <NotebookBlocks
                     blocks={[child]}
                     renderChart={renderChart}
+                    renderButton={renderButton}
+                    renderEmbed={renderEmbed}
                     renderTable={renderTable}
                   />
                 </div>

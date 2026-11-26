@@ -191,7 +191,8 @@ const SessionControlsBar = ({
 export const SessionPage: React.FC<{
   sessionId: string;
   projectId: string;
-}> = ({ sessionId, projectId }) => {
+  embedded?: boolean;
+}> = ({ sessionId, projectId, embedded = false }) => {
   const router = useRouter();
   const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
@@ -361,7 +362,8 @@ export const SessionPage: React.FC<{
             : getCommentDrawerInitialStateFromUrl(router.query)
         }
       >
-        <Page
+        <SessionEventsPageLayout
+          pageLayout={embedded ? undefined : Page}
           headerProps={{
             title: sessionId,
             hideTitleRow: true,
@@ -446,6 +448,7 @@ export const SessionPage: React.FC<{
                   type: "custom",
                   pinned: true,
                   render: () =>
+                    !embedded &&
                     !router.query.peek && (
                       <DetailPageNav
                         currentId={sessionId}
@@ -506,7 +509,7 @@ export const SessionPage: React.FC<{
               </div>
             </div>
           </SessionReviewWorkspace>
-        </Page>
+        </SessionEventsPageLayout>
       </TraceReviewPanelProvider>
       <TablePeekViewTraceDetail
         itemType="TRACE"

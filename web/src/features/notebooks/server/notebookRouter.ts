@@ -1,3 +1,12 @@
+import { createHash } from "node:crypto";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { ScoreDataTypeEnum, ScoreSourceEnum } from "@langfuse/shared";
+import {
+  convertDateToClickhouseDateTime,
+  getTraceById,
+  shouldSkipScoresDedup,
+  upsertScore,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import {
@@ -14,6 +23,7 @@ import { validateQuery } from "@langfuse/shared/query";
 import { executeQuery } from "@langfuse/shared/query/server";
 import { z } from "zod";
 import {
+  notebookActionSchema,
   notebookDocumentId,
   notebookVariableValue,
   notebookVersion,
@@ -88,6 +98,159 @@ export const notebookRouter = createTRPCRouter({
       });
       const { jsonl: _jsonl, ...view } = document;
       return view;
+    }),
+
+  executeAction: notebookDocument
+    .input(
+      z.object({
+        blockId: notebookDocumentId,
+        staged: z.boolean(),
+        action: notebookActionSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { projectId } = input;
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId,
+        scope: "scores:save",
+      });
+      const document = await readDocument({ ...input, respectLayout: true });
+      const block = findNotebookBlock(document.blocks, input.blockId)?.block;
+      if (block?.schema !== "button@1")
+        throw new LangfuseNotFoundError("Notebook button not found.");
+      const configuredAction = block.props.action;
+      const requestedAction = input.action;
+      const requestedInputs = requestedAction.inputs;
+      if (
+        requestedAction.type !== configuredAction.type ||
+        requestedInputs.name !== configuredAction.inputs.name ||
+        requestedInputs.value !== configuredAction.inputs.value
+      ) {
+        throw new InvalidRequestError(
+          "Button action changed. Reload the notebook and try again.",
+        );
+      }
+      const binding = document.layout.bindings?.find(
+        (binding) =>
+          binding.kind === "read" &&
+          binding.to.documentId === document.documentId &&
+          binding.to.elementId === block.id &&
+          binding.to.portId === "traceId",
+      );
+      if (binding) {
+        const variable = document.layout.variables?.find(
+          ({ id }) => id === binding.variableId,
+        );
+        if (
+          !variable ||
+          variable.type !== "string" ||
+          !matchesNotebookVariable(variable, requestedInputs.traceId)
+        ) {
+          throw new InvalidRequestError(
+            "Button requires a valid trace variable.",
+          );
+        }
+        const source = document.layout.bindings?.find(
+          (candidate) =>
+            candidate.kind === "write" && candidate.variableId === variable.id,
+        );
+        if (source?.kind === "write") {
+          const sourceDocument =
+            source.from.documentId === document.documentId
+              ? document
+              : await readDocument({
+                  ...input,
+                  documentId: source.from.documentId,
+                  version: document.version ?? undefined,
+                  staged: document.isDraft,
+                  respectLayout: true,
+                });
+          const output = resolveNotebookPort(
+            sourceDocument.blocks,
+            source.from,
+          );
+          if (
+            output?.direction !== "output" ||
+            !output.choices.some(
+              ({ value }) => value === requestedInputs.traceId,
+            )
+          ) {
+            throw new InvalidRequestError("Selected trace is unavailable.");
+          }
+        }
+      }
+      const action = notebookActionSchema.safeParse({
+        ...configuredAction,
+        inputs: {
+          ...configuredAction.inputs,
+          traceId: binding
+            ? requestedInputs.traceId
+            : configuredAction.inputs.traceId,
+        },
+      });
+      if (
+        !action.success ||
+        action.data.inputs.traceId !== requestedInputs.traceId
+      ) {
+        throw new InvalidRequestError(
+          "Button action inputs changed or are invalid.",
+        );
+      }
+      switch (action.data.type) {
+        case "score.upsert@1": {
+          if (shouldSkipScoresDedup(projectId))
+            throw new InvalidRequestError(
+              "Score upserts are not available in this project.",
+            );
+          const { traceId, name, value } = action.data.inputs;
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
+          const trace = await getTraceById({ projectId, traceId });
+          if (!trace) throw new LangfuseNotFoundError("Trace not found.");
+          const org = ctx.session.user.organizations.find(({ projects }) =>
+            projects.some(({ id }) => id === projectId),
+          );
+          if (!org) throw new LangfuseNotFoundError("Project not found.");
+          const author = ctx.session.user.id;
+          const id = createHash("sha256")
+            .update(
+              JSON.stringify([
+                "notebook-score",
+                projectId,
+                traceId,
+                name,
+                author,
+              ]),
+            )
+            .digest("hex");
+          // ClickHouse deduplicates by timestamp as well as ID. Use the trace's
+          // timestamp so concurrent clicks and retries share the same key.
+          const timestamp = convertDateToClickhouseDateTime(trace.timestamp);
+          const updatedAt = convertDateToClickhouseDateTime(new Date());
+          await upsertScore({
+            id,
+            project_id: projectId,
+            trace_id: traceId,
+            name,
+            value,
+            timestamp,
+            created_at: updatedAt,
+            updated_at: updatedAt,
+            environment: trace.environment,
+            source: ScoreSourceEnum.ANNOTATION,
+            data_type: ScoreDataTypeEnum.NUMERIC,
+            author_user_id: author,
+          });
+          await auditLog({
+            session: { ...ctx.session, orgId: org.id, projectId },
+            resourceType: "score",
+            resourceId: id,
+            action: "update",
+            after: { traceId, name, value },
+          });
+          return { id };
+        }
+      }
     }),
 
   chart: notebookDocument

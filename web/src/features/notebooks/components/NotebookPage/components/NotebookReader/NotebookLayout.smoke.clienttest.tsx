@@ -6,6 +6,7 @@ import {
   storedNotebookLayoutSchema,
 } from "@/src/features/notebooks/schema";
 import { NotebookChart } from "../NotebookChart/NotebookChart";
+import { NotebookEmbed } from "../NotebookEmbed/NotebookEmbed";
 import { promptExperimentsTableLayout as promptExperiments } from "@/.storybook/fixtures/notebooks/promptExperiments";
 import { supportDashboard } from "@/.storybook/fixtures/notebooks/supportDashboard";
 import { NotebookReader } from "./NotebookReader";
@@ -22,6 +23,95 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+it("updates a session embed inside a row without changing the fixed trace", () => {
+  render(
+    <NotebookReader
+      view={{
+        documentId: "main",
+        documents: [],
+        version: 1,
+        layout: notebookLayoutSchema.parse({
+          kind: "default",
+          variables: [
+            {
+              id: "sessionId",
+              name: "Session ID",
+              type: "string",
+              defaultValue: "checkout",
+            },
+          ],
+          bindings: [
+            {
+              kind: "read",
+              variableId: "sessionId",
+              to: {
+                documentId: "main",
+                elementId: "session",
+                portId: "resourceId",
+              },
+            },
+          ],
+        }),
+        blocks: [
+          storedNotebookBlockSchema.parse({
+            id: "row",
+            schema: "row@1",
+            props: {
+              children: [
+                {
+                  id: "trace",
+                  schema: "embed@1",
+                  props: { target: { kind: "trace", id: "fixed" } },
+                },
+                {
+                  id: "session",
+                  schema: "embed@1",
+                  props: { target: { kind: "session" } },
+                },
+              ],
+            },
+          }),
+        ],
+      }}
+      isLoadingDocument={false}
+      onDocumentChange={() => {}}
+      renderChart={() => null}
+      renderEmbed={(kind, resourceId, variableName) => (
+        <NotebookEmbed
+          projectId="example"
+          kind={kind}
+          state={
+            resourceId
+              ? { status: "ready", resourceId, title: resourceId }
+              : { status: "empty", variableName }
+          }
+        />
+      )}
+    />,
+  );
+  const input = screen.getByRole("textbox", { name: "Session ID" });
+  expect(screen.getByRole("link", { name: "Open session" })).toHaveAttribute(
+    "href",
+    "/project/example/sessions/checkout",
+  );
+  fireEvent.change(input, { target: { value: "" } });
+  expect(
+    screen.getByText("Set Session ID to view this session."),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("link", { name: "Open session" }),
+  ).not.toBeInTheDocument();
+  fireEvent.change(input, { target: { value: "support" } });
+  expect(screen.getByRole("link", { name: "Open session" })).toHaveAttribute(
+    "href",
+    "/project/example/sessions/support",
+  );
+  expect(screen.getByRole("link", { name: "Open trace" })).toHaveAttribute(
+    "href",
+    "/project/example/traces/fixed",
+  );
 });
 
 it("opens a legacy table notebook in Inbox and can switch documents", () => {

@@ -10,11 +10,18 @@ import { readingColumnClassName } from "@/src/components/layouts/reading-column"
 import { notebookLayoutSchema } from "@/src/features/notebooks/schema";
 import { cn } from "@/src/utils/tailwind";
 import { NotebookChart } from "../NotebookChart/NotebookChart";
+import { ResourceEmbedFixture } from "./ResourceEmbedFixture";
 import { NotebookVersionHistory } from "../NotebookVersionHistory/NotebookVersionHistory";
 import { issueTracker } from "@/.storybook/fixtures/notebooks/issueTracker";
 import { monitorInvestigation } from "@/.storybook/fixtures/notebooks/monitorInvestigation";
 import { promptExperiments } from "@/.storybook/fixtures/notebooks/promptExperiments";
-import { type NotebookFixture } from "@/.storybook/fixtures/notebooks/supportAssistantFixtures";
+import {
+  bullets,
+  paragraph,
+  strong,
+  text,
+  type NotebookFixture,
+} from "@/.storybook/fixtures/notebooks/supportAssistantFixtures";
 import { supportDashboard } from "@/.storybook/fixtures/notebooks/supportDashboard";
 import { NotebookReader } from "./NotebookReader";
 
@@ -186,6 +193,7 @@ const meta = preview.meta({
             showControlledVariables={args.showControlledVariables}
             isLoadingDocument={args.isLoadingDocument}
             renderChart={args.renderChart}
+            renderEmbed={args.renderEmbed}
             onDocumentChange={(documentId, version) => {
               updateArgs({
                 view: fixtureView(args.fixture, version, documentId),
@@ -203,6 +211,160 @@ export const IssueTracker = meta.story({
   args: startingArgs(issueTracker, null),
 });
 export const MonitorInvestigation = meta.story({});
+export const ResourceEmbeds = meta.story({
+  name: "Checkout Quality Review",
+  args: {
+    ...startingArgs(
+      {
+        id: "resource-embeds",
+        title: "Checkout Quality Review",
+        layout: "default",
+        width: "full",
+        publications: [
+          {
+            number: 1,
+            publishedAt: new Date("2026-01-15T12:00:00Z"),
+            documents: [
+              {
+                id: "main",
+                title: "Checkout Quality Review",
+                blocks: [
+                  text(
+                    "review-intro",
+                    paragraph(
+                      "A customer asked the assistant to place the order in their cart. Check what happened in the trace, then rate the reply they received.",
+                    ),
+                    paragraph(strong("What to check")),
+                    bullets(
+                      paragraph(
+                        "Open ",
+                        strong("Authorize payment"),
+                        " and ",
+                        strong("Create order"),
+                        " to verify the payment and order status.",
+                      ),
+                      paragraph(
+                        "Open ",
+                        strong("Generate customer reply"),
+                        " and check whether the reply matches those results.",
+                      ),
+                    ),
+                  ),
+                  {
+                    id: "checkout-review-row",
+                    schema: "row@1",
+                    props: {
+                      widths: [5, 2],
+                      children: [
+                        {
+                          id: "trace-preview",
+                          schema: "embed@1",
+                          props: {
+                            target: { kind: "trace", id: "trace-checkout" },
+                          },
+                        },
+                        {
+                          id: "checkout-review-guide",
+                          schema: "row@1",
+                          props: {
+                            direction: "vertical",
+                            children: [
+                              text(
+                                "review-guide",
+                                paragraph(
+                                  strong("Good"),
+                                  " — Reports the outcome accurately and gives a useful next step if checkout failed.",
+                                ),
+                                paragraph(
+                                  strong("Bad"),
+                                  " — Misstates the outcome, makes an unsupported promise, or gives no useful next step after a failure.",
+                                ),
+                              ),
+                              ...[
+                                { label: "Good", value: 1 },
+                                { label: "Bad", value: 0 },
+                              ].map(({ label, value }) => ({
+                                id: `rate-${label.toLowerCase()}`,
+                                schema: "button@1" as const,
+                                props: {
+                                  label,
+                                  action: {
+                                    type: "score.upsert@1" as const,
+                                    inputs: {
+                                      traceId: "trace-checkout",
+                                      name: "checkout_quality",
+                                      value,
+                                    },
+                                  },
+                                },
+                              })),
+                            ],
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        chartRows: {},
+      },
+      1,
+    ),
+    onExecuteAction: fn(async () => undefined),
+    renderEmbed: (kind, resourceId, variableName) => (
+      <ResourceEmbedFixture
+        key={`${kind}:${resourceId}`}
+        kind={kind}
+        resourceId={resourceId}
+        variableName={variableName}
+      />
+    ),
+  },
+  play: async ({ args, canvas, userEvent }) => {
+    const trace = within(
+      canvas.getByRole("region", { name: "Trace workspace" }),
+    );
+    await userEvent.type(
+      trace.getByRole("textbox", { name: "Search observations" }),
+      "Create",
+    );
+    await userEvent.click(trace.getByRole("button", { name: /Create order/ }));
+    await expect(
+      trace.getByText("PAYMENT_DECLINED — no order was created."),
+    ).toBeVisible();
+    const search = trace.getByRole("textbox", { name: "Search observations" });
+    await userEvent.clear(search);
+    await userEvent.click(
+      trace.getByRole("button", { name: /Authorize payment/ }),
+    );
+    await expect(trace.getByText(/insufficient_funds/)).toBeVisible();
+    await userEvent.click(
+      trace.getByRole("button", { name: /Generate customer reply/ }),
+    );
+    await expect(trace.getByText(/Your order is confirmed!/)).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Good" }));
+    await expect(await canvas.findByText("Saved rating: Good.")).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Bad" }));
+    await expect(await canvas.findByText("Saved rating: Bad.")).toBeVisible();
+    await expect(
+      canvas.queryByText("Saved rating: Good."),
+    ).not.toBeInTheDocument();
+    await expect(args.onExecuteAction).toHaveBeenCalledWith(
+      {
+        type: "score.upsert@1" as const,
+        inputs: {
+          traceId: "trace-checkout",
+          name: "checkout_quality",
+          value: 0,
+        },
+      },
+      "rate-bad",
+    );
+  },
+});
 export const SupportDashboard = meta.story({
   args: startingArgs(supportDashboard, 1),
 });

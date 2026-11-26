@@ -1,4 +1,9 @@
-import { Fragment, useState, type ComponentProps } from "react";
+import {
+  notebookActionSchema,
+  type NotebookAction,
+} from "@/src/features/notebooks/schema";
+import { NotebookActionButton } from "./NotebookActionButton";
+import { Fragment, useState, type ComponentProps, type ReactNode } from "react";
 import { ArrowUpDown, Check } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DateRangeInput } from "@/src/components/design-system/DateRangeInput/DateRangeInput";
@@ -10,6 +15,7 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { TableCard } from "@/src/components/TableCard/TableCard";
 import { readingColumnClassName } from "@/src/components/layouts/reading-column";
 import {
+  type NotebookBlock,
   type NotebookPropertySchema,
   type NotebookPropertyValues,
   type NotebookVariableValue,
@@ -84,6 +90,8 @@ export function NotebookReader({
   isLoadingDocument,
   onDocumentChange,
   renderChart,
+  renderEmbed,
+  onExecuteAction,
   showControlledVariables = false,
 }: {
   view: Pick<
@@ -98,13 +106,58 @@ export function NotebookReader({
   isLoadingDocument: boolean;
   onDocumentChange: (documentId: string | null, version: number | null) => void;
   renderChart: ComponentProps<typeof NotebookBlocks>["renderChart"];
+  renderEmbed?: (
+    kind: Extract<
+      NotebookBlock,
+      { schema: "embed@1" }
+    >["props"]["target"]["kind"],
+    resourceId: string | undefined,
+    variableName: string | undefined,
+  ) => ReactNode;
+  onExecuteAction?: (
+    action: NotebookAction,
+    blockId: string,
+  ) => Promise<unknown>;
   showControlledVariables?: boolean;
 }) {
+  function resolveStringInput(
+    elementId: string,
+    portId: string,
+    fallback: string | undefined,
+  ) {
+    const binding = bindings.find(
+      (binding) =>
+        binding.kind === "read" &&
+        binding.to.documentId === documentId &&
+        binding.to.elementId === elementId &&
+        binding.to.portId === portId,
+    );
+    if (!binding) return { value: fallback, variableName: undefined };
+
+    const variable = variables.find(({ id }) => id === binding.variableId);
+    const value = variable && valueOf(variable);
+    const isControlled = writes.some(
+      ({ variableId }) => variableId === binding.variableId,
+    );
+    const isAvailable =
+      !isControlled ||
+      selectionDomains
+        .get(binding.variableId)
+        ?.some(({ value: choice }) => choice === value);
+    return {
+      value: isAvailable && typeof value === "string" ? value : undefined,
+      variableName: variable?.name,
+    };
+  }
+
   const { blocks, documentId, documents, layout, version } = view;
   const wide = layout.kind === "inbox" || layout.width === "full";
   const [overrides, setOverrides] = useState<
     ReadonlyMap<string, NotebookVariableValue | undefined>
   >(new Map());
+  const [savedScores, setSavedScores] = useState<ReadonlyMap<string, number>>(
+    new Map(),
+  );
   const variables = layout.variables ?? [];
   const bindings = layout.bindings ?? [];
   const writes = bindings.filter((binding) => binding.kind === "write");
@@ -304,6 +357,55 @@ export function NotebookReader({
     return (
       <NotebookBlocks
         blocks={blocks}
+        renderEmbed={(block) => {
+          const { target } = block.props;
+          const { value, variableName } = resolveStringInput(
+            block.id,
+            "resourceId",
+            target.id,
+          );
+          return renderEmbed?.(target.kind, value, variableName);
+        }}
+        renderButton={(block) => {
+          const { action, label } = block.props;
+          const { value: traceId } = resolveStringInput(
+            block.id,
+            "traceId",
+            action.inputs.traceId,
+          );
+          const parsed = notebookActionSchema.safeParse({
+            ...action,
+            inputs: { ...action.inputs, traceId },
+          });
+          const scoreKey = JSON.stringify([
+            action.type,
+            traceId,
+            action.inputs.name,
+          ]);
+          return (
+            <NotebookActionButton
+              key={JSON.stringify(parsed.data ?? block.id)}
+              label={label}
+              saved={
+                parsed.success &&
+                savedScores.get(scoreKey) === action.inputs.value
+              }
+              execute={
+                parsed.success && onExecuteAction
+                  ? async () => {
+                      await onExecuteAction(parsed.data, block.id);
+                      setSavedScores((previous) =>
+                        new Map(previous).set(
+                          scoreKey,
+                          parsed.data.inputs.value,
+                        ),
+                      );
+                    }
+                  : undefined
+              }
+            />
+          );
+        }}
         renderTable={(table) => {
           const variableIds = new Set(
             writes
@@ -416,7 +518,13 @@ export function NotebookReader({
   })();
   const documentPanel = (
     <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-      <div className={cn(wide ? "px-4" : readingColumnClassName, "py-6")}>
+      <div
+        className={cn(
+          wide ? "px-4" : readingColumnClassName,
+          layout.kind === "inbox" && "mx-auto w-full max-w-5xl sm:px-6",
+          "py-6",
+        )}
+      >
         {!isLoadingDocument &&
           (metadata?.title || headerProperties.length > 0) && (
             <header className="mb-6 space-y-3">

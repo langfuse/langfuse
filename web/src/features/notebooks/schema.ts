@@ -446,24 +446,96 @@ const inputTableBlock = storedTableBlock.extend({
   id: notebookDocumentId.optional(),
 });
 
+const storedEmbedBlock = z.strictObject({
+  id: notebookDocumentId,
+  schema: z.literal("embed@1"),
+  props: z.strictObject({
+    target: z.discriminatedUnion("kind", [
+      z.strictObject({
+        kind: z.literal("trace"),
+        id: z.string().min(1).max(2048).optional(),
+      }),
+      z.strictObject({
+        kind: z.literal("session"),
+        id: z.string().min(1).max(2048).optional(),
+      }),
+    ]),
+  }),
+});
+const inputEmbedBlock = storedEmbedBlock.extend({
+  id: notebookDocumentId.optional(),
+});
+
+const scoreActionInputs = z.strictObject({
+  traceId: z.string().trim().min(1).max(2048),
+  name: z.string().trim().min(1).max(200),
+  value: z.number(),
+});
+export const notebookActionSchema = z.discriminatedUnion("type", [
+  z.strictObject({
+    type: z.literal("score.upsert@1"),
+    inputs: scoreActionInputs,
+  }),
+]);
+export type NotebookAction = z.infer<typeof notebookActionSchema>;
+
+const storedButtonBlock = z.strictObject({
+  id: notebookDocumentId,
+  schema: z.literal("button@1"),
+  props: z.strictObject({
+    label: z.string().trim().min(1).max(100),
+    action: z.discriminatedUnion("type", [
+      z.strictObject({
+        type: z.literal("score.upsert@1"),
+        inputs: scoreActionInputs.partial({ traceId: true }),
+      }),
+    ]),
+  }),
+});
+const inputButtonBlock = storedButtonBlock.extend({
+  id: notebookDocumentId.optional(),
+});
+
 const rowBlock = z.strictObject({
   id: notebookDocumentId,
   schema: z.literal("row@1"),
 });
 const inputRowBlock = rowBlock.extend({ id: notebookDocumentId.optional() });
+const rowWidths = z
+  .array(z.number().int().min(1).max(100))
+  .max(MAX_NOTEBOOK_BLOCKS)
+  .optional();
 
 export type NotebookBlock =
   | z.infer<
-      typeof storedTextBlock | typeof storedChartBlock | typeof storedTableBlock
+      | typeof storedTextBlock
+      | typeof storedChartBlock
+      | typeof storedTableBlock
+      | typeof storedEmbedBlock
+      | typeof storedButtonBlock
     >
-  | (z.infer<typeof rowBlock> & { props: { children: NotebookBlock[] } });
+  | (z.infer<typeof rowBlock> & {
+      props: {
+        children: NotebookBlock[];
+        widths?: number[];
+        direction?: "vertical";
+      };
+    });
 
 type NotebookInputBlock =
   | z.infer<
-      typeof inputTextBlock | typeof inputChartBlock | typeof inputTableBlock
+      | typeof inputTextBlock
+      | typeof inputChartBlock
+      | typeof inputTableBlock
+      | typeof inputEmbedBlock
+      | typeof inputButtonBlock
     >
   | (z.infer<typeof inputRowBlock> & {
-      props: { children: NotebookInputBlock[] };
+      props: {
+        children: NotebookInputBlock[];
+        widths?: number[];
+        direction?: "vertical";
+      };
     });
 
 export const storedNotebookBlockSchema: z.ZodType<NotebookBlock> =
@@ -471,8 +543,11 @@ export const storedNotebookBlockSchema: z.ZodType<NotebookBlock> =
     storedTextBlock,
     storedChartBlock,
     storedTableBlock,
+    storedEmbedBlock,
+    storedButtonBlock,
     rowBlock.extend({
       props: z.strictObject({
+        widths: rowWidths,
         get children(): z.ZodType<NotebookBlock[]> {
           return z.array(storedNotebookBlockSchema).max(MAX_NOTEBOOK_BLOCKS);
         },
@@ -485,8 +560,11 @@ export const notebookInputBlockSchema: z.ZodType<NotebookInputBlock> =
     inputTextBlock,
     inputChartBlock,
     inputTableBlock,
+    inputEmbedBlock,
+    inputButtonBlock,
     inputRowBlock.extend({
       props: z.strictObject({
+        widths: rowWidths,
         get children(): z.ZodType<NotebookInputBlock[]> {
           return z.array(notebookInputBlockSchema).max(MAX_NOTEBOOK_BLOCKS);
         },

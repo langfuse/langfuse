@@ -52,7 +52,7 @@ const rootClassName =
 
 export function SpanContent(props: SpanContentProps | { isLoading: true }) {
   if ("isLoading" in props) return <SpanContentLoading />;
-  return <LoadedSpanContent {...props} />;
+  return <ContextualSpanContent {...props} />;
 }
 
 /** Name and metrics lines at their text heights, so rows keep their height. */
@@ -71,15 +71,28 @@ function SpanContentLoading() {
   );
 }
 
-function LoadedSpanContent({
+function ContextualSpanContent(props: SpanContentProps) {
+  const { mergedScores, corrections } = useTraceData();
+  return (
+    <SpanContentView
+      {...props}
+      mergedScores={mergedScores}
+      corrections={corrections}
+    />
+  );
+}
+
+export function SpanContentView({
   node,
   emphasis,
   commentCount,
   onSelect,
   onHover,
   className,
-}: SpanContentProps) {
-  const { mergedScores, corrections } = useTraceData();
+  mergedScores,
+  corrections,
+}: SpanContentProps &
+  Pick<ReturnType<typeof useTraceData>, "mergedScores" | "corrections">) {
   const { showDuration, showCostTokens, showScores, showComments } =
     useViewPreferences();
 

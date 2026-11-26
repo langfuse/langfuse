@@ -9,6 +9,12 @@ type Binding = NonNullable<NotebookLayout["bindings"]>[number];
 type PortRef = Extract<Binding, { kind: "read" }>["to"];
 
 export function getNotebookPorts(block: NotebookBlock) {
+  if (block.schema === "button@1") {
+    return [{ id: "traceId", direction: "input", type: "string" }] as const;
+  }
+  if (block.schema === "embed@1") {
+    return [{ id: "resourceId", direction: "input", type: "string" }] as const;
+  }
   if (block.schema === "table@1") {
     return [
       {

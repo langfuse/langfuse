@@ -76,7 +76,7 @@ export const [updateNotebookLayoutTool, handleUpdateNotebookLayout] =
     action: "notebooks:CUD",
     spanName: "mcp.notebooks.update_notebook_layout",
     description:
-      "Stage a notebook layout and its variable bindings without editing document bodies or publishing. A table@1 exposes a string 'selection' output with its row IDs. A chart@1 exposes a dateRange 'timeRange' input and a string 'filter' input if bindFilter identifies a string equality filter. Bindings reference document, element and port IDs. Run validate_notebook before publishing.",
+      "Stage a notebook layout and its variable bindings without editing document bodies or publishing. A table@1 exposes a string 'selection' output with its row IDs. A chart@1 exposes a dateRange 'timeRange' input and a string 'filter' input if bindFilter identifies a string equality filter. An embed@1 exposes a string 'resourceId' input that overrides its fixed target ID. Bindings reference document, element and port IDs. Run validate_notebook before publishing.",
     baseSchema: updateNotebookLayoutSchema,
     destructiveHint: true,
     handler: stageNotebookLayout,
