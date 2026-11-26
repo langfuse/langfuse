@@ -222,8 +222,12 @@ function aggregateIntoMultiUnitBuckets<
   let iterations = 0;
   const maxIterations = 10000; // Safety limit to prevent infinite loops
 
-  // Create buckets going backwards until we cover fromDate
-  while (bucketEnd >= fromDate && iterations < maxIterations) {
+  // A bucket ending at the range start has no overlap, except for a single instant.
+  while (
+    bucketEnd >= fromDate &&
+    (iterations === 0 || bucketEnd > fromDate) &&
+    iterations < maxIterations
+  ) {
     iterations++;
     let bucketStart = bucketEnd;
 
@@ -247,9 +251,12 @@ function aggregateIntoMultiUnitBuckets<
     }
   }
 
-  // Assign data points to buckets (newest-first so boundary points fall into later bucket)
+  const firstUnitStart = toStartOfSingleUnit(fromDate).getTime();
+  // Check the newest bucket first so interior boundary points belong to it.
   for (const dataPoint of data) {
-    const ts = toStartOfSingleUnit(dataPoint.timestamp);
+    const unitStart = toStartOfSingleUnit(dataPoint.timestamp);
+    // ClickHouse timestamps the first partial unit at its start.
+    const ts = unitStart.getTime() === firstUnitStart ? fromDate : unitStart;
 
     for (let i = buckets.length - 1; i >= 0; i--) {
       const bucket = buckets[i];
@@ -531,8 +538,12 @@ function aggregateCategoricalIntoMultiUnitBuckets<
   let iterations = 0;
   const maxIterations = 10000;
 
-  // Create buckets going backwards
-  while (bucketEnd >= fromDate && iterations < maxIterations) {
+  // A bucket ending at the range start has no overlap, except for a single instant.
+  while (
+    bucketEnd >= fromDate &&
+    (iterations === 0 || bucketEnd > fromDate) &&
+    iterations < maxIterations
+  ) {
     iterations++;
     let bucketStart = bucketEnd;
 
@@ -556,9 +567,12 @@ function aggregateCategoricalIntoMultiUnitBuckets<
     }
   }
 
-  // Assign data points to buckets (newest-first so boundary points fall into later bucket)
+  const firstUnitStart = toStartOfSingleUnit(fromDate).getTime();
+  // Check the newest bucket first so interior boundary points belong to it.
   for (const dataPoint of data) {
-    const ts = toStartOfSingleUnit(dataPoint.timestamp);
+    const unitStart = toStartOfSingleUnit(dataPoint.timestamp);
+    // ClickHouse timestamps the first partial unit at its start.
+    const ts = unitStart.getTime() === firstUnitStart ? fromDate : unitStart;
 
     for (let i = buckets.length - 1; i >= 0; i--) {
       const bucket = buckets[i];

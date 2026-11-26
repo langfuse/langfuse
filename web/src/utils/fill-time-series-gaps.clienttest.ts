@@ -33,30 +33,21 @@ describe("fillTimeSeriesGaps", () => {
   });
 
   it("assigns boundary points to the later bucket and includes toDate", () => {
-    // Points exactly at boundary timestamps
     const fromDate = new Date(2026, 0, 1);
     const toDate = new Date(2026, 0, 5);
     const interval = { count: 2, unit: "day" as const };
-
-    // With toDate = Jan 05 00:00:
-    // Bucket 2: [Jan 03 00:00, Jan 05 00:00]
-    // Bucket 1: [Jan 01 00:00, Jan 03 00:00]
-    // Bucket 0: [Dec 30 00:00, Jan 01 00:00]
     const data = [
+      { timestamp: fromDate, count: 40 },
       { timestamp: new Date(2026, 0, 3), count: 100 },
-      { timestamp: new Date(2026, 0, 5), count: 200 },
+      { timestamp: toDate, count: 200 },
     ];
 
     const result = fillTimeSeriesGaps(data, fromDate, toDate, interval);
 
-    // Jan 03 00:00 is on the boundary between Bucket 1 ([Jan 1, Jan 3]) and Bucket 2 ([Jan 3, Jan 5]).
-    // Checked newest-first: Bucket 2 receives Jan 03 00:00.
-    // Bucket 2 also receives Jan 05 00:00 (toDate).
-    // So Bucket 2 has both points: avg = (100 + 200) / 2 = 150.
-    // Bucket 1 has no points -> placeholder null count.
-    expect(result.length).toBeGreaterThanOrEqual(2);
-    const lastBucket = result[result.length - 1];
-    expect(lastBucket?.count).toBe(150);
+    expect(result).toEqual([
+      { timestamp: new Date(2026, 0, 3), count: 40 },
+      { timestamp: toDate, count: 150 },
+    ]);
   });
 
   it("handles single-unit intervals correctly without alteration", () => {
@@ -76,6 +67,25 @@ describe("fillTimeSeriesGaps", () => {
 });
 
 describe("fillCategoricalTimeSeriesGaps", () => {
+  it("keeps the first partial unit when its timestamp precedes the bucket", () => {
+    const fromDate = new Date(2026, 0, 1, 0, 10);
+    const toDate = new Date(2026, 0, 5, 0, 5);
+    const data = [
+      { timestamp: new Date(2026, 0, 1), category: "ok", count: 10 },
+      { timestamp: new Date(2026, 0, 5), category: "ok", count: 20 },
+    ];
+
+    expect(
+      fillCategoricalTimeSeriesGaps(data, fromDate, toDate, {
+        count: 2,
+        unit: "day",
+      }),
+    ).toEqual([
+      { timestamp: new Date(2026, 0, 3, 0, 5), category: "ok", count: 10 },
+      { timestamp: toDate, category: "ok", count: 20 },
+    ]);
+  });
+
   it("does not drop categorical data points for multi-unit intervals (Issue #17157 regression)", () => {
     const data = [
       {
