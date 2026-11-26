@@ -13,6 +13,8 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS,
   GATEWAY_GUARDRAIL_ACTION_LABELS,
+  GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS,
+  GATEWAY_GUARDRAIL_SCOPE_LABELS,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
 import { GATEWAY_GUARDRAIL_PRESETS } from "@/src/features/ai-gateway/types/gatewayGuardrail";
@@ -68,10 +70,12 @@ const guardrailColumn = createTableColumn<
 });
 
 const runsOnColumn = createTextTableColumn<GatewayGuardrailRow>({
-  accessorFn: () => "Input",
+  accessorFn: (row) => GATEWAY_GUARDRAIL_SCOPE_LABELS[row.scope],
   id: "runsOn",
   header: "Runs on",
-  size: 110,
+  tooltip: (context) =>
+    GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[context.row.original.scope],
+  size: 135,
   hideBelowMd: true,
   enableResizing: false,
 });

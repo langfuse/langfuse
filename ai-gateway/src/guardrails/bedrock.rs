@@ -20,10 +20,6 @@ const BEDROCK_INTERVENED_ACTION: &str = "GUARDRAIL_INTERVENED";
 const BEDROCK_NONE_ACTION: &str = "NONE";
 const BEDROCK_ACTION_BLOCKED: &str = "BLOCKED";
 
-/// Maximum individual text leaves sent as separate `content` blocks to
-/// `ApplyGuardrail` before falling back to a single joined block.
-pub(crate) const MAX_BEDROCK_CONTENT_BLOCKS: usize = 20;
-
 /// Configuration for an external AWS Bedrock Guardrail resolved from Web.
 #[derive(Clone)]
 pub(crate) struct BedrockGuardrail {
@@ -397,7 +393,7 @@ mod tests {
 
     use super::*;
     use crate::guardrails::{
-        Guardrail, GuardrailAction, GuardrailKind, external::ExternalPayloads,
+        Guardrail, GuardrailAction, GuardrailKind, GuardrailScope, external::ExternalPayloads,
     };
     use axum::{body::Body, http::Response};
     use http_body_util::BodyExt;
@@ -416,6 +412,7 @@ mod tests {
             id: id.into(),
             name: id.into(),
             action: GuardrailAction::Block,
+            scope: GuardrailScope::LastTurn,
             redaction_label: None,
             kind: GuardrailKind::Bedrock(sample_config(guardrail_id, "1")),
         }

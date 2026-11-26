@@ -10,6 +10,7 @@ import {
   GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH,
   GATEWAY_GUARDRAIL_MAX_REDACTION_LABEL_LENGTH,
   GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES,
+  GATEWAY_GUARDRAIL_SCOPES,
   GATEWAY_GUARDRAIL_SECRET_BODY_MIN_LENGTH,
   GATEWAY_GUARDRAIL_SECRET_PREFIX_MAX_LENGTH,
   GATEWAY_GUARDRAIL_SECRET_PREFIX_MIN_LENGTH,
@@ -304,6 +305,8 @@ export function resolveSupportedGuardrailAction<T extends GatewayGuardrailType>(
     ? (action as GatewayGuardrailActionForType<T>)
     : capability.defaultAction;
 }
+
+export const GatewayGuardrailScopeSchema = z.enum(GATEWAY_GUARDRAIL_SCOPES);
 
 export const GatewayGuardrailRedactionLabelSchema = z
   .string()

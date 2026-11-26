@@ -1,5 +1,7 @@
 use super::*;
 
+const TEST_MAX_SCAN_BYTES: usize = crate::config::DEFAULT_GUARDRAIL_MAX_SCAN_BYTES;
+
 fn check_request(
     guardrails: &[Guardrail],
     api_format: ApiFormat,
@@ -11,6 +13,7 @@ fn check_request(
         body,
         scanned,
         &last_turn(api_format, body, scanned),
+        TEST_MAX_SCAN_BYTES,
         None,
     )
     .unwrap()
@@ -41,6 +44,7 @@ fn guardrail(id: &str, action: GuardrailAction, patterns: &[&str]) -> Guardrail 
         id: id.into(),
         name: format!("{id} name"),
         action,
+        scope: GuardrailScope::LastTurn,
         redaction_label: None,
         kind: GuardrailKind::Regex {
             patterns: patterns
@@ -62,6 +66,7 @@ fn bedrock_enforce_guardrail(id: &str) -> Guardrail {
         id: id.into(),
         name: format!("{id} name"),
         action: GuardrailAction::Enforce,
+        scope: GuardrailScope::LastTurn,
         redaction_label: None,
         kind: GuardrailKind::Bedrock(BedrockGuardrail {
             guardrail_id: "abc123def".into(),
@@ -303,6 +308,7 @@ fn bedrock_enforce_applies_anonymized_outputs_and_blocks_on_block_or_failure() {
         body.as_bytes(),
         &members,
         &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
+        TEST_MAX_SCAN_BYTES,
         None,
     )
     .unwrap();
@@ -339,6 +345,7 @@ fn bedrock_enforce_applies_anonymized_outputs_and_blocks_on_block_or_failure() {
             body.as_bytes(),
             &members,
             &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
+            TEST_MAX_SCAN_BYTES,
             None,
         )
         .unwrap();
@@ -351,33 +358,36 @@ fn bedrock_enforce_applies_anonymized_outputs_and_blocks_on_block_or_failure() {
 }
 
 #[test]
-fn bedrock_enforce_handles_joined_multiline_outputs_and_sequential_chaining() {
-    let guardrails = [bedrock_enforce_guardrail("br")];
-    let body = r#"{"messages":[{"role":"user","content":[{"type":"text","text":"line 1\ncall 555-0199"},{"type":"text","text":"line 3\nline 4"}]}]}"#;
+fn bedrock_enforce_maps_blocks_one_to_one_and_chains_sequentially() {
+    let mut entire_bedrock = bedrock_enforce_guardrail("br-all");
+    entire_bedrock.scope = GuardrailScope::EntireInput;
+    let guardrails = [entire_bedrock];
+    let body = r#"{"messages":[{"role":"user","content":"call 555-0199"},{"role":"assistant","content":"ok"},{"role":"user","content":"thanks"}]}"#;
     let members = scanned(body, &["messages"]);
 
-    // 1. Joined single-block output maps back across multiline fields by line count.
+    // 1. EntireInput Bedrock guardrail receives all conversation blocks 1:1.
     let mut eval = apply_local_guardrails(
         &guardrails,
         body.as_bytes(),
         &members,
         &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
+        TEST_MAX_SCAN_BYTES,
         None,
     )
     .unwrap();
+    assert_eq!(eval.blocks.texts(), ["call 555-0199", "ok", "thanks"]);
     eval.apply_external(
         0,
         &guardrails[0],
-        &ExternalOutcome::Anonymized(vec!["line 1\ncall {PHONE}\nline 3\nline 4".into()]),
+        &ExternalOutcome::Anonymized(vec!["call {PHONE}".into(), "ok".into(), "thanks".into()]),
     );
     let outcome = eval.finalize(&guardrails, None).unwrap();
     assert!(outcome.blocking().is_none());
     let (_, edits, _) = outcome.into_parts();
     assert_eq!(edits.len(), 1);
     let rewritten: serde_json::Value = serde_json::from_str(&apply_edits(body, &edits)).unwrap();
-    let content = &rewritten["messages"][0]["content"];
-    assert_eq!(content[0]["text"], "line 1\ncall {PHONE}");
-    assert_eq!(content[1]["text"], "line 3\nline 4");
+    assert_eq!(rewritten["messages"][0]["content"], "call {PHONE}");
+    assert_eq!(rewritten["messages"][2]["content"], "thanks");
 
     // 2. Two enforcing Bedrock guardrails chain sequentially, composing both masks.
     let single =
@@ -396,6 +406,7 @@ fn bedrock_enforce_handles_joined_multiline_outputs_and_sequential_chaining() {
             single.as_bytes(),
             &single_members,
         ),
+        TEST_MAX_SCAN_BYTES,
         None,
     )
     .unwrap();
@@ -416,6 +427,45 @@ fn bedrock_enforce_handles_joined_multiline_outputs_and_sequential_chaining() {
     assert_eq!(
         rewritten["messages"][0]["content"],
         "mail {EMAIL} or call {PHONE}"
+    );
+}
+
+#[test]
+fn entire_input_scope_scans_earlier_turns_and_max_scan_bytes_fails_closed() {
+    let body = r#"{"messages":[{"role":"system","content":"sys ssn 123-45-6789"},{"role":"user","content":"old a@example.com"},{"role":"assistant","content":"ok"},{"role":"user","content":"hi"}]}"#;
+    let members = scanned(body, &["messages"]);
+
+    // EntireInput REDACT scrubs earlier turns while LastTurn BLOCK ignores them.
+    let mut entire_redact = redact_guardrail("redact-all", "[EMAIL]", &[EMAIL]);
+    entire_redact.scope = GuardrailScope::EntireInput;
+    let last_turn_block = guardrail("block-last", GuardrailAction::Block, &[SSN]);
+    let outcome = check_request(
+        &[entire_redact.clone(), last_turn_block],
+        ApiFormat::OpenAiChatCompletions,
+        body.as_bytes(),
+        &members,
+    );
+    assert!(outcome.blocking().is_none());
+    let (_, edits, _) = outcome.into_parts();
+    let rewritten: serde_json::Value = serde_json::from_str(&apply_edits(body, &edits)).unwrap();
+    assert_eq!(rewritten["messages"][1]["content"], "old [EMAIL]");
+    assert_eq!(rewritten["messages"][0]["content"], "sys ssn 123-45-6789");
+
+    // Exceeding max_scan_bytes fails closed (blocks) for non-LOG guardrails.
+    let cap_outcome = apply_local_guardrails(
+        &[entire_redact],
+        body.as_bytes(),
+        &members,
+        &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
+        10,
+        None,
+    )
+    .unwrap()
+    .finalize(&[redact_guardrail("redact-all", "[EMAIL]", &[EMAIL])], None)
+    .unwrap();
+    assert_eq!(
+        cap_outcome.blocking().map(|finding| finding.id.as_str()),
+        Some("redact-all")
     );
 }
 
@@ -457,6 +507,7 @@ fn redaction_respects_memory_budget_and_returns_busy() {
         body.as_bytes(),
         &members,
         &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
+        TEST_MAX_SCAN_BYTES,
         Some(&tight_budget),
     );
     assert!(matches!(result, Err(ResolutionError::Busy)));

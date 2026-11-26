@@ -209,6 +209,7 @@ describe("GatewayGuardrailService", () => {
       name: "Key rule",
       type: "regex",
       action: "block",
+      scope: "last_turn",
       patterns: [...GATEWAY_GUARDRAIL_PRESETS.email.patterns],
     });
     expect(resolved[3]).toEqual({
@@ -216,6 +217,7 @@ describe("GatewayGuardrailService", () => {
       name: "Redact rule",
       type: "regex",
       action: "redact",
+      scope: "last_turn",
       patterns: [...GATEWAY_GUARDRAIL_PRESETS.email.patterns],
       redaction_label: "[EMAIL]",
     });
@@ -919,6 +921,7 @@ describe("aiGateway guardrails tRPC", () => {
         name: "Bedrock content filter",
         type: "bedrock",
         action: "enforce",
+        scope: "last_turn",
         guardrail_id: "abc123def456",
         guardrail_version: "1",
         region: "us-east-1",
@@ -1060,17 +1063,19 @@ describe("aiGateway guardrails tRPC", () => {
     expect(defaultLabelRule.action).toBe("REDACT");
     expect(defaultLabelRule.redactionLabel).toBe("[REDACTED]");
 
-    // Custom replacement label (trimmed)
+    // Custom replacement label (trimmed) + ENTIRE_INPUT scope
     const customLabelRule = await ownerCaller.aiGateway.guardrails.create({
       orgId,
       type: "REGEX",
       name: "Custom redact",
       action: "REDACT",
+      scope: "ENTIRE_INPUT",
       redactionLabel: "  [SSN]  ",
       presets: ["us_ssn"],
       assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
     });
     expect(customLabelRule.redactionLabel).toBe("[SSN]");
+    expect(customLabelRule.scope).toBe("ENTIRE_INPUT");
 
     // Rejects blank, control-char, and overly long replacement labels
     for (const invalidLabel of ["   ", "bad\nlabel", "x".repeat(65)]) {
@@ -1127,12 +1132,14 @@ describe("aiGateway guardrails tRPC", () => {
         id: customLabelRule.id,
         type: "regex",
         action: "redact",
+        scope: "entire_input",
         redaction_label: "[SSN]",
       }),
       expect.objectContaining({
         id: defaultLabelRule.id,
         type: "regex",
         action: "redact",
+        scope: "last_turn",
         redaction_label: "[REDACTED]",
       }),
     ]);

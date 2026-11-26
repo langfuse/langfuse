@@ -26,6 +26,8 @@ pub struct GatewayConfig {
     pub execution_limits: ExecutionLimits,
     /// Per-call deadline for external guardrail providers (such as AWS Bedrock).
     pub external_guardrail_timeout: Duration,
+    /// Maximum extracted text bytes guardrails scan before failing closed.
+    pub guardrail_max_scan_bytes: usize,
     pub outbound_policy: OutboundPolicy,
     /// LLM connection whitelist entries that do not parse and so exempt nothing.
     pub ignored_whitelist_entries: Vec<String>,
@@ -82,6 +84,9 @@ const DEFAULT_MAX_EXECUTION_SECONDS: u32 = 10 * 60;
 const DEFAULT_STALL_TIMEOUT_SECONDS: u32 = 120;
 const DEFAULT_SHUTDOWN_TIMEOUT_SECONDS: u64 = 10;
 const DEFAULT_EXTERNAL_GUARDRAIL_TIMEOUT_SECONDS: u64 = 3;
+pub(crate) const DEFAULT_GUARDRAIL_MAX_SCAN_BYTES: usize = MIB;
+const MIN_GUARDRAIL_MAX_SCAN_BYTES: usize = 1024;
+const MAX_GUARDRAIL_MAX_SCAN_BYTES: usize = 64 * MIB;
 /// Memory bounds per instance. Admission is limited only by the memory budget.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RequestLimits {
@@ -186,6 +191,9 @@ impl GatewayConfig {
         config.external_guardrail_timeout = external_guardrail_timeout(
             read_env("LANGFUSE_AI_GATEWAY_EXTERNAL_GUARDRAIL_TIMEOUT_SECONDS")?.as_deref(),
         )?;
+        config.guardrail_max_scan_bytes = guardrail_max_scan_bytes(
+            read_env("LANGFUSE_AI_GATEWAY_GUARDRAIL_MAX_SCAN_BYTES")?.as_deref(),
+        )?;
         let web_url = read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?;
         let service_key = read_env("LANGFUSE_AI_GATEWAY_SERVICE_KEY")?;
         config.control_plane = control_plane(
@@ -286,6 +294,7 @@ impl GatewayConfig {
             external_guardrail_timeout: Duration::from_secs(
                 DEFAULT_EXTERNAL_GUARDRAIL_TIMEOUT_SECONDS,
             ),
+            guardrail_max_scan_bytes: DEFAULT_GUARDRAIL_MAX_SCAN_BYTES,
             outbound_policy: OutboundPolicy::default(),
             ignored_whitelist_entries: Vec::new(),
             spend_counters: None,
@@ -560,6 +569,15 @@ fn external_guardrail_timeout(value: Option<&str>) -> Result<Duration, GatewayCo
         "LANGFUSE_AI_GATEWAY_EXTERNAL_GUARDRAIL_TIMEOUT_SECONDS must be an integer from 1 to 60",
     )
     .map(Duration::from_secs)
+}
+
+fn guardrail_max_scan_bytes(value: Option<&str>) -> Result<usize, GatewayConfigError> {
+    integer_setting(
+        value,
+        DEFAULT_GUARDRAIL_MAX_SCAN_BYTES,
+        MIN_GUARDRAIL_MAX_SCAN_BYTES..=MAX_GUARDRAIL_MAX_SCAN_BYTES,
+        "LANGFUSE_AI_GATEWAY_GUARDRAIL_MAX_SCAN_BYTES must be an integer from 1024 to 67108864",
+    )
 }
 
 /// An unset value takes `default`. Errors carry only `message`, never the supplied value.
@@ -1055,6 +1073,40 @@ mod tests {
             assert_eq!(
                 error.to_string(),
                 "LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300"
+            );
+        }
+    }
+
+    #[test]
+    fn guardrail_max_scan_bytes_is_read_within_bounds() {
+        assert_eq!(
+            GatewayConfig::from_values(None, None, None, None, None)
+                .unwrap()
+                .guardrail_max_scan_bytes,
+            DEFAULT_GUARDRAIL_MAX_SCAN_BYTES
+        );
+        assert_eq!(
+            guardrail_max_scan_bytes(None).unwrap(),
+            DEFAULT_GUARDRAIL_MAX_SCAN_BYTES
+        );
+        for value in [1024, DEFAULT_GUARDRAIL_MAX_SCAN_BYTES, 64 * MIB] {
+            assert_eq!(
+                guardrail_max_scan_bytes(Some(&value.to_string())).unwrap(),
+                value
+            );
+        }
+        for value in [
+            "",
+            "0",
+            "1023",
+            "67108865",
+            "-1",
+            "secret-that-must-not-appear",
+        ] {
+            let error = guardrail_max_scan_bytes(Some(value)).err().unwrap();
+            assert_eq!(
+                error.to_string(),
+                "LANGFUSE_AI_GATEWAY_GUARDRAIL_MAX_SCAN_BYTES must be an integer from 1024 to 67108864"
             );
         }
     }

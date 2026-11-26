@@ -1,4 +1,7 @@
-import type { GatewayGuardrailAction } from "@langfuse/shared/src/db";
+import type {
+  GatewayGuardrailAction,
+  GatewayGuardrailScope,
+} from "@langfuse/shared/src/db";
 
 export const GATEWAY_GUARDRAIL_MAX_NAME_LENGTH = 200;
 export const GATEWAY_GUARDRAIL_MAX_TARGETS = 100;
@@ -59,4 +62,24 @@ export const GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS: Record<
   ENFORCE:
     "Follow the provider's verdict: block when it blocks, or anonymize matched text before forwarding.",
   LOG: "Forward the request unchanged and record the match on the generation.",
+};
+
+export const GATEWAY_GUARDRAIL_SCOPES = ["LAST_TURN", "ENTIRE_INPUT"] as const;
+
+export const GATEWAY_GUARDRAIL_SCOPE_LABELS: Record<
+  GatewayGuardrailScope,
+  string
+> = {
+  LAST_TURN: "Last turn",
+  ENTIRE_INPUT: "Entire input",
+};
+
+export const GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS: Record<
+  GatewayGuardrailScope,
+  string
+> = {
+  LAST_TURN:
+    "Evaluate only the latest user turn and tool outputs since the last model reply.",
+  ENTIRE_INPUT:
+    "Evaluate all messages and system prompts in the request, including conversation history. Recommended for redaction so earlier turns aren't resent unredacted.",
 };

@@ -23,6 +23,7 @@ import {
   GatewayGuardrailCustomRegexSchema,
   GatewayGuardrailPresetSchema,
   GatewayGuardrailRedactionLabelSchema,
+  GatewayGuardrailScopeSchema,
   GatewayGuardrailSecretPrefixesSchema,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -50,6 +51,7 @@ const commonWriteFields = {
     .trim()
     .min(1, "Guardrails need a name")
     .max(GATEWAY_GUARDRAIL_MAX_NAME_LENGTH),
+  scope: GatewayGuardrailScopeSchema.optional(),
   assignments: assignmentsInput,
 };
 
@@ -301,6 +303,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
           type: "BEDROCK",
           name: input.name,
           action: input.action,
+          scope: input.scope,
           bedrock: input.bedrock,
           assignments: input.assignments,
           session: ctx.session,
@@ -311,6 +314,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
         type: "REGEX",
         name: input.name,
         action: input.action,
+        scope: input.scope,
         redactionLabel:
           input.action === "REDACT" ? input.redactionLabel : undefined,
         presets: input.presets,
@@ -337,6 +341,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
           type: "BEDROCK",
           name: input.name,
           action: input.action,
+          scope: input.scope,
           bedrock: input.bedrock,
           assignments: input.assignments,
           session: ctx.session,
@@ -348,6 +353,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
         type: "REGEX",
         name: input.name,
         action: input.action,
+        scope: input.scope,
         redactionLabel:
           input.action === "REDACT" ? input.redactionLabel : undefined,
         presets: input.presets,

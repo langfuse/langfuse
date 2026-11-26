@@ -1,5 +1,6 @@
 import type {
   GatewayGuardrailAction,
+  GatewayGuardrailScope,
   GatewayGuardrailType,
   Prisma,
   PrismaClient,
@@ -19,6 +20,7 @@ const GUARDRAIL_SELECT = {
   name: true,
   type: true,
   action: true,
+  scope: true,
   redactionLabel: true,
   config: true,
   createdBy: true,
@@ -91,6 +93,7 @@ export class GatewayGuardrailRepository {
         name: true,
         type: true,
         action: true,
+        scope: true,
         redactionLabel: true,
         config: true,
         encryptedCredential: true,
@@ -185,6 +188,7 @@ export class GatewayGuardrailRepository {
     name: string;
     type: GatewayGuardrailType;
     action: GatewayGuardrailAction;
+    scope: GatewayGuardrailScope;
     redactionLabel?: string | null;
     config: Prisma.InputJsonValue;
     encryptedCredential?: string | null;
@@ -197,6 +201,7 @@ export class GatewayGuardrailRepository {
         name: params.name,
         type: params.type,
         action: params.action,
+        scope: params.scope,
         redactionLabel: params.redactionLabel ?? null,
         config: params.config,
         ...(params.encryptedCredential !== undefined
@@ -244,6 +249,7 @@ export class GatewayGuardrailRepository {
     id: string;
     name: string;
     action: GatewayGuardrailAction;
+    scope: GatewayGuardrailScope;
     redactionLabel?: string | null;
     config: Prisma.InputJsonValue;
     encryptedCredential?: string;
@@ -257,6 +263,7 @@ export class GatewayGuardrailRepository {
       data: {
         name: params.name,
         action: params.action,
+        scope: params.scope,
         redactionLabel: params.redactionLabel ?? null,
         config: params.config,
         ...(params.encryptedCredential !== undefined

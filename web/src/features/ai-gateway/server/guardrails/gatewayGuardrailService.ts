@@ -50,6 +50,7 @@ import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGa
 import type {
   GatewayCachedGuardrails,
   GatewayResolveGuardrailAction,
+  GatewayResolveGuardrailScope,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GATEWAY_USER_SCOPE } from "@/src/features/ai-gateway/server/team/gatewayTeamService";
@@ -79,6 +80,14 @@ const RESOLVE_GUARDRAIL_ACTION = {
 } as const satisfies Record<
   GatewayGuardrailRecord["action"],
   GatewayResolveGuardrailAction
+>;
+
+const RESOLVE_GUARDRAIL_SCOPE = {
+  LAST_TURN: "last_turn",
+  ENTIRE_INPUT: "entire_input",
+} as const satisfies Record<
+  GatewayGuardrailRecord["scope"],
+  GatewayResolveGuardrailScope
 >;
 
 const GATEWAY_MEMBER_ROLES = Object.values(Role).filter((role) =>
@@ -119,6 +128,7 @@ export class GatewayGuardrailService {
         RESOLVE_GUARDRAIL_ACTION[
           resolveSupportedGuardrailAction(guardrail.type, guardrail.action)
         ];
+      const scope = RESOLVE_GUARDRAIL_SCOPE[guardrail.scope ?? "LAST_TURN"];
       switch (guardrail.type) {
         case "REGEX": {
           const config = GatewayRegexGuardrailConfigSchema.safeParse(
@@ -141,6 +151,7 @@ export class GatewayGuardrailService {
               name: guardrail.name,
               type: "regex" as const,
               action,
+              scope,
               patterns,
               ...(action === "redact"
                 ? {
@@ -170,6 +181,7 @@ export class GatewayGuardrailService {
                 name: guardrail.name,
                 type: "fail_closed" as const,
                 action,
+                scope,
                 patterns: [] as [],
               },
             ];
@@ -180,6 +192,7 @@ export class GatewayGuardrailService {
               name: guardrail.name,
               type: "bedrock" as const,
               action,
+              scope,
               guardrail_id: config.data.guardrailId,
               guardrail_version: config.data.guardrailVersion,
               region: config.data.region,
@@ -354,6 +367,7 @@ export class GatewayGuardrailService {
     params: {
       organizationId: string;
       name: string;
+      scope?: GatewayGuardrailRecord["scope"];
       assignments: GatewayGuardrailAssignmentInput[];
       session: OrgAuthedContext["session"];
     } & (
@@ -427,6 +441,7 @@ export class GatewayGuardrailService {
         name: params.name,
         type: params.type,
         action: params.action,
+        scope: params.scope ?? "LAST_TURN",
         redactionLabel,
         config,
         encryptedCredential,
@@ -453,6 +468,7 @@ export class GatewayGuardrailService {
       organizationId: string;
       id: string;
       name: string;
+      scope?: GatewayGuardrailRecord["scope"];
       assignments: GatewayGuardrailAssignmentInput[];
       session: OrgAuthedContext["session"];
     } & (
@@ -586,6 +602,7 @@ export class GatewayGuardrailService {
         id: existing.id,
         name: params.name,
         action: params.action,
+        scope: params.scope ?? existing.scope,
         redactionLabel,
         config,
         encryptedCredential,
@@ -1142,6 +1159,7 @@ function toGuardrailDto(
     name: record.name,
     type: record.type,
     action: resolveSupportedGuardrailAction(record.type, record.action),
+    scope: record.scope,
     redactionLabel: record.redactionLabel,
     presets,
     secretPrefixes,

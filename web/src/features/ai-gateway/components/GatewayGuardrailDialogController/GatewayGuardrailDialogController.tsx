@@ -154,6 +154,7 @@ export function GatewayGuardrailDialogController({
                     "BEDROCK",
                     values.action,
                   ),
+                  scope: values.scope,
                   bedrock: {
                     guardrailId: values.bedrock.guardrailId,
                     guardrailVersion: values.bedrock.guardrailVersion,
@@ -168,6 +169,7 @@ export function GatewayGuardrailDialogController({
                   type: "REGEX",
                   name: values.name,
                   ...toRegexActionInput(values),
+                  scope: values.scope,
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
                   containsWords: values.containsWords,
@@ -186,6 +188,7 @@ export function GatewayGuardrailDialogController({
                     "BEDROCK",
                     values.action,
                   ),
+                  scope: values.scope,
                   bedrock: values.bedrock,
                   assignments,
                 });
@@ -196,6 +199,7 @@ export function GatewayGuardrailDialogController({
                   type: "REGEX",
                   name: values.name,
                   ...toRegexActionInput(values),
+                  scope: values.scope,
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
                   containsWords: values.containsWords,
@@ -341,6 +345,7 @@ function GuardrailDialogContent({
           action:
             GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[selectedTemplate.guardrailType]
               .defaultAction,
+          scope: "LAST_TURN",
           redactionLabel: GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
           targets: [EVERYONE_TARGET_OPTION],
         }}
@@ -384,6 +389,7 @@ function GuardrailDialogContent({
         customRegex: guardrail.customRegex,
         bedrock: guardrail.bedrock ?? undefined,
         action: initialAction,
+        scope: guardrail.scope,
         redactionLabel:
           guardrail.redactionLabel ?? GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
         targets: assignmentsToTargetOptions(guardrail.assignments),

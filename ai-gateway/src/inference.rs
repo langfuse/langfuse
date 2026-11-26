@@ -194,6 +194,7 @@ impl InferenceService {
         let guardrails = crate::guardrails::Guardrails::new(
             config.outbound_policy.clone(),
             config.external_guardrail_timeout,
+            config.guardrail_max_scan_bytes,
             cpu.clone(),
             Arc::clone(&memory_budget),
         )?;
@@ -521,6 +522,7 @@ impl InferenceService {
         let guardrails = crate::guardrails::Guardrails::new(
             crate::providers::OutboundPolicy::default(),
             Duration::from_secs(3),
+            crate::config::DEFAULT_GUARDRAIL_MAX_SCAN_BYTES,
             cpu.clone(),
             Arc::clone(&memory_budget),
         )

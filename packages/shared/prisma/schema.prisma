@@ -507,6 +507,11 @@ enum GatewayGuardrailAction {
   ENFORCE
 }
 
+enum GatewayGuardrailScope {
+  LAST_TURN
+  ENTIRE_INPUT
+}
+
 enum GatewayGuardrailAssignmentScope {
   ORGANIZATION
   API_KEY
@@ -522,6 +527,7 @@ model GatewayGuardrail {
   name                String
   type                GatewayGuardrailType         @default(REGEX)
   action              GatewayGuardrailAction
+  scope               GatewayGuardrailScope        @default(LAST_TURN)
   // For REGEX: { "presets": [...], "secretPrefixes": [...], "containsWords": [...], "customRegex": "..." };
   // For BEDROCK: { "guardrailId": "...", "guardrailVersion": "...", "region": "..." }.
   config              Json                         @default("{}") @db.JsonB
