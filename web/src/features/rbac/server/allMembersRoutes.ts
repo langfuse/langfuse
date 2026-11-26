@@ -122,7 +122,7 @@ async function getMembers(
     });
   }
 
-  if (query.roles?.length) {
+  if (query.roles != null && query.roles.length > 0) {
     conditions.push(roleFilter(query.roles, projectId));
   }
 

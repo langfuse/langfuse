@@ -41,7 +41,7 @@ export class InMemoryFilterService {
     } catch (error) {
       logger.error("Error evaluating filter in memory", {
         error,
-        filterCount: filter?.length || 0,
+        filterCount: filter?.length ?? 0,
       });
       // On error, return false to be safe (filter doesn't match)
       return false;

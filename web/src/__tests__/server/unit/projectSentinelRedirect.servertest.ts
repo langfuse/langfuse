@@ -37,7 +37,7 @@ const makeCtx = (
   const path = (params?.path as string[] | undefined) ?? [];
   const url =
     resolvedUrl ??
-    `/project/~${path.length ? `/${path.map(encodeURIComponent).join("/")}` : ""}`;
+    `/project/~${path.length > 0 ? `/${path.map(encodeURIComponent).join("/")}` : ""}`;
   return {
     req: {
       headers: {

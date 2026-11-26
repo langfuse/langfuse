@@ -74,7 +74,7 @@ export function TopicRuleDialogView({
               tooltip="Share of new matching traces this map analyzes."
             />
           </TopicSliceFields.LiveUpdates>
-          {filterError && filter.length ? (
+          {filterError && filter.length > 0 ? (
             <TopicsErrorMessage message={filterError} />
           ) : null}
           {saveError ? <TopicsErrorMessage message={saveError} /> : null}

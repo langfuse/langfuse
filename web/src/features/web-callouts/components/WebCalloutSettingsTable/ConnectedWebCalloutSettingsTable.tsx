@@ -58,7 +58,7 @@ export function ConnectedWebCalloutSettingsTable({
     if (endpoints.isError) {
       return "Could not load the callout endpoint configuration.";
     }
-    if (endpoints.data?.length) {
+    if (endpoints.data != null && endpoints.data.length > 0) {
       return "Currently you can only create one callout per project.";
     }
     return undefined;

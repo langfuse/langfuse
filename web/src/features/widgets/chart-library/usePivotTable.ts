@@ -26,7 +26,7 @@ export function usePivotTable({
   onSortChange?: (sortState: OrderByState | null) => void;
 }) {
   const pivotTableRows = useMemo(() => {
-    if (!data.length) return [];
+    if (data.length === 0) return [];
     const pivotConfig: PivotTableConfig = {
       dimensions: config?.dimensions ?? [],
       metrics: config?.metrics ?? ["metric"],
@@ -106,9 +106,10 @@ export function usePivotTable({
       columns: [
         {
           id: "dimension",
-          label: config?.dimensions?.length
-            ? config.dimensions.map(formatMetricName).join(" / ")
-            : "Dimension",
+          label:
+            config?.dimensions && config.dimensions.length > 0
+              ? config.dimensions.map(formatMetricName).join(" / ")
+              : "Dimension",
         },
         ...metrics.map((metric) => {
           const sort = (() => {

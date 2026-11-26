@@ -198,6 +198,7 @@ export default {
           },
         ],
         "@repo/no-exotic-operators": "warn",
+        "@repo/no-length-as-boolean": "error",
         "@repo/no-restricted-prisma-writes": [
           "warn",
           {

@@ -94,7 +94,7 @@ async function lookupProcessingSampling(projectId: string): Promise<number> {
     findActiveTopicsConfig(projectId),
     findActiveTopicRules(projectId),
   ]);
-  if (!config || !rules.length) return 0;
+  if (!config || rules.length === 0) return 0;
   // Rules sample on the same deterministic trace-ID value, so the largest rate admits every rule's sample.
   const sampling = Math.max(...rules.map((rule) => Number(rule.sampling)));
   return Math.min(1, Math.max(0, sampling));

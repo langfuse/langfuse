@@ -126,8 +126,8 @@ function SingleBarChart({
                     ? [datum.value]
                     : [],
                 );
-                const min = values.length ? Math.min(...values) : 0;
-                const max = values.length ? Math.max(...values) : 1;
+                const min = values.length > 0 ? Math.min(...values) : 0;
+                const max = values.length > 0 ? Math.max(...values) : 1;
                 const domainMin = zeroBaseline ? Math.min(0, min) : min;
                 const domainMax = Math.max(
                   zeroBaseline || min < 0 ? 0 : min,
@@ -348,7 +348,9 @@ function SingleBarChart({
           )}
         </ChartContainer>
       </div>
-      {legend?.items.length ? <ChartLegend items={legend.items} /> : null}
+      {legend?.items && legend.items.length > 0 ? (
+        <ChartLegend items={legend.items} />
+      ) : null}
     </div>
   );
 }
@@ -379,7 +381,7 @@ function MultiSeriesBarChart({
           });
           return [
             item.id,
-            values.length
+            values.length > 0
               ? values.reduce((sum, value) => sum + value, 0)
               : null,
           ] as const;
@@ -653,7 +655,7 @@ function MultiSeriesBarChart({
                               : [];
                           });
                           const referenceProps = getReferenceProps(
-                            items.length
+                            items.length > 0
                               ? {
                                   type: "items",
                                   index,

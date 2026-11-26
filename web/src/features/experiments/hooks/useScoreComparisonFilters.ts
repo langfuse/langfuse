@@ -52,9 +52,8 @@ export const useScoreComparisonFilters = () => {
   const write = useCallback(
     (next: ScoreComparisonFilter[]) =>
       setState({
-        scoreCompare: next.length
-          ? next.map(encodeScoreComparisonFilter)
-          : undefined,
+        scoreCompare:
+          next.length > 0 ? next.map(encodeScoreComparisonFilter) : undefined,
       }),
     [setState],
   );

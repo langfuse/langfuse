@@ -132,12 +132,13 @@ async function seed(
           (timeRange.to.getTime() - timeRange.from.getTime()) / DAY_MS,
         ),
     ) ?? TOPIC_SETUP_WINDOW_DAYS[0];
-  const matching = analysis!.filter.length
-    ? await topicMatchingTraceIdsQuery(
-        { projectId, filter: analysis!.filter, ...timeRange },
-        prisma,
-      )
-    : undefined;
+  const matching =
+    analysis!.filter.length > 0
+      ? await topicMatchingTraceIdsQuery(
+          { projectId, filter: analysis!.filter, ...timeRange },
+          prisma,
+        )
+      : undefined;
   // Twice the idle wait, so a trace's live processing has most likely finished too.
   const traceIds =
     matching === null
@@ -194,7 +195,7 @@ async function dispatch(
   bounds: Awaited<ReturnType<typeof getTopicSetupTraceBounds>>,
   now: Date,
 ) {
-  if (!bounds.length) return [];
+  if (bounds.length === 0) return [];
   const queue = EventsDispatchQueue.getInstance();
   if (!queue) throw new Error("Events dispatch queue is unavailable.");
   const all: PendingTrace[] = bounds.map((bound) => ({

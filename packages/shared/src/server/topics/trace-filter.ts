@@ -23,8 +23,8 @@ function topicTimeRange(filter: FilterState) {
       .map((condition) => condition.value.getTime());
   const lowers = times(">");
   const uppers = times("<");
-  const to = (uppers.length ? Math.min(...uppers) : Date.now()) + 1;
-  const from = lowers.length ? Math.max(...lowers) : undefined;
+  const to = (uppers.length > 0 ? Math.min(...uppers) : Date.now()) + 1;
+  const from = lowers.length > 0 ? Math.max(...lowers) : undefined;
   if (from !== undefined && from >= to) return null;
   if (from === undefined || to - from > TOPICS_MAX_TIME_RANGE_MS)
     throw new InvalidRequestError(

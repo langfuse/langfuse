@@ -147,7 +147,7 @@ export async function getTopicSetupTraceBounds(input: {
   /** Start of the window the traces were selected from. */
   from: Date;
 }) {
-  if (!input.traceIds.length) return [];
+  if (input.traceIds.length === 0) return [];
   const rows = await queryClickhouse<{
     trace_id: string;
     min_start: string;

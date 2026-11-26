@@ -18,7 +18,11 @@ export function dropUnpairedAssistantToolCalls(
   let changed = false;
 
   const sanitizedMessages = messages.map((message): AgUiMessage => {
-    if (message.role !== "assistant" || !message.toolCalls?.length) {
+    if (
+      message.role !== "assistant" ||
+      !message.toolCalls ||
+      message.toolCalls.length === 0
+    ) {
       return message;
     }
 

@@ -42,7 +42,8 @@ export function useTraceSampleTranscript({
   );
   const hasMessages = (query.data?.transcript?.threads ?? []).some(
     (thread) =>
-      (thread.conversationHistory?.length ?? 0) > 0 ||
+      (thread.conversationHistory != null &&
+        thread.conversationHistory.length > 0) ||
       thread.currentTurn.messages.length > 0,
   );
 

@@ -855,7 +855,7 @@ function FilterBuilderForm({
             disabled={disabled}
             isCustomSelectEnabled
           />
-        ) : keyOptions?.length ? (
+        ) : keyOptions != null && keyOptions.length > 0 ? (
           // Case 1: object with keyOptions - selector of the key of the object
           <Select
             disabled={!filter.column}

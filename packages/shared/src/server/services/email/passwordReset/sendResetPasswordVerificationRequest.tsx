@@ -151,7 +151,7 @@ export async function sendResetPasswordVerificationRequest(
   const failed = [...(result.rejected ?? []), ...(result.pending ?? [])].filter(
     Boolean,
   );
-  if (failed.length) {
+  if (failed.length > 0) {
     throw new Error(`Email(s) (${failed.join(", ")}) could not be sent`);
   }
 }

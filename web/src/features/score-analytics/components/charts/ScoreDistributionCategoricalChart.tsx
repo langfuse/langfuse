@@ -72,7 +72,11 @@ export function ScoreDistributionCategoricalChart({
     };
   }, [stackedDistribution, score2Categories, score2Name, score2Source, colors]);
 
-  if (stackedDistribution?.length && score2Categories) {
+  if (
+    stackedDistribution != null &&
+    stackedDistribution.length > 0 &&
+    score2Categories
+  ) {
     return (
       <StackedBarChart
         data={data}

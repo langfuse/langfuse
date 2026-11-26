@@ -577,7 +577,7 @@ export function toDefaultValues(
   const isPivot = initialValues.chartType === "PIVOT_TABLE";
 
   const metrics: MetricField[] =
-    isPivot && initialValues.metrics?.length
+    isPivot && initialValues.metrics != null && initialValues.metrics.length > 0
       ? initialValues.metrics.map((m) => ({
           measure: m.measure,
           aggregation: m.agg as z.infer<typeof metricAggregations>,
@@ -590,7 +590,7 @@ export function toDefaultValues(
         ];
 
   const dimensions = isPivot
-    ? initialValues.dimensions?.length
+    ? initialValues.dimensions != null && initialValues.dimensions.length > 0
       ? initialValues.dimensions.map((d) => ({ field: d.field }))
       : []
     : initialValues.dimension && initialValues.dimension !== "none"

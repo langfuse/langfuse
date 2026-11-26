@@ -85,7 +85,7 @@ export function prepareAssembledTopicTranscript(
   const messages = (items: NormalizedMessage[]) =>
     items.flatMap((message) => {
       const parts = message.parts.flatMap(modelPart);
-      if (!parts.length) return [];
+      if (parts.length === 0) return [];
       hasContent = true;
       return [{ role: message.role, parts }];
     });

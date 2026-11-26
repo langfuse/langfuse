@@ -625,7 +625,7 @@ function TopicsWorkspaceContent({
           analysisId &&
           analysisResults.data &&
           !analysisResults.error &&
-          !analysisFacet?.map?.topics.length
+          (analysisFacet?.map?.topics.length ?? 0) === 0
             ? {
                 status: analysisResults.data.execution.status,
                 outcome: analysisFacet?.outcome,
@@ -969,7 +969,7 @@ function useVisibleRunCosts(
           due.push(id);
         }
       }
-      if (due.length) {
+      if (due.length > 0) {
         const amounts = await utils.client.topics.executionCostBreakdown.query(
           {
             projectId,

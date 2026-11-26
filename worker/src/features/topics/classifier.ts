@@ -17,7 +17,7 @@ export function normalizeVector(vector: number[]): number[] {
 }
 
 function normalizeInto(vector: number[], normalized: number[]): number[] {
-  if (!vector.length || vector.some((value) => !Number.isFinite(value))) {
+  if (vector.length === 0 || vector.some((value) => !Number.isFinite(value))) {
     throw new Error("Invalid topic embedding");
   }
   const norm = Math.hypot(...vector);

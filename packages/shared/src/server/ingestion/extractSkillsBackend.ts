@@ -109,7 +109,7 @@ export function extractSkillsFromObservation({
       });
     }
   }
-  if (!resources.length) return {};
+  if (resources.length === 0) return {};
 
   return {
     ...(available?.success ? { skillsAvailable: available.data } : {}),

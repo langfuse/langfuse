@@ -116,7 +116,7 @@ export async function createTopicFacetVersion(
     >`SELECT id, is_built_in AS "isBuiltIn" FROM evaluators
       WHERE project_id = ${input.projectId} AND id = ${input.facetId} AND type = 'FACET'
       FOR UPDATE`;
-    if (!facets.length)
+    if (facets.length === 0)
       throw new InvalidRequestError("Facet not found in this project.");
     if (facets[0].isBuiltIn)
       throw new InvalidRequestError("Built-in facets cannot be changed.");
@@ -150,7 +150,8 @@ export async function ensureDefaultTopicFacets(
   await prisma.$transaction(async (tx) => {
     const projects = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM projects WHERE id = ${projectId} FOR UPDATE`;
-    if (!projects.length) throw new InvalidRequestError("Project not found.");
+    if (projects.length === 0)
+      throw new InvalidRequestError("Project not found.");
     const existing = await tx.evaluator.findMany({
       where: { projectId, type: "FACET", isBuiltIn: true },
       select: { name: true },
@@ -296,7 +297,7 @@ export async function writeTopicRule(
       id: { in: facetIds },
     },
   });
-  if (!facetIds.length || facetCount !== facetIds.length)
+  if (facetIds.length === 0 || facetCount !== facetIds.length)
     throw new InvalidRequestError("Select facets from this project.");
   const rules = await tx.evaluationRule.findMany({
     where: topicRuleWhere(input.projectId),
@@ -403,7 +404,7 @@ async function hydrateRuns(
   rows: RunRow[],
 ): Promise<TopicRun[]> {
   const ids = rows.flatMap((row) => row.topicVersionIds);
-  if (!ids.length) return rows.map((row) => runResult(row, new Map()));
+  if (ids.length === 0) return rows.map((row) => runResult(row, new Map()));
   const definitions = new Map(
     (await getTopicDefinitions(projectId, ids, definitionTimeRange(rows))).map(
       (topic) => [topic.topicVersionId, topic],
@@ -441,7 +442,7 @@ export async function getTopicRuns(
   projectId: string,
   ids: string[],
 ): Promise<TopicRun[]> {
-  if (!ids.length) return [];
+  if (ids.length === 0) return [];
   const rows = await prisma.topicClusteringRun.findMany({
     where: { projectId, id: { in: ids } },
   });
@@ -510,7 +511,7 @@ export async function getCurrentTopicMapRows(
   projectId: string,
   facetIds: string[],
 ): Promise<CurrentTopicMap[]> {
-  if (!facetIds.length) return [];
+  if (facetIds.length === 0) return [];
   const [rules, serving] = await Promise.all([
     listTopicRules(projectId),
     findServingRuns(projectId, facetIds),
@@ -520,7 +521,7 @@ export async function getCurrentTopicMapRows(
       (facetId): Promise<CurrentTopicMap | null>[] => {
         const fallback = serving.find((run) => run.facetId === facetId) ?? null;
         const owners = rules.filter((rule) => rule.facetIds.includes(facetId));
-        if (!owners.length)
+        if (owners.length === 0)
           return [Promise.resolve(fallback && { ruleId: null, run: fallback })];
         return owners.map(async (rule) => {
           const own = await getTopicRuleMapRow(projectId, rule.id, facetId);
@@ -559,7 +560,7 @@ export async function getPublishedTopicMaps(
   const ids = unique.flatMap((run) => run.topicVersionIds);
   // Only names and ids: these reads run on every tracing request with topics.
   const names = new Map(
-    (ids.length
+    (ids.length > 0
       ? await getTopicNames(projectId, ids, definitionTimeRange(unique))
       : []
     ).map((topic) => [topic.topicVersionId, topic]),
@@ -583,7 +584,7 @@ export async function getCompletedTopicRuleRunIds(
   projectId: string,
   ruleIds: string[],
 ): Promise<string[]> {
-  if (!ruleIds.length) return [];
+  if (ruleIds.length === 0) return [];
   const runs = await prisma.topicClusteringRun.findMany({
     where: {
       projectId,
@@ -696,12 +697,13 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
   const definitionTimes = run.topics.map((topic) =>
     Date.parse(topic.createdAt),
   );
-  const definitionTimeRange = definitionTimes.length
-    ? topicTimeRangeSchema.parse({
-        from: new Date(Math.min(...definitionTimes)),
-        to: new Date(Math.max(...definitionTimes) + 1),
-      })
-    : null;
+  const definitionTimeRange =
+    definitionTimes.length > 0
+      ? topicTimeRangeSchema.parse({
+          from: new Date(Math.min(...definitionTimes)),
+          to: new Date(Math.max(...definitionTimes) + 1),
+        })
+      : null;
   const config = { ...run.config };
   if (definitionTimeRange)
     config.definitionTimeRange = {
@@ -733,7 +735,7 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
       missing.push(topic);
     }
   }
-  if (missing.length) {
+  if (missing.length > 0) {
     // Definitions must be readable before Postgres can publish their membership.
     await writeTopicDefinitions(missing);
     const ids = missing.map((topic) => topic.topicVersionId);

@@ -121,7 +121,7 @@ function hasVisibilityChanges<TData, TValue>(
   columnVisibility: VisibilityState,
 ): boolean {
   return columns.some((column) =>
-    column.columns?.length
+    column.columns != null && column.columns.length > 0
       ? hasVisibilityChanges(column.columns, columnVisibility)
       : column.enableHiding &&
         !column.isFixedPosition &&

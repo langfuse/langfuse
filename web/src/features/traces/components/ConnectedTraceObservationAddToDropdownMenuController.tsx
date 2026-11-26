@@ -181,7 +181,7 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
                 });
               },
             })),
-            ...((datasets.data?.length ?? 0) === 0
+            ...(datasets.data == null || datasets.data.length === 0
               ? [
                   {
                     id: "no-datasets",

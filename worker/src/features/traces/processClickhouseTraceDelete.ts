@@ -19,7 +19,7 @@ const deleteTopicResultsForTraces = async (
   projectId: string,
   traceIds: string[],
 ): Promise<void> => {
-  if (!traceIds.length) return;
+  if (traceIds.length === 0) return;
 
   await Promise.all(
     [

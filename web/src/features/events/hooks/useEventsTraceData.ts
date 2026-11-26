@@ -87,13 +87,13 @@ export function useEventsTraceData(
     | undefined;
 
   const rootObservation = useMemo(() => {
-    if (!observations?.length) return null;
+    if (observations == null || observations.length === 0) return null;
     return observations.find((o) => !o.parentObservationId);
   }, [observations]);
 
   // Prefer the root observation when present, otherwise fall back to the earliest one.
   const primaryObservation = useMemo(() => {
-    if (!observations?.length) return null;
+    if (observations == null || observations.length === 0) return null;
     if (rootObservation) return rootObservation;
     // Fallback to earliest observation
     return (
@@ -104,7 +104,7 @@ export function useEventsTraceData(
   }, [observations, rootObservation]);
 
   const timeRange = useMemo(() => {
-    if (!observations?.length) return null;
+    if (observations == null || observations.length === 0) return null;
     const times = observations.map((o) => o.startTime.getTime());
     return {
       min: new Date(Math.min(...times)),
@@ -150,7 +150,7 @@ export function useEventsTraceData(
 
   // Step 5: Transform and merge data
   const transformed = useMemo(() => {
-    if (!observations?.length) return null;
+    if (observations == null || observations.length === 0) return null;
 
     // Validate and partition scores
     const validatedScores = filterAndValidateDbScoreList({

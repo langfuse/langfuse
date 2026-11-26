@@ -960,7 +960,7 @@ export class InAppAgentInstrumentation {
     if (
       !thinking &&
       lastMessage?.role === "assistant" &&
-      !lastMessage.tool_calls?.length
+      (lastMessage.tool_calls == null || lastMessage.tool_calls.length === 0)
     ) {
       lastMessage.content = `${typeof lastMessage.content === "string" ? lastMessage.content : ""}${delta}`;
       return;
@@ -1274,7 +1274,7 @@ function getAgentRunMessages(messages: AgUiMessage[]): AgentRunChatMessage[] {
         type: "function" as const,
       }));
 
-      if (!message.content && !toolCalls?.length) {
+      if (!message.content && (toolCalls == null || toolCalls.length === 0)) {
         return [];
       }
 
@@ -1283,7 +1283,9 @@ function getAgentRunMessages(messages: AgUiMessage[]): AgentRunChatMessage[] {
           role: "assistant",
           ...(message.name ? { name: message.name } : {}),
           content: message.content ?? "",
-          ...(toolCalls?.length ? { tool_calls: toolCalls } : {}),
+          ...(toolCalls != null && toolCalls.length > 0
+            ? { tool_calls: toolCalls }
+            : {}),
         },
       ];
     }

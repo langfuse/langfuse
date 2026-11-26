@@ -105,7 +105,7 @@ async function insertTopicRows<T extends { projectId: string }>(
   let values: Record<string, unknown>[] = [];
   let bytes = 0;
   const flush = async () => {
-    if (!values.length) return;
+    if (values.length === 0) return;
     await clickhouseClient().insert({
       table,
       format: "JSONEachRow",
@@ -308,7 +308,7 @@ export async function writeTopicDefinitions(
       !row.topicId ||
       !row.createdByRunId ||
       !Number.isFinite(Date.parse(row.createdAt)) ||
-      !row.centroid.length ||
+      row.centroid.length === 0 ||
       !Number.isFinite(row.radius) ||
       row.radius < 0
     )
@@ -319,7 +319,7 @@ export async function writeTopicDefinitions(
   let values: Buffer[] = [];
   let bytes = 0;
   const flush = async () => {
-    if (!values.length) return;
+    if (values.length === 0) return;
     const result = await clickhouseClient().exec({
       query: `INSERT INTO topics (project_id, id, stable_id, created_by_run_id,
         created_at, name, description, centroid, radius, labels,
@@ -914,7 +914,7 @@ export async function getTopicSummaryCounts(
   timeRange: TopicTimeRange,
   cohort?: TopicClusteringCohort,
 ): Promise<{ facetId: string; facetVersion: number; count: number }[]> {
-  if (!facets.length) return [];
+  if (facets.length === 0) return [];
   const scopeSql = `unit_type = 'trace'
     AND (facet_id, facet_version) IN arrayZip({facetIds:Array(String)}, {facetVersions:Array(UInt32)})`;
   const rows = await queryClickhouse<{
@@ -987,7 +987,7 @@ export async function getTopicSetupSummaryCounts(
   timeRange: TopicTimeRange,
   traces?: TopicCohortTraces,
 ): Promise<{ facetId: string; count: number }[]> {
-  if (!facets.length) return [];
+  if (facets.length === 0) return [];
   const rows = await queryClickhouse<{ facetId: string; count: string }>({
     query: `SELECT facet_id AS facetId, uniqCombined(trace_id) AS count
       FROM topic_facet_summaries
@@ -1030,7 +1030,7 @@ export async function countTopicTraceSummaries(
   since: Date,
   from: Date,
 ): Promise<{ facetId: string; settled: number; complete: number }[]> {
-  if (!facets.length || !traceIds.length)
+  if (facets.length === 0 || traceIds.length === 0)
     return facets.map(({ facetId }) => ({ facetId, settled: 0, complete: 0 }));
   const rows = await queryClickhouse<{
     facetId: string;
@@ -1081,7 +1081,7 @@ export function isValidTopicSummary(row: TopicSummary): boolean {
 }
 
 export async function writeTopicSummaries(rows: TopicSummary[]): Promise<void> {
-  if (!rows.length) return;
+  if (rows.length === 0) return;
   if (!rows.every(isValidTopicSummary))
     throw new Error("Invalid Topics summary result.");
   await insertTopicRows("topic_facet_summaries", rows, topicSummaryRecord);
@@ -1090,7 +1090,7 @@ export async function writeTopicSummaries(rows: TopicSummary[]): Promise<void> {
 export async function writeTopicAssignments(
   rows: TopicAssignment[],
 ): Promise<void> {
-  if (!rows.length) return;
+  if (rows.length === 0) return;
   for (const row of rows) {
     if (
       !topicSourceSchema.safeParse(row).success ||
@@ -1363,7 +1363,7 @@ export async function readLatestTopicAssignments(
   timeRange: TopicTimeRange,
   traceIds?: string[],
 ): Promise<TopicAssignment[]> {
-  if (!publishedRunIds.length) return [];
+  if (publishedRunIds.length === 0) return [];
   const rows = await queryClickhouse<AssignmentRow>({
     query: `SELECT ${assignmentColumns} FROM topic_assignments
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND facet_id = {facetId:String}

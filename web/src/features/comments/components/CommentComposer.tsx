@@ -143,7 +143,7 @@ export function CommentComposer({
       mentions.closeDropdown();
       return true;
     }
-    if (!mentions.users.length) return false;
+    if (mentions.users.length === 0) return false;
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       const direction = event.key === "ArrowDown" ? 1 : -1;
       mentions.setSelectedIndex(

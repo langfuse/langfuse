@@ -26,7 +26,7 @@ export function createDatasetMapping(
       extractSchemaFields(schema),
       source,
     );
-    return entries.length
+    return entries.length > 0
       ? {
           mode: "custom",
           custom: { type: "keyValueMap", keyValueMapConfig: { entries } },
@@ -92,8 +92,8 @@ export function prepareDatasetMapping(
       if (
         field.schema &&
         config.mode !== "none" &&
-        !result.errors.length &&
-        !result.misses.length
+        result.errors.length === 0 &&
+        result.misses.length === 0
       ) {
         try {
           const validation = validateFieldAgainstSchema({

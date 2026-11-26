@@ -272,9 +272,8 @@ async function clusterFacet(
   // Persist the attempt and selected cohort before any terminal result or inference.
   await scope.save("clustering");
   if (summaries.length < numericConfig.minimumCount) {
-    progress.outcome = summaries.length
-      ? "insufficient_data"
-      : "no_applicable_summaries";
+    progress.outcome =
+      summaries.length > 0 ? "insufficient_data" : "no_applicable_summaries";
     await saveTopicRun({
       ...run,
       status: "skipped",
@@ -336,7 +335,7 @@ async function clusterFacet(
               }),
             ),
           );
-    if (!prototypes.length) {
+    if (prototypes.length === 0) {
       metrics.result("clustering", "no_topics");
       await assignSummaries(
         metrics,
@@ -747,9 +746,8 @@ async function updateTopics(
             ).length;
             progress.counts.outlier =
               assignments.length - progress.counts.assigned;
-            progress.outcome = accepted.topics.length
-              ? "published"
-              : "no_topics";
+            progress.outcome =
+              accepted.topics.length > 0 ? "published" : "no_topics";
             await saveProgress(metrics, execution, "processing");
             return;
           }
@@ -968,7 +966,7 @@ async function refitCohort({
     embeddingConfig,
     scheduled,
     refitLimits(),
-    filter.length
+    filter.length > 0
       ? (window) =>
           summarizedTopicMatchesQuery(
             { projectId, facet, filter, ...window },

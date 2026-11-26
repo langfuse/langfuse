@@ -15,7 +15,7 @@ const columns = [
     header: "User IDs",
     getCell: (userIds, { row }) => {
       if (row.original.isLinkListLoading) return { type: "loading" };
-      if (!userIds?.length) return undefined;
+      if (userIds == null || userIds.length === 0) return undefined;
 
       return userIds.map((userId) => ({
         path: `/users/${encodeURIComponent(userId)}`,

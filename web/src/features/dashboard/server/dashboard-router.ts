@@ -182,7 +182,8 @@ function clickhouseHistogramToChartData(
   const histogramBins = result[0]?.histogram_value as
     | Array<[number, number, number]>
     | undefined;
-  if (!histogramBins?.length) return { chartData: [], chartLabels: [] };
+  if (histogramBins == null || histogramBins.length === 0)
+    return { chartData: [], chartLabels: [] };
 
   const round = (v: number) => parseFloat(v.toFixed(2));
   return {

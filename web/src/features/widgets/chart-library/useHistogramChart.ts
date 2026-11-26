@@ -28,7 +28,7 @@ export function useHistogramChart({
     toFullMetricString(metricFormatter(value, { style: "compact" }));
 
   const transformHistogramData = (data: DataPoint[]) => {
-    if (!data.length) return [];
+    if (data.length === 0) return [];
 
     const firstDataPoint = data[0];
     if (firstDataPoint?.metric && Array.isArray(firstDataPoint.metric)) {

@@ -39,7 +39,7 @@ function normalizeMessageContent(
     // Koog can serialize an assistant tool-call batch into a string under a
     // tool-role message. Only treat it as parts when every item is a tool.
     const parsedContent = parseArray(value.content);
-    if (parsedContent?.length) {
+    if (parsedContent && parsedContent.length > 0) {
       const parsedParts = parsedContent.map((part) =>
         normalizePartValue(part, parserContext),
       );
@@ -91,7 +91,8 @@ function applySiblingFields(
       parts,
       partContext,
     );
-    if (siblingParts?.length) contributions.push(...siblingParts);
+    if (siblingParts && siblingParts.length > 0)
+      contributions.push(...siblingParts);
   }
 
   // One message can expose the same call through native content and one or

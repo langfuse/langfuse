@@ -423,7 +423,7 @@ export function DataTable<TData extends object, TValue>({
     if (
       !data.isLoading &&
       !data.isError &&
-      (data.data?.length ?? 0) === 0 &&
+      (data.data == null || data.data.length === 0) &&
       pagination.state.pageIndex > 0 &&
       !pagination.hasNextPage
     ) {

@@ -152,7 +152,7 @@ function injectSelect(
   return {
     ...node,
     ...(where ? { where } : {}),
-    ...(joins.length ? { joins } : {}),
+    ...(joins.length > 0 ? { joins } : {}),
   };
 }
 

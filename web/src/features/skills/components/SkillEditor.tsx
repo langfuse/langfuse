@@ -170,7 +170,7 @@ export function SkillEditor({
     createsNewSkill && !nameError && nameAvailability.isPending;
   const createDisabledReason = useMemo(() => {
     if (!createsNewSkill || nameError) return nameError;
-    if (nameAvailability.data?.data.length) {
+    if ((nameAvailability.data?.data.length ?? 0) > 0) {
       return `A skill named "${draftName}" already exists. Choose a different name.`;
     }
     if (nameAvailability.isError) {

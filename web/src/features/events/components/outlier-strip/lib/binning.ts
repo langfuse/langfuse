@@ -510,8 +510,9 @@ function* descendNiceValues(
   maxValue: number,
   ladder?: readonly number[],
 ): Generator<number> {
-  const ladderFloor = ladder?.length ? ladder[0] : Number.POSITIVE_INFINITY;
-  if (ladder?.length) {
+  const ladderFloor =
+    ladder != null && ladder.length > 0 ? ladder[0] : Number.POSITIVE_INFINITY;
+  if (ladder != null && ladder.length > 0) {
     for (let i = ladder.length - 1; i >= 0; i--) {
       if (ladder[i] <= maxValue) yield ladder[i];
     }

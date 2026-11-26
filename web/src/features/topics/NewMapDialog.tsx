@@ -152,7 +152,7 @@ export function NewMapDialog({
       }
       starting={createRule.isPending || startRuleSetup.isPending}
       errors={[
-        filterError && filter.length ? filterError : null,
+        filterError && filter.length > 0 ? filterError : null,
         createRule.error?.message ?? null,
       ].flatMap((message) => (message ? [message] : []))}
       onStart={() => {

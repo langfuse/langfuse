@@ -164,7 +164,7 @@ export async function loadTopicTranscript(params: {
     if (isResultOverflow(error)) throw new TopicTraceTooLarge();
     throw error;
   }
-  if (!observations.length)
+  if (observations.length === 0)
     throw new Error(
       "Trace not found in this project's v4 events; legacy-only traces are not supported by this PoC",
     );

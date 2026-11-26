@@ -1744,7 +1744,7 @@ export class BillingService {
                 modifiedInvoiceRows.length > 1
                   ? modifiedInvoiceRows[modifiedInvoiceRows.length - 1]!.id
                   : undefined, // last real invoice id
-              prev: invoices.length ? invoices[0]!.id : undefined, // first real invoice id
+              prev: invoices.length > 0 ? invoices[0]!.id : undefined, // first real invoice id
             },
           };
         }
@@ -1754,10 +1754,10 @@ export class BillingService {
           hasMore: list.has_more,
           cursors: {
             next:
-              list.has_more && invoices.length
+              list.has_more && invoices.length > 0
                 ? invoices[invoices.length - 1]!.id
                 : undefined,
-            prev: invoices.length ? invoices[0]!.id : undefined,
+            prev: invoices.length > 0 ? invoices[0]!.id : undefined,
           },
         };
       },

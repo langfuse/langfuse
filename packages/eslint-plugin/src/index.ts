@@ -8,6 +8,7 @@ import { default as noExoticOperators } from "./rules/no-exotic-operators.js";
 import { default as noUnescapedPrismaLikePattern } from "./rules/no-unescaped-prisma-like-pattern.js";
 import { default as noMarginOnRootElements } from "./rules/no-margin-on-root-elements.js";
 import { default as noNullRender } from "./rules/no-null-render.js";
+import { default as noLengthAsBoolean } from "./rules/no-length-as-boolean.js";
 import { default as noLetAssignInReact } from "./rules/no-let-assign-in-react.js";
 import { default as noOverlayZindex } from "./rules/no-overlay-zindex.js";
 import { default as noRawFontWeight } from "./rules/no-raw-font-weight.js";
@@ -33,6 +34,7 @@ const plugin = {
       storybookPlayNoImplementationDetailAssertions,
     "no-margin-on-root-elements": noMarginOnRootElements,
     "no-null-render": noNullRender,
+    "no-length-as-boolean": noLengthAsBoolean,
     "no-let-assign-in-react": noLetAssignInReact,
     "no-overlay-zindex": noOverlayZindex,
     "no-restricted-prisma-writes": noRestrictedPrismaWrites,

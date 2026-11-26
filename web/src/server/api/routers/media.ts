@@ -177,7 +177,7 @@ export const mediaRouter = createTRPCRouter({
           `;
       }
 
-      if (!media.length) {
+      if (media.length === 0) {
         return [];
       }
 

@@ -20,7 +20,7 @@ const tracingFormat = function () {
     if (baggage) {
       const headerObj: Record<string, string> = {};
       baggage.getAllEntries().forEach(([k, v]) => (headerObj[k] = v.value));
-      if (Object.keys(headerObj).length) info = { ...headerObj, ...info };
+      if (Object.keys(headerObj).length > 0) info = { ...headerObj, ...info };
     }
     return info;
   })();
@@ -100,9 +100,8 @@ const getWinstonLogger = (
     winston.format.printf((info) => {
       // `splat` is winston's positional-args carrier, not output.
       const { timestamp, level, message, stack, splat, ...meta } = info;
-      const rendered = Object.keys(meta).length
-        ? ` ${stringifyMeta(meta)}`
-        : "";
+      const rendered =
+        Object.keys(meta).length > 0 ? ` ${stringifyMeta(meta)}` : "";
       const logMessage = `${timestamp} ${level} ${message}${rendered}`;
       return stack ? `${logMessage}\n${stack}` : logMessage;
     }),

@@ -166,7 +166,7 @@ function calculateOffset(
     if (node === container) {
       return charCount + offset;
     }
-    charCount += node.textContent?.length || 0;
+    charCount += node.textContent?.length ?? 0;
     node = walker.nextNode();
   }
 
@@ -185,7 +185,7 @@ function getRowTextLength(keyValueElement: HTMLElement): number {
   );
   let node = walker.nextNode();
   while (node) {
-    length += node.textContent?.length || 0;
+    length += node.textContent?.length ?? 0;
     node = walker.nextNode();
   }
   return length;

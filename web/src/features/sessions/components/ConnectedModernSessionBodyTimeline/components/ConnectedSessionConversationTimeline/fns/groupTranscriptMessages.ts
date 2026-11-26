@@ -87,7 +87,7 @@ export function groupTranscriptMessages<T extends NormalizedMessage>(
     let parts: NormalizedMessagePart[] = [];
     let changed = false;
     const flush = () => {
-      if (parts.length)
+      if (parts.length > 0)
         groups.push({ type: "message", message: { ...message, parts } });
       parts = [];
     };

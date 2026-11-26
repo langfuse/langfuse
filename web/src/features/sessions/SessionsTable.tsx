@@ -704,7 +704,7 @@ export default function SessionsTable({
       enableHiding: true,
       getCell: (userIds) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
-        if (!userIds?.length) return undefined;
+        if (userIds == null || userIds.length === 0) return undefined;
 
         return userIds.map((userId) => ({
           path: `/project/${projectId}/users/${encodeURIComponent(userId)}`,

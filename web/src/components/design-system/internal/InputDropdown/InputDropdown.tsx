@@ -206,7 +206,9 @@ function SingleSelectOptionContent({ checked, ...props }: OptionContentProps) {
   return (
     <>
       <OptionLabel {...props} />
-      <OptionIndicator hasBadges={(props.badges?.length ?? 0) > 0}>
+      <OptionIndicator
+        hasBadges={props.badges != null && props.badges.length > 0}
+      >
         <Check
           aria-hidden="true"
           size="base"
@@ -220,7 +222,10 @@ function SingleSelectOptionContent({ checked, ...props }: OptionContentProps) {
 function MultiSelectOptionContent({ checked, ...props }: OptionContentProps) {
   return (
     <>
-      <OptionIndicator hasBadges={(props.badges?.length ?? 0) > 0} leading>
+      <OptionIndicator
+        hasBadges={props.badges != null && props.badges.length > 0}
+        leading
+      >
         <Checkbox
           checked={checked}
           size="sm"

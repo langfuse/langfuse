@@ -174,7 +174,7 @@ export function SnapshotDialog({
       canStart={canGroup && name.trim().length > 0 && !counts.isFetching}
       starting={start.isPending}
       errors={[
-        filterError && filter.length ? filterError : null,
+        filterError && filter.length > 0 ? filterError : null,
         counts.error?.message ?? null,
         start.error?.message ?? null,
       ].flatMap((message) => (message ? [message] : []))}
