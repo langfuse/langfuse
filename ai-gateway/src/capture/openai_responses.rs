@@ -524,7 +524,8 @@ macro_rules! text_part {
         Object::new(&[
             ("text", text(summary($slot))),
             ("refusal", text(summary("refusal"))),
-            ("transcript", text(summary("audio_transcript"))),
+            // Transcript deltas carry no output index, so copies join the stream by text.
+            ("transcript", text(Emit::Copy)),
         ])
         .node()
     };

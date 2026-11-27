@@ -907,6 +907,35 @@ fn redacts_sse_responses_across_formats_and_span_boundaries() {
 }
 
 #[test]
+fn responses_audio_transcript_copies_join_the_streamed_transcript() {
+    let sse = concat!(
+        r#"data: {"type":"response.audio.transcript.delta","delta":"Spoken 123-"}"#,
+        "\n\n",
+        r#"data: {"type":"response.audio.transcript.delta","delta":"45-6789"}"#,
+        "\n\n",
+        r#"data: {"type":"response.output_item.done","output_index":2,"item":{"type":"message","content":[{"type":"output_audio","transcript":"Spoken 123-45-6789"}]}}"#,
+        "\n\n",
+    );
+    let parsed = ParsedResponse::parse(
+        ApiFormat::OpenAiResponses,
+        ResponseFormat::Sse,
+        vec![Bytes::from_static(sse.as_bytes())],
+        None,
+    )
+    .unwrap();
+    assert_eq!(parsed.blocks().len(), 1);
+    let RedactionApply::Rewritten(rewritten) = parsed
+        .apply_redactions(&[(0, "Spoken [SSN]".to_owned())], None)
+        .unwrap()
+    else {
+        panic!("the transcript is rewritten");
+    };
+    let rewritten = String::from_utf8(rewritten.to_vec()).unwrap();
+    assert_eq!(rewritten.matches("Spoken [SSN]").count(), 2);
+    assert!(!rewritten.contains("123-"));
+}
+
+#[test]
 fn sse_responses_read_the_same_however_the_stream_is_chunked() {
     let chat = concat!(
         "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"SSN 123-\"}}]}\n\n",
