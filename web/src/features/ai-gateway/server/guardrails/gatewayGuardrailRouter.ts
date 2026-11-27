@@ -110,6 +110,18 @@ const openAiModerationActionSchema = z.enum(
   GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.OPENAI_MODERATION.actions,
 );
 
+const isScopeSupportedByAction = (value: {
+  action: keyof typeof GATEWAY_GUARDRAIL_ACTION_SCOPES;
+  scope?: z.infer<typeof GatewayGuardrailScopeSchema>;
+}) =>
+  value.scope === undefined ||
+  (GATEWAY_GUARDRAIL_ACTION_SCOPES[value.action] as readonly string[]).includes(
+    value.scope,
+  );
+
+const SCOPE_NOT_SUPPORTED_MESSAGE =
+  "Block guardrails only evaluate the last turn";
+
 const createGuardrailInput = z.union([
   organizationInput.and(regexWriteSchema),
   organizationInput.extend({
@@ -118,12 +130,14 @@ const createGuardrailInput = z.union([
     action: bedrockActionSchema,
     bedrock: GatewayBedrockGuardrailCreateInputSchema,
   }),
-  organizationInput.extend({
-    ...commonWriteFields,
-    type: z.literal("OPENAI_MODERATION"),
-    action: openAiModerationActionSchema,
-    openAiModeration: GatewayOpenAiModerationGuardrailCreateInputSchema,
-  }),
+  organizationInput
+    .extend({
+      ...commonWriteFields,
+      type: z.literal("OPENAI_MODERATION"),
+      action: openAiModerationActionSchema,
+      openAiModeration: GatewayOpenAiModerationGuardrailCreateInputSchema,
+    })
+    .refine(isScopeSupportedByAction, SCOPE_NOT_SUPPORTED_MESSAGE),
 ]);
 
 const updateGuardrailInput = z.union([
@@ -134,12 +148,14 @@ const updateGuardrailInput = z.union([
     action: bedrockActionSchema,
     bedrock: GatewayBedrockGuardrailUpdateInputSchema,
   }),
-  guardrailIdInput.extend({
-    ...commonWriteFields,
-    type: z.literal("OPENAI_MODERATION"),
-    action: openAiModerationActionSchema,
-    openAiModeration: GatewayOpenAiModerationGuardrailUpdateInputSchema,
-  }),
+  guardrailIdInput
+    .extend({
+      ...commonWriteFields,
+      type: z.literal("OPENAI_MODERATION"),
+      action: openAiModerationActionSchema,
+      openAiModeration: GatewayOpenAiModerationGuardrailUpdateInputSchema,
+    })
+    .refine(isScopeSupportedByAction, SCOPE_NOT_SUPPORTED_MESSAGE),
 ]);
 
 const bulkTargetInput = z.discriminatedUnion("type", [

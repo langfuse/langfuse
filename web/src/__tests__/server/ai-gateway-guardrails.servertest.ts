@@ -365,6 +365,24 @@ describe("aiGateway guardrails tRPC", () => {
       }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
+    // Blocking external guardrails only evaluate the last turn
+    await expect(
+      ownerCaller.aiGateway.guardrails.create({
+        orgId,
+        type: "OPENAI_MODERATION",
+        name: "Moderation entire input",
+        action: "BLOCK",
+        scope: "ENTIRE_INPUT",
+        openAiModeration: { region: "us", apiKey: "sk-test-key" },
+        assignments: [{ scope: "ORGANIZATION" }],
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining(
+        "Block guardrails only evaluate the last turn",
+      ),
+    });
+
     // Cross-tenant key rejected with NOT_FOUND
     await expect(
       ownerCaller.aiGateway.guardrails.create({
