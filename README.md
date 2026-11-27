@@ -111,6 +111,12 @@ Run Langfuse on your own infrastructure:
 
   # Run the langfuse docker compose
   docker compose up
+
+  # Stop the langfuse docker compose
+  docker compose down
+
+  # Upgrade Version
+  docker compose up --pull always
   ```
 
 - [Kubernetes (Helm)](https://langfuse.com/self-hosting/deployment/kubernetes-helm): Run Langfuse on a Kubernetes cluster using Helm. This is the preferred production deployment.
