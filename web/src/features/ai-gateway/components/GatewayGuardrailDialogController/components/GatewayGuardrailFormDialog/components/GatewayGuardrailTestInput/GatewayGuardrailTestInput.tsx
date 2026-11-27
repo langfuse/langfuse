@@ -91,7 +91,7 @@ export function GatewayGuardrailTestInput({
           <span>Test</span>
         </label>
         {matchCountLabel ? (
-          <span className="text-muted-foreground text-xs tabular-nums">
+          <span className="text-muted-foreground text-xs leading-none tabular-nums">
             {matchCountLabel}
           </span>
         ) : null}

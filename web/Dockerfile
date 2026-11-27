@@ -141,6 +141,14 @@ ENV GOFIPS140=v1.0.0
 # eg.: https://github.com/golang-migrate/migrate/issues/1357
 RUN /usr/local/go/bin/go install -trimpath -tags 'clickhouse' -ldflags='-s -w' \
     github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+# The migrate CLI cannot send a ClickHouse access token. Migrations with
+# CLICKHOUSE_AUTH_MODE=jwt run through this wrapper around the same driver.
+# Its unit tests run here, for the build platform, because no CI job has a Go
+# toolchain.
+COPY packages/shared/clickhouse/jwt-migrate /src/clickhouse-jwt-migrate
+RUN cd /src/clickhouse-jwt-migrate && \
+    GOOS= GOARCH= /usr/local/go/bin/go test ./... && \
+    /usr/local/go/bin/go build -trimpath -ldflags='-s -w' -o /out/clickhouse-jwt-migrate .
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner
 
@@ -292,6 +300,7 @@ COPY --from=web-tools /opt/prisma-cli /usr/local
 COPY --from=web-tools --chown=nextjs:nodejs /opt/dd/node_modules ./node_modules
 
 COPY --from=migrate-builder /out/migrate /usr/bin/migrate
+COPY --from=migrate-builder /out/clickhouse-jwt-migrate /usr/bin/clickhouse-jwt-migrate
 
 COPY --from=builder --chown=nextjs:nodejs /app/web/next.config.mjs .
 COPY --from=builder --chown=nextjs:nodejs /app/web/package.json .

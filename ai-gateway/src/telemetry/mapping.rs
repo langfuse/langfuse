@@ -315,8 +315,17 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     metadata
 }
 
+fn guardrail_action_rank(action: &str) -> u8 {
+    match action {
+        "block" => 3,
+        "redact" => 2,
+        "log" => 1,
+        _ => 0,
+    }
+}
+
 /// Per-guardrail metadata keys (`langfuse.gateway.guardrails.<id> = action`) plus
-/// an overall `.outcome` (`"block"` if any matched guardrail blocked, else `"log"`),
+/// an overall `.outcome` (`"block"` if blocked, `"redact"` if redacted, else `"log"`),
 /// so `ClickHouse` filters on `events_core.metadata_names` via `idx_metadata_names`
 /// without reading `metadata_values` or parsing JSON.
 fn guardrail_metadata(facts: &InferenceFacts) -> Map<String, Value> {
@@ -324,7 +333,11 @@ fn guardrail_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     let Some(guardrails) = facts.metadata.get("guardrails").and_then(Value::as_array) else {
         return metadata;
     };
-    let mut blocked = false;
+    let mut blocked = facts
+        .rejection
+        .as_ref()
+        .is_some_and(|rejection| rejection.reason.starts_with("guardrail_"));
+    let mut redacted = false;
     let mut matched = false;
     for finding in guardrails {
         if let (Some(id), Some(action)) = (
@@ -334,12 +347,29 @@ fn guardrail_metadata(facts: &InferenceFacts) -> Map<String, Value> {
             matched = true;
             if action == "block" {
                 blocked = true;
+            } else if action == "redact" {
+                redacted = true;
             }
-            metadata.insert(format!("langfuse.gateway.guardrails.{id}"), json!(action));
+            let key = format!("langfuse.gateway.guardrails.{id}");
+            let replace = metadata
+                .get(&key)
+                .and_then(Value::as_str)
+                .is_none_or(|existing| {
+                    guardrail_action_rank(action) > guardrail_action_rank(existing)
+                });
+            if replace {
+                metadata.insert(key, json!(action));
+            }
         }
     }
     if matched {
-        let outcome = if blocked { "block" } else { "log" };
+        let outcome = if blocked {
+            "block"
+        } else if redacted {
+            "redact"
+        } else {
+            "log"
+        };
         metadata.insert("langfuse.gateway.guardrails.outcome".into(), json!(outcome));
     }
     metadata
@@ -439,13 +469,24 @@ fn observation_status(facts: &InferenceFacts) -> (&'static str, Option<String>) 
         ("WARNING", Some("Client cancelled the response".into()))
     } else if facts.inference.provider_status.as_deref() == Some("incomplete") {
         ("WARNING", Some("Provider response incomplete".into()))
-    } else if facts
+    } else if let Some(guardrails) = facts
         .metadata
         .get("guardrails")
         .and_then(Value::as_array)
-        .is_some_and(|guardrails| !guardrails.is_empty())
+        .filter(|guardrails| !guardrails.is_empty())
     {
-        ("WARNING", Some("Request matched a guardrail".into()))
+        let has_request = guardrails
+            .iter()
+            .any(|finding| finding.get("location").and_then(Value::as_str) == Some("request"));
+        let has_response = guardrails
+            .iter()
+            .any(|finding| finding.get("location").and_then(Value::as_str) == Some("response"));
+        let message = match (has_request, has_response) {
+            (true, true) => "Request and response matched a guardrail",
+            (false, true) => "Response matched a guardrail",
+            _ => "Request matched a guardrail",
+        };
+        ("WARNING", Some(message.into()))
     } else {
         ("DEFAULT", None)
     }

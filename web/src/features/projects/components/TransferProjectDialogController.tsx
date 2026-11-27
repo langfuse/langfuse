@@ -57,8 +57,7 @@ export function TransferProjectDialogController({
       });
       await new Promise((resolve) => setTimeout(resolve, 5000));
       session.update();
-      // Existing hard navigation is accepted during the Next.js 16.3 migration.
-      // eslint-disable-next-line next-js/no-location-assign-relative-destination
+      // eslint-disable-next-line next-js/no-location-assign-relative-destination, @repo/no-location-navigation -- full page load resets client state after the project moves to another organization
       window.location.href = "/";
     },
   });

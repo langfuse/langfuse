@@ -27,3 +27,114 @@
 
 # Query AST
 /packages/shared/src/server/query-ast/ @niklassemmler
+
+# ---------------------------------------------------------------------------
+# Security-sensitive paths (GitHub hardening)
+#
+# Last matching pattern wins, so keep narrower rules after broader ones.
+# query-ast/tenancy.ts is listed after /packages/shared/src/server/query-ast/
+# so it overrides that rule for this one file.
+# There is intentionally no global `*` owner: review is required only for the
+# paths below. A line with several owners is satisfied by any one of them.
+#
+# Pod leads: @Steffen911 @hassiebp @nimarb
+# ---------------------------------------------------------------------------
+
+# GitHub workflows, actions and repo config (workflows hold release secrets).
+# Also covers this file, so changing ownership needs one of these owners.
+/.github/ @Steffen911 @hassiebp @nimarb @maxdeichmann
+
+# CI pipeline scripts
+/scripts/ci/ @Steffen911 @hassiebp @nimarb @maxdeichmann
+
+# Ingestion API
+/web/src/pages/api/public/ingestion.ts @sumerman @Steffen911
+/web/src/pages/api/public/otel/ @sumerman @Steffen911
+/packages/shared/src/server/ingestion/ @sumerman @Steffen911
+/worker/src/queues/ingestionQueue.ts @sumerman @Steffen911
+/worker/src/queues/otelIngestionQueue.ts @sumerman @Steffen911
+/worker/src/services/IngestionService/ @sumerman @Steffen911
+/worker/src/features/otel-ingestion/ @sumerman @Steffen911
+/web/src/server/otel/ @sumerman @Steffen911
+/packages/shared/src/server/otel/ @sumerman @Steffen911
+/packages/shared/src/server/redis/ingestionQueue.ts @sumerman @Steffen911
+/packages/shared/src/server/redis/otelIngestionQueue.ts @sumerman @Steffen911
+
+# RBAC and entitlements
+/packages/shared/src/features/rbac/ @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/rbac/ @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/entitlements/ @marksalpeter @jordibosch20 @Steffen911
+/packages/shared/src/features/entitlements/ @marksalpeter @jordibosch20 @Steffen911
+/packages/shared/src/server/entitlements/ @marksalpeter @jordibosch20 @Steffen911
+
+# Auth (NextAuth, credentials, API key and role checks)
+/web/src/server/auth.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/pages/api/auth/ @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/auth/policy/ @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/auth-credentials/server/ @marksalpeter @jordibosch20 @Steffen911
+/packages/shared/src/server/auth/ @marksalpeter @jordibosch20 @Steffen911
+
+# Public API security: API-key auth, access scopes, rate limiting and request middleware
+/web/src/features/public-api/server/apiAuth.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/enforceAuth.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/verifyProjectApiKeyAuth.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/authenticateOrganizationApiRequest.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/shadowAuth.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/shadowAuthDiff.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/toApiAccessScope.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/apiKeyCreationRoleSchema.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/RateLimitService.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/withMiddlewares.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/createAuthedProjectAPIRoute.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/cors.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/projectApiKeyRouter.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/organizationApiKeyRouter.ts @marksalpeter @jordibosch20 @Steffen911
+
+# tRPC configuration (context, procedures, auth middleware, handler)
+/web/src/server/api/trpc.ts @Steffen911 @nimarb @hassiebp
+/web/src/pages/api/trpc/ @Steffen911 @nimarb @hassiebp
+
+# Database migrations
+/packages/shared/clickhouse/migrations/ @Steffen911 @hassiebp @nimarb @niklassemmler @marksalpeter @jordibosch20 @sumerman
+
+# Migration runner scripts (run at container startup)
+/web/entrypoint.sh @Steffen911 @hassiebp @nimarb
+/packages/shared/scripts/cleanup.sql @Steffen911 @hassiebp @nimarb
+/packages/shared/clickhouse/scripts/ @Steffen911 @hassiebp @nimarb
+
+# Billing: usage metering job, usage thresholds, spend alerts, Stripe/billing server code and webhooks
+/worker/src/ee/cloudUsageMetering/ @jordibosch20 @Steffen911
+/worker/src/queues/cloudUsageMeteringQueue.ts @jordibosch20 @Steffen911
+/worker/src/ee/usageThresholds/ @jordibosch20 @Steffen911
+/worker/src/queues/cloudFreeTierUsageThresholdQueue.ts @jordibosch20 @Steffen911
+/worker/src/ee/cloudSpendAlerts/ @jordibosch20 @Steffen911
+/worker/src/queues/cloudSpendAlertQueue.ts @jordibosch20 @Steffen911
+/web/src/ee/features/billing/server/ @jordibosch20 @Steffen911
+/web/src/app/api/billing/ @jordibosch20 @Steffen911
+
+# Support access (grants support staff access to customer organizations)
+/web/src/ee/features/support-access/ @jordibosch20 @Steffen911
+
+# SSO
+/web/src/ee/features/multi-tenant-sso/ @jordibosch20 @Steffen911 @marksalpeter
+
+# Admin and internal APIs
+/web/src/pages/api/admin/ @Steffen911 @hassiebp @nimarb
+/web/src/pages/api/internal/ @Steffen911 @hassiebp @nimarb
+/web/src/ee/features/admin-api/ @Steffen911 @hassiebp @nimarb
+
+# Query builder: code that applies the project_id (tenant isolation) filter.
+# tenancy.ts is narrower than /packages/shared/src/server/query-ast/ above, so it wins for this file.
+/packages/shared/src/features/query/server/queryBuilder.ts @niklassemmler @Steffen911
+/packages/shared/src/server/queries/clickhouse-sql/event-query-builder.ts @niklassemmler @Steffen911
+/packages/shared/src/server/query-ast/tenancy.ts @niklassemmler @Steffen911 @sumerman
+
+# Dockerfiles and root docker-compose files
+**/Dockerfile @Steffen911 @hassiebp @nimarb
+/docker-compose*.yml @Steffen911 @hassiebp @nimarb
+
+# Next.js config and app shell
+/web/next.config.mjs @Steffen911 @hassiebp @nimarb
+/web/src/pages/_app.tsx @Steffen911 @hassiebp @nimarb
+/web/src/pages/_document.tsx @Steffen911 @hassiebp @nimarb
+/web/src/pages/_error.tsx @Steffen911 @hassiebp @nimarb

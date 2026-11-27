@@ -6,7 +6,7 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
 const markerVariants = cva(
-  "flex shrink-0 items-center justify-center rounded-full",
+  "flex shrink-0 items-center justify-center font-bold",
   {
     variants: {
       variant: {
@@ -15,9 +15,9 @@ const markerVariants = cva(
           "bg-background text-foreground border-border-contrast border font-bold",
       },
       size: {
-        default: "size-7 text-sm",
-        md: "size-6 text-xs",
-        sm: "size-5 text-xs",
+        default: "size-7 rounded-lg text-sm",
+        md: "size-6 rounded-lg text-xs",
+        sm: "size-5 rounded-md text-xs",
       },
       status: {
         current: null,
@@ -98,8 +98,8 @@ type StepperProps = {
 );
 
 /**
- * Datadog-style vertical stepper section: a numbered circle with a connector
- * line down to the next step. Collapsible steps toggle their body from the
+ * Datadog-style vertical stepper section: a numbered square with a dotted
+ * connector down to the next step. Collapsible steps toggle their body from the
  * header and support controlled expansion for progressive flows. Render steps
  * as siblings — the last one drops its connector and trailing space via
  * `:last-child`, so adding or reordering steps needs no bookkeeping.
@@ -144,7 +144,7 @@ export function Stepper({
             number
           )}
         </div>
-        <div className="bg-border my-1 w-px flex-1 group-last/step:hidden" />
+        <div className="border-border-contrast my-1 w-0 flex-1 border-l border-dotted mask-y-from-[calc(100%-var(--spacing)*4)] group-last/step:hidden" />
       </div>
 
       <div

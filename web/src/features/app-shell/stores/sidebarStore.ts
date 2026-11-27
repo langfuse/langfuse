@@ -34,12 +34,14 @@ const SIDEBAR_EXPANDED_STORAGE_KEY = "langfuse:sidebar:pinned:v1";
 const LEGACY_SIDEBAR_STATE_STORAGE_KEY = "sidebar:state";
 
 function readExpanded(storage: SidebarStorage | null): boolean {
-  if (!storage) return false;
+  if (!storage) return true;
   try {
     const stored =
       storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY) ??
       storage.getItem(LEGACY_SIDEBAR_STATE_STORAGE_KEY);
-    return stored !== null && JSON.parse(stored) === true;
+    // No stored preference opens the full navigation.
+    if (stored === null) return true;
+    return JSON.parse(stored) === true;
   } catch {
     return false;
   }

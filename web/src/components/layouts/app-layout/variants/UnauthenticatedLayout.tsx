@@ -5,14 +5,13 @@
  */
 
 import type { PropsWithChildren } from "react";
-import { SidebarProvider } from "@/src/components/ui/sidebar";
 
 export function UnauthenticatedLayout({ children }: PropsWithChildren) {
   return (
-    <SidebarProvider className="bg-primary-foreground">
+    <div className="bg-primary-foreground min-h-screen-with-banner flex w-full">
       <main className="min-h-dvh w-full overflow-y-auto p-3 px-4 py-4 sm:px-6 lg:px-8">
         {children}
       </main>
-    </SidebarProvider>
+    </div>
   );
 }

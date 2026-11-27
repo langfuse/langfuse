@@ -10,6 +10,7 @@ import {
   getClickHouseJsonBadUnicodeEscapeMode,
 } from "./compatibility";
 import { stringifyJsonWithSanitizedSurrogates } from "./json";
+import { getClickhouseAuth } from "./auth";
 
 export { EXCEPTION_TAG_HEADER_NAME } from "@clickhouse/client";
 
@@ -49,6 +50,17 @@ type RequestTimeoutClickHouseSettings = ClickHouseSettings & {
 
 const CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS = 5;
+/**
+ * Shutdown closes a client replaced after a credential change for this long
+ * past its request timeout. Later only a streamed response can still use it.
+ */
+const REPLACED_CLIENT_SHUTDOWN_MARGIN_MS = 5 * 60_000;
+
+type CachedClient = {
+  client: ClickhouseClientType;
+  authFingerprint: string;
+  requestTimeoutMs: number;
+};
 
 /**
  * ClickHouseClientManager provides a singleton pattern for managing ClickHouse clients.
@@ -57,7 +69,9 @@ const CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS = 5;
  */
 export class ClickHouseClientManager {
   private static instance: ClickHouseClientManager;
-  private clientMap: Map<string, ClickhouseClientType> = new Map();
+  private clientMap: Map<string, CachedClient> = new Map();
+  /** Clients replaced after a credential change that shutdown still closes. */
+  private replacedClients: Set<ClickhouseClientType> = new Set();
 
   /**
    * Private constructor to enforce singleton pattern
@@ -104,10 +118,10 @@ export class ClickHouseClientManager {
       ...this.getServiceClickhouseSettings(preferredClickhouseService),
       ...jsonBadUnicodeEscapeClickhouseSettings,
     };
+    // Credentials are not part of these settings: they would end up in the
+    // client cache key. getClient adds them when it creates the client.
     const keyParams = {
       url: this.getClickhouseUrl(preferredClickhouseService),
-      username: env.CLICKHOUSE_USER,
-      password: env.CLICKHOUSE_PASSWORD,
       database: env.CLICKHOUSE_DB,
       http_headers: opts?.http_headers ?? {},
       ...jsonBadUnicodeEscapeClientSettings,
@@ -191,6 +205,12 @@ export class ClickHouseClientManager {
       preferredClickhouseService,
     );
     const key = JSON.stringify(settings);
+    const auth = getClickhouseAuth();
+    const cached = this.clientMap.get(key);
+    if (cached && cached.authFingerprint !== auth.fingerprint) {
+      this.clientMap.delete(key);
+      this.retireClient(cached);
+    }
     if (!this.clientMap.has(key)) {
       const activeSpan = getCurrentSpan();
       if (activeSpan) {
@@ -206,6 +226,7 @@ export class ClickHouseClientManager {
       const client = createClient({
         ...opts,
         ...settings,
+        ...auth.config,
         application: `langfuse/${VERSION.replace("v", "")}`,
         use_multipart_params:
           env.LANGFUSE_CLICKHOUSE_MULTIPART_QUERY_PARAMS === "true",
@@ -257,21 +278,42 @@ export class ClickHouseClientManager {
         },
       });
 
-      this.clientMap.set(key, client);
+      this.clientMap.set(key, {
+        client,
+        authFingerprint: auth.fingerprint,
+        requestTimeoutMs: clickHouseRequestTimeout,
+      });
     }
 
-    return this.clientMap.get(key)!;
+    return this.clientMap.get(key)!.client;
+  }
+
+  /**
+   * A replaced client is not closed while the process runs. Closing ends all
+   * its connections, also one that still carries a streamed response, and the
+   * request timeout does not bound a response: it is an idle timeout. The
+   * client's idle connections end on their own through keep-alive.
+   */
+  private retireClient(replaced: CachedClient): void {
+    this.replacedClients.add(replaced.client);
+    const timer = setTimeout(
+      () => this.replacedClients.delete(replaced.client),
+      replaced.requestTimeoutMs + REPLACED_CLIENT_SHUTDOWN_MARGIN_MS,
+    );
+    timer.unref();
   }
 
   /**
    * Close all client connections - useful for application shutdown
    */
   public closeAllConnections(): Promise<void[]> {
-    const closePromises = Array.from(this.clientMap.values()).map((client) =>
-      client.close(),
-    );
+    const clients = [
+      ...Array.from(this.clientMap.values(), (cached) => cached.client),
+      ...this.replacedClients,
+    ];
     this.clientMap.clear();
-    return Promise.all(closePromises);
+    this.replacedClients.clear();
+    return Promise.all(clients.map((client) => client.close()));
   }
 }
 

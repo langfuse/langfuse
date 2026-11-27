@@ -108,12 +108,19 @@ const keyboardShortcutVariants = cva(
   },
 );
 
-/** Draws symbol labels one font step up, with their line box pinned to the chip's height. */
+/**
+ * Draws symbol labels one font step up, with their line box pinned to the
+ * chip's height, in the UI font: the mono font lacks ⇧ and ⌥, and fallback
+ * fonts draw them in mismatched weights.
+ */
 const symbolSizeClass = {
-  default: "text-lg leading-none",
-  sm: "text-sm leading-none",
-  xs: "text-xs leading-none",
+  default: "font-sans text-lg leading-none",
+  sm: "font-sans text-sm leading-none",
+  xs: "font-sans text-xs leading-none",
 } as const;
+
+/** These fill their em box, so they keep the letters' size. */
+const FULL_HEIGHT_SYMBOLS = new Set(["⇧", "⌥"]);
 
 export type KeyboardShortcutProps = {
   ref?: React.Ref<HTMLElement>;
@@ -139,13 +146,11 @@ export function KeyboardShortcut({
       {keys.map((key, index) => {
         const label = getKeyboardKeyLabel(key, isMac);
         const isSymbol = /^[^\p{L}\p{N}]$/u.test(label);
+        const symbolClassName = FULL_HEIGHT_SYMBOLS.has(label)
+          ? "font-sans"
+          : symbolSizeClass[size ?? "default"];
         return (
-          <span
-            key={index}
-            className={
-              isSymbol ? symbolSizeClass[size ?? "default"] : undefined
-            }
-          >
+          <span key={index} className={isSymbol ? symbolClassName : undefined}>
             {label}
           </span>
         );
