@@ -9,6 +9,7 @@ import {
   type JsonTableRow,
 } from "@/src/components/table/utils/jsonExpansionUtils";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
+import { codePointSafeSlice } from "@/src/utils/codePointSafeSlice";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
@@ -153,19 +154,15 @@ function isJsonRowExpandable(row: JsonTableRow): boolean {
 }
 
 function getTruncatedValue(value: string, maxChars: number): string {
-  if (value.length <= maxChars) {
-    return value;
+  const truncated = codePointSafeSlice(value, maxChars);
+  if (truncated.length < value.length) {
+    const lastSpaceIndex = truncated.lastIndexOf(" ");
+    if (lastSpaceIndex > maxChars * 0.8) {
+      return truncated.substring(0, lastSpaceIndex) + "...";
+    }
+    return truncated + "...";
   }
-
-  const truncated = value.substring(0, maxChars);
-  const lastSpaceIndex = truncated.lastIndexOf(" ");
-
-  // Try to truncate at word boundary if possible
-  if (lastSpaceIndex > maxChars * 0.8) {
-    return truncated.substring(0, lastSpaceIndex) + "...";
-  }
-
-  return truncated + "...";
+  return truncated;
 }
 
 export function getCopyValue(value: unknown): string {

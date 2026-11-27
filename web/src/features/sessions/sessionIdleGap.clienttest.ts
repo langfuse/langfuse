@@ -30,6 +30,7 @@ describe("sessionIdleGap", () => {
 
   it("formats gaps as rounded minutes or hours", () => {
     expect(formatIdleGap(300)).toBe("5 min");
+    expect(formatIdleGap(3599)).toBe("1 hr");
     expect(formatIdleGap(3600)).toBe("1 hr");
     expect(formatIdleGap(7200)).toBe("2 hrs");
   });
