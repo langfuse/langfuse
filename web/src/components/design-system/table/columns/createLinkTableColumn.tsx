@@ -12,7 +12,7 @@ import {
 
 type LinkTableColumnProps = Pick<
   React.ComponentProps<typeof TextLink>,
-  "path" | "value" | "title" | "onClick"
+  "path" | "value" | "title" | "onClick" | "trailingIcon"
 > & {
   icon?: IconComponent;
 };
@@ -41,7 +41,14 @@ export function createLinkTableColumn<TData extends RowData, TValue = string>({
       if (cell.type === "empty") return <EmptyValue />;
       if (cell.type === "text") return <span>{cell.value}</span>;
 
-      const { icon: Icon, path, value: linkValue, title, onClick } = cell.props;
+      const {
+        icon: Icon,
+        trailingIcon,
+        path,
+        value: linkValue,
+        title,
+        onClick,
+      } = cell.props;
       return (
         <TextLink
           path={path}
@@ -49,6 +56,7 @@ export function createLinkTableColumn<TData extends RowData, TValue = string>({
           title={title ?? linkValue}
           onClick={onClick}
           icon={Icon}
+          trailingIcon={trailingIcon}
         />
       );
     },
