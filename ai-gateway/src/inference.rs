@@ -440,6 +440,9 @@ impl InferenceService {
             } else {
                 None
             };
+            if context.guardrails().iter().any(crate::guardrails::Guardrail::is_active) {
+                correlation.observation().record_guardrails_evaluated();
+            }
             let guardrails = self.guardrails.check(api_format, &context, request).await?;
             if let Some(rejection) = guardrails.rejection() {
                 let error = ResolutionError::GuardrailBlocked(rejection);

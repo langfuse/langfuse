@@ -423,6 +423,7 @@ impl ProviderTransport {
         if let Some(guardrails) =
             guardrails.filter(|_| has_active_response_guardrails(status, route, &run.context))
         {
+            observation.record_guardrails_evaluated();
             return Box::pin(run.execute(response, guardrails)).await;
         }
         Ok(run.relay_passthrough(response))

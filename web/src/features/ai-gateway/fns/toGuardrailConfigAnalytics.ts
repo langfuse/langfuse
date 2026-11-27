@@ -1,37 +1,30 @@
-import type {
-  GatewayGuardrailAction,
-  GatewayGuardrailAssignmentScope,
-  GatewayGuardrailScope,
-  GatewayGuardrailType,
-} from "@langfuse/shared";
-
 import { GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
-import type { GatewayGuardrailConfigAnalytics } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
 import {
   isKnownGuardrailPreset,
   type GatewayGuardrailTemplateKind,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
+import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
 import { summarizeGuardrailAssignments } from "./summarizeGuardrailAssignments";
-
-type GuardrailConfigAnalyticsInput = {
-  template: GatewayGuardrailTemplateKind;
-  guardrail: {
-    type: GatewayGuardrailType;
-    action: GatewayGuardrailAction;
-    scope: GatewayGuardrailScope;
-    presets: readonly string[];
-    secretPrefixes: readonly unknown[];
-    containsWords: readonly unknown[];
-    customRegex: string | null;
-    redactionLabel: string | null;
-    assignments: readonly { scope: GatewayGuardrailAssignmentScope }[];
-  };
-};
 
 export function toGuardrailConfigAnalytics({
   template,
   guardrail,
-}: GuardrailConfigAnalyticsInput): GatewayGuardrailConfigAnalytics {
+}: {
+  template: GatewayGuardrailTemplateKind;
+  guardrail: Pick<
+    GatewayGuardrailRow,
+    | "type"
+    | "action"
+    | "scope"
+    | "secretPrefixes"
+    | "containsWords"
+    | "customRegex"
+    | "redactionLabel"
+  > & {
+    presets: readonly string[];
+    assignments: Parameters<typeof summarizeGuardrailAssignments>[0];
+  };
+}) {
   const presets = Array.from(
     new Set(guardrail.presets.filter(isKnownGuardrailPreset)),
   ).sort();

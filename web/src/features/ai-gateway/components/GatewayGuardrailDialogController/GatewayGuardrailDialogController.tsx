@@ -22,9 +22,9 @@ import {
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
 import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
 import { assignmentsToTargetOptions } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/fns/assignmentsToTargetOptions";
-import { summarizeGuardrailAssignments } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/fns/summarizeGuardrailAssignments";
 import { targetOptionsToAssignments } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/fns/targetOptionsToAssignments";
-import { toGuardrailConfigAnalytics } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/fns/toGuardrailConfigAnalytics";
+import { summarizeGuardrailAssignments } from "@/src/features/ai-gateway/fns/summarizeGuardrailAssignments";
+import { toGuardrailConfigAnalytics } from "@/src/features/ai-gateway/fns/toGuardrailConfigAnalytics";
 import { useGatewayGuardrailRegexPreview } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/hooks/useGatewayGuardrailRegexPreview";
 import { useGatewayGuardrailTargetPicker } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/hooks/useGatewayGuardrailTargetPicker";
 import { GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL } from "@/src/features/ai-gateway/constants/gatewayGuardrails";

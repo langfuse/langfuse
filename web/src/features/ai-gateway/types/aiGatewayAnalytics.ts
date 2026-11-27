@@ -1,7 +1,4 @@
 import type {
-  GatewayGuardrailAction,
-  GatewayGuardrailScope,
-  GatewayGuardrailType,
   GatewayIngestionMode,
   GatewaySpendLimitScope,
 } from "@langfuse/shared";
@@ -9,11 +6,9 @@ import type {
 import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import type { GatewayApiKeyExpirationPreset } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
 import type { GatewayIngestionSettings } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
+import type { summarizeGuardrailAssignments } from "@/src/features/ai-gateway/fns/summarizeGuardrailAssignments";
+import type { toGuardrailConfigAnalytics } from "@/src/features/ai-gateway/fns/toGuardrailConfigAnalytics";
 import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/agentSetupInstructions";
-import type {
-  GatewayGuardrailPreset,
-  GatewayGuardrailTemplateKind,
-} from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 // Gateway adoption funnel: setup guide -> credentials -> team -> keys -> model
@@ -42,29 +37,6 @@ type GatewayBudgetChange = OrganizationContext & {
   /** Keys or users the change applied to; 1 for organization and default budgets. */
   subjectCount: number;
 };
-
-/** Guardrail target coverage: everyone or subset counts, never user or key IDs. */
-export type GatewayGuardrailTargetingAnalytics = {
-  appliesTo: "everyone" | "subset";
-  targetedUserCount: number;
-  targetedApiKeyCount: number;
-};
-
-/** Metadata-only guardrail configuration; never names, patterns, keywords, prefixes, labels, or credentials. */
-export type GatewayGuardrailConfigAnalytics =
-  GatewayGuardrailTargetingAnalytics & {
-    template: GatewayGuardrailTemplateKind;
-    guardrailType: GatewayGuardrailType;
-    isExternal: boolean;
-    action: GatewayGuardrailAction;
-    scope: GatewayGuardrailScope;
-    presets: GatewayGuardrailPreset[];
-    presetCount: number;
-    customSecretPrefixCount: number;
-    keywordCount: number;
-    hasCustomRegex: boolean;
-    hasCustomRedactionLabel: boolean;
-  };
 
 export type AiGatewayEventMap = {
   "ai_gateway:setup_guide_viewed": OrganizationContext;
@@ -174,11 +146,11 @@ export type AiGatewayEventMap = {
       | { source: "step_code"; stepNumber: number }
     );
   "ai_gateway:guardrail_created": OrganizationContext &
-    GatewayGuardrailConfigAnalytics;
+    ReturnType<typeof toGuardrailConfigAnalytics>;
   "ai_gateway:guardrail_updated": OrganizationContext &
-    GatewayGuardrailConfigAnalytics;
+    ReturnType<typeof toGuardrailConfigAnalytics>;
   "ai_gateway:guardrail_targets_updated": OrganizationContext &
-    GatewayGuardrailTargetingAnalytics & {
+    ReturnType<typeof summarizeGuardrailAssignments> & {
       guardrailCount: number;
       isSelectAll: boolean;
     };
