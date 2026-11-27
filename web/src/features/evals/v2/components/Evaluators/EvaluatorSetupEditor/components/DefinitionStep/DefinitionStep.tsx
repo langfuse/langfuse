@@ -57,11 +57,20 @@ export function DefinitionStep(props: DefinitionStepProps) {
       open={props.open}
       onOpenChange={props.onOpenChange}
       headerEnd={
-        <EvaluationTypeToggle
-          value={props.type}
-          onValueChange={props.onTypeChange}
-          disabled={props.isEditing}
-        />
+        <div className="flex min-w-0 flex-1 items-baseline">
+          {/* Zero-width text set like the step title: puts the picker's labels on the title's baseline. */}
+          <span aria-hidden="true" className="w-0 text-base font-bold">
+            {"\u200B"}
+          </span>
+          {/* The margins keep the picker from making that line taller. */}
+          <div className="-mt-1.5 -mb-2 flex min-w-0 flex-1">
+            <EvaluationTypeToggle
+              value={props.type}
+              onValueChange={props.onTypeChange}
+              disabled={props.isEditing}
+            />
+          </div>
+        </div>
       }
     >
       <div className="flex flex-col gap-2 pt-3">

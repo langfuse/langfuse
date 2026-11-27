@@ -26,26 +26,33 @@ function SampleHeader({
   title,
   count,
   children,
+  nav,
 }: {
   title: string;
   count: string | null;
-  children: ReactNode;
+  /** Texts after the title, on the title's baseline. */
+  children?: ReactNode;
+  /** Prev/next arrows, centred in the row. */
+  nav?: ReactNode;
 }) {
   return (
     <div className="flex min-h-7 shrink-0 items-center gap-2">
-      <h3
-        className="min-w-0 truncate text-base font-bold"
-        title={count ? `${title} ${count}` : title}
-      >
-        {title}
-        {count ? (
-          <span className="text-muted-foreground text-sm font-normal">
-            {" "}
-            {count}
-          </span>
-        ) : null}
-      </h3>
-      {children}
+      <div className="flex min-w-0 flex-1 items-baseline gap-2">
+        <h3
+          className="min-w-0 truncate text-base font-bold"
+          title={count ? `${title} ${count}` : title}
+        >
+          {title}
+          {count ? (
+            <span className="text-muted-foreground text-sm font-normal">
+              {" "}
+              {count}
+            </span>
+          ) : null}
+        </h3>
+        {children}
+      </div>
+      {nav}
     </div>
   );
 }
@@ -133,9 +140,7 @@ export function EvaluatorSampleDetail({
   if (!selected) {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-2">
-        <SampleHeader title={title} count={count}>
-          {null}
-        </SampleHeader>
+        <SampleHeader title={title} count={count} />
         <div className={SAMPLE_CARD_CLASS_NAME}>
           {/* Loaded samples without a selection yet are about to get one. */}
           {pending || observations.length > 0 ? (
@@ -182,7 +187,27 @@ export function EvaluatorSampleDetail({
     date: new Date(selected.startTime),
   });
   const sampleNavigation = (
-    <SampleHeader title={title} count={count}>
+    <SampleHeader
+      title={title}
+      count={count}
+      nav={
+        observations.length > 1 ? (
+          <DetailPageNav
+            currentId={selected.id}
+            listKey={SAMPLE_LIST_KEY}
+            orientation="horizontal"
+            compact
+            path={() => ""}
+            onNavigate={(entry) => {
+              const next = observations.find(
+                (observation) => observation.id === entry.id,
+              );
+              if (next) onSelect(next);
+            }}
+          />
+        ) : null
+      }
+    >
       {/* In a tight row the trace name gives way before the title. */}
       <span
         className="ph-no-capture text-muted-foreground ml-auto max-w-48 min-w-0 shrink-100 truncate font-mono text-xs"
@@ -196,21 +221,6 @@ export function EvaluatorSampleDetail({
       >
         {startTime?.display}
       </span>
-      {observations.length > 1 ? (
-        <DetailPageNav
-          currentId={selected.id}
-          listKey={SAMPLE_LIST_KEY}
-          orientation="horizontal"
-          compact
-          path={() => ""}
-          onNavigate={(entry) => {
-            const next = observations.find(
-              (observation) => observation.id === entry.id,
-            );
-            if (next) onSelect(next);
-          }}
-        />
-      ) : null}
     </SampleHeader>
   );
 
