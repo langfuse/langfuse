@@ -539,8 +539,8 @@ export const traceRouter = createTRPCRouter({
       };
     },
   ),
-  diffById: protectedProjectProcedure
-    .input(
+  diffById: auditedQuery(
+    protectedProjectProcedure.input(
       z.object({
         projectId: z.string(),
         leftTraceId: z.string(),
@@ -552,8 +552,9 @@ export const traceRouter = createTRPCRouter({
           .max(10_000)
           .default(2000),
       }),
-    )
-    .query(async ({ input, ctx }) => {
+    ),
+    { resourceType: "trace", action: "read", idKey: "leftTraceId" },
+    async ({ input, ctx, audit }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -587,12 +588,19 @@ export const traceRouter = createTRPCRouter({
         });
       }
 
+      audit.refs([
+        ...refsIf("trace", input.rightTraceId),
+        ...observationRefs(left.observations),
+        ...observationRefs(right.observations),
+      ]);
+      audit.count(left.observations.length + right.observations.length);
       return buildTraceDiff(
         { traceId: input.leftTraceId, observations: left.observations },
         { traceId: input.rightTraceId, observations: right.observations },
         input.maxPreviewCodePoints,
       );
-    }),
+    },
+  ),
   deleteMany: protectedProjectProcedure
     .input(
       z

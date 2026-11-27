@@ -40,12 +40,15 @@ function makeTrace(projectId: string, args: string) {
 }
 
 describe("traces.diffById", () => {
+  const orgId = randomUUID();
   const projectId = randomUUID();
   const session = createSession({
     organizations: [
       {
-        id: "seed-org-id",
+        id: orgId,
         role: "OWNER",
+        plan: "cloud:enterprise",
+        accessAuditLogEnabled: true,
         projects: [{ id: projectId, role: "ADMIN", hasTraces: true }],
       },
     ],
@@ -83,6 +86,49 @@ describe("traces.diffById", () => {
     });
     expect(report.firstDivergence?.leftPreview).toContain("pwd");
     expect(report.firstDivergence?.rightPreview).toContain("ls");
+  });
+
+  it("records both traces and all compared observations in the access audit", async () => {
+    const left = makeTrace(projectId, "pwd");
+    const right = makeTrace(projectId, "pwd");
+    await createTracesCh([left.trace, right.trace]);
+    await createObservationsCh([...left.observations, ...right.observations]);
+
+    await caller.traces.diffById({
+      projectId,
+      leftTraceId: left.trace.id,
+      rightTraceId: right.trace.id,
+    });
+
+    const rows = await prisma.auditLogStaging.findMany({
+      where: {
+        AND: [
+          { payload: { path: ["orgId"], equals: orgId } },
+          { payload: { path: ["kind"], equals: "access" } },
+        ],
+      },
+    });
+    const events = rows.map((row) => row.payload as Record<string, unknown>);
+    const event = events.find(
+      (candidate) =>
+        candidate.route === "traces.diffById" &&
+        candidate.resourceId === left.trace.id,
+    );
+    expect(event).toMatchObject({
+      resourceType: "trace",
+      resourceId: left.trace.id,
+      action: "read",
+      resultCount: 4,
+    });
+    expect(event?.resourceRefs).toEqual(
+      expect.arrayContaining([
+        `trace:${left.trace.id}`,
+        `trace:${right.trace.id}`,
+        ...[...left.observations, ...right.observations].map(
+          (observation) => `observation:${observation.id}`,
+        ),
+      ]),
+    );
   });
 
   it("rejects comparing a trace with itself", async () => {

@@ -99,6 +99,44 @@ describe("buildTraceDiff", () => {
     expect(report.left.toolCallCount).toBe(1);
   });
 
+  it("falls back to tool names when tool arrays are empty", () => {
+    const observations = trace("left").map((item) =>
+      item.type === "TOOL"
+        ? {
+            ...item,
+            output: { tool_calls: [] },
+            toolCalls: [],
+            toolCallNames: ["lookup"],
+          }
+        : item,
+    );
+    const report = buildTraceDiff(
+      { traceId: "left", observations },
+      { traceId: "right", observations },
+    );
+    expect(report.left.toolCallCount).toBe(1);
+    expect(report.right.toolCallCount).toBe(1);
+  });
+
+  it("counts tool calls embedded in JSON string outputs", () => {
+    const observations = trace("left").map((item) =>
+      item.type === "TOOL"
+        ? {
+            ...item,
+            output: JSON.stringify(toolCallOutput("call-id", "pwd")),
+            toolCalls: [],
+            toolCallNames: null,
+          }
+        : item,
+    );
+    const report = buildTraceDiff(
+      { traceId: "left", observations },
+      { traceId: "right", observations },
+    );
+    expect(report.left.toolCallCount).toBe(1);
+    expect(report.right.toolCallCount).toBe(1);
+  });
+
   it("preserves business identifiers and timestamps in observation IO", () => {
     const withBusinessIdentity = (traceId: string, businessId: string) =>
       trace(traceId).map((item) =>
@@ -127,6 +165,35 @@ describe("buildTraceDiff", () => {
     });
     expect(report.firstDivergence?.leftPreview).toContain("cus_1");
     expect(report.firstDivergence?.rightPreview).toContain("cus_2");
+  });
+
+  it("keeps distinct unsafe JSON integers exact during canonicalization", () => {
+    const withLargeInteger = (traceId: string, businessId: string) =>
+      trace(traceId).map((item) =>
+        item.type === "TOOL"
+          ? {
+              ...item,
+              input: `{"id":${businessId},"timestamp":"2026-01-01T00:00:01Z"}`,
+            }
+          : item,
+      );
+    const report = buildTraceDiff(
+      {
+        traceId: "left",
+        observations: withLargeInteger("left", "9223372036854775806"),
+      },
+      {
+        traceId: "right",
+        observations: withLargeInteger("right", "9223372036854775807"),
+      },
+    );
+    expect(report.status).toBe("different");
+    expect(report.firstDivergence?.leftPreview).toContain(
+      "9223372036854775806",
+    );
+    expect(report.firstDivergence?.rightPreview).toContain(
+      "9223372036854775807",
+    );
   });
 
   it("compares native tool calls while ignoring their provider IDs", () => {
@@ -163,6 +230,61 @@ describe("buildTraceDiff", () => {
     });
   });
 
+  it("ignores identity references in recognized tool protocol messages", () => {
+    const withToolProtocolIds = (traceId: string) => {
+      const callId = `${traceId}-provider-call`;
+      return trace(traceId).map((item): Observation =>
+        item.type === "TOOL"
+          ? {
+              ...item,
+              output: {
+                ...toolCallOutput(callId, "pwd"),
+                messages: [
+                  {
+                    role: "assistant",
+                    content: [
+                      {
+                        type: "tool_use",
+                        id: callId,
+                        name: "lookup",
+                        input: { command: "pwd" },
+                      },
+                    ],
+                  },
+                  {
+                    role: "tool",
+                    tool_call_id: callId,
+                    content: { id: "business-id", timestamp: "unchanged" },
+                  },
+                  { role: "tool", toolCallId: callId, content: "camel" },
+                  { role: "tool", tool_use_id: callId, content: "snake" },
+                  { type: "tool_result", tool_use_id: callId, content: "ok" },
+                  {
+                    type: "function_call",
+                    id: `${callId}-item`,
+                    call_id: callId,
+                    name: "lookup",
+                    arguments: "pwd",
+                  },
+                  {
+                    type: "function_call_output",
+                    id: `${callId}-output`,
+                    call_id: callId,
+                    output: "ok",
+                  },
+                ],
+              },
+            }
+          : item,
+      );
+    };
+    const report = buildTraceDiff(
+      { traceId: "left", observations: withToolProtocolIds("left") },
+      { traceId: "right", observations: withToolProtocolIds("right") },
+    );
+    expect(report.status).toBe("identical");
+  });
+
   it("orders same-time parallel observations independently of database order", () => {
     const parallelTrace = (traceId: string, reverse = false) => {
       const root = observation({ id: `${traceId}-root`, name: "root" });
@@ -181,6 +303,48 @@ describe("buildTraceDiff", () => {
     const report = buildTraceDiff(
       { traceId: "left", observations: parallelTrace("left") },
       { traceId: "right", observations: parallelTrace("right", true) },
+    );
+    expect(report.status).toBe("identical");
+  });
+
+  it("uses complete child branches to order identical same-time parents", () => {
+    const branch = (traceId: string, branchId: string, childName: string) => {
+      const parent = observation({
+        id: `${traceId}-${branchId}`,
+        parentObservationId: `${traceId}-root`,
+        type: "AGENT",
+        name: "parallel",
+        startTime: new Date("2026-01-01T00:00:01.000Z"),
+      });
+      const child = observation({
+        id: `${traceId}-${branchId}-child`,
+        parentObservationId: parent.id,
+        type: "TOOL",
+        name: childName,
+        startTime: new Date("2026-01-01T00:00:02.000Z"),
+        output: { result: childName },
+      });
+      return [parent, child];
+    };
+    const root = (traceId: string) =>
+      observation({ id: `${traceId}-root`, name: "root" });
+    const report = buildTraceDiff(
+      {
+        traceId: "left",
+        observations: [
+          root("left"),
+          ...branch("left", "a", "alpha"),
+          ...branch("left", "b", "beta"),
+        ],
+      },
+      {
+        traceId: "right",
+        observations: [
+          root("right"),
+          ...branch("right", "b", "beta"),
+          ...branch("right", "a", "alpha"),
+        ],
+      },
     );
     expect(report.status).toBe("identical");
   });

@@ -1,8 +1,7 @@
-import type { Observation } from "@langfuse/shared";
-import { orderObservations } from "@langfuse/shared/src/server";
+import { createHash } from "node:crypto";
+import { parseJsonPrioritised, type Observation } from "@langfuse/shared";
 
 const DEFAULT_MAX_PREVIEW_CODE_POINTS = 2000;
-const TRACE_DIFF_INDEX = Symbol("traceDiffIndex");
 const VOLATILE_METADATA_KEYS = new Set([
   "id",
   "traceid",
@@ -30,10 +29,17 @@ const TRACE_DIFF_IGNORED_FIELDS = [
   "observation.eventTs",
   "tool_calls[].id",
   "toolCalls[].id",
+  "recognized tool message/tool_use identity references",
   "metadata identity/timestamp fields",
 ] as const;
 
-type IndexedObservation = Observation & { [TRACE_DIFF_INDEX]: number };
+type ObservationNode = {
+  observation: Observation;
+  payload: ReturnType<typeof observationPayload>;
+  ownCanonical: string;
+  branchCanonical?: string;
+  children: ObservationNode[];
+};
 
 type TraceDiffEvent = {
   observationType: Observation["type"];
@@ -77,6 +83,44 @@ export type TraceDiffInput = {
   observations: readonly Observation[];
 };
 
+function isVolatileToolIdentity(
+  key: string,
+  parentKey: string | undefined,
+  record: Record<string, unknown>,
+): boolean {
+  const compactKey = key.replace(/[_-]/g, "").toLowerCase();
+  const compactParentKey = parentKey?.replace(/[_-]/g, "").toLowerCase();
+  if (
+    (compactParentKey === "toolcalls" ||
+      compactParentKey === "toolcallchunks") &&
+    compactKey === "id"
+  ) {
+    return true;
+  }
+
+  const type = typeof record.type === "string" ? record.type : undefined;
+  const role = typeof record.role === "string" ? record.role : undefined;
+  if (
+    (type === "tool_use" ||
+      type === "function_call" ||
+      type === "function_call_output") &&
+    compactKey === "id"
+  ) {
+    return true;
+  }
+
+  return (
+    (role === "tool" ||
+      type === "tool_use" ||
+      type === "tool_result" ||
+      type === "function_call" ||
+      type === "function_call_output") &&
+    (compactKey === "toolcallid" ||
+      compactKey === "tooluseid" ||
+      compactKey === "callid")
+  );
+}
+
 function normalize(
   value: unknown,
   parentKey?: string,
@@ -95,17 +139,17 @@ function normalize(
   if (value !== null && typeof value === "object") {
     const normalizedEntries = Object.entries(value)
       .filter(([key]) => {
-        const normalizedKey = key.toLowerCase();
-        const normalizedParentKey = parentKey?.toLowerCase();
         if (
-          (normalizedParentKey === "tool_calls" ||
-            normalizedParentKey === "toolcalls") &&
-          normalizedKey === "id"
+          isVolatileToolIdentity(
+            key,
+            parentKey,
+            value as Record<string, unknown>,
+          )
         ) {
           return false;
         }
         return !(
-          stripVolatileMetadata && VOLATILE_METADATA_KEYS.has(normalizedKey)
+          stripVolatileMetadata && VOLATILE_METADATA_KEYS.has(key.toLowerCase())
         );
       })
       .sort(([left], [right]) => left.localeCompare(right))
@@ -131,11 +175,9 @@ function parseJsonStrings(
   if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
     return value;
   }
-  try {
-    return normalize(JSON.parse(trimmed), parentKey, stripVolatileMetadata);
-  } catch {
-    return value;
-  }
+  const parsed = parseJsonPrioritised(trimmed);
+  if (parsed === trimmed) return value;
+  return normalize(parsed, parentKey, stripVolatileMetadata);
 }
 
 function canonicalize(value: unknown): string {
@@ -156,14 +198,14 @@ function summarize(
   let totalCost = 0;
 
   for (const observation of observations) {
-    const output = observation.output as
+    const output = parseJsonStrings(observation.output) as
       | { tool_calls?: readonly unknown[] }
       | null
       | undefined;
     toolCallCount +=
-      output?.tool_calls?.length ??
-      observation.toolCalls?.length ??
-      observation.toolCallNames?.length ??
+      output?.tool_calls?.length ||
+      observation.toolCalls?.length ||
+      observation.toolCallNames?.length ||
       0;
     inputTokens += observation.inputUsage;
     outputTokens += observation.outputUsage;
@@ -205,33 +247,93 @@ function observationPayload(observation: Observation) {
 function projectObservations(
   observations: readonly Observation[],
 ): TraceDiffEvent[] {
-  // Canonical payloads provide a deterministic tie-breaker for siblings with
-  // identical start times. Precompute them instead of parsing in the comparator.
-  const prepared = observations.map((observation, index) => {
+  // Mirror orderObservations' earliest-row dedupe and orphan handling, but use
+  // subtree digests to break same-time sibling ties independently of row order.
+  const byId = new Map<string, ObservationNode>();
+  for (const observation of observations) {
     const payload = observationPayload(observation);
-    const indexed: IndexedObservation = {
-      ...observation,
-      [TRACE_DIFF_INDEX]: index,
+    const node: ObservationNode = {
+      observation,
+      payload,
+      ownCanonical: canonicalize(payload),
+      children: [],
     };
-    return { observation: indexed, payload, sortKey: canonicalize(payload) };
-  });
-  const payloads = prepared.map((item) => item.payload);
-  prepared.sort((left, right) => left.sortKey.localeCompare(right.sortKey));
+    const existing = byId.get(observation.id);
+    if (
+      !existing ||
+      observation.startTime < existing.observation.startTime ||
+      (observation.startTime.getTime() ===
+        existing.observation.startTime.getTime() &&
+        node.ownCanonical < existing.ownCanonical)
+    ) {
+      byId.set(observation.id, node);
+    }
+  }
 
-  return orderObservations(prepared.map((item) => item.observation)).map(
-    (observation) => {
-      const payload = payloads[observation[TRACE_DIFF_INDEX]]!;
-      return {
-        observationType: observation.type,
-        observationName: observation.name,
-        nestingLevel: observation.nestingLevel,
-        canonical: canonicalize({
-          ...payload,
-          nestingLevel: observation.nestingLevel,
-        }),
-      };
-    },
-  );
+  const roots: ObservationNode[] = [];
+  for (const node of byId.values()) {
+    const parentId = node.observation.parentObservationId;
+    const parent = parentId ? byId.get(parentId) : undefined;
+    if (parent) {
+      parent.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  const branchKey = (node: ObservationNode): string => {
+    if (node.branchCanonical !== undefined) return node.branchCanonical;
+    const children = node.children.map((child) => ({
+      startTime: child.observation.startTime.getTime(),
+      key: branchKey(child),
+    }));
+    children.sort(
+      (left, right) =>
+        left.startTime - right.startTime || left.key.localeCompare(right.key),
+    );
+    const hash = createHash("sha256").update(node.ownCanonical);
+    for (const child of children) hash.update(child.key);
+    node.branchCanonical = hash.digest("hex");
+    return node.branchCanonical;
+  };
+  const compareSiblings = (left: ObservationNode, right: ObservationNode) =>
+    left.observation.startTime.getTime() -
+      right.observation.startTime.getTime() ||
+    branchKey(left).localeCompare(branchKey(right));
+  const toEvent = (node: ObservationNode, nestingLevel: number) => ({
+    observationType: node.observation.type,
+    observationName: node.observation.name,
+    nestingLevel,
+    canonical: canonicalize({ ...node.payload, nestingLevel }),
+  });
+
+  const events: TraceDiffEvent[] = [];
+  const visited = new Set<string>();
+  const walk = (nodes: ObservationNode[], nestingLevel: number) => {
+    for (const node of [...nodes].sort(compareSiblings)) {
+      if (visited.has(node.observation.id)) continue;
+      visited.add(node.observation.id);
+      events.push(toEvent(node, nestingLevel));
+      walk(node.children, nestingLevel + 1);
+    }
+  };
+  walk(roots, 0);
+
+  // Rows in a parent cycle have no root. Keep them without recursing forever.
+  const remaining = [...byId.values()]
+    .filter((node) => !visited.has(node.observation.id))
+    .sort(
+      (left, right) =>
+        left.observation.startTime.getTime() -
+          right.observation.startTime.getTime() ||
+        left.ownCanonical.localeCompare(right.ownCanonical),
+    );
+  for (const node of remaining) {
+    if (visited.has(node.observation.id)) continue;
+    visited.add(node.observation.id);
+    events.push(toEvent(node, 0));
+  }
+  return events;
 }
 
 function preview(
