@@ -94,7 +94,10 @@ describe("useGatewayPages", () => {
   it("shows only Models with read access", () => {
     grantScopes("gateway:read");
 
-    expect(visiblePages()).toEqual([["models", false]]);
+    expect(visiblePages()).toEqual([
+      ["models", false],
+      ["guardrails", false],
+    ]);
   });
 
   it("hides Models for read-only access to the demo organization", () => {
@@ -107,7 +110,7 @@ describe("useGatewayPages", () => {
     Object.assign(env, { NEXT_PUBLIC_DEMO_ORG_ID: "demo-org" });
 
     try {
-      expect(visiblePages()).toEqual([]);
+      expect(visiblePages()).toEqual([["guardrails", false]]);
     } finally {
       Object.assign(env, { NEXT_PUBLIC_DEMO_ORG_ID: originalDemoOrgId });
     }
@@ -128,6 +131,7 @@ describe("useGatewayPages", () => {
       ["api-keys", false],
       ["models", false],
       ["budgets", false],
+      ["guardrails", false],
     ]);
   });
 
@@ -156,6 +160,7 @@ describe("useGatewayPages", () => {
       ["api-keys", true],
       ["models", true],
       ["budgets", true],
+      ["guardrails", true],
     ]);
   });
 
@@ -193,7 +198,10 @@ describe("useGatewayPages", () => {
       isPending: false,
     });
 
-    expect(visiblePages()).toEqual([["models", false]]);
+    expect(visiblePages()).toEqual([
+      ["models", false],
+      ["guardrails", false],
+    ]);
   });
 
   it("shows AI_GATEWAY members their keys, budgets, models and own analytics, even before ingestion is set up", () => {
@@ -208,6 +216,7 @@ describe("useGatewayPages", () => {
       ["api-keys", false],
       ["models", false],
       ["budgets", false],
+      ["guardrails", false],
     ]);
   });
 
@@ -262,6 +271,7 @@ describe("useGatewayPages", () => {
       "api-keys",
       "models",
       "budgets",
+      "guardrails",
     ]);
   });
 });

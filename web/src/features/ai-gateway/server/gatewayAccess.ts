@@ -20,19 +20,6 @@ export function requireGatewayAdmin(params: {
   });
 }
 
-/** Admits organization OWNER and ADMIN. */
-export function requireGatewayGuardrailsAdmin(params: {
-  session: Session;
-  orgId: string;
-}) {
-  requireGatewayEnabledForOrganization(params.orgId);
-  throwIfNoOrganizationAccess({
-    session: params.session,
-    organizationId: params.orgId,
-    scope: "gateway:manage",
-  });
-}
-
 /** Admits organization members with gateway read access. */
 export function requireGatewayGuardrailsRead(params: {
   session: Session;
