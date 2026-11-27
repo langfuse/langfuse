@@ -14,7 +14,6 @@ import {
 import {
   buildMcpHarnessCommands,
   shellCommand,
-  type McpCredential,
 } from "@/src/features/public-api/components/mcpHarnessCommands";
 import { cn } from "@/src/utils/tailwind";
 
@@ -36,21 +35,9 @@ type UsageTab = {
   secret: string;
 };
 
-/** encodeMcpCredential returns the Basic auth token for a project id and secret key. */
-function encodeMcpCredential(projectId: string, secretKey: string) {
-  const credential = `${projectId}:${secretKey}`;
-
-  if (typeof globalThis.btoa === "function") {
-    return globalThis.btoa(credential);
-  }
-
-  return Buffer.from(credential).toString("base64");
-}
-
 export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
   const { scope, secretKey, baseUrl, className, showMcpSection } = props;
   const projectId = exampleProjectId(props);
-  const credential = apiCredential(props.scope, projectId, secretKey);
   const [activeTab, setActiveTab] = useState<string>("sdk");
 
   const tabs: UsageTab[] = [
@@ -93,7 +80,6 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
   if (showMcpSection) {
     for (const command of buildMcpHarnessCommands(
       `${baseUrl}/api/public/mcp`,
-      credential,
       secretKey,
     )) {
       tabs.push({
@@ -178,22 +164,6 @@ function DocsLink(props: { href: string; children: ReactNode }) {
       {props.children}
     </a>
   );
-}
-
-/** apiCredential is the Authorization scheme and token a key authenticates API and MCP requests with. */
-function apiCredential(
-  scope: ApiKeyDetailContentProps["scope"],
-  projectId: string,
-  secretKey: string,
-): McpCredential {
-  // An organization key names its project per tool call, so it connects with the secret key alone.
-  if (scope === "organization") {
-    return { scheme: "Bearer", token: secretKey };
-  }
-  return {
-    scheme: "Basic",
-    token: encodeMcpCredential(projectId, secretKey),
-  };
 }
 
 /** exampleProjectId is the project id the examples use: the key's own project, or a placeholder for an organization key. */

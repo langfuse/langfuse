@@ -138,9 +138,7 @@ export const CreatedOrganizationKey = meta.story({
     await expect(body.textContent).toContain(
       "Run in your terminal to connect Claude Code to Langfuse.",
     );
-    await expect(body.textContent).toContain(
-      "claude mcp add --transport http langfuse",
-    );
+    await expect(body.textContent).toContain("claude mcp add langfuse");
     await userEvent.click(screen.getByRole("tab", { name: "Codex" }));
     await expect(body.textContent).toContain(
       "--bearer-token-env-var LANGFUSE_MCP_TOKEN",

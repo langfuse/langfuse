@@ -21,19 +21,15 @@ export function shellCommand(...lines: string[]): string {
   return lines.join(" \\\n\t");
 }
 
-/** McpCredential is the Authorization scheme and token a key connects to the MCP server with. */
-export type McpCredential = { scheme: "Basic" | "Bearer"; token: string };
-
 const serverName = "langfuse";
 const codexTokenEnvVar = "LANGFUSE_MCP_TOKEN";
 
-/** buildMcpHarnessCommands lists the MCP setup command for each supported agent harness. */
+/** buildMcpHarnessCommands lists the MCP setup command for each supported agent harness, authenticating with the secret key as a bearer token. */
 export function buildMcpHarnessCommands(
   mcpUrl: string,
-  credential: McpCredential,
   secretKey: string,
 ): McpHarnessCommand[] {
-  const header = `Authorization: ${credential.scheme} ${GATEWAY_KEY_PLACEHOLDER}`;
+  const header = `Authorization: Bearer ${GATEWAY_KEY_PLACEHOLDER}`;
   return [
     {
       id: "claude-code",
@@ -41,11 +37,12 @@ export function buildMcpHarnessCommands(
       product: "Claude Code",
       icon: SiClaude,
       code: shellCommand(
-        `claude mcp add --transport http ${serverName}`,
+        `claude mcp add ${serverName}`,
         mcpUrl,
         `--header "${header}"`,
+        "--transport http",
       ),
-      secret: credential.token,
+      secret: secretKey,
     },
     {
       id: "codex",
@@ -71,9 +68,9 @@ export function buildMcpHarnessCommands(
       code: shellCommand(
         `opencode mcp add ${serverName}`,
         `--url ${mcpUrl}`,
-        `--header "Authorization=${credential.scheme} ${GATEWAY_KEY_PLACEHOLDER}"`,
+        `--header "Authorization=Bearer ${GATEWAY_KEY_PLACEHOLDER}"`,
       ),
-      secret: credential.token,
+      secret: secretKey,
     },
     {
       id: "copilot-cli",
@@ -81,12 +78,12 @@ export function buildMcpHarnessCommands(
       product: "GitHub Copilot CLI",
       icon: SiGithubcopilot,
       code: shellCommand(
-        `copilot mcp add --transport http`,
-        `--header "${header}"`,
-        serverName,
+        `copilot mcp add ${serverName}`,
         mcpUrl,
+        `--header "${header}"`,
+        "--transport http",
       ),
-      secret: credential.token,
+      secret: secretKey,
     },
   ];
 }
