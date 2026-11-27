@@ -283,3 +283,50 @@ export const WithAdvancedOpen = meta.story({
     );
   },
 });
+
+const onInvite = fn();
+
+export const InviteBeforeAnyoneIsAssigned = meta.story({
+  name: "(Test) Invite teammates from user assignments",
+  play: async () => {
+    const body = within(document.body);
+    await userEvent.click(
+      body.getByRole("button", { name: "User assignments" }),
+    );
+    await expect(
+      await body.findByText("No one assigned yet."),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      await body.findByRole("button", {
+        name: "Invite teammates to review this queue",
+      }),
+    );
+    await expect(onInvite).toHaveBeenCalledOnce();
+  },
+  render: () => (
+    <DialogController<boolean>
+      initialState={() => true}
+      renderDialog={() => (
+        <AnnotationQueueFormDialogContent
+          {...fixtureControls}
+          userAssignments={{ ...fixtureControls.userAssignments, onInvite }}
+          mode="create"
+          initialValues={{
+            name: "Team queue",
+            scoreConfigIds: ["config-1"],
+            newAssignmentUserIds: [],
+          }}
+          queueNames={[]}
+          hasQueueAssignmentsReadAccess={true}
+          isSubmitting={false}
+          onSubmit={fn()}
+          submitLabel="Create queue"
+        >
+          {children}
+        </AnnotationQueueFormDialogContent>
+      )}
+    >
+      {() => null}
+    </DialogController>
+  ),
+});

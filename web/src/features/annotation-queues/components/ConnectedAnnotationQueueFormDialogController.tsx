@@ -2,6 +2,7 @@ import { type ReactNode, useState } from "react";
 import { type CreateQueueWithAssignments } from "@langfuse/shared";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { CreateProjectMemberDialogController } from "@/src/features/rbac/components/CreateProjectMemberDialogController";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -25,30 +26,36 @@ export function ConnectedAnnotationQueueFormDialogController(
   const disabled = hasQueueAccess
     ? undefined
     : { reason: `You don't have permission to ${mode} annotation queues.` };
+  // Outside the queue dialog: inside it, the invite controller's dialog root would capture the queue dialog's parts.
   return (
-    <DialogController
-      renderDialog={({ closeDialog, isOpen }) =>
-        hasQueueAccess ? (
-          <ConnectedAnnotationQueueDialogData
-            projectId={projectId}
-            queueId={mode === "edit" ? props.queueId : undefined}
-            mode={mode}
-            isOpen={isOpen}
-            onSuccess={onSuccess}
-            closeDialog={closeDialog}
-          />
-        ) : null
-      }
-    >
-      {({ openDialog }) =>
-        children({
-          disabled,
-          openDialog: () => {
-            if (hasQueueAccess) openDialog();
-          },
-        })
-      }
-    </DialogController>
+    <CreateProjectMemberDialogController surface="annotation_queue_assignment">
+      {({ hasAccess: canInvite, openDialog: openInviteDialog }) => (
+        <DialogController
+          renderDialog={({ closeDialog, isOpen }) =>
+            hasQueueAccess ? (
+              <ConnectedAnnotationQueueDialogData
+                projectId={projectId}
+                queueId={mode === "edit" ? props.queueId : undefined}
+                mode={mode}
+                isOpen={isOpen}
+                onSuccess={onSuccess}
+                closeDialog={closeDialog}
+                onInvite={canInvite ? openInviteDialog : undefined}
+              />
+            ) : null
+          }
+        >
+          {({ openDialog }) =>
+            children({
+              disabled,
+              openDialog: () => {
+                if (hasQueueAccess) openDialog();
+              },
+            })
+          }
+        </DialogController>
+      )}
+    </CreateProjectMemberDialogController>
   );
 }
 
@@ -59,6 +66,7 @@ function ConnectedAnnotationQueueDialogData({
   isOpen,
   onSuccess,
   closeDialog,
+  onInvite,
 }: {
   projectId: string;
   queueId: string | undefined;
@@ -66,6 +74,8 @@ function ConnectedAnnotationQueueDialogData({
   isOpen: boolean;
   onSuccess: (queueId: string) => void;
   closeDialog: () => void;
+  /** Opens the invite dialog; set only for someone who may invite. */
+  onInvite: (() => void) | undefined;
 }) {
   const [createdQueueId, setCreatedQueueId] = useState<string>();
   const [selectedSessionViewId, setSelectedSessionViewId] = useState<
@@ -162,7 +172,10 @@ function ConnectedAnnotationQueueDialogData({
           mode={mode}
           initialValues={initialValues}
           sessionViewSettings={sessionViewSettings}
-          userAssignments={userAssignments}
+          userAssignments={{
+            ...userAssignments,
+            onInvite,
+          }}
           queueNames={queues
             .filter((queue) => queue.id !== (queueId ?? createdQueueId))
             .map((queue) => queue.name)}

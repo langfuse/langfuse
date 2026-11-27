@@ -5,6 +5,7 @@ import Image from "next/image";
 import { type IconComponent } from "@langfuse/icons";
 import { ActionButton } from "@/src/components/ActionButton";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 
@@ -12,6 +13,8 @@ export interface ValueProposition {
   title: string;
   description: string;
   icon?: IconComponent;
+  /** An inline action after the description. */
+  action?: { label: string; onClick: () => void };
 }
 
 export interface ActionConfig {
@@ -225,6 +228,17 @@ export function SplashScreen({
           {valuePropositions.map((prop, index) => (
             <Banner key={index} icon={prop.icon} title={prop.title}>
               {prop.description}
+              {prop.action && (
+                <>
+                  {" "}
+                  <Button
+                    type="button"
+                    variant="text"
+                    text={prop.action.label}
+                    onClick={prop.action.onClick}
+                  />
+                </>
+              )}
             </Banner>
           ))}
         </div>

@@ -2,6 +2,7 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { MoreHorizontal, X } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { AsyncMultiSelectTagInput } from "@/src/components/design-system/AsyncMultiSelectTagInput/AsyncMultiSelectTagInput";
+import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { useRef } from "react";
 
 interface UserAssignmentSectionProps {
@@ -10,6 +11,8 @@ interface UserAssignmentSectionProps {
   users: RouterOutputs["members"]["byProjectId"]["users"];
   assignedUsers: RouterOutputs["annotationQueueAssignments"]["byQueueId"]["assignments"];
   totalAssignedUsers: number;
+  /** The assigned count is still loading or failed to load, so 0 isn't "no one" yet. */
+  isAssignedCountPending?: boolean;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   searchResults: RouterOutputs["members"]["byProjectId"]["users"];
@@ -18,6 +21,8 @@ interface UserAssignmentSectionProps {
   canWrite: boolean;
   isRemoving: boolean;
   onRemove: (userId: string) => void;
+  /** Opens the invite dialog; set only for someone who may invite. */
+  onInvite?: () => void;
 }
 
 export const UserAssignmentSection = ({
@@ -26,6 +31,7 @@ export const UserAssignmentSection = ({
   users,
   assignedUsers,
   totalAssignedUsers,
+  isAssignedCountPending = false,
   searchQuery,
   onSearchChange,
   searchResults,
@@ -34,6 +40,7 @@ export const UserAssignmentSection = ({
   canWrite,
   isRemoving,
   onRemove,
+  onInvite,
 }: UserAssignmentSectionProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedUsers = selectedUserIds.map((id) => {
@@ -42,6 +49,11 @@ export const UserAssignmentSection = ({
   });
 
   const hasMoreAssignedUsers = totalAssignedUsers > assignedUsers.length;
+  // Picked but not saved still counts, so the line doesn't say "no one" beside a chosen reviewer.
+  const hasNoReviewers =
+    !isAssignedCountPending &&
+    totalAssignedUsers === 0 &&
+    selectedUserIds.length === 0;
 
   return (
     <div className="space-y-4" ref={containerRef}>
@@ -82,6 +94,28 @@ export const UserAssignmentSection = ({
         <p className="text-muted-foreground text-xs">
           More results available, refine your search.
         </p>
+      )}
+
+      {/* One invite line at a time: before anyone is assigned, then for whoever is missing. */}
+      {onInvite && (
+        <div className="text-muted-foreground flex flex-wrap items-center gap-x-1 text-xs">
+          <span>
+            {hasNoReviewers
+              ? "No one assigned yet."
+              : "Only project members can be assigned. Missing someone?"}
+          </span>
+          <DesignSystemButton
+            type="button"
+            variant="text"
+            size="sm"
+            text={
+              hasNoReviewers
+                ? "Invite teammates to review this queue"
+                : "Invite teammates"
+            }
+            onClick={onInvite}
+          />
+        </div>
       )}
 
       {/* Assigned Users Section */}

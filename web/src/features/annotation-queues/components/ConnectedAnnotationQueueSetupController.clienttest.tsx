@@ -24,6 +24,17 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+// The invite controller needs the router; this test is about its host.
+vi.mock(
+  "@/src/features/rbac/components/CreateProjectMemberDialogController",
+  () => ({
+    CreateProjectMemberDialogController: ({
+      children,
+    }: {
+      children: (control: { hasAccess: boolean }) => unknown;
+    }) => children({ hasAccess: false }),
+  }),
+);
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => true,
 }));

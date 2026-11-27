@@ -63,3 +63,28 @@ describe("SplashScreen video autoplay", () => {
     expect(video!.parentElement).not.toHaveClass("hidden");
   });
 });
+
+describe("SplashScreen value propositions", () => {
+  it("runs a card's action from the link after its description", () => {
+    const onInvite = vi.fn();
+    const { getByRole, queryAllByRole } = render(
+      <SplashScreen
+        title="Get started"
+        description="Queues for manual review."
+        valuePropositions={[
+          { title: "Track metrics", description: "See progress." },
+          {
+            title: "Collaborate",
+            description: "Invite team members to annotate.",
+            action: { label: "Invite teammates", onClick: onInvite },
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(getByRole("button", { name: "Invite teammates" }));
+
+    expect(onInvite).toHaveBeenCalledOnce();
+    expect(queryAllByRole("button")).toHaveLength(1);
+  });
+});

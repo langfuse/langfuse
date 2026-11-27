@@ -53,6 +53,8 @@ export function useQueueUserAssignments({
     users: users.data?.users ?? [],
     assignedUsers,
     totalAssignedUsers: assignments.data?.totalCount ?? 0,
+    isAssignedCountPending:
+      Boolean(queueId) && canRead && !assignments.isSuccess,
     searchQuery: search.searchQuery,
     onSearchChange: search.setSearchQuery,
     searchResults: search.searchResults,
