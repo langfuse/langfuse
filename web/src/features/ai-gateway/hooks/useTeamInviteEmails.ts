@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { z } from "zod/v4";
 
 import { MAX_TEAM_INVITES } from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
 import type { TeamInviteFailure } from "@/src/features/ai-gateway/types/teamInviteFailure";
 import type { RouterOutputs } from "@/src/utils/api";
+import { isEmail } from "@/src/utils/isEmail";
 
 type PickedMember = Pick<
   RouterOutputs["aiGateway"]["getMemberSuggestions"][number],
@@ -21,10 +21,18 @@ export function useTeamInviteEmails() {
   const [failures, setFailures] = useState<TeamInviteFailure[]>([]);
   const [pickedMembers, setPickedMembers] = useState<PickedMember[]>([]);
 
-  const hasInvalidEmail = emails.some(
-    (email) => !z.email().safeParse(email).success,
-  );
+  const invalidEmail = emails.find((email) => !isEmail(email));
+  const hasInvalidEmail = invalidEmail !== undefined;
   const hasTooManyEmails = emails.length > MAX_TEAM_INVITES;
+
+  /** Names the first invalid entry, since a long list scrolls it out of sight. */
+  function getErrorMessage() {
+    if (hasTooManyEmails)
+      return `You can invite up to ${MAX_TEAM_INVITES} people at once.`;
+    if (hasInvalidEmail)
+      return `“${invalidEmail}” isn't an email address. Select it to fix it.`;
+    return undefined;
+  }
 
   function addMember(member: PickedMember) {
     const email = member.email.toLowerCase();
@@ -53,9 +61,7 @@ export function useTeamInviteEmails() {
     addMember,
     failures,
     isValid: !hasInvalidEmail && !hasTooManyEmails,
-    errorMessage: hasTooManyEmails
-      ? `You can invite up to ${MAX_TEAM_INVITES} people at once.`
-      : undefined,
+    errorMessage: getErrorMessage(),
     startAttempt,
     keepFailed,
   };

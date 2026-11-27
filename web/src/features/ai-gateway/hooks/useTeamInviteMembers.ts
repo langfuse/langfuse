@@ -1,5 +1,4 @@
 import { keepPreviousData } from "@tanstack/react-query";
-import { z } from "zod/v4";
 
 import { MAX_TEAM_INVITES } from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
 import type {
@@ -7,6 +6,7 @@ import type {
   TeamInviteMembers,
 } from "@/src/features/ai-gateway/types/teamInviteMembers";
 import { api } from "@/src/utils/api";
+import { isEmail } from "@/src/utils/isEmail";
 
 /**
  * Looks up which invitee addresses already belong to the organization.
@@ -23,9 +23,7 @@ export function useTeamInviteMembers({
   /** Other members who can use the gateway, like the notifiable member preview. */
   knownMembers?: Array<Pick<TeamInviteMember, "name"> & { email: string }>;
 }): TeamInviteMembers {
-  const lookupEmails = emails
-    .filter((email) => z.email().safeParse(email).success)
-    .slice(0, MAX_TEAM_INVITES);
+  const lookupEmails = emails.filter(isEmail).slice(0, MAX_TEAM_INVITES);
   const query = api.aiGateway.getInviteeMembers.useQuery(
     { orgId: organizationId, emails: lookupEmails },
     { enabled: lookupEmails.length > 0, placeholderData: keepPreviousData },
