@@ -506,14 +506,11 @@ async function testLlmConnection(
       await generateLLMText({ ...request, maxRetries: 1, timeout });
     } catch (chatError) {
       // Embedding-only deployments (e.g. Azure) reject chat requests; accept them if they embed.
-      // A hang or a chat-only setting says nothing about embeddings, so those keep the chat error.
+      // A hang says nothing about embeddings, so it keeps the chat error.
       const kind = getLLMErrorInfo(chatError)?.kind;
       const remainingMs = deadline - Date.now();
       if (
         params.adapter === LLMAdapter.Anthropic ||
-        (parsedConfig !== null &&
-          "useResponsesApi" in parsedConfig &&
-          parsedConfig.useResponsesApi === true) ||
         kind === "timeout" ||
         kind === "abort" ||
         remainingMs <= 0
