@@ -111,7 +111,7 @@ async function findEditableGroupOrThrow(
   throwIfGroupNotFound(group);
   if (group.source === GroupSource.SCIM) {
     throw new ForbiddenError(
-      "This group is synced from your identity provider. Change its name and members, or delete it, there.",
+      "This group is managed in your identity provider and read-only in Langfuse.",
     );
   }
   return group;
