@@ -119,3 +119,50 @@ export const TypesFirstCharacter = meta.story({
     expect(reconfiguredAfterMount).toBe(false);
   },
 });
+
+export const IgnoresEchoedDocumentText = meta.story({
+  name: "(Test) Ignores Echoed Document Text",
+  args: {
+    value: "hello",
+    mode: "prompt",
+    onChange: fn(),
+    lineNumbers: false,
+  },
+  play: async ({ canvasElement, args }) => {
+    const editor = await waitFor(() => {
+      const content = canvasElement.querySelector<HTMLElement>(".cm-content");
+      if (!content) {
+        throw new Error("Prompt editor not found");
+      }
+      return content;
+    });
+
+    const view = EditorView.findFromDOM(editor);
+    if (!view) {
+      throw new Error("Prompt editor view not found");
+    }
+
+    const onChange = args.onChange as ReturnType<typeof fn>;
+    onChange.mockClear();
+
+    view.dispatch({
+      changes: {
+        from: 0,
+        to: view.state.doc.length,
+        insert: "hello",
+      },
+    });
+
+    expect(onChange).not.toHaveBeenCalled();
+
+    view.dispatch({
+      changes: {
+        from: view.state.doc.length,
+        insert: "!",
+      },
+    });
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith("hello!");
+  },
+});
