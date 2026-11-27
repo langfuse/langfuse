@@ -46,6 +46,16 @@ pub(crate) struct ExternalPayloads {
 }
 
 impl ExternalPayloads {
+    /// How many provider payloads [`Self::for_guardrails`] serializes for
+    /// `guardrails`, each holding its own copy of the scoped text.
+    pub(crate) fn count_for(guardrails: &[&Guardrail]) -> usize {
+        let has = |matches: fn(&GuardrailKind) -> bool| {
+            usize::from(guardrails.iter().any(|guardrail| matches(&guardrail.kind)))
+        };
+        has(|kind| matches!(kind, GuardrailKind::Bedrock(_)))
+            + has(|kind| matches!(kind, GuardrailKind::OpenAiModeration(_)))
+    }
+
     pub(crate) fn for_guardrails(
         guardrails: &[&Guardrail],
         blocks: &[&str],

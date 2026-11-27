@@ -302,7 +302,7 @@ impl Guardrails {
                 continue;
             }
             let payload_reservation =
-                self.reserve_external_payload(&eval.blocks, guardrail.scope)?;
+                self.reserve_external_payload(&eval.blocks, guardrail.scope, 1)?;
             let payloads = eval
                 .blocks
                 .serialize_for_scope(guardrail.scope, &[guardrail], location);
@@ -335,7 +335,11 @@ impl Guardrails {
                 }
                 let batch: Vec<&Guardrail> =
                     group.iter().map(|(_, guardrail)| *guardrail).collect();
-                let reservation = self.reserve_external_payload(&eval.blocks, scope)?;
+                let reservation = self.reserve_external_payload(
+                    &eval.blocks,
+                    scope,
+                    ExternalPayloads::count_for(&batch),
+                )?;
                 let payloads = eval.blocks.serialize_for_scope(scope, &batch, location);
                 scope_batches.push(ObservingBatch {
                     group,
@@ -371,12 +375,14 @@ impl Guardrails {
         &self,
         blocks: &TurnBlocks,
         scope: GuardrailScope,
+        payload_count: usize,
     ) -> Result<MemoryReservation, ResolutionError> {
         MemoryReservation::from_budget(
             &self.memory_budget,
             blocks
                 .external_payload_bytes_for_scope(scope)
-                .saturating_add(64),
+                .saturating_add(64)
+                .saturating_mul(payload_count),
             "guardrails",
         )
     }
