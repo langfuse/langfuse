@@ -35,6 +35,11 @@ tester.run("export-rules", rule, {
       options: fns,
     },
     {
+      code: "export function pack() { return 1; }\nexport default interface FlatNode { id: string }",
+      filename: file("pack.ts"),
+      options: fns,
+    },
+    {
       code: "export function pack() { return 1; }\nexport type { Foo } from './types'",
       filename: file("pack.ts"),
       options: fns,

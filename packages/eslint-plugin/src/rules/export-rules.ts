@@ -367,6 +367,7 @@ export default createRule({
 
     function classify(node: TSESTree.Node, name: string | null): Kind {
       const value = unwrap(node);
+      if (value.type === N.TSInterfaceDeclaration) return "type";
       if (
         value.type === N.ClassDeclaration ||
         value.type === N.ClassExpression
@@ -598,7 +599,8 @@ export default createRule({
             });
             continue;
           }
-          if (item.isDefault && !entry.allowDefault) {
+          // `export default interface` is a type export, same as `export interface`.
+          if (item.isDefault && item.kind !== "type" && !entry.allowDefault) {
             context.report({
               node: program,
               messageId: "defaultNotAllowed",
