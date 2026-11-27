@@ -254,7 +254,7 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
   database_connection_string: {
     group: "secrets",
     patterns: [
-      String.raw`\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|rediss?|amqps?)://[^\s/:@"'<>]*:[^\s/@"'<>]+@(?:[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*|\[[0-9A-Fa-f:]+\])(?::\d{1,5})?(?:/(?:[A-Za-z0-9._~/%?&+=:@-]*[A-Za-z0-9_~/%?&+=:@-])?)?`,
+      String.raw`\b(?:postgres(?:ql)?|mysql|mongodb|rediss?|amqps?)(?:\+[A-Za-z0-9_]+)?://[^\s/:@"'<>]*:[^\s/@"'<>]+@(?:[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*|\[[0-9A-Fa-f:]+\])(?::\d{1,5})?(?:/(?:[A-Za-z0-9._~/%?&+=:@-]*[A-Za-z0-9_~/%?&+=:@-])?)?`,
     ],
   },
   private_key: {
@@ -304,8 +304,9 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
     group: "prompt_injection",
     patterns: [
       // Zero-width/invisible format chars and bidi controls (omitting U+200C ZWNJ and U+200D ZWJ
-      // to avoid flagging Persian/Indic orthography and ZWJ emoji sequences).
-      String.raw`[\u{00AD}\u{061C}\u{200B}\u{200E}\u{200F}\u{202A}-\u{202E}\u{2060}\u{2066}-\u{2069}\u{FEFF}]+`,
+      // to avoid flagging Persian/Indic orthography and ZWJ emoji sequences); absorbs immediately
+      // following Tag chars so LeftmostFirst redaction does not leave adjacent Tag runs unredacted.
+      String.raw`[\u{00AD}\u{061C}\u{200B}\u{200E}\u{200F}\u{202A}-\u{202E}\u{2060}\u{2066}-\u{2069}\u{FEFF}][\u{00AD}\u{061C}\u{200B}\u{200E}\u{200F}\u{202A}-\u{202E}\u{2060}\u{2066}-\u{2069}\u{FEFF}\u{E0000}-\u{E007F}]*`,
       // Unicode Tag characters (U+E0000-U+E007F) not preceded by a black flag U+1F3F4.
       String.raw`(?:^|[^\u{1F3F4}\u{E0000}-\u{E007F}])(?<__lf_match>[\u{E0000}-\u{E007F}]+)`,
       // Non-flag Tag runs preceded by U+1F3F4 (leaves valid subdivision flags U+1F3F4 + 2-6 [0-9a-z] tags + U+E007F untouched).

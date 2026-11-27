@@ -302,7 +302,9 @@ describe("findGuardrailMatches", () => {
     const positives = [
       "postgres://alice:s3cr3t@db.example.com:5432/prod",
       "postgresql://user:p%40ss@localhost/app?sslmode=require",
+      "postgresql+psycopg2://alice:s3cr3t@db.example.com:5432/prod",
       "mysql://root:pass123@10.0.0.5:3306/shop",
+      "mysql+pymysql://root:pass123@10.0.0.5:3306/shop",
       "mongodb+srv://admin:secret@cluster0.abcde.mongodb.net/mydb?retryWrites=true",
       "mongodb://u:p@[::1]:27017/test",
       "redis://default:mysecret@redis.internal:6379/0",
@@ -500,14 +502,15 @@ describe("findGuardrailMatches", () => {
       ),
     ).toEqual([]);
 
-    // Hidden / invisible Unicode: zero-width, bidi controls, Unicode Tags U+E0000-U+E007F (including black-flag smuggling bypasses)
+    // Hidden / invisible Unicode: zero-width, bidi controls, Unicode Tags U+E0000-U+E007F (including black-flag smuggling and ZWSP+Tag adjacency)
     const hiddenSample =
-      "he\u200Bllo \u202Ertl\u202C tag:\u{E0041}\u{E0042} smuggle:🏴\u{E0049}\u{E0067} one-tag:🏴\u{E0061}\u{E007F} zero-tag:🏴\u{E007F} after-flag:🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}\u{E0041} plain";
+      "he\u200Bllo \u202Ertl\u202C tag:\u{E0041}\u{E0042} adj:\u200B\u{E0041}\u{E0042} smuggle:🏴\u{E0049}\u{E0067} one-tag:🏴\u{E0061}\u{E007F} zero-tag:🏴\u{E007F} after-flag:🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}\u{E0041} plain";
     expect(matchedTexts(hiddenSample, "hidden_unicode")).toEqual([
       "\u200B",
       "\u202E",
       "\u202C",
       "\u{E0041}\u{E0042}",
+      "\u200B\u{E0041}\u{E0042}",
       "\u{E0049}\u{E0067}",
       "\u{E0061}\u{E007F}",
       "\u{E007F}",
