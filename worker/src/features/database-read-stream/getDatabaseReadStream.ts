@@ -701,6 +701,8 @@ export const getDatabaseReadStreamPaginated = async ({
             filterState: filter
               ? [...filter, createdAtCutoffFilter]
               : [createdAtCutoffFilter],
+            searchQuery,
+            searchType,
             includeIO: true,
             includeDatasetName: true,
             limit: pageSize,

@@ -355,6 +355,7 @@ export function DatasetItemsTable({
       tableName={BatchExportTableName.DatasetItems}
       orderByState={{ column: "createdAt", order: "DESC" }}
       filterState={[
+        ...filterState,
         {
           type: "string",
           operator: "=",
@@ -362,6 +363,8 @@ export function DatasetItemsTable({
           value: datasetId,
         },
       ]}
+      searchQuery={searchQuery ?? undefined}
+      searchType={searchType}
     />
   ) : null;
 
