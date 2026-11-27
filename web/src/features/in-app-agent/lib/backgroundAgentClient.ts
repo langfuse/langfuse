@@ -52,7 +52,180 @@ type StartRunFn = (params: {
 
 type RunFramingState = {
   openRunId: string | null;
+  openTextMessageIds: Set<string>;
+  openReasoningMessageIds: Set<string>;
+  openReasoningSpanIds: Set<string>;
+  openToolCallIds: Set<string>;
+  openStepNames: Set<string>;
+  openSubagentRunIds: Set<string>;
 };
+
+function createRunFramingState(): RunFramingState {
+  return {
+    openRunId: null,
+    openTextMessageIds: new Set(),
+    openReasoningMessageIds: new Set(),
+    openReasoningSpanIds: new Set(),
+    openToolCallIds: new Set(),
+    openStepNames: new Set(),
+    openSubagentRunIds: new Set(),
+  };
+}
+
+function eventField(
+  event: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = event[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function clearOpenProtocolUnits(framing: RunFramingState): void {
+  framing.openTextMessageIds.clear();
+  framing.openReasoningMessageIds.clear();
+  framing.openReasoningSpanIds.clear();
+  framing.openToolCallIds.clear();
+  framing.openStepNames.clear();
+  framing.openSubagentRunIds.clear();
+}
+
+function trackOpenProtocolUnit(
+  event: Record<string, unknown>,
+  framing: RunFramingState,
+): void {
+  switch (event.type) {
+    case EventType.TEXT_MESSAGE_START: {
+      const messageId = eventField(event, "messageId");
+      if (messageId) {
+        framing.openTextMessageIds.add(messageId);
+      }
+      break;
+    }
+    case EventType.TEXT_MESSAGE_END: {
+      const messageId = eventField(event, "messageId");
+      if (messageId) {
+        framing.openTextMessageIds.delete(messageId);
+      }
+      break;
+    }
+    case EventType.REASONING_MESSAGE_START: {
+      const messageId = eventField(event, "messageId");
+      if (messageId) {
+        framing.openReasoningMessageIds.add(messageId);
+      }
+      break;
+    }
+    case EventType.REASONING_MESSAGE_END: {
+      const messageId = eventField(event, "messageId");
+      if (messageId) {
+        framing.openReasoningMessageIds.delete(messageId);
+      }
+      break;
+    }
+    case EventType.REASONING_START: {
+      const messageId = eventField(event, "messageId");
+      if (messageId) {
+        framing.openReasoningSpanIds.add(messageId);
+      }
+      break;
+    }
+    case EventType.REASONING_END: {
+      const messageId = eventField(event, "messageId");
+      if (messageId) {
+        framing.openReasoningSpanIds.delete(messageId);
+      }
+      break;
+    }
+    case EventType.TOOL_CALL_START: {
+      const toolCallId = eventField(event, "toolCallId");
+      if (toolCallId) {
+        framing.openToolCallIds.add(toolCallId);
+      }
+      break;
+    }
+    case EventType.TOOL_CALL_END: {
+      const toolCallId = eventField(event, "toolCallId");
+      if (toolCallId) {
+        framing.openToolCallIds.delete(toolCallId);
+      }
+      break;
+    }
+    case EventType.STEP_STARTED: {
+      const stepName = eventField(event, "stepName");
+      if (stepName) {
+        framing.openStepNames.add(stepName);
+      }
+      break;
+    }
+    case EventType.STEP_FINISHED: {
+      const stepName = eventField(event, "stepName");
+      if (stepName) {
+        framing.openStepNames.delete(stepName);
+      }
+      break;
+    }
+    case EventType.SUBAGENT_STARTED: {
+      const subagentRunId = eventField(event, "subagentRunId");
+      if (subagentRunId) {
+        framing.openSubagentRunIds.add(subagentRunId);
+      }
+      break;
+    }
+    case EventType.SUBAGENT_FINISHED:
+    case EventType.SUBAGENT_ERROR: {
+      const subagentRunId = eventField(event, "subagentRunId");
+      if (subagentRunId) {
+        framing.openSubagentRunIds.delete(subagentRunId);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+function emitClosingEventsForOpenProtocolUnits(
+  subscriber: { next: (event: BaseEvent) => void },
+  framing: RunFramingState,
+): void {
+  for (const messageId of framing.openReasoningMessageIds) {
+    subscriber.next({
+      type: EventType.REASONING_MESSAGE_END,
+      messageId,
+    } as BaseEvent);
+  }
+  for (const messageId of framing.openReasoningSpanIds) {
+    subscriber.next({
+      type: EventType.REASONING_END,
+      messageId,
+    } as BaseEvent);
+  }
+  for (const messageId of framing.openTextMessageIds) {
+    subscriber.next({
+      type: EventType.TEXT_MESSAGE_END,
+      messageId,
+    } as BaseEvent);
+  }
+  for (const toolCallId of framing.openToolCallIds) {
+    subscriber.next({
+      type: EventType.TOOL_CALL_END,
+      toolCallId,
+    } as BaseEvent);
+  }
+  for (const stepName of framing.openStepNames) {
+    subscriber.next({
+      type: EventType.STEP_FINISHED,
+      stepName,
+    } as BaseEvent);
+  }
+  for (const subagentRunId of framing.openSubagentRunIds) {
+    subscriber.next({
+      type: EventType.SUBAGENT_FINISHED,
+      subagentRunId,
+    } as BaseEvent);
+  }
+  clearOpenProtocolUnits(framing);
+}
 
 // AG-UI transport backed by a tRPC start mutation and persisted event tail.
 export class InAppAgentBackgroundClient extends AbstractAgent {
@@ -187,7 +360,7 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
   ): Promise<void> {
     let consecutiveFailures = 0;
     let consecutiveQuietConnections = 0;
-    const runFraming: RunFramingState = { openRunId: null };
+    const runFraming: RunFramingState = createRunFramingState();
 
     while (!signal.aborted) {
       const cursorBeforeRequest = this.cursor;
@@ -383,6 +556,16 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
           // Historical span markers lack IDs. The REASONING_MESSAGE_* events
           // carry the transcript and loading state independently of these spans.
           continue;
+        }
+        if (event.type === EventType.RUN_STARTED) {
+          clearOpenProtocolUnits(runFraming);
+        }
+        if (event.type === EventType.RUN_FINISHED) {
+          // Close explicit START units that the persist/cancel path left open.
+          // CHUNK streams are closed by the AG-UI client transform.
+          emitClosingEventsForOpenProtocolUnits(subscriber, runFraming);
+        } else {
+          trackOpenProtocolUnit(event, runFraming);
         }
         subscriber.next(event as unknown as BaseEvent);
       }
