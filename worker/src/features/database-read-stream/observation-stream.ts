@@ -199,8 +199,7 @@ export const getObservationStream = async (
             name,
             string_value,
             data_type,
-            comment,
-            execution_trace_id
+            comment
           ORDER BY
             trace_id
           ) tmp
