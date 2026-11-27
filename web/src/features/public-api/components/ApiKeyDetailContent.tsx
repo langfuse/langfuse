@@ -13,6 +13,7 @@ import {
 } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import {
   buildMcpHarnessCommands,
+  shellCommand,
   type McpCredential,
 } from "@/src/features/public-api/components/mcpHarnessCommands";
 import { cn } from "@/src/utils/tailwind";
@@ -80,7 +81,10 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
         </>
       ),
       // Basic auth names the project, which project routes need even for an organization key.
-      code: ` curl -u "${projectId}:${GATEWAY_KEY_PLACEHOLDER}" ${baseUrl}/api/public/traces`,
+      code: shellCommand(
+        `curl -u "${projectId}:${GATEWAY_KEY_PLACEHOLDER}"`,
+        `${baseUrl}/api/public/traces`,
+      ),
       secret: secretKey,
     },
   ];
