@@ -18,7 +18,7 @@ import { queryClickhouse } from "../repositories/clickhouse";
 import type { TopicCohortTraces } from "./clickhouse";
 import {
   INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-  PUBLIC_LLM_JUDGE_ENVIRONMENT,
+  PUBLIC_INTERNAL_EVAL_ENVIRONMENTS,
 } from "../llm/isInternalEvalEnvironment";
 
 type PreviewRow = {
@@ -299,10 +299,10 @@ export async function selectTopicTraceRows(
     )
     .groupBy("m.id")
     .havingRaw(
-      "NOT startsWith(environment, {internalEnvironmentPrefix:String}) AND environment != {publicLlmJudgeEnvironment:String}",
+      "NOT startsWith(environment, {internalEnvironmentPrefix:String}) AND environment NOT IN {publicInternalEnvironments:Array(String)}",
       {
         internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-        publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+        publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
       },
     )
     .buildWithParams();

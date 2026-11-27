@@ -1,20 +1,6 @@
-import {
-  useId,
-  useMemo,
-  useState,
-  type ChangeEvent,
-  type KeyboardEvent,
-  type MouseEvent,
-} from "react";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { useId, useMemo, useState, type ChangeEvent } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  ChevronLeft,
-  Info,
-  LifeBuoy,
-  SquareArrowOutUpRight,
-  X,
-} from "@langfuse/icons";
+import { Info, LifeBuoy, SquareArrowOutUpRight } from "@langfuse/icons";
 import { Controller, useForm, type Control } from "react-hook-form";
 import { z } from "zod";
 
@@ -36,8 +22,6 @@ import { PasswordInput } from "@/src/components/design-system/PasswordInput/Pass
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
-import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
-import { PopoverLayerProvider } from "@/src/context/LayerContext/PopoverLayerProvider";
 import {
   ConnectionTestStatus,
   type ConnectionTestFailure,
@@ -51,7 +35,6 @@ import {
   GATEWAY_GUARDRAIL_PRESET_LABELS,
   GATEWAY_GUARDRAIL_TEMPLATES,
   getGuardrailTypeForTemplate,
-  type GatewayGuardrailTemplateKind,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
 import { RegionSelect } from "@/src/features/ai-gateway/components/RegionSelect";
 import { bedrockRegionGroups } from "@/src/features/ai-gateway/constants/bedrockRegions";
@@ -79,18 +62,21 @@ import {
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import type { GatewayGuardrailsLimitFeedbackReason } from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
 import {
+  GATEWAY_GUARDRAIL_ACTION_SCOPES,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
   GatewayBedrockGuardrailApiKeySchema,
   GatewayBedrockGuardrailConfigSchema,
   GatewayGuardrailCustomRegexSchema,
   GatewayGuardrailRedactionLabelSchema,
+  guardrailScopeChecksOutput,
   parseContainsWordsText,
   resolveSupportedGuardrailScope,
   supportsEntireInputScope,
   validateContainsWordsText,
   validateSecretPrefix,
   type GatewayGuardrailPreset,
+  type GatewayGuardrailTemplateKind,
   type GatewayGuardrailUiAction,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import type {
@@ -111,16 +97,7 @@ function toActionOption(value: GatewayGuardrailUiAction) {
   };
 }
 
-const ACTION_OPTIONS_BY_TYPE: Record<
-  GatewayGuardrailType,
-  ReturnType<typeof toActionOption>[]
-> = {
-  REGEX: GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.REGEX.actions.map(toActionOption),
-  BEDROCK:
-    GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.actions.map(toActionOption),
-};
-
-const SCOPE_OPTIONS_ALL = GATEWAY_GUARDRAIL_SCOPES.map((value) => {
+function toScopeSelectOption(value: GatewayGuardrailScope) {
   const label = GATEWAY_GUARDRAIL_SCOPE_LABELS[value];
   return {
     value,
@@ -130,26 +107,20 @@ const SCOPE_OPTIONS_ALL = GATEWAY_GUARDRAIL_SCOPES.map((value) => {
       description: GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[value],
     },
   };
-});
+}
 
-const SCOPE_OPTIONS_LAST_TURN_ONLY = GATEWAY_GUARDRAIL_SCOPES.map((value) => {
-  const label = GATEWAY_GUARDRAIL_SCOPE_LABELS[value];
-  return value === "ENTIRE_INPUT"
-    ? {
-        value,
-        label,
-        disabled: true as const,
-        disabledReason: "Block guardrails only evaluate the last turn",
-      }
-    : {
-        value,
-        label,
-        explanation: {
-          title: label,
-          description: GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[value],
-        },
-      };
-});
+const ACTION_OPTIONS_BY_TYPE: Record<
+  GatewayGuardrailType,
+  ReturnType<typeof toActionOption>[]
+> = {
+  REGEX: GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.REGEX.actions.map(toActionOption),
+  BEDROCK:
+    GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.actions.map(toActionOption),
+};
+
+const SCOPE_OPTIONS_ALL = GATEWAY_GUARDRAIL_SCOPES.map(toScopeSelectOption);
+const SCOPE_OPTIONS_BLOCK =
+  GATEWAY_GUARDRAIL_ACTION_SCOPES.BLOCK.map(toScopeSelectOption);
 
 const BEDROCK_FIELD_PATHS = {
   guardrailId: "bedrockGuardrailId",
@@ -205,8 +176,11 @@ function createGuardrailFormSchema(
     })
     .superRefine((values, ctx) => {
       if (
-        !supportsEntireInputScope(values.action) &&
-        values.scope === "ENTIRE_INPUT"
+        !(
+          GATEWAY_GUARDRAIL_ACTION_SCOPES[
+            values.action
+          ] as readonly GatewayGuardrailScope[]
+        ).includes(values.scope)
       ) {
         ctx.addIssue({
           code: "custom",
@@ -368,7 +342,6 @@ export type CustomRegexPreviewControl = {
 };
 
 export type GatewayGuardrailFormDialogProps = {
-  title: string;
   submitLabel: string;
   templateKind: GatewayGuardrailTemplateKind;
   availablePresets: readonly GatewayGuardrailPreset[];
@@ -381,13 +354,11 @@ export type GatewayGuardrailFormDialogProps = {
   targetPicker: GatewayGuardrailTargetPicker;
   isSubmitting: boolean;
   errorMessage: string | null;
-  onBack?: () => void;
   onContactSupport?: (reason?: GatewayGuardrailsLimitFeedbackReason) => void;
   onSubmit: (values: GatewayGuardrailFormValues) => void;
 };
 
 export function GatewayGuardrailFormDialog({
-  title,
   submitLabel,
   templateKind,
   availablePresets,
@@ -399,14 +370,10 @@ export function GatewayGuardrailFormDialog({
   targetPicker,
   isSubmitting,
   errorMessage,
-  onBack,
   onContactSupport,
   onSubmit,
 }: GatewayGuardrailFormDialogProps) {
   const formId = useId();
-  const container = useLayerContainer("modal");
-  const [popoverContainer, setPopoverContainer] =
-    useState<HTMLDivElement | null>(null);
   const [testText, setTestText] = useState(initialTestText);
 
   const schema = useMemo(
@@ -448,6 +415,7 @@ export function GatewayGuardrailFormDialog({
   const bedrockApiKey = form.watch("bedrockApiKey");
   const selectedAction = form.watch("action");
   const selectedScope = form.watch("scope");
+  const checksOutput = guardrailScopeChecksOutput(selectedScope);
   const parsedContains = useMemo(
     () =>
       templateKind === "contains" ? parseContainsWordsText(containsText) : [],
@@ -582,20 +550,6 @@ export function GatewayGuardrailFormDialog({
     form.trigger("presets").catch(() => undefined);
   };
 
-  const handleStopClickPropagation = (event: MouseEvent) => {
-    event.stopPropagation();
-  };
-
-  const handleKeyDown = (event: KeyboardEvent) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.stopPropagation();
-    }
-  };
-
-  const handlePreventOutsideClose = (event: { preventDefault: () => void }) => {
-    event.preventDefault();
-  };
-
   const limitFeedbackReason = getLimitFeedbackReason(errorMessage);
   const handleBannerContactSupport = () => {
     if (limitFeedbackReason) onContactSupport?.(limitFeedbackReason);
@@ -625,72 +579,183 @@ export function GatewayGuardrailFormDialog({
   ];
 
   return (
-    <DialogPrimitive.Portal container={container}>
-      <DialogPrimitive.Overlay
-        className="fixed inset-0 bg-black/25 dark:bg-black/45"
-        onClick={handleStopClickPropagation}
-      />
-      <DialogPrimitive.Content
-        aria-describedby={undefined}
-        className={cn(
-          "ph-no-capture bg-modal fixed top-0 left-0 flex h-dvh w-full flex-col shadow-lg sm:top-[50%] sm:left-[50%] sm:h-auto sm:max-h-[85vh] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg",
-          isExternal ? "sm:max-w-xl" : "sm:max-w-4xl",
-        )}
-        onClick={handleStopClickPropagation}
-        onKeyDown={handleKeyDown}
-        onPointerDownOutside={handlePreventOutsideClose}
-        onInteractOutside={handlePreventOutsideClose}
-      >
-        <div className="isolate flex min-h-0 flex-1 flex-col overflow-hidden">
-          <header className="bg-modal flex shrink-0 items-center justify-between gap-3 rounded-t-lg border-b px-5 py-3.5">
-            <div className="flex min-w-0 flex-1 items-center gap-1.5">
-              {onBack ? (
-                <button
-                  type="button"
-                  aria-label="Back to guardrail types"
-                  onClick={onBack}
-                  className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring -ml-1.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
-                >
-                  <ChevronLeft size="base" aria-hidden />
-                </button>
-              ) : null}
-              <DialogPrimitive.Title
-                title={title}
-                className="min-w-0 flex-1 truncate text-base leading-none font-bold tracking-tight"
-              >
-                {title}
-              </DialogPrimitive.Title>
-            </div>
-            <DialogPrimitive.Close
-              className="ring-offset-background focus:ring-ring hover:bg-accent -mr-1.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
-              tabIndex={-1}
-            >
-              <X size="base" />
-              <span className="sr-only">Close</span>
-            </DialogPrimitive.Close>
-          </header>
+    <>
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto border-t text-sm leading-relaxed md:flex-row md:overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col p-5 md:overflow-y-auto">
+          {externalTemplate ? (
+            <p className="text-muted-foreground mb-4 text-xs leading-relaxed">
+              {externalTemplate.description}{" "}
+              <TextLink
+                path={externalTemplate.docsHref}
+                value={externalTemplate.docsLabel}
+                icon={SquareArrowOutUpRight}
+                external
+              />
+            </p>
+          ) : null}
+          <Form
+            id={formId}
+            density="compact"
+            actions={[]}
+            onSubmit={form.handleSubmit(handleValidSubmit)}
+          >
+            <FormField control={form.control} name="name" label="Name">
+              {({ id, inputDescribedById, error, ...field }) => (
+                <Input
+                  {...field}
+                  id={id}
+                  aria-describedby={inputDescribedById}
+                  aria-invalid={Boolean(error)}
+                  error={Boolean(error)}
+                  placeholder={
+                    isExternal ? "e.g. Content safety" : "e.g. Block SSNs"
+                  }
+                />
+              )}
+            </FormField>
 
-          <PopoverLayerProvider container={popoverContainer}>
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto text-sm leading-relaxed md:flex-row md:overflow-hidden">
-              <div className="flex min-w-0 flex-1 flex-col p-5 md:overflow-y-auto">
-                {externalTemplate ? (
-                  <p className="text-muted-foreground mb-4 text-xs leading-relaxed">
-                    {externalTemplate.description}{" "}
-                    <TextLink
-                      path={externalTemplate.docsHref}
-                      value={externalTemplate.docsLabel}
-                      icon={SquareArrowOutUpRight}
-                      external
-                    />
-                  </p>
-                ) : null}
-                <Form
-                  id={formId}
-                  density="compact"
-                  actions={[]}
-                  onSubmit={form.handleSubmit(handleValidSubmit)}
-                >
-                  <FormField control={form.control} name="name" label="Name">
+            <TemplateRuleFields
+              templateKind={templateKind}
+              control={form.control}
+              availablePresets={availablePresets}
+              selectedPresets={selectedPresets}
+              secretPrefixes={secretPrefixes}
+              containsEntryCount={parsedContains.length}
+              customRegexLength={customRegex.length}
+              customRegexErrorMessage={customRegexServerError}
+              customRegexErrorCode={customRegexServerErrorCode}
+              hasSavedApiKey={hasSavedApiKey}
+              presetErrorMessage={
+                form.formState.errors.presets?.message ??
+                form.formState.errors.secretPrefixes?.message
+              }
+              onPresetsChange={handlePresetsChange}
+              onSecretPrefixesChange={handleSecretPrefixesChange}
+              onCustomRegexChange={handleCustomRegexChange}
+              onContactSupport={
+                onContactSupport ? handleRuleSizeContactSupport : undefined
+              }
+            />
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <CustomTooltip
+                content={
+                  <span>
+                    {GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS[selectedAction]}
+                  </span>
+                }
+              >
+                {({ getTriggerProps }) => (
+                  <FormField
+                    control={form.control}
+                    name="action"
+                    label="On match"
+                    registerLabelTooltip={getTriggerProps}
+                  >
+                    {({
+                      id,
+                      inputDescribedById,
+                      error,
+                      value,
+                      onChange,
+                      onBlur,
+                    }) => (
+                      <SelectInput
+                        id={id}
+                        aria-describedby={inputDescribedById}
+                        aria-invalid={Boolean(error)}
+                        error={Boolean(error)}
+                        placeholder="Select action"
+                        value={value}
+                        onValueChange={(nextValue) => {
+                          onChange(nextValue);
+                          const currentScope = form.getValues("scope");
+                          const nextScope = resolveSupportedGuardrailScope(
+                            nextValue,
+                            currentScope,
+                          );
+                          if (nextScope !== currentScope) {
+                            form.setValue("scope", nextScope, {
+                              shouldValidate: true,
+                            });
+                          }
+                          if (capabilities.supportsRedactionLabel) {
+                            form
+                              .trigger("redactionLabel")
+                              .catch(() => undefined);
+                          }
+                        }}
+                        onBlur={onBlur}
+                        options={ACTION_OPTIONS_BY_TYPE[guardrailType]}
+                      />
+                    )}
+                  </FormField>
+                )}
+              </CustomTooltip>
+
+              <CustomTooltip
+                content={
+                  <span>
+                    {GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[selectedScope]}
+                  </span>
+                }
+              >
+                {({ getTriggerProps }) => (
+                  <FormField
+                    control={form.control}
+                    name="scope"
+                    label="Runs on"
+                    registerLabelTooltip={getTriggerProps}
+                  >
+                    {({
+                      id,
+                      inputDescribedById,
+                      error,
+                      value,
+                      onChange,
+                      onBlur,
+                    }) => (
+                      <SelectInput
+                        id={id}
+                        aria-describedby={inputDescribedById}
+                        aria-invalid={Boolean(error)}
+                        error={Boolean(error)}
+                        placeholder="Select scope"
+                        value={value}
+                        onValueChange={onChange}
+                        onBlur={onBlur}
+                        options={
+                          supportsEntireInputScope(selectedAction)
+                            ? SCOPE_OPTIONS_ALL
+                            : SCOPE_OPTIONS_BLOCK
+                        }
+                      />
+                    )}
+                  </FormField>
+                )}
+              </CustomTooltip>
+            </div>
+
+            {checksOutput ? (
+              <Banner variant="info">
+                Streaming is turned off when checking output.
+              </Banner>
+            ) : null}
+
+            {capabilities.supportsRedactionLabel &&
+            selectedAction === "REDACT" ? (
+              <CustomTooltip
+                content={
+                  <span>Matched spans are replaced with this label.</span>
+                }
+              >
+                {({ getTriggerProps }) => (
+                  <FormField
+                    control={form.control}
+                    name="redactionLabel"
+                    label="Replacement label"
+                    registerLabelTooltip={getTriggerProps}
+                  >
                     {({ id, inputDescribedById, error, ...field }) => (
                       <Input
                         {...field}
@@ -698,271 +763,98 @@ export function GatewayGuardrailFormDialog({
                         aria-describedby={inputDescribedById}
                         aria-invalid={Boolean(error)}
                         error={Boolean(error)}
-                        placeholder={
-                          isExternal ? "e.g. Content safety" : "e.g. Block SSNs"
-                        }
+                        placeholder="e.g. [REDACTED] or [PHONE]"
                       />
                     )}
                   </FormField>
-
-                  <TemplateRuleFields
-                    templateKind={templateKind}
-                    control={form.control}
-                    availablePresets={availablePresets}
-                    selectedPresets={selectedPresets}
-                    secretPrefixes={secretPrefixes}
-                    containsEntryCount={parsedContains.length}
-                    customRegexLength={customRegex.length}
-                    customRegexErrorMessage={customRegexServerError}
-                    customRegexErrorCode={customRegexServerErrorCode}
-                    hasSavedApiKey={hasSavedApiKey}
-                    presetErrorMessage={
-                      form.formState.errors.presets?.message ??
-                      form.formState.errors.secretPrefixes?.message
-                    }
-                    onPresetsChange={handlePresetsChange}
-                    onSecretPrefixesChange={handleSecretPrefixesChange}
-                    onCustomRegexChange={handleCustomRegexChange}
-                    onContactSupport={
-                      onContactSupport
-                        ? handleRuleSizeContactSupport
-                        : undefined
-                    }
-                  />
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <CustomTooltip
-                      content={
-                        <span>
-                          {
-                            GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS[
-                              selectedAction
-                            ]
-                          }
-                        </span>
-                      }
-                    >
-                      {({ getTriggerProps }) => (
-                        <FormField
-                          control={form.control}
-                          name="action"
-                          label="On match"
-                          registerLabelTooltip={getTriggerProps}
-                        >
-                          {({
-                            id,
-                            inputDescribedById,
-                            error,
-                            value,
-                            onChange,
-                            onBlur,
-                          }) => (
-                            <SelectInput
-                              id={id}
-                              aria-describedby={inputDescribedById}
-                              aria-invalid={Boolean(error)}
-                              error={Boolean(error)}
-                              placeholder="Select action"
-                              value={value}
-                              onValueChange={(nextValue) => {
-                                onChange(nextValue);
-                                if (!supportsEntireInputScope(nextValue)) {
-                                  form.setValue("scope", "LAST_TURN", {
-                                    shouldValidate: true,
-                                  });
-                                }
-                                if (capabilities.supportsRedactionLabel) {
-                                  form
-                                    .trigger("redactionLabel")
-                                    .catch(() => undefined);
-                                }
-                              }}
-                              onBlur={onBlur}
-                              options={ACTION_OPTIONS_BY_TYPE[guardrailType]}
-                            />
-                          )}
-                        </FormField>
-                      )}
-                    </CustomTooltip>
-
-                    <CustomTooltip
-                      content={
-                        <span>
-                          {GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[selectedScope]}
-                        </span>
-                      }
-                    >
-                      {({ getTriggerProps }) => (
-                        <FormField
-                          control={form.control}
-                          name="scope"
-                          label="Runs on"
-                          registerLabelTooltip={getTriggerProps}
-                        >
-                          {({
-                            id,
-                            inputDescribedById,
-                            error,
-                            value,
-                            onChange,
-                            onBlur,
-                          }) => (
-                            <SelectInput
-                              id={id}
-                              aria-describedby={inputDescribedById}
-                              aria-invalid={Boolean(error)}
-                              error={Boolean(error)}
-                              placeholder="Select scope"
-                              value={value}
-                              onValueChange={onChange}
-                              onBlur={onBlur}
-                              options={
-                                supportsEntireInputScope(selectedAction)
-                                  ? SCOPE_OPTIONS_ALL
-                                  : SCOPE_OPTIONS_LAST_TURN_ONLY
-                              }
-                            />
-                          )}
-                        </FormField>
-                      )}
-                    </CustomTooltip>
-                  </div>
-
-                  {capabilities.supportsRedactionLabel &&
-                  selectedAction === "REDACT" ? (
-                    <CustomTooltip
-                      content={
-                        <span>
-                          Matched spans in the request are replaced with this
-                          label before forwarding.
-                        </span>
-                      }
-                    >
-                      {({ getTriggerProps }) => (
-                        <FormField
-                          control={form.control}
-                          name="redactionLabel"
-                          label="Replacement label"
-                          registerLabelTooltip={getTriggerProps}
-                        >
-                          {({ id, inputDescribedById, error, ...field }) => (
-                            <Input
-                              {...field}
-                              id={id}
-                              aria-describedby={inputDescribedById}
-                              aria-invalid={Boolean(error)}
-                              error={Boolean(error)}
-                              placeholder="e.g. [REDACTED] or [PHONE]"
-                            />
-                          )}
-                        </FormField>
-                      )}
-                    </CustomTooltip>
-                  ) : null}
-
-                  <FormField
-                    control={form.control}
-                    name="targets"
-                    label="Applies to"
-                  >
-                    {({ id, inputDescribedById, error, value, onChange }) => (
-                      <GatewayGuardrailTargetsInput
-                        id={id}
-                        describedById={inputDescribedById}
-                        value={value}
-                        onChange={onChange}
-                        picker={targetPicker}
-                        error={Boolean(error)}
-                      />
-                    )}
-                  </FormField>
-
-                  {errorMessage !== null ? (
-                    <Banner
-                      variant="error"
-                      title="Guardrail could not be saved"
-                      actions={
-                        bannerActions.length > 0 ? bannerActions : undefined
-                      }
-                    >
-                      {errorMessage}
-                    </Banner>
-                  ) : null}
-                </Form>
-              </div>
-
-              {!isExternal ? (
-                <aside className="border-border flex shrink-0 flex-col border-t p-5 md:w-88 md:overflow-y-auto md:border-t-0 md:border-l lg:w-96">
-                  <GatewayGuardrailTestInput
-                    value={testText}
-                    onChange={handleTestTextChange}
-                    presets={
-                      templateKind === "contains" || isCustomRegex
-                        ? []
-                        : selectedPresets
-                    }
-                    secretPrefixes={
-                      templateKind === "secrets" ? secretPrefixes : undefined
-                    }
-                    containsWords={
-                      templateKind === "contains" ? parsedContains : undefined
-                    }
-                    customMatches={
-                      isCustomRegex ? customRegexMatches : undefined
-                    }
-                    customMatchesTruncated={
-                      isCustomRegex ? customRegexTruncated : undefined
-                    }
-                    usesGatewayPreview={isCustomRegex}
-                  />
-                </aside>
-              ) : null}
-            </div>
-          </PopoverLayerProvider>
-
-          <footer className="bg-modal flex shrink-0 flex-col-reverse gap-2 rounded-b-lg border-t px-5 py-3.5 sm:flex-row sm:justify-end">
-            {externalTest?.outcome ? (
-              <ConnectionTestStatus
-                status={externalTest.outcome.status}
-                failure={externalTest.outcome.failure}
-              />
+                )}
+              </CustomTooltip>
             ) : null}
-            {externalTest ? (
-              <Button
-                type="button"
-                variant="secondary"
-                text={
-                  externalTest.outcome &&
-                  externalTest.outcome.status !== "pending"
-                    ? "Test again"
-                    : "Test"
-                }
-                loading={isTesting}
-                disabled={!canTestExternal || isBusy}
-                onClick={handleTestExternal}
-              />
+
+            <FormField control={form.control} name="targets" label="Applies to">
+              {({ id, inputDescribedById, error, value, onChange }) => (
+                <GatewayGuardrailTargetsInput
+                  id={id}
+                  describedById={inputDescribedById}
+                  value={value}
+                  onChange={onChange}
+                  picker={targetPicker}
+                  error={Boolean(error)}
+                />
+              )}
+            </FormField>
+
+            {errorMessage !== null ? (
+              <Banner
+                variant="error"
+                title="Guardrail could not be saved"
+                actions={bannerActions.length > 0 ? bannerActions : undefined}
+              >
+                {errorMessage}
+              </Banner>
             ) : null}
-            <Button
-              type="submit"
-              form={formId}
-              variant="primary"
-              text={submitLabel}
-              loading={isSubmitting}
-              disabled={
-                !form.formState.isValid ||
-                Boolean(customRegexServerError) ||
-                isBusy
-              }
-            />
-          </footer>
+          </Form>
         </div>
-        <div
-          className="isolate"
-          data-layer="popover"
-          ref={setPopoverContainer}
+
+        {!isExternal ? (
+          <aside className="border-border flex shrink-0 flex-col border-t p-5 md:w-88 md:overflow-y-auto md:border-t-0 md:border-l lg:w-96">
+            <GatewayGuardrailTestInput
+              value={testText}
+              onChange={handleTestTextChange}
+              presets={
+                templateKind === "contains" || isCustomRegex
+                  ? []
+                  : selectedPresets
+              }
+              secretPrefixes={
+                templateKind === "secrets" ? secretPrefixes : undefined
+              }
+              containsWords={
+                templateKind === "contains" ? parsedContains : undefined
+              }
+              customMatches={isCustomRegex ? customRegexMatches : undefined}
+              customMatchesTruncated={
+                isCustomRegex ? customRegexTruncated : undefined
+              }
+              usesGatewayPreview={isCustomRegex}
+            />
+          </aside>
+        ) : null}
+      </div>
+
+      <footer className="bg-modal flex shrink-0 flex-col-reverse gap-2 rounded-b-lg border-t px-5 py-3.5 sm:flex-row sm:justify-end">
+        {externalTest?.outcome ? (
+          <ConnectionTestStatus
+            status={externalTest.outcome.status}
+            failure={externalTest.outcome.failure}
+          />
+        ) : null}
+        {externalTest ? (
+          <Button
+            type="button"
+            variant="secondary"
+            text={
+              externalTest.outcome && externalTest.outcome.status !== "pending"
+                ? "Test again"
+                : "Test"
+            }
+            loading={isTesting}
+            disabled={!canTestExternal || isBusy}
+            onClick={handleTestExternal}
+          />
+        ) : null}
+        <Button
+          type="submit"
+          form={formId}
+          variant="primary"
+          text={submitLabel}
+          loading={isSubmitting}
+          disabled={
+            !form.formState.isValid || Boolean(customRegexServerError) || isBusy
+          }
         />
-      </DialogPrimitive.Content>
-    </DialogPrimitive.Portal>
+      </footer>
+    </>
   );
 }
 

@@ -14,9 +14,12 @@ import {
   useDeleteGatewayGuardrails,
   type GatewayGuardrailDeleteTargetInput,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/hooks/useDeleteGatewayGuardrails";
+import { useGatewayIngestionNavProjectId } from "@/src/features/ai-gateway/hooks/useGatewayIngestionNavProjectId";
 import type { useGatewayGuardrailsTableState } from "@/src/features/ai-gateway/hooks/useGatewayGuardrailsTableState";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useQueryOrganization } from "@/src/features/organizations/hooks";
 
 export type ConnectedGatewayGuardrailsTableProps = {
   organizationId: string;
@@ -28,6 +31,7 @@ type DeleteConfirmationState = {
   title: string;
   text: string;
   clearAfterDelete: boolean;
+  isBulk: boolean;
 };
 
 export function ConnectedGatewayGuardrailsTable({
@@ -35,6 +39,9 @@ export function ConnectedGatewayGuardrailsTable({
   table,
 }: ConnectedGatewayGuardrailsTableProps) {
   const { canManageGateway } = useGatewaySettingsAccess(organizationId);
+  const organization = useQueryOrganization();
+  const ingestionProjectId = useGatewayIngestionNavProjectId(organization);
+  const { isV3Legacy } = useReadPath();
   const { guardrails, selectionStore, clearSelection } = table;
   const { selectActionColumn } = TableSelectionManager<GatewayGuardrailRow>({
     projectId: "",
@@ -81,7 +88,9 @@ export function ConnectedGatewayGuardrailsTable({
           error={deletion.error?.message}
           onAfterDismiss={() => deletion.reset()}
           onConfirm={async (state) => {
-            const deletedCount = await deleteGuardrails(state.target);
+            const deletedCount = await deleteGuardrails(state.target, {
+              isBulk: state.isBulk,
+            });
             if (deletedCount === null) {
               throw new Error("Guardrails could not be deleted.");
             }
@@ -102,6 +111,7 @@ export function ConnectedGatewayGuardrailsTable({
                 clearAfterDelete: Boolean(
                   selectionStore.getState().rowSelection[row.id],
                 ),
+                isBulk: false,
               });
             };
 
@@ -109,6 +119,8 @@ export function ConnectedGatewayGuardrailsTable({
               <>
                 <GatewayGuardrailsTable
                   canManage={canManageGateway}
+                  ingestionProjectId={ingestionProjectId}
+                  tracesTarget={isV3Legacy ? "observations" : "traces"}
                   data={toTableData(guardrails)}
                   onRowClick={handleRowClick}
                   selectColumn={{
@@ -202,6 +214,7 @@ function ConnectedGuardrailsSelectionBar({
       title: `Delete ${selectedCount} ${selectedCount === 1 ? "guardrail" : "guardrails"}?`,
       text: "Requests will no longer be checked against these guardrails.",
       clearAfterDelete: true,
+      isBulk: true,
     });
   };
 

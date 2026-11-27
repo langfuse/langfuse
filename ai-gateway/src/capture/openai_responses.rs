@@ -438,5 +438,235 @@ fn read_guardrail_item(
     Ok(())
 }
 
+pub(super) fn extract_response_json(
+    value: &Value,
+    blocks: &mut Vec<crate::guardrails::response::ResponseBlock>,
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    use crate::guardrails::response::{
+        attach_matching_or_push_leaf, collect_text_or_parts, ptr_index, ptr_push, push_json_leaf,
+    };
+    use crate::guardrails::text::Unreadable;
+
+    if let Some(output) = value.get("output").filter(|v| !v.is_null()) {
+        let output_ptr = ptr_push("", "output");
+        for (index, item) in output.as_array().ok_or(Unreadable)?.iter().enumerate() {
+            let map = item.as_object().ok_or(Unreadable)?;
+            let item_ptr = ptr_index(&output_ptr, index);
+            for key in ["content", "summary", "text", "refusal", "input"] {
+                if let Some(field) = map.get(key) {
+                    collect_text_or_parts(field, &ptr_push(&item_ptr, key), 0, blocks)?;
+                }
+            }
+            if let Some(args) = map.get("arguments").and_then(Value::as_str) {
+                push_json_leaf(blocks, args, ptr_push(&item_ptr, "arguments"));
+            }
+        }
+    }
+    if let Some(output_text) = value.get("output_text").and_then(Value::as_str) {
+        attach_matching_or_push_leaf(blocks, output_text, ptr_push("", "output_text"));
+    }
+    Ok(())
+}
+
+fn responses_delta_spec(kind: &str) -> Option<(&'static str, &'static str)> {
+    match kind {
+        "response.output_text.delta" => Some(("content_index", "output_text")),
+        "response.refusal.delta" => Some(("content_index", "refusal")),
+        "response.function_call_arguments.delta" => Some(("", "function_call_args")),
+        "response.custom_tool_call_input.delta" => Some(("", "custom_tool_call_input")),
+        "response.mcp_call_arguments.delta" => Some(("", "mcp_call_args")),
+        "response.reasoning_text.delta" => Some(("content_index", "reasoning_text")),
+        "response.reasoning_summary_text.delta" => Some(("summary_index", "reasoning_summary")),
+        _ => None,
+    }
+}
+
+fn responses_done_spec(kind: &str) -> Option<(&'static str, &'static str, &'static str)> {
+    match kind {
+        "response.output_text.done" => Some(("text", "content_index", "output_text")),
+        "response.refusal.done" => Some(("refusal", "content_index", "refusal")),
+        "response.function_call_arguments.done" => Some(("arguments", "", "function_call_args")),
+        "response.custom_tool_call_input.done" => Some(("input", "", "custom_tool_call_input")),
+        "response.mcp_call_arguments.done" => Some(("arguments", "", "mcp_call_args")),
+        "response.reasoning_text.done" => Some(("text", "content_index", "reasoning_text")),
+        "response.reasoning_summary_text.done" => {
+            Some(("text", "summary_index", "reasoning_summary"))
+        }
+        _ => None,
+    }
+}
+
+pub(super) fn extract_response_sse(
+    frame_idx: usize,
+    value: &Value,
+    collector: &mut crate::guardrails::response::StreamCollector,
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    use crate::guardrails::response::{StreamKey, ptr_push};
+    use crate::guardrails::text::Unreadable;
+
+    let Some(kind) = value.get("type").and_then(Value::as_str) else {
+        return Ok(());
+    };
+    let output_idx = value
+        .get("output_index")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    if let Some((index_field, slot)) = responses_delta_spec(kind) {
+        let part_idx = value.get(index_field).and_then(Value::as_u64).unwrap_or(0);
+        if let Some(text) = value.get("delta").and_then(Value::as_str) {
+            collector.push_delta(
+                StreamKey::Responses(output_idx, part_idx, slot),
+                frame_idx,
+                "/delta".into(),
+                text,
+            );
+        }
+        return Ok(());
+    }
+    if let Some((field, index_field, slot)) = responses_done_spec(kind) {
+        let part_idx = value.get(index_field).and_then(Value::as_u64).unwrap_or(0);
+        if let Some(text) = value.get(field).and_then(Value::as_str) {
+            collector.push_summary(
+                Some(StreamKey::Responses(output_idx, part_idx, slot)),
+                frame_idx,
+                ptr_push("", field),
+                text,
+            );
+        }
+        return Ok(());
+    }
+    match kind {
+        "response.content_part.done" | "response.reasoning_summary_part.done" => {
+            let (index_key, text_slot) = if kind == "response.reasoning_summary_part.done" {
+                ("summary_index", "reasoning_summary")
+            } else {
+                ("content_index", "output_text")
+            };
+            let part_idx = value.get(index_key).and_then(Value::as_u64).unwrap_or(0);
+            if let Some(part) = value.get("part") {
+                collect_responses_part_sse(
+                    frame_idx, part, "/part", output_idx, part_idx, text_slot, collector,
+                );
+            }
+        }
+        "response.output_item.done" => {
+            if let Some(item) = value.get("item") {
+                collect_responses_item_sse(frame_idx, item, "/item", output_idx, collector);
+            }
+        }
+        "response.completed" | "response.incomplete" => {
+            let Some(resp) = value.get("response") else {
+                return Ok(());
+            };
+            if let Some(output) = resp.get("output").filter(|v| !v.is_null()) {
+                for (index, item) in output.as_array().ok_or(Unreadable)?.iter().enumerate() {
+                    collect_responses_item_sse(
+                        frame_idx,
+                        item,
+                        &format!("/response/output/{index}"),
+                        index as u64,
+                        collector,
+                    );
+                }
+            }
+            if let Some(output_text) = resp.get("output_text").and_then(Value::as_str) {
+                collector.attach_or_push_leaf(
+                    frame_idx,
+                    output_text,
+                    "/response/output_text".into(),
+                );
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn collect_responses_part_sse(
+    frame_idx: usize,
+    part: &Value,
+    ptr: &str,
+    output_idx: u64,
+    part_idx: u64,
+    text_slot: &'static str,
+    collector: &mut crate::guardrails::response::StreamCollector,
+) {
+    use crate::guardrails::response::{StreamKey, ptr_push};
+
+    for (field, slot) in [("text", text_slot), ("refusal", "refusal")] {
+        if let Some(text) = part.get(field).and_then(Value::as_str) {
+            collector.push_summary(
+                Some(StreamKey::Responses(output_idx, part_idx, slot)),
+                frame_idx,
+                ptr_push(ptr, field),
+                text,
+            );
+        }
+    }
+}
+
+fn collect_responses_item_sse(
+    frame_idx: usize,
+    item: &Value,
+    ptr: &str,
+    output_idx: u64,
+    collector: &mut crate::guardrails::response::StreamCollector,
+) {
+    use crate::guardrails::response::{StreamKey, ptr_push};
+
+    let item_type = item.get("type").and_then(Value::as_str);
+    if let Some(content) = item.get("content").and_then(Value::as_array) {
+        let text_slot = if item_type == Some("reasoning") {
+            "reasoning_text"
+        } else {
+            "output_text"
+        };
+        for (idx, part) in content.iter().enumerate() {
+            collect_responses_part_sse(
+                frame_idx,
+                part,
+                &format!("{ptr}/content/{idx}"),
+                output_idx,
+                idx as u64,
+                text_slot,
+                collector,
+            );
+        }
+    }
+    if let Some(summary) = item.get("summary").and_then(Value::as_array) {
+        for (idx, part) in summary.iter().enumerate() {
+            collect_responses_part_sse(
+                frame_idx,
+                part,
+                &format!("{ptr}/summary/{idx}"),
+                output_idx,
+                idx as u64,
+                "reasoning_summary",
+                collector,
+            );
+        }
+    }
+    let arg_slot = if item_type == Some("mcp_call") {
+        "mcp_call_args"
+    } else {
+        "function_call_args"
+    };
+    for (field, slot) in [("arguments", arg_slot), ("input", "custom_tool_call_input")] {
+        if let Some(text) = item.get(field).and_then(Value::as_str) {
+            collector.push_summary(
+                Some(StreamKey::Responses(output_idx, 0, slot)),
+                frame_idx,
+                ptr_push(ptr, field),
+                text,
+            );
+        }
+    }
+    for field in ["text", "refusal"] {
+        if let Some(text) = item.get(field).and_then(Value::as_str) {
+            collector.push_summary(None, frame_idx, ptr_push(ptr, field), text);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests;

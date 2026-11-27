@@ -2,7 +2,7 @@
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
-import { X, type IconComponent } from "@langfuse/icons";
+import { ChevronLeft, X, type IconComponent } from "@langfuse/icons";
 import * as React from "react";
 
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -57,6 +57,12 @@ type DialogProps = {
   /** Disable when a child interaction handles activation keys on the document. */
   stopPropagationOnEnterSpace?: boolean;
   size?: VariantProps<typeof dialogContentVariants>["size"];
+  /** Renders a leading back button next to the title for multi-step dialogs. */
+  back?: {
+    onClick: () => void;
+    /** Accessible label for the back button. Defaults to "Back". */
+    label?: string;
+  };
   title: string;
 } & (
   | { children?: React.ReactNode; text?: never }
@@ -77,6 +83,7 @@ function DialogRoot({
   stopPropagationOnEnterSpace = true,
   size,
   text,
+  back,
   title,
 }: DialogProps) {
   const container = useLayerContainer("modal");
@@ -172,9 +179,21 @@ function DialogRoot({
         <div className="isolate flex min-h-0 flex-1 flex-col overflow-hidden">
           <header className="bg-modal flex shrink-0 flex-col gap-1 rounded-t-lg p-4">
             <div className="flex w-full items-center justify-between gap-4 text-left">
-              <DialogPrimitive.Title className="min-w-0 flex-1 text-lg leading-none font-bold tracking-tight">
-                {title}
-              </DialogPrimitive.Title>
+              <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                {back ? (
+                  <button
+                    type="button"
+                    aria-label={back.label ?? "Back"}
+                    onClick={back.onClick}
+                    className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring -ml-1.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
+                  >
+                    <ChevronLeft size="base" aria-hidden />
+                  </button>
+                ) : null}
+                <DialogPrimitive.Title className="min-w-0 flex-1 text-lg leading-none font-bold tracking-tight">
+                  {title}
+                </DialogPrimitive.Title>
+              </div>
               {requireExplicitClose ? null : (
                 <DialogPrimitive.Close
                   className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -mt-2 -mr-2 inline-flex size-8 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"

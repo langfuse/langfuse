@@ -581,7 +581,7 @@ The background color of the following component will be `hsl(var(--primary))` an
 | --dark-yellow                    | Dark yellow for warning text                                       | LevelColor                       |
 | --light-green                    | Light green for success status badge background                    | StatusBadge                      |
 | --dark-green                     | Dark green for success text, badge text and dots (emerald-800)     | StatusBadge, Badge, Switch       |
-| --light-blue                     | Light blue for background of Staging label                         | LangfuseLogo                     |
+| --light-blue                     | Light blue for background of Staging label                         | StatusBadge                      |
 | --dark-blue                      | Dark blue for info text, links and badge text (blue-800)           | StatusBadge, Badge, Banner       |
 | --accent-light-blue              | Light blue accent for table link hover effect                      | TableLink                        |
 | --accent-dark-blue               | Dark blue accent for table link text                               | TableLink                        |
