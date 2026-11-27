@@ -746,6 +746,7 @@ describe("lowering inside an AST query", () => {
           lowerEventsSearch(eb, { text: "needle", scopes: ["id"] }),
         ),
       PROJECT_ID,
+      "p",
     ).sql;
 
   it("compiles with tenancy and reads events_core for short columns", () => {

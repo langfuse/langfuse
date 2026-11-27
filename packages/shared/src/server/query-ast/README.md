@@ -11,7 +11,7 @@ changing how it emits SQL.
 ## Layout
 
 - `compile.ts` — the one supported entry point,
-  `compileClickhouseQuery(query, projectId)`.
+  `compileClickhouseQuery(query, projectId, paramPrefix)`.
 - `schemaReferences.ts` — the first pass: rejects three-part column
   references (`a.b.c`), so later passes read a qualifier as its relation.
 - `ctes.ts` — the second pass: rejects CTE and FROM/JOIN names that could
@@ -64,11 +64,16 @@ must carry the `.golden.test.ts` suffix to run there.
 
 ## Using it
 
-- **Compile only through `compileClickhouseQuery(query, projectId)`.** It is
-  the one supported path from a builder to `{ sql, params }`; the repository
-  layer hands that to `queryClickhouse`. `projectId` is required — omitting it
-  is a compile-time type error and an empty one throws. There is no
-  multi-project scope: a query reads one project.
+- **Compile only through
+  `compileClickhouseQuery(query, projectId, paramPrefix)`.** It is the one
+  supported path from a builder to `{ sql, params }`; the repository layer
+  hands that to `queryClickhouse`. `projectId` is required — omitting it is a
+  compile-time type error and an empty one throws. There is no multi-project
+  scope: a query reads one project.
+- **Name each compile's placeholders.** `paramPrefix` is required too
+  (`<prefix>1`, `<prefix>2`, …; a plain identifier not ending in a digit), so
+  no two compiles share a default. Give each compile spliced into one query
+  its own prefix (`../services/sessions-ui-table-events-service.ts`).
 - **Never filter `project_id` yourself.** The compile step injects
   `project_id = {projectId}` into every tenanted relation, so call sites pass
   only `projectId` (see `../repositories/environments.ts`).
@@ -251,14 +256,14 @@ not patched.
 `getClickhouseKysely()` returns a `Kysely` instance wired to a `DummyDriver`
 with SQLite adapter/introspector stand-ins (`dialect.ts`). Nothing ever
 connects or executes. The only supported output path is
-`compileClickhouseQuery(query, projectId)` → `{ sql, params }`, which the
-repository layer hands to `queryClickhouse`. Do **not** call `.execute()` / `.compile()`
+`compileClickhouseQuery(query, projectId, paramPrefix)` → `{ sql, params }`,
+which the repository layer hands to `queryClickhouse`. Do **not** call `.execute()` / `.compile()`
 directly: the compiler refuses any tree that did not go through the tenancy pass.
 
 ### Tenancy injection — how the choke point works
 
-`compileClickhouseQuery(query, projectId)` is the only supported compile path,
-and it is where tenancy is enforced:
+`compileClickhouseQuery(query, projectId, paramPrefix)` is the only supported
+compile path, and it is where tenancy is enforced:
 
 1. A missing/empty `projectId` throws (`QueryCompileError`) — `projectId` is a
    required parameter, so omitting it is also a compile-time type error.

@@ -86,6 +86,18 @@ describe("tenancy injection", () => {
     expect(() => compileClickhouseQuery(qb)).toThrow(/no tenancy scope/);
   });
 
+  it("requires a placeholder prefix", () => {
+    const qb = getClickhouseKysely().selectFrom("traces").select("environment");
+
+    // A required `paramPrefix` means no compile falls back to a default that
+    // a second compile spliced into the same query would share; the runtime
+    // check catches a missing one passed through an `any` boundary.
+    // @ts-expect-error - paramPrefix is required
+    expect(() => compileClickhouseQuery(qb, "proj-1")).toThrow(
+      /Parameter prefix "undefined"/,
+    );
+  });
+
   it("refuses an empty projectId", () => {
     const qb = getClickhouseKysely()
       .selectFrom("traces")
@@ -94,7 +106,9 @@ describe("tenancy injection", () => {
 
     // Type-valid but semantically empty: the type system cannot express
     // "non-empty string", so the runtime check earns its keep here.
-    expect(() => compileClickhouseQuery(qb, "")).toThrow(/no tenancy scope/);
+    expect(() => compileClickhouseQuery(qb, "", "p")).toThrow(
+      /no tenancy scope/,
+    );
   });
 
   it("refuses a scope that is not a single projectId string", () => {
@@ -102,11 +116,11 @@ describe("tenancy injection", () => {
 
     expect(() =>
       // @ts-expect-error - a query is scoped to exactly one project
-      compileClickhouseQuery(qb, ["proj-a", "proj-b"]),
+      compileClickhouseQuery(qb, ["proj-a", "proj-b"], "p"),
     ).toThrow(/no tenancy scope/);
     expect(() =>
       // @ts-expect-error - the scope is the projectId itself, not a context
-      compileClickhouseQuery(qb, { projectId: "proj-a" }),
+      compileClickhouseQuery(qb, { projectId: "proj-a" }, "p"),
     ).toThrow(/no tenancy scope/);
   });
 
@@ -122,7 +136,11 @@ describe("tenancy injection", () => {
   it("injects project_id when the builder omitted it", () => {
     const qb = getClickhouseKysely().selectFrom("events").select("environment");
 
-    const { sql: compiled, params } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled, params } = compileClickhouseQuery(
+      qb,
+      projectId,
+      "p",
+    );
     expect(compiled.toLowerCase()).toContain("project_id");
     expect(Object.values(params)).toContain("proj-1");
   });
@@ -272,7 +290,9 @@ describe("tenancy injection", () => {
       .select("t.id")
       .where(bareOr(oneIsOne, oneIsOne));
 
-    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+    expect(
+      compileClickhouseQuery(qb, projectId, "p").sql,
+    ).toMatchInlineSnapshot(
       `"select t.id from traces as t inner join scores as s on (s.trace_id = t.id or 1 = 1) and s.project_id = {p1:String} where t.project_id = {p1:String} and (1 = 1 or 1 = 1)"`,
     );
   });
@@ -320,7 +340,7 @@ describe("tenancy injection", () => {
       .innerJoin("scores", (join) => join.onRef("scores.trace_id", "=", "s.id"))
       .select("scores.value");
 
-    expect(compileClickhouseQuery(qb, projectId).sql).toContain(
+    expect(compileClickhouseQuery(qb, projectId, "p").sql).toContain(
       "on scores.trace_id = s.id and scores.project_id = {p1:String}",
     );
   });
@@ -331,7 +351,9 @@ describe("tenancy injection", () => {
       .leftJoin("scores as s", (join) => join.onRef("s.trace_id", "=", "t.id"))
       .select("t.id");
 
-    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+    expect(
+      compileClickhouseQuery(qb, projectId, "p").sql,
+    ).toMatchInlineSnapshot(
       `"select t.id from traces as t left join scores as s on s.trace_id = t.id and s.project_id = {p1:String} where t.project_id = {p1:String}"`,
     );
   });
@@ -384,7 +406,9 @@ describe("tenancy injection", () => {
       .where("scores.project_id", "=", projectId)
       .select("scores.value");
 
-    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+    expect(
+      compileClickhouseQuery(qb, projectId, "p").sql,
+    ).toMatchInlineSnapshot(
       `"select scores.value from (select id, project_id from traces where traces.project_id = {p1:String}) as s right join scores on scores.trace_id = s.id where scores.project_id = {p1:String}"`,
     );
   });
@@ -451,7 +475,7 @@ describe("tenancy injection", () => {
       .select("o.environment")
       .where("o.project_id", "=", "proj-1");
 
-    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId, "p");
     const refs = compiled.match(/[\w.]*project_id/gi) ?? [];
     expect(refs.length).toBeGreaterThanOrEqual(3);
     for (const ref of refs) {
@@ -467,7 +491,11 @@ describe("tenancy injection", () => {
       .select("environment")
       .where("project_id", "=", "other-project");
 
-    const { sql: compiled, params } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled, params } = compileClickhouseQuery(
+      qb,
+      projectId,
+      "p",
+    );
     // The builder's `other-project` predicate does not scope the request's
     // project, so the pass must still inject `project_id = proj-1`.
     expect(Object.values(params)).toContain("proj-1");
@@ -519,7 +547,7 @@ describe("tenancy injection", () => {
     }>();
     const compile = (
       query: Parameters<typeof compileClickhouseQuery>[0],
-    ): string => compileClickhouseQuery(query, projectId).sql;
+    ): string => compileClickhouseQuery(query, projectId, "p").sql;
     // A rejection of the CTE pass's own name rules, with no other pass run.
     const checkNames = (query: Parameters<typeof compileClickhouseQuery>[0]) =>
       applyPassOnly(query, new CteNamePlugin());
@@ -910,7 +938,7 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
         arrayJoin((eb) => ({ cost_key: mapKeys(eb.ref("cost_details")) })),
       );
 
-    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId, "p");
     expect(compiled.toLowerCase()).toContain("array join");
     expect(compiled.toLowerCase()).toContain(
       "mapkeys(cost_details) as cost_key",
@@ -951,7 +979,7 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
         ),
       );
 
-    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId, "p");
     expect(compiled.toLowerCase()).toContain(
       "left array join mapkeys(cost_details) as cost_key",
     );
@@ -963,7 +991,7 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
       .select("span_id")
       .$call(limitBy({ count: 2, columns: (eb) => [eb.ref("span_id")] }));
 
-    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId, "p");
     expect(compiled.toLowerCase()).toContain("limit 2 by span_id");
   });
 
@@ -975,7 +1003,7 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
       .limit(50)
       .$call(limitBy({ count: 1, columns: (eb) => [eb.ref("span_id")] }));
 
-    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId, "p");
     const lower = compiled.toLowerCase();
     expect(lower).toContain("limit ");
     expect(lower).toContain(" by ");
@@ -1004,7 +1032,7 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
       .select("s.id")
       .$call(useFinal(["scores"]));
 
-    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId, "p");
     expect(compiled.toLowerCase()).toMatch(/from scores as s final/);
     expect(compiled.toLowerCase()).not.toMatch(/from scores as s,/);
   });
@@ -1155,7 +1183,7 @@ describe("query roots", () => {
     const query = db.deleteFrom("traces").where("id", "=", "x");
     expect(() =>
       // @ts-expect-error - only select builders are ClickhouseCompilable
-      compileClickhouseQuery(query, projectId),
+      compileClickhouseQuery(query, projectId, "p"),
     ).toThrow("Only select queries compile");
   });
 });
@@ -1207,7 +1235,9 @@ describe("bare columns in a SELECT with several relations", () => {
       /Qualifier "metadata" names no relation/,
     ],
   ])("rejects %s", (_, build, error) => {
-    expect(() => compileClickhouseQuery(build(), projectId)).toThrow(error);
+    expect(() => compileClickhouseQuery(build(), projectId, "p")).toThrow(
+      error,
+    );
   });
 
   it("accepts output aliases, lambda parameters and a single-relation subquery", () => {
@@ -1222,7 +1252,7 @@ describe("bare columns in a SELECT with several relations", () => {
       .groupBy("t.id")
       .orderBy("top", "desc");
 
-    expect(() => compileClickhouseQuery(qb, projectId)).not.toThrow();
+    expect(() => compileClickhouseQuery(qb, projectId, "p")).not.toThrow();
   });
 });
 
@@ -1231,14 +1261,14 @@ describe("qualifiers in a SELECT with one relation", () => {
 
   it("rejects a relation the query did not join", () => {
     const qb = db.selectFrom("scores").select(sql.ref("zz.name").as("n"));
-    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+    expect(() => compileClickhouseQuery(qb, projectId, "p")).toThrow(
       /Qualifier "zz" names no relation, registry column/,
     );
   });
 
   it("accepts a subcolumn of its relation's column", () => {
     const qb = db.selectFrom("scores").select(sql.ref("metadata.keys").as("k"));
-    expect(() => compileClickhouseQuery(qb, projectId)).not.toThrow();
+    expect(() => compileClickhouseQuery(qb, projectId, "p")).not.toThrow();
   });
 });
 
@@ -1344,10 +1374,10 @@ describe("names the compiler writes verbatim", () => {
         ),
     ],
   ])("rejects a non-plain identifier in a %s", (_kind, qb) => {
-    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+    expect(() => compileClickhouseQuery(qb, projectId, "p")).toThrow(
       QueryCompileError,
     );
-    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+    expect(() => compileClickhouseQuery(qb, projectId, "p")).toThrow(
       /not a plain identifier/,
     );
   });
@@ -1356,6 +1386,7 @@ describe("names the compiler writes verbatim", () => {
     const { sql: compiled } = compileClickhouseQuery(
       db.selectFrom("scores as s").select(sql.ref<string>("s.1").as("x")),
       projectId,
+      "p",
     );
     expect(compiled).toContain("select s.1 as x from scores as s");
   });
@@ -1372,6 +1403,7 @@ describe("names the compiler writes verbatim", () => {
             .select("s.id")
             .orderBy("s.name", (ob) => ob.collate(collation)),
           projectId,
+          "p",
         ),
       ).toThrow(QueryCompileError);
     },

@@ -62,8 +62,8 @@ export const getEnvironmentsForProject = async (
       qb.where("timestamp", ">=", fromTimestamp!),
     );
 
-  const tracing = compileClickhouseQuery(tracingQuery, projectId);
-  const scores = compileClickhouseQuery(scoresQuery, projectId);
+  const tracing = compileClickhouseQuery(tracingQuery, projectId, "p");
+  const scores = compileClickhouseQuery(scoresQuery, projectId, "p");
 
   // The events read may route to a dedicated ClickHouse service
   // (CLICKHOUSE_EVENTS_READ_ONLY_URL) while scores always read the primary, so

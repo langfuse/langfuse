@@ -800,7 +800,11 @@ export const getObservationMetricsForPromptsFromEvents = async (
     ])
     .groupBy(["e.prompt_id", "e.prompt_version"])
     .orderBy("e.prompt_version", "desc");
-  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
+  const { sql: query, params } = compileClickhouseQuery(
+    builder,
+    projectId,
+    "p",
+  );
   const rows = await queryClickhouse<{
     count: string;
     prompt_id: string;
@@ -851,7 +855,11 @@ export const getObservationsWithPromptNameFromEvents = async (
       qb.where("start_time", "<=", toTimestamp!),
     )
     .groupBy("prompt_name");
-  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
+  const { sql: query, params } = compileClickhouseQuery(
+    builder,
+    projectId,
+    "p",
+  );
   const rows = await queryClickhouse<{ count: string; prompt_name: string }>({
     query,
     params,
@@ -1272,7 +1280,11 @@ async function getObservationByIdFromEventsTableInternal({
     .orderBy("event_ts", "desc")
     .limit(literal(1));
 
-  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
+  const { sql: query, params } = compileClickhouseQuery(
+    builder,
+    projectId,
+    "p",
+  );
 
   return await queryClickhouse<EventsObservationRecordReadType>({
     query,
@@ -1375,7 +1387,11 @@ export const getTraceByIdFromEventsTable = async ({
     .orderBy("t.timestamp", "desc")
     .limit(literal(1));
 
-  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
+  const { sql: query, params } = compileClickhouseQuery(
+    builder,
+    projectId,
+    "p",
+  );
 
   const records = await queryClickhouse<TraceRecordReadType>({
     query,
@@ -1530,7 +1546,7 @@ function compileHasAnyFromEventsTable(opts: {
     )
     .limit(literal(1));
 
-  return compileClickhouseQuery(query, opts.projectId);
+  return compileClickhouseQuery(query, opts.projectId, "p");
 }
 
 /**
@@ -3132,6 +3148,7 @@ export async function getAgentGraphDataFromEventsTable(
   const { sql: query, params: queryParams } = compileClickhouseQuery(
     builder,
     projectId,
+    "p",
   );
 
   return queryClickhouse({
@@ -3342,6 +3359,7 @@ export const getObservationsBatchIOFromEventsTable = async <
   const { sql: query, params } = compileClickhouseQuery(
     builder,
     opts.projectId,
+    "p",
   );
 
   const results = await queryClickhouse<{
@@ -3457,7 +3475,7 @@ function compileObservationIOFieldRead<A extends string>(
     .orderBy("e.event_ts", "desc")
     .limit(literal(1));
 
-  return compileClickhouseQuery(query, opts.projectId);
+  return compileClickhouseQuery(query, opts.projectId, "p");
 }
 
 /**
@@ -3577,6 +3595,7 @@ export const getObservationFullIOForSessionFromEventsTable = async (opts: {
   const { sql: query, params } = compileClickhouseQuery(
     builder,
     opts.projectId,
+    "p",
   );
 
   const rows = await queryClickhouse<{
@@ -3631,6 +3650,7 @@ export const getObservationsTraceIdsFromEventsTable = async (opts: {
   const { sql: query, params: queryParams } = compileClickhouseQuery(
     builder,
     projectId,
+    "p",
   );
 
   const result = await queryClickhouse<{
@@ -3903,7 +3923,11 @@ const buildEventsForBlobStorageExportQuery = (
       }),
     );
 
-  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
+  const { sql: query, params } = compileClickhouseQuery(
+    builder,
+    projectId,
+    "p",
+  );
 
   return {
     query,
@@ -4020,7 +4044,11 @@ export const getEventsForAnalyticsIntegrations = async function* (
       }),
     );
 
-  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
+  const { sql: query, params } = compileClickhouseQuery(
+    builder,
+    projectId,
+    "p",
+  );
 
   const records = queryClickhouseStream<Record<string, unknown>>({
     query,
@@ -4123,6 +4151,7 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
   const { sql: query, params } = compileClickhouseQuery(
     builder,
     props.projectId,
+    "p",
   );
 
   return queryClickhouse<{
@@ -4436,6 +4465,7 @@ export const getGatewayGuardrailFlaggedCountsFromEvents = async (params: {
   const { sql: query, params: queryParams } = compileClickhouseQuery(
     builder,
     params.projectId,
+    "p",
   );
 
   const rows = await queryClickhouse<{ guardrail_key: string; count: string }>({
@@ -4515,6 +4545,7 @@ export const getGatewayGuardrailFlaggedTimeSeriesFromEvents = async (params: {
     const { sql: query, params: queryParams } = compileClickhouseQuery(
       builder,
       params.projectId,
+      "p",
     );
 
     const rows = await queryClickhouse<{
@@ -4566,6 +4597,7 @@ export const getGatewayGuardrailFlaggedTimeSeriesFromEvents = async (params: {
   const { sql: query, params: queryParams } = compileClickhouseQuery(
     builder,
     params.projectId,
+    "p",
   );
 
   const rows = await queryClickhouse<{
@@ -4669,7 +4701,11 @@ export const getSessionMetricsFromEvents = async <
     .where("session_id", "!=", literal(""))
     .groupBy("session_id")
     .limit(sessionIds.length);
-  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
+  const { sql: query, params } = compileClickhouseQuery(
+    builder,
+    projectId,
+    "p",
+  );
 
   const rows = await queryClickhouse<Pick<SessionEventsMetricsRow, F>>({
     query,
@@ -4740,6 +4776,7 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
   const { sql: query, params: queryParams } = compileClickhouseQuery(
     builder,
     projectId,
+    "p",
   );
   const result = await queryClickhouse<{
     ingestion_sdk_name: string;
@@ -4824,7 +4861,11 @@ export const getTracesIdentifierForSessionFromEvents = async (
       }),
     );
 
-  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
+  const { sql: query, params } = compileClickhouseQuery(
+    builder,
+    projectId,
+    "p",
+  );
 
   const rows = await queryClickhouse<{
     id: string;

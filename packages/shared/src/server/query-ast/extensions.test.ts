@@ -97,7 +97,7 @@ describe("schema-typed selection (condition 7)", () => {
       .selectFrom("events")
       .select((eb) => [eb.fn.sum("total_cost").as("s")]);
 
-    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId, "p");
     expect(compiled.toLowerCase()).toContain("sum(total_cost)");
     expect(compiled.toLowerCase()).toContain("project_id");
   });
@@ -107,10 +107,12 @@ describe("schema-typed selection (condition 7)", () => {
       .selectFrom("events")
       .select((eb) => [eb.fn.sum("environment").as("s")]);
 
-    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+    expect(() => compileClickhouseQuery(qb, projectId, "p")).toThrow(
       TypeCompatibilityError,
     );
-    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(/environment/);
+    expect(() => compileClickhouseQuery(qb, projectId, "p")).toThrow(
+      /environment/,
+    );
   });
 
   it("does not type a column named like an Object prototype key", () => {
@@ -120,7 +122,7 @@ describe("schema-typed selection (condition 7)", () => {
       .selectFrom("scores")
       .select((eb) => [eb.fn.sum(db.dynamic.ref("constructor")).as("s")]);
 
-    expect(() => compileClickhouseQuery(qb, projectId)).not.toThrow();
+    expect(() => compileClickhouseQuery(qb, projectId, "p")).not.toThrow();
   });
 });
 
@@ -160,7 +162,11 @@ describe("metadata subscript access (condition 7b)", () => {
       .select((eb) => [eventsMetadata(eb, "a").as("a")])
       .where((eb) => eb(eventsMetadata(eb, "a"), "=", "x"));
 
-    const { sql: compiled, params } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled, params } = compileClickhouseQuery(
+      qb,
+      projectId,
+      "p",
+    );
     const lower = compiled.toLowerCase();
     expect(lower).toContain(
       "mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[",
@@ -178,7 +184,11 @@ describe("metadata subscript access (condition 7b)", () => {
       .groupBy("environment")
       .having((eb) => eb(eventsMetadata(eb, "a"), "=", "x"));
 
-    const { sql: compiled, params } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled, params } = compileClickhouseQuery(
+      qb,
+      projectId,
+      "p",
+    );
     expect(compiled.toLowerCase()).toContain("having");
     expect(compiled.toLowerCase()).toContain(
       "mapfromarrays(arrayreverse(e.metadata_names), arrayreverse(e.metadata_values))[",
@@ -297,7 +307,11 @@ describe("virtual view (condition 8)", () => {
       .select("environment")
       .where("environment", "=", "production");
 
-    const { sql: compiled, params } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled, params } = compileClickhouseQuery(
+      qb,
+      projectId,
+      "p",
+    );
     const lower = compiled.toLowerCase();
     expect(lower).toContain("with environments_view as");
     expect(lower).toContain("from events_core");
@@ -309,7 +323,7 @@ describe("virtual view (condition 8)", () => {
 
   it("injects tenancy on the inner physical table, not the view alias", () => {
     const qb = fromView(environmentsView).select("environment");
-    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId, "p");
     const lower = compiled.toLowerCase();
     expect(lower).toMatch(
       /with environments_view as \([\s\S]*project_id[\s\S]*\)[\s\S]*from environments_view/,
@@ -341,7 +355,7 @@ describe("ArrayIndexNode identity", () => {
         mapValue(eb.ref("e.usage_details"), eb.ref("e.input")).as("usage"),
       ]);
 
-    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId, "p");
     expect(compiled).toContain("e.usage_details[e.input] as usage");
     expect(compiled).toContain("from events_full as e");
   });
@@ -353,7 +367,7 @@ describe("leftUTF8", () => {
       .selectFrom("events as e")
       .select((eb) => [leftUTF8(eb.ref("e.input"), 100).as("input")]);
 
-    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId, "p");
     expect(compiled).toContain("leftUTF8(e.input, 100)");
   });
 
@@ -374,7 +388,7 @@ describe("tupleArrayField", () => {
         tupleArrayField(eb.ref("e.skills_available"), "skillName").as("names"),
       ]);
 
-    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId, "p");
     expect(compiled).toContain("e.skills_available.skillName as names");
     expect(compiled).toContain("from events_core as e");
   });
@@ -387,7 +401,7 @@ describe("tupleArrayField", () => {
       .selectFrom("events as e")
       .select((eb) => [tupleArrayField(eb.ref("e.input"), "name").as("names")]);
 
-    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId, "p");
     expect(compiled).toContain("e.input.name as names");
     expect(compiled).toContain("from events_full as e");
   });
@@ -461,7 +475,7 @@ describe("arrayMap", () => {
         ).as("sibling"),
       ]);
 
-    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId, "p");
     expect(compiled).toContain(
       "arrayMap(v -> arrayMap(v1 -> concat(v, v1), e.tags), e.metadata_names)",
     );
@@ -523,7 +537,9 @@ describe("mapExists", () => {
         ),
       );
 
-    expect(compileClickhouseQuery(qb, projectId).sql).not.toMatch(/:UInt16\}/);
+    expect(compileClickhouseQuery(qb, projectId, "p").sql).not.toMatch(
+      /:UInt16\}/,
+    );
   });
 });
 
@@ -552,7 +568,7 @@ describe("tupleElement", () => {
       .selectFrom("events as e")
       .select((eb) => [tupleElement(eb.ref("e.input"), "name").as("names")]);
 
-    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId, "p");
     expect(compiled).toContain("e.input.name as names");
     expect(compiled).toContain("from events_full as e");
   });
@@ -600,10 +616,10 @@ describe("three-part references", () => {
         .where(sql.ref("e.skills_available.project_id"), "=", projectId),
     ],
   ])("rejects %s", (_name, qb) => {
-    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+    expect(() => compileClickhouseQuery(qb, projectId, "p")).toThrow(
       QueryCompileError,
     );
-    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+    expect(() => compileClickhouseQuery(qb, projectId, "p")).toThrow(
       /use tupleArrayField\(eb\.ref\("e\.(input|skills_available)"\)/,
     );
   });
@@ -631,7 +647,8 @@ describe("compiler passes in production", () => {
   it.each([
     [
       "compileClickhouseQuery",
-      () => compileClickhouseQuery(events().select("e.span_id"), projectId),
+      () =>
+        compileClickhouseQuery(events().select("e.span_id"), projectId, "p"),
     ],
     [
       "compileClickhouseCondition",
@@ -963,6 +980,7 @@ describe("literal", () => {
           .select("t.id")
           .where("t.id", "=", literal("a\\")),
         projectId,
+        "p",
       ),
     ).toThrow(QueryCompileError);
   });
@@ -977,6 +995,7 @@ describe("startsWith", () => {
         .where((eb) => startsWith(eb.ref("e.name"), "caller"))
         .where((eb) => startsWith(eb.ref("e.user_id"), literal("const"))),
       projectId,
+      "p",
     );
     expect(sql).toMatch(/startsWith\(e\.name, \{p\d+:String\}\)/);
     expect(sql).toContain("startsWith(e.user_id, 'const')");
@@ -994,6 +1013,7 @@ describe("parametric aggregates", () => {
           histogram(25, toFloat64(eb.ref("e.total_cost"))).as("h"),
         ]),
       projectId,
+      "p",
     );
     expect(compiled).toContain(
       "select quantile(0.95)(e.total_cost) as p95, histogram(25)(toFloat64(e.total_cost)) as h from events_core as e",
@@ -1006,6 +1026,7 @@ describe("parametric aggregates", () => {
         .selectFrom("events as e")
         .select((eb) => [quantile(0.5, eb.ref("e.input_length")).as("p50")]),
       projectId,
+      "p",
     );
     expect(compiled).toContain("from events_full as e");
   });
@@ -1059,6 +1080,7 @@ describe("withFill", () => {
         .$call(limitBy({ count: 1, columns: () => [sql.ref("day")] }))
         .limit(10),
       projectId,
+      "p",
     );
     expect(compiled).toMatch(
       /order by day asc with fill from toDate\(\{p\d+:DateTime64\(3\)\}\) to toDate\(\{p\d+:DateTime64\(3\)\}\) step toIntervalDay\(1\) limit 1 by day limit \{p\d+:Int64\}$/,
@@ -1078,6 +1100,7 @@ describe("withFill", () => {
           }),
         ),
       projectId,
+      "p",
     );
     expect(compiled).toContain("from events_full as e");
   });
@@ -1093,6 +1116,7 @@ describe("withFill", () => {
           }),
         ),
         projectId,
+        "p",
       ),
     ).toThrow("WITH FILL fills the last ORDER BY item");
   });
@@ -1113,6 +1137,7 @@ describe("time buckets", () => {
           arrayJoinElements(eb.ref("e.tags")).as("tag"),
         ]),
       projectId,
+      "p",
     );
     expect(compiled).toContain(
       "select toStartOfHour(e.start_time) as h, toMonday(e.start_time) as w, toStartOfMonth(e.start_time) as m, toStartOfInterval(e.start_time, toIntervalMinute(5)) as five, arrayJoin(e.tags) as tag from",

@@ -65,16 +65,18 @@ export type ClickhouseCompilable = {
  * type cannot express (an empty `projectId`) and for callers reaching this
  * through an `any` boundary.
  *
- * `paramPrefix` names the placeholders (`<prefix>1`, `<prefix>2`, …). Pass
- * one when the SQL is spliced into a query that binds its own parameters;
- * the rules of {@link compileClickhouseCondition} apply.
+ * `paramPrefix` names the placeholders (`<prefix>1`, `<prefix>2`, …) and is
+ * required, so no compile falls back to a shared default. Two distinct
+ * prefixes never name one placeholder; give each compile spliced into one
+ * query its own (the rules of {@link compileClickhouseCondition} apply).
  */
 export function compileClickhouseQuery(
   query: ClickhouseCompilable,
   projectId: string,
-  paramPrefix?: string,
+  paramPrefix: string,
 ): CompiledClickhouseQuery {
-  if (paramPrefix !== undefined) assertParamPrefix(paramPrefix);
+  requireProjectId(projectId);
+  assertParamPrefix(paramPrefix);
   const stamped = applyCompilerPasses(query, projectId);
   const compiler = new ClickHouseQueryCompiler(paramPrefix);
   const compiled = compiler.compileQuery(stamped, createQueryId());
@@ -183,9 +185,13 @@ export function compileClickhouseCondition(
   };
 }
 
-/** Throws on a placeholder prefix that is not {@link PARAM_NAME}. */
+/**
+ * Throws on a placeholder prefix that is not {@link PARAM_NAME}, and on a
+ * missing one from an `any` boundary (`undefined` would pass the regex as
+ * the text "undefined").
+ */
 function assertParamPrefix(paramPrefix: string): void {
-  if (!PARAM_NAME.test(paramPrefix)) {
+  if (typeof paramPrefix !== "string" || !PARAM_NAME.test(paramPrefix)) {
     throw new QueryCompileError(
       `Parameter prefix "${paramPrefix}" must be a plain identifier that does not end in a digit.`,
     );

@@ -79,6 +79,7 @@ export const getSessionTracesFromEvents = async (props: {
   const { sql: tracesQuery, params: tracesParams } = compileClickhouseQuery(
     builder,
     projectId,
+    "p",
   );
   const filters = sessionTraceFilterSchema.parse(props.filter);
   const traceFilters = new FilterList(
@@ -94,6 +95,7 @@ export const getSessionTracesFromEvents = async (props: {
   const sessionTraceIdsQuery = compileClickhouseQuery(
     builder.clearSelect().select("e.trace_id").clearGroupBy().clearOrderBy(),
     projectId,
+    "sti_",
   );
   let observationQuery: {
     query: string;

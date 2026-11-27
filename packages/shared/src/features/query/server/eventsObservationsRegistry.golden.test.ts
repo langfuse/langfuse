@@ -265,7 +265,7 @@ describe("v2 observations registry", () => {
           .filter((c) => !c.key.endsWith("_single"))
           .map((c) => c.build(eb).as(c.key)),
       );
-    const { sql } = compileClickhouseQuery(query, "project-1");
+    const { sql } = compileClickhouseQuery(query, "project-1", "p");
     expect(sql).toContain("from events_core as e");
   });
 

@@ -58,7 +58,7 @@ function routeAlone(builder: ClickhouseCompilable) {
 }
 
 function compile(builder: ClickhouseCompilable) {
-  return compileClickhouseQuery(builder, projectId).sql;
+  return compileClickhouseQuery(builder, projectId, "p").sql;
 }
 
 /** Physical events tables in FROM/JOIN position, in order. */

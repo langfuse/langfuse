@@ -175,6 +175,8 @@ exports[`golden: sessions simple aggregates family > getSessionTracesFromEvents 
         "ERROR",
         "WARNING",
       ],
+      "param8": "golden-project",
+      "param9": "golden-session",
     },
     "route": "unknown",
     "sql": "WITH
@@ -261,8 +263,8 @@ WHERE (1 = 1)
             AND (e.trace_id IN (
                 SELECT e.trace_id
                 FROM events_core AS e
-                WHERE (e.project_id = {param1:String})
-                    AND (e.session_id = {param2:String})
+                WHERE (e.project_id = {param8:String})
+                    AND (e.session_id = {param9:String})
             ))
     ))
 ORDER BY t.timestamp ASC",
@@ -276,6 +278,11 @@ exports[`golden: sessions simple aggregates family > getSessionTracesFromEvents 
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
+      "param10": "golden-session",
+      "param11": [
+        "golden-trace",
+        "golden-trace-b",
+      ],
       "param2": "golden-session",
       "param3": [
         "golden-trace",
@@ -289,6 +296,7 @@ exports[`golden: sessions simple aggregates family > getSessionTracesFromEvents 
         "ERROR",
         "WARNING",
       ],
+      "param9": "golden-project",
     },
     "route": "unknown",
     "sql": "WITH
@@ -376,9 +384,9 @@ WHERE (1 = 1)
             AND (e.trace_id IN (
                 SELECT e.trace_id
                 FROM events_core AS e
-                WHERE (e.project_id = {param1:String})
-                    AND (e.session_id = {param2:String})
-                    AND (e.trace_id IN ({param3:Array(String)}))
+                WHERE (e.project_id = {param9:String})
+                    AND (e.session_id = {param10:String})
+                    AND (e.trace_id IN ({param11:Array(String)}))
             ))
     ))
 ORDER BY t.timestamp ASC
@@ -484,6 +492,7 @@ exports[`golden: sessions simple aggregates family > getSessionTracesFromEvents 
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
+      "param10": "golden-session",
       "param2": "golden-session",
       "param3": "golden-trace-name",
       "param4": "golden-project",
@@ -494,6 +503,7 @@ exports[`golden: sessions simple aggregates family > getSessionTracesFromEvents 
         "ERROR",
         "WARNING",
       ],
+      "param9": "golden-project",
     },
     "route": "unknown",
     "sql": "WITH
@@ -581,8 +591,8 @@ WHERE (1 = 1)
             AND (e.trace_id IN (
                 SELECT e.trace_id
                 FROM events_core AS e
-                WHERE (e.project_id = {param1:String})
-                    AND (e.session_id = {param2:String})
+                WHERE (e.project_id = {param9:String})
+                    AND (e.session_id = {param10:String})
             ))
     ))
 ORDER BY t.timestamp ASC",

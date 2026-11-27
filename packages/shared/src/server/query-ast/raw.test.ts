@@ -22,6 +22,7 @@ const compile = (expression: RawBuilder<unknown>) => () =>
   compileClickhouseQuery(
     db.selectFrom("traces as t").select(expression.as("x")),
     "proj-A",
+    "p",
   );
 
 describe("raw SQL", () => {
@@ -50,7 +51,7 @@ describe("raw SQL", () => {
       db.selectFrom("traces").select("id").modifyFront(sql.ref("id")),
     ],
   ])("rejects %s, which writes outside the select", (_name, query) => {
-    expect(() => compileClickhouseQuery(query, "proj-A")).toThrow(
+    expect(() => compileClickhouseQuery(query, "proj-A", "p")).toThrow(
       "modifyFront/modifyEnd are rejected",
     );
   });
@@ -73,7 +74,7 @@ describe("raw SQL", () => {
         .union(sql.ref<{ id: string }>("blob_storage_file_log")),
     ],
   ])("rejects sql.ref as %s, which names a table unscoped", (_slot, query) => {
-    expect(() => compileClickhouseQuery(query, "proj-A")).toThrow(
+    expect(() => compileClickhouseQuery(query, "proj-A", "p")).toThrow(
       "is not a select query",
     );
   });
@@ -93,7 +94,7 @@ describe("raw SQL", () => {
           ),
         ),
       );
-    expect(() => compileClickhouseQuery(query, "proj-A")).toThrow(
+    expect(() => compileClickhouseQuery(query, "proj-A", "p")).toThrow(
       UnscopedRelationError,
     );
   });
@@ -127,7 +128,7 @@ describe("raw SQL", () => {
       .where(sql.ref<string>("t.environment"), "=", "a")
       .orderBy("t.id", "desc")
       .orderBy("t.environment", "asc");
-    expect(compileClickhouseQuery(query, "proj-A").sql).toBe(
+    expect(compileClickhouseQuery(query, "proj-A", "p").sql).toBe(
       "select t.id as x from traces as t where t.project_id = {p1:String} and t.environment = {p2:String} order by t.id desc, t.environment asc",
     );
   });
@@ -148,7 +149,7 @@ describe("inlined text", () => {
         .select((eb) => eb.jsonPath<"o.cost_details">().key("a").as("k")),
     ],
   ])("rejects %s, whose keys are inlined into a string", (_shape, query) => {
-    expect(() => compileClickhouseQuery(query, "proj-A")).toThrow(
+    expect(() => compileClickhouseQuery(query, "proj-A", "p")).toThrow(
       "are not supported",
     );
   });
@@ -160,7 +161,7 @@ describe("inlined text", () => {
       .where((eb) =>
         eb("t.id", "=", literal("\nproject_id, id from scores --")),
       );
-    expect(compileClickhouseQuery(query, "proj-A").sql).toBe(
+    expect(compileClickhouseQuery(query, "proj-A", "p").sql).toBe(
       "select - -1 as a, t.id from traces as t where t.project_id = {p1:String} and t.id = '\nproject_id, id from scores --'",
     );
   });
@@ -175,7 +176,7 @@ describe("inlined text", () => {
         .selectFrom("traces as t")
         .select("t.id")
         .where((eb) => eb(literal(1), operator as never, literal(1)));
-      expect(() => compileClickhouseQuery(query, "proj-A")).toThrow(
+      expect(() => compileClickhouseQuery(query, "proj-A", "p")).toThrow(
         "is not an operator",
       );
     },
@@ -188,7 +189,7 @@ describe("inlined text", () => {
         eb("t.id", "#", literal("\n, id from scores --")).as("a"),
         "t.id",
       ]);
-    expect(() => compileClickhouseQuery(query, "proj-A")).toThrow(
+    expect(() => compileClickhouseQuery(query, "proj-A", "p")).toThrow(
       'Operator "#" is rejected',
     );
   });
@@ -208,7 +209,7 @@ describe("inlined text", () => {
             literal(1),
           ),
         );
-      expect(() => compileClickhouseQuery(query, "proj-A")).toThrow(
+      expect(() => compileClickhouseQuery(query, "proj-A", "p")).toThrow(
         `Operator "${operator}" is rejected`,
       );
     },

@@ -905,7 +905,11 @@ export function compileWithOuterClauses<DB, TB extends keyof DB, O>(
   if (rowLimit) {
     finished = finished.limit(rowLimitLiteral(rowLimit));
   }
-  const { sql: compiled, params } = compileClickhouseQuery(finished, projectId);
+  const { sql: compiled, params } = compileClickhouseQuery(
+    finished,
+    projectId,
+    "p",
+  );
   return { query: compiled, parameters: params };
 }
 
