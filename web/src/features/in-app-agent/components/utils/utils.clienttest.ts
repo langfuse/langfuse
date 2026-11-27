@@ -95,6 +95,7 @@ const ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS: Record<string, string> = {
   langfuse_listExperiments: "Browsing experiments",
   langfuse_listModels: "Browsing models",
   langfuse_listObservations: "Browsing observations",
+  langfuse_listProjects: "Browsing projects",
   langfuse_listPrompts: "Browsing prompts",
   langfuse_listScoreConfigs: "Browsing score configs",
   langfuse_listScores: "Browsing scores",
