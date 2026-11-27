@@ -1,5 +1,9 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { generateBatchActionId } from "@/src/features/table/server/helpers";
+import {
+  batchActionOperationJobId,
+  generateBatchActionId,
+  planBatchActionQueueJob,
+} from "@/src/features/table/server/helpers";
 import {
   ActionId,
   BatchActionStatus,
@@ -204,11 +208,51 @@ export const createBatchActionJob = async ({
     action: actionType as string,
   });
 
-  // Notify worker
+  // The base id dedups an identical in-flight request. A retained
+  // completed/failed job must be removed first, or BullMQ will keep the old
+  // payload. A different request that arrives while that job is still running
+  // gets its own id.
+  const existingJob = await batchActionQueue.getJob(batchActionId);
+  const existingPayload = existingJob?.data.payload;
+  const plan = planBatchActionQueueJob({
+    baseId: batchActionId,
+    query: queryWithSnapshot,
+    targetId,
+    existing: existingJob
+      ? {
+          state: await existingJob.getState(),
+          query:
+            existingPayload && "query" in existingPayload
+              ? existingPayload.query
+              : null,
+          targetId:
+            existingPayload && "targetId" in existingPayload
+              ? existingPayload.targetId
+              : null,
+        }
+      : null,
+  });
+  let queueJobId = plan.jobId;
+  if (plan.removeExisting && existingJob) {
+    try {
+      await existingJob.remove();
+    } catch (error) {
+      logger.warn(
+        `Failed to remove retained batch action job ${batchActionId}`,
+        error,
+      );
+      queueJobId = batchActionOperationJobId(
+        batchActionId,
+        queryWithSnapshot,
+        targetId,
+      );
+    }
+  }
+
   await batchActionQueue.add(
     QueueJobs.BatchActionProcessingJob,
     {
-      id: batchActionId, // Use the selectAllId to deduplicate when the same job is sent multiple times
+      id: queueJobId,
       name: QueueJobs.BatchActionProcessingJob,
       timestamp: new Date(),
       payload: {
@@ -223,7 +267,7 @@ export const createBatchActionJob = async ({
       },
     },
     {
-      jobId: batchActionId,
+      jobId: queueJobId,
     },
   );
 
