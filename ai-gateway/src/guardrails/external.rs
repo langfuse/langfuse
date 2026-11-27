@@ -316,7 +316,7 @@ impl ExternalGuardrail {
                     client,
                     guardrail_id,
                     config,
-                    payload.body,
+                    &payload.body,
                     organization_id,
                 )
                 .await

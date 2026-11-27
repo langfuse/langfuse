@@ -74,7 +74,7 @@ pub(crate) async fn evaluate_one(
     client: &ExternalGuardrailClient,
     langfuse_guardrail_id: &str,
     config: &DecisionModelGuardrail,
-    payload: Bytes,
+    payload: &Bytes,
     organization_id: &str,
 ) -> ExternalOutcome {
     match decide(client, config, payload).await {
@@ -91,7 +91,7 @@ pub(crate) async fn evaluate_one(
 async fn decide(
     client: &ExternalGuardrailClient,
     config: &DecisionModelGuardrail,
-    payload: Bytes,
+    payload: &Bytes,
 ) -> Result<ExternalOutcome, ExternalCallFailure> {
     let base_url = config.base_url.trim_end_matches('/');
     #[cfg(test)]
@@ -145,7 +145,7 @@ async fn decide(
 /// Prepends `model` and `questions` to the shared `{"input":...}` payload as a
 /// separate body chunk so guardrails screening the same text never copy it.
 fn with_model_and_question(
-    payload: Bytes,
+    payload: &Bytes,
     model: &str,
     instructions: &str,
 ) -> Option<(Body, usize)> {

@@ -17,7 +17,7 @@ pub(crate) mod response;
 pub(crate) mod spec;
 pub(crate) mod text;
 
-use std::{collections::BTreeMap, ops::Range, sync::Arc, time::Duration};
+use std::{ops::Range, sync::Arc, time::Duration};
 
 use axum::body::Bytes;
 use regex_automata::{Input, PatternSet, util::captures::Captures};
@@ -530,7 +530,7 @@ impl<'de> Deserialize<'de> for Guardrail {
             #[serde(default)]
             api_key: Option<SecretString>,
             #[serde(default)]
-            extra_headers: BTreeMap<String, SecretString>,
+            extra_headers: std::collections::BTreeMap<String, SecretString>,
         }
 
         let raw = RawGuardrail::deserialize(deserializer)?;
