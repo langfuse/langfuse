@@ -6,6 +6,8 @@
  * `QueryBuilder` dispatches the view here.
  */
 import { expressionBuilder } from "kysely";
+import { env } from "../../../env";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { type QueryType, type ViewVersion } from "../types";
 import { billableUnitsView } from "../dataModel";
 import { conditionFromFilter } from "../../../query-ast/filterStateCodec";
@@ -38,7 +40,8 @@ import {
  * Always single-level: the ledger has no per-unit id for the inner GROUP BY
  * of a two-level query, and the measure counts distinct units itself.
  * Tenancy adds the project condition. Throws `InvalidRequestError` for a
- * filter on a column outside `BILLABLE_UNITS_FILTER_COLUMNS`.
+ * filter on a column outside `BILLABLE_UNITS_FILTER_COLUMNS`, and on a
+ * deployment in `legacy` write mode.
  */
 export function buildBillableUnits(
   query: QueryType,
@@ -46,6 +49,13 @@ export function buildBillableUnits(
   version: ViewVersion,
   chartConfig: { bins?: number; row_limit?: number } | undefined,
 ): { query: string; parameters: Record<string, unknown> } {
+  // The ledger's observations and traces come from the events tables, which
+  // a legacy deployment never writes, so it would count only scores.
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
+    throw new InvalidRequestError(
+      "Billable units are not available on this deployment",
+    );
+  }
   const view = billableUnitsView;
   const appliedDimensions = mapDimensions(query.dimensions, view);
   const appliedMetrics = mapMetrics(query.metrics, view);

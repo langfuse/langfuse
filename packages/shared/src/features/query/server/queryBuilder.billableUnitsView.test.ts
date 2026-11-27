@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { env } from "../../../env";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import type { QueryType } from "../types";
 import { QueryBuilder } from "./queryBuilder";
@@ -165,5 +166,21 @@ describe("billable-units view", () => {
         "project-1",
       ),
     ).rejects.toThrow(InvalidRequestError);
+  });
+
+  it("rejects every query on a legacy-write deployment", async () => {
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+    try {
+      for (const version of ["v1", "v2"] as const) {
+        await expect(
+          new QueryBuilder(undefined, version).build(query, "project-1"),
+        ).rejects.toThrow(
+          "Billable units are not available on this deployment",
+        );
+      }
+    } finally {
+      env.LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+    }
   });
 });
