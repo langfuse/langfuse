@@ -30,8 +30,8 @@ export const roleScopes = (
 export const grantsAccess = (role: Role, level: AccessLevel): boolean =>
   role !== "NONE" && roleScopes(role, level).length > 0;
 
-/** includesRole tells whether `role` grants every scope `other` grants. */
-export function includesRole(
+/** subsumesRole tells whether `role` grants every scope `other` grants. */
+export function subsumesRole(
   role: Role,
   other: Role,
   level: AccessLevel,
@@ -45,18 +45,14 @@ export function resolveEffectiveRoles(
   held: Role[],
   level: AccessLevel,
 ): Role[] {
-  const granting = [...new Set(held)].filter((role) =>
-    grantsAccess(role, level),
-  );
-  return granting.filter(
-    (role, index) =>
-      !granting.some(
-        (other, otherIndex) =>
-          other !== role &&
-          includesRole(other, role, level) &&
-          (!includesRole(role, other, level) || otherIndex < index),
-      ),
-  );
+  let effective: Role[] = [];
+  for (const role of held) {
+    if (!grantsAccess(role, level)) continue;
+    if (effective.some((kept) => subsumesRole(kept, role, level))) continue;
+    effective = effective.filter((kept) => !subsumesRole(role, kept, level));
+    effective.push(role);
+  }
+  return effective;
 }
 
 /**
