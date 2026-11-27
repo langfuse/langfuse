@@ -238,7 +238,7 @@ describe("groups CRUD from the UI", () => {
     });
     const bob = await addOrgMember(org.id);
 
-    const synced = "This group is synced from your identity provider";
+    const synced = "This group is managed in your identity provider";
     await expect(
       caller.groups.rename({
         orgId: org.id,
