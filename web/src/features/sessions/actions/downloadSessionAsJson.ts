@@ -34,8 +34,13 @@ function buildSessionExportData({
     };
   }
 
+  const {
+    uiExportsDisabledReason: _uiExportsDisabledReason,
+    ...exportSession
+  } = session;
+
   return {
-    ...session,
+    ...exportSession,
     traces: session.traces.map((trace: SessionTrace) => ({
       ...trace,
       comments: traceCommentsByTraceId[trace.id] ?? [],

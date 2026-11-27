@@ -94,6 +94,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 ## Web Conventions
 
 - UI headings, navigation labels, and titles use sentence case: capitalize only the first word and proper nouns ("Prompt management", "Human annotation", "Upgrade plan"). Single-word labels stay as they are.
+- Any new UI-based data download or export must respect the organization and instance UI export disablement flag: disable the UI control with a tooltip via `useUiExportsDisabledReason` (and `DisabledActionTooltip` or a disabled dropdown item reason) and enforce `throwIfUiExportsDisabled` on any backing server route or tRPC procedure.
 - Before creating a new component or reusing one from elsewhere in
   `src/components`, first check `src/components/design-system` for an existing
   component that satisfies the use case. Prefer the design-system component

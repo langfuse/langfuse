@@ -1,6 +1,8 @@
 import React from "react";
 import { Download, SquareArrowOutUpRight, Loader2 } from "@langfuse/icons";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { Button } from "@/src/components/ui/button";
+import { useUiExportsDisabledReason } from "@/src/ee/features/ui-exports/hooks/useUiExportsDisabledReason";
 import {
   IOPreview,
   type IOPreviewContentMode,
@@ -130,6 +132,7 @@ export const SessionObservationIO = ({
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const [isDownloading, setIsDownloading] = React.useState(false);
+  const uiExportsDisabledReason = useUiExportsDisabledReason({ projectId });
 
   const isIOTruncated = Boolean(
     observation.inputTruncated || observation.outputTruncated,
@@ -249,6 +252,31 @@ export const SessionObservationIO = ({
     (typeof metadataForDisplay !== "object" ||
       Object.keys(metadataForDisplay).length > 0);
 
+  const downloadIcon = isDownloading ? (
+    <Loader2 size="base" color="default" __rawClassName="mr-1 animate-spin" />
+  ) : (
+    <Download size="base" color="default" __rawClassName="mr-1" />
+  );
+
+  const downloadButton = uiExportsDisabledReason ? (
+    <DisabledActionTooltip label={uiExportsDisabledReason}>
+      <Button variant="outline" size="sm" disabled>
+        <Download size="base" color="default" __rawClassName="mr-1" />
+        Download I/O
+      </Button>
+    </DisabledActionTooltip>
+  ) : (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={onDownload}
+      disabled={isDownloading}
+    >
+      {downloadIcon}
+      Download I/O
+    </Button>
+  );
+
   return (
     <div className="flex flex-col gap-2 rounded-md border border-dashed p-3">
       <p className="text-muted-foreground text-xs">
@@ -294,23 +322,7 @@ export const SessionObservationIO = ({
           />
           Open in trace view
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onDownload}
-          disabled={isDownloading}
-        >
-          {isDownloading ? (
-            <Loader2
-              size="base"
-              color="default"
-              __rawClassName="mr-1 animate-spin"
-            />
-          ) : (
-            <Download size="base" color="default" __rawClassName="mr-1" />
-          )}
-          Download I/O
-        </Button>
+        {downloadButton}
       </div>
     </div>
   );

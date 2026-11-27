@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { Download } from "@langfuse/icons";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { Button } from "@/src/components/ui/button";
+import { useUiExportsDisabledReason } from "@/src/ee/features/ui-exports/hooks/useUiExportsDisabledReason";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
@@ -30,6 +32,7 @@ export function LargeJsonFieldFallback({
   charCount,
   rowCount,
   downloadFileBase,
+  projectId,
   hideTitle = false,
   downloadOnly = false,
 }: {
@@ -47,6 +50,7 @@ export function LargeJsonFieldFallback({
   rowCount?: number;
   /** File name without extension. */
   downloadFileBase: string;
+  projectId?: string;
   /** Omit the field-name heading — used when the surrounding section already
    *  renders the title (JSON Beta section footer). */
   hideTitle?: boolean;
@@ -56,6 +60,7 @@ export function LargeJsonFieldFallback({
   downloadOnly?: boolean;
 }) {
   const capture = usePostHogClientCapture();
+  const uiExportsDisabledReason = useUiExportsDisabledReason({ projectId });
 
   // Name the metric that actually tripped the gate: rows for the virtualized
   // Beta viewer (node/tree-build cost), characters for the plain view.
@@ -83,6 +88,20 @@ export function LargeJsonFieldFallback({
     downloadTextFile(serialized, `${downloadFileBase}.${extension}`, mimeType);
   };
 
+  const downloadButton = uiExportsDisabledReason ? (
+    <DisabledActionTooltip label={uiExportsDisabledReason}>
+      <Button variant="outline" size="sm" disabled>
+        <Download size="base" color="default" __rawClassName="mr-1" />
+        Download {title}
+      </Button>
+    </DisabledActionTooltip>
+  ) : (
+    <Button variant="outline" size="sm" onClick={onDownload}>
+      <Download size="base" color="default" __rawClassName="mr-1" />
+      Download {title}
+    </Button>
+  );
+
   if (downloadOnly) {
     // The field is being rendered lazily above; this is only the secondary
     // escape hatch (raw download), so no "too large" message or preview.
@@ -90,10 +109,7 @@ export function LargeJsonFieldFallback({
       <div className="io-message-content">
         <div className="text-muted-foreground flex items-center gap-2 px-1 py-1 text-xs">
           <span>{sizeSummary}</span>
-          <Button variant="outline" size="sm" onClick={onDownload}>
-            <Download size="base" color="default" __rawClassName="mr-1" />
-            Download {title}
-          </Button>
+          {downloadButton}
         </div>
       </div>
     );
@@ -116,12 +132,7 @@ export function LargeJsonFieldFallback({
         <pre className="bg-muted/50 max-h-40 overflow-hidden rounded-md border p-2 font-mono text-xs break-all whitespace-pre-wrap">
           {previewText}
         </pre>
-        <div>
-          <Button variant="outline" size="sm" onClick={onDownload}>
-            <Download size="base" color="default" __rawClassName="mr-1" />
-            Download {title}
-          </Button>
-        </div>
+        <div>{downloadButton}</div>
       </div>
     </div>
   );

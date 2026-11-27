@@ -20,6 +20,7 @@ import {
   protectedGetEventsTraceProcedure,
   protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
+import { getUiExportsDisabledReasonForProject } from "@/src/ee/features/ui-exports/server/uiExports";
 import {
   InvalidRequestError,
   isoDateTime,
@@ -695,14 +696,20 @@ export const eventsRouter = createTRPCRouter({
           span.setAttribute("project_id", input.projectId);
           span.setAttribute("trace_id", input.traceId);
 
-          const { observations, totalCount } =
-            await getObservationsForTraceFromEventsTable({
-              projectId: input.projectId,
-              traceId: input.traceId,
-              // we need traceTS here because we filter for that in DB
-              // fallback to input in case trace unavailable - shouldn't happen
-              timestamp: ctx.trace?.timestamp ?? input.timestamp,
-            });
+          const [{ observations, totalCount }, uiExportsDisabledReason] =
+            await Promise.all([
+              getObservationsForTraceFromEventsTable({
+                projectId: input.projectId,
+                traceId: input.traceId,
+                // we need traceTS here because we filter for that in DB
+                // fallback to input in case trace unavailable - shouldn't happen
+                timestamp: ctx.trace?.timestamp ?? input.timestamp,
+              }),
+              getUiExportsDisabledReasonForProject({
+                prisma: ctx.prisma,
+                projectId: input.projectId,
+              }),
+            ]);
           audit.refs(observationRefs(observations));
           audit.count(observations.length);
 
@@ -713,6 +720,7 @@ export const eventsRouter = createTRPCRouter({
             // The cap the client was served under, so UI copy states the number
             // actually applied instead of keeping its own copy of it.
             maxObservationsPerTrace: MAX_OBSERVATIONS_PER_TRACE,
+            uiExportsDisabledReason,
           };
         },
       );

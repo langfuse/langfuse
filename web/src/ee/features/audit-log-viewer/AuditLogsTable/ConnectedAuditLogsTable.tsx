@@ -9,6 +9,7 @@ import {
 
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { useUiExportsDisabledReason } from "@/src/ee/features/ui-exports/hooks/useUiExportsDisabledReason";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
@@ -20,10 +21,12 @@ type AuditLogsTableProps =
   | { scope: "organization"; orgId: string };
 
 export function ConnectedAuditLogsTable(props: AuditLogsTableProps) {
+  const projectId = props.scope === "project" ? props.projectId : undefined;
   const hasBatchExportAccess = useHasProjectAccess({
-    projectId: props.scope === "project" ? props.projectId : undefined,
+    projectId,
     scope: "batchExports:create",
   });
+  const uiExportsDisabledReason = useUiExportsDisabledReason({ projectId });
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -64,6 +67,34 @@ export function ConnectedAuditLogsTable(props: AuditLogsTableProps) {
     },
   });
 
+  const exportDropdown =
+    props.scope === "project" && !uiExportsDisabledReason
+      ? {
+          title: "Export",
+          description:
+            "Note: Filters are not applied to audit log exports. All audit logs for this project will be exported.",
+          disabled: createExport.isPending,
+          items: (Object.keys(exportOptions) as BatchExportFileFormat[]).map(
+            (format) => ({
+              type: "item" as const,
+              id: `export-${format}`,
+              title: `as ${exportOptions[format].label}`,
+              onClick: () =>
+                createExport.mutate({
+                  projectId: props.projectId,
+                  name: `${new Date().toISOString()} - ${BatchExportTableName.AuditLogs} as ${format}`,
+                  format,
+                  query: {
+                    tableName: BatchExportTableName.AuditLogs,
+                    filter: [],
+                    orderBy: { column: "createdAt", order: "DESC" },
+                  },
+                }),
+            }),
+          ),
+        }
+      : undefined;
+
   const toolbarActions =
     props.scope === "project" && hasBatchExportAccess
       ? [
@@ -73,30 +104,9 @@ export function ConnectedAuditLogsTable(props: AuditLogsTableProps) {
             icon: <Download size="base" />,
             variant: "outline" as const,
             loading: createExport.isPending,
-            dropdown: {
-              title: "Export",
-              description:
-                "Note: Filters are not applied to audit log exports. All audit logs for this project will be exported.",
-              disabled: createExport.isPending,
-              items: (
-                Object.keys(exportOptions) as BatchExportFileFormat[]
-              ).map((format) => ({
-                type: "item" as const,
-                id: `export-${format}`,
-                title: `as ${exportOptions[format].label}`,
-                onClick: () =>
-                  createExport.mutate({
-                    projectId: props.projectId,
-                    name: `${new Date().toISOString()} - ${BatchExportTableName.AuditLogs} as ${format}`,
-                    format,
-                    query: {
-                      tableName: BatchExportTableName.AuditLogs,
-                      filter: [],
-                      orderBy: { column: "createdAt", order: "DESC" },
-                    },
-                  }),
-              })),
-            },
+            disabled: Boolean(uiExportsDisabledReason),
+            disabledReason: uiExportsDisabledReason ?? undefined,
+            dropdown: exportDropdown,
           },
         ]
       : undefined;

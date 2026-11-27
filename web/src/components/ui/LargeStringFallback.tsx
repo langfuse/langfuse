@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { Download } from "@langfuse/icons";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { Button } from "@/src/components/ui/button";
+import { useUiExportsDisabledReason } from "@/src/ee/features/ui-exports/hooks/useUiExportsDisabledReason";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { LARGE_STRING_PREVIEW_CHARS } from "@/src/components/ui/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -33,11 +35,14 @@ function codePointSafeSlice(value: string, maxChars: number): string {
 export function LargeStringFallback({
   title,
   value,
+  projectId,
 }: {
   title?: string;
   value: string;
+  projectId?: string;
 }) {
   const capture = usePostHogClientCapture();
+  const uiExportsDisabledReason = useUiExportsDisabledReason({ projectId });
 
   const previewText = useMemo(() => {
     // Decode \uXXXX escapes so the preview matches the normal viewer — but only
@@ -71,10 +76,19 @@ export function LargeStringFallback({
           {previewText}
         </pre>
         <div>
-          <Button variant="outline" size="sm" onClick={onDownload}>
-            <Download size="base" color="default" __rawClassName="mr-1" />
-            Download full value
-          </Button>
+          {uiExportsDisabledReason ? (
+            <DisabledActionTooltip label={uiExportsDisabledReason}>
+              <Button variant="outline" size="sm" disabled>
+                <Download size="base" color="default" __rawClassName="mr-1" />
+                Download full value
+              </Button>
+            </DisabledActionTooltip>
+          ) : (
+            <Button variant="outline" size="sm" onClick={onDownload}>
+              <Download size="base" color="default" __rawClassName="mr-1" />
+              Download full value
+            </Button>
+          )}
         </div>
       </div>
     </div>

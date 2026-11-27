@@ -21,6 +21,7 @@ export function BatchExportsTable({
   pagination,
   hasCancelAccess,
   downloadingIds,
+  downloadDisabledReason,
   onDownload,
   onCancel,
 }: {
@@ -28,6 +29,7 @@ export function BatchExportsTable({
   pagination: PaginationBarProps;
   hasCancelAccess: boolean;
   downloadingIds: Set<string>;
+  downloadDisabledReason?: string;
   onDownload: (id: string) => void;
   onCancel: (id: string) => void;
 }) {
@@ -94,6 +96,8 @@ export function BatchExportsTable({
                 icon={<DownloadIcon size="base" />}
                 size="sm"
                 loading={downloadingIds.has(id)}
+                disabled={Boolean(downloadDisabledReason)}
+                disabledReason={downloadDisabledReason}
                 onClick={() => onDownload(id)}
               >
                 Download
@@ -147,7 +151,13 @@ export function BatchExportsTable({
         emptyValue: "Unknown",
       }),
     ],
-    [downloadingIds, hasCancelAccess, onCancel, onDownload],
+    [
+      downloadDisabledReason,
+      downloadingIds,
+      hasCancelAccess,
+      onCancel,
+      onDownload,
+    ],
   );
 
   return (

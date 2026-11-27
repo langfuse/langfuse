@@ -1,6 +1,8 @@
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { Button } from "@/src/components/ui/button";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { useUiExportsDisabledReason } from "@/src/ee/features/ui-exports/hooks/useUiExportsDisabledReason";
 import { Download } from "@langfuse/icons";
 import {
   type BatchExportTableName,
@@ -26,6 +28,9 @@ export type BatchExportTableButtonProps = {
 export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
   props,
 ) => {
+  const uiExportsDisabledReason = useUiExportsDisabledReason({
+    projectId: props.projectId,
+  });
   const [isExporting, setIsExporting] = React.useState(false);
   const createExport = api.batchExport.create.useMutation({
     onSettled: () => {
@@ -79,6 +84,18 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
   };
 
   const warningMessage = getWarningMessage();
+
+  if (uiExportsDisabledReason) {
+    return (
+      <div className="hidden md:inline-flex">
+        <DisabledActionTooltip label={uiExportsDisabledReason}>
+          <Button variant="ghost" size="icon" disabled aria-label="Export">
+            <Download size="base" color="default" />
+          </Button>
+        </DisabledActionTooltip>
+      </div>
+    );
+  }
 
   return (
     <DropdownMenu

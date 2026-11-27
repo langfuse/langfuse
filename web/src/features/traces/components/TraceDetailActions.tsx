@@ -2,6 +2,7 @@ import { Download, FileText, MoreVertical, TrashIcon } from "@langfuse/icons";
 import type { EntityDetailHeaderAction } from "@/src/components/ObservabilityEntityDetailHeader/ObservabilityEntityDetailHeader";
 import type { DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
+import { useUiExportsDisabledReason } from "@/src/ee/features/ui-exports/hooks/useUiExportsDisabledReason";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/ConnectedDetailHeaderActionsMenuController";
 import { DeleteTraceDialogController } from "@/src/features/traces/components/DeleteTraceDialogController";
@@ -142,6 +143,10 @@ function LoadedTraceDetailActions({
     observations: trace.observations,
     traceContext,
   });
+  const uiExportsDisabledReason = useUiExportsDisabledReason({
+    projectId: trace.projectId,
+    fallbackReason: trace.uiExportsDisabledReason,
+  });
   return (
     <DeleteTraceDialogController
       projectId={trace.projectId}
@@ -207,7 +212,11 @@ function LoadedTraceDetailActions({
                       icon: Download,
                       isLoading: isDownloading,
                       iconOnly: true,
-                      disabled: isDownloading || isPlaceholderData,
+                      disabled:
+                        isDownloading ||
+                        isPlaceholderData ||
+                        Boolean(uiExportsDisabledReason),
+                      disabledReason: uiExportsDisabledReason ?? undefined,
                       onClick: () => {
                         handleDownload();
                       },

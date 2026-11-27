@@ -1,4 +1,8 @@
-import { LangfuseNotFoundError, UnauthorizedError } from "@langfuse/shared";
+import {
+  ForbiddenError,
+  LangfuseNotFoundError,
+  UnauthorizedError,
+} from "@langfuse/shared";
 import { env } from "@langfuse/shared/src/env";
 import { beforeEach, afterAll, describe, expect, it, vi } from "vitest";
 import {
@@ -175,7 +179,7 @@ describe("buildTraceExport", () => {
     mockTraceSessionFindFirst.mockResolvedValue(null);
     mockProjectFindFirst.mockResolvedValue({ orgId: "org-1" });
     mockProjectFindUnique.mockResolvedValue({
-      organization: { publicSharingDisabled: false },
+      organization: { publicSharingDisabled: false, uiExportsDisabled: false },
     });
   });
 
@@ -416,9 +420,32 @@ describe("buildTraceExport", () => {
       makeTrace({ public: true }),
     );
     mockProjectFindUnique.mockResolvedValue({
-      organization: { publicSharingDisabled: true },
+      organization: { publicSharingDisabled: true, uiExportsDisabled: false },
     });
 
+    await expect(
+      buildTraceExport({
+        traceId,
+        projectId,
+        session: null,
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it("rejects trace downloads with ForbiddenError when the org has disabled UI exports", async () => {
+    mockProjectFindUnique.mockResolvedValue({
+      organization: { publicSharingDisabled: false, uiExportsDisabled: true },
+    });
+
+    await expect(
+      buildTraceExport({
+        traceId,
+        projectId,
+        session: makeSession(),
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+
+    // Unauthorized callers still get UnauthorizedError rather than leaking the org setting.
     await expect(
       buildTraceExport({
         traceId,

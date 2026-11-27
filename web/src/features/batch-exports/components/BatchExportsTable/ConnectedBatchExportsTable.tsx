@@ -3,6 +3,7 @@ import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+import { useUiExportsDisabledReason } from "@/src/ee/features/ui-exports/hooks/useUiExportsDisabledReason";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
@@ -34,6 +35,7 @@ export function ConnectedBatchExportsTable({
     projectId,
     scope: "batchExports:create",
   });
+  const uiExportsDisabledReason = useUiExportsDisabledReason({ projectId });
 
   const onDownload = useCallback(
     (id: string) => {
@@ -95,6 +97,7 @@ export function ConnectedBatchExportsTable({
           }}
           hasCancelAccess={hasCancelAccess}
           downloadingIds={downloadingIds}
+          downloadDisabledReason={uiExportsDisabledReason ?? undefined}
           onDownload={onDownload}
           onCancel={openDialog}
         />

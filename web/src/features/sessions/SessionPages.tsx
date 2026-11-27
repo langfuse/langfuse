@@ -84,6 +84,8 @@ import {
   SESSION_DETAIL_VIEW_TRIGGER_ID,
 } from "@/src/features/sessions/session-detail-presets";
 import { downloadSessionAsJson } from "@/src/features/sessions/actions/downloadSessionAsJson";
+import { UiExportsPolicyProvider } from "@/src/ee/features/ui-exports/components/UiExportsPolicyProvider";
+import { useUiExportsDisabledReason } from "@/src/ee/features/ui-exports/hooks/useUiExportsDisabledReason";
 import { SessionDetailStoreProvider } from "@/src/features/sessions/SessionDetailStoreProvider";
 import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailStore";
@@ -275,6 +277,10 @@ export const SessionPage: React.FC<{
       sessionId,
     });
   }, [session.data, sessionId, projectId, capture, sessionComments, utils]);
+  const uiExportsDisabledReason = useUiExportsDisabledReason({
+    projectId,
+    fallbackReason: session.data?.uiExportsDisabledReason,
+  });
 
   const peekNavigationConfig = React.useMemo(
     () => ({
@@ -355,174 +361,181 @@ export const SessionPage: React.FC<{
     );
 
   return (
-    <SessionDetailStoreProvider store={sessionDetailStore}>
-      <TraceReviewPanelProvider
-        key={`${projectId}:${sessionId}`}
-        projectId={projectId}
-        initialComments={
-          router.query.peek
-            ? undefined
-            : getCommentDrawerInitialStateFromUrl(router.query)
-        }
-      >
-        <Page
-          headerProps={{
-            title: sessionId,
-            hideTitleRow: true,
-            breadcrumb: [
-              { name: "Sessions", href: `/project/${projectId}/sessions` },
-            ],
-          }}
+    <UiExportsPolicyProvider
+      disabledReason={session.data?.uiExportsDisabledReason}
+    >
+      <SessionDetailStoreProvider store={sessionDetailStore}>
+        <TraceReviewPanelProvider
+          key={`${projectId}:${sessionId}`}
+          projectId={projectId}
+          initialComments={
+            router.query.peek
+              ? undefined
+              : getCommentDrawerInitialStateFromUrl(router.query)
+          }
         >
-          <ConnectedSessionDetailHeader
-            projectId={projectId}
-            sessionId={sessionId}
-            isV4={false}
-            commentCount={
-              getNumberFromMap(sessionCommentCounts.data, sessionId) ?? 0
-            }
-            annotation={{
-              scoreTarget: { type: "session", sessionId },
-              scores: session.data?.scores ?? [],
-              analyticsData: {
-                type: "session",
-                source: "SessionDetail",
-                isV4: false,
-              },
-              scoreMetadata: {
-                projectId,
-                environment: session.data?.environment,
-              },
-            }}
-            isLoading={session.isLoading}
-            metrics={
-              session.data
-                ? getSessionHeaderMetrics({
-                    projectId,
-                    countTraces: session.data.traces.length,
-                    totalCost: session.data.totalCost,
-                    scores: session.data.scores,
-                    users: session.data.users ?? [],
-                  })
-                : []
-            }
+          <Page
             headerProps={{
               title: sessionId,
-              itemType: "SESSION",
-              actions: [
-                {
-                  id: "session-options",
-                  type: "dropdown",
-                  label: "Session actions",
-                  icon: MoreVertical,
-                  iconOnly: true,
-                  placement: "trailing",
-                  items: sessionMenuItems,
-                },
-                ...(webCalloutAction
-                  ? [
-                      {
-                        id: "web-callout",
-                        type: "button" as const,
-                        label: `Call ${webCalloutAction.endpointName}`,
-                        icon: Webhook,
-                        iconOnly: true,
-                        disabled: webCalloutAction.isLoading,
-                        isLoading: webCalloutAction.isLoading,
-                        onClick: () => {
-                          webCalloutAction
-                            .invokeCallout()
-                            .catch(() => undefined);
-                        },
-                      },
-                    ]
-                  : []),
-                {
-                  id: "download",
-                  type: "button",
-                  label: "Download JSON",
-                  icon: Download,
-                  iconOnly: true,
-                  onClick: onDownloadSessionAsJson,
-                },
-                {
-                  id: "navigation",
-                  type: "custom",
-                  pinned: true,
-                  render: () =>
-                    !router.query.peek && (
-                      <DetailPageNav
-                        currentId={sessionId}
-                        path={(entry) =>
-                          `/project/${projectId}/sessions/${entry.id}`
-                        }
-                        listKey="sessions"
-                        compact
-                      />
-                    ),
-                },
-                {
-                  id: "corrections",
-                  type: "checkbox",
-                  label: "Show corrections",
-                  checked: showCorrections,
-                  onCheckedChange: setShowCorrectionsForSession,
-                },
+              hideTitleRow: true,
+              breadcrumb: [
+                { name: "Sessions", href: `/project/${projectId}/sessions` },
               ],
             }}
-          />
-          <SessionReviewWorkspace projectId={projectId}>
-            <div className="flex h-full flex-col overflow-auto">
-              <div ref={parentRef} className="flex-1 overflow-auto p-4">
-                <div
-                  style={{
-                    height: `${virtualizer.getTotalSize()}px`,
-                    width: "100%",
-                    position: "relative",
-                  }}
-                >
-                  {virtualItems.map((virtualItem) => {
-                    const trace = session.data?.traces[virtualItem.index];
-                    if (!trace) return null;
-
-                    return (
-                      <SessionVirtualizedRow
-                        key={virtualItem.key}
-                        itemKey={String(virtualItem.key)}
-                        measurementKey={`${String(virtualItem.key)}:${showCorrections}`}
-                        source="legacy"
-                        virtualItem={virtualItem}
-                        virtualizer={virtualizer}
-                      >
-                        <LazyTraceRow
-                          trace={trace}
-                          projectId={projectId}
-                          openPeek={openPeek}
-                          traceCommentCounts={asCommentCounts(
-                            traceCommentCounts.data,
-                          )}
-                          index={virtualItem.index}
+          >
+            <ConnectedSessionDetailHeader
+              projectId={projectId}
+              sessionId={sessionId}
+              isV4={false}
+              commentCount={
+                getNumberFromMap(sessionCommentCounts.data, sessionId) ?? 0
+              }
+              annotation={{
+                scoreTarget: { type: "session", sessionId },
+                scores: session.data?.scores ?? [],
+                analyticsData: {
+                  type: "session",
+                  source: "SessionDetail",
+                  isV4: false,
+                },
+                scoreMetadata: {
+                  projectId,
+                  environment: session.data?.environment,
+                },
+              }}
+              isLoading={session.isLoading}
+              metrics={
+                session.data
+                  ? getSessionHeaderMetrics({
+                      projectId,
+                      countTraces: session.data.traces.length,
+                      totalCost: session.data.totalCost,
+                      scores: session.data.scores,
+                      users: session.data.users ?? [],
+                    })
+                  : []
+              }
+              headerProps={{
+                title: sessionId,
+                itemType: "SESSION",
+                actions: [
+                  {
+                    id: "session-options",
+                    type: "dropdown",
+                    label: "Session actions",
+                    icon: MoreVertical,
+                    iconOnly: true,
+                    placement: "trailing",
+                    items: sessionMenuItems,
+                  },
+                  ...(webCalloutAction
+                    ? [
+                        {
+                          id: "web-callout",
+                          type: "button" as const,
+                          label: `Call ${webCalloutAction.endpointName}`,
+                          icon: Webhook,
+                          iconOnly: true,
+                          disabled: webCalloutAction.isLoading,
+                          isLoading: webCalloutAction.isLoading,
+                          onClick: () => {
+                            webCalloutAction
+                              .invokeCallout()
+                              .catch(() => undefined);
+                          },
+                        },
+                      ]
+                    : []),
+                  {
+                    id: "download",
+                    type: "button",
+                    label: "Download JSON",
+                    icon: Download,
+                    iconOnly: true,
+                    disabled:
+                      session.isLoading || Boolean(uiExportsDisabledReason),
+                    disabledReason: uiExportsDisabledReason ?? undefined,
+                    onClick: onDownloadSessionAsJson,
+                  },
+                  {
+                    id: "navigation",
+                    type: "custom",
+                    pinned: true,
+                    render: () =>
+                      !router.query.peek && (
+                        <DetailPageNav
+                          currentId={sessionId}
+                          path={(entry) =>
+                            `/project/${projectId}/sessions/${entry.id}`
+                          }
+                          listKey="sessions"
+                          compact
                         />
-                      </SessionVirtualizedRow>
-                    );
-                  })}
+                      ),
+                  },
+                  {
+                    id: "corrections",
+                    type: "checkbox",
+                    label: "Show corrections",
+                    checked: showCorrections,
+                    onCheckedChange: setShowCorrectionsForSession,
+                  },
+                ],
+              }}
+            />
+            <SessionReviewWorkspace projectId={projectId}>
+              <div className="flex h-full flex-col overflow-auto">
+                <div ref={parentRef} className="flex-1 overflow-auto p-4">
+                  <div
+                    style={{
+                      height: `${virtualizer.getTotalSize()}px`,
+                      width: "100%",
+                      position: "relative",
+                    }}
+                  >
+                    {virtualItems.map((virtualItem) => {
+                      const trace = session.data?.traces[virtualItem.index];
+                      if (!trace) return null;
+
+                      return (
+                        <SessionVirtualizedRow
+                          key={virtualItem.key}
+                          itemKey={String(virtualItem.key)}
+                          measurementKey={`${String(virtualItem.key)}:${showCorrections}`}
+                          source="legacy"
+                          virtualItem={virtualItem}
+                          virtualizer={virtualizer}
+                        >
+                          <LazyTraceRow
+                            trace={trace}
+                            projectId={projectId}
+                            openPeek={openPeek}
+                            traceCommentCounts={asCommentCounts(
+                              traceCommentCounts.data,
+                            )}
+                            index={virtualItem.index}
+                          />
+                        </SessionVirtualizedRow>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
-          </SessionReviewWorkspace>
-        </Page>
-      </TraceReviewPanelProvider>
-      <TablePeekViewTraceDetail
-        itemType="TRACE"
-        detailNavigationKey="traces"
-        closePeek={closePeek}
-        expandPeek={expandPeek}
-        resolveDetailNavigationPath={resolveDetailNavigationPath}
-        tableName="sessions"
-        isV4={false}
-        projectId={projectId}
-      />
-    </SessionDetailStoreProvider>
+            </SessionReviewWorkspace>
+          </Page>
+        </TraceReviewPanelProvider>
+        <TablePeekViewTraceDetail
+          itemType="TRACE"
+          detailNavigationKey="traces"
+          closePeek={closePeek}
+          expandPeek={expandPeek}
+          resolveDetailNavigationPath={resolveDetailNavigationPath}
+          tableName="sessions"
+          isV4={false}
+          projectId={projectId}
+        />
+      </SessionDetailStoreProvider>
+    </UiExportsPolicyProvider>
   );
 };
 
@@ -672,14 +685,16 @@ export const SessionEventsWorkspace: React.FC<
   }
 
   return (
-    <>
+    <UiExportsPolicyProvider
+      disabledReason={session.data?.uiExportsDisabledReason}
+    >
       {renderWorkspace()}
       {renderTracePeek?.(
         tracesQuery.isSuccess
           ? tracesQuery.data.map(toTraceNavigationEntry)
           : [],
       )}
-    </>
+    </UiExportsPolicyProvider>
   );
 };
 

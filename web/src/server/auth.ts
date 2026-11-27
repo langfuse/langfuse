@@ -98,6 +98,7 @@ import {
   getSelfHostedInstancePlanServerSide,
 } from "@langfuse/shared/src/server";
 import { isPublicSharingDisabledByInstance } from "@/src/ee/features/public-sharing/server/publicSharing";
+import { isUiExportsDisabledByInstance } from "@/src/ee/features/ui-exports/server/uiExports";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import {
   type EmailCodeRequest,
@@ -1009,6 +1010,7 @@ export async function getAuthOptions(
               accessAuditLogMode: env.LANGFUSE_AUDIT_LOG_ACCESS_EVENTS,
               publicSharingDisabledByInstance:
                 isPublicSharingDisabledByInstance(),
+              uiExportsDisabledByInstance: isUiExportsDisabledByInstance(),
             },
             user:
               dbUser !== null
@@ -1064,6 +1066,8 @@ export async function getAuthOptions(
                             orgMembership.organization.accessAuditLogEnabled,
                           publicSharingDisabled:
                             orgMembership.organization.publicSharingDisabled,
+                          uiExportsDisabled:
+                            orgMembership.organization.uiExportsDisabled,
                           featureFlags: parseFlagsWithOrganizationDefaults(
                             dbUser.featureFlags,
                             orgMembership.organization.featureFlagOrgDefaults,

@@ -98,6 +98,7 @@ it.each(["fullscreen", "peek"] as const)(
       observations: [],
       scores: [],
       corrections: [],
+      uiExportsDisabledReason: null,
     };
     const view = () => (
       <TraceDetailActions trace={trace} traceContext={traceContext}>

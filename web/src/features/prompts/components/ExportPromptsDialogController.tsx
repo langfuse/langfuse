@@ -4,6 +4,7 @@ import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
+import { useUiExportsDisabledReason } from "@/src/ee/features/ui-exports/hooks/useUiExportsDisabledReason";
 import { isPromptExportLimitFailure } from "@/src/features/prompts/fns/promptExportLimit";
 import { showToast } from "@/src/features/notifications/showToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -164,12 +165,19 @@ export function ExportPromptsDialogController({
   projectId: string;
   children: (control: {
     isExporting: boolean;
+    disabledReason: string | null;
     openDialog: () => void;
   }) => ReactNode;
 }) {
   const [mode, setMode] = useState<ExportMode>("latest");
+  const uiExportsDisabledReason = useUiExportsDisabledReason({ projectId });
   const { exportPrompts, isExporting, limitMessage, clearLimitMessage } =
     useExportPrompts(projectId);
+  const actionDisabledReason = (() => {
+    if (uiExportsDisabledReason) return uiExportsDisabledReason;
+    if (limitMessage !== null) return "This project is over the export limit.";
+    return undefined;
+  })();
 
   return (
     <DialogController
@@ -182,11 +190,11 @@ export function ExportPromptsDialogController({
             {
               label: "Export",
               loading: isExporting,
-              disabled: isExporting || limitMessage !== null,
-              disabledReason:
-                limitMessage !== null
-                  ? "This project is over the export limit."
-                  : undefined,
+              disabled:
+                isExporting ||
+                limitMessage !== null ||
+                Boolean(uiExportsDisabledReason),
+              disabledReason: actionDisabledReason,
               onClick: () => {
                 exportPrompts(mode)
                   .then((result) => {
@@ -214,6 +222,7 @@ export function ExportPromptsDialogController({
       {({ openDialog }) =>
         children({
           isExporting,
+          disabledReason: uiExportsDisabledReason,
           openDialog: () => {
             clearLimitMessage();
             openDialog();

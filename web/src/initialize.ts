@@ -13,6 +13,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { isPublicSharingDisabledByInstance } from "@/src/ee/features/public-sharing/server/publicSharing";
+import { isUiExportsDisabledByInstance } from "@/src/ee/features/ui-exports/server/uiExports";
 import {
   OrganizationId,
   ProjectId,
@@ -52,6 +53,15 @@ if (
 ) {
   logger.warn(
     "LANGFUSE_DISABLE_PUBLIC_SHARING is set but has no effect: it requires a Langfuse Enterprise license.",
+  );
+}
+
+if (
+  env.LANGFUSE_DISABLE_UI_EXPORTS === "true" &&
+  !isUiExportsDisabledByInstance()
+) {
+  logger.warn(
+    "LANGFUSE_DISABLE_UI_EXPORTS is set but has no effect: it requires a Langfuse Enterprise license.",
   );
 }
 

@@ -38,6 +38,7 @@ import {
 } from "@/src/features/dashboard/lib/buildTableFilterHref";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
+import { useUiExportsDisabledReason } from "@/src/ee/features/ui-exports/hooks/useUiExportsDisabledReason";
 import {
   buildWidgetExport,
   downloadWidgetJson,
@@ -141,6 +142,7 @@ export function DashboardWidget({
     projectId,
     scope: "dashboards:CUD",
   });
+  const uiExportsDisabledReason = useUiExportsDisabledReason({ projectId });
   const hasCUDAccess = hasRbacCUDAccess && dashboardOwner !== "LANGFUSE";
   // Langfuse-managed dashboard, but the user could edit a clone: show the
   // same edit affordances and route attempts through the clone-first flow.
@@ -488,6 +490,16 @@ export function DashboardWidget({
     });
   };
 
+  const downloadCsvDisabled = (() => {
+    if (uiExportsDisabledReason) {
+      return { reason: uiExportsDisabledReason };
+    }
+    if (queryResult.isPending) {
+      return { reason: "Chart data is still loading" };
+    }
+    return undefined;
+  })();
+
   return (
     <>
       {isCopyDialogOpen && (
@@ -613,9 +625,7 @@ export function DashboardWidget({
               id: "download-csv",
               title: "Download data as CSV",
               icon: DownloadIcon,
-              disabled: queryResult.isPending
-                ? { reason: "Chart data is still loading" }
-                : undefined,
+              disabled: downloadCsvDisabled,
               onClick: () =>
                 downloadChartDataCsv(transformedData, widget.data.name),
             },

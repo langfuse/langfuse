@@ -467,6 +467,7 @@ function IOPreviewJSONInner({
               charCount={probe.size}
               rowCount={rowCount}
               downloadFileBase={`${fieldKey}-${downloadName}`}
+              projectId={projectId}
             />
           );
         }
@@ -489,6 +490,7 @@ function IOPreviewJSONInner({
               charCount={probe.size}
               rowCount={rowCount}
               downloadFileBase={`${fieldKey}-${downloadName}`}
+              projectId={projectId}
               downloadOnly
             />
           </div>

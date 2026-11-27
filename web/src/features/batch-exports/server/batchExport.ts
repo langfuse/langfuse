@@ -17,12 +17,14 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { throwIfUiExportsDisabled } from "@/src/ee/features/ui-exports/server/uiExports";
 import {
   BATCH_EXPORT_ABANDONED_AFTER_MS,
   BatchExportStatus,
   BatchExportTableName,
   CreateBatchExportSchema,
   InvalidRequestError,
+  isBaseError,
   LangfuseNotFoundError,
   paginationZod,
 } from "@langfuse/shared";
@@ -104,6 +106,11 @@ export const batchExportRouter = createTRPCRouter({
           scope: "batchExports:create",
         });
 
+        await throwIfUiExportsDisabled({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+        });
+
         const { projectId, format, name } = input;
 
         // Snapshot the user's v4 beta flag into the persisted query so the
@@ -171,7 +178,7 @@ export const batchExportRouter = createTRPCRouter({
         });
       } catch (e) {
         logger.error("[BATCH EXPORT] Failed to create export job", e);
-        if (e instanceof TRPCError) {
+        if (e instanceof TRPCError || isBaseError(e)) {
           throw e;
         }
         throw new TRPCError({
@@ -214,6 +221,11 @@ export const batchExportRouter = createTRPCRouter({
         session: ctx.session,
         projectId: input.projectId,
         scope: "batchExports:read",
+      });
+
+      await throwIfUiExportsDisabled({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
       });
 
       const batchExport = await ctx.prisma.batchExport.findFirst({

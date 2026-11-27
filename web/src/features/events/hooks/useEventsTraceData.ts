@@ -36,6 +36,7 @@ interface UseEventsTraceDataResult {
         observations: AdaptedTraceData["observations"];
         scores: WithStringifiedMetadata<ScoreDomain>[];
         corrections: ScoreDomain[];
+        uiExportsDisabledReason: string | null;
       })
     | undefined;
   isLoading: boolean;
@@ -188,8 +189,16 @@ export function useEventsTraceData(
       observations: adapted.observations,
       scores: scoresDomain,
       corrections,
+      uiExportsDisabledReason:
+        eventsQuery.data?.uiExportsDisabledReason ?? null,
     };
-  }, [observations, traceId, rootIOQuery.data, scoresQuery.data]);
+  }, [
+    observations,
+    traceId,
+    rootIOQuery.data,
+    scoresQuery.data,
+    eventsQuery.data?.uiExportsDisabledReason,
+  ]);
 
   // After a trace switch the two queries resolve independently, so the previous
   // trace stays whole (observations, I/O, scores) until both carry the new one.
