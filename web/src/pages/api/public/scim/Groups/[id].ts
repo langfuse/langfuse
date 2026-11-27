@@ -1,74 +1,17 @@
-import { logger } from "@langfuse/shared/src/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import {
-  authorizeScimGroupsRequest,
-  deleteScimGroup,
-  getScimGroup,
-  handleScimGroupsError,
-  isMembersExcluded,
-  parseScimBody,
-  patchScimGroup,
-  replaceScimGroup,
-  toScimGroup,
-  writeScimErrorResponse,
-} from "@/src/features/scim/server/scimGroups";
-
-const METHODS = ["GET", "PUT", "PATCH", "DELETE"] as const;
+import { handleScimGroupResource } from "@/src/ee/features/scim/server/scimGroups";
+import { authorizeScimGroupsRequest } from "@/src/features/scim/server/scimGroups";
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  const scope = await authorizeScimGroupsRequest(req, res, {
+  // Auth and entitlement check; the implementation lives in ee.
+  const actor = await authorizeScimGroupsRequest(req, res, {
     route: "/api/public/scim/Groups/[id]",
-    methods: [...METHODS],
+    methods: ["GET", "PUT", "PATCH", "DELETE"],
   });
-  if (!scope) return;
-  const method = req.method as (typeof METHODS)[number];
+  if (!actor) return;
 
-  const groupId = req.query.id as string;
-  const excludeMembers = isMembersExcluded(req);
-  logger.info(
-    `[SCIM] Received request for /api/public/scim/Groups/[id] with method ${req.method} for orgId ${scope.orgId} and groupId ${groupId}`,
-  );
-
-  try {
-    // Groups of other orgs are a 404
-    const existing = await getScimGroup(scope.orgId, groupId);
-    if (!existing) {
-      return writeScimErrorResponse(res, 404, "Group not found");
-    }
-
-    switch (method) {
-      case "GET":
-        return res.status(200).json(toScimGroup(existing, { excludeMembers }));
-
-      case "PUT":
-      case "PATCH": {
-        const body = parseScimBody(req);
-        const updated =
-          method === "PUT"
-            ? await replaceScimGroup(scope, existing, body)
-            : await patchScimGroup(scope, existing, body);
-        return res.status(200).json(toScimGroup(updated, { excludeMembers }));
-      }
-
-      case "DELETE": {
-        await deleteScimGroup(scope, existing);
-        logger.info(`[SCIM] Deleted group ${groupId} in org ${scope.orgId}`);
-        return res.status(204).end();
-      }
-
-      default: {
-        const unhandled: never = method;
-        throw new Error(`Unhandled method: ${unhandled}`);
-      }
-    }
-  } catch (error) {
-    return handleScimGroupsError(
-      res,
-      error,
-      `${req.method} /Groups/${groupId} failed`,
-    );
-  }
+  return handleScimGroupResource(req, res, actor);
 }
