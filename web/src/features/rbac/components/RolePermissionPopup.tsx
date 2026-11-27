@@ -26,6 +26,7 @@ export function RolePermissionPopup({
   role,
   display = roleDisplay,
   emptyStateComment,
+  onCloseAutoFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -33,6 +34,8 @@ export function RolePermissionPopup({
   /** display overrides how the role is presented. */
   display?: (role: SystemRole) => RoleDisplay;
   emptyStateComment?: string;
+  /** Where the focus goes on close; opened without a trigger, it would otherwise fall to the page. */
+  onCloseAutoFocus?: (event: Event) => void;
 }) {
   const shown = role ? display(role) : undefined;
   const Icon = shown?.Icon;
@@ -44,6 +47,7 @@ export function RolePermissionPopup({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        onCloseAutoFocus={onCloseAutoFocus}
         closeOnInteractionOutside
         className="min-h-[25.5rem] sm:min-w-[32rem]"
       >
