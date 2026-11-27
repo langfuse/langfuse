@@ -118,6 +118,12 @@ if (env.LANGFUSE_INIT_ORG_ID) {
     });
     if (env.LANGFUSE_INIT_PROJECT_RETENTION && hasRetentionEntitlement) {
       retentionDays = env.LANGFUSE_INIT_PROJECT_RETENTION;
+    } else if (env.LANGFUSE_INIT_PROJECT_RETENTION) {
+      logger.warn(
+        `[Langfuse Init] LANGFUSE_INIT_PROJECT_RETENTION is set but will be ignored: ` +
+          `data retention requires a Langfuse Enterprise license (LANGFUSE_EE_LICENSE_KEY). ` +
+          `The project is created without a retention period.`,
+      );
     }
 
     await prisma.project.upsert({
