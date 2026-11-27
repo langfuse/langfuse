@@ -1,12 +1,16 @@
-import { Input } from "../Input/Input";
+import { type ChangeEvent } from "react";
+import { InputControl } from "../internal/InputControl/InputControl";
 
 export type DateRangeFieldsValue = {
   from: string;
   to: string;
 };
 
+const dateFieldClassName =
+  "placeholder:text-muted-foreground min-w-0 flex-1 border-0 bg-transparent p-0 text-sm shadow-none outline-hidden focus:ring-0 disabled:cursor-not-allowed [&::-webkit-calendar-picker-indicator]:translate-y-px";
+
 /**
- * Two native date fields for an inclusive calendar-day range.
+ * Two native date fields in one input frame for an inclusive calendar-day range.
  * The calendar popover with presets lives in DateRangeInput.
  */
 export function DateRangeFields({
@@ -34,38 +38,52 @@ export function DateRangeFields({
     if (next === "") return;
     onChange({ ...value, [boundary]: next });
   };
+  const handleFromChange = (event: ChangeEvent<HTMLInputElement>) => {
+    changeBoundary("from", event.target.value);
+  };
+  const handleToChange = (event: ChangeEvent<HTMLInputElement>) => {
+    changeBoundary("to", event.target.value);
+  };
 
   return (
-    <div className="flex w-fit max-w-full items-center gap-2">
-      <div className="w-36 min-w-0">
-        <Input
-          aria-invalid={error || undefined}
-          aria-label={fromLabel}
-          type="date"
-          value={value.from}
-          min={min}
-          max={value.to === "" ? max : value.to}
-          disabled={disabled}
-          error={error}
-          onChange={(event) => changeBoundary("from", event.target.value)}
-        />
-      </div>
-      <span className="text-muted-foreground" aria-hidden="true">
-        →
-      </span>
-      <div className="w-36 min-w-0">
-        <Input
-          aria-invalid={error || undefined}
-          aria-label={toLabel}
-          type="date"
-          value={value.to}
-          min={value.from === "" ? min : value.from}
-          max={max}
-          disabled={disabled}
-          error={error}
-          onChange={(event) => changeBoundary("to", event.target.value)}
-        />
-      </div>
+    <div className="w-fit max-w-full">
+      <InputControl
+        contentLayout="text"
+        height="fixed"
+        focusTarget="within"
+        error={error}
+        disabled={disabled}
+      >
+        <div className="flex items-center gap-2">
+          <input
+            aria-invalid={error ? true : undefined}
+            aria-label={fromLabel}
+            className={dateFieldClassName}
+            data-1p-ignore
+            type="date"
+            value={value.from}
+            min={min}
+            max={value.to === "" ? max : value.to}
+            disabled={disabled}
+            onChange={handleFromChange}
+          />
+          <span className="text-muted-foreground shrink-0" aria-hidden="true">
+            →
+          </span>
+          <input
+            aria-invalid={error ? true : undefined}
+            aria-label={toLabel}
+            className={dateFieldClassName}
+            data-1p-ignore
+            type="date"
+            value={value.to}
+            min={value.from === "" ? min : value.from}
+            max={max}
+            disabled={disabled}
+            onChange={handleToChange}
+          />
+        </div>
+      </InputControl>
     </div>
   );
 }

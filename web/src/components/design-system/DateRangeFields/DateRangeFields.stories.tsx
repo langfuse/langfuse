@@ -86,6 +86,11 @@ export const TestEmitsCompleteRange = meta.story({
     const canvas = within(canvasElement);
     const start = canvas.getByLabelText("Start date");
     const end = canvas.getByLabelText("End date");
+    const frame = start.parentElement;
+
+    await expect(frame).toBe(end.parentElement);
+    await expect(getComputedStyle(start).borderTopWidth).toBe("0px");
+    await expect(getComputedStyle(frame!).borderTopWidth).not.toBe("0px");
 
     await expect(start).toHaveAttribute("min", "2026-03-07");
     await expect(start).toHaveAttribute("max", selected.to);
