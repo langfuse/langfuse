@@ -141,7 +141,9 @@ function OptionCard({ option }: { option: GatewayCatalogEmptyStateOption }) {
         <Icon size="lg" />
       </span>
       <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-base font-bold">{title}</span>
+        <span className="truncate text-base font-bold" title={title}>
+          {title}
+        </span>
         <span className="text-muted-foreground truncate text-sm" title={hint}>
           {hint}
         </span>
