@@ -34,7 +34,6 @@ import {
 import {
   addGroupMembers,
   deleteGroup,
-  evictAuthCaches,
   groupMemberUserIds,
   removeGroupMembers,
   roleOf,
@@ -42,6 +41,7 @@ import {
   toGroupRoles,
 } from "@/src/features/groups/server/groupService";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { evictUserAccessCaches } from "@/src/features/rbac/server/evictUserAccessCaches";
 
 // No OWNER (too broad) and no NONE (adds nothing).
 const groupRoles = [Role.ADMIN, Role.MEMBER, Role.VIEWER] as const;
@@ -304,7 +304,10 @@ export const groupsRouter = createTRPCRouter({
         );
         return userIds;
       });
-      await evictAuthCaches(ctx.prisma, { orgId: input.orgId, userIds });
+      await evictUserAccessCaches(ctx.prisma, {
+        orgId: input.orgId,
+        userIds,
+      });
     }),
 
   /** Group roles are capped at ADMIN and this needs groups:CUD, so it grants no more than the caller could directly. */
@@ -341,7 +344,10 @@ export const groupsRouter = createTRPCRouter({
           tx,
         );
       });
-      await evictAuthCaches(ctx.prisma, { orgId: input.orgId, userIds });
+      await evictUserAccessCaches(ctx.prisma, {
+        orgId: input.orgId,
+        userIds,
+      });
     }),
 
   removeMember: protectedOrganizationProcedure
@@ -371,7 +377,7 @@ export const groupsRouter = createTRPCRouter({
           tx,
         );
       });
-      await evictAuthCaches(ctx.prisma, {
+      await evictUserAccessCaches(ctx.prisma, {
         orgId: input.orgId,
         userIds: [input.userId],
       });
@@ -488,7 +494,7 @@ export const groupsRouter = createTRPCRouter({
           tx,
         );
       });
-      await evictAuthCaches(ctx.prisma, {
+      await evictUserAccessCaches(ctx.prisma, {
         orgId: input.orgId,
         userIds: await groupMemberUserIds(ctx.prisma, group.id),
       });
@@ -579,7 +585,7 @@ export const groupsRouter = createTRPCRouter({
           tx,
         );
       });
-      await evictAuthCaches(ctx.prisma, {
+      await evictUserAccessCaches(ctx.prisma, {
         orgId: ctx.session.orgId,
         userIds: await groupMemberUserIds(ctx.prisma, group.id),
       });

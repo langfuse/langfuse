@@ -59,6 +59,8 @@ vi.mock(
 );
 
 import { appRouter } from "@/src/server/api/root";
+import { evictUserAccessCaches } from "@/src/features/rbac/server/evictUserAccessCaches";
+import { gatewayApiFormats } from "@/src/features/ai-gateway/server/provider/registry";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
 import { handleDeleteProject } from "@/src/ee/features/admin-api/server/projects/projectById";
@@ -528,6 +530,43 @@ describe("API-key cache invalidation on membership role changes", () => {
     });
 
     expect(await survivingKeys(keys)).toEqual([]);
+  });
+
+  it("evictUserAccessCaches evicts only the given users' credentials and gateway resolve contexts", async () => {
+    const orgId = await createOrg();
+    const [changed, untouched] = await Promise.all([
+      createUserInOrgs([orgId]),
+      createUserInOrgs([orgId]),
+    ]);
+    const seed = async (userId: string) => {
+      const { publicKey, secretKey } = await createApiKey(prisma, {
+        tenant: OrganizationId(orgId),
+        scope: UserId(userId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId(userId),
+      });
+      const fastHash = createShaHash(secretKey, env.SALT!);
+      const keys = [
+        ...cacheKeysFor({ fastHash, publicKey }),
+        ...gatewayApiFormats.map(
+          (apiFormat) => `ai-gateway:resolve:context:${apiFormat}:${fastHash}`,
+        ),
+      ];
+      for (const key of keys) {
+        await setRedisValue(redis, key, "1");
+      }
+      return keys;
+    };
+    const changedKeys = await seed(changed.id);
+    const untouchedKeys = await seed(untouched.id);
+
+    await evictUserAccessCaches(prisma, {
+      orgId,
+      userIds: [changed.id],
+    });
+
+    expect(await survivingKeys(changedKeys)).toEqual([]);
+    expect(await survivingKeys(untouchedKeys)).toEqual(untouchedKeys);
   });
 
   it("deleteProjectMembership evicts the user's USER keys", async () => {

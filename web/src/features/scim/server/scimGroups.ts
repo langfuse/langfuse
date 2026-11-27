@@ -1,6 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { GroupSource, Prisma, prisma } from "@langfuse/shared/src/db";
 import { escapeSqlLikePattern, logger } from "@langfuse/shared/src/server";
+import { evictUserAccessCaches } from "@/src/features/rbac/server/evictUserAccessCaches";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { hasEntitlementBasedOnPlan } from "@langfuse/shared";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
@@ -8,7 +9,6 @@ import { writeScimError } from "@/src/features/public-api/server/writeError";
 import {
   addGroupMembers,
   deleteGroup,
-  evictAuthCaches,
   groupMemberUserIds,
   GroupMembersNotInOrgError,
   lockGroup,
@@ -382,7 +382,7 @@ export async function replaceScimGroup(
     );
     return { before, updated };
   });
-  await evictAuthCaches(prisma, {
+  await evictUserAccessCaches(prisma, {
     orgId,
     userIds: changedMemberIds(before, updated),
   });
@@ -444,7 +444,7 @@ export async function patchScimGroup(
     );
     return { before, updated };
   });
-  await evictAuthCaches(prisma, {
+  await evictUserAccessCaches(prisma, {
     orgId,
     userIds: changedMemberIds(before, updated),
   });
@@ -591,7 +591,7 @@ export async function deleteScimGroup(
     );
     return userIds;
   });
-  await evictAuthCaches(prisma, { orgId: actor.orgId, userIds });
+  await evictUserAccessCaches(prisma, { orgId: actor.orgId, userIds });
 }
 
 export function handleScimGroupsError(

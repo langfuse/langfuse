@@ -36,13 +36,14 @@ export async function evictRevokedApiKeys(
   logFailures(results, keys);
 }
 
-/** evictUserGatewayResolveCache drops the cached resolve contexts of the user's keys in orgId, whose owner role check runs only on a cache miss; call after a committed role change. */
+/** evictUserGatewayResolveCache drops the cached resolve contexts of the users' keys in orgId, whose owner role check runs only on a cache miss; call after a committed role change. */
 export async function evictUserGatewayResolveCache(
   prisma: Prisma.TransactionClient,
-  p: { orgId: string; userId: string },
+  p: { orgId: string; userIds: string[] },
 ): Promise<void> {
+  if (p.userIds.length === 0) return;
   const keys = await prisma.apiKey.findMany({
-    where: { orgId: p.orgId, userId: p.userId },
+    where: { orgId: p.orgId, userId: { in: p.userIds } },
     select: { fastHashedSecretKey: true },
   });
   await Promise.all(keys.map(evictGatewayResolveCache));

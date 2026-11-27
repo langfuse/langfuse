@@ -35,7 +35,10 @@ export async function saveProjectMembership(
     await replaceProjectRole(tx, { ...membership, orgId });
     return membership;
   });
-  await invalidateCachedUserApiKeys(prisma, { orgId, userId: data.userId });
+  await invalidateCachedUserApiKeys(prisma, {
+    orgId,
+    userIds: [data.userId],
+  });
   return membership;
 }
 
@@ -95,7 +98,7 @@ export async function deleteProjectMembership(
     });
     return membership;
   });
-  await invalidateCachedUserApiKeys(prisma, { orgId, userId });
+  await invalidateCachedUserApiKeys(prisma, { orgId, userIds: [userId] });
   return membership;
 }
 
