@@ -175,22 +175,68 @@ function orderedTopicsOf(facet: TopicFilterFacet) {
   ];
 }
 
+/**
+ * Assigns each facet a unique search-bar key under `topics.<key>`.
+ * Unique facet names stay bare; duplicate case-insensitive names append
+ * ` (<facetId>)` so autocomplete, partitioning, and saved filters stay distinct.
+ */
+export function buildFacetFilterKeys(
+  facets: readonly Pick<TopicFilterFacet, "facetId" | "name">[],
+): Map<string, string> {
+  const counts = new Map<string, number>();
+  for (const facet of facets) {
+    const lower = facet.name.toLowerCase();
+    counts.set(lower, (counts.get(lower) ?? 0) + 1);
+  }
+  const used = new Set<string>();
+  const keys = new Map<string, string>();
+  for (const facet of facets) {
+    const lower = facet.name.toLowerCase();
+    if ((counts.get(lower) ?? 0) === 1) {
+      used.add(lower);
+      keys.set(facet.facetId, facet.name);
+    }
+  }
+  for (const facet of facets) {
+    if (keys.has(facet.facetId)) continue;
+    let key = `${facet.name} (${facet.facetId})`;
+    while (used.has(key.toLowerCase())) {
+      key += ` (${facet.facetId})`;
+    }
+    used.add(key.toLowerCase());
+    keys.set(facet.facetId, key);
+  }
+  return keys;
+}
+
+export function facetFilterKey(
+  facet: Pick<TopicFilterFacet, "facetId" | "name">,
+  allFacets: readonly Pick<TopicFilterFacet, "facetId" | "name">[] = [facet],
+): string {
+  const list = allFacets.some((item) => item.facetId === facet.facetId)
+    ? allFacets
+    : [...allFacets, facet];
+  return buildFacetFilterKeys(list).get(facet.facetId) ?? facet.name;
+}
+
 function findTopicFilterFacet(
   facets: readonly TopicFilterFacet[],
   key: string,
-  excludeFacetId?: string,
-) {
-  const candidates = excludeFacetId
-    ? facets.filter((facet) => facet.facetId !== excludeFacetId)
-    : facets;
-  const exact = candidates.find((facet) => facet.name === key);
+): TopicFilterFacet | undefined {
+  const keys = buildFacetFilterKeys(facets);
+  const exact = facets.find((facet) => keys.get(facet.facetId) === key);
   if (exact) return exact;
   const lower = key.toLowerCase();
-  return candidates.find((facet) => facet.name.toLowerCase() === lower);
-}
-
-function isFacetKeyMatch(key: string, facetName: string) {
-  return key === facetName || key.toLowerCase() === facetName.toLowerCase();
+  const ci = facets.find(
+    (facet) => keys.get(facet.facetId)?.toLowerCase() === lower,
+  );
+  if (ci) return ci;
+  // Preserve saved `<name> (<facetId>)` filters if a same-named sibling was later removed.
+  const idMatch = /\(([^()]+)\)$/.exec(key)?.[1];
+  if (idMatch) {
+    return facets.find((facet) => facet.facetId === idMatch);
+  }
+  return undefined;
 }
 
 export function resolveFacetTopicIds(
@@ -235,6 +281,10 @@ export function partitionTopicTraceFilters(
   otherFacetTopics: CrossFacetTopicFilter[] | null;
   traceFieldFilters: FilterState;
 } {
+  let lookupFacets: readonly TopicFilterFacet[] = allFacets;
+  if (lookupFacets.length === 0) {
+    lookupFacets = activeFacet ? [activeFacet] : [];
+  }
   const activeFacetFilters: FilterState = [];
   const otherFacetFilters: FilterState = [];
   const traceFieldFilters: FilterState = [];
@@ -242,11 +292,11 @@ export function partitionTopicTraceFilters(
     if (filter.column === "topicId" || filter.column === "assignment") {
       activeFacetFilters.push(filter);
     } else if (filter.column === "topics") {
-      if (
-        filter.type === "categoryOptions" &&
-        activeFacet &&
-        isFacetKeyMatch(filter.key, activeFacet.name)
-      ) {
+      const matched =
+        filter.type === "categoryOptions"
+          ? findTopicFilterFacet(lookupFacets, filter.key)
+          : undefined;
+      if (matched && activeFacet && matched.facetId === activeFacet.facetId) {
         activeFacetFilters.push(filter);
       } else {
         otherFacetFilters.push(filter);
@@ -258,7 +308,7 @@ export function partitionTopicTraceFilters(
   const otherFacetTopics = resolveOtherFacetTopics(
     otherFacetFilters,
     activeFacet,
-    allFacets,
+    lookupFacets,
   );
   return {
     activeFacetFilters,
@@ -278,12 +328,8 @@ function resolveOtherFacetTopics(
     if (filter.column !== "topics" || filter.type !== "categoryOptions")
       return null;
     if (filter.value.length === 0) continue;
-    const facet = findTopicFilterFacet(
-      allFacets,
-      filter.key,
-      activeFacet?.facetId,
-    );
-    if (!facet) {
+    const facet = findTopicFilterFacet(allFacets, filter.key);
+    if (!facet || facet.facetId === activeFacet?.facetId) {
       if (filter.operator === "any of") return null;
       continue;
     }
@@ -302,14 +348,16 @@ function resolveOtherFacetTopics(
 }
 
 /**
- * Rewrites shorthand `topic:<id>` filters into explicit `topics.<FacetName>:<label>`
+ * Rewrites shorthand `topic:<id>` filters into explicit `topics.<FacetKey>:<label>`
  * filters before switching facet tabs so the filter stays valid and readable.
  */
 export function rewriteTopicIdFiltersForFacet(
   filters: FilterState,
   facet: TopicFilterFacet,
+  allFacets: readonly TopicFilterFacet[] = [facet],
 ): FilterState {
   if (!filters.some((filter) => filter.column === "topicId")) return filters;
+  const key = facetFilterKey(facet, allFacets);
   const displayById = new Map(
     buildTopicOptions(orderedTopicsOf(facet)).map((option) => [
       option.value,
@@ -322,7 +370,7 @@ export function rewriteTopicIdFiltersForFacet(
     return {
       column: "topics",
       type: "categoryOptions",
-      key: facet.name,
+      key,
       operator: filter.operator,
       value: filter.value.map((id) => displayById.get(id) ?? id),
     };
@@ -332,7 +380,8 @@ export function rewriteTopicIdFiltersForFacet(
 /**
  * Builds structured `topics` filters for "Open in Tracing" (v4 live maps).
  * Returns undefined when the current selection includes filters Tracing's
- * `topics` column cannot express (trace fields, assignment states, search text).
+ * `topics` column cannot express unambiguously (trace fields, assignment
+ * states, search text, duplicate facet names, or a single same-named topic).
  */
 export function topicTracingFilters(
   filters: FilterState,
@@ -354,36 +403,63 @@ export function topicTracingFilters(
   const combined = [...activeFacetFilters, ...otherFacetFilters];
   if (combined.length === 0) return undefined;
 
-  const activeNameById = new Map(
-    orderedTopicsOf(activeFacet).map((topic) => [topic.id, topic.name]),
-  );
+  const lookupFacets = allFacets.length > 0 ? allFacets : [activeFacet];
+  const facetKeys = buildFacetFilterKeys(lookupFacets);
+  const toTracingTopicFilter = (
+    facet: TopicFilterFacet,
+    operator: "any of" | "none of",
+    topicIds: readonly string[],
+  ) => {
+    // Tracing identifies facets by bare name; duplicate facet names cannot link unambiguously.
+    if (facetKeys.get(facet.facetId) !== facet.name) return undefined;
+    const topics = orderedTopicsOf(facet);
+    const nameById = new Map(topics.map((topic) => [topic.id, topic.name]));
+    const selectedIds = new Set(topicIds);
+    const names = [
+      ...new Set(
+        topicIds
+          .map((id) => nameById.get(id))
+          .filter((name): name is string => Boolean(name)),
+      ),
+    ];
+    if (names.length === 0) return undefined;
+    // Tracing resolves topic names to every topic with that name in the facet.
+    const selectedNames = new Set(names);
+    if (
+      topics.some(
+        (topic) => selectedNames.has(topic.name) && !selectedIds.has(topic.id),
+      )
+    )
+      return undefined;
+    return {
+      column: "topics",
+      type: "categoryOptions" as const,
+      key: facet.name,
+      operator,
+      value: names,
+    };
+  };
+
   const out: FilterState = [];
   for (const filter of combined) {
     if (filter.column === "topicId" && filter.type === "stringOptions") {
-      const names = [
-        ...new Set(
-          filter.value
-            .map((id) => activeNameById.get(id))
-            .filter((name): name is string => Boolean(name)),
-        ),
-      ];
-      if (names.length !== filter.value.length || names.length === 0)
+      if (filter.value.length === 0) return undefined;
+      const topics = orderedTopicsOf(activeFacet);
+      if (filter.value.some((id) => !topics.some((topic) => topic.id === id)))
         return undefined;
-      out.push({
-        column: "topics",
-        type: "categoryOptions",
-        key: activeFacet.name,
-        operator: filter.operator,
-        value: names,
-      });
+      const converted = toTracingTopicFilter(
+        activeFacet,
+        filter.operator,
+        filter.value,
+      );
+      if (!converted) return undefined;
+      out.push(converted);
     } else if (
       filter.column === "topics" &&
       filter.type === "categoryOptions"
     ) {
       if (filter.value.length === 0) continue;
-      const facet = isFacetKeyMatch(filter.key, activeFacet.name)
-        ? activeFacet
-        : findTopicFilterFacet(allFacets, filter.key, activeFacet.facetId);
+      const facet = findTopicFilterFacet(lookupFacets, filter.key);
       if (!facet) {
         if (filter.operator === "any of") return undefined;
         continue;
@@ -393,24 +469,9 @@ export function topicTracingFilters(
         if (filter.operator === "any of") return undefined;
         continue;
       }
-      const nameById = new Map(
-        orderedTopicsOf(facet).map((topic) => [topic.id, topic.name]),
-      );
-      const names = [
-        ...new Set(
-          topicIds
-            .map((id) => nameById.get(id))
-            .filter((name): name is string => Boolean(name)),
-        ),
-      ];
-      if (names.length === 0) return undefined;
-      out.push({
-        column: "topics",
-        type: "categoryOptions",
-        key: facet.name,
-        operator: filter.operator,
-        value: names,
-      });
+      const converted = toTracingTopicFilter(facet, filter.operator, topicIds);
+      if (!converted) return undefined;
+      out.push(converted);
     } else {
       return undefined;
     }
@@ -457,11 +518,13 @@ export function filterTopicTraces<Row extends TopicTraceRow>(
   filters: FilterState,
   searchQuery: string | null,
   activeFacet?: TopicFilterFacet,
+  allFacets: readonly TopicFilterFacet[] = [],
 ): Row[] {
   const phrase = searchQuery?.trim() ?? "";
   const { activeFacetFilters } = partitionTopicTraceFilters(
     filters,
     activeFacet,
+    allFacets,
   );
   const resolvedActiveTopicFilters = activeFacetFilters.map((filter) => {
     if (

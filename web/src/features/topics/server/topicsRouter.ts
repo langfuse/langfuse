@@ -113,18 +113,12 @@ const traceFilterInput = topicRuleConfigSchema.shape.filter.refine(
   { message: "These filters can't be used on Topics traces." },
 );
 const otherFacetTopicsInput = z.array(crossFacetTopicFilterSchema).max(20);
-const mapMatchesInput = mapInput
-  .extend({
-    ruleId: topicIdSchema.optional(),
-    analysisId: topicIdSchema.optional(),
-    filter: traceFilterInput.default([]),
-    otherFacetTopics: otherFacetTopicsInput.optional(),
-  })
-  .refine(
-    (input) =>
-      input.filter.length > 0 || (input.otherFacetTopics?.length ?? 0) > 0,
-    { message: "Provide at least one filter to match map points." },
-  );
+const mapMatchesInput = mapInput.extend({
+  ruleId: topicIdSchema.optional(),
+  analysisId: topicIdSchema.optional(),
+  filter: traceFilterInput.default([]),
+  otherFacetTopics: otherFacetTopicsInput.optional(),
+});
 const tracesInput = projectInput.extend({
   facetId: topicIdSchema,
   /** A rule's live map or an analysis snapshot; omitted means every rule. */
@@ -424,7 +418,11 @@ async function topicMapMatches(
   if (!run || run.projectId !== input.projectId)
     throw new LangfuseNotFoundError("Map not found.");
   const cohortRange = topicTimeRangeSchema.safeParse(run.config.timeRange);
-  if (run.status !== "completed" || !cohortRange.success)
+  if (
+    run.status !== "completed" ||
+    !cohortRange.success ||
+    (input.filter.length === 0 && !input.otherFacetTopics?.length)
+  )
     return { traceIds: [] };
   const analysisId = input.analysisId ?? run.batchActionId ?? undefined;
   const ruleId = analysisId

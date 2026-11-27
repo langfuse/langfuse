@@ -495,6 +495,7 @@ export async function resolveCrossFacetTraceConditions(
         timeRange,
         negated: item.operator === "none of",
         traceIdColumn: "trace_id",
+        requireLatestSummary: true,
       }),
     );
   }

@@ -91,7 +91,11 @@ export function useTopicTraceFilters(
       isTopicFilterFacet(currentFacet) &&
       filters.some((filter) => filter.column === "topicId")
     ) {
-      const rewritten = rewriteTopicIdFiltersForFacet(filters, currentFacet);
+      const rewritten = rewriteTopicIdFiltersForFacet(
+        filters,
+        currentFacet,
+        facets.filter(isTopicFilterFacet),
+      );
       updateSnapshot({ filter: encodeFiltersGeneric(rewritten) });
     }
     setFacetId(nextFacetId);

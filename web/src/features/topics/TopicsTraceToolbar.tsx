@@ -4,6 +4,7 @@ import { type ObservedOptions } from "@/src/features/search-bar/lib/observed-opt
 import { cn } from "@/src/utils/tailwind";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import {
+  buildFacetFilterKeys,
   buildTopicOptions,
   createTopicTraceRegistry,
   TOPIC_ASSIGNMENT_OPTIONS,
@@ -45,6 +46,10 @@ export function TopicsTraceToolbar({
     ];
   }, [allFacets, activeFacetId]);
 
+  const facetKeys = useMemo(
+    () => buildFacetFilterKeys(allFacets ?? []),
+    [allFacets],
+  );
   const hasSiblingFacets = filterableFacets.some(
     (entry) => entry.facet.facetId !== activeFacetId,
   );
@@ -54,11 +59,12 @@ export function TopicsTraceToolbar({
     );
     const firstTopic = sibling?.topics[0];
     if (!sibling || !firstTopic) return [];
-    const facetSegment = /^[A-Za-z0-9_-]+$/.test(sibling.facet.name)
-      ? sibling.facet.name
-      : JSON.stringify(sibling.facet.name);
+    const facetKey = facetKeys.get(sibling.facet.facetId) ?? sibling.facet.name;
+    const facetSegment = /^[A-Za-z0-9_-]+$/.test(facetKey)
+      ? facetKey
+      : JSON.stringify(facetKey);
     return [`topics.${facetSegment}:${JSON.stringify(firstTopic.name)}`];
-  }, [filterableFacets, activeFacetId]);
+  }, [filterableFacets, activeFacetId, facetKeys]);
 
   const registry = createTopicTraceRegistry(topics, filters, {
     traceFields: Boolean(traceFields),
@@ -71,17 +77,18 @@ export function TopicsTraceToolbar({
     if (filterableFacets.length === 0) return undefined;
     const observed: ObservedOptions = {
       topics: filterableFacets.map(({ facet, topics: facetTopics }) => ({
-        value: facet.name,
+        value: facetKeys.get(facet.facetId) ?? facet.name,
         type: `${facetTopics.length} ${facetTopics.length === 1 ? "topic" : "topics"}`,
       })),
     };
     for (const { facet, topics: facetTopics } of filterableFacets) {
-      observed[`topics.${facet.name}`] = buildTopicOptions(facetTopics).map(
+      const facetKey = facetKeys.get(facet.facetId) ?? facet.name;
+      observed[`topics.${facetKey}`] = buildTopicOptions(facetTopics).map(
         (option) => ({ value: option.displayValue }),
       );
     }
     return observed;
-  }, [filterableFacets]);
+  }, [filterableFacets, facetKeys]);
 
   return (
     <div className={cn("shrink-0", divider ? "border-b p-2" : "px-4 pt-3")}>

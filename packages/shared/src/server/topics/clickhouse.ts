@@ -1449,6 +1449,7 @@ export function currentTopicTraceIdsCondition(
     timeRange,
     negated,
     traceIdColumn = "e.trace_id",
+    requireLatestSummary = false,
   }: {
     projectId: string;
     facetId: string;
@@ -1457,24 +1458,51 @@ export function currentTopicTraceIdsCondition(
     timeRange: TopicTimeRange;
     negated: boolean;
     traceIdColumn?: string;
+    requireLatestSummary?: boolean;
   },
 ) {
   // Only traces that ever had one of the topics can currently have it; deduping just those
   // keeps memory proportional to the match instead of every assigned trace in the window.
-  const sql = `SELECT trace_id FROM (${currentTraceAssignmentsSql(
-    `facet_id = {facetId:String} AND trace_id != '' AND trace_id IN (
-      SELECT trace_id FROM topic_assignments
+  const candidateTraceIdsSql = `SELECT trace_id FROM topic_assignments
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
-        AND facet_id = {facetId:String} AND clustering_run_id IN {publishedRunIds:Array(String)}
-        AND topic_stable_id IN {topicIds:Array(String)}
-    )`,
-  )}) WHERE topic_stable_id IN {topicIds:Array(String)}`;
+        AND facet_id = {facetId:String} AND trace_id != ''
+        AND clustering_run_id IN {publishedRunIds:Array(String)}
+        AND topic_stable_id IN {topicIds:Array(String)}`;
+  const latestSummarySql = requireLatestSummary
+    ? ` AND (trace_id, facet_version, unit_start_time, summary_processed_at) IN (
+        SELECT trace_id, facet_version, unit_start_time, created_at
+        FROM (
+          SELECT trace_id, facet_version, unit_start_time, created_at, processing_state
+          FROM topic_facet_summaries
+          WHERE project_id = {projectId:String}
+            AND unit_start_time >= {from:DateTime64(3)} - INTERVAL 2 DAY
+            AND unit_start_time < {to:DateTime64(3)} + INTERVAL 2 DAY
+            AND unit_type = 'trace'
+            AND facet_id = {facetId:String}
+            AND trace_id IN (${candidateTraceIdsSql})
+            AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
+            AND environment NOT IN {publicInternalEnvironments:Array(String)}
+          ORDER BY facet_version DESC, created_at DESC
+          LIMIT 1 BY facet_id, trace_id
+        )
+        WHERE processing_state = 'complete'
+      )`
+    : "";
+  const sql = `SELECT trace_id FROM (${currentTraceAssignmentsSql(
+    `facet_id = {facetId:String} AND trace_id != '' AND trace_id IN (${candidateTraceIdsSql})`,
+  )}) WHERE topic_stable_id IN {topicIds:Array(String)}${latestSummarySql}`;
   const params: Record<string, unknown> = {
     projectId,
     ...timeRangeParams(timeRange),
     facetId,
     topicIds,
     publishedRunIds,
+    ...(requireLatestSummary
+      ? {
+          internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+          publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
+        }
+      : {}),
   };
   return {
     query: `${traceIdColumn} ${negated ? "NOT IN" : "IN"} (${sql.replace(
@@ -1492,7 +1520,8 @@ export function currentTopicTraceIdsCondition(
 
 // A trace's current topic per map: its newest assignment from each rule's published run.
 function currentTraceAssignmentsSql(scopeSql: string) {
-  return `SELECT trace_id, facet_id, topic_stable_id, topic_id, clustering_run_id
+  return `SELECT trace_id, facet_id, facet_version, unit_start_time, summary_processed_at,
+      topic_stable_id, topic_id, clustering_run_id
     FROM topic_assignments
     WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
       AND clustering_run_id IN {publishedRunIds:Array(String)}
