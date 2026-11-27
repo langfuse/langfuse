@@ -94,10 +94,12 @@ const OPENAI_EMBEDDING_MODELS = [
   "text-embedding-3-large",
   "text-embedding-ada-002",
 ];
-const GOOGLE_EMBEDDING_MODELS = [
-  "textembedding-gecko",
-  "textembedding-gecko-multilingual",
+// gecko is retired on both Google APIs; gemini-embedding-2 is Gemini API only.
+const GOOGLE_AI_STUDIO_EMBEDDING_MODELS = [
+  "gemini-embedding-2",
+  "gemini-embedding-001",
 ];
+const VERTEX_AI_EMBEDDING_MODELS = ["gemini-embedding-001"];
 
 export function isRecommendedTopicModel(
   slot: "summary" | "embedding" | "clustering",
@@ -127,7 +129,7 @@ export function setupWaitMinutes(
   return TOPIC_SETUP_DEFAULT_WAIT_MINUTES;
 }
 
-function topicModelsFor(
+export function topicModelsFor(
   connection: TopicSetupConnection,
   kind: "chat" | "embedding",
   savedModel?: string | null,
@@ -140,13 +142,20 @@ function topicModelsFor(
     kind === "embedding" && connection.withDefaultModels
       ? embeddingModelsFor(connection.adapter)
       : [];
-  return Array.from(
+  const models = Array.from(
     new Set(
       [savedModel, ...embedding, ...connection.customModels, ...chat].filter(
         (model): model is string => Boolean(model),
       ),
     ),
   );
+  if (kind === "chat") return models;
+  // Chat models stay pickable for embedding, but embedding-named ones come first.
+  const isEmbedding = (model: string) => /embed/i.test(model);
+  return [
+    ...models.filter(isEmbedding),
+    ...models.filter((m) => !isEmbedding(m)),
+  ];
 }
 
 export function topicProviderGroups(
@@ -377,7 +386,8 @@ function topicQuestionDescription(name: string, stored: string | undefined) {
 function embeddingModelsFor(adapter: string) {
   if (adapter === LLMAdapter.OpenAI || adapter === LLMAdapter.Azure)
     return OPENAI_EMBEDDING_MODELS;
-  if (adapter === LLMAdapter.GoogleAIStudio || adapter === LLMAdapter.VertexAI)
-    return GOOGLE_EMBEDDING_MODELS;
+  if (adapter === LLMAdapter.GoogleAIStudio)
+    return GOOGLE_AI_STUDIO_EMBEDDING_MODELS;
+  if (adapter === LLMAdapter.VertexAI) return VERTEX_AI_EMBEDDING_MODELS;
   return [];
 }
