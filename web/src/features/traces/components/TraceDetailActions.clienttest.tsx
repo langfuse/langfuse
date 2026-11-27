@@ -29,6 +29,17 @@ vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
 vi.mock("@/src/features/traces/hooks/useSessionScopeActions", () => ({
   useSessionScopeActions: mocks.sessionActions,
 }));
+// The share controller holds the invite flow, which needs a router and a session.
+vi.mock(
+  "@/src/features/sharing/components/PublicShareDialogController",
+  () => ({
+    PublicShareDialogController: ({
+      children,
+    }: {
+      children: (control: { openShareDialog: () => void }) => unknown;
+    }) => children({ openShareDialog: () => undefined }),
+  }),
+);
 vi.mock("@/src/components/useShareMenuItems", () => ({
   useShareMenuItems: () => [],
 }));

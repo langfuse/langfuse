@@ -4,6 +4,7 @@ import { type DropdownMenuItemDefinition } from "@/src/components/design-system/
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { type OpenPublicShareDialog } from "@/src/features/sharing/components/PublicShareDialogController";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 
 function buildSessionClickHouseQuery(
@@ -96,12 +97,14 @@ export function useSessionHeaderMenuItems({
   sessionId,
   isPublic,
   shareUrl,
+  openShareDialog,
   ...displaySettings
 }: DisplaySettingProps & {
   projectId: string;
   sessionId: string;
   isPublic: boolean;
   shareUrl?: string;
+  openShareDialog: OpenPublicShareDialog;
 }) {
   const capture = usePostHogClientCapture();
   const { copy } = useCopyToClipboard();
@@ -114,6 +117,7 @@ export function useSessionHeaderMenuItems({
     objectId: sessionId,
     isPublic,
     shareUrl,
+    openShareDialog,
   });
   const displayItems = buildDisplayItems(displaySettings);
 

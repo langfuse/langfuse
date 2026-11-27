@@ -409,6 +409,14 @@ const events = {
   user_settings: ["theme_changed", "feature_preview_toggled"],
   // Member invite funnel; submits are the two *_settings:send_membership_invitation.
   members: ["invite_dialog_open", "invite_upgrade_click"],
+  // Make Public on a trace or session: the confirmation's funnel, and reuse of the link.
+  public_share: [
+    "dialog_open",
+    "dialog_confirm",
+    "dialog_cancel",
+    "invite_instead_click",
+    "link_copied",
+  ],
   project_settings: [
     "project_delete",
     "rename_form_submit",

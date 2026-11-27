@@ -141,6 +141,7 @@ export function usePublishObject(props: PublishObjectProps) {
       kind === "trace"
         ? "trace_detail:publish_button_click"
         : "session_detail:publish_button_click",
+      { isPublic },
     );
     return mutation.mutateAsync(isPublic);
   };
