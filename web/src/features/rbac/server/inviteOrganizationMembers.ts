@@ -56,6 +56,7 @@ export async function inviteOrganizationMembers({
         ctx,
         target,
         input: { ...roles, email },
+        source: "members",
         sendInvitationEmail,
         syncSfdcUserRole: async (input) => {
           sfdcUserRoles.push(input);

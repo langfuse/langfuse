@@ -21,6 +21,10 @@ import {
   assertValidProjectOwnershipChange,
 } from "@/src/features/rbac/server/ownershipChange";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
+import {
+  captureInviteCreated,
+  type MemberInviteSource,
+} from "@/src/features/rbac/server/memberInviteEvents";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
 type MemberInviteContext = Pick<OrgAuthedContext, "session" | "prisma">;
@@ -51,6 +55,7 @@ export class MemberInviteError extends TRPCError {
 type InviteMemberParams = {
   ctx: MemberInviteContext;
   input: MemberInviteRoles & { email: string };
+  source: MemberInviteSource;
   /** Callers pick the email, e.g. the generic organization invite or the AI Gateway invite. */
   sendInvitationEmail: (recipient: {
     to: string;
@@ -183,9 +188,22 @@ export async function inviteMember({
   ctx,
   target: { org, project },
   input,
+  source,
   sendInvitationEmail,
   syncSfdcUserRole,
 }: InviteMemberParams & { target: MemberInviteTarget }) {
+  const recordCreated = (outcome: "invited" | "added" | "addedToProject") => {
+    captureInviteCreated(ctx.session.user.id, {
+      kind: outcome === "invited" ? "invitation" : "direct_membership",
+      orgRole: input.orgRole,
+      hasProjectRole: Boolean(
+        project && input.projectRole && input.projectRole !== Role.NONE,
+      ),
+      source,
+    });
+    return outcome;
+  };
+
   const user = await ctx.prisma.user.findUnique({
     where: {
       email: input.email.toLowerCase(),
@@ -240,7 +258,7 @@ export async function inviteMember({
           action: "create",
           after: newProjectMembership,
         });
-        return "addedToProject";
+        return recordCreated("addedToProject");
       }
       throw new MemberInviteError(
         "already_member",
@@ -385,5 +403,5 @@ export async function inviteMember({
       }
     }
   }
-  return user ? "added" : "invited";
+  return recordCreated(user ? "added" : "invited");
 }

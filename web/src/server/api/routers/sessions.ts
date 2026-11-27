@@ -6,6 +6,7 @@ import {
   ref,
 } from "@/src/features/audit-logs/server/auditedQuery";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { capturePublicShareChanged } from "@/src/features/posthog-analytics/server/publicShareEvents";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   applyCommentFilters,
@@ -1335,7 +1336,7 @@ export const sessionRouter = createTRPCRouter({
         action: "publish",
         after: input.public,
       });
-      return ctx.prisma.traceSession.upsert({
+      const session = await ctx.prisma.traceSession.upsert({
         where: {
           id_projectId: {
             id: input.sessionId,
@@ -1351,5 +1352,10 @@ export const sessionRouter = createTRPCRouter({
           public: input.public,
         },
       });
+      capturePublicShareChanged(ctx.session.user.id, {
+        kind: "session",
+        isPublic: input.public,
+      });
+      return session;
     }),
 });

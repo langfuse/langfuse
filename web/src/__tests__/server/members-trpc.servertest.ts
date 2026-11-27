@@ -11,6 +11,7 @@ import { Role, type Plan, entitlementAccess } from "@langfuse/shared";
 import { createApiKey } from "@langfuse/shared/src/server";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { env } from "@/src/env.mjs";
+import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { MAX_MEMBER_INVITES_PER_REQUEST } from "@/src/features/rbac/constants/memberInvites";
 
 import { v4 as uuidv4 } from "uuid";
@@ -19,8 +20,18 @@ import type * as MultiTenantSsoUtils from "@/src/ee/features/multi-tenant-sso/ut
 
 const SSO_ENFORCED_DOMAIN = "sso-enforced.test";
 
-const { sendMembershipInvitationEmail } = vi.hoisted(() => ({
+const { sendMembershipInvitationEmail, captureMock } = vi.hoisted(() => ({
   sendMembershipInvitationEmail: vi.fn(async () => {}),
+  captureMock: vi.fn(),
+}));
+
+// cloud_signup_complete's own client and the shared one both record here
+vi.mock("@/src/features/posthog-analytics/ServerPosthog", () => ({
+  ServerPosthog: class {
+    capture = captureMock;
+    shutdown = async () => {};
+  },
+  getServerPosthog: () => ({ capture: captureMock }),
 }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
@@ -532,6 +543,183 @@ describe("membersRouter.create - several emails", () => {
     expect(
       await prisma.membershipInvitation.count({ where: { orgId: org.id } }),
     ).toBe(0);
+  });
+});
+
+describe("membersRouter.create - server events", () => {
+  const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+  beforeEach(() => {
+    captureMock.mockReset();
+    (
+      env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string }
+    ).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
+  });
+
+  afterEach(() => {
+    (
+      env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string }
+    ).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+  });
+
+  function capturedEvents(event: string) {
+    return captureMock.mock.calls
+      .map(([captured]) => captured)
+      .filter((captured) => captured.event === event);
+  }
+
+  it("records each invitation and membership it creates, and nothing for a failed email", async () => {
+    const { org, project, caller, ownerUser } = await prepare("cloud:team");
+    const existingUser = await createTestUser();
+    const member = await createTestUser();
+    await createOrgMembership(prisma, {
+      userId: member.id,
+      orgId: org.id,
+      role: Role.MEMBER,
+    });
+
+    await caller.members.create({
+      orgId: org.id,
+      emails: [
+        `new-${uuidv4().substring(0, 8)}@test.com`,
+        existingUser.email!,
+        member.email!,
+      ],
+      orgRole: Role.MEMBER,
+      projectId: project.id,
+      projectRole: Role.VIEWER,
+    });
+
+    const properties = {
+      orgRole: Role.MEMBER,
+      hasProjectRole: true,
+      source: "members",
+    };
+    expect(capturedEvents("members:invite_created")).toEqual([
+      {
+        distinctId: ownerUser.id,
+        event: "members:invite_created",
+        properties: { kind: "invitation", ...properties },
+      },
+      {
+        distinctId: ownerUser.id,
+        event: "members:invite_created",
+        properties: { kind: "direct_membership", ...properties },
+      },
+    ]);
+  });
+
+  it("records an AI Gateway invitation with its source", async () => {
+    const { org, caller, ownerUser } = await prepare("cloud:team");
+    const originalAllowlist = [
+      ...env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
+    ];
+    env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.push(org.id);
+
+    try {
+      await caller.aiGateway.inviteTeam({
+        orgId: org.id,
+        emails: [`gateway-${uuidv4().substring(0, 8)}@test.com`],
+        notifyMembers: false,
+      });
+    } finally {
+      env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.splice(
+        0,
+        env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.length,
+        ...originalAllowlist,
+      );
+    }
+
+    expect(capturedEvents("members:invite_created")).toEqual([
+      {
+        distinctId: ownerUser.id,
+        event: "members:invite_created",
+        properties: {
+          kind: "invitation",
+          orgRole: Role.AI_GATEWAY,
+          hasProjectRole: false,
+          source: "ai_gateway",
+        },
+      },
+    ]);
+  });
+
+  it("records each invitation a new user accepts", async () => {
+    const email = `accept-${uuidv4().substring(0, 8)}@test.com`;
+    const first = await prepare("cloud:team");
+    await first.caller.members.create({
+      orgId: first.org.id,
+      emails: [email],
+      orgRole: Role.MEMBER,
+    });
+    const second = await prepare("cloud:team");
+    await second.caller.members.create({
+      orgId: second.org.id,
+      emails: [email],
+      orgRole: Role.NONE,
+      projectId: second.project.id,
+      projectRole: Role.VIEWER,
+    });
+    const user = await prisma.user.create({
+      data: { id: uuidv4(), email, name: "Invited User" },
+    });
+
+    await createProjectMembershipsOnSignup(user);
+
+    const accepted = capturedEvents("members:invite_accepted");
+    expect(accepted).toHaveLength(2);
+    expect(accepted).toEqual(
+      expect.arrayContaining([
+        {
+          distinctId: user.id,
+          event: "members:invite_accepted",
+          properties: {
+            orgRole: Role.MEMBER,
+            hasProjectRole: false,
+            daysSinceInvite: 0,
+          },
+        },
+        {
+          distinctId: user.id,
+          event: "members:invite_accepted",
+          properties: {
+            orgRole: Role.NONE,
+            hasProjectRole: true,
+            daysSinceInvite: 0,
+          },
+        },
+      ]),
+    );
+  });
+
+  it("records a pending invitation an admin revokes", async () => {
+    const { org, caller, ownerUser } = await prepare("cloud:team");
+    const email = `revoke-${uuidv4().substring(0, 8)}@test.com`;
+    await caller.members.create({
+      orgId: org.id,
+      emails: [email],
+      orgRole: Role.VIEWER,
+    });
+    const invitation = await prisma.membershipInvitation.findFirstOrThrow({
+      where: { orgId: org.id, email },
+    });
+
+    await caller.members.deleteInvite({
+      orgId: org.id,
+      inviteId: invitation.id,
+    });
+
+    expect(capturedEvents("members:invite_revoked")).toEqual([
+      {
+        distinctId: ownerUser.id,
+        event: "members:invite_revoked",
+        properties: {
+          orgRole: Role.VIEWER,
+          hasProjectRole: false,
+          daysSinceInvite: 0,
+        },
+      },
+    ]);
   });
 });
 
