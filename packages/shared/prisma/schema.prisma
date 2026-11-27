@@ -913,6 +913,7 @@ model CronJobs {
   lastRun      DateTime? @map("last_run")
   jobStartedAt DateTime? @map("job_started_at")
   state        String?
+  testNote     String?   @map("test_note")
 
   @@map("cron_jobs")
 }
