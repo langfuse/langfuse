@@ -23,9 +23,7 @@ Follow the [Git workflow branch guidance](../git-workflow/SKILL.md#branch-names)
 
 Follow the [protected-branch approval policy](../git-workflow/references/protected-branches.md) for latest-commit Bugbot review, approver-bot approval, human review of sensitive paths, and maintainer-first approval of public fork PRs. Resolving feedback or receiving a clean Claude, Greptile, or Codex review does not replace those gates.
 
-Open the GitHub PR as reviewable, not as a draft. Draft PRs hide the work
-from reviewers and skip Claude/Greptile review workflows. Use a draft only
-when a human asks for one.
+Open the GitHub PR as reviewable, not as a draft, unless a human asks for a draft.
 
 After opening the PR, apply the GitHub `cursor` label. Use the PR label
 tool. Do not wait for a human to add it, and do not substitute a `codex`
@@ -34,27 +32,9 @@ author is `cursor[bot]`, the branch starts with `cursor/`, or the PR body
 contains the Cursor agent marker — still apply it yourself so the tag is
 present immediately.
 
-Cursor Cloud PRs are opened as the Langfuse user who launched the agent. On
-a non-draft same-repo PR from a write-access user, github-actions posts
-`@claude review` automatically. Do not post that comment yourself on open.
-Do not post `@claude review` again after addressing comments unless a human
-asks for another pass.
+## PR follow-up
 
-## Bot review comments
-
-When Bugbot (`cursor[bot]`), Claude (Claude Code, `claude[bot]`, or the security-review action),
-Greptile (`greptile-apps[bot]`), or Codex (`chatgpt-codex-connector[bot]`)
-leaves review comments on a PR you own:
-
-1. After the fix is pushed, resolve each bot thread you fixed, or skipped only when you are sure, even when the prompt only says to fix, address, or reply (see `git-workflow`). If the task asked for a reply, post it and then resolve.
-2. If the finding is right: apply the fix, then resolve the thread.
-3. If you are sure it should be skipped: tell the human in plain language
-   what you skipped and why, invite them to doubt that call, then resolve
-   the thread. Never skip quietly. For a Bugbot finding, use the teammate approval path in the protected-branch policy; resolving a skipped finding does not make its review clean.
-
-Do not leave those threads unresolved. Do not argue. Human reviewer comments
-are different: those may need a real reply and must stay open until a human
-says otherwise.
+Follow [PR follow-up and completion](../git-workflow/references/protected-branches.md#pr-follow-up-and-completion) for cloud ownership, the interactive preference, trusted feedback, fresh review requests, thread resolution, and the current-head handoff.
 
 ## Human testing
 

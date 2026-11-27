@@ -72,9 +72,7 @@ that loads both formats. See the [instruction loader documentation](https://gith
 
 ## Hosted Claude Code Review
 
-Root [`REVIEW.md`](../REVIEW.md) defines review rules, severity, and reporting.
-It references domain skills for technical guidance. Claude's hosted reviewer
-loads it automatically; request it explicitly for local `/code-review` runs.
+Root [`REVIEW.md`](../REVIEW.md) defines review rules, severity, and reporting. It references domain skills for technical guidance. Claude's hosted reviewer loads it automatically; request it explicitly for local `/code-review` runs. Follow the [PR review loop](skills/git-workflow/references/protected-branches.md#pr-follow-up-and-completion); bot-authored `@claude review` mentions are rejected.
 
 ## Validation
 
@@ -211,11 +209,7 @@ Use HTTP/OAuth where available so credentials remain outside the agent VM.
 | PostHog | Cursor Marketplace integration | Enabled; allow analytics, schema, query, and insight reads only |
 | Browser automation | Cursor computer use in Cloud; Playwright MCP locally | Enabled; never reuse a developer's local authenticated browser session |
 
-Do not approve create, save, update, delete, comment, reply, send, resolve,
-archive, acknowledge, execute-DDL, or settings-management tools. Review the
-server's discovered tool list whenever an MCP version changes; naming heuristics
-do not replace an explicit allowlist. Production/support data must not be copied
-into public preview accounts or Cursor PR artifacts.
+For integrations marked read-only above, do not approve create, save, update, delete, comment, reply, send, resolve, archive, acknowledge, execute-DDL, or settings-management tools. GitHub review requests and thread actions follow the accepted PR loop within existing permissions. Review the server's discovered tool list whenever an MCP version changes; naming heuristics do not replace an explicit allowlist. Production/support data must not be copied into public preview accounts or Cursor PR artifacts.
 
 Use `Default + allowlist` network mode. Include the package and container
 registries used by the Dockerfile and Compose stack, GitHub, Langfuse preview
