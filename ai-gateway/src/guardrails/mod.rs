@@ -26,7 +26,7 @@ use crate::{
     cpu::{CpuJob, CpuWork},
     http::ParsedRequest,
     inference::MemoryReservation,
-    observability::ErrorOrigin,
+    observability::{ErrorOrigin, RequestObservation},
     providers::OutboundPolicy,
     resolution::{ApiFormat, ResolutionError, ResolvedRequestContext},
 };
@@ -75,10 +75,12 @@ impl Guardrails {
         api_format: ApiFormat,
         context: &ResolvedRequestContext,
         request: &ParsedRequest,
+        observation: &RequestObservation,
     ) -> Result<Outcome, ResolutionError> {
         if !context.guardrails().iter().any(Guardrail::is_active) {
             return Ok(Outcome::default());
         }
+        observation.record_guardrails_evaluated();
         let guardrails: Arc<[Guardrail]> = context.guardrails().into();
         let organization_id = context.attribution().organization_id().as_str().to_owned();
         let body = request.body().clone();

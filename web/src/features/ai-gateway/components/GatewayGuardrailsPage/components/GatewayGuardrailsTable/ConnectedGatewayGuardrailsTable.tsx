@@ -31,6 +31,7 @@ type DeleteConfirmationState = {
   title: string;
   text: string;
   clearAfterDelete: boolean;
+  isBulk: boolean;
 };
 
 export function ConnectedGatewayGuardrailsTable({
@@ -87,7 +88,9 @@ export function ConnectedGatewayGuardrailsTable({
           error={deletion.error?.message}
           onAfterDismiss={() => deletion.reset()}
           onConfirm={async (state) => {
-            const deletedCount = await deleteGuardrails(state.target);
+            const deletedCount = await deleteGuardrails(state.target, {
+              isBulk: state.isBulk,
+            });
             if (deletedCount === null) {
               throw new Error("Guardrails could not be deleted.");
             }
@@ -108,6 +111,7 @@ export function ConnectedGatewayGuardrailsTable({
                 clearAfterDelete: Boolean(
                   selectionStore.getState().rowSelection[row.id],
                 ),
+                isBulk: false,
               });
             };
 
@@ -210,6 +214,7 @@ function ConnectedGuardrailsSelectionBar({
       title: `Delete ${selectedCount} ${selectedCount === 1 ? "guardrail" : "guardrails"}?`,
       text: "Requests will no longer be checked against these guardrails.",
       clearAfterDelete: true,
+      isBulk: true,
     });
   };
 
