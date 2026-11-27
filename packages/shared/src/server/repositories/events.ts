@@ -2103,19 +2103,16 @@ function planNextObservationsWindow(
   elapsedMs: number,
   remainingMs: number,
 ) {
-  if (remainingMs <= 0) return undefined;
+  const availableMs = remainingMs - OBSERVATIONS_QUERY_OVERHEAD_MS;
+  // A query started within the fixed per-query overhead cannot finish in time.
+  if (availableMs <= 0) return undefined;
 
   // Client wall time includes retries and stream consumption; GB is decimal.
   const costMs = Math.max(
     elapsedMs,
     (last.readBytes / 1e9) * OBSERVATIONS_MS_PER_GB,
   );
-  const availableMs = remainingMs - OBSERVATIONS_QUERY_OVERHEAD_MS;
-  // Near the deadline, do not shrink the interval just to reserve overhead.
-  let timeMultiplier = 1;
-  if (availableMs > 0) {
-    timeMultiplier = costMs > 0 ? availableMs / costMs : Infinity;
-  }
+  const timeMultiplier = costMs > 0 ? availableMs / costMs : Infinity;
   const rowMultiplier =
     last.readRows !== undefined && last.readRows > 0
       ? OBSERVATIONS_QUERY_ROW_TARGET / last.readRows
@@ -2134,14 +2131,11 @@ function planNextObservationsWindow(
       ),
     ),
   );
-  // A window predicted to outlast the budget would only hit its timeout; end
-  // the page at the last completed boundary instead.
-  if ((durationMs / windowMs) * costMs > remainingMs) return undefined;
-  return {
-    durationMs,
-    estimatedMs:
-      OBSERVATIONS_QUERY_OVERHEAD_MS + (durationMs / windowMs) * costMs,
-  };
+  const scanMs = (durationMs / windowMs) * costMs;
+  // Even the smallest window would outlast the budget; end the page at the
+  // last completed boundary instead of starting a query that times out.
+  if (scanMs > availableMs) return undefined;
+  return { durationMs, estimatedMs: OBSERVATIONS_QUERY_OVERHEAD_MS + scanMs };
 }
 
 /** Own the deadline and cumulative work counters for all queries in one page. */
