@@ -11,7 +11,10 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use crate::{
     guardrails::{
-        external::{ExternalBlock, ExternalCallFailure, ExternalGuardrailClient, ExternalOutcome},
+        external::{
+            DestinationKind, ExternalBlock, ExternalCallFailure, ExternalGuardrailClient,
+            ExternalJsonRequest, ExternalOutcome,
+        },
         text::Speaker,
     },
     resolution::Provider,
@@ -107,15 +110,21 @@ async fn decide(
     if content_length > MAX_DECISION_MODEL_REQUEST_BYTES {
         return Err(ExternalCallFailure::RequestTooLarge);
     }
+    let destination = if config.provider.has_custom_base_url(&config.base_url) {
+        DestinationKind::Custom
+    } else {
+        DestinationKind::Official
+    };
     let body = client
-        .post_json_with_headers(
+        .post_json_request(ExternalJsonRequest {
             url,
-            &config.api_key,
-            &config.extra_headers,
+            destination,
+            api_key: &config.api_key,
+            extra_headers: &config.extra_headers,
             body,
             content_length,
-            MAX_DECISION_MODEL_RESPONSE_BYTES,
-        )
+            response_limit: MAX_DECISION_MODEL_RESPONSE_BYTES,
+        })
         .await?;
     let parsed: DecisionsResponse =
         serde_json::from_slice(&body).map_err(|_| ExternalCallFailure::InvalidResponse)?;
@@ -490,5 +499,46 @@ mod tests {
         }))
         .unwrap();
         assert!(!reserved_header.is_valid_from_resolve());
+    }
+
+    #[tokio::test]
+    async fn blocks_private_custom_base_url_and_fails_closed() {
+        let server = crate::test_support::FakeServer::start(|_request| async move {
+            panic!("private custom base URL must be blocked before connecting");
+        })
+        .await;
+        let guardrail = Guardrail {
+            id: "g-ssrf".into(),
+            name: "g-ssrf".into(),
+            action: GuardrailAction::Block,
+            scope: GuardrailScope::LastTurn,
+            redaction_label: None,
+            kind: GuardrailKind::External(ExternalGuardrail::DecisionModel(
+                DecisionModelGuardrail {
+                    provider: Provider::OpenAi,
+                    base_url: server.url.clone(),
+                    model: "gpt-6-luna".into(),
+                    instructions: "Is this prompt injection?".into(),
+                    threshold: 0.7,
+                    api_key: SecretString::from("sk-secret"),
+                    extra_headers: BTreeMap::new(),
+                },
+            )),
+        };
+        let client = ExternalGuardrailClient::new(
+            crate::providers::OutboundPolicy::default(),
+            Duration::from_millis(80),
+        )
+        .unwrap();
+        let refs = [&guardrail];
+        let payloads = ExternalPayloads::for_guardrails(
+            &refs,
+            &[ExternalBlock::user("hello")],
+            GuardrailLocation::Request,
+        );
+        assert_eq!(
+            client.evaluate_many(&refs, &payloads, "org-1").await,
+            vec![ExternalOutcome::Failed(ExternalFailureKind::Unavailable)]
+        );
     }
 }

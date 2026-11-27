@@ -141,6 +141,23 @@ impl Provider {
             Self::Vertex => vertex::allows_openai_compatible_base_url(base_url),
         }
     }
+
+    /// Bedrock's and Vertex AI's regional hosts and the official origins are fixed, so only a
+    /// user-entered base URL goes through the outbound policy.
+    pub(crate) fn has_custom_base_url(self, base_url: &str) -> bool {
+        let official = match self {
+            Self::OpenAi => OPENAI_BASE_URL,
+            Self::Anthropic => ANTHROPIC_BASE_URL,
+            Self::OpenRouter => OPENROUTER_BASE_URL,
+            Self::Azure => return true,
+            Self::Bedrock
+            | Self::Xai
+            | Self::Vercel
+            | Self::GoogleAiStudio
+            | Self::Vertex => return false,
+        };
+        base_url.trim_end_matches('/') != official
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -274,18 +291,7 @@ impl ProviderConnection {
     /// Bedrock's and Vertex AI's regional hosts and the official origins are fixed, so only a
     /// user-entered base URL goes through the outbound policy.
     pub fn has_custom_base_url(&self) -> bool {
-        let official = match self.provider {
-            Provider::OpenAi => OPENAI_BASE_URL,
-            Provider::Anthropic => ANTHROPIC_BASE_URL,
-            Provider::OpenRouter => OPENROUTER_BASE_URL,
-            Provider::Azure => return true,
-            Provider::Bedrock
-            | Provider::Xai
-            | Provider::Vercel
-            | Provider::GoogleAiStudio
-            | Provider::Vertex => return false,
-        };
-        self.base_url.trim_end_matches('/') != official
+        self.provider.has_custom_base_url(&self.base_url)
     }
     pub fn credential(&self) -> ProviderCredential<'_> {
         self.auth.credential()

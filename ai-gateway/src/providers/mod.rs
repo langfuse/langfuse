@@ -32,6 +32,7 @@ use crate::{
     transport,
 };
 pub use outbound::OutboundPolicy;
+pub(crate) use outbound::PolicyResolver;
 
 /// Largest provider response body buffered for output guardrail evaluation.
 const MAX_JSON_RESPONSE_GUARDRAIL_BYTES: usize = MAX_RESPONSE_PARSE_BYTES;

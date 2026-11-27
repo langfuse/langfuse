@@ -30,7 +30,7 @@ use crate::{
         openai_moderation::{self, OpenAiModerationGuardrail},
         text::Speaker,
     },
-    providers::OutboundPolicy,
+    providers::{OutboundPolicy, PolicyResolver},
     resolution::{ApiFormat, Provider, ResolutionError, valid_extra_header, valid_token},
 };
 
@@ -391,10 +391,46 @@ impl ExternalPayloads {
     }
 }
 
+/// Whether an external guardrail targets an official provider origin (which may
+/// resolve to private VPC-endpoint addresses) or a user-supplied custom base URL
+/// (which requires full SSRF URL and DNS-resolution checks).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum DestinationKind {
+    Official,
+    Custom,
+}
+
+/// Parameters for an external guardrail JSON POST request.
+pub(crate) struct ExternalJsonRequest<'a> {
+    pub url: Url,
+    pub destination: DestinationKind,
+    pub api_key: &'a SecretString,
+    pub extra_headers: &'a BTreeMap<String, SecretString>,
+    pub body: Body,
+    pub content_length: usize,
+    pub response_limit: usize,
+}
+
+fn external_client_builder(timeout: Duration) -> reqwest::ClientBuilder {
+    Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .retry(reqwest::retry::never())
+        .no_proxy()
+        .no_gzip()
+        .no_brotli()
+        .no_deflate()
+        .no_zstd()
+        .connect_timeout(timeout.min(MAX_EXTERNAL_CONNECT_TIMEOUT))
+        .pool_idle_timeout(POOL_IDLE_TIMEOUT)
+        .tcp_keepalive(TCP_KEEPALIVE)
+        .pool_max_idle_per_host(16)
+}
+
 /// Pooled HTTPS client shared across all external guardrail providers.
 #[derive(Clone)]
 pub(crate) struct ExternalGuardrailClient {
     pub(super) http: ClientWithMiddleware,
+    custom_base_url_http: ClientWithMiddleware,
     pub(super) policy: Arc<OutboundPolicy>,
     pub(super) timeout: Duration,
     #[cfg(test)]
@@ -403,23 +439,21 @@ pub(crate) struct ExternalGuardrailClient {
 
 impl ExternalGuardrailClient {
     pub(crate) fn new(policy: OutboundPolicy, timeout: Duration) -> Result<Self, ResolutionError> {
-        let client = Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .retry(reqwest::retry::never())
-            .no_proxy()
-            .no_gzip()
-            .no_brotli()
-            .no_deflate()
-            .no_zstd()
-            .connect_timeout(timeout.min(MAX_EXTERNAL_CONNECT_TIMEOUT))
-            .pool_idle_timeout(POOL_IDLE_TIMEOUT)
-            .tcp_keepalive(TCP_KEEPALIVE)
-            .pool_max_idle_per_host(16)
+        let policy = Arc::new(policy);
+        let client = external_client_builder(timeout)
+            .build()
+            .map_err(|_| ResolutionError::Configuration)?;
+        let custom_base_url_client = external_client_builder(timeout)
+            .dns_resolver(PolicyResolver(Arc::clone(&policy)))
             .build()
             .map_err(|_| ResolutionError::Configuration)?;
         Ok(Self {
             http: crate::observability::instrument_client(client, "guardrail.external"),
-            policy: Arc::new(policy),
+            custom_base_url_http: crate::observability::instrument_client(
+                custom_base_url_client,
+                "guardrail.external",
+            ),
+            policy,
             timeout,
             #[cfg(test)]
             origin_override: None,
@@ -478,36 +512,53 @@ impl ExternalGuardrailClient {
         content_length: usize,
         response_limit: usize,
     ) -> Result<Vec<u8>, ExternalCallFailure> {
-        self.post_json_with_headers(
+        let extra_headers = BTreeMap::new();
+        self.post_json_request(ExternalJsonRequest {
             url,
+            destination: DestinationKind::Official,
             api_key,
-            &BTreeMap::new(),
+            extra_headers: &extra_headers,
             body,
             content_length,
             response_limit,
-        )
+        })
         .await
     }
 
     /// POSTs a JSON body with bearer auth and optional extra headers under the
     /// per-call timeout, returning a `200 OK` body bounded by `response_limit`.
-    pub(crate) async fn post_json_with_headers(
+    pub(crate) async fn post_json_request(
         &self,
-        url: Url,
-        api_key: &SecretString,
-        extra_headers: &BTreeMap<String, SecretString>,
-        body: Body,
-        content_length: usize,
-        response_limit: usize,
+        params: ExternalJsonRequest<'_>,
     ) -> Result<Vec<u8>, ExternalCallFailure> {
-        if self.policy.check_allowed_host(&url).is_err() {
-            return Err(ExternalCallFailure::BlockedDestination);
-        }
+        let ExternalJsonRequest {
+            url,
+            destination,
+            api_key,
+            extra_headers,
+            body,
+            content_length,
+            response_limit,
+        } = params;
+        let http = match destination {
+            DestinationKind::Official => {
+                if self.policy.check_allowed_host(&url).is_err() {
+                    return Err(ExternalCallFailure::BlockedDestination);
+                }
+                &self.http
+            }
+            DestinationKind::Custom => {
+                if self.policy.check_url(&url).is_err() {
+                    return Err(ExternalCallFailure::BlockedDestination);
+                }
+                &self.custom_base_url_http
+            }
+        };
         let mut authorization =
             HeaderValue::from_str(&format!("Bearer {}", api_key.expose_secret()))
                 .map_err(|_| ExternalCallFailure::InvalidCredential)?;
         authorization.set_sensitive(true);
-        let mut request = self.http.post(url).with_extension(DisableOtelPropagation);
+        let mut request = http.post(url).with_extension(DisableOtelPropagation);
         for (name, value) in extra_headers {
             let header_name = HeaderName::from_bytes(name.as_bytes())
                 .map_err(|_| ExternalCallFailure::InvalidCredential)?;
