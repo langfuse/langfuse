@@ -40,11 +40,17 @@ import {
   GatewayGuardrailRepository,
   type GatewayGuardrailRecord,
 } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailRepository";
-import { EXTERNAL_GUARDRAIL_PROVIDERS } from "@/src/features/ai-gateway/server/guardrails/externalGuardrailProviders";
-import type {
-  GatewayCachedGuardrailScope,
-  GatewayCachedGuardrails,
-  GatewayResolveGuardrailAction,
+import {
+  EXTERNAL_GUARDRAIL_PROVIDERS,
+  type ResolvedGuardrailConnection,
+} from "@/src/features/ai-gateway/server/guardrails/externalGuardrailProviders";
+import { GatewayProviderRepository } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderRepository";
+import {
+  providerSupportsApiFormat,
+  type GatewayCachedGuardrailScope,
+  type GatewayCachedGuardrails,
+  type GatewayProviderName,
+  type GatewayResolveGuardrailAction,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GATEWAY_USER_SCOPE } from "@/src/features/ai-gateway/server/team/gatewayTeamService";
@@ -106,10 +112,12 @@ export type GatewayGuardrailTimeSeriesSelection =
 export class GatewayGuardrailService {
   private readonly repository: GatewayGuardrailRepository;
   private readonly configService: GatewayConfigService;
+  private readonly providerRepository: GatewayProviderRepository;
 
   constructor(private readonly prisma: PrismaClient) {
     this.repository = new GatewayGuardrailRepository(prisma);
     this.configService = new GatewayConfigService(prisma);
+    this.providerRepository = new GatewayProviderRepository(prisma);
   }
 
   /** The guardrails the gateway checks for a key, in the resolve cache's shape. */
@@ -119,6 +127,36 @@ export class GatewayGuardrailService {
     userId: string | null;
   }): Promise<GatewayCachedGuardrails> {
     const guardrails = await this.repository.findAssigned(params);
+    const connectionIds = [
+      ...new Set(
+        guardrails.flatMap((guardrail) => {
+          if (!isExternalGuardrailType(guardrail.type)) return [];
+          const connectionId = EXTERNAL_GUARDRAIL_PROVIDERS[
+            guardrail.type
+          ].getConnectionId(guardrail.config);
+          return connectionId ? [connectionId] : [];
+        }),
+      ),
+    ];
+    const connectionsById = new Map<string, ResolvedGuardrailConnection>();
+    if (connectionIds.length > 0) {
+      const connections =
+        await this.providerRepository.findConnectionsWithCredentialsByIds({
+          organizationId: params.organizationId,
+          ids: connectionIds,
+          status: "ENABLED",
+        });
+      for (const connection of connections) {
+        connectionsById.set(connection.id, {
+          id: connection.id,
+          provider: connection.provider as GatewayProviderName,
+          baseURL: connection.baseURL,
+          config: connection.config,
+          encryptedCredential: connection.encryptedCredential,
+          extraHeaders: connection.extraHeaders,
+        });
+      }
+    }
     return guardrails.flatMap<GatewayCachedGuardrails[number]>((guardrail) => {
       const supportedAction = resolveSupportedGuardrailAction(
         guardrail.type,
@@ -200,6 +238,47 @@ export class GatewayGuardrailService {
               scope,
               ...fields,
               encrypted_credential: guardrail.encryptedCredential,
+            },
+          ];
+        }
+        case "DECISION_MODEL": {
+          const provider = EXTERNAL_GUARDRAIL_PROVIDERS.DECISION_MODEL;
+          const connectionId = provider.getConnectionId(guardrail.config);
+          const connection = connectionId
+            ? connectionsById.get(connectionId)
+            : undefined;
+          const fields = provider.toCachedFieldsWithConnection(
+            guardrail.config,
+            connection,
+          );
+          if (!fields || !connection) {
+            logger.error(
+              "Decision-model gateway guardrail has invalid config or unavailable connection; failing closed",
+              {
+                guardrailId: guardrail.id,
+                guardrailType: guardrail.type,
+                organizationId: params.organizationId,
+              },
+            );
+            return [
+              {
+                id: guardrail.id,
+                name: guardrail.name,
+                type: "fail_closed" as const,
+                action,
+                scope,
+                patterns: [] as [],
+              },
+            ];
+          }
+          return [
+            {
+              id: guardrail.id,
+              name: guardrail.name,
+              action,
+              scope,
+              ...fields,
+              encrypted_credential: connection.encryptedCredential,
             },
           ];
         }
@@ -317,11 +396,18 @@ export class GatewayGuardrailService {
     config: unknown;
     apiKey?: string;
   }) {
+    const provider = EXTERNAL_GUARDRAIL_PROVIDERS[params.type];
+    if (provider.usesGatewayConnection) {
+      const connectionId = provider.getConnectionId(params.config);
+      const connection = await this.requireDecisionModelConnection(
+        params.organizationId,
+        connectionId,
+      );
+      await provider.validateWithConnection(params.config, connection);
+      return { success: true as const };
+    }
     const apiKey = params.apiKey || (await this.readStoredApiKey(params));
-    await EXTERNAL_GUARDRAIL_PROVIDERS[params.type].validate(
-      params.config,
-      apiKey,
-    );
+    await provider.validate(params.config, apiKey);
     return { success: true as const };
   }
 
@@ -382,7 +468,7 @@ export class GatewayGuardrailService {
           type: GatewayExternalGuardrailType;
           action: GatewayGuardrailActionForType<GatewayExternalGuardrailType>;
           config: unknown;
-          apiKey: string;
+          apiKey?: string;
         }
     ),
   ) {
@@ -396,9 +482,22 @@ export class GatewayGuardrailService {
     let compiledPatterns: string[] | null = null;
     if (params.type !== "REGEX") {
       const provider = EXTERNAL_GUARDRAIL_PROVIDERS[params.type];
-      await provider.validate(params.config, params.apiKey);
-      config = provider.requireConfig(params.config);
-      encryptedCredential = encrypt(provider.encodeCredential(params.apiKey));
+      if (provider.usesGatewayConnection) {
+        const parsedConfig = provider.requireConfig(params.config);
+        const connection = await this.requireDecisionModelConnection(
+          params.organizationId,
+          parsedConfig.connectionId,
+        );
+        await provider.validateWithConnection(parsedConfig, connection);
+        config = parsedConfig;
+      } else {
+        if (!params.apiKey) {
+          throw new InvalidRequestError("Enter an API key");
+        }
+        await provider.validate(params.config, params.apiKey);
+        config = provider.requireConfig(params.config);
+        encryptedCredential = encrypt(provider.encodeCredential(params.apiKey));
+      }
     } else {
       const regexConfig = normalizeGuardrailConfig({
         presets: params.presets,
@@ -490,7 +589,16 @@ export class GatewayGuardrailService {
     if (params.type !== "REGEX") {
       const provider = EXTERNAL_GUARDRAIL_PROVIDERS[params.type];
       const existing = await this.findExternalCredential(params);
-      if (
+      if (provider.usesGatewayConnection) {
+        const parsedConfig = provider.requireConfig(params.config);
+        const connection = await this.requireDecisionModelConnection(
+          params.organizationId,
+          parsedConfig.connectionId,
+        );
+        if (!provider.isSameConfig(existing.config, parsedConfig)) {
+          await provider.validateWithConnection(parsedConfig, connection);
+        }
+      } else if (
         params.apiKey !== undefined ||
         !provider.isSameConfig(existing.config, params.config)
       ) {
@@ -534,7 +642,7 @@ export class GatewayGuardrailService {
       if (params.type !== "REGEX") {
         const provider = EXTERNAL_GUARDRAIL_PROVIDERS[params.type];
         config = provider.requireConfig(params.config);
-        if (params.apiKey !== undefined) {
+        if (!provider.usesGatewayConnection && params.apiKey !== undefined) {
           encryptedCredential = encrypt(
             provider.encodeCredential(params.apiKey),
           );
@@ -685,6 +793,42 @@ export class GatewayGuardrailService {
       await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     }
     return { updatedCount };
+  }
+
+  private async requireDecisionModelConnection(
+    organizationId: string,
+    connectionId: string | null,
+  ): Promise<ResolvedGuardrailConnection> {
+    if (!connectionId) {
+      throw new InvalidRequestError("Select a gateway connection");
+    }
+    const connection =
+      await this.providerRepository.getConnectionWithCredential({
+        organizationId,
+        id: connectionId,
+      });
+    if (!connection) {
+      throw new LangfuseNotFoundError("Selected gateway connection not found");
+    }
+    if (connection.status !== "ENABLED") {
+      throw new InvalidRequestError(
+        "Selected gateway connection is not enabled",
+      );
+    }
+    const provider = connection.provider as GatewayProviderName;
+    if (!providerSupportsApiFormat(provider, "openai.decisions")) {
+      throw new InvalidRequestError(
+        "Selected gateway connection does not support decision models",
+      );
+    }
+    return {
+      id: connection.id,
+      provider,
+      baseURL: connection.baseURL,
+      config: connection.config,
+      encryptedCredential: connection.encryptedCredential,
+      extraHeaders: connection.extraHeaders,
+    };
   }
 
   private async findExternalCredential(params: {

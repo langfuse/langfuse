@@ -9,6 +9,7 @@ import {
   type DecisionModelQuestions,
 } from "@langfuse/shared";
 
+import { formatDecisionModelPredicateInstructions } from "@/src/fns/formatDecisionModelPredicateInstructions";
 import type {
   DecisionModelQuestionDraft,
   DecisionModelQuestionDraftErrors,
@@ -237,10 +238,8 @@ function openAIInstructions(draft: DecisionModelQuestionDraft) {
   if (draft.type !== DecisionModelQuestionType.NOUL) {
     return draft.instructions.trim();
   }
-  const parts = [draft.instructions.trim()];
-  const whenTrue = draft.criteria.true.trim();
-  const whenFalse = draft.criteria.false.trim();
-  if (whenTrue) parts.push(`Criteria for true:\n${whenTrue}`);
-  if (whenFalse) parts.push(`Criteria for false:\n${whenFalse}`);
-  return parts.filter((part) => part.length > 0).join("\n\n");
+  return formatDecisionModelPredicateInstructions(
+    draft.instructions,
+    draft.criteria,
+  );
 }

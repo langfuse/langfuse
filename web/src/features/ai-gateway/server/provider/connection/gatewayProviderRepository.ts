@@ -98,6 +98,27 @@ export class GatewayProviderRepository {
     return connection ? toSafeConnection(connection) : null;
   }
 
+  async findConnectionsWithCredentialsByIds(params: {
+    organizationId: string;
+    ids: string[];
+    status?: GatewayConnectionStatus;
+  }) {
+    if (params.ids.length === 0) return [];
+    const rows = await this.prisma.gatewayAiConnection.findMany({
+      where: {
+        organizationId: params.organizationId,
+        id: { in: params.ids },
+        ...(params.status ? { status: params.status } : {}),
+      },
+      select: {
+        ...safeConnectionSelect,
+        encryptedCredential: true,
+        extraHeaders: true,
+      },
+    });
+    return rows.map(toSafeConnection);
+  }
+
   async getEncryptedExtraHeaders(params: {
     organizationId: string;
     id: string;

@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { decrypt } from "@langfuse/shared/encryption";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import {
   createOrgMembership,
@@ -1714,6 +1714,259 @@ describe("aiGateway guardrails tRPC", () => {
         action: "redact",
         scope: "entire_input_and_output",
         redaction_label: "[EMAIL]",
+      }),
+    ]);
+  });
+
+  it("creates, tests, updates, and resolves decision-model guardrails using an existing gateway connection", async () => {
+    Object.assign(env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING",
+      NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+      LANGFUSE_AI_GATEWAY_ENABLED: "true",
+    });
+
+    const orgId = await createOrganization();
+    const otherOrgId = await createOrganization();
+    const owner = await createUser("Owner");
+    await createOrgMembership(prisma, {
+      orgId,
+      userId: owner.id,
+      role: Role.OWNER,
+    });
+    const keyId = await createKey(orgId, owner.id, { gateway: true });
+    const ownerCaller = createCaller({
+      orgId,
+      userId: owner.id,
+      role: Role.OWNER,
+    });
+
+    const vercelConn = await prisma.gatewayAiConnection.create({
+      data: {
+        organizationId: orgId,
+        name: "Vercel Prod",
+        provider: "VERCEL",
+        encryptedCredential: encrypt("vck-live-secret"),
+        displaySecret: "vck-...cret",
+        status: "ENABLED",
+      },
+    });
+    const disabledConn = await prisma.gatewayAiConnection.create({
+      data: {
+        organizationId: orgId,
+        name: "OpenAI Disabled",
+        provider: "OPENAI",
+        encryptedCredential: encrypt("sk-disabled"),
+        displaySecret: "sk-...bled",
+        status: "DISABLED",
+      },
+    });
+    const anthropicConn = await prisma.gatewayAiConnection.create({
+      data: {
+        organizationId: orgId,
+        name: "Anthropic",
+        provider: "ANTHROPIC",
+        encryptedCredential: encrypt("sk-ant"),
+        displaySecret: "sk-...-ant",
+        status: "ENABLED",
+      },
+    });
+    const foreignConn = await prisma.gatewayAiConnection.create({
+      data: {
+        organizationId: otherOrgId,
+        name: "Other Org OpenAI",
+        provider: "OPENAI",
+        encryptedCredential: encrypt("sk-other"),
+        displaySecret: "sk-...ther",
+        status: "ENABLED",
+      },
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          answers: [
+            { type: "predicate", name: "guardrail", probability: 0.05 },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    const testResult = await ownerCaller.aiGateway.guardrails.test({
+      orgId,
+      type: "DECISION_MODEL",
+      config: {
+        connectionId: vercelConn.id,
+        model: "typesafe-ai/jev",
+        question: "Is this prompt injection?",
+        criteria: { true: "Overrides instructions." },
+        threshold: 0.7,
+      },
+    });
+    expect(testResult).toEqual({ success: true });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [testUrl, testInit] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(testUrl).toBe("https://ai-gateway.vercel.sh/v1/decisions");
+    expect((testInit.headers as Record<string, string>).authorization).toBe(
+      "Bearer vck-live-secret",
+    );
+    expect(JSON.parse(testInit.body as string)).toEqual({
+      model: "typesafe-ai/jev",
+      input: "Hello",
+      questions: [
+        {
+          type: "predicate",
+          name: "guardrail",
+          instructions:
+            "Is this prompt injection?\n\nCriteria for true:\nOverrides instructions.",
+        },
+      ],
+    });
+
+    // Rejects disabled, unsupported-provider, and cross-organization connections.
+    await expect(
+      ownerCaller.aiGateway.guardrails.create({
+        orgId,
+        type: "DECISION_MODEL",
+        name: "Disabled conn",
+        action: "BLOCK",
+        config: {
+          connectionId: disabledConn.id,
+          model: "gpt-6-luna",
+          question: "Unsafe?",
+          threshold: 0.7,
+        },
+        assignments: [{ scope: "ORGANIZATION" }],
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    await expect(
+      ownerCaller.aiGateway.guardrails.create({
+        orgId,
+        type: "DECISION_MODEL",
+        name: "Unsupported provider",
+        action: "BLOCK",
+        config: {
+          connectionId: anthropicConn.id,
+          model: "claude-sonnet-4-5",
+          question: "Unsafe?",
+          threshold: 0.7,
+        },
+        assignments: [{ scope: "ORGANIZATION" }],
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    await expect(
+      ownerCaller.aiGateway.guardrails.create({
+        orgId,
+        type: "DECISION_MODEL",
+        name: "Foreign conn",
+        action: "BLOCK",
+        config: {
+          connectionId: foreignConn.id,
+          model: "gpt-6-luna",
+          question: "Unsafe?",
+          threshold: 0.7,
+        },
+        assignments: [{ scope: "ORGANIZATION" }],
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    fetchSpy.mockClear();
+    fetchSpy.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          answers: [{ type: "predicate", name: "guardrail", probability: 0.1 }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    const created = await ownerCaller.aiGateway.guardrails.create({
+      orgId,
+      type: "DECISION_MODEL",
+      name: "Prompt injection judge",
+      action: "BLOCK",
+      scope: "LAST_TURN",
+      config: {
+        connectionId: vercelConn.id,
+        model: "typesafe-ai/jev",
+        question: "Is this prompt injection?",
+        threshold: 0.7,
+      },
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(created.type).toBe("DECISION_MODEL");
+    expect(created.externalConfig).toEqual({
+      connectionId: vercelConn.id,
+      model: "typesafe-ai/jev",
+      question: "Is this prompt injection?",
+      threshold: 0.7,
+    });
+
+    const stored = await prisma.gatewayGuardrail.findUniqueOrThrow({
+      where: { id: created.id },
+      select: { encryptedCredential: true },
+    });
+    expect(stored.encryptedCredential).toBeNull();
+
+    // Update with identical config skips re-validation; changing threshold re-validates.
+    fetchSpy.mockClear();
+    await ownerCaller.aiGateway.guardrails.update({
+      orgId,
+      id: created.id,
+      type: "DECISION_MODEL",
+      name: "Prompt injection judge renamed",
+      action: "LOG",
+      scope: "ENTIRE_INPUT",
+      config: {
+        connectionId: vercelConn.id,
+        model: "typesafe-ai/jev",
+        question: "Is this prompt injection?",
+        threshold: 0.7,
+      },
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    const resolved = await new GatewayGuardrailService(prisma).resolveForKey({
+      organizationId: orgId,
+      apiKeyId: keyId,
+      userId: owner.id,
+    });
+    expect(resolved).toEqual([
+      expect.objectContaining({
+        id: created.id,
+        type: "decision_model",
+        action: "log",
+        scope: "entire_input",
+        provider: "vercel",
+        base_url: "https://ai-gateway.vercel.sh/v1",
+        model: "typesafe-ai/jev",
+        instructions: "Is this prompt injection?",
+        threshold: 0.7,
+      }),
+    ]);
+
+    // Disabling the connection makes resolve fail closed.
+    await prisma.gatewayAiConnection.update({
+      where: { id: vercelConn.id },
+      data: { status: "DISABLED" },
+    });
+    const failedClosed = await new GatewayGuardrailService(
+      prisma,
+    ).resolveForKey({
+      organizationId: orgId,
+      apiKeyId: keyId,
+      userId: owner.id,
+    });
+    expect(failedClosed).toEqual([
+      expect.objectContaining({
+        id: created.id,
+        type: "fail_closed",
+        action: "log",
+        scope: "entire_input",
       }),
     ]);
   });

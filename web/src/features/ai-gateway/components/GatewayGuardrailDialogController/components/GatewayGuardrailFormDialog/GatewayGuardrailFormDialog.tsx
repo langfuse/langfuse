@@ -26,11 +26,13 @@ import {
   ConnectionTestStatus,
   type ConnectionTestFailure,
 } from "@/src/features/ai-gateway/components/ConnectionTestStatus/ConnectionTestStatus";
+import { DecisionModelGuardrailFields } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailFormDialog/components/DecisionModelGuardrailFields/DecisionModelGuardrailFields";
 import { GatewayGuardrailTestInput } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailFormDialog/components/GatewayGuardrailTestInput/GatewayGuardrailTestInput";
 import {
   GatewayGuardrailTargetsInput,
   type GatewayGuardrailTargetPicker,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTargetsInput/GatewayGuardrailTargetsInput";
+import type { GatewayDecisionModelConnectionsState } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/hooks/useGatewayDecisionModelConnections";
 import {
   GATEWAY_GUARDRAIL_PRESET_LABELS,
   GATEWAY_GUARDRAIL_TEMPLATES,
@@ -62,6 +64,7 @@ import {
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import type { GatewayGuardrailsLimitFeedbackReason } from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
 import {
+  GATEWAY_DECISION_MODEL_DEFAULT_THRESHOLD,
   GATEWAY_GUARDRAIL_ACTION_SCOPES,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
@@ -138,11 +141,18 @@ const SCOPE_OPTIONS_BLOCK =
 /** Empty form values of each external guardrail type's config. */
 const EXTERNAL_CONFIG_DEFAULTS: Record<
   GatewayExternalGuardrailType,
-  Record<string, string>
+  Record<string, unknown>
 > = {
   BEDROCK: { guardrailId: "", guardrailVersion: "", region: "" },
   OPENAI_MODERATION: { region: "us" },
   LAKERA: { region: "eu", projectId: "" },
+  DECISION_MODEL: {
+    connectionId: "",
+    model: "",
+    question: "",
+    criteria: { true: "", false: "" },
+    threshold: GATEWAY_DECISION_MODEL_DEFAULT_THRESHOLD,
+  },
 };
 
 const PRESET_VALUE_PREFIX = "preset:";
@@ -174,7 +184,7 @@ function createGuardrailFormSchema(
         ),
       containsText: z.string(),
       customRegex: z.string(),
-      externalConfig: z.record(z.string(), z.string()),
+      externalConfig: z.record(z.string(), z.unknown()),
       apiKey: z.string(),
       action: z.enum(capabilities.actions),
       scope: z.enum(GATEWAY_GUARDRAIL_SCOPES),
@@ -216,7 +226,10 @@ function createGuardrailFormSchema(
         }
       }
       if (isExternalGuardrailType(guardrailType)) {
-        if (!hasSavedApiKey || values.apiKey.trim()) {
+        if (
+          !capabilities.usesGatewayConnection &&
+          (!hasSavedApiKey || values.apiKey.trim())
+        ) {
           const apiKeyResult = GatewayExternalGuardrailApiKeySchema.safeParse(
             values.apiKey,
           );
@@ -235,7 +248,7 @@ function createGuardrailFormSchema(
         for (const issue of configResult.error?.issues ?? []) {
           ctx.addIssue({
             code: "custom",
-            path: ["externalConfig", String(issue.path[0] ?? "")],
+            path: ["externalConfig", ...issue.path.map(String)],
             message: issue.message,
           });
         }
@@ -352,6 +365,8 @@ export type GatewayGuardrailFormDialogProps = {
   /** True when editing an existing external guardrail so a blank key keeps the saved secret. */
   hasSavedApiKey?: boolean;
   externalTest?: ExternalGuardrailTestControl;
+  decisionModelConnections?: GatewayDecisionModelConnectionsState;
+  gatewayModelsHref?: string;
   customRegexPreview?: CustomRegexPreviewControl;
   targetPicker: GatewayGuardrailTargetPicker;
   isSubmitting: boolean;
@@ -368,6 +383,8 @@ export function GatewayGuardrailFormDialog({
   initialTestText = "",
   hasSavedApiKey = false,
   externalTest,
+  decisionModelConnections,
+  gatewayModelsHref,
   customRegexPreview,
   targetPicker,
   isSubmitting,
@@ -434,6 +451,7 @@ export function GatewayGuardrailFormDialog({
   const isTesting = externalTest?.isPending ?? false;
   const isBusy = isSubmitting || isTesting;
   const isApiKeyReady =
+    capabilities.usesGatewayConnection ||
     (hasSavedApiKey && apiKey.trim().length === 0) ||
     GatewayExternalGuardrailApiKeySchema.safeParse(apiKey).success;
   const canTestExternal =
@@ -473,7 +491,9 @@ export function GatewayGuardrailFormDialog({
     values: GuardrailFormSchemaValues,
   ): GatewayGuardrailFormValues => {
     if (isExternalGuardrailType(guardrailType)) {
-      const apiKey = values.apiKey.trim();
+      const apiKey = capabilities.usesGatewayConnection
+        ? ""
+        : values.apiKey.trim();
       return {
         name: values.name.trim(),
         presets: [],
@@ -540,6 +560,17 @@ export function GatewayGuardrailFormDialog({
 
   const handlePresetsChange = (nextPresets: GatewayGuardrailPreset[]) => {
     form.setValue("presets", nextPresets, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+  };
+
+  const handleDecisionModelConnectionChange = (nextConnectionId: string) => {
+    form.setValue("externalConfig.connectionId", nextConnectionId, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+    form.setValue("externalConfig.model", "", {
       shouldValidate: true,
       shouldDirty: true,
     });
@@ -631,6 +662,11 @@ export function GatewayGuardrailFormDialog({
               customRegexErrorMessage={customRegexServerError}
               customRegexErrorCode={customRegexServerErrorCode}
               hasSavedApiKey={hasSavedApiKey}
+              decisionModelConnections={decisionModelConnections}
+              gatewayModelsHref={gatewayModelsHref}
+              onDecisionModelConnectionChange={
+                handleDecisionModelConnectionChange
+              }
               presetErrorMessage={
                 form.formState.errors.presets?.message ??
                 form.formState.errors.secretPrefixes?.message
@@ -875,6 +911,9 @@ type TemplateRuleFieldsProps = {
   customRegexErrorMessage?: string;
   customRegexErrorCode?: string;
   hasSavedApiKey: boolean;
+  decisionModelConnections?: GatewayDecisionModelConnectionsState;
+  gatewayModelsHref?: string;
+  onDecisionModelConnectionChange: (connectionId: string) => void;
   presetErrorMessage?: string;
   onPresetsChange: (presets: GatewayGuardrailPreset[]) => void;
   onSecretPrefixesChange: (prefixes: string[]) => void;
@@ -893,6 +932,9 @@ function TemplateRuleFields({
   customRegexErrorMessage,
   customRegexErrorCode,
   hasSavedApiKey,
+  decisionModelConnections,
+  gatewayModelsHref,
+  onDecisionModelConnectionChange,
   presetErrorMessage,
   onPresetsChange,
   onSecretPrefixesChange,
@@ -920,6 +962,17 @@ function TemplateRuleFields({
       <LakeraGuardrailFields
         control={control}
         hasSavedApiKey={hasSavedApiKey}
+      />
+    );
+  }
+  if (templateKind === "decision_model") {
+    return (
+      <DecisionModelGuardrailFields
+        control={control}
+        connections={decisionModelConnections?.connections}
+        isLoadingConnections={decisionModelConnections?.isLoading ?? false}
+        modelsHref={gatewayModelsHref}
+        onConnectionChange={onDecisionModelConnectionChange}
       />
     );
   }
@@ -998,9 +1051,10 @@ function BedrockGuardrailFields({
             label="Guardrail ID"
             registerLabelTooltip={getTriggerProps}
           >
-            {({ id, inputDescribedById, error, ...field }) => (
+            {({ id, inputDescribedById, error, value, ...field }) => (
               <Input
                 {...field}
+                value={typeof value === "string" ? value : ""}
                 id={id}
                 aria-describedby={inputDescribedById}
                 aria-invalid={Boolean(error)}
@@ -1027,9 +1081,10 @@ function BedrockGuardrailFields({
               label="Version"
               registerLabelTooltip={getTriggerProps}
             >
-              {({ id, inputDescribedById, error, ...field }) => (
+              {({ id, inputDescribedById, error, value, ...field }) => (
                 <Input
                   {...field}
+                  value={typeof value === "string" ? value : ""}
                   id={id}
                   aria-describedby={inputDescribedById}
                   aria-invalid={Boolean(error)}
@@ -1053,7 +1108,7 @@ function BedrockGuardrailFields({
               aria-invalid={Boolean(error)}
               error={Boolean(error)}
               groups={bedrockRegionGroups}
-              value={value}
+              value={typeof value === "string" ? value : ""}
               onChange={onChange}
               onBlur={onBlur}
             />
@@ -1186,9 +1241,10 @@ function LakeraGuardrailFields({
               label="Project ID"
               registerLabelTooltip={getTriggerProps}
             >
-              {({ id, inputDescribedById, error, ...field }) => (
+              {({ id, inputDescribedById, error, value, ...field }) => (
                 <Input
                   {...field}
+                  value={typeof value === "string" ? value : ""}
                   id={id}
                   aria-describedby={inputDescribedById}
                   aria-invalid={Boolean(error)}
@@ -1567,12 +1623,23 @@ function getLimitFeedbackReason(
 function toExternalConfigFormValues(
   templateKind: GatewayGuardrailTemplateKind,
   config: GatewayExternalGuardrailConfig | undefined,
-): Record<string, string> {
+): Record<string, unknown> {
   const guardrailType = getGuardrailTypeForTemplate(templateKind);
   if (!isExternalGuardrailType(guardrailType)) return {};
-  const values = { ...EXTERNAL_CONFIG_DEFAULTS[guardrailType] };
+  const defaults = EXTERNAL_CONFIG_DEFAULTS[guardrailType];
+  const values: Record<string, unknown> = { ...defaults };
   for (const [key, value] of Object.entries(config ?? {})) {
-    if (typeof value === "string") values[key] = value;
+    if (value !== undefined) values[key] = value;
+  }
+  if (guardrailType === "DECISION_MODEL") {
+    const criteria =
+      values.criteria && typeof values.criteria === "object"
+        ? (values.criteria as Record<string, unknown>)
+        : {};
+    values.criteria = {
+      true: typeof criteria.true === "string" ? criteria.true : "",
+      false: typeof criteria.false === "string" ? criteria.false : "",
+    };
   }
   return values;
 }

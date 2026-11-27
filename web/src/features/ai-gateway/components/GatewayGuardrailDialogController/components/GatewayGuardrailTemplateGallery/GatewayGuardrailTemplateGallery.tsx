@@ -1,4 +1,4 @@
-import { ChevronRight } from "@langfuse/icons";
+import { ChevronRight, Split } from "@langfuse/icons";
 import { LakeraMark } from "@langfuse/icons/brand";
 import { SiOpenai } from "@langfuse/icons/si";
 
@@ -195,6 +195,8 @@ function TemplatePreview({
         return <SiOpenai size="xl" aria-hidden />;
       case "lakera":
         return <LakeraMark size="xl" aria-hidden />;
+      case "decision_model":
+        return <Split size="xl" aria-hidden />;
     }
   }
   return (
