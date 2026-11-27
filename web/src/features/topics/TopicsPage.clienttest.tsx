@@ -15,6 +15,7 @@ import { type RouterOutputs } from "@/src/utils/api";
 
 const state = vi.hoisted(() => ({
   canViewTopics: true,
+  routeProjectId: "project" as string | undefined,
   status: "failed",
   executionUpdatedAt: 110,
   updatedAt: "2026-09-23T12:00:00Z",
@@ -82,7 +83,7 @@ vi.mock("@/src/components/layouts/page-header-controls-slot", () => ({
 vi.mock("next/router", () => ({
   useRouter: () => ({
     query: {
-      projectId: "project",
+      projectId: state.routeProjectId,
       executionId: state.executionId,
       map: state.map,
     },
@@ -376,6 +377,7 @@ beforeEach(() => {
     },
   );
   state.canViewTopics = true;
+  state.routeProjectId = "project";
   state.resultsDataAvailable = true;
   state.mobileHeader = false;
   state.resultFacets = [];
@@ -426,6 +428,13 @@ it("shows Not found instead of the workspace when the Topics gate is closed", ()
   renderTopicsPage();
   expect(screen.getByText("This page is not available.")).toBeTruthy();
   expect(state.currentTopics).not.toHaveBeenCalled();
+});
+
+it("shows the loading page, not Not found, until the route params arrive", () => {
+  state.routeProjectId = undefined;
+  renderTopicsPage();
+  expect(screen.queryByText("This page is not available.")).toBeNull();
+  expect(screen.getByLabelText("Loading topics")).toBeTruthy();
 });
 
 it("keeps the question picker reachable with the mobile header", () => {

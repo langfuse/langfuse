@@ -14,6 +14,7 @@ import { useRouter } from "next/router";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import Page from "@/src/components/layouts/Page";
 import { ErrorPage } from "@/src/components/ErrorPage";
+import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 import {
   Sheet,
   SheetContent,
@@ -29,7 +30,6 @@ import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { TopicsFacetTabs } from "./TopicsFacetTabs";
 import { TopicsMobileControls } from "./TopicsMobileControls";
 import { resolveTopicFacetId } from "./topic-facet-selection";
-import { Spinner } from "@/src/components/layouts/Spinner";
 import { TopicsHeaderActions } from "./TopicsHeaderActions";
 import {
   TopicsResultsViewSelect,
@@ -90,9 +90,11 @@ import { useTopicsCapture, useTopicsViewCapture } from "./useTopicsCapture";
 const COST_POLL_INTERVAL_MS = 30_000;
 const COST_STALE_TIME_MS = 5 * 60_000;
 
+// Only the page frame: what loads next is either the setup landing or the workspace,
+// so no placeholder shape fits both. Empty content renders the page in one step.
 const loadingPage = (
   <Page headerProps={{ title: "Topics" }}>
-    <Spinner message="Loading topics" />
+    <div aria-busy="true" aria-label="Loading topics" className="flex-1" />
   </Page>
 );
 
@@ -128,20 +130,19 @@ const usePickerCost: UsePickerCost = (projectId, map) => {
 };
 
 export default function TopicsPage() {
-  const router = useRouter();
-  const projectId =
-    typeof router.query.projectId === "string" ? router.query.projectId : "";
-  const topicsEnabled = useCanViewTopics(projectId);
+  const route = useReadyRouteParams(["projectId"]);
+  const topicsEnabled = useCanViewTopics(
+    route.ready ? route.params.projectId : null,
+  );
+  // On a hard reload the route params arrive after the first render; until then access is unknown.
+  if (!route.ready) return loadingPage;
   if (!topicsEnabled) {
     return (
       <ErrorPage title="Not found" message="This page is not available." />
     );
   }
-  return projectId ? (
-    <TopicsWorkspace key={projectId} projectId={projectId} />
-  ) : (
-    loadingPage
-  );
+  const { projectId } = route.params;
+  return <TopicsWorkspace key={projectId} projectId={projectId} />;
 }
 
 function TopicsWorkspace({ projectId }: { projectId: string }) {
