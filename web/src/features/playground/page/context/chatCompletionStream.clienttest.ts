@@ -5,7 +5,7 @@
  * TextEncoderStream, so chunk boundaries fall on arbitrary byte offsets and
  * routinely split a multi-byte character in two.
  */
-import { getChatCompletionStream } from "@/src/features/playground/page/context";
+import { getChatCompletionStream } from "@/src/features/playground/page/context/PlaygroundProvider";
 
 const originalFetch = global.fetch;
 
