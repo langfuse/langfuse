@@ -7,6 +7,11 @@ import {
   fillTimeSeriesGaps,
 } from "@/src/utils/fill-time-series-gaps";
 
+const alignedDailyPoints = [10, 20, 30, 40, 50].map((count, index) => ({
+  timestamp: new Date(Date.UTC(2026, 0, index + 1)),
+  count,
+}));
+
 describe("fillTimeSeriesGaps", () => {
   it("does not drop data points for multi-unit intervals (Issue #17157 regression)", () => {
     // 5 daily midnight-aligned points with counts 10, 20, 30, 40, 50
@@ -33,20 +38,20 @@ describe("fillTimeSeriesGaps", () => {
   });
 
   it("assigns boundary points to the later bucket and includes toDate", () => {
-    const fromDate = new Date(2026, 0, 1);
-    const toDate = new Date(2026, 0, 5);
+    const fromDate = new Date("2026-01-01T00:00:00Z");
+    const toDate = new Date("2026-01-05T00:00:00Z");
     const interval = { count: 2, unit: "day" as const };
-    const data = [
-      { timestamp: fromDate, count: 40 },
-      { timestamp: new Date(2026, 0, 3), count: 100 },
-      { timestamp: toDate, count: 200 },
-    ];
 
-    const result = fillTimeSeriesGaps(data, fromDate, toDate, interval);
+    const result = fillTimeSeriesGaps(
+      alignedDailyPoints,
+      fromDate,
+      toDate,
+      interval,
+    );
 
     expect(result).toEqual([
-      { timestamp: new Date(2026, 0, 3), count: 40 },
-      { timestamp: toDate, count: 150 },
+      { timestamp: new Date("2026-01-03T00:00:00Z"), count: 15 },
+      { timestamp: toDate, count: 40 },
     ]);
   });
 
@@ -67,6 +72,29 @@ describe("fillTimeSeriesGaps", () => {
 });
 
 describe("fillCategoricalTimeSeriesGaps", () => {
+  it("sums each aligned point once and retains the inclusive end", () => {
+    const fromDate = new Date("2026-01-01T00:00:00Z");
+    const toDate = new Date("2026-01-05T00:00:00Z");
+    const data = alignedDailyPoints.map((point) => ({
+      ...point,
+      category: "ok",
+    }));
+
+    expect(
+      fillCategoricalTimeSeriesGaps(data, fromDate, toDate, {
+        count: 2,
+        unit: "day",
+      }),
+    ).toEqual([
+      {
+        timestamp: new Date("2026-01-03T00:00:00Z"),
+        category: "ok",
+        count: 30,
+      },
+      { timestamp: toDate, category: "ok", count: 120 },
+    ]);
+  });
+
   it("keeps the first partial unit when its timestamp precedes the bucket", () => {
     const fromDate = new Date(2026, 0, 1, 0, 10);
     const toDate = new Date(2026, 0, 5, 0, 5);
