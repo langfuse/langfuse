@@ -6,11 +6,9 @@ import Header from "@/src/components/layouts/header";
 import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
 import { ConnectedApiKeySettingsTable } from "@/src/features/public-api/components/ApiKeySettingsTable/ConnectedApiKeySettingsTable";
 import {
-  ExampleProjectSelect,
-  useExampleProjectId,
-} from "@/src/features/public-api/components/ExampleProjectSelect";
-import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
-import { useOrganizationProjects } from "@/src/features/public-api/hooks/useOrganizationProjects";
+  projectIdPlaceholder,
+  useLangfuseEnvCode,
+} from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -18,13 +16,7 @@ type ApiKeyScope = "project" | "organization";
 
 export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   const { entityId, scope } = props;
-  const organizationProjects = useOrganizationProjects(entityId);
-  const [exampleProjectId, setExampleProjectId] = useExampleProjectId(
-    scope === "organization" ? organizationProjects : [],
-  );
-  const envCode = useLangfuseEnvCode(
-    scope === "project" ? entityId : exampleProjectId,
-  );
+  const envCode = useLangfuseEnvCode(exampleProjectId(entityId, scope));
 
   if (!entityId) {
     throw new Error(
@@ -78,13 +70,6 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
           ) : undefined
         }
       />
-      {scope === "organization" && organizationProjects.length > 0 ? (
-        <ExampleProjectSelect
-          projects={organizationProjects}
-          value={exampleProjectId}
-          onValueChange={setExampleProjectId}
-        />
-      ) : null}
       <CodeSection
         title=".env"
         variant="outline"
@@ -100,4 +85,10 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
       />
     </div>
   );
+}
+
+/** exampleProjectId is the project id the .env example uses: the project itself, or a placeholder for an organization. */
+function exampleProjectId(entityId: string, scope: ApiKeyScope): string {
+  if (scope === "project") return entityId;
+  return projectIdPlaceholder;
 }

@@ -111,33 +111,18 @@ export const Created = meta.story({
 });
 
 export const CreatedOrganizationKey = meta.story({
-  name: "(Test) Created Organization Key Uses Selected Project",
+  name: "(Test) Created Organization Key Uses Project Id Placeholder",
   args: {
     type: "detail",
     scope: "organization",
     secretKey: SECRET_KEY,
-    projects: [
-      { id: "cm1alphaproject0000000001", name: "Alpha" },
-      { id: "cm1betaproject00000000001", name: "Beta" },
-    ],
     baseUrl: "https://cloud.langfuse.com",
   },
   play: async ({ canvasElement }) => {
     const body = canvasElement.ownerDocument.body;
-    const screen = within(body);
     await expect(body.textContent).toContain(
-      'LANGFUSE_PUBLIC_KEY="cm1alphaproject0000000001"',
+      'LANGFUSE_PUBLIC_KEY="<your-project-id>"',
     );
     await expect(body.textContent).not.toContain("pk-lf-");
-
-    await userEvent.click(screen.getByRole("combobox", { name: "Project" }));
-    // The open select hides everything else from the accessibility tree,
-    // including its own options while it positions them.
-    await userEvent.click(
-      await screen.findByRole("option", { name: "Beta", hidden: true }),
-    );
-    await expect(body.textContent).toContain(
-      'LANGFUSE_PUBLIC_KEY="cm1betaproject00000000001"',
-    );
   },
 });

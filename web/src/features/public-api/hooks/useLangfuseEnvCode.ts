@@ -1,6 +1,9 @@
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { env } from "@/src/env.mjs";
 
+/** projectIdPlaceholder stands in for the project id in an organization key's examples. */
+export const projectIdPlaceholder = "<your-project-id>";
+
 /** SECRET_KEY_PLACEHOLDER stands in for a secret key the page cannot show. */
 const SECRET_KEY_PLACEHOLDER = "sk-lf-...";
 

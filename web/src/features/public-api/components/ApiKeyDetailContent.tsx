@@ -9,26 +9,18 @@ import { StepCodeSection } from "@/src/features/ai-gateway/components/GatewayApi
 import { GatewaySecretKeyContext } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/contexts/gatewaySecretKeyContext";
 import { GATEWAY_KEY_PLACEHOLDER } from "@/src/features/ai-gateway/constants/agentSetupInstructions";
 import {
-  ExampleProjectSelect,
-  useExampleProjectId,
-} from "@/src/features/public-api/components/ExampleProjectSelect";
-import { getLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
-import { type ExampleProject } from "@/src/features/public-api/hooks/useOrganizationProjects";
+  getLangfuseEnvCode,
+  projectIdPlaceholder,
+} from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { cn } from "@/src/utils/tailwind";
 
-/**
- * ApiKeyDetailContentProps name the project the examples use as the public
- * key: a project key's own project, or one of an organization key's projects.
- */
+/** ApiKeyDetailContentProps name the project a project key's examples use as the public key. */
 export type ApiKeyDetailContentProps = {
   secretKey: string;
   baseUrl: string;
   className?: string;
   showMcpSection: boolean;
-} & (
-  | { scope: "project"; projectId: string }
-  | { scope: "organization"; projects: ExampleProject[] }
-);
+} & ({ scope: "project"; projectId: string } | { scope: "organization" });
 
 type UsageTab = {
   id: string;
@@ -55,10 +47,7 @@ function encodeMcpCredential(projectId: string, secretKey: string) {
 
 export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
   const { scope, secretKey, baseUrl, className, showMcpSection } = props;
-  const projects = props.scope === "organization" ? props.projects : [];
-  const [exampleProjectId, setExampleProjectId] = useExampleProjectId(projects);
-  const projectId =
-    props.scope === "project" ? props.projectId : exampleProjectId;
+  const projectId = exampleProjectId(props);
 
   const tabs: UsageTab[] = [
     {
@@ -114,13 +103,6 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       <hr />
       <div className="flex flex-col gap-2">
         <h3 className="font-bold">Usage instructions</h3>
-        {props.scope === "organization" && props.projects.length > 0 ? (
-          <ExampleProjectSelect
-            projects={props.projects}
-            value={projectId}
-            onValueChange={setExampleProjectId}
-          />
-        ) : null}
         <Tabs defaultValue="env">
           <div className="flex h-9 items-center border-b">
             <Tabs.List variant="underline" aria-label="Usage instructions">
@@ -156,4 +138,10 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       </div>
     </div>
   );
+}
+
+/** exampleProjectId is the project id the examples use: the key's own project, or a placeholder for an organization key. */
+function exampleProjectId(props: ApiKeyDetailContentProps): string {
+  if (props.scope === "project") return props.projectId;
+  return projectIdPlaceholder;
 }
