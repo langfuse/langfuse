@@ -72,7 +72,7 @@ declare const globalThis: {
 } & typeof global;
 
 // eslint-disable-next-line turbo/no-undeclared-env-vars
-if (process.env.NODE_ENV === "development") {
+if (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") {
   if (globalThis.prismaGlobal === undefined) {
     globalThis.prismaGlobal = createPrismaInstance();
   }
