@@ -6,14 +6,22 @@ import {
   type Point,
 } from "@/src/components/illustrations/engine/projection";
 import { useIllustrationId } from "@/src/components/illustrations/engine/useIllustrationId";
-import styles from "./TopicPilesIllustration.module.css";
 
-// Floor units on a 36 grid; one unit is 0.6 css px at full width.
+// Floor units on a 36 grid, drawn at SCALE css px each in a BOX of css px.
 const GRID = 36;
-const VIEW = { x: -95, y: -220, width: 800, height: 517 };
+const SCALE = 0.72;
+const BOX = { width: 720, height: 480 };
+// The box in floor units around the drawing's middle (339, 20); the drawing sits 30 css px low.
+const VIEW = {
+  x: round(339 - BOX.width / SCALE / 2),
+  y: round(20 - 30 / SCALE - BOX.height / SCALE / 2),
+  width: round(BOX.width / SCALE),
+  height: round(BOX.height / SCALE),
+};
 const CENTER = { x: VIEW.x + VIEW.width / 2, y: VIEW.y + VIEW.height / 2 };
-const FLOOR_FADE = { rx: 460, ry: 340 };
-const PILE = { width: 144, depth: 108, pitch: 180, corner: 4 };
+const FLOOR_FADE = { rx: 640, ry: 460 };
+const RULE_REACH = 300;
+const PILE = { width: 180, depth: 108, pitch: 216, corner: 4 };
 const SHEET = { height: 8, traces: 24 };
 const ROW = { height: 36, padLeft: 17, padRight: 14, fontSize: 19.5 };
 const NAME_FONT_SIZE = 16.5;
@@ -25,6 +33,22 @@ const TONE = {
   error: { node: "fill-destructive", wire: "text-destructive" },
   ok: { node: "fill-accent-dark-green", wire: "text-accent-dark-green" },
 } as const;
+
+// A floor line is full strength in its middle third and fades out at both ends.
+const RULE_STOPS = [
+  { offset: 0, opacity: 0 },
+  { offset: 0.35, opacity: 1 },
+  { offset: 0.65, opacity: 1 },
+  { offset: 1, opacity: 0 },
+].map(({ offset, opacity }) => (
+  <stop
+    key={offset}
+    offset={offset}
+    stopColor="currentColor"
+    stopOpacity={opacity}
+    className="text-border-contrast"
+  />
+));
 
 // Black fades the floor out over the outer 8% of the box on each side.
 const EDGE_STOPS = [
@@ -45,11 +69,13 @@ export function TopicPilesIllustration({
   return (
     <svg
       viewBox={`${VIEW.x} ${VIEW.y} ${VIEW.width} ${VIEW.height}`}
+      width={BOX.width}
+      height={BOX.height}
       aria-hidden="true"
       focusable="false"
-      className="h-auto w-120 max-w-full shrink-0 font-mono font-normal"
+      className="h-auto max-w-full shrink-0 font-mono font-normal"
     >
-      <Floor id={id} />
+      <Floor id={id} pileCount={piles.length} />
       <g transform={PLANE}>
         {layoutTraces(slips, id).map((trace) => (
           <ExampleTrace key={trace.text} trace={trace} />
@@ -81,13 +107,18 @@ function layoutTraces(slips: TopicPilesIllustrationProps["slips"], id: string) {
       y: PILE.depth + GRID + nearer * 2 * GRID,
       opacity: 1 - nearer * 0.2,
       gradientId: `${id}-wire-${index}`,
-      pulseDelay: index * 0.7,
     };
   });
 }
 
-/** The floor grid, fading out toward the edges of the box. */
-function Floor({ id }: FloorProps) {
+/** The floor: a grid that fades toward the edges of the box, and darker lines that carry the piles' edges across it. */
+function Floor({ id, pileCount }: FloorProps) {
+  const right = (pileCount - 1) * PILE.pitch + PILE.width + RULE_REACH;
+  const front = PILE.depth + GRID;
+  const pileEdges = Array.from({ length: pileCount }, (_, index) => [
+    index * PILE.pitch,
+    index * PILE.pitch + PILE.width,
+  ]).flat();
   return (
     <>
       <defs>
@@ -107,11 +138,7 @@ function Floor({ id }: FloorProps) {
           <stop offset={0.66} stopColor="white" stopOpacity={0.5} />
           <stop offset={1} stopColor="white" stopOpacity={0} />
         </radialGradient>
-        <linearGradient id={`${id}-edge-x`}>{EDGE_STOPS}</linearGradient>
-        <linearGradient id={`${id}-edge-y`} x2={0} y2={1}>
-          {EDGE_STOPS}
-        </linearGradient>
-        <mask id={`${id}-floor`} maskUnits="userSpaceOnUse" {...VIEW}>
+        <mask id={`${id}-grid-fade`} maskUnits="userSpaceOnUse" {...VIEW}>
           <rect
             x={CENTER.x - FLOOR_FADE.rx}
             y={CENTER.y - FLOOR_FADE.ry}
@@ -119,18 +146,56 @@ function Floor({ id }: FloorProps) {
             height={2 * FLOOR_FADE.ry}
             fill={`url(#${id}-fade)`}
           />
+        </mask>
+        <linearGradient id={`${id}-edge-x`}>{EDGE_STOPS}</linearGradient>
+        <linearGradient id={`${id}-edge-y`} x2={0} y2={1}>
+          {EDGE_STOPS}
+        </linearGradient>
+        <mask id={`${id}-edges`} maskUnits="userSpaceOnUse" {...VIEW}>
+          <rect {...VIEW} fill="white" />
           <rect {...VIEW} fill={`url(#${id}-edge-x)`} />
           <rect {...VIEW} fill={`url(#${id}-edge-y)`} />
         </mask>
+        <linearGradient
+          id={`${id}-rule-x`}
+          gradientUnits="userSpaceOnUse"
+          x1={-RULE_REACH}
+          x2={right}
+        >
+          {RULE_STOPS}
+        </linearGradient>
+        <linearGradient
+          id={`${id}-rule-y`}
+          gradientUnits="userSpaceOnUse"
+          x2={0}
+          y1={-RULE_REACH}
+          y2={front}
+        >
+          {RULE_STOPS}
+        </linearGradient>
       </defs>
-      <g mask={`url(#${id}-floor)`}>
-        <g transform={PLANE}>
-          <rect
-            x={-1500}
-            y={-1500}
-            width={3200}
-            height={3200}
-            fill={`url(#${id}-grid)`}
+      <g mask={`url(#${id}-edges)`}>
+        <g mask={`url(#${id}-grid-fade)`}>
+          <g transform={PLANE}>
+            <rect
+              x={-1500}
+              y={-1500}
+              width={3200}
+              height={3200}
+              fill={`url(#${id}-grid)`}
+            />
+          </g>
+        </g>
+        <g transform={PLANE} fill="none" strokeWidth={1.5}>
+          <path
+            d={[0, PILE.depth]
+              .map((y) => `M${-RULE_REACH} ${y}H${right}`)
+              .join("")}
+            stroke={`url(#${id}-rule-x)`}
+          />
+          <path
+            d={pileEdges.map((x) => `M${x} ${-RULE_REACH}V${front}`).join("")}
+            stroke={`url(#${id}-rule-y)`}
           />
         </g>
       </g>
@@ -138,7 +203,7 @@ function Floor({ id }: FloorProps) {
   );
 }
 
-/** One example trace: an outlined row, its wire to the pile, the square where they meet and a travelling dot. */
+/** One example trace: an outlined row, its wire to the pile and the square where they meet. */
 function ExampleTrace({ trace }: ExampleTraceProps) {
   const tone = TONE[trace.tone];
   return (
@@ -191,26 +256,7 @@ function ExampleTrace({ trace }: ExampleTraceProps) {
         height={NODE}
         className={tone.node}
       />
-      <TracePulse
-        d={`M${trace.wireX} ${trace.y}V${PILE.depth}`}
-        delay={trace.pulseDelay}
-      />
     </g>
-  );
-}
-
-/** A dot travelling along a wire from the example trace to its pile. */
-function TracePulse({ d, delay }: TracePulseProps) {
-  return (
-    <path
-      d={d}
-      pathLength={100}
-      fill="none"
-      strokeWidth={5}
-      strokeLinecap="round"
-      className={`stroke-foreground-tertiary ${styles.pulse}`}
-      style={{ animationDelay: `${delay}s` }}
-    />
   );
 }
 
@@ -336,6 +382,7 @@ type TopicPilesIllustrationProps = {
 type FloorProps = {
   /** Prefix for this instance's ids. */
   id: string;
+  pileCount: number;
 };
 
 type ExampleTraceProps = { trace: ReturnType<typeof layoutTraces>[number] };
@@ -345,11 +392,4 @@ type PileProps = {
   /** Left edge on the floor. */
   x: number;
   clipId: string;
-};
-
-type TracePulseProps = {
-  /** The wire's path, from the trace to the pile. */
-  d: string;
-  /** Seconds before the first run. */
-  delay: number;
 };
