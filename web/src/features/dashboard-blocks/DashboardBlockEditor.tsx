@@ -1,4 +1,4 @@
-import dynamic from "next/dynamic";
+import { MultiQueryEditor } from "./multi-query/MultiQueryEditor";
 import { useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { type WidgetDefinition } from "@langfuse/shared/dashboards";
@@ -10,23 +10,6 @@ import { buildHomeWidgetRecipe } from "./homeWidgetRecipes";
 import { HomePresetSelectionDialog } from "./HomePresetSelectionDialog";
 import { DashboardMarkdownEditor } from "./DashboardMarkdownEditor";
 import { DashboardBlockPlacement } from "./DashboardBlockPlacement";
-import { Skeleton } from "@/src/components/ui/skeleton";
-const MultiQueryEditor = dynamic(
-  () =>
-    import("./multi-query/MultiQueryEditor").then(
-      (module) => module.MultiQueryEditor,
-    ),
-  {
-    loading: () => (
-      <Dialog title="Opening widget editor" size="xxl" noCapture>
-        <Dialog.Body>
-          <Skeleton className="h-80 w-full" />
-        </Dialog.Body>
-      </Dialog>
-    ),
-  },
-);
-
 export function DashboardBlockEditor({
   request,
   projectId,

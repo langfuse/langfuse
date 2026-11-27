@@ -1,5 +1,5 @@
 import { useCanAuthorDashboardWidgets } from "@/src/features/feature-flags/hooks/useCanAuthorDashboardWidgets";
-import dynamic from "next/dynamic";
+import { DashboardBlockEditor } from "./DashboardBlockEditor";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   getPendingPresetEdit,
@@ -20,22 +20,6 @@ import {
   type DashboardBlocksContextValue,
 } from "./dashboard-block-context";
 import { useDashboardBlockCapabilities } from "./useDashboardBlockCapabilities";
-
-const DashboardBlockEditor = dynamic(
-  () =>
-    import("./DashboardBlockEditor").then(
-      (module) => module.DashboardBlockEditor,
-    ),
-  {
-    loading: () => (
-      <Dialog title="Opening editor" noCapture>
-        <Dialog.Body>
-          <Skeleton className="h-64 w-full" />
-        </Dialog.Body>
-      </Dialog>
-    ),
-  },
-);
 
 export function DashboardBlocksProvider({
   projectId,
