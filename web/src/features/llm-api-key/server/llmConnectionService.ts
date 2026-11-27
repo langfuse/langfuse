@@ -53,6 +53,7 @@ import {
   finalizeEvaluatorBlocks,
   generateLLMText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
+  getLLMErrorInfo,
   isPrismaRecordNotFoundError,
   logger,
   mapLegacyLLMCompletionParams,
@@ -498,19 +499,33 @@ async function testLlmConnection(
       messages,
     });
     const timeout = getClientInitiatedNonStreamingLlmTimeoutMs();
+    // One deadline for both calls keeps the request under the load balancer timeout.
+    const deadline = Date.now() + timeout;
 
     try {
       await generateLLMText({ ...request, maxRetries: 1, timeout });
     } catch (chatError) {
       // Embedding-only deployments (e.g. Azure) reject chat requests; accept them if they embed.
-      if (params.adapter === LLMAdapter.Anthropic) throw chatError;
+      // A hang or a chat-only setting says nothing about embeddings, so those keep the chat error.
+      const kind = getLLMErrorInfo(chatError)?.kind;
+      const remainingMs = deadline - Date.now();
+      if (
+        params.adapter === LLMAdapter.Anthropic ||
+        (parsedConfig !== null &&
+          "useResponsesApi" in parsedConfig &&
+          parsedConfig.useResponsesApi === true) ||
+        kind === "timeout" ||
+        kind === "abort" ||
+        remainingMs <= 0
+      )
+        throw chatError;
       try {
         await embedLLMText({
           model: request.model,
           connection: request.connection,
           values: ["How are you?"],
           maxRetries: 1,
-          abortSignal: AbortSignal.timeout(timeout),
+          abortSignal: AbortSignal.timeout(remainingMs),
         });
       } catch (embeddingError) {
         logger.error(embeddingError);

@@ -701,6 +701,29 @@ describe("llmApiKey.all RPC", () => {
     });
   });
 
+  it("keeps the chat error without an embedding retry when the chat test times out", async () => {
+    mockGenerateLLMText.mockRejectedValueOnce(
+      Object.assign(new Error("The operation timed out."), {
+        name: "TimeoutError",
+      }),
+    );
+
+    const result = await caller.llmApiKey.test({
+      projectId,
+      secretKey: "azure-key",
+      provider: `azure-${randomUUID()}`,
+      adapter: LLMAdapter.Azure,
+      customModels: ["team-deployment"],
+      withDefaultModels: false,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: "The operation timed out.",
+    });
+    expect(mockEmbedLLMText).not.toHaveBeenCalled();
+  });
+
   it("reports the chat error when the first model neither chats nor embeds", async () => {
     mockGenerateLLMText.mockRejectedValueOnce(new Error("invalid api key"));
     mockEmbedLLMText.mockRejectedValueOnce(new Error("invalid api key"));
