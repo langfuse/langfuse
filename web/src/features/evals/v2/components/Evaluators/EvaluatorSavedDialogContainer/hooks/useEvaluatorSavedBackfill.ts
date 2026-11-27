@@ -209,11 +209,16 @@ export function useEvaluatorSavedBackfill({
       scope: EvaluatorBackfillScope | null,
     ) => {
       setWindow(nextWindow);
-      if (nextWindow !== "custom") {
+      if (nextWindow === "custom") {
+        updateRange(
+          { from: startOfDay(range.from), to: endOfDay(range.to) },
+          scope,
+        );
+      } else {
         updateRange(getBackfillRange(nextWindow), scope);
       }
     },
-    [updateRange],
+    [range.from, range.to, updateRange],
   );
 
   const allowedItems = Math.min(

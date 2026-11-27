@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { format, startOfDay, subMonths } from "date-fns";
+import { endOfDay, format, startOfDay, subMonths } from "date-fns";
 import { Input as DesignSystemInput } from "@/src/components/design-system/Input/Input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Input } from "@/src/components/ui/input";
@@ -185,9 +185,12 @@ export function EvaluatorBackfillSettings({
                 max={format(range.to, "yyyy-MM-dd")}
                 onChange={(event) => {
                   if (!event.target.value) return;
+                  const from = startOfDay(
+                    new Date(`${event.target.value}T00:00:00`),
+                  );
                   onRangeChange({
-                    from: new Date(`${event.target.value}T00:00:00`),
-                    to: range.to,
+                    from,
+                    to: endOfDay(range.to),
                   });
                 }}
               />
@@ -202,9 +205,12 @@ export function EvaluatorBackfillSettings({
                 max={customRangeLatestDate}
                 onChange={(event) => {
                   if (!event.target.value) return;
+                  const to = endOfDay(
+                    new Date(`${event.target.value}T00:00:00`),
+                  );
                   onRangeChange({
-                    from: range.from,
-                    to: new Date(`${event.target.value}T23:59:59.999`),
+                    from: startOfDay(range.from),
+                    to,
                   });
                 }}
               />
