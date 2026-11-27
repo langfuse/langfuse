@@ -288,6 +288,12 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         error: expect.any(ForbiddenError),
       });
     });
+    it("ignores a secret-key Basic auth username instead of echoing it", () => {
+      expect(getProjectId(projectKey(), req({}, basic("sk-lf-1")))).toEqual({
+        success: true,
+        projectId: PRJ,
+      });
+    });
     it("resolves a Basic auth username agreeing with the bound project", () => {
       expect(getProjectId(projectKey(), req({}, basic(PRJ)))).toEqual({
         success: true,
