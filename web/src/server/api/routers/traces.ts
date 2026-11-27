@@ -6,6 +6,7 @@ import {
   refsIf,
 } from "@/src/features/audit-logs/server/auditedQuery";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { capturePublicShareChanged } from "@/src/features/posthog-analytics/server/publicShareEvents";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -700,6 +701,10 @@ export const traceRouter = createTRPCRouter({
         );
       }
       await Promise.all(promises);
+      capturePublicShareChanged(ctx.session.user.id, {
+        kind: "trace",
+        isPublic: input.public,
+      });
       return clickhouseTrace;
     }),
   getAgentGraphData: protectedGetTraceProcedure
