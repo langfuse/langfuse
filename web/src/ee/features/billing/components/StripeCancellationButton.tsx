@@ -10,7 +10,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { CancelSubscriptionConfirmStep } from "./CancelSubscriptionDialog/CancelSubscriptionConfirmStep";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  type CancellationFeedback,
+  type CancellationReasonPlacement,
+} from "@/src/ee/features/billing/utils/cancellationReasons";
+import { BillingQuietLink } from "./BillingQuietLink";
+import { CancelSubscriptionDialog } from "./CancelSubscriptionDialog/CancelSubscriptionDialog";
 import { useBillingInformation } from "./useBillingInformation";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
@@ -18,9 +25,6 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { showToast } from "@/src/features/notifications/showToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { nanoid } from "nanoid";
-
-const QUIET_LINK =
-  "text-muted-foreground hover:text-foreground h-auto p-0 text-xs font-normal";
 
 export const StripeCancellationButton = ({
   orgId,
@@ -32,7 +36,10 @@ export const StripeCancellationButton = ({
   variant: "secondary" | "default" | "ghost" | "quiet-link";
   className?: string;
 }) => {
-  const { cancellation } = useBillingInformation();
+  const capture = usePostHogClientCapture();
+  const { cancellation, organization, billingProvider } =
+    useBillingInformation();
+  const eventContext = { plan: organization?.plan ?? null, billingProvider };
   const [loading, setLoading] = useState(false);
   const [_opId, setOpId] = useState<string | null>(null);
 
@@ -69,6 +76,8 @@ export const StripeCancellationButton = ({
         setLoading(false);
         setOpId(null);
         setTimeout(() => window.location.reload(), 500);
+        // Last, so tracking can never get in the way of the reactivation.
+        capture("billing_cancellation:reactivation_confirmed", eventContext);
       },
       onError: (error) => {
         setLoading(false);
@@ -100,7 +109,10 @@ export const StripeCancellationButton = ({
     }
   };
 
-  const onCancel = async () => {
+  const onCancel = async (
+    feedback: CancellationFeedback,
+    shown: CancellationReasonPlacement,
+  ) => {
     try {
       setLoading(true);
       // idempotency key for mutation operations with the stripe api
@@ -109,14 +121,27 @@ export const StripeCancellationButton = ({
         opId = nanoid();
         setOpId(opId);
       }
-      await cancelMutation.mutateAsync({ orgId, opId });
+      await cancelMutation.mutateAsync({
+        orgId,
+        opId,
+        feedback,
+        placement: shown,
+      });
     } catch (error) {
       showToast({
         type: "ERROR",
         title: "Failed to cancel subscription",
         analytics: classifyTrpcToastError(error, "subscription.cancel"),
       });
+      return;
     }
+    // Outside the try, so a tracking failure never reads as a failed cancel.
+    capture("billing_cancellation:confirmed", {
+      ...eventContext,
+      ...shown,
+      reason: feedback.reason,
+      hasNote: Boolean(feedback.note),
+    });
   };
 
   // Reactivate with confirm dialog
@@ -163,35 +188,41 @@ export const StripeCancellationButton = ({
     );
   }
 
-  // Cancel with confirm dialog
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button
-          variant={variant === "quiet-link" ? "link" : variant}
-          className={variant === "quiet-link" ? QUIET_LINK : undefined}
-          disabled={loading}
-          title="Cancel Subscription"
-        >
-          Cancel Subscription
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="text-lg">Confirm Cancellation</DialogTitle>
-        </DialogHeader>
-        <DialogBody className="text-sm">
-          <CancelSubscriptionConfirmStep />
-        </DialogBody>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="secondary">Keep Subscription</Button>
-          </DialogClose>
-          <Button variant="destructive" onClick={onCancel} disabled={loading}>
-            {loading ? "Cancelling…" : "Confirm Cancellation"}
+    <DialogController
+      renderDialog={({ closeDialog }) => (
+        <CancelSubscriptionDialog
+          isCancelling={loading}
+          onConfirm={onCancel}
+          closeDialog={closeDialog}
+        />
+      )}
+    >
+      {({ openDialog }) => {
+        const open = () => {
+          openDialog();
+          capture("billing_cancellation:dialog_opened", eventContext);
+        };
+        if (variant === "quiet-link") {
+          return (
+            <BillingQuietLink
+              label="Cancel Subscription"
+              disabled={loading}
+              onClick={open}
+            />
+          );
+        }
+        return (
+          <Button
+            variant={variant}
+            disabled={loading}
+            title="Cancel Subscription"
+            onClick={open}
+          >
+            Cancel Subscription
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        );
+      }}
+    </DialogController>
   );
 };

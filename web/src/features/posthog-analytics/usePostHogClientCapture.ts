@@ -517,6 +517,18 @@ const events = {
   // How many open the confirm of a plan change and back out. Props are plan
   // enums and the direction only.
   billing_plan_change: ["confirm_opened"],
+  // Cancel flow funnel: why paying organizations leave and whether a next
+  // step keeps them. Props are reason and step enums and booleans only; the
+  // written note never leaves the billing request.
+  billing_cancellation: [
+    "dialog_opened",
+    "reason_submitted",
+    "next_step_shown",
+    "next_step_accepted",
+    "next_step_declined",
+    "confirmed",
+    "reactivation_confirmed",
+  ],
   // Launch surfaces answer "which entry point and state lead people into
   // gateway setup or key creation?" Props are state enums and counts only.
   ai_gateway_launch: [
