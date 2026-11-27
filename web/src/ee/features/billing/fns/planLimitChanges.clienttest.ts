@@ -36,9 +36,9 @@ describe("planLimitChanges", () => {
       { kind: "alerts", label: "Alerts", was: "2", now: "50", direction: "up" },
       {
         kind: "ingestion",
-        label: "Ingestion",
-        was: "1,000 / min",
-        now: "20,000 / min",
+        label: "Ingestion per minute",
+        was: "1,000",
+        now: "20,000",
         direction: "up",
       },
     ]);
@@ -59,7 +59,7 @@ describe("planLimitChanges", () => {
       ["users", "Unlimited", "Unlimited", "same"],
       ["annotation-queues", "Unlimited", "3", "down"],
       ["alerts", "100", "20", "down"],
-      ["ingestion", "Custom", "4,000 / min", "down"],
+      ["ingestion", "Custom", "4,000", "down"],
     ]);
   });
 

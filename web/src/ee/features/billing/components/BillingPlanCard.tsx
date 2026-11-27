@@ -17,7 +17,7 @@ import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPane
 
 import { BillingDiscountView } from "./BillingDiscountView";
 import { BillingQuietLink } from "./BillingQuietLink";
-import { BillingSwitchPlanDialog } from "./BillingSwitchPlanDialog";
+import { PlanPickerDialogController } from "./PlanPickerDialogController";
 import { StripeCancellationButton } from "./StripeCancellationButton";
 import { StripeCustomerPortalButton } from "./StripeCustomerPortalButton";
 import { useBillingInformation } from "./useBillingInformation";
@@ -174,11 +174,17 @@ export function BillingPlanCard({ showDiscount }: { showDiscount: boolean }) {
         </div>
         <div className="flex flex-wrap items-center gap-1">
           {!isManualPlan && isCancelScheduled ? (
-            <BillingSwitchPlanDialog
-              disabled={isPlanChangeDisabled}
-              label="Change plan"
-              variant="ghost"
-            />
+            <PlanPickerDialogController isDisabled={isPlanChangeDisabled}>
+              {({ openDialog }) => (
+                <Button
+                  variant="ghost"
+                  disabled={isPlanChangeDisabled}
+                  onClick={openDialog}
+                >
+                  Change plan
+                </Button>
+              )}
+            </PlanPickerDialogController>
           ) : null}
           {isManualPlan ? (
             <Button
@@ -195,18 +201,26 @@ export function BillingPlanCard({ showDiscount }: { showDiscount: boolean }) {
             />
           ) : null}
           {!isManualPlan && !isCancelScheduled && isTopPlan ? (
-            <BillingSwitchPlanDialog
-              disabled={isPlanChangeDisabled}
-              label="Change plan"
-              variant="secondary"
-            />
+            <PlanPickerDialogController isDisabled={isPlanChangeDisabled}>
+              {({ openDialog }) => (
+                <Button
+                  variant="secondary"
+                  disabled={isPlanChangeDisabled}
+                  onClick={openDialog}
+                >
+                  Change plan
+                </Button>
+              )}
+            </PlanPickerDialogController>
           ) : null}
           {!isManualPlan && !isCancelScheduled && !isTopPlan ? (
-            <BillingSwitchPlanDialog
-              disabled={isPlanChangeDisabled}
-              label="Upgrade plan"
-              variant="default"
-            />
+            <PlanPickerDialogController isDisabled={isPlanChangeDisabled}>
+              {({ openDialog }) => (
+                <Button disabled={isPlanChangeDisabled} onClick={openDialog}>
+                  Upgrade plan
+                </Button>
+              )}
+            </PlanPickerDialogController>
           ) : null}
         </div>
       </div>

@@ -14,7 +14,7 @@ const formatCount = (kind: PlanLimitKind, count: number): string => {
         ? `${count} days`
         : `${count / DAYS_IN_YEAR} years`;
     case "ingestion":
-      return `${count.toLocaleString("en-US")} / min`;
+      return count.toLocaleString("en-US");
     case "users":
     case "annotation-queues":
     case "alerts":
@@ -22,7 +22,7 @@ const formatCount = (kind: PlanLimitKind, count: number): string => {
   }
 };
 
-/** A plan limit as the pricing page prints it: "50k", "3 years", "1,000 / min", "Unlimited". */
+/** A plan limit as the pricing page prints it: "50k", "3 years", "1,000", "Unlimited". */
 export function formatPlanLimit(
   kind: PlanLimitKind,
   value: PlanLimitValue,
