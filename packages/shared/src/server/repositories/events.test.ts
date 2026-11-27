@@ -45,6 +45,7 @@ import {
   getObservationsForTraceFromEventsTable,
   getObservationsV2FromEventsTableForPublicApi,
   getObservationsV2PageFromEventsTableForPublicApi,
+  getObservationsWithModelDataFromEventsTable,
 } from "./events";
 import { ClickHouseQueryAbortedError } from "./clickhouse";
 import { type EventsTableFilterState } from "../../types";
@@ -149,6 +150,40 @@ describe("getObservationsForTraceFromEventsTable root flag", () => {
       );
     },
   );
+});
+
+describe("getObservationsWithModelDataFromEventsTable tool fields", () => {
+  beforeEach(() => {
+    charCounter = 0;
+    vi.clearAllMocks();
+  });
+
+  it("returns tool counts computed in ClickHouse instead of the tool payloads", async () => {
+    mockQueryClickhouse.mockResolvedValue([
+      {
+        ...observation("obs-1", "2026-10-01 00:00:00.000"),
+        tool_definitions_count: "3",
+        tool_calls_count: "2",
+      },
+    ]);
+
+    const [row] = await getObservationsWithModelDataFromEventsTable({
+      projectId: "proj-1",
+      filter: [],
+      limit: 1,
+      offset: 0,
+      selectToolCounts: true,
+    });
+
+    const query = captureQuery();
+    expect(query).not.toContain("e.tool_definitions as tool_definitions");
+    expect(query).not.toContain("e.tool_calls as tool_calls");
+    expect(query).toContain(
+      "length(e.tool_definitions) as tool_definitions_count",
+    );
+    expect(query).toContain("length(e.tool_calls) as tool_calls_count");
+    expect(row).toMatchObject({ toolDefinitionsCount: 3, toolCallsCount: 2 });
+  });
 });
 
 describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {

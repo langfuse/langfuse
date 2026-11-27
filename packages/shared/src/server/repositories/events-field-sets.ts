@@ -50,6 +50,8 @@ const EVENTS_FIELD_ORDER = [
   "toolDefinitions",
   "toolCalls",
   "toolCallNames",
+  "toolDefinitionsCount",
+  "toolCallsCount",
   "usagePricingTierId",
   "usagePricingTierName",
   "input",
@@ -129,6 +131,9 @@ export const FIELD_SETS = {
     "toolCalls",
     "toolCallNames",
   ],
+  // Tool counts without the tool payloads: ClickHouse reads only the size
+  // subcolumns (`tool_definitions.size0`, `tool_calls.size0`).
+  toolCounts: ["toolDefinitionsCount", "toolCallsCount"],
   baseWithoutTools: [
     "id",
     "type",
