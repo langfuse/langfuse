@@ -6,6 +6,7 @@ import {
 import { Prisma, type Role } from "@langfuse/shared";
 import { v4 } from "uuid";
 import {
+  createApiKey,
   getUserProjectRoles,
   getUserProjectRolesCount,
 } from "@langfuse/shared/src/server";
@@ -15,6 +16,7 @@ import {
   OrganizationId,
   ProjectId,
   SystemRoleId,
+  UserId,
 } from "@langfuse/shared/rbac";
 
 export const createOrgAndProject = async () => {
@@ -629,6 +631,51 @@ describe("find user project roles through groups", () => {
     expect(users.length).toBeLessThanOrEqual(1);
     return users[0]?.role;
   };
+
+  it("leaves out a user whose org role is AI Gateway, which grants nothing on projects", async () => {
+    const { org, project } = await createOrgAndProject();
+    const userId = await createMember(org.id, project.id, {
+      orgRole: "AI_GATEWAY",
+    });
+    expect(await roleOf(org.id, project.id, userId)).toBeUndefined();
+  });
+
+  it("gives an AI Gateway org member their project role", async () => {
+    const { org, project } = await createOrgAndProject();
+    const userId = await createMember(org.id, project.id, {
+      orgRole: "AI_GATEWAY",
+      projectRole: "VIEWER",
+    });
+    expect(await roleOf(org.id, project.id, userId)).toBe("VIEWER");
+  });
+
+  it("adds nothing for a group's AI Gateway org role", async () => {
+    const { org, project } = await createOrgAndProject();
+    const noneUser = await createMember(org.id, project.id, {
+      orgRole: "NONE",
+      groups: [[{ ownerId: OrganizationId(org.id), role: "AI_GATEWAY" }]],
+    });
+    const viewer = await createMember(org.id, project.id, {
+      orgRole: "VIEWER",
+      groups: [[{ ownerId: OrganizationId(org.id), role: "AI_GATEWAY" }]],
+    });
+    expect(await roleOf(org.id, project.id, noneUser)).toBeUndefined();
+    expect(await roleOf(org.id, project.id, viewer)).toBe("VIEWER");
+  });
+
+  it("keeps the membership role of a user who owns an AI Gateway API key", async () => {
+    const { org, project } = await createOrgAndProject();
+    const userId = await createMember(org.id, project.id, {
+      orgRole: "MEMBER",
+    });
+    await createApiKey(prisma, {
+      tenant: OrganizationId(org.id),
+      scope: UserId(userId),
+      role: SystemRoleId("AI_GATEWAY"),
+      createdBy: UserId(userId),
+    });
+    expect(await roleOf(org.id, project.id, userId)).toBe("MEMBER");
+  });
 
   it("includes a user who reaches the project only through a group's project role", async () => {
     const { org, project } = await createOrgAndProject();
