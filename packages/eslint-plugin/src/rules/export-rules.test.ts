@@ -65,6 +65,21 @@ tester.run("export-rules", rule, {
       options: [{ allow: ["type"] }],
     },
     {
+      code: "interface pack { a: number }\nfunction pack() { return 1; }\nexport { pack };",
+      filename: file("pack.ts"),
+      options: fns,
+    },
+    {
+      code: "import type { pack } from './types';\nfunction pack() { return 1; }\nexport { pack };",
+      filename: file("pack.ts"),
+      options: fns,
+    },
+    {
+      code: "import { pack } from './other';\ninterface pack { a: number }\nexport { pack };",
+      filename: file("pack.ts"),
+      options: [{ allow: ["reexport"] }],
+    },
+    {
       code: "export function pack() { return 1; }\nexport interface FlatNode { id: string }",
       filename: file("pack.ts"),
       options: fns,
@@ -356,6 +371,12 @@ tester.run("export-rules", rule, {
   invalid: [
     {
       code: "export const VALUE = 1",
+      filename: file("pack.ts"),
+      options: fns,
+      errors: [{ messageId: "kindNotAllowed" }],
+    },
+    {
+      code: "type pack = string;\nconst pack = 1;\nexport { pack };",
       filename: file("pack.ts"),
       options: fns,
       errors: [{ messageId: "kindNotAllowed" }],

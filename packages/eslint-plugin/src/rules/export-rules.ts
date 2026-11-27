@@ -378,6 +378,14 @@ export default createRule({
       if (name !== null) bindings.set(name, node);
     }
 
+    // A type and a value may share a name. `export { Name }` still exports
+    // the value, so a type annotation must not replace a value kind.
+    function noteTypeName(name: string) {
+      const existing = kindOf.get(name);
+      if (existing !== undefined && existing !== "type") return;
+      kindOf.set(name, "type");
+    }
+
     function classify(node: TSESTree.Node, name: string | null): Kind {
       const value = unwrap(node);
       if (value.type === N.TSInterfaceDeclaration) return "type";
@@ -468,7 +476,7 @@ export default createRule({
             statement.type === N.TSTypeAliasDeclaration ||
             statement.type === N.TSInterfaceDeclaration
           ) {
-            kindOf.set(statement.id.name, "type");
+            noteTypeName(statement.id.name);
             continue;
           }
           if (statement.type === N.TSEnumDeclaration) {
@@ -482,7 +490,8 @@ export default createRule({
                 importedType ||
                 (specifier.type === N.ImportSpecifier &&
                   specifier.importKind === "type");
-              kindOf.set(specifier.local.name, typeOnly ? "type" : "reexport");
+              if (typeOnly) noteTypeName(specifier.local.name);
+              else kindOf.set(specifier.local.name, "reexport");
             }
             continue;
           }
@@ -532,7 +541,7 @@ export default createRule({
               (named.type === N.TSTypeAliasDeclaration ||
                 named.type === N.TSInterfaceDeclaration)
             )
-              kindOf.set(named.id.name, "type");
+              noteTypeName(named.id.name);
             push({
               kind: "type",
               name: null,
@@ -620,6 +629,11 @@ export default createRule({
         }
         for (const item of pending) {
           const mutable = mutableNames.has(item.local);
+          const bound = bindings.get(item.local);
+          if (bound) {
+            noteValue(bound, item.name, item.isDefault, mutable);
+            continue;
+          }
           const known = kindOf.get(item.local);
           if (known !== undefined) {
             push({
@@ -630,17 +644,12 @@ export default createRule({
             });
             continue;
           }
-          const bound = bindings.get(item.local);
-          if (!bound) {
-            push({
-              kind: "variable",
-              name: item.name,
-              isDefault: item.isDefault,
-              mutable,
-            });
-            continue;
-          }
-          noteValue(bound, item.name, item.isDefault, mutable);
+          push({
+            kind: "variable",
+            name: item.name,
+            isDefault: item.isDefault,
+            mutable,
+          });
         }
 
         const counts = new Map<Kind, number>();
