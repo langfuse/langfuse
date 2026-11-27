@@ -1,5 +1,8 @@
 import { useRef } from "react";
-import { round } from "@/src/components/illustrations/engine/projection";
+import {
+  project,
+  round,
+} from "@/src/components/illustrations/engine/projection";
 import {
   PILE_COLORS,
   PLANE,
@@ -32,7 +35,7 @@ const INK: Record<PileColor, string> = {
   amber: "fill-category-amber-foreground",
 };
 
-/** Decorative: grey traces are read one at a time, take their intent and colour, and stack up as named topics. */
+/** Decorative: grey traces are read one at a time, take their intent and colour, and stack up as named topics that settle in the middle of the box. */
 export function TopicPilesLabeling({
   topics,
   traces,
@@ -41,6 +44,7 @@ export function TopicPilesLabeling({
   const timeline = labelingTimeline(traces);
   const seconds = useLoopTime(timeline.loop, timeline.still, drawing);
   const frame = labelingFrame(timeline, seconds, topics.length);
+  const [slideX, slideY] = project([frame.slide.x, frame.slide.y]);
   return (
     <TopicPilesScene
       ref={drawing}
@@ -49,10 +53,11 @@ export function TopicPilesLabeling({
       drop={0}
       edges={{
         xs: topics.flatMap((_, index) => [
-          index * PILE_PITCH,
-          index * PILE_PITCH + CARD.width,
+          frame.lines.x + index * PILE_PITCH,
+          frame.lines.x + index * PILE_PITCH + CARD.width,
         ]),
-        ys: [0, CARD.depth],
+        ys: [frame.lines.y, frame.lines.y + CARD.depth],
+        opacity: round(frame.lines.opacity),
       }}
     >
       <g transform={PLANE}>
@@ -82,7 +87,10 @@ export function TopicPilesLabeling({
           className="fill-muted stroke-border-contrast"
         />
       </g>
-      <g opacity={round(1 - frame.back)}>
+      <g
+        opacity={round(1 - frame.back)}
+        transform={`translate(${round(slideX)} ${round(slideY)})`}
+      >
         {topics
           .map((topic, index) => {
             const pile = frame.piles[index];

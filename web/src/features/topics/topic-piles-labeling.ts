@@ -2,7 +2,7 @@ import {
   clamp01,
   round,
 } from "@/src/components/illustrations/engine/projection";
-import { SHEET } from "./topic-piles-geometry";
+import { GRID, SHEET } from "./topic-piles-geometry";
 
 /** Floor units of the labeling drawing: a trace card is also a pile's footprint, and the piles stand in a row at y 0. */
 export const CARD = { width: 144, depth: 72 };
@@ -30,6 +30,11 @@ const LEAD = 0.2;
 const NAMING = 0.5;
 const HOLD = 2.5;
 const RETURN = 0.6;
+// Seconds the floor lines take to fade before the sorted piles move, and the piles take to reach the middle of the box.
+const CLEAR = 0.15;
+const SLIDE = 0.85;
+// Floor units from the pile slots to the middle of the box: whole grid squares, so the piles' edges stay on grid lines.
+const TO_MIDDLE = { x: -GRID, y: 3 * GRID };
 
 /** When each trace is read and lands, and the loop around them. */
 export function labelingTimeline(traces: readonly LabeledTrace[]) {
@@ -52,10 +57,15 @@ export function labelingTimeline(traces: readonly LabeledTrace[]) {
     });
     starts = leaves;
   });
-  const named = Math.max(LEAD, ...cards.map((card) => card.lands)) + 0.05;
+  const sorted = Math.max(LEAD, ...cards.map((card) => card.lands)) + 0.05;
+  const slides = sorted + CLEAR;
+  const named = slides + SLIDE;
   const returns = named + NAMING + HOLD;
   return {
     cards,
+    /** When every card is on its pile, when the piles leave their slots, and when they stand in the middle and take their names. */
+    sorted,
+    slides,
     named,
     returns,
     loop: returns + RETURN,
@@ -66,18 +76,24 @@ export function labelingTimeline(traces: readonly LabeledTrace[]) {
 
 /** Where everything is `seconds` into the loop; `cards` are in paint order. */
 export function labelingFrame(
-  { cards, named, returns, loop }: LabelingTimeline,
+  timeline: LabelingTimeline,
   seconds: number,
   topics: number,
 ) {
+  const { cards, slides, named, returns, loop } = timeline;
   const back = ease((seconds - returns) / (loop - returns));
   const lastLeaves = cards.at(-1)?.leaves ?? 0;
+  const slid = ease((seconds - slides) / (named - slides));
   return {
     /** 0 until the loop starts over, 1 when it has. */
     back,
     /** How visible the reading square is. */
     square: Math.max(back, 1 - ease((seconds - lastLeaves) / 0.4)),
     piles: pileFrames(cards, seconds, topics, back),
+    /** Floor units the sorted piles have moved from their slots toward the middle of the box. */
+    slide: { x: TO_MIDDLE.x * slid, y: TO_MIDDLE.y * slid },
+    /** The darker floor lines along the piles' edges: the floor units they are moved by and how visible they are. */
+    lines: floorLines(timeline, seconds, back),
     /** How visible the top cards' own labels and the topics' names are. */
     intents: 1 - ease((seconds - named) / 0.25),
     names: ease((seconds - named - 0.1) / 0.35),
@@ -102,6 +118,20 @@ function pileFrames(
       spot: landed.length > 0 ? back : 1,
     };
   });
+}
+
+// The floor lines fade out before the piles move and come back along them in the middle; as the loop starts over they fade out, change places unseen and come back along the slots.
+function floorLines(
+  { sorted, slides, named }: LabelingTimeline,
+  seconds: number,
+  back: number,
+) {
+  if (seconds >= slides && back < 0.5) {
+    const shown = ease((seconds - named) / 0.25);
+    return { ...TO_MIDDLE, opacity: shown * clamp01(1 - 3 * back) };
+  }
+  if (back > 0) return { x: 0, y: 0, opacity: clamp01(3 * back - 2) };
+  return { x: 0, y: 0, opacity: 1 - ease((seconds - sorted) / CLEAR) };
 }
 
 // Every card off the piles, in paint order: the one at the reading square, the queue from its far end, the carried ones back to front.

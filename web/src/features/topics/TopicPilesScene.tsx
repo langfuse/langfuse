@@ -83,7 +83,9 @@ function viewOf(
 /** The floor: a grid that fades toward the edges of the box, and darker lines that carry the drawing's edges across it. */
 function Floor({ id, view, edges }: FloorProps) {
   const fade = { rx: view.width * 0.64, ry: view.height * 0.69 };
+  const left = Math.min(...edges.xs) - RULE_REACH;
   const right = Math.max(...edges.xs) + RULE_REACH;
+  const back = Math.min(...edges.ys) - RULE_REACH;
   const front = Math.max(...edges.ys) + GRID;
   return (
     <>
@@ -125,7 +127,7 @@ function Floor({ id, view, edges }: FloorProps) {
         <linearGradient
           id={`${id}-rule-x`}
           gradientUnits="userSpaceOnUse"
-          x1={-RULE_REACH}
+          x1={left}
           x2={right}
         >
           {RULE_STOPS}
@@ -134,7 +136,7 @@ function Floor({ id, view, edges }: FloorProps) {
           id={`${id}-rule-y`}
           gradientUnits="userSpaceOnUse"
           x2={0}
-          y1={-RULE_REACH}
+          y1={back}
           y2={front}
         >
           {RULE_STOPS}
@@ -152,13 +154,18 @@ function Floor({ id, view, edges }: FloorProps) {
             />
           </g>
         </g>
-        <g transform={PLANE} fill="none" strokeWidth={1.5}>
+        <g
+          transform={PLANE}
+          fill="none"
+          strokeWidth={1.5}
+          opacity={edges.opacity}
+        >
           <path
-            d={edges.ys.map((y) => `M${-RULE_REACH} ${y}H${right}`).join("")}
+            d={edges.ys.map((y) => `M${left} ${y}H${right}`).join("")}
             stroke={`url(#${id}-rule-x)`}
           />
           <path
-            d={edges.xs.map((x) => `M${x} ${-RULE_REACH}V${front}`).join("")}
+            d={edges.xs.map((x) => `M${x} ${back}V${front}`).join("")}
             stroke={`url(#${id}-rule-y)`}
           />
         </g>
@@ -247,8 +254,8 @@ type SceneProps = {
   middle: { x: number; y: number };
   /** css px the drawing sits below the middle of the box. */
   drop: number;
-  /** Floor positions of the drawing's edges; darker floor lines run along them. */
-  edges: { xs: readonly number[]; ys: readonly number[] };
+  /** Floor positions of the drawing's edges; darker floor lines run along them, at full strength unless `opacity` is set. */
+  edges: { xs: readonly number[]; ys: readonly number[]; opacity?: number };
   /** The svg, for a caller that watches whether it is on screen. */
   ref?: Ref<SVGSVGElement>;
   children: ReactNode;
