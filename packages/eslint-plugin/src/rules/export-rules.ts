@@ -55,7 +55,16 @@ function isKind(value: string): value is Kind {
   return (KINDS as readonly string[]).includes(value);
 }
 
-function readAllow(option: unknown): Entry[] {
+function compileNamePattern(pattern: string): RegExp {
+  // Lint config, not request input. Compiled once when the rule loads.
+  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+  return new RegExp(pattern);
+}
+
+function readAllow(option: unknown): {
+  entries: Entry[];
+  patterns: Map<string, RegExp>;
+} {
   if (option === null || typeof option !== "object" || Array.isArray(option)) {
     throw new Error("export-rules options must be an object with allow");
   }
@@ -63,7 +72,8 @@ function readAllow(option: unknown): Entry[] {
   if (!Array.isArray(allow)) {
     throw new Error("export-rules allow must be an array");
   }
-  return allow.map((entry) => {
+  const compiled = new Map<string, RegExp>();
+  const entries = allow.map((entry) => {
     if (typeof entry === "string") {
       if (!isKind(entry)) throw new Error(`Unknown export kind "${entry}"`);
       return { kind: entry, max: null, name: [], allowDefault: false };
@@ -113,7 +123,7 @@ function readAllow(option: unknown): Entry[] {
       if (pattern === "matchesFilename" || pattern === "matchesDirname")
         continue;
       try {
-        RegExp(pattern);
+        compiled.set(pattern, compileNamePattern(pattern));
       } catch {
         throw new Error(`Invalid export-rules name pattern "${pattern}"`);
       }
@@ -125,6 +135,7 @@ function readAllow(option: unknown): Entry[] {
       allowDefault: record.default === true,
     };
   });
+  return { entries, patterns: compiled };
 }
 
 function toCamel(base: string): string {
@@ -346,7 +357,7 @@ export default createRule({
   },
   defaultOptions: [{ allow: [] as unknown[] }],
   create(context) {
-    const entries = readAllow(context.options[0]);
+    const { entries, patterns } = readAllow(context.options[0]);
     const byKind = new Map<Kind, Entry>();
     for (const entry of entries) {
       if (!byKind.has(entry.kind)) byKind.set(entry.kind, entry);
@@ -630,6 +641,7 @@ export default createRule({
               program,
               item.name,
               entry.name,
+              patterns,
             );
           }
         }
@@ -650,13 +662,15 @@ function checkName(
   program: TSESTree.Program,
   exportName: string | null,
   restrictions: string[],
+  patterns: Map<string, RegExp>,
 ) {
   let subject = exportName;
   for (const restriction of restrictions) {
     if (restriction === "matchesFilename" || restriction === "matchesDirname")
       continue;
     let matched: RegExpExecArray | null = null;
-    if (exportName !== null) matched = new RegExp(restriction).exec(exportName);
+    if (exportName !== null)
+      matched = patterns.get(restriction)!.exec(exportName);
     if (!matched) {
       context.report({
         node: program,
