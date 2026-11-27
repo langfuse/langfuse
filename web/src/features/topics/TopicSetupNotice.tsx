@@ -2,7 +2,7 @@
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { type TopicSetupNoticeState } from "./useTopicSettings";
-import { TopicPilesIllustration } from "./TopicPilesIllustration";
+import { TopicTraceRegrouping } from "./TopicTraceRegrouping";
 
 type TopicSetupNoticeProps = {
   notice: TopicSetupNoticeState;
@@ -48,7 +48,10 @@ export function TopicSetupNotice({
       ) : null}
       {showOnboarding ? (
         <div className="flex flex-1 flex-col items-center-safe justify-center-safe gap-7 overflow-y-auto px-4 pb-24">
-          <TopicPilesIllustration piles={LANDING_PILES} slips={LANDING_SLIPS} />
+          <TopicTraceRegrouping
+            topics={LANDING_TOPICS}
+            traces={LANDING_TRACES}
+          />
           <div className="flex flex-col items-center gap-2 text-center">
             <h2 className="text-3xl leading-tight font-bold tracking-tight text-balance">
               See what your traces are about
@@ -82,15 +85,24 @@ export function TopicSetupNotice({
   );
 }
 
-// Decorative: three example topics, each with one example trace.
-const LANDING_PILES = [
+// Decorative: three example topics, and example traces in the order they came in.
+const LANDING_TOPICS = [
   { name: "Refunds", count: 412 },
   { name: "Order status", count: 154 },
   { name: "Address", count: 96 },
 ] as const;
 
-const LANDING_SLIPS = [
-  { text: "double charge", tone: "error" },
-  { text: "not delivered", tone: "error" },
-  { text: "ship to office", tone: "ok" },
+const LANDING_TRACES = [
+  { topic: 0, text: "double charge" },
+  { topic: 1, text: "where is my order" },
+  { topic: 0, text: "refund please" },
+  { topic: 2, text: "ship to office" },
+  { topic: 0, text: "charged twice" },
+  { topic: 0, text: "money back?" },
+  { topic: 1, text: "order not here" },
+  { topic: 0, text: "refund status" },
+  { topic: 2, text: "new address" },
+  { topic: 0, text: "wrong amount" },
+  { topic: 1, text: "still not shipped" },
+  { topic: 0, text: "cancel + refund" },
 ] as const;
