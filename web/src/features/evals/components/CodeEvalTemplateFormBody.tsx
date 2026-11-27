@@ -419,7 +419,7 @@ export function CodeEvalTemplateFormBody({
       )}
       Format
       <span className="ml-2 hidden md:inline-flex">
-        <KeyboardShortcut size="sm" keys={["Shift", "Alt", "F"]} />
+        <KeyboardShortcut keys={["Shift", "Alt", "F"]} />
       </span>
     </Button>
   );
