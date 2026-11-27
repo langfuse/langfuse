@@ -98,8 +98,8 @@ type StepperProps = {
 );
 
 /**
- * Datadog-style vertical stepper section: a numbered circle with a connector
- * line down to the next step. Collapsible steps toggle their body from the
+ * Datadog-style vertical stepper section: a numbered square with a dotted
+ * connector down to the next step. Collapsible steps toggle their body from the
  * header and support controlled expansion for progressive flows. Render steps
  * as siblings — the last one drops its connector and trailing space via
  * `:last-child`, so adding or reordering steps needs no bookkeeping.
