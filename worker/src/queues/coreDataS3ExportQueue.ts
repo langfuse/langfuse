@@ -731,6 +731,7 @@ export const coreDataTableExports: Array<
             id: true,
             name: true,
             cloudConfig: true,
+            aiFeaturesEnabled: true,
             sfdcOrgId: true,
             aiFeaturesEnabled: true,
             aiTelemetryEnabled: true,
