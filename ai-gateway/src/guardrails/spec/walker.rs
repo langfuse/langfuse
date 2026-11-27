@@ -1,222 +1,26 @@
-//! Where a provider response carries model text, declared per API format as a
-//! tree of [`Node`]s, and the walker that reads a JSON body or SSE frame along it.
-//!
-//! The walker reads borrowed JSON slices and visits only the fields a tree
-//! names, so no response becomes a `serde_json::Value`. [`validate`] runs first
-//! and rejects what the provider and client could read differently, such as
-//! duplicated keys, anywhere in the value.
+//! Reads a JSON value along a [`Node`] tree. It reads borrowed JSON slices and
+//! visits only the fields a tree names, so no value becomes a `serde_json::Value`.
+//! [`validate`] runs first on responses and rejects what the provider and client
+//! could read differently, such as duplicated keys, anywhere in the value.
 
 use std::{borrow::Cow, fmt, ops::Range};
 
 use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor};
 use serde_json::value::RawValue;
 
-use super::{ParseBudget, ResponseParseError, StreamCollector, StreamKey};
-use crate::guardrails::text::{self, Unreadable};
+use super::{Emit, Node, Object, Shape};
+use crate::guardrails::response::{ParseBudget, ResponseParseError, StreamCollector, StreamKey};
+use crate::guardrails::text::{self, TextLeaf, Unreadable};
 
 /// Text parts and tool inputs nest at most this deep below a text field.
 const MAX_TEXT_DEPTH: usize = 32;
 /// Fields of a content part that hold text, in the order they are read.
 const PART_FIELDS: [&str; 3] = ["text", "refusal", "content"];
-/// Stream indices one [`Object`] may declare: a [`StreamKey`] holds two.
-const MAX_INDEX: usize = 2;
-
-/// One value in a response, and how to read the text below it.
-#[derive(Clone, Copy)]
-pub(crate) enum Node {
-    Object(Object),
-    /// Each array item. A `keyed` item's position is a stream index for the text
-    /// below it; a `strict` array fails the read when the value is another type.
-    Items {
-        item: &'static Node,
-        keyed: bool,
-        strict: bool,
-    },
-    Text(Shape, Emit),
-}
-
-/// An object and the fields that lead to text, read in this order. A null field
-/// is absent; a `strict` object fails the read when the value, such as an array
-/// item, is anything else.
-#[derive(Clone, Copy)]
-pub(crate) struct Object {
-    strict: bool,
-    index: &'static [&'static str],
-    fields: &'static [(&'static str, Node)],
-    by: Option<Switch>,
-}
-
-/// More fields of the same object, chosen by the string in its `tag` field.
-#[derive(Clone, Copy)]
-struct Switch {
-    tag: &'static str,
-    cases: &'static [(&'static str, Object)],
-    default: Option<&'static Object>,
-}
-
-/// The JSON a text field may hold.
-#[derive(Clone, Copy)]
-pub(crate) enum Shape {
-    /// A string; other values hold no text.
-    Str,
-    /// A string, or an array of strings and parts with `text`, `refusal` or
-    /// nested `content`. A `strict` field fails the read on any other value.
-    Parts { strict: bool },
-    /// Every string anywhere below, such as a tool's input object.
-    Strings,
-}
-
-/// What a text is to the guardrails.
-#[derive(Clone, Copy)]
-pub(crate) enum Emit {
-    /// One piece of a streamed text, joined with earlier pieces of its stream.
-    Delta(Stream),
-    /// A complete copy of a streamed text, rewritten together with the stream.
-    Summary(Stream),
-    /// A standalone text. A `signable` one is read-only when its object carries
-    /// a non-empty `Signature`, since rewriting it would invalidate the signature.
-    Leaf { json: bool, signable: bool },
-    /// A copy of an earlier text, attached to the block with the same text.
-    Copy,
-    /// A provider signature: when non-empty, makes this object's `signable`
-    /// leaves and its index's streamed thinking read-only.
-    Signature,
-}
-
-/// A streamed text, named by `slot` and the stream indices above it. A `json`
-/// stream holds tool arguments that must stay valid JSON after redaction.
-#[derive(Clone, Copy)]
-pub(crate) struct Stream {
-    slot: &'static str,
-    json: bool,
-}
-
-impl Object {
-    pub(crate) const fn new(fields: &'static [(&'static str, Node)]) -> Self {
-        Self {
-            strict: false,
-            index: &[],
-            fields,
-            by: None,
-        }
-    }
-
-    /// Fails the read when the value is not an object.
-    pub(crate) const fn strict(self) -> Self {
-        Self {
-            strict: true,
-            ..self
-        }
-    }
-
-    /// Reads these integer fields as stream indices for the text below, `0` when absent.
-    pub(crate) const fn indexed(self, index: &'static [&'static str]) -> Self {
-        assert!(index.len() <= MAX_INDEX, "a stream has at most two indices");
-        Self { index, ..self }
-    }
-
-    pub(crate) const fn by(
-        self,
-        tag: &'static str,
-        cases: &'static [(&'static str, Object)],
-        default: Option<&'static Object>,
-    ) -> Self {
-        Self {
-            by: Some(Switch {
-                tag,
-                cases,
-                default,
-            }),
-            ..self
-        }
-    }
-
-    pub(crate) const fn node(self) -> Node {
-        Node::Object(self)
-    }
-}
-
-/// The text of one API format's responses, as a JSON body and as one SSE frame.
-pub(crate) struct ResponseSpec {
-    pub json: Node,
-    pub sse: Node,
-}
-
-pub(crate) const fn each(item: &'static Node) -> Node {
-    Node::Items {
-        item,
-        keyed: false,
-        strict: true,
-    }
-}
-
-/// Each array item, its position a stream index.
-pub(crate) const fn keyed_each(item: &'static Node) -> Node {
-    Node::Items {
-        item,
-        keyed: true,
-        strict: true,
-    }
-}
-
-/// Each array item, its position a stream index; another value is skipped.
-pub(crate) const fn maybe_keyed_each(item: &'static Node) -> Node {
-    Node::Items {
-        item,
-        keyed: true,
-        strict: false,
-    }
-}
-
-pub(crate) const fn text(emit: Emit) -> Node {
-    Node::Text(Shape::Str, emit)
-}
-
-pub(crate) const fn parts(emit: Emit) -> Node {
-    Node::Text(Shape::Parts { strict: false }, emit)
-}
-
-pub(crate) const fn strict_parts(emit: Emit) -> Node {
-    Node::Text(Shape::Parts { strict: true }, emit)
-}
-
-pub(crate) const fn strings(emit: Emit) -> Node {
-    Node::Text(Shape::Strings, emit)
-}
-
-pub(crate) const LEAF: Emit = Emit::Leaf {
-    json: false,
-    signable: false,
-};
-pub(crate) const JSON_LEAF: Emit = Emit::Leaf {
-    json: true,
-    signable: false,
-};
-pub(crate) const SIGNED_LEAF: Emit = Emit::Leaf {
-    json: false,
-    signable: true,
-};
-
-pub(crate) const fn delta(slot: &'static str) -> Emit {
-    Emit::Delta(Stream { slot, json: false })
-}
-
-pub(crate) const fn json_delta(slot: &'static str) -> Emit {
-    Emit::Delta(Stream { slot, json: true })
-}
-
-pub(crate) const fn summary(slot: &'static str) -> Emit {
-    Emit::Summary(Stream { slot, json: false })
-}
-
-pub(crate) const fn json_summary(slot: &'static str) -> Emit {
-    Emit::Summary(Stream { slot, json: true })
-}
 
 /// Reads the text along `node` from the JSON `payload` into `collector`.
 /// `payload` is the body spans `data` joined by line breaks, as SSE `data`
 /// lines are; each text is recorded with the body span of its JSON string.
-pub(super) fn read(
+pub(in crate::guardrails) fn read(
     node: &Node,
     payload: &str,
     data: &[Range<usize>],
@@ -227,7 +31,7 @@ pub(super) fn read(
     Walker {
         payload,
         data,
-        collector,
+        out: Out::Blocks(collector),
         budget,
         index: Vec::new(),
         entries: Vec::new(),
@@ -236,10 +40,40 @@ pub(super) fn read(
     .read_node(node, json)
 }
 
+/// Reads the text along `node` from the request member `raw` into `sink`. A
+/// field the tree reads that appears twice is unreadable, since the provider
+/// could read either copy; requests are not validated as a whole first.
+pub(in crate::guardrails) fn read_leaves(
+    node: &Node,
+    raw: &str,
+    sink: &mut dyn FnMut(TextLeaf<'_>),
+) -> Result<(), Unreadable> {
+    let mut budget = ParseBudget::new(None).map_err(|_| Unreadable)?;
+    let whole = 0..raw.len();
+    Walker {
+        payload: raw,
+        data: std::slice::from_ref(&whole),
+        out: Out::Leaves(sink),
+        budget: &mut budget,
+        index: Vec::new(),
+        entries: Vec::new(),
+        signed: false,
+    }
+    .read_node(node, raw)
+}
+
+/// Where the text a walk finds goes.
+enum Out<'c> {
+    /// Response blocks, streamed text joined by its stream.
+    Blocks(&'c mut StreamCollector),
+    /// Request text, each leaf with its raw JSON string.
+    Leaves(&'c mut dyn FnMut(TextLeaf<'_>)),
+}
+
 struct Walker<'c, 'a> {
     payload: &'a str,
     data: &'c [Range<usize>],
-    collector: &'c mut StreamCollector,
+    out: Out<'c>,
     budget: &'c mut ParseBudget,
     index: Vec<u64>,
     /// Members of the objects being read, innermost last.
@@ -251,9 +85,11 @@ struct Walker<'c, 'a> {
 impl<'a> Walker<'_, 'a> {
     fn read_node(&mut self, node: &Node, raw: &'a str) -> Result<(), Unreadable> {
         match *node {
-            Node::Object(object) if raw.starts_with('{') => {
-                self.read_object(raw, |walker, start| walker.read_members(&object, start))
-            }
+            Node::Object(object) if raw.starts_with('{') => self.read_object(
+                raw,
+                |key| wants(&object, key),
+                |walker, start| walker.read_members(&object, start),
+            ),
             Node::Object(object) => mismatch(object.strict),
             Node::Items {
                 item,
@@ -274,20 +110,50 @@ impl<'a> Walker<'_, 'a> {
                     read
                 })
             }
+            Node::OneOf(nodes) => {
+                for node in nodes {
+                    self.read_node(node, raw)?;
+                }
+                Ok(())
+            }
+            Node::Values(item) if raw.starts_with('{') => {
+                text::for_each_value(raw, |value| self.read_node(item, value.get()))
+            }
+            Node::Values(_) => Ok(()),
             Node::Text(shape, emit) => self.read_text(shape, emit, raw),
         }
     }
 
     /// Puts the members of the object `raw` on `entries` while `read` reads
-    /// them, from the start it is given.
+    /// them, from the start it is given. A request keeps only the `wanted`
+    /// members and fails on a duplicated one; a response was validated whole.
     fn read_object(
         &mut self,
         raw: &'a str,
+        wanted: impl Fn(&str) -> bool,
         read: impl FnOnce(&mut Self, usize) -> Result<(), Unreadable>,
     ) -> Result<(), Unreadable> {
         let start = self.entries.len();
+        let request = matches!(self.out, Out::Leaves(_));
+        let mut duplicated = false;
         let entries = &mut self.entries;
-        for_each_entry(raw, self.budget, |key, value| entries.push((key, value)))?;
+        for_each_entry(raw, self.budget, |key, value| {
+            if !request {
+                entries.push((key, value));
+            } else if !duplicated && wanted(&key) {
+                // Each read member is kept at most once, so a repeated one cannot grow `entries`.
+                duplicated = entries
+                    .get(start..)
+                    .is_some_and(|kept| kept.iter().any(|(kept, _)| *kept == key));
+                if !duplicated {
+                    entries.push((key, value));
+                }
+            }
+        })?;
+        if duplicated {
+            self.entries.truncate(start);
+            return Err(Unreadable);
+        }
         self.charge((self.entries.len() - start) * size_of::<(Cow<'_, str>, &str)>())?;
         let result = read(self, start);
         self.entries.truncate(start);
@@ -359,7 +225,7 @@ impl<'a> Walker<'_, 'a> {
             self.charge(owned.capacity())?;
         }
         let span = self.span(raw).ok_or(Unreadable)?;
-        self.emit(emit, span, &text);
+        self.emit(emit, raw, span, &text);
         Ok(())
     }
 
@@ -391,14 +257,18 @@ impl<'a> Walker<'_, 'a> {
             if !item.starts_with('{') {
                 return walker.read_string(emit, item);
             }
-            walker.read_object(item, |walker, start| {
-                for name in PART_FIELDS {
-                    if let Some(field) = walker.member(start, name) {
-                        walker.read_parts(emit, field, depth + 1)?;
+            walker.read_object(
+                item,
+                |key| PART_FIELDS.contains(&key),
+                |walker, start| {
+                    for name in PART_FIELDS {
+                        if let Some(field) = walker.member(start, name) {
+                            walker.read_parts(emit, field, depth + 1)?;
+                        }
                     }
-                }
-                Ok(())
-            })
+                    Ok(())
+                },
+            )
         })
     }
 
@@ -412,18 +282,22 @@ impl<'a> Walker<'_, 'a> {
             Some(b'[') => self.read_items(raw, |walker, _, item| {
                 walker.read_strings(emit, item, depth + 1)
             }),
-            Some(b'{') => self.read_object(raw, |walker, start| {
-                if let Some(members) = walker.entries.get_mut(start..) {
-                    members.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
-                }
-                for at in start..walker.entries.len() {
-                    let Some(&(_, value)) = walker.entries.get(at) else {
-                        break;
-                    };
-                    walker.read_strings(emit, value, depth + 1)?;
-                }
-                Ok(())
-            }),
+            Some(b'{') => self.read_object(
+                raw,
+                |_| true,
+                |walker, start| {
+                    if let Some(members) = walker.entries.get_mut(start..) {
+                        members.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
+                    }
+                    for at in start..walker.entries.len() {
+                        let Some(&(_, value)) = walker.entries.get(at) else {
+                            break;
+                        };
+                        walker.read_strings(emit, value, depth + 1)?;
+                    }
+                    Ok(())
+                },
+            ),
             _ => Ok(()),
         }
     }
@@ -441,7 +315,14 @@ impl<'a> Walker<'_, 'a> {
         })
     }
 
-    fn emit(&mut self, emit: Emit, span: Range<usize>, text: &str) {
+    fn emit(&mut self, emit: Emit, raw: &str, span: Range<usize>, text: &str) {
+        let collector = match &mut self.out {
+            Out::Blocks(collector) => collector,
+            Out::Leaves(sink) => {
+                sink(TextLeaf { raw, text });
+                return;
+            }
+        };
         let key = |slot| StreamKey {
             slot,
             index: [
@@ -451,23 +332,20 @@ impl<'a> Walker<'_, 'a> {
         };
         match emit {
             Emit::Delta(stream) => {
-                self.collector
-                    .push_delta(key(stream.slot), stream.json, span, text);
+                collector.push_delta(key(stream.slot), stream.json, span, text);
             }
             Emit::Summary(stream) => {
-                self.collector
-                    .push_summary(key(stream.slot), stream.json, span, text);
+                collector.push_summary(key(stream.slot), stream.json, span, text);
             }
             Emit::Leaf { json, signable } => {
                 let editable = !(signable && self.signed);
-                self.collector.push_leaf(span, text, json, editable);
+                collector.push_leaf(span, text, json, editable);
             }
-            Emit::Copy => self.collector.attach_or_push_leaf(span, text),
+            Emit::Copy => collector.attach_or_push_leaf(span, text),
             Emit::Signature => {
                 if !text.is_empty() {
                     self.signed = true;
-                    self.collector
-                        .mark_signed_thinking(self.index.first().copied().unwrap_or(0));
+                    collector.mark_signed_thinking(self.index.first().copied().unwrap_or(0));
                 }
             }
         }
@@ -478,6 +356,17 @@ impl<'a> Walker<'_, 'a> {
     }
 }
 
+/// Whether `object` or one of its cases reads member `key`.
+fn wants(object: &Object, key: &str) -> bool {
+    object.fields.iter().any(|(name, _)| *name == key)
+        || object.index.contains(&key)
+        || object.by.is_some_and(|by| {
+            by.tag == key
+                || by.cases.iter().any(|(_, case)| wants(case, key))
+                || by.default.is_some_and(|default| wants(default, key))
+        })
+}
+
 /// A value of the wrong type is skipped, or fails a `strict` read.
 fn mismatch(strict: bool) -> Result<(), Unreadable> {
     if strict { Err(Unreadable) } else { Ok(()) }
@@ -485,7 +374,10 @@ fn mismatch(strict: bool) -> Result<(), Unreadable> {
 
 /// Checks that `bytes` is one JSON value with no duplicated key in any object,
 /// only finite numbers, and only strings a Rust string can hold.
-pub(super) fn validate(bytes: &[u8], budget: &mut ParseBudget) -> Result<(), ResponseParseError> {
+pub(in crate::guardrails) fn validate(
+    bytes: &[u8],
+    budget: &mut ParseBudget,
+) -> Result<(), ResponseParseError> {
     struct Unique<'b, 'de> {
         budget: &'b mut ParseBudget,
         /// Keys of the objects being read, innermost last.
@@ -657,68 +549,5 @@ impl<'de> Visitor<'de> for Key {
     }
     fn visit_string<E>(self, v: String) -> Result<Self::Value, E> {
         Ok(Cow::Owned(v))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use axum::body::Bytes;
-
-    use super::*;
-    use crate::guardrails::response::{Body, RedactionApply, parse_sse};
-
-    const BEFORE: Node = Object::new(&[(
-        "delta",
-        Object::new(&[("text", text(delta("text")))]).node(),
-    )])
-    .node();
-    /// `BEFORE` with one more declared key: the whole change a new provider field needs.
-    const AFTER: Node = Object::new(&[(
-        "delta",
-        Object::new(&[
-            ("text", text(delta("text"))),
-            ("transcript", text(delta("transcript"))),
-        ])
-        .node(),
-    )])
-    .node();
-
-    #[test]
-    fn a_declared_key_is_scanned_and_redacted_in_every_frame() {
-        let sse = concat!(
-            "data: {\"delta\":{\"text\":\"hi\",\"transcript\":\"SSN 123-\"}}\n\n",
-            "data: {\"delta\":{\"transcript\":\"45-6789\"}}\n\n",
-        );
-        let parse = |node| {
-            parse_sse(
-                node,
-                Body::new(vec![Bytes::from_static(sse.as_bytes())]),
-                None,
-            )
-            .unwrap()
-        };
-        let texts = |node| {
-            parse(node)
-                .blocks
-                .iter()
-                .map(|block| block.text.clone())
-                .collect::<Vec<_>>()
-        };
-
-        assert_eq!(texts(&BEFORE), ["hi"]);
-        assert_eq!(texts(&AFTER), ["hi", "SSN 123-45-6789"]);
-        let RedactionApply::Rewritten(rewritten) = parse(&AFTER)
-            .apply_redactions(&[(1, "SSN [SSN]".to_owned())], None)
-            .unwrap()
-        else {
-            panic!("the new key's stream is rewritten");
-        };
-        assert_eq!(
-            rewritten,
-            concat!(
-                "data: {\"delta\":{\"text\":\"hi\",\"transcript\":\"SSN [SSN]\"}}\n\n",
-                "data: {\"delta\":{\"transcript\":\"\"}}\n\n",
-            )
-        );
     }
 }

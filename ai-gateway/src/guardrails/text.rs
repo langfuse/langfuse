@@ -1,7 +1,5 @@
-//! Reading text out of the shapes API formats share: a string, or an array of
-//! strings and parts whose `text` is a string. Tool results nest their own content.
-//! Arrays are walked item by item and each text goes straight to a sink, so a
-//! body of millions of short strings allocates nothing per string.
+//! Finding a request's last turn, and reading its text along the format's
+//! [`spec`](super::spec) trees.
 use std::{borrow::Cow, fmt, marker::PhantomData};
 
 use serde::{
@@ -10,9 +8,7 @@ use serde::{
 };
 use serde_json::value::RawValue;
 
-/// Tool results nest content once (Anthropic `tool_result` blocks); deeper nesting
-/// is not a shape any format defines.
-const MAX_NESTING: usize = 2;
+use super::spec::{CONTENT, Node, walker::read_leaves};
 
 /// A member the gateway cannot read the way a provider might, such as an object
 /// with a duplicated field. Guardrails treat it as matching, since the provider
@@ -26,113 +22,6 @@ pub(crate) struct Unreadable;
 pub(crate) struct TextLeaf<'a> {
     pub raw: &'a str,
     pub text: &'a str,
-}
-
-#[derive(Deserialize)]
-struct Part<'a> {
-    #[serde(borrow, default)]
-    text: Option<&'a RawValue>,
-    #[serde(borrow, default)]
-    content: Option<&'a RawValue>,
-    /// Anthropic `document` blocks carry plain text in their source.
-    #[serde(borrow, default)]
-    source: Option<&'a RawValue>,
-}
-
-/// A document source: plain text in `data` (`type: "text"`) or content blocks in
-/// `content` (`type: "content"`). Base64 and URL sources hold no text to scan.
-#[derive(Deserialize)]
-struct Source<'a> {
-    #[serde(borrow, default, rename = "type")]
-    kind: Option<&'a RawValue>,
-    #[serde(borrow, default)]
-    data: Option<&'a RawValue>,
-    #[serde(borrow, default)]
-    content: Option<&'a RawValue>,
-}
-
-/// Sends the text in `raw` to `sink`; skips images, files and other non-text
-/// parts without copying them. Values in other shapes hold no text: the provider
-/// rejects a request it cannot read.
-pub(crate) fn collect(
-    raw: &RawValue,
-    sink: &mut dyn FnMut(TextLeaf<'_>),
-) -> Result<(), Unreadable> {
-    collect_nested(raw, sink, 0)
-}
-
-/// Sends the text of one content part to `sink`.
-pub(crate) fn collect_part(
-    raw: &RawValue,
-    sink: &mut dyn FnMut(TextLeaf<'_>),
-) -> Result<(), Unreadable> {
-    collect_part_nested(raw, sink, 0)
-}
-
-fn collect_nested(
-    raw: &RawValue,
-    sink: &mut dyn FnMut(TextLeaf<'_>),
-    depth: usize,
-) -> Result<(), Unreadable> {
-    match raw.get().as_bytes().first() {
-        Some(b'"') => collect_string(raw, sink),
-        Some(b'[') if depth <= MAX_NESTING => for_each(raw.get(), |item: &RawValue| {
-            match item.get().as_bytes().first() {
-                Some(b'"') => collect_string(item, sink),
-                Some(b'{') => collect_part_nested(item, sink, depth),
-                _ => Ok(()),
-            }
-        }),
-        _ => Ok(()),
-    }
-}
-
-/// A part's `text`, the text of a document source, and nested tool-result content.
-fn collect_part_nested(
-    raw: &RawValue,
-    sink: &mut dyn FnMut(TextLeaf<'_>),
-    depth: usize,
-) -> Result<(), Unreadable> {
-    let part: Part<'_> = serde_json::from_str(raw.get()).map_err(|_| Unreadable)?;
-    if let Some(text) = part.text {
-        collect_string(text, sink)?;
-    }
-    if let Some(source) = part.source.filter(|source| source.get().starts_with('{')) {
-        collect_source(source, sink, depth)?;
-    }
-    part.content
-        .map_or(Ok(()), |content| collect_nested(content, sink, depth + 1))
-}
-
-fn collect_source(
-    raw: &RawValue,
-    sink: &mut dyn FnMut(TextLeaf<'_>),
-    depth: usize,
-) -> Result<(), Unreadable> {
-    let source: Source<'_> = serde_json::from_str(raw.get()).map_err(|_| Unreadable)?;
-    match source.kind.and_then(string).as_deref() {
-        Some("text") => source
-            .data
-            .map_or(Ok(()), |data| collect_string(data, sink)),
-        Some("content") => source
-            .content
-            .map_or(Ok(()), |content| collect_nested(content, sink, depth + 1)),
-        _ => Ok(()),
-    }
-}
-
-/// Sends a JSON string to `sink`; other values hold no text. A string a Rust
-/// string cannot hold, such as one with a lone surrogate escape, is unreadable.
-fn collect_string(raw: &RawValue, sink: &mut dyn FnMut(TextLeaf<'_>)) -> Result<(), Unreadable> {
-    if !raw.get().starts_with('"') {
-        return Ok(());
-    }
-    let decoded = string(raw).ok_or(Unreadable)?;
-    sink(TextLeaf {
-        raw: raw.get(),
-        text: &decoded,
-    });
-    Ok(())
 }
 
 /// Calls `visit` with each value of the JSON object `raw`, duplicated keys included.
@@ -197,13 +86,15 @@ pub(crate) fn for_each<'a, T: Deserialize<'a>>(
 struct RoleMessage<'a> {
     #[serde(borrow, default)]
     role: Option<&'a RawValue>,
-    #[serde(borrow, default)]
-    content: Option<&'a RawValue>,
+    /// Read by [`super::spec::ROLE_MESSAGE`]; declared so that a duplicated
+    /// `content` makes the conversation unreadable even where it is not read.
+    #[serde(borrow, default, rename = "content")]
+    _content: Option<&'a RawValue>,
 }
 
 /// An `assistant` message is the model's; every other role is a caller message.
 pub(crate) fn classify_role_message(item: &RawValue) -> Result<TurnItem, Unreadable> {
-    let message: RoleMessage<'_> = serde_json::from_str(item.get()).map_err(|_| Unreadable)?;
+    let message = object_item::<RoleMessage<'_>>(item)?;
     Ok(
         if message.role.and_then(string).as_deref() == Some("assistant") {
             TurnItem::Model
@@ -213,14 +104,14 @@ pub(crate) fn classify_role_message(item: &RawValue) -> Result<TurnItem, Unreada
     )
 }
 
-pub(crate) fn read_role_message(
-    item: &RawValue,
-    sink: &mut dyn FnMut(TextLeaf<'_>),
-) -> Result<(), Unreadable> {
-    let message: RoleMessage<'_> = serde_json::from_str(item.get()).map_err(|_| Unreadable)?;
-    message
-        .content
-        .map_or(Ok(()), |content| collect(content, sink))
+/// A conversation item, which is an object. Serde would also read an array into
+/// the struct positionally, as text the spec trees never scan, so any other value
+/// is unreadable.
+pub(crate) fn object_item<'a, T: Deserialize<'a>>(item: &'a RawValue) -> Result<T, Unreadable> {
+    if !item.get().starts_with('{') {
+        return Err(Unreadable);
+    }
+    serde_json::from_str(item.get()).map_err(|_| Unreadable)
 }
 
 /// Who produced a conversation item.
@@ -236,44 +127,6 @@ pub(crate) enum TurnItem {
 
 /// Tells who produced one conversation item.
 pub(crate) type ClassifyItem = fn(&RawValue) -> Result<TurnItem, Unreadable>;
-
-/// Reads the text leaves of one conversation item.
-pub(crate) type ReadItem = fn(&RawValue, &mut dyn FnMut(TextLeaf<'_>)) -> Result<(), Unreadable>;
-
-/// Where a request in one API format carries the conversation guardrails scan.
-pub(crate) struct RequestSpec {
-    /// The top-level members the request parse locates; reading any other is
-    /// unreadable.
-    pub members: &'static [&'static str],
-    /// Finds the last turn among `members`.
-    pub last_turn: fn(&Members<'_, '_>) -> Result<LastTurn, Unreadable>,
-}
-
-/// A request's top-level members, by name.
-pub(crate) struct Members<'f, 'a> {
-    declared: &'static [&'static str],
-    find: &'f dyn Fn(&str) -> Option<&'a str>,
-}
-
-impl<'f, 'a> Members<'f, 'a> {
-    pub(crate) fn new(
-        declared: &'static [&'static str],
-        find: &'f dyn Fn(&str) -> Option<&'a str>,
-    ) -> Self {
-        Self { declared, find }
-    }
-
-    /// The JSON of member `name`, if the request has it. A member its format
-    /// does not declare is unreadable: the request parse never located it, so
-    /// it would read as absent and its text would go unscanned.
-    pub(crate) fn get(&self, name: &str) -> Result<Option<&'a str>, Unreadable> {
-        if self.declared.contains(&name) {
-            Ok((self.find)(name))
-        } else {
-            Err(Unreadable)
-        }
-    }
-}
 
 /// Where a request's last turn and full input sit: whole members, and
 /// conversation items from an offset on. Finding it reads the conversation's
@@ -292,7 +145,7 @@ enum TurnPart {
     /// top-level prompts (`system` / `instructions`) after the first turn.
     Member {
         member: &'static str,
-        read: ReadItem,
+        read: &'static Node,
         in_last_turn: bool,
     },
     /// The items of a member's array: `first` starts the entire array, while
@@ -305,7 +158,7 @@ enum TurnPart {
         start: usize,
         tail: usize,
         classify: ClassifyItem,
-        read: ReadItem,
+        read: &'static Node,
     },
 }
 
@@ -326,7 +179,7 @@ impl LastTurn {
 
     /// Adds all of member `name`, whose JSON is `raw`, as part of the last turn.
     pub(crate) fn push_member(&mut self, name: &'static str, raw: &str) {
-        self.push_member_with(name, raw, collect);
+        self.push_member_with(name, raw, &CONTENT);
     }
 
     /// Adds all of member `name`, whose JSON is `raw`, as earlier-turn input
@@ -334,14 +187,14 @@ impl LastTurn {
     pub(crate) fn push_earlier_member(&mut self, name: &'static str, raw: &str) {
         self.parts.push(TurnPart::Member {
             member: name,
-            read: collect,
+            read: &CONTENT,
             in_last_turn: false,
         });
         self.entire_bytes += raw.len();
     }
 
     /// Adds member `name`, whose JSON is `raw`, read by `read`.
-    pub(crate) fn push_member_with(&mut self, name: &'static str, raw: &str, read: ReadItem) {
+    pub(crate) fn push_member_with(&mut self, name: &'static str, raw: &str, read: &'static Node) {
         self.parts.push(TurnPart::Member {
             member: name,
             read,
@@ -363,7 +216,7 @@ impl LastTurn {
         name: &'static str,
         raw: &str,
         classify: ClassifyItem,
-        read: ReadItem,
+        read: &'static Node,
     ) -> Result<bool, Unreadable> {
         let mut first = None;
         let mut start = None;
@@ -414,7 +267,7 @@ impl LastTurn {
     /// Returning `false` from `sink` stops walking early.
     pub(crate) fn read_scoped_leaves(
         &self,
-        members: &Members<'_, '_>,
+        members: &crate::guardrails::spec::Members<'_, '_>,
         include_entire_input: bool,
         sink: &mut dyn FnMut(TextLeaf<'_>, bool) -> bool,
     ) -> Result<(), Unreadable> {
@@ -435,8 +288,7 @@ impl LastTurn {
                     let Some(raw) = members.get(name)? else {
                         continue;
                     };
-                    let raw: &RawValue = serde_json::from_str(raw).map_err(|_| Unreadable)?;
-                    read(raw, &mut |leaf| {
+                    read_leaves(read, raw, &mut |leaf| {
                         if keep_going {
                             keep_going = sink(leaf, in_last_turn);
                         }
@@ -466,7 +318,7 @@ impl LastTurn {
                         let in_last_turn = offset >= start
                             && (offset >= tail || classify(item)? != TurnItem::Model);
                         if include_entire_input || in_last_turn {
-                            read(item, &mut |leaf| {
+                            read_leaves(read, item.get(), &mut |leaf| {
                                 if keep_going {
                                     keep_going = sink(leaf, in_last_turn);
                                 }
@@ -487,7 +339,7 @@ impl LastTurn {
     #[cfg(test)]
     pub(crate) fn read_leaves(
         &self,
-        members: &Members<'_, '_>,
+        members: &crate::guardrails::spec::Members<'_, '_>,
         sink: &mut dyn FnMut(TextLeaf<'_>),
     ) -> Result<(), Unreadable> {
         self.read_scoped_leaves(members, false, &mut |leaf, _| {
@@ -499,7 +351,7 @@ impl LastTurn {
     #[cfg(test)]
     pub(crate) fn read(
         &self,
-        members: &Members<'_, '_>,
+        members: &crate::guardrails::spec::Members<'_, '_>,
         sink: &mut dyn FnMut(&str),
     ) -> Result<(), Unreadable> {
         self.read_leaves(members, &mut |leaf| sink(leaf.text))
@@ -519,9 +371,8 @@ mod tests {
     use super::*;
 
     fn texts(json: &str) -> Result<Vec<String>, Unreadable> {
-        let raw: &RawValue = serde_json::from_str(json).unwrap();
         let mut texts = Vec::new();
-        collect(raw, &mut |leaf| texts.push(leaf.text.to_owned()))?;
+        read_leaves(&CONTENT, json, &mut |leaf| texts.push(leaf.text.to_owned()))?;
         Ok(texts)
     }
 
@@ -560,10 +411,6 @@ mod tests {
         );
     }
 
-    fn read_role(item: &RawValue, sink: &mut dyn FnMut(TextLeaf<'_>)) -> Result<(), Unreadable> {
-        collect(item, sink)
-    }
-
     fn classify_role(item: &RawValue) -> Result<TurnItem, Unreadable> {
         let role: &str = serde_json::from_str(item.get()).map_err(|_| Unreadable)?;
         Ok(match role {
@@ -575,12 +422,15 @@ mod tests {
 
     fn turn(raw: &str) -> (Vec<String>, usize) {
         let mut turn = LastTurn::default();
-        turn.push_items("messages", raw, classify_role, read_role)
+        turn.push_items("messages", raw, classify_role, &CONTENT)
             .unwrap();
         let mut roles = Vec::new();
-        turn.read(&Members::new(&["messages"], &|_| Some(raw)), &mut |role| {
-            roles.push(role.to_owned());
-        })
+        turn.read(
+            &crate::guardrails::spec::Members::new(&["messages"], &|_| Some(raw)),
+            &mut |role| {
+                roles.push(role.to_owned());
+            },
+        )
         .unwrap();
         (roles, turn.bytes())
     }

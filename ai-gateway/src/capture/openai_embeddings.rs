@@ -286,14 +286,14 @@ fn dimensions(item: &[u8]) -> Option<usize> {
 /// is scanned. Token-id inputs hold no text.
 /// The top-level members guardrails scan.
 /// Where Embeddings requests carry the conversation guardrails scan.
-pub(super) const REQUEST: crate::guardrails::text::RequestSpec =
-    crate::guardrails::text::RequestSpec {
+pub(super) const REQUEST: crate::guardrails::spec::RequestSpec =
+    crate::guardrails::spec::RequestSpec {
         members: &["input"],
         last_turn: guardrail_turn,
     };
 
 pub(super) fn guardrail_turn(
-    members: &crate::guardrails::text::Members<'_, '_>,
+    members: &crate::guardrails::spec::Members<'_, '_>,
 ) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
     let mut turn = crate::guardrails::text::LastTurn::default();
     if let Some(input) = members.get("input")? {

@@ -8,7 +8,7 @@ use axum::http::HeaderMap;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
-use crate::guardrails::response::spec::{
+use crate::guardrails::spec::{
     Emit, JSON_LEAF, LEAF, Node, Object, ResponseSpec, delta, each, json_delta, json_summary,
     keyed_each, maybe_keyed_each, parts, summary, text,
 };
@@ -320,8 +320,8 @@ impl OpenAiResponsesCapture {
 /// `previous_response_id` and `conversation` are only read to tell whether earlier
 /// turns are stored upstream; `prompt` for the variables it fills a stored prompt with.
 /// Where Responses API requests carry the conversation guardrails scan.
-pub(super) const REQUEST: crate::guardrails::text::RequestSpec =
-    crate::guardrails::text::RequestSpec {
+pub(super) const REQUEST: crate::guardrails::spec::RequestSpec =
+    crate::guardrails::spec::RequestSpec {
         members: &[
             "input",
             "instructions",
@@ -338,11 +338,13 @@ struct GuardrailItem<'a> {
     kind: Option<&'a serde_json::value::RawValue>,
     #[serde(borrow, default)]
     role: Option<&'a serde_json::value::RawValue>,
-    #[serde(borrow, default)]
-    content: Option<&'a serde_json::value::RawValue>,
-    /// The result of a tool call, in `*_call_output` items.
-    #[serde(borrow, default)]
-    output: Option<&'a serde_json::value::RawValue>,
+    /// `content` and `output` (a tool call's result) are read by `GUARDRAIL_ITEM`;
+    /// declared so that a duplicate makes the input unreadable even where it is
+    /// not read.
+    #[serde(borrow, default, rename = "content")]
+    _content: Option<&'a serde_json::value::RawValue>,
+    #[serde(borrow, default, rename = "output")]
+    _output: Option<&'a serde_json::value::RawValue>,
 }
 
 impl GuardrailItem<'_> {
@@ -370,18 +372,17 @@ impl GuardrailItem<'_> {
 fn classify_guardrail_item(
     item: &serde_json::value::RawValue,
 ) -> Result<crate::guardrails::text::TurnItem, crate::guardrails::text::Unreadable> {
-    let item: GuardrailItem<'_> =
-        serde_json::from_str(item.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
+    let item: GuardrailItem<'_> = crate::guardrails::text::object_item(item)?;
     Ok(item.turn_item())
 }
 
 pub(super) fn guardrail_turn(
-    members: &crate::guardrails::text::Members<'_, '_>,
+    members: &crate::guardrails::spec::Members<'_, '_>,
 ) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
     let mut turn = crate::guardrails::text::LastTurn::default();
     let had_model_item = match members.get("input")? {
         Some(items) if items.starts_with('[') => {
-            turn.push_items("input", items, classify_guardrail_item, read_guardrail_item)?
+            turn.push_items("input", items, classify_guardrail_item, &GUARDRAIL_ITEM)?
         }
         Some(input) => {
             turn.push_member("input", input);
@@ -407,50 +408,28 @@ pub(super) fn guardrail_turn(
         .get("prompt")?
         .filter(|prompt| prompt.starts_with('{'))
     {
-        turn.push_member_with("prompt", prompt, read_guardrail_prompt);
+        turn.push_member_with("prompt", prompt, &GUARDRAIL_PROMPT);
     }
     Ok(turn)
 }
 
-#[derive(serde::Deserialize)]
-struct GuardrailPrompt<'a> {
-    #[serde(borrow, default)]
-    variables: Option<&'a serde_json::value::RawValue>,
-}
+/// A conversation item's text: a message's `content`, a tool output's `output`.
+const GUARDRAIL_ITEM: Node = Object::new(&[
+    ("content", crate::guardrails::spec::CONTENT),
+    ("output", crate::guardrails::spec::CONTENT),
+])
+.node();
 
-/// Variable values are strings or input parts.
-fn read_guardrail_prompt(
-    prompt: &serde_json::value::RawValue,
-    sink: &mut dyn FnMut(crate::guardrails::text::TextLeaf<'_>),
-) -> Result<(), crate::guardrails::text::Unreadable> {
-    let prompt: GuardrailPrompt<'_> =
-        serde_json::from_str(prompt.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
-    let Some(variables) = prompt
-        .variables
-        .filter(|variables| variables.get().starts_with('{'))
-    else {
-        return Ok(());
-    };
-    crate::guardrails::text::for_each_value(variables.get(), |value| {
-        if value.get().starts_with('{') {
-            crate::guardrails::text::collect_part(value, sink)
-        } else {
-            crate::guardrails::text::collect(value, sink)
-        }
-    })
-}
-
-fn read_guardrail_item(
-    item: &serde_json::value::RawValue,
-    sink: &mut dyn FnMut(crate::guardrails::text::TextLeaf<'_>),
-) -> Result<(), crate::guardrails::text::Unreadable> {
-    let item: GuardrailItem<'_> =
-        serde_json::from_str(item.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
-    for value in [item.content, item.output].into_iter().flatten() {
-        crate::guardrails::text::collect(value, sink)?;
-    }
-    Ok(())
-}
+/// A stored prompt's variables, which fill it with new caller text on every
+/// request: each a string, or input parts.
+const GUARDRAIL_PROMPT: Node = Object::new(&[(
+    "variables",
+    Node::Values(&Node::OneOf(&[
+        crate::guardrails::spec::PART,
+        crate::guardrails::spec::CONTENT,
+    ])),
+)])
+.node();
 
 /// Where Responses API responses carry model text.
 pub(super) const RESPONSE: ResponseSpec = ResponseSpec {

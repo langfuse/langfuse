@@ -8,7 +8,7 @@ use axum::http::HeaderMap;
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
 
-use crate::guardrails::response::spec::{
+use crate::guardrails::spec::{
     JSON_LEAF, LEAF, Node, Object, ResponseSpec, delta, each, json_delta, parts, strict_parts, text,
 };
 
@@ -503,14 +503,14 @@ impl OpenAiChatCompletionsCapture {
 /// them ends their turn.
 /// The top-level members guardrails scan.
 /// Where Chat Completions requests carry the conversation guardrails scan.
-pub(super) const REQUEST: crate::guardrails::text::RequestSpec =
-    crate::guardrails::text::RequestSpec {
+pub(super) const REQUEST: crate::guardrails::spec::RequestSpec =
+    crate::guardrails::spec::RequestSpec {
         members: &["messages"],
         last_turn: guardrail_turn,
     };
 
 pub(super) fn guardrail_turn(
-    members: &crate::guardrails::text::Members<'_, '_>,
+    members: &crate::guardrails::spec::Members<'_, '_>,
 ) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
     let mut turn = crate::guardrails::text::LastTurn::default();
     if let Some(messages) = members.get("messages")? {
@@ -518,7 +518,7 @@ pub(super) fn guardrail_turn(
             "messages",
             messages,
             crate::guardrails::text::classify_role_message,
-            crate::guardrails::text::read_role_message,
+            &crate::guardrails::spec::ROLE_MESSAGE,
         )?;
     }
     Ok(turn)

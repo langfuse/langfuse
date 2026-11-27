@@ -172,7 +172,7 @@ impl ProtocolCapture {
 }
 
 /// Where requests in `api_format` carry the conversation, for input guardrails.
-pub(crate) fn request_spec(api_format: ApiFormat) -> &'static crate::guardrails::text::RequestSpec {
+pub(crate) fn request_spec(api_format: ApiFormat) -> &'static crate::guardrails::spec::RequestSpec {
     match api_format {
         ApiFormat::OpenAiChatCompletions => &openai_chat_completions::REQUEST,
         ApiFormat::OpenAiResponses => &openai_responses::REQUEST,
@@ -185,7 +185,7 @@ pub(crate) fn request_spec(api_format: ApiFormat) -> &'static crate::guardrails:
 /// Where an API format's responses carry model text, for output guardrails.
 pub(crate) fn response_spec(
     api_format: ApiFormat,
-) -> Option<&'static crate::guardrails::response::spec::ResponseSpec> {
+) -> Option<&'static crate::guardrails::spec::ResponseSpec> {
     match api_format {
         ApiFormat::OpenAiChatCompletions => Some(&openai_chat_completions::RESPONSE),
         ApiFormat::AnthropicMessages => Some(&anthropic_messages::RESPONSE),

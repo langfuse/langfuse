@@ -1155,7 +1155,7 @@ fn guardrail_scan_members(members: &[(&str, &str)]) -> Vec<String> {
             .find(|(member, _)| *member == name)
             .map(|(_, value)| *value)
     };
-    let members = crate::guardrails::text::Members::new(REQUEST.members, &member);
+    let members = crate::guardrails::spec::Members::new(REQUEST.members, &member);
     guardrail_turn(&members)
         .unwrap()
         .read(&members, &mut |text: &str| texts.push(text.to_owned()))

@@ -82,7 +82,9 @@ fn scanned(body: &str, members: &'static [&'static str]) -> ScannedMembers {
         serde_json::from_str(body).unwrap();
     let mut scanned = ScannedMembers::new(members);
     for name in members {
-        let value = parsed[name].get();
+        let Some(value) = parsed.get(name).map(|value| value.get()) else {
+            continue;
+        };
         let start = value.as_ptr().addr() - body.as_ptr().addr();
         scanned.push(name, start..start + value.len());
     }
@@ -105,6 +107,28 @@ fn every_format_reads_only_the_request_members_it_declares() {
             "{api_format:?} reads a member it does not declare"
         );
         assert!(Members::new(spec.members, &find).get("undeclared").is_err());
+    }
+}
+
+#[test]
+fn a_conversation_item_that_is_not_an_object_fails_closed() {
+    let rules = [guardrail("ssn", GuardrailAction::Block, &[SSN])];
+    for (api_format, body, member) in [
+        (
+            ApiFormat::OpenAiChatCompletions,
+            r#"{"messages":[["user","ssn 123-45-6789"]]}"#,
+            "messages",
+        ),
+        (
+            ApiFormat::OpenAiResponses,
+            r#"{"input":[["message","user","ssn 123-45-6789"]]}"#,
+            "input",
+        ),
+    ] {
+        let members = crate::capture::request_spec(api_format).members;
+        assert!(members.contains(&member));
+        let outcome = check_request(&rules, api_format, body.as_bytes(), &scanned(body, members));
+        assert!(outcome.rejection().is_some(), "{api_format:?}");
     }
 }
 
