@@ -1,38 +1,33 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { Button } from "@/src/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { SmilePlusIcon } from "@langfuse/icons";
-import { useState } from "react";
+import { Popover, PopoverContent } from "@/src/components/ui/popover";
+import { type ReactNode, useState } from "react";
 import { EmojiPicker } from "@ferrucc-io/emoji-picker";
 
 interface ReactionPickerProps {
+  children: ReactNode;
   onEmojiSelect: (emoji: string) => void;
-  disabled?: boolean;
+  open?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function ReactionPicker({
+  children,
   onEmojiSelect,
-  disabled = false,
+  open,
+  defaultOpen = false,
+  onOpenChange,
 }: ReactionPickerProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const resolvedOpen = open ?? internalOpen;
+
+  const changeOpen = (nextOpen: boolean) => {
+    if (open === undefined) setInternalOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+  };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-6 gap-1 px-1.5 text-xs opacity-50 transition-opacity hover:opacity-100"
-          disabled={disabled}
-        >
-          <SmilePlusIcon size="base" color="default" />
-        </Button>
-      </PopoverTrigger>
+    <Popover open={resolvedOpen} onOpenChange={changeOpen}>
+      {children}
       <PopoverContent
         className="w-fit border-none bg-transparent p-0"
         align="start"
@@ -40,7 +35,7 @@ export function ReactionPicker({
         <EmojiPicker
           onEmojiSelect={(emoji) => {
             onEmojiSelect(emoji);
-            setOpen(false);
+            changeOpen(false);
           }}
           className="h-[320px] w-[320px]"
         >

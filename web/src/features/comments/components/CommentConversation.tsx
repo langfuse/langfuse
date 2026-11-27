@@ -5,11 +5,12 @@ import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { Search, Trash, X } from "@langfuse/icons";
+import { Search, SmilePlusIcon, Trash, X } from "@langfuse/icons";
 import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { stripMarkdown } from "@/src/utils/markdown";
 import { ReactionBar } from "../ReactionBar";
 import { ReactionPicker } from "../ReactionPicker";
+import { PopoverTrigger } from "@/src/components/ui/popover";
 import { CommentCard } from "./CommentCard";
 
 function humanizeJsonPath(path: string): string {
@@ -230,7 +231,7 @@ export function CommentConversation({
                       else addReaction.mutate(input);
                     }}
                   />
-                  {hasWriteAccess && (
+                  {hasWriteAccess ? (
                     <ReactionPicker
                       onEmojiSelect={(emoji) =>
                         addReaction.mutate({
@@ -239,8 +240,19 @@ export function CommentConversation({
                           emoji,
                         })
                       }
-                    />
-                  )}
+                    >
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 gap-1 px-1.5 text-xs opacity-50 transition-opacity hover:opacity-100"
+                        >
+                          <SmilePlusIcon size="base" color="default" />
+                        </Button>
+                      </PopoverTrigger>
+                    </ReactionPicker>
+                  ) : null}
                 </>
               }
             />
