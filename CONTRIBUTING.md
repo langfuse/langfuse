@@ -37,6 +37,8 @@ _Before making any significant changes, please [open an issue](https://github.co
 
 Once we've discussed your changes and you've got your code ready, make sure that tests are passing and open your pull request.
 
+All changes to the default branch require a PR and approval. A clean Bugbot review of the latest commit can trigger approver-bot approval; sensitive paths such as CI workflows and `CODEOWNERS` require a person. Public fork PRs need a maintainer's approval first, followed by the bot's second approval. See the [approval policy](.agents/skills/git-workflow/references/protected-branches.md) for the full process. Never push directly, force-push, or delete the default branch.
+
 Four checks gate every pull request and are cheaper to run before you open it than to discover in CI:
 
 ```bash
@@ -202,7 +204,7 @@ in the Cloud Agents dashboard; Linear MCP OAuth does not complete in Cloud.
 After local verification, a Cursor agent should open a same-repo reviewable
 PR (not a draft), apply the GitHub `cursor` label, and test its
 `pr-<N>.preview.langfuse.com` deployment.
-Use Linear's git branch name (`lfe-XXXX-short-title`), not a `cursor/` prefix.
+Follow the [Git workflow branch guidance](.agents/skills/git-workflow/SKILL.md#branch-names), including its tracker-free fallback. Do not require a tracker lookup just to name a branch, and never use a `cursor/` prefix.
 When handing work to a human, give a one-sentence TL;DR, a preview URL with
 exact test steps (including how to seed or hit the same path on
 `http://localhost:3000`), and proof of the fix for user-visible changes
@@ -502,6 +504,8 @@ You can use the staging environment end-to-end with the Langfuse integrations or
 
 ## Production environment
 
+The default-branch PR and approval policy also covers release version commits. The current `pnpm run release` command creates and pushes a commit on its release branch; do not run it on `main` until that path is migrated to an approved PR or explicitly configured GitHub App flow. The promotion workflows below write `production`, whose rules and approved automation identity must be checked separately; their existence does not grant a default-branch bypass.
+
 We run two separate release/deployment processes:
 
 1. **Langfuse Cloud deployment (frequent):**
@@ -577,7 +581,7 @@ The background color of the following component will be `hsl(var(--primary))` an
 | --dark-yellow                    | Dark yellow for warning text                                       | LevelColor                       |
 | --light-green                    | Light green for success status badge background                    | StatusBadge                      |
 | --dark-green                     | Dark green for success text, badge text and dots (emerald-800)     | StatusBadge, Badge, Switch       |
-| --light-blue                     | Light blue for background of Staging label                         | LangfuseLogo                     |
+| --light-blue                     | Light blue for background of Staging label                         | StatusBadge                      |
 | --dark-blue                      | Dark blue for info text, links and badge text (blue-800)           | StatusBadge, Badge, Banner       |
 | --accent-light-blue              | Light blue accent for table link hover effect                      | TableLink                        |
 | --accent-dark-blue               | Dark blue accent for table link text                               | TableLink                        |
@@ -659,8 +663,11 @@ If the CLA check still isn't passing after signing, it may be due to this [known
 
 If it still isn't passing, the author header in your commits is likely missing your GitHub email address ([example patch](https://github.com/langfuse/langfuse/commit/f301bb528f5ca6944bd04afae3c1a87390f9b92e.patch)). To fix this, set your email address in your git config and rebase.
 
+Run this only on your unprotected PR branch, substituting its name and the remote that hosts it below. For a fork PR, use your fork remote as `YOUR_PR_REMOTE`. Never rewrite or force-push the default branch or another protected branch.
+
 ```bash
+git switch YOUR_PR_BRANCH
 git config user.email "YOUR_GITHUB_EMAIL"
 git rebase --exec "git commit --amend --no-edit --reset-author" origin/main
-git push --force-with-lease
+git push --force-with-lease YOUR_PR_REMOTE HEAD:refs/heads/YOUR_PR_BRANCH
 ```

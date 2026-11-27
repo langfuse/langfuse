@@ -1,15 +1,18 @@
 .surface,
 .gutter {
   --sidebar-expanded-width: 12.75rem;
+  --sidebar-collapsed-width: 3rem;
   --sidebar-motion-duration: 360ms;
   --sidebar-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --sidebar-label-duration: 160ms;
   --sidebar-label-delay: 0ms;
   --sidebar-label-opacity: 0;
   --sidebar-label-offset: -6px;
-  inline-size: 3rem;
-  transition: inline-size var(--sidebar-motion-duration)
-    var(--sidebar-motion-ease);
+}
+
+.surface,
+.gutter {
+  inline-size: var(--sidebar-collapsed-width);
 }
 
 .surface {
@@ -106,11 +109,19 @@
   transition:
     block-size var(--sidebar-motion-duration, 0ms)
       var(--sidebar-motion-ease, ease),
+    margin-block var(--sidebar-motion-duration, 0ms)
+      var(--sidebar-motion-ease, ease),
     background-color 150ms ease;
+}
+
+/* Both desktop states fill a 2.5rem slot, so the rows above stay put. */
+.account[data-surface="expanded"] {
+  block-size: 2.5rem;
 }
 
 .account[data-surface="collapsed"] {
   block-size: 2rem;
+  margin-block: 0.25rem;
 }
 
 .account .identity {

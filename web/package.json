@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.86.0",
+  "version": "4.88.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -58,6 +58,7 @@
     "@ferrucc-io/emoji-picker": "^0.1.2",
     "@floating-ui/react": "0.27.20",
     "@hookform/resolvers": "^5.2.2",
+    "@langfuse/ai-gateway-guardrail-rules": "workspace:*",
     "@langfuse/client": "6.1.0",
     "@langfuse/icons": "workspace:*",
     "@langfuse/shared": "workspace:*",
@@ -222,7 +223,7 @@
     "dotenv-expand": "^10.0.0",
     "esbuild": "0.28.1",
     "eslint-import-resolver-typescript": "^3.5.2",
-    "eslint-plugin-boundaries": "7.2.0",
+    "eslint-plugin-boundaries": "7.4.4",
     "eslint-plugin-check-file": "3.3.2",
     "eslint-plugin-react-you-might-not-need-an-effect": "^1.0.1",
     "eslint-plugin-storybook": "10.6.2",

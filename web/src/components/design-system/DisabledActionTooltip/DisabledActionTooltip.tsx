@@ -10,6 +10,7 @@ const disabledActionTooltipVariants = cva("relative inline-flex", {
   variants: {
     width: {
       fill: "w-full sm:w-auto",
+      full: "w-full",
     },
   },
 });
@@ -19,11 +20,14 @@ const disabledActionTooltipVariants = cva("relative inline-flex", {
 export function DisabledActionTooltip({
   label,
   shouldFill = false,
+  isFullWidth = false,
   children,
 }: {
   label: string;
   /** Match a dialog footer action that stretches on narrow screens. */
   shouldFill?: boolean;
+  /** Cover a whole disabled form section rather than one button. */
+  isFullWidth?: boolean;
   children: ReactElement;
 }) {
   return (
@@ -38,7 +42,7 @@ export function DisabledActionTooltip({
                 ? triggerProps.className
                 : undefined,
               disabledActionTooltipVariants({
-                width: shouldFill ? "fill" : undefined,
+                width: getWidth(shouldFill, isFullWidth),
               }),
             )}
           >
@@ -52,4 +56,10 @@ export function DisabledActionTooltip({
       }}
     </Tooltip>
   );
+}
+
+function getWidth(shouldFill: boolean, isFullWidth: boolean) {
+  if (isFullWidth) return "full";
+  if (shouldFill) return "fill";
+  return undefined;
 }

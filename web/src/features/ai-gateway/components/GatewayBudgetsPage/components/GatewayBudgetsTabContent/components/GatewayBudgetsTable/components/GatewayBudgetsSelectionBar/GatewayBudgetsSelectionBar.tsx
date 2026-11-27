@@ -7,7 +7,9 @@ type GatewayBudgetsSelectionBarProps = {
   selectedCount: number;
   isSaving: boolean;
   /** Set when the selection includes a row the caller can't edit. */
-  disabledReason?: string;
+  editDisabledReason?: string;
+  /** Set when the selection includes a budget the caller can't remove. */
+  removeDisabledReason?: string;
   removeLabel: string;
   onClear: () => void;
   onEdit: () => void;
@@ -17,7 +19,8 @@ type GatewayBudgetsSelectionBarProps = {
 export function GatewayBudgetsSelectionBar({
   selectedCount,
   isSaving,
-  disabledReason,
+  editDisabledReason,
+  removeDisabledReason,
   removeLabel,
   onClear,
   onEdit,
@@ -29,8 +32,8 @@ export function GatewayBudgetsSelectionBar({
         type="button"
         variant="outline"
         size="sm"
-        disabled={isSaving || disabledReason !== undefined}
-        title={disabledReason}
+        disabled={isSaving || editDisabledReason !== undefined}
+        title={editDisabledReason}
         onClick={onEdit}
       >
         <Pencil size="base" color="default" __rawClassName="mr-2" />
@@ -40,8 +43,8 @@ export function GatewayBudgetsSelectionBar({
         type="button"
         variant="outline"
         size="sm"
-        disabled={isSaving || disabledReason !== undefined}
-        title={disabledReason}
+        disabled={isSaving || removeDisabledReason !== undefined}
+        title={removeDisabledReason}
         onClick={onRemove}
       >
         <Trash2 size="base" color="default" __rawClassName="mr-2" />

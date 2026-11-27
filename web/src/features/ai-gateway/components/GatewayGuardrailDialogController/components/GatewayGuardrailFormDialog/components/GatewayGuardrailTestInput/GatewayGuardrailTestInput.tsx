@@ -1,7 +1,10 @@
 import { useId, useMemo, useRef, type ChangeEvent, type UIEvent } from "react";
 import { FlaskConical } from "@langfuse/icons";
 
-import { findGuardrailMatches } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailFormDialog/components/GatewayGuardrailTestInput/fns/findGuardrailMatches";
+import {
+  findGuardrailMatches,
+  segmentsFromMatchSpans,
+} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailFormDialog/components/GatewayGuardrailTestInput/fns/findGuardrailMatches";
 import type { GatewayGuardrailPreset } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 
 export type GatewayGuardrailTestInputProps = {
@@ -10,15 +13,19 @@ export type GatewayGuardrailTestInputProps = {
   presets: readonly GatewayGuardrailPreset[];
   secretPrefixes?: readonly string[];
   containsWords?: readonly string[];
+  /** Server-computed match spans from the Rust WASM engine (used by Custom regex). */
+  customMatches?: readonly { start: number; end: number }[];
+  /** True when the server preview stopped early to stay within the scan budget. */
+  customMatchesTruncated?: boolean;
+  usesGatewayPreview?: boolean;
 };
 
 const TEXT_LAYER_CLASS =
   "font-sans text-sm leading-6 break-words whitespace-pre-wrap p-3";
 
 /**
- * Client-side scratchpad that highlights spans matched by the selected built-in
- * presets, custom secret prefixes, and contains words as the user types.
- * Nothing leaves the browser.
+ * Scratchpad that highlights spans matched by the selected built-in presets,
+ * custom secret prefixes, contains words, or server-evaluated custom regex.
  */
 export function GatewayGuardrailTestInput({
   value,
@@ -26,18 +33,30 @@ export function GatewayGuardrailTestInput({
   presets,
   secretPrefixes,
   containsWords,
+  customMatches,
+  customMatchesTruncated = false,
+  usesGatewayPreview = false,
 }: GatewayGuardrailTestInputProps) {
   const inputId = useId();
   const backdropRef = useRef<HTMLDivElement>(null);
 
   const segments = useMemo(
     () =>
-      findGuardrailMatches(value, {
-        presets,
-        secretPrefixes,
-        containsWords,
-      }),
-    [value, presets, secretPrefixes, containsWords],
+      usesGatewayPreview
+        ? segmentsFromMatchSpans(value, customMatches ?? [])
+        : findGuardrailMatches(value, {
+            presets,
+            secretPrefixes,
+            containsWords,
+          }),
+    [
+      value,
+      presets,
+      secretPrefixes,
+      containsWords,
+      customMatches,
+      usesGatewayPreview,
+    ],
   );
 
   const matchCount = useMemo(
@@ -45,7 +64,11 @@ export function GatewayGuardrailTestInput({
     [segments],
   );
 
-  const matchCountLabel = formatMatchCount(value, matchCount);
+  const matchCountLabel = formatMatchCount(
+    value,
+    matchCount,
+    usesGatewayPreview && customMatchesTruncated,
+  );
 
   const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     onChange(event.target.value);
@@ -68,14 +91,15 @@ export function GatewayGuardrailTestInput({
           <span>Test</span>
         </label>
         {matchCountLabel ? (
-          <span className="text-muted-foreground text-xs tabular-nums">
+          <span className="text-muted-foreground text-xs leading-none tabular-nums">
             {matchCountLabel}
           </span>
         ) : null}
       </div>
       <p className="text-muted-foreground text-xs leading-relaxed">
-        Paste sample text to see what this guardrail catches. Matches highlight
-        as you type. Nothing is sent or saved.
+        {usesGatewayPreview
+          ? "Paste sample text to test your regex with the gateway engine. Sample text is not saved."
+          : "Paste sample text to see what this guardrail catches. Matches highlight as you type. Nothing is sent or saved."}
       </p>
       <div className="bg-background border-input focus-within:ring-ring relative flex min-h-36 flex-1 overflow-hidden rounded-md border focus-within:ring-2 focus-within:ring-offset-2 md:min-h-60">
         <div
@@ -113,8 +137,16 @@ export function GatewayGuardrailTestInput({
   );
 }
 
-function formatMatchCount(value: string, matchCount: number): string | null {
+function formatMatchCount(
+  value: string,
+  matchCount: number,
+  truncated: boolean,
+): string | null {
   if (value.trim().length === 0) return null;
+  if (truncated) {
+    if (matchCount === 0) return "Preview stopped early (partial results)";
+    return `${matchCount}+ matches (partial preview)`;
+  }
   if (matchCount === 0) return "No matches";
   if (matchCount === 1) return "1 match";
   return `${matchCount} matches`;

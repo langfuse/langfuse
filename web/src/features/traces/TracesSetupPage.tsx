@@ -1,5 +1,6 @@
 /* eslint-disable @repo/component-file-structure */
 import React, { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -7,8 +8,14 @@ import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { ActionButton } from "@/src/components/ActionButton";
 import { SubHeader } from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
+import {
+  onboardingApiKeyCreateInput,
+  onboardingApiKeyHint,
+} from "@/src/features/apiKey/fns/onboardingApiKey";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type RouterOutput } from "@/src/utils/types";
 import { useQueryProject } from "@/src/features/projects/hooks";
 
@@ -20,6 +27,14 @@ export const TracingSetup = ({
   hasTracingConfigured?: boolean;
 }) => {
   const baseUrl = useLangfuseBaseUrl();
+  const hasApiKeyCreateAccess = useHasProjectAccess({
+    projectId,
+    scope: "apiKeys:CUD",
+  });
+  const { data: session } = useSession();
+  const roleSelectionEnabled =
+    session?.environment?.apiKeyProjectRoleSelectionEnabled ?? false;
+  const keyHint = onboardingApiKeyHint(roleSelectionEnabled);
   const [apiKeys, setApiKeys] = useState<
     RouterOutput["projectApiKeys"]["create"] | null
   >(null);
@@ -33,7 +48,9 @@ export const TracingSetup = ({
 
   const createApiKey = async () => {
     try {
-      await mutCreateApiKey.mutateAsync({ projectId });
+      await mutCreateApiKey.mutateAsync(
+        onboardingApiKeyCreateInput(projectId, roleSelectionEnabled),
+      );
     } catch (error) {
       reportNonTrpcError(error, "setup");
     }
@@ -57,6 +74,17 @@ export const TracingSetup = ({
             <p className="text-muted-foreground text-sm">
               You need to create an API key to start tracing your application.
               You can create more keys later in the project settings.
+              {hasApiKeyCreateAccess && (
+                <>
+                  {" "}
+                  {keyHint.sentence}{" "}
+                  <span className="inline-flex align-middle">
+                    <InfoTooltip label={keyHint.tooltip.label}>
+                      {keyHint.tooltip.text}
+                    </InfoTooltip>
+                  </span>
+                </>
+              )}
             </p>
             <div className="flex gap-2">
               <Button

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import {
   GATEWAY_GUARDRAIL_SECRET_BODY_MIN_LENGTH,
   GATEWAY_GUARDRAIL_SECRET_PREFIX_MAX_LENGTH,
@@ -24,7 +25,7 @@ const COMPILED_PRESET_REGEXES = Object.fromEntries(
 
 for (const preset of GATEWAY_GUARDRAIL_PRESET_KEYS) {
   for (const pattern of GATEWAY_GUARDRAIL_PRESETS[preset].patterns) {
-    COMPILED_PRESET_REGEXES[preset].push(new RegExp(pattern, "g"));
+    COMPILED_PRESET_REGEXES[preset].push(new RegExp(pattern, "gu"));
   }
 }
 
@@ -54,6 +55,29 @@ export function findGuardrailMatches(
 
   if (spans.length === 0) return [{ text, matched: false }];
 
+  return buildSegmentsFromSpans(text, spans);
+}
+
+/** Converts UTF-16 match spans into contiguous highlight segments. */
+export function segmentsFromMatchSpans(
+  text: string,
+  matches: readonly { start: number; end: number }[],
+): GuardrailTestSegment[] {
+  if (!text) return [];
+  const spans: Array<[number, number]> = [];
+  for (const match of matches) {
+    const start = Math.max(0, Math.min(text.length, match.start));
+    const end = Math.max(0, Math.min(text.length, match.end));
+    if (start < end) spans.push([start, end]);
+  }
+  if (spans.length === 0) return [{ text, matched: false }];
+  return buildSegmentsFromSpans(text, spans);
+}
+
+function buildSegmentsFromSpans(
+  text: string,
+  spans: Array<[number, number]>,
+): GuardrailTestSegment[] {
   spans.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   const merged: Array<[number, number]> = [];
   for (const [start, end] of spans) {
@@ -95,12 +119,13 @@ function collectPresetSpans(
           regex.lastIndex += 1;
           continue;
         }
-        // When a pattern uses capture group 1 to exclude surrounding boundary chars (e.g. compressed IPv6),
-        // highlight only group 1 and resume right after it so adjacent tokens still match.
-        if (match[1] !== undefined) {
-          const offset = match[0].indexOf(match[1]);
+        // When a pattern uses capture group `__lf_match` to exclude surrounding boundary or keyword chars,
+        // highlight only that group and resume right after it so adjacent tokens still match.
+        const matchedGroup = match.groups?.__lf_match ?? match[1];
+        if (matchedGroup !== undefined) {
+          const offset = match[0].indexOf(matchedGroup);
           const start = match.index + Math.max(0, offset);
-          const end = start + match[1].length;
+          const end = start + matchedGroup.length;
           spans.push([start, end]);
           regex.lastIndex = end;
           continue;

@@ -138,6 +138,7 @@ export * from "./utils/withTransaction";
 export * from "./utils/withSerializableRetry";
 export * from "./otel/utils";
 export * from "./clickhouse/client";
+export { initializeClickhouseAuth } from "./clickhouse/auth";
 export {
   getClickHouseCompatibilitySettings,
   getDetectedClickHouseVersion,
@@ -569,6 +570,7 @@ export { getTotalCostByEvaluatorIds } from "./repositories/events";
 export { getLatestEvaluatorRunCost } from "./repositories/events";
 export {
   getGatewaySpendSinceFromEvents,
+  getGatewayApiKeysLastUsedAtFromEvents,
   getGatewayGuardrailFlaggedCountsFromEvents,
   getGatewayGuardrailFlaggedTimeSeriesFromEvents,
   type GatewayGuardrailTimeBucket,

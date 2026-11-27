@@ -1,8 +1,10 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { APICallError } from "ai";
 import type { DecisionModelClient } from "../../evals/decisionModelEvaluatorExecution";
+import { wrapFetchWithOpenRouterInternalTraceProvenance } from "../ai-sdk/openRouterProvenance";
 import { createSecureLlmFetch } from "../secureLlmFetch";
 import { createTextAdapterDecisionModelClient } from "../textAdapterDecisionModelClient";
+import type { LangfuseInternalTraceEnvironment } from "../types";
 
 /**
  * Proxies and gateways without POST /decisions answer 404 with a body the
@@ -39,18 +41,24 @@ export function createOpenAIDecisionModelClient(params: {
   model: string;
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
+  internalEnvironment?: LangfuseInternalTraceEnvironment;
   fetchImpl?: typeof fetch;
 }): DecisionModelClient {
-  const provider = createOpenAI({
-    apiKey: params.apiKey,
-    baseURL: params.baseURL ?? undefined,
-    headers: params.extraHeaders,
-    fetch:
+  const fetchImpl = wrapFetchWithOpenRouterInternalTraceProvenance({
+    fetchImpl:
       params.fetchImpl ??
       createSecureLlmFetch({
         logContext: "OpenAI decision model",
         additionalSensitiveHeaders: Object.keys(params.extraHeaders ?? {}),
       }),
+    baseURL: params.baseURL,
+    internalEnvironment: params.internalEnvironment,
+  });
+  const provider = createOpenAI({
+    apiKey: params.apiKey,
+    baseURL: params.baseURL ?? undefined,
+    headers: params.extraHeaders,
+    fetch: fetchImpl,
   });
 
   return createTextAdapterDecisionModelClient({

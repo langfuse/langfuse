@@ -8,8 +8,6 @@
  *    pass consults (`typecheck.ts`).
  *  - `TABLE_BIND_TYPES` — the ClickHouse bind types the compiler uses when a
  *    value is compared to a known column (`compiler.ts`).
- *  - `TENANTED_TABLES` — the relations the tenancy pass must scope
- *    (`tenancy.ts`).
  *  - `DEDUP_SPECS` — the per-table read idiom the lowering pass applies
  *    (`dedup.ts`). Each table names an existing production mechanism; the
  *    pass does not invent a new one.
@@ -154,13 +152,6 @@ export type DedupSpec =
 function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
   columns: Cols;
   /**
-   * Whether the tenancy pass must inject a `project_id` scope. Defaults to
-   * `true`: every relation modeled here is project-gated, and defaulting on is
-   * fail-closed — a table added without this flag is still scoped. Set `false`
-   * only for a genuinely global relation.
-   */
-  tenant?: boolean;
-  /**
    * Existing read-time collapse for this table. Omit until the family is
    * migrated; `none` is an explicit "do not collapse" (immutable rows).
    */
@@ -168,7 +159,6 @@ function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
 }) {
   return {
     columns: spec.columns,
-    tenant: spec.tenant ?? true,
     dedup: spec.dedup,
   };
 }
@@ -603,13 +593,6 @@ export const COLUMN_DATA_TYPES: Record<string, ColumnDataType> = lookupTable(
 /** Every registry relation name, the logical events relations included. */
 export const REGISTRY_TABLES: ReadonlySet<string> = new Set(
   Object.keys(TABLE_REGISTRY),
-);
-
-/** Derived set of relations the tenancy pass must scope. */
-export const TENANTED_TABLES = new Set<string>(
-  Object.entries(TABLE_REGISTRY)
-    .filter(([, spec]) => spec.tenant)
-    .map(([name]) => name),
 );
 
 /** Derived per-table read idioms, keyed by table name. */

@@ -264,7 +264,7 @@ export const eventsTracesView: ViewDeclarationType = {
         "argMaxIf(events_traces.environment, events_traces.event_ts, events_traces.environment <> '')",
     },
     timestampMonth: {
-      sql: "events_traces.start_time",
+      sql: "formatDateTime(events_traces.start_time, '%Y-%m')",
       alias: "timestampMonth",
       type: "string",
       description: "Month of the trace timestamp in YYYY-MM format.",

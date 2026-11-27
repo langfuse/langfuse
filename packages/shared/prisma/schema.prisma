@@ -133,6 +133,9 @@ model Organization {
   // LANGFUSE_AUDIT_LOG_ACCESS_EVENTS is "org" and the org has the audit-logs
   // entitlement.
   accessAuditLogEnabled            Boolean                  @default(false) @map("access_audit_log_enabled")
+  // While true, `public` flags on this org's traces and sessions are ignored
+  // by access checks and publishing is rejected. The flags themselves are kept.
+  publicSharingDisabled            Boolean                  @default(false) @map("public_sharing_disabled")
   featureFlagOrgDefaults           String[]                 @default([]) @map("feature_flag_org_defaults")
   // SFDC Account / Organization ID returned by the Mulesoft org endpoint on
   // Langfuse Cloud. NULL for self-hosted or pre-integration orgs. A mismatch
@@ -498,12 +501,23 @@ enum GatewayGuardrailType {
   REGEX
   // External AWS Bedrock Guardrail evaluated via ApplyGuardrail.
   BEDROCK
+  // External OpenAI Moderation API (`/v1/moderations`).
+  OPENAI_MODERATION
 }
 
 enum GatewayGuardrailAction {
   BLOCK
   LOG
   REDACT
+  ENFORCE
+}
+
+enum GatewayGuardrailScope {
+  LAST_TURN
+  ENTIRE_INPUT
+  OUTPUT
+  LAST_TURN_AND_OUTPUT
+  ENTIRE_INPUT_AND_OUTPUT
 }
 
 enum GatewayGuardrailAssignmentScope {
@@ -512,8 +526,8 @@ enum GatewayGuardrailAssignmentScope {
   USER
 }
 
-// A rule set the AI gateway checks each request against. Assignments decide
-// which keys it applies to.
+// A rule set the AI gateway checks each request and/or response against.
+// Assignments decide which keys it applies to.
 model GatewayGuardrail {
   id                  String                       @id @default(cuid())
   organizationId      String                       @map("organization_id")
@@ -521,11 +535,15 @@ model GatewayGuardrail {
   name                String
   type                GatewayGuardrailType         @default(REGEX)
   action              GatewayGuardrailAction
-  // For REGEX: { "presets": [...], "secretPrefixes": [...], "containsWords": [...] };
-  // For BEDROCK: { "guardrailId": "...", "guardrailVersion": "...", "region": "..." }.
+  scope               GatewayGuardrailScope        @default(LAST_TURN)
+  // For REGEX: { "presets": [...], "secretPrefixes": [...], "containsWords": [...], "customRegex": "..." };
+  // For BEDROCK: { "guardrailId": "...", "guardrailVersion": "...", "region": "..." };
+  // For OPENAI_MODERATION: { "region": "us" | "eu" }.
   config              Json                         @default("{}") @db.JsonB
   // Encrypted credential for external guardrail providers (e.g. Bedrock API key); null for REGEX.
   encryptedCredential String?                      @map("encrypted_credentials")
+  // Replacement text used when action is REDACT (e.g. "[REDACTED]", "[PHONE]"); null otherwise.
+  redactionLabel      String?                      @map("redaction_label")
   createdBy           String?                      @map("created_by")
   createdByUser       User?                        @relation("CreatedByUser", fields: [createdBy], references: [id], onDelete: SetNull)
   createdAt           DateTime                     @default(now()) @map("created_at")

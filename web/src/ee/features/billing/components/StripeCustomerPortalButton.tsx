@@ -52,6 +52,7 @@ export const StripeCustomerPortalButton = ({
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- rethrown here and handled by the local catch + showToast below
       if (error) throw error;
       if (data) {
+        // eslint-disable-next-line @repo/no-location-navigation -- Stripe Customer Portal is an external URL
         window.location.href = data;
       } else {
         showToast({

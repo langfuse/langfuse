@@ -92,6 +92,8 @@ type GatewayApiKeyDialogProps = {
   /** Prefills the form, e.g. with an existing key; saving needs a change. */
   defaultValues?: GatewayApiKeyFormValues;
   disabledFields?: GatewayApiKeyDisabledField[];
+  /** Why a disabled spend budget is locked. */
+  spendBudgetLockedReason?: string;
   canIssueServiceAccountKeys: boolean;
   /** Previews which models the patterns allow; undefined hides the preview. */
   enabledModels: GatewayEnabledModels | undefined;
@@ -107,6 +109,7 @@ export function GatewayApiKeyDialog({
   submitLabel,
   defaultValues = emptyValues,
   disabledFields = [],
+  spendBudgetLockedReason = LOCKED_SPEND_BUDGET_REASON,
   canIssueServiceAccountKeys,
   enabledModels,
   spendBudgetUnavailableReason,
@@ -209,6 +212,7 @@ export function GatewayApiKeyDialog({
             enabledModels={enabledModels}
             isExpirationDisabled={isExpirationDisabled}
             isSpendBudgetDisabled={disabledFields.includes("spendBudget")}
+            spendBudgetLockedReason={spendBudgetLockedReason}
             spendBudgetUnavailableReason={spendBudgetUnavailableReason}
           />
           {errorMessage !== null ? (
@@ -275,21 +279,29 @@ function OptionalSections({
   enabledModels,
   isExpirationDisabled,
   isSpendBudgetDisabled,
+  spendBudgetLockedReason,
   spendBudgetUnavailableReason,
 }: {
   form: UseFormReturn<GatewayApiKeyFormValues>;
   enabledModels: GatewayEnabledModels | undefined;
   isExpirationDisabled: boolean;
   isSpendBudgetDisabled: boolean;
+  spendBudgetLockedReason: string;
   spendBudgetUnavailableReason: string | undefined;
 }) {
   const isLocked = (section: GatewayApiKeySection) =>
     (section === "expiration" && isExpirationDisabled) ||
     (section === "spendBudget" && isSpendBudgetDisabled);
   const sections = useWatch({ control: form.control, name: "sections" });
+  const spendBudgetDisabledReason = isSpendBudgetDisabled
+    ? spendBudgetLockedReason
+    : spendBudgetUnavailableReason;
   const update = { shouldDirty: true, shouldValidate: true } as const;
+  // A locked budget stays offered, disabled, so the reason shows where it would be added.
   const addableSections = gatewayApiKeySections.filter(
-    (section) => !sections.includes(section) && !isLocked(section),
+    (section) =>
+      !sections.includes(section) &&
+      (section === "spendBudget" || !isLocked(section)),
   );
 
   const handleAdd = (section: GatewayApiKeySection) => {
@@ -340,11 +352,7 @@ function OptionalSections({
           <GatewaySpendBudgetField
             subject="key"
             control={form.control}
-            disabledReason={
-              isSpendBudgetDisabled
-                ? LOCKED_SPEND_BUDGET_REASON
-                : spendBudgetUnavailableReason
-            }
+            disabledReason={spendBudgetDisabledReason}
           />
         );
       case "models":
@@ -389,7 +397,7 @@ function OptionalSections({
               label={sectionLabels[section].add}
               disabledReason={
                 section === "spendBudget"
-                  ? spendBudgetUnavailableReason
+                  ? spendBudgetDisabledReason
                   : undefined
               }
               onAdd={() => handleAdd(section)}

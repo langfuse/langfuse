@@ -28,7 +28,6 @@ type ValidateAndNormalizeResult =
 /**
  * Validator for dataset item payloads (normalization + schema validation).
  *
- * @internal
  * **This class is internal to DatasetService. Use dataset-items repository methods instead.**
  *
  * **Purpose:**

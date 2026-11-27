@@ -234,7 +234,8 @@ describe("Topics clustering capacity", () => {
     expect(counts.query).toMatch(
       /ORDER BY cityHash64\(trace_id, \{cohortSeed:String\}\), trace_id\s+LIMIT \{cohortLimit:UInt64\} BY facet_id, facet_version/,
     );
-    expect(counts.query).not.toContain("Array(String)} AND trace_id");
+    expect(counts.query).not.toContain("cohortTraceIds");
+    expect(counts.params).not.toHaveProperty("cohortTraceIds");
     expect(counts.params).toMatchObject({
       envFilter: "production",
       cohortSeed: "analysis-seed",

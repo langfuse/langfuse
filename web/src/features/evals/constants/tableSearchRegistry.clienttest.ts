@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { planCommit } from "@/src/features/search-bar/lib/commit";
-import { runSearchBarInvariants } from "@/src/features/search-bar/lib/searchBarInvariants";
+import { runSearchBarInvariants } from "@/src/features/search-bar/__tests__/searchBarInvariants";
 
 import {
   EVAL_LOGS_FIELD_REGISTRY,

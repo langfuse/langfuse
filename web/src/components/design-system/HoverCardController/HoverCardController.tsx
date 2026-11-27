@@ -10,7 +10,10 @@ function HoverCardController({
 }: Omit<
   React.ComponentProps<typeof FloatingController>,
   "role" | "hoverableContent" | "isScrollable" | "renderContent"
-> & { content: React.ReactElement }) {
+> & {
+  // eslint-disable-next-line @repo/no-node-slot-props -- overlay body supplied by the caller
+  content: React.ReactElement;
+}) {
   return (
     <FloatingController
       {...props}

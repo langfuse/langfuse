@@ -2,6 +2,8 @@ import { useState, type ComponentProps, type ReactNode } from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { ConnectedGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/ConnectedGatewayApiKeyDialog/ConnectedGatewayApiKeyDialog";
+import { GATEWAY_DEFAULT_BUDGET_CHANGE_REASON } from "@/src/features/ai-gateway/constants/gatewayAdminSetBudgetReasons";
+import { useGatewayDefaultBudget } from "@/src/features/ai-gateway/hooks/useGatewayDefaultBudget";
 import { GeneratedKeyDialog } from "@/src/features/ai-gateway/components/CreateGatewayApiKeyDialogController/components/GeneratedKeyDialog/GeneratedKeyDialog";
 import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/GeneratedKeyContent";
 import { useCaptureGatewayBudgetChange } from "@/src/features/ai-gateway/hooks/useCaptureGatewayBudgetChange";
@@ -27,6 +29,10 @@ export function CreateGatewayApiKeyDialogController({
     organizationId,
     scope: "gateway:manage",
   });
+  const defaultKeyBudget = useGatewayDefaultBudget(organizationId, "key");
+  // A key's own budget replaces the default, so only managers may give a new key one.
+  const isSpendBudgetLocked =
+    !canIssueServiceAccountKeys && Boolean(defaultKeyBudget);
   const [generatedSecretKey, setGeneratedSecretKey] = useState<string | null>(
     null,
   );
@@ -99,6 +105,8 @@ export function CreateGatewayApiKeyDialogController({
             title="Create gateway key"
             submitLabel="Create key"
             canIssueServiceAccountKeys={canIssueServiceAccountKeys}
+            disabledFields={isSpendBudgetLocked ? ["spendBudget"] : undefined}
+            spendBudgetLockedReason={GATEWAY_DEFAULT_BUDGET_CHANGE_REASON}
             errorMessage={
               create.isError
                 ? (create.error?.message ?? "Check the metadata and try again.")

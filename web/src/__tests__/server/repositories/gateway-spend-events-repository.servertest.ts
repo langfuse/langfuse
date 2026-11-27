@@ -5,7 +5,10 @@ const eventsTableAvailable = vi.hoisted(
   () => process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
 );
 
-import { AI_GATEWAY_SERVICE_NAME } from "@langfuse/shared";
+import {
+  AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
+  AI_GATEWAY_SERVICE_NAME,
+} from "@langfuse/shared";
 import {
   createEvent,
   createEventsCh,
@@ -30,6 +33,8 @@ maybe("getGatewaySpendSinceFromEvents", () => {
         ingestion_api_key: apiKeyId,
         start_time: new Date(startTime),
         cost_details: { total: cost },
+        metadata_names: [AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY],
+        metadata_values: [apiKeyId === "other" ? "bob" : "alice"],
       });
     await createEventsCh([
       gatewayEvent("daily", "2026-11-16T23:00:00Z", 100),
@@ -69,6 +74,22 @@ maybe("getGatewaySpendSinceFromEvents", () => {
           ],
         }),
       ).toEqual([{ id: projectId, spendUsd: 53.5 }]);
+      // Each user's window applies to all of their keys' gateway spend.
+      expect(
+        (
+          await getGatewaySpendSinceFromEvents({
+            projectId,
+            scope: "USER",
+            subjects: [
+              { id: "alice", since: new Date("2026-11-17T00:00:00Z") },
+              { id: "bob", since: new Date("2026-11-01T00:00:00Z") },
+            ],
+          })
+        ).toSorted((a, b) => a.id.localeCompare(b.id)),
+      ).toEqual([
+        { id: "alice", spendUsd: 3.5 },
+        { id: "bob", spendUsd: 50 },
+      ]);
     });
   });
 });

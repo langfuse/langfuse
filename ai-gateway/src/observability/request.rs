@@ -69,6 +69,7 @@ struct State {
     request_body: Option<Duration>,
     provider_headers: Option<Duration>,
     request_bytes: Option<u64>,
+    has_guardrails: bool,
 }
 
 /// Cheap to clone; the middleware and the handler hold the same state.
@@ -81,6 +82,7 @@ pub(super) struct Summary {
     pub request_body: Option<Duration>,
     pub provider_headers: Option<Duration>,
     pub request_bytes: Option<u64>,
+    pub has_guardrails: bool,
 }
 
 impl RequestObservation {
@@ -112,6 +114,10 @@ impl RequestObservation {
         });
     }
 
+    pub(crate) fn record_guardrails_evaluated(&self) {
+        self.with_state(|state| state.has_guardrails = true);
+    }
+
     pub(super) fn summary(&self) -> Summary {
         self.with_state(|state| Summary {
             error: state.error,
@@ -119,6 +125,7 @@ impl RequestObservation {
             request_body: state.request_body,
             provider_headers: state.provider_headers,
             request_bytes: state.request_bytes,
+            has_guardrails: state.has_guardrails,
         })
     }
 }

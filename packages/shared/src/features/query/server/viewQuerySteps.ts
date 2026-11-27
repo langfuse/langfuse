@@ -1,13 +1,13 @@
 /**
  * The steps every dashboard view query shares, whether it compiles through
- * the query AST (the v2 observations and score views) or is assembled as SQL
+ * the query AST (the v2 observations, traces and score views) or is assembled as SQL
  * text (`buildSqlText`, `sqlTextQuery.ts`): mapping a query's dimensions, metrics,
  * bucket and order by onto a view declaration, and validating its filters and
  * relations, all throwing `InvalidRequestError` for what the view rejects.
  * The AST-only steps build the outer select, its `group by … order by …
  * [with fill …] [limit n]` and the aggregates, and compile the result for a
  * project. Each view's FROM, joins and WHERE live in its own module
- * (`scoresQuery.ts`, `eventsObservationsQuery.ts`).
+ * (`scoresQuery.ts`, `eventsObservationsQuery.ts`, `eventsTracesQuery.ts`).
  */
 import {
   type AliasableExpression,
@@ -142,7 +142,7 @@ export type AppliedBucketingDimension =
 
 const MINUTE_MS = 60_000;
 
-const HOUR_MS = 60 * MINUTE_MS;
+export const HOUR_MS = 60 * MINUTE_MS;
 
 const DAY_MS = 24 * HOUR_MS;
 
@@ -167,6 +167,9 @@ export const WITH_FILL_STEPS: Record<
   "2d": { sql: "INTERVAL 2 DAY", approxMs: 2 * DAY_MS },
   "1w": { sql: "INTERVAL 7 DAY", approxMs: 7 * DAY_MS },
 };
+
+/** A query's time window, bound as {@link utcDateTime}. */
+export type TimeWindow = { from: Expression<Date>; to: Expression<Date> };
 
 /** A time granularity after `auto` is resolved to one of the others. */
 type Granularity = Exclude<z.infer<typeof granularities>, "auto">;
@@ -229,7 +232,7 @@ export function assertKnownRelationTables(
   relationTables: Iterable<string>,
 ) {
   for (const relationTable of relationTables) {
-    if (!(relationTable in view.tableRelations)) {
+    if (!Object.hasOwn(view.tableRelations, relationTable)) {
       throw new InvalidRequestError(
         `Invalid relationTable: ${relationTable}. Must be one of ${Object.keys(view.tableRelations)}`,
       );
@@ -251,10 +254,20 @@ type OuterClauses = {
   rowLimit: number | undefined;
 };
 
-/** What a time bucket truncates and an entity bucket reads, per view. */
+/** A granularity's bucket of a time value, e.g. `toDate(t)` for `day`. */
+export type TimeBucketOf = (t: Expression<Date>) => AliasableExpression<Date>;
+
+/**
+ * What a time bucket truncates and an entity bucket reads, per view.
+ * `perEntityTime` is the time bucket in the inner select of a two-level
+ * query, built from the granularity's bucket function (the v2 traces view
+ * prefers its root event's bucket); without it that bucket is
+ * `any(<bucket of time>)`.
+ */
 export type BucketValues = {
   time: Expression<Date>;
   entity: (field: string) => AliasableExpression<unknown>;
+  perEntityTime?: (bucketOf: TimeBucketOf) => AliasableExpression<unknown>;
 };
 
 /**
@@ -275,8 +288,9 @@ export function filterDimensionName(
   column: string,
   dimensions: Readonly<Record<string, unknown>>,
 ): string | undefined {
-  if (column in dimensions) return column;
-  if (column.endsWith("Name") && "name" in dimensions) return "name";
+  if (Object.hasOwn(dimensions, column)) return column;
+  if (column.endsWith("Name") && Object.hasOwn(dimensions, "name"))
+    return "name";
   return undefined;
 }
 
@@ -324,7 +338,7 @@ export function applyBucketingDimension(
     // broader join paths or propagation behavior here.
     if (
       dimension.relationTable &&
-      !(dimension.relationTable in view.tableRelations)
+      !Object.hasOwn(view.tableRelations, dimension.relationTable)
     ) {
       throw new InvalidRequestError(
         `Invalid relationTable for entity dimension ${field}: ${dimension.relationTable}. Must be one of ${Object.keys(view.tableRelations)}`,
@@ -352,7 +366,9 @@ function getEntityDimensionDefinition(
   view: ViewDeclarationType,
   field: string,
 ) {
-  const dimension = view.dimensions[field];
+  const dimension = Object.hasOwn(view.dimensions, field)
+    ? view.dimensions[field]
+    : undefined;
   if (!dimension) {
     throw new InvalidRequestError(
       `Invalid entity dimension: ${field}. Must be one of ${Object.keys(view.dimensions)}`,
@@ -377,7 +393,7 @@ export function mapDimensions(
   view: ViewDeclarationType,
 ): AppliedDimensionType[] {
   return dimensions.map((dimension) => {
-    if (!(dimension.field in view.dimensions)) {
+    if (!Object.hasOwn(view.dimensions, dimension.field)) {
       throw new InvalidRequestError(
         `Invalid dimension ${dimension.field}. Must be one of ${Object.keys(view.dimensions)}`,
       );
@@ -401,7 +417,7 @@ export function mapMetrics(
   view: ViewDeclarationType,
 ): AppliedMetricType[] {
   return metrics.map((metric) => {
-    if (!(metric.measure in view.measures)) {
+    if (!Object.hasOwn(view.measures, metric.measure)) {
       throw new InvalidRequestError(
         `Invalid metric ${metric.measure}. Must be one of ${Object.keys(view.measures)}`,
       );
@@ -887,7 +903,8 @@ export function dimensionAlias(dimension: AppliedDimensionType): string {
 
 /**
  * The time or entity bucket as `time_dimension` / `entity_dimension`, from
- * the view's time column or its entity dimension.
+ * the view's time column or its entity dimension; `any(…)` in the inner
+ * select of a two-level query, or the view's `perEntityTime` there.
  */
 export function astBucketSelection(
   bucket: AppliedBucketingDimension,
@@ -895,6 +912,13 @@ export function astBucketSelection(
   values: BucketValues,
 ) {
   if (bucket.type === "none") return [];
+  if (bucket.type === "time" && level === "two" && values.perEntityTime) {
+    return [
+      values
+        .perEntityTime(timeBucket(bucket.granularity).bucket)
+        .as(bucket.bucketDimensionAlias),
+    ];
+  }
   const value =
     bucket.type === "time"
       ? timeBucket(bucket.granularity).bucket(values.time)

@@ -279,10 +279,6 @@
     "StatusBadge": {
       "cardMode": "column"
     },
-    "AppSidebar": {
-      "cardMode": "single",
-      "primaryStory": "Default"
-    },
     "GroupedScoreBadges": {
       "skip": [
         "playground-groupedscorebadges--with-overflow"
@@ -374,7 +370,6 @@
   "storyImports": {
     "shim": [
       "/components/ui/ai-assisted-input.tsx",
-      "/components/ui/sidebar.tsx",
       "/components/ui/drawer.tsx",
       "/components/ui/MarkdownViewer.tsx",
       "/components/grouped-score-badge.tsx"

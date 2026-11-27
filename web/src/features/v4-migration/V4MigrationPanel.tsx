@@ -4,6 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import {
+  allRemainingActionsAreMigratedKeys,
   V4MigrationHeaderContent,
   V4MigrationDetailsContent,
 } from "@/src/features/v4-migration/V4MigrationContent";
@@ -73,6 +74,9 @@ export const V4MigrationPanel = ({
             key={project?.id}
             titleRowClassName={showCloseButton ? "pr-10" : undefined}
             readiness={readiness}
+            remainingActionsAreMigrated={allRemainingActionsAreMigratedKeys(
+              migrationData,
+            )}
           />
         </div>
 

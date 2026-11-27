@@ -81,6 +81,31 @@ it("persists mobile selection on remount and clears it on facet changes", () => 
 });
 
 describe("current Topics query", () => {
+  it("names the map of results kept on screen while another map loads", async () => {
+    fetchResults
+      .mockReset()
+      .mockResolvedValueOnce({ hasStoredSummaries: true, facets: [] })
+      .mockImplementationOnce(() => new Promise(() => undefined));
+    const props = {
+      projectId: "project",
+      running: false,
+      refreshAfter: 0,
+      ruleId: "rule-a",
+    };
+    const view = renderHook(__test.useCurrentTopics, {
+      initialProps: props,
+      wrapper: ({ children }: { children: ReactNode }) =>
+        createElement(QueryClientProvider, { client }, children),
+    });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(view.result.current.data?.fetchedForRuleId).toBe("rule-a");
+    // While rule B loads, rule A's results stay and still name rule A.
+    view.rerender({ ...props, ruleId: "rule-b" });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(view.result.current.isPlaceholderData).toBe(true);
+    expect(view.result.current.data?.fetchedForRuleId).toBe("rule-a");
+  });
+
   it("fetches final results while an old poll is in flight, then stops polling", async () => {
     resetTraces.mockReset();
     const facet = {
@@ -112,6 +137,7 @@ describe("current Topics query", () => {
     expect(view.result.current.data).toEqual({
       hasStoredSummaries: false,
       facets: [facet],
+      fetchedForRuleId: null,
     });
 
     let finishOldPoll:
@@ -160,6 +186,7 @@ describe("current Topics query", () => {
     expect(view.result.current.data).toEqual({
       hasStoredSummaries: true,
       facets: completed,
+      fetchedForRuleId: null,
     });
     expect(resetTraces).toHaveBeenCalledOnce();
 

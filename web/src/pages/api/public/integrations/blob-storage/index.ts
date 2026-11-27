@@ -75,7 +75,9 @@ async function handleGetBlobStorageIntegrations(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  const scope = await authorizeBlobStorageRequest(req);
+  const scope = await authorizeBlobStorageRequest(req, {
+    requireEntitlement: false,
+  });
 
   // Get all projects for the organization
   const projects = await prisma.project.findMany({

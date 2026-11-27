@@ -116,7 +116,9 @@ function validateEntityDimension(
   const view = getViewDeclaration(query.view, version);
 
   const field = query.entityDimension!.field;
-  const dimension = view.dimensions[field];
+  const dimension = Object.hasOwn(view.dimensions, field)
+    ? view.dimensions[field]
+    : undefined;
 
   if (
     !dimension ||

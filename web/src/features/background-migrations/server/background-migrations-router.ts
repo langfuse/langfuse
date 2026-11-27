@@ -58,7 +58,17 @@ export const backgroundMigrationsRouter = createTRPCRouter({
       },
     });
 
-    return { migrations: backgroundMigrations };
+    return {
+      migrations: backgroundMigrations.map((migration) => ({
+        ...migration,
+        // Only pending rows can be dormant; finished and failed rows keep
+        // their terminal status regardless of the gate.
+        isDormant:
+          migration.finishedAt === null &&
+          migration.failedAt === null &&
+          isDormant(migration),
+      })),
+    };
   }),
   status: authenticatedProcedure.query(async ({ ctx }) => {
     denyOnLangfuseCloud();

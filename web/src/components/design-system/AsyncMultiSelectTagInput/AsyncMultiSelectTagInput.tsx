@@ -3,14 +3,12 @@
 import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { Command as CommandPrimitive } from "cmdk";
-import { X } from "@langfuse/icons";
-import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Tag, TagShell } from "@/src/components/design-system/Tag/Tag";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
-import { InputControl } from "../internal/InputControl/InputControl";
 import { InputDropdown } from "../internal/InputDropdown/InputDropdown";
+import { SelectControl } from "../internal/SelectControl/SelectControl";
 import { OverflowList } from "@/src/components/design-system/OverflowList/OverflowList";
 
 export type MultiSelectTagOption<V> = {
@@ -193,21 +191,19 @@ export function AsyncMultiSelectTagInput<V extends string>({
       onOpenChange={handleOpenChange}
     >
       <PopoverPrimitive.Anchor asChild>
-        <InputControl
-          contentLayout="none"
+        <SelectControl
+          inset="compact"
           error={error}
           disabled={disabled}
           prefix={label ? { label } : undefined}
-          trailingAction={
+          clear={
             value.length > 0
               ? {
-                  icon: X,
                   label: "Clear selection",
-                  appearance: "inline",
                   disabled: value.every((selectedValue) =>
                     disabledValues.includes(selectedValue),
                   ),
-                  onClick: () => changeValue([]),
+                  onClear: () => changeValue([]),
                 }
               : undefined
           }
@@ -255,7 +251,7 @@ export function AsyncMultiSelectTagInput<V extends string>({
             >
               <div
                 data-tag-input-layout
-                className="flex h-full min-w-0 items-center gap-1 px-1.5"
+                className="flex h-full min-w-0 flex-1 items-center gap-1"
               >
                 <div data-tags-container className="min-w-0 flex-1">
                   {selectedOptions.length === 0 ? (
@@ -301,15 +297,10 @@ export function AsyncMultiSelectTagInput<V extends string>({
                     />
                   )}
                 </div>
-                {value.length === 0 && (
-                  <DropdownIndicator
-                    color={error ? "destructive" : "tertiary"}
-                  />
-                )}
               </div>
             </div>
           </PopoverPrimitive.Trigger>
-        </InputControl>
+        </SelectControl>
       </PopoverPrimitive.Anchor>
       <PopoverPrimitive.Portal container={container}>
         <InputDropdown.Content width={`popover-${dropdownWidth}`}>
