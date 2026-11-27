@@ -338,6 +338,18 @@ function decryptResolvedGuardrail(
         api_key: decrypt(guardrail.encrypted_credential),
       };
     }
+    if (guardrail.type === "lakera") {
+      return {
+        id: guardrail.id,
+        name: guardrail.name,
+        type: "lakera" as const,
+        action: guardrail.action,
+        patterns: [] as [],
+        region: guardrail.region,
+        ...(guardrail.project_id ? { project_id: guardrail.project_id } : {}),
+        api_key: decrypt(guardrail.encrypted_credential),
+      };
+    }
     const apiKey = decodeBedrockApiKey(decrypt(guardrail.encrypted_credential));
     return {
       id: guardrail.id,

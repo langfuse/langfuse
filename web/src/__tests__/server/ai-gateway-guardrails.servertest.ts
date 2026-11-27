@@ -383,6 +383,23 @@ describe("aiGateway guardrails tRPC", () => {
       ),
     });
 
+    await expect(
+      ownerCaller.aiGateway.guardrails.create({
+        orgId,
+        type: "LAKERA",
+        name: "Lakera entire input",
+        action: "BLOCK",
+        scope: "ENTIRE_INPUT",
+        lakera: { region: "eu", apiKey: "lakera-test-key" },
+        assignments: [{ scope: "ORGANIZATION" }],
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining(
+        "Block guardrails only evaluate the last turn",
+      ),
+    });
+
     // Cross-tenant key rejected with NOT_FOUND
     await expect(
       ownerCaller.aiGateway.guardrails.create({

@@ -465,6 +465,59 @@ describe("GatewayResolveService", () => {
     });
   });
 
+  it("decrypts Lakera guardrail API keys and forwards the project in the resolve response", async () => {
+    const service = serviceWith(() => Promise.resolve(row({})), "org-1", [
+      {
+        id: "gr-lakera",
+        name: "Lakera project",
+        type: "LAKERA",
+        action: "BLOCK",
+        scope: "LAST_TURN",
+        redactionLabel: null,
+        config: { region: "eu", projectId: "project-123" },
+        encryptedCredential: "encrypted-lakera-guardrail",
+      },
+      {
+        id: "gr-lakera-default",
+        name: "Lakera default policy",
+        type: "LAKERA",
+        action: "LOG",
+        scope: "LAST_TURN",
+        redactionLabel: null,
+        config: { region: "ap-southeast-1" },
+        encryptedCredential: "encrypted-lakera-guardrail",
+      },
+    ]);
+
+    const response = await service.resolve({
+      fastHashedSecretKey: "hashed-secret-key",
+      apiFormat: "openai.responses",
+    });
+    expect(response.guardrails).toEqual([
+      {
+        id: "gr-lakera",
+        name: "Lakera project",
+        type: "lakera",
+        action: "block",
+        scope: "last_turn",
+        patterns: [],
+        region: "eu",
+        project_id: "project-123",
+        api_key: "sk-test",
+      },
+      {
+        id: "gr-lakera-default",
+        name: "Lakera default policy",
+        type: "lakera",
+        action: "log",
+        scope: "last_turn",
+        patterns: [],
+        region: "ap-southeast-1",
+        api_key: "sk-test",
+      },
+    ]);
+  });
+
   it("resolves OpenAI moderation guardrails with a decrypted key and fails closed on invalid config", async () => {
     const service = serviceWith(() => Promise.resolve(row({})), "org-1", [
       {

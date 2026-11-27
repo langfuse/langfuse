@@ -173,6 +173,18 @@ export const GatewayCachedGuardrailsSchema = z.array(
         encrypted_credential: z.string(),
       })
       .strict(),
+    z
+      .object({
+        id: z.string(),
+        name: z.string(),
+        type: z.literal("lakera"),
+        action: GatewayResolveGuardrailActionSchema,
+        scope: GatewayCachedGuardrailScopeSchema.optional(),
+        region: z.string(),
+        project_id: z.string().optional(),
+        encrypted_credential: z.string(),
+      })
+      .strict(),
   ]),
 );
 export type GatewayCachedGuardrails = z.infer<
@@ -209,6 +221,20 @@ const GatewayResolveGuardrailsSchema = z.array(
         // Sent empty so gateways predating external guardrails decode and skip it.
         patterns: z.tuple([]),
         region: z.string(),
+        api_key: z.string(),
+      })
+      .strict(),
+    z
+      .object({
+        id: z.string(),
+        name: z.string(),
+        type: z.literal("lakera"),
+        action: GatewayResolveGuardrailActionSchema,
+        scope: GatewayResolveGuardrailScopeSchema.optional(),
+        // Sent empty so gateways predating external guardrails decode and skip it.
+        patterns: z.tuple([]),
+        region: z.string(),
+        project_id: z.string().optional(),
         api_key: z.string(),
       })
       .strict(),

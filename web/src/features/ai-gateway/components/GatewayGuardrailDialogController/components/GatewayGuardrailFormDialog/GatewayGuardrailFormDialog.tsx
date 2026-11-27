@@ -68,8 +68,10 @@ import {
   GatewayBedrockGuardrailConfigSchema,
   GatewayGuardrailCustomRegexSchema,
   GatewayGuardrailRedactionLabelSchema,
+  GATEWAY_LAKERA_GUARDRAIL_REGIONS,
   GATEWAY_OPENAI_MODERATION_REGIONS,
   GatewayExternalGuardrailApiKeySchema,
+  GatewayLakeraGuardrailConfigSchema,
   guardrailScopeChecksOutput,
   parseContainsWordsText,
   resolveSupportedGuardrailScope,
@@ -79,6 +81,7 @@ import {
   type GatewayGuardrailPreset,
   type GatewayGuardrailTemplateKind,
   type GatewayGuardrailUiAction,
+  type GatewayLakeraGuardrailConfig,
   type GatewayOpenAiModerationGuardrailConfig,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import type {
@@ -122,6 +125,8 @@ const ACTION_OPTIONS_BY_TYPE: Record<
     GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.OPENAI_MODERATION.actions.map(
       toActionOption,
     ),
+  LAKERA:
+    GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.LAKERA.actions.map(toActionOption),
 };
 
 const OPENAI_MODERATION_REGION_OPTIONS: {
@@ -130,6 +135,18 @@ const OPENAI_MODERATION_REGION_OPTIONS: {
 }[] = [
   { value: "us", label: "US (api.openai.com)" },
   { value: "eu", label: "EU (eu.api.openai.com)" },
+];
+
+const LAKERA_REGION_OPTIONS: {
+  value: (typeof GATEWAY_LAKERA_GUARDRAIL_REGIONS)[number];
+  label: string;
+}[] = [
+  { value: "eu", label: "EU (eu.api.lakera.ai)" },
+  { value: "us", label: "US (us.api.lakera.ai)" },
+  {
+    value: "ap-southeast-1",
+    label: "Singapore (ap-southeast-1.api.lakera.ai)",
+  },
 ];
 
 const SCOPE_OPTIONS_ALL = GATEWAY_GUARDRAIL_SCOPES.map(toScopeSelectOption);
@@ -177,6 +194,8 @@ function createGuardrailFormSchema(
       bedrockGuardrailVersion: z.string(),
       bedrockRegion: z.string(),
       openAiModerationRegion: z.enum(GATEWAY_OPENAI_MODERATION_REGIONS),
+      lakeraRegion: z.enum(GATEWAY_LAKERA_GUARDRAIL_REGIONS),
+      lakeraProjectId: z.string(),
       apiKey: z.string(),
       action: z.enum(capabilities.actions),
       scope: z.enum(GATEWAY_GUARDRAIL_SCOPES),
@@ -249,6 +268,21 @@ function createGuardrailFormSchema(
               path: ["apiKey"],
               message:
                 apiKeyResult.error.issues[0]?.message ?? "Enter an API key",
+            });
+          }
+        }
+        if (templateKind === "lakera") {
+          const projectIdResult =
+            GatewayLakeraGuardrailConfigSchema.shape.projectId.safeParse(
+              values.lakeraProjectId,
+            );
+          if (!projectIdResult.success) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["lakeraProjectId"],
+              message:
+                projectIdResult.error.issues[0]?.message ??
+                "Enter a valid project ID",
             });
           }
         }
@@ -326,6 +360,7 @@ export type GatewayGuardrailFormValues = {
   openAiModeration?: GatewayOpenAiModerationGuardrailConfig & {
     apiKey?: string;
   };
+  lakera?: GatewayLakeraGuardrailConfig & { apiKey?: string };
   action: GatewayGuardrailUiAction;
   scope?: GatewayGuardrailScope;
   redactionLabel?: string;
@@ -410,6 +445,8 @@ export function GatewayGuardrailFormDialog({
       bedrockGuardrailVersion: initialValues.bedrock?.guardrailVersion ?? "",
       bedrockRegion: initialValues.bedrock?.region ?? "",
       openAiModerationRegion: initialValues.openAiModeration?.region ?? "us",
+      lakeraRegion: initialValues.lakera?.region ?? "eu",
+      lakeraProjectId: initialValues.lakera?.projectId ?? "",
       apiKey: "",
       action: initialValues.action,
       scope: resolveSupportedGuardrailScope(
@@ -431,6 +468,7 @@ export function GatewayGuardrailFormDialog({
   const bedrockGuardrailId = form.watch("bedrockGuardrailId");
   const bedrockGuardrailVersion = form.watch("bedrockGuardrailVersion");
   const bedrockRegion = form.watch("bedrockRegion");
+  const lakeraProjectId = form.watch("lakeraProjectId");
   const apiKey = form.watch("apiKey");
   const selectedAction = form.watch("action");
   const selectedScope = form.watch("scope");
@@ -462,7 +500,11 @@ export function GatewayGuardrailFormDialog({
         guardrailId: bedrockGuardrailId,
         guardrailVersion: bedrockGuardrailVersion,
         region: bedrockRegion,
-      }).success);
+      }).success) &&
+    (templateKind !== "lakera" ||
+      GatewayLakeraGuardrailConfigSchema.shape.projectId.safeParse(
+        lakeraProjectId,
+      ).success);
 
   const isCustomRegex = templateKind === "custom_regex";
   const activeCustomRegexPreview =
@@ -505,6 +547,24 @@ export function GatewayGuardrailFormDialog({
           guardrailId: values.bedrockGuardrailId.trim(),
           guardrailVersion: values.bedrockGuardrailVersion.trim(),
           region: values.bedrockRegion.trim(),
+          ...(apiKey ? { apiKey } : {}),
+        },
+        action: values.action,
+        scope: values.scope,
+        targets: values.targets,
+      };
+    }
+    if (templateKind === "lakera") {
+      const projectId = values.lakeraProjectId.trim();
+      return {
+        name: values.name.trim(),
+        presets: [],
+        secretPrefixes: [],
+        containsWords: [],
+        customRegex: null,
+        lakera: {
+          region: values.lakeraRegion,
+          ...(projectId ? { projectId } : {}),
           ...(apiKey ? { apiKey } : {}),
         },
         action: values.action,
@@ -951,6 +1011,14 @@ function TemplateRuleFields({
       />
     );
   }
+  if (templateKind === "lakera") {
+    return (
+      <LakeraGuardrailFields
+        control={control}
+        hasSavedApiKey={hasSavedApiKey}
+      />
+    );
+  }
   if (templateKind === "contains") {
     return (
       <Controller
@@ -1151,6 +1219,90 @@ function OpenAiModerationGuardrailFields({
         }}
       />
     </div>
+  );
+}
+
+type LakeraGuardrailFieldsProps = {
+  control: Control<GuardrailFormSchemaValues>;
+  hasSavedApiKey: boolean;
+};
+
+function LakeraGuardrailFields({
+  control,
+  hasSavedApiKey,
+}: LakeraGuardrailFieldsProps) {
+  return (
+    <>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <CustomTooltip
+          content={
+            <span>Where Lakera processes requests for this guardrail.</span>
+          }
+        >
+          {({ getTriggerProps }) => (
+            <FormField
+              control={control}
+              name="lakeraRegion"
+              label="Region"
+              registerLabelTooltip={getTriggerProps}
+            >
+              {({ id, inputDescribedById, error, value, onChange, onBlur }) => (
+                <SelectInput
+                  id={id}
+                  aria-describedby={inputDescribedById}
+                  aria-invalid={Boolean(error)}
+                  error={Boolean(error)}
+                  placeholder="Select region"
+                  value={value}
+                  onValueChange={onChange}
+                  onBlur={onBlur}
+                  options={LAKERA_REGION_OPTIONS}
+                />
+              )}
+            </FormField>
+          )}
+        </CustomTooltip>
+
+        <CustomTooltip
+          content={
+            <span>
+              Project whose policy screens requests. Leave blank to use the
+              Lakera default policy.
+            </span>
+          }
+        >
+          {({ getTriggerProps }) => (
+            <FormField
+              control={control}
+              name="lakeraProjectId"
+              label="Project ID"
+              registerLabelTooltip={getTriggerProps}
+            >
+              {({ id, inputDescribedById, error, ...field }) => (
+                <Input
+                  {...field}
+                  id={id}
+                  aria-describedby={inputDescribedById}
+                  aria-invalid={Boolean(error)}
+                  error={Boolean(error)}
+                  placeholder="Optional"
+                />
+              )}
+            </FormField>
+          )}
+        </CustomTooltip>
+      </div>
+
+      <ExternalApiKeyField
+        control={control}
+        hasSavedApiKey={hasSavedApiKey}
+        tooltip={{
+          docsHref: "https://docs.lakera.ai/docs/api",
+          docsLabel: "Lakera API keys",
+          note: "Create one in the API access section of the Lakera dashboard. Requests over your plan's size limit (8k tokens on Community) fail closed.",
+        }}
+      />
+    </>
   );
 }
 

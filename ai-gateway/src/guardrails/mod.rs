@@ -8,6 +8,7 @@
 //! (`capture::request_spec`), and `response` extracts provider output blocks.
 pub(crate) mod bedrock;
 pub(crate) mod external;
+pub(crate) mod lakera;
 pub(crate) mod openai_moderation;
 pub(crate) mod redact;
 mod regex;
@@ -34,6 +35,7 @@ use crate::{
 };
 use bedrock::BedrockGuardrail;
 use external::{ExternalFailureKind, ExternalGuardrailClient, ExternalOutcome, ExternalPayloads};
+use lakera::LakeraGuardrail;
 use openai_moderation::OpenAiModerationGuardrail;
 use redact::{BodyEdit, RedactionSpan};
 use regex::Compiled;
@@ -407,6 +409,7 @@ pub(crate) enum GuardrailKind {
     },
     Bedrock(BedrockGuardrail),
     OpenAiModeration(OpenAiModerationGuardrail),
+    Lakera(LakeraGuardrail),
     /// Control plane could not decrypt or validate a fail-closed guardrail;
     /// always matches so the gateway enforces its action without forwarding
     /// unscreened requests.
@@ -447,6 +450,7 @@ impl Guardrail {
             GuardrailKind::Regex { patterns } => !patterns.is_empty(),
             GuardrailKind::Bedrock(_)
             | GuardrailKind::OpenAiModeration(_)
+            | GuardrailKind::Lakera(_)
             | GuardrailKind::FailClosed => true,
             GuardrailKind::Unknown => false,
         }
@@ -468,6 +472,13 @@ impl Guardrail {
             GuardrailKind::OpenAiModeration(config) => {
                 crate::resolution::valid_token(config.api_key.expose_secret())
             }
+            GuardrailKind::Lakera(config) => {
+                config
+                    .project_id
+                    .as_deref()
+                    .is_none_or(crate::resolution::valid_token)
+                    && crate::resolution::valid_token(config.api_key.expose_secret())
+            }
         }
     }
 
@@ -476,6 +487,7 @@ impl Guardrail {
             GuardrailKind::Regex { patterns } => Some(patterns),
             GuardrailKind::Bedrock(_)
             | GuardrailKind::OpenAiModeration(_)
+            | GuardrailKind::Lakera(_)
             | GuardrailKind::FailClosed
             | GuardrailKind::Unknown => None,
         }
@@ -485,7 +497,9 @@ impl Guardrail {
         self.is_active()
             && matches!(
                 self.kind,
-                GuardrailKind::Bedrock(_) | GuardrailKind::OpenAiModeration(_)
+                GuardrailKind::Bedrock(_)
+                    | GuardrailKind::OpenAiModeration(_)
+                    | GuardrailKind::Lakera(_)
             )
     }
 
@@ -523,6 +537,8 @@ impl<'de> Deserialize<'de> for Guardrail {
             #[serde(default)]
             region: Option<String>,
             #[serde(default)]
+            project_id: Option<String>,
+            #[serde(default)]
             api_key: Option<SecretString>,
         }
 
@@ -556,6 +572,15 @@ impl<'de> Deserialize<'de> for Guardrail {
                         .ok_or_else(|| D::Error::missing_field("api_key"))?,
                 })
             }
+            Some("lakera") => GuardrailKind::Lakera(LakeraGuardrail {
+                region: raw
+                    .region
+                    .ok_or_else(|| D::Error::missing_field("region"))?,
+                project_id: raw.project_id,
+                api_key: raw
+                    .api_key
+                    .ok_or_else(|| D::Error::missing_field("api_key"))?,
+            }),
             Some("fail_closed") => GuardrailKind::FailClosed,
             Some(_) => GuardrailKind::Unknown,
         };

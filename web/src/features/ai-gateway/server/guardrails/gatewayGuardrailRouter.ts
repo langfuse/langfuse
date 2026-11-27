@@ -28,6 +28,8 @@ import {
   GatewayGuardrailSecretPrefixesSchema,
   GatewayOpenAiModerationGuardrailCreateInputSchema,
   GatewayOpenAiModerationGuardrailUpdateInputSchema,
+  GatewayLakeraGuardrailCreateInputSchema,
+  GatewayLakeraGuardrailUpdateInputSchema,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
@@ -110,6 +112,10 @@ const openAiModerationActionSchema = z.enum(
   GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.OPENAI_MODERATION.actions,
 );
 
+const lakeraActionSchema = z.enum(
+  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.LAKERA.actions,
+);
+
 const isScopeSupportedByAction = (value: {
   action: keyof typeof GATEWAY_GUARDRAIL_ACTION_SCOPES;
   scope?: z.infer<typeof GatewayGuardrailScopeSchema>;
@@ -138,6 +144,14 @@ const createGuardrailInput = z.union([
       openAiModeration: GatewayOpenAiModerationGuardrailCreateInputSchema,
     })
     .refine(isScopeSupportedByAction, SCOPE_NOT_SUPPORTED_MESSAGE),
+  organizationInput
+    .extend({
+      ...commonWriteFields,
+      type: z.literal("LAKERA"),
+      action: lakeraActionSchema,
+      lakera: GatewayLakeraGuardrailCreateInputSchema,
+    })
+    .refine(isScopeSupportedByAction, SCOPE_NOT_SUPPORTED_MESSAGE),
 ]);
 
 const updateGuardrailInput = z.union([
@@ -154,6 +168,14 @@ const updateGuardrailInput = z.union([
       type: z.literal("OPENAI_MODERATION"),
       action: openAiModerationActionSchema,
       openAiModeration: GatewayOpenAiModerationGuardrailUpdateInputSchema,
+    })
+    .refine(isScopeSupportedByAction, SCOPE_NOT_SUPPORTED_MESSAGE),
+  guardrailIdInput
+    .extend({
+      ...commonWriteFields,
+      type: z.literal("LAKERA"),
+      action: lakeraActionSchema,
+      lakera: GatewayLakeraGuardrailUpdateInputSchema,
     })
     .refine(isScopeSupportedByAction, SCOPE_NOT_SUPPORTED_MESSAGE),
 ]);
@@ -312,6 +334,11 @@ export const gatewayGuardrailRouter = createTRPCRouter({
           type: z.literal("OPENAI_MODERATION"),
           openAiModeration: GatewayOpenAiModerationGuardrailUpdateInputSchema,
         }),
+        organizationInput.extend({
+          id: z.string().optional(),
+          type: z.literal("LAKERA"),
+          lakera: GatewayLakeraGuardrailUpdateInputSchema,
+        }),
       ]),
     )
     .mutation(async ({ input, ctx }) => {
@@ -352,6 +379,18 @@ export const gatewayGuardrailRouter = createTRPCRouter({
           action: input.action,
           scope: input.scope,
           bedrock: input.bedrock,
+          assignments: input.assignments,
+          session: ctx.session,
+        });
+      }
+      if (input.type === "LAKERA") {
+        return service.create({
+          organizationId: input.orgId,
+          type: "LAKERA",
+          name: input.name,
+          action: input.action,
+          scope: input.scope,
+          lakera: input.lakera,
           assignments: input.assignments,
           session: ctx.session,
         });
@@ -402,6 +441,19 @@ export const gatewayGuardrailRouter = createTRPCRouter({
           action: input.action,
           scope: input.scope,
           bedrock: input.bedrock,
+          assignments: input.assignments,
+          session: ctx.session,
+        });
+      }
+      if (input.type === "LAKERA") {
+        return service.update({
+          organizationId: input.orgId,
+          id: input.id,
+          type: "LAKERA",
+          name: input.name,
+          action: input.action,
+          scope: input.scope,
+          lakera: input.lakera,
           assignments: input.assignments,
           session: ctx.session,
         });

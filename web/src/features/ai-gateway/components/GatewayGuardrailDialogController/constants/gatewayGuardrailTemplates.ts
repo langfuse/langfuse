@@ -210,6 +210,27 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
       defaultPresets: [],
       sampleTestText: "",
     },
+    {
+      id: "lakera",
+      guardrailType: "LAKERA",
+      name: "Lakera Guard",
+      description:
+        "Detects prompt attacks, harmful content, PII and malicious links.",
+      preview: {
+        kind: "snippet",
+        label: "flagged",
+        value: "true",
+      },
+      external: {
+        description:
+          "Screens each request's latest turn with your Lakera Guard project policy and blocks or logs flagged content.",
+        docsLabel: "Lakera documentation",
+        docsHref: "https://docs.lakera.ai/docs/api/guard",
+      },
+      presets: [],
+      defaultPresets: [],
+      sampleTestText: "",
+    },
   ];
 
 const TEMPLATE_GUARDRAIL_TYPE: Record<
@@ -223,6 +244,7 @@ const TEMPLATE_GUARDRAIL_TYPE: Record<
   custom_regex: "REGEX",
   bedrock: "BEDROCK",
   openai_moderation: "OPENAI_MODERATION",
+  lakera: "LAKERA",
 };
 
 export function getGuardrailTypeForTemplate(

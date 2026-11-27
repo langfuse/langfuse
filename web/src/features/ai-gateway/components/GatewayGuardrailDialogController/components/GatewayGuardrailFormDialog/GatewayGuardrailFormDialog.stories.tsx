@@ -107,6 +107,9 @@ const customRegexTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
 const bedrockTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
   (t) => t.id === "bedrock",
 )!;
+const lakeraTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
+  (t) => t.id === "lakera",
+)!;
 
 const meta = preview.meta({
   component: StoryGuardrailFormDialog,
@@ -284,6 +287,32 @@ export const EditBedrock = meta.story({
     },
     isSubmitting: false,
     errorMessage: null,
+  },
+});
+
+export const CreateLakera = meta.story({
+  args: {
+    title: lakeraTemplate.name,
+    submitLabel: "Test and save",
+    templateKind: "lakera",
+    availablePresets: [],
+    externalTest: {
+      isPending: false,
+      outcome: null,
+      onTest: fn(),
+    },
+    initialValues: {
+      name: lakeraTemplate.name,
+      presets: [],
+      secretPrefixes: [],
+      containsWords: [],
+      action: "BLOCK",
+      scope: "LAST_TURN",
+      targets: [EVERYONE_TARGET_OPTION],
+    },
+    isSubmitting: false,
+    errorMessage: null,
+    onBack: fn(),
   },
 });
 

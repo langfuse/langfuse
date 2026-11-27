@@ -3,6 +3,7 @@ import {
   Globe,
   KeyRound,
   Pencil,
+  ShieldCheck,
   Trash2,
   User,
 } from "@langfuse/icons";
@@ -257,6 +258,9 @@ function getGuardrailBadge(row: GatewayGuardrailRow) {
   }
   if (row.type === "OPENAI_MODERATION") {
     return <providerIcons.OPENAI size="sm" aria-hidden />;
+  }
+  if (row.type === "LAKERA") {
+    return <ShieldCheck size="sm" aria-hidden />;
   }
   if (
     row.presets.length === 0 &&
