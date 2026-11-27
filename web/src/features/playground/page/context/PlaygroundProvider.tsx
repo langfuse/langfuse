@@ -52,6 +52,7 @@ import {
 import { useSyncMessageSearchMessages } from "@/src/components/ChatMessages/messageSearch/context";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys";
+import { resolvePromptVariables } from "@/src/features/playground/page/utils/resolvePromptVariables";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
 
 type PlaygroundContextType = {
@@ -241,34 +242,9 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   }, [playgroundCache, setModelParams]);
 
   const updatePromptVariables = useCallback(() => {
-    const messageContents = messages
-      .map((m) => ("content" in m ? m.content : m.name))
-      .join("\n");
-    const variables = extractVariables(messageContents)
-      .map((v) => v.trim())
-      .filter(Boolean);
-
-    setPromptVariables((prev) => {
-      // Update isUsed flag
-      const next = prev.reduce<PromptVariable[]>((acc, v) => {
-        const isUsed = variables.includes(v.name);
-
-        if (!isUsed && !v.value) return acc;
-
-        acc.push({ ...v, isUsed: isUsed });
-
-        return acc;
-      }, []);
-
-      // Create new variables if any
-      for (const variable of variables) {
-        if (!next.some((v) => v.name === variable)) {
-          next.push({ name: variable, value: "", isUsed: true });
-        }
-      }
-
-      return next;
-    });
+    setPromptVariables((previous) =>
+      resolvePromptVariables(messages, previous),
+    );
   }, [messages]);
 
   useEffect(updatePromptVariables, [messages, updatePromptVariables]);

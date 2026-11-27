@@ -141,9 +141,7 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
   });
   const {
     disabled: playgroundDisabled,
-    handlePlaygroundAction,
-    includeOutput,
-    setIncludeOutput,
+    menuItems: playgroundItems,
     title: playgroundTitle,
   } = playground;
 
@@ -218,31 +216,7 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
         title: "Playground",
         icon: Terminal,
         disabled: playgroundDisabled ? { reason: playgroundTitle } : undefined,
-        items: [
-          {
-            type: "item",
-            id: "fresh-playground",
-            title: "Fresh playground",
-            onClick: () => handlePlaygroundAction("fresh"),
-          },
-          {
-            type: "item",
-            id: "existing-playground",
-            title: "Add to existing",
-            onClick: () => handlePlaygroundAction("existing"),
-          },
-          {
-            type: "separator",
-            id: "playground-separator",
-          },
-          {
-            type: "checkbox",
-            id: "include-output",
-            title: "Include output",
-            checked: includeOutput,
-            onCheckedChange: setIncludeOutput,
-          },
-        ],
+        items: playgroundItems,
       });
     }
 
@@ -258,16 +232,14 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
     generation,
     hasDatasetAccess,
     input,
-    includeOutput,
     metadata,
     observationId,
     openDatasetDialog,
     openDatasetItemDialog,
     output,
-    handlePlaygroundAction,
     playgroundDisabled,
+    playgroundItems,
     playgroundTitle,
-    setIncludeOutput,
     traceId,
   ]);
 
