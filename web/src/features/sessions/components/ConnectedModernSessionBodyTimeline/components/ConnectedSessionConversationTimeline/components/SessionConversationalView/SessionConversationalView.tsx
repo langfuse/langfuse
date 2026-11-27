@@ -1,4 +1,3 @@
-/* eslint-disable boundaries/dependencies -- TODO: component privacy */
 import {
   type ComponentProps,
   useLayoutEffect,

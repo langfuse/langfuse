@@ -1,4 +1,3 @@
-/* eslint-disable boundaries/dependencies -- TODO: component privacy */
 /**
  * TraceTimeline, wired into the trace panel.
  *

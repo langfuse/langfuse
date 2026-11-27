@@ -5,20 +5,21 @@ import { defineConfig } from "oxlint";
 // Component privacy. A PascalCase directory is a component (`Foo/`). Folders
 // named fns, hooks, utils, types, constants, contexts, stores, or lib under it
 // are private. A file placed directly in `components/` is private too. A
-// PascalCase directory under `components/` is its own component. The lowercase
-// `components` folder is not an element, so it breaks the parent link.
+// PascalCase directory under `components/` is a child component: the element
+// pattern `[A-Z]*{,/components}` treats that folder as part of the name and
+// the element path stops at the PascalCase segment, so `Foo` is `Bar`'s parent.
 //
 // `Foo/Foo.tsx -> Foo/hooks/useX.ts` is child, allowed.
 // `Foo/hooks/useX.ts -> Foo/fns/format.ts` is sibling, allowed.
+// `Foo/components/Bar/Bar.tsx -> Foo/hooks/useX.ts` is sibling, allowed.
 // `Foo/Bar/hooks/useY.ts -> Foo/Baz/Baz.tsx` is uncle, allowed.
+// `Foo/components/Bar/components/Qux/Qux.tsx -> Foo/hooks/useX.ts` is uncle, allowed.
 // `Foo/hooks/useX.ts -> Foo/components/helper.ts` is parent, allowed.
+// `Foo/Foo.tsx -> Foo/components/Bar/Bar.tsx` is child, allowed.
 // `Other/Other.tsx -> Foo/hooks/useX.ts` is an error.
-// `Foo/Foo.tsx -> Foo/components/helper.ts` is the same element, allowed.
+// `Other/Other.tsx -> Foo/components/Bar/Bar.tsx` is an error.
 // `Other/Other.tsx -> Foo/components/helper.ts` is an error.
-// `Other/Other.tsx -> Foo/components/Bar/Bar.tsx` is not flagged: `Bar`'s entry
-// has no parent. `Foo/components/Bar/hooks/useY.ts` is private to `Bar`, so
-// `Foo/Foo.tsx -> Foo/components/Bar/hooks/useY.ts` is an error, and
-// `Foo/components/Bar/Bar.tsx -> Foo/hooks/useX.ts` is an error.
+// `Foo/Foo.tsx -> Foo/components/Bar/hooks/useY.ts` is descendant, an error.
 //
 // Extend `componentPrivacyRoots` to cover more of the app. Policies are
 // target-scoped, plus one importer-scoped policy: dropping that second policy
@@ -112,7 +113,7 @@ export default defineConfig({
       },
     ],
     "boundaries/elements": [
-      { type: "component", pattern: "[A-Z]*" },
+      { type: "component", pattern: "[A-Z]*{,/components}" },
       {
         type: "component-private",
         pattern: "{fns,hooks,utils,types,constants,contexts,stores,lib}",
