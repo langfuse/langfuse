@@ -3143,6 +3143,30 @@ describe("AI gateway control plane", () => {
       budgets: true,
       apiKeys: true,
     });
+    // An admin-set limit beside the member's own locks the key, though the lists show only the first one.
+    const adminLimit = await prisma.gatewaySpendLimit.create({
+      data: {
+        organizationId: owner.org.id,
+        scope: "API_KEY",
+        apiKeyId: aiGatewayKey.id,
+        interval: "TOTAL",
+        limitUsd: 100,
+        countingStartedAt: new Date(),
+        ownerUserId: owner.user.id,
+      },
+    });
+    expect(await listCanReset(aiGatewayMember, aiGatewayKey.id)).toEqual({
+      budgets: false,
+      apiKeys: false,
+    });
+    await expect(
+      aiGatewayMember.aiGateway.resetSpendLimit({
+        orgId: owner.org.id,
+        scope: "API_KEY",
+        subjectId: aiGatewayKey.id,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await prisma.gatewaySpendLimit.delete({ where: { id: adminLimit.id } });
     await admin.aiGateway.resetSpendLimit({
       orgId: owner.org.id,
       scope: "API_KEY",

@@ -276,27 +276,27 @@ export class GatewaySpendLimitService {
       ? await readSpend(recordingProjectId, params.scope, budgeted)
       : null;
 
-    return params.rows.map(({ subjectId, name, user, limit }) => {
-      const applied = limit ?? params.fallback;
-      return {
-        id: subjectId,
-        subjectId,
-        name,
-        user,
-        spendLimit: applied ? toGatewaySpendLimitDto(applied) : null,
-        isDefault: limit === null && applied !== null,
-        spentUsd: applied && spend ? (spend.get(subjectId) ?? 0) : undefined,
-        // Members may add a budget to their own keys without the default, and change only budgets they set.
-        isEditable:
-          ownUserId === undefined ||
-          (params.scope === "API_KEY" &&
-            (limit === null
-              ? params.fallback === null
-              : limit.ownerUserId === ownUserId)),
-        canResetBudget:
-          ownUserId === undefined || limit?.ownerUserId === ownUserId,
-      };
-    });
+    return params.rows.map(
+      ({ subjectId, name, user, limit, limitsNotOwnedCount }) => {
+        const applied = limit ?? params.fallback;
+        const ownsAllLimits = limit !== null && limitsNotOwnedCount === 0;
+        return {
+          id: subjectId,
+          subjectId,
+          name,
+          user,
+          spendLimit: applied ? toGatewaySpendLimitDto(applied) : null,
+          isDefault: limit === null && applied !== null,
+          spentUsd: applied && spend ? (spend.get(subjectId) ?? 0) : undefined,
+          // Members may add a budget to their own keys without the default, and change only budgets they set.
+          isEditable:
+            ownUserId === undefined ||
+            (params.scope === "API_KEY" &&
+              (limit === null ? params.fallback === null : ownsAllLimits)),
+          canResetBudget: ownUserId === undefined || ownsAllLimits,
+        };
+      },
+    );
   }
 
   /**

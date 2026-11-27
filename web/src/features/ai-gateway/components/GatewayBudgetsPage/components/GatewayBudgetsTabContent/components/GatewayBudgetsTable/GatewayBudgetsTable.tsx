@@ -18,7 +18,10 @@ import {
   GATEWAY_BUDGET_STATUSES,
   type GatewayBudgetStatus,
 } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
-import { GATEWAY_ADMIN_SET_BUDGET_RESET_REASON } from "@/src/features/ai-gateway/constants/gatewayAdminSetBudgetResetReason";
+import {
+  GATEWAY_ADMIN_SET_BUDGET_CHANGE_REASON,
+  GATEWAY_ADMIN_SET_BUDGET_RESET_REASON,
+} from "@/src/features/ai-gateway/constants/gatewayAdminSetBudgetReasons";
 import {
   GATEWAY_SPEND_TABS,
   type GatewaySpendTab,
@@ -159,7 +162,7 @@ const columnsByTab: Record<
 
 const notEditableReasons = {
   users: "Only gateway admins can change user budgets.",
-  apiKeys: "A gateway admin set this budget, so only an admin can change it.",
+  apiKeys: GATEWAY_ADMIN_SET_BUDGET_CHANGE_REASON,
 } as const satisfies Record<GatewaySpendTab, string>;
 
 const noBudgetResetReasons = {

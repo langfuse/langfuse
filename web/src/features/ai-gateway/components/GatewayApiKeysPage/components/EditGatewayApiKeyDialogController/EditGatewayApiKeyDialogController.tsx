@@ -9,6 +9,8 @@ import { restoreGatewayApiKeyMetadataTypes } from "@/src/features/ai-gateway/com
 import { toGatewayApiKeyMetadataRows } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/toGatewayApiKeyMetadataRows";
 import { toGatewaySpendLimitUpdate } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/toGatewaySpendLimitUpdate";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
+import { isGatewayApiKeyBudgetLockedByAdmin } from "@/src/features/ai-gateway/fns/spendLimits/isGatewayApiKeyBudgetLockedByAdmin";
+import { GATEWAY_ADMIN_SET_BUDGET_CHANGE_REASON } from "@/src/features/ai-gateway/constants/gatewayAdminSetBudgetReasons";
 import { localDateInputValue } from "@/src/features/apiKey/fns/localDateInputValue";
 import { useCaptureGatewayBudgetChange } from "@/src/features/ai-gateway/hooks/useCaptureGatewayBudgetChange";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -24,7 +26,9 @@ type EditableGatewayApiKey = {
   metadata: unknown;
   allowedModels: unknown;
   spendLimit: GatewaySpendLimit | null;
+  defaultSpendLimit?: GatewaySpendLimit | null;
   hasSeveralSpendLimits: boolean;
+  canResetBudget: boolean;
   apiKey: {
     id: string;
     note: string | null;
@@ -124,9 +128,15 @@ export function EditGatewayApiKeyDialogController({
           submitLabel="Save changes"
           canIssueServiceAccountKeys={canIssueServiceAccountKeys}
           disabledFields={
-            state.hasSeveralSpendLimits
+            state.hasSeveralSpendLimits ||
+            isGatewayApiKeyBudgetLockedByAdmin(state)
               ? ["issuedAs", "expiration", "spendBudget"]
               : ["issuedAs", "expiration"]
+          }
+          spendBudgetLockedReason={
+            isGatewayApiKeyBudgetLockedByAdmin(state)
+              ? GATEWAY_ADMIN_SET_BUDGET_CHANGE_REASON
+              : undefined
           }
           defaultValues={toEditableGatewayApiKeyFields(state)}
           errorMessage={
