@@ -349,6 +349,67 @@ describe("buildTraceDiff", () => {
     expect(report.status).toBe("identical");
   });
 
+  it("keeps a nested change on its actual sibling branch", () => {
+    const branch = (
+      traceId: string,
+      branchId: string,
+      childName: string,
+      args: string,
+    ) => {
+      const parent = observation({
+        id: `${traceId}-${branchId}`,
+        parentObservationId: `${traceId}-root`,
+        type: "AGENT",
+        name: "parallel",
+        startTime: new Date("2026-01-01T00:00:01.000Z"),
+      });
+      const child = observation({
+        id: `${traceId}-${branchId}-child`,
+        parentObservationId: parent.id,
+        type: "TOOL",
+        name: childName,
+        startTime: new Date("2026-01-01T00:00:02.000Z"),
+        output: toolCallOutput(`${traceId}-${branchId}-call`, args),
+      });
+      return [parent, child];
+    };
+    const makeTrace = (traceId: string, alphaArgs: string) => [
+      observation({ id: `${traceId}-root`, name: "root" }),
+      ...branch(traceId, "a", "alpha", alphaArgs),
+      ...branch(traceId, "b", "beta", "stable"),
+    ];
+    for (const changedArgs of Array.from(
+      { length: 20 },
+      (_, index) => `changed-${index}`,
+    )) {
+      const right = makeTrace("right", changedArgs);
+      const reorderedRight = [
+        right[0]!,
+        ...right.slice(3),
+        ...right.slice(1, 3),
+      ];
+      const report = buildTraceDiff(
+        { traceId: "left", observations: makeTrace("left", "pwd") },
+        { traceId: "right", observations: reorderedRight },
+      );
+      expect(report.firstDivergence?.reason).toBe("payload");
+      expect(report.firstDivergence?.location).toContain("TOOL alpha");
+      expect(report.firstDivergence?.leftPreview).toContain("pwd");
+      expect(report.firstDivergence?.rightPreview).toContain(changedArgs);
+
+      const reversed = buildTraceDiff(
+        { traceId: "right", observations: reorderedRight },
+        {
+          traceId: "left",
+          observations: makeTrace("left", "pwd"),
+        },
+      );
+      expect(reversed.firstDivergence?.location).toContain("TOOL alpha");
+      expect(reversed.firstDivergence?.leftPreview).toContain(changedArgs);
+      expect(reversed.firstDivergence?.rightPreview).toContain("pwd");
+    }
+  });
+
   it("locates the exact observation whose tool arguments changed", () => {
     const report = buildTraceDiff(
       { traceId: "left", observations: trace("left") },

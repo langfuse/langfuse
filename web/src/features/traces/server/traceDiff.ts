@@ -38,6 +38,7 @@ type ObservationNode = {
   payload: ReturnType<typeof observationPayload>;
   ownCanonical: string;
   branchCanonical?: string;
+  structureCanonical?: string;
   children: ObservationNode[];
 };
 
@@ -244,11 +245,22 @@ function observationPayload(observation: Observation) {
   };
 }
 
-function projectObservations(
+type ObservationForest = {
+  roots: ObservationNode[];
+  nodes: ObservationNode[];
+};
+
+type NodePair = {
+  left?: ObservationNode;
+  right?: ObservationNode;
+};
+
+type ObservationPair = NodePair & { nestingLevel: number };
+
+function buildObservationForest(
   observations: readonly Observation[],
-): TraceDiffEvent[] {
-  // Mirror orderObservations' earliest-row dedupe and orphan handling, but use
-  // subtree digests to break same-time sibling ties independently of row order.
+): ObservationForest {
+  // Mirror orderObservations' earliest-row dedupe and orphan handling.
   const byId = new Map<string, ObservationNode>();
   for (const observation of observations) {
     const payload = observationPayload(observation);
@@ -280,60 +292,240 @@ function projectObservations(
       roots.push(node);
     }
   }
+  return { roots, nodes: [...byId.values()] };
+}
 
-  const branchKey = (node: ObservationNode): string => {
-    if (node.branchCanonical !== undefined) return node.branchCanonical;
-    const children = node.children.map((child) => ({
-      startTime: child.observation.startTime.getTime(),
-      key: branchKey(child),
-    }));
-    children.sort(
-      (left, right) =>
-        left.startTime - right.startTime || left.key.localeCompare(right.key),
+/** Exact subtree identity, independent of same-time database row order. */
+function branchKey(
+  node: ObservationNode,
+  visiting = new Set<ObservationNode>(),
+): string {
+  if (node.branchCanonical !== undefined) return node.branchCanonical;
+  if (visiting.has(node)) {
+    return createHash("sha256")
+      .update(`cycle:${node.ownCanonical}`)
+      .digest("hex");
+  }
+  visiting.add(node);
+  const children = node.children.map((child) => ({
+    startTime: child.observation.startTime.getTime(),
+    key: branchKey(child, visiting),
+  }));
+  visiting.delete(node);
+  children.sort(
+    (left, right) =>
+      left.startTime - right.startTime || left.key.localeCompare(right.key),
+  );
+  const hash = createHash("sha256").update(node.ownCanonical);
+  for (const child of children) hash.update(child.key);
+  node.branchCanonical = hash.digest("hex");
+  return node.branchCanonical;
+}
+
+/** Type/name structure stays stable when a nested tool payload changes. */
+function structureKey(
+  node: ObservationNode,
+  visiting = new Set<ObservationNode>(),
+): string {
+  if (node.structureCanonical !== undefined) return node.structureCanonical;
+  const own = JSON.stringify([node.observation.type, node.observation.name]);
+  if (visiting.has(node)) {
+    return createHash("sha256").update(`cycle:${own}`).digest("hex");
+  }
+  visiting.add(node);
+  const children = node.children.map((child) => ({
+    startTime: child.observation.startTime.getTime(),
+    key: structureKey(child, visiting),
+  }));
+  visiting.delete(node);
+  children.sort(
+    (left, right) =>
+      left.startTime - right.startTime || left.key.localeCompare(right.key),
+  );
+  const hash = createHash("sha256").update(own);
+  for (const child of children) hash.update(child.key);
+  node.structureCanonical = hash.digest("hex");
+  return node.structureCanonical;
+}
+
+function similarityScore(
+  left: ObservationNode,
+  right: ObservationNode,
+): number {
+  let score = 0;
+  if (left.ownCanonical === right.ownCanonical) score += 8;
+  if (structureKey(left) === structureKey(right)) score += 4;
+  const rightChildren = new Set(
+    right.children.map((child) => branchKey(child)),
+  );
+  for (const child of left.children) {
+    if (rightChildren.has(branchKey(child))) score += 1;
+  }
+  return score;
+}
+
+function takeMatches(
+  left: ObservationNode[],
+  right: ObservationNode[],
+  keyOf: (node: ObservationNode) => string,
+): { pairs: NodePair[]; left: ObservationNode[]; right: ObservationNode[] } {
+  const buckets = new Map<string, ObservationNode[]>();
+  for (const node of right) {
+    const key = keyOf(node);
+    buckets.set(key, [...(buckets.get(key) ?? []), node]);
+  }
+  const usedRight = new Set<ObservationNode>();
+  const pairs: NodePair[] = [];
+  const unmatchedLeft: ObservationNode[] = [];
+  for (const node of left) {
+    const candidates = (buckets.get(keyOf(node)) ?? []).filter(
+      (candidate) => !usedRight.has(candidate),
     );
-    const hash = createHash("sha256").update(node.ownCanonical);
-    for (const child of children) hash.update(child.key);
-    node.branchCanonical = hash.digest("hex");
-    return node.branchCanonical;
+    if (candidates.length === 0) {
+      unmatchedLeft.push(node);
+      continue;
+    }
+    let match = candidates[0]!;
+    if (candidates.length > 1) {
+      let bestScore = -1;
+      for (const candidate of candidates) {
+        const score = similarityScore(node, candidate);
+        if (score > bestScore) {
+          bestScore = score;
+          match = candidate;
+        }
+      }
+    }
+    usedRight.add(match);
+    pairs.push({ left: node, right: match });
+  }
+  return {
+    pairs,
+    left: unmatchedLeft,
+    right: right.filter((node) => !usedRight.has(node)),
   };
-  const compareSiblings = (left: ObservationNode, right: ObservationNode) =>
-    left.observation.startTime.getTime() -
-      right.observation.startTime.getTime() ||
-    branchKey(left).localeCompare(branchKey(right));
-  const toEvent = (node: ObservationNode, nestingLevel: number) => ({
+}
+
+function pairSortKeys(pair: NodePair): [string, string] {
+  const keys = [pair.left, pair.right]
+    .filter((node): node is ObservationNode => node !== undefined)
+    .map((node) => structureKey(node))
+    .sort();
+  return [keys[0] ?? "", keys[1] ?? keys[0] ?? ""];
+}
+
+function alignSameTimeSiblings(
+  left: ObservationNode[],
+  right: ObservationNode[],
+): NodePair[] {
+  let remainingLeft = left;
+  let remainingRight = right;
+  const pairs: NodePair[] = [];
+  const matchers: Array<(node: ObservationNode) => string> = [
+    branchKey,
+    structureKey,
+    (node) => node.ownCanonical,
+  ];
+  for (const keyOf of matchers) {
+    const matched = takeMatches(remainingLeft, remainingRight, keyOf);
+    pairs.push(...matched.pairs);
+    remainingLeft = matched.left;
+    remainingRight = matched.right;
+  }
+
+  const remainingCount = Math.max(remainingLeft.length, remainingRight.length);
+  for (let index = 0; index < remainingCount; index += 1) {
+    const leftNode = remainingLeft[index];
+    const rightNode = remainingRight[index];
+    pairs.push({
+      ...(leftNode ? { left: leftNode } : {}),
+      ...(rightNode ? { right: rightNode } : {}),
+    });
+  }
+
+  // Structure, unlike a full subtree hash, does not change when only a nested
+  // tool argument changes. Exact matches are stable ties and contain no diff.
+  return pairs.sort((leftPair, rightPair) => {
+    const leftKeys = pairSortKeys(leftPair);
+    const rightKeys = pairSortKeys(rightPair);
+    return (
+      leftKeys[0].localeCompare(rightKeys[0]) ||
+      leftKeys[1].localeCompare(rightKeys[1])
+    );
+  });
+}
+
+function alignObservationTrees(
+  leftObservations: readonly Observation[],
+  rightObservations: readonly Observation[],
+): ObservationPair[] {
+  const leftForest = buildObservationForest(leftObservations);
+  const rightForest = buildObservationForest(rightObservations);
+  const aligned: ObservationPair[] = [];
+  const visitedLeft = new Set<ObservationNode>();
+  const visitedRight = new Set<ObservationNode>();
+
+  const walk = (
+    leftNodes: ObservationNode[],
+    rightNodes: ObservationNode[],
+    nestingLevel: number,
+  ) => {
+    const times = [
+      ...new Set(
+        [...leftNodes, ...rightNodes].map((node) =>
+          node.observation.startTime.getTime(),
+        ),
+      ),
+    ].sort((left, right) => left - right);
+    for (const time of times) {
+      const pairs = alignSameTimeSiblings(
+        leftNodes.filter(
+          (node) => node.observation.startTime.getTime() === time,
+        ),
+        rightNodes.filter(
+          (node) => node.observation.startTime.getTime() === time,
+        ),
+      );
+      for (const pair of pairs) {
+        if (
+          (pair.left && visitedLeft.has(pair.left)) ||
+          (pair.right && visitedRight.has(pair.right))
+        ) {
+          continue;
+        }
+        if (pair.left) visitedLeft.add(pair.left);
+        if (pair.right) visitedRight.add(pair.right);
+        aligned.push({ ...pair, nestingLevel });
+        if (pair.left && pair.right) {
+          walk(pair.left.children, pair.right.children, nestingLevel + 1);
+        }
+      }
+    }
+  };
+
+  walk(leftForest.roots, rightForest.roots, 0);
+  const remainingLeft = leftForest.nodes.filter(
+    (node) => !visitedLeft.has(node),
+  );
+  const remainingRight = rightForest.nodes.filter(
+    (node) => !visitedRight.has(node),
+  );
+  if (remainingLeft.length > 0 || remainingRight.length > 0) {
+    walk(remainingLeft, remainingRight, 0);
+  }
+  return aligned;
+}
+
+function observationEvent(
+  node: ObservationNode,
+  nestingLevel: number,
+): TraceDiffEvent {
+  return {
     observationType: node.observation.type,
     observationName: node.observation.name,
     nestingLevel,
     canonical: canonicalize({ ...node.payload, nestingLevel }),
-  });
-
-  const events: TraceDiffEvent[] = [];
-  const visited = new Set<string>();
-  const walk = (nodes: ObservationNode[], nestingLevel: number) => {
-    for (const node of [...nodes].sort(compareSiblings)) {
-      if (visited.has(node.observation.id)) continue;
-      visited.add(node.observation.id);
-      events.push(toEvent(node, nestingLevel));
-      walk(node.children, nestingLevel + 1);
-    }
   };
-  walk(roots, 0);
-
-  // Rows in a parent cycle have no root. Keep them without recursing forever.
-  const remaining = [...byId.values()]
-    .filter((node) => !visited.has(node.observation.id))
-    .sort(
-      (left, right) =>
-        left.observation.startTime.getTime() -
-          right.observation.startTime.getTime() ||
-        left.ownCanonical.localeCompare(right.ownCanonical),
-    );
-  for (const node of remaining) {
-    if (visited.has(node.observation.id)) continue;
-    visited.add(node.observation.id);
-    events.push(toEvent(node, 0));
-  }
-  return events;
 }
 
 function preview(
@@ -364,15 +556,31 @@ export function buildTraceDiff(
     throw new Error("maxPreviewCodePoints must be a positive safe integer");
   }
 
-  const leftEvents = projectObservations(left.observations);
-  const rightEvents = projectObservations(right.observations);
-  const commonLength = Math.min(leftEvents.length, rightEvents.length);
+  const pairs = alignObservationTrees(left.observations, right.observations);
   let firstDivergence: TraceDivergence | undefined;
-  let comparedObservations = commonLength;
+  let comparedObservations = pairs.filter(
+    (pair) => pair.left && pair.right,
+  ).length;
 
-  for (let index = 0; index < commonLength; index += 1) {
-    const leftEvent = leftEvents[index]!;
-    const rightEvent = rightEvents[index]!;
+  for (let index = 0; index < pairs.length; index += 1) {
+    const pair = pairs[index]!;
+    const leftEvent = pair.left
+      ? observationEvent(pair.left, pair.nestingLevel)
+      : undefined;
+    const rightEvent = pair.right
+      ? observationEvent(pair.right, pair.nestingLevel)
+      : undefined;
+    if (!leftEvent || !rightEvent) {
+      firstDivergence = {
+        index,
+        reason: "length",
+        location: locationOf(leftEvent ?? rightEvent, index),
+        leftPreview: preview(leftEvent, maxPreviewCodePoints),
+        rightPreview: preview(rightEvent, maxPreviewCodePoints),
+      };
+      comparedObservations = index;
+      break;
+    }
     if (leftEvent.observationType !== rightEvent.observationType) {
       firstDivergence = {
         index,
@@ -395,19 +603,6 @@ export function buildTraceDiff(
       comparedObservations = index;
       break;
     }
-  }
-
-  if (!firstDivergence && leftEvents.length !== rightEvents.length) {
-    const leftEvent = leftEvents[commonLength];
-    const rightEvent = rightEvents[commonLength];
-    firstDivergence = {
-      index: commonLength,
-      reason: "length",
-      location: locationOf(leftEvent ?? rightEvent, commonLength),
-      leftPreview: preview(leftEvent, maxPreviewCodePoints),
-      rightPreview: preview(rightEvent, maxPreviewCodePoints),
-    };
-    comparedObservations = commonLength;
   }
 
   const leftSummary = summarize(left.traceId, left.observations);
