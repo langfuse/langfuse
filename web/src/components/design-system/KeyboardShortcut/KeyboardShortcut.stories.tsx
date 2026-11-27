@@ -87,6 +87,20 @@ export const BesideTextAndIcons = meta.story({
   ),
 });
 
+/** Shift and option symbols (Mac) stay letter size beside a letter-only hint. */
+export const ShiftAndOption = meta.story({
+  render: () => (
+    <div className="flex flex-col gap-3">
+      {(["default", "sm", "xs"] as const).map((size) => (
+        <div key={size} className="flex items-center gap-4">
+          <KeyboardShortcut size={size} keys={["Shift", "Alt", "F"]} />
+          <KeyboardShortcut size={size} keys={["F"]} />
+        </div>
+      ))}
+    </div>
+  ),
+});
+
 export const TestRendersMultipleKeys = meta.story({
   name: "(Test) Renders Multiple Keys",
   args: {

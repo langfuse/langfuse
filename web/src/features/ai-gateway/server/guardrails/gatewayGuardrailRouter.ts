@@ -9,7 +9,7 @@ import {
   GATEWAY_GUARDRAIL_TARGET_SEARCH_LIMIT,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import {
-  requireGatewayGuardrailsAdmin,
+  requireGatewayAdmin,
   requireGatewayGuardrailsRead,
 } from "@/src/features/ai-gateway/server/gatewayAccess";
 import { GatewayGuardrailService } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailService";
@@ -236,7 +236,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      requireGatewayGuardrailsAdmin({
+      requireGatewayAdmin({
         session: ctx.session,
         orgId: input.orgId,
       });
@@ -255,7 +255,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
       }),
     )
     .query(({ input, ctx }) => {
-      requireGatewayGuardrailsAdmin({
+      requireGatewayAdmin({
         session: ctx.session,
         orgId: input.orgId,
       });
@@ -274,7 +274,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      requireGatewayGuardrailsAdmin({
+      requireGatewayAdmin({
         session: ctx.session,
         orgId: input.orgId,
       });
@@ -299,7 +299,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
   create: protectedOrganizationProcedureWithoutTracing
     .input(createGuardrailInput)
     .mutation(async ({ input, ctx }) => {
-      requireGatewayGuardrailsAdmin({
+      requireGatewayAdmin({
         session: ctx.session,
         orgId: input.orgId,
       });
@@ -336,7 +336,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
   update: protectedOrganizationProcedureWithoutTracing
     .input(updateGuardrailInput)
     .mutation(async ({ input, ctx }) => {
-      requireGatewayGuardrailsAdmin({
+      requireGatewayAdmin({
         session: ctx.session,
         orgId: input.orgId,
       });
@@ -380,7 +380,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      requireGatewayGuardrailsAdmin({
+      requireGatewayAdmin({
         session: ctx.session,
         orgId: input.orgId,
       });
@@ -399,7 +399,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      requireGatewayGuardrailsAdmin({
+      requireGatewayAdmin({
         session: ctx.session,
         orgId: input.orgId,
       });

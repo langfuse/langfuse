@@ -23,7 +23,7 @@ import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphData
 import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { TraceTree } from "./TraceTree";
 import { TraceSearchList } from "./TraceSearchList";
-import { TraceTimelineCompact } from "./TraceTimelineDense/TraceTimelineCompact";
+import { TraceTimeline } from "./TraceTimeline/TraceTimeline";
 import { TraceGraphView } from "./TraceGraphView/TraceGraphView";
 import { useMemo } from "react";
 
@@ -57,7 +57,7 @@ export function TracePanelNavigation() {
       return <TraceGraphView />;
     }
     if (isTimelineView) {
-      return <TraceTimelineCompact />;
+      return <TraceTimeline />;
     }
     if (hasQuery) {
       return <TraceSearchList />;

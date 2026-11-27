@@ -96,8 +96,6 @@
 
 # Database migrations
 /packages/shared/clickhouse/migrations/ @Steffen911 @hassiebp @nimarb @niklassemmler @marksalpeter @jordibosch20 @sumerman
-/packages/shared/prisma/migrations/ @Steffen911 @hassiebp @nimarb @niklassemmler @marksalpeter @jordibosch20 @sumerman
-/packages/shared/prisma/schema.prisma @Steffen911 @hassiebp @nimarb @niklassemmler @marksalpeter @jordibosch20 @sumerman
 
 # Migration runner scripts (run at container startup)
 /web/entrypoint.sh @Steffen911 @hassiebp @nimarb

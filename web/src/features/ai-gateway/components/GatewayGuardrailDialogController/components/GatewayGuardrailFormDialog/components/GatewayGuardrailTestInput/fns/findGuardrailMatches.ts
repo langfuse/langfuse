@@ -24,7 +24,7 @@ const COMPILED_PRESET_REGEXES = Object.fromEntries(
 
 for (const preset of GATEWAY_GUARDRAIL_PRESET_KEYS) {
   for (const pattern of GATEWAY_GUARDRAIL_PRESETS[preset].patterns) {
-    COMPILED_PRESET_REGEXES[preset].push(new RegExp(pattern, "g"));
+    COMPILED_PRESET_REGEXES[preset].push(new RegExp(pattern, "gu"));
   }
 }
 
@@ -118,12 +118,13 @@ function collectPresetSpans(
           regex.lastIndex += 1;
           continue;
         }
-        // When a pattern uses capture group 1 to exclude surrounding boundary chars (e.g. compressed IPv6),
-        // highlight only group 1 and resume right after it so adjacent tokens still match.
-        if (match[1] !== undefined) {
-          const offset = match[0].indexOf(match[1]);
+        // When a pattern uses capture group `__lf_match` to exclude surrounding boundary or keyword chars,
+        // highlight only that group and resume right after it so adjacent tokens still match.
+        const matchedGroup = match.groups?.__lf_match ?? match[1];
+        if (matchedGroup !== undefined) {
+          const offset = match[0].indexOf(matchedGroup);
           const start = match.index + Math.max(0, offset);
-          const end = start + match[1].length;
+          const end = start + matchedGroup.length;
           spans.push([start, end]);
           regex.lastIndex = end;
           continue;
