@@ -46,7 +46,7 @@ const DefaultModelPriceSchema = z
   });
 
 export type DefaultModelPrice = z.infer<typeof DefaultModelPriceSchema>;
-export type PricingTier = z.infer<typeof PricingTierSchema>;
+type PricingTier = z.infer<typeof PricingTierSchema>;
 
 const ExistingModelTierSchema = z.object({
   modelId: z.string(),

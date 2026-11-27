@@ -3,7 +3,8 @@ import preview from "../../../../../.storybook/preview";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { AreaChart } from "./AreaChart";
 import { LineChart, type LineChartLegend } from "../LineChart/LineChart";
-import { chartColors, chartFillColors } from "../constants";
+import { chartFillColors } from "../constants";
+import { chartColors } from "../__tests__/chartStoryColors";
 import { useAreaChartTimeSeries } from "@/src/features/widgets/chart-library/useAreaChartTimeSeries";
 import { useLineChartTimeSeries } from "@/src/features/widgets/chart-library/useLineChartTimeSeries";
 

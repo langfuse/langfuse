@@ -13,7 +13,7 @@ export type ProjectNotificationChannelsMode = "list" | "create" | "edit";
 /**
  * useProjectNotificationChannels owns the data + navigation state for the
  * project-notification channels settings section. The create/edit form itself
- * is the reused <AutomationForm>, which owns its own mutations; this hook only
+ * is the reused <ConnectedAutomationForm>, which owns its own mutations; this hook only
  * lists channels, deletes them, and tracks which view is shown plus the
  * one-time webhook secret reveal.
  */

@@ -10,6 +10,8 @@ Use this checklist before merging any repo-agent workflow, skill, or self-improv
 - Diff validation ignores untracked files.
 - The workflow stages a directory instead of a validated file list.
 - The publish path can push files not covered by the allowlist.
+- The publisher pushes directly to the default branch without an explicitly configured Security-approved App exception, or treats a robot-user token as a bypass.
+- The merge path ignores the [protected-branch approval policy](../../git-workflow/references/protected-branches.md), including latest-commit Bugbot evidence and required human approvals.
 - Self-improvement can edit security boundaries without path allowlists, invariant prompts, and human PR review.
 - Manual inputs are interpolated before validation.
 - `workflow_dispatch` choice values use YAML boolean-like tokens such as `off`, `on`, `yes`, `no`, `true`, or `false`.
@@ -71,7 +73,7 @@ Use this checklist before merging any repo-agent workflow, skill, or self-improv
 - Git hooks are disabled for bot commit paths.
 - The publish job applies a validated patch artifact to the triggering base commit, not a mutable workspace with unvalidated files.
 - The publish job re-checks the applied commit's changed files against the same path allowlist before pushing.
-- The bot branch is force-pushed intentionally and only to the expected repo.
+- Any intentional force-push targets only the expected unprotected task branch in the expected repo; never the default branch.
 - Existing PRs are updated instead of creating duplicates.
 - Reviewer requests are non-fatal.
 

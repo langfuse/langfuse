@@ -1,6 +1,4 @@
 import { type ComponentProps } from "react";
-import Link from "next/link";
-import { ArrowUp, ArrowDown } from "@langfuse/icons";
 import { SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { type SessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import styles from "./SessionConversationTimeline.module.css";
@@ -8,18 +6,9 @@ import styles from "./SessionConversationTimeline.module.css";
 export function SessionConversationTimeline({
   traces,
   controller,
-  navigation,
 }: {
   traces: readonly ComponentProps<typeof SessionConversationTimelineTrace>[];
   controller: SessionConversationTimelineController;
-  navigation?: {
-    previousTrace?: Pick<ComponentProps<typeof Link>, "href" | "shallow"> & {
-      count: number;
-    };
-    nextTrace?: Pick<ComponentProps<typeof Link>, "href" | "shallow"> & {
-      count: number;
-    };
-  };
 }) {
   const { feedRef, virtualItems, virtualizer } = controller;
   const isSingleTraceView =
@@ -75,18 +64,6 @@ export function SessionConversationTimeline({
                     }
               }
             >
-              {virtualItem.index === 0 && navigation?.previousTrace && (
-                <div className="flex justify-center pb-4">
-                  <Link
-                    href={navigation.previousTrace.href}
-                    shallow={navigation.previousTrace.shallow}
-                    className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex w-full items-center justify-center gap-2 rounded-md border border-dashed px-4 py-3 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
-                  >
-                    <ArrowUp size="base" />
-                    Previous trace in session ({navigation.previousTrace.count})
-                  </Link>
-                </div>
-              )}
               <div className={isSingleTraceView ? "flex-1" : undefined}>
                 {(!traceProps.isCollapsed ||
                   traces.findIndex(
@@ -95,19 +72,6 @@ export function SessionConversationTimeline({
                   <SessionConversationTimelineTrace {...traceProps} />
                 )}
               </div>
-              {virtualItem.index === traces.length - 1 &&
-                navigation?.nextTrace && (
-                  <div className="flex justify-center pt-4">
-                    <Link
-                      href={navigation.nextTrace.href}
-                      shallow={navigation.nextTrace.shallow}
-                      className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex w-full items-center justify-center gap-2 rounded-md border border-dashed px-4 py-3 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
-                    >
-                      <ArrowDown size="base" />
-                      Next trace in session ({navigation.nextTrace.count})
-                    </Link>
-                  </div>
-                )}
             </div>
           );
         })}

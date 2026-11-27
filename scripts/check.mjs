@@ -664,12 +664,22 @@ function planRepositoryChecks(
           /\.[cm]?[jt]sx?$|\.jsonc?$|\.ya?ml$|knip\./.test(file),
         ),
       label: "Unused code · repository-wide",
-      args: [
-        "exec",
-        "knip",
-        "--cache",
-        "--cache-location",
-        ".turbo/check-knip/cache",
+      steps: [
+        [
+          "exec",
+          "knip",
+          "--production",
+          "--cache",
+          "--cache-location",
+          ".turbo/check-knip/cache/production",
+        ],
+        [
+          "exec",
+          "knip",
+          "--cache",
+          "--cache-location",
+          ".turbo/check-knip/cache/default",
+        ],
       ],
       isKnip: true,
     },

@@ -62,7 +62,7 @@ const FormPricingTierSchema = z.object({
 // Use input type for form (allows optional/default fields)
 export type FormPricingTier = z.input<typeof FormPricingTierSchema>;
 
-export const GetModelResultSchema = z.object({
+const GetModelResultSchema = z.object({
   id: z.string(),
   scope: z.enum(["LANGFUSE", "ORGANIZATION", "PROJECT"] satisfies ModelScope[]),
   projectId: z.string().nullable(),
@@ -78,7 +78,13 @@ export const GetModelResultSchema = z.object({
 
 export type GetModelResult = z.infer<typeof GetModelResultSchema>;
 
-export const ModelListItemSchema = GetModelResultSchema.extend({
+export const ModelDefinitionSchema = GetModelResultSchema.extend({
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
+export type ModelDefinition = z.infer<typeof ModelDefinitionSchema>;
+
+export const ModelListItemSchema = ModelDefinitionSchema.extend({
   isOverridden: z.boolean(),
 });
 export type ModelListItem = z.infer<typeof ModelListItemSchema>;

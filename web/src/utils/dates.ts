@@ -1,3 +1,4 @@
+/* oxlint-disable default-param-last -- baseline before rule enablement */
 export const setBeginningOfDay = (date: Date) => {
   const newDate = new Date(date);
   newDate.setHours(0, 0, 0, 0);

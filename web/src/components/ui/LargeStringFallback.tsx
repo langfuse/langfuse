@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Download } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { LARGE_STRING_PREVIEW_CHARS } from "@/src/components/ui/largeStringGate";
+import { LARGE_STRING_PREVIEW_CHARS } from "@/src/components/ui/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 

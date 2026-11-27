@@ -13,6 +13,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@langfuse/shared/src/env";
 import { prisma } from "@langfuse/shared/src/db";
+import { isPublicSharingDisabledForProject } from "@/src/ee/features/public-sharing/server/publicSharing";
 import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "../constants/traceDownloadConfig";
 
 /** @internal */
@@ -139,9 +140,9 @@ export async function getAuthorizedTrace(params: {
   const isSessionPublic = traceSession?.public === true;
   const sessionOrganization = findSessionOrganization(session, projectId);
   const canReadTrace =
-    clickhouseTrace.public ||
-    isSessionPublic ||
-    sessionOrganization !== undefined;
+    sessionOrganization !== undefined ||
+    ((clickhouseTrace.public || isSessionPublic) &&
+      !(await isPublicSharingDisabledForProject({ prisma, projectId })));
 
   if (!canReadTrace) {
     throw new UnauthorizedError(

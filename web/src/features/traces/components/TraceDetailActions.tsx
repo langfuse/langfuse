@@ -3,7 +3,7 @@ import type { EntityDetailHeaderAction } from "@/src/components/ObservabilityEnt
 import type { DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
-import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
+import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/ConnectedDetailHeaderActionsMenuController";
 import { DeleteTraceDialogController } from "@/src/features/traces/components/DeleteTraceDialogController";
 import { TopicsTranscriptDialogController } from "@/src/features/traces/components/TopicsTranscriptDialogController";
 import { TraceTranscriptDialogController } from "@/src/features/traces/components/TraceTranscriptDialogController";

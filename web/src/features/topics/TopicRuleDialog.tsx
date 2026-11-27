@@ -7,6 +7,7 @@ import {
 } from "@langfuse/shared/topics";
 import { api } from "@/src/utils/api";
 import { TOPIC_SETUP_BACKFILL_DAYS } from "./topic-setup-flow";
+import { TopicCostEstimate } from "./TopicCostEstimate";
 import { useTopicTraceFilter } from "./useTopicTraceFilter";
 import { TopicRuleDialogView } from "./TopicRuleDialogView";
 
@@ -104,6 +105,17 @@ export function TopicRuleDialog({
       samplingPercent={samplingPercent}
       onSamplingPercentChange={(next) => form.setValue("samplingPercent", next)}
       dailyTraces={dailyTraces}
+      costEstimateField={
+        <TopicCostEstimate
+          projectId={projectId}
+          filter={filter}
+          facetIds={filterError ? [] : facetIds}
+          samplingPercent={samplingPercent}
+          dailyTraces={dailyTraces}
+          backfillTraces={null}
+          source="edit_map"
+        />
+      }
       canSave={
         name.trim().length > 0 && traceFilter.ready && facetIds.length > 0
       }

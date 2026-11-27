@@ -1602,6 +1602,57 @@ describe("OTel Resource Span Mapping", () => {
       ]);
     });
 
+    it("recovers langfuse-topics-internal from failed OpenRouter Broadcast requests as topics-internal", async () => {
+      const events = await convertOtelSpanToIngestionEvent(
+        createOpenRouterBroadcastSpan({
+          rawRequestEnvironment: "langfuse-topics-internal",
+        }),
+        new Set(),
+      );
+
+      expect(events.map((event) => event.body.environment)).toEqual([
+        "topics-internal",
+        "topics-internal",
+      ]);
+    });
+
+    it("strips public langfuse-topics-internal to topics-internal while keeping customer topics untouched", async () => {
+      const bounced = await convertOtelSpanToIngestionEvent(
+        createOpenRouterBroadcastSpan({
+          explicitEnvironment: "langfuse-topics-internal",
+        }),
+        new Set(),
+      );
+      expect(bounced.map((event) => event.body.environment)).toEqual([
+        "topics-internal",
+        "topics-internal",
+      ]);
+
+      const customer = await convertOtelSpanToIngestionEvent(
+        createOpenRouterBroadcastSpan({
+          explicitEnvironment: "topics",
+        }),
+        new Set(),
+      );
+      expect(customer.map((event) => event.body.environment)).toEqual([
+        "topics",
+        "topics",
+      ]);
+
+      const internal = await convertOtelSpanToIngestionEvent(
+        createOpenRouterBroadcastSpan({
+          explicitEnvironment: "langfuse-topics-internal",
+        }),
+        new Set(),
+        undefined,
+        { isLangfuseInternal: true },
+      );
+      expect(internal.map((event) => event.body.environment)).toEqual([
+        "langfuse-topics-internal",
+        "langfuse-topics-internal",
+      ]);
+    });
+
     it("prefers an explicit environment over the OpenRouter failed-request fallback", async () => {
       const events = await convertOtelSpanToIngestionEvent(
         createOpenRouterBroadcastSpan({
@@ -6809,7 +6860,8 @@ describe("OTel Resource Span Mapping", () => {
   });
 
   describe("Missing span timestamps", () => {
-    it("should process spans with no start/end times without throwing", async () => {
+    it("should give spans with no start/end times the batch's fallback time", async () => {
+      const fallbackTime = "2026-01-02T03:04:05.678Z";
       const resourceSpan = {
         resource: {
           attributes: [{ key: "service.name", value: { stringValue: "test" } }],
@@ -6834,27 +6886,25 @@ describe("OTel Resource Span Mapping", () => {
         ],
       } as unknown as ResourceSpan;
 
-      const processor = createTestOtelProcessor();
+      const processor = createTestOtelProcessor({ fallbackTime });
       const eventInputs = processor.processToEvent([resourceSpan]);
       expect(eventInputs).toHaveLength(1);
-      expect(eventInputs[0].startTimeISO).toBeDefined();
-      expect(eventInputs[0].endTimeISO).toBeDefined();
-      expect(eventInputs[0].startTimeISO).toBe(eventInputs[0].endTimeISO);
+      expect(eventInputs[0].startTimeISO).toBe(fallbackTime);
+      expect(eventInputs[0].endTimeISO).toBe(fallbackTime);
 
       const ingestionEvents = await convertOtelSpanToIngestionEvent(
         resourceSpan,
         new Set(),
+        undefined,
+        { fallbackTime },
       );
 
       const trace = ingestionEvents.find((e) => e.type === "trace-create");
       const observation = ingestionEvents.find((e) => e.type === "span-create");
 
-      expect(trace).toBeDefined();
-      expect(trace?.body.timestamp).toBeDefined();
-      expect(observation).toBeDefined();
-      expect(observation?.body.startTime).toBeDefined();
-      expect(observation?.body.endTime).toBeDefined();
-      expect(observation?.body.startTime).toBe(observation?.body.endTime);
+      expect(trace?.body.timestamp).toBe(fallbackTime);
+      expect(observation?.body.startTime).toBe(fallbackTime);
+      expect(observation?.body.endTime).toBe(fallbackTime);
     });
 
     it("should use the present timestamp as fallback when only one edge is missing", async () => {

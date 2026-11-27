@@ -7,13 +7,15 @@ import {
 } from "@/src/features/audit-logs/auditLog";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import {
-  GetModelResultSchema,
+  ModelDefinitionSchema,
   ModelListItemSchema,
   type UpsertModelInput,
 } from "@/src/features/models/validation";
 import {
   InvalidRequestError,
+  LangfuseConflictError,
   LangfuseNotFoundError,
+  type ModelScope,
   ModelUsageUnit,
   Prisma,
 } from "@langfuse/shared";
@@ -40,8 +42,6 @@ export type ModelDefinitionOwner =
   | { type: "project"; projectId: string }
   | { type: "organization"; organizationId: string };
 
-type SessionActor = Extract<AuditLogActor, { session: unknown }>;
-
 const visibleSql = (owner: ModelDefinitionOwner, alias: string) =>
   owner.type === "project"
     ? visibleModelsSql(owner.projectId, alias)
@@ -66,6 +66,8 @@ const modelColumnsSql = Prisma.sql`
   m.match_pattern as "matchPattern",
   m.tokenizer_config as "tokenizerConfig",
   m.tokenizer_id as "tokenizerId",
+  m.created_at as "createdAt",
+  m.updated_at as "updatedAt",
   COALESCE(
     (
       SELECT
@@ -125,7 +127,7 @@ export async function getModelDefinition(params: {
     WHERE m.id = ${params.modelId}
       AND ${visibleSql(params.owner, "m")};
   `;
-  const model = z.array(GetModelResultSchema).parse(rows)[0];
+  const model = z.array(ModelDefinitionSchema).parse(rows)[0];
   if (!model) {
     throw new LangfuseNotFoundError("Model not found");
   }
@@ -140,12 +142,18 @@ export async function getModelDefinition(params: {
 export async function listModelDefinitions(params: {
   owner: ModelDefinitionOwner;
   searchString: string;
+  /** Restricts the rows to these scopes; all visible scopes when omitted. */
+  scopes?: ModelScope[];
+  /** Starts at 1. */
   page: number;
   limit: number;
 }) {
-  const { owner, searchString, page, limit } = params;
+  const { owner, searchString, scopes, page, limit } = params;
   const searchCondition = searchString
     ? Prisma.sql`AND m.model_name ILIKE ${`%${escapeSqlLikePattern(searchString)}%`}`
+    : Prisma.empty;
+  const scopeCondition = scopes
+    ? Prisma.sql`AND m.scope::text IN (${Prisma.join(scopes)})`
     : Prisma.empty;
 
   const [rows, countRows] = await Promise.all([
@@ -162,19 +170,21 @@ export async function listModelDefinitions(params: {
       FROM models m
       WHERE ${visibleSql(owner, "m")}
         ${searchCondition}
+        ${scopeCondition}
       ORDER BY
         ${modelScopeRankSql("m")},
         m.model_name,
         m.created_at DESC NULLS LAST,
         m.id
       LIMIT ${limit}
-      OFFSET ${limit * page}
+      OFFSET ${limit * (page - 1)}
     `,
     prisma.$queryRaw<{ count: number }[]>`
       SELECT COUNT(DISTINCT (m.scope, m.model_name))
       FROM models m
       WHERE ${visibleSql(owner, "m")}
-        ${searchCondition};
+        ${searchCondition}
+        ${scopeCondition};
     `,
   ]);
 
@@ -184,106 +194,175 @@ export async function listModelDefinitions(params: {
   };
 }
 
-export async function upsertModelDefinition(params: {
-  owner: ModelDefinitionOwner;
-  actor: SessionActor;
-  input: UpsertModelInput;
-}) {
-  const { owner, actor, input } = params;
-  const {
-    modelId: providedModelId,
-    modelName,
-    matchPattern,
-    tokenizerConfig,
-    tokenizerId,
-    pricingTiers,
-  } = input;
+type ModelDefinitionWrite = Pick<
+  UpsertModelInput,
+  "modelName" | "matchPattern" | "pricingTiers"
+> &
+  Partial<Pick<UpsertModelInput, "tokenizerConfig" | "tokenizerId">>;
 
-  // Postgres validates the pattern, because ingestion matches it with POSIX
-  // regex semantics that JavaScript does not share.
+/** Creates or replaces `modelId` with `input` and writes the audit log. */
+async function writeModelDefinition(
+  tx: Prisma.TransactionClient,
+  params: {
+    owner: ModelDefinitionOwner;
+    actor: AuditLogActor;
+    modelId: string;
+    input: ModelDefinitionWrite;
+  },
+) {
+  const { owner, actor, modelId, input } = params;
+  const { modelName, matchPattern, tokenizerConfig, tokenizerId } = input;
+  const owned = ownedWhere(owner);
+
+  const before = await snapshot(tx, modelId);
+  // An id owned by anyone else, including Langfuse, reads as missing.
+  if (
+    before &&
+    (before.scope !== owned.scope ||
+      (owner.type === "project"
+        ? before.projectId !== owner.projectId
+        : before.organizationId !== owner.organizationId))
+  ) {
+    throw new LangfuseNotFoundError("Model not found");
+  }
+
+  const upserted = await tx.model.upsert({
+    where: { id: modelId, ...owned },
+    create: {
+      id: modelId,
+      ...owned,
+      modelName,
+      matchPattern,
+      tokenizerConfig,
+      tokenizerId,
+      // Fixed values keep the project unique constraint effective.
+      startDate: new Date("2010-01-01"),
+      unit: ModelUsageUnit.Tokens,
+    },
+    update: { matchPattern, tokenizerConfig, tokenizerId },
+  });
+
+  await tx.pricingTier.deleteMany({ where: { modelId: upserted.id } });
+  for (const tier of input.pricingTiers) {
+    const createdTier = await tx.pricingTier.create({
+      data: {
+        modelId: upserted.id,
+        name: tier.name,
+        isDefault: tier.isDefault,
+        priority: tier.priority,
+        conditions: tier.conditions,
+      },
+    });
+    await tx.price.createMany({
+      data: Object.entries(tier.prices).map(([usageType, price]) => ({
+        modelId: upserted.id,
+        projectId: upserted.projectId,
+        pricingTierId: createdTier.id,
+        usageType,
+        price,
+      })),
+    });
+  }
+
+  await auditLog(
+    {
+      ...actor,
+      resourceType: "model",
+      resourceId: upserted.id,
+      action: before ? "update" : "create",
+      before: before ?? undefined,
+      after: await snapshot(tx, upserted.id),
+    },
+    tx,
+  );
+
+  return { model: upserted, created: !before };
+}
+
+// Postgres validates the pattern, because ingestion matches it with POSIX
+// regex semantics that JavaScript does not share.
+async function assertValidMatchPattern(matchPattern: string) {
   if (!(await isValidPostgresRegex(matchPattern, prisma))) {
     throw new InvalidRequestError("Invalid regex, needs to be Postgres syntax");
   }
+}
 
-  const modelId = providedModelId ?? uuidv4();
+export async function upsertModelDefinition(params: {
+  owner: ModelDefinitionOwner;
+  actor: AuditLogActor;
+  input: UpsertModelInput;
+}) {
+  const { owner, actor, input } = params;
+  await assertValidMatchPattern(input.matchPattern);
+
+  const modelId = input.modelId ?? uuidv4();
   const owned = ownedWhere(owner);
 
   const result = await prisma.$transaction(async (tx) => {
-    const before = await snapshot(tx, modelId);
-    // An id owned by anyone else, including Langfuse, reads as missing.
-    if (
-      before &&
-      (before.scope !== owned.scope ||
-        (owner.type === "project"
-          ? before.projectId !== owner.projectId
-          : before.organizationId !== owner.organizationId))
-    ) {
-      throw new LangfuseNotFoundError("Model not found");
-    }
-
     // Name uniqueness within the owner is checked explicitly: the project
     // unique constraint includes the nullable start_date and unit columns.
     const sameName = await tx.model.findFirst({
-      where: { ...owned, modelName },
+      where: { ...owned, modelName: input.modelName },
     });
     if (sameName && sameName.id !== modelId) {
       throw new InvalidRequestError(
-        `Model name '${modelName}' already exists in ${ownerLabel(owner)}`,
+        `Model name '${input.modelName}' already exists in ${ownerLabel(owner)}`,
       );
     }
+    return writeModelDefinition(tx, { owner, actor, modelId, input });
+  });
 
-    const upserted = await tx.model.upsert({
-      where: { id: modelId, ...owned },
-      create: {
-        id: modelId,
-        ...owned,
-        modelName,
-        matchPattern,
-        tokenizerConfig,
-        tokenizerId,
-        // Fixed values keep the project unique constraint effective.
-        startDate: new Date("2010-01-01"),
-        unit: ModelUsageUnit.Tokens,
-      },
-      update: { matchPattern, tokenizerConfig, tokenizerId },
+  await clearCache(owner);
+  return result.model;
+}
+
+const isUniqueViolation = (error: unknown) =>
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  error.code === "P2002";
+
+/**
+ * Creates the organization's model named `input.modelName`, or fully replaces
+ * it. `created` tells which happened. The name is the identity, so concurrent
+ * first writes of one name collide on the organization's unique name index;
+ * the loser retries once, then replaces the winner's row.
+ */
+export async function putOrganizationModelDefinitionByName(params: {
+  organizationId: string;
+  actor: AuditLogActor;
+  input: ModelDefinitionWrite;
+}) {
+  const { organizationId, actor, input } = params;
+  const owner: ModelDefinitionOwner = { type: "organization", organizationId };
+  await assertValidMatchPattern(input.matchPattern);
+
+  const write = () =>
+    prisma.$transaction(async (tx) => {
+      const existing = await tx.model.findFirst({
+        where: { ...ownedWhere(owner), modelName: input.modelName },
+        select: { id: true },
+      });
+      return writeModelDefinition(tx, {
+        owner,
+        actor,
+        modelId: existing?.id ?? uuidv4(),
+        input,
+      });
     });
 
-    await tx.pricingTier.deleteMany({ where: { modelId: upserted.id } });
-    for (const tier of pricingTiers) {
-      const createdTier = await tx.pricingTier.create({
-        data: {
-          modelId: upserted.id,
-          name: tier.name,
-          isDefault: tier.isDefault,
-          priority: tier.priority,
-          conditions: tier.conditions,
-        },
-      });
-      await tx.price.createMany({
-        data: Object.entries(tier.prices).map(([usageType, price]) => ({
-          modelId: upserted.id,
-          projectId: upserted.projectId,
-          pricingTierId: createdTier.id,
-          usageType,
-          price,
-        })),
-      });
+  let result: Awaited<ReturnType<typeof write>>;
+  try {
+    result = await write();
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    try {
+      result = await write();
+    } catch (retryError) {
+      if (!isUniqueViolation(retryError)) throw retryError;
+      throw new LangfuseConflictError(
+        `Model '${input.modelName}' was written concurrently, retry the request`,
+      );
     }
-
-    await auditLog(
-      {
-        ...actor,
-        resourceType: "model",
-        resourceId: upserted.id,
-        action: before ? "update" : "create",
-        before: before ?? undefined,
-        after: await snapshot(tx, upserted.id),
-      },
-      tx,
-    );
-
-    return upserted;
-  });
+  }
 
   await clearCache(owner);
   return result;
@@ -291,7 +370,7 @@ export async function upsertModelDefinition(params: {
 
 export async function deleteModelDefinition(params: {
   owner: ModelDefinitionOwner;
-  actor: SessionActor;
+  actor: AuditLogActor;
   modelId: string;
 }) {
   const { owner, actor, modelId } = params;

@@ -1,3 +1,4 @@
+/* oxlint-disable default-param-last -- baseline before rule enablement */
 import z from "zod";
 import { OrderByState } from "../../../interfaces/orderBy";
 import {

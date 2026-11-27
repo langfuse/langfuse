@@ -69,11 +69,17 @@ const createTestCaller = (params: {
   session: Session | null;
   projectOrgId?: string;
   traceSession?: { public: boolean } | null;
+  publicSharingDisabled?: boolean;
 }) => {
   const mockPrisma = {
     project: {
       findFirst: vi.fn().mockResolvedValue({
         orgId: params.projectOrgId ?? "db-org-id",
+      }),
+      findUnique: vi.fn().mockResolvedValue({
+        organization: {
+          publicSharingDisabled: params.publicSharingDisabled ?? false,
+        },
       }),
     },
     traceSession: {
@@ -179,6 +185,7 @@ describe("protected procedure access", () => {
       expect(mockGetTraceByIdFromEventsTable).toHaveBeenCalledWith({
         traceId: "trace-id",
         projectId: "project-id",
+        fromTimestamp: timestamp,
         excludeInputOutput: true,
         excludeMetadata: true,
         renderingProps: {
@@ -241,6 +248,18 @@ describe("protected procedure access", () => {
         traceId: "private-trace-id",
         projectId: "project-id",
       }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
+  it("rejects access to a public trace when the org has disabled public sharing", async () => {
+    const { caller } = createTestCaller({
+      session: null,
+      traceSession: null,
+      publicSharingDisabled: true,
+    });
+
+    await expect(
+      caller.eventsTrace({ traceId: "trace-id", projectId: "project-id" }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 

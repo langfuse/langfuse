@@ -5,6 +5,7 @@ import {
   getTopicRuns,
   saveTopicRun,
 } from "./postgres";
+import { logger } from "../logger";
 
 const mocks = vi.hoisted(() => ({
   lock: vi.fn(),
@@ -380,50 +381,53 @@ describe("Topics immutable definitions and run membership", () => {
       if (failure === "insert-failed") throw new Error("Insert failed");
     });
     const run = (await getTopicRun("project-a", row.id))!;
-    await expect(
-      saveTopicRun({
-        ...run,
-        topics: [candidate],
-        status: "completed",
-      }),
-    ).rejects.toThrow();
+    vi.useFakeTimers();
+    try {
+      const saving = expect(
+        saveTopicRun({
+          ...run,
+          topics: [candidate],
+          status: "completed",
+        }),
+      ).rejects.toThrow();
+      await vi.runAllTimersAsync();
+      await saving;
+    } finally {
+      vi.useRealTimers();
+    }
     expect(mocks.runUpdate).not.toHaveBeenCalled();
   });
 
-  it("names the fields a definition readback lost, never their values", async () => {
+  it("publishes a new definition that a lagging replica returns only on a later read", async () => {
     const row = runRow({ id: "run-b" });
-    const created = {
-      ...topic,
-      createdByRunId: row.id,
-      name: "Secret topic name",
-      metadata: { count: 1, namingSampled: undefined },
-    };
+    const created = { ...topic, createdByRunId: row.id };
     mocks.runFind.mockResolvedValue(row);
-    let definitionInserted = false;
-    mocks.topicWrite.mockImplementation(async () => {
-      definitionInserted = true;
-    });
-    mocks.topicFind.mockImplementation(async () =>
-      definitionInserted
-        ? [{ ...created, name: "Other", metadata: { count: 2 } }]
-        : [],
-    );
+    mocks.topicFind
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([created]);
+    mocks.runUpdate.mockImplementation(async ({ data }) => ({
+      ...row,
+      ...data,
+    }));
     const run = (await getTopicRun("project-a", row.id))!;
-    const failure = await saveTopicRun({
-      ...run,
-      topics: [created],
-      status: "completed",
-    }).catch((error: unknown) => error);
-    expect(failure).toMatchObject({
-      name: "TopicDefinitionReadbackError",
-      message:
-        "Topic definition readback did not match for 1 of 1 new definitions (name, metadata.count, metadata.namingSampled).",
-    });
-    expect((failure as Error).message).not.toMatch(/Secret|Other/);
-    expect(mocks.runUpdate).not.toHaveBeenCalled();
+    vi.useFakeTimers();
+    try {
+      const saving = saveTopicRun({
+        ...run,
+        topics: [created],
+        status: "completed",
+      });
+      await vi.runAllTimersAsync();
+      expect((await saving).topics).toEqual([created]);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(mocks.topicFind).toHaveBeenCalledTimes(3);
+    expect(mocks.runUpdate).toHaveBeenCalled();
   });
 
-  it("fails hydration instead of exposing only the definitions that remain", async () => {
+  it("fails hydration on a definition it cannot read and reports which one", async () => {
     mocks.runFind.mockResolvedValue(
       runRow({
         id: "run-b",
@@ -431,8 +435,16 @@ describe("Topics immutable definitions and run membership", () => {
       }),
     );
     mocks.topicFind.mockResolvedValue([topic]);
+    const error = vi.spyOn(logger, "error").mockImplementation(() => logger);
     await expect(getTopicRun("project-a", "run-b")).rejects.toThrow(
       "missing definition",
+    );
+    expect(error).toHaveBeenCalledWith(
+      "Topics run references definitions that cannot be read",
+      expect.objectContaining({
+        runId: "run-b",
+        missingTopicVersionIds: ["missing"],
+      }),
     );
   });
 });

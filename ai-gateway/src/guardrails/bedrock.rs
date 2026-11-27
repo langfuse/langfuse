@@ -12,11 +12,13 @@ use reqwest_tracing::DisableOtelPropagation;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 
-use crate::guardrails::external::ExternalGuardrailClient;
+use crate::guardrails::external::{ExternalFailureKind, ExternalGuardrailClient, ExternalOutcome};
 
 const MAX_BEDROCK_RESPONSE_BYTES: usize = 256 * 1024;
+const MAX_BEDROCK_ANONYMIZED_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 const BEDROCK_INTERVENED_ACTION: &str = "GUARDRAIL_INTERVENED";
 const BEDROCK_NONE_ACTION: &str = "NONE";
+const BEDROCK_ACTION_BLOCKED: &str = "BLOCKED";
 
 /// Configuration for an external AWS Bedrock Guardrail resolved from Web.
 #[derive(Clone)]
@@ -38,16 +40,18 @@ impl fmt::Debug for BedrockGuardrail {
     }
 }
 
-/// Serializes `text` into the AWS Bedrock `ApplyGuardrail` JSON request body.
-pub(crate) fn serialize_request(text: &str) -> Option<Bytes> {
-    serde_json::to_vec(&ApplyGuardrailRequest {
-        source: "INPUT",
-        content: [GuardrailContentBlock {
+/// Serializes `blocks` into the AWS Bedrock `ApplyGuardrail` JSON request body
+/// for the given `source` (`"INPUT"` for requests, `"OUTPUT"` for responses).
+pub(crate) fn serialize_blocks(blocks: &[&str], source: &'static str) -> Option<Bytes> {
+    let content = blocks
+        .iter()
+        .map(|text| GuardrailContentBlock {
             text: GuardrailTextBlock { text },
-        }],
-    })
-    .ok()
-    .map(Bytes::from)
+        })
+        .collect();
+    serde_json::to_vec(&ApplyGuardrailRequest { source, content })
+        .ok()
+        .map(Bytes::from)
 }
 
 pub(crate) async fn evaluate_one(
@@ -56,7 +60,7 @@ pub(crate) async fn evaluate_one(
     config: &BedrockGuardrail,
     payload: Bytes,
     organization_id: &str,
-) -> bool {
+) -> ExternalOutcome {
     #[cfg(test)]
     let origin = client
         .origin_override
@@ -72,7 +76,7 @@ pub(crate) async fn evaluate_one(
             reason = "invalid_url",
             "bedrock guardrail check failed; failing closed"
         );
-        return true;
+        return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
     };
     if client.policy.check_allowed_host(&url).is_err() {
         tracing::warn!(
@@ -82,7 +86,7 @@ pub(crate) async fn evaluate_one(
             reason = "blocked_destination",
             "bedrock guardrail destination blocked by outbound policy; failing closed"
         );
-        return true;
+        return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
     }
     let Ok(mut authorization) =
         HeaderValue::from_str(&format!("Bearer {}", config.api_key.expose_secret()))
@@ -94,10 +98,16 @@ pub(crate) async fn evaluate_one(
             reason = "invalid_credential",
             "bedrock guardrail check failed; failing closed"
         );
-        return true;
+        return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
     };
     authorization.set_sensitive(true);
 
+    let response_limit = MAX_BEDROCK_RESPONSE_BYTES.max(
+        payload
+            .len()
+            .saturating_mul(2)
+            .min(MAX_BEDROCK_ANONYMIZED_RESPONSE_BYTES),
+    );
     let request = client
         .http
         .post(url)
@@ -108,8 +118,8 @@ pub(crate) async fn evaluate_one(
         .header(ACCEPT_ENCODING, "identity")
         .body(payload);
 
-    match tokio::time::timeout(client.timeout, send_and_parse(request)).await {
-        Ok(Ok(intervened)) => intervened,
+    match tokio::time::timeout(client.timeout, send_and_parse(request, response_limit)).await {
+        Ok(Ok(outcome)) => outcome,
         Ok(Err(failure)) => {
             tracing::warn!(
                 guardrail_id = langfuse_guardrail_id,
@@ -119,7 +129,7 @@ pub(crate) async fn evaluate_one(
                 status = failure.status(),
                 "bedrock guardrail check failed; failing closed"
             );
-            true
+            ExternalOutcome::Failed(failure.kind())
         }
         Err(_) => {
             tracing::warn!(
@@ -129,7 +139,7 @@ pub(crate) async fn evaluate_one(
                 reason = "timeout",
                 "bedrock guardrail check timed out; failing closed"
             );
-            true
+            ExternalOutcome::Failed(ExternalFailureKind::Timeout)
         }
     }
 }
@@ -150,7 +160,7 @@ fn apply_url(origin: &str, config: &BedrockGuardrail) -> Result<Url, url::ParseE
 #[derive(Serialize)]
 struct ApplyGuardrailRequest<'a> {
     source: &'static str,
-    content: [GuardrailContentBlock<'a>; 1],
+    content: Vec<GuardrailContentBlock<'a>>,
 }
 
 #[derive(Serialize)]
@@ -166,6 +176,66 @@ struct GuardrailTextBlock<'a> {
 #[derive(Deserialize)]
 struct ApplyGuardrailResponse {
     action: String,
+    #[serde(default)]
+    outputs: Vec<BedrockOutput>,
+    #[serde(default)]
+    assessments: Vec<BedrockAssessment>,
+}
+
+#[derive(Deserialize)]
+struct BedrockOutput {
+    #[serde(default)]
+    text: String,
+}
+
+#[derive(Deserialize)]
+struct BedrockAssessment {
+    #[serde(rename = "sensitiveInformationPolicy", default)]
+    sensitive_information: Option<BedrockSensitiveInfoPolicy>,
+    #[serde(rename = "wordPolicy", default)]
+    word: Option<BedrockWordPolicy>,
+    #[serde(rename = "topicPolicy", default)]
+    topic: Option<BedrockTopicPolicy>,
+    #[serde(rename = "contentPolicy", default)]
+    content: Option<BedrockFilterPolicy>,
+    #[serde(rename = "contextualGroundingPolicy", default)]
+    contextual_grounding: Option<BedrockFilterPolicy>,
+}
+
+#[derive(Deserialize)]
+struct BedrockSensitiveInfoPolicy {
+    #[serde(rename = "piiEntities", default)]
+    pii_entities: Vec<BedrockPolicyItem>,
+    #[serde(default)]
+    regexes: Vec<BedrockPolicyItem>,
+}
+
+#[derive(Deserialize)]
+struct BedrockWordPolicy {
+    #[serde(rename = "customWords", default)]
+    custom_words: Vec<BedrockPolicyItem>,
+    #[serde(rename = "managedWordLists", default)]
+    managed_word_lists: Vec<BedrockPolicyItem>,
+}
+
+#[derive(Deserialize)]
+struct BedrockTopicPolicy {
+    #[serde(default)]
+    topics: Vec<BedrockPolicyItem>,
+}
+
+#[derive(Deserialize)]
+struct BedrockFilterPolicy {
+    #[serde(default)]
+    filters: Vec<BedrockPolicyItem>,
+}
+
+#[derive(Deserialize)]
+struct BedrockPolicyItem {
+    #[serde(default)]
+    action: Option<String>,
+    #[serde(default)]
+    detected: Option<bool>,
 }
 
 enum BedrockFailure {
@@ -196,11 +266,23 @@ impl BedrockFailure {
             | Self::UnexpectedAction => None,
         }
     }
+
+    fn kind(&self) -> ExternalFailureKind {
+        match self {
+            Self::HttpStatus(StatusCode::TOO_MANY_REQUESTS) => ExternalFailureKind::RateLimited,
+            Self::HttpStatus(_)
+            | Self::Transport
+            | Self::ResponseTooLarge
+            | Self::InvalidResponse
+            | Self::UnexpectedAction => ExternalFailureKind::Unavailable,
+        }
+    }
 }
 
 async fn send_and_parse(
     request: reqwest_middleware::RequestBuilder,
-) -> Result<bool, BedrockFailure> {
+    response_limit: usize,
+) -> Result<ExternalOutcome, BedrockFailure> {
     let response = request
         .send()
         .await
@@ -209,13 +291,70 @@ async fn send_and_parse(
     if status != StatusCode::OK {
         return Err(BedrockFailure::HttpStatus(status));
     }
-    let body = read_bounded_body(response, MAX_BEDROCK_RESPONSE_BYTES).await?;
+    let body = read_bounded_body(response, response_limit).await?;
     let parsed: ApplyGuardrailResponse =
         serde_json::from_slice(&body).map_err(|_| BedrockFailure::InvalidResponse)?;
     match parsed.action.as_str() {
-        BEDROCK_INTERVENED_ACTION => Ok(true),
-        BEDROCK_NONE_ACTION => Ok(false),
+        BEDROCK_INTERVENED_ACTION => Ok(extract_external_outcome(parsed)),
+        BEDROCK_NONE_ACTION => Ok(ExternalOutcome::None),
         _ => Err(BedrockFailure::UnexpectedAction),
+    }
+}
+
+fn is_detected(detected: Option<bool>) -> bool {
+    detected != Some(false)
+}
+
+fn has_blocked_policy(items: &[BedrockPolicyItem]) -> bool {
+    items.iter().any(|item| {
+        is_detected(item.detected) && item.action.as_deref() == Some(BEDROCK_ACTION_BLOCKED)
+    })
+}
+
+fn has_blocked_assessment(assessments: &[BedrockAssessment]) -> bool {
+    assessments.iter().any(|assessment| {
+        assessment
+            .topic
+            .as_ref()
+            .is_some_and(|policy| has_blocked_policy(&policy.topics))
+            || assessment
+                .content
+                .as_ref()
+                .is_some_and(|policy| has_blocked_policy(&policy.filters))
+            || assessment
+                .contextual_grounding
+                .as_ref()
+                .is_some_and(|policy| has_blocked_policy(&policy.filters))
+            || assessment.word.as_ref().is_some_and(|policy| {
+                has_blocked_policy(&policy.custom_words)
+                    || has_blocked_policy(&policy.managed_word_lists)
+            })
+            || assessment
+                .sensitive_information
+                .as_ref()
+                .is_some_and(|policy| {
+                    has_blocked_policy(&policy.pii_entities) || has_blocked_policy(&policy.regexes)
+                })
+    })
+}
+
+/// Maps a Bedrock `GUARDRAIL_INTERVENED` response to [`ExternalOutcome`].
+/// Stops immediately and blocks when any assessment policy returned `BLOCKED`
+/// (in which case Bedrock replaces `outputs` with a canned refusal message);
+/// otherwise returns Bedrock's anonymized `outputs`.
+fn extract_external_outcome(parsed: ApplyGuardrailResponse) -> ExternalOutcome {
+    if has_blocked_assessment(&parsed.assessments) {
+        return ExternalOutcome::Blocked;
+    }
+    let outputs: Vec<String> = parsed
+        .outputs
+        .into_iter()
+        .map(|output| output.text)
+        .collect();
+    if outputs.is_empty() {
+        ExternalOutcome::Blocked
+    } else {
+        ExternalOutcome::Anonymized(outputs)
     }
 }
 
@@ -263,7 +402,8 @@ mod tests {
 
     use super::*;
     use crate::guardrails::{
-        Guardrail, GuardrailAction, GuardrailKind, external::ExternalPayloads,
+        Guardrail, GuardrailAction, GuardrailKind, GuardrailLocation, GuardrailScope,
+        external::ExternalPayloads,
     };
     use axum::{body::Body, http::Response};
     use http_body_util::BodyExt;
@@ -282,6 +422,8 @@ mod tests {
             id: id.into(),
             name: id.into(),
             action: GuardrailAction::Block,
+            scope: GuardrailScope::LastTurn,
+            redaction_label: None,
             kind: GuardrailKind::Bedrock(sample_config(guardrail_id, "1")),
         }
     }
@@ -315,6 +457,58 @@ mod tests {
         assert!(!debug.contains("bedrock-api-key-secret"));
     }
 
+    #[test]
+    fn parses_anonymized_outputs_and_blocks_on_any_blocked_policy() {
+        let anonymized = r#"{
+            "action": "GUARDRAIL_INTERVENED",
+            "outputs": [{"text": "Contact {EMAIL} or {PHONE}"}],
+            "assessments": [{
+                "sensitiveInformationPolicy": {
+                    "piiEntities": [
+                        {"match": "alice@example.com", "type": "EMAIL", "action": "ANONYMIZED", "detected": true},
+                        {"match": "ignored@example.com", "type": "EMAIL", "action": "BLOCKED", "detected": false}
+                    ],
+                    "regexes": [
+                        {"name": "order", "match": "ORD-42", "action": "ANONYMIZED", "detected": true}
+                    ]
+                }
+            }]
+        }"#;
+        let parsed: ApplyGuardrailResponse = serde_json::from_str(anonymized).unwrap();
+        assert_eq!(
+            extract_external_outcome(parsed),
+            ExternalOutcome::Anonymized(vec!["Contact {EMAIL} or {PHONE}".into()])
+        );
+
+        // Mixed ANONYMIZED + BLOCKED must return Blocked rather than trusting canned outputs.
+        let mixed = r#"{
+            "action": "GUARDRAIL_INTERVENED",
+            "outputs": [{"text": "Sorry, I cannot help with that."}],
+            "assessments": [{
+                "sensitiveInformationPolicy": {
+                    "piiEntities": [
+                        {"match": "alice@example.com", "type": "EMAIL", "action": "ANONYMIZED", "detected": true},
+                        {"match": "123-45-6789", "type": "US_SOCIAL_SECURITY_NUMBER", "action": "BLOCKED", "detected": true}
+                    ]
+                }
+            }]
+        }"#;
+        let parsed: ApplyGuardrailResponse = serde_json::from_str(mixed).unwrap();
+        assert_eq!(extract_external_outcome(parsed), ExternalOutcome::Blocked);
+
+        let blocked_topic = r#"{
+            "action": "GUARDRAIL_INTERVENED",
+            "outputs": [{"text": "Sorry, I cannot help with that."}],
+            "assessments": [{
+                "topicPolicy": {
+                    "topics": [{"name": "financial", "action": "BLOCKED", "detected": true}]
+                }
+            }]
+        }"#;
+        let parsed: ApplyGuardrailResponse = serde_json::from_str(blocked_topic).unwrap();
+        assert_eq!(extract_external_outcome(parsed), ExternalOutcome::Blocked);
+    }
+
     #[tokio::test]
     async fn calls_apply_guardrail_with_bearer_auth_and_maps_intervened_none_and_failures() {
         let server = crate::test_support::FakeServer::start(|request| async move {
@@ -342,6 +536,11 @@ mod tests {
                     .status(StatusCode::BAD_REQUEST)
                     .body(Body::from(r#"{"message":"input too long"}"#))
                     .unwrap()
+            } else if path == "/guardrail/throttled/version/1/apply" {
+                Response::builder()
+                    .status(StatusCode::TOO_MANY_REQUESTS)
+                    .body(Body::from(r#"{"message":"too many requests"}"#))
+                    .unwrap()
             } else if path == "/guardrail/slow/version/1/apply" {
                 tokio::time::sleep(Duration::from_millis(250)).await;
                 Response::new(Body::from(r#"{"action":"GUARDRAIL_INTERVENED"}"#))
@@ -360,12 +559,24 @@ mod tests {
             sample_guardrail("g1", "intervene"),
             sample_guardrail("g2", "pass"),
             sample_guardrail("g3", "badinput"),
-            sample_guardrail("g4", "slow"),
-            sample_guardrail("g5", "error"),
+            sample_guardrail("g4", "throttled"),
+            sample_guardrail("g5", "slow"),
+            sample_guardrail("g6", "error"),
         ];
         let refs: Vec<&Guardrail> = guardrails.iter().collect();
-        let payloads = ExternalPayloads::for_guardrails(&refs, "hello world");
+        let payloads =
+            ExternalPayloads::for_guardrails(&refs, &["hello world"], GuardrailLocation::Request);
         let results = client.evaluate_many(&refs, &payloads, "org-1").await;
-        assert_eq!(results, vec![true, false, true, true, true]);
+        assert_eq!(
+            results,
+            vec![
+                ExternalOutcome::Blocked,
+                ExternalOutcome::None,
+                ExternalOutcome::Failed(ExternalFailureKind::Unavailable),
+                ExternalOutcome::Failed(ExternalFailureKind::RateLimited),
+                ExternalOutcome::Failed(ExternalFailureKind::Timeout),
+                ExternalOutcome::Failed(ExternalFailureKind::Unavailable),
+            ]
+        );
     }
 }

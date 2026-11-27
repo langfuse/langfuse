@@ -2,8 +2,10 @@ import { z } from "zod/v4";
 
 import {
   GATEWAY_GUARDRAIL_MAX_BULK_DELETE,
+  GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH,
   GATEWAY_GUARDRAIL_MAX_NAME_LENGTH,
   GATEWAY_GUARDRAIL_MAX_TARGETS,
+  GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH,
   GATEWAY_GUARDRAIL_TARGET_SEARCH_LIMIT,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import {
@@ -13,13 +15,17 @@ import {
 import { GatewayGuardrailService } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailService";
 import { ProviderCredentialRejectedError } from "@/src/features/ai-gateway/server/provider/connection/ProviderCredentialRejectedError";
 import {
+  GATEWAY_GUARDRAIL_ACTION_SCOPES,
+  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
   GatewayBedrockGuardrailCreateInputSchema,
   GatewayBedrockGuardrailUpdateInputSchema,
   GatewayGuardrailAssignmentsInputSchema,
   GatewayGuardrailContainsListSchema,
+  GatewayGuardrailCustomRegexSchema,
   GatewayGuardrailPresetSchema,
+  GatewayGuardrailRedactionLabelSchema,
+  GatewayGuardrailScopeSchema,
   GatewayGuardrailSecretPrefixesSchema,
-  GatewayGuardrailUiActionSchema,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
@@ -46,62 +52,77 @@ const commonWriteFields = {
     .trim()
     .min(1, "Guardrails need a name")
     .max(GATEWAY_GUARDRAIL_MAX_NAME_LENGTH),
-  action: GatewayGuardrailUiActionSchema,
+  scope: GatewayGuardrailScopeSchema.optional(),
   assignments: assignmentsInput,
 };
 
-const regexWriteFields = {
+const regexRuleFields = {
   type: z.literal("REGEX"),
   presets: z.array(GatewayGuardrailPresetSchema).default([]),
   secretPrefixes: GatewayGuardrailSecretPrefixesSchema.default([]),
   containsWords: GatewayGuardrailContainsListSchema.default([]),
+  customRegex: GatewayGuardrailCustomRegexSchema.optional(),
 };
 
 const hasGuardrailRule = (value: {
   presets: unknown[];
   secretPrefixes: unknown[];
   containsWords: unknown[];
+  customRegex?: string;
 }) =>
   value.presets.length > 0 ||
   value.secretPrefixes.length > 0 ||
-  value.containsWords.length > 0;
+  value.containsWords.length > 0 ||
+  Boolean(value.customRegex);
 
 const GUARDRAIL_RULE_REQUIRED_MESSAGE =
-  "Configure at least one pattern, prefix, or keyword to detect";
+  "Configure at least one pattern, prefix, keyword, or custom regex to detect";
 
-const createGuardrailInput = z
-  .discriminatedUnion("type", [
-    organizationInput.extend(commonWriteFields).extend(regexWriteFields),
-    organizationInput.extend(commonWriteFields).extend({
-      type: z.literal("BEDROCK"),
-      bedrock: GatewayBedrockGuardrailCreateInputSchema,
+const regexWriteSchema = z
+  .discriminatedUnion("action", [
+    z.object({
+      ...commonWriteFields,
+      ...regexRuleFields,
+      action: z.literal("REDACT"),
+      redactionLabel: GatewayGuardrailRedactionLabelSchema.optional(),
+    }),
+    z.object({
+      ...commonWriteFields,
+      ...regexRuleFields,
+      action: z.literal("BLOCK"),
+      scope: z.enum(GATEWAY_GUARDRAIL_ACTION_SCOPES.BLOCK).optional(),
+    }),
+    z.object({
+      ...commonWriteFields,
+      ...regexRuleFields,
+      action: z.literal("LOG"),
     }),
   ])
-  .superRefine((value, ctx) => {
-    if (value.type === "REGEX" && !hasGuardrailRule(value)) {
-      ctx.addIssue({
-        code: "custom",
-        message: GUARDRAIL_RULE_REQUIRED_MESSAGE,
-      });
-    }
-  });
+  .refine(hasGuardrailRule, GUARDRAIL_RULE_REQUIRED_MESSAGE);
 
-const updateGuardrailInput = z
-  .discriminatedUnion("type", [
-    guardrailIdInput.extend(commonWriteFields).extend(regexWriteFields),
-    guardrailIdInput.extend(commonWriteFields).extend({
-      type: z.literal("BEDROCK"),
-      bedrock: GatewayBedrockGuardrailUpdateInputSchema,
-    }),
-  ])
-  .superRefine((value, ctx) => {
-    if (value.type === "REGEX" && !hasGuardrailRule(value)) {
-      ctx.addIssue({
-        code: "custom",
-        message: GUARDRAIL_RULE_REQUIRED_MESSAGE,
-      });
-    }
-  });
+const bedrockActionSchema = z.enum(
+  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.actions,
+);
+
+const createGuardrailInput = z.union([
+  organizationInput.and(regexWriteSchema),
+  organizationInput.extend({
+    ...commonWriteFields,
+    type: z.literal("BEDROCK"),
+    action: bedrockActionSchema,
+    bedrock: GatewayBedrockGuardrailCreateInputSchema,
+  }),
+]);
+
+const updateGuardrailInput = z.union([
+  guardrailIdInput.and(regexWriteSchema),
+  guardrailIdInput.extend({
+    ...commonWriteFields,
+    type: z.literal("BEDROCK"),
+    action: bedrockActionSchema,
+    bedrock: GatewayBedrockGuardrailUpdateInputSchema,
+  }),
+]);
 
 const bulkTargetInput = z.discriminatedUnion("type", [
   z.object({
@@ -226,6 +247,24 @@ export const gatewayGuardrailRouter = createTRPCRouter({
       });
     }),
 
+  previewRegex: protectedOrganizationProcedureWithoutTracing
+    .input(
+      organizationInput.extend({
+        pattern: z.string().max(GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH),
+        text: z.string().max(GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH),
+      }),
+    )
+    .query(({ input, ctx }) => {
+      requireGatewayGuardrailsAdmin({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      return new GatewayGuardrailService(ctx.prisma).previewRegex({
+        pattern: input.pattern,
+        text: input.text,
+      });
+    }),
+
   test: protectedOrganizationProcedureWithoutTracing
     .input(
       organizationInput.extend({
@@ -271,6 +310,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
           type: "BEDROCK",
           name: input.name,
           action: input.action,
+          scope: input.scope,
           bedrock: input.bedrock,
           assignments: input.assignments,
           session: ctx.session,
@@ -281,9 +321,13 @@ export const gatewayGuardrailRouter = createTRPCRouter({
         type: "REGEX",
         name: input.name,
         action: input.action,
+        scope: input.scope,
+        redactionLabel:
+          input.action === "REDACT" ? input.redactionLabel : undefined,
         presets: input.presets,
         secretPrefixes: input.secretPrefixes,
         containsWords: input.containsWords,
+        customRegex: input.customRegex,
         assignments: input.assignments,
         session: ctx.session,
       });
@@ -304,6 +348,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
           type: "BEDROCK",
           name: input.name,
           action: input.action,
+          scope: input.scope,
           bedrock: input.bedrock,
           assignments: input.assignments,
           session: ctx.session,
@@ -315,9 +360,13 @@ export const gatewayGuardrailRouter = createTRPCRouter({
         type: "REGEX",
         name: input.name,
         action: input.action,
+        scope: input.scope,
+        redactionLabel:
+          input.action === "REDACT" ? input.redactionLabel : undefined,
         presets: input.presets,
         secretPrefixes: input.secretPrefixes,
         containsWords: input.containsWords,
+        customRegex: input.customRegex,
         assignments: input.assignments,
         session: ctx.session,
       });
