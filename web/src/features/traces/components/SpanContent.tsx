@@ -22,7 +22,6 @@ import { type TreeNode } from "../types/treeNode";
 import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
-import { SampleBadge } from "@/src/features/traces/components/SampleBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -149,27 +148,22 @@ function LoadedSpanContent({
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {/* Name and badges row */}
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          {isSelectedObservation ? (
-            // The badge wraps onto a clipped second line when the name has no room left.
-            <span className="flex h-5 min-w-0 flex-1 flex-wrap content-start items-center gap-x-2 overflow-hidden">
-              <span
-                className="min-w-24 flex-1 truncate text-sm"
-                title={nodeDisplayName}
-              >
-                {nodeDisplayName}
-              </span>
-              <SampleBadge />
-            </span>
-          ) : (
-            <span
-              className="min-w-0 shrink truncate text-sm"
-              title={nodeDisplayName}
-            >
-              {nodeDisplayName}
-            </span>
-          )}
+          <span
+            className="min-w-0 shrink truncate text-sm"
+            title={nodeDisplayName}
+          >
+            {nodeDisplayName}
+          </span>
 
           <div className="flex items-center gap-x-2">
+            {isSelectedObservation ? (
+              <span
+                role="img"
+                aria-label="Will be evaluated"
+                title="Will be evaluated"
+                className="bg-category-blue-foreground size-1.5 shrink-0 rounded-full"
+              />
+            ) : null}
             {/* Comment count */}
             {showComments &&
               commentCount !== undefined &&
