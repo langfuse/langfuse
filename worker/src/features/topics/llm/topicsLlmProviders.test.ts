@@ -55,7 +55,8 @@ const summaries = [
   "Export order history to CSV grouped by region.",
 ];
 
-describe("Topics LLM provider tests", () => {
+// Live models occasionally answer with prose instead of the schema; one retry keeps that from failing CI.
+describe("Topics LLM provider tests", { retry: 1 }, () => {
   for (const combination of TOPICS_LLM_COMBINATIONS) {
     describe(combination.name, () => {
       test(
