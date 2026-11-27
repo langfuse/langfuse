@@ -520,6 +520,7 @@ const inputTraceSchema = z.object({
   projectId: z.string(),
   timestamp: z.date().nullish(),
   fromTimestamp: z.date().nullish(),
+  minStartTime: z.coerce.date().nullish().catch(undefined),
   truncated: z.boolean().default(false),
   verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
 });
@@ -542,6 +543,7 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
     const projectId = result.data.projectId;
     const timestamp = result.data.timestamp;
     const fromTimestamp = result.data.fromTimestamp;
+    const minStartTime = result.data.minStartTime;
     const verbosity = result.data.verbosity;
     const isEventsOnly = env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
 
@@ -553,6 +555,8 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
         ? await getTraceByIdFromEventsTable({
             traceId,
             projectId,
+            fromTimestamp:
+              fromTimestamp ?? timestamp ?? minStartTime ?? undefined,
             excludeInputOutput: true,
             excludeMetadata: true,
             renderingProps: {

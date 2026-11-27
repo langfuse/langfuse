@@ -12,6 +12,7 @@ import {
   DefaultEvalModelService,
   generateLlmEvaluatorOutput,
   IngestionQueue,
+  LangfuseInternalTraceEnvironment,
   LLMAdapter,
   mapLegacyLLMCompletionParams,
   QueueJobs,
@@ -327,6 +328,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         model: params.modelConfig.model,
         baseURL: typeof apiKey.baseURL === "string" ? apiKey.baseURL : null,
         extraHeaders,
+        internalEnvironment: LangfuseInternalTraceEnvironment.LLMJudge,
       });
 
       return withLLMConnectionCooldown(

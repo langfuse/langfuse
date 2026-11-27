@@ -29,7 +29,7 @@ import { finished } from "node:stream/promises";
 import {
   INTERNAL_EVAL_ENVIRONMENT_PREFIX,
   isInternalEvalEnvironment,
-  PUBLIC_LLM_JUDGE_ENVIRONMENT,
+  PUBLIC_INTERNAL_EVAL_ENVIRONMENTS,
 } from "../llm/isInternalEvalEnvironment";
 
 const sourceKeySql =
@@ -527,7 +527,7 @@ function clusteringSummariesSql(
       ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
         AND dimensions = {embeddingDimensions:UInt32}
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-        AND environment != {publicLlmJudgeEnvironment:String}${cohortFilterSql(cohort)}
+        AND environment NOT IN {publicInternalEnvironments:Array(String)}${cohortFilterSql(cohort)}
       ${cohortSampleSql(cohort)}
     )`;
 }
@@ -580,7 +580,7 @@ export async function getTopicClusteringSummaries(
         ...embeddingConfig,
         ...timeRangeParams(timeRange),
         internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-        publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+        publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
         maximumRows: limits.maxRows + 1,
       },
       tags: { route: "topics-clustering-summaries", projectId },
@@ -673,7 +673,7 @@ export async function getSampledTopicClusteringSummaries(
       ...embeddingConfig,
       ...timeRangeParams(window),
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
       limit,
     };
     const [counted] = await queryClickhouse<{ count: string }>({
@@ -761,7 +761,7 @@ export async function hasCompatibleTopicSummaries(
         AND embedding_model = {embeddingModel:String}
         AND embedding.size0 = {embeddingDimensions:UInt32}
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-        AND environment != {publicLlmJudgeEnvironment:String}
+        AND environment NOT IN {publicInternalEnvironments:Array(String)}
       LIMIT 1`,
     params: {
       projectId,
@@ -770,7 +770,7 @@ export async function hasCompatibleTopicSummaries(
       facetVersion: facet.version,
       ...embeddingConfig,
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
     },
     tags: { route: "topics-has-compatible-summaries", projectId },
     clickhouseSettings: { max_threads: 1 },
@@ -799,12 +799,12 @@ export async function hasStoredTopicSummaries(
       WHERE project_id = {projectId:String}
         AND unit_type = 'trace' AND processing_state = 'complete'
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-        AND environment != {publicLlmJudgeEnvironment:String}
+        AND environment NOT IN {publicInternalEnvironments:Array(String)}
       LIMIT 1`,
     params: {
       projectId,
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
     },
     tags: { route: "topics-has-summaries", projectId },
     clickhouseSettings: { max_threads: 1 },
@@ -933,7 +933,7 @@ export async function getTopicSummaryCounts(
       ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
         AND dimensions = {embeddingDimensions:UInt32}
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-        AND environment != {publicLlmJudgeEnvironment:String}${cohortFilterSql(cohort)}
+        AND environment NOT IN {publicInternalEnvironments:Array(String)}${cohortFilterSql(cohort)}
       ${cohortSampleSql(cohort, "facet_id, facet_version")}
     )
     GROUP BY facet_id, facet_version`,
@@ -945,7 +945,7 @@ export async function getTopicSummaryCounts(
       facetVersions: facets.map(({ version }) => version),
       ...embeddingConfig,
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
     },
     tags: { route: "topics-summary-counts", projectId },
     // A cohort scans events, so keep it off the primary like the other preview reads.
@@ -998,7 +998,7 @@ export async function getTopicSetupSummaryCounts(
         AND embedding_model = {embeddingModel:String}
         AND embedding.size0 = {embeddingDimensions:UInt32}
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-        AND environment != {publicLlmJudgeEnvironment:String}${cohortFilterSql(traces && { traces })}
+        AND environment NOT IN {publicInternalEnvironments:Array(String)}${cohortFilterSql(traces && { traces })}
       GROUP BY facet_id`,
     params: {
       ...traces?.params,
@@ -1008,7 +1008,7 @@ export async function getTopicSetupSummaryCounts(
       facetVersions: facets.map(({ version }) => version),
       ...embeddingConfig,
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      publicInternalEnvironments: [...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS],
     },
     tags: { route: "topics-setup-summary-counts", projectId },
   });

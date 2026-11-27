@@ -1,5 +1,5 @@
 // Golden SQL for the v2 traces dashboard view (`eventsTracesView`, one row
-// per trace aggregated from `events_core events_traces`), driven through
+// per trace aggregated from `events as e`), driven through
 // `executeQuery(..., "v2", singleLevel)` so the chartConfig/config threading
 // into QueryBuilder is pinned as prod sees it.
 //
@@ -105,14 +105,14 @@ if (!clickhouseFormatAvailable()) {
   );
 }
 
-// One inner expression per kind: verbatim `sql as alias`, no `@@AGG@@`.
+// One per-trace measure per kind, read as it is in the inner select.
 // `count` is the default metric of every case.
 const MEASURES: ReadonlyArray<
   [string, QueryType["metrics"][number]["aggregation"]]
 > = [
   // uniqIf over non-root rows
   ["observationsCount", "sum"],
-  // date_diff over minIf/maxIf
+  // dateDiff over minIf/maxIf
   ["latency", "avg"],
   // sumMapIf followed by a map subscript
   ["totalTokens", "sum"],
@@ -127,10 +127,15 @@ const MEASURES: ReadonlyArray<
   ["uniqueUserIds", "count"],
 ];
 
-// One per WHERE template the filter mapping emits.
+// One per WHERE shape the filter lowering emits.
 const FILTERS: ReadonlyArray<[string, Filter]> = [
   ["id =", { column: "id", type: "string", operator: "=", value: "t-1" }],
-  // the nullIf dimension sql on the raw column
+  // a string column reads '' as missing: `= '' OR IS NULL`
+  [
+    "id is-null",
+    { column: "id", type: "null", operator: "is null", value: "" },
+  ],
+  // a nullIf(column, '') dimension compares the raw column
   [
     "userId =",
     { column: "userId", type: "string", operator: "=", value: "u-1" },
@@ -148,9 +153,10 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
       value: ["u-1", "u-2"],
     },
   ],
-  // filterSql: `(trace_name = x OR name = x) AND <trace name> = x`; the OR
-  // prunes blocks, the AND keeps the row-level match exact. A `…Name` column
-  // falls back to `name` and renders the same SQL as `name` itself.
+  // `name` prunes on its columns: `(trace_name = x OR name = x) AND <trace
+  // name> = x`; the OR prunes blocks, the AND keeps the row-level match
+  // exact. A `…Name` column falls back to `name` and renders the same SQL as
+  // `name` itself.
   [
     "traceName =",
     { column: "traceName", type: "string", operator: "=", value: "chat" },
@@ -159,13 +165,15 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
     "name contains",
     { column: "name", type: "string", operator: "contains", value: "chat" },
   ],
-  // Known-wrong baseline: the pruning part runs `IS NULL` on the
-  // non-Nullable `trace_name`/`name` columns, which store a missing name as
-  // '', so this filter matches no traces. Pinned as-is, like
-  // `timestampMonth =`, so a change to the clause shows in the golden diff.
+  // The pruning columns `trace_name` / `name` store a missing name as '', so
+  // each compares `= '' OR IS NULL`, like every other string column.
   [
     "name is-null",
     { column: "name", type: "null", operator: "is null", value: "" },
+  ],
+  [
+    "name is-not-null",
+    { column: "name", type: "null", operator: "is not null", value: "" },
   ],
   [
     "tags any-of",
@@ -175,6 +183,17 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
       operator: "any of",
       value: ["a", "b"],
     },
+  ],
+  // an array column is missing when empty: `empty(e.tags)`. Like every
+  // filter here it tests event rows before the per-trace grouping, so a
+  // trace with one untagged event matches `is null`.
+  [
+    "tags is-null",
+    { column: "tags", type: "null", operator: "is null", value: "" },
+  ],
+  [
+    "tags is-not-null",
+    { column: "tags", type: "null", operator: "is not null", value: "" },
   ],
   // The only empty array the schema admits (`all of` / `none of`); it binds
   // `[]` and matches every row. Empty stringOptions and empty `any of` are
@@ -203,13 +222,11 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
       value: "eu",
     },
   ],
-  // switches the whole base relation, root-event subquery included, to
-  // events_full
+  // routes the outer events read to events_full; the root-event subquery
+  // reads no truncated column and stays on events_core
   ["metadata contains", METADATA_FULL],
-  // Legacy oddity: the dimension sql is the raw DateTime64 `start_time`, so
-  // the filter compares it with the string, not with the `YYYY-MM` month the
-  // dimension shows. It stays so the migration's golden diff shows whether
-  // it deviates.
+  // compares the event's `YYYY-MM` month, `formatDateTime(start_time,
+  // '%Y-%m')`, with the value
   [
     "timestampMonth =",
     {
@@ -316,7 +333,7 @@ describeWithClickhouse("golden: executeQuery v2 traces", () => {
   });
 
   describe("dimensions", () => {
-    // Inner reads `aggregationFunction`, else `any(sql)`.
+    // Inner reads the per-trace value, `any(e.trace_id)` for `id`.
     it.each(["id", "name", "tags", "userId", "timestampMonth"])(
       "buildEventsTraces level=two dim=%s",
       async (field) => {
@@ -416,7 +433,8 @@ describeWithClickhouse("golden: executeQuery v2 traces", () => {
       expect(await golden({ filters: [filter] })).toMatchSnapshot();
     });
 
-    // A filterSql part after a normal filter.
+    // The `name` filter's conjuncts follow the time window, a normal
+    // filter's precede it.
     it("buildEventsTraces filters=name,environment", async () => {
       expect(
         await golden({

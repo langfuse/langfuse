@@ -9,6 +9,9 @@ export const GATEWAY_GUARDRAIL_MAX_BULK_DELETE = 500;
 export const GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION = 20;
 export const GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE = `Organizations can have up to ${GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION} guardrails. Reach out to support to share your use case and tell us why you need more.`;
 export const GATEWAY_GUARDRAIL_FLAGGED_WINDOW_DAYS = 7;
+export const GATEWAY_GUARDRAIL_FLAGGED_DATE_RANGE = {
+  range: "last7Days",
+} as const;
 export const GATEWAY_GUARDRAIL_TARGET_SEARCH_LIMIT = 25;
 
 export const GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES = 20;
@@ -56,15 +59,20 @@ export const GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS: Record<
   GatewayGuardrailAction,
   string
 > = {
-  BLOCK: "Reject the request before it reaches the provider.",
-  REDACT:
-    "Replace matched text with the replacement label before forwarding the request.",
+  BLOCK: "Reject the request or response when matched.",
+  REDACT: "Replace matched text with the replacement label.",
   ENFORCE:
-    "Follow the provider's verdict: block when it blocks, or anonymize matched text before forwarding.",
-  LOG: "Forward the request unchanged and record the match on the generation.",
+    "Follow the provider's verdict: block when it blocks, or anonymize matched text.",
+  LOG: "Pass through unchanged and record the match on the generation.",
 };
 
-export const GATEWAY_GUARDRAIL_SCOPES = ["LAST_TURN", "ENTIRE_INPUT"] as const;
+export const GATEWAY_GUARDRAIL_SCOPES = [
+  "LAST_TURN",
+  "ENTIRE_INPUT",
+  "OUTPUT",
+  "LAST_TURN_AND_OUTPUT",
+  "ENTIRE_INPUT_AND_OUTPUT",
+] as const satisfies readonly GatewayGuardrailScope[];
 
 export const GATEWAY_GUARDRAIL_SCOPE_LABELS: Record<
   GatewayGuardrailScope,
@@ -72,6 +80,9 @@ export const GATEWAY_GUARDRAIL_SCOPE_LABELS: Record<
 > = {
   LAST_TURN: "Last turn",
   ENTIRE_INPUT: "Entire input",
+  OUTPUT: "Output",
+  LAST_TURN_AND_OUTPUT: "Last turn & output",
+  ENTIRE_INPUT_AND_OUTPUT: "Entire input & output",
 };
 
 export const GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS: Record<
@@ -82,4 +93,9 @@ export const GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS: Record<
     "Evaluate only the latest user turn and tool outputs since the last model reply.",
   ENTIRE_INPUT:
     "Evaluate all messages and system prompts in the request, including conversation history. Recommended for redaction so earlier turns aren't resent unredacted.",
+  OUTPUT: "Evaluate provider responses before returning them to the client.",
+  LAST_TURN_AND_OUTPUT:
+    "Evaluate the latest user turn and tool outputs, plus provider responses.",
+  ENTIRE_INPUT_AND_OUTPUT:
+    "Evaluate all messages and system prompts in the request, plus provider responses.",
 };

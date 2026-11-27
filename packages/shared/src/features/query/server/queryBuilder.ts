@@ -9,11 +9,16 @@ import {
   SCORES_LISTABLE_COUNT_VIEW,
 } from "../types";
 
-import { eventsObservationsView, getViewDeclaration } from "../dataModel";
+import {
+  eventsObservationsView,
+  eventsTracesView,
+  getViewDeclaration,
+} from "../dataModel";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { env } from "../../../env";
 import { buildScores, SCORE_VIEWS_V2 } from "./scoresQuery";
 import { buildEventsObservations } from "./eventsObservationsQuery";
+import { buildEventsTraces } from "./eventsTracesQuery";
 import { buildSqlText } from "./sqlTextQuery";
 
 export class QueryBuilder {
@@ -42,9 +47,10 @@ export class QueryBuilder {
 
   /**
    * The ClickHouse SQL and parameters of `query` for `projectId`. The v2
-   * observations view ({@link buildEventsObservations}) and the v2 score
-   * views ({@link buildScores}) compile through the query AST; every other
-   * view and version is assembled as SQL text ({@link buildSqlText}).
+   * observations view ({@link buildEventsObservations}), the v2 traces view
+   * ({@link buildEventsTraces}) and the v2 score views ({@link buildScores})
+   * compile through the query AST; every other view and version is
+   * assembled as SQL text ({@link buildSqlText}).
    *
    * Errors: `InvalidRequestError` for a query the schema or the view rejects.
    */
@@ -70,6 +76,17 @@ export class QueryBuilder {
         this.chartConfig,
       );
     }
+    if (view === eventsTracesView) {
+      return buildEventsTraces(
+        query,
+        projectId,
+        enableSingleLevelOptimization,
+        shouldSkipScoresDedup(projectId),
+        this.version,
+        this.chartConfig,
+        this.rootEventConditionMaxWindowHours,
+      );
+    }
     if (SCORE_VIEWS_V2.has(view)) {
       return buildScores(
         query,
@@ -87,7 +104,6 @@ export class QueryBuilder {
       enableSingleLevelOptimization,
       this.version,
       this.chartConfig,
-      this.rootEventConditionMaxWindowHours,
     );
   }
 }

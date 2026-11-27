@@ -48,9 +48,9 @@ import {
 import { ProviderCredentialRejectedError } from "@/src/features/ai-gateway/server/provider/connection/ProviderCredentialRejectedError";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import type {
+  GatewayCachedGuardrailScope,
   GatewayCachedGuardrails,
   GatewayResolveGuardrailAction,
-  GatewayResolveGuardrailScope,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GATEWAY_USER_SCOPE } from "@/src/features/ai-gateway/server/team/gatewayTeamService";
@@ -86,9 +86,12 @@ const RESOLVE_GUARDRAIL_ACTION = {
 const RESOLVE_GUARDRAIL_SCOPE = {
   LAST_TURN: "last_turn",
   ENTIRE_INPUT: "entire_input",
+  OUTPUT: "output",
+  LAST_TURN_AND_OUTPUT: "last_turn_and_output",
+  ENTIRE_INPUT_AND_OUTPUT: "entire_input_and_output",
 } as const satisfies Record<
   GatewayGuardrailRecord["scope"],
-  GatewayResolveGuardrailScope
+  GatewayCachedGuardrailScope
 >;
 
 const GATEWAY_MEMBER_ROLES = Object.values(Role).filter((role) =>

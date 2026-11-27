@@ -7,7 +7,6 @@
  * WITH FILL, ORDER BY and LIMIT. The steps it shares with the AST views are
  * in `viewQuerySteps.ts`; `QueryBuilder` dispatches the views here.
  */
-import { randomUUID } from "crypto";
 import { type z } from "zod";
 import {
   shouldSkipObservationsFinal,
@@ -16,7 +15,6 @@ import {
 import {
   bindUtcDateTimeParam,
   FilterList,
-  filtersRequireEventsFull,
   type Filter,
 } from "../../../server/queries/clickhouse-sql/clickhouse-filter";
 import { createFilterFromFilterState } from "../../../server/queries/clickhouse-sql/factory";
@@ -47,13 +45,6 @@ import {
   withFillRange,
   validateAndProcessOrderBy,
 } from "./viewQuerySteps";
-
-type RawSqlPart = { query: string; params: Record<string, unknown> };
-
-type MappedFilters = {
-  whereFilters: Filter[];
-  whereRawParts: RawSqlPart[];
-};
 
 function translateAggregation(
   metric: AppliedMetricType,
@@ -103,86 +94,21 @@ function baseTableName(view: ViewDeclarationType): string {
   return view.baseCte.split(" ")[0];
 }
 
-function baseTableAlias(view: ViewDeclarationType): string {
-  // Return the alias from baseCte if present, otherwise the table name.
-  // e.g., "events_core events_traces" -> "events_traces"
-  //       "traces FINAL"              -> "traces"  (FINAL is a modifier, not an alias)
-  const parts = view.baseCte.split(/\s+/);
-  const clickhouseModifiers = new Set(["FINAL", "SAMPLE", "PREWHERE"]);
-  if (parts.length >= 2 && !clickhouseModifiers.has(parts[1].toUpperCase())) {
-    return parts[1];
-  }
-  return parts[0];
-}
-
 /**
- * Builds a WHERE condition for a filterSql dimension:
- *   (col1 OP X OR col2 OP X) AND dimensionSql OP X
- *
- * The OR'd part is pruning-friendly (helps ClickHouse skip blocks).
- * The exact part uses the dimension's row-level sql expression for correctness.
- * Both delegate to createFilterFromFilterState for full operator/type support.
+ * The `FilterList` filters of `filters` on `view`: a dimension compares its
+ * `sql` (the raw column of a `nullIf(column, '')` one, with `''` as NULL),
+ * the time dimension and `metadata` their columns, another `…Name` column
+ * `name`. Throws `InvalidRequestError` for a filter the view rejects.
  */
-function buildFilterSqlWhereCondition(params: {
-  filter: z.infer<typeof queryModel>["filters"][number];
-  whereCols: string[];
-  dimensionSql: string;
-  tableName: string;
-}): RawSqlPart {
-  const { filter, whereCols, dimensionSql, tableName } = params;
-
-  const syntheticMapping = (clickhouseSelect: string) => [
-    {
-      uiTableName: filter.column,
-      uiTableId: filter.column,
-      clickhouseTableName: tableName,
-      clickhouseSelect,
-      queryPrefix: "",
-    },
-  ];
-
-  // Pruning: one filter per where column, OR'd together
-  const pruneApplied = whereCols.map((col) => {
-    const filters = createFilterFromFilterState(
-      [filter],
-      syntheticMapping(col),
-    );
-    return filters[0].apply();
-  });
-  const pruneQuery = `(${pruneApplied.map((p) => p.query).join(" OR ")})`;
-  const pruneParams = pruneApplied.reduce<Record<string, unknown>>(
-    (acc, p) => ({ ...acc, ...p.params }),
-    {},
-  );
-
-  // Exact match: filter on the dimension's row-level sql expression
-  const exactFilters = createFilterFromFilterState(
-    [filter],
-    syntheticMapping(dimensionSql),
-  );
-  const exactApplied = exactFilters[0].apply();
-
-  return {
-    query: `${pruneQuery} AND ${exactApplied.query}`,
-    params: { ...pruneParams, ...exactApplied.params },
-  };
-}
-
 function mapFilters(
   filters: z.infer<typeof queryModel>["filters"],
   view: ViewDeclarationType,
-): MappedFilters {
+): Filter[] {
   // Validate all filters before processing
   validateFilters(filters, view);
 
   const actualTableName = baseTableName(view);
 
-  const result: MappedFilters = {
-    whereFilters: [],
-    whereRawParts: [],
-  };
-
-  // Separate filters into normal (createFilterFromFilterState) and filterSql-aware
   const normalFilters: z.infer<typeof queryModel>["filters"] = [];
   const normalMappings: Array<{
     uiTableName: string;
@@ -197,20 +123,6 @@ function mapFilters(
   for (const filter of filters) {
     const dimension = resolveDimension(filter.column, view);
 
-    // Dimension with filterSql: pruning OR + exact match, both in WHERE
-    if (dimension?.filterSql) {
-      result.whereRawParts.push(
-        buildFilterSqlWhereCondition({
-          filter,
-          whereCols: dimension.filterSql.where,
-          dimensionSql: dimension.sql,
-          tableName: actualTableName,
-        }),
-      );
-      continue;
-    }
-
-    // Normal dimension or special-case filter: build column mapping
     let clickhouseSelect: string;
     let queryPrefix = "";
     let clickhouseTableName: string = actualTableName;
@@ -272,12 +184,7 @@ function mapFilters(
     });
   }
 
-  // Create filters for non-filterSql dimensions using existing infrastructure
-  result.whereFilters = createFilterFromFilterState(
-    normalFilters,
-    normalMappings,
-  );
-  return result;
+  return createFilterFromFilterState(normalFilters, normalMappings);
 }
 
 function addStandardFilters(
@@ -552,19 +459,9 @@ function buildTimeDimensionSql(
   );
 
   // Optionally wrap in aggregation function (e.g., "any" for two-level inner SELECT).
-  // When the view has a rootEventCondition, prefer the root event's timestamp for
-  // time bucketing. Falls back to min(start_time) when no semantic-root event
-  // exists for a trace.
-  let wrappedSql: string;
-  if (wrapInAgg && view.rootEventCondition) {
-    // The condition owns its qualification because prefixing a compound SQL
-    // expression here would produce invalid SQL such as `alias.(a OR b)`.
-    wrappedSql = `ifNull(anyIf(toNullable(${timeDimensionSql}), ${view.rootEventCondition.condition}), min(${timeDimensionSql}))`;
-  } else if (wrapInAgg) {
-    wrappedSql = `${wrapInAgg}(${timeDimensionSql})`;
-  } else {
-    wrappedSql = timeDimensionSql;
-  }
+  const wrappedSql = wrapInAgg
+    ? `${wrapInAgg}(${timeDimensionSql})`
+    : timeDimensionSql;
 
   return `${wrappedSql} as time_dimension`;
 }
@@ -592,6 +489,11 @@ function buildBucketDimensionSql(
   }
 }
 
+/**
+ * The dimensions and bucket of a two-level inner select: `any(<sql>) as
+ * <alias>`, the bare key of a pair-expanded dimension, `arrayJoin(<sql>)`
+ * of an exploded one, each followed by a comma.
+ */
 function buildInnerDimensionsPart(
   appliedDimensions: AppliedDimensionType[],
   view: ViewDeclarationType,
@@ -603,10 +505,6 @@ function buildInnerDimensionsPart(
   if (appliedDimensions.length > 0) {
     dimensions += `${appliedDimensions
       .map((dimension) => {
-        // Use custom aggregation function if specified (e.g., argMaxIf for events table traces)
-        if (dimension.aggregationFunction) {
-          return `${dimension.aggregationFunction} as ${dimension.alias ?? dimension.sql}`;
-        }
         // pairExpand key columns (e.g. costType) are added to the inner GROUP BY in
         // buildInnerSelect, so they are already deterministic grouping keys here.
         // Unlike regular dimensions (which are not in GROUP BY and need any() to satisfy
@@ -967,8 +865,8 @@ function buildOrderByClause(
  * - Two-level mode: Actual aggregation from aggs config (e.g., sum, any, sumMap)
  * - Single-level mode: Stripped out, user's aggregation applied directly to raw expression
  *
- * `version`, `chartConfig` (histogram bins, row limit) and
- * `rootEventConditionMaxWindowHours` are the `QueryBuilder`'s.
+ * `version` and `chartConfig` (histogram bins, row limit) are the
+ * `QueryBuilder`'s.
  */
 export async function buildSqlText(
   query: QueryType,
@@ -977,7 +875,6 @@ export async function buildSqlText(
   enableSingleLevelOptimization: boolean,
   version: ViewVersion,
   chartConfig: { bins?: number; row_limit?: number } | undefined,
-  rootEventConditionMaxWindowHours: number,
 ): Promise<{ query: string; parameters: Record<string, unknown> }> {
   // Initialize parameters object
   const parameters: Record<string, unknown> = {};
@@ -1020,25 +917,7 @@ export async function buildSqlText(
     view,
   );
 
-  // Create filters: normal WHERE filters + raw WHERE parts (filterSql pruning + exact match)
-  let mappedFilters = mapFilters(query.filters, view);
-
-  // events_core stores metadata_values truncated to 200 chars (events_core_mv);
-  // truncation-sensitive filters must read events_full or matches beyond the
-  // truncation point are silently dropped. Re-map so filter prefixes follow.
-  if (
-    baseTableName(view) === "events_core" &&
-    filtersRequireEventsFull(new FilterList(mappedFilters.whereFilters))
-  ) {
-    view = {
-      ...view,
-      baseCte: view.baseCte.replace("events_core", "events_full"),
-    };
-    mappedFilters = mapFilters(query.filters, view);
-  }
-
-  const { whereFilters, whereRawParts } = mappedFilters;
-  let filterList = new FilterList(whereFilters);
+  let filterList = new FilterList(mapFilters(query.filters, view));
 
   // Add standard filters (project_id, timestamps)
   filterList = addStandardFilters(
@@ -1087,55 +966,6 @@ export async function buildSqlText(
 
   // Build WHERE clause with parameters
   fromClause += buildWhereClause(filterList, parameters);
-
-  // Append raw WHERE pruning parts (OR'd conditions from filterSql.where)
-  for (const part of whereRawParts) {
-    fromClause += ` AND ${part.query}`;
-    Object.assign(parameters, part.params);
-  }
-
-  // When rootEventCondition is set, add a subquery filter to restrict rows
-  // to traces whose root event has timeDimension in the query window.
-  // The existing start_time filter above is kept for ClickHouse partition pruning.
-  // For wide time windows (default >7 days), the subquery is skipped as the
-  // root-event check has diminishing returns and hurts performance.
-  // Set LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS=0 to always apply the filter.
-  if (view.rootEventCondition) {
-    const windowMs =
-      new Date(query.toTimestamp).getTime() -
-      new Date(query.fromTimestamp).getTime();
-    const windowHours = windowMs / (1000 * 60 * 60);
-    const thresholdHours = rootEventConditionMaxWindowHours;
-
-    if (thresholdHours === 0 || windowHours <= thresholdHours) {
-      // Falls back gracefully: if no root events exist in the window at all
-      // (e.g. parent_span_id is never populated), the filter is skipped via NOT EXISTS.
-      const uid = randomUUID().replace(/-/g, "").slice(0, 8);
-      const fromP = `subFrom${uid}`;
-      const toP = `subTo${uid}`;
-      const projP = `subProj${uid}`;
-      const baseTable = baseTableName(view);
-      const tableAlias = baseTableAlias(view);
-      const { column, condition } = view.rootEventCondition;
-      const fromParam = bindUtcDateTimeParam(
-        fromP,
-        new Date(query.fromTimestamp),
-      );
-      const toParam = bindUtcDateTimeParam(toP, new Date(query.toTimestamp));
-      const subquery =
-        `SELECT ${tableAlias}.${column} FROM ${baseTable} ${tableAlias} ` +
-        `WHERE ${tableAlias}.project_id = {${projP}: String} ` +
-        `AND ${condition} ` +
-        `AND ${tableAlias}.${view.timeDimension} >= ${fromParam.placeholder} ` +
-        `AND ${tableAlias}.${view.timeDimension} <= ${toParam.placeholder}`;
-      fromClause +=
-        ` AND (${baseTable}.${column} IN (${subquery})` +
-        ` OR NOT EXISTS (${subquery} LIMIT 1))`;
-      parameters[fromP] = fromParam.value;
-      parameters[toP] = toParam.value;
-      parameters[projP] = projectId;
-    }
-  }
 
   // Check if single-level optimization is applicable
   // Note: Relation tables are OK as long as measures have aggs configuration

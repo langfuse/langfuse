@@ -36,6 +36,7 @@ import {
   filterDimensionName,
   assertKnownRelationTables,
   type BucketValues,
+  type TimeWindow,
   type AppliedMetricType,
   type AppliedDimensionType,
   atLevel,
@@ -90,9 +91,6 @@ function whereAll<DB, TB extends keyof DB, O>(
   for (const condition of conditions) filtered = filtered.where(condition);
   return filtered;
 }
-
-/** The query's time window, bound as {@link utcDateTime}. */
-type TimeWindow = { from: Expression<Date>; to: Expression<Date> };
 
 /**
  * What the parts of the v2 score query's FROM and WHERE read: the query's

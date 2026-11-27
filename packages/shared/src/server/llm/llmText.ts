@@ -36,9 +36,9 @@ import { translateBedrockProviderOptions } from "./ai-sdk/providers/bedrock";
 import { translateGoogleProviderOptions } from "./ai-sdk/providers/google";
 import {
   isOpenAICompatibleEndpoint,
-  isOpenRouterEndpoint,
   translateOpenAIProviderOptions,
 } from "./ai-sdk/providers/openai";
+import { wrapFetchWithOpenRouterInternalTraceProvenance } from "./ai-sdk/openRouterProvenance";
 import type {
   LLMCredentialSource,
   TranslatedProviderOptions,
@@ -60,7 +60,7 @@ import type {
   ModelParams,
   TraceSinkParams,
 } from "./types";
-import { LLMAdapter } from "./types";
+import { LangfuseInternalTraceEnvironment, LLMAdapter } from "./types";
 import { decryptAndParseExtraHeaders } from "./utils";
 
 type RuntimeContext = Record<string, unknown>;
@@ -129,6 +129,12 @@ type BaseLLMTextOptions<TOOLS extends ToolSet, OUTPUT extends Output.Output> = {
   timeout?: TimeoutConfiguration<TOOLS>;
   abortSignal?: AbortSignal;
   trace?: TraceSinkParams;
+  /**
+   * Internal Langfuse trace environment stamped onto outbound provider
+   * provenance (such as OpenRouter Broadcast) even when Langfuse does not emit
+   * an internal trace for this call. Defaults to `trace?.environment`.
+   */
+  internalEnvironment?: LangfuseInternalTraceEnvironment;
   /**
    * Input recorded on traced root and generation spans. Defaults to messages.
    * Use this when provider messages contain ephemeral credentials such as
@@ -312,16 +318,9 @@ async function prepareLLMTextCall<
   });
   recordAiSdkExecution({ model: options.model, modelConfig });
 
-  const providerOptions = addOpenRouterInternalTraceProvenance({
-    model: options.model,
-    baseURL: options.connection.baseURL,
-    apiMode: modelConfig.openAIApiMode,
-    providerOptions: options.providerOptions,
-    trace: options.trace,
-  });
-
   const { apiKey, extraHeaders, createFetch } = openLLMConnection(
     options.connection,
+    options.internalEnvironment ?? options.trace?.environment,
   );
 
   const languageModel = await buildAiSdkModel({
@@ -360,7 +359,7 @@ async function prepareLLMTextCall<
       temperature: options.temperature,
       topP: options.topP,
       reasoning: options.reasoning,
-      providerOptions,
+      providerOptions: options.providerOptions,
       maxRetries: options.maxRetries,
       timeout,
       abortSignal: options.abortSignal,
@@ -372,21 +371,28 @@ async function prepareLLMTextCall<
   };
 }
 
-function openLLMConnection(connection: LLMConnection) {
+function openLLMConnection(
+  connection: LLMConnection,
+  internalEnvironment?: string,
+) {
   const apiKey = decrypt(connection.secretKey);
   const extraHeaders = decryptAndParseExtraHeaders(connection.extraHeaders);
   const createFetch = (
     logContext: string,
     additionalSensitiveHeaders?: string[],
   ) =>
-    createSecureLlmFetch({
-      logContext,
-      // Connection-specific headers are encrypted at rest and can contain
-      // gateway credentials. Keep them on same-origin redirects, but strip
-      // them alongside provider auth headers when the origin changes.
-      additionalSensitiveHeaders: (additionalSensitiveHeaders ?? []).concat(
-        Object.keys(extraHeaders ?? {}),
-      ),
+    wrapFetchWithOpenRouterInternalTraceProvenance({
+      fetchImpl: createSecureLlmFetch({
+        logContext,
+        // Connection-specific headers are encrypted at rest and can contain
+        // gateway credentials. Keep them on same-origin redirects, but strip
+        // them alongside provider auth headers when the origin changes.
+        additionalSensitiveHeaders: (additionalSensitiveHeaders ?? []).concat(
+          Object.keys(extraHeaders ?? {}),
+        ),
+      }),
+      baseURL: connection.baseURL,
+      internalEnvironment,
     });
   return { apiKey, extraHeaders, createFetch };
 }
@@ -398,6 +404,7 @@ export async function embedLLMText(options: {
   values: string[];
   dimensions?: number;
   providerOptions?: ProviderOptions;
+  internalEnvironment?: LangfuseInternalTraceEnvironment;
   maxRetries?: number;
   maxParallelCalls?: number;
   abortSignal?: AbortSignal;
@@ -410,6 +417,7 @@ export async function embedLLMText(options: {
   });
   const { apiKey, extraHeaders, createFetch } = openLLMConnection(
     options.connection,
+    options.internalEnvironment,
   );
   const embeddingModel = await buildAiSdkEmbeddingModel({
     model: options.model,
@@ -432,47 +440,6 @@ export async function embedLLMText(options: {
     maxParallelCalls: options.maxParallelCalls,
     abortSignal: options.abortSignal,
   });
-}
-
-function addOpenRouterInternalTraceProvenance(params: {
-  model: LLMModelRef;
-  baseURL?: string | null;
-  apiMode?: "responses" | "chat-completions";
-  providerOptions?: ProviderOptions;
-  trace?: TraceSinkParams;
-}): ProviderOptions | undefined {
-  if (
-    params.model.adapter !== LLMAdapter.OpenAI ||
-    params.apiMode !== "chat-completions" ||
-    !params.trace ||
-    !isOpenRouterEndpoint(params.baseURL)
-  ) {
-    return params.providerOptions;
-  }
-
-  const openAIOptions = params.providerOptions?.openai ?? {};
-  const existingTrace = isJsonObject(openAIOptions.trace)
-    ? openAIOptions.trace
-    : {};
-
-  return {
-    ...params.providerOptions,
-    openai: {
-      ...openAIOptions,
-      trace: {
-        ...existingTrace,
-        // This marker controls evaluator recursion prevention and must remain
-        // system-owned even when the caller supplies other Broadcast metadata.
-        environment: params.trace.environment,
-      },
-    },
-  };
-}
-
-function isJsonObject(
-  value: JSONValue | undefined,
-): value is Record<string, JSONValue> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function createEvaluatorMediaUrlPolicy(
