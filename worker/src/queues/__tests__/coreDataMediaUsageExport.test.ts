@@ -106,7 +106,7 @@ describe("coreDataTableExports media usage entry", () => {
   };
 
   const dayKey = (day: Date) =>
-    `${uploadPrefix}mediaUsageHourly/${isoDay(day).replaceAll("-", "/")}.jsonl`;
+    `${uploadPrefix}mediaUsageHourly/${isoDay(day)}.jsonl`;
 
   const exists = async (key: string) =>
     (await s3Client.listFiles(key)).some((file) => file.file === key);
@@ -126,9 +126,9 @@ describe("coreDataTableExports media usage entry", () => {
     vi.spyOn(s3Client, "uploadFileBuffered").mockImplementation(
       async (args) => {
         const match = args.fileName.match(
-          /mediaUsageHourly\/(\d{4})\/(\d{2})\/(\d{2})\.jsonl$/,
+          /mediaUsageHourly\/(\d{4}-\d{2}-\d{2})\.jsonl$/,
         );
-        if (match) uploadedDays.push(match.slice(1).join("-"));
+        if (match) uploadedDays.push(match[1]);
         return original(args);
       },
     );
