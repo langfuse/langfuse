@@ -405,6 +405,11 @@ export type TimelineProps = {
    * observation, so this must not keep its own copy. See SelectionContext.
    */
   selectedId: string | null;
+  /**
+   * Fade the bars around the selected one. Off for a selection nobody made,
+   * such as the root a trace opens on, so a fresh chart is at full strength.
+   */
+  dimUnselected?: boolean;
   /** Absent for a read-only chart: rows keep hover and zoom, not the pointer. */
   onSelect?: (nodeId: string) => void;
   /** Hover, for prefetching the observation the user is about to open. */
@@ -491,6 +496,7 @@ export function Timeline({
   compress,
   showReadout,
   selectedId,
+  dimUnselected = true,
   onSelect,
   onHover,
   metricsOf,
@@ -1644,7 +1650,8 @@ export function Timeline({
   const selectedLane = selectedNode?.index ?? null;
   // The other bars fade only while the selected bar is drawn to stand out
   // from them.
-  const dimsUnselected = selectedNode != null && !selectedNode.offscreen;
+  const dimsUnselected =
+    dimUnselected && selectedNode != null && !selectedNode.offscreen;
   const washedRows = [
     ...(selectedLane == null ? [] : [{ lane: selectedLane, selected: true }]),
     ...(focused == null || focused.index === selectedLane

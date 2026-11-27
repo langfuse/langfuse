@@ -45,7 +45,12 @@ function readPackedPreference(
 
 export function TraceTimeline() {
   const { roots, nodeMap, scope } = useTraceData();
-  const { selectedNodeId, collapsedNodes, selectionLocked } = useSelection();
+  const {
+    selectedNodeId,
+    defaultObservationId,
+    collapsedNodes,
+    selectionLocked,
+  } = useSelection();
   // The same five switches the tree honours. They live in one place because a
   // toggle that works in one view and silently does nothing in the other is
   // worse than no toggle.
@@ -146,6 +151,7 @@ export function TraceTimeline() {
           compress={false}
           showReadout={false}
           selectedId={selectedNodeId}
+          dimUnselected={selectedNodeId !== defaultObservationId}
           onSelect={selectionLocked ? undefined : selectNode}
           onHover={handleHoverNode}
           metricsOf={metricsOf}
