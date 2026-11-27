@@ -83,7 +83,7 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       // Basic auth names the project, which project routes need even for an organization key.
       code: shellCommand(
         `curl -u "${projectId}:${GATEWAY_KEY_PLACEHOLDER}"`,
-        `${baseUrl}/api/public/traces`,
+        `${baseUrl}/api/public/projects`,
       ),
       secret: secretKey,
     },
