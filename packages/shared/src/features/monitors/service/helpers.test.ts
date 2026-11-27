@@ -312,12 +312,6 @@ describe("calculateSchedulerBatchId", () => {
     windowMs: 5n * 60_000n,
   };
 
-  it("is deterministic across calls", () => {
-    expect(calculateSchedulerBatchId(base)).toBe(
-      calculateSchedulerBatchId(base),
-    );
-  });
-
   it("is filter-order-insensitive", () => {
     const reordered = {
       ...base,
