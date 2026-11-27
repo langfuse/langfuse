@@ -467,6 +467,7 @@ export const vertexAIModels = [
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys. Make sure it supports top_p, max_tokens and temperature.
 export const googleAIStudioModels = [
+  "gemini-3.5-flash-lite",
   "gemini-2.5-flash",
   "gemini-2.5-pro",
   "gemini-4-carbon",
@@ -477,7 +478,6 @@ export const googleAIStudioModels = [
   "gemini-3.7-flash",
   "gemini-3.6-flash",
   "gemini-3.5-flash",
-  "gemini-3.5-flash-lite",
   "gemini-3.1-pro-preview",
   "gemini-3.1-flash-lite",
   "gemini-3-flash-preview",
