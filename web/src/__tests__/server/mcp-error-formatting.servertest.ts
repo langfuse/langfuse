@@ -198,7 +198,6 @@ describe("MCP Error Formatting", () => {
 
         expect(mcpError.code).toBe(ProtocolErrorCode.InvalidRequest);
         expect(mcpError.message).toContain("Authentication failed");
-        expect(mcpError.message).toContain("API key");
       });
 
       it("should pass through ApiError 401 message for connection auth", () => {

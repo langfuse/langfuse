@@ -57,7 +57,8 @@ export function formatErrorForUser(error: unknown): {
   if (error instanceof UnauthorizedError) {
     return {
       code: ProtocolErrorCode.InvalidRequest,
-      message: "Authentication failed. Please check your API key.",
+      message:
+        "Authentication failed. Send the project's public and secret key as Basic auth: Authorization: Basic base64(pk-lf-...:sk-lf-...). Use the endpoint of the key's region. Setup: https://langfuse.com/docs/api-and-data-platform/features/mcp-server",
     };
   }
 
