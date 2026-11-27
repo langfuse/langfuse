@@ -32,6 +32,19 @@ import {
 /** Rows the embedder does not let the user pick. */
 const UNPICKABLE_ROW_CLASS_NAME = "opacity-50";
 
+/** The other rows that match are a step lighter than the sample row. */
+function evaluationSurfaceClassName({
+  isSample,
+  isMatch,
+}: {
+  isSample: boolean;
+  isMatch: boolean;
+}) {
+  if (isSample) return "bg-light-blue text-foreground";
+  if (isMatch) return "bg-light-blue/50 text-foreground";
+  return undefined;
+}
+
 function isEmbeddedObservation(node: TreeNode, observationId: string | null) {
   return (
     observationId != null &&
@@ -201,11 +214,10 @@ function TraceTreeRow({
       onToggleCollapse={onToggleCollapse}
       isSelected={isSelected}
       onSelect={onSelect}
-      surfaceClassName={
-        isSelectedObservation || isEvaluationMatch
-          ? "bg-light-blue text-foreground"
-          : undefined
-      }
+      surfaceClassName={evaluationSurfaceClassName({
+        isSample: isSelectedObservation,
+        isMatch: isEvaluationMatch,
+      })}
       className={isDimmed ? UNPICKABLE_ROW_CLASS_NAME : undefined}
     >
       <SpanContent
