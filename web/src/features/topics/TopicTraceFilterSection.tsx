@@ -14,6 +14,7 @@ import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Tes
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TopicInlineSelect } from "./TopicInlineSelect";
+import { TopicTraceNameSuggestions } from "./TopicTraceNameSuggestions";
 import {
   topicsFilterQueryOnlyColumnIds,
   topicsFilterRegistry,
@@ -96,6 +97,13 @@ export function TopicTraceFilterSection({
   // The count is enough to judge a filter; the rows show on request.
   const [previewOpen, setPreviewOpen] = useState(false);
   const previewId = useId();
+  const traceNames = model.traceNameSuggestions ?? [];
+  // The builder keeps showing the old value when a filter is replaced in place, so a pick remounts it.
+  const [builderVersion, setBuilderVersion] = useState(0);
+  const pickInBuilder = (next: FilterState) => {
+    onFiltersChange(next);
+    setBuilderVersion((version) => version + 1);
+  };
   return (
     <div className="ph-no-capture flex flex-col gap-6">
       <section className="flex flex-col gap-2">
@@ -138,6 +146,7 @@ export function TopicTraceFilterSection({
         ) : (
           <>
             <ObservationFilterBuilder
+              key={builderVersion}
               columns={model.builderColumns}
               filterState={filters}
               onChange={onFiltersChange}
@@ -149,6 +158,16 @@ export function TopicTraceFilterSection({
             ) : null}
           </>
         )}
+        {traceNames.length > 0 ? (
+          <TopicTraceNameSuggestions
+            names={traceNames}
+            filters={filters}
+            // The query editor holds its own draft, so it applies the filter itself.
+            onFiltersChange={
+              model.mode === "query" ? model.search.applyFilters : pickInBuilder
+            }
+          />
+        ) : null}
       </section>
       <section className="flex min-h-0 flex-col gap-2">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
