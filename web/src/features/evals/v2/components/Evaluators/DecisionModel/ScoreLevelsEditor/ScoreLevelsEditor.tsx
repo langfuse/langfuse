@@ -44,7 +44,7 @@ export function ScoreLevelsEditor({
     <FieldRow
       label="Levels"
       size="wide"
-      align="start"
+      align="baseline"
       info={
         <InfoTooltip label="About levels">
           Each level is one point on the scale. The model judges every level on

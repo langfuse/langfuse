@@ -57,7 +57,7 @@ export function QuestionInstructionsField({
     <FieldRow
       label="Question"
       size="wide"
-      align="start"
+      align="baseline"
       info={
         <InfoTooltip label="About questions">
           Ask for one snap judgment a knowledgeable person makes in a second.

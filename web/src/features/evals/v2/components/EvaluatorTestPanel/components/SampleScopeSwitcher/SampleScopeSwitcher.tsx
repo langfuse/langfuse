@@ -57,7 +57,8 @@ export function SampleScopeSwitcher({
                 disabled
                 title="Coming soon"
               >
-                Traces
+                {/* The line height of a labelled tab, so both labels share a baseline. */}
+                <span className="leading-normal">Traces</span>
                 <FeatureReleaseStatus status="coming-soon" />
               </Tabs.Trigger>
             )}

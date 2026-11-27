@@ -148,7 +148,7 @@ export function DecisionModelQuestionCard({
         <FieldRow
           label="Type"
           size="wide"
-          align="start"
+          align="baseline"
           info={
             <InfoTooltip label="About question types">
               Choice picks one of a fixed set of labels. Score rates along
@@ -187,7 +187,7 @@ export function DecisionModelQuestionCard({
           onChange={onChange}
         />
 
-        <FieldRow label="Score name" size="wide" align="start">
+        <FieldRow label="Score name" size="wide" align="baseline">
           <div className="flex flex-wrap items-center gap-3">
             <Input
               id={`${id}-score-name`}

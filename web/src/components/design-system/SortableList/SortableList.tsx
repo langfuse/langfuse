@@ -89,7 +89,10 @@ function SortableRow({
       >
         <GripVertical size="base" />
       </button>
-      <div className="min-w-0">{children}</div>
+      {/* A table row takes its baseline from its content, not from the handle. */}
+      <div className={cn("min-w-0", variant === "table" && "self-baseline")}>
+        {children}
+      </div>
     </li>
   );
 }

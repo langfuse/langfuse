@@ -22,15 +22,20 @@ export function FieldRow({
   hint?: string;
   /** `wide` fits two-word labels with an info icon. */
   size?: "default" | "wide";
-  /** "start" pins the label to the first line of a tall control. */
-  align?: "center" | "start";
+  /**
+   * "start" pins the label to the top of a tall control. "baseline" puts it
+   * on the baseline of the control's first line of text.
+   */
+  align?: "center" | "start" | "baseline";
   children: ReactNode;
 }) {
   return (
     <div
       className={cn(
         "flex gap-2 text-sm @max-sm/fields:flex-col @max-sm/fields:items-stretch",
-        align === "center" ? "items-center" : "items-start",
+        align === "center" && "items-center",
+        align === "start" && "items-start",
+        align === "baseline" && "items-baseline",
       )}
     >
       <span

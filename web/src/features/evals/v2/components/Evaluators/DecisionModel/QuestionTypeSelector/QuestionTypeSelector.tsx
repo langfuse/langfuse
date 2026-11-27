@@ -125,16 +125,6 @@ export function QuestionTypeSelector({
 
   return (
     <div ref={slotRef} className="flex min-w-0 flex-1">
-      {/* An unseen copy of the tabs stays mounted to read their natural width. */}
-      <div
-        aria-hidden="true"
-        inert
-        className="invisible size-0 overflow-hidden"
-      >
-        <div ref={tabsMeasureRef} className="w-max">
-          {tabs}
-        </div>
-      </div>
       {tabsFit ? (
         tabs
       ) : (
@@ -166,6 +156,19 @@ export function QuestionTypeSelector({
           </Select>
         </div>
       )}
+      {/*
+        An unseen copy of the tabs stays mounted to read their natural width.
+        It follows the control, so the row's baseline is the visible label's.
+      */}
+      <div
+        aria-hidden="true"
+        inert
+        className="invisible size-0 overflow-hidden"
+      >
+        <div ref={tabsMeasureRef} className="w-max">
+          {tabs}
+        </div>
+      </div>
       {ORDER.map((type) => {
         const copy = QUESTION_TYPE_COPY[type];
         return (

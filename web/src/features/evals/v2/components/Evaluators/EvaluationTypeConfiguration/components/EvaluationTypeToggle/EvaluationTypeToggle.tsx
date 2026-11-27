@@ -10,9 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { BaselineStrut } from "@/src/features/evals/v2/components/Evaluators/FieldRow/BaselineStrut";
 import { getEvaluatorMethodIcon } from "@/src/features/evals/v2/fns/templateGallery/evaluatorMethodPresentation";
 import { useResizeObserver } from "@/src/hooks/useResizeObserver";
-import { cn } from "@/src/utils/tailwind";
 
 const evaluationTypes = [
   {
@@ -98,13 +98,7 @@ export function EvaluationTypeToggle({
 
   return (
     <div ref={slotRef} className="flex min-w-0 flex-1 items-center">
-      {/* Zero-width text set like the visible label: gives this row the label's baseline. */}
-      <span
-        aria-hidden="true"
-        className={cn("w-0 text-sm", tabsFit && "leading-normal")}
-      >
-        {"\u200B"}
-      </span>
+      <BaselineStrut type={tabsFit ? "tab" : "text"} />
       {/* An unseen copy of the tabs stays mounted to read their natural width. */}
       <div
         aria-hidden="true"

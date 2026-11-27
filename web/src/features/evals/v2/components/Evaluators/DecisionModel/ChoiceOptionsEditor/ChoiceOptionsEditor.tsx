@@ -39,7 +39,7 @@ export function ChoiceOptionsEditor({
     <FieldRow
       label="Options"
       size="wide"
-      align="start"
+      align="baseline"
       hint={
         options.length >= 240
           ? `${options.length} of ${DECISION_MODEL_LIMITS.maxChoiceOptions}`
