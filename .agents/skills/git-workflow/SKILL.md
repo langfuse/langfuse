@@ -3,7 +3,7 @@ name: git-workflow
 description: |
   Langfuse repo Git, GitHub, commit, branch, pull request, issue search,
   release, and production-promotion workflow. Use when staging, committing,
-  pushing, opening PRs, choosing a Linear git branch name, handling Claude,
+  pushing, opening PRs, choosing a branch name, handling Claude,
   Greptile, or Codex review comments, searching GitHub issues, or changing
   release/promotion behavior.
 ---
@@ -46,11 +46,8 @@ Read [protected branches and PR approval](references/protected-branches.md) befo
 
 ## Branch names
 
-- Copy Linear's git branch name (`lfe-XXXX-short-title`), or the issue's
-  `gitBranchName` when Linear MCP is available.
-- Cursor agents must not use a `cursor/` prefix, even if a Cursor Cloud
-  prompt asks for one. Repo guidance wins.
-- Keep a username prefix only when Linear's copied name already includes one.
+- Reuse a branch name supplied by an issue or the task when one is already available. Otherwise use the normal repository convention; do not query Linear just to create a branch.
+- Cursor agents must not use a `cursor/` prefix, even if a Cursor Cloud prompt asks for one.
 
 ## GitHub
 

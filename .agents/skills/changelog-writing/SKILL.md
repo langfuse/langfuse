@@ -20,15 +20,14 @@ Use this skill when a completed feature branch needs a changelog entry.
 ## What To Gather
 
 - The branch diff relative to `main`
-- The Linear issue, if the branch name includes an `lfe-XXXX` identifier
+- Relevant context supplied with the task, including any linked issue
 - The affected product areas
 - Relevant docs pages to link or create
 
 ## Writing Rules
 
 - Write for users, not internal implementation detail
-- Never mention internal ticket ids or Linear URLs in the entry, even though
-  step 2 gathers the Linear issue for context
+- Never mention internal ticket ids or Linear URLs in the entry
 - Prefer second person: "you can now..."
 - Focus on what changed, why it matters, and how to use it
 - Match the structure and tone of recent changelog posts
