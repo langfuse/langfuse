@@ -77,7 +77,7 @@ export function ScoreLevelsEditor({
                   }
                   placeholder={levelPlaceholder(index, levels.length)}
                   aria-label={`Level ${index} description`}
-                  className="text-muted-foreground h-8 border-transparent bg-transparent px-1 shadow-none"
+                  className="text-muted-foreground h-8 border-transparent bg-transparent px-1 text-ellipsis shadow-none placeholder:text-ellipsis"
                 />
                 <Button
                   type="button"
