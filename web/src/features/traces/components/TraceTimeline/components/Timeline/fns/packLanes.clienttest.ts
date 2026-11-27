@@ -57,6 +57,9 @@ describe("packLanes", () => {
     expect(overlapById.get("a2")).toBe(1);
     expect(overlapById.get("b1")).toBe(1);
     expect(overlapById.get("trace-b")).toBe(1);
+    // Two point spans at one instant still overlap.
+    const points = prepareTimeline([span("p1", 5, 5), span("p2", 5, 5)]);
+    expect(packLanes(points.rows).overlap).toEqual([0, 1]);
 
     const positioned = layout({
       roots,

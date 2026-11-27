@@ -2,6 +2,9 @@ import type { LayoutNode, PackedPacking } from "../types";
 import { endOf } from "./endOf";
 import { startOf } from "./startOf";
 
+/** A point span still occupies its instant, so two at one time overlap. */
+const POINT_SPAN_MS = 1;
+
 /**
  * One row per observation type, in the order the types first appear in the
  * tree. Spans of one type can overlap in time, nested or not, so `overlap`
@@ -19,7 +22,11 @@ export function packLanes(
     const start = startOf(row.node);
     const spans = spansByLane[lane] ?? [];
     spansByLane[lane] = spans;
-    spans.push({ index, start, end: Math.max(endOf(row.node), start) });
+    spans.push({
+      index,
+      start,
+      end: Math.max(endOf(row.node), start + POINT_SPAN_MS),
+    });
     return lane;
   });
 
