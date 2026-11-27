@@ -187,8 +187,9 @@ function FloatingController({
   role?: "tooltip" | "dialog";
   hoverableContent?: boolean;
   isScrollable?: boolean;
-  // Keep click content inside a parent drawer or dialog so its focus trap and
-  // dismiss layer still treat the surface as inside the overlay.
+  // Stay in the popover layer (fixed positioning) while joining a parent
+  // drawer or dialog dismiss stack, so Escape and outside presses do not
+  // close that parent.
   containInParentOverlay?: boolean;
 }) {
   const isOpen = enabled && open;
@@ -239,11 +240,43 @@ function FloatingController({
     role,
   ]);
   const getTriggerRef = useStableTriggerRef(refs.setReference);
-  const parentOverlay = containInParentOverlay
-    ? refs.domReference.current?.closest<HTMLElement>(
-        "[data-vaul-drawer], [role='dialog']",
-      )
-    : null;
+  const outsideParentIsTrigger = (event: { target: EventTarget | null }) => {
+    const target = event.target;
+    return (
+      target instanceof Node &&
+      Boolean(refs.domReference.current?.contains(target))
+    );
+  };
+  // The drawer focus trap listens for bubbling focusin. Stop that while focus
+  // is in this surface so it can stay portaled in the popover layer, where
+  // position:fixed is not resolved against the drawer's transform.
+  React.useEffect(() => {
+    if (!isOpen || !containInParentOverlay) return;
+    const onFocusIn = (event: FocusEvent) => {
+      const floating = refs.floating.current;
+      if (
+        floating &&
+        event.target instanceof Node &&
+        floating.contains(event.target)
+      ) {
+        event.stopPropagation();
+      }
+    };
+    document.addEventListener("focusin", onFocusIn, true);
+    return () => document.removeEventListener("focusin", onFocusIn, true);
+  }, [containInParentOverlay, isOpen, refs]);
+  const contentProps = getContentProps({
+    ...props,
+    getFloatingProps,
+    setFloating: refs.setFloating,
+    placement: resolvedPlacement,
+    floatingStyles,
+    middlewareData,
+    role: overlayRole,
+    onWheel,
+    onTouchMove,
+    ...(containInParentOverlay ? { "data-vaul-no-drag": "" } : {}),
+  });
   const content = (
     <FloatingFocusManager
       context={context}
@@ -257,45 +290,15 @@ function FloatingController({
           <DismissableLayer
             asChild
             onDismiss={() => onOpenChange(false)}
-            onPointerDownOutside={(event) => {
-              const target = event.target;
-              if (
-                target instanceof Node &&
-                refs.domReference.current?.contains(target)
-              ) {
-                event.preventDefault();
-              }
+            onInteractOutside={(event) => {
+              if (outsideParentIsTrigger(event)) event.preventDefault();
             }}
           >
-            {renderContent(
-              getContentProps({
-                ...props,
-                getFloatingProps,
-                setFloating: refs.setFloating,
-                placement: resolvedPlacement,
-                floatingStyles,
-                middlewareData,
-                role: overlayRole,
-                onWheel,
-                onTouchMove,
-              }),
-            )}
+            {renderContent(contentProps)}
           </DismissableLayer>
         </DismissableLayerBranch>
       ) : (
-        renderContent(
-          getContentProps({
-            ...props,
-            getFloatingProps,
-            setFloating: refs.setFloating,
-            placement: resolvedPlacement,
-            floatingStyles,
-            middlewareData,
-            role: overlayRole,
-            onWheel,
-            onTouchMove,
-          }),
-        )
+        renderContent(contentProps)
       )}
     </FloatingFocusManager>
   );
@@ -309,9 +312,7 @@ function FloatingController({
         }),
       })}
       {isOpen ? (
-        <FloatingPortal root={parentOverlay ?? layerContainer}>
-          {content}
-        </FloatingPortal>
+        <FloatingPortal root={layerContainer}>{content}</FloatingPortal>
       ) : null}
     </>
   );
