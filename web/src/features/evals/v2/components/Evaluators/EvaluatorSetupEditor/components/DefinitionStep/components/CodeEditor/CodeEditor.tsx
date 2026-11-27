@@ -7,10 +7,8 @@ import {
 } from "@langfuse/shared";
 
 import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/CodeEvalTemplateFormBody";
-import {
-  buildCodeEvalContextSnippet,
-  buildTraceCodeEvalContextSnippet,
-} from "@/src/features/evals/v2/fns/evaluatorTesting/buildCodeEvalContextSnippet";
+import { buildCodeEvalContextSnippet } from "@/src/features/evals/v2/fns/evaluatorTesting/buildCodeEvalContextSnippet";
+import { buildTraceCodeEvalContextSnippet } from "@/src/features/evals/v2/fns/evaluatorTesting/buildTraceCodeEvalContextSnippet";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import { useEvaluatorTraceSample } from "@/src/features/evals/v2/hooks/useEvaluatorTraceSample";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
