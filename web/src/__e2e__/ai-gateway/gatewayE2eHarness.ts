@@ -10,6 +10,7 @@ import type { Session } from "next-auth";
 import { afterAll, beforeAll, expect } from "vitest";
 import waitForExpect from "wait-for-expect";
 import { z } from "zod/v4";
+import { encrypt } from "@langfuse/shared/encryption";
 
 import { env } from "@/src/env.mjs";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
@@ -123,18 +124,29 @@ type GatewayKeySpendLimit = Parameters<
   Admin["caller"]["aiGateway"]["createApiKey"]
 >[0]["spendLimit"];
 
-type GatewayKeyGuardrail = {
-  action: "BLOCK" | "LOG" | "REDACT";
-  scope?:
-    | "LAST_TURN"
-    | "ENTIRE_INPUT"
-    | "OUTPUT"
-    | "LAST_TURN_AND_OUTPUT"
-    | "ENTIRE_INPUT_AND_OUTPUT";
-  redactionLabel?: string;
-  presets?: GatewayGuardrailPreset[];
-  containsWords?: string[];
-};
+type GatewayKeyGuardrailScope =
+  | "LAST_TURN"
+  | "ENTIRE_INPUT"
+  | "OUTPUT"
+  | "LAST_TURN_AND_OUTPUT"
+  | "ENTIRE_INPUT_AND_OUTPUT";
+
+type GatewayKeyGuardrail =
+  | {
+      action: "BLOCK" | "LOG" | "REDACT";
+      scope?: GatewayKeyGuardrailScope;
+      redactionLabel?: string;
+      presets?: GatewayGuardrailPreset[];
+      containsWords?: string[];
+    }
+  | {
+      /** An external provider whose stored credential is the plain API key. */
+      type: "OPENAI_MODERATION" | "LAKERA";
+      action: "BLOCK" | "LOG";
+      scope?: GatewayKeyGuardrailScope;
+      config: Record<string, string>;
+      apiKey: string;
+    };
 
 export const REDACT_REQUEST_EMAIL = "alice@example.com";
 const REDACT_REQUEST_LABEL = "[EMAIL]";
@@ -355,11 +367,19 @@ export async function withGatewayApiKey(
           name: `e2e-${guardrail.action.toLowerCase()}-${randomBytes(3).toString("hex")}`,
           action: guardrail.action,
           scope: guardrail.scope ?? "LAST_TURN",
-          redactionLabel: guardrail.redactionLabel,
-          config: {
-            presets: guardrail.presets ?? [],
-            containsWords: guardrail.containsWords ?? [],
-          },
+          ...("type" in guardrail
+            ? {
+                type: guardrail.type,
+                config: guardrail.config,
+                encryptedCredential: encrypt(guardrail.apiKey),
+              }
+            : {
+                redactionLabel: guardrail.redactionLabel,
+                config: {
+                  presets: guardrail.presets ?? [],
+                  containsWords: guardrail.containsWords ?? [],
+                },
+              }),
           assignments: {
             create: {
               organizationId: ORGANIZATION_ID,
@@ -442,6 +462,45 @@ export function chatCompletionRequest(providerModel: string) {
     },
     providerModel,
   } as const;
+}
+
+/**
+ * Sends a benign and a flagged Chat Completions request of `providerModel`
+ * through a key with one external BLOCK guardrail: the benign one completes and
+ * is ingested, the flagged one is refused before it reaches the provider.
+ */
+export async function expectExternalGuardrailBlocks(input: {
+  providerModel: string;
+  guardrail: Extract<GatewayKeyGuardrail, { type: string }>;
+  flaggedPrompt: string;
+}) {
+  const request = chatCompletionRequest(input.providerModel);
+  await withGatewayApiKey(
+    request.apiFormat,
+    async ({ secretKey }) => {
+      await completeAndExpectIngested({ ...request, secretKey });
+
+      const blocked = await fetch(`${suite.gatewayBaseUrl}${request.path}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...request.body,
+          messages: [{ role: "user", content: input.flaggedPrompt }],
+        }),
+      });
+      await expectGatewayError(blocked, 400, {
+        error: {
+          message: expect.stringContaining("Request blocked by guardrail"),
+          type: "invalid_request_error",
+          code: "guardrail_blocked",
+        },
+      });
+    },
+    { guardrails: [input.guardrail] },
+  );
 }
 
 /** Checks the gateway lists `providerModel`, then completes it as `completeAndExpectIngested` does. */
