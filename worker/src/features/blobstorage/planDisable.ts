@@ -5,7 +5,7 @@ export const PLAN_DISABLED_ERROR =
 
 // Selects the integration unless the scheduler disabled it for its plan. An
 // export run that was already in flight must not replace that reason.
-export const unlessPlanDisabled = (projectId: string) => ({
+const unlessPlanDisabled = (projectId: string) => ({
   projectId,
   OR: [
     { enabled: true },
