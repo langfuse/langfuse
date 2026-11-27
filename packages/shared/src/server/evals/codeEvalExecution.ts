@@ -27,6 +27,8 @@ import {
 import { z } from "zod";
 import type { ExtractedVariable } from "./extractObservationVariables";
 import { toolCallForEvalSchema } from "../../features/evals/observationForEval";
+import { TRACE_TRANSCRIPT_EVAL_COLUMN } from "../../features/evals/traceTranscriptEval";
+import type { CodeEvalTraceThread } from "../transcript/eval-threads";
 
 const INTERNAL_CODE_EVAL_ERROR_MESSAGE = "An internal error occurred";
 const INTERNAL_CODE_EVAL_ERROR_CODE = "INTERNAL_ERROR" as const;
@@ -111,12 +113,24 @@ type CodeBasedEvaluationDispatchResult =
     };
 
 function buildCodeEvalPayload(params: {
+  targetType: CodeEvalPayload["targetType"];
   extractedVariables: ExtractedVariable[];
   hasExperimentContext: boolean;
 }): CodeEvalPayload {
   const byName = new Map(
     params.extractedVariables.map((v) => [v.var, v.value]),
   );
+  if (params.targetType === "trace") {
+    // Transcript extraction already projects each message to { role, parts }.
+    return {
+      targetType: "trace",
+      trace: {
+        threads: byName.get(
+          TRACE_TRANSCRIPT_EVAL_COLUMN,
+        ) as CodeEvalTraceThread[],
+      },
+    };
+  }
   // Extraction zips tool calls into named objects (extractObservationVariables).
   // Configs saved before "toolCalls" entered the code eval mapping extract
   // nothing for it, so those evaluators see empty arrays. Parse rather than
@@ -133,22 +147,24 @@ function buildCodeEvalPayload(params: {
     );
   }
   const toolCalls = parsedToolCalls.success ? parsedToolCalls.data : [];
-  const payload: CodeEvalPayload = {
+  return {
+    targetType: "observation",
     observation: {
       input: byName.get("input") ?? null,
       output: byName.get("output") ?? null,
       metadata: byName.get("metadata") ?? null,
       toolCalls,
     },
+    ...(params.hasExperimentContext
+      ? {
+          experiment: {
+            itemExpectedOutput:
+              byName.get("experimentItemExpectedOutput") ?? null,
+            itemMetadata: byName.get("experimentItemMetadata") ?? null,
+          },
+        }
+      : {}),
   };
-  if (params.hasExperimentContext) {
-    payload.experiment = {
-      itemExpectedOutput: byName.get("experimentItemExpectedOutput") ?? null,
-      itemMetadata: byName.get("experimentItemMetadata") ?? null,
-    };
-  }
-
-  return payload;
 }
 
 function getCodeEvalErrorDetails(error: unknown): {
@@ -219,6 +235,7 @@ export async function runCodeBasedEvaluationDispatch(params: {
     sourceCode: string;
     sourceCodeLanguage: CodeEvalRuntimeLanguage;
   };
+  targetType: CodeEvalPayload["targetType"];
   extractedVariables: ExtractedVariable[];
   hasExperimentContext?: boolean;
   traceName: string;
@@ -227,6 +244,7 @@ export async function runCodeBasedEvaluationDispatch(params: {
   writeTrace?: InternalTraceWriter;
 }): Promise<CodeBasedEvaluationDispatchResult> {
   const payload = buildCodeEvalPayload({
+    targetType: params.targetType,
     extractedVariables: params.extractedVariables,
     hasExperimentContext: params.hasExperimentContext ?? false,
   });

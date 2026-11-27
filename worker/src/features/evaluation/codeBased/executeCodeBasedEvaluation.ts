@@ -24,6 +24,9 @@ export async function executeCodeBasedEvaluation(params: {
   job: JobExecution;
   config: JobConfiguration;
   template: EvalTemplateCodeBased;
+  targetType: Parameters<
+    typeof runCodeBasedEvaluationDispatch
+  >[0]["targetType"];
   extractedVariables: ExtractedVariable[];
   hasExperimentContext?: boolean;
   executionMetadata: Record<string, string>;
@@ -70,6 +73,7 @@ export async function executeCodeBasedEvaluation(params: {
         jobExecutionId,
         evaluator: { id: params.evaluatorId ?? params.template.id },
         version: params.template,
+        targetType: params.targetType,
         extractedVariables: params.extractedVariables,
         hasExperimentContext: params.hasExperimentContext ?? false,
         traceName: `Execute evaluator: ${params.template.name}`,

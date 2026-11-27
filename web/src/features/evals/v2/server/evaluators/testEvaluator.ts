@@ -2,6 +2,7 @@ import {
   EvalTargetObject,
   extractTranscriptEvalVariables,
   getCodeEvalVariableMapping,
+  getTraceCodeEvalVariableMapping,
   InvalidRequestError,
   isTraceTranscriptEvalType,
   observationVariableMappingList,
@@ -36,6 +37,10 @@ import {
   assertCompleteEvaluatorVariableMapping,
   extractEvaluatorPromptVariables,
 } from "./evaluatorValidation";
+
+type CodeEvalTargetType = Parameters<
+  typeof runCodeBasedEvaluationDispatch
+>[0]["targetType"];
 
 export async function testEvaluator(params: {
   orgId: string;
@@ -73,6 +78,7 @@ export async function testEvaluator(params: {
 
   const result = await runEvaluatorTest({
     ...params,
+    targetType: "observation",
     variables,
     hasExperimentContext: Boolean(observation.experiment_id),
     ...executionData,
@@ -95,10 +101,13 @@ export async function testEvaluatorOnTrace(params: {
   const startedAt = Date.now();
   if (!isTraceTranscriptEvalType(params.definition.type)) {
     throw new InvalidRequestError(
-      "Trace evaluations support LLM-as-a-judge and decision-model evaluators.",
+      "Trace evaluations support LLM-as-a-judge, decision-model, and code evaluators.",
     );
   }
-  const variableMapping = resolveTestVariableMapping(params.definition);
+  const variableMapping =
+    params.definition.type === "CODE"
+      ? getTraceCodeEvalVariableMapping()
+      : resolveTestVariableMapping(params.definition);
   const trace = await getTraceByIdFromEventsTable({
     traceId: params.traceId,
     projectId: params.projectId,
@@ -166,6 +175,7 @@ export async function testEvaluatorOnTrace(params: {
   });
   const result = await runEvaluatorTest({
     ...params,
+    targetType: "trace",
     variables: extracted.variables,
     hasExperimentContext: false,
     ...executionData,
@@ -205,6 +215,7 @@ async function runEvaluatorTest(params: {
   projectId: string;
   evaluatorId: string;
   definition: NormalizedEvaluatorDefinition;
+  targetType: CodeEvalTargetType;
   variables: ExtractedVariable[];
   hasExperimentContext: boolean;
   executionMetadata: Record<string, string>;
@@ -437,6 +448,7 @@ async function testCodeEvaluator(params: {
   projectId: string;
   evaluatorId: string;
   definition: Extract<NormalizedEvaluatorDefinition, { type: "CODE" }>;
+  targetType: CodeEvalTargetType;
   variables: ExtractedVariable[];
   hasExperimentContext: boolean;
   executionMetadata: Record<string, string>;
@@ -461,6 +473,7 @@ async function testCodeEvaluator(params: {
     jobExecutionId: executionTraceId,
     evaluator: { id: params.evaluatorId },
     version: params.definition,
+    targetType: params.targetType,
     extractedVariables: params.variables,
     hasExperimentContext: params.hasExperimentContext,
     traceName: "Test evaluator",

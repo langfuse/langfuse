@@ -207,6 +207,24 @@ const targetChange = (
       : {},
 });
 
+// An unedited starter of a new code evaluator follows the test target.
+function starterForTarget(
+  state: Pick<EvaluatorSetupStoreState, "initialDefinition">,
+  sourceCodeLanguage: EvalTemplateSourceCodeLanguage,
+  sourceCode: string | undefined,
+  targetObject: EvaluatorTargetObject,
+) {
+  const isUneditedStarter =
+    state.initialDefinition?.type !== EvalTemplateTypeEnum.CODE &&
+    (sourceCode === undefined ||
+      sourceCode === getDefaultCodeEvalSource(sourceCodeLanguage) ||
+      sourceCode ===
+        getDefaultCodeEvalSource(sourceCodeLanguage, TopicsTargetObject));
+  return isUneditedStarter
+    ? getDefaultCodeEvalSource(sourceCodeLanguage, targetObject)
+    : (sourceCode ?? getDefaultCodeEvalSource(sourceCodeLanguage));
+}
+
 export function createEvaluatorSetupStore({
   initialEvaluator,
   initialSampleFilter,
@@ -230,10 +248,6 @@ export function createEvaluatorSetupStore({
     initialDefinition?.type === "CODE"
       ? initialDefinition.sourceCodeLanguage
       : "TYPESCRIPT";
-  const initialSourceCode =
-    initialDefinition?.type === "CODE"
-      ? initialDefinition.sourceCode
-      : getDefaultCodeEvalSource(initialSourceCodeLanguage);
 
   const initialPromptMessages =
     initialDefinition?.type === "LLM_AS_JUDGE"
@@ -250,6 +264,10 @@ export function createEvaluatorSetupStore({
     isTraceTranscriptEvalType(type)
       ? TopicsTargetObject
       : EvalTargetObject.EVENT;
+  const initialSourceCode =
+    initialDefinition?.type === "CODE"
+      ? initialDefinition.sourceCode
+      : getDefaultCodeEvalSource(initialSourceCodeLanguage, targetObject);
 
   return createStore<EvaluatorSetupStoreState>((set) => ({
     initialDefinition,
@@ -325,7 +343,20 @@ export function createEvaluatorSetupStore({
               modelParams: null,
             };
           }
-          return { ...target, type };
+          return {
+            ...target,
+            type,
+            ...(type === EvalTemplateTypeEnum.CODE
+              ? {
+                  sourceCode: starterForTarget(
+                    state,
+                    state.sourceCodeLanguage,
+                    state.sourceCode,
+                    state.targetObject,
+                  ),
+                }
+              : {}),
+          };
         }),
       setQuestion: (question) =>
         set((state) => ({
@@ -496,9 +527,12 @@ export function createEvaluatorSetupStore({
 
           return {
             sourceCodeLanguage,
-            sourceCode:
-              sourceCodeDrafts[sourceCodeLanguage] ??
-              getDefaultCodeEvalSource(sourceCodeLanguage),
+            sourceCode: starterForTarget(
+              state,
+              sourceCodeLanguage,
+              sourceCodeDrafts[sourceCodeLanguage],
+              state.targetObject,
+            ),
             sourceCodeDrafts,
           };
         }),
@@ -541,7 +575,15 @@ export function createEvaluatorSetupStore({
         set((state) =>
           state.targetObject === targetObject
             ? state
-            : targetChange(state, targetObject),
+            : {
+                ...targetChange(state, targetObject),
+                sourceCode: starterForTarget(
+                  state,
+                  state.sourceCodeLanguage,
+                  state.sourceCode,
+                  targetObject,
+                ),
+              },
         ),
       setTraceSampleFilter: (traceSampleFilter) => set({ traceSampleFilter }),
       setPromptPreviewEnabled: (promptPreviewEnabled) =>

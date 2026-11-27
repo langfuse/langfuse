@@ -5,6 +5,7 @@ import {
   JobConfigState,
   JobExecutionStatus,
 } from "@prisma/client";
+import { getCodeEvalVariableMapping } from "@langfuse/shared";
 import {
   processEval,
   type ObservationEvalProcessorDeps,
@@ -51,6 +52,8 @@ vi.mock("../../codeBased/executeCodeBasedEvaluation", () => ({
   executeCodeBasedEvaluation: vi.fn(),
 }));
 
+const getStoredTranscript = vi.hoisted(() => vi.fn());
+
 // Mock logger
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
@@ -61,6 +64,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
   return {
     ...actual,
     buildDeterministicEvalScoreIds,
+    createTraceTranscriptStorage: () => ({ get: getStoredTranscript }),
     extractObservationVariables,
     logger: {
       debug: vi.fn(),
@@ -391,6 +395,86 @@ describe("processEval", () => {
               value: { question: "What is the capital of Germany?" },
             }),
           ]),
+        }),
+      );
+    });
+
+    it("extracts the threads variable for code evaluators on trace transcript jobs", async () => {
+      setupV2Job();
+      (
+        prisma.evaluationRuleEvaluatorAssignment.findFirst as Mock
+      ).mockResolvedValue({
+        ...assignment,
+        variableMapping: null,
+        evaluator: {
+          ...evaluator,
+          type: EvalTemplateType.CODE,
+          versions: [
+            {
+              ...version,
+              prompt: null,
+              variableMapping: getCodeEvalVariableMapping(),
+              sourceCode: "return true;",
+              sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+            },
+          ],
+        },
+      });
+      const userParts = [{ type: "text", text: "Where is my order?" }];
+      const assistantParts = [{ type: "text", text: "It ships today." }];
+      getStoredTranscript.mockResolvedValue({
+        traceContext: { environment: "production" },
+        transcript: {
+          threads: [
+            {
+              conversationHistory: [
+                { role: "user", parts: userParts, source: "input" },
+              ],
+              currentTurn: {
+                messages: [
+                  {
+                    role: "assistant",
+                    parts: assistantParts,
+                    source: "output",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      });
+
+      await processEval({
+        event: {
+          type: "trace-transcript",
+          projectId,
+          jobExecutionId,
+          traceId: "trace-abc",
+          revision: "1",
+          transcriptS3Path: "transcripts/trace-abc.json",
+          evaluatorId: evaluator.id,
+          evaluationRuleId: rule.id,
+        },
+        executionType: EvalTemplateType.CODE,
+        deps: createMockProcessorDeps(),
+      });
+
+      expect(executeCodeBasedEvaluation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          targetType: "trace",
+          extractedVariables: [
+            {
+              var: "threads",
+              value: [
+                {
+                  messages: [
+                    { role: "user", parts: userParts },
+                    { role: "assistant", parts: assistantParts },
+                  ],
+                },
+              ],
+            },
+          ],
         }),
       );
     });

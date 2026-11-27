@@ -931,12 +931,21 @@ export class RuleService {
       const evaluator = evaluatorById.get(assignment.evaluatorId)!;
       if (!isTraceTranscriptEvalType(evaluator.type)) {
         throw new InvalidRequestError(
-          "Trace evaluations support LLM-as-a-judge and decision-model evaluators.",
+          "Trace evaluations support LLM-as-a-judge, decision-model, and code evaluators.",
         );
       }
       const latestVersion = evaluator.versions[0];
       if (!latestVersion) {
         throw new LangfuseNotFoundError("Evaluator version not found");
+      }
+      // Code evaluators read the fixed threads variable and take no mapping.
+      if (evaluator.type === EvalTemplateType.CODE) {
+        if (assignment.variableMapping !== null) {
+          throw new InvalidRequestError(
+            "Code evaluator mappings are managed by Langfuse and cannot be provided.",
+          );
+        }
+        continue;
       }
       // A null assignment mapping inherits the evaluator version's mapping.
       const variableMapping =

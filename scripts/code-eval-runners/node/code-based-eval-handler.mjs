@@ -37,7 +37,8 @@ return evaluate;`,
 
   let result;
   try {
-    result = await evaluate(event.payload);
+    // Dispatchers older than trace targets send no targetType.
+    result = await evaluate({ targetType: "observation", ...event.payload });
   } catch (error) {
     return runnerError("USER_CODE_ERROR", formatError(error));
   }

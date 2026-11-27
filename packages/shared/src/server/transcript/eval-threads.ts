@@ -1,7 +1,9 @@
 import type { Thread, ThreadMessage, Turn } from "./types";
 
-/** A transcript message as eval variable paths see it. */
+/** A transcript message as eval variable paths and code evaluators see it. */
 type EvalVariableMessage = Pick<ThreadMessage, "role" | "parts">;
+
+export type CodeEvalTraceThread = { messages: EvalVariableMessage[] };
 
 /** Stored JSON, so a thread may lack either message list. */
 type StoredThread = Partial<Pick<Thread, "conversationHistory">> & {
@@ -9,8 +11,8 @@ type StoredThread = Partial<Pick<Thread, "conversationHistory">> & {
 };
 
 /**
- * Stored threads as eval variable paths read them: one history-first `messages`
- * list per thread with only `role` and `parts`; anything else passes through.
+ * Stored threads as evaluators read them: one history-first `messages` list
+ * per thread with only `role` and `parts`; anything else passes through.
  */
 export function toEvalVariables(threads: unknown) {
   if (!Array.isArray(threads)) return threads;

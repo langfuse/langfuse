@@ -313,6 +313,7 @@ export function EvaluatorSetupPage(
     })),
   );
   const codeValidation = useCodeEvalSourceValidation({
+    projectId,
     enabled: codeDraft.type === "CODE",
     sourceCode: codeDraft.sourceCode,
     sourceCodeLanguage: codeDraft.sourceCodeLanguage,

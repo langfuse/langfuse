@@ -8,6 +8,7 @@ import {
   evalFilterFields,
   type ObservationEvalFilterColumnInternal,
 } from "./filterFields";
+import { TRACE_TRANSCRIPT_EVAL_COLUMN } from "./traceTranscriptEval";
 
 const flexibleUsageCostSchema = z.record(
   z.string(),
@@ -320,6 +321,17 @@ export function getCodeEvalVariableMapping() {
     selectedColumnId: variable,
     jsonSelector: null,
   }));
+}
+
+/** Trace code evaluators read one variable, the transcript's `threads`. */
+export function getTraceCodeEvalVariableMapping() {
+  return [
+    {
+      templateVariable: TRACE_TRANSCRIPT_EVAL_COLUMN,
+      selectedColumnId: TRACE_TRANSCRIPT_EVAL_COLUMN,
+      jsonSelector: null,
+    },
+  ];
 }
 
 export const eventTargetEvalVariableColumns: (ObservationEvalVariableColumn & {

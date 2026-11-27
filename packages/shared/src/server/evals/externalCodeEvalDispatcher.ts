@@ -29,8 +29,43 @@ import {
 
 type SourceCodeLanguage = DispatchInput["runtime"]["language"];
 
-// Bump when the request or response contract changes incompatibly.
-const CODE_EVAL_DISPATCH_API_VERSION = "v1";
+type ObservationDispatchPayload = Extract<
+  DispatchInput["payload"],
+  { targetType: "observation" }
+>;
+
+/**
+ * Wire contract for executors. Observation runs keep the original `v1` body
+ * with no `targetType`, so executors written before trace targets see no
+ * change. `v2` carries a payload discriminated by a required `targetType`:
+ * `{ targetType: "observation", observation, experiment? }` or
+ * `{ targetType: "trace", trace }`, each member holding the one key named
+ * after its `targetType`. A new member keeps `v2`; executors ignore unknown
+ * fields and answer 4xx for an unknown `apiVersion` or `targetType`. Removing
+ * a field or changing its meaning needs a new version.
+ */
+type ExternalCodeEvalRequest =
+  | (Omit<DispatchInput, "payload"> & {
+      apiVersion: "v1";
+      payload: Omit<ObservationDispatchPayload, "targetType">;
+    })
+  | (DispatchInput & { apiVersion: "v2" });
+
+function toExternalRequest(input: DispatchInput): ExternalCodeEvalRequest {
+  const { payload } = input;
+  if (payload.targetType === "trace") {
+    return { apiVersion: "v2", ...input };
+  }
+  return {
+    apiVersion: "v1",
+    ...input,
+    payload: {
+      observation: payload.observation,
+      ...(payload.experiment ? { experiment: payload.experiment } : {}),
+    },
+  };
+}
+
 const EXTERNAL_RETRY_STARTING_DELAY_MS = 100;
 const EXTERNAL_RETRY_MAX_DELAY_MS = 2_000;
 const EXTERNAL_LOG_CONTEXT = "Code eval external dispatcher";
@@ -134,8 +169,7 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
         );
       }
 
-      const request = { apiVersion: CODE_EVAL_DISPATCH_API_VERSION, ...input };
-      const body = assertDispatchInputWithinLimits(request);
+      const body = assertDispatchInputWithinLimits(toExternalRequest(input));
       span.setAttribute(
         "langfuse.code_eval.payload.bytes",
         Buffer.byteLength(body, "utf8"),

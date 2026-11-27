@@ -15,6 +15,7 @@ import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowe
 import {
   extractTranscriptEvalVariables,
   getCodeEvalVariableMapping,
+  getTraceCodeEvalVariableMapping,
   observationForEvalSchema,
   observationVariableMappingList,
   type EvalTemplateWithType,
@@ -253,6 +254,7 @@ export async function processEval(
       executionResult = await executeCodeBasedEvaluation({
         ...executionParams,
         template,
+        targetType: isTraceTranscriptJob(event) ? "trace" : "observation",
         ...(resolved.type === "v2"
           ? { evaluatorId: resolved.evaluatorId }
           : {}),
@@ -702,13 +704,15 @@ function buildV2Execution(params: {
     return { type: "cancelled" as const, reason: "version-missing" };
   }
   const organizationId = evaluator.project.orgId;
-  // TODO: a transcript code eval is not supported yet. Its empty mapping should be threads.
+  // Code versions store the observation variables, which a trace job cannot read.
   const variableMapping =
-    assignment?.variableMapping ??
-    version.variableMapping ??
-    (evaluator.type === EvalTemplateType.CODE && !isTraceTranscriptJob(event)
-      ? getCodeEvalVariableMapping()
-      : []);
+    evaluator.type === EvalTemplateType.CODE && isTraceTranscriptJob(event)
+      ? getTraceCodeEvalVariableMapping()
+      : (assignment?.variableMapping ??
+        version.variableMapping ??
+        (evaluator.type === EvalTemplateType.CODE
+          ? getCodeEvalVariableMapping()
+          : []));
   const config = {
     id: rule?.id ?? evaluator.id,
     createdAt: rule?.createdAt ?? evaluator.createdAt,

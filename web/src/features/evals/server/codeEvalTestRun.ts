@@ -255,6 +255,7 @@ async function runCodeEvalTestForObservationWithEvaluator(params: {
     jobExecutionId: executionTraceId,
     evaluator: params.evaluator,
     version: params.version,
+    targetType: "observation",
     extractedVariables,
     hasExperimentContext: Boolean(params.observation.experiment_id),
     traceName,

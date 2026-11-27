@@ -8,11 +8,13 @@ import { extractValueFromObject } from "./utilities";
 export const TRACE_TRANSCRIPT_EVAL_COLUMN = "threads";
 
 /**
- * Judge and decision-model assignments. Code evaluators are not scheduled here.
+ * Evaluator types a trace transcript rule can run. Code evaluators read the
+ * fixed threads variable instead of a user mapping.
  */
 export const TRACE_TRANSCRIPT_EVAL_TYPES = [
   EvalTemplateTypeEnum.LLM_AS_JUDGE,
   EvalTemplateTypeEnum.DECISION_MODEL,
+  EvalTemplateTypeEnum.CODE,
 ] as const;
 
 export function isTraceTranscriptEvalType(type: EvalTemplateType) {
@@ -28,7 +30,7 @@ type TranscriptEvalVariableMapping = {
 };
 
 /**
- * Judge and decision-model jobs read the transcript through a threads binding.
+ * Transcript eval jobs read the transcript through a threads binding.
  * A mapping that is empty or names any other column is not executable.
  */
 export function extractTranscriptEvalVariables(
