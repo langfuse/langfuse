@@ -8,8 +8,6 @@
 //! guardrail redacts the response, the caller relays the original raw bytes
 //! untouched; when redaction fires, the modified strings' spans are replaced.
 
-#[cfg(test)]
-mod legacy;
 pub(crate) mod spec;
 
 use std::{
