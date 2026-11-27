@@ -53,13 +53,17 @@ function generateUserProjectRolesQuery({
     : Prisma.empty;
 
   return Prisma.sql`
-    WITH candidate_roles AS (
-      SELECT om.user_id, COALESCE(pm.role, om.role)::text AS role
-      FROM organization_memberships om
-      LEFT JOIN project_memberships pm
-        ON pm.org_membership_id = om.id
-        AND pm.project_id = ${projectId}
-      WHERE om.org_id = ${orgId}
+    WITH direct_roles AS (
+      -- A user's project role replaces their org role.
+      SELECT DISTINCT ON (ra.user_id) ra.user_id, ra.system_role::text AS role
+      FROM role_assignments ra
+      WHERE ra.org_id = ${orgId}
+        AND ra.user_id IS NOT NULL
+        AND (ra.project_id IS NULL OR ra.project_id = ${projectId})
+      ORDER BY ra.user_id, ra.project_id NULLS LAST
+    ),
+    candidate_roles AS (
+      SELECT user_id, role FROM direct_roles
       UNION ALL
       SELECT om.user_id, ra.system_role::text AS role
       FROM organization_memberships om
