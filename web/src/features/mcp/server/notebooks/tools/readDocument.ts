@@ -39,7 +39,9 @@ function outlineBlock(block: NotebookBlock): unknown {
     case "chart@1":
       return { ...entry, title: block.props.title };
     case "table@1":
-      return { ...entry, rowCount: block.props.rows.length };
+      return "source" in block.props
+        ? { ...entry, source: block.props.source.query.schema }
+        : { ...entry, rowCount: block.props.rows.length };
     case "embed@1":
       return { ...entry, kind: block.props.target.kind };
     default:

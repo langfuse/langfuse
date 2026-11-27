@@ -13,9 +13,27 @@ export function getNotebookPorts(block: NotebookBlock) {
     return [{ id: "traceId", direction: "input", type: "string" }] as const;
   }
   if (block.schema === "embed@1") {
+    if (block.props.target.kind === "trace")
+      return [
+        { id: "resourceId", direction: "input", type: "string" },
+        { id: "observationId", direction: "input", type: "string" },
+      ] as const;
     return [{ id: "resourceId", direction: "input", type: "string" }] as const;
   }
   if (block.schema === "table@1") {
+    if ("source" in block.props) {
+      return block.props.selection
+        ? ([
+            {
+              id: "selection",
+              direction: "output",
+              type: "string",
+              choices: [] as { value: string; label: string }[],
+              liveSelectionValueField: block.props.selection.valueField,
+            },
+          ] as const)
+        : [];
+    }
     return [
       {
         id: "selection",

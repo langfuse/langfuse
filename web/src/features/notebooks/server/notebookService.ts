@@ -45,12 +45,6 @@ function getDocumentUrl(
   reachableIds: ReadonlySet<string>,
 ) {
   if (!reachableIds.has(documentId)) return null;
-  if (!version)
-    return buildNotebookPath({
-      projectId,
-      notebookId,
-      draftDocumentId: documentId,
-    });
   return buildNotebookPath({ projectId, notebookId, documentId, version });
 }
 type Db = Prisma.TransactionClient;
@@ -485,7 +479,7 @@ type ReadTarget = NotebookKey & {
   staged?: boolean;
   preferStaged?: boolean;
   respectLayout?: boolean;
-  includeSelectionDomains?: boolean;
+  includeVariableChoices?: boolean;
 };
 
 export async function readDocument(input: ReadTarget) {
@@ -564,11 +558,11 @@ export async function readDocument(input: ReadTarget) {
       orderBy: { number: "desc" },
     });
     const blocks = parseDocument(document.body.jsonl);
-    const selectionDomains: {
+    const variableChoices: {
       variableId: string;
       choices: { value: string; label: string }[];
     }[] = [];
-    if (input.includeSelectionDomains) {
+    if (input.includeVariableChoices) {
       const writes = (layout.bindings ?? [])
         .filter((binding) => binding.kind === "write")
         .filter(({ from }) => layoutDocumentIds.has(from.documentId));
@@ -612,14 +606,16 @@ export async function readDocument(input: ReadTarget) {
           from,
         );
         if (port?.direction === "output") {
-          selectionDomains.push({ variableId, choices: port.choices });
+          variableChoices.push({ variableId, choices: port.choices });
         }
       }
     }
+    const linkVersion = input.preferStaged ? (input.version ?? null) : version;
     return {
       projectId: notebook.projectId,
       notebookId: notebook.id,
       title: notebook.title,
+      updatedAt: notebook.updatedAt,
       layout,
       documentId,
       width: document.width,
@@ -630,20 +626,20 @@ export async function readDocument(input: ReadTarget) {
       isDraft: useDraft,
       url:
         input.revision === undefined
-          ? getDocumentUrl(input, documentId, version, layoutDocumentIds)
+          ? getDocumentUrl(input, documentId, linkVersion, layoutDocumentIds)
           : null,
       documents: index.map(({ documentId }) => ({
         id: documentId,
         url:
           input.revision === undefined
-            ? getDocumentUrl(input, documentId, version, layoutDocumentIds)
+            ? getDocumentUrl(input, documentId, linkVersion, layoutDocumentIds)
             : null,
       })),
       versions: versions.flatMap(({ number, publishedAt }) =>
         publishedAt ? [{ number, publishedAt }] : [],
       ),
       blocks,
-      ...(input.includeSelectionDomains ? { selectionDomains } : {}),
+      ...(input.includeVariableChoices ? { variableChoices } : {}),
       jsonl: document.body.jsonl,
     };
   };

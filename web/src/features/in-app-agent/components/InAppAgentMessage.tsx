@@ -846,59 +846,48 @@ export function ActivityNotebookLinks({
   const projectId = query.projectId;
   if (typeof projectId !== "string") return null;
   return Array.from(notebooks, ([notebookId, { title, version }]) => (
-    <div
+    <Link
       key={notebookId}
-      className="bg-muted/50 flex items-center gap-3 rounded-xl border p-3"
+      href={buildNotebookPath({ projectId, notebookId, version })}
+      className="group bg-muted/30 hover:bg-muted/60 focus-visible:ring-ring flex min-w-0 items-center gap-2.5 rounded-lg border px-2.5 py-2 transition-colors focus-visible:ring-2"
     >
-      <span className="bg-background grid size-8 shrink-0 place-items-center rounded-lg border">
+      <span className="bg-background grid size-8 shrink-0 place-items-center rounded-md border">
         <BookOpenText size="base" color="muted" aria-hidden="true" />
       </span>
-      <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="min-w-0">
-          <div
-            role="status"
-            className="text-muted-foreground flex items-center gap-1 text-xs leading-4"
-          >
-            {version !== undefined ? (
-              <>Notebook · Published v{version}</>
-            ) : isAwaitingApproval ? (
-              <>Notebook · Awaiting approval</>
-            ) : isEditing ? (
-              <>
-                <Loader2
-                  size="sm"
-                  aria-hidden="true"
-                  __rawClassName="motion-safe:animate-spin"
-                />
-                Notebook · Editing
-              </>
-            ) : (
-              <>Notebook · Draft</>
-            )}
-          </div>
-          <div className="text-foreground leading-5 font-medium wrap-break-word">
-            {title ?? "Notebook"}
-          </div>
-        </div>
-        <Link
-          href={buildNotebookPath({
-            projectId,
-            notebookId,
-            ...(version === undefined
-              ? { draftDocumentId: "main" }
-              : { version }),
-          })}
-          className="bg-background hover:bg-muted focus-visible:ring-ring inline-flex items-center gap-1 rounded-md border px-2 py-1 font-medium focus-visible:ring-2"
+      <div className="min-w-0 flex-1">
+        <div
+          className="text-foreground truncate text-sm leading-5 font-medium"
+          title={title ?? undefined}
         >
-          {version !== undefined
-            ? "Open notebook"
-            : isEditing
-              ? "Watch"
-              : "Open draft"}
-          <ArrowRight size="sm" aria-hidden="true" />
-        </Link>
+          {title ?? "Notebook"}
+        </div>
+        <div
+          role="status"
+          className="text-muted-foreground flex items-center gap-1 text-xs leading-4"
+        >
+          {version !== undefined ? (
+            <>Notebook · Published v{version}</>
+          ) : isAwaitingApproval ? (
+            <>Notebook · Awaiting approval</>
+          ) : isEditing ? (
+            <>
+              <Loader2
+                size="sm"
+                aria-hidden="true"
+                __rawClassName="motion-safe:animate-spin"
+              />
+              Notebook · Editing
+            </>
+          ) : (
+            <>Notebook · Draft</>
+          )}
+        </div>
       </div>
-    </div>
+      <span className="bg-background text-foreground group-hover:bg-muted inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors">
+        {version === undefined && isEditing ? "Watch" : "Open"}
+        <ArrowRight size="sm" aria-hidden="true" />
+      </span>
+    </Link>
   ));
 }
 

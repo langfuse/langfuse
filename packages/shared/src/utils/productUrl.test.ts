@@ -39,7 +39,7 @@ describe("buildExperimentPath", () => {
 });
 
 describe("buildNotebookPath", () => {
-  it("links to the notebook's draft without a version", () => {
+  it("links to the live notebook or document without a version", () => {
     expect(buildNotebookPath({ projectId: "p1", notebookId: "nb_1" })).toBe(
       "/project/p1/notebooks/nb_1",
     );
@@ -47,9 +47,9 @@ describe("buildNotebookPath", () => {
       buildNotebookPath({
         projectId: "p1",
         notebookId: "nb_1",
-        draftDocumentId: "detail_1",
+        documentId: "detail_1",
       }),
-    ).toBe("/project/p1/notebooks/nb_1?draftDocument=detail_1");
+    ).toBe("/project/p1/notebooks/nb_1/detail_1");
   });
 
   it("can pin the notebook or a document to a published version", () => {

@@ -11,7 +11,7 @@ export function NotebookEmbedWorkspace({
     <div
       role="region"
       aria-label={kind === "trace" ? "Trace workspace" : "Session workspace"}
-      className="h-[min(75dvh,48rem)] min-h-96 min-w-0 overflow-auto rounded-md border"
+      className="h-[min(75dvh,48rem)] min-h-96 min-w-0 grow overflow-auto rounded-md border"
     >
       {children}
     </div>

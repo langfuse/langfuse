@@ -83,11 +83,13 @@ export type TableCardProps<TData extends object> = Omit<
     onRowHeightChange: (height: RowHeight) => void;
   };
   pagination?: PaginationBarProps;
+  stretch?: boolean;
   /** Offers selecting every matching row across pages once the whole first page is selected. */
   multiSelect?: MultiSelect;
 };
 
 export function TableCard<TData extends object>({
+  stretch = false,
   columns,
   columnOrderKey,
   columnVisibilityKey,
@@ -134,7 +136,7 @@ export function TableCard<TData extends object>({
     tableProps.data.data.length === 0;
 
   return (
-    <div className="flex min-h-0 flex-col gap-2">
+    <div className={cn("flex min-h-0 flex-col gap-2", stretch && "grow")}>
       {hasToolbar && (
         <div
           className={cn(
@@ -250,8 +252,8 @@ export function TableCard<TData extends object>({
       {showEmptyState ? (
         emptyState
       ) : (
-        <div className="mb-4 flex min-h-0 flex-col">
-          <TableCardContainer>
+        <div className={cn("flex min-h-0 flex-col", stretch ? "grow" : "mb-4")}>
+          <TableCardContainer stretch={stretch}>
             <Table
               columns={columns}
               columnVisibility={columnVisibility}

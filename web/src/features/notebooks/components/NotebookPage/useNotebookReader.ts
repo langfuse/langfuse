@@ -11,31 +11,28 @@ export function useNotebookReader(input: RouterInput["notebooks"]["view"]) {
   const notebook = api.notebooks.view.useQuery(input, {
     placeholderData: keepPreviousData,
     refetchOnMount: "always",
-    refetchInterval: input.draftDocumentId ? 3000 : false,
+    refetchInterval: (query) =>
+      input.version === undefined && query.state.data?.isDraft ? 3000 : false,
     meta: { silentAllErrors: true },
+    select: ({
+      config: { layout, bindings },
+      document: { id: documentId, ...document },
+      ...notebook
+    }) => ({
+      ...notebook,
+      ...document,
+      documentId,
+      layout: { ...layout, bindings },
+    }),
   });
-  function onDocumentChange(documentId: string | null, version: number | null) {
-    if (documentId === null) {
-      if (version === null && input.draftDocumentId) {
-        return router.push(
-          `${buildNotebookPath({ projectId, notebookId, draftDocumentId: input.draftDocumentId })}&table=list`,
-        );
-      }
-      return router.push(buildNotebookPath({ projectId, notebookId, version }));
-    }
+  function onDocumentChange(documentId: string | null) {
     return router.push(
-      version === null
-        ? buildNotebookPath({
-            projectId,
-            notebookId,
-            draftDocumentId: documentId,
-          })
-        : buildNotebookPath({
-            projectId,
-            notebookId,
-            documentId,
-            version,
-          }),
+      buildNotebookPath({
+        projectId,
+        notebookId,
+        documentId: documentId ?? undefined,
+        version: input.version,
+      }),
     );
   }
 

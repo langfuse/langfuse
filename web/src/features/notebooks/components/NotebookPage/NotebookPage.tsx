@@ -1,6 +1,7 @@
 import { api as notebookApi } from "@/src/utils/api";
+import { buildNotebookPath } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -26,6 +27,32 @@ const notebookDocumentPath = z.tuple([notebookDocumentId]).optional();
 
 export function NotebookPage() {
   const router = useRouter();
+  useEffect(() => {
+    if (!router.isReady) return;
+    const { documentPath, draftDocument, version } = router.query;
+    const projectId = z.string().min(1).safeParse(router.query.projectId);
+    const notebookId = notebookDocumentId.safeParse(router.query.notebookId);
+    const documentId = notebookDocumentId.safeParse(draftDocument);
+    if (
+      !documentId.success ||
+      !projectId.success ||
+      !notebookId.success ||
+      documentPath !== undefined ||
+      version !== undefined
+    )
+      return;
+
+    const url = new URL(router.asPath, window.location.origin);
+    url.pathname = buildNotebookPath({
+      projectId: projectId.data,
+      notebookId: notebookId.data,
+      documentId: documentId.data,
+    });
+    url.searchParams.delete("draftDocument");
+    void router.replace(`${url.pathname}${url.search}${url.hash}`, undefined, {
+      scroll: false,
+    });
+  }, [router]);
   if (!router.isReady) {
     return (
       <Page headerProps={{ title: "Notebook" }}>
@@ -79,8 +106,7 @@ export function NotebookPage() {
       key={`${projectId.data}/${notebookId.data}`}
       projectId={projectId.data}
       notebookId={notebookId.data}
-      documentId={documentPath.data?.[0]}
-      draftDocumentId={draftDocumentId.data}
+      documentId={documentPath.data?.[0] ?? draftDocumentId.data}
       version={version.data}
     />
   );
@@ -90,7 +116,6 @@ function ConnectedNotebookReader({
   projectId,
   notebookId,
   documentId,
-  draftDocumentId,
   version,
 }: RouterInput["notebooks"]["view"]) {
   const router = useRouter();
@@ -109,7 +134,6 @@ function ConnectedNotebookReader({
     projectId,
     notebookId,
     documentId,
-    draftDocumentId,
     version,
   });
   const executeAction = notebookApi.notebooks.executeAction.useMutation();
@@ -120,9 +144,6 @@ function ConnectedNotebookReader({
   );
   const headerActions = (
     <>
-      {draftDocumentId && view?.isDraft && (
-        <Badge text="Live draft" size="sm" />
-      )}
       {view?.layout.bindings?.some(({ kind }) => kind === "write") && (
         <label className="flex cursor-pointer items-center gap-2 text-sm">
           <Checkbox
@@ -171,16 +192,35 @@ function ConnectedNotebookReader({
       <NotebookReader
         key={`${notebookId}:${view.version ?? "draft"}`}
         view={view}
+        unpublishedUpdatedAt={
+          view.isDraft && view.versions.length === 0
+            ? view.updatedAt
+            : undefined
+        }
+        liveTableSnapshot={{
+          projectId,
+          notebookId,
+          documentId: view.documentId,
+          version: view.version ?? undefined,
+          staged: view.isDraft,
+        }}
         showControlledVariables={showControlledVariables}
         isLoadingDocument={notebook.isPlaceholderData}
         onDocumentChange={onDocumentChange}
-        renderEmbed={(kind, resourceId, variableName, sidebar) => (
+        renderEmbed={(
+          kind,
+          resourceId,
+          variableName,
+          sidebar,
+          observationId,
+        ) => (
           <ConnectedNotebookEmbed
             projectId={projectId}
             kind={kind}
             resourceId={resourceId}
             variableName={variableName}
             sidebar={sidebar}
+            observationId={observationId}
           />
         )}
         renderChart={(block, values, filters) => (

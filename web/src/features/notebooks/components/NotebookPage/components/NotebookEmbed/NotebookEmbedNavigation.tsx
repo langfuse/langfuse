@@ -22,10 +22,20 @@ const EmbedQueryAdapter: QueryParamAdapterComponent = ({ children }) => {
   });
 };
 
-export function NotebookEmbedNavigation({ children }: { children: ReactNode }) {
+export function NotebookEmbedNavigation({
+  children,
+  initialObservationId,
+}: {
+  children: ReactNode;
+  initialObservationId?: string;
+}) {
   const router = useRouter();
   // Keep workspace tabs and selections out of the notebook URL and other embeds.
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() =>
+    initialObservationId
+      ? new URLSearchParams({ observation: initialObservationId }).toString()
+      : "",
+  );
   const currentSearch = useRef(search);
   const path = router.asPath.split("?")[0];
   const navigate =

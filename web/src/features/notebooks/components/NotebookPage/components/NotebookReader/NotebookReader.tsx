@@ -4,7 +4,15 @@ import {
 } from "@/src/features/notebooks/schema";
 import { NotebookActionButton } from "./NotebookActionButton";
 import { NotebookChart } from "../NotebookChart/NotebookChart";
-import { Fragment, useState, type ComponentProps, type ReactNode } from "react";
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
 import { ArrowUpDown, Check } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { DateRangeInput } from "@/src/components/design-system/DateRangeInput/DateRangeInput";
@@ -13,10 +21,12 @@ import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { TableCard } from "@/src/components/TableCard/TableCard";
 import { readingColumnClassName } from "@/src/components/layouts/reading-column";
 import {
   type NotebookBlock,
+  type NotebookLayout,
   type NotebookPropertySchema,
   type NotebookPropertyValues,
   type NotebookVariableValue,
@@ -27,8 +37,12 @@ import {
 } from "@/src/features/notebooks/ports";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
+import { api } from "@/src/utils/api";
+import type { RouterInput } from "@/src/utils/types";
 import { NotebookBlocks } from "./components/NotebookBlocks/NotebookBlocks";
 import { getNotebookPresentationWarnings } from "@/src/features/notebooks/presentation";
+
+const NOTEBOOK_CREATION_WINDOW_MS = 2 * 60 * 1000;
 
 function formatProperty(
   value: NotebookPropertyValues[string] | undefined,
@@ -87,8 +101,11 @@ function renderProperty(
   });
 }
 
-export function NotebookReader({
+function NotebookReaderContent({
   view,
+  unpublishedUpdatedAt,
+  liveTableIds = [],
+  liveQueries = [],
   isLoadingDocument,
   onDocumentChange,
   renderChart,
@@ -96,16 +113,16 @@ export function NotebookReader({
   onExecuteAction,
   showControlledVariables = false,
 }: {
-  view: Pick<
-    RouterOutput["notebooks"]["view"],
-    | "blocks"
-    | "documentId"
-    | "documents"
-    | "layout"
-    | "selectionDomains"
-    | "version"
-  >;
+  view: Pick<RouterOutput["notebooks"]["view"], "documents" | "version"> &
+    Pick<RouterOutput["notebooks"]["view"]["document"], "blocks"> & {
+      documentId: RouterOutput["notebooks"]["view"]["document"]["id"];
+      layout: NotebookLayout;
+      variables?: RouterOutput["notebooks"]["view"]["variables"];
+    };
   isLoadingDocument: boolean;
+  unpublishedUpdatedAt?: Date;
+  liveTableIds?: string[];
+  liveQueries?: ReturnType<typeof useLiveTableQueries>;
   onDocumentChange: (documentId: string | null, version: number | null) => void;
   renderChart: ComponentProps<typeof NotebookBlocks>["renderChart"];
   renderEmbed?: (
@@ -116,6 +133,7 @@ export function NotebookReader({
     resourceId: string | undefined,
     variableName: string | undefined,
     sidebar?: "expanded" | "collapsed",
+    observationId?: string,
   ) => ReactNode;
   onExecuteAction?: (
     action: NotebookAction,
@@ -144,16 +162,58 @@ export function NotebookReader({
     );
     const isAvailable =
       !isControlled ||
-      selectionDomains
+      choicesByVariableId
         .get(binding.variableId)
         ?.some(({ value: choice }) => choice === value);
     return {
       value: isAvailable && typeof value === "string" ? value : undefined,
       variableName: variable?.name,
+      isBound: true,
     };
   }
 
   const { blocks, documentId, documents, layout, version } = view;
+  const documentScroll = useRef<HTMLDivElement>(null);
+  const documentBody = useRef<HTMLDivElement>(null);
+  const [lastFreshnessCheck, setLastFreshnessCheck] = useState(Date.now);
+  const skeletonExpiresAt = unpublishedUpdatedAt
+    ? unpublishedUpdatedAt.getTime() + NOTEBOOK_CREATION_WINDOW_MS
+    : 0;
+  const showCreationSkeleton =
+    !isLoadingDocument && skeletonExpiresAt > lastFreshnessCheck;
+  useEffect(() => {
+    if (!showCreationSkeleton) return;
+    const timeout = window.setTimeout(
+      () => setLastFreshnessCheck(Math.max(Date.now(), skeletonExpiresAt)),
+      Math.max(0, skeletonExpiresAt - Date.now()),
+    );
+    return () => window.clearTimeout(timeout);
+  }, [showCreationSkeleton, skeletonExpiresAt]);
+
+  const followCreation =
+    unpublishedUpdatedAt !== undefined && !isLoadingDocument;
+  useLayoutEffect(() => {
+    const scroll = documentScroll.current;
+    const body = documentBody.current;
+    if (!followCreation || !scroll || !body) return;
+
+    const atBottom = () =>
+      scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight <= 2;
+    let followBottom = atBottom();
+    const onScroll = () => {
+      followBottom = atBottom();
+    };
+    const resize = new ResizeObserver(() => {
+      if (followBottom) scroll.scrollTop = scroll.scrollHeight;
+    });
+    scroll.addEventListener("scroll", onScroll, { passive: true });
+    resize.observe(body);
+    resize.observe(scroll);
+    return () => {
+      scroll.removeEventListener("scroll", onScroll);
+      resize.disconnect();
+    };
+  }, [documentId, layout.kind, followCreation]);
   const wide = layout.kind === "inbox" || layout.width === "full";
   const presentationWarnings =
     version === null && !isLoadingDocument
@@ -162,24 +222,39 @@ export function NotebookReader({
   const [overrides, setOverrides] = useState<
     ReadonlyMap<string, NotebookVariableValue | undefined>
   >(new Map());
+  const [liveSelectedRows, setLiveSelectedRows] = useState<
+    ReadonlyMap<string, string>
+  >(new Map());
   const [savedScores, setSavedScores] = useState<ReadonlyMap<string, number>>(
     new Map(),
   );
-  const variables = layout.variables ?? [];
+  const variables = view.variables ?? layout.variables ?? [];
   const bindings = layout.bindings ?? [];
   const writes = bindings.filter((binding) => binding.kind === "write");
-  const selectionDomains = new Map(
-    view.selectionDomains?.map(({ variableId, choices }) => [
-      variableId,
-      choices,
-    ]),
+  const choicesByVariableId = new Map(
+    view.variables?.flatMap(({ id, choices }) =>
+      choices === undefined ? [] : [[id, choices] as const],
+    ),
   );
   for (const { from, variableId } of writes) {
-    if (from.documentId !== documentId || selectionDomains.has(variableId))
+    const liveIndex =
+      from.documentId === documentId
+        ? liveTableIds.indexOf(from.elementId)
+        : -1;
+    if (liveIndex >= 0) {
+      choicesByVariableId.set(
+        variableId,
+        (liveQueries[liveIndex]?.data ?? []).flatMap(({ value, cells }) =>
+          value ? [{ value, label: cells[0] || value }] : [],
+        ),
+      );
+      continue;
+    }
+    if (from.documentId !== documentId || choicesByVariableId.has(variableId))
       continue;
     const port = resolveNotebookPort(blocks, from);
     if (port?.direction === "output")
-      selectionDomains.set(variableId, port.choices);
+      choicesByVariableId.set(variableId, port.choices);
   }
   const valueOf = (variable: (typeof variables)[number]) =>
     overrides.has(variable.id)
@@ -231,7 +306,7 @@ export function NotebookReader({
           );
           const value = valueOf(variable);
           if (source) {
-            const choices = selectionDomains.get(variable.id);
+            const choices = choicesByVariableId.get(variable.id);
             const selected = choices?.find((choice) => choice.value === value);
             let placeholder = "Select a value";
             if (!choices) placeholder = "Choices unavailable";
@@ -364,8 +439,13 @@ export function NotebookReader({
     return (
       <NotebookBlocks
         blocks={blocks}
+        allowWideRows
         renderEmbed={(block) => {
           const { target } = block.props;
+          const observation =
+            target.kind === "trace"
+              ? resolveStringInput(block.id, "observationId", undefined)
+              : undefined;
           const { value, variableName } = resolveStringInput(
             block.id,
             "resourceId",
@@ -373,9 +453,10 @@ export function NotebookReader({
           );
           return renderEmbed?.(
             target.kind,
-            value,
-            variableName,
+            observation?.isBound ? undefined : value,
+            observation?.isBound ? observation.variableName : variableName,
             target.kind === "trace" ? target.sidebar : undefined,
+            observation?.value,
           );
         }}
         renderButton={(block) => {
@@ -419,6 +500,67 @@ export function NotebookReader({
           );
         }}
         renderTable={(table) => {
+          const props = table.props;
+          if ("source" in props) {
+            const query = liveQueries[liveTableIds.indexOf(table.id)];
+            const rows = query?.data ?? [];
+            const targets = writes.filter(
+              ({ from }) =>
+                from.documentId === documentId &&
+                from.elementId === table.id &&
+                from.portId === "selection",
+            );
+            const selectionKey = `${documentId}:${table.id}`;
+            const selected = rows.find(
+              ({ id }) => id === liveSelectedRows.get(selectionKey),
+            );
+            return (
+              <div className="flex min-w-0 grow flex-col gap-2">
+                <span className="text-muted-foreground text-xs">Live</span>
+                <TableCard<(typeof rows)[number]>
+                  stretch
+                  tableName="notebook-live-table"
+                  data={
+                    query?.isError
+                      ? {
+                          status: "error",
+                          error: "Could not load live observations.",
+                        }
+                      : query?.isSuccess
+                        ? { status: "success", data: rows }
+                        : { status: "loading" }
+                  }
+                  selectedRowId={selected?.id}
+                  onRowClick={
+                    targets.length
+                      ? ({ id, value }) => {
+                          if (!value) return;
+                          const clear = selected?.id === id;
+                          setLiveSelectedRows((current) => {
+                            const next = new Map(current);
+                            if (clear) next.delete(selectionKey);
+                            else next.set(selectionKey, id);
+                            return next;
+                          });
+                          setOverrides((current) => {
+                            const next = new Map(current);
+                            for (const { variableId } of targets)
+                              next.set(variableId, clear ? undefined : value);
+                            return next;
+                          });
+                        }
+                      : undefined
+                  }
+                  columns={props.columns.map(({ label }, index) => ({
+                    id: `column-${index}`,
+                    accessorKey: `column-${index}`,
+                    header: label,
+                    accessorFn: (row) => row.cells[index],
+                  }))}
+                />
+              </div>
+            );
+          }
           const variableIds = new Set(
             writes
               .filter(
@@ -432,14 +574,31 @@ export function NotebookReader({
           const targets = variables.filter(
             ({ id, type }) => variableIds.has(id) && type === "string",
           );
-          const selectedRow = table.props.rows.find(({ id }) =>
+          const selectedRow = props.rows.find(({ id }) =>
             targets.some((variable) => valueOf(variable) === id),
           );
+          const toggleRow = (id: string) =>
+            setOverrides((current) => {
+              const isSelected = targets.some(
+                (variable) =>
+                  (current.has(variable.id)
+                    ? current.get(variable.id)
+                    : variable.defaultValue) === id,
+              );
+              const overrides = new Map(current);
+              for (const target of targets)
+                overrides.set(target.id, isSelected ? undefined : id);
+              return overrides;
+            });
           return (
-            <div data-notebook-table className="min-w-0">
-              <TableCard<(typeof table.props.rows)[number]>
+            <div data-notebook-table className="flex min-w-0 grow flex-col">
+              <TableCard<(typeof props.rows)[number]>
+                stretch
                 tableName="notebook-inline-table"
-                data={{ status: "success", data: table.props.rows }}
+                data={{ status: "success", data: props.rows }}
+                onRowClick={
+                  targets.length ? ({ id }) => toggleRow(id) : undefined
+                }
                 selection={
                   targets.length > 0
                     ? {
@@ -447,7 +606,7 @@ export function NotebookReader({
                         getLabel: ({ id, cells }) => String(cells[0] ?? id),
                         onChange: (update) =>
                           setOverrides((current) => {
-                            const currentRow = table.props.rows.find(({ id }) =>
+                            const currentRow = props.rows.find(({ id }) =>
                               targets.some(
                                 (variable) =>
                                   (current.has(variable.id)
@@ -461,7 +620,7 @@ export function NotebookReader({
                                     currentRow ? { [currentRow.id]: true } : {},
                                   )
                                 : update;
-                            const next = table.props.rows.find(
+                            const next = props.rows.find(
                               ({ id }) => selection[id] === true,
                             );
                             const overrides = new Map(current);
@@ -472,7 +631,7 @@ export function NotebookReader({
                       }
                     : undefined
                 }
-                columns={table.props.columns.map((header, index) => ({
+                columns={props.columns.map((header, index) => ({
                   id: `column-${index}`,
                   accessorKey: `column-${index}`,
                   header,
@@ -500,7 +659,7 @@ export function NotebookReader({
             const source = writes.find(
               ({ variableId }) => variableId === binding.variableId,
             );
-            const choice = selectionDomains
+            const choice = choicesByVariableId
               .get(binding.variableId)
               ?.find((candidate) => candidate.value === value);
             if (
@@ -536,8 +695,12 @@ export function NotebookReader({
     );
   })();
   const documentPanel = (
-    <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+    <div
+      ref={documentScroll}
+      className="@container/notebook min-h-0 min-w-0 flex-1 overflow-y-auto"
+    >
       <div
+        ref={documentBody}
         className={cn(
           wide ? "px-4" : readingColumnClassName,
           layout.kind === "inbox" && "mx-auto w-full max-w-5xl sm:px-6",
@@ -596,6 +759,17 @@ export function NotebookReader({
           </aside>
         )}
         {documentContent}
+        {showCreationSkeleton && (
+          <div
+            role="status"
+            aria-label="Notebook is being written"
+            className="mt-6 flex max-w-lg flex-col gap-2.5"
+          >
+            <Skeleton className="h-4 w-1/3 motion-reduce:animate-none" />
+            <Skeleton className="h-3 w-full motion-reduce:animate-none" />
+            <Skeleton className="h-3 w-3/4 motion-reduce:animate-none" />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -818,5 +992,66 @@ export function NotebookReader({
       {variablesToolbar}
       {notebookContent}
     </div>
+  );
+}
+
+function useLiveTableQueries(
+  liveTableSnapshot: NonNullable<NotebookReaderProps["liveTableSnapshot"]>,
+  liveTableIds: string[],
+) {
+  return api.useQueries((query) =>
+    liveTableSnapshot
+      ? liveTableIds.map((blockId) =>
+          query.notebooks.liveTable(
+            { ...liveTableSnapshot, blockId },
+            { refetchInterval: 30_000, meta: { silentAllErrors: true } },
+          ),
+        )
+      : [],
+  );
+}
+
+type NotebookReaderProps = ComponentProps<typeof NotebookReaderContent> & {
+  liveTableSnapshot?: Omit<RouterInput["notebooks"]["liveTable"], "blockId">;
+};
+
+export function NotebookReader({
+  liveTableSnapshot,
+  ...props
+}: NotebookReaderProps) {
+  const { blocks } = props.view;
+  const pendingBlocks = [...blocks];
+  const liveTableIds: string[] = [];
+  for (const block of pendingBlocks) {
+    if (block.schema === "row@1") pendingBlocks.push(...block.props.children);
+    if (block.schema === "table@1" && "source" in block.props)
+      liveTableIds.push(block.id);
+  }
+  if (!liveTableSnapshot || !liveTableIds.length || props.isLoadingDocument)
+    return <NotebookReaderContent {...props} />;
+  return (
+    <LiveNotebookReader
+      {...props}
+      liveTableSnapshot={liveTableSnapshot}
+      liveTableIds={liveTableIds}
+    />
+  );
+}
+
+function LiveNotebookReader({
+  liveTableSnapshot,
+  liveTableIds,
+  ...props
+}: NotebookReaderProps & {
+  liveTableSnapshot: NonNullable<NotebookReaderProps["liveTableSnapshot"]>;
+  liveTableIds: string[];
+}) {
+  const liveQueries = useLiveTableQueries(liveTableSnapshot, liveTableIds);
+  return (
+    <NotebookReaderContent
+      {...props}
+      liveTableIds={liveTableIds}
+      liveQueries={liveQueries}
+    />
   );
 }

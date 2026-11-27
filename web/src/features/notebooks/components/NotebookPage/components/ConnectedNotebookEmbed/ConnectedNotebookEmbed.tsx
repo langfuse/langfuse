@@ -8,6 +8,7 @@ import { Trace } from "@/src/features/traces/components/Trace";
 import { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
 import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
+import { api } from "@/src/utils/api";
 import { NotebookEmbed } from "../NotebookEmbed/NotebookEmbed";
 import { NotebookEmbedNavigation } from "../NotebookEmbed/NotebookEmbedNavigation";
 import { NotebookEmbedWorkspace } from "../NotebookEmbed/NotebookEmbedWorkspace";
@@ -16,6 +17,7 @@ type ResourceProps = {
   projectId: string;
   resourceId: string;
   sidebar?: "expanded" | "collapsed";
+  observationId?: string;
 };
 type EmbedProps = ComponentProps<typeof NotebookEmbed>;
 
@@ -23,6 +25,7 @@ function ConnectedTraceWorkspace({
   projectId,
   resourceId,
   sidebar,
+  observationId,
 }: ResourceProps) {
   const trace = useTraceDetailData({ projectId, traceId: resourceId });
   if (!trace.isLoading && (trace.isError || !trace.data)) {
@@ -40,13 +43,22 @@ function ConnectedTraceWorkspace({
     <TraceDetailActions
       trace={trace.data}
       traceContext="peek"
-      shareUrl={buildTracePath({ projectId, traceId: resourceId })}
+      shareUrl={buildTracePath({
+        projectId,
+        traceId: resourceId,
+        observationId,
+      })}
     >
       {(actions) => (
         <TraceDetailBody
           trace={trace.data}
           context="peek"
-          layout={sidebar === "collapsed" ? "observation-focused" : undefined}
+          layout={
+            (sidebar ?? (observationId ? "collapsed" : "expanded")) ===
+            "collapsed"
+              ? "observation-focused"
+              : undefined
+          }
           truncatedAtObservations={trace.truncatedAtObservations}
           header={{
             variant: "page",
@@ -103,21 +115,40 @@ export function ConnectedNotebookEmbed({
   resourceId,
   variableName,
   sidebar,
+  observationId,
 }: Pick<EmbedProps, "projectId" | "kind"> & {
   resourceId: string | undefined;
   variableName: string | undefined;
   sidebar?: ResourceProps["sidebar"];
+  observationId?: string;
 }) {
+  const focusedObservation = kind === "trace" ? observationId : undefined;
+  const observationTarget = api.notebooks.observationTarget.useQuery(
+    { projectId, observationId: focusedObservation ?? "" },
+    {
+      enabled: !!focusedObservation,
+      staleTime: 5 * 60 * 1000,
+      retry: false,
+      meta: { silentHttpCodes: [403, 404] },
+    },
+  );
+  const targetId = focusedObservation
+    ? observationTarget.data?.traceId
+    : resourceId;
   const Workspace = workspaces[kind];
   return (
     <NotebookEmbedWorkspace kind={kind}>
-      {resourceId?.trim() ? (
-        <NotebookEmbedNavigation key={`${projectId}:${kind}:${resourceId}`}>
+      {targetId?.trim() ? (
+        <NotebookEmbedNavigation
+          key={JSON.stringify([projectId, kind, targetId, focusedObservation])}
+          initialObservationId={focusedObservation}
+        >
           <DetailPageListsProvider>
             <Workspace
               projectId={projectId}
-              resourceId={resourceId}
+              resourceId={targetId}
               sidebar={sidebar}
+              observationId={focusedObservation}
             />
           </DetailPageListsProvider>
         </NotebookEmbedNavigation>
@@ -126,7 +157,15 @@ export function ConnectedNotebookEmbed({
           embedded
           projectId={projectId}
           kind={kind}
-          state={{ status: "empty", variableName }}
+          state={
+            focusedObservation
+              ? {
+                  status: observationTarget.isPending
+                    ? "loading"
+                    : "unavailable",
+                }
+              : { status: "empty", variableName }
+          }
         />
       )}
     </NotebookEmbedWorkspace>

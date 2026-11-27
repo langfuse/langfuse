@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type ComponentProps, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { ObservationTypeDomain } from "@langfuse/shared";
@@ -20,7 +20,10 @@ import {
   type NotebookVariableValue,
 } from "@/src/features/notebooks/schema";
 import { assertUnreachable } from "@/src/utils/types";
-import { getNotebookBlockMinimumWidth } from "@/src/features/notebooks/presentation";
+import {
+  getNotebookBlockMinimumWidth,
+  isInteractiveBlock,
+} from "@/src/features/notebooks/presentation";
 
 type ChartBlock = Extract<NotebookBlock, { schema: "chart@1" }>;
 
@@ -31,8 +34,29 @@ const evidenceIcons: Partial<Record<NotebookBlock["schema"], IconComponent>> = {
   "table@1": LayoutGrid,
   "embed@1": ListTree,
 };
-const badgeClassName =
-  "bg-muted rounded border px-1 py-0.5 no-underline hover:underline [box-decoration-break:clone]";
+function InlineLinkBadge({
+  icon,
+  children,
+  ...linkProps
+}: Pick<
+  ComponentProps<typeof Link>,
+  "href" | "title" | "onClick" | "target" | "rel"
+> & {
+  icon: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      {...linkProps}
+      className="border-border/70 bg-muted/60 text-foreground hover:bg-muted inline-flex max-w-full items-center gap-1.5 rounded-md border px-1.5 py-0.5 align-[-0.08em] text-[0.85em] leading-tight font-medium no-underline transition-colors hover:no-underline"
+    >
+      <span className="inline-flex shrink-0" aria-hidden="true">
+        {icon}
+      </span>
+      <span className="truncate">{children}</span>
+    </Link>
+  );
+}
 
 function TraceLinkBadge({
   href,
@@ -74,9 +98,12 @@ function TraceLinkBadge({
     ? observation.data?.name || observationId
     : trace.data?.name || traceId;
   return (
-    <Link
+    <InlineLinkBadge
       href={href}
-      className={badgeClassName}
+      title={label}
+      icon={
+        <ItemTypeIcon size="sm" type={type.success ? type.data : "TRACE"} />
+      }
       onClick={(event) => {
         if (
           event.defaultPrevented ||
@@ -104,11 +131,8 @@ function TraceLinkBadge({
         );
       }}
     >
-      <span className="mr-1 inline-flex align-middle" aria-hidden="true">
-        <ItemTypeIcon size="sm" type={type.success ? type.data : "TRACE"} />
-      </span>
       {label}
-    </Link>
+    </InlineLinkBadge>
   );
 }
 
@@ -186,15 +210,9 @@ function renderTextNode(
             const Icon = icons.get(href.slice("#block-".length));
             if (!Icon) return <a href={href}>{child}</a>;
             return (
-              <a href={href} className={badgeClassName}>
-                <span
-                  className="mr-1 inline-flex align-middle"
-                  aria-hidden="true"
-                >
-                  <Icon size="sm" />
-                </span>
+              <InlineLinkBadge href={href} icon={<Icon size="sm" />}>
                 {child}
-              </a>
+              </InlineLinkBadge>
             );
           }
           const evidence =
@@ -227,20 +245,14 @@ function renderTextNode(
             }
             if (label) {
               return (
-                <Link
+                <InlineLinkBadge
                   href={href}
-                  className={badgeClassName}
+                  icon={<NotebookText size="sm" />}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <span
-                    className="mr-1 inline-flex align-middle"
-                    aria-hidden="true"
-                  >
-                    <NotebookText size="sm" />
-                  </span>
                   {label}
-                </Link>
+                </InlineLinkBadge>
               );
             }
           }
@@ -268,18 +280,12 @@ function renderTextNode(
             }
             const Icon = kind === "sessions" ? Clock : LayoutGrid;
             return (
-              <Link
+              <InlineLinkBadge
                 href={href}
-                className={badgeClassName}
+                icon={<Icon size="sm" />}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <span
-                  className="mr-1 inline-flex align-middle"
-                  aria-hidden="true"
-                >
-                  <Icon size="sm" />
-                </span>
                 {kind === "sessions"
                   ? id || "Session"
                   : kind === "users"
@@ -287,7 +293,7 @@ function renderTextNode(
                     : kind === "traces"
                       ? "Trace"
                       : "Scores"}
-              </Link>
+              </InlineLinkBadge>
             );
           }
           if (
@@ -296,20 +302,14 @@ function renderTextNode(
             )
           ) {
             return (
-              <Link
+              <InlineLinkBadge
                 href={href}
-                className={badgeClassName}
+                icon={<NotebookText size="sm" />}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <span
-                  className="mr-1 inline-flex align-middle"
-                  aria-hidden="true"
-                >
-                  <NotebookText size="sm" />
-                </span>
                 {child}
-              </Link>
+              </InlineLinkBadge>
             );
           }
           const isExternal = /^https?:\/\//i.test(href);
@@ -350,6 +350,7 @@ function renderTextNode(
 
 export function NotebookBlocks({
   blocks,
+  allowWideRows = false,
   linkedBlockIcons = indexEvidence(blocks),
   renderChart,
   renderButton,
@@ -357,6 +358,7 @@ export function NotebookBlocks({
   renderTable,
 }: {
   blocks: NotebookBlock[];
+  allowWideRows?: boolean;
   linkedBlockIcons?: ReadonlyMap<string, IconComponent>;
   renderChart: (
     block: ChartBlock,
@@ -423,20 +425,43 @@ export function NotebookBlocks({
           );
         }
         if (block.schema === "row@1") {
-          const { children, widths } = block.props;
+          const { children } = block.props;
+          const hasTable = children.some((child) => child.schema === "table@1");
+          const compactTracePair =
+            children.length === 2 &&
+            hasTable &&
+            children.some(
+              (child) =>
+                child.schema === "embed@1" &&
+                child.props.target.kind === "trace",
+            );
+          const breakout =
+            allowWideRows &&
+            children.length > 1 &&
+            children.every(isInteractiveBlock);
           return (
             <div
               key={block.id}
               id={anchor.id}
-              className="flex min-w-0 scroll-mt-20 flex-wrap gap-4"
+              className={`flex min-w-0 scroll-mt-20 flex-wrap items-stretch gap-4 ${
+                breakout
+                  ? "w-[max(100%,min(calc(100%+16rem),calc(100cqw-3rem)))] self-center"
+                  : ""
+              }`}
             >
-              {children.map((child, index) => (
+              {children.map((child) => (
                 <div
                   key={child.id}
-                  className="flex min-w-0 flex-col"
+                  className="flex min-w-0 flex-col [&>div>div]:grow"
                   style={{
-                    flexBasis: `min(100%, ${getNotebookBlockMinimumWidth(child)}px)`,
-                    flexGrow: widths?.[index] ?? 1,
+                    flexBasis: `min(100%, ${
+                      compactTracePair
+                        ? child.schema === "table@1"
+                          ? Math.min(280, getNotebookBlockMinimumWidth(child))
+                          : 600
+                        : getNotebookBlockMinimumWidth(child)
+                    }px)`,
+                    flexGrow: hasTable && child.schema === "embed@1" ? 8 : 1,
                   }}
                 >
                   <NotebookBlocks

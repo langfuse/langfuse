@@ -44,19 +44,12 @@ function fixtureView(
   const document = snapshot.find(({ id }) => id === documentId) ?? snapshot[0];
   const documents = snapshot.map(({ id }) => ({
     id,
-    url:
-      version === null
-        ? buildNotebookPath({
-            projectId: "storybook",
-            notebookId: fixture.id,
-            draftDocumentId: id,
-          })
-        : buildNotebookPath({
-            projectId: "storybook",
-            notebookId: fixture.id,
-            documentId: id,
-            version,
-          }),
+    url: buildNotebookPath({
+      projectId: "storybook",
+      notebookId: fixture.id,
+      documentId: id,
+      version,
+    }),
   }));
 
   return {

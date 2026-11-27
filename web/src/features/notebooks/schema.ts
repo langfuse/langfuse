@@ -420,27 +420,80 @@ const inputChartBlock = storedChartBlock.extend({
   id: notebookDocumentId.optional(),
 });
 
+const staticTableProps = z
+  .strictObject({
+    columns: z.array(notebookDocumentLabel).min(1).max(20),
+    rows: z
+      .array(
+        z.strictObject({
+          id: notebookDocumentId,
+          cells: z.array(z.union([z.string().max(2048), z.number()])).max(20),
+        }),
+      )
+      .max(500),
+  })
+  .refine(
+    ({ columns, rows }) =>
+      new Set(rows.map(({ id }) => id)).size === rows.length &&
+      rows.every(({ cells }) => cells.length === columns.length),
+    "Table rows must have unique IDs and match the column count.",
+  );
+
+const observationTableField = z.enum([
+  "id",
+  "traceId",
+  "name",
+  "type",
+  "level",
+  "startTime",
+]);
+const liveTableProps = z
+  .strictObject({
+    source: z.strictObject({
+      kind: z.literal("query"),
+      query: z.strictObject({
+        schema: z.literal("observations@1"),
+        select: z.array(observationTableField).min(1).max(6),
+        lookbackHours: z.number().int().min(1).max(336),
+        limit: z.number().int().min(1).max(100),
+        name: z.string().min(1).max(256).optional(),
+      }),
+    }),
+    columns: z
+      .array(
+        z.strictObject({
+          field: observationTableField,
+          label: notebookDocumentLabel,
+        }),
+      )
+      .min(1)
+      .max(6),
+    selection: z
+      .strictObject({ valueField: z.enum(["traceId", "id"]) })
+      .optional(),
+  })
+  .superRefine(({ source, columns, selection }, ctx) => {
+    const fields = new Set(source.query.select);
+    columns.forEach(({ field }, index) => {
+      if (!fields.has(field))
+        ctx.addIssue({
+          code: "custom",
+          path: ["columns", index, "field"],
+          message: `${field} must be included in select.`,
+        });
+    });
+    if (selection && !fields.has(selection.valueField))
+      ctx.addIssue({
+        code: "custom",
+        path: ["selection", "valueField"],
+        message: `${selection.valueField} must be included in select.`,
+      });
+  });
+
 const storedTableBlock = z.strictObject({
   id: notebookDocumentId,
   schema: z.literal("table@1"),
-  props: z
-    .strictObject({
-      columns: z.array(notebookDocumentLabel).min(1).max(20),
-      rows: z
-        .array(
-          z.strictObject({
-            id: notebookDocumentId,
-            cells: z.array(z.union([z.string().max(2048), z.number()])).max(20),
-          }),
-        )
-        .max(500),
-    })
-    .refine(
-      ({ columns, rows }) =>
-        new Set(rows.map(({ id }) => id)).size === rows.length &&
-        rows.every(({ cells }) => cells.length === columns.length),
-      "Table rows must have unique IDs and match the column count.",
-    ),
+  props: z.union([staticTableProps, liveTableProps]),
 });
 const inputTableBlock = storedTableBlock.extend({
   id: notebookDocumentId.optional(),
@@ -533,7 +586,6 @@ type NotebookInputBlock =
   | (z.infer<typeof inputRowBlock> & {
       props: {
         children: NotebookInputBlock[];
-        widths?: number[];
       };
     });
 
@@ -563,7 +615,6 @@ export const notebookInputBlockSchema: z.ZodType<NotebookInputBlock> =
     inputButtonBlock,
     inputRowBlock.extend({
       props: z.strictObject({
-        widths: rowWidths,
         get children(): z.ZodType<NotebookInputBlock[]> {
           return z.array(notebookInputBlockSchema).max(MAX_NOTEBOOK_BLOCKS);
         },

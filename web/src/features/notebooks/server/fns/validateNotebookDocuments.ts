@@ -4,6 +4,7 @@ import { MAIN_NOTEBOOK_DOCUMENT, type NotebookLayout } from "../../schema";
 import { getNotebookLayoutDocumentIds } from "./getNotebookLayoutDocumentIds";
 import { parseDocument } from "./parseDocument";
 import { resolveNotebookPort } from "../../ports";
+import { findNotebookBlock } from "./findNotebookBlock";
 import { getNotebookPresentationWarnings } from "../../presentation";
 import { hasMarkdownTable, markdownTableError } from "./findMarkdownTable";
 
@@ -99,6 +100,32 @@ export function validateNotebookDocuments(
         });
       inputs.add(key);
     } else {
+      if ("liveSelectionValueField" in port) {
+        const inputPort =
+          port.liveSelectionValueField === "id"
+            ? "observationId"
+            : "resourceId";
+        for (const consumer of layout.bindings ?? []) {
+          if (consumer.kind !== "read" || consumer.variableId !== variable.id)
+            continue;
+          const target = findNotebookBlock(
+            blocks.get(consumer.to.documentId) ?? [],
+            consumer.to.elementId,
+          )?.block;
+          if (
+            consumer.to.documentId !== ref.documentId ||
+            target?.schema !== "embed@1" ||
+            target.props.target.kind !== "trace" ||
+            consumer.to.portId !== inputPort
+          ) {
+            errors.push({
+              documentId: consumer.to.documentId,
+              blockId: consumer.to.elementId,
+              message: `Live observation selection can only drive a trace embed's ${inputPort} input in the same document.`,
+            });
+          }
+        }
+      }
       if (domains.has(variable.id))
         errors.push({
           message: `Variable ${variable.id} already has a selection source.`,

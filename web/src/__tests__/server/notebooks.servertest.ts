@@ -90,14 +90,14 @@ describe("notebooks", () => {
     ).resolves.toMatchObject({ version: 2, dirty: true });
     await expect(caller.notebooks.view(key)).resolves.toMatchObject({
       isDraft: true,
-      width: "full",
+      document: { width: "full" },
     });
     await expect(
       caller.notebooks.view({ ...key, version: 2 }),
-    ).resolves.toMatchObject({ width: "contained" });
+    ).resolves.toMatchObject({ document: { width: "contained" } });
     await expect(
       caller.notebooks.view({ ...key, documentId: detail.documentId }),
-    ).resolves.toMatchObject({ width: "full" });
+    ).resolves.toMatchObject({ document: { width: "full" } });
 
     await expect(writeDocument({ ...main, jsonl })).resolves.toMatchObject({
       width: "full",
@@ -173,17 +173,14 @@ describe("notebooks", () => {
     });
     await expect(caller.notebooks.view(key)).resolves.toMatchObject({
       isDraft: true,
-      blocks: first.blocks,
+      config: { layout: { kind: expect.any(String) } },
+      document: { blocks: first.blocks },
+      variables: [],
     });
-    await expect(
-      caller.notebooks.view({ ...key, documentId: issue.documentId }),
-    ).rejects.toThrow();
-    await expect(
-      caller.notebooks.view({ ...key, draftDocumentId: issue.documentId }),
-    ).resolves.toMatchObject({
+    const issueView = { ...key, documentId: issue.documentId };
+    await expect(caller.notebooks.view(issueView)).resolves.toMatchObject({
       isDraft: true,
-      documentId: issue.documentId,
-      blocks: issue.blocks,
+      document: { id: issue.documentId, blocks: issue.blocks },
     });
     await expect(outsider.notebooks.view(key)).rejects.toThrow(
       "Notebook not found.",
@@ -199,6 +196,11 @@ describe("notebooks", () => {
       version: 1,
       dirty: false,
       url: `/project/${projectId}/notebooks/${notebookId}?version=1`,
+    });
+    await expect(caller.notebooks.view(issueView)).resolves.toMatchObject({
+      isDraft: false,
+      version: 1,
+      document: { id: issue.documentId, blocks: issue.blocks },
     });
     const second = await writeDocument({
       ...key,
@@ -216,13 +218,19 @@ describe("notebooks", () => {
     });
     await expect(caller.notebooks.view(key)).resolves.toMatchObject({
       isDraft: true,
-      blocks: unpublished.blocks,
+      document: { blocks: unpublished.blocks },
     });
     await expect(
       caller.notebooks.view({ ...key, documentId: "main" }),
     ).resolves.toMatchObject({
+      isDraft: true,
+      document: { blocks: unpublished.blocks },
+    });
+    await expect(
+      caller.notebooks.view({ ...key, documentId: "main", version: 2 }),
+    ).resolves.toMatchObject({
       version: 2,
-      blocks: second.blocks,
+      document: { blocks: second.blocks },
       versions: [
         { number: 2, publishedAt: expect.any(Date) },
         { number: 1, publishedAt: expect.any(Date) },
@@ -234,7 +242,10 @@ describe("notebooks", () => {
         documentId: issue.documentId,
         version: 1,
       }),
-    ).resolves.toMatchObject({ version: 1, blocks: issue.blocks });
+    ).resolves.toMatchObject({
+      version: 1,
+      document: { blocks: issue.blocks },
+    });
 
     await expect(
       publishNotebook({ ...key, sourceVersion: 1 }),
@@ -288,7 +299,7 @@ describe("notebooks", () => {
       errors: [{ documentId: "missing" }, { documentId }],
     });
     await expect(
-      caller.notebooks.view({ ...key, draftDocumentId: documentId }),
+      caller.notebooks.view({ ...key, documentId }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(publishNotebook(key)).rejects.toBeInstanceOf(
       InvalidRequestError,
@@ -375,8 +386,8 @@ describe("notebooks", () => {
     });
     await expect(caller.notebooks.view(key)).resolves.toMatchObject({
       isDraft: true,
-      layout: inbox,
-      documentId,
+      config: { layout: inbox },
+      document: { id: documentId },
     });
     await expect(publishNotebook(key)).resolves.toMatchObject({
       version: 3,
@@ -385,14 +396,14 @@ describe("notebooks", () => {
     await expect(
       caller.notebooks.view({ ...key, version: 1 }),
     ).resolves.toMatchObject({
-      documentId: "main",
-      layout: { kind: "tabs" },
+      document: { id: "main" },
+      config: { layout: { kind: "tabs" } },
     });
     await expect(
       caller.notebooks.view({ ...key, version: 3 }),
     ).resolves.toMatchObject({
-      documentId,
-      layout: inbox,
+      document: { id: documentId },
+      config: { layout: inbox },
     });
   });
 

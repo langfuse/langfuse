@@ -3,7 +3,10 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { ScoreDataTypeEnum, ScoreSourceEnum } from "@langfuse/shared";
 import {
   convertDateToClickhouseDateTime,
+  getObservationByIdFromEventsTable,
+  getObservationByIdFromObservationsTable,
   getTraceById,
+  getObservationsV2FromEventsTableForPublicApi,
   shouldSkipScoresDedup,
   upsertScore,
 } from "@langfuse/shared/src/server";
@@ -77,28 +80,37 @@ export const notebookRouter = createTRPCRouter({
       return listNotebooks(input);
     }),
 
-  view: notebookDocument
-    .input(z.object({ draftDocumentId: notebookDocumentId.optional() }))
-    .query(async ({ input }) => {
-      const { notebookId, documentId, version, draftDocumentId } = input;
-      if (draftDocumentId && (documentId || version)) {
-        throw new InvalidRequestError(
-          "Choose either a draft document or a published view.",
-        );
-      }
-      const document = await readDocument({
-        notebookId,
-        documentId: draftDocumentId ?? documentId,
-        version,
-        projectId: input.projectId,
-        staged: draftDocumentId !== undefined,
-        preferStaged: !documentId && !version,
-        respectLayout: true,
-        includeSelectionDomains: true,
-      });
-      const { jsonl: _jsonl, ...view } = document;
-      return view;
-    }),
+  view: notebookDocument.query(async ({ input }) => {
+    const document = await readDocument({
+      ...input,
+      preferStaged: true,
+      respectLayout: true,
+      includeVariableChoices: true,
+    });
+    const {
+      jsonl: _jsonl,
+      layout: { variables, bindings, ...layout },
+      variableChoices,
+      documentId: resolvedDocumentId,
+      blocks,
+      width,
+      dirty,
+      url,
+      ...view
+    } = document;
+    const choicesByVariableId = new Map(
+      variableChoices?.map(({ variableId, choices }) => [variableId, choices]),
+    );
+    return {
+      ...view,
+      config: { layout, bindings },
+      variables: (variables ?? []).map((variable) => {
+        const choices = choicesByVariableId.get(variable.id);
+        return { ...variable, ...(choices === undefined ? {} : { choices }) };
+      }),
+      document: { id: resolvedDocumentId, blocks, width, dirty, url },
+    };
+  }),
 
   executeAction: notebookDocument
     .input(
@@ -251,6 +263,98 @@ export const notebookRouter = createTRPCRouter({
           return { id };
         }
       }
+    }),
+
+  observationTarget: protectedProjectProcedureWithoutTracing
+    .input(
+      z.object({
+        projectId: z.string().min(1),
+        observationId: z.string().min(1).max(2048),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "traces:read",
+      });
+      const org = ctx.session.user.organizations.find((org) =>
+        org.projects.some(({ id }) => id === input.projectId),
+      );
+      const { accessFloor: startTimeLowerBound } = clampToDataAccessDays({
+        plan: org?.plan ?? null,
+      });
+      const lookup =
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
+          ? getObservationByIdFromEventsTable
+          : getObservationByIdFromObservationsTable;
+      const observation = await lookup({
+        id: input.observationId,
+        projectId: input.projectId,
+        startTimeLowerBound,
+      });
+      if (
+        !observation ||
+        (startTimeLowerBound && observation.startTime < startTimeLowerBound)
+      )
+        throw new LangfuseNotFoundError("Observation not found.");
+      return { traceId: observation.traceId };
+    }),
+
+  liveTable: notebookDocument
+    .input(
+      z.object({ blockId: notebookDocumentId, staged: z.boolean().optional() }),
+    )
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "traces:read",
+      });
+      if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy")
+        throw new InvalidRequestError(
+          "Live observation tables require Events V4.",
+        );
+      const document = await readDocument({ ...input, respectLayout: true });
+      const block = findNotebookBlock(document.blocks, input.blockId)?.block;
+      if (block?.schema !== "table@1" || !("source" in block.props))
+        throw new LangfuseNotFoundError("Live table block not found.");
+      const {
+        source: { query },
+        selection,
+        columns,
+      } = block.props;
+      const org = ctx.session.user.organizations.find((org) =>
+        org.projects.some(({ id }) => id === input.projectId),
+      );
+      const now = new Date();
+      const fromTimestamp = new Date(
+        now.getTime() - query.lookbackHours * 3600000,
+      );
+      const { effectiveFromTimestamp } = clampToDataAccessDays({
+        plan: org?.plan ?? null,
+        fromTimestamp: fromTimestamp.toISOString(),
+      });
+      if (effectiveFromTimestamp && effectiveFromTimestamp >= now) return [];
+      const observations = await getObservationsV2FromEventsTableForPublicApi({
+        projectId: input.projectId,
+        page: 0,
+        limit: query.limit,
+        name: query.name,
+        fromStartTime: (effectiveFromTimestamp ?? fromTimestamp).toISOString(),
+        toStartTime: now.toISOString(),
+        fields: ["core"],
+      });
+      return observations.slice(0, query.limit).map((row) => ({
+        id: JSON.stringify([row.traceId, row.id]),
+        value: selection ? row[selection.valueField] : undefined,
+        cells: columns.map(({ field }) => {
+          const value = row[field];
+          return value instanceof Date
+            ? value.toISOString()
+            : String(value ?? "");
+        }),
+      }));
     }),
 
   chart: notebookDocument

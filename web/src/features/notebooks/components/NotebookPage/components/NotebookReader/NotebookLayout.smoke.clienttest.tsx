@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState, type ComponentProps } from "react";
 import {
   notebookLayoutSchema,
@@ -22,7 +22,76 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
+});
+
+it("follows draft growth only at the bottom and expires the creation skeleton", () => {
+  vi.useFakeTimers();
+  let onResize: (() => void) | undefined;
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      constructor(callback: ResizeObserverCallback) {
+        onResize = () => callback([], this);
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  render(
+    <NotebookReader
+      view={{
+        documentId: "main",
+        documents: [],
+        version: null,
+        layout: notebookLayoutSchema.parse({ kind: "default" }),
+        blocks: [],
+      }}
+      unpublishedUpdatedAt={new Date(Date.now() - 119_000)}
+      isLoadingDocument={false}
+      onDocumentChange={() => {}}
+      renderChart={() => null}
+    />,
+  );
+  const skeleton = screen.getByRole("status", {
+    name: "Notebook is being written",
+  });
+  const scroll = skeleton.parentElement?.parentElement;
+  if (!scroll) throw new Error("Missing notebook scroll panel.");
+  let height = 600;
+  let scrollTop = 400;
+  Object.defineProperties(scroll, {
+    clientHeight: { value: 200 },
+    scrollHeight: { get: () => height },
+    scrollTop: {
+      get: () => scrollTop,
+      set: (value: number) => {
+        scrollTop = Math.min(value, height - 200);
+      },
+    },
+  });
+
+  fireEvent.scroll(scroll);
+  height = 800;
+  onResize?.();
+  expect(scroll.scrollTop).toBe(600);
+
+  scroll.scrollTop = 300;
+  fireEvent.scroll(scroll);
+  height = 1000;
+  onResize?.();
+  expect(scroll.scrollTop).toBe(300);
+
+  scroll.scrollTop = 800;
+  fireEvent.scroll(scroll);
+  height = 1200;
+  onResize?.();
+  expect(scroll.scrollTop).toBe(1000);
+
+  act(() => vi.advanceTimersByTime(1000));
+  expect(skeleton).not.toBeInTheDocument();
 });
 
 it("updates a session embed inside a row without changing the fixed trace", () => {
@@ -112,6 +181,79 @@ it("updates a session embed inside a row without changing the fixed trace", () =
     "href",
     "/project/example/traces/fixed",
   );
+});
+
+it("passes the selected row's observation ID to the trace embed", () => {
+  render(
+    <NotebookReader
+      view={{
+        documentId: "main",
+        documents: [],
+        version: 1,
+        layout: notebookLayoutSchema.parse({
+          kind: "default",
+          variables: [{ id: "selected", name: "Selection", type: "string" }],
+          bindings: [
+            {
+              kind: "write",
+              variableId: "selected",
+              from: {
+                documentId: "main",
+                elementId: "calls",
+                portId: "selection",
+              },
+            },
+            {
+              kind: "read",
+              variableId: "selected",
+              to: {
+                documentId: "main",
+                elementId: "preview",
+                portId: "observationId",
+              },
+            },
+          ],
+        }),
+        blocks: [
+          storedNotebookBlockSchema.parse({
+            id: "calls",
+            schema: "table@1",
+            props: {
+              columns: ["Tool call"],
+              rows: [{ id: "observation-1", cells: ["Failed write"] }],
+            },
+          }),
+          storedNotebookBlockSchema.parse({
+            id: "preview",
+            schema: "embed@1",
+            props: { target: { kind: "trace" } },
+          }),
+        ],
+      }}
+      isLoadingDocument={false}
+      onDocumentChange={() => {}}
+      renderChart={() => null}
+      renderEmbed={(
+        _kind,
+        resourceId,
+        _variableName,
+        _sidebar,
+        observationId,
+      ) =>
+        observationId ? (
+          <p>Observation: {observationId}</p>
+        ) : (
+          <p>{resourceId ?? "No selection"}</p>
+        )
+      }
+    />,
+  );
+
+  const row = screen.getByText("Failed write");
+  fireEvent.click(row);
+  expect(screen.getByText("Observation: observation-1")).toBeVisible();
+  fireEvent.click(row);
+  expect(screen.getByText("No selection")).toBeVisible();
 });
 
 it("opens a legacy table notebook in Inbox and can switch documents", () => {
