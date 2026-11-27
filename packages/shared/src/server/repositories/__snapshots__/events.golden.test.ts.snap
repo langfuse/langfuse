@@ -5297,6 +5297,31 @@ LIMIT 1 BY e.trace_id",
 ]
 `;
 
+exports[`golden: events point-reads & existence family > getTraceTotalCostsFromEventsTable traceIds=set 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-trace",
+        "golden-trace-b",
+      ],
+      "param3": "2025-12-29 23:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.trace_id AS trace_id,
+    sum(e.total_cost) AS total_cost
+FROM events_core AS e
+WHERE (e.project_id = {param1:String})
+    AND (e.trace_id IN ({param2:Array(String)}))
+    AND (e.start_time >= {param3:DateTime64(6)})
+GROUP BY e.trace_id",
+  },
+]
+`;
+
 exports[`golden: events point-reads & existence family > hasAnySessionFromEventsTable 1`] = `
 [
   {

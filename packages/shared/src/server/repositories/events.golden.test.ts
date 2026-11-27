@@ -55,6 +55,7 @@ import {
   getSessionMetricsFromEvents,
   getTraceByIdFromEventsTable,
   getTraceMetadataByIdsFromEvents,
+  getTraceTotalCostsFromEventsTable,
   getTracesFromEventsTableForPublicApi,
   getTracesIdentifierForSessionFromEvents,
   hasAnySessionFromEventsTable,
@@ -189,6 +190,31 @@ describeWithClickhouse("golden: events point-reads & existence family", () => {
       traceIds: [FIXED_TRACE_ID, "golden-trace-b"],
     });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getTraceTotalCostsFromEventsTable traceIds=empty", async () => {
+    const result = await getTraceTotalCostsFromEventsTable({
+      projectId: FIXED_PROJECT_ID,
+      traceIds: [],
+      minStartTime: FIXED_START_TIME,
+    });
+    expect(result).toEqual([]);
+    expect(capturedQueries).toHaveLength(0);
+  });
+
+  it("getTraceTotalCostsFromEventsTable traceIds=set", async () => {
+    await getTraceTotalCostsFromEventsTable({
+      projectId: FIXED_PROJECT_ID,
+      traceIds: [FIXED_TRACE_ID, "golden-trace-b"],
+      minStartTime: FIXED_START_TIME,
+    });
+    const normalized = normalizeCapturedQueries(capturedQueries);
+    expect(normalized).toHaveLength(1);
+    const [{ sql, params }] = normalized;
+    expect(sql).toContain("WHERE (e.project_id = {param1:String})");
+    expect(params.param1).toBe(FIXED_PROJECT_ID);
+    expect(Object.values(params)).toContain("2025-12-29 23:00:00.000");
+    expect(normalized).toMatchSnapshot();
   });
 
   it("getObservationByIdFromEventsTable base", async () => {

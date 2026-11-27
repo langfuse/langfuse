@@ -3212,6 +3212,50 @@ export const deleteEventsOlderThanDays = async (
   return true;
 };
 
+export const getTraceTotalCostsFromEventsTable = async (opts: {
+  projectId: string;
+  traceIds: string[];
+  minStartTime: Date;
+}): Promise<Array<{ traceId: string; totalCost: number }>> => {
+  if (opts.traceIds.length === 0) {
+    return [];
+  }
+
+  const lowerBound = observationsToTraceLowerBound(
+    new Date(opts.minStartTime.getTime() - 60 * 60 * 1000),
+  );
+
+  const builder = getClickhouseKysely()
+    .selectFrom("events as e")
+    .select((eb) => [
+      "e.trace_id as trace_id",
+      eb.fn.sum("e.total_cost").as("total_cost"),
+    ])
+    .where("e.trace_id", "in", opts.traceIds)
+    .where("e.start_time", ">=", lowerBound)
+    .groupBy("e.trace_id");
+
+  const { sql: query, params } = compileClickhouseQuery(
+    builder,
+    opts.projectId,
+  );
+
+  const rows = await queryClickhouse<{
+    trace_id: string;
+    total_cost: string | number | null;
+  }>({
+    query,
+    params,
+    tags: { projectId: opts.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((r) => ({
+    traceId: r.trace_id,
+    totalCost: Number(r.total_cost ?? 0),
+  }));
+};
+
 export const getObservationsBatchIOFromEventsTable = async <
   TIncludeExperiment extends boolean = false,
   TIncludeToolCalls extends boolean = false,
