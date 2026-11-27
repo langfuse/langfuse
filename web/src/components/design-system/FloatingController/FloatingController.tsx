@@ -19,6 +19,10 @@ import {
   useRole,
   type Placement,
 } from "@floating-ui/react";
+import {
+  DismissableLayer,
+  DismissableLayerBranch,
+} from "@radix-ui/react-dismissable-layer";
 import * as React from "react";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
@@ -148,6 +152,7 @@ function FloatingController({
   role: overlayRole = "dialog",
   hoverableContent = true,
   isScrollable = false,
+  containInParentOverlay = false,
   onWheel,
   onTouchMove,
   ...props
@@ -182,6 +187,9 @@ function FloatingController({
   role?: "tooltip" | "dialog";
   hoverableContent?: boolean;
   isScrollable?: boolean;
+  // Keep click content inside a parent drawer or dialog so its focus trap and
+  // dismiss layer still treat the surface as inside the overlay.
+  containInParentOverlay?: boolean;
 }) {
   const isOpen = enabled && open;
   const layerContainer = useLayerContainer(
@@ -219,7 +227,9 @@ function FloatingController({
   const click = useClick(context, {
     enabled: enabled && interaction === "click",
   });
-  const dismiss = useDismiss(context);
+  const dismiss = useDismiss(context, {
+    bubbles: { escapeKey: !containInParentOverlay },
+  });
   const role = useRole(context, { role: overlayRole });
   const { getFloatingProps, getReferenceProps } = useInteractions([
     hover,
@@ -229,23 +239,33 @@ function FloatingController({
     role,
   ]);
   const getTriggerRef = useStableTriggerRef(refs.setReference);
-
-  return (
-    <>
-      {children({
-        getTriggerProps: (triggerProps) => ({
-          ...getReferenceProps(triggerProps),
-          ref: getTriggerRef(triggerProps?.ref),
-        }),
-      })}
-      {isOpen ? (
-        <FloatingPortal root={layerContainer}>
-          <FloatingFocusManager
-            context={context}
-            disabled={overlayRole === "tooltip"}
-            modal={false}
-            initialFocus={interaction === "click" ? 0 : -1}
-            returnFocus={returnFocus}
+  const parentOverlay = containInParentOverlay
+    ? refs.domReference.current?.closest<HTMLElement>(
+        "[data-vaul-drawer], [role='dialog']",
+      )
+    : null;
+  const content = (
+    <FloatingFocusManager
+      context={context}
+      disabled={overlayRole === "tooltip"}
+      modal={false}
+      initialFocus={interaction === "click" ? 0 : -1}
+      returnFocus={returnFocus}
+    >
+      {containInParentOverlay ? (
+        <DismissableLayerBranch className="contents">
+          <DismissableLayer
+            asChild
+            onDismiss={() => onOpenChange(false)}
+            onPointerDownOutside={(event) => {
+              const target = event.target;
+              if (
+                target instanceof Node &&
+                refs.domReference.current?.contains(target)
+              ) {
+                event.preventDefault();
+              }
+            }}
           >
             {renderContent(
               getContentProps({
@@ -260,7 +280,37 @@ function FloatingController({
                 onTouchMove,
               }),
             )}
-          </FloatingFocusManager>
+          </DismissableLayer>
+        </DismissableLayerBranch>
+      ) : (
+        renderContent(
+          getContentProps({
+            ...props,
+            getFloatingProps,
+            setFloating: refs.setFloating,
+            placement: resolvedPlacement,
+            floatingStyles,
+            middlewareData,
+            role: overlayRole,
+            onWheel,
+            onTouchMove,
+          }),
+        )
+      )}
+    </FloatingFocusManager>
+  );
+
+  return (
+    <>
+      {children({
+        getTriggerProps: (triggerProps) => ({
+          ...getReferenceProps(triggerProps),
+          ref: getTriggerRef(triggerProps?.ref),
+        }),
+      })}
+      {isOpen ? (
+        <FloatingPortal root={parentOverlay ?? layerContainer}>
+          {content}
         </FloatingPortal>
       ) : null}
     </>

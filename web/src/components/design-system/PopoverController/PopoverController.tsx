@@ -15,6 +15,7 @@ function PopoverController({
   return (
     <FloatingController
       {...props}
+      containInParentOverlay
       interaction={interaction}
       renderContent={(floatingProps) => (
         <div
