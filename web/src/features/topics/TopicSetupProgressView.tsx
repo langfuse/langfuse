@@ -2,10 +2,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { type TopicSetupStage } from "./topic-setup-flow";
-import {
-  type TopicPile,
-  TopicPilesIllustration,
-} from "./TopicPilesIllustration";
+import { type TopicPileBar, TopicPileBars } from "./TopicPileBars";
 
 type TopicSetupProgressFacet = {
   key: string;
@@ -59,14 +56,13 @@ export function TopicSetupProgressView({
     variant === "snapshot"
       ? snapshotCopy(failed)
       : progressCopy(failed, waiting);
-  const piles: TopicPile[] = PILE_SLOTS.map((pile, index) => ({
+  const piles: TopicPileBar[] = PILE_SLOTS.map((pile, index) => ({
     ...pile,
-    detail: "",
     filled: pileFill(pile.slots, index, tick),
   }));
   return (
     <div className="flex flex-1 flex-col items-center-safe justify-center-safe gap-6 overflow-y-auto px-4 pb-35">
-      <TopicPilesIllustration piles={piles} bare />
+      <TopicPileBars piles={piles} />
       <div className="flex flex-col items-center gap-2 text-center">
         <h2 className="text-3xl leading-tight font-bold tracking-tight text-balance">
           {copy.title}

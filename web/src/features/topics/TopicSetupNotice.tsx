@@ -82,27 +82,15 @@ export function TopicSetupNotice({
   );
 }
 
-// Decorative: trace summaries dropping into three example topics.
+// Decorative: three example topics, each with one example trace.
 const LANDING_PILES = [
-  { name: "Refunds", detail: "214", slots: 9, filled: 9, color: "violet" },
-  { name: "Order status", detail: "154", slots: 6, filled: 6, color: "blue" },
-  { name: "Address", detail: "96", slots: 4, filled: 4, color: "amber" },
+  { name: "Refunds", count: 412 },
+  { name: "Order status", count: 154 },
+  { name: "Address", count: 96 },
 ] as const;
 
 const LANDING_SLIPS = [
-  {
-    text: "Refund for a double charge",
-    color: "violet",
-    position: "top-7 left-15 -rotate-8",
-  },
-  {
-    text: "Package says delivered, not here",
-    color: "blue",
-    position: "top-1.5 left-47.5 rotate-5",
-  },
-  {
-    text: "Ship to my office instead",
-    color: "amber",
-    position: "top-13 left-67.5 -rotate-4",
-  },
+  { text: "double charge", tone: "error" },
+  { text: "not delivered", tone: "error" },
+  { text: "ship to office", tone: "ok" },
 ] as const;
