@@ -6,15 +6,8 @@ import type {
 import {
   GATEWAY_GUARDRAIL_PRESETS_BY_GROUP,
   type GatewayGuardrailPreset,
+  type GatewayGuardrailTemplateKind,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
-
-export type GatewayGuardrailTemplateKind =
-  | "pii"
-  | "secrets"
-  | "prompt_injection"
-  | "contains"
-  | "custom_regex"
-  | "bedrock";
 
 export type GatewayGuardrailTemplatePreview =
   | { kind: "snippet"; label: string; value: string }

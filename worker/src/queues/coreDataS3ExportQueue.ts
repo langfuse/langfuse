@@ -24,6 +24,7 @@ import {
 import { metricAggregations, viewDeclarations } from "@langfuse/shared/query";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
+import { exportMediaUsageHourly } from "./coreDataMediaUsageExport";
 
 const CORE_DATA_EXPORT_PAGE_SIZE = 1_000;
 const CORE_DATA_EXPORT_PART_SIZE_BYTES = 100 * 1024 * 1024;
@@ -1883,6 +1884,8 @@ export const coreDataTableExports: Array<
           },
         }),
     }),
+  // Incremental, one object per closed UTC day (see coreDataMediaUsageExport).
+  (args) => exportMediaUsageHourly(args),
 ];
 
 export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {

@@ -440,7 +440,10 @@ impl InferenceService {
             } else {
                 None
             };
-            let guardrails = self.guardrails.check(api_format, &context, request).await?;
+            let guardrails = self
+                .guardrails
+                .check(api_format, &context, request, correlation.observation())
+                .await?;
             if let Some(rejection) = guardrails.rejection() {
                 let error = ResolutionError::GuardrailBlocked(rejection);
                 let findings = guardrails.into_findings();

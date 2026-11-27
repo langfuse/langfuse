@@ -58,6 +58,14 @@ function ciPluralAlt(...words: string[]) {
 // Explicit ASCII whitespace so browser `RegExp(..., "gu")` matches the Rust ASCII engine.
 const ASCII_WS = String.raw`[ \t\r\n]+`;
 
+export type GatewayGuardrailTemplateKind =
+  | "pii"
+  | "secrets"
+  | "prompt_injection"
+  | "contains"
+  | "custom_regex"
+  | "bedrock";
+
 /**
  * Built-in rules a regex guardrail can use. Resolve sends the patterns, so the
  * gateway holds no preset logic and a pattern change ships with the control

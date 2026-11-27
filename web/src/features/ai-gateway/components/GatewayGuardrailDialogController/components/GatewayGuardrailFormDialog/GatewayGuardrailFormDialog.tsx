@@ -35,7 +35,6 @@ import {
   GATEWAY_GUARDRAIL_PRESET_LABELS,
   GATEWAY_GUARDRAIL_TEMPLATES,
   getGuardrailTypeForTemplate,
-  type GatewayGuardrailTemplateKind,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
 import { RegionSelect } from "@/src/features/ai-gateway/components/RegionSelect";
 import { bedrockRegionGroups } from "@/src/features/ai-gateway/constants/bedrockRegions";
@@ -77,6 +76,7 @@ import {
   validateContainsWordsText,
   validateSecretPrefix,
   type GatewayGuardrailPreset,
+  type GatewayGuardrailTemplateKind,
   type GatewayGuardrailUiAction,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import type {
