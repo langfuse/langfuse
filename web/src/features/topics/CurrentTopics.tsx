@@ -1,5 +1,7 @@
 import { type ComponentProps, useMemo, useRef } from "react";
+import { useRouter } from "next/router";
 import { CircleAlert } from "@langfuse/icons";
+import { type FilterState } from "@langfuse/shared";
 import { TopicsCenteredState } from "./TopicsCenteredState";
 import { Spinner } from "@/src/components/layouts/Spinner";
 import { cn } from "@/src/utils/tailwind";
@@ -15,6 +17,7 @@ import {
   useMobileTopicsVisualization,
 } from "./TopicsResultsViewSelect";
 import type { useTopicTraceFilters } from "./useTopicTraceFilters";
+import { useTopicResultsTraceSuggestions } from "./useTopicTraceFilter";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
@@ -169,8 +172,7 @@ function CurrentFacet({
       );
     if (view === "scatter")
       return (
-        <ScatterTopicsView
-          key={facet.facetId}
+        <DesktopScatterTopics
           projectId={projectId}
           facet={facet}
           mapResult={mapResult}
@@ -178,8 +180,6 @@ function CurrentFacet({
           showUnassigned={showUnassigned}
           peekView={peekView}
           tracePanelRef={tracePanelRef}
-          useTraces={useFacetTopicTraces}
-          onOpenTrace={peekNavigation.openPeek}
         />
       );
     return (
@@ -193,6 +193,78 @@ function CurrentFacet({
       />
     );
   }
+}
+
+function DesktopScatterTopics({
+  projectId,
+  facet,
+  mapResult,
+  traceFilters,
+  showUnassigned,
+  peekView,
+  tracePanelRef,
+}: Pick<
+  CurrentFacetProps,
+  "projectId" | "facet" | "traceFilters" | "showUnassigned" | "tracePanelRef"
+> & {
+  mapResult: ComponentProps<typeof ScatterTopicsView>["mapResult"];
+  peekView: ComponentProps<typeof ScatterTopicsView>["peekView"];
+}) {
+  const router = useRouter();
+  const peekTraceId =
+    typeof router.query.peek === "string" ? router.query.peek : null;
+  const [selectedTraceId, setSelectedTraceId] = useSessionStorage<
+    string | null
+  >(`topics-selected-trace:${projectId}`, null);
+  const traceFields = useTopicResultsTraceSuggestions(projectId);
+  const [, traceFieldFilters] = splitTopicTraceFilters(traceFilters.filters);
+  const traceFieldMatches = useTraceFieldMatches(
+    projectId,
+    facet.map?.runId,
+    traceFieldFilters,
+  );
+  return (
+    <ScatterTopicsView
+      key={facet.facetId}
+      projectId={projectId}
+      facet={facet}
+      mapResult={mapResult}
+      traceFilters={traceFilters}
+      showUnassigned={showUnassigned}
+      peekView={peekView}
+      peekTraceId={peekTraceId}
+      selectedTraceId={selectedTraceId}
+      onSelectTrace={setSelectedTraceId}
+      traceFields={traceFields}
+      traceFieldMatches={traceFieldMatches}
+      tracePanelRef={tracePanelRef}
+      useTraces={useFacetTopicTraces}
+    />
+  );
+}
+
+/**
+ * The map's traces that meet the trace field filters; undefined while there are none
+ * or before the first answer. A changed filter keeps the last highlight until it loads.
+ */
+function useTraceFieldMatches(
+  projectId: string,
+  runId: string | undefined,
+  filters: FilterState,
+) {
+  const enabled = Boolean(runId) && filters.length > 0;
+  const matches = api.topics.mapMatches.useQuery(
+    { projectId, runId: runId ?? "", filter: filters },
+    { enabled, placeholderData: keepPreviousData },
+  );
+  const traceIds = enabled ? matches.data?.traceIds : undefined;
+  const failed = enabled && matches.isError;
+  const ids = useMemo(
+    // A failed match dims every dot rather than lighting traces that may not match.
+    () => (failed ? new Set<string>() : traceIds && new Set(traceIds)),
+    [failed, traceIds],
+  );
+  return { ids, error: failed ? matches.error : null };
 }
 
 function MobileTopics({

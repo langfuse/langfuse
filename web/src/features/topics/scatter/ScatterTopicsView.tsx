@@ -1,6 +1,4 @@
-import { useMemo, type ComponentProps, type ReactNode } from "react";
-import { useRouter } from "next/router";
-import { keepPreviousData } from "@tanstack/react-query";
+import { useMemo, useState, type ComponentProps, type ReactNode } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { useMediaQuery } from "react-responsive";
 import {
@@ -10,7 +8,6 @@ import {
   useDefaultLayout,
 } from "@/src/components/ui/resizable";
 import { cn } from "@/src/utils/tailwind";
-import { api } from "@/src/utils/api";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { TopicsEmptyState } from "../TopicsEmptyState";
 import {
@@ -18,6 +15,7 @@ import {
   orderedFacetTopics,
   type TopicTraceQuery,
   type UseTopicTraces,
+  useTracesWithSelection,
 } from "../facet-topics";
 import {
   prepareTopicDisplay,
@@ -26,6 +24,7 @@ import {
 } from "../prepare-topic-display";
 import { TopicTraceList } from "../TopicTraceList";
 import { TopicsSplit } from "../TopicsSplit";
+import { type TopicsTraceToolbar } from "../TopicsTraceToolbar";
 import {
   scatterSwatchColor,
   UNASSIGNED_SWATCH_COLOR,
@@ -36,7 +35,6 @@ import {
   topicTraceQuery,
 } from "../topic-trace-filters";
 import { type useTopicTraceFilters } from "../useTopicTraceFilters";
-import { useTopicResultsTraceSuggestions } from "../useTopicTraceFilter";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { useTopicsCapture } from "../useTopicsCapture";
 import { ScatterMap } from "./ScatterMap";
@@ -49,22 +47,30 @@ export function ScatterTopicsView({
   traceFilters,
   showUnassigned,
   peekView,
+  peekTraceId = null,
+  selectedTraceId,
+  onSelectTrace,
+  traceFields,
+  traceFieldMatches,
   tracePanelRef,
   useTraces,
-  onOpenTrace,
 }: ScatterTopicsViewProps) {
-  // A dot click opens its trace in the peek; the map keeps that dot's card open while the peek shows it.
-  const router = useRouter();
+  // Clicking a dot while a peek is closing ignores only that in-flight peek id
+  // until the URL catches up, so Back/Forward reopening a peek still takes over.
+  const [dismissedPeekId, setDismissedPeekId] = useState<string | null>(null);
+  if (dismissedPeekId !== null && peekTraceId !== dismissedPeekId) {
+    setDismissedPeekId(null);
+  }
+  const activePeekTraceId =
+    peekTraceId && peekTraceId !== dismissedPeekId ? peekTraceId : null;
+  const listSelectedTraceId = activePeekTraceId ? null : selectedTraceId;
   const capture = useTopicsCapture();
-  const peekTraceId =
-    typeof router.query.peek === "string" ? router.query.peek : null;
   // The rows are the map's legend, so they take the scatter's colors.
   const topics = withScatterColors(
     prepareTopicDisplay(facet, "treemap").topics,
   );
   // A stable list keeps the highlight set, and so a pinned card, across selection re-renders.
   const searchTopics = useMemo(() => orderedFacetTopics(facet), [facet]);
-  const traceFieldSuggestions = useTopicResultsTraceSuggestions(projectId);
   // Trace field filters (session, user, tags, …) narrow whatever the topic filters select.
   const [topicFieldFilters, traceFieldFilters] = splitTopicTraceFilters(
     traceFilters.filters,
@@ -80,7 +86,11 @@ export function ScatterTopicsView({
     !selected &&
     (traceFilters.filters.length > 0 ||
       Boolean(traceFilters.searchQuery?.trim()));
-  const traces = useTraces(listQuery());
+  const traces = useTracesWithSelection(
+    useTraces,
+    listQuery(),
+    listSelectedTraceId,
+  );
   function listQuery(): TopicTraceQuery | null {
     if (isSearching)
       return topicTraceQuery(
@@ -105,6 +115,7 @@ export function ScatterTopicsView({
         surface,
         isUnassigned: topicId === UNASSIGNED_TOPIC_ID,
       });
+    onSelectTrace(null);
     traceFilters.setSearchQuery(null);
     traceFilters.setFilters([
       ...(topicId === null || topicId === selectedTopicId
@@ -173,23 +184,37 @@ export function ScatterTopicsView({
         .map((point) => point.traceId),
     );
   }, [mapData, selectedTopicId, isSearching, searchKey, searchTopics]);
-  const { ids: traceFieldMatches, error: traceFieldMatchesError } =
-    useTraceFieldMatches(projectId, facet.map?.runId, traceFieldFilters);
+  const traceFieldMatchIds = traceFieldMatches?.ids;
+  const traceFieldMatchesError = traceFieldMatches?.error ?? null;
   // Topic filters and trace field filters both have to match for a dot to stay lit.
   const highlightedTraceIds = useMemo(() => {
-    if (!traceFieldMatches || mapData?.status !== "ready")
+    if (!traceFieldMatchIds || mapData?.status !== "ready")
       return topicHighlightIds;
-    if (!topicHighlightIds) return traceFieldMatches;
+    if (!topicHighlightIds) return traceFieldMatchIds;
     return new Set(
-      [...topicHighlightIds].filter((id) => traceFieldMatches.has(id)),
+      [...topicHighlightIds].filter((id) => traceFieldMatchIds.has(id)),
     );
-  }, [topicHighlightIds, traceFieldMatches, mapData?.status]);
+  }, [topicHighlightIds, traceFieldMatchIds, mapData?.status]);
   // The map shows a selection only while it still matches, like the list.
+  const activeTraceId = activePeekTraceId ?? selectedTraceId;
   const mapSelectedTraceId =
-    peekTraceId &&
-    (!highlightedTraceIds || highlightedTraceIds.has(peekTraceId))
-      ? peekTraceId
+    activeTraceId &&
+    (!highlightedTraceIds || highlightedTraceIds.has(activeTraceId))
+      ? activeTraceId
       : null;
+  const listPeekView = useMemo<DataTablePeekViewProps>(
+    () => ({
+      ...peekView,
+      openPeek: peekView.openPeek
+        ? (...args) => {
+            setDismissedPeekId(null);
+            if (args[0] !== selectedTraceId) onSelectTrace(null);
+            peekView.openPeek?.(...args);
+          }
+        : undefined,
+    }),
+    [peekView, selectedTraceId, onSelectTrace],
+  );
   if (facet.topics.length === 0) {
     return <TopicsEmptyState />;
   }
@@ -248,10 +273,16 @@ export function ScatterTopicsView({
                         : selectTopic(topicId, "map")
                     }
                     onSelectTrace={(traceId) => {
-                      if (!traceId) return clearPickedTopic();
+                      if (!traceId) {
+                        setDismissedPeekId(peekTraceId);
+                        onSelectTrace(null);
+                        if (!mapSelectedTraceId) clearPickedTopic();
+                        return;
+                      }
+                      setDismissedPeekId(peekTraceId);
+                      onSelectTrace(traceId);
                       if (document.fullscreenElement)
                         document.exitFullscreen().catch(() => undefined);
-                      onOpenTrace(traceId);
                     }}
                     selectedTraceId={mapSelectedTraceId}
                     pinSelection
@@ -284,7 +315,8 @@ export function ScatterTopicsView({
               ? undefined
               : { facet, name: selected.name }
           }
-          peekView={peekView}
+          peekView={listPeekView}
+          selectedTraceId={listSelectedTraceId}
           tracePanelRef={tracePanelRef}
           divider="none"
           emptyMessage={
@@ -298,7 +330,7 @@ export function ScatterTopicsView({
             onFiltersChange: traceFilters.setFilters,
             searchQuery: traceFilters.searchQuery,
             onSearchQueryChange: traceFilters.setSearchQuery,
-            traceFields: traceFieldSuggestions,
+            traceFields,
           }}
         />
       }
@@ -315,9 +347,18 @@ type ScatterTopicsViewProps = {
   /** Off hides unassigned traces from the search results too. */
   showUnassigned: boolean;
   peekView: DataTablePeekViewProps;
+  /** The trace currently open in the peek drawer, if any. */
+  peekTraceId?: string | null;
+  /** The trace highlighted from the scatter map. */
+  selectedTraceId: string | null;
+  onSelectTrace: (traceId: string | null) => void;
+  traceFields?: ComponentProps<typeof TopicsTraceToolbar>["traceFields"];
+  traceFieldMatches?: {
+    ids: ReadonlySet<string> | undefined;
+    error: { message: string } | null;
+  };
   tracePanelRef?: (element: HTMLElement | null) => void;
   useTraces: UseTopicTraces;
-  onOpenTrace: (traceId: string) => void;
 };
 
 const MAP_AND_ROWS_PANEL_IDS = ["map", "rows"];
@@ -433,30 +474,6 @@ function useScatterMapTopics(facet: Facet) {
       };
     });
   }, [mapTopics, rankKey]);
-}
-
-/**
- * The map's traces that meet the trace field filters; undefined while there are none
- * or before the first answer. A changed filter keeps the last highlight until it loads.
- */
-function useTraceFieldMatches(
-  projectId: string,
-  runId: string | undefined,
-  filters: FilterState,
-) {
-  const enabled = Boolean(runId) && filters.length > 0;
-  const matches = api.topics.mapMatches.useQuery(
-    { projectId, runId: runId ?? "", filter: filters },
-    { enabled, placeholderData: keepPreviousData },
-  );
-  const traceIds = enabled ? matches.data?.traceIds : undefined;
-  const failed = enabled && matches.isError;
-  const ids = useMemo(
-    // A failed match dims every dot rather than lighting traces that may not match.
-    () => (failed ? new Set<string>() : traceIds && new Set(traceIds)),
-    [failed, traceIds],
-  );
-  return { ids, error: failed ? matches.error : null };
 }
 
 /** One topic picked in the list or on the map, as a search-bar filter. */
