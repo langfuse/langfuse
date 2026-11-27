@@ -5,9 +5,15 @@ import { type ApiAccessScope } from "@langfuse/shared/src/server";
 
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 
-/** authorizeBlobStorageRequest gates a blob-storage request on an organization key and the blob-export entitlement, returning the verified scope. */
+/**
+ * authorizeBlobStorageRequest gates a blob-storage request on an organization key and, unless
+ * `requireEntitlement` is false, the blob-export entitlement, returning the verified scope.
+ * Reads and deletes pass false so an organization that lost the entitlement can inspect and
+ * remove its integrations.
+ */
 export async function authorizeBlobStorageRequest(
   req: NextApiRequest,
+  { requireEntitlement = true }: { requireEntitlement?: boolean } = {},
 ): Promise<ApiAccessScope> {
   const authCheck = await shadowAuth({
     req,
@@ -18,6 +24,7 @@ export async function authorizeBlobStorageRequest(
     throw authCheck.error;
   }
   if (
+    requireEntitlement &&
     !hasEntitlementBasedOnPlan({
       plan: authCheck.scope.plan,
       entitlement: "scheduled-blob-exports",

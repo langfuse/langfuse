@@ -24,7 +24,7 @@ Optimize the cost/performance tradeoff: run the smallest reliable container foot
 - Use exact OpenTofu math for markers. Do not mental-math `ceil(target * boundary)` because Terraform float behavior can produce off-by-one results.
 - For `web` and `web-iso`, do not reduce RPM per container solely because service latency is high. First inspect full APM traces, including ClickHouse spans, to distinguish container saturation from database-bound requests.
 - If slow `web-iso` traces are dominated by ClickHouse child spans, do not lower RPM targets as the primary fix. Lowering RPM changes web-container scaling and request distribution, but it does not reduce ClickHouse query cost, total query workload, or an individual long-running query duration.
-- If scaling should be adjusted, create or update a GitHub PR. For the Linear follow-up, comment the evidence onto a ticket that already exists and label it; a new ticket has no parent, so show it and file it once that is approved, and never assign it. Step 8 has the detail.
+- If scaling should be adjusted, create or update a GitHub PR. Step 8 has the detail.
 
 ## Files
 
@@ -199,7 +199,7 @@ git diff main..HEAD --stat
 
 Run a full plan only when credentials and workspace setup are available or the user requests it. Otherwise rely on Atlantis to plan the PR.
 
-7. Summarize the outcome:
+7. Summarize the outcome in chat unless the user requested another destination:
 
 - List final target, boundary, scale-down marker, scale-up marker, min, max, and CPU for each changed region.
 - Always include a Markdown recommendation table with one row per reviewed region/container, not only changed rows. Use columns: `Region`, `Container`, `Recommended change`, and `Reasoning`. In `Recommended change`, say exactly what to change or `No change`. In `Reasoning`, cite the deciding evidence, such as CPU/load, latency/errors, event-loop metrics, and whether slow traces were ClickHouse-bound. Also state the cost/performance tradeoff, such as `saves idle floor cost while preserving burst max`, `keeps extra headroom because event-loop risk is elevated`, or `no cost lever because already at HA floor`.
@@ -207,22 +207,12 @@ Run a full plan only when credentials and workspace setup are available or the u
 - Mention checks run and whether a full plan was not run.
 - Return valid Markdown. Use valid headings, lists, links, tables, and code fences; include spaces after list markers; close every link, parenthesis, and code fence; and check for malformed tables before returning.
 
-8. Create a GitHub PR and record the Linear follow-up when scaling should be adjusted:
+8. Create or update a GitHub PR when the recommendation includes a concrete scaling change or Terraform scaling settings were edited:
 
-- Trigger this when the recommendation table contains at least one concrete scaling change, or when Terraform scaling settings were edited. Do not create a ticket for an all-`No change` review unless the user explicitly asks.
-- Ensure there is a GitHub PR for the scaling change. If no PR exists yet, create one. Include the recommendation summary, validation, and rollout risks in the PR body.
-- Only three write shapes are permitted and each must be labelled and marked as agent-written. [`linear-agent-writes`](../linear-agent-writes/SKILL.md) is the authority; read it before your first write. For this skill: **evidence on an existing ticket and a new parentless ticket both need a yes** — show the comment / description block or the new title and body in the table, take one go-ahead for the set (or named rows), then write and label (`AI commented`, `AI edited`, or `AI created`).
-- Report what you wrote and what still needs a human:
-
-| ID | Finding | Evidence | Impact / Scope | Existing Ticket Match | Action | Confidence |
-| --- | --- | --- | --- | --- | --- | --- |
-| F1 | Scaling adjustment summary | Measured evidence, trace links, PR URL, or `No measurements found` | Affected env, service, route, customer segment, or blast radius supported by evidence | Existing issue key/link, duplicate candidate, or `None found` | `commented <key>`, `edited <key>`, `awaiting your go-ahead` plus the exact title and body, `filed <key>`, or `no action` | High/medium/low plus one short reason |
-
-- One ticket for the scaling adjustment, not one per region, unless the user requests separate tickets. Never leave an `awaiting your go-ahead` row without the full body — that text is what is being approved.
-- Do not assign an owner, move state, close, or re-prioritise — those stay with a human. Surface them as suggestions, and never propose an assignee the user did not name.
-- Include the full skill output in the ticket description: recommendation table, measured evidence, trace interpretation, proposed or applied Terraform changes, marker math, validation results, plan status, PR URL, and known rollout risks.
-- Put the PR URL in the Linear ticket. Do not put the ticket identifier or its URL in the PR body or a PR comment — this repo keeps those out of published artifacts; the branch name carries the link.
-- If the GitHub PR cannot be created, or Linear is unreachable in this environment, report that blocker and provide the exact PR body or ticket title and body that should be created manually. Do not skip the step silently.
+- Include the recommendation summary, validation, and rollout risks in the PR body, and return the PR URL in chat.
+- Use [`linear-agent-writes`](../linear-agent-writes/SKILL.md) only if the user requests a tracker action; do not create a follow-up ticket or propose an update by default.
+- Do not put internal ticket identifiers or tracker URLs in the PR body or a PR comment.
+- If the GitHub PR cannot be created, report that blocker and provide the exact PR body that should be created manually.
 
 ## PR Handling
 

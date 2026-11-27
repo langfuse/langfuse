@@ -575,7 +575,7 @@ async function notifyPostHogExportFailed(
         // useful human label for the failing export destination.
         resourceId: projectId,
         resourceName: host || "PostHog integration",
-        message: `PostHog export disabled for project "${projectName}" after a configuration fault.`,
+        message: `The PostHog export for project "${projectName}" has been disabled after a configuration fault. This usually means the PostHog host is no longer reachable or valid, or PostHog rejected the API key. Once you have fixed it, simply re-enable the export in the integration settings and it will pick up right where it left off.`,
         url: env.NEXTAUTH_URL
           ? `${env.NEXTAUTH_URL}${settingsPath}`
           : undefined,

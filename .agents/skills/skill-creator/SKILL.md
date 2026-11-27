@@ -45,9 +45,9 @@ Match the level of specificity to the task's fragility and variability:
 
 Think of Codex as exploring a path: a narrow bridge with cliffs needs specific guardrails (low freedom), while an open field allows many routes (high freedom).
 
-### Propose Ticket Updates; Mark Every Write
+### Requested tracker writes
 
-Read [`linear-agent-writes`](../linear-agent-writes/SKILL.md) before creating or revising a skill that writes to Linear. It owns the permitted actions, approval and marking requirements, handovers, batching, and missing-connection behavior. Link to that authority rather than copying its policy into another skill.
+For skills that perform requested Linear writes, follow [`linear-agent-writes`](../linear-agent-writes/SKILL.md). Do not add routine ticket-update or handover prompts to other workflows.
 
 ### Protect Validation Integrity
 

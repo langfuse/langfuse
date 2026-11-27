@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import type { GatewayIngestionMode } from "@langfuse/shared";
 
 import { env } from "@/src/env.mjs";

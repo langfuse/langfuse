@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import {
   GATEWAY_GUARDRAIL_SECRET_BODY_MIN_LENGTH,
   GATEWAY_GUARDRAIL_SECRET_PREFIX_MAX_LENGTH,

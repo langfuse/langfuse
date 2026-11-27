@@ -110,7 +110,7 @@ export function EvaluationTypeToggle({
       {tabsFit ? (
         tabs
       ) : (
-        <div className="min-w-52">
+        <div className="w-52 max-w-full">
           <Select
             value={value}
             onValueChange={(mode) => onValueChange(mode as EvalTemplateType)}

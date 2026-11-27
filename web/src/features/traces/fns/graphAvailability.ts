@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 /** Why the Graph view is or is not available for a trace. */
 
 import type { AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
