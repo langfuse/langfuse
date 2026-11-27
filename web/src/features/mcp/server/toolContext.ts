@@ -19,7 +19,7 @@ import type { McpConnection, ServerContext } from "../types";
 export const projectIdArgument = "projectId";
 
 /** projectIdArgumentDescription documents projectIdArgument in each project tool's input schema. */
-export const projectIdArgumentDescription =
+const projectIdArgumentDescription =
   "ID of the project to run this tool in. Take it from a Langfuse URL (`/project/<projectId>/...`) when the user gives one; otherwise call listProjects and match the project's name, and ask the user if more than one matches.";
 
 /** withProjectIdArgument adds the required projectId argument to a project tool's input schema. */
