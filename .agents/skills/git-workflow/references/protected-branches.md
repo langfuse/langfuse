@@ -46,6 +46,6 @@ An agent must report the concrete blocker and hand over this route. Do not reque
 
 ## Releases and other protected refs
 
-Read a release or publishing command before running it: creating a version commit and pushing it to `main` is a default-branch change even when a release tool does the push. Prepare version changes through a PR and obtain the applicable approval; coordinate any release-tool migration with its owners instead of bypassing protection.
+Read a release or publishing command before running it: creating a version commit and pushing it to `main` is a default-branch change even when a release tool does the push.
 
-The current `pnpm run release` configuration commits and pushes on its release branch. Do not run it on `main` until that path is migrated to the approved PR or explicitly configured App flow. Other release branches, tags, and `production` have their own rules; inspect them rather than assuming the default-branch baseline either blocks or exempts those operations. A workflow that reads `main` and writes `production` must be assessed against the destination's rules and approved identity.
+`pnpm run release` dispatches `cut-release.yml` instead of pushing locally. Other release branches, tags, and `production` have their own rules; inspect them rather than assuming the default-branch baseline either blocks or exempts those operations. A workflow that reads `main` and writes `production` must be assessed against the destination's rules and approved identity.

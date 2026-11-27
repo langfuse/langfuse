@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 # Shared safety gates run before any path that cuts a release or promotes
-# main to production. Sourced by release-cloud.sh and invoked standalone by
-# the `release` script so both entry points enforce the same preconditions:
+# main to production. Sourced by release.sh, release-cloud.sh, and the
+# cut-release workflow so local and CI entry points enforce the same checks:
 #   - the release is cut from an allowed release branch (`main` or `v3`)
 #   - the local branch matches its origin counterpart
 #   - for `main` releases only: any migrations on main but not yet on
@@ -15,6 +15,7 @@ set -euo pipefail
 LOG_PREFIX="${LOG_PREFIX:-release}"
 MIGRATION_CONFIRMATION_TOKEN="applied"
 RELEASE_BRANCHES=("main" "v3")
+PREFLIGHT_MIGRATIONS_CONFIRMED="none"
 
 log() {
   echo "[${LOG_PREFIX}] $*"
@@ -73,7 +74,7 @@ ensure_branch_matches_origin() {
 }
 
 fetch_production_branch() {
-  git fetch origin production
+  git fetch --no-tags origin "+refs/heads/production:refs/remotes/origin/production"
 
   if ! git show-ref --verify --quiet refs/remotes/origin/production; then
     fail "Could not find remote branch origin/production."
@@ -107,7 +108,7 @@ migration_authors() {
   printf '%s\n' "${authors:-unknown (check Git history)}"
 }
 
-confirm_migrations_are_applied() {
+print_unpromoted_migrations() {
   local prisma_migrations="$1"
   local clickhouse_migrations="$2"
   local migration authors
@@ -133,6 +134,13 @@ confirm_migrations_are_applied() {
       echo "  - $migration (AUTHORS: $authors)"
     done <<< "$clickhouse_migrations"
   fi
+}
+
+confirm_migrations_are_applied() {
+  local prisma_migrations="$1"
+  local clickhouse_migrations="$2"
+
+  print_unpromoted_migrations "$prisma_migrations" "$clickhouse_migrations"
 
   echo
   log "📣 Authors must apply their migrations AND deploy afterward. Please let the authors know."
@@ -144,7 +152,29 @@ confirm_migrations_are_applied() {
   fi
 }
 
+verify_migrations_confirmed_non_interactive() {
+  local confirmation="${1:-}"
+  local prisma_migrations
+  local clickhouse_migrations
+  prisma_migrations="$(collect_prisma_migrations_not_in_production)"
+  clickhouse_migrations="$(collect_clickhouse_migrations_not_in_production)"
+
+  if [[ -z "$prisma_migrations" && -z "$clickhouse_migrations" ]]; then
+    log "No Prisma or ClickHouse migration differences detected between main and production."
+    return 0
+  fi
+
+  print_unpromoted_migrations "$prisma_migrations" "$clickhouse_migrations"
+
+  if [[ "$confirmation" != "$MIGRATION_CONFIRMATION_TOKEN" ]]; then
+    fail "Unpromoted migrations detected. Confirm they are applied in production by passing confirm_migrations='${MIGRATION_CONFIRMATION_TOKEN}'."
+  fi
+
+  log "Unpromoted migrations confirmed as applied."
+}
+
 run_release_preflight() {
+  PREFLIGHT_MIGRATIONS_CONFIRMED="none"
   ensure_on_release_branch
   ensure_branch_matches_origin
 
@@ -165,6 +195,7 @@ run_release_preflight() {
 
   if [[ -n "$prisma_migrations" || -n "$clickhouse_migrations" ]]; then
     confirm_migrations_are_applied "$prisma_migrations" "$clickhouse_migrations"
+    PREFLIGHT_MIGRATIONS_CONFIRMED="${MIGRATION_CONFIRMATION_TOKEN}"
   else
     log "No Prisma or ClickHouse migration differences detected between main and production."
   fi

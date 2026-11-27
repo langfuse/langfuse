@@ -51,7 +51,7 @@
     "openapi:check": "pnpm run openapi:export && bash scripts/openapi/assert-generated-current.sh",
     "storybook": "pnpm --filter web run storybook",
     "test": "turbo run test",
-    "release": "bash ./scripts/release-preflight.sh && dotenv -e ../.env -- release-it",
+    "release": "bash ./scripts/release.sh",
     "release:cloud": "bash ./scripts/release-cloud.sh",
     "prepare": "husky"
   },
