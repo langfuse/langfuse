@@ -338,17 +338,17 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
     expect(calls[1][0].clickhouseSettings.max_execution_time).toBe(15);
   });
 
-  it("ends the page when less than the per-query overhead remains", async () => {
+  it("ends the page when even the smallest window would outlast the budget", async () => {
     const clock = vi.spyOn(performance, "now").mockReturnValue(0);
     mockQueryClickhouseWithProgress.mockImplementationOnce(async function* () {
-      clock.mockReturnValue(43_000);
+      clock.mockReturnValue(30_000);
       yield rowEvent(observation("newer", "2026-10-13 00:00:00.000"));
-      yield progressEvent(1);
+      // Read volume so large that a 1 ms window is predicted to take ~25 s.
+      yield progressEvent(1, 1e19);
     });
     const page = await getObservationsV2PageFromEventsTableForPublicApi({
       ...boundedOpts,
-      // One minute of range remains after the first window, so it is cheap.
-      fromStartTime: "2026-10-11T23:59:00.000Z",
+      fields: ["core"],
     });
     expect(page.items.map((row) => row.id)).toEqual(["newer"]);
     expect(page.cursor?.lastStartTimeTo).toEqual(
