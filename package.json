@@ -51,12 +51,11 @@
     "openapi:check": "pnpm run openapi:export && bash scripts/openapi/assert-generated-current.sh",
     "storybook": "pnpm --filter web run storybook",
     "test": "turbo run test",
-    "release": "bash ./scripts/release-preflight.sh && dotenv -e ../.env -- release-it",
+    "release": "bash ./scripts/release.sh",
     "release:cloud": "bash ./scripts/release-cloud.sh",
     "prepare": "husky"
   },
   "devDependencies": {
-    "@release-it/bumper": "^7.0.6",
     "dotenv-cli": "^7.4.4",
     "eslint-scope": "^9.1.2",
     "espree": "^11.2.0",
@@ -66,59 +65,7 @@
     "oxfmt": "^0.78.0",
     "oxlint": "^1.90.0",
     "oxlint-tsgolint": "^7.0.2005",
-    "release-it": "^20.2.0",
     "ts7": "npm:typescript@^7.0.2",
     "turbo": "2.11.9"
-  },
-  "release-it": {
-    "npm": false,
-    "git": {
-      "commitMessage": "chore: release v${version}",
-      "tagName": "v${version}",
-      "commitArgs": [
-        "--no-verify"
-      ],
-      "pushArgs": [
-        "--no-verify"
-      ]
-    },
-    "plugins": {
-      "@release-it/bumper": {
-        "out": [
-          {
-            "file": "./package.json"
-          },
-          {
-            "file": "./packages/shared/src/constants/VERSION.ts",
-            "type": "application/typescript"
-          },
-          {
-            "file": "./web/src/constants/VERSION.ts",
-            "type": "application/typescript"
-          },
-          {
-            "file": "./worker/src/constants/VERSION.ts",
-            "type": "application/typescript"
-          },
-          {
-            "file": "./web/package.json"
-          },
-          {
-            "file": "./worker/package.json"
-          }
-        ]
-      }
-    },
-    "github": {
-      "release": true,
-      "web": true,
-      "autoGenerate": true,
-      "releaseName": "v${version}",
-      "comments": {
-        "submit": true,
-        "issue": ":rocket: _This issue has been resolved in v${version}. See [${releaseName}](${releaseUrl}) for release notes._",
-        "pr": ":rocket: _This pull request is included in v${version}. See [${releaseName}](${releaseUrl}) for release notes._"
-      }
-    }
   }
 }

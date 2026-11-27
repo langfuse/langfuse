@@ -1,0 +1,269 @@
+name: Cut Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version bump type"
+        required: true
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+          - custom
+      custom_version:
+        description: "Explicit semver (e.g. 4.89.0 or 4.89.0-rc.1); used only when version is custom"
+        required: false
+        type: string
+        default: ""
+      expected_sha:
+        description: "Expected branch HEAD SHA from local preflight (fails if branch moved)"
+        required: false
+        type: string
+        default: ""
+      confirm_migrations:
+        description: "Type 'applied' to confirm unpromoted Postgres/ClickHouse migrations are applied in production"
+        required: false
+        type: string
+        default: ""
+      confirm_major:
+        description: "Type 'RELEASE MAJOR' to confirm a major version bump"
+        required: false
+        type: string
+        default: ""
+      dry_run:
+        description: "Compute version bump and verify App credentials without pushing or creating a release"
+        required: false
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: cut-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  cut-release:
+    name: Cut release (${{ github.ref_name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: oss-release
+    permissions:
+      contents: read
+    steps:
+      - name: Verify release branch
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "${REF_TYPE}" != "branch" ]]; then
+            echo "::error::Releases can only be cut from branches (got ${REF_TYPE}: ${REF_NAME})."
+            exit 1
+          fi
+          case "${REF_NAME}" in
+            main | v3)
+              echo "Release branch '${REF_NAME}' is allowed."
+              ;;
+            *)
+              echo "::error::Releases can only be cut from 'main' or 'v3' (got '${REF_NAME}')."
+              exit 1
+              ;;
+          esac
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify branch HEAD matches preflight and origin
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          TARGET_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          head_sha="$(git rev-parse HEAD)"
+
+          if [[ -n "${EXPECTED_SHA}" && "${head_sha}" != "${EXPECTED_SHA}" ]]; then
+            echo "::error::Checked-out HEAD (${head_sha}) does not match expected_sha (${EXPECTED_SHA}). Pull '${TARGET_BRANCH}' and re-run 'pnpm run release'."
+            exit 1
+          fi
+
+          remote_sha="$(git ls-remote origin "refs/heads/${TARGET_BRANCH}" | awk '{print $1}')"
+          if [[ -z "${remote_sha}" || "${head_sha}" != "${remote_sha}" ]]; then
+            echo "::error::Branch '${TARGET_BRANCH}' moved on origin (checked out ${head_sha}, remote ${remote_sha:-unknown}) before release executed. Pull '${TARGET_BRANCH}' and re-run 'pnpm run release'."
+            exit 1
+          fi
+
+      - name: Verify unpromoted production migrations
+        if: github.ref_name == 'main'
+        env:
+          CONFIRM_MIGRATIONS: ${{ inputs.confirm_migrations }}
+        run: |
+          set -euo pipefail
+          LOG_PREFIX="cut-release"
+          source ./scripts/release-preflight.sh
+          fetch_production_branch
+          verify_migrations_confirmed_non_interactive "${CONFIRM_MIGRATIONS}"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      # Bump tracked version files using only Node built-ins so no third-party
+      # npm dependencies execute inside the protected oss-release environment.
+      - name: Compute and apply version bump
+        id: bump
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_CUSTOM_VERSION: ${{ inputs.custom_version }}
+          INPUT_CONFIRM_MAJOR: ${{ inputs.confirm_major }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          args=(
+            --bump "${INPUT_VERSION}"
+            --custom-version "${INPUT_CUSTOM_VERSION}"
+            --json
+          )
+          if [[ "${INPUT_DRY_RUN}" == "true" ]]; then
+            args+=(--dry-run)
+          fi
+
+          result="$(node ./scripts/bump-release-version.mjs "${args[@]}")"
+          echo "${result}"
+
+          current_version="$(node -e 'console.log(JSON.parse(process.argv[1]).currentVersion)' "${result}")"
+          next_version="$(node -e 'console.log(JSON.parse(process.argv[1]).nextVersion)' "${result}")"
+          tag_name="$(node -e 'console.log(JSON.parse(process.argv[1]).tagName)' "${result}")"
+          is_major_bump="$(node -e 'console.log(JSON.parse(process.argv[1]).isMajorBump)' "${result}")"
+          is_prerelease="$(node -e 'console.log(JSON.parse(process.argv[1]).isPrerelease)' "${result}")"
+
+          if [[ "${is_major_bump}" == "true" && "${INPUT_CONFIRM_MAJOR}" != "RELEASE MAJOR" ]]; then
+            echo "::error::Major version bump (${current_version} -> ${next_version}) requires confirm_major='RELEASE MAJOR'."
+            exit 1
+          fi
+
+          if git rev-parse -q --verify "refs/tags/${tag_name}" >/dev/null; then
+            echo "::error::Tag '${tag_name}' already exists."
+            exit 1
+          fi
+
+          {
+            echo "current_version=${current_version}"
+            echo "next_version=${next_version}"
+            echo "tag_name=${tag_name}"
+            echo "is_major_bump=${is_major_bump}"
+            echo "is_prerelease=${is_prerelease}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Create local release commit and tag
+        if: inputs.dry_run == false
+        env:
+          TAG_NAME: ${{ steps.bump.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          git config user.name "langfuse-platform-release[bot]"
+          git config user.email "langfuse-bot@langfuse.com"
+          git add \
+            package.json \
+            web/package.json \
+            worker/package.json \
+            packages/shared/src/constants/VERSION.ts \
+            web/src/constants/VERSION.ts \
+            worker/src/constants/VERSION.ts
+          git commit --no-verify -m "chore: release ${TAG_NAME}"
+          git tag "${TAG_NAME}"
+
+      # Always mint the short-lived GitHub App token (including on dry_run) so
+      # dry-run validates RELEASE_APP_CLIENT_ID and RELEASE_APP_PRIVATE_KEY.
+      - name: Create release GitHub App token
+        id: release-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: Push release commit and tag
+        if: inputs.dry_run == false
+        env:
+          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+          TARGET_BRANCH: ${{ github.ref_name }}
+          TAG_NAME: ${{ steps.bump.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git push --atomic origin "HEAD:refs/heads/${TARGET_BRANCH}" "refs/tags/${TAG_NAME}"
+
+      - name: Create GitHub release
+        id: github-release
+        if: inputs.dry_run == false
+        env:
+          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+          TARGET_BRANCH: ${{ github.ref_name }}
+          TAG_NAME: ${{ steps.bump.outputs.tag_name }}
+          IS_PRERELEASE: ${{ steps.bump.outputs.is_prerelease }}
+        run: |
+          set -euo pipefail
+          release_args=(
+            release create "${TAG_NAME}"
+            --verify-tag
+            --title "${TAG_NAME}"
+            --generate-notes
+          )
+          if [[ "${IS_PRERELEASE}" == "true" ]]; then
+            release_args+=(--prerelease --latest=false)
+          elif [[ "${TARGET_BRANCH}" != "main" ]]; then
+            release_args+=(--latest=false)
+          fi
+
+          release_url="$(gh "${release_args[@]}")"
+          echo "url=${release_url}" >> "${GITHUB_OUTPUT}"
+
+      - name: Write job summary
+        env:
+          TARGET_BRANCH: ${{ github.ref_name }}
+          CURRENT_VERSION: ${{ steps.bump.outputs.current_version }}
+          TAG_NAME: ${{ steps.bump.outputs.tag_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          RELEASE_URL: ${{ steps.github-release.outputs.url }}
+        run: |
+          set -euo pipefail
+          {
+            if [[ "${DRY_RUN}" == "true" ]]; then
+              echo "### Dry run succeeded"
+              echo "- **Branch:** \`${TARGET_BRANCH}\`"
+              echo "- **Planned bump:** \`v${CURRENT_VERSION}\` -> \`${TAG_NAME}\`"
+              echo "- **App token:** verified (no commit, tag, or release pushed)"
+            else
+              echo "### Release ${TAG_NAME} published"
+              echo "- **Branch:** \`${TARGET_BRANCH}\`"
+              echo "- **Version bump:** \`v${CURRENT_VERSION}\` -> \`${TAG_NAME}\`"
+              echo "- **Commit:** \`$(git rev-parse HEAD)\`"
+              echo "- **Release:** ${RELEASE_URL}"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  notify-slack-on-failure:
+    needs: cut-release
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          message: "❌ Cut release failed on ${{ github.ref_name }}"
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}

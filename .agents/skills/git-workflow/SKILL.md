@@ -71,7 +71,8 @@ Read [protected branches and PR approval](references/protected-branches.md) befo
 
 ## Release
 
-- The existing `pnpm run release` command creates and pushes a release commit on the current release branch. Its preflight allows `main` and `v3`, but that allowlist is not permission to push to protected `main`. Do not run it on `main` until the release path uses an approved version-change PR or an explicitly configured GitHub App exception; see the protected-branch reference. Check the destination rules before using a maintenance-branch release path too.
+- `pnpm run release` runs `scripts/release.sh`, which executes local preflight checks (`scripts/release-preflight.sh`: allowed branch `main` or `v3`, synced with `origin`, and interactive confirmation of unpromoted Postgres/ClickHouse migrations on `main`), prompts for the version bump, and dispatches `.github/workflows/cut-release.yml` with the checked-out `expected_sha`.
+- `.github/workflows/cut-release.yml` runs inside the protected `oss-release` GitHub Environment (`main`/`v3` only, required reviewer from `@langfuse/maintainers` with self-review prevented), re-verifies `HEAD` and unpromoted migrations, bumps the six tracked version files via `scripts/bump-release-version.mjs`, and pushes the release commit and `vX.Y.Z` tag atomically using a short-lived `Langfuse platform release` GitHub App token (`RELEASE_APP_CLIENT_ID` / `RELEASE_APP_PRIVATE_KEY`) before creating the GitHub release.
 - `main` is the current line and the only branch that ships to Langfuse
   Cloud. `v3` is the OSS maintenance line: a release from it produces a tag,
   GitHub release, and Docker images, but never a Cloud deploy.
@@ -83,12 +84,12 @@ Read [protected branches and PR approval](references/protected-branches.md) befo
   `.github/workflows/promote-main-to-production.yml` or
   `pnpm run release:cloud` (both main-only).
 - The latest-release markers track the current major line: `pipeline.yml`
-  gates the Docker `latest` tag on `refs/tags/v4`, and maintenance branches
-  disable that gate and set `release-it.github.makeLatest: false` in their
-  root `package.json` so their releases never claim the Docker `latest` tag
-  or the GitHub "Latest release" badge. At the next major GA (v5), repeat
-  the flip: move the gate to `refs/tags/v5` on `main`, then disable it and
-  set `makeLatest: false` on the new `v4` maintenance branch.
+  gates the Docker `latest` tag on `refs/tags/v4`, and `.github/workflows/cut-release.yml`
+  passes `--latest=false` to `gh release create` on non-`main` branches and
+  prereleases so maintenance branches never claim the Docker `latest` tag or
+  the GitHub "Latest release" badge. At the next major GA (v5), move the
+  Docker `latest` gate in `pipeline.yml` to `refs/tags/v5` on `main` and
+  disable it on the `v4` maintenance branch.
 - The ECS deployment workflow includes `ai-gateway` only for staging: pushes
   to `main` and manual staging deployments. Its image builds from `ai-gateway/`
   with `BUILD_ID` set to the commit SHA; production deployments exclude it.

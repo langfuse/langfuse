@@ -504,7 +504,7 @@ You can use the staging environment end-to-end with the Langfuse integrations or
 
 ## Production environment
 
-The default-branch PR and approval policy also covers release version commits. The current `pnpm run release` command creates and pushes a commit on its release branch; do not run it on `main` until that path is migrated to an approved PR or explicitly configured GitHub App flow. The promotion workflows below write `production`, whose rules and approved automation identity must be checked separately; their existence does not grant a default-branch bypass.
+The default-branch PR and approval policy also covers release version commits. `pnpm run release` runs local preflight checks (`scripts/release-preflight.sh`) and dispatches [`.github/workflows/cut-release.yml`](.github/workflows/cut-release.yml), which bumps the version files inside the protected `oss-release` environment (requiring a second maintainer's approval) and pushes the release commit and `vX.Y.Z` tag with a short-lived GitHub App token. The promotion workflows below write `production`, whose rules and approved automation identity must be checked separately; their existence does not grant a default-branch bypass.
 
 We run two separate release/deployment processes:
 
@@ -512,7 +512,7 @@ We run two separate release/deployment processes:
    - Every commit on the `production` branch triggers an ECS deployment to Langfuse Cloud.
    - To deploy current `main` to Langfuse Cloud, promote `main` to `production` via [`promote-main-to-production.yml`](.github/workflows/promote-main-to-production.yml) (instead of force pushing from a local machine).
 2. **Open-source release (less frequent):**
-   - The open-source Docker release process is handled via [`release.yml`](.github/workflows/release.yml) for self-hosted production users.
+   - Cut a release via `pnpm run release` (or **Actions** -> **Cut Release** -> **Run workflow**), which dispatches [`cut-release.yml`](.github/workflows/cut-release.yml) to bump versions, push the `vX.Y.Z` tag, and create the GitHub Release; that tag triggers Docker image builds in [`pipeline.yml`](.github/workflows/pipeline.yml) and Cloud promotion in [`release.yml`](.github/workflows/release.yml) for `main` releases.
 
 You can trigger the Langfuse Cloud promotion in either way:
 
