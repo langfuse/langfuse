@@ -1,4 +1,4 @@
-import { ChevronDown, MoreVertical } from "@langfuse/icons";
+import { ChevronDown, ChevronRight, MoreVertical } from "@langfuse/icons";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -110,9 +110,9 @@ export const MessageHeader = meta.story({
         <IconButton
           type="button"
           variant="ghost"
-          size="sm"
+          size="xs"
           icon={ChevronDown}
-          label="Expand message"
+          label="Collapse message"
         />
         <Badge color="filled" size="md" text="User" />
       </>
@@ -121,7 +121,7 @@ export const MessageHeader = meta.story({
       <IconButton
         type="button"
         variant="ghost"
-        size="sm"
+        size="xs"
         icon={MoreVertical}
         label="Prompt message settings"
       />
@@ -143,9 +143,9 @@ export const CollapsedMessage = meta.story({
         <IconButton
           type="button"
           variant="ghost"
-          size="sm"
-          icon={ChevronDown}
-          label="Collapse message"
+          size="xs"
+          icon={ChevronRight}
+          label="Expand message"
         />
         <Badge color="filled" size="md" text="User" />
         <span className="text-muted-foreground min-w-0 flex-1 truncate px-1 text-xs leading-none">
@@ -157,7 +157,7 @@ export const CollapsedMessage = meta.story({
       <IconButton
         type="button"
         variant="ghost"
-        size="sm"
+        size="xs"
         icon={MoreVertical}
         label="Prompt message settings"
       />
