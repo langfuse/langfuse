@@ -11,6 +11,7 @@ export function EvaluatorTestPanel({
   testSection,
   heading,
   pinTestSection = false,
+  testSectionResized = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -20,6 +21,8 @@ export function EvaluatorTestPanel({
   heading?: ReactNode;
   /** Lets the sample fill the panel and keeps the test row at the bottom. */
   pinTestSection?: boolean;
+  /** Raises the pinned test row's height cap once the user made it taller. */
+  testSectionResized?: boolean;
 }) {
   const title = heading ?? (
     <div className="flex items-center gap-2">
@@ -62,7 +65,12 @@ export function EvaluatorTestPanel({
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-4">
             {sampleSelector}
           </div>
-          <div className="flex max-h-1/2 min-h-0 shrink-0 flex-col border-t">
+          <div
+            className={cn(
+              "flex min-h-0 shrink-0 flex-col border-t",
+              testSectionResized ? "max-h-3/5" : "max-h-1/2",
+            )}
+          >
             {testSection}
           </div>
         </>

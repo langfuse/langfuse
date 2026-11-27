@@ -51,11 +51,14 @@ export function EvaluatorTestResult({
   state,
   testResult,
   rawOpen,
+  fullReasoning = false,
 }: {
   state: FinishedTestState;
   testResult: unknown;
   /** Shows the whole response as JSON instead of the summary. */
   rawOpen: boolean;
+  /** Shows the whole reasoning without Show more, for a parent that gave it extra height. */
+  fullReasoning?: boolean;
 }) {
   const [reasoningOpen, setReasoningOpen] = useState(false);
 
@@ -113,12 +116,15 @@ export function EvaluatorTestResult({
           <p
             className={cn(
               "mt-2 text-sm whitespace-pre-wrap",
-              isLongReasoning && !reasoningOpen && "line-clamp-3",
+              isLongReasoning &&
+                !reasoningOpen &&
+                !fullReasoning &&
+                "line-clamp-3",
             )}
           >
             {reasoning}
           </p>
-          {isLongReasoning ? (
+          {isLongReasoning && !fullReasoning ? (
             <div className="mt-1">
               <ExpandToggle
                 expanded={reasoningOpen}

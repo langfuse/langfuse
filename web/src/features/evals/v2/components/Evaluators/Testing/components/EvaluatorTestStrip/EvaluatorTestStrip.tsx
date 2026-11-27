@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useStore } from "zustand";
 
-import { EvaluatorTestStripView } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorTestStrip/EvaluatorTestStripView";
+import {
+  EvaluatorTestStripView,
+  type TestResultSize,
+} from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorTestStrip/EvaluatorTestStripView";
 import { toTestResultPanelState } from "@/src/features/evals/v2/fns/evaluatorTesting/toTestResultPanelState";
 import { useEvaluatorTestAvailability } from "@/src/features/evals/v2/hooks/useEvaluatorTestAvailability";
 import {
@@ -15,6 +18,8 @@ export function EvaluatorTestStrip({
   store,
   testResult,
   testPending,
+  resultSize,
+  onResultSizeChange,
   rawResultOpen,
   onRawResultOpenChange,
   onRunTest,
@@ -24,6 +29,8 @@ export function EvaluatorTestStrip({
   store: EvaluatorSetupStore;
   testResult: unknown;
   testPending: boolean;
+  resultSize: TestResultSize | null;
+  onResultSizeChange: (size: TestResultSize | null) => void;
   rawResultOpen: boolean;
   onRawResultOpenChange: (open: boolean) => void;
   onRunTest: () => void;
@@ -49,6 +56,8 @@ export function EvaluatorTestStrip({
     <EvaluatorTestStripView
       open={open}
       onOpenChange={setOpen}
+      resultSize={resultSize}
+      onResultSizeChange={onResultSizeChange}
       state={toTestResultPanelState({
         type,
         // A re-run keeps the previous result on screen until the new one lands.

@@ -1,13 +1,19 @@
-import { fn } from "storybook/test";
+import { useState } from "react";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../../../../../../.storybook/preview";
-import { EvaluatorTestStripView } from "./EvaluatorTestStripView";
+import {
+  EvaluatorTestStripView,
+  type TestResultSize,
+} from "./EvaluatorTestStripView";
 
 const meta = preview.meta({ component: EvaluatorTestStripView });
 
 const baseArgs = {
   open: true,
   onOpenChange: fn(),
+  resultSize: null,
+  onResultSizeChange: fn(),
   testResult: null,
   isPending: false,
   disabledReason: null,
@@ -147,5 +153,43 @@ export const RawOutput = meta.story({
       score: "0.65",
       reasoning: "The reply refunds the duplicate charge.",
     },
+  },
+});
+
+export const ResizesWithArrowKeys = meta.story({
+  name: "(Test) Resizes with arrow keys",
+  args: {
+    ...baseArgs,
+    state: { status: "llm-success", score: "0.65", reasoning: longReasoning },
+  },
+  render: function Render(args) {
+    const [resultSize, setResultSize] = useState<TestResultSize | null>(null);
+    return (
+      <EvaluatorTestStripView
+        {...args}
+        resultSize={resultSize}
+        onResultSizeChange={setResultSize}
+      />
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const handle = canvas.getByRole("separator", {
+      name: "Resize test result",
+    });
+    await expect(
+      canvas.getByRole("button", { name: "Show more" }),
+    ).toBeVisible();
+
+    handle.focus();
+    await userEvent.keyboard("{ArrowUp}");
+    await expect(
+      canvas.queryByRole("button", { name: "Show more" }),
+    ).not.toBeInTheDocument();
+
+    await userEvent.keyboard("{ArrowDown}");
+    await expect(
+      canvas.getByRole("button", { name: "Show more" }),
+    ).toBeVisible();
   },
 });
