@@ -171,11 +171,20 @@ export default async function chatCompletionHandler(req: NextRequest) {
 
     if (err instanceof Error) {
       const llmError = getLLMErrorInfo(err);
-      // Semantic AI SDK failures (e.g. no structured output) have no HTTP
-      // status. Treat them as client/provider operational errors, not 500s.
+      // Timeouts, aborts, and semantic AI SDK failures (e.g. no structured
+      // output) have no provider HTTP status. Treat them as operational
+      // errors, not internal 500s — the playground already toasts the body.
       const statusCode =
-        llmError?.statusCode ?? (llmError?.kind === "ai-sdk" ? 400 : 500);
-      const errorMessage = llmError?.message ?? "An internal error occurred";
+        llmError?.statusCode ??
+        (llmError?.kind === "ai-sdk" ||
+        llmError?.kind === "timeout" ||
+        llmError?.kind === "abort"
+          ? 400
+          : 500);
+      const errorMessage =
+        llmError?.kind === "timeout"
+          ? `The model did not respond within ${getClientInitiatedNonStreamingLlmTimeoutMs() / 1000} seconds. Try enabling streaming or shortening the prompt.`
+          : (llmError?.message ?? "An internal error occurred");
 
       return NextResponse.json(
         {

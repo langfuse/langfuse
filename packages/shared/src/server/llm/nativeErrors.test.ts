@@ -106,6 +106,7 @@ describe("getLLMErrorInfo", () => {
     expect(getLLMErrorInfo(error)).toMatchObject({
       kind: "timeout",
       message: "The operation timed out",
+      statusCode: 400,
       isRetryable: false,
     });
   });

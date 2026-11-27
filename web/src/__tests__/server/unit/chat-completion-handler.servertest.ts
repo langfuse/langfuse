@@ -293,6 +293,21 @@ describe("chatCompletionHandler", () => {
     });
   });
 
+  it("maps a client-initiated LLM timeout to 400 instead of 500", async () => {
+    mocks.generate.mockRejectedValue(
+      new DOMException("The operation timed out", "TimeoutError"),
+    );
+
+    const response = await chatCompletionHandler(createRequest(baseBody));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "TimeoutError",
+      message:
+        "The model did not respond within 95 seconds. Try enabling streaming or shortening the prompt.",
+    });
+  });
+
   it("preserves upstream provider 5xx status codes", async () => {
     mocks.generate.mockRejectedValue(
       createProviderApiError("Provider unavailable", 500),
