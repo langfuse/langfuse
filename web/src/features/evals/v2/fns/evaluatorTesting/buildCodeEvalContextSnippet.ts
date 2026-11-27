@@ -123,3 +123,16 @@ export function buildCodeEvalContextSnippet(
     : "";
   return `ctx = EvaluationContext(\n  observation=ObservationContext(\n${observationFields}\n  )${experimentSnippet},\n)`;
 }
+
+/** Formats the trace context passed to evaluate() for the selected sample. */
+export function buildTraceCodeEvalContextSnippet(
+  threads: unknown,
+  language: EvalTemplateSourceCodeLanguage,
+) {
+  if (language === EvalTemplateSourceCodeLanguageEnum.TYPESCRIPT) {
+    const payload = { targetType: "trace", trace: { threads } };
+    return `const ctx = ${serializeValue(payload, language, "")};`;
+  }
+
+  return `ctx = EvaluationContext(\n  target_type="trace",\n  trace=TraceContext(\n    threads=${serializeValue(threads, language, "    ")},\n  ),\n)`;
+}
