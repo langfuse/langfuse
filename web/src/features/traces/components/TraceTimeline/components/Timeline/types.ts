@@ -145,11 +145,14 @@ export type TooltipPlacement = {
 
 export type BarTextTone = "light" | "dark";
 
-export type PackedLaneRow = { depth: number };
-
 export type PackedPacking = {
+  /** Per row: the lane it sits on. */
   lanes: number[];
   laneCount: number;
+  /** Per lane: the observation type it holds. */
+  types: string[];
+  /** Per row: how many ancestors of its own type it has. */
+  nesting: number[];
 };
 
 export type RowPresentation = "labelled" | "compact" | "hairline";

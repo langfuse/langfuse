@@ -127,14 +127,52 @@ const FALLBACK_COLOR = "bg-muted-gray";
 /** Neutral mode's bar, when colour is not carrying type. */
 const NEUTRAL_COLOR = "bg-muted-foreground/60";
 /**
+ * The same hues at half strength, for the bars beside the selected one. Only
+ * the fill fades: its label takes its tone from the faded fill and stays
+ * readable.
+ */
+const TYPE_COLOR_DIM: Record<string, string> = {
+  TRACE: "bg-observation-trace/50",
+  GENERATION: "bg-observation-generation/50",
+  EVENT: "bg-observation-event/50",
+  SPAN: "bg-observation-span/50",
+  AGENT: "bg-observation-agent/50",
+  EVALUATOR: "bg-observation-evaluator/50",
+  TOOL: "bg-observation-tool/50",
+  CHAIN: "bg-observation-chain/50",
+  RETRIEVER: "bg-observation-retriever/50",
+  EMBEDDING: "bg-observation-embedding/50",
+  GUARDRAIL: "bg-observation-guardrail/50",
+};
+const FALLBACK_COLOR_DIM = "bg-muted-gray/50";
+/** Each hue's fill shade, darker than the bar in both themes, for the selected bar's edge. */
+const TYPE_BORDER: Record<string, string> = {
+  TRACE: "border-observation-trace-fill",
+  GENERATION: "border-observation-generation-fill",
+  EVENT: "border-observation-event-fill",
+  SPAN: "border-observation-span-fill",
+  AGENT: "border-observation-agent-fill",
+  EVALUATOR: "border-observation-evaluator-fill",
+  TOOL: "border-observation-tool-fill",
+  CHAIN: "border-observation-chain-fill",
+  RETRIEVER: "border-observation-retriever-fill",
+  EMBEDDING: "border-observation-embedding-fill",
+  GUARDRAIL: "border-observation-guardrail-fill",
+};
+const FALLBACK_BORDER = "border-border-contrast";
+const NEUTRAL_COLOR_DIM = "bg-muted-foreground/30";
+/**
  * Every colour a bar can be — the set whose contrast has to be resolved. The
  * accent used to be in here, and it was the one tone the picker read as dark
  * enough for a black label while looking mid-violet to a person.
  */
 const BAR_COLORS = [
   ...Object.values(TYPE_COLOR),
+  ...Object.values(TYPE_COLOR_DIM),
   FALLBACK_COLOR,
+  FALLBACK_COLOR_DIM,
   NEUTRAL_COLOR,
+  NEUTRAL_COLOR_DIM,
 ];
 
 /**
@@ -149,17 +187,10 @@ function typeLabel(type: string): string {
   );
 }
 
-const RAIL_INDENT = 2;
-const RAIL_MAX_DEPTH = 4;
 /** Biggest the closed rail's type square gets, however tall the row is. */
 const RAIL_SQUARE_MAX = 5;
-/**
- * Wide enough for the deepest indent plus the square, computed rather than
- * guessed: at 10px the square of a depth-4 span was mostly outside the rail's
- * overflow-hidden box, so the one type indicator a closed rail has left was
- * clipped to a sliver exactly on the deeply-nested spans.
- */
-const RAIL_WIDTH = RAIL_MAX_DEPTH * RAIL_INDENT + RAIL_SQUARE_MAX + 2;
+/** The closed rail: one column of type squares, centred, the same for every depth. */
+const RAIL_WIDTH = RAIL_SQUARE_MAX + 10;
 /** Left inset of the open gutter, matching the tree rows' `pl-2`. */
 const GUTTER_INSET = 8;
 /** Indent per level once the gutter is open, matching the production gutter. */
@@ -168,6 +199,8 @@ const GUTTER_INDENT = 14;
 const GUTTER_ICON = 12;
 /** A name needs at least this much to be worth indenting away from. */
 const GUTTER_NAME_MIN = 48;
+/** Room for the longest type name ("Generation") beside its icon. */
+const PACKED_GUTTER_WIDTH = GUTTER_INSET * 2 + GUTTER_ICON + 72;
 /**
  * Where a level's vertical rail sits: under the CENTRE of that level's icon, so
  * the spine reads as descending from the icon that owns it. Hugging the icon's
@@ -182,10 +215,9 @@ const EMPTY_COLLAPSED: ReadonlySet<string> = new Set<string>();
  * the rows stay clickable and hoverable while a query is live.
  */
 const SEARCH_DIM_OPACITY = "opacity-30";
-const TOOLBAR_HEIGHT = 22;
+const TOOLBAR_HEIGHT = 32;
 const AXIS_HEIGHT = 16;
 const READOUT_HEIGHT = 18;
-const FRAME_BORDER = 1;
 /** Step for the toolbar buttons and the keyboard, in zoom levels. */
 const BUTTON_ZOOM_LEVELS = 0.6;
 const DRAG_THRESHOLD_PX = 3;
@@ -419,8 +451,8 @@ export type TimelineProps = {
     label: string;
   };
   /**
-   * `tree` is one row per span (the default). `packed` packs non-overlapping
-   * spans onto shared rows, stacked by nesting depth.
+   * `tree` is one row per span (the default). `packed` is one row per
+   * observation type.
    */
   rowLayout?: "tree" | "packed";
   onRowLayoutChange?: (layout: "tree" | "packed") => void;
@@ -443,9 +475,10 @@ function rowWashClass(state: {
   selected: boolean;
   focused: boolean;
 }): string | false {
-  if (state.selected) return "bg-primary-accent/20";
+  // The same greys the tree rows use for selected and hovered.
+  if (state.selected) return "bg-muted";
   // At 4px a tint is not enough to find yourself by, so these are full-width.
-  return state.focused && "bg-primary-accent/15";
+  return state.focused && "bg-accent";
 }
 
 export function Timeline({
@@ -532,6 +565,22 @@ export function Timeline({
   const packedSavesSpace = prepared.rows.length - lanePacking.laneCount >= 2;
   const packed = rowLayout === "packed" && packedSavesSpace;
   const packing = packed ? lanePacking : null;
+  // Packed spans with an ancestor of their own type share its lane.
+  const nestingById = useMemo(() => {
+    const levels = new Map<string, number>();
+    packing?.nesting.forEach((level, index) => {
+      const row = prepared.rows[index];
+      if (row && level > 0) levels.set(row.node.id, level);
+    });
+    return levels;
+  }, [packing, prepared]);
+  // Only a selection with a bar in this chart dims the bars around it.
+  const dimsUnselected = useMemo(
+    () =>
+      selectedId != null &&
+      prepared.rows.some((row) => row.node.id === selectedId),
+    [selectedId, prepared],
+  );
   const shownLayout = packed ? "packed" : "tree";
   const viewport =
     windowState.layout === shownLayout ? windowState.viewport : null;
@@ -572,17 +621,16 @@ export function Timeline({
   // it again. No click to look, no click to get out of the way.
   const [peeking, setPeeking] = useState(false);
   const gutterMode = override ?? gutter;
-  const contentWidth = Math.max(box.width - FRAME_BORDER * 2, 0);
+  const contentWidth = Math.max(box.width, 0);
   const surfaceHeight = Math.max(
     box.height -
-      FRAME_BORDER * 2 -
       TOOLBAR_HEIGHT -
       AXIS_HEIGHT -
       (showReadout ? READOUT_HEIGHT : 0),
     0,
   );
   // Lanes stay at a readable height instead of stretching across the panel.
-  // The card itself still fills the box; the space under the last lane is
+  // The chart itself still fills the box; the space under the last lane is
   // the same chart background.
   const chartHeight =
     packed && rowCount > 0
@@ -624,7 +672,9 @@ export function Timeline({
    * affordance and let a hover or a tap float the names over the chart.
    */
   const canShowNames = liveRowHeight >= NAME_MIN_ROW_HEIGHT;
-  const wantedGutter = Math.min(Math.max(contentWidth * 0.38, 96), 168);
+  const wantedGutter = packed
+    ? PACKED_GUTTER_WIDTH
+    : Math.min(Math.max(contentWidth * 0.38, 96), 200);
   const asked =
     labelsPinned || override === "expanded" || gutterMode === "expanded";
   // An explicit "Show labels" pin wins over a leftover rail-collapse
@@ -637,23 +687,24 @@ export function Timeline({
     if (override === "collapsed") {
       return false;
     }
-    // Packed rows share a lane. A name beside the row would name the lane,
-    // not a span, so the left side takes no width at all.
-    if (packed) return false;
     return asked || gutterMode === "auto";
   })();
+  // Packed has no rail or peek to fall back on, so its labels open as early
+  // as an explicit ask does.
   const gutterFits =
     contentWidth - wantedGutter >=
-    (asked ? MIN_LANE_WIDTH : AUTO_OPEN_MIN_LANE_WIDTH);
+    (asked || packed ? MIN_LANE_WIDTH : AUTO_OPEN_MIN_LANE_WIDTH);
 
   // A COMMITTED open takes real space and re-lays out the chart. A PEEK must
   // not: it floats over the timeline instead, so hovering the edge never shoves
   // the bars sideways while you are reading them.
-  const committedOpen = !packed && canShowNames && gutterFits && wantsOpen;
+  const committedOpen = canShowNames && gutterFits && wantsOpen;
   const railWidth = (() => {
-    if (packed || !canShowNames) return 0;
+    if (!canShowNames) return 0;
     if (committedOpen) return wantedGutter;
-    return RAIL_WIDTH;
+    // Packed lanes hold several spans, so one type square cannot stand for a
+    // lane: without room for its label the left side takes no width.
+    return packed ? 0 : RAIL_WIDTH;
   })();
   const laneWidth = Math.max(contentWidth - railWidth, 0);
 
@@ -865,7 +916,6 @@ export function Timeline({
    * detail-based guard only ever catches a mouse.
    */
   const focusedByTap = useRef(false);
-  const lastBar = useRef<{ id: string; lane: number } | null>(null);
 
   const cancelTween = useCallback(() => {
     if (tween.current) cancelAnimationFrame(tween.current);
@@ -1463,13 +1513,6 @@ export function Timeline({
       setPeeking(offsetX <= Math.max(railWidth, peekWidth) + PEEK_MARGIN_PX);
     }
 
-    const lane = rowIndexAtOffset(current, offsetY, rowHeight, rowCount);
-    const overBar =
-      lane == null
-        ? null
-        : hitIdAt(result.nodes, lane, offsetX - railWidth, packed);
-    if (overBar != null && lane != null)
-      lastBar.current = { id: overBar, lane };
     notifyHover(current, { x: offsetX, y: offsetY });
     setPointerPos({
       x: offsetX,
@@ -1595,19 +1638,14 @@ export function Timeline({
     focusIndex == null || xInLane == null
       ? null
       : hitIdAt(result.nodes, focusIndex, xInLane, packed);
-  const gutterKeeps =
-    packed &&
-    xInLane != null &&
-    xInLane < 0 &&
-    lastBar.current?.lane === focusIndex
-      ? lastBar.current.id
-      : null;
-  const focusedId = barUnderPointer ?? gutterKeeps;
+  const focusedId = barUnderPointer;
   const ancestorLabel =
     packed && focusedId ? ancestorPath(roots, focusedId).join(" / ") : "";
   const focused = focusedId
     ? (result.nodes.find((node) => node.id === focusedId) ?? null)
     : null;
+  const selectedLane =
+    result.nodes.find((node) => node.id === selectedId)?.index ?? null;
   const windowLabel = formatDurationMs(
     compression.toRealMs(current.time.start + current.time.duration) -
       compression.toRealMs(current.time.start),
@@ -1616,13 +1654,13 @@ export function Timeline({
 
   return (
     <div
-      className="bg-background border-border text-foreground flex flex-col overflow-hidden rounded border select-none"
+      className="bg-background text-foreground flex flex-col overflow-hidden select-none"
       style={{ width: `${box.width}px`, height: `${frameHeight}px` }}
       data-testid="timeline-dense-frame"
       data-layout={shownLayout}
     >
       <div
-        className="border-border flex shrink-0 items-center gap-1 border-b px-1"
+        className="border-border flex shrink-0 items-center gap-1 border-b px-1.5"
         style={{ height: `${TOOLBAR_HEIGHT}px` }}
         data-testid="timeline-dense-toolbar"
       >
@@ -1630,7 +1668,7 @@ export function Timeline({
           label="Zoom out"
           onClick={() => zoomBy(2 ** -BUTTON_ZOOM_LEVELS, 0.5, 0.5)}
         >
-          <Minus size="sm" />
+          <Minus size="base" />
         </ToolbarButton>
         <ToolbarButton
           label="Zoom in"
@@ -1640,14 +1678,12 @@ export function Timeline({
               : zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)
           }
         >
-          <Plus size="sm" />
+          <Plus size="base" />
         </ToolbarButton>
         {offerShowLabels ? (
           <ToolbarButton label="Show labels" onClick={showLabels}>
-            <UnfoldVertical size="sm" />
-            <span className="pr-0.5" style={{ fontSize: "10px" }}>
-              Show labels
-            </span>
+            <UnfoldVertical size="base" />
+            <span className="pr-0.5 text-xs">Show labels</span>
           </ToolbarButton>
         ) : (
           <ToolbarButton
@@ -1662,7 +1698,7 @@ export function Timeline({
             {/* A viewfinder, not the diagonal arrows this used to wear: those
                 read as "fullscreen", so a control that was merely spent looked
                 broken. */}
-            <Scan size="sm" />
+            <Scan size="base" />
           </ToolbarButton>
         )}
         {/* What the dimming means, said in words. Without it "nothing lit up"
@@ -1680,25 +1716,18 @@ export function Timeline({
             whole trace is in view. */}
         {!offerShowLabels && !fitted ? (
           <span
-            className="text-muted-foreground truncate"
-            style={{ fontSize: "10px" }}
+            className="text-muted-foreground truncate text-xs"
             title={windowHint}
           >
             {windowHint}
           </span>
         ) : null}
         {onRowLayoutChange ? (
-          <label className="ml-auto flex shrink-0 items-center gap-1 pr-1">
-            <span
-              className="text-muted-foreground"
-              style={{ fontSize: "10px" }}
-            >
-              Packed
-            </span>
+          <label className="ml-auto flex shrink-0 items-center gap-1.5 pr-1">
+            <span className="text-muted-foreground text-xs">Packed</span>
             {packedSavesSpace ? (
               <Switch
                 size="sm"
-                color="green"
                 checked={packed}
                 aria-label="Packed layout"
                 onCheckedChange={(checked) =>
@@ -1715,7 +1744,6 @@ export function Timeline({
                   >
                     <Switch
                       size="sm"
-                      color="green"
                       checked={false}
                       disabled
                       aria-disabled="true"
@@ -1816,7 +1844,7 @@ export function Timeline({
             is real and should be drawn, but it must not become overflow on the
             surface — a map has no scrollable extent. */}
         <div
-          className="absolute inset-0 overflow-hidden"
+          className="absolute inset-0 isolate overflow-hidden"
           data-testid="timeline-dense-content"
         >
           <div
@@ -1862,17 +1890,53 @@ export function Timeline({
             })}
           </div>
 
+          {/* A packed lane is drawn once, under every bar in it: a wash per
+              bar would paint over the bars that come before it in the lane. */}
+          {packing
+            ? packing.types.map((type, lane) => {
+                const y = (lane - current.rows.start) * rowHeight;
+                if (y + rowHeight < 0 || y > chartHeight) return null;
+                return (
+                  <div
+                    key={type}
+                    className={cn(
+                      "pointer-events-none absolute inset-x-0",
+                      rowWashClass({
+                        selected: lane === selectedLane,
+                        focused: lane === focused?.index,
+                      }),
+                    )}
+                    style={{ top: `${y}px`, height: `${rowHeight}px` }}
+                    data-testid="timeline-dense-lane"
+                  >
+                    {railWidth > 0 ? (
+                      <LaneLabel type={type} width={railWidth} />
+                    ) : null}
+                  </div>
+                );
+              })
+            : null}
+
           {result.nodes.map((node) => {
             const y = (node.index - current.rows.start) * rowHeight;
             if (y + rowHeight < 0 || y > chartHeight) return null;
 
             const isFocused = node.id === focused?.id;
             const isSelected = node.id === selectedId;
+            const isUnselected = dimsUnselected && !isSelected;
+            // A span inside one of its own type shares that bar's lane, so
+            // every other nesting level is a shade darker.
+            const nesting = nestingById.get(node.id) ?? 0;
             // A miss under a live query. Not "hidden": the row keeps its place
             // on the clock, its click target and its hover, so the matches read
             // in the context of everything they sit between.
             const isDimmed = search != null && !search.matchedIds.has(node.id);
-            const typeColor = TYPE_COLOR[node.type] ?? FALLBACK_COLOR;
+            const typeColor = isUnselected
+              ? (TYPE_COLOR_DIM[node.type] ?? FALLBACK_COLOR_DIM)
+              : (TYPE_COLOR[node.type] ?? FALLBACK_COLOR);
+            const neutralColor = isUnselected
+              ? NEUTRAL_COLOR_DIM
+              : NEUTRAL_COLOR;
             // One place decides the bar's colour, so the label can ask about the
             // exact class the bar got rather than guessing at it.
             //
@@ -1880,19 +1944,20 @@ export function Timeline({
             // accent meant a hovered generation turned the exact blue that means
             // SPAN, so the palette contradicted itself precisely when someone was
             // inspecting a row. Focus is the row's wash (full width, so it reads
-            // at any density) and selection adds a ring — neither touches hue.
-            const barClass = barColor === "type" ? typeColor : NEUTRAL_COLOR;
+            // at any density) and selection fades the fills around it — neither touches hue.
+            const barClass = barColor === "type" ? typeColor : neutralColor;
 
             return (
               <div
                 key={node.id}
                 className={cn(
                   "absolute inset-x-0",
-                  packed && "pointer-events-none",
-                  rowWashClass({
-                    selected: isSelected,
-                    focused: isFocused,
-                  }),
+                  packed
+                    ? "pointer-events-none"
+                    : rowWashClass({
+                        selected: isSelected,
+                        focused: isFocused,
+                      }),
                 )}
                 style={{ top: `${y}px`, height: `${rowHeight}px` }}
                 data-testid="timeline-dense-row"
@@ -1904,9 +1969,8 @@ export function Timeline({
                 onDoubleClick={packed ? undefined : () => focusRow(node.id)}
               >
                 {/* Bird's-eye density has no rail; avoid invisible DOM per row.
-                    Packed lanes hold several spans, so only the span under the
-                    pointer gets a name — the others would paint on top of it. */}
-                {railWidth > 0 && (!packed || isFocused) && (
+                    A packed lane is named once, by its lane label. */}
+                {railWidth > 0 && !packed && (
                   <GutterContent
                     node={node}
                     width={railWidth}
@@ -1957,7 +2021,13 @@ export function Timeline({
                         packed && "pointer-events-auto",
                         onSelect && "cursor-pointer",
                         barClass,
-                        isSelected && "ring-foreground/80 ring-1",
+                        nesting % 2 === 1 && "brightness-75",
+                        isSelected && [
+                          "border",
+                          barColor === "type"
+                            ? (TYPE_BORDER[node.type] ?? FALLBACK_BORDER)
+                            : FALLBACK_BORDER,
+                        ],
                       )}
                       onClick={
                         packed
@@ -2003,9 +2073,12 @@ export function Timeline({
                       on whichever side layout() measured room for, rather than
                       always after the bar, which clipped a full-width bar's
                       label at the lane edge. */}
+                  {/* A packed bar nested in one of its own type sits on its
+                      parent's label, so only the parent is labelled. */}
                   {presentation === "labelled" &&
                   !node.offscreen &&
-                  (!packed || node.labelPlacement === "inside") ? (
+                  (!packed ||
+                    (node.labelPlacement === "inside" && nesting === 0)) ? (
                     <TimelineRowMetrics
                       row={node}
                       laneWidth={laneWidth}
@@ -2103,7 +2176,7 @@ export function Timeline({
         {focused && pointerPos && !dragging ? (
           <Layer name="tooltip">
             <div
-              className="border-border bg-background text-foreground pointer-events-none fixed flex flex-col gap-0.5 rounded border px-1.5 py-1 shadow-md"
+              className="border-border bg-background text-foreground pointer-events-none fixed flex flex-col rounded-md border text-xs shadow-md"
               style={tooltipStyle(
                 tooltipPlacement({
                   clientX: pointerPos.clientX,
@@ -2114,17 +2187,13 @@ export function Timeline({
               )}
               data-testid="timeline-dense-tooltip"
             >
-              {/* Two rows, like a tree row: identity, then the metrics. One row
-                  made the NAME the only flexible item, so adding cost and tokens
-                  truncated it away — and the name is the thing you hovered for. */}
-              <span className="flex items-center gap-1">
-                <span
-                  className={cn(
-                    "h-2 w-2 shrink-0 rounded-[1px]",
-                    TYPE_COLOR[focused.type] ?? FALLBACK_COLOR,
-                  )}
-                />
-                <span className="truncate" title={focused.name}>
+              {/* Identity first, on its own line: sharing a line with the
+                  metrics made the NAME the only flexible item, so cost and
+                  tokens truncated it away — and the name is the thing you
+                  hovered for. */}
+              <div className="flex items-center gap-1.5 px-2.5 py-2">
+                <TypeIcon type={focused.type} />
+                <span className="truncate font-bold" title={focused.name}>
                   {focused.name}
                 </span>
                 {/* What the colour means, next to the colour. */}
@@ -2133,30 +2202,34 @@ export function Timeline({
                     {typeLabel(focused.type)}
                   </span>
                 ) : null}
-              </span>
-              {ancestorLabel.length > 0 ? (
-                <span
-                  className="text-muted-foreground truncate"
-                  title={ancestorLabel}
-                >
-                  {ancestorLabel}
-                </span>
-              ) : null}
+              </div>
               {/* Duration and cost. NOT the start offset: the bar's own position
                   on the axis is what says when a span began, and saying it again
-                  in words was one more number to read past — `@0ms` on a root
-                  meaning nothing, and two unlabelled durations side by side
-                  reading as one number repeated. */}
-              <span className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                <span>
+                  in words was one more number to read past. */}
+              <dl className="border-border grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 border-t px-2.5 py-2">
+                <dt className="text-muted-foreground">Duration</dt>
+                <dd className="font-mono">
                   {focused.durationMs == null
                     ? "—"
                     : formatDurationMs(focused.durationMs)}
-                </span>
+                </dd>
                 {metricsOf?.(focused.id)?.costText ? (
-                  <span>{metricsOf(focused.id).costText}</span>
+                  <>
+                    <dt className="text-muted-foreground">Cost</dt>
+                    <dd className="font-mono">
+                      {metricsOf(focused.id).costText}
+                    </dd>
+                  </>
                 ) : null}
-              </span>
+                {ancestorLabel.length > 0 ? (
+                  <>
+                    <dt className="text-muted-foreground">Parent</dt>
+                    <dd className="truncate" title={ancestorLabel}>
+                      {ancestorLabel}
+                    </dd>
+                  </>
+                ) : null}
+              </dl>
             </div>
           </Layer>
         ) : null}
@@ -2219,8 +2292,43 @@ function tooltipStyle(placement: TooltipPlacement): CSSProperties {
     top: `${Math.round(placement.top)}px`,
     transform: placement.transform,
     maxWidth: `${Math.round(placement.maxWidth)}px`,
-    fontSize: "10px",
   };
+}
+
+/** The type's own icon, or its colour square for a type that has none. */
+function TypeIcon({ type }: { type: string }) {
+  return (
+    <span className="flex shrink-0 items-center">
+      {type in TYPE_COLOR ? (
+        <ItemTypeIcon type={type as LangfuseItemType} size="sm" />
+      ) : (
+        <span className={cn("h-2 w-2 rounded-[1px]", FALLBACK_COLOR)} />
+      )}
+    </span>
+  );
+}
+
+/** The observation type a packed lane holds. */
+function LaneLabel({ type, width }: { type: string; width: number }) {
+  const name = typeLabel(type);
+  return (
+    <div
+      className="absolute inset-y-0 flex items-center gap-1 overflow-hidden text-xs"
+      style={{
+        left: `${GUTTER_INSET}px`,
+        width: `${Math.max(width - GUTTER_INSET * 2, 0)}px`,
+      }}
+      data-testid="timeline-dense-lane-label"
+    >
+      <TypeIcon type={type} />
+      <span
+        className="text-foreground pointer-events-auto truncate"
+        title={name}
+      >
+        {name}
+      </span>
+    </div>
+  );
 }
 
 function GutterContent({
@@ -2243,32 +2351,28 @@ function GutterContent({
    */
   dimmed?: boolean;
 }) {
-  // RAIL_MAX_DEPTH exists to keep a tiny square inside a 15px rail, and applying
-  // it to the OPEN gutter flattened the tree: every node past depth 4 drew at the
-  // same indent and the same connector column in a gutter up to 168px wide. The
-  // open gutter caps on the width it actually has instead — deep traces still
-  // need a cap (a 1401-deep chain would push every name out of the box), but it
-  // is the one the gutter can afford, leaving room for the icon and a name.
-  const depthCap = showName
-    ? Math.max(
-        Math.floor(
-          (width - GUTTER_INSET - GUTTER_ICON - GUTTER_NAME_MIN) /
-            GUTTER_INDENT,
-        ),
-        0,
-      )
-    : RAIL_MAX_DEPTH;
+  // The open gutter caps its indent on the width it actually has: deep traces
+  // need a cap (a 1401-deep chain would push every name out of the box), and
+  // this is the one the gutter can afford, leaving room for the icon and a name.
+  const depthCap = Math.max(
+    Math.floor(
+      (width - GUTTER_INSET - GUTTER_ICON - GUTTER_NAME_MIN) / GUTTER_INDENT,
+    ),
+    0,
+  );
   const depth = Math.min(node.depth, depthCap);
   const typeColor = TYPE_COLOR[node.type] ?? FALLBACK_COLOR;
-  // The square must end up INSIDE the rail, so its size and its indent are both
-  // bounded by the width it has to live in — not by the row height alone.
+  // The square must end up INSIDE the rail, so its size is bounded by the width
+  // it has to live in — not by the row height alone.
   const squareSize = Math.max(
-    Math.min(barHeight, RAIL_SQUARE_MAX, width - RAIL_INDENT),
+    Math.min(barHeight, RAIL_SQUARE_MAX, width - 2),
     2,
   );
+  // Names indent by depth. The closed rail does not: its squares sit in one
+  // straight column.
   const indent = showName
     ? GUTTER_INSET + depth * GUTTER_INDENT
-    : Math.min(depth * RAIL_INDENT + 1, Math.max(width - squareSize - 1, 0));
+    : Math.max((width - squareSize) / 2, 0);
   /** x of this row's own rail, and of its parent's. */
   const railX = depth * GUTTER_INDENT + GUTTER_RAIL;
   // The PARENT's RENDERED depth, which is not always one less than this row's:
@@ -2344,11 +2448,7 @@ function GutterContent({
           <span className="shrink-0">
             <ItemTypeIcon type={node.type as LangfuseItemType} size="sm" />
           </span>
-          <span
-            className="text-foreground truncate"
-            style={{ fontSize: "10px" }}
-            title={node.name}
-          >
+          <span className="text-foreground truncate text-xs" title={node.name}>
             {node.name}
           </span>
         </div>
@@ -2446,7 +2546,7 @@ function ToolbarButton({
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className="hover:bg-muted flex h-4 min-w-4 shrink-0 items-center justify-center gap-0.5 rounded px-0.5 disabled:pointer-events-none disabled:opacity-40"
+      className="hover:bg-muted flex h-6 min-w-6 shrink-0 items-center justify-center gap-1 rounded-sm px-1 disabled:pointer-events-none disabled:opacity-40"
     >
       {children}
     </button>

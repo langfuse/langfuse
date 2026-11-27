@@ -15,6 +15,7 @@
  * is the one thing this timeline promises never to do.
  */
 
+import { cn } from "@/src/utils/tailwind";
 import type { Density } from "../../../types";
 import type { PositionedNode, TextMeasurer } from "../types";
 
@@ -186,7 +187,12 @@ export function TimelineRowMetrics({
 
   return (
     <div
-      className="absolute top-1/2 flex -translate-y-1/2 items-center gap-2 overflow-hidden whitespace-nowrap"
+      className={cn(
+        "absolute top-1/2 flex -translate-y-1/2 items-center gap-2 overflow-hidden whitespace-nowrap",
+        // Bars that share a lane paint in tree order, so a later bar would
+        // cover an earlier bar's label.
+        insideOnly && "z-10",
+      )}
       style={{ ...style, fontSize: `${density.labelFontPx}px` }}
       title={dropped.length > 0 ? dropped.join("  ") : undefined}
       data-testid="timeline-dense-metrics"
