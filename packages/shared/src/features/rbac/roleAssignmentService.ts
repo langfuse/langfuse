@@ -16,6 +16,7 @@ import {
   hasOrganizationKind,
   hasSystemRoleKind,
   hasUserKind,
+  principalKind,
   untag,
   type PrincipalId,
   type OwnerId,
@@ -238,17 +239,19 @@ async function validateTenancy(
 
 /** principalFields pairs a tagged principal with its foreign key. */
 function principalFields(principalId: PrincipalId) {
-  if (hasUserKind(principalId)) {
-    return { principalId, userId: untag(principalId) };
+  const kind = principalKind(principalId);
+  switch (kind) {
+    case "user":
+      return { principalId, userId: untag(principalId) };
+    case "apiKey":
+      return { principalId, apiKeyId: untag(principalId) };
+    case "group":
+      return { principalId, groupId: untag(principalId) };
+    default: {
+      const exhaustiveCheck: never = kind;
+      throw new Error(`Unknown principal kind: ${exhaustiveCheck}`);
+    }
   }
-  if (hasApiKeyKind(principalId)) {
-    return { principalId, apiKeyId: untag(principalId) };
-  }
-  if (hasGroupKind(principalId)) {
-    return { principalId, groupId: untag(principalId) };
-  }
-  const exhaustiveCheck: never = principalId;
-  throw new Error(`Unknown principal kind: ${exhaustiveCheck}`);
 }
 
 /** validateRole rejects unsupported roles and returns their storage fields. */

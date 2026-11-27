@@ -30,8 +30,15 @@ export const SystemRoleId = (role: SystemRole): SystemRoleId =>
 export type CustomRoleId = `custom/${string}`;
 export const CustomRoleId = (id: string): CustomRoleId => `custom/${id}`;
 
-/** PrincipalId is who a role is assigned to. */
-export type PrincipalId = UserId | ApiKeyId | GroupId;
+/** PrincipalKind is the tag of a principal id. */
+export type PrincipalKind = "user" | "apiKey" | "group";
+
+/** PrincipalId is who a role is assigned to: `user/…`, `apiKey/…` or `group/…`. */
+export type PrincipalId = `${PrincipalKind}/${string}`;
+
+/** principalKind returns the tag of a principal id, for exhaustive switches. */
+export const principalKind = (id: PrincipalId): PrincipalKind =>
+  id.slice(0, id.indexOf("/")) as PrincipalKind;
 
 /** ResourceId is a thing access is checked against. */
 export type ResourceId = OrganizationId | ProjectId;
