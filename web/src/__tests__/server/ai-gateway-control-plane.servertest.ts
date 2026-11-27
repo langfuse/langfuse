@@ -8,6 +8,7 @@ import * as SharedServer from "@langfuse/shared/src/server";
 import type * as GatewayFetch from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import type * as BillingServer from "@/src/ee/features/billing/utils/isCloudBillingEnabled";
 import { z } from "zod/v4";
+import { PENDING_MEMBERSHIP_INVITE_MESSAGE } from "@/src/features/rbac/constants/membershipErrorMessages";
 
 const { addNotificationJobs, getNotificationJob } = vi.hoisted(() => ({
   getNotificationJob: vi.fn<(jobId: string) => Promise<unknown>>(),
@@ -754,6 +755,33 @@ describe("AI gateway control plane", () => {
       notifiedCount: 0,
     });
     expect(queuedNotifications()).toEqual([]);
+  });
+
+  it("reports an address already invited with the members invite's own message", async () => {
+    const owner = await prepare();
+    Object.assign(env, {
+      SMTP_CONNECTION_URL: "smtp://localhost:1025",
+      EMAIL_FROM_ADDRESS: "gateway@example.test",
+    });
+    const email = `pending-${randomUUID().slice(0, 8)}@example.test`;
+    await prisma.membershipInvitation.create({
+      data: {
+        orgId: owner.org.id,
+        email,
+        orgRole: Role.AI_GATEWAY,
+        invitedByUserId: owner.user.id,
+      },
+    });
+
+    const result = await owner.caller.aiGateway.inviteTeam({
+      orgId: owner.org.id,
+      emails: [email],
+      notifyMembers: false,
+    });
+
+    expect(result.failed).toEqual([
+      { email, message: PENDING_MEMBERSHIP_INVITE_MESSAGE },
+    ]);
   });
 
   it("rejects more than MAX_TEAM_INVITES addresses in one request", async () => {

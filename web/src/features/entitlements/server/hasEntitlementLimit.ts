@@ -1,10 +1,10 @@
 import {
   entitlementAccess,
+  ForbiddenError,
   type EntitlementLimit,
   type Plan,
 } from "@langfuse/shared";
 import { organizationMemberLimitMessage } from "@/src/features/entitlements/constants/organizationMemberLimitMessage";
-import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 
 type HasEntitlementLimitParams = {
@@ -99,12 +99,8 @@ const isWithinEntitlementLimit = (
   return p.currentUsage < limit;
 };
 
-/** A FORBIDDEN that callers can tell apart from an access check's. */
-export class EntitlementLimitExceededError extends TRPCError {
-  constructor(message: string) {
-    super({ code: "FORBIDDEN", message });
-  }
-}
+/** A 403 that callers can tell apart from an access check's. */
+export class EntitlementLimitExceededError extends ForbiddenError {}
 
 /**
  * Throws if usage exceeds the entitlement limit

@@ -3,8 +3,9 @@ import { Plus, Users } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tag } from "@/src/components/design-system/Tag/Tag";
-import { EmailTagInput } from "@/src/features/ai-gateway/components/TeamInviteFields/components/EmailTagInput/EmailTagInput";
+import { EmailTagInput } from "@/src/components/EmailTagInput/EmailTagInput";
 import { ExternalInviteeHint } from "@/src/features/ai-gateway/components/TeamInviteFields/components/ExternalInviteeHint";
+import { InviteeTag } from "@/src/features/ai-gateway/components/TeamInviteFields/components/InviteeTag";
 import {
   MemberSuggestion,
   type MemberSuggestionProps,
@@ -80,31 +81,36 @@ export function TeamInviteFields({
 
   return (
     <div className="flex max-w-xl flex-col gap-2">
-      <div className="has-[input:focus]:border-ring rounded-md border px-3 py-2">
-        <EmailTagInput
-          id={inputId}
-          value={emails}
-          onChange={onEmailsChange}
-          draft={draft}
-          onDraftChange={onDraftChange}
-          onPickTopSuggestion={
-            topSuggestedMember ? handlePickTopSuggestion : undefined
-          }
-          members={members}
-          aria-describedby={errorMessage ? errorId : undefined}
-        >
-          {memberSuggestions && isAllSelected ? (
-            <Tag
-              text="All existing members"
-              secondaryText={String(memberSuggestions.memberCount)}
-              icon={Users}
-              remove={{ onRemove: handleDeselectAll }}
-            />
-          ) : null}
-        </EmailTagInput>
-      </div>
+      <EmailTagInput
+        id={inputId}
+        value={emails}
+        onChange={onEmailsChange}
+        draft={draft}
+        onDraftChange={onDraftChange}
+        onEnterWithoutAddress={
+          topSuggestedMember ? handlePickTopSuggestion : undefined
+        }
+        renderTag={(email, { remove }) => (
+          <InviteeTag email={email} members={members} remove={remove} />
+        )}
+        aria-describedby={errorMessage ? errorId : undefined}
+      >
+        {memberSuggestions && isAllSelected ? (
+          <Tag
+            text="All existing members"
+            secondaryText={String(memberSuggestions.memberCount)}
+            icon={Users}
+            remove={{ onRemove: handleDeselectAll }}
+          />
+        ) : null}
+      </EmailTagInput>
       {errorMessage ? (
-        <p id={errorId} role="alert" className="text-destructive text-xs">
+        <p
+          id={errorId}
+          role="alert"
+          // Names a typed entry, so it stays out of session replay like the input.
+          className="ph-no-capture text-destructive text-xs"
+        >
           {errorMessage}
         </p>
       ) : null}
