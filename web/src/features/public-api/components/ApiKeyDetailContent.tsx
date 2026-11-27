@@ -119,7 +119,9 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
           label: `Add to ${command.product}`,
           // Built on click so the key-bearing link never sits in the DOM.
           open: () => {
-            if (command.install) window.location.href = command.install.link();
+            if (!command.install) return;
+            // eslint-disable-next-line @repo/no-location-navigation -- a cursor:// install link opens the Cursor app, not an in-app page
+            window.location.href = command.install.link();
           },
         },
       });
