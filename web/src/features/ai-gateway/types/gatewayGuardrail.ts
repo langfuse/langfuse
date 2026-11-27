@@ -112,9 +112,9 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
     group: "pii",
     patterns: [
       // International E.164 or formatted number with leading `+` country code (8-15 digits).
-      String.raw`(?:^|[^A-Za-z0-9_+.-])(?<__lf_match>\+[1-9](?:\d{7,14}|\d{0,2}(?:(?:[ .-]\(0\))?[ .-]\(?\d{1,4}\)?[ .-]\d{3,4}[ .-]\d{4}|(?:[ .-]\(0\))?[ .-]\(?\d{2,5}\)?[ .-]\d{5,10}|[ .-]\d{1,3}(?:[ .-]\d{2}){4}|[ .-]\d{2}[ .-]\d{3}(?:[ .-]\d{2}){2}|[ .-]\d{6,12})))(?:$|\.(?:$|[^A-Za-z0-9_])|[^A-Za-z0-9_.-])`,
+      String.raw`(?:^|[^A-Za-z0-9_+.-])(?<__lf_match>\+[1-9](?:\d{7,14}|\d{0,2}(?:(?:[ .-]\(0\))?[ .-](?:\(\d{1,4}\)[ .-]?|\d{1,4}[ .-])\d{3,4}[ .-]\d{4}|(?:[ .-]\(0\))?[ .-](?:\(\d{2,5}\)[ .-]?|\d{2,5}[ .-])\d{5,10}|[ .-]\d{1,3}(?:[ .-]\d{2}){4}|[ .-]\d{2}[ .-]\d{3}(?:[ .-]\d{2}){2}|[ -]\d{7,12})))(?:$|\.(?:$|[^A-Za-z0-9_])|[^A-Za-z0-9_.-])`,
       // Formatted North American (NANP) number with explicit separators; never bare digit runs.
-      String.raw`(?:^|[^A-Za-z0-9_.-])(?<__lf_match>(?:1[ .-])?(?:\([2-9]\d{2}\)[ .-]?[2-9]\d{2}[ .-]\d{4}|[2-9]\d{2}-[2-9]\d{2}-\d{4}|[2-9]\d{2}\.[2-9]\d{2}\.\d{4}|[2-9]\d{2} [2-9]\d{2} \d{4}))(?:$|\.(?:$|[^A-Za-z0-9_])|[^A-Za-z0-9_.-])`,
+      String.raw`(?:^|[^A-Za-z0-9_+.-])(?<__lf_match>(?:1[ .-])?(?:\([2-9]\d{2}\)[ .-]?[2-9]\d{2}[ .-]\d{4}|[2-9]\d{2}-[2-9]\d{2}-\d{4}|[2-9]\d{2}\.[2-9]\d{2}\.\d{4}|[2-9]\d{2} [2-9]\d{2} \d{4}))(?:$|\.(?:$|[^A-Za-z0-9_])|[^A-Za-z0-9_.-])`,
     ],
   },
   credit_card: {
@@ -254,7 +254,7 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
   database_connection_string: {
     group: "secrets",
     patterns: [
-      String.raw`\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|rediss?|amqps?)://[^\s/:@"'<>]+:[^\s/@"'<>]+@(?:[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*|\[[0-9A-Fa-f:]+\])(?::\d{1,5})?(?:/(?:[A-Za-z0-9._~/%?&+=:@-]*[A-Za-z0-9_~/%?&+=:@-])?)?`,
+      String.raw`\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|rediss?|amqps?)://[^\s/:@"'<>]*:[^\s/@"'<>]+@(?:[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*|\[[0-9A-Fa-f:]+\])(?::\d{1,5})?(?:/(?:[A-Za-z0-9._~/%?&+=:@-]*[A-Za-z0-9_~/%?&+=:@-])?)?`,
     ],
   },
   private_key: {
@@ -295,7 +295,7 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
       String.raw`\b${escapeAsciiCaseInsensitive("you")}${ASCII_WS}${escapeAsciiCaseInsensitive("are")}${ASCII_WS}${escapeAsciiCaseInsensitive("now")}${ASCII_WS}(?:${escapeAsciiCaseInsensitive("in")}${ASCII_WS})?(?:DAN|${ciAlt("developer", "jailbreak", "jailbroken", "unrestricted", "god")}${ASCII_WS}${escapeAsciiCaseInsensitive("mode")})\b`,
       String.raw`\bDAN\b[\x20-\x7E]{0,40}\b${escapeAsciiCaseInsensitive("do")}${ASCII_WS}${escapeAsciiCaseInsensitive("anything")}${ASCII_WS}${escapeAsciiCaseInsensitive("now")}\b`,
       String.raw`\b(?:${ciAlt("enter", "activate")}${ASCII_WS}${ciAlt("developer", "jailbreak", "unrestricted")}${ASCII_WS}${escapeAsciiCaseInsensitive("mode")}|${ciAlt("jailbreak", "jailbroken")}${ASCII_WS}${ciAlt("mode", "prompt")})\b`,
-      String.raw`\b${escapeAsciiCaseInsensitive("you")}${ASCII_WS}${escapeAsciiCaseInsensitive("are")}${ASCII_WS}${escapeAsciiCaseInsensitive("no")}${ASCII_WS}${escapeAsciiCaseInsensitive("longer")}${ASCII_WS}${ciAlt("bound", "restricted", "limited")}\b`,
+      String.raw`\b${escapeAsciiCaseInsensitive("you")}${ASCII_WS}${escapeAsciiCaseInsensitive("are")}${ASCII_WS}${escapeAsciiCaseInsensitive("no")}${ASCII_WS}${escapeAsciiCaseInsensitive("longer")}${ASCII_WS}${ciAlt("bound", "restricted", "limited")}${ASCII_WS}${escapeAsciiCaseInsensitive("by")}${ASCII_WS}(?:${ciAlt("your", "the", "any", "those", "these")}${ASCII_WS})?(?:${ciAlt("safety", "security", "ethical", "content", "previous", "prior", "original", "system")}${ASCII_WS})?(?:${ciPluralAlt("rule", "guideline", "constraint", "restriction", "instruction", "guardrail")}|${ciAlt("policies", "policy")})\b`,
       String.raw`\b${escapeAsciiCaseInsensitive("act")}${ASCII_WS}${escapeAsciiCaseInsensitive("as")}${ASCII_WS}${escapeAsciiCaseInsensitive("if")}${ASCII_WS}(?:${escapeAsciiCaseInsensitive("you")}(?:'${escapeAsciiCaseInsensitive("re")}|${ASCII_WS}${escapeAsciiCaseInsensitive("are")})${ASCII_WS})?${escapeAsciiCaseInsensitive("not")}${ASCII_WS}${escapeAsciiCaseInsensitive("bound")}\b`,
       String.raw`\b${ciAlt("bypass", "disable", "ignore", "disregard")}${ASCII_WS}(?:${escapeAsciiCaseInsensitive("all")}${ASCII_WS})?(?:${escapeAsciiCaseInsensitive("your")}${ASCII_WS})?${ciAlt("safety", "security", "ethical", "content")}${ASCII_WS}(?:${ciPluralAlt("filter", "measure", "guideline", "restriction", "guardrail")}|${ciAlt("policies", "policy")})\b`,
     ],
@@ -306,8 +306,10 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
       // Zero-width/invisible format chars and bidi controls (omitting U+200C ZWNJ and U+200D ZWJ
       // to avoid flagging Persian/Indic orthography and ZWJ emoji sequences).
       String.raw`[\u{00AD}\u{061C}\u{200B}\u{200E}\u{200F}\u{202A}-\u{202E}\u{2060}\u{2066}-\u{2069}\u{FEFF}]+`,
-      // Unicode Tag characters (U+E0000-U+E007F) outside U+1F3F4 subdivision flag emoji sequences.
+      // Unicode Tag characters (U+E0000-U+E007F) not preceded by a black flag U+1F3F4.
       String.raw`(?:^|[^\u{1F3F4}\u{E0000}-\u{E007F}])(?<__lf_match>[\u{E0000}-\u{E007F}]+)`,
+      // Non-flag Tag runs preceded by U+1F3F4 (leaves valid subdivision flags U+1F3F4 + 2-6 [0-9a-z] tags + U+E007F untouched).
+      String.raw`\u{1F3F4}(?<__lf_match>(?:[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{0,6}(?:[\u{E0000}-\u{E002F}\u{E003A}-\u{E0060}\u{E007B}-\u{E007E}][\u{E0000}-\u{E007F}]*|\u{E007F}[\u{E0000}-\u{E007F}]+)|[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{7,}[\u{E0000}-\u{E007F}]*|[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{1,6}))(?:$|[^\u{E0000}-\u{E007F}])`,
     ],
   },
 } as const satisfies Record<

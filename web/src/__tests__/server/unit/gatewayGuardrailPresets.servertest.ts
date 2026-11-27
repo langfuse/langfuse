@@ -47,7 +47,8 @@ describe("GATEWAY_GUARDRAIL_PRESETS Rust WASM validation", () => {
 
   it("matches hidden Unicode code point ranges (zero-width, bidi, U+E0000-U+E007F) in the Rust WASM engine without flagging ZWJ emoji, ZWNJ text, or subdivision flags", () => {
     const patterns = GATEWAY_GUARDRAIL_PRESETS.hidden_unicode.patterns;
-    const sample = "a\u200Bb \u202Ec\u202C \u{E0041}\u{E0042} plain";
+    const sample =
+      "a\u200Bb \u202Ec\u202C \u{E0041}\u{E0042} 🏴\u{E0049}\u{E0067} plain";
     const matched = patterns.flatMap((pattern) => {
       const result = preview(pattern, sample, GATEWAY_GUARDRAIL_MAX_RULE_BYTES);
       expect(result.valid).toBe(true);
@@ -59,6 +60,7 @@ describe("GATEWAY_GUARDRAIL_PRESETS Rust WASM validation", () => {
       "\u202E",
       "\u202C",
       " \u{E0041}\u{E0042}",
+      "🏴\u{E0049}\u{E0067} ",
     ]);
 
     const benign =
