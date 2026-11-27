@@ -50,6 +50,18 @@ import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { TracesSetupOnboardingCard } from "./TracesSetupOnboardingCard";
 
 describe("TracesSetupOnboardingCard", () => {
+  // The usage tabs collapse into a menu when they overflow, which measures with ResizeObserver.
+  beforeEach(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+
   it("shows a created key only in the project it was created in", async () => {
     mutateAsync.mockResolvedValue({ secretKey: "sk-lf-project-a" });
     const { rerender } = render(

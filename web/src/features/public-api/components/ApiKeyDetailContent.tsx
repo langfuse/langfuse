@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props */
-import { type ReactNode } from "react";
-import { FileCode, Plug, type IconComponent } from "@langfuse/icons";
+import { type ReactNode, useState } from "react";
+import { Braces, FileCode, type IconComponent } from "@langfuse/icons";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Label } from "@/src/components/ui/label";
@@ -30,14 +30,11 @@ type UsageTab = {
   id: string;
   label: string;
   icon: IconComponent;
-  title?: string;
   description?: ReactNode;
   codeLabel?: string;
   /** Snippet with GATEWAY_KEY_PLACEHOLDER where `secret` goes. */
   code: string;
   secret: string;
-  /** Content rendered below the snippet. */
-  footer?: ReactNode;
 };
 
 /** encodeMcpCredential returns the Basic auth token for a project id and secret key. */
@@ -54,11 +51,13 @@ function encodeMcpCredential(projectId: string, secretKey: string) {
 export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
   const { scope, secretKey, baseUrl, className, showMcpSection } = props;
   const projectId = exampleProjectId(props);
+  const credential = apiCredential(props.scope, projectId, secretKey);
+  const [activeTab, setActiveTab] = useState<string>("sdk");
 
   const tabs: UsageTab[] = [
     {
-      id: "env",
-      label: ".env",
+      id: "sdk",
+      label: "SDK",
       icon: FileCode,
       description:
         "Add these environment variables to your application to send traces to Langfuse.",
@@ -68,41 +67,48 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       }),
       secret: secretKey,
     },
-  ];
-  if (showMcpSection) {
-    const credential = mcpCredential(props.scope, projectId, secretKey);
-    tabs.push({
-      id: "mcp",
-      label: "MCP",
-      icon: Plug,
-      title: "Using with MCP",
+    {
+      id: "api",
+      label: "API",
+      icon: Braces,
       description: (
         <>
-          {props.scope === "organization" && <OrganizationKeyMcpNote />}
-          For a detailed guide on how to use this API key to connect to the
-          Langfuse MCP server, see the{" "}
-          <a
-            href="https://langfuse.com/docs/api-and-data-platform/features/mcp-server"
-            target="_blank"
-            rel="noreferrer"
-            className="text-foreground underline"
-          >
-            MCP setup docs
-          </a>
+          Send this header with each request to the{" "}
+          <DocsLink href="https://langfuse.com/docs/api-and-data-platform/features/public-api">
+            Langfuse API
+          </DocsLink>
           .
         </>
       ),
       codeLabel: "Header",
       code: `Authorization: ${credential.scheme} ${GATEWAY_KEY_PLACEHOLDER}`,
       secret: credential.token,
-      footer: (
-        <McpHarnessTabs
-          mcpUrl={`${baseUrl}/api/public/mcp`}
-          credential={credential}
-          secretKey={secretKey}
-        />
-      ),
-    });
+    },
+  ];
+  if (showMcpSection) {
+    for (const command of buildMcpHarnessCommands(
+      `${baseUrl}/api/public/mcp`,
+      credential,
+      secretKey,
+    )) {
+      tabs.push({
+        id: command.id,
+        label: command.label,
+        icon: command.icon,
+        description: (
+          <>
+            {props.scope === "organization" && <OrganizationKeyMcpNote />}
+            {command.description} See the{" "}
+            <DocsLink href="https://langfuse.com/docs/api-and-data-platform/features/mcp-server">
+              MCP setup docs
+            </DocsLink>{" "}
+            for other clients.
+          </>
+        ),
+        code: command.code,
+        secret: command.secret,
+      });
+    }
   }
 
   return (
@@ -118,9 +124,13 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       <hr />
       <div className="flex flex-col gap-2">
         <h3 className="font-bold">Usage instructions</h3>
-        <Tabs defaultValue="env">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <div className="flex h-9 items-center border-b">
-            <Tabs.List variant="underline" aria-label="Usage instructions">
+            <Tabs.List
+              variant="underline"
+              overflow="menu"
+              aria-label="Usage instructions"
+            >
               {tabs.map((tab) => (
                 <Tabs.Trigger
                   key={tab.id}
@@ -134,9 +144,6 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
           {tabs.map((tab) => (
             <Tabs.Content key={tab.id} value={tab.id}>
               <div className="flex flex-col gap-2 pt-4">
-                {tab.title ? (
-                  <h4 className="text-sm font-bold">{tab.title}</h4>
-                ) : null}
                 {tab.description ? (
                   <p className="text-muted-foreground text-sm">
                     {tab.description}
@@ -146,13 +153,26 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
                 <GatewaySecretKeyContext value={{ value: tab.secret }}>
                   <StepCodeSection code={tab.code} language="sh" />
                 </GatewaySecretKeyContext>
-                {tab.footer}
               </div>
             </Tabs.Content>
           ))}
         </Tabs>
       </div>
     </div>
+  );
+}
+
+/** DocsLink opens a Langfuse docs page in a new tab. */
+function DocsLink(props: { href: string; children: ReactNode }) {
+  return (
+    <a
+      href={props.href}
+      target="_blank"
+      rel="noreferrer"
+      className="text-foreground underline"
+    >
+      {props.children}
+    </a>
   );
 }
 
@@ -167,49 +187,8 @@ function OrganizationKeyMcpNote() {
   );
 }
 
-/** McpHarnessTabs shows the one-line command that adds the MCP server to each agent harness. */
-function McpHarnessTabs(props: {
-  mcpUrl: string;
-  credential: McpCredential;
-  secretKey: string;
-}) {
-  const commands = buildMcpHarnessCommands(
-    props.mcpUrl,
-    props.credential,
-    props.secretKey,
-  );
-  return (
-    <div className="flex flex-col gap-2 pt-2">
-      <Label>Add to your agent</Label>
-      <Tabs defaultValue={commands[0]?.id}>
-        <Tabs.List variant="inset" size="sm" aria-label="Agent harness">
-          {commands.map((command) => (
-            <Tabs.Trigger
-              key={command.id}
-              value={command.id}
-              label={command.label}
-            />
-          ))}
-        </Tabs.List>
-        {commands.map((command) => (
-          <Tabs.Content key={command.id} value={command.id}>
-            <div className="flex flex-col gap-2 pt-2">
-              <p className="text-muted-foreground text-sm">
-                {command.description}
-              </p>
-              <GatewaySecretKeyContext value={{ value: command.secret }}>
-                <StepCodeSection code={command.code} language="sh" />
-              </GatewaySecretKeyContext>
-            </div>
-          </Tabs.Content>
-        ))}
-      </Tabs>
-    </div>
-  );
-}
-
-/** mcpCredential is the Authorization scheme and token a key connects to the MCP server with. */
-function mcpCredential(
+/** apiCredential is the Authorization scheme and token a key authenticates API and MCP requests with. */
+function apiCredential(
   scope: ApiKeyDetailContentProps["scope"],
   projectId: string,
   secretKey: string,
