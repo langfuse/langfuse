@@ -485,7 +485,7 @@ const OUTPUT_ITEM: Node = Object::new(&[
     ("code", text(LEAF)),
     (
         "action",
-        Object::new(&[("commands", each(&COMMAND))]).node(),
+        Object::new(&[("commands", each(&COMMAND)), ("command", each(&COMMAND))]).node(),
     ),
 ])
 .strict()
@@ -589,12 +589,22 @@ const STREAMED_ITEM: Node = Object::new(&[])
                     Object::new(&[("commands", keyed_each(&STREAMED_COMMAND))]).node(),
                 )]),
             ),
+            (
+                "local_shell_call",
+                Object::new(&[(
+                    "action",
+                    Object::new(&[("command", each(&COPIED_COMMAND))]).node(),
+                )]),
+            ),
         ],
         Some(&item!(OUTPUT_TEXT_PART, "function_call_args")),
     )
     .node();
 
 const STREAMED_COMMAND: Node = text(summary("shell_command"));
+/// `local_shell_call` commands are not streamed, so `output_item.done` and
+/// `response.completed` carry the only copies.
+const COPIED_COMMAND: Node = text(Emit::Copy);
 const OUTPUT_TEXT_PART: Node = text_part!("output_text");
 const REASONING_TEXT_PART: Node = text_part!("reasoning_text");
 const SUMMARY_TEXT_PART: Node = text_part!("reasoning_summary");

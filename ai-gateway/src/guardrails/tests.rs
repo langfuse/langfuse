@@ -769,7 +769,7 @@ fn redacts_json_responses_across_formats() {
     assert_eq!(ant_out["content"][2]["input"]["email"], "[EMAIL]");
 
     // OpenAI Responses: output_text dedupe + function_call + custom_tool_call + code + shell commands.
-    let responses = r#"{"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"SSN 123-45-6789"}]},{"type":"function_call","arguments":"{\"email\":\"bob@example.com\"}"},{"type":"custom_tool_call","input":"123-45-6789"},{"type":"code_interpreter_call","code":"print(\"123-45-6789\")","outputs":[]},{"type":"shell_call","action":{"commands":["echo \"bob@example.com\"","ls"],"timeout_ms":null}}],"output_text":"SSN 123-45-6789"}"#;
+    let responses = r#"{"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"SSN 123-45-6789"}]},{"type":"function_call","arguments":"{\"email\":\"bob@example.com\"}"},{"type":"custom_tool_call","input":"123-45-6789"},{"type":"code_interpreter_call","code":"print(\"123-45-6789\")","outputs":[]},{"type":"shell_call","action":{"commands":["echo \"bob@example.com\"","ls"],"timeout_ms":null}},{"type":"local_shell_call","action":{"type":"exec","command":["bash","-lc","echo 123-45-6789"]}}],"output_text":"SSN 123-45-6789"}"#;
     let parsed_resp = ParsedResponse::parse(
         ApiFormat::OpenAiResponses,
         ResponseFormat::Json,
@@ -777,7 +777,7 @@ fn redacts_json_responses_across_formats() {
         None,
     )
     .unwrap();
-    assert_eq!(parsed_resp.blocks().len(), 6);
+    assert_eq!(parsed_resp.blocks().len(), 9);
     let resp_out: serde_json::Value =
         serde_json::from_str(&rewritten_response_str(check_response_local(
             &guardrails,
@@ -794,6 +794,10 @@ fn redacts_json_responses_across_formats() {
     assert_eq!(
         resp_out["output"][4]["action"]["commands"],
         serde_json::json!([r#"echo "[EMAIL]""#, "ls"])
+    );
+    assert_eq!(
+        resp_out["output"][5]["action"]["command"],
+        serde_json::json!(["bash", "-lc", "echo [SSN]"])
     );
 }
 
@@ -867,6 +871,8 @@ fn redacts_sse_responses_across_formats_and_span_boundaries() {
         "\n\n",
         r#"data: {"type":"response.output_item.done","output_index":3,"item":{"type":"shell_call","action":{"commands":["echo \"123-45-6789\""]}}}"#,
         "\n\n",
+        r#"data: {"type":"response.output_item.done","output_index":4,"item":{"type":"local_shell_call","action":{"type":"exec","command":["echo 123-45-6789"]}}}"#,
+        "\n\n",
         r#"data: {"type":"response.audio.transcript.delta","delta":"Spoken 123-"}"#,
         "\n\n",
         r#"data: {"type":"response.audio.transcript.delta","delta":"45-6789"}"#,
@@ -884,6 +890,7 @@ fn redacts_sse_responses_across_formats_and_span_boundaries() {
     assert_eq!(resp_out.matches(r#"{\"ssn\":\"[SSN]\"}"#).count(), 3);
     assert_eq!(resp_out.matches(r#"print(\"[SSN]\")"#).count(), 3);
     assert_eq!(resp_out.matches(r#"echo \"[SSN]\""#).count(), 3);
+    assert!(resp_out.contains(r#""command":["echo [SSN]"]"#));
     assert_eq!(resp_out.matches("Spoken [SSN]").count(), 1);
     for data in resp_out
         .lines()
