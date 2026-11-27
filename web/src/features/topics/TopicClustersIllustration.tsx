@@ -19,7 +19,7 @@ import { TopicPilesScene } from "./TopicPilesScene";
 const BOX = { width: 720, height: 480 };
 const MIDDLE = { x: 306, y: -36 };
 // One trace card, and the square footprint a finished cluster gets.
-const CARD = { width: 72, depth: 36, corner: 3, linePad: 12 };
+const CARD = { width: 72, depth: 36, corner: 3 };
 const MAT = 144;
 const NAME_FONT_SIZE = 16.5;
 const COUNT_FONT_SIZE = 19.5;
@@ -93,6 +93,9 @@ const EDGES = {
   xs: PILES.flatMap((_, pile) => [pile * PILE.pitch, pile * PILE.pitch + MAT]),
   ys: [0, MAT],
 };
+// The finished picture stands still from the last name's fade-in until the return.
+const STILL_FROM =
+  Math.max(...PILES.map((pile) => pile.doneAt)) + NAMES_FADE_IN;
 
 /** Decorative: loose grey traces gather into three coloured piles; a finished pile gets a footprint with its name and count. */
 export function TopicClustersIllustration({
@@ -142,21 +145,34 @@ export function TopicClustersIllustration({
   );
 }
 
-/** Seconds into the loop, counted every frame from the finished picture; stays there on the server and under reduced motion. */
+/** Seconds into the loop, counted every frame from the finished picture; stays there on the server and whenever reduced motion is on. */
 function useLoopSeconds() {
   const [seconds, setSeconds] = useState(REST);
   useEffect(() => {
-    if (
-      typeof matchMedia === "undefined" ||
-      matchMedia("(prefers-reduced-motion: reduce)").matches
-    )
-      return;
-    const startedAt = performance.now();
-    let frame = requestAnimationFrame(function tick(now) {
-      setSeconds((REST + Math.max(0, now - startedAt) / 1000) % LOOP);
-      frame = requestAnimationFrame(tick);
-    });
-    return () => cancelAnimationFrame(frame);
+    if (typeof matchMedia === "undefined") return;
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+    let frame = 0;
+    const play = () => {
+      if (reduced.matches) return;
+      const startedAt = performance.now();
+      frame = requestAnimationFrame(function tick(now) {
+        const at = (REST + Math.max(0, now - startedAt) / 1000) % LOOP;
+        // One value for the whole still stretch, so its frames do not render.
+        setSeconds(at >= STILL_FROM && at < RETURN.at ? REST : at);
+        frame = requestAnimationFrame(tick);
+      });
+    };
+    const restart = () => {
+      cancelAnimationFrame(frame);
+      setSeconds(REST);
+      play();
+    };
+    play();
+    reduced.addEventListener("change", restart);
+    return () => {
+      reduced.removeEventListener("change", restart);
+      cancelAnimationFrame(frame);
+    };
   }, []);
   return seconds;
 }
@@ -280,14 +296,7 @@ function Stacks({ stacks }: StacksProps) {
       strengths={stack.strengths}
       color={stack.color}
       colored={stack.colored}
-      label={
-        <path
-          d={`M${stack.x + CARD.linePad} ${stack.y + CARD.depth / 2}h${stack.line}`}
-          fill="none"
-          strokeWidth={1.5}
-          className="stroke-border-contrast"
-        />
-      }
+      line={stack.line}
     />
   ));
 }

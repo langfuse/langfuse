@@ -18,6 +18,8 @@ import {
 const SCALE = 0.72;
 const RULE_REACH = 300;
 const PILE_CORNER = 4;
+// How far in from a top face's left edge its text line starts.
+const LINE_PAD = 12;
 
 // A floor line is full strength in its middle third and fades out at both ends.
 const RULE_STOPS = [
@@ -182,20 +184,19 @@ function Floor({ id, view, edges, edgeOpacity }: FloorProps) {
   );
 }
 
-/** A stack of coloured sheets, strongest at the bottom; `label` lies on its top face. */
-function Pile({ x, sheets, color, label }: PileProps) {
+/** A stack of coloured sheets, strongest at the bottom, with a blank top face. */
+function Pile({ x, sheets, color }: PileProps) {
   return (
     <Stack
       rect={{ x, y: 0, width: PILE.width, depth: PILE.depth }}
       corner={PILE_CORNER}
       strengths={sheetStrengths(sheets)}
       color={color}
-      label={label}
     />
   );
 }
 
-/** Sheets stacked over `rect`, one per strength: dark outline on the silhouette only; `label` lies on the top face. */
+/** Sheets stacked over `rect`, one per strength: dark outline on the silhouette only; a faint text line `line` long lies on the top face. */
 function Stack({
   rect,
   base = 0,
@@ -203,7 +204,7 @@ function Stack({
   strengths,
   color,
   colored = 1,
-  label,
+  line,
 }: StackProps) {
   const clipId = useIllustrationId();
   const { x, y } = rect;
@@ -267,7 +268,14 @@ function Stack({
             height={rect.depth}
             style={{ fill: tint(color, 16, "card", colored) }}
           />
-          {label}
+          {line === undefined ? null : (
+            <path
+              d={`M${x + LINE_PAD} ${y + rect.depth / 2}h${line}`}
+              fill="none"
+              strokeWidth={1.5}
+              className="stroke-border-contrast"
+            />
+          )}
           <path
             d={`M${x} ${y}V${y1}H${x1}`}
             fill="none"
@@ -311,11 +319,9 @@ type PileProps = {
   x: number;
   sheets: number;
   color: PileColor;
-  /** What is written on the top face; null leaves it blank. */
-  label: ReactNode;
 };
 
-type StackProps = Pick<PileProps, "color" | "label"> & {
+type StackProps = Pick<PileProps, "color"> & {
   /** Footprint on the floor. */
   rect: FloorRect;
   /** How far the bottom sheet is off the floor. */
@@ -326,6 +332,8 @@ type StackProps = Pick<PileProps, "color" | "label"> & {
   strengths: readonly number[];
   /** How much of its colour it shows: 0 is neutral grey, 1 the full colour. */
   colored?: number;
+  /** Length of the text line on the top face; blank when left out. */
+  line?: number;
 };
 
 /** The floor the Topics drawings stand on; `TopicPilesScene.Pile` is a full-size stack of sheets, `TopicPilesScene.Stack` one of any size and place. */
