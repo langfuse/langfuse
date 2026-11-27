@@ -19,10 +19,7 @@ import {
   useRole,
   type Placement,
 } from "@floating-ui/react";
-import {
-  DismissableLayer,
-  DismissableLayerBranch,
-} from "@radix-ui/react-dismissable-layer";
+import { DismissableLayer } from "@radix-ui/react-dismissable-layer";
 import * as React from "react";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
@@ -135,29 +132,6 @@ function getContentProps({
   };
 }
 
-function ParentOverlayFocusGuard({
-  floatingRef,
-  referenceRef,
-}: {
-  floatingRef: React.RefObject<HTMLElement | null>;
-  referenceRef: React.RefObject<Element | null>;
-}) {
-  React.useLayoutEffect(() => {
-    const onFocusIn = (event: FocusEvent) => {
-      const target = event.target;
-      if (
-        (target instanceof Node && floatingRef.current?.contains(target)) ||
-        (target instanceof Node && referenceRef.current?.contains(target))
-      ) {
-        event.stopPropagation();
-      }
-    };
-    document.addEventListener("focusin", onFocusIn, true);
-    return () => document.removeEventListener("focusin", onFocusIn, true);
-  }, [floatingRef, referenceRef]);
-  return <span hidden />;
-}
-
 function FloatingController({
   children,
   renderContent,
@@ -210,9 +184,8 @@ function FloatingController({
   role?: "tooltip" | "dialog";
   hoverableContent?: boolean;
   isScrollable?: boolean;
-  // Mount inside the open drawer or dialog so its focus trap and
-  // aria-hidden scope include this surface. Floating UI accounts for that
-  // overlay's transform when positioning.
+  // When the trigger sits in a drawer or dialog, mount there too. That overlay
+  // already owns focus and aria-hidden; a second portal would fight it.
   containInParentOverlay?: boolean;
 }) {
   const isOpen = enabled && open;
@@ -293,27 +266,25 @@ function FloatingController({
       returnFocus={returnFocus}
     >
       {containInParentOverlay ? (
-        <DismissableLayerBranch className="contents">
-          <DismissableLayer
-            asChild
-            onDismiss={() => onOpenChange(false)}
-            onInteractOutside={(event) => {
-              const originalTarget = (
-                event as {
-                  detail?: { originalEvent?: { target?: EventTarget | null } };
-                }
-              ).detail?.originalEvent?.target;
-              if (
-                targetIsInside(event.target, refs.domReference.current) ||
-                targetIsInside(originalTarget, refs.domReference.current)
-              ) {
-                event.preventDefault();
+        <DismissableLayer
+          asChild
+          onDismiss={() => onOpenChange(false)}
+          onInteractOutside={(event) => {
+            const originalTarget = (
+              event as {
+                detail?: { originalEvent?: { target?: EventTarget | null } };
               }
-            }}
-          >
-            {renderContent(contentProps)}
-          </DismissableLayer>
-        </DismissableLayerBranch>
+            ).detail?.originalEvent?.target;
+            if (
+              targetIsInside(event.target, refs.domReference.current) ||
+              targetIsInside(originalTarget, refs.domReference.current)
+            ) {
+              event.preventDefault();
+            }
+          }}
+        >
+          {renderContent(contentProps)}
+        </DismissableLayer>
       ) : (
         renderContent(contentProps)
       )}
@@ -330,12 +301,6 @@ function FloatingController({
       })}
       {isOpen ? (
         <FloatingPortal root={parentOverlay ?? layerContainer}>
-          {parentOverlay ? (
-            <ParentOverlayFocusGuard
-              floatingRef={refs.floating}
-              referenceRef={refs.domReference}
-            />
-          ) : null}
           {content}
         </FloatingPortal>
       ) : null}
