@@ -594,7 +594,7 @@ struct ResponseGuardrailRun {
 
 enum UnreadableSource {
     Stream(reqwest::Response, Vec<Bytes>, Option<MemoryReservation>),
-    Buffered(Bytes, MemoryReservation),
+    Buffered(Vec<Bytes>, MemoryReservation),
 }
 
 impl ResponseGuardrailRun {
@@ -672,15 +672,12 @@ impl ResponseGuardrailRun {
         {
             Ok(Ok(outcome)) => outcome,
             Err(_) => {
-                capture_usage_without_output(&mut self.capture, std::slice::from_ref(&raw_bytes));
+                capture_usage_without_output(&mut self.capture, &raw_bytes);
                 self.capture.finish(RelayOutcome::Timeout);
                 return Err(ProviderError::Timeout.into());
             }
             Ok(Err(crate::resolution::ResolutionError::Busy)) => {
-                return Err(reject_busy_response(
-                    self.capture,
-                    std::slice::from_ref(&raw_bytes),
-                ));
+                return Err(reject_busy_response(self.capture, &raw_bytes));
             }
             Ok(Err(_)) => {
                 return self.fail_closed_or_relay(
@@ -695,12 +692,12 @@ impl ResponseGuardrailRun {
 
     fn finish_checked(
         mut self,
-        raw_bytes: Bytes,
+        raw_bytes: Vec<Bytes>,
         buffer_reservation: MemoryReservation,
         outcome: crate::guardrails::Outcome,
     ) -> Result<Response<Body>, ForwardError> {
         if let Some(rejection) = outcome.rejection() {
-            capture_usage_without_output(&mut self.capture, std::slice::from_ref(&raw_bytes));
+            capture_usage_without_output(&mut self.capture, &raw_bytes);
             return Err(reject_blocked_response(
                 rejection,
                 &outcome.into_findings(),
@@ -709,7 +706,7 @@ impl ResponseGuardrailRun {
         }
 
         if Instant::now() >= self.permit.deadline {
-            capture_usage_without_output(&mut self.capture, std::slice::from_ref(&raw_bytes));
+            capture_usage_without_output(&mut self.capture, &raw_bytes);
             self.capture.record_guardrails(&outcome.into_findings());
             self.capture.finish(RelayOutcome::Timeout);
             return Err(ProviderError::Timeout.into());
@@ -721,11 +718,13 @@ impl ResponseGuardrailRun {
                 self.headers.remove(header::CONTENT_LENGTH);
                 drop(raw_bytes);
                 drop(buffer_reservation);
-                (rewritten, None)
+                (vec![rewritten], None)
             }
             None => (raw_bytes, Some(buffer_reservation)),
         };
-        self.capture.push_bytes(&final_bytes);
+        for chunk in &final_bytes {
+            self.capture.push_bytes(chunk);
+        }
         self.capture.end_body();
         self.capture.record_guardrails(&findings);
 
@@ -764,10 +763,7 @@ impl ResponseGuardrailRun {
                     capture_usage_without_output(&mut self.capture, prefix);
                 }
                 UnreadableSource::Buffered(raw_bytes, _) => {
-                    capture_usage_without_output(
-                        &mut self.capture,
-                        std::slice::from_ref(raw_bytes),
-                    );
+                    capture_usage_without_output(&mut self.capture, raw_bytes);
                 }
             }
             return Err(reject_blocked_response(
@@ -811,7 +807,9 @@ impl ResponseGuardrailRun {
                 )
             }
             UnreadableSource::Buffered(raw_bytes, buffer_reservation) => {
-                self.capture.push_bytes(&raw_bytes);
+                for chunk in &raw_bytes {
+                    self.capture.push_bytes(chunk);
+                }
                 self.capture.end_body();
                 transport::relay_buffered_observed(
                     raw_bytes,
@@ -841,7 +839,7 @@ fn capture_usage_without_output(capture: &mut ExecutionCapture, chunks: &[Bytes]
 }
 
 enum BufferedResponse {
-    Complete(Bytes, MemoryReservation),
+    Complete(Vec<Bytes>, MemoryReservation),
     TooLarge {
         prefix: Vec<Bytes>,
         response: reqwest::Response,
@@ -851,9 +849,9 @@ enum BufferedResponse {
     UpstreamError(ProviderError, Vec<Bytes>),
 }
 
-/// Buffers a provider response body up to `max_bytes`, reserving capacity
-/// incrementally from the shared memory budget and honoring both the execution
-/// deadline and per-chunk stall timeout.
+/// Buffers a provider response body up to `max_bytes` as the chunks it arrives
+/// in, reserving their exact size from the shared memory budget and honoring
+/// both the execution deadline and per-chunk stall timeout.
 async fn read_bounded_response(
     mut response: reqwest::Response,
     max_bytes: usize,
@@ -874,8 +872,8 @@ async fn read_bounded_response(
     let Ok(mut reservation) = MemoryReservation::from_budget(budget, 0, "guardrails") else {
         return BufferedResponse::Busy(Vec::new());
     };
-    let capacity_limit = declared.unwrap_or(max_bytes);
-    let mut buffer = Vec::new();
+    let mut chunks: Vec<Bytes> = Vec::new();
+    let mut total = 0usize;
     loop {
         let chunk_deadline = deadline.min(Instant::now() + stall_timeout);
         let next = match tokio::time::timeout_at(chunk_deadline, response.chunk()).await {
@@ -886,55 +884,28 @@ async fn read_bounded_response(
                 } else {
                     ProviderError::Transport
                 };
-                let partial = (!buffer.is_empty())
-                    .then(|| Bytes::from(buffer))
-                    .into_iter()
-                    .collect();
-                return BufferedResponse::UpstreamError(kind, partial);
+                return BufferedResponse::UpstreamError(kind, chunks);
             }
-            Err(_) => {
-                let partial = (!buffer.is_empty())
-                    .then(|| Bytes::from(buffer))
-                    .into_iter()
-                    .collect();
-                return BufferedResponse::UpstreamError(ProviderError::Timeout, partial);
-            }
+            Err(_) => return BufferedResponse::UpstreamError(ProviderError::Timeout, chunks),
         };
         let Some(chunk) = next else {
-            return BufferedResponse::Complete(Bytes::from(buffer), reservation);
+            return BufferedResponse::Complete(chunks, reservation);
         };
-        let total = buffer.len().saturating_add(chunk.len());
+        total = total.saturating_add(chunk.len());
         if total > max_bytes {
-            let mut prefix = Vec::with_capacity(2);
-            if !buffer.is_empty() {
-                prefix.push(Bytes::from(buffer));
-            }
-            prefix.push(chunk);
+            chunks.push(chunk);
             return BufferedResponse::TooLarge {
-                prefix,
+                prefix: chunks,
                 response,
                 reservation: Some(reservation),
             };
         }
-        if total > buffer.capacity() {
-            let capacity = buffer
-                .capacity()
-                .saturating_mul(2)
-                .clamp(total, capacity_limit.max(total));
-            if reservation
-                .try_reserve_body(capacity, "guardrails")
-                .is_err()
-            {
-                let mut partial = Vec::with_capacity(2);
-                if !buffer.is_empty() {
-                    partial.push(Bytes::from(buffer));
-                }
-                partial.push(chunk);
-                return BufferedResponse::Busy(partial);
-            }
-            buffer.reserve_exact(capacity - buffer.len());
+        let held = total.saturating_add((chunks.len() + 1) * size_of::<Bytes>());
+        if reservation.try_reserve_body(held, "guardrails").is_err() {
+            chunks.push(chunk);
+            return BufferedResponse::Busy(chunks);
         }
-        buffer.extend_from_slice(&chunk);
+        chunks.push(chunk);
     }
 }
 

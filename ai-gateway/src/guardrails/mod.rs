@@ -182,7 +182,7 @@ impl Guardrails {
         api_format: ApiFormat,
         format: ResponseFormat,
         context: &ResolvedRequestContext,
-        body: Bytes,
+        body: Vec<Bytes>,
     ) -> Result<Outcome, ResolutionError> {
         if !context
             .response_guardrails()
@@ -194,9 +194,10 @@ impl Guardrails {
         let guardrails: Arc<[Guardrail]> = context.response_guardrails().into();
         let organization_id = context.attribution().organization_id().as_str().to_owned();
         let max_scan_bytes = self.max_scan_bytes;
+        let has_external = guardrails.iter().any(Guardrail::is_external);
         async move {
             let check_started = std::time::Instant::now();
-            let body_bytes = body.len();
+            let body_bytes = body.iter().map(Bytes::len).sum();
             let ((local, parsed, scanned_bytes), local_duration) = self
                 .cpu
                 .run(CpuJob::ScanGuardrails, CpuClass::Guardrailed, body_bytes, {
@@ -230,13 +231,21 @@ impl Guardrails {
                 .await
                 .ok_or(ResolutionError::Busy)?;
             let mut eval = local?;
+            // External guardrails receive copies of the response text.
+            let mut text_reservation = parsed
+                .as_ref()
+                .map(ParsedResponse::text_bytes)
+                .filter(|&bytes| has_external && bytes > 0)
+                .map(|bytes| {
+                    MemoryReservation::from_budget(&self.memory_budget, bytes, "guardrails")
+                })
+                .transpose()?;
             let external_duration = if !eval.is_blocking() && !eval.blocks.is_empty() {
-                let mut no_drop = None;
                 self.evaluate_external(
                     &guardrails,
                     GuardrailLocation::Response,
                     &mut eval,
-                    &mut no_drop,
+                    &mut text_reservation,
                     &organization_id,
                 )
                 .await?
