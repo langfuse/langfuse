@@ -317,6 +317,12 @@ describe("Cohen's Kappa Interpretation", () => {
     expect(result.color).toBe("red");
   });
 
+  it("should interpret chance-level agreement (κ = 0) as slight", () => {
+    const result = interpretCohensKappa(0);
+    expect(result.strength).toBe("Slight");
+    expect(result.description).not.toContain("worse than chance");
+  });
+
   it("should interpret poor agreement (negative kappa)", () => {
     const result = interpretCohensKappa(-0.1);
     expect(result.strength).toBe("Poor");
