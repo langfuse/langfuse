@@ -8,20 +8,6 @@
 import chroma from "chroma-js";
 
 /**
- * OKLCH base colors from global.css
- * These are used for different charts when comparing multiple scores
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
-const HEATMAP_BASE_COLORS = {
-  chart1: { l: 66.2, c: 0.225, h: 25.9 }, // --color-1 (orange-ish)
-  chart2: { l: 60.4, c: 0.26, h: 302 }, // --color-2 (magenta-ish)
-  chart3: { l: 69.6, c: 0.165, h: 251 }, // --color-3 (blue-ish)
-  chart4: { l: 80.2, c: 0.134, h: 225 }, // --color-4 (light blue-ish)
-  chart5: { l: 90.7, c: 0.231, h: 133 }, // --color-5 (green-ish)
-  accent: { l: 65, c: 0.1, h: 240 }, // --accent (blue-ish, muted but visible)
-} as const;
-
-/**
  * Get contrasting text color (black or white) for an OKLCH background color
  * Uses lightness threshold to determine contrast
  * @param oklchColor - OKLCH color string (e.g., "oklch(66.2% 0.225 25.9)")

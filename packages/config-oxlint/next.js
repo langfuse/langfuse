@@ -190,6 +190,7 @@ export default {
         "unicorn/throw-new-error": "warn",
         "prefer-promise-reject-errors": "warn",
         radix: "warn",
+        "default-param-last": "warn",
         "no-use-before-define": [
           "warn",
           {
@@ -322,6 +323,21 @@ export default {
       jsPlugins: ["@repo/eslint-plugin"],
       rules: {
         "@repo/prefer-stories-over-client-tests": "warn",
+      },
+    },
+    {
+      // `location` on the server is provider config, not the browser API.
+      files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
+      excludeFiles: [
+        "src/server/**",
+        "src/pages/api/**",
+        "src/**/server/**",
+        "**/__tests__/server/**",
+        "**/*.servertest.{ts,tsx}",
+      ],
+      jsPlugins: ["@repo/eslint-plugin"],
+      rules: {
+        "@repo/no-location-navigation": "warn",
       },
     },
   ],

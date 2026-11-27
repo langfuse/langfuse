@@ -715,6 +715,40 @@ describe("IngestionService unit tests", () => {
     });
   });
 
+  it.each([
+    [false, { metadata: "false" }],
+    [0, { metadata: "0" }],
+    ["", { metadata: "" }],
+    [null, {}],
+  ])("maps bare trace and observation metadata %j", (metadata, expected) => {
+    const service = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    ) as any;
+    const timestamp = "2024-10-12T12:13:14.123Z";
+    const event = {
+      id: "event-id",
+      timestamp,
+      body: { id: "id", traceId: "trace-id", metadata },
+    };
+    const params = { projectId: "project-id", entityId: "id" };
+
+    const [trace] = service.mapTraceEventsToRecords({
+      ...params,
+      traceEventList: [{ ...event, type: "trace-create" }],
+    });
+    const [observation] = service.mapObservationEventsToRecords({
+      ...params,
+      prompt: null,
+      observationEventList: [{ ...event, type: "span-create" }],
+    });
+
+    expect(trace.metadata).toEqual(expected);
+    expect(observation.metadata).toEqual(expected);
+  });
+
   it("persists evaluator identifiers after the score JSON round-trip", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(

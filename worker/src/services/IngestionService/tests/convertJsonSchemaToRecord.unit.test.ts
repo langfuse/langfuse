@@ -11,9 +11,6 @@ describe("convertJsonSchemaToRecord", () => {
     expect(convertJsonSchemaToRecord(true)).toEqual({ metadata: "true" });
   });
 
-  // Function-level contract only: callers currently short-circuit falsy
-  // metadata (false/0/"") via truthy guards, so false does not reach this
-  // branch end-to-end.
   it("wraps a bare boolean false as { metadata: 'false' }", () => {
     expect(convertJsonSchemaToRecord(false)).toEqual({ metadata: "false" });
   });

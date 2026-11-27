@@ -12,7 +12,7 @@ use crate::{
     capture::{ExecutionCapture, GatewayRejection, RequestInput},
     config::{GatewayConfig, RequestLimits},
     correlation::RequestCorrelation,
-    cpu::{CpuJob, CpuWork},
+    cpu::{CpuClass, CpuJob, CpuWork},
     guardrails::Finding,
     http::ParsedRequest,
     observability::ErrorOrigin,
@@ -311,11 +311,12 @@ impl InferenceService {
     pub(crate) async fn run_cpu<T: Send + 'static>(
         &self,
         job: CpuJob,
+        class: CpuClass,
         input_bytes: usize,
         work: impl FnOnce() -> T + Send + 'static,
     ) -> Result<T, ResolutionError> {
         self.cpu
-            .run(job, input_bytes, work)
+            .run(job, class, input_bytes, work)
             .await
             .ok_or(ResolutionError::Busy)
     }
@@ -501,8 +502,13 @@ impl InferenceService {
         let Some(telemetry) = &self.telemetry else {
             return;
         };
-        let Some((input, _reservation)) =
-            RequestInput::parse_on_cpu(&self.cpu, request.body().clone(), reservation).await
+        let Some((input, _reservation)) = RequestInput::parse_on_cpu(
+            &self.cpu,
+            CpuClass::for_context(context),
+            request.body().clone(),
+            reservation,
+        )
+        .await
         else {
             return;
         };

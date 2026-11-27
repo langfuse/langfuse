@@ -28,6 +28,13 @@ export const SelectsTemplate = meta.story({
     await expect(args.onSelectTemplate).toHaveBeenCalledWith("pii");
 
     await userEvent.click(
+      canvas.getByRole("button", { name: /Prompt injection/ }),
+    );
+    await expect(args.onSelectTemplate).toHaveBeenCalledWith(
+      "prompt_injection",
+    );
+
+    await userEvent.click(
       canvas.getByRole("button", { name: /Amazon Bedrock/ }),
     );
     await expect(args.onSelectTemplate).toHaveBeenCalledWith("bedrock");

@@ -1,8 +1,8 @@
 import { type MouseEvent, useState } from "react";
 import { FileDiffIcon, PanelLeftClose, PanelLeftOpen } from "@langfuse/icons";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { Button } from "@/src/components/ui/button";
 import { Timeline } from "@/src/components/design-system/Timeline/Timeline";
 import { cn } from "@/src/utils/tailwind";
 import { type SkillEditorStore } from "./skillEditorStore";
@@ -73,22 +73,17 @@ export function SkillVersionHistory(
         {isCollapsed ? null : (
           <span className="text-sm font-bold">Versions</span>
         )}
-        <Button
+        <IconButton
           type="button"
           variant="ghost"
-          size="icon-sm"
-          aria-label={
+          size="sm"
+          icon={isCollapsed ? PanelLeftOpen : PanelLeftClose}
+          label={
             isCollapsed ? "Expand version history" : "Collapse version history"
           }
           aria-expanded={!isCollapsed}
           onClick={() => setIsCollapsed((collapsed) => !collapsed)}
-        >
-          {isCollapsed ? (
-            <PanelLeftOpen size="base" color="default" />
-          ) : (
-            <PanelLeftClose size="base" color="default" />
-          )}
-        </Button>
+        />
       </div>
       {isCollapsed ? null : (
         <div className="overflow-y-auto p-2">
@@ -259,10 +254,9 @@ export function SkillVersionHistory(
                 size="sm"
                 disabled={props.isLoadingMore}
                 loading={props.isLoadingMore}
+                text="Load older versions"
                 onClick={props.onLoadMore}
-              >
-                Load older versions
-              </Button>
+              />
             </div>
           ) : null}
         </div>
