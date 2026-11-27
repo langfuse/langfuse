@@ -38,6 +38,7 @@ type AnnotationQueueFormDialogContentProps = {
     | "hasMoreResults"
     | "canWrite"
     | "isRemoving"
+    | "onInvite"
     | "onRemove"
   >;
   queueNames: string[];

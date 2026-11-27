@@ -11,6 +11,7 @@ import {
   type AnnotationQueueSetupDirtyFields,
 } from "./AnnotationQueueSetupForm";
 import { QueueScoreConfigFields } from "./QueueScoreConfigFields";
+import { CreateProjectMemberDialogController } from "@/src/features/rbac/components/CreateProjectMemberDialogController";
 import { UserAssignmentSection } from "./UserAssignmentSection";
 import { useQueueUserAssignments } from "../hooks/useQueueUserAssignments";
 import { ConnectedAnnotationQueueSessionViewSettings } from "./ConnectedAnnotationQueueSessionViewSettings";
@@ -149,11 +150,16 @@ export function ConnectedAnnotationQueueSetupController({
         })
       }
       renderAssignments={({ value, onChange }) => (
-        <UserAssignmentSection
-          {...userAssignments}
-          selectedUserIds={value}
-          onChange={onChange}
-        />
+        <CreateProjectMemberDialogController surface="annotation_queue_assignment">
+          {({ hasAccess: canInvite, openDialog: openInviteDialog }) => (
+            <UserAssignmentSection
+              {...userAssignments}
+              onInvite={canInvite ? openInviteDialog : undefined}
+              selectedUserIds={value}
+              onChange={onChange}
+            />
+          )}
+        </CreateProjectMemberDialogController>
       )}
     >
       {({ value, onChange, disabled }) => (
