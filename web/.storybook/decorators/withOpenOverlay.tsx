@@ -1,3 +1,4 @@
+/* oxlint-disable @repo/component-file-structure -- Storybook decorator names stay camelCase. */
 "use client";
 
 import { useLayoutEffect, useRef } from "react";

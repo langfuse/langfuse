@@ -9,11 +9,8 @@ const meta = preview.meta({
   decorators: [withOpenOverlay],
   parameters: {
     openOverlay: {
-      onBeforeClose: ({
-        args,
-      }: {
-        args: { isOverriding?: boolean };
-      }) => !args.isOverriding,
+      onBeforeClose: ({ args }: { args: { isOverriding?: boolean } }) =>
+        !args.isOverriding,
     },
   },
   render: (args) => <EvaluatorVersionConflictDialog {...args} />,

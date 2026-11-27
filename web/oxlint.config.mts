@@ -327,7 +327,6 @@ export default defineConfig({
         "src/pages/**",
         "src/app/**/layout.{tsx,jsx}",
         "src/components/design-system/**/*.stories.{ts,tsx}",
-        ".storybook/**",
         "**/*.{test,spec,clienttest,servertest}.{tsx,jsx}",
         "**/{__tests__,__e2e__,tests,test}/**",
       ],
@@ -535,7 +534,7 @@ export default defineConfig({
                   "Design-system internals may only be imported by other design-system components.",
               },
               {
-                regex: "(^@/\\.storybook/|\\.storybook/)",
+                regex: "(^@/\\.storybook/decorators/|\\.storybook/decorators/)",
                 message:
                   "Storybook-only modules stay in stories. Application code cannot import them.",
               },
@@ -614,7 +613,7 @@ export default defineConfig({
                   "Use the notifications feature's typed toast helpers. Every toast must declare its static operation and errors/warnings must declare origin and category.",
               },
               {
-                regex: "(^@/\\.storybook/|\\.storybook/)",
+                regex: "(^@/\\.storybook/decorators/|\\.storybook/decorators/)",
                 message:
                   "Storybook-only modules stay in stories. Application code cannot import them.",
               },
@@ -679,7 +678,7 @@ export default defineConfig({
                   "Use the notifications feature's typed toast helpers. Every toast must declare its static operation and errors/warnings must declare origin and category.",
               },
               {
-                regex: "(^@/\\.storybook/|\\.storybook/)",
+                regex: "(^@/\\.storybook/decorators/|\\.storybook/decorators/)",
                 message:
                   "Storybook-only modules stay in stories. Application code cannot import them.",
               },
@@ -721,7 +720,7 @@ export default defineConfig({
                   "Design-system internals may only be imported by other design-system components.",
               },
               {
-                regex: "(^@/\\.storybook/|\\.storybook/)",
+                regex: "(^@/\\.storybook/decorators/|\\.storybook/decorators/)",
                 message:
                   "Storybook-only modules stay in stories. Application code cannot import them.",
               },
