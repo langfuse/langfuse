@@ -3,7 +3,6 @@ import { type ReactNode, useState } from "react";
 import { Braces, FileCode, type IconComponent } from "@langfuse/icons";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Label } from "@/src/components/ui/label";
 import { MaskedGatewayKey } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/MaskedGatewayKey";
 import { StepCodeSection } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/components/StepCodeSection";
 import { GatewaySecretKeyContext } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/contexts/gatewaySecretKeyContext";
@@ -31,7 +30,6 @@ type UsageTab = {
   label: string;
   icon: IconComponent;
   description?: ReactNode;
-  codeLabel?: string;
   /** Snippet with GATEWAY_KEY_PLACEHOLDER where `secret` goes. */
   code: string;
   secret: string;
@@ -73,16 +71,17 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       icon: Braces,
       description: (
         <>
-          Send this header with each request to the{" "}
+          Call the{" "}
           <DocsLink href="https://langfuse.com/docs/api-and-data-platform/features/public-api">
             Langfuse API
-          </DocsLink>
-          .
+          </DocsLink>{" "}
+          with the project id as the username and the secret key as the
+          password.
         </>
       ),
-      codeLabel: "Header",
-      code: `Authorization: ${credential.scheme} ${GATEWAY_KEY_PLACEHOLDER}`,
-      secret: credential.token,
+      // Basic auth names the project, which project routes need even for an organization key.
+      code: ` curl -u "${projectId}:${GATEWAY_KEY_PLACEHOLDER}" ${baseUrl}/api/public/traces`,
+      secret: secretKey,
     },
   ];
   if (showMcpSection) {
@@ -149,7 +148,6 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
                     {tab.description}
                   </p>
                 ) : null}
-                {tab.codeLabel ? <Label>{tab.codeLabel}</Label> : null}
                 <GatewaySecretKeyContext value={{ value: tab.secret }}>
                   <StepCodeSection code={tab.code} language="sh" />
                 </GatewaySecretKeyContext>

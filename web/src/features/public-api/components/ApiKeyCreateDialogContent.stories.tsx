@@ -127,10 +127,12 @@ export const CreatedOrganizationKey = meta.story({
     await expect(body.textContent).not.toContain("pk-lf-");
 
     await userEvent.click(screen.getByRole("tab", { name: "API" }));
+    await expect(body.textContent).toContain('curl -u "<your-project-id>:');
+
+    await userEvent.click(screen.getByRole("tab", { name: "Claude" }));
     await expect(body.textContent).toContain("Authorization: Bearer");
     await expect(body.textContent).not.toContain("Authorization: Basic");
 
-    await userEvent.click(screen.getByRole("tab", { name: "Claude" }));
     await expect(body.textContent).toContain("listProjects");
     await expect(body.textContent).toContain(
       "claude mcp add --transport http langfuse https://cloud.langfuse.com/api/public/mcp",
