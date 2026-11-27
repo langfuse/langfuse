@@ -259,17 +259,19 @@ impl ParsedResponse {
         let mut out = Vec::with_capacity(len);
         let mut copied = 0;
         for (span, index) in splices {
-            let Some(unchanged) = self.body.slice(copied..span.start) else {
+            if self.body.copy_into(copied..span.start, &mut out).is_none() {
                 return Ok(RedactionApply::Failed);
-            };
-            out.extend_from_slice(&unchanged);
+            }
             out.extend_from_slice(text(index).as_bytes());
             copied = span.end;
         }
-        let Some(rest) = self.body.slice(copied..self.body.len) else {
+        if self
+            .body
+            .copy_into(copied..self.body.len, &mut out)
+            .is_none()
+        {
             return Ok(RedactionApply::Failed);
-        };
-        out.extend_from_slice(&rest);
+        }
         Ok(RedactionApply::Rewritten(Bytes::from(out)))
     }
 }
@@ -316,14 +318,27 @@ impl Body {
             return Some(Cow::Borrowed(bytes));
         }
         let mut out = Vec::with_capacity(range.len());
+        self.copy_into(range, &mut out)?;
+        Some(Cow::Owned(out))
+    }
+
+    /// Appends the bytes of `range` to `out`, chunk by chunk.
+    fn copy_into(&self, range: Range<usize>, out: &mut Vec<u8>) -> Option<()> {
+        if range.start > range.end || range.end > self.len {
+            return None;
+        }
+        let first = self
+            .starts
+            .partition_point(|&start| start <= range.start)
+            .saturating_sub(1);
         for (chunk, &start) in self.chunks.iter().zip(&self.starts).skip(first) {
             if start >= range.end {
                 break;
             }
             let end = (range.end - start).min(chunk.len());
-            out.extend_from_slice(chunk.get(range.start.saturating_sub(start)..end)?);
+            out.extend_from_slice(chunk.get(range.start.saturating_sub(start).min(end)..end)?);
         }
-        (out.len() == range.len()).then_some(Cow::Owned(out))
+        Some(())
     }
 
     /// Calls `on_frame` with the span of each SSE event, ending after the blank
