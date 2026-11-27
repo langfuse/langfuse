@@ -135,6 +135,29 @@ function getContentProps({
   };
 }
 
+function ParentOverlayFocusGuard({
+  floatingRef,
+  referenceRef,
+}: {
+  floatingRef: React.RefObject<HTMLElement | null>;
+  referenceRef: React.RefObject<Element | null>;
+}) {
+  React.useLayoutEffect(() => {
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target;
+      if (
+        (target instanceof Node && floatingRef.current?.contains(target)) ||
+        (target instanceof Node && referenceRef.current?.contains(target))
+      ) {
+        event.stopPropagation();
+      }
+    };
+    document.addEventListener("focusin", onFocusIn, true);
+    return () => document.removeEventListener("focusin", onFocusIn, true);
+  }, [floatingRef, referenceRef]);
+  return <span hidden />;
+}
+
 function FloatingController({
   children,
   renderContent,
@@ -187,9 +210,9 @@ function FloatingController({
   role?: "tooltip" | "dialog";
   hoverableContent?: boolean;
   isScrollable?: boolean;
-  // Stay in the popover layer (fixed positioning) while joining a parent
-  // drawer or dialog dismiss stack, so Escape and outside presses do not
-  // close that parent.
+  // Mount inside the open drawer or dialog so its focus trap and
+  // aria-hidden scope include this surface. Floating UI accounts for that
+  // overlay's transform when positioning.
   containInParentOverlay?: boolean;
 }) {
   const isOpen = enabled && open;
@@ -240,31 +263,15 @@ function FloatingController({
     role,
   ]);
   const getTriggerRef = useStableTriggerRef(refs.setReference);
-  const outsideParentIsTrigger = (event: { target: EventTarget | null }) => {
-    const target = event.target;
-    return (
-      target instanceof Node &&
-      Boolean(refs.domReference.current?.contains(target))
-    );
-  };
-  // The drawer focus trap listens for bubbling focusin. Stop that while focus
-  // is in this surface so it can stay portaled in the popover layer, where
-  // position:fixed is not resolved against the drawer's transform.
-  React.useEffect(() => {
-    if (!isOpen || !containInParentOverlay) return;
-    const onFocusIn = (event: FocusEvent) => {
-      const floating = refs.floating.current;
-      if (
-        floating &&
-        event.target instanceof Node &&
-        floating.contains(event.target)
-      ) {
-        event.stopPropagation();
-      }
-    };
-    document.addEventListener("focusin", onFocusIn, true);
-    return () => document.removeEventListener("focusin", onFocusIn, true);
-  }, [containInParentOverlay, isOpen, refs]);
+  const targetIsInside = (
+    target: EventTarget | null | undefined,
+    node: Node | null | undefined,
+  ) => target instanceof Node && Boolean(node?.contains(target));
+  const parentOverlay = containInParentOverlay
+    ? refs.domReference.current?.closest<HTMLElement>(
+        "[data-vaul-drawer], [role='dialog']",
+      )
+    : null;
   const contentProps = getContentProps({
     ...props,
     getFloatingProps,
@@ -291,7 +298,17 @@ function FloatingController({
             asChild
             onDismiss={() => onOpenChange(false)}
             onInteractOutside={(event) => {
-              if (outsideParentIsTrigger(event)) event.preventDefault();
+              const originalTarget = (
+                event as {
+                  detail?: { originalEvent?: { target?: EventTarget | null } };
+                }
+              ).detail?.originalEvent?.target;
+              if (
+                targetIsInside(event.target, refs.domReference.current) ||
+                targetIsInside(originalTarget, refs.domReference.current)
+              ) {
+                event.preventDefault();
+              }
             }}
           >
             {renderContent(contentProps)}
@@ -312,7 +329,15 @@ function FloatingController({
         }),
       })}
       {isOpen ? (
-        <FloatingPortal root={layerContainer}>{content}</FloatingPortal>
+        <FloatingPortal root={parentOverlay ?? layerContainer}>
+          {parentOverlay ? (
+            <ParentOverlayFocusGuard
+              floatingRef={refs.floating}
+              referenceRef={refs.domReference}
+            />
+          ) : null}
+          {content}
+        </FloatingPortal>
       ) : null}
     </>
   );
