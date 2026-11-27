@@ -8,7 +8,7 @@ use axum::http::HeaderMap;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
-use crate::guardrails::response::spec::{
+use crate::guardrails::spec::{
     Emit, JSON_LEAF, LEAF, Node, Object, ResponseSpec, delta, each, json_delta, json_summary,
     keyed_each, maybe_keyed_each, parts, summary, text,
 };
@@ -320,8 +320,8 @@ impl OpenAiResponsesCapture {
 /// `previous_response_id` and `conversation` are only read to tell whether earlier
 /// turns are stored upstream; `prompt` for the variables it fills a stored prompt with.
 /// Where Responses API requests carry the conversation guardrails scan.
-pub(super) const REQUEST: crate::guardrails::text::RequestSpec =
-    crate::guardrails::text::RequestSpec {
+pub(super) const REQUEST: crate::guardrails::spec::RequestSpec =
+    crate::guardrails::spec::RequestSpec {
         members: &[
             "input",
             "instructions",
@@ -376,7 +376,7 @@ fn classify_guardrail_item(
 }
 
 pub(super) fn guardrail_turn(
-    members: &crate::guardrails::text::Members<'_, '_>,
+    members: &crate::guardrails::spec::Members<'_, '_>,
 ) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
     let mut turn = crate::guardrails::text::LastTurn::default();
     let had_model_item = match members.get("input")? {

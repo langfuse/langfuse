@@ -394,7 +394,7 @@ async fn oversized_requests_explain_the_missing_input() {
 fn guardrail_scan(messages: &str) -> Vec<String> {
     let mut texts = Vec::new();
     let member = |name: &str| (name == "messages").then_some(messages);
-    let members = crate::guardrails::text::Members::new(super::REQUEST.members, &member);
+    let members = crate::guardrails::spec::Members::new(super::REQUEST.members, &member);
     guardrail_turn(&members)
         .unwrap()
         .read(&members, &mut |text: &str| texts.push(text.to_owned()))

@@ -1,222 +1,26 @@
-//! Where a provider response carries model text, declared per API format as a
-//! tree of [`Node`]s, and the walker that reads a JSON body or SSE frame along it.
-//!
-//! The walker reads borrowed JSON slices and visits only the fields a tree
-//! names, so no response becomes a `serde_json::Value`. [`validate`] runs first
-//! and rejects what the provider and client could read differently, such as
-//! duplicated keys, anywhere in the value.
+//! Reads a JSON value along a [`Node`] tree. It reads borrowed JSON slices and
+//! visits only the fields a tree names, so no value becomes a `serde_json::Value`.
+//! [`validate`] runs first on responses and rejects what the provider and client
+//! could read differently, such as duplicated keys, anywhere in the value.
 
 use std::{borrow::Cow, fmt, ops::Range};
 
 use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor};
 use serde_json::value::RawValue;
 
-use super::{ParseBudget, ResponseParseError, StreamCollector, StreamKey};
+use super::{Emit, Node, Object, Shape};
+use crate::guardrails::response::{ParseBudget, ResponseParseError, StreamCollector, StreamKey};
 use crate::guardrails::text::{self, Unreadable};
 
 /// Text parts and tool inputs nest at most this deep below a text field.
 const MAX_TEXT_DEPTH: usize = 32;
 /// Fields of a content part that hold text, in the order they are read.
 const PART_FIELDS: [&str; 3] = ["text", "refusal", "content"];
-/// Stream indices one [`Object`] may declare: a [`StreamKey`] holds two.
-const MAX_INDEX: usize = 2;
-
-/// One value in a response, and how to read the text below it.
-#[derive(Clone, Copy)]
-pub(crate) enum Node {
-    Object(Object),
-    /// Each array item. A `keyed` item's position is a stream index for the text
-    /// below it; a `strict` array fails the read when the value is another type.
-    Items {
-        item: &'static Node,
-        keyed: bool,
-        strict: bool,
-    },
-    Text(Shape, Emit),
-}
-
-/// An object and the fields that lead to text, read in this order. A null field
-/// is absent; a `strict` object fails the read when the value, such as an array
-/// item, is anything else.
-#[derive(Clone, Copy)]
-pub(crate) struct Object {
-    strict: bool,
-    index: &'static [&'static str],
-    fields: &'static [(&'static str, Node)],
-    by: Option<Switch>,
-}
-
-/// More fields of the same object, chosen by the string in its `tag` field.
-#[derive(Clone, Copy)]
-struct Switch {
-    tag: &'static str,
-    cases: &'static [(&'static str, Object)],
-    default: Option<&'static Object>,
-}
-
-/// The JSON a text field may hold.
-#[derive(Clone, Copy)]
-pub(crate) enum Shape {
-    /// A string; other values hold no text.
-    Str,
-    /// A string, or an array of strings and parts with `text`, `refusal` or
-    /// nested `content`. A `strict` field fails the read on any other value.
-    Parts { strict: bool },
-    /// Every string anywhere below, such as a tool's input object.
-    Strings,
-}
-
-/// What a text is to the guardrails.
-#[derive(Clone, Copy)]
-pub(crate) enum Emit {
-    /// One piece of a streamed text, joined with earlier pieces of its stream.
-    Delta(Stream),
-    /// A complete copy of a streamed text, rewritten together with the stream.
-    Summary(Stream),
-    /// A standalone text. A `signable` one is read-only when its object carries
-    /// a non-empty `Signature`, since rewriting it would invalidate the signature.
-    Leaf { json: bool, signable: bool },
-    /// A copy of an earlier text, attached to the block with the same text.
-    Copy,
-    /// A provider signature: when non-empty, makes this object's `signable`
-    /// leaves and its index's streamed thinking read-only.
-    Signature,
-}
-
-/// A streamed text, named by `slot` and the stream indices above it. A `json`
-/// stream holds tool arguments that must stay valid JSON after redaction.
-#[derive(Clone, Copy)]
-pub(crate) struct Stream {
-    slot: &'static str,
-    json: bool,
-}
-
-impl Object {
-    pub(crate) const fn new(fields: &'static [(&'static str, Node)]) -> Self {
-        Self {
-            strict: false,
-            index: &[],
-            fields,
-            by: None,
-        }
-    }
-
-    /// Fails the read when the value is not an object.
-    pub(crate) const fn strict(self) -> Self {
-        Self {
-            strict: true,
-            ..self
-        }
-    }
-
-    /// Reads these integer fields as stream indices for the text below, `0` when absent.
-    pub(crate) const fn indexed(self, index: &'static [&'static str]) -> Self {
-        assert!(index.len() <= MAX_INDEX, "a stream has at most two indices");
-        Self { index, ..self }
-    }
-
-    pub(crate) const fn by(
-        self,
-        tag: &'static str,
-        cases: &'static [(&'static str, Object)],
-        default: Option<&'static Object>,
-    ) -> Self {
-        Self {
-            by: Some(Switch {
-                tag,
-                cases,
-                default,
-            }),
-            ..self
-        }
-    }
-
-    pub(crate) const fn node(self) -> Node {
-        Node::Object(self)
-    }
-}
-
-/// The text of one API format's responses, as a JSON body and as one SSE frame.
-pub(crate) struct ResponseSpec {
-    pub json: Node,
-    pub sse: Node,
-}
-
-pub(crate) const fn each(item: &'static Node) -> Node {
-    Node::Items {
-        item,
-        keyed: false,
-        strict: true,
-    }
-}
-
-/// Each array item, its position a stream index.
-pub(crate) const fn keyed_each(item: &'static Node) -> Node {
-    Node::Items {
-        item,
-        keyed: true,
-        strict: true,
-    }
-}
-
-/// Each array item, its position a stream index; another value is skipped.
-pub(crate) const fn maybe_keyed_each(item: &'static Node) -> Node {
-    Node::Items {
-        item,
-        keyed: true,
-        strict: false,
-    }
-}
-
-pub(crate) const fn text(emit: Emit) -> Node {
-    Node::Text(Shape::Str, emit)
-}
-
-pub(crate) const fn parts(emit: Emit) -> Node {
-    Node::Text(Shape::Parts { strict: false }, emit)
-}
-
-pub(crate) const fn strict_parts(emit: Emit) -> Node {
-    Node::Text(Shape::Parts { strict: true }, emit)
-}
-
-pub(crate) const fn strings(emit: Emit) -> Node {
-    Node::Text(Shape::Strings, emit)
-}
-
-pub(crate) const LEAF: Emit = Emit::Leaf {
-    json: false,
-    signable: false,
-};
-pub(crate) const JSON_LEAF: Emit = Emit::Leaf {
-    json: true,
-    signable: false,
-};
-pub(crate) const SIGNED_LEAF: Emit = Emit::Leaf {
-    json: false,
-    signable: true,
-};
-
-pub(crate) const fn delta(slot: &'static str) -> Emit {
-    Emit::Delta(Stream { slot, json: false })
-}
-
-pub(crate) const fn json_delta(slot: &'static str) -> Emit {
-    Emit::Delta(Stream { slot, json: true })
-}
-
-pub(crate) const fn summary(slot: &'static str) -> Emit {
-    Emit::Summary(Stream { slot, json: false })
-}
-
-pub(crate) const fn json_summary(slot: &'static str) -> Emit {
-    Emit::Summary(Stream { slot, json: true })
-}
 
 /// Reads the text along `node` from the JSON `payload` into `collector`.
 /// `payload` is the body spans `data` joined by line breaks, as SSE `data`
 /// lines are; each text is recorded with the body span of its JSON string.
-pub(super) fn read(
+pub(in crate::guardrails) fn read(
     node: &Node,
     payload: &str,
     data: &[Range<usize>],
@@ -485,7 +289,10 @@ fn mismatch(strict: bool) -> Result<(), Unreadable> {
 
 /// Checks that `bytes` is one JSON value with no duplicated key in any object,
 /// only finite numbers, and only strings a Rust string can hold.
-pub(super) fn validate(bytes: &[u8], budget: &mut ParseBudget) -> Result<(), ResponseParseError> {
+pub(in crate::guardrails) fn validate(
+    bytes: &[u8],
+    budget: &mut ParseBudget,
+) -> Result<(), ResponseParseError> {
     struct Unique<'b, 'de> {
         budget: &'b mut ParseBudget,
         /// Keys of the objects being read, innermost last.
@@ -657,68 +464,5 @@ impl<'de> Visitor<'de> for Key {
     }
     fn visit_string<E>(self, v: String) -> Result<Self::Value, E> {
         Ok(Cow::Owned(v))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use axum::body::Bytes;
-
-    use super::*;
-    use crate::guardrails::response::{Body, RedactionApply, parse_sse};
-
-    const BEFORE: Node = Object::new(&[(
-        "delta",
-        Object::new(&[("text", text(delta("text")))]).node(),
-    )])
-    .node();
-    /// `BEFORE` with one more declared key: the whole change a new provider field needs.
-    const AFTER: Node = Object::new(&[(
-        "delta",
-        Object::new(&[
-            ("text", text(delta("text"))),
-            ("transcript", text(delta("transcript"))),
-        ])
-        .node(),
-    )])
-    .node();
-
-    #[test]
-    fn a_declared_key_is_scanned_and_redacted_in_every_frame() {
-        let sse = concat!(
-            "data: {\"delta\":{\"text\":\"hi\",\"transcript\":\"SSN 123-\"}}\n\n",
-            "data: {\"delta\":{\"transcript\":\"45-6789\"}}\n\n",
-        );
-        let parse = |node| {
-            parse_sse(
-                node,
-                Body::new(vec![Bytes::from_static(sse.as_bytes())]),
-                None,
-            )
-            .unwrap()
-        };
-        let texts = |node| {
-            parse(node)
-                .blocks
-                .iter()
-                .map(|block| block.text.clone())
-                .collect::<Vec<_>>()
-        };
-
-        assert_eq!(texts(&BEFORE), ["hi"]);
-        assert_eq!(texts(&AFTER), ["hi", "SSN 123-45-6789"]);
-        let RedactionApply::Rewritten(rewritten) = parse(&AFTER)
-            .apply_redactions(&[(1, "SSN [SSN]".to_owned())], None)
-            .unwrap()
-        else {
-            panic!("the new key's stream is rewritten");
-        };
-        assert_eq!(
-            rewritten,
-            concat!(
-                "data: {\"delta\":{\"text\":\"hi\",\"transcript\":\"SSN [SSN]\"}}\n\n",
-                "data: {\"delta\":{\"transcript\":\"\"}}\n\n",
-            )
-        );
     }
 }

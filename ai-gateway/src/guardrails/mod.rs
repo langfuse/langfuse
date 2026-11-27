@@ -11,6 +11,7 @@ pub(crate) mod external;
 pub(crate) mod redact;
 mod regex;
 pub(crate) mod response;
+pub(crate) mod spec;
 pub(crate) mod text;
 
 use std::{ops::Range, sync::Arc, time::Duration};
@@ -35,7 +36,8 @@ use external::{ExternalFailureKind, ExternalGuardrailClient, ExternalOutcome, Ex
 use redact::{BodyEdit, RedactionSpan};
 use regex::Compiled;
 use response::{ParsedResponse, RedactionApply, ResponseFormat, ResponseParseError};
-use text::{LastTurn, Members, Unreadable};
+use spec::Members;
+use text::{LastTurn, Unreadable};
 
 /// Evaluates local regex and external provider guardrails against a request's
 /// configured scope (`last_turn` or `entire_input`), keeping CPU work off the

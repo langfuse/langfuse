@@ -1,14 +1,12 @@
 //! Format-agnostic response guardrail parsing, memory budgeting, and in-place
 //! redaction for non-streaming JSON and streaming SSE provider outputs.
 //!
-//! Each API format declares where its responses carry text as a [`spec`] tree in
+//! Each API format declares where its responses carry text as a [`spec`](crate::guardrails::spec) tree in
 //! its [`crate::capture`] module. Each logical model output (a JSON leaf, or an
 //! SSE delta stream plus any matching summary fields) is collected once as a
 //! [`ResponseBlock`] with the byte span of each string it came from. When no
 //! guardrail redacts the response, the caller relays the original raw bytes
 //! untouched; when redaction fires, the modified strings' spans are replaced.
-
-pub(crate) mod spec;
 
 use std::{
     borrow::Cow,
@@ -23,6 +21,7 @@ use tokio::sync::Semaphore;
 
 use crate::{
     capture,
+    guardrails::spec::{self, walker},
     guardrails::text::Unreadable,
     inference::MemoryReservation,
     resolution::{ApiFormat, ResolutionError},
@@ -48,14 +47,16 @@ impl From<Unreadable> for ResponseParseError {
 }
 
 /// Tracks dynamic memory reservations while reading a response.
-struct ParseBudget {
+pub(in crate::guardrails) struct ParseBudget {
     reservation: Option<MemoryReservation>,
     pending: usize,
-    exhausted: bool,
+    pub(in crate::guardrails) exhausted: bool,
 }
 
 impl ParseBudget {
-    fn new(budget: Option<&Arc<Semaphore>>) -> Result<Self, ResponseParseError> {
+    pub(in crate::guardrails) fn new(
+        budget: Option<&Arc<Semaphore>>,
+    ) -> Result<Self, ResponseParseError> {
         let reservation = budget
             .map(|budget| MemoryReservation::from_budget(budget, 0, "guardrails"))
             .transpose()
@@ -67,7 +68,7 @@ impl ParseBudget {
         })
     }
 
-    fn charge(&mut self, bytes: usize) -> bool {
+    pub(in crate::guardrails) fn charge(&mut self, bytes: usize) -> bool {
         if self.reservation.is_none() || bytes == 0 {
             return true;
         }
@@ -78,7 +79,7 @@ impl ParseBudget {
         true
     }
 
-    fn flush(&mut self) -> bool {
+    pub(in crate::guardrails) fn flush(&mut self) -> bool {
         let Some(reservation) = self.reservation.as_mut() else {
             return true;
         };
@@ -97,7 +98,7 @@ impl ParseBudget {
     }
 
     /// The error for a read that stopped: `Busy` when it ran out of budget.
-    fn failure(&self) -> ResponseParseError {
+    pub(in crate::guardrails) fn failure(&self) -> ResponseParseError {
         if self.exhausted {
             ResponseParseError::Busy
         } else {
@@ -464,8 +465,8 @@ fn read_value(
     budget: Option<&Arc<Semaphore>>,
 ) -> Result<(), ResponseParseError> {
     let mut read_budget = ParseBudget::new(budget)?;
-    spec::validate(payload.as_bytes(), &mut read_budget)?;
-    spec::read(node, payload, data, collector, &mut read_budget)
+    walker::validate(payload.as_bytes(), &mut read_budget)?;
+    walker::read(node, payload, data, collector, &mut read_budget)
         .map_err(|Unreadable| read_budget.failure())?;
     if read_budget.flush() {
         Ok(())
@@ -560,8 +561,8 @@ fn finish(
 /// choice and a tool call.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct StreamKey {
-    slot: &'static str,
-    index: [u64; 2],
+    pub(in crate::guardrails) slot: &'static str,
+    pub(in crate::guardrails) index: [u64; 2],
 }
 
 /// Collects the [`ResponseBlock`]s of one response as [`spec::read`] finds text.
@@ -577,7 +578,13 @@ pub(crate) struct StreamCollector {
 }
 
 impl StreamCollector {
-    fn push_delta(&mut self, key: StreamKey, json: bool, span: Range<usize>, text: &str) {
+    pub(in crate::guardrails) fn push_delta(
+        &mut self,
+        key: StreamKey,
+        json: bool,
+        span: Range<usize>,
+        text: &str,
+    ) {
         if text.is_empty() {
             return;
         }
@@ -613,7 +620,13 @@ impl StreamCollector {
         });
     }
 
-    fn push_summary(&mut self, key: StreamKey, json: bool, span: Range<usize>, text: &str) {
+    pub(in crate::guardrails) fn push_summary(
+        &mut self,
+        key: StreamKey,
+        json: bool,
+        span: Range<usize>,
+        text: &str,
+    ) {
         if let Some(&slot) = self.by_key.get(&key)
             && let Some(block) = self.blocks.get_mut(slot)
             && block.text == text
@@ -625,7 +638,13 @@ impl StreamCollector {
         self.push_leaf(span, text, json, true);
     }
 
-    fn push_leaf(&mut self, span: Range<usize>, text: &str, json_encoded: bool, editable: bool) {
+    pub(in crate::guardrails) fn push_leaf(
+        &mut self,
+        span: Range<usize>,
+        text: &str,
+        json_encoded: bool,
+        editable: bool,
+    ) {
         if text.is_empty() {
             return;
         }
@@ -641,7 +660,7 @@ impl StreamCollector {
     /// Attaches a duplicate summary field (e.g. `output_text`) to an already
     /// collected block with identical text so Bedrock sees one block and every
     /// copy is rewritten together.
-    fn attach_or_push_leaf(&mut self, span: Range<usize>, text: &str) {
+    pub(in crate::guardrails) fn attach_or_push_leaf(&mut self, span: Range<usize>, text: &str) {
         if text.is_empty() {
             return;
         }
@@ -668,7 +687,7 @@ impl StreamCollector {
         std::mem::take(&mut self.growth_bytes)
     }
 
-    fn mark_signed_thinking(&mut self, index: u64) {
+    pub(in crate::guardrails) fn mark_signed_thinking(&mut self, index: u64) {
         self.signed_thinking.insert(index);
     }
 
@@ -685,5 +704,68 @@ impl StreamCollector {
             }
         }
         self.blocks
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::body::Bytes;
+
+    use super::*;
+    use crate::guardrails::spec::{Node, Object, delta, text};
+
+    const BEFORE: Node = Object::new(&[(
+        "delta",
+        Object::new(&[("text", text(delta("text")))]).node(),
+    )])
+    .node();
+    /// `BEFORE` with one more declared key: the whole change a new provider field needs.
+    const AFTER: Node = Object::new(&[(
+        "delta",
+        Object::new(&[
+            ("text", text(delta("text"))),
+            ("transcript", text(delta("transcript"))),
+        ])
+        .node(),
+    )])
+    .node();
+
+    #[test]
+    fn a_declared_key_is_scanned_and_redacted_in_every_frame() {
+        let sse = concat!(
+            "data: {\"delta\":{\"text\":\"hi\",\"transcript\":\"SSN 123-\"}}\n\n",
+            "data: {\"delta\":{\"transcript\":\"45-6789\"}}\n\n",
+        );
+        let parse = |node| {
+            parse_sse(
+                node,
+                Body::new(vec![Bytes::from_static(sse.as_bytes())]),
+                None,
+            )
+            .unwrap()
+        };
+        let texts = |node| {
+            parse(node)
+                .blocks
+                .iter()
+                .map(|block| block.text.clone())
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(texts(&BEFORE), ["hi"]);
+        assert_eq!(texts(&AFTER), ["hi", "SSN 123-45-6789"]);
+        let RedactionApply::Rewritten(rewritten) = parse(&AFTER)
+            .apply_redactions(&[(1, "SSN [SSN]".to_owned())], None)
+            .unwrap()
+        else {
+            panic!("the new key's stream is rewritten");
+        };
+        assert_eq!(
+            rewritten,
+            concat!(
+                "data: {\"delta\":{\"text\":\"hi\",\"transcript\":\"SSN [SSN]\"}}\n\n",
+                "data: {\"delta\":{\"transcript\":\"\"}}\n\n",
+            )
+        );
     }
 }

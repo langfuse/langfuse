@@ -7,7 +7,7 @@ use axum::http::HeaderMap;
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
 
-use crate::guardrails::response::spec::{
+use crate::guardrails::spec::{
     Emit, LEAF, Node, Object, ResponseSpec, SIGNED_LEAF, delta, each, json_delta, strings, text,
 };
 
@@ -470,14 +470,14 @@ impl AnthropicMessagesCapture {
 /// counts only on the first turn.
 /// The top-level members guardrails scan.
 /// Where Anthropic Messages requests carry the conversation guardrails scan.
-pub(super) const REQUEST: crate::guardrails::text::RequestSpec =
-    crate::guardrails::text::RequestSpec {
+pub(super) const REQUEST: crate::guardrails::spec::RequestSpec =
+    crate::guardrails::spec::RequestSpec {
         members: &["messages", "system"],
         last_turn: guardrail_turn,
     };
 
 pub(super) fn guardrail_turn(
-    members: &crate::guardrails::text::Members<'_, '_>,
+    members: &crate::guardrails::spec::Members<'_, '_>,
 ) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
     let mut turn = crate::guardrails::text::LastTurn::default();
     let had_model_turn = match members.get("messages")? {
