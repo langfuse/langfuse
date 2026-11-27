@@ -23,6 +23,10 @@ import {
 } from "@/src/ee/features/billing/utils/stripeExpand";
 import { stripeClient as defaultStripeClient } from "@/src/ee/features/billing/utils/stripe";
 import { StripeCatalogue } from "@/src/ee/features/billing/utils/stripeCatalogue";
+import {
+  type CancellationFeedback,
+  toStripeCancellationDetails,
+} from "@/src/ee/features/billing/utils/cancellationReasons";
 import { createStripeClientReference } from "@/src/ee/features/billing/utils/stripeClientReference";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
@@ -1177,7 +1181,7 @@ export class BillingService {
    *
    * @param orgId Organization id
    */
-  async cancel(orgId: string, opId?: string) {
+  async cancel(orgId: string, opId?: string, feedback?: CancellationFeedback) {
     return await instrumentAsync(
       { name: "stripe.subscription.cancel", spanKind: SpanKind.CLIENT },
       async (span) => {
@@ -1220,6 +1224,7 @@ export class BillingService {
           idempotencyKey: cancelKey,
           opId,
           userId: this.ctx.session.user.id,
+          cancellationReason: feedback?.reason,
         });
 
         try {
@@ -1228,6 +1233,11 @@ export class BillingService {
             {
               cancel_at_period_end: true,
               proration_behavior: "none",
+              ...(feedback
+                ? {
+                    cancellation_details: toStripeCancellationDetails(feedback),
+                  }
+                : {}),
             },
             { idempotencyKey: cancelKey },
           );

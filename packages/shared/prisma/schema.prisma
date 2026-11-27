@@ -2501,8 +2501,9 @@ model Survey {
 }
 
 enum SurveyName {
-  ORG_ONBOARDING  @map("org_onboarding")
-  USER_ONBOARDING @map("user_onboarding")
+  ORG_ONBOARDING   @map("org_onboarding")
+  USER_ONBOARDING  @map("user_onboarding")
+  ORG_CANCELLATION @map("org_cancellation")
 
   @@map("SurveyName")
 }

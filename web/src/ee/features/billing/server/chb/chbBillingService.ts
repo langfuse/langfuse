@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
 import { type OrgAuthedContext } from "@/src/server/api/trpc";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { type CancellationFeedback } from "@/src/ee/features/billing/utils/cancellationReasons";
 import { CloudConfigSchema, parseDbOrg } from "@langfuse/shared";
 import {
   getBillableUnitCountsByProjectAndBucket,
@@ -505,8 +506,14 @@ export class ChbBillingService {
     });
   }
 
-  async cancel(orgId: string, opId?: string) {
+  async cancel(orgId: string, opId?: string, feedback?: CancellationFeedback) {
     await this.setCancellation(orgId, "billing_cycle_end", opId);
+    // ClickHouse billing's API takes no cancellation reason; keep it in the log.
+    logger.info("chbBillingService.cancel:feedback", {
+      orgId,
+      cancellationReason: feedback?.reason,
+      hasNote: Boolean(feedback?.note),
+    });
     return { status: "success" } as const;
   }
 

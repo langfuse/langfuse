@@ -6,7 +6,16 @@ const mocks = vi.hoisted(() => ({
   throwIfNoOrganizationAccess: vi.fn(),
   auditLog: vi.fn(),
   isCloudBillingEnabled: vi.fn(() => true),
+  captureBillingEvent: vi.fn(),
 }));
+
+vi.mock(
+  "@/src/ee/features/billing/server/billingEvents",
+  async (importOriginal) => {
+    const actual = (await importOriginal()) as Record<string, unknown>;
+    return { ...actual, captureBillingEvent: mocks.captureBillingEvent };
+  },
+);
 
 vi.mock("@/src/ee/features/billing/server/resolveBillingService", () => ({
   resolveBillingService: mocks.resolveBillingService,
@@ -65,6 +74,11 @@ const serviceMock = () => ({
   createCheckoutSession: vi.fn().mockResolvedValue("https://checkout.example"),
   getCustomerPortalUrl: vi.fn(),
   getInvoices: vi.fn(),
+  changePlan: vi.fn(),
+  cancel: vi.fn(),
+  reactivate: vi.fn(),
+  clearPlanSwitchSchedule: vi.fn(),
+  getSubscriptionInfo: vi.fn().mockResolvedValue({ billingPeriod: null }),
 });
 
 describe("cloudBillingRouter provider dispatch", () => {
@@ -153,6 +167,71 @@ describe("cloudBillingRouter provider dispatch", () => {
           }),
         ]),
       );
+    });
+  });
+
+  describe("billing events", () => {
+    const resolveTo = (billingProvider: "stripe" | "clickhouse") => {
+      const service = serviceMock();
+      mocks.resolveBillingService.mockResolvedValue({
+        billingProvider,
+        service,
+      });
+      return service;
+    };
+    const who = (billingProvider: "stripe" | "clickhouse") =>
+      expect.objectContaining({
+        userId: expect.any(String),
+        organizationId: ORG_ID,
+        billingProvider,
+      });
+
+    it.each(["stripe", "clickhouse"] as const)(
+      "captures each billing action once on %s",
+      async (billingProvider) => {
+        resolveTo(billingProvider);
+        const api = caller();
+
+        await api.cancelStripeSubscription({
+          orgId: ORG_ID,
+          feedback: { reason: "too_expensive", note: "Too much for us" },
+          placement: { reasonPosition: 2, reasonOrder: "other,too_expensive" },
+        });
+        await api.reactivateStripeSubscription({ orgId: ORG_ID });
+
+        expect(mocks.captureBillingEvent.mock.calls).toEqual([
+          [
+            who(billingProvider),
+            "billing:cancellation_scheduled",
+            { reason: "too_expensive", reasonPosition: 2, hasNote: true },
+          ],
+          [who(billingProvider), "billing:cancellation_reverted", {}],
+        ]);
+      },
+    );
+
+    it("captures nothing when the billing provider rejects the action", async () => {
+      const service = resolveTo("stripe");
+      service.cancel.mockRejectedValue(new Error("upstream unavailable"));
+
+      await expect(
+        caller().cancelStripeSubscription({ orgId: ORG_ID }),
+      ).rejects.toThrow();
+
+      expect(mocks.captureBillingEvent).not.toHaveBeenCalled();
+    });
+
+    it("never puts the note's text on the event", async () => {
+      resolveTo("stripe");
+
+      await caller().cancelStripeSubscription({
+        orgId: ORG_ID,
+        feedback: { reason: "other", note: "private words" },
+      });
+
+      expect(
+        JSON.stringify(mocks.captureBillingEvent.mock.calls),
+      ).not.toContain("private words");
     });
   });
 });
