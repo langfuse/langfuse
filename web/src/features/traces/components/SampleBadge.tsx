@@ -15,6 +15,8 @@ const ROW_END_INSET_PX = 8;
 export function SampleBadge() {
   const lineRef = useRef<HTMLSpanElement>(null);
   const badgeRef = useRef<HTMLSpanElement>(null);
+  // Widest scrollbar the tree has shown, kept for when none shows.
+  const scrollbarWidthRef = useRef(0);
   const [fits, setFits] = useState(true);
 
   const measure = useCallback(() => {
@@ -27,7 +29,21 @@ export function SampleBadge() {
       row.getBoundingClientRect().right -
       line.getBoundingClientRect().left -
       ROW_END_INSET_PX;
-    setFits(badge.offsetWidth <= available);
+    const scroller = line.closest<HTMLElement>("[data-tree-scroller]");
+    const scrollbarWidth = scroller
+      ? scroller.offsetWidth - scroller.clientWidth
+      : 0;
+    scrollbarWidthRef.current = Math.max(
+      scrollbarWidthRef.current,
+      scrollbarWidth,
+    );
+    // A hidden badge needs room for the scrollbar its own line can bring back.
+    const scrollbarReserve = scrollbarWidthRef.current - scrollbarWidth;
+    const badgeWidth = badge.offsetWidth;
+    setFits(
+      (wasFitting) =>
+        badgeWidth <= available - (wasFitting ? 0 : scrollbarReserve),
+    );
   }, []);
   // The first check runs before paint, so a row too narrow never shows the badge.
   useLayoutEffect(measure, [measure]);
