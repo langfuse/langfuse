@@ -238,13 +238,17 @@ async function validateTenancy(
 
 /** principalFields pairs a tagged principal with its foreign key. */
 function principalFields(principalId: PrincipalId) {
+  if (hasUserKind(principalId)) {
+    return { principalId, userId: untag(principalId) };
+  }
   if (hasApiKeyKind(principalId)) {
     return { principalId, apiKeyId: untag(principalId) };
   }
   if (hasGroupKind(principalId)) {
     return { principalId, groupId: untag(principalId) };
   }
-  return { principalId, userId: untag(principalId) };
+  const exhaustiveCheck: never = principalId;
+  throw new Error(`Unknown principal kind: ${exhaustiveCheck}`);
 }
 
 /** validateRole rejects unsupported roles and returns their storage fields. */
