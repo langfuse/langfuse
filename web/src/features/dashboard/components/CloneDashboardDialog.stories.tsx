@@ -1,7 +1,7 @@
+import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
 import { fn } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { CloneDashboardDialog } from "./CloneDashboardDialog";
 
 const meta = preview.meta({
@@ -9,12 +9,9 @@ const meta = preview.meta({
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
-      <DialogController<null>
-        initialState={() => null}
-        renderDialog={() => <Story />}
-      >
-        {() => null}
-      </DialogController>
+      <OpenOverlay>
+        <Story />
+      </OpenOverlay>
     ),
   ],
   args: {

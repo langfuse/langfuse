@@ -1,9 +1,9 @@
+import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
 import { useState } from "react";
 import { fn } from "storybook/test";
 import { KeyRound, User } from "@langfuse/icons";
 
 import preview from "@/.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
 import {
@@ -43,23 +43,18 @@ function StoryBulkTargetsDialog(
     : TARGET_OPTIONS;
 
   return (
-    <DialogController
-      initialState={() => true}
-      renderDialog={() => (
-        <GatewayBulkGuardrailTargetsDialog
-          {...props}
-          targetPicker={{
-            options,
-            search,
-            onSearchChange: setSearch,
-            isLoading: false,
-          }}
-          onSubmit={fn()}
-        />
-      )}
-    >
-      {() => null}
-    </DialogController>
+    <OpenOverlay>
+      <GatewayBulkGuardrailTargetsDialog
+        {...props}
+        targetPicker={{
+          options,
+          search,
+          onSearchChange: setSearch,
+          isLoading: false,
+        }}
+        onSubmit={fn()}
+      />
+    </OpenOverlay>
   );
 }
 

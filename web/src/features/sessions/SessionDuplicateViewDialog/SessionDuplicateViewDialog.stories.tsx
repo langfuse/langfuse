@@ -1,7 +1,7 @@
+import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { SessionDuplicateViewDialog } from "./SessionDuplicateViewDialog";
 
 const meta = preview.meta({
@@ -9,12 +9,9 @@ const meta = preview.meta({
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
-      <DialogController<null>
-        initialState={() => null}
-        renderDialog={() => <Story />}
-      >
-        {() => null}
-      </DialogController>
+      <OpenOverlay>
+        <Story />
+      </OpenOverlay>
     ),
   ],
   args: {

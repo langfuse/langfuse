@@ -1,19 +1,16 @@
+import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
 import { fn } from "storybook/test";
 
 import preview from "@/.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { GatewayBudgetDialog } from "./GatewayBudgetDialog";
 
 const meta = preview.meta({
   component: GatewayBudgetDialog,
   decorators: [
     (Story) => (
-      <DialogController
-        initialState={() => true}
-        renderDialog={() => <Story />}
-      >
-        {() => null}
-      </DialogController>
+      <OpenOverlay>
+        <Story />
+      </OpenOverlay>
     ),
   ],
 });

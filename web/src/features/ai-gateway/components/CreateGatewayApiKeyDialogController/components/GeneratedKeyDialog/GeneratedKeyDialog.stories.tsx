@@ -1,9 +1,9 @@
+import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
 import type { ComponentProps } from "react";
 import { expect, screen, userEvent, waitFor } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { GeneratedKeyDialog } from "./GeneratedKeyDialog";
 
 const SECRET_KEY = "sk-lf-test-secret";
@@ -19,12 +19,9 @@ function OpenGeneratedKeyDialog(
   props: ComponentProps<typeof GeneratedKeyDialog>,
 ) {
   return (
-    <DialogController<true>
-      initialState={() => true}
-      renderDialog={() => <GeneratedKeyDialog {...props} />}
-    >
-      {() => null}
-    </DialogController>
+    <OpenOverlay>
+      <GeneratedKeyDialog {...props} />
+    </OpenOverlay>
   );
 }
 

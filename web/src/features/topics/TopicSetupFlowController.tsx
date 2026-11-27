@@ -50,43 +50,35 @@ export function TopicSetupFlowController({
   }) => Promise<unknown>;
   children: (control: { openSetup: () => void }) => ReactNode;
 }) {
-  // Opens only from Start analyzing, never on its own, so the landing shows first.
-  const [open, setOpen] = useState(false);
   const capture = useTopicsCapture();
-  function openSetup() {
-    if (settings)
-      capture("topics:setup_flow_opened", {
-        hasConnection: settings.connections.length > 0,
-        isFirstSetup: !settings.rule,
-      });
-    setOpen(true);
-  }
-  function closeSetup() {
-    setOpen(false);
-  }
+  // The dialog stays closed until Start analyzing, and only once settings have loaded.
+  if (!settings) return children({ openSetup() {} });
   return (
-    <>
-      {children({ openSetup })}
-      {open && settings ? (
-        <DialogController<null>
-          initialState={() => null}
-          onDismiss={closeSetup}
-          renderDialog={({ closeDialog }) => (
-            <TopicSetupSession
-              // Rebuilds the draft with recommended models once the first connection arrives.
-              key={settings.connections.length > 0 ? "ready" : "none"}
-              projectId={projectId}
-              canWrite={canWrite}
-              settings={settings}
-              onSaveSampling={onSaveSampling}
-              closeDialog={closeDialog}
-            />
-          )}
-        >
-          {() => null}
-        </DialogController>
-      ) : null}
-    </>
+    <DialogController<null>
+      renderDialog={({ closeDialog }) => (
+        <TopicSetupSession
+          // Rebuilds the draft with recommended models once the first connection arrives.
+          key={settings.connections.length > 0 ? "ready" : "none"}
+          projectId={projectId}
+          canWrite={canWrite}
+          settings={settings}
+          onSaveSampling={onSaveSampling}
+          closeDialog={closeDialog}
+        />
+      )}
+    >
+      {({ openDialog }) =>
+        children({
+          openSetup() {
+            capture("topics:setup_flow_opened", {
+              hasConnection: settings.connections.length > 0,
+              isFirstSetup: !settings.rule,
+            });
+            openDialog(null);
+          },
+        })
+      }
+    </DialogController>
   );
 }
 

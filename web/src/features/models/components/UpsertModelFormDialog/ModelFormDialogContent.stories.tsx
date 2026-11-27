@@ -1,7 +1,7 @@
+import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
 import { fn } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { ModelFormDialogContent } from "./ModelFormDialogContent";
 
 const meta = preview.meta({
@@ -13,12 +13,9 @@ const meta = preview.meta({
     onCancel: fn(),
   },
   render: (args) => (
-    <DialogController<true>
-      initialState={() => true}
-      renderDialog={() => <ModelFormDialogContent {...args} />}
-    >
-      {() => null}
-    </DialogController>
+    <OpenOverlay>
+      <ModelFormDialogContent {...args} />
+    </OpenOverlay>
   ),
 });
 

@@ -173,6 +173,13 @@ export default defineConfig({
       },
     },
     {
+      files: ["src/**/*.{ts,tsx}"],
+      jsPlugins: ["@repo/eslint-plugin"],
+      rules: {
+        "@repo/no-empty-render-prop": "error",
+      },
+    },
+    {
       files: [
         "**/*.ts",
         "**/*.tsx",

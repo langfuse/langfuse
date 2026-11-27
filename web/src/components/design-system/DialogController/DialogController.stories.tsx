@@ -246,6 +246,7 @@ export const InitialState = meta.story({
       initialState={() => "Initial state"}
       renderDialog={({ state }) => <Dialog title={state} text="Content" />}
     >
+      {/* oxlint-disable-next-line @repo/no-empty-render-prop -- Opens from initialState on mount; this story has no trigger. */}
       {() => null}
     </DialogController>
   ),

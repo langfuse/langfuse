@@ -6,7 +6,7 @@ const renderCell = (props: Partial<Parameters<typeof IOTableCell>[0]> = {}) =>
   render(
     <IOTableCell
       data={undefined}
-      renderMediaReference={() => null}
+      renderMediaReference={() => <span />}
       {...props}
     />,
   );

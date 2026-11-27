@@ -1,9 +1,9 @@
+import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { GatewayGuardrailTemplate } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
 import {
   GatewayGuardrailTemplateGallery,
@@ -21,41 +21,36 @@ function StoryGuardrailTemplateGallery({
     useState<GatewayGuardrailTemplate | null>(null);
 
   return (
-    <DialogController
-      initialState={() => true}
-      renderDialog={() => (
-        <Dialog
-          title={selectedTemplate ? selectedTemplate.name : "Add a guardrail"}
-          size={selectedTemplate?.external ? "md" : "lg"}
-          closeOnInteractionOutside={selectedTemplate === null}
-          back={
-            selectedTemplate
-              ? {
-                  onClick: () => setSelectedTemplate(null),
-                  label: "Back to guardrail types",
-                }
-              : undefined
-          }
-        >
-          {selectedTemplate === null ? (
-            <GatewayGuardrailTemplateGallery
-              activeTab={activeTab}
-              onActiveTabChange={setActiveTab}
-              onSelectTemplate={(template) => {
-                onSelectTemplate(template);
-                setSelectedTemplate(template);
-              }}
-            />
-          ) : (
-            <Dialog.Body>
-              <p>Selected {selectedTemplate.name}</p>
-            </Dialog.Body>
-          )}
-        </Dialog>
-      )}
-    >
-      {() => null}
-    </DialogController>
+    <OpenOverlay>
+      <Dialog
+        title={selectedTemplate ? selectedTemplate.name : "Add a guardrail"}
+        size={selectedTemplate?.external ? "md" : "lg"}
+        closeOnInteractionOutside={selectedTemplate === null}
+        back={
+          selectedTemplate
+            ? {
+                onClick: () => setSelectedTemplate(null),
+                label: "Back to guardrail types",
+              }
+            : undefined
+        }
+      >
+        {selectedTemplate === null ? (
+          <GatewayGuardrailTemplateGallery
+            activeTab={activeTab}
+            onActiveTabChange={setActiveTab}
+            onSelectTemplate={(template) => {
+              onSelectTemplate(template);
+              setSelectedTemplate(template);
+            }}
+          />
+        ) : (
+          <Dialog.Body>
+            <p>Selected {selectedTemplate.name}</p>
+          </Dialog.Body>
+        )}
+      </Dialog>
+    </OpenOverlay>
   );
 }
 

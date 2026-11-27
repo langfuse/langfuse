@@ -1,7 +1,7 @@
+import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import {
   DeleteProjectDialog,
   type DeleteProjectDialogProps,
@@ -14,12 +14,9 @@ const meta = preview.meta({
 export default meta;
 
 const renderDialog = (args: DeleteProjectDialogProps) => (
-  <DialogController
-    initialState={() => true}
-    renderDialog={() => <DeleteProjectDialog {...args} />}
-  >
-    {() => null}
-  </DialogController>
+  <OpenOverlay>
+    <DeleteProjectDialog {...args} />
+  </OpenOverlay>
 );
 
 export const Default = meta.story({

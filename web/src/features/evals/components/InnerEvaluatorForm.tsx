@@ -330,6 +330,29 @@ function CodeEvalSourceLink({
 
 const EMPTY_FILTER_STATE: z.infer<typeof singleFilterList>[number][] = [];
 
+function resolveEvaluatorFormFooter({
+  hideFooter,
+  renderFooter,
+  isLoading,
+  isSaveDisabled,
+  defaultFooter,
+}: {
+  hideFooter: boolean | undefined;
+  renderFooter:
+    | ((params: {
+        isLoading: boolean;
+        isSaveDisabled: boolean;
+      }) => React.ReactNode)
+    | undefined;
+  isLoading: boolean;
+  isSaveDisabled: boolean;
+  defaultFooter: React.ReactNode;
+}) {
+  if (hideFooter) return null;
+  if (renderFooter) return renderFooter({ isLoading, isSaveDisabled });
+  return defaultFooter;
+}
+
 export const InnerEvaluatorForm = (props: {
   projectId: string;
   evalTemplate: EvalTemplate;
@@ -347,6 +370,8 @@ export const InnerEvaluatorForm = (props: {
   hidePreviewTable?: boolean;
   hideRootObservationFilter?: boolean;
   showPreviewTargetBadge?: boolean;
+  /** Skip the default submit footer. Custom `renderFooter` content is also omitted. */
+  hideFooter?: boolean;
   evalCapabilities: EvalCapabilities;
   defaultRunOnLive?: boolean;
   defaultTarget?: EvalTargetObject;
@@ -1392,12 +1417,7 @@ export const InnerEvaluatorForm = (props: {
   const mutationIsLoading =
     createJobMutation.isPending || updateJobMutation.isPending;
 
-  const formFooter = props.renderFooter ? (
-    props.renderFooter({
-      isLoading: mutationIsLoading,
-      isSaveDisabled: hasJsonPathCompatibilityError,
-    })
-  ) : (
+  const defaultFooter = (
     <div className="flex w-full flex-col items-end gap-4">
       {!props.disabled ? (
         <Button
@@ -1411,6 +1431,13 @@ export const InnerEvaluatorForm = (props: {
       ) : null}
     </div>
   );
+  const formFooter = resolveEvaluatorFormFooter({
+    hideFooter: props.hideFooter,
+    renderFooter: props.renderFooter,
+    isLoading: mutationIsLoading,
+    isSaveDisabled: hasJsonPathCompatibilityError,
+    defaultFooter,
+  });
 
   return (
     <>

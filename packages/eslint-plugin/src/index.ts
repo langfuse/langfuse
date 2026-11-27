@@ -2,6 +2,7 @@ import { default as noTailwindOverflowScroll } from "./rules/no-tailwind-overflo
 import { default as componentFileStructure } from "./rules/component-file-structure.js";
 import { default as noArbitraryColors } from "./rules/no-arbitrary-colors.js";
 import { default as noAbstractedOverlayTrigger } from "./rules/no-abstracted-overlay-trigger.js";
+import { default as noEmptyRenderProp } from "./rules/no-empty-render-prop.js";
 import { default as noInSourceVitest } from "./rules/no-in-source-vitest.js";
 import { default as noRestrictedPrismaWrites } from "./rules/no-restricted-prisma-writes.js";
 import { default as noExoticOperators } from "./rules/no-exotic-operators.js";
@@ -29,6 +30,7 @@ const plugin = {
     "export-rules": exportRules,
     "component-file-structure": componentFileStructure,
     "no-abstracted-overlay-trigger": noAbstractedOverlayTrigger,
+    "no-empty-render-prop": noEmptyRenderProp,
     "no-arbitrary-colors": noArbitraryColors,
     "no-exotic-operators": noExoticOperators,
     "no-in-source-vitest": noInSourceVitest,

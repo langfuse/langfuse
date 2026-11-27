@@ -1,19 +1,16 @@
+import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { IngestionDialog } from "./IngestionDialog";
 
 const meta = preview.meta({
   component: IngestionDialog,
   decorators: [
     (Story) => (
-      <DialogController
-        initialState={() => true}
-        renderDialog={() => <Story />}
-      >
-        {() => null}
-      </DialogController>
+      <OpenOverlay>
+        <Story />
+      </OpenOverlay>
     ),
   ],
 });

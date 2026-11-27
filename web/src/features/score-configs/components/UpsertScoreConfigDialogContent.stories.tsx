@@ -1,8 +1,8 @@
+import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 
 import { UpsertScoreConfigDialogContent } from "./UpsertScoreConfigDialogContent";
 
@@ -26,12 +26,9 @@ const meta = preview.meta({
   },
   decorators: [
     (Story) => (
-      <DialogController<boolean>
-        initialState={() => true}
-        renderDialog={() => <Story />}
-      >
-        {() => null}
-      </DialogController>
+      <OpenOverlay>
+        <Story />
+      </OpenOverlay>
     ),
   ],
 });

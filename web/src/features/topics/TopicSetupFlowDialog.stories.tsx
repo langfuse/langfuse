@@ -1,3 +1,4 @@
+import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
 import { useState, type ComponentProps } from "react";
 import type { FilterState } from "@langfuse/shared";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
@@ -9,7 +10,6 @@ import { DEFAULT_TOPIC_FACETS } from "@langfuse/shared/topics";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { TopicSetupFlowDialog } from "./TopicSetupFlowDialog";
 import { costEstimateFixture } from "@/.storybook/fixtures/topicCostEstimateFixture";
 import { TopicCostEstimateView } from "./TopicCostEstimateView";
@@ -162,12 +162,9 @@ const meta = preview.meta({
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
-      <DialogController<null>
-        initialState={() => null}
-        renderDialog={() => <Story />}
-      >
-        {() => null}
-      </DialogController>
+      <OpenOverlay>
+        <Story />
+      </OpenOverlay>
     ),
   ],
   args: {

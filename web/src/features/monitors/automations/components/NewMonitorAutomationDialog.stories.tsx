@@ -1,8 +1,8 @@
+import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { defaultMonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { NewMonitorAutomationDialog } from "./NewMonitorAutomationDialog";
 import { WebhookSecretDialog } from "./WebhookSecretDialog";
@@ -272,28 +272,20 @@ export const TestDoesNotSubmitSurroundingForm = meta.story({
 
 export const WebhookSecret = meta.story({
   render: () => (
-    <DialogController
-      initialState={() => ({})}
-      renderDialog={() => (
-        <WebhookSecretDialog
-          automationName="Staging alerts"
-          webhookSecret="lf-whsec_3f9a1c0d8e7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b"
-        />
-      )}
-    >
-      {() => null}
-    </DialogController>
+    <OpenOverlay>
+      <WebhookSecretDialog
+        automationName="Staging alerts"
+        webhookSecret="lf-whsec_3f9a1c0d8e7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b"
+      />
+    </OpenOverlay>
   ),
 });
 
 /** OpenDialog renders the dialog already open, as its controller would. */
 function OpenDialog(props: ComponentProps<typeof NewMonitorAutomationDialog>) {
   return (
-    <DialogController
-      initialState={() => ({})}
-      renderDialog={() => <NewMonitorAutomationDialog {...props} />}
-    >
-      {() => null}
-    </DialogController>
+    <OpenOverlay>
+      <NewMonitorAutomationDialog {...props} />
+    </OpenOverlay>
   );
 }

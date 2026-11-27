@@ -1,8 +1,8 @@
+import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
 import type { ComponentProps } from "react";
 import { fn } from "storybook/test";
 
 import preview from "@/.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { GatewayApiKeyDialog } from "./GatewayApiKeyDialog";
 
 const models = [
@@ -57,12 +57,9 @@ const meta = preview.meta({
 
 function OpenDialog(props: ComponentProps<typeof GatewayApiKeyDialog>) {
   return (
-    <DialogController<true>
-      initialState={() => true}
-      renderDialog={() => <GatewayApiKeyDialog {...props} />}
-    >
-      {() => null}
-    </DialogController>
+    <OpenOverlay>
+      <GatewayApiKeyDialog {...props} />
+    </OpenOverlay>
   );
 }
 
