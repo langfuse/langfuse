@@ -6,7 +6,7 @@ import {
   TextSearch,
   type IconComponent,
 } from "@langfuse/icons";
-import { AwsColorMark } from "@langfuse/icons/brand";
+import { AwsColorMark, LakeraMark } from "@langfuse/icons/brand";
 import { SiOpenai } from "@langfuse/icons/si";
 
 import type { GatewayGuardrailTemplateKind } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/GatewayGuardrailDialogController";
@@ -61,5 +61,11 @@ export const GUARDRAIL_TEMPLATE_OPTIONS: readonly GuardrailTemplateOption[] = [
     title: "OpenAI Moderation",
     hint: "Harmful content & key",
     icon: SiOpenai,
+  },
+  {
+    id: "lakera",
+    title: "Lakera Guard",
+    hint: "Prompt attacks & key",
+    icon: LakeraMark,
   },
 ];

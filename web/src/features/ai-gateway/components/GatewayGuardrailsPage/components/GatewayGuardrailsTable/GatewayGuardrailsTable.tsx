@@ -3,10 +3,10 @@ import {
   Globe,
   KeyRound,
   Pencil,
-  ShieldCheck,
   Trash2,
   User,
 } from "@langfuse/icons";
+import { LakeraMark } from "@langfuse/icons/brand";
 
 import { TableCard } from "@/src/components/TableCard/TableCard";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -260,7 +260,7 @@ function getGuardrailBadge(row: GatewayGuardrailRow) {
     return <providerIcons.OPENAI size="sm" aria-hidden />;
   }
   if (row.type === "LAKERA") {
-    return <ShieldCheck size="sm" aria-hidden />;
+    return <LakeraMark size="sm" aria-hidden />;
   }
   if (
     row.presets.length === 0 &&
