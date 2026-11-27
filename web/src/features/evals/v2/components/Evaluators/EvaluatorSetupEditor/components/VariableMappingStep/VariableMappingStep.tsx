@@ -4,7 +4,7 @@ import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 
 const COPY = {
   variables: {
-    title: "Map variables to data",
+    title: "Map variables",
   },
   state: {
     title: "Build the state",
@@ -26,11 +26,12 @@ export function VariableMappingStep({
   return (
     <Stepper
       number={2}
+      size="md"
       title={COPY[variant].title}
       open={open}
       onOpenChange={onOpenChange}
     >
-      {mappingEditor}
+      <div className="pt-2">{mappingEditor}</div>
     </Stepper>
   );
 }

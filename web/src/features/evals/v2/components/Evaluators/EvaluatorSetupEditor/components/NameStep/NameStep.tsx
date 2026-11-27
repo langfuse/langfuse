@@ -33,13 +33,17 @@ export function NameStep({
   return (
     <Stepper
       number={step}
+      size="md"
       title="Name evaluator"
       open={open}
       onOpenChange={onOpenChange}
     >
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 pt-2 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="evaluator-name" className="flex items-center gap-1.5">
+          <Label
+            htmlFor="evaluator-name"
+            className="text-muted-foreground flex items-center gap-1.5"
+          >
             Name
             {variant === "default" ? (
               <InfoTooltip label="About evaluator names">
@@ -63,7 +67,7 @@ export function NameStep({
         <div className="space-y-2">
           <Label
             htmlFor="evaluator-description"
-            className="flex items-center gap-1"
+            className="text-muted-foreground flex items-center gap-1"
           >
             Description
             <span className="text-muted-foreground font-normal">

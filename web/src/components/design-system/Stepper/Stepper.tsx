@@ -16,6 +16,7 @@ const markerVariants = cva(
       },
       size: {
         default: "size-7 rounded-lg text-sm",
+        md: "size-6 rounded-lg text-xs",
         sm: "size-5 rounded-md text-xs",
       },
       status: {
@@ -31,6 +32,7 @@ const headerVariants = cva("flex items-center gap-1.5 text-left", {
   variants: {
     size: {
       default: "min-h-7",
+      md: "min-h-6",
       sm: "min-h-5",
     },
   },
@@ -40,6 +42,7 @@ const titleVariants = cva("font-bold", {
   variants: {
     size: {
       default: "text-lg",
+      md: "text-base",
       sm: "text-sm",
     },
     status: {
@@ -54,6 +57,7 @@ const descriptionVariants = cva("text-muted-foreground", {
   variants: {
     size: {
       default: "text-sm",
+      md: "text-sm",
       sm: "text-xs",
     },
   },
@@ -65,8 +69,14 @@ type StepperProps = {
   /** Shown in an info tooltip beside the title, outside the collapse control. */
   tooltipText?: string;
   description?: ReactNode;
+  /**
+   * A control after the title; stays visible when collapsed and gets the rest
+   * of the header row. The title then takes a field label's width, so the
+   * control lines up with labelled rows.
+   */
+  headerEnd?: ReactNode;
   variant?: "filled" | "outline";
-  size?: "default" | "sm";
+  size?: "default" | "md" | "sm";
   /** Complete swaps the number for a check; upcoming mutes the step. */
   status?: "current" | "complete" | "upcoming";
   compactBottomSpacing?: boolean;
@@ -99,6 +109,7 @@ export function Stepper({
   title,
   tooltipText,
   description,
+  headerEnd,
   variant = "filled",
   size = "default",
   status = "current",
@@ -112,6 +123,10 @@ export function Stepper({
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const expanded = !isCollapsible || (open ?? internalOpen);
   const hasBody = Boolean(description) || Boolean(children);
+  const titleClassName = cn(
+    titleVariants({ size, status }),
+    headerEnd ? "min-w-16 shrink-0 text-left" : null,
+  );
 
   const toggle = () => {
     const nextOpen = !expanded;
@@ -142,7 +157,10 @@ export function Stepper({
           {isCollapsible ? (
             <button
               type="button"
-              className="inline-flex items-center gap-1.5"
+              className={cn(
+                "inline-flex items-center gap-1.5",
+                headerEnd ? "shrink-0" : null,
+              )}
               aria-label={`Step ${number}: ${title}`}
               aria-expanded={expanded}
               onClick={toggle}
@@ -155,10 +173,10 @@ export function Stepper({
                   !expanded && "-rotate-90",
                 )}
               />
-              <span className={titleVariants({ size, status })}>{title}</span>
+              <span className={titleClassName}>{title}</span>
             </button>
           ) : (
-            <span className={titleVariants({ size, status })}>{title}</span>
+            <span className={titleClassName}>{title}</span>
           )}
           {tooltipText ? (
             <Tooltip label={tooltipText}>
@@ -173,6 +191,11 @@ export function Stepper({
                 </button>
               )}
             </Tooltip>
+          ) : null}
+          {headerEnd ? (
+            <div className="-my-1 ml-0.5 flex min-w-0 flex-1 items-center">
+              {headerEnd}
+            </div>
           ) : null}
         </div>
         {expanded && hasBody ? (

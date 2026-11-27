@@ -84,9 +84,17 @@ export function DecisionModelSelector({
     providerGroups.length === 0 &&
     selectedModel == null
   ) {
+    const label = "Add an OpenAI, Google AI Studio or TypeSafe connection";
     return (
-      <Button type="button" variant="outline" onClick={onConfigureProviders}>
-        Add an OpenAI, Google AI Studio or TypeSafe connection
+      <Button
+        type="button"
+        variant="outline"
+        className="max-w-full min-w-0"
+        onClick={onConfigureProviders}
+      >
+        <span className="truncate" title={label}>
+          {label}
+        </span>
       </Button>
     );
   }

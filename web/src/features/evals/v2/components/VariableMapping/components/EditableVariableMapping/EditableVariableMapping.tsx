@@ -478,7 +478,7 @@ export function EditableVariableMapping({
   validateVariableName,
 }: EditableVariableMappingProps) {
   return (
-    <div data-variable-mapping-root="" className="flex flex-col gap-4">
+    <div data-variable-mapping-root="" className="flex flex-col gap-2">
       {mappings.map((item) => (
         <VariableMappingRow
           key={item.variable}
