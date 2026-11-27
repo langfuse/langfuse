@@ -28,6 +28,10 @@ vi.mock("@/src/utils/api", () => ({
   reportNonTrpcError: vi.fn(),
 }));
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: null, status: "unauthenticated" }),
+}));
+
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => true,
 }));
@@ -41,6 +45,8 @@ vi.mock("@/src/features/public-api/hooks/useLangfuseEnvCode", async (orig) => ({
   useLangfuseBaseUrl: () => "http://localhost:3000",
 }));
 
+import { TooltipProvider } from "@/src/components/ui/tooltip";
+
 import { TracesSetupOnboardingCard } from "./TracesSetupOnboardingCard";
 
 describe("TracesSetupOnboardingCard", () => {
@@ -48,6 +54,9 @@ describe("TracesSetupOnboardingCard", () => {
     mutateAsync.mockResolvedValue({ secretKey: "sk-lf-project-a" });
     const { rerender } = render(
       <TracesSetupOnboardingCard projectId="project-a" />,
+      {
+        wrapper: TooltipProvider,
+      },
     );
 
     await act(async () => {
@@ -55,7 +64,9 @@ describe("TracesSetupOnboardingCard", () => {
         screen.getByRole("button", { name: "Create new API key" }),
       );
     });
-    expect(mutateAsync).toHaveBeenCalledWith({ projectId: "project-a" });
+    expect(mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: "project-a" }),
+    );
     expect(
       screen.queryByRole("button", { name: "Create new API key" }),
     ).not.toBeInTheDocument();
