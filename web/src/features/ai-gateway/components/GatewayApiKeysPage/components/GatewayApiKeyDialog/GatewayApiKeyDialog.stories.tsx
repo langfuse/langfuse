@@ -3,6 +3,7 @@ import { fn } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { GATEWAY_DEFAULT_BUDGET_CHANGE_REASON } from "@/src/features/ai-gateway/constants/gatewayAdminSetBudgetReasons";
 import { GatewayApiKeyDialog } from "./GatewayApiKeyDialog";
 
 const models = [
@@ -103,6 +104,13 @@ export const SpendBudgetUnavailable = meta.story({
   args: {
     spendBudgetUnavailableReason:
       "Spend budgets need recorded gateway requests. Switch the gateway ingestion to usage to set one.",
+  },
+});
+
+export const SpendBudgetLockedByDefault = meta.story({
+  args: {
+    disabledFields: ["spendBudget"],
+    spendBudgetLockedReason: GATEWAY_DEFAULT_BUDGET_CHANGE_REASON,
   },
 });
 
