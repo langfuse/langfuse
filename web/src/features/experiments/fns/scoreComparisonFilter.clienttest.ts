@@ -84,6 +84,23 @@ describe("matchesScoreComparisonFilter", () => {
       }),
     ).toBe(false);
   });
+
+  it("detects different categorical values even when their joined strings collide", () => {
+    const withValues = (values: string[]): AggregatedScoreData => ({
+      type: "CATEGORICAL",
+      values,
+      valueCounts: values.map((value) => ({ value, count: 1 })),
+    });
+
+    expect(
+      matchesScoreComparisonFilter({
+        operator: "differs",
+        dataType: "CATEGORICAL",
+        baseline: withValues(["a|b", "c"]),
+        comparison: withValues(["a", "b|c"]),
+      }),
+    ).toBe(true);
+  });
 });
 
 describe("score comparison filter URL state", () => {
