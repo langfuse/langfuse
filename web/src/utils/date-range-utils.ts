@@ -378,6 +378,11 @@ export function rangeFromString<T extends string>(
   allowedRanges: readonly T[],
   fallback: T,
 ): TimeRange {
+  // Direct match: if the input is already a known allowed range (full name or abbreviation), accept it
+  if (allowedRanges.includes(abbreviatedRange as unknown as T)) {
+    return { range: abbreviatedRange as T };
+  }
+
   // Named range
   const fullRange = getFullTimeRangeFromAbbreviated(abbreviatedRange);
   if (allowedRanges.includes(fullRange as T)) {
