@@ -88,7 +88,6 @@ ScoreBadge/ScoreBadge ScoreBadge
 ScoreTag ScoreTag, SCORE_LEVEL_LABELS
 layouts/MobilePageActionsContent MobilePageActionsContent
 ui/popover Popover, PopoverTrigger
-nav/AppSidebar/AppSidebar AppSidebar
 onboarding/components/EvaluatorsOnboardingView/EvaluatorsOnboardingView EvaluatorsOnboardingView
 table/ColumnVisibilityHeader ColumnVisibilityHeader
 table/data-table DataTable
@@ -100,7 +99,6 @@ ui/MarkdownView MarkdownView
 ui/StatusBadge/StatusBadge StatusBadge
 ui/AIAssistedInput AIAssistedInput
 ui/drawer Drawer, DrawerController, DrawerTrigger, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription
-ui/sidebar SidebarProvider, SidebarInset
 EOF
   echo "export { LangfuseProvider } from \"./LangfuseProvider\";"
   # Icon props (Button/IconButton `icon`, ...) take typed icon wrappers; the

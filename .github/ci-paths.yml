@@ -63,6 +63,14 @@ ai_gateway:
   - .github/workflows/pipeline.yml
   - .github/ci-paths.yml
 
+# The regex rule validator: its Rust source, build config and committed
+# WebAssembly output.
+ai_gateway_guardrail_rules:
+  - .github/workflows/pipeline.yml
+  - .github/ci-paths.yml
+  - deny.toml
+  - packages/ai-gateway-guardrail-rules/**
+
 # Any change outside worker/: the web UI suites (client, Storybook, Playwright)
 # never import, build or start the worker. A negated pattern matches every path
 # it does not exclude, so this is false only when every changed file is under

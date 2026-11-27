@@ -1,3 +1,4 @@
+/* oxlint-disable default-param-last -- baseline before rule enablement */
 import { visibleModelsWhere } from "../ingestion/modelVisibility";
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";

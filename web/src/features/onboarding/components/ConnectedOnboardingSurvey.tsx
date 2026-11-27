@@ -83,6 +83,7 @@ export function ConnectedOnboardingSurvey() {
           `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`,
           window.location.origin,
         );
+        // eslint-disable-next-line @repo/no-location-navigation -- the client router replace already failed, so load this path with a full page navigation
         window.location.assign(destination.href);
       }
     },

@@ -27,7 +27,7 @@ export type ConfigureTopicsSaveDraft = {
   idleSeconds: string;
 };
 
-export type ConfigureTopicsDraft = {
+type ConfigureTopicsDraft = {
   summary: JudgeModel | null;
   embedding: JudgeModel | null;
   embeddingDimensions: string;

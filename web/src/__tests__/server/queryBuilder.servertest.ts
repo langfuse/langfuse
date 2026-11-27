@@ -1,3 +1,4 @@
+/* oxlint-disable radix -- baseline before rule enablement */
 import { QueryBuilder, executeQuery } from "@langfuse/shared/query/server";
 import {
   getValidAggregationsForMeasureType,
@@ -2429,7 +2430,7 @@ describe("queryBuilder", () => {
         await setupScores(projectId, scores);
 
         // Define query with filter using "scoreName" instead of "name"
-        // This tests the fallback handling in queryBuilder.ts that handles column names ending with "Name"
+        // This tests the fallback handling in sqlTextQuery.ts that handles column names ending with "Name"
         const query: QueryType = {
           view: "scores-numeric",
           dimensions: [{ field: "name" }],
@@ -5352,8 +5353,10 @@ describe("query builder measure-aggregation validation", () => {
         randomUUID(),
       );
 
-      expect(sql).toContain("FROM events_full events_traces");
-      expect(sql).not.toContain("events_core");
+      expect(sql).toMatch(/\bfrom events_full as e\b/i);
+      // The root-event subquery reads no truncated column, so it stays on
+      // events_core.
+      expect(sql).toMatch(/\bin \(select e\.trace_id from events_core as e\b/i);
     });
 
     it("reads events_full when a metadata filter is present (observations view)", async () => {
@@ -5380,7 +5383,7 @@ describe("query builder measure-aggregation validation", () => {
       ];
       const { query: sql } = await builder.build(query, randomUUID());
 
-      expect(sql).toContain("FROM events_core events_traces");
+      expect(sql).toMatch(/\bfrom events_core as e\b/i);
       expect(sql).not.toContain("events_full");
     });
 
@@ -5801,7 +5804,7 @@ describe("query builder measure-aggregation validation", () => {
 
   describe("rootEventCondition threshold gating", () => {
     const rootEventSubqueryPrefix =
-      "IN (SELECT events_traces.trace_id FROM events_core events_traces";
+      "in (select e.trace_id from events_core as e";
     const tracesV2Query: QueryType = {
       view: "traces",
       dimensions: [{ field: "name" }],
@@ -5825,7 +5828,7 @@ describe("query builder measure-aggregation validation", () => {
         randomUUID(),
       );
       expect(sql).toContain(
-        "anyIf(toNullable(toDate(events_core.start_time)), (events_traces.parent_span_id = '' OR events_traces.is_app_root = true))",
+        "anyIf(toNullable(toDate(e.start_time)), (e.parent_span_id = '' or e.is_app_root = true))",
       );
       expect(sql).toContain(rootEventSubqueryPrefix);
     });
