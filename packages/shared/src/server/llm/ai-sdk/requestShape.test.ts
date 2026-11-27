@@ -274,6 +274,70 @@ describe("AI SDK request shapes", () => {
     expect(request.body.model).toBe("gpt-4o");
   });
 
+  it("OpenAI: a web_search tool in provider options reaches the Responses API and is rejected for Chat Completions", async () => {
+    const modelParams: ModelParams = {
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      model: "gpt-4o",
+      providerOptions: {
+        tools: [
+          {
+            type: "web_search",
+            search_context_size: "low",
+            filters: { allowed_domains: ["langfuse.com"] },
+          },
+        ],
+      },
+    };
+
+    const { request } = await runCompletion({
+      modelParams,
+      apiKey: "sk-test",
+      llmConnectionConfig: { useResponsesApi: true },
+      response: OPENAI_RESPONSES_RESPONSE,
+    });
+
+    expect(request.url).toBe("https://api.openai.com/v1/responses");
+    expect(request.body.tools).toEqual([
+      {
+        type: "web_search",
+        search_context_size: "low",
+        filters: { allowed_domains: ["langfuse.com"] },
+      },
+    ]);
+
+    // Chat Completions cannot run the tool and the provider would drop it.
+    await expect(
+      runCompletion({
+        modelParams,
+        apiKey: "sk-test",
+        response: OPENAI_CHAT_RESPONSE,
+      }),
+    ).rejects.toThrow(/Responses API/);
+  });
+
+  it("Anthropic: a web search tool in provider options is sent as a server tool", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "anthropic",
+        adapter: LLMAdapter.Anthropic,
+        model: "claude-sonnet-5",
+        max_tokens: 256,
+        providerOptions: {
+          tools: [
+            { type: "web_search_20250305", name: "web_search", max_uses: 5 },
+          ],
+        },
+      },
+      apiKey: "anthropic-key",
+      response: ANTHROPIC_RESPONSE,
+    });
+
+    expect(request.body.tools).toEqual([
+      { type: "web_search_20250305", name: "web_search", max_uses: 5 },
+    ]);
+  });
+
   it.each(["eu.api.openai.com", "api.openai.com."])(
     "preserves saved evaluator options on %s",
     async (host) => {

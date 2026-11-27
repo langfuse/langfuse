@@ -116,20 +116,27 @@ export default async function chatCompletionHandler(req: NextRequest) {
       if ((tools && tools.length > 0) || hasToolResults) {
         const result = await generateLLMText({
           ...nonStreamingCompletionParams,
-          tools: createLLMToolSet(tools ?? []),
+          tools: {
+            ...completionParams.tools,
+            ...createLLMToolSet(tools ?? []),
+          },
         });
         return NextResponse.json({
           content: result.text,
-          tool_calls: result.toolCalls.map((toolCall) => ({
-            name: toolCall.toolName,
-            id: toolCall.toolCallId,
-            args:
-              typeof toolCall.input === "object" &&
-              toolCall.input !== null &&
-              !Array.isArray(toolCall.input)
-                ? toolCall.input
-                : {},
-          })),
+          // Provider-executed calls (e.g. web search) are already resolved and
+          // need no tool result from the user.
+          tool_calls: result.toolCalls
+            .filter((toolCall) => !toolCall.providerExecuted)
+            .map((toolCall) => ({
+              name: toolCall.toolName,
+              id: toolCall.toolCallId,
+              args:
+                typeof toolCall.input === "object" &&
+                toolCall.input !== null &&
+                !Array.isArray(toolCall.input)
+                  ? toolCall.input
+                  : {},
+            })),
           ...(result.finalStep.reasoningText
             ? { reasoning: result.finalStep.reasoningText }
             : {}),
