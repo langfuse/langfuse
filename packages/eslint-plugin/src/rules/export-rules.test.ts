@@ -100,6 +100,31 @@ tester.run("export-rules", rule, {
       options: fns,
     },
     {
+      code: "declare function pack(): number;\nexport { pack };",
+      filename: file("pack.ts"),
+      options: fns,
+    },
+    {
+      code: "export function pack() { return 1; }\nvoid 0;",
+      filename: file("pack.ts"),
+      options: fns,
+    },
+    {
+      code: "export function usePack(value: string): number;\nexport function usePack(value: number): number;\nexport function usePack(value: string | number) { return 1; }",
+      filename: file("usePack.ts"),
+      options: [{ allow: [{ kind: "hook", max: 1 }] }],
+    },
+    {
+      code: "export function Button(props: { a: string }): JSX.Element;\nexport function Button(props: { b: string }): JSX.Element;\nexport function Button(props: { a?: string; b?: string }) { return <button />; }",
+      filename: file("Button.tsx"),
+      options: [{ allow: ["component"] }],
+    },
+    {
+      code: "export function Button() { return <button /> as JSX.Element; }",
+      filename: file("Button.tsx"),
+      options: [{ allow: ["component"] }],
+    },
+    {
       code: "export declare function pack(value: number): number;",
       filename: file("pack.ts"),
       options: fns,

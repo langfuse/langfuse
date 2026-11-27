@@ -177,13 +177,14 @@ function functionName(node: TSESTree.Node): string | null {
 }
 
 function hasJsx(node: TSESTree.Node): boolean {
-  if (node.type === N.JSXElement || node.type === N.JSXFragment) return true;
-  if (node.type === N.ConditionalExpression)
-    return hasJsx(node.consequent) || hasJsx(node.alternate);
-  if (node.type === N.LogicalExpression)
-    return hasJsx(node.left) || hasJsx(node.right);
-  if (node.type === N.CallExpression) {
-    const callee = node.callee;
+  const value = unwrap(node);
+  if (value.type === N.JSXElement || value.type === N.JSXFragment) return true;
+  if (value.type === N.ConditionalExpression)
+    return hasJsx(value.consequent) || hasJsx(value.alternate);
+  if (value.type === N.LogicalExpression)
+    return hasJsx(value.left) || hasJsx(value.right);
+  if (value.type === N.CallExpression) {
+    const callee = value.callee;
     if (callee.type === N.Identifier && callee.name === "createElement")
       return true;
     if (
@@ -366,7 +367,7 @@ export default createRule({
     const bindings = new Map<string, TSESTree.Node>();
     const mutableNames = new Set<string>();
     const kindOf = new Map<string, Kind>();
-    const seenFunctions = new Set<string>();
+    const seenCallables = new Map<string, SeenExport>();
     const exports: SeenExport[] = [];
     const pending: {
       local: string;
@@ -427,18 +428,22 @@ export default createRule({
 
     function push(exporting: SeenExport) {
       if (
-        exporting.kind === "function" &&
-        exporting.name !== null &&
-        !exporting.isDefault &&
-        seenFunctions.has(exporting.name)
-      )
-        return;
-      if (
-        exporting.kind === "function" &&
+        (exporting.kind === "function" ||
+          exporting.kind === "hook" ||
+          exporting.kind === "component") &&
         exporting.name !== null &&
         !exporting.isDefault
-      )
-        seenFunctions.add(exporting.name);
+      ) {
+        const previous = seenCallables.get(exporting.name);
+        if (previous) {
+          // Overload signatures have no body, so they classify as function
+          // until the implementation shows a hook or component.
+          if (previous.kind === "function" && exporting.kind !== "function")
+            previous.kind = exporting.kind;
+          return;
+        }
+        seenCallables.set(exporting.name, exporting);
+      }
       exports.push(exporting);
     }
 
@@ -454,7 +459,10 @@ export default createRule({
     return {
       Program(program) {
         for (const statement of program.body) {
-          if (statement.type === N.FunctionDeclaration) {
+          if (
+            statement.type === N.FunctionDeclaration ||
+            statement.type === N.TSDeclareFunction
+          ) {
             remember(statement.id!.name, statement);
             continue;
           }
