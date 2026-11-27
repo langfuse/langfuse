@@ -2,6 +2,7 @@
 import { type ReactNode, useState } from "react";
 import { Braces, FileCode, type IconComponent } from "@langfuse/icons";
 
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { MaskedGatewayKey } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/MaskedGatewayKey";
 import { StepCodeSection } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/components/StepCodeSection";
@@ -32,7 +33,10 @@ type UsageTab = {
   description?: ReactNode;
   /** Snippet with GATEWAY_KEY_PLACEHOLDER where `secret` goes. */
   code: string;
+  language: "sh" | "json";
   secret: string;
+  /** install opens a one-click install link for the tab's product. */
+  install?: { label: string; open: () => void };
 };
 
 export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
@@ -45,12 +49,21 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       id: "sdk",
       label: "SDK",
       icon: FileCode,
-      description:
-        "Add these environment variables to your application to send traces to Langfuse.",
+      description: (
+        <>
+          Add these environment variables to your application to send traces to
+          Langfuse. For more information see the{" "}
+          <DocsLink href="https://langfuse.com/docs/observability/get-started">
+            tracing quickstart
+          </DocsLink>
+          .
+        </>
+      ),
       code: getLangfuseEnvCode(baseUrl, {
         projectId,
         secretKey: GATEWAY_KEY_PLACEHOLDER,
       }),
+      language: "sh",
       secret: secretKey,
     },
     {
@@ -74,6 +87,7 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
           : []),
         `${baseUrl}/api/public/projects`,
       ),
+      language: "sh",
       secret: secretKey,
     },
   ];
@@ -88,8 +102,10 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
         icon: command.icon,
         description: (
           <>
-            Run in your terminal to connect {command.product} to Langfuse. For
-            more information see the{" "}
+            {command.install
+              ? `Add Langfuse to ${command.product} with one click, or add this to ${command.install.configFile}.`
+              : `Run in your terminal to connect ${command.product} to Langfuse.`}{" "}
+            For more information see the{" "}
             <DocsLink href="https://langfuse.com/docs/api-and-data-platform/features/mcp-server">
               MCP setup docs
             </DocsLink>
@@ -97,7 +113,15 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
           </>
         ),
         code: command.code,
+        language: command.language,
         secret: command.secret,
+        install: command.install && {
+          label: `Add to ${command.product}`,
+          // Built on click so the key-bearing link never sits in the DOM.
+          open: () => {
+            if (command.install) window.location.href = command.install.link();
+          },
+        },
       });
     }
   }
@@ -140,8 +164,17 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
                     {tab.description}
                   </p>
                 ) : null}
+                {tab.install ? (
+                  <div className="ph-no-capture">
+                    <Button
+                      text={tab.install.label}
+                      variant="secondary"
+                      onClick={tab.install.open}
+                    />
+                  </div>
+                ) : null}
                 <GatewaySecretKeyContext value={{ value: tab.secret }}>
-                  <StepCodeSection code={tab.code} language="sh" />
+                  <StepCodeSection code={tab.code} language={tab.language} />
                 </GatewaySecretKeyContext>
               </div>
             </Tabs.Content>

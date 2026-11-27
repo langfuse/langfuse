@@ -71,6 +71,21 @@ export const WithoutRoleSelection = meta.story({
 });
 
 const SECRET_KEY = "sk-lf-4d164bc4-3275-43dd-8b18-150e006da4e7";
+
+/** selectUsageTab opens a usage tab, from the overflow menu when it doesn't fit the row. */
+async function selectUsageTab(name: string) {
+  const screen = within(document.body);
+  const tab = screen.queryByRole("tab", { name });
+  if (tab) {
+    await userEvent.click(tab);
+    return;
+  }
+  await userEvent.click(screen.getByRole("button", { name: "More tabs" }));
+  // The menu renders in a portal outside the dialog, which the dialog marks aria-hidden.
+  await userEvent.click(
+    await screen.findByRole("menuitem", { name, hidden: true }),
+  );
+}
 const PROJECT_ID = "cm1demoproject00000000001";
 
 export const Created = meta.story({
@@ -125,6 +140,12 @@ export const CreatedOrganizationKey = meta.story({
       'LANGFUSE_PUBLIC_KEY="<your-project-id>"',
     );
     await expect(body.textContent).not.toContain("pk-lf-");
+    await expect(
+      screen.getByRole("link", { name: "tracing quickstart" }),
+    ).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/observability/get-started",
+    );
 
     await userEvent.click(screen.getByRole("tab", { name: "API" }));
     await expect(body.textContent).toContain(
@@ -144,5 +165,17 @@ export const CreatedOrganizationKey = meta.story({
       "--bearer-token-env-var LANGFUSE_MCP_TOKEN",
     );
     await expect(body.textContent).not.toContain(SECRET_KEY);
+
+    await selectUsageTab("Cursor");
+    await expect(
+      screen.getByRole("button", { name: "Add to Cursor" }),
+    ).toBeInTheDocument();
+    await expect(body.textContent).toContain('"mcpServers"');
+    // The install link carries the key, so it is built on click and never rendered.
+    await expect(body.innerHTML).not.toContain("cursor-deeplink");
+    await expect(body.innerHTML).not.toContain(SECRET_KEY);
+
+    await selectUsageTab("Pi");
+    await expect(body.textContent).toContain("pi mcp add langfuse");
   },
 });

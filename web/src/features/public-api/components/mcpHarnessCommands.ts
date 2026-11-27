@@ -1,19 +1,28 @@
-import { SquareTerminal, type IconComponent } from "@langfuse/icons";
+import {
+  MousePointer2,
+  Pi,
+  SquareTerminal,
+  type IconComponent,
+} from "@langfuse/icons";
 import { SiClaude, SiGithubcopilot, SiOpenai } from "@langfuse/icons/si";
 
 import { GATEWAY_KEY_PLACEHOLDER } from "@/src/features/ai-gateway/constants/agentSetupInstructions";
 
 /** McpHarnessCommand is a terminal command that registers the Langfuse MCP server in one agent harness. */
 export type McpHarnessCommand = {
-  id: "claude-code" | "codex" | "opencode" | "copilot-cli";
+  id: "claude-code" | "codex" | "cursor" | "opencode" | "pi" | "copilot-cli";
   /** Tab label and icon, matching the AI Gateway's setup tabs. */
   label: string;
   icon: IconComponent;
   /** Product name used in the tab's instruction. */
   product: string;
-  /** Command with GATEWAY_KEY_PLACEHOLDER where `secret` goes. */
+  /** Command or config with GATEWAY_KEY_PLACEHOLDER where `secret` goes. */
   code: string;
+  /** Highlighting language of `code`. */
+  language: "sh" | "json";
   secret: string;
+  /** install is a one-click install link and the config file `code` belongs in, for harnesses without a terminal command. */
+  install?: { configFile: string; link: () => string };
 };
 
 /** shellCommand joins a command's arguments into one bash command, one argument per line. */
@@ -30,6 +39,10 @@ export function buildMcpHarnessCommands(
   secretKey: string,
 ): McpHarnessCommand[] {
   const header = `Authorization: Bearer ${GATEWAY_KEY_PLACEHOLDER}`;
+  const cursorServerConfig = (token: string) => ({
+    url: mcpUrl,
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return [
     {
       id: "claude-code",
@@ -42,6 +55,7 @@ export function buildMcpHarnessCommands(
         `--header "${header}"`,
         "--transport http",
       ),
+      language: "sh",
       secret: secretKey,
     },
     {
@@ -58,7 +72,31 @@ export function buildMcpHarnessCommands(
           `--bearer-token-env-var ${codexTokenEnvVar}`,
         ),
       ].join("\n"),
+      language: "sh",
       secret: secretKey,
+    },
+    {
+      id: "cursor",
+      label: "Cursor",
+      product: "Cursor",
+      icon: MousePointer2,
+      code: JSON.stringify(
+        {
+          mcpServers: {
+            [serverName]: cursorServerConfig(GATEWAY_KEY_PLACEHOLDER),
+          },
+        },
+        null,
+        2,
+      ),
+      language: "json",
+      secret: secretKey,
+      install: {
+        configFile: "~/.cursor/mcp.json",
+        // Cursor's install link takes the server's mcp.json entry, base64 encoded.
+        link: () =>
+          `cursor://anysphere.cursor-deeplink/mcp/install?name=${serverName}&config=${encodeURIComponent(btoa(JSON.stringify(cursorServerConfig(secretKey))))}`,
+      },
     },
     {
       id: "opencode",
@@ -70,6 +108,20 @@ export function buildMcpHarnessCommands(
         `--url ${mcpUrl}`,
         `--header "Authorization=Bearer ${GATEWAY_KEY_PLACEHOLDER}"`,
       ),
+      language: "sh",
+      secret: secretKey,
+    },
+    {
+      id: "pi",
+      label: "Pi",
+      product: "Pi",
+      icon: Pi,
+      code: shellCommand(
+        `pi mcp add ${serverName}`,
+        `--url ${mcpUrl}`,
+        `--header "Authorization=Bearer ${GATEWAY_KEY_PLACEHOLDER}"`,
+      ),
+      language: "sh",
       secret: secretKey,
     },
     {
@@ -83,6 +135,7 @@ export function buildMcpHarnessCommands(
         `--header "${header}"`,
         "--transport http",
       ),
+      language: "sh",
       secret: secretKey,
     },
   ];
