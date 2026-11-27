@@ -42,9 +42,37 @@ export function TopicPilesIllustration({
   slips,
 }: TopicPilesIllustrationProps) {
   const id = useIllustrationId();
-  const traces = slips.map((slip, index) => {
+  return (
+    <svg
+      viewBox={`${VIEW.x} ${VIEW.y} ${VIEW.width} ${VIEW.height}`}
+      aria-hidden="true"
+      focusable="false"
+      className="h-auto w-120 max-w-full shrink-0 font-mono font-normal"
+    >
+      <Floor id={id} />
+      <g transform={PLANE}>
+        {layoutTraces(slips, id).map((trace) => (
+          <ExampleTrace key={trace.text} trace={trace} />
+        ))}
+      </g>
+      {piles
+        .map((pile, index) => (
+          <Pile
+            key={pile.name}
+            pile={pile}
+            x={index * PILE.pitch}
+            clipId={`${id}-pile-${index}`}
+          />
+        ))
+        .reverse()}
+    </svg>
+  );
+}
+
+/** Each example trace sits in front of its pile, two squares nearer than the next one; nearer ones are fainter. */
+function layoutTraces(slips: TopicPilesIllustrationProps["slips"], id: string) {
+  return slips.map((slip, index) => {
     const x = index * PILE.pitch;
-    // Each row sits two squares nearer than the next one; nearer rows are fainter.
     const nearer = slips.length - 1 - index;
     return {
       ...slip,
@@ -53,15 +81,15 @@ export function TopicPilesIllustration({
       y: PILE.depth + GRID + nearer * 2 * GRID,
       opacity: 1 - nearer * 0.2,
       gradientId: `${id}-wire-${index}`,
+      pulseDelay: index * 0.7,
     };
   });
+}
+
+/** The floor grid, fading out toward the edges of the box. */
+function Floor({ id }: FloorProps) {
   return (
-    <svg
-      viewBox={`${VIEW.x} ${VIEW.y} ${VIEW.width} ${VIEW.height}`}
-      aria-hidden="true"
-      focusable="false"
-      className="h-auto w-120 max-w-full shrink-0 font-mono font-normal"
-    >
+    <>
       <defs>
         <pattern
           id={`${id}-grid`}
@@ -94,30 +122,7 @@ export function TopicPilesIllustration({
           <rect {...VIEW} fill={`url(#${id}-edge-x)`} />
           <rect {...VIEW} fill={`url(#${id}-edge-y)`} />
         </mask>
-        {traces.map((trace) => (
-          <linearGradient
-            key={trace.text}
-            id={trace.gradientId}
-            gradientUnits="userSpaceOnUse"
-            x1={0}
-            y1={trace.y - WIRE_TONE_LENGTH}
-            x2={0}
-            y2={trace.y}
-          >
-            <stop
-              offset={0}
-              stopColor="currentColor"
-              className="text-border-contrast"
-            />
-            <stop
-              offset={0.85}
-              stopColor="currentColor"
-              className={TONE[trace.tone].wire}
-            />
-          </linearGradient>
-        ))}
       </defs>
-
       <g mask={`url(#${id}-floor)`}>
         <g transform={PLANE}>
           <rect
@@ -129,70 +134,68 @@ export function TopicPilesIllustration({
           />
         </g>
       </g>
+    </>
+  );
+}
 
-      <g transform={PLANE}>
-        {traces.map((trace) => (
-          <g key={trace.text}>
-            <path
-              d={`M${trace.wireX} ${PILE.depth}V${trace.y}`}
-              fill="none"
-              stroke={`url(#${trace.gradientId})`}
-              strokeWidth={1.5}
-            />
-            <g opacity={trace.opacity}>
-              <rect
-                x={trace.x}
-                y={trace.y}
-                width={
-                  ROW.padLeft +
-                  textWidth(trace.text, ROW.fontSize) +
-                  ROW.padRight
-                }
-                height={ROW.height}
-                rx={1}
-                className="fill-background/60 stroke-border-contrast"
-              />
-              <text
-                x={trace.x + ROW.padLeft}
-                y={round(trace.y + ROW.height / 2 + ROW.fontSize * 0.34)}
-                fontSize={ROW.fontSize}
-                className="fill-foreground-tertiary"
-              >
-                {trace.text}
-              </text>
-            </g>
-          </g>
-        ))}
-        {traces.map((trace) => (
-          <rect
-            key={trace.text}
-            x={trace.wireX - NODE / 2}
-            y={trace.y - NODE / 2}
-            width={NODE}
-            height={NODE}
-            className={TONE[trace.tone].node}
-          />
-        ))}
-        {traces.map((trace, index) => (
-          <TracePulse
-            key={trace.text}
-            d={`M${trace.wireX} ${trace.y}V${PILE.depth}`}
-            delay={index * 0.7}
-          />
-        ))}
+/** One example trace: an outlined row, its wire to the pile, the square where they meet and a travelling dot. */
+function ExampleTrace({ trace }: ExampleTraceProps) {
+  const tone = TONE[trace.tone];
+  return (
+    <g>
+      <linearGradient
+        id={trace.gradientId}
+        gradientUnits="userSpaceOnUse"
+        x1={0}
+        y1={trace.y - WIRE_TONE_LENGTH}
+        x2={0}
+        y2={trace.y}
+      >
+        <stop
+          offset={0}
+          stopColor="currentColor"
+          className="text-border-contrast"
+        />
+        <stop offset={0.85} stopColor="currentColor" className={tone.wire} />
+      </linearGradient>
+      <path
+        d={`M${trace.wireX} ${PILE.depth}V${trace.y}`}
+        fill="none"
+        stroke={`url(#${trace.gradientId})`}
+        strokeWidth={1.5}
+      />
+      <g opacity={trace.opacity}>
+        <rect
+          x={trace.x}
+          y={trace.y}
+          width={
+            ROW.padLeft + textWidth(trace.text, ROW.fontSize) + ROW.padRight
+          }
+          height={ROW.height}
+          rx={1}
+          className="fill-background/60 stroke-border-contrast"
+        />
+        <text
+          x={trace.x + ROW.padLeft}
+          y={round(trace.y + ROW.height / 2 + ROW.fontSize * 0.34)}
+          fontSize={ROW.fontSize}
+          className="fill-foreground-tertiary"
+        >
+          {trace.text}
+        </text>
       </g>
-
-      {piles
-        .map((pile, index) => (
-          <Pile
-            key={pile.name}
-            pile={pile}
-            x={index * PILE.pitch}
-            clipId={`${id}-pile-${index}`}
-          />
-        ))
-        .reverse()}
-    </svg>
+      <rect
+        x={trace.wireX - NODE / 2}
+        y={trace.y - NODE / 2}
+        width={NODE}
+        height={NODE}
+        className={tone.node}
+      />
+      <TracePulse
+        d={`M${trace.wireX} ${trace.y}V${PILE.depth}`}
+        delay={trace.pulseDelay}
+      />
+    </g>
   );
 }
 
@@ -329,6 +332,13 @@ type TopicPilesIllustrationProps = {
   /** One example trace per pile, in the same order. */
   slips: readonly { text: string; tone: keyof typeof TONE }[];
 };
+
+type FloorProps = {
+  /** Prefix for this instance's ids. */
+  id: string;
+};
+
+type ExampleTraceProps = { trace: ReturnType<typeof layoutTraces>[number] };
 
 type PileProps = {
   pile: TopicPilesIllustrationProps["piles"][number];
