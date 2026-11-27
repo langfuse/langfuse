@@ -138,6 +138,23 @@ describe("classifyTrpcToastError", () => {
     });
   });
 
+  it("classifies Firefox truncated-body TypeError as a network failure", () => {
+    const cause = new TypeError(
+      "Content-Length header of network response exceeds response Body.",
+    );
+    const error = new TRPCClientError(cause.message, {
+      cause,
+      meta: { response: new Response("", { status: 200 }) },
+    });
+
+    expect(classifyTrpcToastError(error, "events.all")).toEqual({
+      operation: "events.all",
+      errorOrigin: "network",
+      errorCategory: "transient",
+      httpStatus: 200,
+    });
+  });
+
   it("keeps an unrecognized pathless tRPC client failure in the frontend bucket", () => {
     const error = new TRPCClientError("Transformer failed", {
       cause: new Error("Transformer failed"),
