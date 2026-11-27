@@ -2,8 +2,29 @@ import baseConfig from "@repo/oxlint-config/next";
 import { globSync } from "node:fs";
 import { defineConfig } from "oxlint";
 
-// Component privacy is enforced only under these trees. Extend this list to
-// cover more of the app; the dependency policy reads it.
+// Component privacy. A PascalCase directory is a component (`Foo/`). Folders
+// named fns, hooks, utils, types, constants, contexts, stores, or lib under it
+// are private. A file placed directly in `components/` is private too. A
+// PascalCase directory under `components/` is its own component. The lowercase
+// `components` folder is not an element, so it breaks the parent link.
+//
+// `Foo/Foo.tsx -> Foo/hooks/useX.ts` is child, allowed.
+// `Foo/hooks/useX.ts -> Foo/fns/format.ts` is sibling, allowed.
+// `Foo/Bar/hooks/useY.ts -> Foo/Baz/Baz.tsx` is uncle, allowed.
+// `Foo/hooks/useX.ts -> Foo/components/helper.ts` is parent, allowed.
+// `Other/Other.tsx -> Foo/hooks/useX.ts` is an error.
+// `Foo/Foo.tsx -> Foo/components/helper.ts` is the same element, allowed.
+// `Other/Other.tsx -> Foo/components/helper.ts` is an error.
+// `Other/Other.tsx -> Foo/components/Bar/Bar.tsx` is not flagged: `Bar`'s entry
+// has no parent. `Foo/components/Bar/hooks/useY.ts` is private to `Bar`, so
+// `Foo/Foo.tsx -> Foo/components/Bar/hooks/useY.ts` is an error, and
+// `Foo/components/Bar/Bar.tsx -> Foo/hooks/useX.ts` is an error.
+//
+// Extend `componentPrivacyRoots` to cover more of the app. Policies are
+// target-scoped, plus one importer-scoped policy: dropping that second policy
+// leaves `TraceSessionNavigation.clienttest.tsx` importing
+// `ObservabilityEntityDetailHeader/fns/createPeekHeaderActions` unflagged.
+// No other current import depends on it.
 const componentPrivacyRoots = [
   "src/features/traces",
   "src/features/sessions",
@@ -11,91 +32,45 @@ const componentPrivacyRoots = [
   "src/components/design-system",
 ];
 
-// Private implementation folders of a PascalCase component directory.
-// `components` is not an element of its own: nested PascalCase folders under it
-// are components, and only loose files placed directly in it are private.
-const componentPrivateFolders =
-  "{fns,hooks,utils,types,constants,contexts,stores,lib}";
-
-const componentElementPatterns = ["[A-Z]*"];
-
-const componentPrivateElementPatterns = [componentPrivateFolders];
-
-// File descriptors match the full path, so this selects only a file that sits
-// directly in a component's `components` folder. Folder-mode element patterns
-// cannot express that: they append `/**/*` and then match nothing.
-const componentLoosePrivateFilePatterns = [
-  "**/[A-Z]*/components/*.{ts,tsx,js,jsx}",
-];
-
-// Picomatch prefixes. Element descriptors stay global so a nested component
-// still sees its parent; policies below limit enforcement to these trees.
 const componentPrivacyPathPatterns = componentPrivacyRoots.map(
   (root) => `${root}/**`,
 );
 
-// Nested elements (private folders, nested components, loose files in
-// `components/`) stay inside the owning component. A file may import its own
-// child, a sibling part, or an uncle entry. Reaching into some other part's
-// private folders is an error.
+const componentPrivacyMessage =
+  "Component internals are private. Import that component's entry file, or move the shared code to the nearest common ancestor.";
+
 const componentPrivacyPolicies = [
   {
-    // Importing files under the scoped trees may not reach into any component's
-    // private folders, including components that live outside those trees.
-    from: {
-      file: { path: componentPrivacyPathPatterns },
-    },
     disallow: {
-      to: {
-        element: {
-          parent: { type: "component" },
+      to: [
+        {
+          element: {
+            parent: { type: "component" },
+            path: componentPrivacyPathPatterns,
+          },
         },
-      },
-    },
-    message:
-      "Component internals are private. Import that component's entry file, or move the shared code to the nearest common ancestor.",
-  },
-  {
-    // Other files may not reach into private folders of components that live
-    // under the scoped trees.
-    disallow: {
-      to: {
-        element: {
-          parent: { type: "component" },
-          path: componentPrivacyPathPatterns,
+        {
+          file: {
+            categories: "component-loose-private",
+            path: componentPrivacyPathPatterns,
+          },
         },
-      },
+      ],
     },
-    message:
-      "Component internals are private. Import that component's entry file, or move the shared code to the nearest common ancestor.",
+    message: componentPrivacyMessage,
   },
   {
-    from: {
-      file: { path: componentPrivacyPathPatterns },
-    },
+    from: { file: { path: componentPrivacyPathPatterns } },
     disallow: {
-      to: {
-        file: { categories: "component-loose-private" },
-      },
+      to: [
+        { element: { parent: { type: "component" } } },
+        { file: { categories: "component-loose-private" } },
+      ],
     },
-    message:
-      "Component internals are private. Import that component's entry file, or move the shared code to the nearest common ancestor.",
+    message: componentPrivacyMessage,
   },
   {
-    disallow: {
-      to: {
-        file: {
-          categories: "component-loose-private",
-          path: componentPrivacyPathPatterns,
-        },
-      },
-    },
-    message:
-      "Component internals are private. Import that component's entry file, or move the shared code to the nearest common ancestor.",
-  },
-  {
-    // Own children, sibling parts, uncles, and the owning component (parent).
-    // A later policy wins, so this re-allows what the privacy policy blocked.
+    // A later policy wins, so this re-allows what the privacy policies blocked.
     allow: {
       dependency: {
         relationship: { to: ["child", "sibling", "uncle", "parent"] },
@@ -133,17 +108,14 @@ export default defineConfig({
       { category: "feature", pattern: "src/features/**" },
       {
         category: "component-loose-private",
-        pattern: componentLoosePrivateFilePatterns,
+        pattern: "**/[A-Z]*/components/*.{ts,tsx,js,jsx}",
       },
     ],
     "boundaries/elements": [
-      {
-        type: "component",
-        pattern: componentElementPatterns,
-      },
+      { type: "component", pattern: "[A-Z]*" },
       {
         type: "component-private",
-        pattern: componentPrivateElementPatterns,
+        pattern: "{fns,hooks,utils,types,constants,contexts,stores,lib}",
       },
     ],
   },
@@ -493,10 +465,9 @@ export default defineConfig({
       },
     },
     {
-      // The design-system import ban stays limited to non-story files. It shares
-      // this rule with component privacy, so both are errors here. Stories are
-      // excluded from the import ban and still get component privacy from the
-      // override above.
+      // Oxlint replaces rule options per override, so this block repeats the
+      // privacy policies. The import ban stays on non-story design-system files.
+      // Stories are excluded here and still get privacy from the override above.
       files: ["src/components/design-system/**/*.{ts,tsx}"],
       excludeFiles: ["src/components/design-system/**/*.stories.tsx"],
       jsPlugins: ["eslint-plugin-boundaries"],
