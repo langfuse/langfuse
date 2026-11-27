@@ -463,7 +463,10 @@ async function testLlmConnection(
       parsedConfig = OpenAIConfigSchema.parse(params.config);
     } else if (params.config && params.adapter === LLMAdapter.VertexAI) {
       const config = VertexAIConfigSchema.parse(params.config);
-      parsedConfig = config.location ? { location: config.location } : null;
+      const vertexConfig: Record<string, string> = {};
+      if (config.location) vertexConfig.location = config.location;
+      if (config.projectId) vertexConfig.projectId = config.projectId;
+      parsedConfig = Object.keys(vertexConfig).length > 0 ? vertexConfig : null;
     }
 
     await generateLLMText({
