@@ -144,7 +144,7 @@ function ConnectedNotebookReader({
   );
   const headerActions = (
     <>
-      {view?.layout.bindings?.some(({ kind }) => kind === "write") && (
+      {view?.bindings.some(({ kind }) => kind === "write") && (
         <label className="flex cursor-pointer items-center gap-2 text-sm">
           <Checkbox
             checked={showControlledVariables}

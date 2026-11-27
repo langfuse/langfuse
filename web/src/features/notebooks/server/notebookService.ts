@@ -16,7 +16,9 @@ import {
   notebookDocumentWidth,
   notebookLayoutKind,
   notebookLayoutSchema,
-  storedNotebookLayoutSchema,
+  storedNotebookConfigSchema,
+  type NotebookConfig,
+  type NotebookWiring,
   type NotebookDocumentWidth,
   type NotebookLayout,
 } from "../schema";
@@ -85,13 +87,13 @@ async function findDocumentIndex(db: Db, notebookId: string, version: number) {
   });
 }
 
-async function readNotebookLayout(db: Db, notebookId: string, number: number) {
+async function readNotebookConfig(db: Db, notebookId: string, number: number) {
   const snapshot = await db.notebookVersion.findUnique({
     where: { notebookId_number: { notebookId, number } },
     select: { layout: true },
   });
   if (!snapshot) throw new LangfuseNotFoundError("Notebook version not found.");
-  return storedNotebookLayoutSchema.parse(snapshot.layout);
+  return storedNotebookConfigSchema.parse(snapshot.layout);
 }
 
 async function isNotebookDirty(
@@ -99,15 +101,15 @@ async function isNotebookDirty(
   notebookId: string,
   latestPublishedVersion: number | null,
   dirtyDocuments: ReadonlySet<string>,
-  stagedLayout: NotebookLayout,
+  stagedConfig: NotebookConfig,
 ) {
   if (!latestPublishedVersion || dirtyDocuments.size > 0) return true;
-  const publishedLayout = await readNotebookLayout(
+  const publishedConfig = await readNotebookConfig(
     db,
     notebookId,
     await getPublishedRevision(db, notebookId, latestPublishedVersion),
   );
-  return !isDeepStrictEqual(stagedLayout, publishedLayout);
+  return !isDeepStrictEqual(stagedConfig, publishedConfig);
 }
 
 async function readIndexes(
@@ -197,14 +199,15 @@ export async function getNotebook(
       } else if (snapshot && version !== notebook.latestPublishedVersion) {
         index = await findDocumentIndex(tx, notebook.id, snapshot.revision);
       }
-      const stagedLayout = await readNotebookLayout(
+      const stagedConfig = await readNotebookConfig(
         tx,
         notebook.id,
         notebook.draftRevision,
       );
-      const layout = snapshot
-        ? await readNotebookLayout(tx, notebook.id, snapshot.revision)
-        : stagedLayout;
+      const config = snapshot
+        ? await readNotebookConfig(tx, notebook.id, snapshot.revision)
+        : stagedConfig;
+      const { layout } = config;
       const reachableIds = new Set(getNotebookLayoutDocumentIds(layout));
       return {
         notebookId: notebook.id,
@@ -216,8 +219,10 @@ export async function getNotebook(
         draftRevision: notebook.draftRevision,
         revisions: revisions.map(({ number }) => number),
         dirty: notebook.dirty,
-        layout,
-        stagedLayout,
+        ...config,
+        stagedLayout: stagedConfig.layout,
+        stagedVariables: stagedConfig.variables,
+        stagedBindings: stagedConfig.bindings,
         url: buildNotebookPath({
           projectId: input.projectId,
           notebookId: notebook.id,
@@ -315,7 +320,7 @@ async function findCandidate(
       ...document,
       jsonl: body.jsonl,
     })),
-    layout: storedNotebookLayoutSchema.parse(candidate.layout),
+    ...storedNotebookConfigSchema.parse(candidate.layout),
   };
 }
 
@@ -344,11 +349,12 @@ export async function validateNotebook(
         revision,
         input.documentId,
       );
-      const { documents, layout } = candidate;
+      const { documents, ...config } = candidate;
       const { errors, warnings } = validateNotebookDocuments(
         documents,
-        layout,
+        config.layout,
         input.documentId === undefined,
+        config,
       );
       const { dirty } = await readIndexes(tx, notebook);
       return {
@@ -396,8 +402,13 @@ export async function publishNotebook(
         "The notebook snapshot changed. Review it again before publishing.",
       );
     }
-    const { documents, layout } = candidate;
-    const { errors } = validateNotebookDocuments(documents, layout, true);
+    const { documents, ...config } = candidate;
+    const { errors } = validateNotebookDocuments(
+      documents,
+      config.layout,
+      true,
+      config,
+    );
     if (errors.length) {
       throw new InvalidRequestError(
         errors
@@ -447,14 +458,14 @@ export async function publishNotebook(
       notebook.id,
       notebook.draftRevision,
     );
-    const stagedLayout = await readNotebookLayout(
+    const stagedConfig = await readNotebookConfig(
       tx,
       notebook.id,
       notebook.draftRevision,
     );
     const dirty =
       getDirtyDocumentIds(staged, documents).size > 0 ||
-      !isDeepStrictEqual(stagedLayout, layout);
+      !isDeepStrictEqual(stagedConfig, config);
     await tx.notebook.update({
       where: { id: notebook.id },
       data: { latestPublishedVersion: version, dirty },
@@ -520,7 +531,8 @@ export async function readDocument(input: ReadTarget) {
         return published;
       return findDocumentIndex(tx, notebook.id, revision);
     })();
-    const layout = await readNotebookLayout(tx, notebook.id, revision);
+    const config = await readNotebookConfig(tx, notebook.id, revision);
+    const { layout, bindings } = config;
     const layoutDocumentIds = new Set(getNotebookLayoutDocumentIds(layout));
     const documentId =
       input.documentId ??
@@ -563,7 +575,7 @@ export async function readDocument(input: ReadTarget) {
       choices: { value: string; label: string }[];
     }[] = [];
     if (input.includeVariableChoices) {
-      const writes = (layout.bindings ?? [])
+      const writes = (bindings ?? [])
         .filter((binding) => binding.kind === "write")
         .filter(({ from }) => layoutDocumentIds.has(from.documentId));
       const sourceIds = [
@@ -616,7 +628,7 @@ export async function readDocument(input: ReadTarget) {
       notebookId: notebook.id,
       title: notebook.title,
       updatedAt: notebook.updatedAt,
-      layout,
+      ...config,
       documentId,
       width: document.width,
       version,
@@ -653,7 +665,7 @@ async function editRevision(
     Awaited<ReturnType<typeof getNotebookRow>>,
     "id" | "draftRevision"
   >,
-  layout: NotebookLayout,
+  config: NotebookConfig,
   userId: string | undefined,
 ) {
   const { id: notebookId, draftRevision } = notebook;
@@ -668,7 +680,7 @@ async function editRevision(
   ) {
     await tx.notebookVersion.update({
       where: key,
-      data: { layout, editedAt: now },
+      data: { layout: config, editedAt: now },
     });
     return draftRevision;
   }
@@ -678,7 +690,7 @@ async function editRevision(
     data: {
       notebookId,
       number,
-      layout,
+      layout: config,
       authorId: userId,
       editedAt: userId ? now : null,
       documents: { createMany: { data: documents } },
@@ -727,11 +739,12 @@ async function saveEdit(
       where,
       include: { body: true },
     });
-    const layout = await readNotebookLayout(
+    const config = await readNotebookConfig(
       tx,
       notebookId,
       notebook.draftRevision,
     );
+    const { layout } = config;
     let stagedLayout = layout;
     if (command.kind === "add") {
       if (layout.kind === "default") {
@@ -772,8 +785,9 @@ async function saveEdit(
     const contentChanged = !staged || previous !== jsonl;
     const changed = contentChanged || staged.width !== width;
     let revision = notebook.draftRevision;
+    const stagedConfig = { ...config, layout: stagedLayout };
     if (changed) {
-      revision = await editRevision(tx, notebook, stagedLayout, userId);
+      revision = await editRevision(tx, notebook, stagedConfig, userId);
       const contentHash = contentChanged
         ? createHash("sha256").update(jsonl).digest("hex")
         : staged.contentHash;
@@ -814,7 +828,7 @@ async function saveEdit(
       notebookId,
       notebook.latestPublishedVersion,
       dirty,
-      stagedLayout,
+      stagedConfig,
     );
     if (changed)
       await tx.notebook.update({
@@ -901,27 +915,38 @@ export async function patchDocument(
 }
 
 export async function updateNotebookLayout(
-  input: NotebookKey & { layout: NotebookLayout; userId?: string },
+  input: NotebookKey &
+    NotebookWiring & { layout?: NotebookLayout; userId?: string },
 ) {
   const { projectId, notebookId } = input;
-  const layout = notebookLayoutSchema.parse(input.layout);
+  const nextLayout =
+    input.layout === undefined
+      ? undefined
+      : notebookLayoutSchema.parse(input.layout);
   return prisma.$transaction(async (tx) => {
     await lockProject(tx, projectId);
     const notebook = await getNotebookRow(tx, input);
-    const previous = await readNotebookLayout(
+    const previous = await readNotebookConfig(
       tx,
       notebookId,
       notebook.draftRevision,
     );
-    if (isDeepStrictEqual(previous, layout)) {
+    const { variables, bindings, ...layout }: NotebookLayout =
+      nextLayout ?? previous.layout;
+    const config = storedNotebookConfigSchema.parse({
+      layout,
+      variables: input.variables ?? variables ?? previous.variables,
+      bindings: input.bindings ?? bindings ?? previous.bindings,
+    });
+    if (isDeepStrictEqual(previous, config)) {
       return {
         notebookId,
-        layout,
+        ...config,
         notebookDirty: notebook.dirty,
         revision: notebook.draftRevision,
       };
     }
-    const revision = await editRevision(tx, notebook, layout, input.userId);
+    const revision = await editRevision(tx, notebook, config, input.userId);
     const { dirty } = await readIndexes(tx, {
       ...notebook,
       draftRevision: revision,
@@ -931,12 +956,12 @@ export async function updateNotebookLayout(
       notebookId,
       notebook.latestPublishedVersion,
       dirty,
-      layout,
+      config,
     );
     await tx.notebook.update({
       where: { id: notebookId },
       data: { dirty: notebookDirty },
     });
-    return { notebookId, layout, notebookDirty, revision };
+    return { notebookId, ...config, notebookDirty, revision };
   });
 }

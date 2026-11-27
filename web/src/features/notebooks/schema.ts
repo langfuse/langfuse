@@ -84,6 +84,8 @@ const notebookWiringShape = {
   variables: z.array(variable).max(100).optional(),
   bindings: z.array(binding).max(500).optional(),
 };
+export const notebookWiringSchema = z.strictObject(notebookWiringShape);
+export type NotebookWiring = z.infer<typeof notebookWiringSchema>;
 const propertyDefinition = z.discriminatedUnion("type", [
   z.strictObject({
     id: notebookDocumentId,
@@ -241,6 +243,26 @@ export const storedNotebookLayoutSchema = z.preprocess((layout) => {
   }
   return layout;
 }, notebookLayoutSchema);
+
+// Older revisions stored wiring inside the layout. Normalize both formats
+// before comparing, validating, or exposing revision configuration.
+export const storedNotebookConfigSchema = z.union([
+  z.strictObject({
+    layout: storedNotebookLayoutSchema.transform(
+      ({ variables: _variables, bindings: _bindings, ...layout }) => layout,
+    ),
+    variables: notebookWiringShape.variables.default([]),
+    bindings: notebookWiringShape.bindings.default([]),
+  }),
+  storedNotebookLayoutSchema.transform(
+    ({ variables, bindings, ...layout }) => ({
+      layout,
+      variables: variables ?? [],
+      bindings: bindings ?? [],
+    }),
+  ),
+]);
+export type NotebookConfig = z.infer<typeof storedNotebookConfigSchema>;
 
 const linkAttrs = z.strictObject({
   href: z.string(),

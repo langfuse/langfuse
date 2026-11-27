@@ -118,6 +118,7 @@ function NotebookReaderContent({
       documentId: RouterOutput["notebooks"]["view"]["document"]["id"];
       layout: NotebookLayout;
       variables?: RouterOutput["notebooks"]["view"]["variables"];
+      bindings?: RouterOutput["notebooks"]["view"]["bindings"];
     };
   isLoadingDocument: boolean;
   unpublishedUpdatedAt?: Date;
@@ -229,7 +230,7 @@ function NotebookReaderContent({
     new Map(),
   );
   const variables = view.variables ?? layout.variables ?? [];
-  const bindings = layout.bindings ?? [];
+  const bindings = view.bindings ?? layout.bindings ?? [];
   const writes = bindings.filter((binding) => binding.kind === "write");
   const choicesByVariableId = new Map(
     view.variables?.flatMap(({ id, choices }) =>

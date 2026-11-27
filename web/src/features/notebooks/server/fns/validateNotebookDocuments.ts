@@ -1,6 +1,10 @@
 import { InvalidRequestError } from "@langfuse/shared";
 import { ZodError } from "zod";
-import { MAIN_NOTEBOOK_DOCUMENT, type NotebookLayout } from "../../schema";
+import {
+  MAIN_NOTEBOOK_DOCUMENT,
+  type NotebookLayout,
+  type NotebookWiring,
+} from "../../schema";
 import { getNotebookLayoutDocumentIds } from "./getNotebookLayoutDocumentIds";
 import { parseDocument } from "./parseDocument";
 import { resolveNotebookPort } from "../../ports";
@@ -12,6 +16,7 @@ export function validateNotebookDocuments(
   documents: readonly { documentId: string; jsonl: string }[],
   layout: NotebookLayout,
   checkLayout: boolean,
+  wiring: NotebookWiring = layout,
 ) {
   const errors: { documentId?: string; blockId?: string; message: string }[] =
     [];
@@ -68,13 +73,13 @@ export function validateNotebookDocuments(
     }
   }
   if (!checkLayout) return { errors, warnings };
-  const variables = layout.variables ?? [];
+  const variables = wiring.variables ?? [];
   const byId = new Map(variables.map((variable) => [variable.id, variable]));
   if (byId.size !== variables.length)
     errors.push({ message: "Variable IDs must be unique." });
   const inputs = new Set<string>();
   const domains = new Set<string>();
-  for (const binding of layout.bindings ?? []) {
+  for (const binding of wiring.bindings ?? []) {
     const ref = binding.kind === "read" ? binding.to : binding.from;
     const port = resolveNotebookPort(blocks.get(ref.documentId) ?? [], ref);
     const variable = byId.get(binding.variableId);
@@ -105,7 +110,7 @@ export function validateNotebookDocuments(
           port.liveSelectionValueField === "id"
             ? "observationId"
             : "resourceId";
-        for (const consumer of layout.bindings ?? []) {
+        for (const consumer of wiring.bindings ?? []) {
           if (consumer.kind !== "read" || consumer.variableId !== variable.id)
             continue;
           const target = findNotebookBlock(

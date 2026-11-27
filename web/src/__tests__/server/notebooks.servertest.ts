@@ -345,6 +345,67 @@ describe("notebooks", () => {
     ).resolves.toMatchObject({ documentId });
   });
 
+  it("keeps revision wiring independent of layout and reads legacy publications", async () => {
+    const { projectId } = await project();
+    const { notebookId } = await createNotebook({ projectId, title: "Wiring" });
+    const key = { projectId, notebookId };
+    const variables = [
+      {
+        id: "trace",
+        name: "Trace",
+        type: "string" as const,
+        defaultValue: "a",
+      },
+    ];
+    const bindings = [
+      {
+        kind: "read" as const,
+        variableId: "trace",
+        to: { documentId: "main", elementId: "preview", portId: "resourceId" },
+      },
+    ];
+    const { revision } = await writeDocument({
+      ...key,
+      documentId: "main",
+      blocks: [
+        {
+          id: "preview",
+          schema: "embed@1",
+          props: { target: { kind: "trace" } },
+        },
+      ],
+    });
+    await prisma.notebookVersion.update({
+      where: { notebookId_number: { notebookId, number: revision } },
+      data: { layout: { kind: "default", variables, bindings } },
+    });
+    await expect(validateNotebook(key)).resolves.toMatchObject({ valid: true });
+    await publishNotebook(key);
+
+    const layout = { kind: "default" as const, width: "full" as const };
+    await updateNotebookLayout({ ...key, layout });
+    await expect(readDocument({ ...key, staged: true })).resolves.toMatchObject(
+      {
+        layout,
+        variables,
+        bindings,
+      },
+    );
+    await updateNotebookLayout({ ...key, variables: [], bindings: [] });
+    await expect(readDocument({ ...key, staged: true })).resolves.toMatchObject(
+      {
+        layout,
+        variables: [],
+        bindings: [],
+      },
+    );
+    await expect(readDocument({ ...key, version: 1 })).resolves.toMatchObject({
+      layout: { kind: "default" },
+      variables,
+      bindings,
+    });
+  });
+
   it("snapshots layout-only changes and keeps them when republishing an older version", async () => {
     const { projectId, caller } = await project();
     const { notebookId } = await createNotebook({

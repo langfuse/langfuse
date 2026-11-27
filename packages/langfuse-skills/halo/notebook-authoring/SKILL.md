@@ -74,11 +74,10 @@ Before publishing a report you authored or substantially revised, review the who
 }
 ```
 
-2. Pass the layout below with `notebookId` to `update_notebook_layout`. This example assumes a default layout; for an existing notebook, merge the variable and bindings into the current layout and preserve its other settings. Set the default to a representative row's trace ID so the preview opens with evidence already visible.
+2. Pass the variables and bindings below with `notebookId` to `update_notebook_layout`. For an existing notebook, merge these entries with its staged variables and bindings before submitting. Omit `layout` to keep the current layout. Set the default to a representative row's trace ID so the preview opens with evidence already visible.
 
 ```json
 {
-  "kind": "default",
   "variables": [
     { "id": "timeout-trace", "name": "Timeout trace", "type": "string", "defaultValue": "trace-a" }
   ],

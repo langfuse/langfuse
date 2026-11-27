@@ -153,7 +153,9 @@ Use `list_notebooks` and `get_notebook` to discover notebooks and their document
 
 Each document has a versioned `width`: `contained` (the default) or `full` (the available reader width, with padding). Set it when writing a body, or pass only `notebookId`, `documentId`, and `width` to change it without editing the body. Omitting `width` preserves the existing setting.
 
-To change the layout, order, or labels, call `update_notebook_layout`. For example: `{kind: "tabs", documents: [{documentId: "main", label: "Overview"}]}`. Layout changes do not delete documents or modify published versions. Include all draft documents in the layout before publishing. Layouts are not document blocks.
+To change the layout, order, or labels, call `update_notebook_layout`. For example: `{notebookId: "...", layout: {kind: "tabs", documents: [{documentId: "main", label: "Overview"}]}}`. Layout changes do not delete documents or modify published versions. Include all draft documents in the layout before publishing. Layouts are not document blocks.
+
+Pass `layout`, `variables`, and `bindings` as sibling inputs to `update_notebook_layout`. Omitted inputs keep their staged values; pass an empty array to clear variables or bindings.
 
 `validate_notebook` reports missing references and unreachable documents by ID. Fix those errors before calling `publish_notebook`. Pass `documentId` to check only that document's body. When omitted from `read_document` and `patch_document`, `documentId` still defaults to `main`.
 

@@ -89,7 +89,9 @@ export const notebookRouter = createTRPCRouter({
     });
     const {
       jsonl: _jsonl,
-      layout: { variables, bindings, ...layout },
+      layout,
+      variables,
+      bindings,
       variableChoices,
       documentId: resolvedDocumentId,
       blocks,
@@ -103,7 +105,8 @@ export const notebookRouter = createTRPCRouter({
     );
     return {
       ...view,
-      config: { layout, bindings },
+      config: { layout },
+      bindings,
       variables: (variables ?? []).map((variable) => {
         const choices = choicesByVariableId.get(variable.id);
         return { ...variable, ...(choices === undefined ? {} : { choices }) };
@@ -143,7 +146,7 @@ export const notebookRouter = createTRPCRouter({
           "Button action changed. Reload the notebook and try again.",
         );
       }
-      const binding = document.layout.bindings?.find(
+      const binding = document.bindings?.find(
         (binding) =>
           binding.kind === "read" &&
           binding.to.documentId === document.documentId &&
@@ -151,7 +154,7 @@ export const notebookRouter = createTRPCRouter({
           binding.to.portId === "traceId",
       );
       if (binding) {
-        const variable = document.layout.variables?.find(
+        const variable = document.variables?.find(
           ({ id }) => id === binding.variableId,
         );
         if (
@@ -163,7 +166,7 @@ export const notebookRouter = createTRPCRouter({
             "Button requires a valid trace variable.",
           );
         }
-        const source = document.layout.bindings?.find(
+        const source = document.bindings?.find(
           (candidate) =>
             candidate.kind === "write" && candidate.variableId === variable.id,
         );
@@ -393,7 +396,7 @@ export const notebookRouter = createTRPCRouter({
         org.projects.some(({ id }) => id === input.projectId),
       );
       const { config, schema: _schema, ...query } = block.props.query;
-      for (const binding of document.layout.bindings ?? []) {
+      for (const binding of document.bindings ?? []) {
         if (
           binding.kind !== "read" ||
           binding.to.documentId !== document.documentId ||
@@ -401,7 +404,7 @@ export const notebookRouter = createTRPCRouter({
         )
           continue;
         const port = resolveNotebookPort(document.blocks, binding.to);
-        const variable = document.layout.variables?.find(
+        const variable = document.variables?.find(
           ({ id }) => id === binding.variableId,
         );
         const portId = binding.to.portId;
@@ -419,7 +422,7 @@ export const notebookRouter = createTRPCRouter({
             "Chart requires a valid bound variable value.",
           );
         }
-        const source = document.layout.bindings?.find(
+        const source = document.bindings?.find(
           (candidate) =>
             candidate.kind === "write" && candidate.variableId === variable.id,
         );

@@ -15,14 +15,14 @@ export function useNotebookReader(input: RouterInput["notebooks"]["view"]) {
       input.version === undefined && query.state.data?.isDraft ? 3000 : false,
     meta: { silentAllErrors: true },
     select: ({
-      config: { layout, bindings },
+      config: { layout },
       document: { id: documentId, ...document },
       ...notebook
     }) => ({
       ...notebook,
       ...document,
       documentId,
-      layout: { ...layout, bindings },
+      layout,
     }),
   });
   function onDocumentChange(documentId: string | null) {
