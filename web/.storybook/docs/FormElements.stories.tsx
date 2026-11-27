@@ -6,7 +6,6 @@ import preview from "../preview";
 import { Button } from "../../src/components/design-system/Button/Button";
 import { Checkbox } from "../../src/components/design-system/Checkbox/Checkbox";
 import { CopyInput } from "../../src/components/design-system/CopyInput/CopyInput";
-import { DateRangeFields } from "../../src/components/design-system/DateRangeFields/DateRangeFields";
 import { DateRangeInput } from "../../src/components/design-system/DateRangeInput/DateRangeInput";
 import { IconButton } from "../../src/components/design-system/IconButton/IconButton";
 import { Input } from "../../src/components/design-system/Input/Input";
@@ -186,8 +185,9 @@ function StandardControls() {
           onCustomChange={() => undefined}
         />
       </Field>
-      <Field name="date-range-fields" label="DateRangeFields" width="w-auto">
-        <DateRangeFields
+      <Field name="date-fields" label="DateRangeInput fields" width="w-auto">
+        <DateRangeInput
+          variant="fields"
           value={{ from: "2026-08-31", to: "2026-09-07" }}
           fromLabel="Start date"
           toLabel="End date"
@@ -249,7 +249,7 @@ export const StandardHeight = meta.story({
       "select",
       "multiselect",
       "date",
-      "date-range-fields",
+      "date-fields",
       "query",
       "tags",
       "async-select",

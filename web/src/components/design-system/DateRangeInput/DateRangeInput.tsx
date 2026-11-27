@@ -21,7 +21,13 @@ import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { InputControl } from "../internal/InputControl/InputControl";
 import { Input } from "../Input/Input";
 
-type DateRangeInputProps<V extends string> = {
+export type DateRangeFieldValue = {
+  from: string;
+  to: string;
+};
+
+type PresetDateRangeInputProps<V extends string> = {
+  variant?: "preset";
   value: V;
   customValue: V;
   range?: { from: Date; to: Date };
@@ -34,7 +40,127 @@ type DateRangeInputProps<V extends string> = {
   disabled?: boolean;
 };
 
-function DateRangeInput<V extends string>({
+type FieldsDateRangeInputProps = {
+  variant: "fields";
+  value: DateRangeFieldValue;
+  onChange: (value: DateRangeFieldValue) => void;
+  /** Earliest selectable day (`yyyy-MM-dd`) for the start field. */
+  min?: string;
+  /** Latest selectable day (`yyyy-MM-dd`) for the end field. */
+  max?: string;
+  fromLabel: string;
+  toLabel: string;
+  disabled?: boolean;
+  error?: boolean;
+};
+
+type DateRangeInputProps<V extends string> =
+  | PresetDateRangeInputProps<V>
+  | FieldsDateRangeInputProps;
+
+const dateFieldClassName =
+  "date-range-input-field placeholder:text-muted-foreground min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-sm shadow-none outline-hidden focus:ring-0 disabled:cursor-not-allowed [&::-webkit-calendar-picker-indicator]:pointer-events-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none [&::-moz-calendar-picker-indicator]:hidden";
+
+function DateRangeInput<V extends string>(props: DateRangeInputProps<V>) {
+  if (props.variant === "fields") return <DateRangeFieldsVariant {...props} />;
+  return <DateRangePreset {...props} />;
+}
+
+function DateRangeFieldsVariant({
+  value,
+  onChange,
+  min,
+  max,
+  fromLabel,
+  toLabel,
+  disabled,
+  error,
+}: FieldsDateRangeInputProps) {
+  const fromRef = React.useRef<HTMLInputElement>(null);
+  const toRef = React.useRef<HTMLInputElement>(null);
+  const [pickerField, setPickerField] = React.useState<"from" | "to">("from");
+
+  const changeBoundary = (boundary: "from" | "to", next: string) => {
+    if (next === "") return;
+    onChange({ ...value, [boundary]: next });
+  };
+  const handleFromChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    changeBoundary("from", event.target.value);
+  };
+  const handleToChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    changeBoundary("to", event.target.value);
+  };
+  const openCalendar = () => {
+    const input = (pickerField === "to" ? toRef : fromRef).current;
+    if (!input) return;
+    try {
+      input.showPicker();
+    } catch {
+      input.focus();
+    }
+  };
+
+  return (
+    <div className="w-full max-w-full">
+      <InputControl
+        contentLayout="text"
+        height="fixed"
+        focusTarget="within"
+        error={error}
+        disabled={disabled}
+      >
+        <div className="flex w-full items-center gap-2">
+          <button
+            type="button"
+            aria-label="Open calendar"
+            className="focus-visible:ring-ring flex shrink-0 items-center rounded-sm focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset disabled:cursor-not-allowed"
+            disabled={disabled}
+            onClick={openCalendar}
+          >
+            <CalendarDays
+              aria-hidden="true"
+              size="base"
+              color={disabled ? "muted" : "default"}
+            />
+          </button>
+          <input
+            ref={fromRef}
+            aria-invalid={error ? true : undefined}
+            aria-label={fromLabel}
+            className={dateFieldClassName}
+            data-1p-ignore
+            type="date"
+            value={value.from}
+            min={min}
+            max={value.to === "" ? max : value.to}
+            disabled={disabled}
+            onFocus={() => setPickerField("from")}
+            onChange={handleFromChange}
+          />
+          <span className="text-muted-foreground shrink-0" aria-hidden="true">
+            →
+          </span>
+          <input
+            ref={toRef}
+            aria-invalid={error ? true : undefined}
+            aria-label={toLabel}
+            className={dateFieldClassName}
+            data-1p-ignore
+            type="date"
+            value={value.to}
+            min={value.from === "" ? min : value.from}
+            max={max}
+            disabled={disabled}
+            onFocus={() => setPickerField("to")}
+            onChange={handleToChange}
+          />
+        </div>
+      </InputControl>
+    </div>
+  );
+}
+
+function DateRangePreset<V extends string>({
   value,
   customValue,
   range,
@@ -45,7 +171,7 @@ function DateRangeInput<V extends string>({
   id,
   "aria-describedby": ariaDescribedBy,
   disabled,
-}: DateRangeInputProps<V>) {
+}: PresetDateRangeInputProps<V>) {
   const container = useLayerContainer("popover");
   const [open, setOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<DateRange | undefined>(range);

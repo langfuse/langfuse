@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { format, subMonths } from "date-fns";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { DateRangeFields } from "@/src/components/design-system/DateRangeFields/DateRangeFields";
+import { DateRangeInput } from "@/src/components/design-system/DateRangeInput/DateRangeInput";
 import { Input } from "@/src/components/ui/input";
 import {
   Select,
@@ -171,7 +171,8 @@ export function EvaluatorBackfillSettings({
           </div>
 
           {selectedWindow === "custom" ? (
-            <DateRangeFields
+            <DateRangeInput
+              variant="fields"
               value={{
                 from: format(range.from, "yyyy-MM-dd"),
                 to: format(range.to, "yyyy-MM-dd"),

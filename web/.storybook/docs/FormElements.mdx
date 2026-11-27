@@ -7,7 +7,7 @@ import * as FormElementsStories from "./FormElements.stories";
 
 Form controls that share a row should share a height. The standard control height is 32px (`h-8`): text fields, the default button, the medium icon button, and inset tabs at `md`.
 
-Input, PasswordInput, CopyInput, SelectInput, MultiSelectInput, DateRangeInput, and DateRangeFields have that single height. SearchInput default and QueryInput default match it. SearchInput `large` is 36px. QueryInput `large` uses a 36px minimum and can grow with its content. IconButton also has `sm` and `xs`. Button `sm` is 28px. Inset tabs `sm` set the tab list to 24px, the same as IconButton `sm`, but the tabs root renders 26px tall, so those two do not share a row height.
+Input, PasswordInput, CopyInput, SelectInput, MultiSelectInput, and DateRangeInput (preset and fields) have that single height. SearchInput default and QueryInput default match it. SearchInput `large` is 36px. QueryInput `large` uses a 36px minimum and can grow with its content. IconButton also has `sm` and `xs`. Button `sm` is 28px. Inset tabs `sm` set the tab list to 24px, the same as IconButton `sm`, but the tabs root renders 26px tall, so those two do not share a row height.
 
 Checkbox, radio, and switch are indicators. They are not row-height controls. SwitchInput is a labeled row at the same 32px height; a wrapping description grows the row and keeps the switch centered.
 
