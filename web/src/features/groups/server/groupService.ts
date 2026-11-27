@@ -67,6 +67,11 @@ export function toGroupRoles(
   };
 }
 
+/**
+ * orgMembershipIds checks that every given user is a member of orgId and
+ * returns their org membership ids, which group memberships reference.
+ * Throws GroupMembersNotInOrgError listing the users who are not.
+ */
 async function orgMembershipIds(
   tx: Tx,
   orgId: string,

@@ -17,6 +17,7 @@ const union = <T>(lists: readonly (readonly T[])[]): T[] => [
   ...new Set(lists.flat()),
 ];
 
+/** roleScopes returns the scopes a role grants at the given level. */
 export const roleScopes = (
   role: Role,
   level: AccessLevel,
@@ -29,6 +30,7 @@ export const roleScopes = (
 export const grantsAccess = (role: Role, level: AccessLevel): boolean =>
   role !== "NONE" && roleScopes(role, level).length > 0;
 
+/** includesRole tells whether `role` grants every scope `other` grants. */
 export function includesRole(
   role: Role,
   other: Role,
@@ -57,6 +59,10 @@ export function resolveEffectiveRoles(
   );
 }
 
+/**
+ * groupRoleGrants flattens groups into one grant per role assignment.
+ * `projectId` null is the group's org role.
+ */
 export function groupRoleGrants<
   G extends {
     roleAssignments: { projectId?: string | null; systemRole: string }[];
