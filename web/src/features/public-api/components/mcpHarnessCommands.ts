@@ -9,7 +9,6 @@ export type McpHarnessCommand = {
   /** Tab label and icon, matching the AI Gateway's setup tabs. */
   label: string;
   icon: IconComponent;
-  description: string;
   /** Command with GATEWAY_KEY_PLACEHOLDER where `secret` goes; key-bearing commands start with a space to stay out of shell history. */
   code: string;
   secret: string;
@@ -38,8 +37,6 @@ export function buildMcpHarnessCommands(
       id: "claude-code",
       label: "Claude",
       icon: SiClaude,
-      description:
-        "Run this in your terminal to add the Langfuse MCP server to Claude Code.",
       code: shellCommand(
         `claude mcp add --transport http ${serverName}`,
         mcpUrl,
@@ -52,7 +49,6 @@ export function buildMcpHarnessCommands(
       label: "Codex",
       icon: SiOpenai,
       // Codex sends HTTP MCP credentials only as a bearer token read from an environment variable.
-      description: `Codex reads the key from ${codexTokenEnvVar} when it starts, so export it in the shell you run Codex from.`,
       code: [
         ` export ${codexTokenEnvVar}="${GATEWAY_KEY_PLACEHOLDER}"`,
         shellCommand(
@@ -67,8 +63,6 @@ export function buildMcpHarnessCommands(
       id: "opencode",
       label: "OpenCode",
       icon: SquareTerminal,
-      description:
-        "Run this in your terminal to add the Langfuse MCP server to OpenCode.",
       code: shellCommand(
         `opencode mcp add ${serverName}`,
         `--url ${mcpUrl}`,
@@ -80,8 +74,6 @@ export function buildMcpHarnessCommands(
       id: "copilot-cli",
       label: "GitHub Copilot",
       icon: SiGithubcopilot,
-      description:
-        "Run this in your terminal to add the Langfuse MCP server to GitHub Copilot CLI.",
       code: shellCommand(
         `copilot mcp add --transport http`,
         `--header "${header}"`,

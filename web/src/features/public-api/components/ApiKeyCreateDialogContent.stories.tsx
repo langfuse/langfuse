@@ -133,7 +133,9 @@ export const CreatedOrganizationKey = meta.story({
     await expect(body.textContent).toContain("Authorization: Bearer");
     await expect(body.textContent).not.toContain("Authorization: Basic");
 
-    await expect(body.textContent).toContain("listProjects");
+    await expect(body.textContent).toContain(
+      "The agent can use any project in this organization.",
+    );
     await expect(body.textContent).toContain(
       "claude mcp add --transport http langfuse",
     );

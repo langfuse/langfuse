@@ -98,16 +98,6 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
         id: command.id,
         label: command.label,
         icon: command.icon,
-        description: (
-          <>
-            {props.scope === "organization" && <OrganizationKeyMcpNote />}
-            {command.description} See the{" "}
-            <DocsLink href="https://langfuse.com/docs/api-and-data-platform/features/mcp-server">
-              MCP setup docs
-            </DocsLink>{" "}
-            for other clients.
-          </>
-        ),
         code: command.code,
         secret: command.secret,
       });
@@ -127,6 +117,7 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       <hr />
       <div className="flex flex-col gap-2">
         <h3 className="font-bold">Usage instructions</h3>
+        {showMcpSection ? <McpSummary scope={scope} /> : null}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <div className="flex h-9 items-center border-b">
             <Tabs.List
@@ -178,14 +169,19 @@ function DocsLink(props: { href: string; children: ReactNode }) {
   );
 }
 
-/** OrganizationKeyMcpNote explains how an organization key picks its project over MCP. */
-function OrganizationKeyMcpNote() {
+/** McpSummary is the one line that explains every agent tab. */
+function McpSummary(props: { scope: ApiKeyDetailContentProps["scope"] }) {
   return (
-    <>
-      This key works across the organization&apos;s projects: the agent passes a
-      projectId on each tool call, and listProjects lists the projects it can
-      use. The key&apos;s role decides what it can do in them.{" "}
-    </>
+    <p className="text-muted-foreground text-sm">
+      Connect your agent to Langfuse over{" "}
+      <DocsLink href="https://langfuse.com/docs/api-and-data-platform/features/mcp-server">
+        MCP
+      </DocsLink>
+      : run the command for your tool in a terminal.
+      {props.scope === "organization"
+        ? " The agent can use any project in this organization."
+        : null}
+    </p>
   );
 }
 
