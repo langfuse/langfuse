@@ -126,8 +126,8 @@ function SingleTraceMessagesView({
         <div
           className={cn(
             "flex min-h-0 flex-1 flex-col gap-3",
-            // An embedded transcript keeps only side padding.
-            presentation === "messages" ? "px-3" : "p-4",
+            // An embedded transcript keeps side padding and a little room on top.
+            presentation === "messages" ? "px-3 pt-2" : "p-4",
           )}
         >
           {state.type === "transcript" && hiddenThreadCount > 0 && (
