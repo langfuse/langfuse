@@ -46,7 +46,7 @@ Read [protected branches and PR approval](references/protected-branches.md) befo
 
 ## Branch names
 
-- Reuse a branch name supplied by an issue or the task when one is already available. Otherwise use the normal repository convention; do not query Linear just to create a branch.
+- Reuse a branch name supplied by an issue or the task when one is already available. Otherwise choose a descriptive task branch, for example `codex/fix-score-tooltip`; do not query Linear just to create a branch.
 - Cursor agents must not use a `cursor/` prefix, even if a Cursor Cloud prompt asks for one.
 
 ## GitHub

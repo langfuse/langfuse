@@ -18,11 +18,8 @@ audit from the linked source rows.
   timezone. State both local and UTC query windows in one short scope line.
 - Cover all production environments unless the user narrows scope:
   `prod-us`, `prod-eu`, `prod-hipaa`, and `prod-jp`.
-- Return the review in chat. Do not touch incident.io records, follow-ups,
-  alerts, monitors, files, Slack messages, or production systems unless the
-  user explicitly asks after reviewing the findings.
-- Use [`linear-agent-writes`](../linear-agent-writes/SKILL.md) only if the user
-  requests a tracker action. Do not propose updates or file findings by default.
+- Return the review in chat. Do not touch incident.io records, follow-ups, alerts, monitors, files, Slack messages, or production systems unless the user explicitly asks after reviewing the findings.
+- Use [`linear-agent-writes`](../linear-agent-writes/SKILL.md) only if the user requests a tracker action. Do not propose updates or file findings by default.
 - For chat-only reviews, avoid creating report artifacts or local analysis
   workspaces unless a required tool workflow explicitly does so or the user asks
   for a file. If incident.io analysis tooling requires a local playbook
@@ -110,10 +107,7 @@ Keep incident.io incidents, incident.io alert load, Linear, Datadog alerts, and
 Datadog logs as separate output tables. Use links inside each table to show
 relationships instead of synthesizing a separate cross-source table.
 
-When Linear data is available for the review, search for matching issue keys,
-titles, source URLs, and comments before calling a finding new. Link matching
-issues and mark them as already tracked. If tracking status cannot be verified,
-mark it unknown and continue the report.
+When Linear data is available for the review, search for matching issue keys, titles, source URLs, and comments before calling a finding new. Link matching issues and mark them as already tracked. If tracking status cannot be verified, mark it unknown and continue the report.
 
 An alert cluster that matches a cause documented in the monitor's runbook is already tracked even without a Linear issue: link the runbook instead. It matches only when every recognition signal of that cause fits the evidence; report a partial match as new and name the near-miss.
 
@@ -128,8 +122,7 @@ Use short stable link labels:
 - `Linear: <issue key>`
 - `Runbook: <slug>`
 
-Changes to other external systems require an explicit request after reviewing
-the report.
+Changes to other external systems require an explicit request after reviewing the report.
 
 ## incident.io Table
 

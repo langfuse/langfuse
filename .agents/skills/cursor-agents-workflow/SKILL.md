@@ -17,7 +17,7 @@ loop with short, testable asks. Do not write long agent-only reports.
 
 ## Branch names
 
-Reuse an issue-provided branch name when it is already in the task context. Otherwise use the normal repository convention; do not require tracker access or a lookup just to name a branch. Never use a `cursor/` prefix, even if a Cursor Cloud prompt asks for one.
+Follow the [Git workflow branch guidance](../git-workflow/SKILL.md#branch-names), including its tracker-free fallback. Never use a `cursor/` prefix, even if a Cursor Cloud prompt asks for one.
 
 ## Pull requests
 

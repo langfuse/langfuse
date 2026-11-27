@@ -134,7 +134,7 @@ langfuse/
   data. Previews normally run Mon-Fri 08:00-24:00 Europe/Berlin.
 - After opening a PR, apply the GitHub `cursor` label. Do not wait for a
   human to add it.
-- Reuse an issue-provided branch name when it is already in the task context; otherwise use the normal repository convention. Never create a `cursor/` branch or require a tracker lookup just to name one.
+- Follow the branch naming guidance in `git-workflow`, using an issue-provided name only when it is already available. Never create a `cursor/` branch or require a tracker lookup just to name one.
 - After opening a PR, leave a short last comment on what a reviewer should
   doubt — the curious, questionable parts — not a changelog. For user-visible
   work, put proof of the fix in that comment and the PR body, not only in

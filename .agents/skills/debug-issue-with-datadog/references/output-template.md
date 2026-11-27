@@ -1,8 +1,6 @@
 # Output Template
 
-Return the analysis in chat unless the user requests another destination.
-For a requested tracker action, use
-[`linear-agent-writes`](../../linear-agent-writes/SKILL.md).
+Return the analysis in chat unless the user requests another destination. For a requested tracker action, use [`linear-agent-writes`](../../linear-agent-writes/SKILL.md).
 
 Findings come first, recommendations last. If the data doesn't support a
 hypothesis, say so — do not invent root causes to fill the template.

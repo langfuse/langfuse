@@ -204,7 +204,7 @@ in the Cloud Agents dashboard; Linear MCP OAuth does not complete in Cloud.
 After local verification, a Cursor agent should open a same-repo reviewable
 PR (not a draft), apply the GitHub `cursor` label, and test its
 `pr-<N>.preview.langfuse.com` deployment.
-Reuse an issue-provided branch name when it is already available; otherwise use the normal repository convention. Do not require a tracker lookup just to name a branch, and never use a `cursor/` prefix.
+Follow the [Git workflow branch guidance](.agents/skills/git-workflow/SKILL.md#branch-names), including its tracker-free fallback. Do not require a tracker lookup just to name a branch, and never use a `cursor/` prefix.
 When handing work to a human, give a one-sentence TL;DR, a preview URL with
 exact test steps (including how to seed or hit the same path on
 `http://localhost:3000`), and proof of the fix for user-visible changes
