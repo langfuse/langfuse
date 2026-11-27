@@ -12,6 +12,10 @@ import {
   getLangfuseEnvCode,
   projectIdPlaceholder,
 } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
+import {
+  buildMcpHarnessCommands,
+  type McpCredential,
+} from "@/src/features/public-api/components/mcpHarnessCommands";
 import { cn } from "@/src/utils/tailwind";
 
 /** ApiKeyDetailContentProps name the project a project key's examples use as the public key. */
@@ -32,6 +36,8 @@ type UsageTab = {
   /** Snippet with GATEWAY_KEY_PLACEHOLDER where `secret` goes. */
   code: string;
   secret: string;
+  /** Content rendered below the snippet. */
+  footer?: ReactNode;
 };
 
 /** encodeMcpCredential returns the Basic auth token for a project id and secret key. */
@@ -64,6 +70,7 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
     },
   ];
   if (showMcpSection) {
+    const credential = mcpCredential(props.scope, projectId, secretKey);
     tabs.push({
       id: "mcp",
       label: "MCP",
@@ -86,7 +93,15 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
         </>
       ),
       codeLabel: "Header",
-      ...mcpAuthorizationHeader(props.scope, projectId, secretKey),
+      code: `Authorization: ${credential.scheme} ${GATEWAY_KEY_PLACEHOLDER}`,
+      secret: credential.token,
+      footer: (
+        <McpHarnessTabs
+          mcpUrl={`${baseUrl}/api/public/mcp`}
+          credential={credential}
+          secretKey={secretKey}
+        />
+      ),
     });
   }
 
@@ -131,6 +146,7 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
                 <GatewaySecretKeyContext value={{ value: tab.secret }}>
                   <StepCodeSection code={tab.code} language="sh" />
                 </GatewaySecretKeyContext>
+                {tab.footer}
               </div>
             </Tabs.Content>
           ))}
@@ -151,22 +167,60 @@ function OrganizationKeyMcpNote() {
   );
 }
 
-/** mcpAuthorizationHeader is the MCP header snippet and the secret it embeds for a key's scope. */
-function mcpAuthorizationHeader(
+/** McpHarnessTabs shows the one-line command that adds the MCP server to each agent harness. */
+function McpHarnessTabs(props: {
+  mcpUrl: string;
+  credential: McpCredential;
+  secretKey: string;
+}) {
+  const commands = buildMcpHarnessCommands(
+    props.mcpUrl,
+    props.credential,
+    props.secretKey,
+  );
+  return (
+    <div className="flex flex-col gap-2 pt-2">
+      <Label>Add to your agent</Label>
+      <Tabs defaultValue={commands[0]?.id}>
+        <Tabs.List variant="inset" size="sm" aria-label="Agent harness">
+          {commands.map((command) => (
+            <Tabs.Trigger
+              key={command.id}
+              value={command.id}
+              label={command.label}
+            />
+          ))}
+        </Tabs.List>
+        {commands.map((command) => (
+          <Tabs.Content key={command.id} value={command.id}>
+            <div className="flex flex-col gap-2 pt-2">
+              <p className="text-muted-foreground text-sm">
+                {command.description}
+              </p>
+              <GatewaySecretKeyContext value={{ value: command.secret }}>
+                <StepCodeSection code={command.code} language="sh" />
+              </GatewaySecretKeyContext>
+            </div>
+          </Tabs.Content>
+        ))}
+      </Tabs>
+    </div>
+  );
+}
+
+/** mcpCredential is the Authorization scheme and token a key connects to the MCP server with. */
+function mcpCredential(
   scope: ApiKeyDetailContentProps["scope"],
   projectId: string,
   secretKey: string,
-): Pick<UsageTab, "code" | "secret"> {
+): McpCredential {
   // An organization key names its project per tool call, so it connects with the secret key alone.
   if (scope === "organization") {
-    return {
-      code: `Authorization: Bearer ${GATEWAY_KEY_PLACEHOLDER}`,
-      secret: secretKey,
-    };
+    return { scheme: "Bearer", token: secretKey };
   }
   return {
-    code: `Authorization: Basic ${GATEWAY_KEY_PLACEHOLDER}`,
-    secret: encodeMcpCredential(projectId, secretKey),
+    scheme: "Basic",
+    token: encodeMcpCredential(projectId, secretKey),
   };
 }
 

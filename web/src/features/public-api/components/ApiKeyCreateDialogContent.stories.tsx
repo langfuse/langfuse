@@ -130,5 +130,14 @@ export const CreatedOrganizationKey = meta.story({
     await expect(body.textContent).toContain("Authorization: Bearer");
     await expect(body.textContent).not.toContain("Authorization: Basic");
     await expect(body.textContent).toContain("listProjects");
+
+    await expect(body.textContent).toContain(
+      "claude mcp add --transport http langfuse https://cloud.langfuse.com/api/public/mcp",
+    );
+    await userEvent.click(screen.getByRole("tab", { name: "Codex" }));
+    await expect(body.textContent).toContain(
+      "codex mcp add langfuse --url https://cloud.langfuse.com/api/public/mcp --bearer-token-env-var LANGFUSE_MCP_TOKEN",
+    );
+    await expect(body.textContent).not.toContain(SECRET_KEY);
   },
 });
