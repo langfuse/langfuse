@@ -29,32 +29,6 @@ export default {
       },
     },
     {
-      files: ["**/fns/**/*"],
-      excludeFiles: [
-        "**/*.{test,spec,clienttest,servertest,stories,story}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
-        "**/{__tests__,__mocks__,tests,test,__stories__,stories}/**",
-      ],
-      jsPlugins: ["@repo/eslint-plugin"],
-      rules: {
-        "@repo/export-rules": [
-          "error",
-          {
-            allow: [
-              { kind: "function", max: 1, name: ["matchesFilename"] },
-              "type",
-            ],
-          },
-        ],
-      },
-    },
-    {
-      files: [
-        "**/fns/**/*.{test,spec,clienttest,servertest,stories,story}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
-        "**/fns/**/{__tests__,__mocks__,tests,test,__stories__,stories}/**",
-      ],
-      rules: { "@repo/export-rules": "off" },
-    },
-    {
       // Next.js discovers routes by filename, not imports.
       files: ["src/pages/**/*.{js,jsx,ts,tsx}"],
       rules: { "@repo/no-internal-barrel-files": "off" },
