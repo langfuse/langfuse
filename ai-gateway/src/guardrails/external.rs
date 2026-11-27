@@ -236,7 +236,7 @@ impl ExternalGuardrail {
         location: GuardrailLocation,
     ) -> Option<Bytes> {
         match self {
-            Self::Bedrock(_) => bedrock::serialize_blocks(texts, location.bedrock_source()),
+            Self::Bedrock(_) => bedrock::serialize_blocks(texts, location),
             Self::OpenAiModeration(_) => openai_moderation::serialize_blocks(texts),
             Self::Lakera(_) => lakera::serialize_blocks(blocks),
         }

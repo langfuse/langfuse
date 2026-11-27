@@ -608,15 +608,6 @@ pub(crate) enum GuardrailLocation {
     Response,
 }
 
-impl GuardrailLocation {
-    pub(crate) fn bedrock_source(self) -> &'static str {
-        match self {
-            Self::Request => "INPUT",
-            Self::Response => "OUTPUT",
-        }
-    }
-}
-
 /// Fail-closed outcome for an unreadable or oversized response (e.g. non-identity
 /// encoding, unsupported content type, or body exceeding the response guardrail
 /// buffer cap). Blocking/redacting/enforcing rules block; log rules record a match.
