@@ -10,6 +10,7 @@ import {
   type ServiceUnavailableError,
   type UnauthorizedError,
   publicKeyPrefix,
+  secretKeyPrefix,
 } from "@langfuse/shared";
 import {
   addUserToSpan,
@@ -283,13 +284,17 @@ function getHeaderProjectId(req: NextApiRequest): string | undefined {
   return getHeaderValue(req, projectIdHeader);
 }
 
-/** getBasicAuthProjectId returns the Basic auth username as the target project for non-public-key usernames. */
+/** getBasicAuthProjectId returns the Basic auth username as the target project unless it is a key. */
 function getBasicAuthProjectId(req: NextApiRequest): string | undefined {
   const credential = parseAuthorizationHeader(req.headers.authorization);
   if (credential.kind !== "basic") return undefined;
-  if (credential.publicKey.startsWith(publicKeyPrefix)) return undefined;
+  if (isApiKey(credential.publicKey)) return undefined;
   return credential.publicKey;
 }
+
+/** isApiKey reports whether a Basic auth username is a key rather than a project id, so a secret is never echoed back as one. */
+const isApiKey = (username: string) =>
+  username.startsWith(publicKeyPrefix) || username.startsWith(secretKeyPrefix);
 
 /** getUrlProjectId returns the target project from the URL param. */
 function getUrlProjectId(req: NextApiRequest): string | undefined {
