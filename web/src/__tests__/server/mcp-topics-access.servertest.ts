@@ -41,6 +41,7 @@ async function contextFor(key: {
   });
   return {
     projectId: key.projectId,
+    boundProjectId: key.projectId,
     orgId: key.orgId,
     apiKeyId: apiKey.id,
     accessLevel: "project",
