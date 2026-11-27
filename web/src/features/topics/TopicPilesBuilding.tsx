@@ -1,4 +1,4 @@
-import { PILE } from "./topic-piles-geometry";
+import { PILE, PILE_COLORS } from "./topic-piles-geometry";
 import { TopicPilesScene } from "./TopicPilesScene";
 
 // The drawing's box in css px, centred on the piles.
@@ -12,7 +12,13 @@ export function TopicPilesBuilding({ sheets }: TopicPilesBuildingProps) {
       box={BOX}
       middle={MIDDLE}
       drop={0}
-      pileCount={sheets.length}
+      edges={{
+        xs: sheets.flatMap((_, index) => [
+          index * PILE.pitch,
+          index * PILE.pitch + PILE.width,
+        ]),
+        ys: [0, PILE.depth],
+      }}
     >
       {sheets
         .map((count, index) => (
@@ -20,6 +26,7 @@ export function TopicPilesBuilding({ sheets }: TopicPilesBuildingProps) {
             key={index}
             x={index * PILE.pitch}
             sheets={Math.max(1, count)}
+            color={PILE_COLORS[index % PILE_COLORS.length]}
             label={null}
           />
         ))

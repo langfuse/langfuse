@@ -2,7 +2,7 @@
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { type TopicSetupNoticeState } from "./useTopicSettings";
-import { TopicPilesIllustration } from "./TopicPilesIllustration";
+import { TopicClustersIllustration } from "./TopicClustersIllustration";
 
 type TopicSetupNoticeProps = {
   notice: TopicSetupNoticeState;
@@ -48,7 +48,7 @@ export function TopicSetupNotice({
       ) : null}
       {showOnboarding ? (
         <div className="flex flex-1 flex-col items-center-safe justify-center-safe gap-7 overflow-y-auto px-4 pb-24">
-          <TopicPilesIllustration piles={LANDING_PILES} slips={LANDING_SLIPS} />
+          <TopicClustersIllustration piles={LANDING_PILES} />
           <div className="flex flex-col items-center gap-2 text-center">
             <h2 className="text-3xl leading-tight font-bold tracking-tight text-balance">
               See what your traces are about
@@ -82,15 +82,9 @@ export function TopicSetupNotice({
   );
 }
 
-// Decorative: three example topics, each with one example trace.
+// Decorative: three example topics, largest first.
 const LANDING_PILES = [
   { name: "Refunds", count: 412 },
   { name: "Order status", count: 154 },
   { name: "Address", count: 96 },
-] as const;
-
-const LANDING_SLIPS = [
-  { text: "double charge", tone: "error" },
-  { text: "not delivered", tone: "error" },
-  { text: "ship to office", tone: "ok" },
 ] as const;
