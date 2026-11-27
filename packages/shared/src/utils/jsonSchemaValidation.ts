@@ -16,6 +16,10 @@ export type FieldValidationResult =
       errors: FieldValidationError[];
     };
 
+export const MAX_JSON_SCHEMA_CHARACTERS = 10_000;
+export const JSON_SCHEMA_SIZE_ERROR = `Schema exceeds the ${MAX_JSON_SCHEMA_CHARACTERS.toLocaleString("en-US")}-character limit`;
+export const INVALID_JSON_SCHEMA_ERROR = "Must be a valid JSON Schema";
+
 /**
  * Creates a fresh Ajv instance for validation
  */
@@ -37,17 +41,24 @@ export const createAjvInstanceInternal = () => {
  * Can be used in both client and server contexts
  */
 export function isValidJSONSchema(schema: unknown): boolean {
+  return getJSONSchemaValidationError(schema) === null;
+}
+
+/** Returns a user-facing validation error, or null when the schema is valid. */
+export function getJSONSchemaValidationError(schema: unknown): string | null {
   try {
     const stringified = JSON.stringify(schema);
-    if (stringified.length > 10_000) return false; // Schema too large
+    if (stringified.length > MAX_JSON_SCHEMA_CHARACTERS) {
+      return JSON_SCHEMA_SIZE_ERROR;
+    }
 
     const ajv = createAjvInstanceInternal();
     // This will throw an error if the schema is invalid
     ajv.compile(schema as AnySchema);
 
-    return true;
+    return null;
   } catch {
-    return false;
+    return INVALID_JSON_SCHEMA_ERROR;
   }
 }
 
