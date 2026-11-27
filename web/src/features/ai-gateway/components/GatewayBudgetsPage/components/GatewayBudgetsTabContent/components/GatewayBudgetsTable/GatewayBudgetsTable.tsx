@@ -21,6 +21,7 @@ import {
 import {
   GATEWAY_ADMIN_SET_BUDGET_CHANGE_REASON,
   GATEWAY_ADMIN_SET_BUDGET_RESET_REASON,
+  GATEWAY_ADMIN_SET_BUDGET_SHORT_REASON,
 } from "@/src/features/ai-gateway/constants/gatewayAdminSetBudgetReasons";
 import {
   GATEWAY_SPEND_TABS,
@@ -206,6 +207,9 @@ export function GatewayBudgetsTable({
       type: "item" as const,
       title: "Edit budget",
       icon: Pencil,
+      description: row.isEditable
+        ? undefined
+        : GATEWAY_ADMIN_SET_BUDGET_SHORT_REASON,
       disabled: row.isEditable
         ? undefined
         : { reason: notEditableReasons[tab] },
@@ -216,6 +220,9 @@ export function GatewayBudgetsTable({
       type: "item" as const,
       title: "Reset budget",
       icon: isResetLockedByAdmin(row) ? Ban : RotateCcw,
+      description: isResetLockedByAdmin(row)
+        ? GATEWAY_ADMIN_SET_BUDGET_SHORT_REASON
+        : undefined,
       disabled: getResetBudgetDisabled(row, tab),
       onClick: () => onResetBudget(row),
     },

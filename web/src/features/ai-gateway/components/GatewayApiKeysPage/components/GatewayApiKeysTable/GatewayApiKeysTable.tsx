@@ -17,7 +17,10 @@ import type {
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
-import { GATEWAY_ADMIN_SET_BUDGET_RESET_REASON } from "@/src/features/ai-gateway/constants/gatewayAdminSetBudgetReasons";
+import {
+  GATEWAY_ADMIN_SET_BUDGET_RESET_REASON,
+  GATEWAY_ADMIN_SET_BUDGET_SHORT_REASON,
+} from "@/src/features/ai-gateway/constants/gatewayAdminSetBudgetReasons";
 import { GatewayApiKeysEmptyState } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeysEmptyState/GatewayApiKeysEmptyState";
 import { GatewayDefaultBudgetTag } from "@/src/features/ai-gateway/components/GatewayDefaultBudgetTag/GatewayDefaultBudgetTag";
 import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
@@ -227,6 +230,9 @@ export function GatewayApiKeysTable({
       type: "item" as const,
       title: "Reset budget",
       icon: isGatewayApiKeyBudgetLockedByAdmin(row) ? Ban : RotateCcw,
+      description: isGatewayApiKeyBudgetLockedByAdmin(row)
+        ? GATEWAY_ADMIN_SET_BUDGET_SHORT_REASON
+        : undefined,
       disabled: getResetBudgetDisabled(row),
       onClick: () => onResetBudget(row),
     },
