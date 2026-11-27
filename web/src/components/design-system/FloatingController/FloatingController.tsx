@@ -224,9 +224,7 @@ function FloatingController({
   const click = useClick(context, {
     enabled: enabled && interaction === "click",
   });
-  const dismiss = useDismiss(context, {
-    bubbles: { escapeKey: !containInParentOverlay },
-  });
+  const dismiss = useDismiss(context);
   const role = useRole(context, { role: overlayRole });
   const { getFloatingProps, getReferenceProps } = useInteractions([
     hover,
