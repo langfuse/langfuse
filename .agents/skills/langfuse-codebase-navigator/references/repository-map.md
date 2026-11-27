@@ -21,7 +21,7 @@ Snapshot source: `gh repo list langfuse --limit 1000 --json name,description,isP
 | Public agent skill for using Langfuse | `langfuse/skills` | `skills/langfuse/SKILL.md` and its references |
 | Internal Langfuse team skills | `langfuse/langfuse-internal-skills` | Top-level skill folders in this repo |
 | CLI | `langfuse/langfuse-cli` | `src/**`, `bin/**`, `openapi.yml` |
-| MCP prompt-management server | `langfuse/mcp-server-langfuse` | `src/**` |
+| Legacy MCP prompt server (deprecated, replaced by the Langfuse MCP server in `web/src/features/mcp`) | `langfuse/mcp-server-langfuse` | `src/**` |
 | n8n node | `langfuse/n8n-nodes-langfuse` | Node package source |
 | GitHub Action for experiments | `langfuse/experiment-action` | `action.yml`, `src/**`, `schemas/**` |
 | Examples | `langfuse/langfuse-examples` | Example app directories |
@@ -53,7 +53,7 @@ Snapshot source: `gh repo list langfuse --limit 1000 --json name,description,isP
 | `langfuse-terraform-aws` | Public | HCL | Terraform module for AWS deployment. |
 | `langfuse-terraform-azure` | Public | HCL | Terraform module for Azure deployment. |
 | `langfuse-terraform-gcp` | Public | HCL | Terraform module for GCP deployment. |
-| `mcp-server-langfuse` | Public | TypeScript | MCP server for Langfuse prompt management. |
+| `mcp-server-langfuse` | Public | TypeScript | Deprecated. Legacy MCP prompt server, replaced by the Langfuse MCP server. |
 | `n8n-nodes-langfuse` | Public | JavaScript | n8n node for Langfuse prompt management. |
 | `nofilter` | Private | TypeScript | Hackathon/prototype repo. Use only when named or search evidence points here. |
 | `oss-llmops-stack` | Public | n/a | Modular OSS LLMOps stack combining LiteLLM and Langfuse. |
@@ -156,7 +156,7 @@ Other integration repos:
 
 - `langfuse-java`: Java API client.
 - `langfuse-cli`: command-line API access.
-- `mcp-server-langfuse`: MCP prompt-management server.
+- `mcp-server-langfuse`: deprecated legacy MCP prompt server; use the Langfuse MCP server in `web/src/features/mcp`.
 - `n8n-nodes-langfuse`: n8n prompt-management node.
 - `experiment-action`: GitHub Action for experiment workflows.
 - `terraform-provider-langfuse`: Terraform provider.

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { type MutationStatus } from "@tanstack/react-query";
 
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { GatewayBulkGuardrailTargetsDialog } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayBulkGuardrailTargetsDialog/GatewayBulkGuardrailTargetsDialog";
@@ -11,7 +12,10 @@ import {
   type GatewayGuardrailFormDialogProps,
   type GatewayGuardrailFormValues,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailFormDialog/GatewayGuardrailFormDialog";
-import { GatewayGuardrailTemplateGallery } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTemplateGallery/GatewayGuardrailTemplateGallery";
+import {
+  GatewayGuardrailTemplateGallery,
+  type GatewayGuardrailTemplateGalleryTab,
+} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTemplateGallery/GatewayGuardrailTemplateGallery";
 import {
   GATEWAY_GUARDRAIL_TEMPLATES,
   type GatewayGuardrailTemplate,
@@ -22,6 +26,7 @@ import { assignmentsToTargetOptions } from "@/src/features/ai-gateway/components
 import { targetOptionsToAssignments } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/fns/targetOptionsToAssignments";
 import { useGatewayGuardrailRegexPreview } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/hooks/useGatewayGuardrailRegexPreview";
 import { useGatewayGuardrailTargetPicker } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/hooks/useGatewayGuardrailTargetPicker";
+import { GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { useInvalidateGatewayGuardrails } from "@/src/features/ai-gateway/hooks/useInvalidateGatewayGuardrails";
 import {
   useOpenGuardrailsLimitFeedback,
@@ -30,8 +35,10 @@ import {
 import {
   GATEWAY_GUARDRAIL_PRESETS,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
+  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
+  resolveSupportedGuardrailAction,
+  resolveSupportedGuardrailScope,
   type GatewayGuardrailPreset,
-  type GatewayGuardrailUiAction,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
 import {
@@ -97,10 +104,10 @@ export function GatewayGuardrailDialogController({
     bulkTargetsMutation.isPending;
 
   const resetMutations = () => {
-    testMutation.reset();
-    createMutation.reset();
-    updateMutation.reset();
-    bulkTargetsMutation.reset();
+    if (testMutation.status !== "idle") testMutation.reset();
+    if (createMutation.status !== "idle") createMutation.reset();
+    if (updateMutation.status !== "idle") updateMutation.reset();
+    if (bulkTargetsMutation.status !== "idle") bulkTargetsMutation.reset();
   };
 
   const testOutcome = getTestOutcome(testMutation);
@@ -148,7 +155,11 @@ export function GatewayGuardrailDialogController({
                   orgId: organizationId,
                   type: "BEDROCK",
                   name: values.name,
-                  action: values.action,
+                  action: resolveSupportedGuardrailAction(
+                    "BEDROCK",
+                    values.action,
+                  ),
+                  scope: values.scope,
                   bedrock: {
                     guardrailId: values.bedrock.guardrailId,
                     guardrailVersion: values.bedrock.guardrailVersion,
@@ -162,7 +173,7 @@ export function GatewayGuardrailDialogController({
                   orgId: organizationId,
                   type: "REGEX",
                   name: values.name,
-                  action: values.action,
+                  ...toRegexActionInput(values),
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
                   containsWords: values.containsWords,
@@ -177,7 +188,11 @@ export function GatewayGuardrailDialogController({
                   id: state.guardrail.id,
                   type: "BEDROCK",
                   name: values.name,
-                  action: values.action,
+                  action: resolveSupportedGuardrailAction(
+                    "BEDROCK",
+                    values.action,
+                  ),
+                  scope: values.scope,
                   bedrock: values.bedrock,
                   assignments,
                 });
@@ -187,7 +202,7 @@ export function GatewayGuardrailDialogController({
                   id: state.guardrail.id,
                   type: "REGEX",
                   name: values.name,
-                  action: values.action,
+                  ...toRegexActionInput(values),
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
                   containsWords: values.containsWords,
@@ -280,6 +295,8 @@ function GuardrailDialogContent({
 }: GuardrailDialogContentProps) {
   const [selectedTemplate, setSelectedTemplate] =
     useState<GatewayGuardrailTemplate | null>(null);
+  const [galleryTab, setGalleryTab] =
+    useState<GatewayGuardrailTemplateGalleryTab>("built-in");
 
   const needsTargets = state.mode !== "create" || selectedTemplate !== null;
   const targetPicker = useGatewayGuardrailTargetPicker(
@@ -303,44 +320,61 @@ function GuardrailDialogContent({
     );
   }
 
-  if (state.mode === "create" && selectedTemplate === null) {
-    return (
-      <GatewayGuardrailTemplateGallery onSelectTemplate={setSelectedTemplate} />
-    );
-  }
-
-  if (state.mode === "create" && selectedTemplate !== null) {
+  if (state.mode === "create") {
     const handleBack = () => {
       onClearError();
       setSelectedTemplate(null);
     };
-    const isExternal = Boolean(selectedTemplate.external);
+    const isExternal = Boolean(selectedTemplate?.external);
     return (
-      <ConnectedGuardrailFormDialog
-        key={selectedTemplate.id}
-        organizationId={organizationId}
-        title={selectedTemplate.name}
-        submitLabel={isExternal ? "Test and save" : "Add guardrail"}
-        templateKind={selectedTemplate.id}
-        availablePresets={selectedTemplate.presets}
-        externalTest={isExternal ? externalTest : undefined}
-        initialValues={{
-          name: selectedTemplate.name,
-          presets: [...selectedTemplate.defaultPresets],
-          secretPrefixes: [],
-          containsWords: [],
-          customRegex: null,
-          action: "BLOCK",
-          targets: [EVERYONE_TARGET_OPTION],
-        }}
-        initialTestText={selectedTemplate.sampleTestText}
-        targetPicker={targetPicker}
-        isSubmitting={isSubmitting}
-        errorMessage={errorMessage}
-        onBack={handleBack}
-        onContactSupport={onContactSupport}
-        onSubmit={onSubmitForm}
-      />
+      <Dialog
+        title={selectedTemplate ? selectedTemplate.name : "Add a guardrail"}
+        size={selectedTemplate && isExternal ? "md" : "lg"}
+        closeOnInteractionOutside={selectedTemplate === null}
+        noCapture={selectedTemplate !== null}
+        back={
+          selectedTemplate
+            ? { onClick: handleBack, label: "Back to guardrail types" }
+            : undefined
+        }
+      >
+        {selectedTemplate === null ? (
+          <GatewayGuardrailTemplateGallery
+            activeTab={galleryTab}
+            onActiveTabChange={setGalleryTab}
+            onSelectTemplate={setSelectedTemplate}
+          />
+        ) : (
+          <ConnectedGuardrailFormContent
+            key={selectedTemplate.id}
+            organizationId={organizationId}
+            submitLabel={isExternal ? "Test and save" : "Add guardrail"}
+            templateKind={selectedTemplate.id}
+            availablePresets={selectedTemplate.presets}
+            externalTest={isExternal ? externalTest : undefined}
+            initialValues={{
+              name: selectedTemplate.name,
+              presets: [...selectedTemplate.defaultPresets],
+              secretPrefixes: [],
+              containsWords: [],
+              customRegex: null,
+              action:
+                GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[
+                  selectedTemplate.guardrailType
+                ].defaultAction,
+              scope: "LAST_TURN",
+              redactionLabel: GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
+              targets: [EVERYONE_TARGET_OPTION],
+            }}
+            initialTestText={selectedTemplate.sampleTestText}
+            targetPicker={targetPicker}
+            isSubmitting={isSubmitting}
+            errorMessage={errorMessage}
+            onContactSupport={onContactSupport}
+            onSubmit={onSubmitForm}
+          />
+        )}
+      </Dialog>
     );
   }
 
@@ -349,40 +383,77 @@ function GuardrailDialogContent({
     { mode: "edit" }
   >;
   const { templateKind, availablePresets } = resolveEditableTemplate(guardrail);
-  const initialAction: GatewayGuardrailUiAction =
-    guardrail.action === "LOG" ? "LOG" : "BLOCK";
   const isExternal = guardrail.type === "BEDROCK";
+  const initialAction = resolveSupportedGuardrailAction(
+    guardrail.type,
+    guardrail.action,
+  );
 
   return (
-    <ConnectedGuardrailFormDialog
-      key={guardrail.id}
-      organizationId={organizationId}
-      title="Edit guardrail"
-      submitLabel={isExternal ? "Test and save" : "Save changes"}
-      templateKind={templateKind}
-      availablePresets={availablePresets}
-      hasSavedApiKey={isExternal}
-      externalTest={isExternal ? externalTest : undefined}
-      initialValues={{
-        name: guardrail.name,
-        presets: guardrail.presets,
-        secretPrefixes: guardrail.secretPrefixes,
-        containsWords: guardrail.containsWords,
-        customRegex: guardrail.customRegex,
-        bedrock: guardrail.bedrock ?? undefined,
-        action: initialAction,
-        targets: assignmentsToTargetOptions(guardrail.assignments),
-      }}
-      targetPicker={targetPicker}
-      isSubmitting={isSubmitting}
-      errorMessage={errorMessage}
-      onContactSupport={onContactSupport}
-      onSubmit={onSubmitForm}
-    />
+    <Dialog title="Edit guardrail" size={isExternal ? "md" : "lg"} noCapture>
+      <ConnectedGuardrailFormContent
+        key={guardrail.id}
+        organizationId={organizationId}
+        submitLabel={isExternal ? "Test and save" : "Save changes"}
+        templateKind={templateKind}
+        availablePresets={availablePresets}
+        hasSavedApiKey={isExternal}
+        externalTest={isExternal ? externalTest : undefined}
+        initialValues={{
+          name: guardrail.name,
+          presets: guardrail.presets,
+          secretPrefixes: guardrail.secretPrefixes,
+          containsWords: guardrail.containsWords,
+          customRegex: guardrail.customRegex,
+          bedrock: guardrail.bedrock ?? undefined,
+          action: initialAction,
+          scope: guardrail.scope,
+          redactionLabel:
+            guardrail.redactionLabel ??
+            GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
+          targets: assignmentsToTargetOptions(guardrail.assignments),
+        }}
+        targetPicker={targetPicker}
+        isSubmitting={isSubmitting}
+        errorMessage={errorMessage}
+        onContactSupport={onContactSupport}
+        onSubmit={onSubmitForm}
+      />
+    </Dialog>
   );
 }
 
-function ConnectedGuardrailFormDialog({
+function toRegexActionInput(
+  values: Pick<
+    GatewayGuardrailFormValues,
+    "action" | "scope" | "redactionLabel"
+  >,
+) {
+  const action = resolveSupportedGuardrailAction("REGEX", values.action);
+  if (action === "REDACT") {
+    return {
+      action,
+      scope: values.scope,
+      redactionLabel: values.redactionLabel,
+    };
+  }
+  if (action === "BLOCK") {
+    const scope = resolveSupportedGuardrailScope(
+      "BLOCK",
+      values.scope ?? "LAST_TURN",
+    );
+    return {
+      action,
+      scope: scope as "LAST_TURN" | "OUTPUT" | "LAST_TURN_AND_OUTPUT",
+    };
+  }
+  return {
+    action,
+    scope: values.scope,
+  };
+}
+
+function ConnectedGuardrailFormContent({
   organizationId,
   ...props
 }: Omit<GatewayGuardrailFormDialogProps, "customRegexPreview"> & {

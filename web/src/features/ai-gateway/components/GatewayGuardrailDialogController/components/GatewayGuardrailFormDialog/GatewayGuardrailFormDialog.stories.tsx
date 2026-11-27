@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import { KeyRound, User } from "@langfuse/icons";
 
 import preview from "@/.storybook/preview";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
@@ -34,9 +35,14 @@ const TARGET_OPTIONS: AsyncAutocompleteOption[] = [
   },
 ];
 
-function StoryGuardrailFormDialog(
-  props: Omit<GatewayGuardrailFormDialogProps, "targetPicker" | "onSubmit">,
-) {
+function StoryGuardrailFormDialog({
+  title,
+  onBack,
+  ...props
+}: Omit<GatewayGuardrailFormDialogProps, "targetPicker" | "onSubmit"> & {
+  title: string;
+  onBack?: () => void;
+}) {
   const [search, setSearch] = useState("");
   const needle = search.trim().toLowerCase();
   const options = needle
@@ -47,20 +53,37 @@ function StoryGuardrailFormDialog(
       )
     : TARGET_OPTIONS;
 
+  const isExternal = Boolean(
+    GATEWAY_GUARDRAIL_TEMPLATES.find(
+      (template) => template.id === props.templateKind,
+    )?.external,
+  );
+
   return (
     <DialogController
       initialState={() => true}
       renderDialog={() => (
-        <GatewayGuardrailFormDialog
-          {...props}
-          targetPicker={{
-            options,
-            search,
-            onSearchChange: setSearch,
-            isLoading: false,
-          }}
-          onSubmit={fn()}
-        />
+        <Dialog
+          title={title}
+          size={isExternal ? "md" : "lg"}
+          noCapture
+          back={
+            onBack
+              ? { onClick: onBack, label: "Back to guardrail types" }
+              : undefined
+          }
+        >
+          <GatewayGuardrailFormDialog
+            {...props}
+            targetPicker={{
+              options,
+              search,
+              onSearchChange: setSearch,
+              isLoading: false,
+            }}
+            onSubmit={fn()}
+          />
+        </Dialog>
       )}
     >
       {() => null}
@@ -98,6 +121,7 @@ export const CreatePii = meta.story({
       secretPrefixes: [],
       containsWords: [],
       action: "BLOCK",
+      scope: "LAST_TURN",
       targets: [EVERYONE_TARGET_OPTION],
     },
     initialTestText: piiTemplate.sampleTestText,
@@ -119,6 +143,7 @@ export const CreateSecretDetection = meta.story({
       secretPrefixes: ["acme_sk_"],
       containsWords: [],
       action: "BLOCK",
+      scope: "LAST_TURN",
       targets: [EVERYONE_TARGET_OPTION],
     },
     initialTestText: secretsTemplate.sampleTestText,
@@ -140,6 +165,7 @@ export const CreateKeywordBlocklist = meta.story({
       secretPrefixes: [],
       containsWords: ["confidential", "internal only"],
       action: "BLOCK",
+      scope: "LAST_TURN",
       targets: [EVERYONE_TARGET_OPTION],
     },
     initialTestText: containsTemplate.sampleTestText,
@@ -162,6 +188,7 @@ export const CreateCustomRegex = meta.story({
       containsWords: [],
       customRegex: String.raw`\bORD-\d{6}\b`,
       action: "BLOCK",
+      scope: "LAST_TURN",
       targets: [EVERYONE_TARGET_OPTION],
     },
     initialTestText: customRegexTemplate.sampleTestText,
@@ -194,7 +221,8 @@ export const CreateBedrock = meta.story({
       presets: [],
       secretPrefixes: [],
       containsWords: [],
-      action: "BLOCK",
+      action: "ENFORCE",
+      scope: "LAST_TURN",
       targets: [EVERYONE_TARGET_OPTION],
     },
     isSubmitting: false,
@@ -225,7 +253,8 @@ export const EditBedrock = meta.story({
         guardrailVersion: "1",
         region: "us-east-1",
       },
-      action: "BLOCK",
+      action: "ENFORCE",
+      scope: "LAST_TURN_AND_OUTPUT",
       targets: [EVERYONE_TARGET_OPTION],
     },
     isSubmitting: false,
@@ -245,10 +274,86 @@ export const EditGuardrail = meta.story({
       secretPrefixes: [],
       containsWords: [],
       action: "BLOCK",
+      scope: "LAST_TURN",
       targets: [TARGET_OPTIONS[1]!, TARGET_OPTIONS[2]!],
     },
     isSubmitting: false,
     errorMessage: null,
+  },
+});
+
+export const EditRedactGuardrail = meta.story({
+  args: {
+    title: "Edit guardrail",
+    submitLabel: "Save changes",
+    templateKind: "pii",
+    availablePresets: piiTemplate.presets,
+    initialValues: {
+      name: "Redact emails",
+      presets: ["email"],
+      secretPrefixes: [],
+      containsWords: [],
+      action: "REDACT",
+      scope: "OUTPUT",
+      redactionLabel: "[EMAIL]",
+      targets: [EVERYONE_TARGET_OPTION],
+    },
+    initialTestText: piiTemplate.sampleTestText,
+    isSubmitting: false,
+    errorMessage: null,
+  },
+});
+
+export const OutputStreamingNotice = meta.story({
+  name: "(Test) Output guardrail shows streaming notice",
+  args: {
+    title: "Edit guardrail",
+    submitLabel: "Save changes",
+    templateKind: "pii",
+    availablePresets: piiTemplate.presets,
+    initialValues: {
+      name: "Redact emails",
+      presets: ["email"],
+      secretPrefixes: [],
+      containsWords: [],
+      action: "REDACT",
+      scope: "OUTPUT",
+      redactionLabel: "[EMAIL]",
+      targets: [EVERYONE_TARGET_OPTION],
+    },
+    isSubmitting: false,
+    errorMessage: null,
+  },
+  play: async () => {
+    const dialog = within(document.body).getByRole("dialog");
+    await expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "Streaming is turned off when checking output.",
+    );
+  },
+});
+
+export const InputHidesStreamingNotice = meta.story({
+  name: "(Test) Input guardrail hides streaming notice",
+  args: {
+    title: "Edit guardrail",
+    submitLabel: "Save changes",
+    templateKind: "pii",
+    availablePresets: piiTemplate.presets,
+    initialValues: {
+      name: "Block SSNs",
+      presets: ["us_ssn"],
+      secretPrefixes: [],
+      containsWords: [],
+      action: "BLOCK",
+      scope: "LAST_TURN",
+      targets: [EVERYONE_TARGET_OPTION],
+    },
+    isSubmitting: false,
+    errorMessage: null,
+  },
+  play: async () => {
+    const dialog = within(document.body).getByRole("dialog");
+    await expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
   },
 });
 
@@ -264,6 +369,7 @@ export const LimitReachedError = meta.story({
       secretPrefixes: [],
       containsWords: [],
       action: "BLOCK",
+      scope: "LAST_TURN",
       targets: [EVERYONE_TARGET_OPTION],
     },
     isSubmitting: false,
