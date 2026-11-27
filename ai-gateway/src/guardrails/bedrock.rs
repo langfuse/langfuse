@@ -12,7 +12,10 @@ use reqwest_tracing::DisableOtelPropagation;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 
-use crate::guardrails::external::{ExternalFailureKind, ExternalGuardrailClient, ExternalOutcome};
+use crate::guardrails::external::{
+    ExternalCallFailure, ExternalFailureKind, ExternalGuardrailClient, ExternalOutcome,
+    read_bounded_body,
+};
 
 const MAX_BEDROCK_RESPONSE_BYTES: usize = 256 * 1024;
 const MAX_BEDROCK_ANONYMIZED_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
@@ -238,66 +241,25 @@ struct BedrockPolicyItem {
     detected: Option<bool>,
 }
 
-enum BedrockFailure {
-    Transport,
-    HttpStatus(StatusCode),
-    ResponseTooLarge,
-    InvalidResponse,
-    UnexpectedAction,
-}
-
-impl BedrockFailure {
-    fn reason(&self) -> &'static str {
-        match self {
-            Self::Transport => "transport",
-            Self::HttpStatus(_) => "http_status",
-            Self::ResponseTooLarge => "response_too_large",
-            Self::InvalidResponse => "invalid_response",
-            Self::UnexpectedAction => "unexpected_action",
-        }
-    }
-
-    fn status(&self) -> Option<u16> {
-        match self {
-            Self::HttpStatus(status) => Some(status.as_u16()),
-            Self::Transport
-            | Self::ResponseTooLarge
-            | Self::InvalidResponse
-            | Self::UnexpectedAction => None,
-        }
-    }
-
-    fn kind(&self) -> ExternalFailureKind {
-        match self {
-            Self::HttpStatus(StatusCode::TOO_MANY_REQUESTS) => ExternalFailureKind::RateLimited,
-            Self::HttpStatus(_)
-            | Self::Transport
-            | Self::ResponseTooLarge
-            | Self::InvalidResponse
-            | Self::UnexpectedAction => ExternalFailureKind::Unavailable,
-        }
-    }
-}
-
 async fn send_and_parse(
     request: reqwest_middleware::RequestBuilder,
     response_limit: usize,
-) -> Result<ExternalOutcome, BedrockFailure> {
+) -> Result<ExternalOutcome, ExternalCallFailure> {
     let response = request
         .send()
         .await
-        .map_err(|_| BedrockFailure::Transport)?;
+        .map_err(|_| ExternalCallFailure::Transport)?;
     let status = response.status();
     if status != StatusCode::OK {
-        return Err(BedrockFailure::HttpStatus(status));
+        return Err(ExternalCallFailure::HttpStatus(status));
     }
     let body = read_bounded_body(response, response_limit).await?;
     let parsed: ApplyGuardrailResponse =
-        serde_json::from_slice(&body).map_err(|_| BedrockFailure::InvalidResponse)?;
+        serde_json::from_slice(&body).map_err(|_| ExternalCallFailure::InvalidResponse)?;
     match parsed.action.as_str() {
         BEDROCK_INTERVENED_ACTION => Ok(extract_external_outcome(parsed)),
         BEDROCK_NONE_ACTION => Ok(ExternalOutcome::None),
-        _ => Err(BedrockFailure::UnexpectedAction),
+        _ => Err(ExternalCallFailure::UnexpectedAction),
     }
 }
 
@@ -356,30 +318,6 @@ fn extract_external_outcome(parsed: ApplyGuardrailResponse) -> ExternalOutcome {
     } else {
         ExternalOutcome::Anonymized(outputs)
     }
-}
-
-async fn read_bounded_body(
-    mut response: reqwest::Response,
-    limit: usize,
-) -> Result<Vec<u8>, BedrockFailure> {
-    if response
-        .content_length()
-        .is_some_and(|length| usize::try_from(length).unwrap_or(usize::MAX) > limit)
-    {
-        return Err(BedrockFailure::ResponseTooLarge);
-    }
-    let mut body = Vec::new();
-    while let Some(chunk) = response
-        .chunk()
-        .await
-        .map_err(|_| BedrockFailure::Transport)?
-    {
-        if chunk.len() > limit.saturating_sub(body.len()) {
-            return Err(BedrockFailure::ResponseTooLarge);
-        }
-        body.extend_from_slice(&chunk);
-    }
-    Ok(body)
 }
 
 /// Percent-encodes every byte outside RFC 3986 unreserved characters so an ARN

@@ -327,6 +327,17 @@ function decryptResolvedGuardrail(
     return wire;
   }
   try {
+    if (guardrail.type === "openai_moderation") {
+      return {
+        id: guardrail.id,
+        name: guardrail.name,
+        type: "openai_moderation" as const,
+        action: guardrail.action,
+        patterns: [] as [],
+        region: guardrail.region,
+        api_key: decrypt(guardrail.encrypted_credential),
+      };
+    }
     const apiKey = decodeBedrockApiKey(decrypt(guardrail.encrypted_credential));
     return {
       id: guardrail.id,
@@ -341,7 +352,7 @@ function decryptResolvedGuardrail(
     };
   } catch (error) {
     logger.error(
-      "Bedrock guardrail credential could not be decrypted; failing closed",
+      "External guardrail credential could not be decrypted; failing closed",
       {
         guardrailId: guardrail.id,
         organizationId,

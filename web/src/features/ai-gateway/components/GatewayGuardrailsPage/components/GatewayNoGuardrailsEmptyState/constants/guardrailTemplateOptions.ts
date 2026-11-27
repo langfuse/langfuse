@@ -7,6 +7,7 @@ import {
   type IconComponent,
 } from "@langfuse/icons";
 import { AwsColorMark } from "@langfuse/icons/brand";
+import { SiOpenai } from "@langfuse/icons/si";
 
 import type { GatewayGuardrailTemplateKind } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/GatewayGuardrailDialogController";
 
@@ -54,5 +55,11 @@ export const GUARDRAIL_TEMPLATE_OPTIONS: readonly GuardrailTemplateOption[] = [
     title: "Amazon Bedrock",
     hint: "Guardrail ID & key",
     icon: AwsColorMark,
+  },
+  {
+    id: "openai_moderation",
+    title: "OpenAI Moderation",
+    hint: "Harmful content & key",
+    icon: SiOpenai,
   },
 ];

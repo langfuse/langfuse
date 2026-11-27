@@ -26,6 +26,8 @@ import {
   GatewayGuardrailRedactionLabelSchema,
   GatewayGuardrailScopeSchema,
   GatewayGuardrailSecretPrefixesSchema,
+  GatewayOpenAiModerationGuardrailCreateInputSchema,
+  GatewayOpenAiModerationGuardrailUpdateInputSchema,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
@@ -104,6 +106,24 @@ const bedrockActionSchema = z.enum(
   GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.actions,
 );
 
+function openAiModerationWriteSchema<T extends z.ZodType>(openAiModeration: T) {
+  return z.discriminatedUnion("action", [
+    z.object({
+      ...commonWriteFields,
+      type: z.literal("OPENAI_MODERATION"),
+      openAiModeration,
+      action: z.literal("BLOCK"),
+      scope: z.enum(GATEWAY_GUARDRAIL_ACTION_SCOPES.BLOCK).optional(),
+    }),
+    z.object({
+      ...commonWriteFields,
+      type: z.literal("OPENAI_MODERATION"),
+      openAiModeration,
+      action: z.literal("LOG"),
+    }),
+  ]);
+}
+
 const createGuardrailInput = z.union([
   organizationInput.and(regexWriteSchema),
   organizationInput.extend({
@@ -112,6 +132,11 @@ const createGuardrailInput = z.union([
     action: bedrockActionSchema,
     bedrock: GatewayBedrockGuardrailCreateInputSchema,
   }),
+  organizationInput.and(
+    openAiModerationWriteSchema(
+      GatewayOpenAiModerationGuardrailCreateInputSchema,
+    ),
+  ),
 ]);
 
 const updateGuardrailInput = z.union([
@@ -122,6 +147,11 @@ const updateGuardrailInput = z.union([
     action: bedrockActionSchema,
     bedrock: GatewayBedrockGuardrailUpdateInputSchema,
   }),
+  guardrailIdInput.and(
+    openAiModerationWriteSchema(
+      GatewayOpenAiModerationGuardrailUpdateInputSchema,
+    ),
+  ),
 ]);
 
 const bulkTargetInput = z.discriminatedUnion("type", [
@@ -267,11 +297,18 @@ export const gatewayGuardrailRouter = createTRPCRouter({
 
   test: protectedOrganizationProcedureWithoutTracing
     .input(
-      organizationInput.extend({
-        id: z.string().optional(),
-        type: z.literal("BEDROCK"),
-        bedrock: GatewayBedrockGuardrailUpdateInputSchema,
-      }),
+      z.discriminatedUnion("type", [
+        organizationInput.extend({
+          id: z.string().optional(),
+          type: z.literal("BEDROCK"),
+          bedrock: GatewayBedrockGuardrailUpdateInputSchema,
+        }),
+        organizationInput.extend({
+          id: z.string().optional(),
+          type: z.literal("OPENAI_MODERATION"),
+          openAiModeration: GatewayOpenAiModerationGuardrailUpdateInputSchema,
+        }),
+      ]),
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({
@@ -279,12 +316,20 @@ export const gatewayGuardrailRouter = createTRPCRouter({
         orgId: input.orgId,
       });
       try {
-        return await new GatewayGuardrailService(ctx.prisma).test({
-          organizationId: input.orgId,
-          id: input.id,
-          type: input.type,
-          bedrock: input.bedrock,
-        });
+        const service = new GatewayGuardrailService(ctx.prisma);
+        return await (input.type === "BEDROCK"
+          ? service.test({
+              organizationId: input.orgId,
+              id: input.id,
+              type: input.type,
+              bedrock: input.bedrock,
+            })
+          : service.test({
+              organizationId: input.orgId,
+              id: input.id,
+              type: input.type,
+              openAiModeration: input.openAiModeration,
+            }));
       } catch (error) {
         if (error instanceof ProviderCredentialRejectedError) {
           return {
@@ -312,6 +357,18 @@ export const gatewayGuardrailRouter = createTRPCRouter({
           action: input.action,
           scope: input.scope,
           bedrock: input.bedrock,
+          assignments: input.assignments,
+          session: ctx.session,
+        });
+      }
+      if (input.type === "OPENAI_MODERATION") {
+        return service.create({
+          organizationId: input.orgId,
+          type: "OPENAI_MODERATION",
+          name: input.name,
+          action: input.action,
+          scope: input.scope,
+          openAiModeration: input.openAiModeration,
           assignments: input.assignments,
           session: ctx.session,
         });
@@ -350,6 +407,19 @@ export const gatewayGuardrailRouter = createTRPCRouter({
           action: input.action,
           scope: input.scope,
           bedrock: input.bedrock,
+          assignments: input.assignments,
+          session: ctx.session,
+        });
+      }
+      if (input.type === "OPENAI_MODERATION") {
+        return service.update({
+          organizationId: input.orgId,
+          id: input.id,
+          type: "OPENAI_MODERATION",
+          name: input.name,
+          action: input.action,
+          scope: input.scope,
+          openAiModeration: input.openAiModeration,
           assignments: input.assignments,
           session: ctx.session,
         });

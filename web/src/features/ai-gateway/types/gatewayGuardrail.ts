@@ -64,7 +64,8 @@ export type GatewayGuardrailTemplateKind =
   | "prompt_injection"
   | "contains"
   | "custom_regex"
-  | "bedrock";
+  | "bedrock"
+  | "openai_moderation";
 
 /**
  * Built-in rules a regex guardrail can use. Resolve sends the patterns, so the
@@ -420,6 +421,43 @@ export const GatewayBedrockGuardrailUpdateInputSchema =
     apiKey: GatewayBedrockGuardrailApiKeySchema.optional(),
   });
 
+/** OpenAI data-residency regions; the gateway maps each to its API host. */
+export const GATEWAY_OPENAI_MODERATION_REGIONS = ["us", "eu"] as const;
+const OPENAI_API_KEY_MAX_LENGTH = 1024;
+
+export const GatewayOpenAiModerationGuardrailConfigSchema = z.object({
+  region: z.enum(GATEWAY_OPENAI_MODERATION_REGIONS, {
+    error: "Select an OpenAI region",
+  }),
+});
+
+export type GatewayOpenAiModerationGuardrailConfig = z.infer<
+  typeof GatewayOpenAiModerationGuardrailConfigSchema
+>;
+
+export const GatewayOpenAiModerationGuardrailApiKeySchema = z
+  .string()
+  .trim()
+  .min(1, "Enter an OpenAI API key")
+  .max(
+    OPENAI_API_KEY_MAX_LENGTH,
+    `OpenAI API key must be at most ${OPENAI_API_KEY_MAX_LENGTH} characters`,
+  )
+  .refine(
+    (value) => PRINTABLE_ASCII_NO_WHITESPACE_REGEX.test(value),
+    "OpenAI API key must be printable ASCII with no whitespace",
+  );
+
+export const GatewayOpenAiModerationGuardrailCreateInputSchema =
+  GatewayOpenAiModerationGuardrailConfigSchema.extend({
+    apiKey: GatewayOpenAiModerationGuardrailApiKeySchema,
+  });
+
+export const GatewayOpenAiModerationGuardrailUpdateInputSchema =
+  GatewayOpenAiModerationGuardrailConfigSchema.extend({
+    apiKey: GatewayOpenAiModerationGuardrailApiKeySchema.optional(),
+  });
+
 const GatewayGuardrailSecretPrefixSchema = z
   .string()
   .min(
@@ -493,6 +531,12 @@ export const GATEWAY_GUARDRAIL_TYPE_CAPABILITIES = {
   BEDROCK: {
     actions: ["ENFORCE", "LOG"],
     defaultAction: "ENFORCE",
+    supportsRedactionLabel: false,
+  },
+  // Moderation returns verdicts without spans, so it cannot redact.
+  OPENAI_MODERATION: {
+    actions: ["BLOCK", "LOG"],
+    defaultAction: "BLOCK",
     supportsRedactionLabel: false,
   },
 } as const satisfies Record<GatewayGuardrailType, GuardrailTypeCapability>;

@@ -465,6 +465,54 @@ describe("GatewayResolveService", () => {
     });
   });
 
+  it("resolves OpenAI moderation guardrails with a decrypted key and fails closed on invalid config", async () => {
+    const service = serviceWith(() => Promise.resolve(row({})), "org-1", [
+      {
+        id: "gr-moderation",
+        name: "Moderation",
+        type: "OPENAI_MODERATION",
+        action: "ENFORCE",
+        redactionLabel: null,
+        config: { region: "eu" },
+        encryptedCredential: "encrypted-openai-key",
+      },
+      {
+        id: "gr-moderation-invalid",
+        name: "Moderation invalid",
+        type: "OPENAI_MODERATION",
+        action: "LOG",
+        redactionLabel: null,
+        config: { region: "eu.evil.example" },
+        encryptedCredential: "encrypted-openai-key",
+      },
+    ]);
+
+    const response = await service.resolve({
+      fastHashedSecretKey: "hashed-secret-key",
+      apiFormat: "openai.responses",
+    });
+    expect(response.guardrails).toEqual([
+      {
+        id: "gr-moderation",
+        name: "Moderation",
+        type: "openai_moderation",
+        action: "block",
+        scope: "last_turn",
+        patterns: [],
+        region: "eu",
+        api_key: "sk-test",
+      },
+      {
+        id: "gr-moderation-invalid",
+        name: "Moderation invalid",
+        type: "fail_closed",
+        action: "log",
+        scope: "last_turn",
+        patterns: [],
+      },
+    ]);
+  });
+
   it("emits fail_closed when a Bedrock guardrail credential cannot be decrypted or config is invalid", async () => {
     const service = serviceWith(() => Promise.resolve(row({})), "org-1", [
       {
