@@ -22,10 +22,9 @@ import {
   isInternalViewEnabled,
 } from "@/src/features/feature-flags/utils";
 import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
-import {
-  deleteUserBoundApiKeys,
-  evictRevokedApiKeys,
-} from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { invalidateCachedApiKeys } from "@langfuse/shared/src/server";
 
 // Deleting a user fires a foreign-key action on every table that references
 // users, and many of those columns are unindexed, so the delete scans those
@@ -234,7 +233,22 @@ export const userAccountRouter = createTRPCRouter({
           select: { orgId: true },
         });
 
-        const revokedKeys = await deleteUserBoundApiKeys(tx, { userId });
+        const revokedKeys = await deleteApiKeys(tx, { userId });
+        for (const apiKey of revokedKeys) {
+          if (!apiKey.orgId) continue;
+          await auditLog(
+            {
+              userId,
+              orgId: apiKey.orgId,
+              resourceType: "apiKey",
+              resourceId: apiKey.id,
+              action: "delete",
+              before: { metadata: apiKey.gatewayAssociation?.metadata, apiKey },
+              after: { reason: "user_unbound", userId },
+            },
+            tx,
+          );
+        }
 
         // Delete the user (cascade will handle related records)
         await tx.sessionView.deleteMany({
@@ -258,7 +272,7 @@ export const userAccountRouter = createTRPCRouter({
       },
     );
 
-    await evictRevokedApiKeys(revokedKeys, { userId });
+    await invalidateCachedApiKeys(revokedKeys, `user ${userId}`);
 
     // SFDC: remove every org-member bridge the cascade just deleted. After
     // commit so a rolled-back delete never desyncs SFDC; removeUser never

@@ -22,6 +22,7 @@ import {
   getUserProjectRoles,
   getUserProjectRolesCount,
   escapeSqlLikePattern,
+  invalidateCachedApiKeys,
   invalidateCachedUserApiKeys,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
@@ -34,11 +35,8 @@ import {
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
-import {
-  deleteUserBoundApiKeys,
-  evictRevokedApiKeys,
-  evictUserGatewayResolveCache,
-} from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+import { evictUserGatewayResolveCache } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   deleteOrgMembership,
   deleteProjectMembership,
@@ -153,10 +151,26 @@ export const membersRouter = createTRPCRouter({
             orgId: input.orgId,
             userId: orgMembership.userId,
           });
-          const revokedKeys = await deleteUserBoundApiKeys(tx, {
-            userId: orgMembership.userId,
+          const revokedKeys = await deleteApiKeys(tx, {
             orgId: input.orgId,
+            userId: orgMembership.userId,
           });
+          for (const apiKey of revokedKeys) {
+            await auditLog(
+              {
+                session: ctx.session,
+                resourceType: "apiKey",
+                resourceId: apiKey.id,
+                action: "delete",
+                before: {
+                  metadata: apiKey.gatewayAssociation?.metadata,
+                  apiKey,
+                },
+                after: { reason: "user_unbound", userId: orgMembership.userId },
+              },
+              tx,
+            );
+          }
           await deleteSessionViewsWithoutProjectAccess(tx, {
             userId: orgMembership.userId,
             orgId: input.orgId,
@@ -174,7 +188,10 @@ export const membersRouter = createTRPCRouter({
           return { deleted, revokedKeys };
         },
       );
-      await evictRevokedApiKeys(revokedKeys, { session: ctx.session });
+      await invalidateCachedApiKeys(
+        revokedKeys,
+        `user ${orgMembership.userId}`,
+      );
 
       // SFDC: remove the org-member bridge.
       await getSfdcService()?.removeUser({

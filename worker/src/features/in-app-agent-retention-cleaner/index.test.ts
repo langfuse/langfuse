@@ -34,12 +34,13 @@ vi.mock("@langfuse/shared/src/server", () => ({
   recordGauge: mocks.gauge,
   traceException: vi.fn(),
   getCurrentSpan: vi.fn(),
+  invalidateCachedApiKeys: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/server/ee/licenseCheck", () => ({
   isEnterpriseLicenseAvailable: mocks.licensed,
 }));
 vi.mock("@langfuse/shared/src/server/auth/apiKeys", () => ({
-  deleteInAppAgentMcpApiKeyFromDb: mocks.deleteKey,
+  deleteApiKey: mocks.deleteKey,
 }));
 vi.mock("../../utils/RedisLock", () => ({
   RedisLock: class {
@@ -82,12 +83,14 @@ describe("InAppAgentRetentionCleaner", () => {
 
   it("revokes keys before clearing pointers and deleting conversations", async () => {
     expect(await new InAppAgentRetentionCleaner().processBatch()).toBe(0);
-    expect(mocks.deleteKey).toHaveBeenCalledWith({
-      prisma: expect.objectContaining({ $queryRaw: mocks.query }),
-      id: "key",
-      projectId: "project",
-      redis: null,
-    });
+    expect(mocks.deleteKey).toHaveBeenCalledWith(
+      expect.objectContaining({ $queryRaw: mocks.query }),
+      {
+        id: "key",
+        projectId: "project",
+        isInAppAgentKey: true,
+      },
+    );
     expect(mocks.updateRuns).toHaveBeenCalledWith({
       where: { id: "run", projectId: "project", mcpApiKeyId: "key" },
       data: { mcpApiKeyId: null },

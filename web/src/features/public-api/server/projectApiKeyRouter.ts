@@ -5,9 +5,14 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import * as z from "zod";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { redis } from "@langfuse/shared/src/server";
-import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import {
+  invalidateCachedApiKeys,
+  withTransaction,
+} from "@langfuse/shared/src/server";
+import {
+  createApiKey,
+  deleteApiKey,
+} from "@langfuse/shared/src/server/auth/apiKeys";
 import { LangfuseNotFoundError, StringNoHTML } from "@langfuse/shared";
 import {
   OrganizationId,
@@ -166,31 +171,35 @@ export const projectApiKeysRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "apiKeys:CUD",
       });
-      const apiKey = await ctx.prisma.apiKey.findFirst({
-        where: {
+      const deleted = await withTransaction(ctx.prisma, async (tx) => {
+        const deletedApiKey = await deleteApiKey(tx, {
           id: input.id,
           projectId: input.projectId,
-          scope: "PROJECT",
-        },
+          isInAppAgentKey: false,
+        });
+        if (deletedApiKey) {
+          await auditLog(
+            {
+              session: ctx.session,
+              resourceType: "apiKey",
+              resourceId: deletedApiKey.id,
+              action: "delete",
+              before: {
+                metadata: deletedApiKey.gatewayAssociation?.metadata,
+                apiKey: deletedApiKey,
+              },
+            },
+            tx,
+          );
+        }
+        return deletedApiKey;
       });
 
-      if (!apiKey) {
+      if (!deleted) {
         throw new LangfuseNotFoundError("API key not found");
       }
 
-      if (apiKey.isInAppAgentKey) return false;
-
-      await auditLog({
-        session: ctx.session,
-        resourceType: "apiKey",
-        resourceId: input.id,
-        action: "delete",
-      });
-
-      return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
-        input.id,
-        input.projectId,
-        "PROJECT",
-      );
+      await invalidateCachedApiKeys([deleted], `key ${deleted.id}`);
+      return true;
     }),
 });

@@ -55,13 +55,15 @@ export class AuthenticatorCache {
       return false;
     }
     try {
-      await redis.set(
+      // NX so a stale write cannot replace an invalidated marker
+      const written = await redis.set(
         key,
         JSON.stringify({ context: result.context }),
         "EX",
         ttlSeconds,
+        "NX",
       );
-      return true;
+      return written === "OK";
     } catch (error) {
       logger.error("authz context cache write failed", error);
       return false;

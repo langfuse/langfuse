@@ -1233,6 +1233,9 @@ describe("membersRouter - gateway key revocation", () => {
       role: Role.MEMBER,
     });
     const key = await createBoundGatewayKey(org.id, member.id);
+    await prisma.gatewayApiKeyAssociation.create({
+      data: { apiKeyId: key.id, metadata: { team: "search" } },
+    });
 
     await caller.members.deleteMembership({
       orgId: org.id,
@@ -1240,6 +1243,10 @@ describe("membersRouter - gateway key revocation", () => {
     });
 
     expect(await keyExists(key.id)).toBe(false);
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { resourceType: "apiKey", resourceId: key.id, action: "delete" },
+    });
+    expect(JSON.parse(audit.before!).metadata).toEqual({ team: "search" });
   });
 
   it.each([Role.MEMBER, Role.VIEWER, Role.NONE])(

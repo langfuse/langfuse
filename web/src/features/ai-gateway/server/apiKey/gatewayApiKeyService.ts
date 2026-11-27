@@ -1,15 +1,17 @@
 import {
   ForbiddenError,
-  InternalServerError,
   LangfuseConflictError,
   LangfuseNotFoundError,
   type OrderByState,
 } from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
+  invalidateCachedApiKeys,
+  withTransaction,
+} from "@langfuse/shared/src/server";
+import {
   createApiKey,
-  deleteApiKeyFromDb,
-  orgBoundApiKeyScopes,
+  deleteApiKey,
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   OrganizationId,
@@ -210,41 +212,34 @@ export class GatewayApiKeyService {
     if (!association) {
       throw new LangfuseNotFoundError("Gateway key not found");
     }
-    // Read the hash before the row is gone; it is the resolve cache key.
-    const revoked = await this.prisma.apiKey.findFirst({
-      where: {
+    const deleted = await withTransaction(this.prisma, async (tx) => {
+      const deletedApiKey = await deleteApiKey(tx, {
         id: params.apiKeyId,
         orgId: params.organizationId,
-        scope: { in: orgBoundApiKeyScopes },
-      },
-      select: { fastHashedSecretKey: true, scope: true },
-    });
-    if (!revoked) {
-      throw new LangfuseNotFoundError("Gateway API key not found");
-    }
-    const deleted = await deleteApiKeyFromDb({
-      prisma: this.prisma,
-      id: params.apiKeyId,
-      entityId: params.organizationId,
-      scope: revoked.scope,
-      redis: this.redis,
+        userId: params.ownerUserId,
+      });
+      if (deletedApiKey) {
+        await auditLog(
+          {
+            session: params.session,
+            resourceType: "apiKey",
+            resourceId: deletedApiKey.id,
+            action: "delete",
+            before: {
+              metadata: deletedApiKey.gatewayAssociation?.metadata,
+              apiKey: deletedApiKey,
+            },
+          },
+          tx,
+        );
+      }
+      return deletedApiKey;
     });
     if (!deleted) {
-      throw new InternalServerError("Failed to revoke gateway key");
+      throw new LangfuseNotFoundError("Gateway API key not found");
     }
-    if (revoked.fastHashedSecretKey) {
-      await invalidateGatewayResolveCacheForApiKey(revoked.fastHashedSecretKey);
-    }
-    await auditLog(
-      {
-        session: params.session,
-        resourceType: "apiKey",
-        resourceId: params.apiKeyId,
-        action: "delete",
-        before: association,
-      },
-      this.prisma,
-    );
+
+    await invalidateCachedApiKeys([deleted], `key ${deleted.id}`, this.redis);
   }
 }
 

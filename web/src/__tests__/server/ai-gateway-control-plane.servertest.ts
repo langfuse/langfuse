@@ -76,7 +76,7 @@ import {
   type GatewayResolveError,
   GatewayResolveService,
 } from "@/src/features/ai-gateway/server/resolve/resolveService";
-import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { GatewayResolveCache } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { GatewayModelsResponseSchema } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
@@ -5420,24 +5420,19 @@ describe("AI gateway control plane", () => {
       });
     });
 
-    it("serves an out-of-band demotion from cache until the entry expires", async () => {
+    it("rejects a cached user-bound key as soon as its owner is demoted through the membership repository", async () => {
       const { caller, org, user } = await prepare();
       const key = await caller.aiGateway.createApiKey({
         orgId: org.id,
         name: "User key",
         metadata: {},
       });
-      const fastHashedSecretKey = createShaHash(key.secretKey, env.SALT);
       await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
         apiKeyId: key.id,
       });
+
       await setOwnerRole(org.id, user.id, Role.VIEWER);
 
-      // The resolve cache TTL bounds how long the cached grant survives.
-      await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
-        apiKeyId: key.id,
-      });
-      await invalidateGatewayResolveCacheForApiKey(fastHashedSecretKey);
       await expect(authenticateKey(key.secretKey)).rejects.toMatchObject(
         keyNotAllowed,
       );
@@ -5476,6 +5471,48 @@ describe("AI gateway control plane", () => {
       await expect(authenticateKey(key.secretKey)).rejects.toMatchObject(
         keyNotAllowed,
       );
+    });
+
+    it("rejects a cached user-bound key as soon as members.deleteMembership removes its owner", async () => {
+      expect(env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED).toBe("true");
+      const { caller, org, user } = await prepare();
+      const key = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name: "User key",
+        metadata: {},
+      });
+      await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
+        apiKeyId: key.id,
+      });
+      const resolveCache = new GatewayResolveCache();
+      const cacheParams = {
+        fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
+        apiFormat: "openai.responses" as const,
+      };
+      const staleContext = await resolveCache.get(cacheParams);
+      expect(staleContext).toMatchObject({ apiKeyId: key.id });
+      const otherOwner = await prisma.user.create({
+        data: { email: `gateway-owner-${randomUUID()}@example.test` },
+      });
+      cleanupUsers.push(otherOwner.id);
+      await createOrgMembership(prisma, {
+        orgId: org.id,
+        userId: otherOwner.id,
+        role: Role.OWNER,
+      });
+      const membership = await prisma.organizationMembership.findUniqueOrThrow({
+        where: { orgId_userId: { orgId: org.id, userId: user.id } },
+      });
+
+      await caller.members.deleteMembership({
+        orgId: org.id,
+        orgMembershipId: membership.id,
+      });
+      await resolveCache.set({ ...cacheParams, context: staleContext! });
+
+      await expect(authenticateKey(key.secretKey)).rejects.toMatchObject({
+        status: 401,
+      });
     });
   });
 

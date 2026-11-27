@@ -2,7 +2,6 @@ import { PrismaClient, ApiKeyScope, type Prisma } from "@prisma/client";
 import { compare, hash } from "bcryptjs";
 import { randomUUID } from "crypto";
 import * as crypto from "crypto";
-import type { Cluster, Redis } from "ioredis";
 import { env } from "../../env";
 import {
   ApiKeyId,
@@ -18,13 +17,31 @@ import {
   type TenantId,
   type UserId,
 } from "../../features/rbac/types";
-import { logger } from "../logger";
 import { assignRole } from "../../features/rbac/roleAssignmentService";
-import { invalidateCachedApiKeys } from "./invalidateApiKeys";
 import { withTransaction } from "../utils/withTransaction";
 
 /** orgBoundApiKeyScopes are the scopes of keys that belong to an organization through their orgId. */
 export const orgBoundApiKeyScopes: ApiKeyScope[] = ["ORGANIZATION", "USER"];
+
+/** deletedApiKeySelect is every api key field an audit record may hold; hashedSecretKey stays out */
+const deletedApiKeySelect = {
+  id: true,
+  publicKey: true,
+  displaySecretKey: true,
+  fastHashedSecretKey: true,
+  note: true,
+  scope: true,
+  orgId: true,
+  projectId: true,
+  userId: true,
+  isInAppAgentKey: true,
+  createdAt: true,
+  expiresAt: true,
+  lastUsedAt: true,
+  createdByUserId: true,
+  createdByApiKeyId: true,
+  gatewayAssociation: { select: { metadata: true } },
+} satisfies Prisma.ApiKeySelect;
 
 export function getDisplaySecretKey(secretKey: string) {
   return secretKey.slice(0, 6) + "..." + secretKey.slice(-4);
@@ -299,69 +316,55 @@ function apiKeyRole({
   };
 }
 
-export async function deleteApiKeyFromDb(p: {
-  prisma: PrismaClient;
-  id: string;
-  entityId: string;
-  scope: ApiKeyScope;
-  redis?: Redis | Cluster | null;
-  /**
-   * When true, only delete keys minted for in-app agent MCP sessions.
-   * A matching project key that is not an agent key is left intact.
-   */
-  isInAppAgentKey?: boolean;
-}) {
-  const entity =
-    p.scope === "PROJECT" ? { projectId: p.entityId } : { orgId: p.entityId };
-
-  const apiKey = await p.prisma.apiKey.findFirstOrThrow({
-    where: {
-      ...entity,
-      id: p.id,
-      scope: p.scope,
-    },
-  });
-
-  if (p.isInAppAgentKey === true && apiKey.isInAppAgentKey !== true) {
-    logger.warn(
-      "Refusing to delete API key that is not an in-app agent MCP key",
-      {
-        apiKeyId: p.id,
-        entityId: p.entityId,
-        scope: p.scope,
-      },
-    );
-    return false;
-  }
-
-  // The row goes first, then the cache. In the other order, a request
-  // authenticating with this key in between misses the cache, still finds the
-  // row, and writes the key back into the cache after the eviction. `apiKey` is
-  // already loaded above, so eviction does not need the row to still exist.
-  await p.prisma.apiKey.delete({
-    where: {
-      id: apiKey.id,
-    },
-  });
-
-  await invalidateCachedApiKeys([apiKey], `key ${p.id}`, p.redis);
-
-  return true;
+/** deleteApiKey deletes the api key with id when it belongs to the given project or organization, and returns it or null */
+export async function deleteApiKey(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  params: DeleteApiKeyParams,
+): Promise<DeletedApiKey | null> {
+  const [apiKey] = await deleteMatchingApiKeys(prisma, params);
+  return apiKey ?? null;
 }
 
-/** Delete an in-app agent MCP session key. Skips user project keys. */
-export async function deleteInAppAgentMcpApiKeyFromDb(p: {
-  prisma: PrismaClient;
-  id: string;
-  projectId: string;
-  redis?: Redis | Cluster | null;
-}) {
-  return deleteApiKeyFromDb({
-    prisma: p.prisma,
-    id: p.id,
-    entityId: p.projectId,
-    scope: "PROJECT",
-    redis: p.redis,
-    isInAppAgentKey: true,
+/** deleteApiKeys deletes every api key matching params and returns them */
+export async function deleteApiKeys(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  params: DeleteApiKeysParams,
+): Promise<DeletedApiKey[]> {
+  return deleteMatchingApiKeys(prisma, params);
+}
+
+/** deleteMatchingApiKeys deletes the api keys matching where and returns them */
+async function deleteMatchingApiKeys(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  where: Prisma.ApiKeyWhereInput,
+): Promise<DeletedApiKey[]> {
+  return withTransaction(prisma, async (tx) => {
+    const apiKeys = await tx.apiKey.findMany({
+      where,
+      select: deletedApiKeySelect,
+    });
+    if (apiKeys.length === 0) return apiKeys;
+    // by id, so a key created concurrently in scope survives
+    await tx.apiKey.deleteMany({
+      where: { id: { in: apiKeys.map((apiKey) => apiKey.id) } },
+    });
+    return apiKeys;
   });
 }
+
+/** DeleteApiKeyParams names an api key and the project or organization it must belong to */
+type DeleteApiKeyParams = { id: string; isInAppAgentKey?: boolean } & (
+  | { projectId: string }
+  | { orgId: string; userId?: string }
+);
+
+/** DeleteApiKeysParams selects a project's api keys or a user's api keys, optionally in one organization */
+type DeleteApiKeysParams = { isInAppAgentKey?: boolean } & (
+  | { projectId: string }
+  | { userId: string; orgId?: string }
+);
+
+/** DeletedApiKey is the non-secret snapshot of a deleted api key */
+type DeletedApiKey = Prisma.ApiKeyGetPayload<{
+  select: typeof deletedApiKeySelect;
+}>;

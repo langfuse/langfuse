@@ -6,13 +6,14 @@ import {
   deleteOrgMembership,
   updateOrgMembership,
 } from "@langfuse/shared/memberships";
-import {
-  deleteUserBoundApiKeys,
-  evictRevokedApiKeys,
-  evictUserGatewayResolveCache,
-} from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+import { evictUserGatewayResolveCache } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
-import { logger, withSerializableRetry } from "@langfuse/shared/src/server";
+import {
+  invalidateCachedApiKeys,
+  logger,
+  withSerializableRetry,
+} from "@langfuse/shared/src/server";
+import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   isBaseError,
   LangfuseConflictError,
@@ -283,14 +284,31 @@ async function deprovisionOrReject(
         from: membership.role,
       });
       await deleteOrgMembership(tx, { orgId, userId });
-      const revokedKeys = await deleteUserBoundApiKeys(tx, { userId, orgId });
+      const revokedKeys = await deleteApiKeys(tx, {
+        orgId,
+        userId,
+      });
+      for (const apiKey of revokedKeys) {
+        await auditLog(
+          {
+            orgId,
+            apiKeyId,
+            resourceType: "apiKey",
+            resourceId: apiKey.id,
+            action: "delete",
+            before: { metadata: apiKey.gatewayAssociation?.metadata, apiKey },
+            after: { reason: "user_unbound", userId },
+          },
+          tx,
+        );
+      }
       await deleteSessionViewsWithoutProjectAccess(tx, { userId, orgId });
       return { result: "deleted" as const, membership, revokedKeys };
     });
 
     // Only audit and sync when a membership was actually removed.
     if (outcome.result === "deleted") {
-      await evictRevokedApiKeys(outcome.revokedKeys, { apiKeyId });
+      await invalidateCachedApiKeys(outcome.revokedKeys, `user ${userId}`);
       await auditLog({
         resourceType: "orgMembership",
         resourceId: outcome.membership.id,

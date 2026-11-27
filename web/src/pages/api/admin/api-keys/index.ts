@@ -3,10 +3,13 @@ import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   invalidateAllCachedApiKeys,
+  invalidateCachedApiKeys,
   logger,
   redis,
 } from "@langfuse/shared/src/server";
+import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 /* 
 This API route is used by Langfuse Cloud to delete API keys for a project.
@@ -32,6 +35,9 @@ const ApiKeyAction = z.discriminatedUnion("action", [
   InvalidateApiKeySchema,
   InvalidateAllApiKeysSchema,
 ]);
+
+/** deleteProjectApiKeysTimeoutMs bounds the transaction that deletes and audits every key of the requested projects */
+const deleteProjectApiKeysTimeoutMs = 30_000;
 
 export default async function handler(
   req: NextApiRequest,
@@ -64,28 +70,9 @@ export default async function handler(
         `trying to remove API keys for projects ${body.data.projectIds.join(", ")}`,
       );
 
-      // delete the API keys in the database first
-      const apiKeysToBeDeleted = await prisma.apiKey.findMany({
-        where: {
-          projectId: {
-            in: body.data.projectIds,
-          },
-          scope: "PROJECT",
-        },
-      });
-
-      await prisma.apiKey.deleteMany({
-        where: {
-          projectId: {
-            in: body.data.projectIds,
-          },
-          scope: "PROJECT",
-        },
-      });
-
-      // then delete from the cache
-      await new ApiAuthService(prisma, redis).invalidateCachedApiKeys(
-        apiKeysToBeDeleted,
+      const deletedApiKeys = await deleteProjectApiKeys(body.data.projectIds);
+      await invalidateCachedApiKeys(
+        deletedApiKeys,
         `projects ${body.data.projectIds.join(", ")}`,
       );
 
@@ -131,4 +118,40 @@ export default async function handler(
     logger.error("failed to remove API keys", e);
     res.status(500).json({ error: e });
   }
+}
+
+/** deleteProjectApiKeys deletes every key of the projects and records one audit entry per key */
+async function deleteProjectApiKeys(projectIds: string[]) {
+  return prisma.$transaction(
+    async (tx) => {
+      const projects = await tx.project.findMany({
+        where: { id: { in: projectIds } },
+        select: { id: true, orgId: true },
+      });
+      const deletedApiKeys = [];
+      for (const project of projects) {
+        const apiKeys = await deleteApiKeys(tx, { projectId: project.id });
+        for (const apiKey of apiKeys) {
+          await auditLog(
+            {
+              apiKeyId: "ADMIN_API_KEY",
+              orgId: project.orgId,
+              projectId: project.id,
+              resourceType: "apiKey",
+              resourceId: apiKey.id,
+              action: "delete",
+              before: {
+                metadata: apiKey.gatewayAssociation?.metadata,
+                apiKey: apiKey,
+              },
+            },
+            tx,
+          );
+        }
+        deletedApiKeys.push(...apiKeys);
+      }
+      return deletedApiKeys;
+    },
+    { timeout: deleteProjectApiKeysTimeoutMs },
+  );
 }

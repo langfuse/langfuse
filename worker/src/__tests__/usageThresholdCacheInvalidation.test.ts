@@ -6,6 +6,7 @@ import {
   hashSecretKey,
   getDisplaySecretKey,
   createShaHash,
+  safeMultiDel,
 } from "@langfuse/shared/src/server";
 import { processThresholds } from "../ee/usageThresholds/thresholdProcessing";
 import { bulkUpdateOrganizations } from "../ee/usageThresholds/bulkUpdates";
@@ -69,10 +70,7 @@ describe("Usage Threshold Cache Invalidation", () => {
 
     // Clear Redis cache
     if (redis) {
-      const keys = await redis.keys("api-key:*");
-      if (keys.length > 0) {
-        await redis.del(keys);
-      }
+      await safeMultiDel(redis, await redis.keys("api-key:*"));
     }
   });
 
@@ -90,10 +88,7 @@ describe("Usage Threshold Cache Invalidation", () => {
 
     // Clear Redis cache
     if (redis) {
-      const keys = await redis.keys("api-key:*");
-      if (keys.length > 0) {
-        await redis.del(keys);
-      }
+      await safeMultiDel(redis, await redis.keys("api-key:*"));
     }
   });
 

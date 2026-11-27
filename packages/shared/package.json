@@ -79,6 +79,10 @@
       "import": "./dist/src/server/llm/llmText.js",
       "require": "./dist/src/server/llm/llmText.js"
     },
+    "./src/server/auth/apiKeyCache": {
+      "import": "./dist/src/server/auth/apiKeyCache.js",
+      "require": "./dist/src/server/auth/apiKeyCache.js"
+    },
     "./src/server/auth/apiKeys": {
       "import": "./dist/src/server/auth/apiKeys.js",
       "require": "./dist/src/server/auth/apiKeys.js"

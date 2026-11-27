@@ -1,7 +1,6 @@
 import { env } from "@/src/env.mjs";
 import {
   createShaHash,
-  deleteApiKeyFromDb,
   formatSubmittedPublicKeyForLog,
   recordIncrement,
   verifySecretKey,
@@ -15,6 +14,7 @@ import {
   invalidateCachedOrgApiKeys as invalidateCachedOrgApiKeysShared,
   invalidateCachedProjectApiKeys as invalidateCachedProjectApiKeysShared,
   createApiKeyCacheKey,
+  apiKeyCacheInvalidated,
   API_KEY_NON_EXISTENT,
   getOrganizationPlanServerSide,
 } from "@langfuse/shared/src/server";
@@ -22,7 +22,6 @@ import {
   type PrismaClient,
   type ApiKey,
   type Prisma,
-  type ApiKeyScope,
 } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type Redis, type Cluster } from "ioredis";
@@ -47,7 +46,10 @@ export class ApiAuthService {
   // this function needs to be called, when the organisation is updated
   // - when projects move across organisations, the orgId in the API key cache needs to be updated
   // - when the plan of the org changes, the plan in the API key cache needs to be updated as well
-  async invalidateCachedApiKeys(apiKeys: ApiKey[], identifier: string) {
+  async invalidateCachedApiKeys(
+    apiKeys: Parameters<typeof invalidateCachedApiKeysShared>[0],
+    identifier: string,
+  ) {
     await invalidateCachedApiKeysShared(apiKeys, identifier, this.redis);
   }
 
@@ -57,22 +59,6 @@ export class ApiAuthService {
 
   async invalidateCachedProjectApiKeys(projectId: string) {
     await invalidateCachedProjectApiKeysShared(projectId, this.redis);
-  }
-
-  /**
-   * Deletes an API key from the database and invalidates it in Redis if available.
-   * @param id - The ID of the API key to delete.
-   * @param entityId - The ID of the entity (project or organization) to which the API key belongs.
-   * @param scope - The scope of the API key (either "PROJECT" or "ORGANIZATION").
-   */
-  async deleteApiKey(id: string, entityId: string, scope: ApiKeyScope) {
-    return deleteApiKeyFromDb({
-      prisma: this.prisma,
-      id,
-      entityId,
-      scope,
-      redis: this.redis,
-    });
   }
 
   async verifyAuthHeaderAndReturnScope(
@@ -395,11 +381,13 @@ export class ApiAuthService {
     }
 
     try {
+      // NX so a stale write cannot replace an invalidated marker
       await this.redis.set(
         createApiKeyCacheKey(hash),
         JSON.stringify(newApiKey),
         "EX",
         env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS, // redis API is in seconds
+        "NX",
       );
     } catch (error: unknown) {
       logger.error("Error adding key to redis", error);
@@ -423,7 +411,11 @@ export class ApiAuthService {
         return null;
       }
 
-      const parsedApiKey = CachedApiKey.safeParse(JSON.parse(redisApiKey));
+      const cached: unknown = JSON.parse(redisApiKey);
+      if (cached === apiKeyCacheInvalidated) {
+        return null;
+      }
+      const parsedApiKey = CachedApiKey.safeParse(cached);
 
       if (parsedApiKey.success) {
         return parsedApiKey.data;

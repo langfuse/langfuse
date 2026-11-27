@@ -7,15 +7,21 @@ import type { Cluster, Redis } from "ioredis";
 import { type ApiKey, type Prisma } from "../../db";
 import {
   API_KEY_CACHE_PATTERN,
+  apiKeyCacheInvalidated,
   AUTHZ_CONTEXT_CACHE_PATTERN,
   AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
   createApiKeyCacheKey,
   createAuthzContextCacheKey,
+  createGatewayResolveContextCacheKey,
+  gatewayApiFormats,
 } from "./apiKeyCache";
 import { createShaHash } from "./apiKeys";
 
+/** invalidatedApiKeyMarkerTtlSeconds outlasts any in-flight request that read a key before it was invalidated */
+const invalidatedApiKeyMarkerTtlSeconds = 30;
+
 /** cacheKeysForRows includes legacy and versioned credential entries. */
-function cacheKeysForRows(apiKeys: ApiKey[]): string[] {
+function cacheKeysForRows(apiKeys: CachedApiKeyIdentity[]): string[] {
   const salt = env.SALT;
   const keys: string[] = [];
   for (const key of apiKeys) {
@@ -34,22 +40,48 @@ function cacheKeysForRows(apiKeys: ApiKey[]): string[] {
   return keys;
 }
 
-/** invalidateCachedApiKeys removes every cached credential presentation. */
+/** invalidateCachedApiKeys marks every cached credential and gateway resolve entry of the keys invalidated */
 export async function invalidateCachedApiKeys(
-  apiKeys: ApiKey[],
+  apiKeys: CachedApiKeyIdentity[],
   identifier: string,
   redisClient: Redis | Cluster | null = redis,
 ) {
-  const keysToDelete = cacheKeysForRows(apiKeys);
-  if (keysToDelete.length === 0) {
+  const keysToInvalidate = [
+    ...cacheKeysForRows(apiKeys),
+    ...gatewayResolveCacheKeysForRows(apiKeys),
+  ];
+  if (keysToInvalidate.length === 0) {
     logger.info("No valid keys to invalidate");
     return;
   }
+  if (!redisClient) return;
 
-  if (redisClient) {
-    logger.info(`Invalidating API keys in redis for ${identifier}`);
-    await safeMultiDel(redisClient, keysToDelete);
+  logger.info(`Invalidating API keys in redis for ${identifier}`);
+  const marker = JSON.stringify(apiKeyCacheInvalidated);
+  // each key may sit in a different cluster slot, so the writes stay separate
+  const results = await Promise.allSettled(
+    keysToInvalidate.map((key) =>
+      redisClient.set(key, marker, "EX", invalidatedApiKeyMarkerTtlSeconds),
+    ),
+  );
+  const failure = results.find((result) => result.status === "rejected");
+  if (failure) {
+    logger.error(`Failed to invalidate API keys in redis for ${identifier}`, {
+      error: failure.reason,
+    });
   }
+}
+
+/** gatewayResolveCacheKeysForRows lists each key's gateway resolve cache entry for every API format */
+function gatewayResolveCacheKeysForRows(
+  apiKeys: CachedApiKeyIdentity[],
+): string[] {
+  return apiKeys.flatMap(({ fastHashedSecretKey }) => {
+    if (!fastHashedSecretKey) return [];
+    return gatewayApiFormats.map((apiFormat) =>
+      createGatewayResolveContextCacheKey(apiFormat, fastHashedSecretKey),
+    );
+  });
 }
 
 /** invalidateCachedUserApiKeys removes the cached credentials of the user's USER keys in orgId, whose policies include the user's roles. */
@@ -170,3 +202,6 @@ export async function invalidateAllCachedApiKeys(
 
   return keysToDelete.length;
 }
+
+/** CachedApiKeyIdentity is the part of an api key its cache entries are keyed by */
+type CachedApiKeyIdentity = Pick<ApiKey, "fastHashedSecretKey" | "publicKey">;

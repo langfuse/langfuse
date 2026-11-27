@@ -1,10 +1,13 @@
 import {
+  apiKeyCacheInvalidated,
+  createGatewayResolveContextCacheKey,
   logger,
   recordIncrement,
   redis as defaultRedis,
 } from "@langfuse/shared/src/server";
 import { CloudConfigRateLimit, type Plan, plans } from "@langfuse/shared";
 import type { Cluster, Redis } from "ioredis";
+import type { Prisma } from "@langfuse/shared/src/db";
 import { z } from "zod/v4";
 
 import { env } from "@/src/env.mjs";
@@ -21,6 +24,9 @@ import {
 } from "@/src/features/ai-gateway/server/provider/registry";
 
 const CACHE_PREFIX = "ai-gateway:resolve";
+
+/** invalidatedEntryTtlSeconds outlasts any in-flight resolve that read a key before it was invalidated */
+const invalidatedEntryTtlSeconds = 30;
 
 /**
  * Marker for a secret key that no gateway API key matches. Cached like a hit so
@@ -79,7 +85,7 @@ const CachedResolveEntry = z.union([
 ]);
 
 const contextCacheKey = (fastHashedSecretKey: string, apiFormat: string) =>
-  `${CACHE_PREFIX}:context:${apiFormat}:${fastHashedSecretKey}`;
+  createGatewayResolveContextCacheKey(apiFormat, fastHashedSecretKey);
 
 /**
  * Index of the cache keys written for one organization. Entries are keyed by
@@ -115,7 +121,12 @@ export class GatewayResolveCache {
         return null;
       }
 
-      const parsed = CachedResolveEntry.safeParse(JSON.parse(cached));
+      const entry: unknown = JSON.parse(cached);
+      if (entry === apiKeyCacheInvalidated) {
+        recordIncrement("langfuse.gateway.resolve.cache_miss", 1);
+        return null;
+      }
+      const parsed = CachedResolveEntry.safeParse(entry);
       if (!parsed.success) {
         // A shape change between deployments must not serve stale garbage.
         await this.redis!.del(
@@ -155,12 +166,14 @@ export class GatewayResolveCache {
     );
     if (expirationTimestamp <= now) return;
     try {
+      // NX so a stale write cannot replace an invalidated marker
       if (params.context === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
         await this.redis!.set(
           key,
           JSON.stringify(params.context),
           "PXAT",
           expirationTimestamp,
+          "NX",
         );
         return;
       }
@@ -174,6 +187,7 @@ export class GatewayResolveCache {
           JSON.stringify(params.context),
           "PXAT",
           expirationTimestamp,
+          "NX",
         ),
         this.redis!.sadd(index, key),
         // The index must outlive its entries, otherwise invalidation can miss a
@@ -205,14 +219,20 @@ export class GatewayResolveCache {
     }
   }
 
-  /** Drops the cached contexts for a single gateway API key, e.g. on revoke. */
+  /** invalidateApiKey marks a gateway API key's cached contexts invalidated */
   async invalidateApiKey(fastHashedSecretKey: string) {
     if (!this.enabled) return;
 
     try {
+      const marker = JSON.stringify(apiKeyCacheInvalidated);
       await Promise.all(
         gatewayApiFormats.map((apiFormat) =>
-          this.redis!.del(contextCacheKey(fastHashedSecretKey, apiFormat)),
+          this.redis!.set(
+            contextCacheKey(fastHashedSecretKey, apiFormat),
+            marker,
+            "EX",
+            invalidatedEntryTtlSeconds,
+          ),
         ),
       );
     } catch (error) {
@@ -228,3 +248,18 @@ export const invalidateGatewayResolveCacheForOrganization = (
 export const invalidateGatewayResolveCacheForApiKey = (
   fastHashedSecretKey: string,
 ) => new GatewayResolveCache().invalidateApiKey(fastHashedSecretKey);
+
+/** evictUserGatewayResolveCache drops the cached resolve contexts of the user's keys in orgId after a committed role change */
+export async function evictUserGatewayResolveCache(
+  prisma: Prisma.TransactionClient,
+  p: { orgId: string; userId: string },
+): Promise<void> {
+  const keys = await prisma.apiKey.findMany({
+    where: { orgId: p.orgId, userId: p.userId },
+    select: { fastHashedSecretKey: true },
+  });
+  const hashes = keys.flatMap(
+    ({ fastHashedSecretKey }) => fastHashedSecretKey ?? [],
+  );
+  await Promise.all(hashes.map(invalidateGatewayResolveCacheForApiKey));
+}

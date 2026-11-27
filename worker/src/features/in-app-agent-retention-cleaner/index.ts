@@ -1,11 +1,12 @@
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import {
+  invalidateCachedApiKeys,
   logger,
   recordGauge,
   recordIncrement,
   redis,
 } from "@langfuse/shared/src/server";
-import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { deleteApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { cleanupRunMcpApiKey } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
@@ -83,12 +84,18 @@ export class InAppAgentRetentionCleaner extends PeriodicExclusiveRunner {
               runId: run.id,
               apiKeyId: run.mcpApiKeyId,
               deleteApiKey: async (id) => {
-                await deleteInAppAgentMcpApiKeyFromDb({
-                  prisma,
+                const deleted = await deleteApiKey(prisma, {
                   id,
                   projectId: run.projectId,
-                  redis,
+                  isInAppAgentKey: true,
                 });
+                if (deleted) {
+                  await invalidateCachedApiKeys(
+                    [deleted],
+                    `key ${deleted.id}`,
+                    redis,
+                  );
+                }
               },
             });
             cleanedRuns++;

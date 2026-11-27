@@ -1,6 +1,11 @@
 import { prisma, type Prisma } from "@langfuse/shared/src/db";
-import { logger, recordGauge, redis } from "@langfuse/shared/src/server";
-import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import {
+  invalidateCachedApiKeys,
+  logger,
+  recordGauge,
+  redis,
+} from "@langfuse/shared/src/server";
+import { deleteApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   IN_APP_AGENT_UNSETTLED_RUN_STATUSES,
   InAppAgentRunErrorCode,
@@ -138,12 +143,18 @@ export class InAppAgentIntegrityRunner extends PeriodicExclusiveRunner {
           projectId,
           conversationId,
           deleteApiKey: async (apiKeyId) => {
-            await deleteInAppAgentMcpApiKeyFromDb({
-              prisma,
+            const deleted = await deleteApiKey(prisma, {
               id: apiKeyId,
               projectId,
-              redis,
+              isInAppAgentKey: true,
             });
+            if (deleted) {
+              await invalidateCachedApiKeys(
+                [deleted],
+                `key ${deleted.id}`,
+                redis,
+              );
+            }
           },
         });
       } catch (error) {
