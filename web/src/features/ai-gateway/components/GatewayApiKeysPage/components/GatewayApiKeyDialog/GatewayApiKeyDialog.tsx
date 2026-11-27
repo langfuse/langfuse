@@ -8,6 +8,7 @@ import {
 } from "react-hook-form";
 
 import { Banner } from "@/src/components/design-system/Banner/Banner";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
@@ -347,14 +348,21 @@ function OptionalSections({
             disabled={isExpirationDisabled}
           />
         );
-      case "spendBudget":
-        return (
+      case "spendBudget": {
+        const field = (
           <GatewaySpendBudgetField
             subject="key"
             control={form.control}
             disabledReason={spendBudgetDisabledReason}
           />
         );
+        if (spendBudgetDisabledReason === undefined) return field;
+        return (
+          <DisabledActionTooltip label={spendBudgetDisabledReason} isFullWidth>
+            <div className="w-full">{field}</div>
+          </DisabledActionTooltip>
+        );
+      }
       case "models":
         return (
           <GatewayApiKeyModelsField
@@ -390,26 +398,19 @@ function OptionalSections({
         );
       })}
       {addableSections.length > 0 ? (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex flex-wrap gap-2">
-            {addableSections.map((section) => (
-              <AddSectionButton
-                key={section}
-                label={sectionLabels[section].add}
-                disabled={
-                  section === "spendBudget" &&
-                  spendBudgetDisabledReason !== undefined
-                }
-                onAdd={() => handleAdd(section)}
-              />
-            ))}
-          </div>
-          {addableSections.includes("spendBudget") &&
-          spendBudgetDisabledReason !== undefined ? (
-            <p className="text-muted-foreground text-xs">
-              {spendBudgetDisabledReason}
-            </p>
-          ) : null}
+        <div className="flex flex-wrap gap-2">
+          {addableSections.map((section) => (
+            <AddSectionButton
+              key={section}
+              label={sectionLabels[section].add}
+              disabledReason={
+                section === "spendBudget"
+                  ? spendBudgetDisabledReason
+                  : undefined
+              }
+              onAdd={() => handleAdd(section)}
+            />
+          ))}
         </div>
       ) : null}
     </>
