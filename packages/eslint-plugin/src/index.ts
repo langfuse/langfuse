@@ -21,10 +21,12 @@ import { default as preferStoriesOverClientTests } from "./rules/prefer-stories-
 import { default as storybookPlayNoImplementationDetailAssertions } from "./rules/storybook-play-no-implementation-detail-assertions.js";
 
 import noInternalBarrelFiles from "./rules/no-internal-barrel-files.js";
+import exportRules from "./rules/export-rules.js";
 
 const plugin = {
   rules: {
     "no-internal-barrel-files": noInternalBarrelFiles,
+    "export-rules": exportRules,
     "component-file-structure": componentFileStructure,
     "no-abstracted-overlay-trigger": noAbstractedOverlayTrigger,
     "no-arbitrary-colors": noArbitraryColors,

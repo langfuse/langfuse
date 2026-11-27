@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 /**
  * Size gate for the unvirtualized "JSON" IO view (LFE-10989, part of the
  * LFE-10152 large-traces work).

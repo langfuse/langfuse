@@ -8,8 +8,8 @@ computed at read time by `deriveSyncStatus.ts`.
 
 | Field                           | Type           | Written by                                                                           |
 | ------------------------------- | -------------- | ------------------------------------------------------------------------------------ |
-| `enabled`                       | boolean        | Web (save), Worker (catch — disables on a final-attempt customer-fault)              |
-| `lastError`                     | string \| null | Worker (catch / success)                                                             |
+| `enabled`                       | boolean        | Web (save), Worker (catch — disables on a final-attempt customer-fault; scheduler — disables when the plan lacks the entitlement) |
+| `lastError`                     | string \| null | Worker (catch / success; scheduler on plan disable)                                  |
 | `lastSyncAt`                    | Date \| null   | Worker (success)                                                                     |
 | `nextSyncAt`                    | Date \| null   | Worker (success / empty-window), Web (save)                                          |
 | `runStartedAt`                  | Date \| null   | Worker (start / end), Web (save clears it)                                           |
@@ -18,8 +18,10 @@ computed at read time by `deriveSyncStatus.ts`.
 ## Derived states (precedence top-to-bottom)
 
 ```
-disabled    ← enabled = false (set by user save, or by the worker after a
-              final-attempt customer-config/credential failure)
+disabled    ← enabled = false (set by user save, by the worker after a
+              final-attempt customer-config/credential failure, or by the
+              scheduler when the organization's plan lacks
+              scheduled-blob-exports)
 error       ← lastError != null
 running     ← runStartedAt != null AND age < 2h
 queued      ← nextSyncAt <= now
@@ -78,6 +80,7 @@ up_to_date  ← fallthrough
 | **any**         | User saves with `enabled=false`                                   | `runStartedAt=null`                                                                                                 | **disabled**                                                                                  |
 | **any**         | User saves with `enabled=true`                                    | `runStartedAt=null`; `nextSyncAt=now` if errored or mode changed                                                    | **idle**, **queued**, **up_to_date**, or stays **error** (`lastError` is not cleared by save) |
 | **disabled**    | User saves `enabled=true`                                         | (as above)                                                                                                          | **idle**, **queued**, **up_to_date**, or stays **error**                                      |
+| **any enabled** | Scheduler: organization plan lacks `scheduled-blob-exports` (Cloud downgrade) | `enabled=false`, `lastError=plan message`, `lastErrorAt=now` (+ one-time "disabled" notification; not enqueued) | **disabled** |
 | **idle**        | Scheduler finds `lastSyncAt=null`                                 | Enqueues BullMQ job (no DB write)                                                                                   | stays **idle**                                                                                |
 | **queued**      | Scheduler finds `nextSyncAt<=now`                                 | Enqueues BullMQ job (no DB write)                                                                                   | stays **queued**                                                                              |
 | **idle/queued** | Worker starts job                                                 | `runStartedAt=now`                                                                                                  | **running**                                                                                   |
@@ -166,3 +169,7 @@ local Zustand store and no feature `useEffect`.
 the field-group component watching that field. The form layer reads no
 field values and holds no async state; mutation pending-state lives in
 the container.
+
+## Plan entitlement
+
+Configuring, running, and validating an export requires the `scheduled-blob-exports` entitlement (Cloud Team and Enterprise; every self-hosted plan). Reading (`get`, REST `GET`) and deleting do not, so an organization that lost the entitlement can see why its export stopped and remove the stored credentials. The scheduler checks the entitlement on every tick and disables integrations whose organization no longer has it, because a plan can change without any event (manual `cloudConfig.plan` override, billing webhooks). An unreadable plan (a `cloudConfig` that fails to parse, an unrecognized ClickHouse Billing plan code, or a Stripe product id missing from the product map) keeps exporting. Before disabling, the scheduler re-reads the plan, and a run that finishes after the disable keeps the disable reason.

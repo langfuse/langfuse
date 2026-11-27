@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 /**
  * Tree building utilities for trace component.
  *

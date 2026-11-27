@@ -78,12 +78,16 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   return error.message;
 };
 
+// Reading and deleting stay open without the entitlement, so an organization
+// that lost it can see why its export stopped and remove the credentials.
 const assertBlobStorageIntegrationAccess = ({
   session,
   projectId,
+  requireEntitlement = true,
 }: {
   session: Session;
   projectId: string;
+  requireEntitlement?: boolean;
 }) => {
   if (!session.user) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
@@ -93,6 +97,7 @@ const assertBlobStorageIntegrationAccess = ({
     projectId,
     scope: "integrations:CRUD",
   });
+  if (!requireEntitlement) return;
   throwIfNoEntitlement({
     entitlement: "scheduled-blob-exports",
     projectId,
@@ -107,6 +112,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
       assertBlobStorageIntegrationAccess({
         session: ctx.session,
         projectId: input.projectId,
+        requireEntitlement: false,
       });
       try {
         const row = await ctx.prisma.blobStorageIntegration.findFirst({
@@ -269,6 +275,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         assertBlobStorageIntegrationAccess({
           session: ctx.session,
           projectId: input.projectId,
+          requireEntitlement: false,
         });
         await auditLog({
           session: ctx.session,

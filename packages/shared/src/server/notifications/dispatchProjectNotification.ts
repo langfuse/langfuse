@@ -174,7 +174,7 @@ async function sendEventAdminEmails({
         projectName: event.projectName,
         settingsUrl: `${emailEnv.NEXTAUTH_URL}/project/${event.projectId}/settings/integrations/blobstorage`,
         receiverEmails,
-        disabled: event.disabled ?? false,
+        disabledMessage: event.disabled ? event.message : undefined,
       });
       return;
     }
@@ -184,7 +184,7 @@ async function sendEventAdminEmails({
         projectName: event.projectName,
         settingsUrl: `${emailEnv.NEXTAUTH_URL}/project/${event.projectId}/settings/integrations/posthog`,
         receiverEmails,
-        disabled: event.disabled ?? false,
+        disabledMessage: event.disabled ? event.message : undefined,
       });
       return;
     }

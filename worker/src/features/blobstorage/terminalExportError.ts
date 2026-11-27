@@ -11,6 +11,7 @@ import {
   BLOB_INTEGRATION_DISABLED_METRIC,
   type CustomerFaultReason,
 } from "./isCustomerFaultError";
+import { setLastError } from "./planDisable";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
 import { env } from "../../env";
 
@@ -42,12 +43,9 @@ export async function recordTerminalExportError({
   try {
     const updated = await prisma.blobStorageIntegration.update({
       where: { projectId },
-      data: {
-        lastError: errorMessage,
-        lastErrorAt: new Date(),
-        runStartedAt: null,
-      },
+      data: { runStartedAt: null },
     });
+    await setLastError(projectId, errorMessage);
 
     if (disableReason === undefined) {
       return { kind: "error-recorded", stillEnabled: updated.enabled };
@@ -91,10 +89,15 @@ export async function recordTerminalExportError({
 export async function notifyBlobStorageExportFailed(
   projectId: string,
   {
-    disabled = false,
-    bypassCooldown = disabled,
-  }: { disabled?: boolean; bypassCooldown?: boolean } = {},
+    disabledMessage,
+    bypassCooldown = disabledMessage !== undefined,
+  }: {
+    // Set when the integration was disabled: says why and how to restore it.
+    disabledMessage?: (projectName: string) => string;
+    bypassCooldown?: boolean;
+  } = {},
 ): Promise<void> {
+  const disabled = disabledMessage !== undefined;
   try {
     // Called once per exhausted run. The cooldown gates across scheduled
     // runs (the scheduler re-enqueues every frequency period, and each
@@ -163,8 +166,8 @@ export async function notifyBlobStorageExportFailed(
         // the most useful human label for the failing export destination.
         resourceId: projectId,
         resourceName: integration?.bucketName ?? "Blob storage integration",
-        message: disabled
-          ? `Blob storage export disabled for project "${projectName}" after a configuration fault.`
+        message: disabledMessage
+          ? disabledMessage(projectName)
           : `Blob storage export failed for project "${projectName}".`,
         url: env.NEXTAUTH_URL
           ? `${env.NEXTAUTH_URL}${settingsPath}`
