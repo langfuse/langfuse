@@ -11,7 +11,7 @@ changing how it emits SQL.
 ## Layout
 
 - `compile.ts` — the one supported entry point,
-  `compileClickhouseQuery(query, projectId)`.
+  `compileClickhouseQuery(query, projectId, paramPrefix)`.
 - `schemaReferences.ts` — the first pass: rejects three-part column
   references (`a.b.c`), so later passes read a qualifier as its relation.
 - `ctes.ts` — the second pass: rejects CTE and FROM/JOIN names that could
@@ -64,14 +64,23 @@ must carry the `.golden.test.ts` suffix to run there.
 
 ## Using it
 
-- **Compile only through `compileClickhouseQuery(query, projectId)`.** It is
-  the one supported path from a builder to `{ sql, params }`; the repository
-  layer hands that to `queryClickhouse`. `projectId` is required — omitting it
-  is a compile-time type error and an empty one throws. There is no
-  multi-project scope: a query reads one project.
+- **Compile only through
+  `compileClickhouseQuery(query, projectId, paramPrefix)`.** It is the one
+  supported path from a builder to `{ sql, params }`; the repository layer
+  hands that to `queryClickhouse`. `projectId` is required — omitting it is a
+  compile-time type error and an empty one throws. There is no multi-project
+  scope: a query reads one project.
+- **Name each compile's placeholders.** `paramPrefix` is required too
+  (`<prefix>1`, `<prefix>2`, …; a plain identifier not ending in a digit), so
+  no two compiles share a default. A query compiled on its own passes `"p"`:
+  renaming its placeholders would change its text in the query log and split
+  its query-shape grouping across a deploy. Give each compile spliced into
+  another query its own prefix, and merge their params with
+  `mergeClickhouseParams`, which throws when one name is bound to two values
+  (see `getSessionTracesFromEvents`).
 - **Never filter `project_id` yourself.** The compile step injects
-  `project_id = {projectId}` into every tenanted relation, so call sites pass
-  only `projectId` (see `../repositories/environments.ts`).
+  `project_id = {<prefix>N:String}` into every tenanted relation, so call
+  sites pass only `projectId` (see `../repositories/environments.ts`).
 - **Read events through the logical `events` relation.** Each `events` relation compiles to `events_core` unless a column reference that resolves to it reads a column `events_core` truncates (`input`, `output`, `metadata_values`, `input_length`, `output_length`); then that relation becomes `events_full`. Metadata `=` / `startsWith` predicates on `metadataValue` or `firstMetadataValue` stay on `events_core` when `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL builders, and so does an `IN` of a bound string list whose every value it accepts for `=`. The `=` / `IN` rules also hold for `if(guard, nullIf(lookup, ''), NULL)`, whose guard routes on its own, and `is null` / `is not null` over it or over `nullIf(lookup, '')` stays on `events_core`: a cut entry is empty exactly when the full one is. A `metadataTokenPrefilter` / `metadataSubstringPrefilter` of the same operator and value ANDed beside an `=` comparison stays on `events_core` too, and so does an emptiness check of a truncated column (`e.input != ''`, `'' = e.output`, `e.input is not null`). `*` / `e.*` over `events` and any other unqualified truncated column are compile errors while `events` is in scope. `events_core` / `events_full` are not part of the Kysely schema, and naming them anywhere — FROM/JOIN, alias, column qualifier — is a compile error; only the routing pass writes them.
 - **Read `events_truncated` to get the truncated copy on purpose** (input/output/metadata previews, dashboard dimensions). Everything outside its select's own WHERE (select, aggregate `FILTER (WHERE …)`, GROUP BY, ORDER BY, HAVING, JOIN ON, ARRAY JOIN) reads the `events_core` values whatever columns it names. It compiles to `events_core` unless that WHERE reads a truncated column by a condition the `events` rules above send to `events_full`; then it compiles to `events_full`, and every truncated column it reads outside the WHERE is cut as `events_core_mv` cuts it (`leftUTF8(e.input, 200)`, `arrayMap(v -> leftUTF8(v, 200), e.metadata_values)`, `lengthUTF8(leftUTF8(e.input, 200))`; the cuts live in `EVENTS_CORE_TRUNCATIONS`). In its WHERE, an unqualified truncated column is always a compile error. `*` and an unqualified truncated column outside the WHERE are allowed while it stays on `events_core`, and a compile error once its WHERE routes it to `events_full`.
 - **Give each CTE (and view) its own plain name.** A CTE name is a plain
@@ -251,14 +260,15 @@ not patched.
 `getClickhouseKysely()` returns a `Kysely` instance wired to a `DummyDriver`
 with SQLite adapter/introspector stand-ins (`dialect.ts`). Nothing ever
 connects or executes. The only supported output path is
-`compileClickhouseQuery(query, projectId)` → `{ sql, params }`, which the
-repository layer hands to `queryClickhouse`. Do **not** call `.execute()` / `.compile()`
-directly: the compiler refuses any tree that did not go through the tenancy pass.
+`compileClickhouseQuery(query, projectId, paramPrefix)` → `{ sql, params }`,
+which the repository layer hands to `queryClickhouse`. Do **not** call
+`.execute()` / `.compile()` directly: the compiler refuses any tree that did
+not go through the tenancy pass.
 
 ### Tenancy injection — how the choke point works
 
-`compileClickhouseQuery(query, projectId)` is the only supported compile path,
-and it is where tenancy is enforced:
+`compileClickhouseQuery(query, projectId, paramPrefix)` is the only supported
+compile path, and it is where tenancy is enforced:
 
 1. A missing/empty `projectId` throws (`QueryCompileError`) — `projectId` is a
    required parameter, so omitting it is also a compile-time type error.
@@ -268,9 +278,10 @@ and it is where tenancy is enforced:
    FROM/JOIN name that resolves to no registry table or CTE in scope, a schema-qualified name, and a name two FROM/JOIN items of one select share, throw `UnscopedRelationError`; naming errors throw
    `QueryCompileError`. `NameShadowingPlugin` then rejects names ClickHouse could resolve before a relation (see `shadowing.ts`) with `UnscopedRelationError`. A root that is not a select (delete, update, insert) throws `QueryCompileError` before any pass runs.
 2. `TenancyInjectionPlugin` walks every FROM/JOIN and injects
-   `project_id = {projectId}` on each tenanted physical table, unless the tree
-   already carries a predicate that _proves_ that scope: the equality's value
-   must equal `projectId`, and — when more than one tenanted relation is
+   `project_id = {<prefix>N:String}` on each tenanted physical table, unless
+   the tree already carries a predicate that _proves_ that scope: the
+   equality's value must equal `projectId`, and — when more than one
+   tenanted relation is
    in scope — the column must be table-qualified. A qualified predicate covers a
    relation only when the qualifier matches its alias (if aliased) or its table
    name (if not) — so `scores AS traces` joined to `traces AS t` still scopes

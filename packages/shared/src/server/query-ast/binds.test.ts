@@ -28,7 +28,7 @@ const projectId = "proj-1";
 const START = new Date("2026-01-01T00:00:00.000Z");
 
 function compile(builder: Parameters<typeof compileClickhouseQuery>[0]) {
-  return compileClickhouseQuery(builder, projectId);
+  return compileClickhouseQuery(builder, projectId, "p");
 }
 
 describe("typedValue", () => {

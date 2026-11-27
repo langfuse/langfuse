@@ -26,7 +26,10 @@ import {
 } from "../repositories/events-selects";
 
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
-import { compileClickhouseQuery } from "../query-ast/compile";
+import {
+  compileClickhouseQuery,
+  mergeClickhouseParams,
+} from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
 import {
   eventsSessionsAggregation,
@@ -79,6 +82,7 @@ export const getSessionTracesFromEvents = async (props: {
   const { sql: tracesQuery, params: tracesParams } = compileClickhouseQuery(
     builder,
     projectId,
+    "p",
   );
   const filters = sessionTraceFilterSchema.parse(props.filter);
   const traceFilters = new FilterList(
@@ -91,22 +95,22 @@ export const getSessionTracesFromEvents = async (props: {
   const observationFilters = filters.filter(
     (filter) => filter.column !== "traceName",
   );
-  const sessionTraceIdsQuery = compileClickhouseQuery(
-    builder.clearSelect().select("e.trace_id").clearGroupBy().clearOrderBy(),
-    projectId,
-  );
   let observationQuery: {
     query: string;
     params: Record<string, unknown>;
   } | null = null;
   if (observationFilters.length > 0) {
+    const sessionTraceIdsQuery = compileClickhouseQuery(
+      builder.clearSelect().select("e.trace_id").clearGroupBy().clearOrderBy(),
+      projectId,
+      "sti_",
+    );
     const { queryBuilder } = buildEventsObservationRowSelection({
       projectId,
       filter: observationFilters,
     });
     observationQuery = queryBuilder
       .selectRaw("e.trace_id")
-      .whereRaw("e.is_deleted = 0")
       .whereRaw(
         `e.trace_id IN (${sessionTraceIdsQuery.sql})`,
         sessionTraceIdsQuery.params,
@@ -127,13 +131,11 @@ export const getSessionTracesFromEvents = async (props: {
   const params =
     filters.length === 0
       ? tracesParams
-      : {
-          ...tracesParams,
-          ...traceFilters.params,
-          ...observationQuery?.params,
-          ...sessionTraceIdsQuery.params,
-          projectId,
-        };
+      : mergeClickhouseParams(
+          tracesParams,
+          traceFilters.params,
+          observationQuery?.params ?? {},
+        );
 
   const rows = await queryClickhouse<{
     id: string;

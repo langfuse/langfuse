@@ -541,6 +541,7 @@ export const getScoresForExperimentItems = async (
       shouldSkipScoresDedup(projectId),
     ),
     projectId,
+    "p",
   );
 
   const rows = await queryClickhouse<
@@ -2445,6 +2446,7 @@ export const buildAggregatedScoresForPromptsFromEventsQuery = (
       shouldSkipScoresDedup(projectId),
     ),
     projectId,
+    "p",
   );
   return { query: compiled.sql, params: compiled.params };
 };

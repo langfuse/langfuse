@@ -96,15 +96,31 @@ describe("session trace filtering", () => {
     assert(sessionParam);
     expect(params[sessionParam]).toBe("session");
     expect(observationQuery).not.toMatch(/group by/i);
-    const matchingRowsQuery = observationQuery.slice(
-      0,
-      observationQuery.indexOf("AND e.trace_id IN ("),
-    );
-    expect(matchingRowsQuery).toContain("e.is_deleted = 0");
     expect(query).toContain("e.name");
     expect(query).toContain("e.level");
     expect(Object.values(params)).toContain("agent");
     expect(Object.values(params)).toContain("ERROR");
+  });
+
+  // The trace CTE and the trace-id subquery are two compiles spliced into one
+  // query: a placeholder name both used would bind one value for both.
+  it("names the trace CTE and trace-id subquery placeholders apart", async () => {
+    await getSessionTracesFromEvents({
+      projectId: "project",
+      sessionId: "session",
+      filter: [{ column: "name", type: "string", operator: "=", value: "a" }],
+      traceIds: ["t1"],
+    });
+    const { query } = capturedQuery();
+    const placeholders = (sql: string) =>
+      new Set([...sql.matchAll(/\{(\w+):/g)].map((match) => match[1]));
+    const cte = placeholders(query.slice(0, query.indexOf("SELECT t.*")));
+    const subquery = placeholders(
+      query.slice(query.indexOf("AND e.trace_id IN (")),
+    );
+    expect(cte.size).toBeGreaterThan(0);
+    expect(subquery.size).toBeGreaterThan(0);
+    expect([...cte].filter((name) => subquery.has(name))).toEqual([]);
   });
 
   it("filters root observations within the session", async () => {

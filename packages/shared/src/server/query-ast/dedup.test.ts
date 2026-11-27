@@ -262,7 +262,7 @@ describe("dedup lowering with every compile pass", () => {
       version: "event_ts",
     };
     try {
-      expect(compileClickhouseQuery(build(), "proj-1").sql).toBe(expected);
+      expect(compileClickhouseQuery(build(), "proj-1", "p").sql).toBe(expected);
     } finally {
       delete DEDUP_SPECS[table];
     }
@@ -279,7 +279,7 @@ describe("dedup lowering with every compile pass", () => {
       .where("s.facet_version", "=", 3)
       .where("s.unit_start_time", ">=", new Date("2026-01-01T00:00:00.000Z"))
       .groupBy("s.execution_id");
-    expect(compileClickhouseQuery(query, "proj-1").sql).toBe(
+    expect(compileClickhouseQuery(query, "proj-1", "p").sql).toBe(
       "select s.execution_id as id, sum(s.total_cost) as cost from topic_facet_summaries as s where s.project_id = {p1:String} and s.facet_version = {p2:UInt32} and s.unit_start_time >= {p3:DateTime64(3, 'UTC')} group by s.execution_id",
     );
   });

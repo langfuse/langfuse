@@ -106,7 +106,7 @@ describe("function allowlist", () => {
         ).as("errored"),
       ])
       .where((eb) => mapContains(eb.ref("e.cost_details"), literal("total")));
-    expect(compileClickhouseQuery(counts, "proj-1").sql).toBe(
+    expect(compileClickhouseQuery(counts, "proj-1", "p").sql).toBe(
       "select uniqCombined(e.trace_id) as traces, uniqCombinedIf(e.trace_id, e.level = 'ERROR') as errored" +
         " from events_core as e where e.project_id = {p1:String} and mapContains(e.cost_details, 'total')",
     );
@@ -115,7 +115,7 @@ describe("function allowlist", () => {
       .selectFrom("events as e")
       .select("e.trace_id")
       .orderBy((eb) => cityHash64(eb.ref("e.trace_id"), eb.val("seed-1")));
-    expect(compileClickhouseQuery(sample, "proj-1").sql).toBe(
+    expect(compileClickhouseQuery(sample, "proj-1", "p").sql).toBe(
       "select e.trace_id from events_core as e where e.project_id = {p1:String}" +
         " order by cityHash64(e.trace_id, {p2:String})",
     );
@@ -125,7 +125,7 @@ describe("function allowlist", () => {
     const query = db
       .selectFrom("traces as t")
       .select((eb) => eb.fn("joinGet", [eb.ref("t.id")]).as("x"));
-    expect(() => compileClickhouseQuery(query, "proj-1")).toThrow(
+    expect(() => compileClickhouseQuery(query, "proj-1", "p")).toThrow(
       'Function "joinGet" is not on the allowlist',
     );
   });

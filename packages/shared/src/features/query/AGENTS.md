@@ -32,7 +32,7 @@ The view registry, query DSL and builder behind dashboards, the Metrics API, the
 
 The compiler's rules live in `../../server/query-ast/README.md` ("Using it") and its standing decisions in `../../server/query-ast/DECISIONS.md`. The ones dashboard code runs into:
 
-- Compile only through `compileClickhouseQuery(query, projectId)`. Never filter `project_id` by hand, and never call `.compile()` or `.execute()`.
+- Compile only through `compileClickhouseQuery(query, projectId, paramPrefix)`. Never filter `project_id` by hand, and never call `.compile()` or `.execute()`.
 - No raw SQL: `` sql`…` ``, `sql.raw` and `sql.lit` fail to compile. A missing ClickHouse construct becomes a helper in `../../server/query-ast/extensions.ts`, or an `ALLOWED_FUNCTIONS` entry in `functions.ts` for `eb.fn`. Never paste SQL text from `dataModel.ts` or the SQL-text builder into an AST query, and import nothing from the SQL-text builder into AST modules.
 - Read events through the logical relations: `events_truncated` for dashboard dimensions (the truncated copy `events_core` holds), `events` for full values. Routing picks `events_core` or `events_full`; naming either physical table is a compile error.
 - Qualify every column in a select that reads more than one relation (a view with a join). ClickHouse binds a bare column to the left-most relation that has it, so the compiler rejects bare columns there.
