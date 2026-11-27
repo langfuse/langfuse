@@ -1,3 +1,4 @@
+/* eslint-disable boundaries/dependencies -- TODO: component privacy */
 /** Trace metadata, or observation attributes, model parameters and metadata. */
 
 import { JsonViewController } from "@/src/components/ui/JsonViewController";

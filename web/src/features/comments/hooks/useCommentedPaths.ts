@@ -1,3 +1,4 @@
+/* eslint-disable boundaries/dependencies -- TODO: component privacy */
 import { useMemo } from "react";
 import type {
   CommentRange,

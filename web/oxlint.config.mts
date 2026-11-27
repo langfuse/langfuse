@@ -1,6 +1,80 @@
 import baseConfig from "@repo/oxlint-config/next";
 import { globSync } from "node:fs";
 import { defineConfig } from "oxlint";
+
+// Component privacy is enforced only under these trees. Extend this list to
+// cover more of the app; the dependency policy reads it.
+const componentPrivacyRoots = [
+  "src/features/traces",
+  "src/features/sessions",
+  "src/components/ui",
+  "src/components/design-system",
+];
+
+// Private implementation folders of a PascalCase component directory.
+// `components` is not an element of its own: nested PascalCase folders under it
+// are components, and only loose files placed directly in it are private.
+const componentPrivateFolders =
+  "{fns,hooks,utils,types,constants,contexts,stores,lib}";
+
+const componentElementPatterns = ["[A-Z]*"];
+
+const componentPrivateElementPatterns = [componentPrivateFolders];
+
+const componentLoosePrivateFilePatterns = ["components/*.{ts,tsx,js,jsx}"];
+
+// Picomatch prefixes. Element descriptors stay global so a nested component
+// still sees its parent; policies below limit enforcement to these trees.
+const componentPrivacyPathPatterns = componentPrivacyRoots.map(
+  (root) => `${root}/**`,
+);
+
+// Nested elements (private folders, nested components, loose files in
+// `components/`) stay inside the owning component. A file may import its own
+// child, a sibling part, or an uncle entry. Reaching into some other part's
+// private folders is an error.
+const componentPrivacyPolicies = [
+  {
+    // Importing files under the scoped trees may not reach into any component's
+    // private folders, including components that live outside those trees.
+    from: {
+      file: { path: componentPrivacyPathPatterns },
+    },
+    disallow: {
+      to: {
+        element: {
+          parent: { type: "component" },
+        },
+      },
+    },
+    message:
+      "Component internals are private. Import that component's entry file, or move the shared code to the nearest common ancestor.",
+  },
+  {
+    // Other files may not reach into private folders of components that live
+    // under the scoped trees.
+    disallow: {
+      to: {
+        element: {
+          parent: { type: "component" },
+          path: componentPrivacyPathPatterns,
+        },
+      },
+    },
+    message:
+      "Component internals are private. Import that component's entry file, or move the shared code to the nearest common ancestor.",
+  },
+  {
+    // Own children, sibling parts, and uncles (a parent's sibling entry).
+    // A later policy wins, so this re-allows what the privacy policy blocked.
+    allow: {
+      dependency: {
+        relationship: { to: ["child", "sibling", "uncle"] },
+      },
+    },
+  },
+];
+
 export default defineConfig({
   ...baseConfig,
   ignorePatterns: [
@@ -28,6 +102,20 @@ export default defineConfig({
       { category: "design-system", pattern: "src/components/design-system/**" },
       { category: "app-component", pattern: "src/components/**" },
       { category: "feature", pattern: "src/features/**" },
+    ],
+    "boundaries/elements": [
+      {
+        type: "component",
+        pattern: componentElementPatterns,
+      },
+      {
+        type: "component-private",
+        pattern: componentPrivateElementPatterns,
+      },
+      {
+        type: "component-private",
+        pattern: componentLoosePrivateFilePatterns,
+      },
     ],
   },
   overrides: [
@@ -345,10 +433,7 @@ export default defineConfig({
       env: {
         browser: true,
       },
-      jsPlugins: [
-        "eslint-plugin-react-you-might-not-need-an-effect",
-        "eslint-plugin-boundaries",
-      ],
+      jsPlugins: ["eslint-plugin-react-you-might-not-need-an-effect"],
       rules: {
         "react-you-might-not-need-an-effect/no-derived-state": "warn",
         "react-you-might-not-need-an-effect/no-chain-state-updates": "warn",
@@ -363,8 +448,32 @@ export default defineConfig({
         "react-you-might-not-need-an-effect/no-external-store-subscription":
           "warn",
         "react-you-might-not-need-an-effect/no-initialize-state": "warn",
+      },
+    },
+    {
+      files: ["src/**/*.{ts,tsx,js,jsx}"],
+      jsPlugins: ["eslint-plugin-boundaries"],
+      rules: {
         "boundaries/dependencies": [
-          "warn",
+          "error",
+          {
+            default: "allow",
+            policies: componentPrivacyPolicies,
+          },
+        ],
+      },
+    },
+    {
+      // The design-system import ban stays limited to non-story files. It shares
+      // this rule with component privacy, so both are errors here. Stories are
+      // excluded from the import ban and still get component privacy from the
+      // override above.
+      files: ["src/components/design-system/**/*.{ts,tsx}"],
+      excludeFiles: ["src/components/design-system/**/*.stories.tsx"],
+      jsPlugins: ["eslint-plugin-boundaries"],
+      rules: {
+        "boundaries/dependencies": [
+          "error",
           {
             default: "allow",
             policies: [
@@ -387,6 +496,7 @@ export default defineConfig({
                 message:
                   "Design-system files must not import from the outer `src/components` tree or from `src/features`.",
               },
+              ...componentPrivacyPolicies,
             ],
           },
         ],
