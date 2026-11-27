@@ -1,8 +1,10 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
-import { type IconComponent } from "@langfuse/icons";
 
-import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import {
+  TextLink,
+  type TextLinkIconProps,
+} from "@/src/components/design-system/TextLink/TextLink";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
@@ -12,10 +14,9 @@ import {
 
 type LinkTableColumnProps = Pick<
   React.ComponentProps<typeof TextLink>,
-  "path" | "value" | "title" | "onClick" | "trailingIcon"
-> & {
-  icon?: IconComponent;
-};
+  "path" | "value" | "title" | "onClick"
+> &
+  TextLinkIconProps;
 
 export function createLinkTableColumn<TData extends RowData, TValue = string>({
   getCell,
@@ -41,22 +42,10 @@ export function createLinkTableColumn<TData extends RowData, TValue = string>({
       if (cell.type === "empty") return <EmptyValue />;
       if (cell.type === "text") return <span>{cell.value}</span>;
 
-      const {
-        icon: Icon,
-        trailingIcon,
-        path,
-        value: linkValue,
-        title,
-        onClick,
-      } = cell.props;
       return (
         <TextLink
-          path={path}
-          value={linkValue}
-          title={title ?? linkValue}
-          onClick={onClick}
-          icon={Icon}
-          trailingIcon={trailingIcon}
+          {...cell.props}
+          title={cell.props.title ?? cell.props.value}
         />
       );
     },

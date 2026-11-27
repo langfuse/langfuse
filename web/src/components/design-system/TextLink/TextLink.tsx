@@ -9,16 +9,7 @@ export function TextLink({
   onClick,
   title,
   external = false,
-}: {
-  path: string;
-  value: string;
-  icon?: IconComponent;
-  trailingIcon?: IconComponent;
-  onClick?: (event: React.MouseEvent) => void;
-  title?: string;
-  /** Opens in a new tab. */
-  external?: boolean;
-}) {
+}: TextLinkProps) {
   const Icon = icon;
   const TrailingIcon = trailingIcon;
   const handleClick = (event: React.MouseEvent) => {
@@ -56,3 +47,17 @@ export function TextLink({
     </Link>
   );
 }
+
+/** A link shows at most one icon, either before or after its text. */
+export type TextLinkIconProps =
+  | { icon?: IconComponent; trailingIcon?: never }
+  | { icon?: never; trailingIcon?: IconComponent };
+
+type TextLinkProps = {
+  path: string;
+  value: string;
+  onClick?: (event: React.MouseEvent) => void;
+  title?: string;
+  /** Opens in a new tab. */
+  external?: boolean;
+} & TextLinkIconProps;
