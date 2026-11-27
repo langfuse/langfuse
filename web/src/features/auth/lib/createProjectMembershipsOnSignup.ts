@@ -10,6 +10,7 @@ import {
   getOrganizationPlanServerSide,
 } from "@langfuse/shared/src/server";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
+import { captureInvitationsAccepted } from "@/src/features/rbac/server/memberInviteEvents";
 import {
   hasEntitlementBasedOnPlan,
   LangfuseNotFoundError,
@@ -342,6 +343,7 @@ async function processMembershipInvitations(email: string, userId: string) {
       },
     });
   });
+  captureInvitationsAccepted(userId, invitationsForUser);
 
   // SFDC: link the freshly-created lead to each org as an org-member.
   await Promise.all(

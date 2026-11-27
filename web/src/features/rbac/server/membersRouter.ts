@@ -34,6 +34,7 @@ import {
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
+import { captureInviteRevoked } from "@/src/features/rbac/server/memberInviteEvents";
 import {
   deleteUserBoundApiKeys,
   evictRevokedApiKeys,
@@ -241,12 +242,14 @@ export const membersRouter = createTRPCRouter({
         before: invitation,
       });
 
-      return await ctx.prisma.membershipInvitation.delete({
+      const deletedInvitation = await ctx.prisma.membershipInvitation.delete({
         where: {
           id: invitation.id,
           orgId: input.orgId,
         },
       });
+      captureInviteRevoked(ctx.session.user.id, invitation);
+      return deletedInvitation;
     }),
   updateOrgMembership: protectedOrganizationProcedure
     .input(

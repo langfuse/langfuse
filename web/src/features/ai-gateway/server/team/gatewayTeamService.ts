@@ -211,6 +211,7 @@ export class GatewayTeamService {
         await inviteOrganizationMember({
           ctx,
           input: { orgId: organizationId, email, orgRole: Role.AI_GATEWAY },
+          source: "ai_gateway",
           sendInvitationEmail: async ({ to, userExists }) => {
             emailJobs.push({
               ...sender,
