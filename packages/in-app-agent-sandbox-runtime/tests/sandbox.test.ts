@@ -92,7 +92,7 @@ describe("sandbox runtime docker container", () => {
           operation: "edit",
           path: "hello.txt",
           oldText: "hello",
-          newText: "hello world",
+          newText: "hello $& world",
         }),
       });
       expect(edited).toEqual({
@@ -115,7 +115,7 @@ describe("sandbox runtime docker container", () => {
       expect(bash.status).toBe(200);
       expect(bash.body).toEqual({
         result: expect.objectContaining({
-          stdout: expect.stringMatching(/^hello world\/workspace\n$/),
+          stdout: expect.stringMatching(/^hello \$& world\/workspace\n$/),
           stderr: "",
           exitCode: 0,
         }),
