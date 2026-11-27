@@ -1,4 +1,3 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
 import {
   EVALUATOR_EMPTY_STATE_DOCS_HREF,
   EVALUATOR_EMPTY_STATE_TEMPLATE_KEYS,

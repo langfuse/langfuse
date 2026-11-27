@@ -1,4 +1,3 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
 import {
   IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   type InAppAgentQuestionnaireResult,

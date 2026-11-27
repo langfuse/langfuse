@@ -1,4 +1,3 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
 export type GatewayDeploymentEnvironment = {
   nodeEnv: string | undefined;
   cloudRegion?: string;

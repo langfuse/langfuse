@@ -1,4 +1,3 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
 import {
   ALREADY_ORGANIZATION_MEMBER_MESSAGE,
   ALREADY_PROJECT_MEMBER_MESSAGE,

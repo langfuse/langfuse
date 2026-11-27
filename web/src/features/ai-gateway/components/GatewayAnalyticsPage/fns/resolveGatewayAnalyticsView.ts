@@ -1,4 +1,3 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
 export type GatewayAnalyticsView =
   | "notSetUp"
   | "notRecorded"

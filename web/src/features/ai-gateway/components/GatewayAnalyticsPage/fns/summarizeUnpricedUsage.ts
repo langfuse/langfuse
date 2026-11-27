@@ -1,4 +1,3 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
 export type GatewayUnpricedUsage = {
   requests: number;
   tokens: number;

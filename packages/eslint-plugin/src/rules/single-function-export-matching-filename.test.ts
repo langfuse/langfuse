@@ -107,6 +107,34 @@ ruleTester.run("single-function-export-matching-filename", rule, {
       code: "export declare function pack(value: string): string;",
       filename: file("pack.ts"),
     },
+    {
+      code: "export function pack() { return 1; }\nexport interface FlatNode<T> { value: T }",
+      filename: file("pack.ts"),
+    },
+    {
+      code: "export function pack() { return 1; }\nexport type Foo = string;",
+      filename: file("pack.ts"),
+    },
+    {
+      code: "export function pack() { return 1; }\nexport declare interface Foo { id: string }",
+      filename: file("pack.ts"),
+    },
+    {
+      code: "export function pack() { return 1; }\nexport declare type Foo = string;",
+      filename: file("pack.ts"),
+    },
+    {
+      code: "export function pack() { return 1; }\nexport type { Foo };\ntype Foo = string;",
+      filename: file("pack.ts"),
+    },
+    {
+      code: "export function pack() { return 1; }\nexport type { Foo } from './types';",
+      filename: file("pack.ts"),
+    },
+    {
+      code: "const pack = () => 1;\ntype Foo = string;\nexport { pack, type Foo };",
+      filename: file("pack.ts"),
+    },
   ],
   invalid: [
     { code: "", filename: file("pack.ts"), errors: count(0) },
@@ -187,7 +215,22 @@ ruleTester.run("single-function-export-matching-filename", rule, {
       errors: count(2),
     },
     {
-      code: "export function pack() { return 1; }\nexport type Foo = string;",
+      code: "export function pack() { return 1; }\nexport enum Kind { A }",
+      filename: file("pack.ts"),
+      errors: count(2),
+    },
+    {
+      code: "export function pack() { return 1; }\nexport declare enum Kind { A }",
+      filename: file("pack.ts"),
+      errors: count(2),
+    },
+    {
+      code: "export function pack() { return 1; }\nexport class Box {}",
+      filename: file("pack.ts"),
+      errors: count(2),
+    },
+    {
+      code: "export function pack() { return 1; }\nexport { value } from './other';",
       filename: file("pack.ts"),
       errors: count(2),
     },
@@ -197,9 +240,9 @@ ruleTester.run("single-function-export-matching-filename", rule, {
       errors: count(2),
     },
     {
-      code: "const pack = () => 1;\ntype Foo = string;\nexport { pack, type Foo };",
+      code: "export declare enum Kind { A }",
       filename: file("pack.ts"),
-      errors: count(2),
+      errors: count(0),
     },
     {
       code: "export default 1;",

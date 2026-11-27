@@ -1,4 +1,3 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
 import {
   EvalTemplateTypeEnum,
   getCodeEvalVariableMapping,

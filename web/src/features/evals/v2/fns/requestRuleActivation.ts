@@ -1,4 +1,3 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
 import type { ActivationConfirmationRequest } from "@/src/features/evals/v2/types/rules";
 
 export type ActivationEstimate = {

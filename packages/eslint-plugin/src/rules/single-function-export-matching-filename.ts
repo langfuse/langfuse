@@ -110,10 +110,7 @@ function noteDefault(
 }
 
 function noteSpecifier(counts: Counts, specifier: TSESTree.ExportSpecifier) {
-  if (specifier.exportKind === "type") {
-    noteOther(counts);
-    return;
-  }
+  if (specifier.exportKind === "type") return;
   // A string-literal local is only legal on `export { "a" as b } from`.
   const local = (specifier.local as TSESTree.Identifier).name;
   counts.pending.push({
@@ -135,10 +132,11 @@ function noteNamed(counts: Counts, statement: TSESTree.ExportNamedDeclaration) {
     noteDeclaredFunction(counts, name);
     return;
   }
-  if (statement.exportKind === "type") {
+  if (declaration !== null && declaration.type === N.TSEnumDeclaration) {
     noteOther(counts);
     return;
   }
+  if (statement.exportKind === "type") return;
   if (declaration !== null) {
     if (declaration.type === N.VariableDeclaration) {
       for (const declarator of declaration.declarations) {

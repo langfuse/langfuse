@@ -1,4 +1,3 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
 /**
  * Does an observation answer the trace panel's search box?
  *
