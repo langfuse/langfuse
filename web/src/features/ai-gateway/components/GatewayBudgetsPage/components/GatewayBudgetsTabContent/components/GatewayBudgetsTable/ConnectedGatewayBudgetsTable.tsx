@@ -70,8 +70,12 @@ export function ConnectedGatewayBudgetsTable({
     ? (totalCount ?? selectedRows.length)
     : selectedRows.length;
   // Under select-all the server checks each matching row and refuses the whole change if one is not editable.
-  const bulkDisabledReason =
+  const editDisabledReason =
     selectAll || selectedRows.every((row) => row.isEditable)
+      ? undefined
+      : notEditableReasons[tab];
+  const removeDisabledReason =
+    selectAll || selectedRows.every(isGatewayBudgetRemovable)
       ? undefined
       : notEditableReasons[tab];
   const bulkTarget = selectAll
@@ -196,7 +200,8 @@ export function ConnectedGatewayBudgetsTable({
                       <GatewayBudgetsSelectionBar
                         selectedCount={selectedCount}
                         isSaving={removal.isPending}
-                        disabledReason={bulkDisabledReason}
+                        editDisabledReason={editDisabledReason}
+                        removeDisabledReason={removeDisabledReason}
                         onClear={clearSelection}
                         onEdit={() => {
                           const first = selectedRows[0] ?? pageRows[0];
@@ -232,6 +237,11 @@ export function ConnectedGatewayBudgetsTable({
       )}
     </GatewayDefaultBudgetDialogController>
   );
+}
+
+/** Removing a budget is a no-op for rows without one of their own, so members may remove only limits they set. */
+function isGatewayBudgetRemovable(row: GatewayBudgetRow) {
+  return row.spendLimit === null || row.isDefault || row.canResetBudget;
 }
 
 function toTableData(query: {
