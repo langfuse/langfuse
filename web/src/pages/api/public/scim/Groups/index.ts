@@ -11,6 +11,7 @@ import {
   SCIM_GROUPS_MAX_RESULTS,
   toListResponse,
   toScimGroup,
+  writeScimErrorResponse,
 } from "@/src/features/scim/server/scimGroups";
 
 export default async function handler(
@@ -59,11 +60,15 @@ export default async function handler(
         );
     }
 
-    const group = await createScimGroup(scope, parseScimBody(req));
-    logger.info(
-      `[SCIM] Created group ${group.id} with ${group.members.length} members in org ${scope.orgId}`,
-    );
-    return res.status(201).json(toScimGroup(group));
+    if (req.method === "POST") {
+      const group = await createScimGroup(scope, parseScimBody(req));
+      logger.info(
+        `[SCIM] Created group ${group.id} with ${group.members.length} members in org ${scope.orgId}`,
+      );
+      return res.status(201).json(toScimGroup(group));
+    }
+
+    return writeScimErrorResponse(res, 405, "Method not allowed");
   } catch (error) {
     return handleScimGroupsError(res, error, `${req.method} /Groups failed`);
   }
