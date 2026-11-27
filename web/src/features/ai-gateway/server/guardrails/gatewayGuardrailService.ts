@@ -166,7 +166,9 @@ export class GatewayGuardrailService {
             },
           ];
         }
-        default: {
+        case "BEDROCK":
+        case "OPENAI_MODERATION":
+        case "LAKERA": {
           const fields = EXTERNAL_GUARDRAIL_PROVIDERS[
             guardrail.type
           ].toCachedFields(guardrail.config);
@@ -201,6 +203,8 @@ export class GatewayGuardrailService {
             },
           ];
         }
+        default:
+          return assertUnreachable(guardrail.type);
       }
     });
   }

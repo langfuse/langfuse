@@ -61,7 +61,7 @@ describe("toGuardrailConfigAnalytics", () => {
       containsWords: [] as string[],
       customRegex: null,
       redactionLabel: null,
-      bedrock: {
+      externalConfig: {
         guardrailId: sentinels[5],
         guardrailVersion: "1",
         region: "us-east-1",
