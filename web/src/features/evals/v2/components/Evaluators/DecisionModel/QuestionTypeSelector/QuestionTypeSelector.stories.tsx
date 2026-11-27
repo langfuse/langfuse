@@ -89,6 +89,35 @@ export const SwitchesToDropdownInNarrowSlot = meta.story({
   },
 });
 
+export const ReturnsToTabsWhenItsRowWidens = meta.story({
+  name: "(Test) Returns to tabs when its row gets wide again",
+  args: {
+    value: DecisionModelQuestionType.SCORE,
+    onValueChange: fn(),
+  },
+  render: (args) => {
+    const [wide, setWide] = useState(false);
+    return (
+      <div className={wide ? "w-96" : "w-40"}>
+        <button type="button" onClick={() => setWide(true)}>
+          Widen
+        </button>
+        {/* The selector sits in a wrapping row, as in a labelled field. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <QuestionTypeSelector {...args} />
+        </div>
+      </div>
+    );
+  },
+  play: async ({ canvas, userEvent }) => {
+    await canvas.findByRole("combobox", { name: "Question type" });
+
+    await userEvent.click(canvas.getByRole("button", { name: "Widen" }));
+
+    await expect(await canvas.findAllByRole("tab")).toHaveLength(3);
+  },
+});
+
 export const Disabled = meta.story({
   args: {
     value: DecisionModelQuestionType.SCORE,
