@@ -121,8 +121,13 @@ type ProjectedMessage = {
   toolResultParts: Extract<NormalizedMessagePart, { type: "tool-result" }>[];
 };
 
+type ContentPart =
+  | { kind: "text"; text: string }
+  | { kind: "image"; part: Record<string, unknown> }
+  | { kind: "data"; value: unknown };
+
 function toChatMessages(message: NormalizedMessage): ProjectedMessage {
-  const contentParts: Array<string | Record<string, unknown>> = [];
+  const contentParts: ContentPart[] = [];
   const thinking: Array<{
     type: "thinking";
     content: string;
@@ -130,7 +135,9 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
   }> = [];
   const redactedThinking: Array<{ type: "redacted_thinking"; data: string }> =
     [];
-  const jsonParts: unknown[] = [];
+  // `inlineable` entries render in `content` instead when the message also
+  // has text or images; otherwise they would hide behind the passthrough view.
+  const jsonParts: Array<{ value: unknown; inlineable?: true }> = [];
   const toolCalls: ReturnType<typeof toToolCallPart>[] = [];
   const toolResults: Extract<NormalizedMessagePart, { type: "tool-result" }>[] =
     [];
@@ -138,7 +145,7 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
   for (const part of message.parts) {
     switch (part.type) {
       case "text":
-        contentParts.push(part.text);
+        contentParts.push({ kind: "text", text: part.text });
         break;
       case "reasoning":
         if (part.content.kind === "text") {
@@ -158,7 +165,7 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
             data: part.content.data,
           });
         } else {
-          jsonParts.push(part.content.value);
+          jsonParts.push({ value: part.content.value });
         }
         break;
       case "tool-call":
@@ -169,43 +176,60 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
         break;
       case "file":
         if (part.mediaType?.startsWith("image/")) {
-          contentParts.push(toImageContentPart(part));
+          const image = toImageContentPart(part);
+          contentParts.push(
+            typeof image === "string"
+              ? { kind: "text", text: image }
+              : { kind: "image", part: image },
+          );
         } else {
           // The existing ChatML renderer has no generic file part. Keep the
           // complete normalized value in the passthrough JSON view instead.
-          jsonParts.push(part);
+          jsonParts.push({ value: part });
         }
         break;
       case "data":
-        jsonParts.push(part.value);
+        contentParts.push({ kind: "data", value: part.value });
+        jsonParts.push({ value: part.value, inlineable: true });
         break;
-      case "custom":
-        jsonParts.push({ kind: part.kind, value: part.value });
+      case "custom": {
+        const value = { kind: part.kind, value: part.value };
+        contentParts.push({ kind: "data", value });
+        jsonParts.push({ value, inlineable: true });
         break;
+      }
     }
   }
 
-  const hasImages = contentParts.some((part) => typeof part !== "string");
+  const hasTextOrImages = contentParts.some((part) => part.kind !== "data");
   const content = (() => {
-    if (hasImages) {
-      return contentParts.map((part) =>
-        typeof part === "string" ? { type: "text", text: part } : part,
-      );
+    if (!hasTextOrImages) {
+      return undefined;
     }
-    if (contentParts.length > 0) {
-      return contentParts.join("");
+    if (contentParts.every((part) => part.kind === "text")) {
+      return contentParts.map((part) => part.text).join("");
     }
-    return undefined;
+    return contentParts.map((part) => {
+      if (part.kind === "text") return { type: "text", text: part.text };
+      if (part.kind === "image") return part.part;
+      return {
+        type: "text",
+        text: "```json\n" + JSON.stringify(part.value, null, 2) + "\n```",
+      };
+    });
   })();
 
   const json = (() => {
-    if (jsonParts.length === 0) {
+    const values = jsonParts
+      .filter((part) => !(hasTextOrImages && part.inlineable))
+      .map((part) => part.value);
+    if (values.length === 0) {
       return undefined;
     }
-    if (jsonParts.length === 1) {
-      return jsonParts[0];
+    if (values.length === 1) {
+      return values[0];
     }
-    return jsonParts;
+    return values;
   })();
 
   const hasMainMessage =

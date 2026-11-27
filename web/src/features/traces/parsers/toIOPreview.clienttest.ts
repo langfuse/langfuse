@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { NormalizedIO } from "@langfuse/shared/src/utils/normalized-io";
+import { deepParseJson } from "@langfuse/shared";
+import {
+  normalizeSpanIO,
+  type NormalizedIO,
+} from "@langfuse/shared/src/utils/normalized-io";
 import { toIOPreview } from "./toIOPreview";
 
 const emptySpan = { input: undefined, output: undefined, metadata: undefined };
@@ -163,5 +167,107 @@ describe("toIOPreview", () => {
         content: "orphaned",
       },
     ]);
+  });
+
+  describe("data parts", () => {
+    const userMessage = (
+      parts: NormalizedIO["messages"][number]["parts"],
+    ): NormalizedIO => ({
+      span: emptySpan,
+      toolDefinitions: [],
+      messages: [{ role: "user", source: "input", parts }],
+    });
+    const image: NormalizedIO["messages"][number]["parts"][number] = {
+      type: "file",
+      mediaType: "image/png",
+      content: { kind: "reference", id: "file-1" },
+      providerMetadata: { source: "bytes" },
+    };
+    const imageContent = {
+      type: "image_url",
+      image_url: {
+        url: "@@@langfuseMedia:type=image/png|id=file-1|source=bytes@@@",
+      },
+    };
+    const jsonText = (value: unknown) =>
+      "```json\n" + JSON.stringify(value, null, 2) + "\n```";
+
+    it("renders a JSON-string text part inline next to images", () => {
+      const imageRef = (id: string) =>
+        `@@@langfuseMedia:type=image/jpeg|id=${id}|source=base64_data_uri@@@`;
+      const input = {
+        model: "gpt-4.1",
+        input: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: JSON.stringify({ city: "Paris", units: "metric" }),
+              },
+              { type: "input_image", image_url: imageRef("media-1") },
+              { type: "input_image", image_url: imageRef("media-2") },
+            ],
+          },
+        ],
+      };
+
+      const result = toIOPreview(
+        normalizeSpanIO({
+          input: deepParseJson(input, { maxSize: 300_000, maxDepth: 25 }),
+          output: undefined,
+          metadata: undefined,
+        }),
+      );
+      const message = result.allMessages.find((m) => m.role === "user");
+
+      expect(message?.json).toBeUndefined();
+      expect(message?.content).toEqual([
+        { type: "text", text: jsonText({ city: "Paris", units: "metric" }) },
+        { type: "image_url", image_url: { url: imageRef("media-1") } },
+        { type: "image_url", image_url: { url: imageRef("media-2") } },
+      ]);
+    });
+
+    it("keeps a data-only message as JSON", () => {
+      const message = toIOPreview(
+        userMessage([{ type: "data", value: { a: 1 } }]),
+      ).allMessages[0];
+
+      expect(message?.content).toBeUndefined();
+      expect(message?.json).toEqual({ a: 1 });
+    });
+
+    it("keeps part order when data sits between an image and text", () => {
+      const message = toIOPreview(
+        userMessage([
+          image,
+          { type: "data", value: { a: 1 } },
+          { type: "text", text: "Done" },
+        ]),
+      ).allMessages[0];
+
+      expect(message?.json).toBeUndefined();
+      expect(message?.content).toEqual([
+        imageContent,
+        { type: "text", text: jsonText({ a: 1 }) },
+        { type: "text", text: "Done" },
+      ]);
+    });
+
+    it("shows text and data together when there are no images", () => {
+      const message = toIOPreview(
+        userMessage([
+          { type: "text", text: "Context:" },
+          { type: "data", value: { a: 1 } },
+        ]),
+      ).allMessages[0];
+
+      expect(message?.json).toBeUndefined();
+      expect(message?.content).toEqual([
+        { type: "text", text: "Context:" },
+        { type: "text", text: jsonText({ a: 1 }) },
+      ]);
+    });
   });
 });
