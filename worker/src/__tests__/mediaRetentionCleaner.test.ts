@@ -346,6 +346,7 @@ describe("MediaRetentionCleaner", () => {
           field: "input",
           jsonPath: null,
           referenceString: null,
+          createdAt: daysAgo(11),
         },
       });
       const firstUnassociatedMedia = await createTestMedia(
@@ -428,6 +429,226 @@ describe("MediaRetentionCleaner", () => {
           limit: 2,
         }),
       ).resolves.toEqual([]);
+    });
+
+    it("keeps deduplicated media that a retained trace still links to", async () => {
+      await drainExpiredMedia();
+      mockDeleteFiles.mockClear();
+      const now = Date.now();
+      const daysAgo = (days: number) =>
+        new Date(now - days * 24 * 60 * 60 * 1000);
+
+      const { projectId } = await createOrgProjectAndApiKey();
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: 7 },
+      });
+
+      // Trace A uploaded the bytes ten days ago; trace B reused the same media
+      // row yesterday through content-hash deduplication.
+      const sharedMedia = await createTestMedia(projectId, daysAgo(10));
+      const expiredTraceId = randomUUID();
+      const retainedTraceId = randomUUID();
+      await prisma.traceMedia.createMany({
+        data: [
+          {
+            id: randomUUID(),
+            projectId,
+            mediaId: sharedMedia.id,
+            traceId: expiredTraceId,
+            field: "input",
+            createdAt: daysAgo(10),
+          },
+          {
+            id: randomUUID(),
+            projectId,
+            mediaId: sharedMedia.id,
+            traceId: retainedTraceId,
+            field: "input",
+            createdAt: daysAgo(1),
+          },
+        ],
+      });
+      await prisma.observationMedia.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          mediaId: sharedMedia.id,
+          traceId: retainedTraceId,
+          observationId: randomUUID(),
+          field: "output",
+          createdAt: daysAgo(1),
+        },
+      });
+
+      await new MediaRetentionCleaner().processBatch();
+
+      const deletedPaths = mockDeleteFiles.mock.calls.flatMap(
+        (call) => call[0] as string[],
+      );
+      expect(deletedPaths).not.toContain(sharedMedia.bucketPath);
+      await expect(
+        prisma.media.findUnique({
+          where: { projectId_id: { projectId, id: sharedMedia.id } },
+        }),
+      ).resolves.not.toBeNull();
+      await expect(
+        prisma.traceMedia.findMany({
+          select: { traceId: true },
+          where: { projectId, mediaId: sharedMedia.id },
+        }),
+      ).resolves.toEqual([{ traceId: retainedTraceId }]);
+      await expect(
+        prisma.observationMedia.count({
+          where: { projectId, mediaId: sharedMedia.id },
+        }),
+      ).resolves.toBe(1);
+
+      // Nothing actionable remains until the retained links expire, so the
+      // cleaner does not keep re-selecting this project.
+      await expect(
+        findExpiredMediaBatchByProjectId({
+          projectId,
+          cutoffDate: daysAgo(7),
+          limit: 2,
+        }),
+      ).resolves.toEqual([]);
+      await expect(
+        findExpiredMediaBatchByProjectId({
+          projectId,
+          cutoffDate: daysAgo(0.5),
+          limit: 2,
+        }),
+      ).resolves.toEqual([sharedMedia]);
+    });
+
+    it("keeps deduplicated media that only a retained observation links to", async () => {
+      await drainExpiredMedia();
+      mockDeleteFiles.mockClear();
+      const now = Date.now();
+      const daysAgo = (days: number) =>
+        new Date(now - days * 24 * 60 * 60 * 1000);
+
+      const { projectId } = await createOrgProjectAndApiKey();
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: 7 },
+      });
+
+      const sharedMedia = await createTestMedia(projectId, daysAgo(10));
+      const expiredObservationId = randomUUID();
+      const retainedObservationId = randomUUID();
+      await prisma.observationMedia.createMany({
+        data: [
+          {
+            id: randomUUID(),
+            projectId,
+            mediaId: sharedMedia.id,
+            traceId: randomUUID(),
+            observationId: expiredObservationId,
+            field: "output",
+            createdAt: daysAgo(10),
+          },
+          {
+            id: randomUUID(),
+            projectId,
+            mediaId: sharedMedia.id,
+            traceId: randomUUID(),
+            observationId: retainedObservationId,
+            field: "output",
+            createdAt: daysAgo(1),
+          },
+        ],
+      });
+
+      await new MediaRetentionCleaner().processBatch();
+
+      const deletedPaths = mockDeleteFiles.mock.calls.flatMap(
+        (call) => call[0] as string[],
+      );
+      expect(deletedPaths).not.toContain(sharedMedia.bucketPath);
+      await expect(
+        prisma.media.findUnique({
+          where: { projectId_id: { projectId, id: sharedMedia.id } },
+        }),
+      ).resolves.not.toBeNull();
+      await expect(
+        prisma.observationMedia.findMany({
+          select: { observationId: true },
+          where: { projectId, mediaId: sharedMedia.id },
+        }),
+      ).resolves.toEqual([{ observationId: retainedObservationId }]);
+      await expect(
+        findExpiredMediaBatchByProjectId({
+          projectId,
+          cutoffDate: daysAgo(7),
+          limit: 2,
+        }),
+      ).resolves.toEqual([]);
+    });
+
+    it("keeps reused media while a recent pending dataset upload references it", async () => {
+      await drainExpiredMedia();
+      mockDeleteFiles.mockClear();
+      const now = Date.now();
+      const daysAgo = (days: number) =>
+        new Date(now - days * 24 * 60 * 60 * 1000);
+
+      const { projectId } = await createOrgProjectAndApiKey();
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: 7 },
+      });
+
+      // The bytes were first traced ten days ago; a dataset upload reused the
+      // media row an hour ago and has not claimed its item yet.
+      const sharedMedia = await createTestMedia(projectId, daysAgo(10));
+      await prisma.traceMedia.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          mediaId: sharedMedia.id,
+          traceId: randomUUID(),
+          field: "input",
+          createdAt: daysAgo(10),
+        },
+      });
+      await prisma.datasetItemMedia.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          datasetId: randomUUID(),
+          datasetItemId: randomUUID(),
+          datasetItemValidFrom: null,
+          mediaId: sharedMedia.id,
+          field: "input",
+          jsonPath: null,
+          referenceString: null,
+          createdAt: new Date(now - 60 * 60 * 1000),
+        },
+      });
+
+      await new MediaRetentionCleaner().processBatch();
+
+      const deletedPaths = mockDeleteFiles.mock.calls.flatMap(
+        (call) => call[0] as string[],
+      );
+      expect(deletedPaths).not.toContain(sharedMedia.bucketPath);
+      await expect(
+        prisma.media.findUnique({
+          where: { projectId_id: { projectId, id: sharedMedia.id } },
+        }),
+      ).resolves.not.toBeNull();
+      await expect(
+        prisma.datasetItemMedia.count({
+          where: { projectId, mediaId: sharedMedia.id },
+        }),
+      ).resolves.toBe(1);
+      await expect(
+        prisma.traceMedia.count({
+          where: { projectId, mediaId: sharedMedia.id },
+        }),
+      ).resolves.toBe(0);
     });
 
     it("should NOT delete media within retention period", async () => {
