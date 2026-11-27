@@ -71,11 +71,14 @@ export function EditGatewayApiKeyDialogController({
   const createSubmitHandler =
     (apiKey: EditableGatewayApiKey, closeDialog: () => void): SubmitHandler =>
     async (input) => {
-      const spendLimit = toGatewaySpendLimitUpdate({
-        loaded: apiKey.spendLimit,
-        hasSeveralSpendLimits: apiKey.hasSeveralSpendLimits,
-        submitted: input.spendLimit,
-      });
+      // A locked budget is shown read-only, possibly as the default, and must never be sent as the key's own.
+      const spendLimit = isGatewayApiKeyBudgetLockedByAdmin(apiKey)
+        ? undefined
+        : toGatewaySpendLimitUpdate({
+            loaded: apiKey.spendLimit,
+            hasSeveralSpendLimits: apiKey.hasSeveralSpendLimits,
+            submitted: input.spendLimit,
+          });
       try {
         await update.mutateAsync({
           orgId: organizationId,
@@ -153,6 +156,13 @@ export function EditGatewayApiKeyDialogController({
   );
 }
 
+/** A key locked to the default shows the default, so members see the budget that applies. */
+function getShownSpendLimit(apiKey: EditableGatewayApiKey) {
+  if (apiKey.spendLimit) return apiKey.spendLimit;
+  if (!isGatewayApiKeyBudgetLockedByAdmin(apiKey)) return null;
+  return apiKey.defaultSpendLimit ?? null;
+}
+
 function getSpendBudgetLockedReason(apiKey: EditableGatewayApiKey) {
   if (!isGatewayApiKeyBudgetLockedByAdmin(apiKey)) return undefined;
   return apiKey.spendLimit
@@ -171,7 +181,7 @@ function toEditableGatewayApiKeyFields(
     customExpiry: expiresAt === null ? "" : localDateInputValue(expiresAt),
     metadata: toGatewayApiKeyMetadataRows(apiKey.metadata),
     modelPatterns: parseGatewayAllowedModels(apiKey.allowedModels) ?? [],
-    spendBudget: toGatewaySpendBudgetFormValue(apiKey.spendLimit),
+    spendBudget: toGatewaySpendBudgetFormValue(getShownSpendLimit(apiKey)),
   } satisfies Omit<GatewayApiKeyFormValues, "sections">;
   return { ...values, sections: getLoadedGatewayApiKeySections(values) };
 }
