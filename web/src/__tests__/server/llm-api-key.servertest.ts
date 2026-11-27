@@ -6,6 +6,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
     ...actual,
     finalizeEvaluatorBlocks: mockFinalizeEvaluatorBlocks,
     generateLLMText: vi.fn(),
+    embedLLMText: vi.fn(),
   };
 });
 
@@ -44,6 +45,7 @@ import { LlmConnectionRepository } from "@/src/features/llm-api-key/server/llmCo
 import {
   createOrgProjectAndApiKey,
   DefaultEvalModelService,
+  embedLLMText,
   EvaluatorBlockSource,
   generateLLMText,
 } from "@langfuse/shared/src/server";
@@ -53,6 +55,7 @@ import {
 } from "@/src/__tests__/fixtures/session-factory";
 
 const mockGenerateLLMText = vi.mocked(generateLLMText);
+const mockEmbedLLMText = vi.mocked(embedLLMText);
 
 describe("llmApiKey.all RPC", () => {
   let projectId: string;
@@ -87,6 +90,7 @@ describe("llmApiKey.all RPC", () => {
     orgId = setup.orgId;
     mockFinalizeEvaluatorBlocks.mockReset().mockResolvedValue(undefined);
     mockGenerateLLMText.mockReset().mockResolvedValue({} as never);
+    mockEmbedLLMText.mockReset();
 
     session = createSession({
       organizations: [
@@ -673,6 +677,48 @@ describe("llmApiKey.all RPC", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("accepts an embedding-only first model when the chat test fails", async () => {
+    mockGenerateLLMText.mockRejectedValueOnce(
+      new Error("The requested operation is unsupported."),
+    );
+    mockEmbedLLMText.mockResolvedValueOnce({} as never);
+
+    const result = await caller.llmApiKey.test({
+      projectId,
+      secretKey: "azure-key",
+      provider: `azure-${randomUUID()}`,
+      adapter: LLMAdapter.Azure,
+      customModels: ["team-embeddings"],
+      withDefaultModels: false,
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(mockEmbedLLMText.mock.calls[0][0].model).toEqual({
+      adapter: LLMAdapter.Azure,
+      id: "team-embeddings",
+    });
+  });
+
+  it("reports the chat error when the first model neither chats nor embeds", async () => {
+    mockGenerateLLMText.mockRejectedValueOnce(new Error("invalid api key"));
+    mockEmbedLLMText.mockRejectedValueOnce(new Error("invalid api key"));
+
+    const result = await caller.llmApiKey.test({
+      projectId,
+      secretKey: "azure-key",
+      provider: `azure-${randomUUID()}`,
+      adapter: LLMAdapter.Azure,
+      customModels: ["team-deployment"],
+      withDefaultModels: false,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error:
+        '"team-deployment" failed as both a chat and an embedding model. Chat error: invalid api key',
+    });
   });
 
   it("should block decision-model connections with an internal custom base URL", async () => {

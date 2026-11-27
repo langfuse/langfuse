@@ -48,6 +48,7 @@ import {
   createTypeSafeDecisionModelClient,
   DefaultEvalModelService,
   EMPTY_EVALUATOR_BLOCK,
+  embedLLMText,
   EvaluatorBlockSource,
   finalizeEvaluatorBlocks,
   generateLLMText,
@@ -466,40 +467,60 @@ async function testLlmConnection(
       parsedConfig = config.location ? { location: config.location } : null;
     }
 
-    await generateLLMText({
-      ...mapLegacyLLMCompletionParams({
-        modelParams: {
-          adapter: params.adapter,
-          provider: params.provider,
-          model,
-        },
-        connection: {
-          secretKey: encrypt(params.secretKey),
-          projectId:
-            params.projectId ??
-            (roleOwner?.type === "project" ? roleOwner.projectId : undefined),
-          organizationId:
-            params.organizationId ??
-            (roleOwner?.type === "organization"
-              ? roleOwner.organizationId
-              : undefined),
-          externalId: iamRole
-            ? resolveBedrockExternalId({
-                bedrockIamRole: params.bedrockIamRole,
-                storedExternalId: params.externalId,
-              })
-            : undefined,
-          extraHeaders: params.extraHeaders
-            ? encrypt(JSON.stringify(params.extraHeaders))
-            : undefined,
-          baseURL: params.baseURL || undefined,
-          config: parsedConfig,
-        },
-        messages,
-      }),
-      maxRetries: 1,
-      timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
+    const request = mapLegacyLLMCompletionParams({
+      modelParams: {
+        adapter: params.adapter,
+        provider: params.provider,
+        model,
+      },
+      connection: {
+        secretKey: encrypt(params.secretKey),
+        projectId:
+          params.projectId ??
+          (roleOwner?.type === "project" ? roleOwner.projectId : undefined),
+        organizationId:
+          params.organizationId ??
+          (roleOwner?.type === "organization"
+            ? roleOwner.organizationId
+            : undefined),
+        externalId: iamRole
+          ? resolveBedrockExternalId({
+              bedrockIamRole: params.bedrockIamRole,
+              storedExternalId: params.externalId,
+            })
+          : undefined,
+        extraHeaders: params.extraHeaders
+          ? encrypt(JSON.stringify(params.extraHeaders))
+          : undefined,
+        baseURL: params.baseURL || undefined,
+        config: parsedConfig,
+      },
+      messages,
     });
+    const timeout = getClientInitiatedNonStreamingLlmTimeoutMs();
+
+    try {
+      await generateLLMText({ ...request, maxRetries: 1, timeout });
+    } catch (chatError) {
+      // Embedding-only deployments (e.g. Azure) reject chat requests; accept them if they embed.
+      if (params.adapter === LLMAdapter.Anthropic) throw chatError;
+      try {
+        await embedLLMText({
+          model: request.model,
+          connection: request.connection,
+          values: ["How are you?"],
+          maxRetries: 1,
+          abortSignal: AbortSignal.timeout(timeout),
+        });
+      } catch (embeddingError) {
+        logger.error(embeddingError);
+        throw new Error(
+          `"${model}" failed as both a chat and an embedding model. Chat error: ${
+            chatError instanceof Error ? chatError.message : "Unknown error"
+          }`,
+        );
+      }
+    }
 
     return { success: true };
   } catch (error) {
