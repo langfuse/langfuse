@@ -171,6 +171,8 @@ function createGatewayConnectionModelsColumns({
 export type GatewayConnectionModelsTableProps = {
   connectionName: string;
   provider: GatewayProvider;
+  /** The connection's custom base URL, if any. */
+  baseURL?: string | null;
   models: string[];
   /** The formats of the models the provider's catalog reports them for. */
   modelApiFormats?: Readonly<Record<string, GatewayApiFormat[]>>;
@@ -194,6 +196,7 @@ export const GatewayConnectionModelsTable = memo(
   function GatewayConnectionModelsTable({
     connectionName,
     provider,
+    baseURL,
     models,
     modelApiFormats,
     customModels,
@@ -259,6 +262,7 @@ export const GatewayConnectionModelsTable = memo(
           provider,
           id,
           modelApiFormats?.[id],
+          baseURL,
         ),
       })),
       selectedApiFormats,

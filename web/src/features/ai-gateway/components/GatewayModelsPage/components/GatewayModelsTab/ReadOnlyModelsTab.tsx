@@ -98,6 +98,7 @@ function ReadOnlyConnectionModels({
       filters={filters}
       connectionName={connection.name}
       provider={connection.provider}
+      baseURL={connection.baseURL}
       models={result.models}
       modelApiFormats={result.modelApiFormats}
       enabledModels={
