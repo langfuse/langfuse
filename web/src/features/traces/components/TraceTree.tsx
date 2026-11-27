@@ -32,7 +32,7 @@ import {
 /** Rows the embedder does not let the user pick. */
 const UNPICKABLE_ROW_CLASS_NAME = "opacity-50";
 
-/** The sample row carries a dot at its left edge; the other rows that match are a step lighter. */
+/** The other rows that match are a step lighter than the sample row. */
 function evaluationSurfaceClassName({
   isSample,
   isMatch,
@@ -40,8 +40,7 @@ function evaluationSurfaceClassName({
   isSample: boolean;
   isMatch: boolean;
 }) {
-  if (isSample)
-    return "bg-light-blue text-foreground before:bg-category-blue-foreground before:absolute before:top-1/2 before:left-1 before:size-1.5 before:-translate-y-1/2 before:rounded-full";
+  if (isSample) return "bg-light-blue text-foreground";
   if (isMatch) return "bg-light-blue/50 text-foreground";
   return undefined;
 }
