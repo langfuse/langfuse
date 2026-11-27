@@ -21,7 +21,12 @@ const componentElementPatterns = ["[A-Z]*"];
 
 const componentPrivateElementPatterns = [componentPrivateFolders];
 
-const componentLoosePrivateFilePatterns = ["components/*.{ts,tsx,js,jsx}"];
+// File descriptors match the full path, so this selects only a file that sits
+// directly in a component's `components` folder. Folder-mode element patterns
+// cannot express that: they append `/**/*` and then match nothing.
+const componentLoosePrivateFilePatterns = [
+  "**/[A-Z]*/components/*.{ts,tsx,js,jsx}",
+];
 
 // Picomatch prefixes. Element descriptors stay global so a nested component
 // still sees its parent; policies below limit enforcement to these trees.
@@ -65,11 +70,35 @@ const componentPrivacyPolicies = [
       "Component internals are private. Import that component's entry file, or move the shared code to the nearest common ancestor.",
   },
   {
-    // Own children, sibling parts, and uncles (a parent's sibling entry).
+    from: {
+      file: { path: componentPrivacyPathPatterns },
+    },
+    disallow: {
+      to: {
+        file: { categories: "component-loose-private" },
+      },
+    },
+    message:
+      "Component internals are private. Import that component's entry file, or move the shared code to the nearest common ancestor.",
+  },
+  {
+    disallow: {
+      to: {
+        file: {
+          categories: "component-loose-private",
+          path: componentPrivacyPathPatterns,
+        },
+      },
+    },
+    message:
+      "Component internals are private. Import that component's entry file, or move the shared code to the nearest common ancestor.",
+  },
+  {
+    // Own children, sibling parts, uncles, and the owning component (parent).
     // A later policy wins, so this re-allows what the privacy policy blocked.
     allow: {
       dependency: {
-        relationship: { to: ["child", "sibling", "uncle"] },
+        relationship: { to: ["child", "sibling", "uncle", "parent"] },
       },
     },
   },
@@ -102,6 +131,10 @@ export default defineConfig({
       { category: "design-system", pattern: "src/components/design-system/**" },
       { category: "app-component", pattern: "src/components/**" },
       { category: "feature", pattern: "src/features/**" },
+      {
+        category: "component-loose-private",
+        pattern: componentLoosePrivateFilePatterns,
+      },
     ],
     "boundaries/elements": [
       {
@@ -111,10 +144,6 @@ export default defineConfig({
       {
         type: "component-private",
         pattern: componentPrivateElementPatterns,
-      },
-      {
-        type: "component-private",
-        pattern: componentLoosePrivateFilePatterns,
       },
     ],
   },
