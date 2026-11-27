@@ -368,7 +368,7 @@ const BEDROCK_GUARDRAIL_ID_REGEX =
 const BEDROCK_GUARDRAIL_VERSION_REGEX = /^(?:[1-9][0-9]{0,7}|DRAFT)$/;
 const BEDROCK_AWS_REGION_REGEX = /^[a-z]{2}(-[a-z]+)+-[0-9]+$/;
 
-export const GatewayBedrockGuardrailConfigSchema = z.object({
+const GatewayBedrockGuardrailConfigSchema = z.object({
   guardrailId: z
     .string()
     .trim()
@@ -414,20 +414,10 @@ export const GatewayExternalGuardrailApiKeySchema = z
     "API key must be printable ASCII with no whitespace",
   );
 
-export const GatewayBedrockGuardrailCreateInputSchema =
-  GatewayBedrockGuardrailConfigSchema.extend({
-    apiKey: GatewayExternalGuardrailApiKeySchema,
-  });
-
-export const GatewayBedrockGuardrailUpdateInputSchema =
-  GatewayBedrockGuardrailConfigSchema.extend({
-    apiKey: GatewayExternalGuardrailApiKeySchema.optional(),
-  });
-
 /** OpenAI data-residency regions; the gateway maps each to its API host. */
-export const GATEWAY_OPENAI_MODERATION_REGIONS = ["us", "eu"] as const;
+const GATEWAY_OPENAI_MODERATION_REGIONS = ["us", "eu"] as const;
 
-export const GatewayOpenAiModerationGuardrailConfigSchema = z.object({
+const GatewayOpenAiModerationGuardrailConfigSchema = z.object({
   region: z.enum(GATEWAY_OPENAI_MODERATION_REGIONS),
 });
 
@@ -435,18 +425,8 @@ export type GatewayOpenAiModerationGuardrailConfig = z.infer<
   typeof GatewayOpenAiModerationGuardrailConfigSchema
 >;
 
-export const GatewayOpenAiModerationGuardrailCreateInputSchema =
-  GatewayOpenAiModerationGuardrailConfigSchema.extend({
-    apiKey: GatewayExternalGuardrailApiKeySchema,
-  });
-
-export const GatewayOpenAiModerationGuardrailUpdateInputSchema =
-  GatewayOpenAiModerationGuardrailConfigSchema.extend({
-    apiKey: GatewayExternalGuardrailApiKeySchema.optional(),
-  });
-
 /** Lakera Guard SaaS regions; the gateway maps each to its `{region}.api.lakera.ai` host. */
-export const GATEWAY_LAKERA_GUARDRAIL_REGIONS = [
+const GATEWAY_LAKERA_GUARDRAIL_REGIONS = [
   "eu",
   "us",
   "ap-southeast-1",
@@ -454,7 +434,7 @@ export const GATEWAY_LAKERA_GUARDRAIL_REGIONS = [
 
 const LAKERA_PROJECT_ID_MAX_LENGTH = 256;
 
-export const GatewayLakeraGuardrailConfigSchema = z.object({
+const GatewayLakeraGuardrailConfigSchema = z.object({
   region: z.enum(GATEWAY_LAKERA_GUARDRAIL_REGIONS),
   // Without a project, Lakera screens with its default policy.
   projectId: z
@@ -476,16 +456,6 @@ export const GatewayLakeraGuardrailConfigSchema = z.object({
 export type GatewayLakeraGuardrailConfig = z.infer<
   typeof GatewayLakeraGuardrailConfigSchema
 >;
-
-export const GatewayLakeraGuardrailCreateInputSchema =
-  GatewayLakeraGuardrailConfigSchema.extend({
-    apiKey: GatewayExternalGuardrailApiKeySchema,
-  });
-
-export const GatewayLakeraGuardrailUpdateInputSchema =
-  GatewayLakeraGuardrailConfigSchema.extend({
-    apiKey: GatewayExternalGuardrailApiKeySchema.optional(),
-  });
 
 const GatewayGuardrailSecretPrefixSchema = z
   .string()
@@ -536,6 +506,32 @@ export const GatewayGuardrailCustomRegexSchema = z
     GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH,
     `Regular expression must be at most ${GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH} characters`,
   );
+
+export type GatewayExternalGuardrailType = Exclude<
+  GatewayGuardrailType,
+  "REGEX"
+>;
+
+/** Stored `config` of each external guardrail type, also its write input. */
+export const GATEWAY_EXTERNAL_GUARDRAIL_CONFIG_SCHEMAS = {
+  BEDROCK: GatewayBedrockGuardrailConfigSchema,
+  OPENAI_MODERATION: GatewayOpenAiModerationGuardrailConfigSchema,
+  LAKERA: GatewayLakeraGuardrailConfigSchema,
+} as const satisfies Record<GatewayExternalGuardrailType, z.ZodType>;
+
+export type GatewayExternalGuardrailConfig = z.output<
+  (typeof GATEWAY_EXTERNAL_GUARDRAIL_CONFIG_SCHEMAS)[GatewayExternalGuardrailType]
+>;
+
+export const GATEWAY_EXTERNAL_GUARDRAIL_TYPES = Object.keys(
+  GATEWAY_EXTERNAL_GUARDRAIL_CONFIG_SCHEMAS,
+) as GatewayExternalGuardrailType[];
+
+export function isExternalGuardrailType(
+  type: GatewayGuardrailType,
+): type is GatewayExternalGuardrailType {
+  return type !== "REGEX";
+}
 
 type GuardrailTypeCapability = {
   readonly actions: readonly [

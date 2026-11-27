@@ -15,10 +15,11 @@ import {
 import { GatewayGuardrailService } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailService";
 import { ProviderCredentialRejectedError } from "@/src/features/ai-gateway/server/provider/connection/ProviderCredentialRejectedError";
 import {
+  GATEWAY_EXTERNAL_GUARDRAIL_CONFIG_SCHEMAS,
+  GATEWAY_EXTERNAL_GUARDRAIL_TYPES,
   GATEWAY_GUARDRAIL_ACTION_SCOPES,
   GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
-  GatewayBedrockGuardrailCreateInputSchema,
-  GatewayBedrockGuardrailUpdateInputSchema,
+  GatewayExternalGuardrailApiKeySchema,
   GatewayGuardrailAssignmentsInputSchema,
   GatewayGuardrailContainsListSchema,
   GatewayGuardrailCustomRegexSchema,
@@ -26,10 +27,8 @@ import {
   GatewayGuardrailRedactionLabelSchema,
   GatewayGuardrailScopeSchema,
   GatewayGuardrailSecretPrefixesSchema,
-  GatewayOpenAiModerationGuardrailCreateInputSchema,
-  GatewayOpenAiModerationGuardrailUpdateInputSchema,
-  GatewayLakeraGuardrailCreateInputSchema,
-  GatewayLakeraGuardrailUpdateInputSchema,
+  type GatewayExternalGuardrailType,
+  type GatewayGuardrailActionForType,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
@@ -104,18 +103,6 @@ const regexWriteSchema = z
   ])
   .refine(hasGuardrailRule, GUARDRAIL_RULE_REQUIRED_MESSAGE);
 
-const bedrockActionSchema = z.enum(
-  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.actions,
-);
-
-const openAiModerationActionSchema = z.enum(
-  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.OPENAI_MODERATION.actions,
-);
-
-const lakeraActionSchema = z.enum(
-  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.LAKERA.actions,
-);
-
 const isScopeSupportedByAction = (value: {
   action: keyof typeof GATEWAY_GUARDRAIL_ACTION_SCOPES;
   scope?: z.infer<typeof GatewayGuardrailScopeSchema>;
@@ -128,57 +115,56 @@ const isScopeSupportedByAction = (value: {
 const SCOPE_NOT_SUPPORTED_MESSAGE =
   "Block guardrails only evaluate the last turn";
 
+type ExternalGuardrailAction =
+  GatewayGuardrailActionForType<GatewayExternalGuardrailType>;
+
+/** Write fields of external guardrail `type`: its actions and its config. */
+const externalGuardrailWriteFields = (type: GatewayExternalGuardrailType) => ({
+  ...commonWriteFields,
+  type: z.literal(type),
+  action: z.enum(
+    GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[type].actions as readonly [
+      ExternalGuardrailAction,
+      ...ExternalGuardrailAction[],
+    ],
+  ),
+  config: GATEWAY_EXTERNAL_GUARDRAIL_CONFIG_SCHEMAS[type],
+});
+
 const createGuardrailInput = z.union([
   organizationInput.and(regexWriteSchema),
-  organizationInput.extend({
-    ...commonWriteFields,
-    type: z.literal("BEDROCK"),
-    action: bedrockActionSchema,
-    bedrock: GatewayBedrockGuardrailCreateInputSchema,
-  }),
-  organizationInput
-    .extend({
-      ...commonWriteFields,
-      type: z.literal("OPENAI_MODERATION"),
-      action: openAiModerationActionSchema,
-      openAiModeration: GatewayOpenAiModerationGuardrailCreateInputSchema,
-    })
-    .refine(isScopeSupportedByAction, SCOPE_NOT_SUPPORTED_MESSAGE),
-  organizationInput
-    .extend({
-      ...commonWriteFields,
-      type: z.literal("LAKERA"),
-      action: lakeraActionSchema,
-      lakera: GatewayLakeraGuardrailCreateInputSchema,
-    })
-    .refine(isScopeSupportedByAction, SCOPE_NOT_SUPPORTED_MESSAGE),
+  ...GATEWAY_EXTERNAL_GUARDRAIL_TYPES.map((type) =>
+    organizationInput
+      .extend({
+        ...externalGuardrailWriteFields(type),
+        apiKey: GatewayExternalGuardrailApiKeySchema,
+      })
+      .refine(isScopeSupportedByAction, SCOPE_NOT_SUPPORTED_MESSAGE),
+  ),
 ]);
 
 const updateGuardrailInput = z.union([
   guardrailIdInput.and(regexWriteSchema),
-  guardrailIdInput.extend({
-    ...commonWriteFields,
-    type: z.literal("BEDROCK"),
-    action: bedrockActionSchema,
-    bedrock: GatewayBedrockGuardrailUpdateInputSchema,
-  }),
-  guardrailIdInput
-    .extend({
-      ...commonWriteFields,
-      type: z.literal("OPENAI_MODERATION"),
-      action: openAiModerationActionSchema,
-      openAiModeration: GatewayOpenAiModerationGuardrailUpdateInputSchema,
-    })
-    .refine(isScopeSupportedByAction, SCOPE_NOT_SUPPORTED_MESSAGE),
-  guardrailIdInput
-    .extend({
-      ...commonWriteFields,
-      type: z.literal("LAKERA"),
-      action: lakeraActionSchema,
-      lakera: GatewayLakeraGuardrailUpdateInputSchema,
-    })
-    .refine(isScopeSupportedByAction, SCOPE_NOT_SUPPORTED_MESSAGE),
+  ...GATEWAY_EXTERNAL_GUARDRAIL_TYPES.map((type) =>
+    guardrailIdInput
+      .extend({
+        ...externalGuardrailWriteFields(type),
+        apiKey: GatewayExternalGuardrailApiKeySchema.optional(),
+      })
+      .refine(isScopeSupportedByAction, SCOPE_NOT_SUPPORTED_MESSAGE),
+  ),
 ]);
+
+const testGuardrailInput = z.union(
+  GATEWAY_EXTERNAL_GUARDRAIL_TYPES.map((type) =>
+    organizationInput.extend({
+      id: z.string().optional(),
+      type: z.literal(type),
+      config: GATEWAY_EXTERNAL_GUARDRAIL_CONFIG_SCHEMAS[type],
+      apiKey: GatewayExternalGuardrailApiKeySchema.optional(),
+    }),
+  ),
+);
 
 const bulkTargetInput = z.discriminatedUnion("type", [
   z.object({
@@ -322,25 +308,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
     }),
 
   test: protectedOrganizationProcedureWithoutTracing
-    .input(
-      z.discriminatedUnion("type", [
-        organizationInput.extend({
-          id: z.string().optional(),
-          type: z.literal("BEDROCK"),
-          bedrock: GatewayBedrockGuardrailUpdateInputSchema,
-        }),
-        organizationInput.extend({
-          id: z.string().optional(),
-          type: z.literal("OPENAI_MODERATION"),
-          openAiModeration: GatewayOpenAiModerationGuardrailUpdateInputSchema,
-        }),
-        organizationInput.extend({
-          id: z.string().optional(),
-          type: z.literal("LAKERA"),
-          lakera: GatewayLakeraGuardrailUpdateInputSchema,
-        }),
-      ]),
-    )
+    .input(testGuardrailInput)
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({
         session: ctx.session,
@@ -371,38 +339,15 @@ export const gatewayGuardrailRouter = createTRPCRouter({
         orgId: input.orgId,
       });
       const service = new GatewayGuardrailService(ctx.prisma);
-      if (input.type === "BEDROCK") {
+      if (input.type !== "REGEX") {
         return service.create({
           organizationId: input.orgId,
-          type: "BEDROCK",
+          type: input.type,
           name: input.name,
           action: input.action,
           scope: input.scope,
-          bedrock: input.bedrock,
-          assignments: input.assignments,
-          session: ctx.session,
-        });
-      }
-      if (input.type === "LAKERA") {
-        return service.create({
-          organizationId: input.orgId,
-          type: "LAKERA",
-          name: input.name,
-          action: input.action,
-          scope: input.scope,
-          lakera: input.lakera,
-          assignments: input.assignments,
-          session: ctx.session,
-        });
-      }
-      if (input.type === "OPENAI_MODERATION") {
-        return service.create({
-          organizationId: input.orgId,
-          type: "OPENAI_MODERATION",
-          name: input.name,
-          action: input.action,
-          scope: input.scope,
-          openAiModeration: input.openAiModeration,
+          config: input.config,
+          apiKey: input.apiKey,
           assignments: input.assignments,
           session: ctx.session,
         });
@@ -432,41 +377,16 @@ export const gatewayGuardrailRouter = createTRPCRouter({
         orgId: input.orgId,
       });
       const service = new GatewayGuardrailService(ctx.prisma);
-      if (input.type === "BEDROCK") {
+      if (input.type !== "REGEX") {
         return service.update({
           organizationId: input.orgId,
           id: input.id,
-          type: "BEDROCK",
+          type: input.type,
           name: input.name,
           action: input.action,
           scope: input.scope,
-          bedrock: input.bedrock,
-          assignments: input.assignments,
-          session: ctx.session,
-        });
-      }
-      if (input.type === "LAKERA") {
-        return service.update({
-          organizationId: input.orgId,
-          id: input.id,
-          type: "LAKERA",
-          name: input.name,
-          action: input.action,
-          scope: input.scope,
-          lakera: input.lakera,
-          assignments: input.assignments,
-          session: ctx.session,
-        });
-      }
-      if (input.type === "OPENAI_MODERATION") {
-        return service.update({
-          organizationId: input.orgId,
-          id: input.id,
-          type: "OPENAI_MODERATION",
-          name: input.name,
-          action: input.action,
-          scope: input.scope,
-          openAiModeration: input.openAiModeration,
+          config: input.config,
+          apiKey: input.apiKey,
           assignments: input.assignments,
           session: ctx.session,
         });

@@ -276,10 +276,13 @@ export const EditBedrock = meta.story({
       presets: [],
       secretPrefixes: [],
       containsWords: [],
-      bedrock: {
-        guardrailId: "abc123def456",
-        guardrailVersion: "1",
-        region: "us-east-1",
+      external: {
+        type: "BEDROCK",
+        config: {
+          guardrailId: "abc123def456",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
       },
       action: "ENFORCE",
       scope: "LAST_TURN_AND_OUTPUT",

@@ -65,13 +65,11 @@ import {
   GATEWAY_GUARDRAIL_ACTION_SCOPES,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
-  GatewayBedrockGuardrailConfigSchema,
+  GATEWAY_EXTERNAL_GUARDRAIL_CONFIG_SCHEMAS,
   GatewayGuardrailCustomRegexSchema,
   GatewayGuardrailRedactionLabelSchema,
-  GATEWAY_LAKERA_GUARDRAIL_REGIONS,
-  GATEWAY_OPENAI_MODERATION_REGIONS,
   GatewayExternalGuardrailApiKeySchema,
-  GatewayLakeraGuardrailConfigSchema,
+  isExternalGuardrailType,
   guardrailScopeChecksOutput,
   parseContainsWordsText,
   resolveSupportedGuardrailScope,
@@ -81,13 +79,12 @@ import {
   type GatewayGuardrailPreset,
   type GatewayGuardrailTemplateKind,
   type GatewayGuardrailUiAction,
+  type GatewayExternalGuardrailConfig,
+  type GatewayExternalGuardrailType,
   type GatewayLakeraGuardrailConfig,
   type GatewayOpenAiModerationGuardrailConfig,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
-import type {
-  GatewayGuardrailScope,
-  GatewayGuardrailType,
-} from "@langfuse/shared/src/db";
+import type { GatewayGuardrailScope } from "@langfuse/shared/src/db";
 import { cn } from "@/src/utils/tailwind";
 
 function toActionOption(value: GatewayGuardrailUiAction) {
@@ -114,21 +111,6 @@ function toScopeSelectOption(value: GatewayGuardrailScope) {
   };
 }
 
-const ACTION_OPTIONS_BY_TYPE: Record<
-  GatewayGuardrailType,
-  ReturnType<typeof toActionOption>[]
-> = {
-  REGEX: GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.REGEX.actions.map(toActionOption),
-  BEDROCK:
-    GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.actions.map(toActionOption),
-  OPENAI_MODERATION:
-    GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.OPENAI_MODERATION.actions.map(
-      toActionOption,
-    ),
-  LAKERA:
-    GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.LAKERA.actions.map(toActionOption),
-};
-
 const OPENAI_MODERATION_REGION_OPTIONS: {
   value: GatewayOpenAiModerationGuardrailConfig["region"];
   label: string;
@@ -138,7 +120,7 @@ const OPENAI_MODERATION_REGION_OPTIONS: {
 ];
 
 const LAKERA_REGION_OPTIONS: {
-  value: (typeof GATEWAY_LAKERA_GUARDRAIL_REGIONS)[number];
+  value: GatewayLakeraGuardrailConfig["region"];
   label: string;
 }[] = [
   { value: "eu", label: "EU (eu.api.lakera.ai)" },
@@ -153,11 +135,15 @@ const SCOPE_OPTIONS_ALL = GATEWAY_GUARDRAIL_SCOPES.map(toScopeSelectOption);
 const SCOPE_OPTIONS_BLOCK =
   GATEWAY_GUARDRAIL_ACTION_SCOPES.BLOCK.map(toScopeSelectOption);
 
-const BEDROCK_FIELD_PATHS = {
-  guardrailId: "bedrockGuardrailId",
-  guardrailVersion: "bedrockGuardrailVersion",
-  region: "bedrockRegion",
-} as const;
+/** Empty form values of each external guardrail type's config. */
+const EXTERNAL_CONFIG_DEFAULTS: Record<
+  GatewayExternalGuardrailType,
+  Record<string, string>
+> = {
+  BEDROCK: { guardrailId: "", guardrailVersion: "", region: "" },
+  OPENAI_MODERATION: { region: "us" },
+  LAKERA: { region: "eu", projectId: "" },
+};
 
 const PRESET_VALUE_PREFIX = "preset:";
 const CUSTOM_PREFIX_VALUE_PREFIX = "prefix:";
@@ -167,10 +153,8 @@ function createGuardrailFormSchema(
   templateKind: GatewayGuardrailTemplateKind,
   hasSavedApiKey: boolean,
 ) {
-  const capabilities =
-    GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[
-      getGuardrailTypeForTemplate(templateKind)
-    ];
+  const guardrailType = getGuardrailTypeForTemplate(templateKind);
+  const capabilities = GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[guardrailType];
   return z
     .object({
       name: z
@@ -190,12 +174,7 @@ function createGuardrailFormSchema(
         ),
       containsText: z.string(),
       customRegex: z.string(),
-      bedrockGuardrailId: z.string(),
-      bedrockGuardrailVersion: z.string(),
-      bedrockRegion: z.string(),
-      openAiModerationRegion: z.enum(GATEWAY_OPENAI_MODERATION_REGIONS),
-      lakeraRegion: z.enum(GATEWAY_LAKERA_GUARDRAIL_REGIONS),
-      lakeraProjectId: z.string(),
+      externalConfig: z.record(z.string(), z.string()),
       apiKey: z.string(),
       action: z.enum(capabilities.actions),
       scope: z.enum(GATEWAY_GUARDRAIL_SCOPES),
@@ -236,28 +215,7 @@ function createGuardrailFormSchema(
           });
         }
       }
-      if (templateKind === "bedrock") {
-        const configResult = GatewayBedrockGuardrailConfigSchema.safeParse({
-          guardrailId: values.bedrockGuardrailId,
-          guardrailVersion: values.bedrockGuardrailVersion,
-          region: values.bedrockRegion,
-        });
-        if (!configResult.success) {
-          for (const issue of configResult.error.issues) {
-            const key = issue.path[0];
-            if (typeof key === "string" && key in BEDROCK_FIELD_PATHS) {
-              ctx.addIssue({
-                code: "custom",
-                path: [
-                  BEDROCK_FIELD_PATHS[key as keyof typeof BEDROCK_FIELD_PATHS],
-                ],
-                message: issue.message,
-              });
-            }
-          }
-        }
-      }
-      if (isExternalTemplate(templateKind)) {
+      if (isExternalGuardrailType(guardrailType)) {
         if (!hasSavedApiKey || values.apiKey.trim()) {
           const apiKeyResult = GatewayExternalGuardrailApiKeySchema.safeParse(
             values.apiKey,
@@ -271,20 +229,15 @@ function createGuardrailFormSchema(
             });
           }
         }
-        if (templateKind === "lakera") {
-          const projectIdResult =
-            GatewayLakeraGuardrailConfigSchema.shape.projectId.safeParse(
-              values.lakeraProjectId,
-            );
-          if (!projectIdResult.success) {
-            ctx.addIssue({
-              code: "custom",
-              path: ["lakeraProjectId"],
-              message:
-                projectIdResult.error.issues[0]?.message ??
-                "Enter a valid project ID",
-            });
-          }
+        const configResult = GATEWAY_EXTERNAL_GUARDRAIL_CONFIG_SCHEMAS[
+          guardrailType
+        ].safeParse(values.externalConfig);
+        for (const issue of configResult.error?.issues ?? []) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["externalConfig", String(issue.path[0] ?? "")],
+            message: issue.message,
+          });
         }
         return;
       }
@@ -351,16 +304,12 @@ export type GatewayGuardrailFormValues = {
   secretPrefixes: string[];
   containsWords: string[];
   customRegex?: string | null;
-  bedrock?: {
-    guardrailId: string;
-    guardrailVersion: string;
-    region: string;
+  /** Set for external guardrails; a blank `apiKey` keeps the saved key. */
+  external?: {
+    type: GatewayExternalGuardrailType;
+    config: GatewayExternalGuardrailConfig;
     apiKey?: string;
   };
-  openAiModeration?: GatewayOpenAiModerationGuardrailConfig & {
-    apiKey?: string;
-  };
-  lakera?: GatewayLakeraGuardrailConfig & { apiKey?: string };
   action: GatewayGuardrailUiAction;
   scope?: GatewayGuardrailScope;
   redactionLabel?: string;
@@ -441,12 +390,10 @@ export function GatewayGuardrailFormDialog({
       secretPrefixes: initialValues.secretPrefixes,
       containsText: initialValues.containsWords.join("\n"),
       customRegex: initialValues.customRegex ?? "",
-      bedrockGuardrailId: initialValues.bedrock?.guardrailId ?? "",
-      bedrockGuardrailVersion: initialValues.bedrock?.guardrailVersion ?? "",
-      bedrockRegion: initialValues.bedrock?.region ?? "",
-      openAiModerationRegion: initialValues.openAiModeration?.region ?? "us",
-      lakeraRegion: initialValues.lakera?.region ?? "eu",
-      lakeraProjectId: initialValues.lakera?.projectId ?? "",
+      externalConfig: toExternalConfigFormValues(
+        templateKind,
+        initialValues.external?.config,
+      ),
       apiKey: "",
       action: initialValues.action,
       scope: resolveSupportedGuardrailScope(
@@ -465,10 +412,7 @@ export function GatewayGuardrailFormDialog({
   const secretPrefixes = form.watch("secretPrefixes");
   const containsText = form.watch("containsText");
   const customRegex = form.watch("customRegex");
-  const bedrockGuardrailId = form.watch("bedrockGuardrailId");
-  const bedrockGuardrailVersion = form.watch("bedrockGuardrailVersion");
-  const bedrockRegion = form.watch("bedrockRegion");
-  const lakeraProjectId = form.watch("lakeraProjectId");
+  const externalConfig = form.watch("externalConfig");
   const apiKey = form.watch("apiKey");
   const selectedAction = form.watch("action");
   const selectedScope = form.watch("scope");
@@ -493,18 +437,11 @@ export function GatewayGuardrailFormDialog({
     (hasSavedApiKey && apiKey.trim().length === 0) ||
     GatewayExternalGuardrailApiKeySchema.safeParse(apiKey).success;
   const canTestExternal =
-    isExternal &&
+    isExternalGuardrailType(guardrailType) &&
     isApiKeyReady &&
-    (templateKind !== "bedrock" ||
-      GatewayBedrockGuardrailConfigSchema.safeParse({
-        guardrailId: bedrockGuardrailId,
-        guardrailVersion: bedrockGuardrailVersion,
-        region: bedrockRegion,
-      }).success) &&
-    (templateKind !== "lakera" ||
-      GatewayLakeraGuardrailConfigSchema.shape.projectId.safeParse(
-        lakeraProjectId,
-      ).success);
+    GATEWAY_EXTERNAL_GUARDRAIL_CONFIG_SCHEMAS[guardrailType].safeParse(
+      externalConfig,
+    ).success;
 
   const isCustomRegex = templateKind === "custom_regex";
   const activeCustomRegexPreview =
@@ -535,52 +472,19 @@ export function GatewayGuardrailFormDialog({
   const toFormValues = (
     values: GuardrailFormSchemaValues,
   ): GatewayGuardrailFormValues => {
-    const apiKey = values.apiKey.trim();
-    if (templateKind === "bedrock") {
+    if (isExternalGuardrailType(guardrailType)) {
+      const apiKey = values.apiKey.trim();
       return {
         name: values.name.trim(),
         presets: [],
         secretPrefixes: [],
         containsWords: [],
         customRegex: null,
-        bedrock: {
-          guardrailId: values.bedrockGuardrailId.trim(),
-          guardrailVersion: values.bedrockGuardrailVersion.trim(),
-          region: values.bedrockRegion.trim(),
-          ...(apiKey ? { apiKey } : {}),
-        },
-        action: values.action,
-        scope: values.scope,
-        targets: values.targets,
-      };
-    }
-    if (templateKind === "lakera") {
-      const projectId = values.lakeraProjectId.trim();
-      return {
-        name: values.name.trim(),
-        presets: [],
-        secretPrefixes: [],
-        containsWords: [],
-        customRegex: null,
-        lakera: {
-          region: values.lakeraRegion,
-          ...(projectId ? { projectId } : {}),
-          ...(apiKey ? { apiKey } : {}),
-        },
-        action: values.action,
-        scope: values.scope,
-        targets: values.targets,
-      };
-    }
-    if (templateKind === "openai_moderation") {
-      return {
-        name: values.name.trim(),
-        presets: [],
-        secretPrefixes: [],
-        containsWords: [],
-        customRegex: null,
-        openAiModeration: {
-          region: values.openAiModerationRegion,
+        external: {
+          type: guardrailType,
+          config: GATEWAY_EXTERNAL_GUARDRAIL_CONFIG_SCHEMAS[
+            guardrailType
+          ].parse(values.externalConfig),
           ...(apiKey ? { apiKey } : {}),
         },
         action: values.action,
@@ -788,7 +692,7 @@ export function GatewayGuardrailFormDialog({
                           }
                         }}
                         onBlur={onBlur}
-                        options={ACTION_OPTIONS_BY_TYPE[guardrailType]}
+                        options={capabilities.actions.map(toActionOption)}
                       />
                     )}
                   </FormField>
@@ -1090,7 +994,7 @@ function BedrockGuardrailFields({
         {({ getTriggerProps }) => (
           <FormField
             control={control}
-            name="bedrockGuardrailId"
+            name="externalConfig.guardrailId"
             label="Guardrail ID"
             registerLabelTooltip={getTriggerProps}
           >
@@ -1119,7 +1023,7 @@ function BedrockGuardrailFields({
           {({ getTriggerProps }) => (
             <FormField
               control={control}
-              name="bedrockGuardrailVersion"
+              name="externalConfig.guardrailVersion"
               label="Version"
               registerLabelTooltip={getTriggerProps}
             >
@@ -1137,7 +1041,11 @@ function BedrockGuardrailFields({
           )}
         </CustomTooltip>
 
-        <FormField control={control} name="bedrockRegion" label="AWS region">
+        <FormField
+          control={control}
+          name="externalConfig.region"
+          label="AWS region"
+        >
           {({ id, inputDescribedById, error, value, onChange, onBlur }) => (
             <RegionSelect
               id={id}
@@ -1188,7 +1096,7 @@ function OpenAiModerationGuardrailFields({
         {({ getTriggerProps }) => (
           <FormField
             control={control}
-            name="openAiModerationRegion"
+            name="externalConfig.region"
             label="Region"
             registerLabelTooltip={getTriggerProps}
           >
@@ -1242,7 +1150,7 @@ function LakeraGuardrailFields({
           {({ getTriggerProps }) => (
             <FormField
               control={control}
-              name="lakeraRegion"
+              name="externalConfig.region"
               label="Region"
               registerLabelTooltip={getTriggerProps}
             >
@@ -1274,7 +1182,7 @@ function LakeraGuardrailFields({
           {({ getTriggerProps }) => (
             <FormField
               control={control}
-              name="lakeraProjectId"
+              name="externalConfig.projectId"
               label="Project ID"
               registerLabelTooltip={getTriggerProps}
             >
@@ -1655,8 +1563,18 @@ function getLimitFeedbackReason(
   }
 }
 
-function isExternalTemplate(templateKind: GatewayGuardrailTemplateKind) {
-  return getGuardrailTypeForTemplate(templateKind) !== "REGEX";
+/** Form values of an external config: the type's defaults, overlaid with `config`. */
+function toExternalConfigFormValues(
+  templateKind: GatewayGuardrailTemplateKind,
+  config: GatewayExternalGuardrailConfig | undefined,
+): Record<string, string> {
+  const guardrailType = getGuardrailTypeForTemplate(templateKind);
+  if (!isExternalGuardrailType(guardrailType)) return {};
+  const values = { ...EXTERNAL_CONFIG_DEFAULTS[guardrailType] };
+  for (const [key, value] of Object.entries(config ?? {})) {
+    if (typeof value === "string") values[key] = value;
+  }
+  return values;
 }
 
 function isExternalGuardrailAlternativeError(

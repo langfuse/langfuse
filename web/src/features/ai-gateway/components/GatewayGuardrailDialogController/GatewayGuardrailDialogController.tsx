@@ -23,6 +23,7 @@ import {
 import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
 import { assignmentsToTargetOptions } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/fns/assignmentsToTargetOptions";
 import { targetOptionsToAssignments } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/fns/targetOptionsToAssignments";
+import { resolveGuardrailTemplate } from "@/src/features/ai-gateway/fns/resolveGuardrailTemplate";
 import { summarizeGuardrailAssignments } from "@/src/features/ai-gateway/fns/summarizeGuardrailAssignments";
 import { toGuardrailConfigAnalytics } from "@/src/features/ai-gateway/fns/toGuardrailConfigAnalytics";
 import { useGatewayGuardrailRegexPreview } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/hooks/useGatewayGuardrailRegexPreview";
@@ -34,12 +35,10 @@ import {
   type GatewayGuardrailsLimitFeedbackReason,
 } from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
 import {
-  GATEWAY_GUARDRAIL_PRESETS,
-  GATEWAY_GUARDRAIL_PRESET_KEYS,
   GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
+  isExternalGuardrailType,
   resolveSupportedGuardrailAction,
   resolveSupportedGuardrailScope,
-  type GatewayGuardrailPreset,
   type GatewayGuardrailTemplateKind,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
@@ -138,13 +137,12 @@ export function GatewayGuardrailDialogController({
         };
 
         const handleTestForm = async (values: GatewayGuardrailFormValues) => {
-          const external = toExternalTestInput(values);
-          if (!external) return;
+          if (!values.external) return;
           try {
             await testMutation.mutateAsync({
               orgId: organizationId,
               id: state.mode === "edit" ? state.guardrail.id : undefined,
-              ...external,
+              ...values.external,
             });
           } catch (error) {
             reportNonTrpcError(error, "ai-gateway-guardrails");
@@ -158,56 +156,18 @@ export function GatewayGuardrailDialogController({
           testMutation.reset();
           const assignments = targetOptionsToAssignments(values.targets);
           const createGuardrail = () => {
-            if (values.lakera) {
+            if (values.external) {
               return createMutation.mutateAsync({
                 orgId: organizationId,
-                type: "LAKERA",
+                type: values.external.type,
                 name: values.name,
                 action: resolveSupportedGuardrailAction(
-                  "LAKERA",
+                  values.external.type,
                   values.action,
                 ),
                 scope: values.scope,
-                lakera: {
-                  ...values.lakera,
-                  apiKey: values.lakera.apiKey ?? "",
-                },
-                assignments,
-              });
-            }
-            if (values.openAiModeration) {
-              return createMutation.mutateAsync({
-                orgId: organizationId,
-                type: "OPENAI_MODERATION",
-                name: values.name,
-                action: resolveSupportedGuardrailAction(
-                  "OPENAI_MODERATION",
-                  values.action,
-                ),
-                scope: values.scope,
-                openAiModeration: {
-                  region: values.openAiModeration.region,
-                  apiKey: values.openAiModeration.apiKey ?? "",
-                },
-                assignments,
-              });
-            }
-            if (values.bedrock) {
-              return createMutation.mutateAsync({
-                orgId: organizationId,
-                type: "BEDROCK",
-                name: values.name,
-                action: resolveSupportedGuardrailAction(
-                  "BEDROCK",
-                  values.action,
-                ),
-                scope: values.scope,
-                bedrock: {
-                  guardrailId: values.bedrock.guardrailId,
-                  guardrailVersion: values.bedrock.guardrailVersion,
-                  region: values.bedrock.region,
-                  apiKey: values.bedrock.apiKey ?? "",
-                },
+                config: values.external.config,
+                apiKey: values.external.apiKey ?? "",
                 assignments,
               });
             }
@@ -224,48 +184,19 @@ export function GatewayGuardrailDialogController({
             });
           };
           const updateGuardrail = (id: string) => {
-            if (values.lakera) {
+            if (values.external) {
               return updateMutation.mutateAsync({
                 orgId: organizationId,
                 id,
-                type: "LAKERA",
+                type: values.external.type,
                 name: values.name,
                 action: resolveSupportedGuardrailAction(
-                  "LAKERA",
+                  values.external.type,
                   values.action,
                 ),
                 scope: values.scope,
-                lakera: values.lakera,
-                assignments,
-              });
-            }
-            if (values.openAiModeration) {
-              return updateMutation.mutateAsync({
-                orgId: organizationId,
-                id,
-                type: "OPENAI_MODERATION",
-                name: values.name,
-                action: resolveSupportedGuardrailAction(
-                  "OPENAI_MODERATION",
-                  values.action,
-                ),
-                scope: values.scope,
-                openAiModeration: values.openAiModeration,
-                assignments,
-              });
-            }
-            if (values.bedrock) {
-              return updateMutation.mutateAsync({
-                orgId: organizationId,
-                id,
-                type: "BEDROCK",
-                name: values.name,
-                action: resolveSupportedGuardrailAction(
-                  "BEDROCK",
-                  values.action,
-                ),
-                scope: values.scope,
-                bedrock: values.bedrock,
+                config: values.external.config,
+                apiKey: values.external.apiKey,
                 assignments,
               });
             }
@@ -494,7 +425,8 @@ function GuardrailDialogContent({
     GuardrailDialogState,
     { mode: "edit" }
   >;
-  const { templateKind, availablePresets } = resolveEditableTemplate(guardrail);
+  const { templateKind, availablePresets } =
+    resolveGuardrailTemplate(guardrail);
   const isExternal = guardrail.type !== "REGEX";
   const initialAction = resolveSupportedGuardrailAction(
     guardrail.type,
@@ -520,9 +452,10 @@ function GuardrailDialogContent({
           secretPrefixes: guardrail.secretPrefixes,
           containsWords: guardrail.containsWords,
           customRegex: guardrail.customRegex,
-          bedrock: guardrail.bedrock ?? undefined,
-          openAiModeration: guardrail.openAiModeration ?? undefined,
-          lakera: guardrail.lakera ?? undefined,
+          external:
+            isExternalGuardrailType(guardrail.type) && guardrail.externalConfig
+              ? { type: guardrail.type, config: guardrail.externalConfig }
+              : undefined,
           action: initialAction,
           scope: guardrail.scope,
           redactionLabel:
@@ -568,22 +501,6 @@ function toRegexActionInput(
     action,
     scope: values.scope,
   };
-}
-
-function toExternalTestInput(values: GatewayGuardrailFormValues) {
-  if (values.lakera) {
-    return { type: "LAKERA" as const, lakera: values.lakera };
-  }
-  if (values.openAiModeration) {
-    return {
-      type: "OPENAI_MODERATION" as const,
-      openAiModeration: values.openAiModeration,
-    };
-  }
-  if (values.bedrock) {
-    return { type: "BEDROCK" as const, bedrock: values.bedrock };
-  }
-  return null;
 }
 
 function ConnectedGuardrailFormContent({
@@ -648,80 +565,4 @@ function getMutationErrorMessage(
 ) {
   const active = mutations[mode];
   return active.isError ? (active.error?.message ?? "Try again.") : null;
-}
-
-function resolveEditableTemplate(guardrail: GatewayGuardrailRow): {
-  templateKind: GatewayGuardrailTemplateKind;
-  availablePresets: readonly GatewayGuardrailPreset[];
-} {
-  if (guardrail.type === "BEDROCK") {
-    return { templateKind: "bedrock", availablePresets: [] };
-  }
-  if (guardrail.type === "OPENAI_MODERATION") {
-    return { templateKind: "openai_moderation", availablePresets: [] };
-  }
-  if (guardrail.type === "LAKERA") {
-    return { templateKind: "lakera", availablePresets: [] };
-  }
-  if (
-    guardrail.presets.length === 0 &&
-    guardrail.secretPrefixes.length === 0 &&
-    guardrail.containsWords.length === 0 &&
-    guardrail.customRegex
-  ) {
-    return { templateKind: "custom_regex", availablePresets: [] };
-  }
-  if (
-    guardrail.presets.length === 0 &&
-    guardrail.secretPrefixes.length === 0 &&
-    guardrail.containsWords.length > 0
-  ) {
-    return { templateKind: "contains", availablePresets: [] };
-  }
-  const hasSecrets =
-    guardrail.secretPrefixes.length > 0 ||
-    (guardrail.presets.length > 0 &&
-      guardrail.presets.every(
-        (preset) => GATEWAY_GUARDRAIL_PRESETS[preset].group === "secrets",
-      ));
-  if (hasSecrets) {
-    const secretsTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
-      (template) => template.id === "secrets",
-    );
-    return {
-      templateKind: "secrets",
-      availablePresets:
-        secretsTemplate?.presets ?? GATEWAY_GUARDRAIL_PRESET_KEYS,
-    };
-  }
-  const allPromptInjection =
-    guardrail.presets.length > 0 &&
-    guardrail.presets.every(
-      (preset) =>
-        GATEWAY_GUARDRAIL_PRESETS[preset].group === "prompt_injection",
-    );
-  if (allPromptInjection) {
-    const promptInjectionTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
-      (template) => template.id === "prompt_injection",
-    );
-    return {
-      templateKind: "prompt_injection",
-      availablePresets:
-        promptInjectionTemplate?.presets ?? GATEWAY_GUARDRAIL_PRESET_KEYS,
-    };
-  }
-  const piiTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
-    (template) => template.id === "pii",
-  );
-  const allPii =
-    guardrail.presets.length > 0 &&
-    guardrail.presets.every(
-      (preset) => GATEWAY_GUARDRAIL_PRESETS[preset].group === "pii",
-    );
-  return {
-    templateKind: "pii",
-    availablePresets: allPii
-      ? (piiTemplate?.presets ?? GATEWAY_GUARDRAIL_PRESET_KEYS)
-      : GATEWAY_GUARDRAIL_PRESET_KEYS,
-  };
 }
