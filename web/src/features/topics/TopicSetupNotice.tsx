@@ -2,7 +2,7 @@
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { type TopicSetupNoticeState } from "./useTopicSettings";
-import { TopicPilesIllustration } from "./TopicPilesIllustration";
+import { TopicPilesLabeling } from "./TopicPilesLabeling";
 
 type TopicSetupNoticeProps = {
   notice: TopicSetupNoticeState;
@@ -48,7 +48,11 @@ export function TopicSetupNotice({
       ) : null}
       {showOnboarding ? (
         <div className="flex flex-1 flex-col items-center-safe justify-center-safe gap-7 overflow-y-auto px-4 pb-24">
-          <TopicPilesIllustration piles={LANDING_PILES} slips={LANDING_SLIPS} />
+          <TopicPilesLabeling
+            facet={LANDING_FACET}
+            topics={LANDING_TOPICS}
+            traces={LANDING_TRACES}
+          />
           <div className="flex flex-col items-center gap-2 text-center">
             <h2 className="text-3xl leading-tight font-bold tracking-tight text-balance">
               See what your traces are about
@@ -82,15 +86,30 @@ export function TopicSetupNotice({
   );
 }
 
-// Decorative: three example topics, each with one example trace.
-const LANDING_PILES = [
+// Decorative: three example topics of one facet, and the example traces read into them.
+const LANDING_FACET = "Intent";
+
+const LANDING_TOPICS = [
   { name: "Refunds", count: 412 },
   { name: "Order status", count: 154 },
   { name: "Address", count: 96 },
 ] as const;
 
-const LANDING_SLIPS = [
-  { text: "double charge", tone: "error" },
-  { text: "not delivered", tone: "error" },
-  { text: "ship to office", tone: "ok" },
+// In reading order: the topic each trace joins and its intent, one entry per line.
+const LANDING_TRACES = [
+  { topic: 0, intent: ["refund"] },
+  { topic: 1, intent: ["where is", "my order"] },
+  { topic: 2, intent: ["change", "address"] },
+  { topic: 0, intent: ["money back"] },
+  { topic: 0, intent: ["refund", "request"] },
+  { topic: 1, intent: ["track", "my order"] },
+  { topic: 0, intent: ["return", "and refund"] },
+  { topic: 0, intent: ["refund"] },
+  { topic: 1, intent: ["order", "is late"] },
+  { topic: 0, intent: ["charged", "twice"] },
+  { topic: 2, intent: ["wrong", "address"] },
+  { topic: 0, intent: ["money back"] },
+  { topic: 1, intent: ["delivery", "date"] },
+  { topic: 0, intent: ["refund", "not received"] },
+  { topic: 0, intent: ["refund"] },
 ] as const;
