@@ -107,4 +107,15 @@ chmod +x "${STUB_BIN}/gh"
   git checkout -- package.json
 )
 
+# 4. Non-increasing or malformed custom versions must be rejected
+(
+  cd "$WORK_DIR"
+  for bad in "4.88.0" "4.87.9" "4.88.0-rc.1" "4.089.0"; do
+    if PATH="${STUB_BIN}:${PATH}" bash ./scripts/release.sh --version "$bad" --dry-run >/dev/null 2>&1; then
+      echo "FAIL: expected release.sh to reject custom version '$bad'"
+      exit 1
+    fi
+  done
+)
+
 echo "PASS: release-preflight.sh and release.sh checks passed"

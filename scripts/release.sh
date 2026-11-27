@@ -99,6 +99,48 @@ prompt_version_choice() {
   esac
 }
 
+validate_custom_version() {
+  local current_version="$1"
+  local target="${ARG_CUSTOM_VERSION#v}"
+  CURRENT_VERSION="$current_version" TARGET_VERSION="$target" node <<'NODE'
+const parse = (v) => {
+  const m = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?$/.exec(v);
+  if (!m) throw new Error(`Invalid semver '${v}'.`);
+  const pre = m[4] ? m[4].split(".") : [];
+  for (const p of pre) {
+    if (!p || (/^\d+$/.test(p) && p.length > 1 && p.startsWith("0"))) {
+      throw new Error(`Invalid prerelease identifier in '${v}'.`);
+    }
+  }
+  return { core: [+m[1], +m[2], +m[3]], pre };
+};
+const cmp = (a, b) => {
+  for (let i = 0; i < 3; i++) if (a.core[i] !== b.core[i]) return a.core[i] - b.core[i];
+  if (!a.pre.length && !b.pre.length) return 0;
+  if (!a.pre.length) return 1;
+  if (!b.pre.length) return -1;
+  for (let i = 0; i < Math.max(a.pre.length, b.pre.length); i++) {
+    const [x, y] = [a.pre[i], b.pre[i]];
+    if (x === undefined) return -1;
+    if (y === undefined) return 1;
+    if (x === y) continue;
+    const xn = /^\d+$/.test(x), yn = /^\d+$/.test(y);
+    if (xn && yn) return +x - +y;
+    if (xn) return -1;
+    if (yn) return 1;
+    return x < y ? -1 : 1;
+  }
+  return 0;
+};
+const cur = parse(process.env.CURRENT_VERSION);
+const next = parse(process.env.TARGET_VERSION);
+if (cmp(next, cur) <= 0) {
+  throw new Error(`Target version '${process.env.TARGET_VERSION}' must be strictly greater than current version '${process.env.CURRENT_VERSION}'.`);
+}
+NODE
+  ARG_CUSTOM_VERSION="$target"
+}
+
 is_major_bump() {
   local current_version="$1"
   if [[ "$ARG_BUMP" == "major" ]]; then
@@ -171,6 +213,10 @@ main() {
 
   if [[ -z "$ARG_BUMP" ]]; then
     prompt_version_choice "$current_version" "$branch" "$expected_sha"
+  fi
+
+  if [[ "$ARG_BUMP" == "custom" ]]; then
+    validate_custom_version "$current_version"
   fi
 
   if is_major_bump "$current_version"; then
