@@ -26,7 +26,6 @@ import {
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
-import { SampleBadge } from "@/src/features/traces/components/SampleBadge";
 import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
@@ -86,7 +85,7 @@ export const ObservationDetailViewHeader = memo(
     treeNodeTotalCost,
   }: ObservationDetailViewHeaderProps) {
     const { serverScores } = useTraceData();
-    const { isEmbedded, preferredObservationId } = useTracePresentation();
+    const { isEmbedded } = useTracePresentation();
     const { isAnnotationMode } = useViewPreferences();
     const { isV4: isV4Enabled } = useReadPath();
     const companionTrace = isV4Enabled
@@ -426,11 +425,6 @@ export const ObservationDetailViewHeader = memo(
                             itemType: observation.type as ObservationType,
                             titleLevel: observation.level,
                             titleSize: isEmbedded ? "sm" : undefined,
-                            titleBadges:
-                              isEmbedded &&
-                              observation.id === preferredObservationId ? (
-                                <SampleBadge />
-                              ) : undefined,
                             actions: [...shownWorkflowActions, optionsAction],
                           }}
                         />

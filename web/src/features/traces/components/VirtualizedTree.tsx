@@ -179,6 +179,7 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
     // specified to do nothing for overlay scrollbars.
     <div
       ref={parentRef}
+      data-tree-scroller
       className={cn("scrollbar-visible h-full overflow-y-auto", className)}
     >
       <div
