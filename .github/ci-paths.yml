@@ -43,11 +43,12 @@ topics_llm:
 worker:
   - "!web/**"
 
-# The gateway's Rust checks, image build and smoke test. The crate reads nothing
-# outside ai-gateway/ except the root deny.toml, which cargo-deny finds by
-# searching parent directories.
+# The gateway's Rust checks, image build and smoke test. Outside ai-gateway/ the
+# crate reads only its path dependency on the guardrail rules crate and the root
+# deny.toml, which cargo-deny finds by searching parent directories.
 ai_gateway_crate:
   - ai-gateway/**
+  - packages/ai-gateway-guardrail-rules/**
   - deny.toml
   - .github/workflows/pipeline.yml
   - .github/ci-paths.yml
