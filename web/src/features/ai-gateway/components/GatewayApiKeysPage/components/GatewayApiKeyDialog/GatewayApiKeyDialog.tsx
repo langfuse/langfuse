@@ -293,9 +293,15 @@ function OptionalSections({
     (section === "expiration" && isExpirationDisabled) ||
     (section === "spendBudget" && isSpendBudgetDisabled);
   const sections = useWatch({ control: form.control, name: "sections" });
+  const spendBudgetDisabledReason = isSpendBudgetDisabled
+    ? spendBudgetLockedReason
+    : spendBudgetUnavailableReason;
   const update = { shouldDirty: true, shouldValidate: true } as const;
+  // A locked budget stays offered, disabled, so the reason shows where it would be added.
   const addableSections = gatewayApiKeySections.filter(
-    (section) => !sections.includes(section) && !isLocked(section),
+    (section) =>
+      !sections.includes(section) &&
+      (section === "spendBudget" || !isLocked(section)),
   );
 
   const handleAdd = (section: GatewayApiKeySection) => {
@@ -346,11 +352,7 @@ function OptionalSections({
           <GatewaySpendBudgetField
             subject="key"
             control={form.control}
-            disabledReason={
-              isSpendBudgetDisabled
-                ? spendBudgetLockedReason
-                : spendBudgetUnavailableReason
-            }
+            disabledReason={spendBudgetDisabledReason}
           />
         );
       case "models":
@@ -388,25 +390,27 @@ function OptionalSections({
         );
       })}
       {addableSections.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {addableSections.map((section) => (
-            <AddSectionButton
-              key={section}
-              label={sectionLabels[section].add}
-              disabledReason={
-                section === "spendBudget"
-                  ? spendBudgetUnavailableReason
-                  : undefined
-              }
-              onAdd={() => handleAdd(section)}
-            />
-          ))}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex flex-wrap gap-2">
+            {addableSections.map((section) => (
+              <AddSectionButton
+                key={section}
+                label={sectionLabels[section].add}
+                disabled={
+                  section === "spendBudget" &&
+                  spendBudgetDisabledReason !== undefined
+                }
+                onAdd={() => handleAdd(section)}
+              />
+            ))}
+          </div>
+          {addableSections.includes("spendBudget") &&
+          spendBudgetDisabledReason !== undefined ? (
+            <p className="text-muted-foreground text-xs">
+              {spendBudgetDisabledReason}
+            </p>
+          ) : null}
         </div>
-      ) : null}
-      {isSpendBudgetDisabled && !sections.includes("spendBudget") ? (
-        <Banner variant="info" title="Spend budget">
-          {spendBudgetLockedReason}
-        </Banner>
       ) : null}
     </>
   );
