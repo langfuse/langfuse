@@ -48,3 +48,23 @@ export const KeyboardSelection = meta.story({
     await userEvent.keyboard("{/ArrowLeft}");
   },
 });
+
+export const Vertical = meta.story({
+  args: { orientation: "vertical" },
+});
+
+export const VerticalFirstPick = meta.story({
+  name: "(Test) Vertical, nothing picked yet",
+  args: { orientation: "vertical", value: null },
+  play: async ({ canvas, args, userEvent }) => {
+    await expect(canvas.getByRole("radio", { name: "Show" })).not.toBeChecked();
+    await expect(canvas.getByRole("radio", { name: "Hide" })).not.toBeChecked();
+    await userEvent.click(canvas.getByRole("radio", { name: "Hide" }));
+    await expect(args.onValueChange).toHaveBeenCalledWith("hide");
+    await userEvent.keyboard("{ArrowUp>}");
+    await waitFor(() =>
+      expect(canvas.getByRole("radio", { name: "Show" })).toBeChecked(),
+    );
+    await userEvent.keyboard("{/ArrowUp}");
+  },
+});
