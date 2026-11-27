@@ -22,6 +22,7 @@ type EvaluatorBlockedEmailTemplateProps = {
   blockMessage: string;
   resolutionUrl: string;
   receiverEmail: string;
+  langfuseCloudRegion?: string;
 };
 
 const getReasonSummary = (blockReason: EvaluatorBlockReason) => {
@@ -128,7 +129,12 @@ export const EvaluatorBlockedEmailTemplate = ({
   blockMessage,
   resolutionUrl,
   receiverEmail,
+  langfuseCloudRegion,
 }: EvaluatorBlockedEmailTemplateProps) => {
+  const regionSuffix = langfuseCloudRegion
+    ? ` (${langfuseCloudRegion} data region)`
+    : "";
+
   return (
     <Html>
       <Head />
@@ -155,8 +161,8 @@ export const EvaluatorBlockedEmailTemplate = ({
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
                 The LLM evaluator &quot;{evaluatorName}&quot; in project &quot;
-                {projectName}&quot; was automatically paused because{" "}
-                {getReasonSummary(blockReason).toLowerCase()}.
+                {projectName}&quot;{regionSuffix} was automatically paused
+                because {getReasonSummary(blockReason).toLowerCase()}.
               </Text>
             </Section>
 
@@ -195,7 +201,7 @@ export const EvaluatorBlockedEmailTemplate = ({
               <Text className="text-[#666666] text-[12px] leading-[24px]">
                 This notification was sent to {receiverEmail} regarding the
                 paused evaluator &quot;{evaluatorName}&quot; in project &quot;
-                {projectName}&quot;.
+                {projectName}&quot;{regionSuffix}.
               </Text>
             </Section>
           </Container>

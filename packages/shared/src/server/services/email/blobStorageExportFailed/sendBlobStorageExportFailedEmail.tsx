@@ -13,13 +13,13 @@ export const blobStorageExportFailedEmailCopy: IntegrationExportFailedEmailCopy 
     subjectLabel: "Blob storage",
     headingLabel: "Blob Storage",
     inlineLabel: "blob storage",
-    disabledBody: (projectName) => (
+    disabledBody: (projectName, regionSuffix) => (
       <>
         The blob storage export for project &quot;{projectName}
-        &quot; has been disabled after a configuration fault. This usually means
-        the destination configuration or credentials are no longer valid. Once
-        you have updated them, simply re-enable the export in the integration
-        settings and it will pick up right where it left off.
+        &quot;{regionSuffix} has been disabled after a configuration fault. This
+        usually means the destination configuration or credentials are no longer
+        valid. Once you have updated them, simply re-enable the export in the
+        integration settings and it will pick up right where it left off.
       </>
     ),
   };

@@ -14,7 +14,8 @@ export type SendIntegrationExportFailedEmailParams = {
       | "EMAIL_FROM_ADDRESS"
       | "SMTP_CONNECTION_URL"
       | "NEXTAUTH_URL"
-      | "CLOUD_CRM_EMAIL",
+      | "CLOUD_CRM_EMAIL"
+      | "NEXT_PUBLIC_LANGFUSE_CLOUD_REGION",
       string | undefined
     >
   >;
@@ -59,6 +60,7 @@ export const sendIntegrationExportFailedEmail = async (
         projectName: safeProjectName,
         settingsUrl,
         disabled,
+        langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
       }),
     );
 

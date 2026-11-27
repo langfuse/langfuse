@@ -22,7 +22,7 @@ export type IntegrationExportFailedEmailCopy = {
   /** Mid-sentence, for body prose and log lines: "The scheduled blob storage export …". */
   inlineLabel: string;
   /** Shown when the export was turned off; the remediation is integration specific. */
-  disabledBody: (projectName: string) => ReactNode;
+  disabledBody: (projectName: string, regionSuffix: string) => ReactNode;
 };
 
 type IntegrationExportFailedEmailTemplateProps = {
@@ -30,6 +30,7 @@ type IntegrationExportFailedEmailTemplateProps = {
   projectName: string;
   settingsUrl: string;
   disabled?: boolean;
+  langfuseCloudRegion?: string;
 };
 
 export const IntegrationExportFailedEmailTemplate = ({
@@ -37,7 +38,11 @@ export const IntegrationExportFailedEmailTemplate = ({
   projectName,
   settingsUrl,
   disabled = false,
+  langfuseCloudRegion,
 }: IntegrationExportFailedEmailTemplateProps) => {
+  const regionSuffix = langfuseCloudRegion
+    ? ` (${langfuseCloudRegion} data region)`
+    : "";
   const preview = disabled
     ? `${copy.subjectLabel} export disabled for project "${projectName}"`
     : `${copy.subjectLabel} export failed for project "${projectName}"`;
@@ -66,14 +71,14 @@ export const IntegrationExportFailedEmailTemplate = ({
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
                 {disabled ? (
-                  copy.disabledBody(projectName)
+                  copy.disabledBody(projectName, regionSuffix)
                 ) : (
                   <>
                     The scheduled {copy.inlineLabel} export for project &quot;
-                    {projectName}&quot; has failed after multiple attempts. It
-                    will be retried automatically at the next scheduled export.
-                    If the issue persists, review the integration settings to
-                    see the error details.
+                    {projectName}&quot;{regionSuffix} has failed after multiple
+                    attempts. It will be retried automatically at the next
+                    scheduled export. If the issue persists, review the
+                    integration settings to see the error details.
                   </>
                 )}
               </Text>
@@ -94,7 +99,7 @@ export const IntegrationExportFailedEmailTemplate = ({
               <Text className="text-[#666666] text-[12px] leading-[24px]">
                 This notification was sent to project admins regarding a{" "}
                 {disabled ? "disabled" : "failed"} {copy.inlineLabel} export for
-                project &quot;{projectName}&quot;.
+                project &quot;{projectName}&quot;{regionSuffix}.
               </Text>
             </Section>
           </Container>
