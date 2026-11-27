@@ -261,8 +261,7 @@ The reasoning or explanation stored with the score.`,
 The score config id to attach to the score.`,
 } satisfies CodeEvalHoverDocs & Record<PythonCodeEvalCompletionName, string>;
 
-const THREAD_SHAPE_DOC = `Each thread has one messages list, replayed
-history first, the same threads LLM-as-a-judge evaluators read. Each message
+const THREAD_SHAPE_DOC = `A thread is a collection of the messages in your trace. Each message
 has a role and its parts (text, reasoning, tool-call, tool-result, file, data,
 custom).`;
 
@@ -276,8 +275,7 @@ The TypeScript function Langfuse executes for each matched target observation or
     { targetType: T }
   >;
 
-The data Langfuse passes to a TypeScript evaluator. Observation rules pass
-EvaluationContext<"observation"> (the default), trace rules pass
+The data Langfuse passes to a TypeScript evaluator. Trace evaluators use
 EvaluationContext<"trace">.`,
   ObservationEvaluationContext: `type ObservationEvaluationContext = {
   targetType: "observation";
@@ -323,7 +321,7 @@ Whether the evaluator runs on an observation or on a trace transcript.`,
 The trace selected by the evaluator target.`,
   threads: `property trace.threads: TraceThread[]
 
-The conversation threads of the trace transcript. ${THREAD_SHAPE_DOC}`,
+${THREAD_SHAPE_DOC}`,
 } satisfies CodeEvalHoverDocs &
   Record<TypeScriptTraceCodeEvalCompletionName, string>;
 
@@ -335,9 +333,8 @@ class EvaluationContext:
     trace: TraceContext | None = None
     target_type: str = "observation"
 
-The data Langfuse passes to a Python evaluator. target_type is "observation"
-or "trace". Only the target's own context is set: observation for
-observation targets, trace for trace targets.`,
+The data Langfuse passes to a Python evaluator. Only the target's context,
+observation or trace, is set.`,
   TraceContext: `@dataclass
 class TraceContext:
     threads: list[dict[str, Any]] = field(default_factory=list)
@@ -351,11 +348,10 @@ The observation selected by the evaluator target. None for trace targets.`,
 The trace selected by the evaluator target. None for observation targets.`,
   target_type: `property ctx.target_type: str
 
-"observation" or "trace": whether the evaluator runs on an observation or on a trace transcript.`,
+Whether the evaluator runs on an "observation" or a "trace".`,
   threads: `property trace.threads: list[dict[str, Any]]
 
-The conversation threads of the trace transcript, as dicts with camelCase
-keys. ${THREAD_SHAPE_DOC}`,
+${THREAD_SHAPE_DOC} Keys are camelCase.`,
 } satisfies CodeEvalHoverDocs &
   Record<PythonTraceCodeEvalCompletionName, string>;
 
