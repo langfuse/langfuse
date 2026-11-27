@@ -10,9 +10,13 @@ import { runSearchBarInvariants } from "@/src/features/search-bar/__tests__/sear
 import {
   createTopicTraceRegistry,
   filterTopicTraces,
+  partitionTopicTraceFilters,
+  rewriteTopicIdFiltersForFacet,
   topicTraceQuery,
+  topicTracingFilters,
   getTopicAssignment,
   selectTopicTraceFilters,
+  type TopicFilterFacet,
 } from "./topic-trace-filters";
 
 const topics = [
@@ -431,5 +435,181 @@ describe("topic search registry", () => {
         freeTextValues: ["refund policy", "or", "a*b", "trace-one"],
       }),
     ).toEqual([]);
+  });
+
+  it("round-trips cross-facet topics.<FacetName> filters and partitions active vs sibling facets", () => {
+    const intentFacet: TopicFilterFacet = {
+      facetId: "facet-intent",
+      name: "User Intent",
+      topics: [
+        { id: "billing", name: "Billing questions" },
+        { id: "support", name: "Support" },
+      ],
+    };
+    const sentimentFacet: TopicFilterFacet = {
+      facetId: "facet-sentiment",
+      name: "Sentiment",
+      topics: [
+        { id: "neg-1", name: "Negative" },
+        { id: "neg-2", name: "Negative" },
+        { id: "pos-1", name: "Positive" },
+      ],
+    };
+    const allFacets = [intentFacet, sentimentFacet];
+    const crossRegistry = createTopicTraceRegistry(intentFacet.topics, [], {
+      traceFields: true,
+      crossFacetTopics: true,
+    });
+
+    const parsed = astToFilterState(
+      parse(
+        'topics."User Intent":"Billing questions" topics.Sentiment:"Negative (neg-1)" -topics.Sentiment:Positive env:production',
+        crossRegistry,
+      ).ast,
+      undefined,
+      crossRegistry,
+    );
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.filters).toEqual([
+      {
+        column: "topics",
+        type: "categoryOptions",
+        key: "User Intent",
+        operator: "any of",
+        value: ["Billing questions"],
+      },
+      {
+        column: "topics",
+        type: "categoryOptions",
+        key: "Sentiment",
+        operator: "any of",
+        value: ["Negative (neg-1)"],
+      },
+      {
+        column: "topics",
+        type: "categoryOptions",
+        key: "Sentiment",
+        operator: "none of",
+        value: ["Positive"],
+      },
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["production"],
+      },
+    ]);
+
+    const partitioned = partitionTopicTraceFilters(
+      parsed.filters,
+      intentFacet,
+      allFacets,
+    );
+    expect(partitioned.activeFacetFilters).toHaveLength(1);
+    expect(partitioned.otherFacetFilters).toHaveLength(2);
+    expect(partitioned.traceFieldFilters).toHaveLength(1);
+    expect(partitioned.otherFacetTopics).toEqual([
+      { facetId: "facet-sentiment", operator: "any of", topicIds: ["neg-1"] },
+      { facetId: "facet-sentiment", operator: "none of", topicIds: ["pos-1"] },
+    ]);
+
+    // Client-side filtering evaluates the active facet filter and ignores sibling/trace filters.
+    expect(ids(filterTopicTraces(rows, parsed.filters, null, intentFacet))).toEqual([
+      "trace-one",
+    ]);
+
+    expect(
+      topicTraceQuery(parsed.filters, null, intentFacet.topics, {
+        activeFacet: intentFacet,
+        allFacets,
+      }),
+    ).toEqual({
+      filter: [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+      ],
+      topicIds: { operator: "any of", values: ["billing"] },
+      otherFacetTopics: [
+        { facetId: "facet-sentiment", operator: "any of", topicIds: ["neg-1"] },
+        { facetId: "facet-sentiment", operator: "none of", topicIds: ["pos-1"] },
+      ],
+    });
+
+    // Impossible positive sibling filter returns null instead of dropping the filter.
+    expect(
+      topicTraceQuery(
+        [
+          {
+            column: "topics",
+            type: "categoryOptions",
+            key: "Sentiment",
+            operator: "any of",
+            value: ["Does not exist"],
+          },
+        ],
+        null,
+        intentFacet.topics,
+        { activeFacet: intentFacet, allFacets },
+      ),
+    ).toBeNull();
+
+    // Open in Tracing emits raw topic names when only topic filters are active.
+    const topicOnlyFilters = parsed.filters.slice(0, 3);
+    expect(
+      topicTracingFilters(topicOnlyFilters, null, intentFacet, allFacets),
+    ).toEqual([
+      {
+        column: "topics",
+        type: "categoryOptions",
+        key: "User Intent",
+        operator: "any of",
+        value: ["Billing questions"],
+      },
+      {
+        column: "topics",
+        type: "categoryOptions",
+        key: "Sentiment",
+        operator: "any of",
+        value: ["Negative"],
+      },
+      {
+        column: "topics",
+        type: "categoryOptions",
+        key: "Sentiment",
+        operator: "none of",
+        value: ["Positive"],
+      },
+    ]);
+    // Adding a trace field filter falls back to trace IDs.
+    expect(
+      topicTracingFilters(parsed.filters, null, intentFacet, allFacets),
+    ).toBeUndefined();
+
+    // Shorthand topicId rewrites to topics.<ActiveFacet> on facet switch.
+    expect(
+      rewriteTopicIdFiltersForFacet(
+        [
+          {
+            column: "topicId",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["billing"],
+          },
+        ],
+        intentFacet,
+      ),
+    ).toEqual([
+      {
+        column: "topics",
+        type: "categoryOptions",
+        key: "User Intent",
+        operator: "any of",
+        value: ["Billing questions"],
+      },
+    ]);
   });
 });

@@ -1436,8 +1436,8 @@ export async function readCurrentTraceTopics(
 }
 
 /**
- * `e.trace_id [NOT] IN (…)` for traces whose current topic in one facet is one of the
- * stable topic ids. Parameters carry `prefix` so several filters fit one events query.
+ * `<traceIdColumn> [NOT] IN (…)` for traces whose current topic in one facet is one of the
+ * stable topic ids. Parameters carry `prefix` so several filters fit one query.
  */
 export function currentTopicTraceIdsCondition(
   prefix: string,
@@ -1448,6 +1448,7 @@ export function currentTopicTraceIdsCondition(
     publishedRunIds,
     timeRange,
     negated,
+    traceIdColumn = "e.trace_id",
   }: {
     projectId: string;
     facetId: string;
@@ -1455,6 +1456,7 @@ export function currentTopicTraceIdsCondition(
     publishedRunIds: string[];
     timeRange: TopicTimeRange;
     negated: boolean;
+    traceIdColumn?: string;
   },
 ) {
   // Only traces that ever had one of the topics can currently have it; deduping just those
@@ -1475,7 +1477,7 @@ export function currentTopicTraceIdsCondition(
     publishedRunIds,
   };
   return {
-    query: `e.trace_id ${negated ? "NOT IN" : "IN"} (${sql.replace(
+    query: `${traceIdColumn} ${negated ? "NOT IN" : "IN"} (${sql.replace(
       /\{(\w+):/g,
       `{${prefix}_$1:`,
     )})`,
@@ -1494,7 +1496,7 @@ function currentTraceAssignmentsSql(scopeSql: string) {
     FROM topic_assignments
     WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
       AND clustering_run_id IN {publishedRunIds:Array(String)}
-    ORDER BY created_at DESC, origin DESC
+    ORDER BY facet_version DESC, created_at DESC, origin DESC
     LIMIT 1 BY facet_id, clustering_run_id, trace_id`;
 }
 

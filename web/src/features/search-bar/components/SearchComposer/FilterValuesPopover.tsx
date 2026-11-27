@@ -163,5 +163,10 @@ function optionSource(
       optionKey: `${SCORE_COLUMNS[ref.level].categorical}.${ref.key}`,
       requestable: false,
     };
+  if (ref?.type === "keyedOptions")
+    return {
+      optionKey: `${ref.column}.${ref.key}`,
+      requestable: false,
+    };
   return { optionKey: key, requestable: false };
 }

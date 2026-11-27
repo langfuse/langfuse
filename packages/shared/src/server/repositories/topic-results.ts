@@ -291,6 +291,14 @@ type ListInput = {
   /** Runs whose assignments count; defaults to each facet's published run. */
   publishedRunIds?: string[];
   /**
+   * Trace-level ClickHouse predicates (e.g. cross-facet topic semi-joins) pushed
+   * into candidate selection so selective filters fill the first page directly.
+   */
+  candidateTraceFilters?: {
+    query: string;
+    params: Record<string, unknown>;
+  }[];
+  /**
    * Trace IDs a batch may keep, as a subquery over the batch's traces and source times;
    * null keeps none. Applied after candidates, so selective filters can return short pages.
    */
@@ -432,6 +440,11 @@ function candidateQuery(
       "NOT startsWith(environment, {internalEnvironmentPrefix:String})",
       "environment NOT IN {publicInternalEnvironments:Array(String)}",
     );
+  const extraParams: Record<string, unknown> = {};
+  for (const extra of input.candidateTraceFilters ?? []) {
+    conditions.push(extra.query);
+    Object.assign(extraParams, extra.params);
+  }
   const descending = input.orderBy === "timestamp.desc";
   // Assignment pages hold a row per map, so their keys include the run.
   const perRun = input.kind === "assignments";
@@ -449,7 +462,7 @@ function candidateQuery(
       ORDER BY ${byTraceIds ? "" : `toStartOfHour(unit_start_time) ${direction}, `}unit_start_time ${direction},
         trace_id ${direction}, facet_id ${direction}${perRun ? `, clustering_run_id ${direction}` : ""}
       LIMIT {batchSize:UInt32}`,
-    params: { ...params.values, batchSize },
+    params: { ...params.values, ...extraParams, batchSize },
   };
 }
 

@@ -4,11 +4,18 @@ import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import { z } from "zod";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { decodeAndNormalizeFilters } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { createTopicTraceRegistry } from "./topic-trace-filters";
+import {
+  createTopicTraceRegistry,
+  rewriteTopicIdFiltersForFacet,
+  type TopicFilterFacet,
+} from "./topic-trace-filters";
 import { resolveTopicFacetId } from "./topic-facet-selection";
 
 const columns = [
-  ...createTopicTraceRegistry([], [], { traceFields: true }).columns,
+  ...createTopicTraceRegistry([], [], {
+    traceFields: true,
+    crossFacetTopics: true,
+  }).columns,
 ];
 const snapshotSchema = z.object({
   filter: z.string(),
@@ -18,26 +25,41 @@ const snapshotsSchema = z.record(z.string(), snapshotSchema);
 const emptySnapshot: FacetFilterSnapshot = { filter: "", search: null };
 const emptySnapshots: Record<string, FacetFilterSnapshot> = {};
 
+type FilterableFacetInput =
+  | { facetId: string }
+  | TopicFilterFacet;
+
+function isTopicFilterFacet(
+  facet: FilterableFacetInput | undefined,
+): facet is TopicFilterFacet {
+  return Boolean(
+    facet &&
+      "name" in facet &&
+      typeof facet.name === "string" &&
+      "topics" in facet &&
+      Array.isArray(facet.topics),
+  );
+}
+
 /**
- * `mapId` scopes the filters to one map: topic IDs belong to the map that created them.
+ * `mapId` scopes the filters to one rule or snapshot map so active filters
+ * persist as the user switches between facets of that map.
  * `undefined` means the shown map is not known yet; filters read empty and writes are ignored.
  */
 export function useTopicTraceFilters(
   projectId: string,
-  facets: readonly { facetId: string }[],
+  facets: readonly FilterableFacetInput[],
   mapId: string | null | undefined,
 ) {
   const [facetId, setFacetId] = useQueryParam("topicFacet", StringParam);
   const selectedFacetId = resolveTopicFacetId(facets, facetId ?? undefined);
   const [stored, setStored] = useLocalStorage<unknown>(
-    "topics-trace-filters-v1",
+    "topics-trace-filters-v2",
     emptySnapshots,
   );
   const parsed = snapshotsSchema.safeParse(stored);
   const snapshots = parsed.success ? parsed.data : emptySnapshots;
-  const storageKey = JSON.stringify(
-    mapId ? [projectId, mapId, selectedFacetId] : [projectId, selectedFacetId],
-  );
+  const storageKey = JSON.stringify(mapId ? [projectId, mapId] : [projectId]);
   const snapshot =
     mapId === undefined
       ? emptySnapshot
@@ -63,7 +85,18 @@ export function useTopicTraceFilters(
   }
 
   function selectFacet(nextFacetId: string) {
-    if (nextFacetId !== selectedFacetId) setFacetId(nextFacetId);
+    if (nextFacetId === selectedFacetId) return;
+    const currentFacet = facets.find(
+      (facet) => facet.facetId === selectedFacetId,
+    );
+    if (
+      isTopicFilterFacet(currentFacet) &&
+      filters.some((filter) => filter.column === "topicId")
+    ) {
+      const rewritten = rewriteTopicIdFiltersForFacet(filters, currentFacet);
+      updateSnapshot({ filter: encodeFiltersGeneric(rewritten) });
+    }
+    setFacetId(nextFacetId);
   }
 
   return {

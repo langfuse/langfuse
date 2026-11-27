@@ -181,8 +181,8 @@ export async function topicMatchingTraceIdsQuery(
 }
 
 /**
- * IDs of a map's discovery-cohort traces that meet a tracing filter. The run's
- * initial assignments bound the events read, so at most every map point returns.
+ * IDs of a map's discovery-cohort traces that meet tracing and/or cross-facet topic
+ * filters. The run's initial assignments bound the read, so at most every map point returns.
  */
 export async function selectTopicMapMatches(
   input: {
@@ -191,10 +191,57 @@ export async function selectTopicMapMatches(
     facet: TopicFacetRef;
     timeRange: { from: Date; to: Date };
     filter: Parameters<typeof matchingObservationsQuery>[0]["filter"];
+    extraTraceConditions?: {
+      query: string;
+      params: Record<string, unknown>;
+    }[];
   },
   prisma: PrismaClient,
 ): Promise<string[]> {
   const { from, to } = input.timeRange;
+  const extraConditions = input.extraTraceConditions ?? [];
+  const extraWhere = extraConditions.length
+    ? ` AND ${extraConditions.map((condition) => condition.query).join(" AND ")}`
+    : "";
+  const extraParams = Object.assign(
+    {},
+    ...extraConditions.map((condition) => condition.params),
+  );
+  const mapParams = {
+    mapProjectId: input.projectId,
+    mapFacetId: input.facet.facetId,
+    mapFacetVersion: input.facet.version,
+    mapRunId: input.runId,
+    mapFrom: convertDateToClickhouseDateTime(from),
+    mapTo: convertDateToClickhouseDateTime(to),
+    ...extraParams,
+  };
+  const mapCohortQuery = `SELECT DISTINCT trace_id
+        FROM topic_assignments
+        WHERE project_id = {mapProjectId: String}
+          AND unit_start_time >= {mapFrom: DateTime64(3)}
+          AND unit_start_time < {mapTo: DateTime64(3)}
+          AND facet_id = {mapFacetId: String}
+          AND facet_version = {mapFacetVersion: UInt32}
+          AND clustering_run_id = {mapRunId: String}
+          AND origin = 'initial'
+          AND trace_id != ''${extraWhere}`;
+
+  if (input.filter.length === 0) {
+    const rows = await queryClickhouse<{ trace_id: string }>({
+      query: mapCohortQuery,
+      params: mapParams,
+      preferredClickhouseService: "ReadOnly",
+      tags: { projectId: input.projectId, route: "topics-map-matches" },
+      clickhouseSettings: {
+        max_threads: 2,
+        max_execution_time: 30,
+        timeout_overflow_mode: "throw",
+      },
+    });
+    return rows.map((row) => row.trace_id);
+  }
+
   const matching = await matchingObservationsQuery(
     {
       projectId: input.projectId,
@@ -205,26 +252,8 @@ export async function selectTopicMapMatches(
     prisma,
     false,
     {
-      condition: `e.trace_id IN (
-        SELECT trace_id
-        FROM topic_assignments
-        WHERE project_id = {mapProjectId: String}
-          AND unit_start_time >= {mapFrom: DateTime64(3)}
-          AND unit_start_time < {mapTo: DateTime64(3)}
-          AND facet_id = {mapFacetId: String}
-          AND facet_version = {mapFacetVersion: UInt32}
-          AND clustering_run_id = {mapRunId: String}
-          AND origin = 'initial'
-          AND trace_id != ''
-      )`,
-      params: {
-        mapProjectId: input.projectId,
-        mapFacetId: input.facet.facetId,
-        mapFacetVersion: input.facet.version,
-        mapRunId: input.runId,
-        mapFrom: convertDateToClickhouseDateTime(from),
-        mapTo: convertDateToClickhouseDateTime(to),
-      },
+      condition: `e.trace_id IN (${mapCohortQuery})`,
+      params: mapParams,
     },
   );
   if (!matching) return [];

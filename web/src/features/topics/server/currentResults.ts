@@ -2,6 +2,7 @@ import { type FilterState, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   TOPICS_MAX_TIME_RANGE_MS,
   topicTimeRangeSchema,
+  type CrossFacetTopicFilter,
   type TopicAssignment,
   type TopicFacet,
   type TopicRun,
@@ -18,6 +19,7 @@ import {
   type TopicSummaryState,
 } from "@langfuse/shared/src/server";
 import {
+  currentTopicTraceIdsCondition,
   getCurrentTopicMapRows,
   getLatestFacetSummaries,
   getPublishedTopicRun,
@@ -31,6 +33,7 @@ import {
   readLatestTopicAssignments,
   topicMatchingTraceIdsQuery,
   TRACE_SPAN_MARGIN_MS,
+  TRACE_START_SLACK_MS,
 } from "@langfuse/shared/topics/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { requireAnalysis } from "./slices";
@@ -447,6 +450,55 @@ export async function traceFacetResults(
   });
 }
 
+/**
+ * Resolves cross-facet topic filters within the same rule/snapshot into ClickHouse
+ * `trace_id [NOT] IN (…)` predicates. Returns `null` when a positive filter targets a
+ * facet without a completed map in this scope (no trace can match).
+ */
+export async function resolveCrossFacetTraceConditions(
+  projectId: string,
+  scope: TopicMapScope,
+  viewedWindow: TopicTimeRange,
+  otherFacetTopics: CrossFacetTopicFilter[] | undefined,
+  projectFacets?: TopicFacet[],
+): Promise<{ query: string; params: Record<string, unknown> }[] | null> {
+  if (!otherFacetTopics?.length) return [];
+  const referencedIds = new Set(otherFacetTopics.map((item) => item.facetId));
+  const facets = (projectFacets ?? (await listTopicFacets(projectId))).filter(
+    (facet) => referencedIds.has(facet.id),
+  );
+  const maps = facets.length
+    ? await resolveFacetMaps(projectId, scope, facets)
+    : [];
+  const runByFacetId = new Map(
+    maps.flatMap((map) => (map.run ? [[map.facet.id, map.run.id] as const] : [])),
+  );
+  const timeRange: TopicTimeRange = {
+    from: new Date(viewedWindow.from.getTime() - TRACE_START_SLACK_MS),
+    to: new Date(viewedWindow.to.getTime() + TRACE_START_SLACK_MS),
+  };
+  const conditions: { query: string; params: Record<string, unknown> }[] = [];
+  for (const [index, item] of otherFacetTopics.entries()) {
+    const runId = runByFacetId.get(item.facetId);
+    if (!runId) {
+      if (item.operator === "any of") return null;
+      continue;
+    }
+    conditions.push(
+      currentTopicTraceIdsCondition(`crossFacet${index}`, {
+        projectId,
+        facetId: item.facetId,
+        topicIds: item.topicIds,
+        publishedRunIds: [runId],
+        timeRange,
+        negated: item.operator === "none of",
+        traceIdColumn: "trace_id",
+      }),
+    );
+  }
+  return conditions;
+}
+
 const TOPIC_TRACES_PAGE_SIZE = 50;
 
 /**
@@ -466,6 +518,8 @@ export async function listTopicTraces(input: {
   };
   assigned?: boolean;
   traceId?: string;
+  /** Topic filters on sibling facets within the same rule/snapshot. */
+  otherFacetTopics?: CrossFacetTopicFilter[];
   /** Tracing filters on the trace, as a rule filter takes them. */
   filter?: FilterState;
   cursor?: TopicResultCursor;
@@ -482,14 +536,21 @@ export async function listTopicTraces(input: {
       column: "traceId",
       match: { operator: "any of", values: [input.traceId] },
     });
-  const facet = (await listTopicFacets(input.projectId)).find(
-    (item) => item.id === input.facetId,
-  );
+  const allFacets = await listTopicFacets(input.projectId);
+  const facet = allFacets.find((item) => item.id === input.facetId);
   const [map] = facet
     ? await resolveFacetMaps(input.projectId, input, [facet])
     : [];
   if (!map || (map.membersOnly && !map.run))
     return { rows: [], nextCursor: null };
+  const crossFacetConditions = await resolveCrossFacetTraceConditions(
+    input.projectId,
+    input,
+    map.window,
+    input.otherFacetTopics,
+    allFacets,
+  );
+  if (crossFacetConditions === null) return { rows: [], nextCursor: null };
   const { run } = map;
   if (map.membersOnly)
     conditions.push({
@@ -502,6 +563,7 @@ export async function listTopicTraces(input: {
     facetIds: [input.facetId],
     ...(run ? { publishedRunIds: [run.id] } : {}),
     conditions,
+    candidateTraceFilters: crossFacetConditions,
     orderBy: "timestamp.desc",
     limit: TOPIC_TRACES_PAGE_SIZE,
     cursor: input.cursor,

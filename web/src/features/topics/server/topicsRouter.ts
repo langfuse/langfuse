@@ -6,6 +6,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   TOPICS_COST_ESTIMATE_MAX_FACETS,
+  crossFacetTopicFilterSchema,
   topicIdSchema,
   topicFacetRefSchema,
   topicRuleConfigSchema,
@@ -76,6 +77,7 @@ import {
   analysisTopicResults,
   currentTopicResults,
   listTopicTraces,
+  resolveCrossFacetTraceConditions,
   traceFacetResults,
 } from "./currentResults";
 import {
@@ -110,6 +112,19 @@ const traceFilterInput = topicRuleConfigSchema.shape.filter.refine(
   (filter) => !topicRuleFilterError(filter),
   { message: "These filters can't be used on Topics traces." },
 );
+const otherFacetTopicsInput = z.array(crossFacetTopicFilterSchema).max(20);
+const mapMatchesInput = mapInput
+  .extend({
+    ruleId: topicIdSchema.optional(),
+    analysisId: topicIdSchema.optional(),
+    filter: traceFilterInput.default([]),
+    otherFacetTopics: otherFacetTopicsInput.optional(),
+  })
+  .refine(
+    (input) =>
+      input.filter.length > 0 || (input.otherFacetTopics?.length ?? 0) > 0,
+    { message: "Provide at least one filter to match map points." },
+  );
 const tracesInput = projectInput.extend({
   facetId: topicIdSchema,
   /** A rule's live map or an analysis snapshot; omitted means every rule. */
@@ -139,6 +154,7 @@ const tracesInput = projectInput.extend({
     .optional(),
   assigned: z.boolean().optional(),
   traceId: z.string().min(1).optional(),
+  otherFacetTopics: otherFacetTopicsInput.optional(),
   filter: traceFilterInput.optional(),
   cursor: z
     .object({ timestamp: z.date(), traceId: z.string(), facetId: z.string() })
@@ -401,11 +417,7 @@ async function publishedTopicMap(input: {
 
 /** Same cohort and window as publishedTopicMap; an unpublished map matches nothing. */
 async function topicMapMatches(
-  input: {
-    projectId: string;
-    runId: string;
-    filter: z.infer<typeof traceFilterInput>;
-  },
+  input: z.infer<typeof mapMatchesInput>,
   prisma: ProjectAuthedContext["prisma"],
 ) {
   const run = await getTopicRun(input.projectId, input.runId);
@@ -414,6 +426,15 @@ async function topicMapMatches(
   const cohortRange = topicTimeRangeSchema.safeParse(run.config.timeRange);
   if (run.status !== "completed" || !cohortRange.success)
     return { traceIds: [] };
+  const analysisId = input.analysisId ?? run.batchActionId ?? undefined;
+  const ruleId = analysisId ? undefined : (input.ruleId ?? run.ruleId ?? undefined);
+  const crossFacetConditions = await resolveCrossFacetTraceConditions(
+    input.projectId,
+    { ruleId, analysisId },
+    cohortRange.data,
+    input.otherFacetTopics,
+  );
+  if (crossFacetConditions === null) return { traceIds: [] };
   return {
     traceIds: await selectTopicMapMatches(
       {
@@ -422,6 +443,7 @@ async function topicMapMatches(
         facet: { facetId: run.facetId, version: run.facetVersion },
         timeRange: cohortRange.data,
         filter: input.filter,
+        extraTraceConditions: crossFacetConditions,
       },
       prisma,
     ),
@@ -798,8 +820,8 @@ export const topicsRouter = createTRPCRouter({
   map: topicsProcedure
     .input(mapInput)
     .query(({ input }) => publishedTopicMap(input)),
-  /** The map's points whose traces meet the tracing filters, for the map highlight. */
+  /** The map's points whose traces meet tracing and/or cross-facet filters, for the map highlight. */
   mapMatches: topicsProcedure
-    .input(mapInput.extend({ filter: traceFilterInput }))
+    .input(mapMatchesInput)
     .query(({ input, ctx }) => topicMapMatches(input, ctx.prisma)),
 });

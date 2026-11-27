@@ -26,9 +26,9 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { cn } from "@/src/utils/tailwind";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
-  type Facet,
   type FacetRow,
   type TopicTracesResult,
+  type TopicTracingTarget,
   topicTracesHref,
 } from "./facet-topics";
 import { FacetTraceSource } from "./useFacetTopicTraces";
@@ -356,8 +356,8 @@ type TopicTraceListProps = {
   selectedTraceId?: string | null;
   /** Count of the listed traces; null when only the loaded rows are known. */
   totalCount: number | null;
-  /** The listed topic, so Open in Tracing can filter by it instead of trace IDs. */
-  tracingTopic?: { facet: Facet; name: string };
+  /** The listed topic(s), so Open in Tracing can filter by them instead of trace IDs. */
+  tracingTopic?: TopicTracingTarget;
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
   /** Lets a neighbouring panel match this header's height. */

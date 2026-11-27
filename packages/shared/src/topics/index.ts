@@ -26,6 +26,12 @@ export const topicIdSchema = z
   .min(1)
   .max(128)
   .regex(/^[a-zA-Z0-9_-]+$/);
+export const crossFacetTopicFilterSchema = z.object({
+  facetId: topicIdSchema,
+  operator: z.enum(["any of", "none of"]),
+  topicIds: z.array(z.string().min(1)).min(1).max(1000),
+});
+export type CrossFacetTopicFilter = z.infer<typeof crossFacetTopicFilterSchema>;
 /** The longest time range any Topics read or update accepts. */
 export const TOPICS_MAX_TIME_RANGE_MS = 93 * 86_400_000;
 /** One-off runs select traces from at most 30 days; larger windows get slow on high-volume projects. */

@@ -20,7 +20,6 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { MobileTopicsView } from "./MobileTopicsView";
 import { type TopicsActions } from "./prepare-topics-actions";
-import { splitTopicTraceFilters } from "./topic-trace-filters";
 import {
   facetWithoutUnassigned,
   mapWithoutUnassigned,
@@ -92,6 +91,7 @@ export function CurrentTopics({
           projectId={projectId}
           scope={scope}
           facet={selectedFacet}
+          allFacets={facets}
           view={view}
           tracePanelRef={tracePanelRef}
           traceFilters={traceFilters}
@@ -107,6 +107,7 @@ function CurrentFacet({
   projectId,
   scope,
   facet: resultFacet,
+  allFacets,
   view,
   tracePanelRef,
   traceFilters,
@@ -172,7 +173,9 @@ function CurrentFacet({
         <ScatterTopicsView
           key={facet.facetId}
           projectId={projectId}
+          scope={scope}
           facet={facet}
+          allFacets={allFacets}
           mapResult={mapResult}
           traceFilters={traceFilters}
           showUnassigned={showUnassigned}
@@ -219,9 +222,12 @@ function MobileTopics({
     projectId,
     facet.facetId,
   );
-  // Mobile filters by topic and assignment only; Scatter's trace filters wait until it is back.
-  const [topicFilters, scatterFilters] = splitTopicTraceFilters(
-    traceFilters.filters,
+  // Mobile filters by active-facet topic and assignment only; Scatter's trace and cross-facet filters stay preserved.
+  const topicFilters = traceFilters.filters.filter(
+    (filter) => filter.column === "topicId" || filter.column === "assignment",
+  );
+  const scatterFilters = traceFilters.filters.filter(
+    (filter) => filter.column !== "topicId" && filter.column !== "assignment",
   );
   return (
     <MobileTopicsView
@@ -319,6 +325,7 @@ type CurrentFacetProps = {
   projectId: string;
   scope: TopicMapScope;
   facet: Facet;
+  allFacets: readonly Facet[];
   view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
