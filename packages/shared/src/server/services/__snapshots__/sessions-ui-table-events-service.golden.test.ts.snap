@@ -259,7 +259,6 @@ WHERE (1 = 1)
         FROM events_core AS e
         WHERE (e.project_id = {param3:String})
             AND ((e.project_id = {param4:String}) AND ((lower(e.name) LIKE lower({param5:String})) AND (position(e.name, {param6:String}) > 0)) AND (e.level IN ({param7:Array(String)})))
-            AND (e.is_deleted = 0)
             AND (e.trace_id IN (
                 SELECT e.trace_id
                 FROM events_core AS e
@@ -380,7 +379,6 @@ WHERE (1 = 1)
         FROM events_core AS e
         WHERE (e.project_id = {param4:String})
             AND ((e.project_id = {param5:String}) AND ((lower(e.name) LIKE lower({param6:String})) AND (position(e.name, {param7:String}) > 0)) AND (e.level IN ({param8:Array(String)})))
-            AND (e.is_deleted = 0)
             AND (e.trace_id IN (
                 SELECT e.trace_id
                 FROM events_core AS e
@@ -587,7 +585,6 @@ WHERE (1 = 1)
         FROM events_core AS e
         WHERE (e.project_id = {param4:String})
             AND ((e.project_id = {param5:String}) AND ((lower(e.name) LIKE lower({param6:String})) AND (position(e.name, {param7:String}) > 0)) AND (e.level IN ({param8:Array(String)})))
-            AND (e.is_deleted = 0)
             AND (e.trace_id IN (
                 SELECT e.trace_id
                 FROM events_core AS e

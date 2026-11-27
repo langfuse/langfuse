@@ -111,7 +111,6 @@ export const getSessionTracesFromEvents = async (props: {
     });
     observationQuery = queryBuilder
       .selectRaw("e.trace_id")
-      .whereRaw("e.is_deleted = 0")
       .whereRaw(
         `e.trace_id IN (${sessionTraceIdsQuery.sql})`,
         sessionTraceIdsQuery.params,

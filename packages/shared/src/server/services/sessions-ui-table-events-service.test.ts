@@ -96,11 +96,6 @@ describe("session trace filtering", () => {
     assert(sessionParam);
     expect(params[sessionParam]).toBe("session");
     expect(observationQuery).not.toMatch(/group by/i);
-    const matchingRowsQuery = observationQuery.slice(
-      0,
-      observationQuery.indexOf("AND e.trace_id IN ("),
-    );
-    expect(matchingRowsQuery).toContain("e.is_deleted = 0");
     expect(query).toContain("e.name");
     expect(query).toContain("e.level");
     expect(Object.values(params)).toContain("agent");
