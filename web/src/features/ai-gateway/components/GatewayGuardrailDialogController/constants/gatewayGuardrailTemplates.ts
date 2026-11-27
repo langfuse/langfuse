@@ -11,7 +11,7 @@ import {
 
 export type GatewayGuardrailTemplatePreview =
   | { kind: "snippet"; label: string; value: string }
-  | { kind: "logo"; provider: "aws" | "openai" };
+  | { kind: "logo"; provider: "aws" | "openai" | "lakera" };
 
 export type GatewayGuardrailTemplate = {
   id: GatewayGuardrailTemplateKind;
@@ -217,9 +217,8 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
       description:
         "Detects prompt attacks, harmful content, PII and malicious links.",
       preview: {
-        kind: "snippet",
-        label: "flagged",
-        value: "true",
+        kind: "logo",
+        provider: "lakera",
       },
       external: {
         description:
