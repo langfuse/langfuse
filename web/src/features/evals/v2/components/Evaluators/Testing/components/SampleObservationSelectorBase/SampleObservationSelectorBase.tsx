@@ -41,7 +41,6 @@ import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSea
 import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
-import { compactNumberFormatter } from "@/src/utils/numbers";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
@@ -689,11 +688,6 @@ export function SampleObservationSelectorBase(
   const sampleCount = isTraceTarget ? traceCount : observationCount;
   const sampleCountLabel =
     sampleCount !== null ? formatCount(sampleCount) : null;
-  // An approximate count can trail what is already loaded.
-  const sampleTotal =
-    sampleCount !== null
-      ? compactNumberFormatter(Math.max(sampleCount, detailObservations.length))
-      : null;
   const sampleTitle = isTraceTarget
     ? "Matching traces"
     : "Matching observations";
@@ -806,7 +800,6 @@ export function SampleObservationSelectorBase(
             targetObject={targetObject}
             title={sampleTitle}
             count={sampleCountLabel}
-            total={sampleTotal}
             observations={detailObservations}
             selectedObservationId={selectedObservationId}
             pending={observationsPending}

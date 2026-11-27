@@ -74,10 +74,6 @@ export const DetailPageNav = (props: {
    * hint moved to the tooltip. Shortcuts still work.
    */
   compact?: boolean;
-  /** Compact mode only: shows "3/10" between the arrows. */
-  showPosition?: boolean;
-  /** Total behind the slash when the list is only partly loaded. */
-  positionTotal?: string;
 }) => {
   const {
     currentId,
@@ -86,8 +82,6 @@ export const DetailPageNav = (props: {
     onNavigate,
     size,
     compact,
-    showPosition,
-    positionTotal,
     orientation = "vertical",
   } = props;
   const { PreviousIcon, NextIcon, previousLabel, nextLabel } =
@@ -199,7 +193,7 @@ export const DetailPageNav = (props: {
   if (entries.length > 1) {
     if (compact) {
       return (
-        <div ref={rootRef} className="flex flex-row items-center gap-1">
+        <div ref={rootRef} className="flex flex-row gap-1">
           <HeaderActionButton
             label={previousLabel}
             shortcut="K"
@@ -212,11 +206,6 @@ export const DetailPageNav = (props: {
               }
             }}
           />
-          {showPosition ? (
-            <span className="text-muted-foreground font-mono text-xs whitespace-nowrap tabular-nums">
-              {currentIndex + 1}/{positionTotal ?? entries.length}
-            </span>
-          ) : null}
           <HeaderActionButton
             label={nextLabel}
             shortcut="J"

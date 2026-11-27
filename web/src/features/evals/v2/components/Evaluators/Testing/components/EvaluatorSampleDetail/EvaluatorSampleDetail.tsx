@@ -59,7 +59,6 @@ export function EvaluatorSampleDetail({
   targetObject,
   title,
   count,
-  total,
   observations,
   selectedObservationId,
   pending,
@@ -69,8 +68,6 @@ export function EvaluatorSampleDetail({
   targetObject: RuleTargetObject;
   title: string;
   count: string | null;
-  /** All matches, loaded or not. */
-  total: string | null;
   observations: SampleObservation[];
   selectedObservationId: string | null;
   pending: boolean;
@@ -205,8 +202,6 @@ export function EvaluatorSampleDetail({
           listKey={SAMPLE_LIST_KEY}
           orientation="horizontal"
           compact
-          showPosition
-          positionTotal={total ?? undefined}
           path={() => ""}
           onNavigate={(entry) => {
             const next = observations.find(
