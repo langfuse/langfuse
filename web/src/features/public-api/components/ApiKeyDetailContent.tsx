@@ -82,9 +82,7 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       title: "Using with MCP",
       description: (
         <>
-          {props.scope === "organization"
-            ? "This key works across the organization's projects: the agent passes a projectId on each tool call, and listProjects lists the projects it can use. The key's role decides what it can do in them. "
-            : null}
+          {props.scope === "organization" && <OrganizationKeyMcpNote />}
           For a detailed guide on how to use this API key to connect to the
           Langfuse MCP server, see the{" "}
           <a
@@ -99,17 +97,7 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
         </>
       ),
       codeLabel: "Header",
-      ...(props.scope === "organization"
-        ? {
-            // An organization key is not bound to a project; tool calls name
-            // their project, so the connection needs only the secret key.
-            code: `Authorization: Bearer ${GATEWAY_KEY_PLACEHOLDER}`,
-            secret: secretKey,
-          }
-        : {
-            code: `Authorization: Basic ${GATEWAY_KEY_PLACEHOLDER}`,
-            secret: encodeMcpCredential(projectId, secretKey),
-          }),
+      ...mcpAuthorizationHeader(props.scope, projectId, secretKey),
     });
   }
 
@@ -168,4 +156,34 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       </div>
     </div>
   );
+}
+
+/** OrganizationKeyMcpNote explains how an organization key picks its project over MCP. */
+function OrganizationKeyMcpNote() {
+  return (
+    <>
+      This key works across the organization&apos;s projects: the agent passes a
+      projectId on each tool call, and listProjects lists the projects it can
+      use. The key&apos;s role decides what it can do in them.{" "}
+    </>
+  );
+}
+
+/** mcpAuthorizationHeader is the MCP header snippet and the secret it embeds for a key's scope. */
+function mcpAuthorizationHeader(
+  scope: ApiKeyDetailContentProps["scope"],
+  projectId: string,
+  secretKey: string,
+): Pick<UsageTab, "code" | "secret"> {
+  // An organization key names its project per tool call, so it connects with the secret key alone.
+  if (scope === "organization") {
+    return {
+      code: `Authorization: Bearer ${GATEWAY_KEY_PLACEHOLDER}`,
+      secret: secretKey,
+    };
+  }
+  return {
+    code: `Authorization: Basic ${GATEWAY_KEY_PLACEHOLDER}`,
+    secret: encodeMcpCredential(projectId, secretKey),
+  };
 }

@@ -11,13 +11,9 @@ import type { McpToolName } from "./server/tools";
  * Following stateless design pattern from Sentry MCP server.
  */
 
-/**
- * McpConnection is what authenticating one MCP request establishes, before
- * any tool names the project it runs in. An organization key's connection has
- * no project; each tool call resolves one (see resolveToolContext).
- */
+/** McpConnection is the authenticated API key of one MCP request, before a tool call picks its project. */
 export interface McpConnection {
-  /** Resolved policy-core context of the API key; every tool call is authorized against it. */
+  /** auth is the API key's policy context that every tool call is authorized against. */
   auth: AuthorizationContext;
 
   /** API Key ID for audit logging */
@@ -26,7 +22,7 @@ export interface McpConnection {
   /** Public key of the API key, stamped on audit events */
   publicKey: string;
 
-  /** The project a project-scoped key is bound to; undefined for organization keys. */
+  /** boundProjectId is the project a project key is bound to. */
   boundProjectId?: string;
 
   /** User agent from the MCP client's HTTP request */

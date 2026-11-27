@@ -83,13 +83,13 @@ export class RateLimitService {
     RateLimitService.instance = null;
   }
 
-  /** `points` is what this request costs, e.g. its byte size for byte-based resources. An authorization context is limited by the organization its credential is bound to. */
+  /** `points` is what this request costs, e.g. its byte size for byte-based resources. */
   async rateLimitRequest(
     auth: ApiAccessScopeWithOptionalApiKeyId | AuthorizationContext,
     resource: z.infer<typeof RateLimitResource>,
     points = 1,
   ) {
-    const scope = "principal" in auth ? toBoundScope(auth) : auth;
+    const scope = toRateLimitScope(auth);
     // if cloud config is not present, we don't apply rate limits and just return
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       return new RateLimitHelper(undefined);
@@ -638,17 +638,17 @@ const getPlanBasedRateLimitConfig = (
   }
 };
 
-/** toBoundScope is the access scope of the resource an authorization context's credential is bound to. */
-function toBoundScope(
-  auth: AuthorizationContext,
+/** toRateLimitScope is the access scope a request is limited by: an authorization context's bound resource, or the scope itself. */
+function toRateLimitScope(
+  auth: ApiAccessScopeWithOptionalApiKeyId | AuthorizationContext,
 ): ApiAccessScopeWithOptionalApiKeyId {
+  if (!("principal" in auth)) return auth;
   const { principal } = auth;
-  const bound =
-    principal.kind === "apiKey"
-      ? {
-          orgId: principal.boundResource.orgId,
-          projectId: principal.boundResource.projectId ?? null,
-        }
-      : { orgId: "", projectId: null };
-  return toApiAccessScope(principal, bound);
+  if (principal.kind !== "apiKey") {
+    return toApiAccessScope(principal, { orgId: "", projectId: null });
+  }
+  return toApiAccessScope(principal, {
+    orgId: principal.boundResource.orgId,
+    projectId: principal.boundResource.projectId ?? null,
+  });
 }

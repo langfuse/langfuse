@@ -256,7 +256,8 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
   /** isOrganizationFeatureEnabled reports whether an organization's plan or the allowlist grants external media storage. */
   const isOrganizationFeatureEnabled = async (orgId: string) => {
     const organization = await repository.findOrganizationById(orgId);
-    return organization ? hasExternalMediaStorageAccess(organization) : false;
+    if (!organization) return false;
+    return hasExternalMediaStorageAccess(organization);
   };
   const assertFeatureEnabled = async (projectId: string) => {
     if (!(await isFeatureEnabled(projectId))) {

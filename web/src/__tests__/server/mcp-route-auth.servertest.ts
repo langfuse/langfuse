@@ -21,10 +21,6 @@ import { authenticator } from "@/src/features/apiKey/authenticator";
 import { handleListProjects } from "@/src/features/mcp/server/projects/tools/listProjects";
 import type { McpConnection } from "@/src/features/mcp/types";
 
-// The MCP route authenticates the connection only; each tool call authorizes
-// its own project. So any secret key connects, in every migration mode, and a
-// public key alone (scores-only) or the admin key does not.
-
 type KeyPair = { publicKey: string; secretKey: string };
 
 const adminApiKey = "test-admin-api-key-mcp-route-auth";

@@ -20,7 +20,6 @@ vi.mock("@/src/features/mcp/server/tools", () => ({
   canCallTool: () => true,
 }));
 
-// A strict input schema: the projectId argument must never reach it.
 const schema = z.object({ name: z.string() }).strict();
 const [definition, handler] = defineTool({
   name: "whereAmI",

@@ -19,6 +19,7 @@ import {
   type ClientCapabilities,
 } from "@modelcontextprotocol/server";
 import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
+import { type ApiAction } from "@/src/features/public-api/server/enforceAuth";
 import { formatErrorForUser } from "../core/error-formatting";
 import type { McpConnection, ServerContext } from "../types";
 import { canCallTool, getEnabledTool, getEnabledTools } from "./tools";
@@ -151,10 +152,7 @@ export async function createMcpServer(
 
     const { action } = registeredTool.definition;
     const { projectId, input } = splitProjectId(args);
-    // Project tools run in the project the call names, authorized per call.
-    const projectContext: ServerContext | undefined = isProjectAction(action)
-      ? resolveToolContext(connection, action, projectId)
-      : undefined;
+    const projectContext = resolveProjectContext(connection, action, projectId);
     const context = projectContext ?? connection;
 
     logger.debug("MCP CallTool", {
@@ -207,4 +205,14 @@ export async function createMcpServer(
   });
 
   return server;
+}
+
+/** resolveProjectContext resolves and authorizes a project tool's call; tools that run in no project get none. */
+function resolveProjectContext(
+  connection: McpConnection,
+  action: ApiAction,
+  projectId: string | undefined,
+): ServerContext | undefined {
+  if (!isProjectAction(action)) return undefined;
+  return resolveToolContext(connection, action, projectId);
 }

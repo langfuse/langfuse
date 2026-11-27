@@ -35,8 +35,7 @@ export const externalMediaStorageFeature = {
       handler: handleTestExternalMediaStorage,
     },
   ],
-  // The organization's plan decides availability; an organization key's
-  // connection names no project, only the organization it is bound to.
+  // An organization key's connection has no project, so availability follows its organization.
   isEnabled: (connection) =>
     connection.auth.principal.kind === "apiKey" &&
     createExternalMediaStorageService(prisma).isOrganizationFeatureEnabled(

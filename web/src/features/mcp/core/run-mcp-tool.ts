@@ -32,9 +32,7 @@ export const runMcpTool = async <TResult>({
     async (span) => {
       addUserToSpan(
         {
-          ...("projectId" in context
-            ? { projectId: context.projectId, orgId: context.orgId }
-            : {}),
+          ...projectAttributes(context),
           apiKeyId: context.apiKeyId,
         },
         span,
@@ -91,3 +89,12 @@ export const runMcpTool = async <TResult>({
       }
     },
   );
+
+/** projectAttributes are the span attributes of the project a tool call runs in, if any. */
+function projectAttributes(context: ServerContext | McpConnection): {
+  projectId?: string;
+  orgId?: string;
+} {
+  if (!("projectId" in context)) return {};
+  return { projectId: context.projectId, orgId: context.orgId };
+}

@@ -21,7 +21,7 @@ import type { ApiAction } from "@/src/features/public-api/server/enforceAuth";
 import type { McpConnection, ServerContext } from "../types";
 import {
   isProjectAction,
-  PROJECT_ID_ARGUMENT,
+  projectIdArgument,
   projectIdArgumentDescription,
 } from "../server/toolContext";
 import { toMcpAppToolMeta, type McpAppToolUi } from "./mcp-app";
@@ -228,9 +228,7 @@ export function defineTool<TInput, const TName extends string>(
     name,
     description,
     action,
-    inputSchema: isProjectAction(action)
-      ? withProjectIdArgument(name, jsonSchemaObject)
-      : jsonSchemaObject,
+    inputSchema: toolInputSchema(name, action, jsonSchemaObject),
     ...(annotations ? { annotations } : {}),
     ...(ui ? { _meta: toMcpAppToolMeta(ui) } : {}),
   };
@@ -261,21 +259,31 @@ export function defineTool<TInput, const TName extends string>(
   return [toolDefinition, wrappedHandler];
 }
 
-/** withProjectIdArgument adds the optional projectId argument that every project tool accepts; tools/call strips it before the tool validates its input. */
+/** toolInputSchema is a tool's advertised input schema, with projectId added for project tools. */
+function toolInputSchema(
+  name: string,
+  action: DefineToolOptions<unknown>["action"],
+  schema: Tool["inputSchema"],
+): Tool["inputSchema"] {
+  if (!isProjectAction(action)) return schema;
+  return withProjectIdArgument(name, schema);
+}
+
+/** withProjectIdArgument adds the optional projectId argument every project tool accepts. */
 function withProjectIdArgument(
   name: string,
   schema: Tool["inputSchema"],
 ): Tool["inputSchema"] {
-  if (schema.properties && PROJECT_ID_ARGUMENT in schema.properties) {
+  if (schema.properties && projectIdArgument in schema.properties) {
     throw new Error(
-      `MCP tool '${name}' declares a '${PROJECT_ID_ARGUMENT}' input, which is reserved for selecting the project.`,
+      `MCP tool '${name}' declares a '${projectIdArgument}' input, which is reserved for selecting the project.`,
     );
   }
   return {
     ...schema,
     properties: {
       ...schema.properties,
-      [PROJECT_ID_ARGUMENT]: {
+      [projectIdArgument]: {
         type: "string",
         description: projectIdArgumentDescription,
       },
