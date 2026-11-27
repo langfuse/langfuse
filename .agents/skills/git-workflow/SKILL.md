@@ -59,12 +59,8 @@ Read [protected branches and PR approval](references/protected-branches.md) befo
 - Open PRs as reviewable, not as drafts, unless a human asks for a draft.
 - Cursor agents apply the GitHub `cursor` label after opening a PR; see
   `cursor-agents-workflow`. Do not leave that tag for a human.
-- Do not post GitHub PR comments as the human author. Cursor agents that
-  comment as Cursor should leave one last comment with proof of user-visible
-  work (screenshot, video, or before/after on the PR, not only in chat) and
-  what to doubt in review; see `cursor-agents-workflow`. Claude Code and
-  other tools that comment as the user must skip that comment.
-- Bugbot, Claude, Greptile, or Codex review comments (`cursor[bot]` for Bugbot, `claude[bot]`, Claude Code, security-review action, `greptile-apps[bot]`, `chatgpt-codex-connector[bot]`): after the fix commit is pushed, resolve each thread you fixed or deliberately skipped. Skip a finding only when you are sure it is wrong, tell the human in plain language, invite them to doubt that skip, then resolve it. That resolve is part of finishing the task, and it counts as the requested action even when the prompt only says to fix, address, or reply and never says resolve. Use the GraphQL `resolveReviewThread` mutation; unresolved threads block merge. If the task asked for a reply, post that reply and then resolve; resolving does not replace the reply. Do not post `@claude review` again unless a human asks for another pass. Human reviewer threads stay open and may need a real reply. A skipped Bugbot finding requires teammate approval; resolving the thread does not produce a clean latest-commit review or waive an approval gate.
+- Do not post unsolicited status or proof-of-work comments as the human author. Review requests and requested replies follow the accepted PR loop and use only an authorized identity. Cursor agents that comment as Cursor leave proof of user-visible work and what to doubt in review; see `cursor-agents-workflow`. Other tools put proof in the PR body and skip that extra comment.
+- Follow [PR follow-up and completion](references/protected-branches.md#pr-follow-up-and-completion) for the cloud or interactive review loop, trusted feedback, fresh review requests, thread resolution, and the current-head handoff.
 
 ## Release
 

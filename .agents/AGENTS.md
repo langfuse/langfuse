@@ -67,7 +67,7 @@ Outside contributions use the code and `CONTRIBUTING.md`. For maintainer work, c
   video, or before/after) — not only in chat. Humans can ask for more
   detail.
 - Open PRs as reviewable, not as drafts, unless a human asks for a draft.
-- When Bugbot, Claude, Greptile, or Codex (`chatgpt-codex-connector[bot]`) review comments appear on a PR you own, resolve each bot thread you fixed or skipped after the fix is pushed, even when the prompt only says to fix, address, or reply (see `git-workflow`). Skip only when you are sure it is wrong: tell the human in plain language, invite them to doubt that skip, then resolve it. If the task asked for a reply, post it and then resolve. Do not post `@claude review` again unless a human asks for another pass. Resolving threads does not supply PR approval; a skipped Bugbot finding requires teammate approval under `git-workflow`.
+- Follow `git-workflow` for the cloud or interactive PR review loop, trusted feedback, review requests, thread resolution, and the current-head completion check. Never approve, merge, enable auto-merge, or enqueue the PR as part of that loop.
 
 ## Project Structure
 
