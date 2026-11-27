@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
+/* eslint-disable @repo/export-rules */
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 
 import type { ObservedOptions } from "@/src/features/search-bar/lib/observed-options";

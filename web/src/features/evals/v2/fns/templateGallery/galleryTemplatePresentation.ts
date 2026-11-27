@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
+/* eslint-disable @repo/export-rules */
 import { formatDistanceToNowStrict } from "date-fns";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
+/* eslint-disable @repo/export-rules */
 import Decimal from "decimal.js";
 import { type TreeNode } from "@/src/features/traces/types/treeNode";
 

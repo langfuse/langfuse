@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
+/* eslint-disable @repo/export-rules */
 /**
  * Visual depth capping for deeply nested trees (LFE-10959).
  *

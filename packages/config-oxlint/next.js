@@ -36,7 +36,15 @@ export default {
       ],
       jsPlugins: ["@repo/eslint-plugin"],
       rules: {
-        "@repo/single-function-export-matching-filename": "error",
+        "@repo/export-rules": [
+          "error",
+          {
+            allow: [
+              { kind: "function", max: 1, name: ["matchesFilename"] },
+              "type",
+            ],
+          },
+        ],
       },
     },
     {
@@ -44,7 +52,7 @@ export default {
         "**/fns/**/*.{test,spec,clienttest,servertest,stories,story}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
         "**/fns/**/{__tests__,__mocks__,tests,test,__stories__,stories}/**",
       ],
-      rules: { "@repo/single-function-export-matching-filename": "off" },
+      rules: { "@repo/export-rules": "off" },
     },
     {
       // Next.js discovers routes by filename, not imports.

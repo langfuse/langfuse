@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
+/* eslint-disable @repo/export-rules */
 /** Splits typed or pasted text on whitespace, commas, and semicolons. */
 function splitEmailText(text: string) {
   return text.split(/[\s,;]+/);

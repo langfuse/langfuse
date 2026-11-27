@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
+/* eslint-disable @repo/export-rules */
 import { env } from "@/src/env.mjs";
 import {
   GATEWAY_PAGE_SLUGS,

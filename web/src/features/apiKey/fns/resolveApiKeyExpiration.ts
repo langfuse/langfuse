@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
+/* eslint-disable @repo/export-rules */
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   apiKeyExpirationOptions,

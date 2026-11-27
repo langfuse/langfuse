@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
+/* eslint-disable @repo/export-rules */
 import { format } from "date-fns";
 import {
   OUTLIER_STRIP_STEP_LADDER_SECONDS,

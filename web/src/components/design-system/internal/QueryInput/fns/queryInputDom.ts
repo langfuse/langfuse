@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
+/* eslint-disable @repo/export-rules */
 import { WORD_JOINER } from "../../../QueryTokens/QueryTokens.constants";
 
 const WORD_JOINER_RE = new RegExp(WORD_JOINER, "g");

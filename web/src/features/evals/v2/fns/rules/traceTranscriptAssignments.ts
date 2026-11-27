@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
+/* eslint-disable @repo/export-rules */
 import {
   TopicsTargetObject,
   TRACE_TRANSCRIPT_EVAL_COLUMN,

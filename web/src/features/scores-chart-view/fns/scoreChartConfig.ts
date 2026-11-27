@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
+/* eslint-disable @repo/export-rules */
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import {
   AGGREGATION_LABELS,

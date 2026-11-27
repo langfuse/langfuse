@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
+/* eslint-disable @repo/export-rules */
 /** @internal */
 export function dedupeObservations<Observation extends { id: string }>(
   observations: Observation[],

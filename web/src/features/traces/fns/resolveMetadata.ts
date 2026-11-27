@@ -1,4 +1,4 @@
-/* eslint-disable @repo/single-function-export-matching-filename */
+/* eslint-disable @repo/export-rules */
 export const resolveEvalExecutionMetadata = (
   parsedMetadata: unknown,
 ): string | null => {
