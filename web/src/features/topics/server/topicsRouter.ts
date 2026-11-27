@@ -427,7 +427,9 @@ async function topicMapMatches(
   if (run.status !== "completed" || !cohortRange.success)
     return { traceIds: [] };
   const analysisId = input.analysisId ?? run.batchActionId ?? undefined;
-  const ruleId = analysisId ? undefined : (input.ruleId ?? run.ruleId ?? undefined);
+  const ruleId = analysisId
+    ? undefined
+    : (input.ruleId ?? run.ruleId ?? undefined);
   const crossFacetConditions = await resolveCrossFacetTraceConditions(
     input.projectId,
     { ruleId, analysisId },

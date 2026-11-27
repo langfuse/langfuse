@@ -514,9 +514,9 @@ describe("topic search registry", () => {
     ]);
 
     // Client-side filtering evaluates the active facet filter and ignores sibling/trace filters.
-    expect(ids(filterTopicTraces(rows, parsed.filters, null, intentFacet))).toEqual([
-      "trace-one",
-    ]);
+    expect(
+      ids(filterTopicTraces(rows, parsed.filters, null, intentFacet)),
+    ).toEqual(["trace-one"]);
 
     expect(
       topicTraceQuery(parsed.filters, null, intentFacet.topics, {
@@ -535,7 +535,11 @@ describe("topic search registry", () => {
       topicIds: { operator: "any of", values: ["billing"] },
       otherFacetTopics: [
         { facetId: "facet-sentiment", operator: "any of", topicIds: ["neg-1"] },
-        { facetId: "facet-sentiment", operator: "none of", topicIds: ["pos-1"] },
+        {
+          facetId: "facet-sentiment",
+          operator: "none of",
+          topicIds: ["pos-1"],
+        },
       ],
     });
 

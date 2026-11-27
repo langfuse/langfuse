@@ -471,7 +471,9 @@ export async function resolveCrossFacetTraceConditions(
     ? await resolveFacetMaps(projectId, scope, facets)
     : [];
   const runByFacetId = new Map(
-    maps.flatMap((map) => (map.run ? [[map.facet.id, map.run.id] as const] : [])),
+    maps.flatMap((map) =>
+      map.run ? [[map.facet.id, map.run.id] as const] : [],
+    ),
   );
   const timeRange: TopicTimeRange = {
     from: new Date(viewedWindow.from.getTime() - TRACE_START_SLACK_MS),

@@ -1869,7 +1869,10 @@ function planUnscopedInputCompletions(
             SECTION_SUGGESTIONS,
             querySuggestionOptions(ctx.observed, registry),
           ),
-          ...section(SECTION_FIELDS, fieldOptions(registry, true, ctx.observed)),
+          ...section(
+            SECTION_FIELDS,
+            fieldOptions(registry, true, ctx.observed),
+          ),
           ...section(
             SECTION_RECENT,
             registry.recentSearches

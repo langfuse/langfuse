@@ -25,19 +25,17 @@ const snapshotsSchema = z.record(z.string(), snapshotSchema);
 const emptySnapshot: FacetFilterSnapshot = { filter: "", search: null };
 const emptySnapshots: Record<string, FacetFilterSnapshot> = {};
 
-type FilterableFacetInput =
-  | { facetId: string }
-  | TopicFilterFacet;
+type FilterableFacetInput = { facetId: string } | TopicFilterFacet;
 
 function isTopicFilterFacet(
   facet: FilterableFacetInput | undefined,
 ): facet is TopicFilterFacet {
   return Boolean(
     facet &&
-      "name" in facet &&
-      typeof facet.name === "string" &&
-      "topics" in facet &&
-      Array.isArray(facet.topics),
+    "name" in facet &&
+    typeof facet.name === "string" &&
+    "topics" in facet &&
+    Array.isArray(facet.topics),
   );
 }
 

@@ -181,9 +181,7 @@ export function ScatterTopicsView({
           .map((point) => point.traceId),
       );
     }
-    const names = new Map(
-      searchTopics.map((topic) => [topic.id, topic.name]),
-    );
+    const names = new Map(searchTopics.map((topic) => [topic.id, topic.name]));
     const [filters, searchQuery] = JSON.parse(activeSearchKey) as [
       FilterState,
       string | null,
@@ -192,9 +190,7 @@ export function ScatterTopicsView({
       filterTopicTraces(
         mapData.points.map((point) => ({
           ...point,
-          topicName: point.topicId
-            ? (names.get(point.topicId) ?? null)
-            : null,
+          topicName: point.topicId ? (names.get(point.topicId) ?? null) : null,
         })),
         filters,
         searchQuery,
@@ -219,8 +215,7 @@ export function ScatterTopicsView({
   );
   // Active-facet filters and server-side filters (cross-facet + trace fields) both have to match.
   const highlightedTraceIds = useMemo(() => {
-    if (!serverMatches || mapData?.status !== "ready")
-      return topicHighlightIds;
+    if (!serverMatches || mapData?.status !== "ready") return topicHighlightIds;
     if (!topicHighlightIds) return serverMatches;
     return new Set(
       [...topicHighlightIds].filter((id) => serverMatches.has(id)),
@@ -528,9 +523,7 @@ function useMapMatches(
   const ids = useMemo(
     // An impossible filter or a failed match dims every dot rather than lighting traces that may not match.
     () =>
-      impossible || failed
-        ? new Set<string>()
-        : traceIds && new Set(traceIds),
+      impossible || failed ? new Set<string>() : traceIds && new Set(traceIds),
     [impossible, failed, traceIds],
   );
   return { ids, error: failed ? matches.error : null };
