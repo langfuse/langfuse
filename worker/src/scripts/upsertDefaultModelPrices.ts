@@ -46,7 +46,7 @@ const DefaultModelPriceSchema = z
   });
 
 export type DefaultModelPrice = z.infer<typeof DefaultModelPriceSchema>;
-export type PricingTier = z.infer<typeof PricingTierSchema>;
+type PricingTier = z.infer<typeof PricingTierSchema>;
 
 const ExistingModelTierSchema = z.object({
   modelId: z.string(),
@@ -217,6 +217,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
 
 /**
  * Upserts a model with its pricing tiers in a transaction
+ * @internal
  */
 export async function upsertModelWithTiers(
   defaultModelPrice: DefaultModelPrice,

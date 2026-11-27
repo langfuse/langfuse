@@ -142,10 +142,10 @@ const EnvSchema = z.object({
         'Use "*" alone to select all projects, or a comma-separated list of project IDs',
     }),
   // Records trace activity at ingestion; the events-dispatch consumer host also runs the dispatcher.
-  LANGFUSE_EVENTS_DISPATCH_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_EVENTS_DISPATCH_ENABLED: z.enum(["true", "false"]).default("true"),
   QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
   // How long a trace's Redis bounds survive its latest activity; late spans merge within it.
   LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS: z.coerce
     .number()
@@ -217,10 +217,11 @@ const EnvSchema = z.object({
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
 
   CLICKHOUSE_URL: z.url(),
-  CLICKHOUSE_USER: z.string(),
+  // Required unless CLICKHOUSE_AUTH_MODE is jwt; validated in the shared env.
+  CLICKHOUSE_USER: z.string().optional(),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
-  CLICKHOUSE_PASSWORD: z.string(),
+  CLICKHOUSE_PASSWORD: z.string().optional(),
   CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_EVAL_CREATOR_LIMITER_DURATION: z.coerce
     .number()

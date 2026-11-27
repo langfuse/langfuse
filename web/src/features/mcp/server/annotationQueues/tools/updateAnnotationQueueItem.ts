@@ -42,5 +42,5 @@ export const [updateAnnotationQueueItemTool, handleUpdateAnnotationQueueItem] =
           };
         },
       }),
-    destructiveHint: true,
+    annotations: { destructiveHint: true },
   });

@@ -15,7 +15,7 @@ type InAppAgentMcpToolApproval = "auto" | "approval";
 
 export type InAppAgentUserAccess = {
   projectRole?: Role;
-  // Topics is gated per user (feature preview) on top of `topics:read`.
+  // Topics visibility from canViewTopics (`topics:read`).
   topicsAvailable?: boolean;
 };
 
@@ -28,7 +28,7 @@ type InAppAgentMcpToolPolicy = {
 
 // Exhaustive approval policy for Langfuse MCP tools. Keys use the unprefixed
 // MCP registry names and are the source of truth for the tool-name type below.
-// Exhaustiveness against web's MCP toolRegistry is enforced by type and runtime
+// Exhaustiveness against web's MCP tool registry is enforced by type and runtime
 // assertions in web's in-app-agent stream servertest, so new MCP tools must be
 // classified before the in-app agent can auto/approval-gate them.
 export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
@@ -253,6 +253,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     availability: { scope: "project:read" },
   },
   getMetricsSchema: {
+    approval: "auto",
+    availability: { scope: "project:read" },
+  },
+  renderWidget: {
     approval: "auto",
     availability: { scope: "project:read" },
   },

@@ -1,4 +1,4 @@
-import { Pencil, Trash } from "@langfuse/icons";
+import { Ban, ListTree, Pencil, RotateCcw, Trash } from "@langfuse/icons";
 import { formatDistanceToNowStrict } from "date-fns";
 
 import { TableCard } from "@/src/components/TableCard/TableCard";
@@ -17,11 +17,17 @@ import type {
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
+import {
+  GATEWAY_ADMIN_SET_BUDGET_RESET_REASON,
+  GATEWAY_ADMIN_SET_BUDGET_SHORT_REASON,
+} from "@/src/features/ai-gateway/constants/gatewayAdminSetBudgetReasons";
 import { GatewayApiKeysEmptyState } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeysEmptyState/GatewayApiKeysEmptyState";
 import { GatewayDefaultBudgetTag } from "@/src/features/ai-gateway/components/GatewayDefaultBudgetTag/GatewayDefaultBudgetTag";
 import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
 import { GatewayApiKeyModelsCell } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeyModelsCell/GatewayApiKeyModelsCell";
+import { buildGatewayTracesHref } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayTracesHref";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
+import { isGatewayApiKeyBudgetLockedByAdmin } from "@/src/features/ai-gateway/fns/spendLimits/isGatewayApiKeyBudgetLockedByAdmin";
 import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 
 type GatewayApiKey = {
@@ -31,6 +37,8 @@ type GatewayApiKey = {
   /** The organization's default key budget, which caps the key while it has no `spendLimit` of its own. */
   defaultSpendLimit?: GatewaySpendLimit | null;
   hasSeveralSpendLimits: boolean;
+  /** False for a member when a gateway admin set the key's budget or it has the default. */
+  canResetBudget: boolean;
   apiKey: {
     id: string;
     publicKey: string;
@@ -67,8 +75,10 @@ export function GatewayApiKeysTable({
   lastUsed,
   spend,
   onEdit,
+  onResetBudget,
   onRevoke,
   onCreateKey,
+  ingestionProjectId,
   pagination,
   search,
   orderBy,
@@ -78,8 +88,11 @@ export function GatewayApiKeysTable({
   lastUsed: GatewayApiKeysLastUsedState;
   spend: GatewayApiKeysSpendState;
   onEdit: (apiKey: GatewayApiKey) => void;
+  onResetBudget: (apiKey: GatewayApiKey) => void;
   onRevoke: (apiKeyId: string) => void;
   onCreateKey: () => void;
+  /** Configured ingestion project the user can open; hides "Show traces" when absent. */
+  ingestionProjectId?: string | null;
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
 }) {
@@ -204,6 +217,50 @@ export function GatewayApiKeysTable({
     }),
   ];
 
+  const getRowActions = (row: GatewayApiKey) => [
+    {
+      id: "edit",
+      type: "item" as const,
+      title: "Edit key",
+      icon: Pencil,
+      onClick: () => onEdit(row),
+    },
+    {
+      id: "resetBudget",
+      type: "item" as const,
+      title: "Reset budget",
+      icon: isGatewayApiKeyBudgetLockedByAdmin(row) ? Ban : RotateCcw,
+      description: isGatewayApiKeyBudgetLockedByAdmin(row)
+        ? GATEWAY_ADMIN_SET_BUDGET_SHORT_REASON
+        : undefined,
+      disabled: getResetBudgetDisabled(row),
+      onClick: () => onResetBudget(row),
+    },
+    ...(ingestionProjectId
+      ? [
+          {
+            id: "showTraces",
+            type: "item" as const,
+            title: "Show traces",
+            icon: ListTree,
+            href: buildGatewayTracesHref({
+              projectId: ingestionProjectId,
+              subject: "key",
+              subjectId: row.apiKey.id,
+            }),
+          },
+        ]
+      : []),
+    {
+      id: "revoke",
+      type: "item" as const,
+      title: "Revoke key",
+      icon: Trash,
+      variant: "destructive" as const,
+      onClick: () => onRevoke(row.apiKey.id),
+    },
+  ];
+
   return (
     <TableCard
       tableName="gatewayApiKeys"
@@ -211,23 +268,7 @@ export function GatewayApiKeysTable({
       data={data}
       orderBy={orderBy}
       setOrderBy={setOrderBy}
-      actions={(row) => [
-        {
-          id: "edit",
-          type: "item",
-          title: "Edit key",
-          icon: Pencil,
-          onClick: () => onEdit(row),
-        },
-        {
-          id: "revoke",
-          type: "item",
-          title: "Revoke key",
-          icon: Trash,
-          variant: "destructive",
-          onClick: () => onRevoke(row.apiKey.id),
-        },
-      ]}
+      actions={getRowActions}
       pagination={pagination}
       search={
         hasNoKeys
@@ -246,6 +287,16 @@ export function GatewayApiKeysTable({
       }
     />
   );
+}
+
+function getResetBudgetDisabled(row: GatewayApiKey) {
+  if (!row.spendLimit && !row.defaultSpendLimit) {
+    return { reason: "This key has no budget to reset." };
+  }
+  if (isGatewayApiKeyBudgetLockedByAdmin(row)) {
+    return { reason: GATEWAY_ADMIN_SET_BUDGET_RESET_REASON };
+  }
+  return undefined;
 }
 
 function getMetadataEntries(value: unknown) {

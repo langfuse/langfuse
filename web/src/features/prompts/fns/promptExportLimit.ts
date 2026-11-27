@@ -1,3 +1,5 @@
+/* eslint-disable @repo/export-rules */
+/** @internal */
 export const PROMPT_EXPORT_VERSION_LIMIT = 10_000;
 
 const PROMPT_EXPORT_PROCEDURE_PATH = "prompts.exportAll";

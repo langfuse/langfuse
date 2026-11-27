@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import type { z } from "zod";
 import type {
   ChatMlMessageSchema,
@@ -79,6 +80,7 @@ export function isOnlyJsonMessage(message: ChatMlMessage): boolean {
 
 /**
  * Check if message should be rendered (has content, audio, additional data, or is placeholder).
+ * @internal
  */
 export function shouldRenderMessage(message: ChatMlMessage): boolean {
   return (

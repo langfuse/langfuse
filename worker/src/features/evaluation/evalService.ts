@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* oxlint-disable unicorn/throw-new-error -- baseline before rule enablement */
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import {
@@ -1279,6 +1280,7 @@ function toNormalizedScores(params: {
   }));
 }
 
+/** @internal */
 export async function executeLLMAsJudgeEvaluation(
   params: Omit<
     Parameters<typeof runLLMAsJudgeEvaluation>[0],
@@ -1591,6 +1593,7 @@ export const evaluate = async ({
   });
 };
 
+/** @internal */
 export async function extractVariablesFromTracingData({
   projectId,
   variables,

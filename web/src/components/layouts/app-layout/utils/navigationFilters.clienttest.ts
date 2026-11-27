@@ -8,7 +8,7 @@ import { applyNavigationFilters } from "./navigationFilters";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 
 it.each([
-  { flag: "langfuseTopics", enableExperimentalFeatures: true },
+  { flag: "traceTranscriptEvals", enableExperimentalFeatures: true },
   { flag: "sessionViewV2", enableExperimentalFeatures: false },
 ] as const)(
   "keeps $flag hidden without opt-in",
@@ -52,15 +52,14 @@ it.each([
     const context: NavigationFilterContext = {
       routerProjectId: "project-1",
       routerOrganizationId: undefined,
-      session: {
+      session: createSession({
         user: {
           canToggleV4: false,
           v4BetaEnabled: false,
           v4UpgradeUiAvailable: true,
-          featureFlags: testFeatureFlags({}),
         },
         environment: { v4WriteMode: "dual" },
-      } as Session,
+      }),
       enableExperimentalFeatures: false,
       internalFeaturesEnabled: false,
       entitlements: [],
@@ -80,25 +79,25 @@ it.each([
 );
 
 it.each([
-  { topicsEnabled: true, visible: true },
-  { topicsEnabled: false, visible: false },
+  { projectId: "project-1", visible: true },
+  { projectId: "other-project", visible: false },
 ])(
-  "shows the Topics entry only when the gate passes for the current project (allowlisted: $topicsEnabled)",
-  ({ topicsEnabled, visible }) => {
+  "shows the Topics entry only to project members ($projectId)",
+  ({ projectId, visible }) => {
     const route = ROUTES.find((route) => route.title === "Topics")!;
     const session = createSession({
-      user: { featureFlags: testFeatureFlags({ langfuseTopics: true }) },
+      user: { featureFlags: testFeatureFlags() },
       organizations: [
         {
           id: "org-1",
           role: "VIEWER",
-          projects: [{ id: "project-1", topicsEnabled }],
+          projects: [{ id: "project-1" }],
         },
       ],
     });
     const organization = session.user.organizations[0]!;
     const context: NavigationFilterContext = {
-      routerProjectId: "project-1",
+      routerProjectId: projectId,
       routerOrganizationId: undefined,
       session,
       enableExperimentalFeatures: false,
@@ -205,9 +204,10 @@ it("shows the AI Gateway pages among the organization routes", () => {
   ).toEqual([
     "Projects",
     "Overview",
+    "Gateway keys",
     "Connections & Models",
     "Budgets",
-    "Gateway keys",
+    "Guardrails",
     "Tracing",
     "Settings",
   ]);

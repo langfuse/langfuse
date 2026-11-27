@@ -55,7 +55,7 @@ import { useRouter } from "next/router";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod";
-import { Info, ExternalLink } from "@langfuse/icons";
+import { Info, SquareArrowOutUpRight } from "@langfuse/icons";
 
 export default function MixpanelIntegrationPage() {
   const router = useRouter();
@@ -318,7 +318,7 @@ const MixpanelIntegrationSettingsForm = ({
                           className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                         >
                           For further information see
-                          <ExternalLink size="sm" />
+                          <SquareArrowOutUpRight size="sm" />
                         </a>
                       </div>
                     </TooltipContent>

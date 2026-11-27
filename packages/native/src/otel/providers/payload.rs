@@ -30,7 +30,7 @@ use crate::otel::attributes::{
 };
 use crate::otel::input::SpanEvent;
 use crate::otel::types::JsonObject;
-use crate::otel::value::{JsString, Value};
+use crate::otel::value::{parse_js_string, JsString, Value};
 
 #[derive(Clone, Debug, Default)]
 pub struct ProviderIO {
@@ -437,6 +437,18 @@ fn json_message(role: &str, content: Value) -> Value {
     ]))
 }
 
+/// The message list in `input`, parsed when it is JSON text. The merge changes the list, so
+/// it gets its own instead of a reference into the parse cache.
+fn owned_messages(input: &Value) -> Option<Vec<Value>> {
+    match input {
+        Value::String(text) => match parse_js_string(text).ok()? {
+            Value::Array(messages) => Some(messages),
+            _ => None,
+        },
+        input => input.as_array().cloned(),
+    }
+}
+
 fn prepend_system_instructions(
     input: Value,
     instructions: Option<&Value>,
@@ -445,11 +457,7 @@ fn prepend_system_instructions(
     let Some(instructions) = instructions.filter(|value| is_js_truthy(value)) else {
         return input;
     };
-    let Some(mut messages) = parse_cache
-        .parse(Some(&input))
-        .and_then(Value::as_array)
-        .cloned()
-    else {
+    let Some(mut messages) = owned_messages(&input) else {
         return input;
     };
     if messages

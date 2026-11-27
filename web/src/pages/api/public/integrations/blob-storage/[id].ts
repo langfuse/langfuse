@@ -16,7 +16,9 @@ async function handleDeleteBlobStorageIntegration(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  const scope = await authorizeBlobStorageRequest(req);
+  const scope = await authorizeBlobStorageRequest(req, {
+    requireEntitlement: false,
+  });
 
   const { id } = req.query;
 
@@ -61,7 +63,9 @@ async function handleGetBlobStorageIntegrationStatus(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  const scope = await authorizeBlobStorageRequest(req);
+  const scope = await authorizeBlobStorageRequest(req, {
+    requireEntitlement: false,
+  });
 
   const { id } = req.query;
   if (!id || typeof id !== "string") {

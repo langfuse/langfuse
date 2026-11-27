@@ -100,7 +100,7 @@ export function DecisionModelQuestionList({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <Label className="flex items-baseline gap-1.5">
+      <Label className="text-muted-foreground flex items-baseline gap-1.5">
         Questions
         <span className="inline-flex self-center">
           <InfoTooltip label="About questions">

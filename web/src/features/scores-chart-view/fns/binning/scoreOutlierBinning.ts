@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import { format } from "date-fns";
 import {
   OUTLIER_STRIP_STEP_LADDER_SECONDS,
@@ -49,6 +50,7 @@ export const scoreOutlierValueQueryMetrics = (): ScoreOutlierQueryMetric[] =>
   queryMetricsFor("value");
 
 /** Resolves an aggregation option, falling back to the metric's default. */
+/** @internal */
 export const resolveScoreOutlierAggregation = (
   metric: ScoreOutlierMetricKey,
   aggregation: string | undefined,

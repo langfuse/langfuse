@@ -4,7 +4,9 @@ import preview from "../../../../.storybook/preview";
 import { expect, spyOn, userEvent, within } from "storybook/test";
 
 import { ChartTooltip } from "../internal/charts/ChartTooltip";
-import { chartColors, chartFillColors } from "./constants";
+import { chartFillColors } from "./constants";
+
+import { chartColors } from "./__tests__/chartStoryColors";
 
 type ChartTooltipController = Parameters<
   ComponentProps<typeof ChartTooltip>["children"]

@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { Download, ExternalLink } from "@langfuse/icons";
+import { Download, SquareArrowOutUpRight } from "@langfuse/icons";
 
 import { TableCard } from "@/src/components/TableCard/TableCard";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -106,7 +106,7 @@ export function BillingInvoiceTable({
               id: "view",
               type: "item" as const,
               title: "View",
-              icon: ExternalLink,
+              icon: SquareArrowOutUpRight,
               href: invoice.hostedInvoiceUrl,
               linkTarget: "_blank" as const,
             },

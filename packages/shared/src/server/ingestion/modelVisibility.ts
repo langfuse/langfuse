@@ -28,6 +28,22 @@ export const visibleModelsSql = (projectId: string, alias = "models") => {
   )`;
 };
 
+/**
+ * The model definitions an organization manages or inherits: its own and
+ * Langfuse's. Project definitions are never included, not even those of the
+ * organization's projects. `alias` must be a trusted identifier.
+ */
+export const organizationModelsSql = (
+  organizationId: string,
+  alias = "models",
+) => {
+  const t = Prisma.raw(`"${alias}"`);
+  return Prisma.sql`(
+    (${t}.scope = 'ORGANIZATION' AND ${t}.organization_id = ${organizationId})
+    OR ${t}.scope = 'LANGFUSE'
+  )`;
+};
+
 /** Sort key for precedence: project before organization before Langfuse. */
 export const modelScopeRankSql = (alias = "models") => {
   const t = Prisma.raw(`"${alias}"`);

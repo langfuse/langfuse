@@ -1414,9 +1414,10 @@ describe(
         expect(comparison.earlyTs.sideEffects).toEqual(
           comparison.originalTs.sideEffects,
         );
-        expect(comparison.earlyRust.sideEffects).toEqual(
-          comparison.originalTs.sideEffects,
-        );
+        // The Rust path resolves each distinct lookup once and shares the result.
+        expect(comparison.earlyRust.sideEffects).toEqual([
+          ...new Set(expectedLookups),
+        ]);
         expect(comparison.originalTs.storedRows).toHaveLength(
           failLookup ? 9 : 18,
         );
@@ -1425,6 +1426,13 @@ describe(
     );
 
     it("writes both enriched observations and preserves accounting through readback", async () => {
+      // Load each snapshot the way the scheduler does: while it is scheduling.
+      const snapshots: { span_id: string; output?: unknown }[] = [];
+      otelReplayMocks.scheduleObservationEvals.mockImplementation(
+        async ({ loadSnapshot }) => {
+          snapshots.push(loadSnapshot());
+        },
+      );
       const comparison = await runOtelReplayComparison({
         bytes: Buffer.from(JSON.stringify(buildResourceSpans())),
         projectId: PROJECT_ID,
@@ -1437,8 +1445,7 @@ describe(
       expectRawNativeParity(comparison);
       expect(otelReplayMocks.scheduleObservationEvals).toHaveBeenCalledTimes(6);
       expect(
-        otelReplayMocks.scheduleObservationEvals.mock.calls
-          .map(([{ observation }]) => observation)
+        snapshots
           .filter((observation) => observation.span_id === SECOND_SPAN_ID)
           .map((observation) => observation.output),
       ).toEqual(Array(3).fill("x".repeat(1024)));
@@ -1627,6 +1634,95 @@ describe(
         expect(result.storedRows.map((row) => row.span_id).sort()).toEqual([
           "",
           SECOND_SPAN_ID,
+        ]);
+      }
+    });
+
+    it("drops a span whose time ClickHouse cannot store and keeps its sibling", async () => {
+      const resource = buildFocusedResourceSpans({})[0];
+      const scope = resource.scopeSpans![0];
+      const span = scope.spans![0];
+      const bytes = Buffer.from(
+        JSON.stringify([
+          {
+            ...resource,
+            scopeSpans: [
+              {
+                ...scope,
+                spans: [
+                  // Microseconds sent as milliseconds: year 57425.
+                  { ...span, startTimeUnixNano: "1750000000123000000000" },
+                  { ...span, spanId: createBufferId(SECOND_SPAN_ID) },
+                ],
+              },
+            ],
+          },
+        ]),
+      );
+      const comparison = await runOtelReplayComparison({
+        bytes,
+        projectId: `${PROJECT_ID}-unstorable-time`,
+        fileKey: `${FILE_KEY}.unstorable-time`,
+      });
+      expectRawNativeParity(comparison);
+      for (const result of Object.values(comparison)) {
+        expect(result.storedRows.map((row) => row.span_id)).toEqual([
+          SECOND_SPAN_ID,
+        ]);
+      }
+    });
+
+    it("stores a span without an optional time ClickHouse cannot store", async () => {
+      const resource = buildFocusedResourceSpans({})[0];
+      const scope = resource.scopeSpans![0];
+      const span = scope.spans![0];
+      const withAttribute = (
+        spanId: string,
+        key: string,
+        value: Record<string, unknown>,
+      ) => ({
+        ...span,
+        spanId: createBufferId(spanId),
+        attributes: [...(span.attributes ?? []), { key, value }],
+      });
+      const bytes = Buffer.from(
+        JSON.stringify([
+          {
+            ...resource,
+            scopeSpans: [
+              {
+                ...scope,
+                spans: [
+                  // Puts the completion start time in year 33713.
+                  withAttribute(FIRST_SPAN_ID, "ai.response.msToFirstChunk", {
+                    doubleValue: 1e15,
+                  }),
+                  // Year 10000 in UTC.
+                  withAttribute(
+                    SECOND_SPAN_ID,
+                    "langfuse.observation.completion_start_time",
+                    { stringValue: "9999-12-31T23:30:00-05:00" },
+                  ),
+                ],
+              },
+            ],
+          },
+        ]),
+      );
+      const comparison = await runOtelReplayComparison({
+        bytes,
+        projectId: `${PROJECT_ID}-unstorable-optional-time`,
+        fileKey: `${FILE_KEY}.unstorable-optional-time`,
+      });
+      expectRawNativeParity(comparison);
+      for (const result of Object.values(comparison)) {
+        expect(
+          result.storedRows
+            .map((row) => [row.span_id, row.completion_start_time])
+            .sort(),
+        ).toEqual([
+          [FIRST_SPAN_ID, null],
+          [SECOND_SPAN_ID, null],
         ]);
       }
     });

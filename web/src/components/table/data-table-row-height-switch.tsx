@@ -1,3 +1,4 @@
+/* oxlint-disable default-param-last -- baseline before rule enablement */
 /* eslint-disable @repo/component-file-structure */
 import { Button } from "@/src/components/ui/button";
 import {
@@ -7,13 +8,8 @@ import {
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Rows3, Rows2, Rows4 } from "@langfuse/icons";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  type ReactNode,
-} from "react";
+import { useCallback } from "react";
+import { useRowHeightRendering } from "./RowHeightRenderingProvider";
 
 const ROW_HEIGHT_OPTIONS = [
   { id: "s", label: "Small", icon: <Rows4 size="base" /> },
@@ -114,6 +110,7 @@ export function clampCustomRowHeightPx(
   );
 }
 
+/** @internal */
 export function resolveStoredRowHeight(
   stored: unknown,
   fallbackPreset: RowHeight,
@@ -253,41 +250,6 @@ export function resolveRowHeightRendering(
     compact,
     expandedRead: !compact,
   };
-}
-
-const RowHeightRenderingContext = createContext<Pick<
-  RowHeightRendering,
-  "compact" | "expandedRead"
-> | null>(null);
-
-/**
- * Publishes the rendering of the height on screen, including a drag still
- * in progress. The value changes only when the row crosses Medium, so cells
- * do not re-render on every pixel.
- */
-export function RowHeightRenderingProvider({
-  compact,
-  expandedRead,
-  children,
-}: {
-  compact: boolean;
-  expandedRead: boolean;
-  children: ReactNode;
-}) {
-  const value = useMemo(
-    () => ({ compact, expandedRead }),
-    [compact, expandedRead],
-  );
-  return (
-    <RowHeightRenderingContext.Provider value={value}>
-      {children}
-    </RowHeightRenderingContext.Provider>
-  );
-}
-
-/** Null outside a data table. Inside one, the height on screen, drag included. */
-export function useRowHeightRendering() {
-  return useContext(RowHeightRenderingContext);
 }
 
 /**

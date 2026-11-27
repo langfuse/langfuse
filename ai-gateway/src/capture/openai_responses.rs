@@ -1,12 +1,17 @@
 //! `OpenAI` Responses request, JSON response and completed SSE item capture.
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest, bounded_string, error_detail,
-    facts::ProviderFacts, parse_request, response::ResponseBody,
+    InputOmission, MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest,
+    bounded_string, error_detail, facts::ProviderFacts, response::ResponseBody,
 };
 use crate::{resolution::IngestionMode, telemetry};
 use axum::http::HeaderMap;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
+
+use crate::guardrails::spec::{
+    Emit, JSON_LEAF, LEAF, Node, Object, ResponseSpec, delta, each, json_delta, json_summary,
+    keyed_each, maybe_keyed_each, parts, summary, text,
+};
 
 pub(super) struct OpenAiResponsesCapture {
     pub(super) facts: ProviderFacts,
@@ -22,7 +27,7 @@ pub(super) struct OpenAiResponsesCapture {
 }
 
 impl OpenAiResponsesCapture {
-    pub(super) fn new(headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
+    pub(super) fn new(request: Result<RawRequest, InputOmission>, mode: IngestionMode) -> Self {
         let mut capture = Self {
             facts: ProviderFacts::default(),
             mode,
@@ -35,7 +40,7 @@ impl OpenAiResponsesCapture {
             response_valid: true,
             client_metadata: None,
         };
-        match parse_request(headers, body) {
+        match request {
             Ok(request) => {
                 capture.capture_request(request);
                 capture.request_complete = true;
@@ -306,6 +311,234 @@ impl OpenAiResponsesCapture {
         }
     }
 }
+
+/// Responses takes `input` as a string or a list of items, and the system prompt as
+/// `instructions`. The last turn is every item after the last one the model
+/// produced (an assistant message, a tool call or reasoning): the user's message or
+/// the outputs of the model's tool calls. Instructions count only on the first turn.
+/// The top-level members guardrails scan.
+/// `previous_response_id` and `conversation` are only read to tell whether earlier
+/// turns are stored upstream; `prompt` for the variables it fills a stored prompt with.
+/// Where Responses API requests carry the conversation guardrails scan.
+pub(super) const REQUEST: crate::guardrails::spec::RequestSpec =
+    crate::guardrails::spec::RequestSpec {
+        members: &[
+            "input",
+            "instructions",
+            "previous_response_id",
+            "conversation",
+            "prompt",
+        ],
+        last_turn: guardrail_turn,
+    };
+
+#[derive(serde::Deserialize)]
+struct GuardrailItem<'a> {
+    #[serde(borrow, default, rename = "type")]
+    kind: Option<&'a serde_json::value::RawValue>,
+    #[serde(borrow, default)]
+    role: Option<&'a serde_json::value::RawValue>,
+    /// `content` and `output` (a tool call's result) are read by `GUARDRAIL_ITEM`;
+    /// declared so that a duplicate makes the input unreadable even where it is
+    /// not read.
+    #[serde(borrow, default, rename = "content")]
+    _content: Option<&'a serde_json::value::RawValue>,
+    #[serde(borrow, default, rename = "output")]
+    _output: Option<&'a serde_json::value::RawValue>,
+}
+
+impl GuardrailItem<'_> {
+    /// The model's messages, reasoning and tool calls (`function_call`,
+    /// `web_search_call`, `mcp_call`, ...) come from the model; user, system and
+    /// developer messages are messages; tool outputs and anything else answer it.
+    fn turn_item(&self) -> crate::guardrails::text::TurnItem {
+        let role = self.role.and_then(crate::guardrails::text::string);
+        let kind = self.kind.and_then(crate::guardrails::text::string);
+        let kind = kind.as_deref().unwrap_or_default();
+        match role.as_deref() {
+            Some("assistant") => crate::guardrails::text::TurnItem::Model,
+            Some("user" | "system" | "developer") => crate::guardrails::text::TurnItem::Message,
+            _ if kind == "reasoning"
+                || kind.ends_with("_call")
+                || (kind.starts_with("mcp_") && kind != "mcp_approval_response") =>
+            {
+                crate::guardrails::text::TurnItem::Model
+            }
+            _ => crate::guardrails::text::TurnItem::Output,
+        }
+    }
+}
+
+fn classify_guardrail_item(
+    item: &serde_json::value::RawValue,
+) -> Result<crate::guardrails::text::TurnItem, crate::guardrails::text::Unreadable> {
+    let item: GuardrailItem<'_> = crate::guardrails::text::object_item(item)?;
+    Ok(item.turn_item())
+}
+
+pub(super) fn guardrail_turn(
+    members: &crate::guardrails::spec::Members<'_, '_>,
+) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
+    let mut turn = crate::guardrails::text::LastTurn::default();
+    let had_model_item = match members.get("input")? {
+        Some(items) if items.starts_with('[') => {
+            turn.push_items("input", items, classify_guardrail_item, &GUARDRAIL_ITEM)?
+        }
+        Some(input) => {
+            turn.push_member("input", input);
+            false
+        }
+        None => false,
+    };
+    // Instructions are resent on every turn, also when the provider stores the earlier
+    // turns, so they are scanned only on the first one.
+    let mut continues = false;
+    for name in ["previous_response_id", "conversation"] {
+        continues |= members.get(name)?.is_some_and(|value| value != "null");
+    }
+    if let Some(instructions) = members.get("instructions")? {
+        if had_model_item || continues {
+            turn.push_earlier_member("instructions", instructions);
+        } else {
+            turn.push_member("instructions", instructions);
+        }
+    }
+    // Variables fill a stored prompt with new caller text on every request.
+    if let Some(prompt) = members
+        .get("prompt")?
+        .filter(|prompt| prompt.starts_with('{'))
+    {
+        turn.push_member_with("prompt", prompt, &GUARDRAIL_PROMPT);
+    }
+    Ok(turn)
+}
+
+/// A conversation item's text: a message's `content`, a tool output's `output`.
+const GUARDRAIL_ITEM: Node = Object::new(&[
+    ("content", crate::guardrails::spec::CONTENT),
+    ("output", crate::guardrails::spec::CONTENT),
+])
+.node();
+
+/// A stored prompt's variables, which fill it with new caller text on every
+/// request: each a string, or input parts.
+const GUARDRAIL_PROMPT: Node = Object::new(&[(
+    "variables",
+    Node::Values(&Node::OneOf(&[
+        crate::guardrails::spec::PART,
+        crate::guardrails::spec::CONTENT,
+    ])),
+)])
+.node();
+
+/// Where Responses API responses carry model text.
+pub(super) const RESPONSE: ResponseSpec = ResponseSpec {
+    json: Object::new(&[
+        ("output", each(&OUTPUT_ITEM)),
+        ("output_text", text(Emit::Copy)),
+    ])
+    .node(),
+    sse: Object::new(&[]).by("type", EVENTS, None).node(),
+};
+
+const OUTPUT_ITEM: Node = Object::new(&[
+    ("content", parts(LEAF)),
+    ("summary", parts(LEAF)),
+    ("text", parts(LEAF)),
+    ("refusal", parts(LEAF)),
+    ("input", parts(LEAF)),
+    ("arguments", text(JSON_LEAF)),
+])
+.strict()
+.node();
+
+const PART: &[&str] = &["output_index", "content_index"];
+const SUMMARY_PART: &[&str] = &["output_index", "summary_index"];
+const ITEM: &[&str] = &["output_index"];
+
+/// An event of `$type` whose `$field` holds text, with stream indices from `$index`.
+macro_rules! event {
+    ($type:literal, $index:expr, $field:literal, $emit:expr) => {
+        ($type, Object::new(&[($field, text($emit))]).indexed($index))
+    };
+}
+
+/// An output item's text parts and tool input, with its tool arguments in `$arguments`.
+macro_rules! item {
+    ($content:expr, $arguments:literal) => {
+        Object::new(&[
+            ("content", maybe_keyed_each(&$content)),
+            ("summary", maybe_keyed_each(&SUMMARY_TEXT_PART)),
+            ("arguments", text(json_summary($arguments))),
+            ("input", text(summary("custom_tool_call_input"))),
+            ("text", text(LEAF)),
+            ("refusal", text(LEAF)),
+        ])
+    };
+}
+
+/// Text and refusal of a content part, text in the `$slot` stream.
+macro_rules! text_part {
+    ($slot:literal) => {
+        Object::new(&[
+            ("text", text(summary($slot))),
+            ("refusal", text(summary("refusal"))),
+        ])
+        .node()
+    };
+}
+
+/// Streamed events, each a piece of a stream (`*.delta`) or a complete copy of one.
+#[rustfmt::skip]
+const EVENTS: &[(&str, Object)] = &[
+    event!("response.output_text.delta", PART, "delta", delta("output_text")),
+    event!("response.refusal.delta", PART, "delta", delta("refusal")),
+    event!("response.function_call_arguments.delta", ITEM, "delta", json_delta("function_call_args")),
+    event!("response.custom_tool_call_input.delta", ITEM, "delta", delta("custom_tool_call_input")),
+    event!("response.mcp_call_arguments.delta", ITEM, "delta", json_delta("mcp_call_args")),
+    event!("response.reasoning_text.delta", PART, "delta", delta("reasoning_text")),
+    event!("response.reasoning_summary_text.delta", SUMMARY_PART, "delta", delta("reasoning_summary")),
+    event!("response.output_text.done", PART, "text", summary("output_text")),
+    event!("response.refusal.done", PART, "refusal", summary("refusal")),
+    event!("response.function_call_arguments.done", ITEM, "arguments", json_summary("function_call_args")),
+    event!("response.custom_tool_call_input.done", ITEM, "input", summary("custom_tool_call_input")),
+    event!("response.mcp_call_arguments.done", ITEM, "arguments", json_summary("mcp_call_args")),
+    event!("response.reasoning_text.done", PART, "text", summary("reasoning_text")),
+    event!("response.reasoning_summary_text.done", SUMMARY_PART, "text", summary("reasoning_summary")),
+    ("response.content_part.done", Object::new(&[("part", OUTPUT_TEXT_PART)]).indexed(PART)),
+    ("response.reasoning_summary_part.done", Object::new(&[("part", SUMMARY_TEXT_PART)]).indexed(SUMMARY_PART)),
+    ("response.output_item.done", Object::new(&[("item", STREAMED_ITEM)]).indexed(ITEM)),
+    ("response.completed", COMPLETED),
+    ("response.incomplete", COMPLETED),
+];
+
+const COMPLETED: Object = Object::new(&[(
+    "response",
+    Object::new(&[
+        ("output", keyed_each(&STREAMED_ITEM)),
+        ("output_text", text(Emit::Copy)),
+    ])
+    .node(),
+)]);
+
+/// An output item in a streamed event: complete copies of its streams.
+const STREAMED_ITEM: Node = Object::new(&[])
+    .by(
+        "type",
+        &[
+            (
+                "reasoning",
+                item!(REASONING_TEXT_PART, "function_call_args"),
+            ),
+            ("mcp_call", item!(OUTPUT_TEXT_PART, "mcp_call_args")),
+        ],
+        Some(&item!(OUTPUT_TEXT_PART, "function_call_args")),
+    )
+    .node();
+
+const OUTPUT_TEXT_PART: Node = text_part!("output_text");
+const REASONING_TEXT_PART: Node = text_part!("reasoning_text");
+const SUMMARY_TEXT_PART: Node = text_part!("reasoning_summary");
 
 #[cfg(test)]
 mod tests;

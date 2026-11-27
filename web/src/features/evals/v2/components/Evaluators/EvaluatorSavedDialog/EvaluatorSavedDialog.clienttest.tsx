@@ -1,6 +1,8 @@
 /* eslint-disable @repo/prefer-stories-over-client-tests */
 import { fireEvent, render, screen } from "@testing-library/react";
+import { PopoverTrigger } from "@/src/components/ui/popover";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { EvaluationRulePicker } from "@/src/features/evals/v2/components/Rules/EvaluationRulePicker/EvaluationRulePicker";
 import { EvaluatorSavedDialog } from "./EvaluatorSavedDialog";
 
 const renderDialog = () => {
@@ -62,5 +64,53 @@ describe("EvaluatorSavedDialog", () => {
 
     expect(onSecondaryAction).toHaveBeenCalledOnce();
     expect(onDismiss).not.toHaveBeenCalled();
+  });
+
+  it("blocks rule names from session replay, including the portaled rule list", () => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    Element.prototype.scrollIntoView = vi.fn();
+    render(
+      <TooltipProvider>
+        <EvaluatorSavedDialog
+          open
+          mode="different-scope"
+          modeContentByMode={{
+            "test-filters": null,
+            "different-scope": (
+              <EvaluationRulePicker
+                open
+                disabledRules={[]}
+                availableRules={[{ id: "rule-1", name: "Listed rule name" }]}
+                onSelectAvailableRule={vi.fn()}
+              >
+                {() => <PopoverTrigger>Selected rule name</PopoverTrigger>}
+              </EvaluationRulePicker>
+            ),
+          }}
+          costSummary={null}
+          canSubmit
+          isSubmitting={false}
+          primaryActionLabel="Execute"
+          onModeChange={vi.fn()}
+          onDismiss={vi.fn()}
+          onSecondaryAction={vi.fn()}
+          onPrimaryAction={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(
+      screen.getByText("Selected rule name").closest(".ph-no-capture"),
+    ).not.toBeNull();
+    expect(
+      screen.getByText("Listed rule name").closest(".ph-no-capture"),
+    ).not.toBeNull();
   });
 });

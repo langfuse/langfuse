@@ -1,7 +1,7 @@
 //! `OpenAI` Embeddings request and JSON response capture.
 use super::{
-    MAX_OUTPUT_CAPTURE_BYTES, RawRequest, bounded_string, error_detail, facts::ProviderFacts,
-    parse_request, response::ResponseBody,
+    InputOmission, MAX_OUTPUT_CAPTURE_BYTES, RawRequest, bounded_string, error_detail,
+    facts::ProviderFacts, response::ResponseBody,
 };
 use crate::resolution::IngestionMode;
 use axum::http::HeaderMap;
@@ -16,14 +16,14 @@ pub(super) struct OpenAiEmbeddingsCapture {
 }
 
 impl OpenAiEmbeddingsCapture {
-    pub(super) fn new(headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
+    pub(super) fn new(request: Result<RawRequest, InputOmission>, mode: IngestionMode) -> Self {
         let mut capture = Self {
             facts: ProviderFacts::default(),
             mode,
             body: None,
             request_complete: false,
         };
-        match parse_request(headers, body) {
+        match request {
             Ok(request) => {
                 capture.capture_request(request);
                 capture.request_complete = true;
@@ -282,9 +282,30 @@ fn dimensions(item: &[u8]) -> Option<usize> {
     }
 }
 
+/// Embeddings have no conversation: all of `input`, a string or a list of strings,
+/// is scanned. Token-id inputs hold no text.
+/// The top-level members guardrails scan.
+/// Where Embeddings requests carry the conversation guardrails scan.
+pub(super) const REQUEST: crate::guardrails::spec::RequestSpec =
+    crate::guardrails::spec::RequestSpec {
+        members: &["input"],
+        last_turn: guardrail_turn,
+    };
+
+pub(super) fn guardrail_turn(
+    members: &crate::guardrails::spec::Members<'_, '_>,
+) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
+    let mut turn = crate::guardrails::text::LastTurn::default();
+    if let Some(input) = members.get("input")? {
+        turn.push_member("input", input);
+    }
+    Ok(turn)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::capture::{RawRequest, RequestInput};
     use axum::http::{HeaderValue, header};
 
     fn scan(chunks: &[&[u8]]) -> Option<(Map<String, Value>, Option<Value>)> {
@@ -341,8 +362,10 @@ mod tests {
             HeaderValue::from_static("application/json"),
         );
         let mut capture = OpenAiEmbeddingsCapture::new(
-            &headers,
-            br#"{"model":"amazon/titan-embed-text-v2","input":"hi"}"#,
+            RawRequest::from_input(
+                &headers,
+                RequestInput::from_body(br#"{"model":"amazon/titan-embed-text-v2","input":"hi"}"#),
+            ),
             IngestionMode::Usage,
         );
         capture.record_response(&headers);

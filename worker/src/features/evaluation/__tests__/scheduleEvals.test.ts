@@ -6,7 +6,11 @@ import {
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { logger, recordIncrement } from "@langfuse/shared/src/server";
-import { createEvalSchedulerDeps, scheduleEvals } from "../scheduleEvals";
+import {
+  createEvalSchedulerDeps as createDepsWithWrites,
+  productionEvalWrites,
+  scheduleEvals,
+} from "../scheduleEvals";
 import type { EvalRules } from "../fetchEvalRules";
 import {
   createMockSchedulerDeps,
@@ -16,7 +20,6 @@ import {
 
 const mocks = vi.hoisted(() => ({
   env: {},
-  topicsEnabled: vi.fn(),
   topicsActive: vi.fn(),
   createObservationDeps: vi.fn(),
   record: vi.fn(),
@@ -28,7 +31,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   recordIncrement: vi.fn(),
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
-  isTopicsProjectEnabled: mocks.topicsEnabled,
   isTopicsProcessingActive: mocks.topicsActive,
   getTopicsProcessingSampling: async (projectId: string) =>
     (await mocks.topicsActive(projectId)) ? 1 : 0,
@@ -42,7 +44,14 @@ vi.mock("../../traceDispatch/traceRuleRecording", () => ({
 }));
 
 const projectId = "test-project-123";
+const createEvalSchedulerDeps = (project: string, rules: EvalRules) =>
+  createDepsWithWrites(project, rules, productionEvalWrites());
 const startTimeISO = "2026-11-02T08:00:00.000Z";
+/** What a caller that holds the full observation hands the scheduler. */
+const loaded = (observation: ReturnType<typeof createTestObservation>) => ({
+  observation,
+  loadSnapshot: () => observation,
+});
 const createTraceActivity = (
   traceId: string,
   spanStartTimeISO = startTimeISO,
@@ -73,7 +82,6 @@ const facetRule: EvalRules["traceTranscriptRules"][number] = {
 describe("scheduleEvals", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.topicsEnabled.mockReturnValue(true);
     mocks.topicsActive.mockResolvedValue(true);
     mocks.record.mockResolvedValue(undefined);
   });
@@ -95,7 +103,7 @@ describe("scheduleEvals", () => {
       });
       const selected = await scheduleEvals({
         buildFailureContext,
-        parseObservation: () => observation,
+        parseObservation: () => loaded(observation),
         environment: observation.environment,
         traceActivity: recordTraces
           ? Object.freeze(createTraceActivity(observation.trace_id))
@@ -105,11 +113,8 @@ describe("scheduleEvals", () => {
       });
       const unmatched = await scheduleEvals({
         buildFailureContext: () => ({ projectId, observationId: "child" }),
-        parseObservation: () => ({
-          ...observation,
-          span_id: "child",
-          name: "unmatched",
-        }),
+        parseObservation: () =>
+          loaded({ ...observation, span_id: "child", name: "unmatched" }),
         environment: observation.environment,
         traceActivity: recordTraces
           ? createTraceActivity(
@@ -129,7 +134,7 @@ describe("scheduleEvals", () => {
       await expect(
         scheduleEvals({
           buildFailureContext,
-          parseObservation: () => observation,
+          parseObservation: () => loaded(observation),
           environment: observation.environment,
           traceActivity: recordTraces
             ? createTraceActivity(observation.trace_id)
@@ -153,7 +158,7 @@ describe("scheduleEvals", () => {
 
   it("records sampled traces without converting payloads when no rules need them", async () => {
     const rules = { observationRules: [], traceTranscriptRules: [] };
-    const parseObservation = vi.fn(() => createTestObservation());
+    const parseObservation = vi.fn(() => loaded(createTestObservation()));
     const buildFailureContext = vi.fn();
     const matched = await scheduleEvals({
       buildFailureContext,
@@ -220,10 +225,8 @@ describe("scheduleEvals", () => {
             projectId,
             observationId: observation.span_id,
           }),
-          parseObservation: () => ({
-            ...observation,
-            trace_id: `trace-${index}`,
-          }),
+          parseObservation: () =>
+            loaded({ ...observation, trace_id: `trace-${index}` }),
           environment: observation.environment,
           traceActivity: createTraceActivity(`trace-${index}`),
           rules,
@@ -322,7 +325,7 @@ describe("scheduleEvals", () => {
                 projectId,
                 observationId: span_id,
               }),
-              parseObservation: () => ({ ...observation, span_id }),
+              parseObservation: () => loaded({ ...observation, span_id }),
               environment: observation.environment,
               traceActivity: createTraceActivity(observation.trace_id),
               rules,

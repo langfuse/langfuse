@@ -24,6 +24,7 @@ import {
 import { metricAggregations, viewDeclarations } from "@langfuse/shared/query";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
+import { exportMediaUsageHourly } from "./coreDataMediaUsageExport";
 
 const CORE_DATA_EXPORT_PAGE_SIZE = 1_000;
 const CORE_DATA_EXPORT_PART_SIZE_BYTES = 100 * 1024 * 1024;
@@ -62,6 +63,7 @@ type UserCoreDataInput = {
 // Derives the auth methods per user from the linked next-auth accounts and the
 // presence of a password hash ("credentials"). The hash itself must never
 // reach the export.
+/** @internal */
 export const mapUserToCoreDataRow = ({
   password,
   accounts,
@@ -85,6 +87,7 @@ type JobConfigurationCoreDataInput = {
 const variableMappingForExport = (variableMapping: unknown) =>
   variableMapping == null ? [] : variableMapping;
 
+/** @internal */
 export const mapJobConfigurationToCoreDataRow = ({
   evalTemplate,
   sampling,
@@ -101,6 +104,7 @@ type EvaluationRuleCoreDataInput = {
   sampling: { toNumber: () => number };
 } & Record<string, unknown>;
 
+/** @internal */
 export const mapEvaluationRuleToCoreDataRow = ({
   sampling,
   ...evaluationRule
@@ -113,6 +117,7 @@ type EvaluatorVersionCoreDataInput = {
   variableMapping: unknown;
 } & Record<string, unknown>;
 
+/** @internal */
 export const mapEvaluatorVersionToCoreDataRow = ({
   variableMapping,
   ...version
@@ -125,6 +130,7 @@ type EvaluationRuleEvaluatorAssignmentCoreDataInput = {
   variableMapping: unknown;
 } & Record<string, unknown>;
 
+/** @internal */
 export const mapEvaluationRuleEvaluatorAssignmentToCoreDataRow = ({
   variableMapping,
   ...assignment
@@ -173,6 +179,7 @@ type DashboardWidgetCoreDataInput = {
 } & Record<string, unknown>;
 
 /** Allowlists widget dimensions, metrics, and chart type, and keeps numeric chartConfig limits. */
+/** @internal */
 export const mapDashboardWidgetToCoreDataRow = ({
   dimensions,
   metrics,
@@ -208,6 +215,7 @@ type DashboardCoreDataInput = {
 
 // Dashboard definitions hold widget placements; explicit field picks keep any
 // unexpected persisted keys out of the export.
+/** @internal */
 export const mapDashboardToCoreDataRow = ({
   definition,
   ...dashboard
@@ -245,6 +253,7 @@ type OrganizationCoreDataInput = {
 } & Record<string, unknown>;
 
 /** Reads the starter flag from metadata, which is customer-writable through the admin API and never exported. */
+/** @internal */
 export const mapOrganizationToCoreDataRow = ({
   metadata,
   ...organization
@@ -259,6 +268,7 @@ type ProjectCoreDataInput = {
   homeDashboardId: string | null;
 } & Record<string, unknown>;
 
+/** @internal */
 export const mapProjectToCoreDataRow = ({
   homeDashboardId,
   ...project
@@ -270,6 +280,7 @@ export const mapProjectToCoreDataRow = ({
 
 type PromptCoreDataInput = { labels: string[] } & Record<string, unknown>;
 
+/** @internal */
 export const mapPromptToCoreDataRow = ({
   labels,
   ...prompt
@@ -283,6 +294,7 @@ type SkillCoreDataInput = {
   tags: string[];
 } & Record<string, unknown>;
 
+/** @internal */
 export const mapSkillToCoreDataRow = ({
   labels,
   tags,
@@ -298,6 +310,7 @@ type PromptProtectedLabelCoreDataInput = { label: string } & Record<
   unknown
 >;
 
+/** @internal */
 export const mapPromptProtectedLabelToCoreDataRow = ({
   label,
   ...protectedLabel
@@ -320,6 +333,7 @@ type TriggerCoreDataInput = {
 } & Record<string, unknown>;
 
 /** The automations API stores any string as source and action, so both are allowlisted. */
+/** @internal */
 export const mapTriggerToCoreDataRow = ({
   eventSource,
   eventActions,
@@ -338,6 +352,7 @@ type GatewayAiConnectionCoreDataInput = {
 } & Record<string, unknown>;
 
 /** A null allowedModels allows every model, so its count stays null. */
+/** @internal */
 export const mapGatewayAiConnectionToCoreDataRow = ({
   allowedModels,
   customModels,
@@ -365,6 +380,7 @@ type InAppAgentRunCoreDataInput = {
 } & Record<string, unknown>;
 
 /** Exports the count of a run's finished text messages instead of the per-event table. */
+/** @internal */
 export const mapInAppAgentRunToCoreDataRow = ({
   _count,
   ...run
@@ -384,6 +400,7 @@ type TopicConfigCoreDataInput = {
 } & Record<string, unknown>;
 
 /** Topics accepts any model name, including a connection's custom models, so names are allowlisted. */
+/** @internal */
 export const mapTopicConfigToCoreDataRow = ({
   summaryModel,
   embeddingModel,
@@ -427,6 +444,7 @@ type MonitorCoreDataInput = {
 } & Record<string, unknown>;
 
 /** Exports the BigInt durations as numbers, since JSON.stringify throws on BigInt. */
+/** @internal */
 export const mapMonitorToCoreDataRow = ({
   windowMs,
   cadenceMs,
@@ -445,6 +463,7 @@ type DatasetCoreDataInput = {
   expectedOutputSchema: unknown;
 } & Record<string, unknown>;
 
+/** @internal */
 export const mapDatasetToCoreDataRow = ({
   remoteExperimentUrl,
   inputSchema,
@@ -463,6 +482,7 @@ type ScoreConfigCoreDataInput = { categories: unknown } & Record<
 >;
 
 /** Counts categories only for categorical configs; others export null. */
+/** @internal */
 export const mapScoreConfigToCoreDataRow = ({
   categories,
   ...scoreConfig
@@ -476,6 +496,7 @@ type EvalTemplateCoreDataInput = {
   projectId: string | null;
 } & Record<string, unknown>;
 
+/** @internal */
 export const mapEvalTemplateToCoreDataRow = ({
   name,
   ...template
@@ -491,6 +512,7 @@ type ModelCoreDataInput = {
   _count: { Price: number; pricingTiers: number };
 } & Record<string, unknown>;
 
+/** @internal */
 export const mapModelToCoreDataRow = ({
   modelName,
   scope,
@@ -517,6 +539,7 @@ type MembershipInvitationCoreDataInput = {
 } & Record<string, unknown>;
 
 /** Exports a SHA-256 of the invitee's normalized email and two domain checks, never an email. */
+/** @internal */
 export const mapMembershipInvitationToCoreDataRow = ({
   email,
   invitedByUser,
@@ -589,6 +612,7 @@ async function* createTableJsonlStream<TRow>({
 // O(page size) regardless of table size and no postgres connection is held
 // across pages. `fetchPage` must return rows in a stable unique order,
 // resuming strictly after `lastRow`.
+/** @internal */
 export const uploadTableCoreDataJsonl = async <TRow>({
   s3Client,
   uploadPrefix,
@@ -637,6 +661,7 @@ export const uploadTableCoreDataJsonl = async <TRow>({
 
 // One entry per exported table. The tableName doubles as the S3 object base
 // name — keep names stable, downstream DWH consumers depend on them.
+/** @internal */
 export const coreDataTableExports: Array<
   (args: { s3Client: StorageService; uploadPrefix: string }) => Promise<void>
 > = [
@@ -1859,6 +1884,8 @@ export const coreDataTableExports: Array<
           },
         }),
     }),
+  // Incremental, one object per closed UTC day (see coreDataMediaUsageExport).
+  (args) => exportMediaUsageHourly(args),
 ];
 
 export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {

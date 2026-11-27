@@ -176,9 +176,31 @@ export function mapValues<V>(
   return functionCall("mapValues", [map]);
 }
 
+/**
+ * ClickHouse `mapContains(map, key)`: the map has an entry for `key`.
+ *
+ * @knipignore Keep this query compiler wrapper; it currently has only test callers.
+ */
+export function mapContains(
+  map: Expression<Record<string, unknown>>,
+  key: Expression<string>,
+): ChExpression<SqlBool> {
+  return functionCall("mapContains", [map, key]);
+}
+
 /** ClickHouse `uniq(value)`, an approximate distinct count. */
 export function uniq(value: Expression<unknown>): ChExpression<number> {
   return aggregate("uniq", [value]);
+}
+
+/**
+ * ClickHouse `uniqCombined(value)`, an approximate distinct count with a
+ * fixed-size state, more accurate than `uniq` and exact for small counts.
+ *
+ * @knipignore Keep this query compiler wrapper; it currently has only test callers.
+ */
+export function uniqCombined(value: Expression<unknown>): ChExpression<number> {
+  return aggregate("uniqCombined", [value]);
 }
 
 /** ClickHouse `count()`. Kysely's `eb.fn.countAll()` renders `count(*)`. */
@@ -395,6 +417,16 @@ export function nullIf<T>(
   return functionCall("nullIf", [value, other]);
 }
 
+/**
+ * ClickHouse `nullIf(value, '')`: an empty string reads as NULL. The `''` is
+ * inlined, as in the dashboard views' SQL strings.
+ */
+export function nullIfEmpty(
+  value: Expression<string | null>,
+): ChExpression<string | null> {
+  return nullIf(value, literal(""));
+}
+
 /** ClickHouse `ifNull(value, fallback)`. */
 export function ifNull<T>(
   value: Expression<T | null>,
@@ -403,8 +435,10 @@ export function ifNull<T>(
   return functionCall("ifNull", [value, fallback]);
 }
 
-/** ClickHouse `toBool(value)`. */
-export function toBool(value: Expression<SqlBool>): ChExpression<boolean> {
+/** ClickHouse `toBool(value)`: a condition, or a number (0 is false). */
+export function toBool(
+  value: Expression<SqlBool | number>,
+): ChExpression<boolean> {
   return functionCall("toBool", [value]);
 }
 
@@ -682,6 +716,18 @@ export function uniqIf(
   return aggregate("uniqIf", [value, condition]);
 }
 
+/**
+ * ClickHouse `uniqCombinedIf(value, condition)`, see {@link uniqCombined}.
+ *
+ * @knipignore Keep this query compiler wrapper; it currently has only test callers.
+ */
+export function uniqCombinedIf(
+  value: Expression<unknown>,
+  condition: Expression<SqlBool>,
+): ChExpression<number> {
+  return aggregate("uniqCombinedIf", [value, condition]);
+}
+
 /** ClickHouse `avgIf(value, condition)`. */
 export function avgIf(
   value: Expression<number>,
@@ -690,9 +736,49 @@ export function avgIf(
   return aggregate("avgIf", [value, condition]);
 }
 
+/** ClickHouse `minIf(value, condition)`: the smallest value among the matching rows. */
+export function minIf<T>(
+  value: Expression<T>,
+  condition: Expression<SqlBool>,
+): ChExpression<T> {
+  return aggregate("minIf", [value, condition]);
+}
+
+/** ClickHouse `maxIf(value, condition)`: the largest value among the matching rows. */
+export function maxIf<T>(
+  value: Expression<T>,
+  condition: Expression<SqlBool>,
+): ChExpression<T> {
+  return aggregate("maxIf", [value, condition]);
+}
+
+/**
+ * ClickHouse `sumIf(value, condition)`: the sum over the matching rows, NULL
+ * for a `Nullable` `value` when no row matches.
+ */
+export function sumIf<T extends number | null>(
+  value: Expression<T>,
+  condition: Expression<SqlBool>,
+): ChExpression<T> {
+  return aggregate("sumIf", [value, condition]);
+}
+
+/** ClickHouse `sumMapIf(map, condition)`: per-key sums over the matching rows. */
+export function sumMapIf<V>(
+  map: Expression<Record<string, V>>,
+  condition: Expression<SqlBool>,
+): ChExpression<Record<string, V>> {
+  return aggregate("sumMapIf", [map, condition]);
+}
+
 /** ClickHouse `groupArray(value)`. */
 export function groupArray<T>(value: Expression<T>): ChExpression<T[]> {
   return aggregate("groupArray", [value]);
+}
+
+/** ClickHouse `flatten(arrays)`: the elements of every inner array, in order. */
+export function flatten<T>(arrays: Expression<T[][]>): ChExpression<T[]> {
+  return functionCall("flatten", [arrays]);
 }
 
 /** ClickHouse `groupUniqArray(value)`. */
@@ -865,6 +951,19 @@ export function byteLength(
 /** ClickHouse `xxHash32(expression)`. */
 export function xxHash32(expression: Expression<string>): ChExpression<number> {
   return functionCall("xxHash32", [expression]);
+}
+
+/**
+ * ClickHouse `cityHash64(first, ...rest)`: one UInt64 hash over all
+ * arguments, e.g. a seeded sampling order `cityHash64(trace_id, {seed})`.
+ *
+ * @knipignore Keep this query compiler wrapper; it currently has only test callers.
+ */
+export function cityHash64(
+  first: Expression<unknown>,
+  ...rest: Expression<unknown>[]
+): ChExpression<number> {
+  return functionCall("cityHash64", [first, ...rest]);
 }
 
 /** ClickHouse `toJSONString(expression)`. */

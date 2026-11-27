@@ -45,6 +45,7 @@ import {
   requireGatewayAdmin,
   requireGatewayInvoke,
 } from "./gatewayAccess";
+import { gatewayGuardrailRouter } from "./guardrails/gatewayGuardrailRouter";
 import {
   GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
   type GatewaySpendBudgetAlertThreshold,
@@ -189,6 +190,7 @@ function requireGatewayRead(params: { session: Session; orgId: string }) {
 }
 
 export const aiGatewayRouter = createTRPCRouter({
+  guardrails: gatewayGuardrailRouter,
   getConfig: protectedOrganizationProcedure
     .input(organizationInput)
     .query(async ({ input, ctx }) => {
@@ -781,6 +783,28 @@ export const aiGatewayRouter = createTRPCRouter({
         scope: input.scope,
         subjectIds,
         limit: input.spendLimit,
+        session: ctx.session,
+      });
+    }),
+
+  /** Zeros the current period's spend for one key or user budget while keeping its limit. */
+  resetSpendLimit: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        scope: gatewaySpendLimitScopeInput,
+        subjectId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireBudgetScopeAccess(ctx.session, input.orgId, input.scope);
+      await new GatewaySpendLimitService(ctx.prisma).resetForSubject({
+        organizationId: input.orgId,
+        usageScope: getGatewayUsageScope({
+          session: ctx.session,
+          orgId: input.orgId,
+        }),
+        scope: input.scope,
+        subjectId: input.subjectId,
         session: ctx.session,
       });
     }),

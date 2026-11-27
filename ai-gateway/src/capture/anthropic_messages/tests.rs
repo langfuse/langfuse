@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     capture::{
         ExecutionCapture, InputOmission, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES,
-        ProtocolCapture, ProviderFacts,
+        ProtocolCapture, ProviderFacts, RequestInput,
     },
     providers::{ProviderLimits, ProviderTransport, Route},
     resolution::ApiFormat,
@@ -34,7 +34,7 @@ async fn new_observer(mode: &'static str) -> ExecutionCapture {
         ApiFormat::AnthropicMessages,
         &context,
         &HeaderMap::new(),
-        REQUEST,
+        RequestInput::from_body(REQUEST),
     )
 }
 
@@ -611,6 +611,7 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
     let telemetry = crate::telemetry::Telemetry::new(
         &crate::resolution::ControlPlaneConfig::new(&collector.url, "test-service-key").unwrap(),
         crate::telemetry::DEFAULT_RETAINED_BYTES,
+        Duration::from_millis(crate::telemetry::DEFAULT_BATCH_LINGER_MS),
     )
     .unwrap();
     let context =
@@ -626,17 +627,21 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
     );
     let forwarded = provider
         .forward_route(
-            provider.admit(None),
-            context,
-            &headers,
-            crate::providers::RequestBody {
-                bytes: Bytes::from_static(REQUEST),
-                model_range: crate::providers::model_range(REQUEST).unwrap(),
-                streaming: true,
-                reservation: None,
-                parse_growth: None,
+            crate::providers::ForwardRequest {
+                permit: provider.admit(None),
+                context,
+                headers: &headers,
+                request: crate::providers::RequestBody {
+                    bytes: Bytes::from_static(REQUEST),
+                    model_range: crate::providers::model_range(REQUEST).unwrap(),
+                    streaming: true,
+                    reservation: None,
+                    parse_growth: None,
+                    stream_options: crate::providers::StreamOptions::default(),
+                },
+                route: Route::AnthropicMessages,
+                guardrails: None,
             },
-            Route::AnthropicMessages,
             &mut crate::correlation::RequestCorrelation::default(),
         )
         .await
@@ -711,12 +716,6 @@ async fn full_mode_marks_requests_it_cannot_record_as_input() {
             at_limit.as_str(),
             Some(InputOmissionReason::ContentEncoding),
         ),
-        (
-            "full",
-            HeaderMap::new(),
-            "not json",
-            Some(InputOmissionReason::InvalidJson),
-        ),
         ("usage", HeaderMap::new(), over_limit.as_str(), None),
     ] {
         let context =
@@ -726,7 +725,7 @@ async fn full_mode_marks_requests_it_cannot_record_as_input() {
             ApiFormat::AnthropicMessages,
             &context,
             &headers,
-            body.as_bytes(),
+            RequestInput::from_body(body.as_bytes()),
         );
         let facts = &captured(&observer).facts;
         assert_eq!(
@@ -740,4 +739,41 @@ async fn full_mode_marks_requests_it_cannot_record_as_input() {
         );
         assert_eq!(facts.input.is_some(), mode == "full" && omission.is_none());
     }
+}
+
+fn guardrail_scan(system: &str, messages: &str) -> Vec<String> {
+    let mut texts = Vec::new();
+    let member = |name: &str| match name {
+        "system" => Some(system),
+        "messages" => Some(messages),
+        _ => None,
+    };
+    let members = crate::guardrails::spec::Members::new(super::REQUEST.members, &member);
+    guardrail_turn(&members)
+        .unwrap()
+        .read(&members, &mut |text: &str| texts.push(text.to_owned()))
+        .unwrap();
+    texts
+}
+
+#[test]
+fn the_system_prompt_counts_only_on_the_first_turn() {
+    assert_eq!(
+        guardrail_scan(
+            r#"[{"type":"text","text":"sys"}]"#,
+            r#"[{"role":"user","content":"first"}]"#
+        ),
+        ["first", "sys"]
+    );
+    assert_eq!(
+        guardrail_scan(
+            r#""sys""#,
+            r#"[{"role":"user","content":"old"},
+            {"role":"assistant","content":[{"type":"tool_use","id":"a","input":{}},{"type":"tool_use","id":"b","input":{}}]},
+            {"role":"user","content":[
+                {"type":"tool_result","tool_use_id":"a","content":"result a"},
+                {"type":"tool_result","tool_use_id":"b","content":[{"type":"text","text":"result b"}]}]}]"#
+        ),
+        ["result a", "result b"]
+    );
 }

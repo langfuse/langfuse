@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 
 const postgres = vi.hoisted(() => ({
   listTopicFacets: vi.fn(),
@@ -14,26 +14,8 @@ const topicFilter = {
   value: ["Order Exchange Requests"],
 };
 
-beforeEach(() => {
-  vi.stubEnv("LANGFUSE_TOPICS_ENABLED", "true");
-  vi.stubEnv("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", "EU");
-  vi.stubEnv("LANGFUSE_TOPICS_ENABLED_PROJECT_IDS", "project-b");
-});
-
 afterEach(() => {
-  vi.unstubAllEnvs();
-  vi.resetModules();
   vi.clearAllMocks();
-});
-
-it("rejects topic filters outside the project allowlist before reading anything", async () => {
-  const { topicFilterConditions } = await import("./trace-filter.js");
-  await expect(
-    topicFilterConditions("project-a", [topicFilter]),
-  ).rejects.toThrow("Topic filters are not available.");
-  await expect(topicFilterConditions("project-a", [])).resolves.toEqual([]);
-  expect(postgres.listTopicFacets).not.toHaveBeenCalled();
-  expect(postgres.getPublishedTopicMaps).not.toHaveBeenCalled();
 });
 
 it("follows the table window up to 93 days and rejects longer or open windows", async () => {

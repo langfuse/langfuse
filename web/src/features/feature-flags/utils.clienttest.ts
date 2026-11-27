@@ -56,15 +56,17 @@ describe("parseFlags", () => {
     ).toEqual([]);
   });
 
-  it("requires personal Topics opt-in and ignores organization defaults", () => {
+  it("requires personal trace evals opt-in and ignores organization defaults", () => {
     const context = {
       v4BetaEnabled: true,
     };
     expect(
-      parseFlagsWithOrganizationDefaults([], ["langfuseTopics"], context)
-        .langfuseTopics,
+      parseFlagsWithOrganizationDefaults([], ["traceTranscriptEvals"], context)
+        .traceTranscriptEvals,
     ).toBe(false);
-    expect(parseFlags(["langfuseTopics"], context).langfuseTopics).toBe(true);
+    expect(
+      parseFlags(["traceTranscriptEvals"], context).traceTranscriptEvals,
+    ).toBe(true);
   });
 
   it("enables both session previews by default for every user", () => {

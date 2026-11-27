@@ -1,7 +1,8 @@
 import { expect, fn, within } from "storybook/test";
+import { TOPICS_COST_ESTIMATE_MAX_FACETS } from "@langfuse/shared/topics";
 import preview from "../../../.storybook/preview";
 import { TopicCostEstimateView } from "./TopicCostEstimateView";
-import { costEstimateFixture as estimate } from "./topicCostEstimateFixture";
+import { costEstimateFixture as estimate } from "@/.storybook/fixtures/topicCostEstimateFixture";
 
 const meta = preview.meta({
   component: TopicCostEstimateView,
@@ -10,16 +11,29 @@ const meta = preview.meta({
     samplingPercent: 100,
     dailyTraces: 954,
     backfillTraces: 500,
-    canAddModelPrice: true,
     onAddModelPrice: fn(),
+    showUsage: true,
     starting: false,
-    disabled: false,
+    facetCount: 2,
     error: null,
     onStart: fn(),
   },
 });
 
 export const NotStarted = meta.story({});
+
+// Without a trace count there is nothing to project, so the usage row is hidden.
+export const TraceCountUnknown = meta.story({ args: { dailyTraces: null } });
+
+export const Snapshot = meta.story({
+  args: {
+    estimate: estimate(),
+    samplingPercent: undefined,
+    dailyTraces: undefined,
+    backfillTraces: undefined,
+    newTraces: 340,
+  },
+});
 
 export const Running = meta.story({
   args: {
@@ -33,6 +47,11 @@ export const Running = meta.story({
 });
 
 export const Done = meta.story({ args: { estimate: estimate() } });
+
+// Self-hosted has no billable units, so only model cost shows.
+export const WithoutUsage = meta.story({
+  args: { estimate: estimate(), showUsage: false },
+});
 
 // Sampling scales only the daily cost on read; the backfill part is hidden without a backfill.
 export const SampledWithoutBackfill = meta.story({
@@ -61,7 +80,7 @@ export const UnpricedModel = meta.story({
 
 // Without permission to edit model definitions the button stays, disabled.
 export const UnpricedModelWithoutPermission = meta.story({
-  args: { ...UnpricedModel.input.args, canAddModelPrice: false },
+  args: { ...UnpricedModel.input.args, onAddModelPrice: undefined },
 });
 
 export const Failed = meta.story({
@@ -86,5 +105,30 @@ export const LabelsEstimate = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Estimate cost" }),
     ).toBeDisabled();
+  },
+});
+
+export const TestBillableUnitsWithoutEstimate = meta.story({
+  name: "(Test) Projects daily billable units before any estimate runs",
+  args: { samplingPercent: 50, facetCount: 3 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // 954 traces a day × 50% × 3 questions
+    await expect(canvas.getByText("~1.4K")).toBeVisible();
+    await expect(canvas.getByText(/billable units per day/)).toBeVisible();
+  },
+});
+
+export const TestOversizedSelection = meta.story({
+  name: "(Test) Explains why a large selection cannot be estimated",
+  args: { facetCount: TOPICS_COST_ESTIMATE_MAX_FACETS + 1 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText(/cost estimates support up to/i),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Estimate cost" }),
+    ).not.toBeInTheDocument();
   },
 });

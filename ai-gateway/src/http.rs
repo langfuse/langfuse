@@ -9,7 +9,7 @@ use axum::{
     routing::{get, post},
 };
 use http_body_util::BodyExt;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::value::RawValue;
 use tower_http::timeout::{RequestBodyDeadlineLayer, TimeoutError};
 use tracing::Instrument;
@@ -17,12 +17,13 @@ use tracing::Instrument;
 use crate::{
     capture::{GatewayRejection, MAX_OUTPUT_CAPTURE_BYTES, MAX_RESPONSE_PARSE_BYTES},
     correlation::{RequestCorrelation, assign_request_id},
+    guardrails::ScannedMembers,
     inference::{
         InferenceService, MemoryReservation, provider_origin, rate_limited_reason,
         resolution_origin,
     },
     observability::{ErrorOrigin, Wait},
-    providers::{ProviderError, RequestBody, Route},
+    providers::{ForwardError, ProviderError, RequestBody, Route, StreamOptions},
     resolution::{ApiFormat, ResolutionError, SpendLimitExceeded},
     server::GatewayLifecycleState,
 };
@@ -238,21 +239,43 @@ async fn relay(
     correlation
         .observation()
         .record_request_bytes(request_bytes);
-    let request_body = request_body_and_model(bytes)?;
+    // The reservation travels with the body, so a caller that disconnects mid-parse
+    // cannot free budget while the parse still holds the body.
+    let (parsed, reservation) = inference
+        .run_cpu(
+            crate::cpu::CpuJob::ParseRequest,
+            crate::cpu::CpuClass::Standard,
+            request_bytes,
+            move || (parse_request_body(bytes, route.api_format()), reservation),
+        )
+        .instrument(tracing::info_span!(
+            "request.parse",
+            otel.kind = "internal",
+            http.request.body.size = byte_count(request_bytes)
+        ))
+        .await
+        .map_err(InferenceHttpError::Resolution)?;
+    let request_body = parsed?;
+    let mut reservation = Some(reservation);
     let (permit, context) = inference
         .resolve_and_admit(
             gateway_key,
             route,
-            &request_body.model,
             &parts.headers,
-            &request_body.bytes,
+            &request_body,
+            &mut reservation,
             correlation,
         )
         .await
         .map_err(InferenceHttpError::Resolution)?;
     let parse_growth = permit
         .charges_spend()
-        .then(|| reservation.deferred(MAX_RESPONSE_PARSE_BYTES - MAX_OUTPUT_CAPTURE_BYTES));
+        .then(|| {
+            reservation
+                .as_ref()
+                .map(|r| r.deferred(MAX_RESPONSE_PARSE_BYTES - MAX_OUTPUT_CAPTURE_BYTES))
+        })
+        .flatten();
     inference
         .forward(
             permit,
@@ -261,58 +284,202 @@ async fn relay(
             RequestBody {
                 bytes: request_body.bytes,
                 model_range: request_body.model_range,
+                stream_options: request_body.stream_options,
                 streaming: request_body.streaming,
-                reservation: Some(Box::new(reservation)),
+                reservation: reservation
+                    .map(|r| -> crate::providers::BodyReservation { Box::new(r) }),
                 parse_growth,
             },
             route,
             correlation,
         )
         .await
-        .map_err(InferenceHttpError::Provider)
+        .map_err(|error| match error {
+            ForwardError::Provider(provider) => InferenceHttpError::Provider(provider),
+            ForwardError::GuardrailBlocked(rejection) => {
+                InferenceHttpError::Resolution(ResolutionError::GuardrailBlocked(rejection))
+            }
+            ForwardError::Busy => InferenceHttpError::Resolution(ResolutionError::Busy),
+        })
 }
 
-struct InferenceRequestBody {
+/// The caller body, parsed once on arrival.
+pub(crate) struct ParsedRequest {
     bytes: Bytes,
-    model: String,
+    pub(crate) model: String,
     model_range: Range<usize>,
+    stream_options: StreamOptions,
     streaming: bool,
+    /// Where the conversation members guardrails scan sit.
+    pub(crate) scanned: ScannedMembers,
 }
 
-#[derive(Deserialize)]
-struct InferenceRequest<'a> {
-    #[serde(borrow)]
-    model: &'a RawValue,
+impl ParsedRequest {
+    pub(crate) fn body(&self) -> &Bytes {
+        &self.bytes
+    }
+}
+
+/// The top-level members of a request body, borrowed from it.
+struct Members<'a> {
+    model: Seen<'a>,
     /// Kept raw so a non-boolean value is left for the provider to reject.
-    #[serde(borrow, default)]
-    stream: Option<&'a RawValue>,
+    stream: Seen<'a>,
+    stream_options: Seen<'a>,
+    /// The members guardrails scan, in the order of `MembersSeed::scanned`.
+    scanned: Vec<Seen<'a>>,
 }
 
-fn request_body_and_model(bytes: Bytes) -> Result<InferenceRequestBody, InferenceHttpError> {
-    let request = serde_json::from_slice::<InferenceRequest<'_>>(&bytes)
+/// How often a member the gateway reads appeared. Parsers disagree on which
+/// duplicate wins, so the gateway never picks one.
+#[derive(Clone, Copy)]
+enum Seen<'a> {
+    Absent,
+    Once(&'a RawValue),
+    Duplicated,
+}
+
+impl<'a> Seen<'a> {
+    fn record(&mut self, value: &'a RawValue) {
+        *self = match self {
+            Self::Absent => Self::Once(value),
+            Self::Once(_) | Self::Duplicated => Self::Duplicated,
+        };
+    }
+
+    /// The single value; a duplicate could route one model and send another.
+    fn unique(self) -> Result<Option<&'a RawValue>, InferenceHttpError> {
+        match self {
+            Self::Absent => Ok(None),
+            Self::Once(value) => Ok(Some(value)),
+            Self::Duplicated => Err(InferenceHttpError::InvalidBody),
+        }
+    }
+}
+
+/// Extracts only the routing/guardrail members without copying every member
+/// up front; capture parses the body only when a generation is recorded.
+#[derive(Clone, Copy)]
+struct MembersSeed {
+    /// The members of the request's format that hold the conversation.
+    scanned: &'static [&'static str],
+}
+
+impl<'de> serde::de::DeserializeSeed<'de> for MembersSeed {
+    type Value = Members<'de>;
+
+    fn deserialize<D: serde::Deserializer<'de>>(
+        self,
+        deserializer: D,
+    ) -> Result<Self::Value, D::Error> {
+        deserializer.deserialize_map(self)
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for MembersSeed {
+    type Value = Members<'de>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("a JSON object")
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+        let mut members = Members {
+            model: Seen::Absent,
+            stream: Seen::Absent,
+            stream_options: Seen::Absent,
+            scanned: vec![Seen::Absent; self.scanned.len()],
+        };
+        while let Some(key) = map.next_key::<std::borrow::Cow<'de, str>>()? {
+            let value: &'de RawValue = map.next_value()?;
+            match key.as_ref() {
+                "model" => members.model.record(value),
+                "stream" => members.stream.record(value),
+                "stream_options" => members.stream_options.record(value),
+                _ => {}
+            }
+            if let Some(seen) = self
+                .scanned
+                .iter()
+                .position(|name| *name == key)
+                .and_then(|index| members.scanned.get_mut(index))
+            {
+                seen.record(value);
+            }
+        }
+        Ok(members)
+    }
+}
+
+/// Validates the JSON body and locates the model, stream flag, `stream_options`,
+/// and conversation members scanned by guardrails.
+fn parse_request_body(
+    bytes: Bytes,
+    api_format: ApiFormat,
+) -> Result<ParsedRequest, InferenceHttpError> {
+    let seed = MembersSeed {
+        scanned: crate::capture::request_spec(api_format).members,
+    };
+    let mut deserializer = serde_json::Deserializer::from_slice(&bytes);
+    let members = serde::de::DeserializeSeed::deserialize(seed, &mut deserializer)
+        .and_then(|members| deserializer.end().map(|()| members))
         .map_err(|_| InferenceHttpError::InvalidBody)?;
-    let raw_model = request.model.get();
-    let model =
-        serde_json::from_str::<String>(raw_model).map_err(|_| InferenceHttpError::InvalidBody)?;
+    let raw_model = members
+        .model
+        .unique()?
+        .ok_or(InferenceHttpError::InvalidBody)?;
+    let model = serde_json::from_str::<String>(raw_model.get())
+        .map_err(|_| InferenceHttpError::InvalidBody)?;
     if model.is_empty() {
         return Err(InferenceHttpError::InvalidBody);
     }
-    let start = raw_model
-        .as_ptr()
-        .addr()
-        .checked_sub(bytes.as_ptr().addr())
-        .ok_or(InferenceHttpError::InvalidBody)?;
-    let end = start
-        .checked_add(raw_model.len())
-        .filter(|end| *end <= bytes.len())
-        .ok_or(InferenceHttpError::InvalidBody)?;
-    let streaming = request.stream.is_some_and(|stream| stream.get() == "true");
-    Ok(InferenceRequestBody {
+    let model_range = value_range(&bytes, raw_model).ok_or(InferenceHttpError::InvalidBody)?;
+    let streaming = members
+        .stream
+        .unique()?
+        .is_some_and(|stream| stream.get() == "true");
+    // A duplicate is forwarded as sent, without opting into usage.
+    let stream_options = match members.stream_options {
+        Seen::Absent => StreamOptions::Absent,
+        Seen::Once(raw) => {
+            StreamOptions::At(value_range(&bytes, raw).ok_or(InferenceHttpError::InvalidBody)?)
+        }
+        Seen::Duplicated => StreamOptions::Duplicated,
+    };
+    let mut scanned = ScannedMembers::new(seed.scanned);
+    for (name, seen) in seed.scanned.iter().zip(members.scanned) {
+        match seen {
+            Seen::Absent => {}
+            Seen::Once(raw) => {
+                scanned.push(
+                    name,
+                    value_range(&bytes, raw).ok_or(InferenceHttpError::InvalidBody)?,
+                );
+            }
+            Seen::Duplicated => scanned.mark_duplicated(),
+        }
+    }
+    Ok(ParsedRequest {
         bytes,
         model,
-        model_range: start..end,
+        model_range,
+        stream_options,
         streaming,
+        scanned,
     })
+}
+
+/// The byte range of a value borrowed from `body`.
+fn value_range(body: &[u8], value: &RawValue) -> Option<Range<usize>> {
+    let start = value
+        .get()
+        .as_ptr()
+        .addr()
+        .checked_sub(body.as_ptr().addr())?;
+    let end = start
+        .checked_add(value.get().len())
+        .filter(|end| *end <= body.len())?;
+    Some(start..end)
 }
 
 /// Buffer the client body, reserving its allocation from the memory budget as bytes
@@ -502,6 +669,7 @@ impl InferenceHttpError {
                     R::SpendLimitExceeded(_) => "spend_limit_exceeded",
                     R::SpendLimitUnavailable => "spend_limit_unavailable",
                     R::SpendLimitUnpricedModel => "spend_limit_unpriced_model",
+                    R::GuardrailBlocked(rejection) => rejection.error_code(),
                     R::Busy => "capacity",
                     R::Timeout => "timeout",
                     R::Unavailable => "unavailable",
@@ -582,6 +750,12 @@ impl InferenceHttpError {
                 "unsupported_content_encoding",
             ),
             Self::Resolution(R::SpendLimitUnpricedModel) => SPEND_LIMIT_UNPRICED_MODEL,
+            Self::Resolution(R::GuardrailBlocked(rejection)) => (
+                rejection.http_status(),
+                "Request blocked by a guardrail",
+                rejection.error_type(),
+                rejection.error_code(),
+            ),
             Self::InvalidBody => (
                 StatusCode::BAD_REQUEST,
                 "Invalid request body",
@@ -641,10 +815,12 @@ impl InferenceHttpError {
         }
     }
 
-    /// Rate and spend limits name the exhausted limit instead of the generic `message`.
+    /// Rate and spend limits name the exhausted limit, and guardrails the matching
+    /// guardrail, instead of the generic `message`.
     fn message<'a>(&'a self, message: &'a str) -> &'a str {
         match self {
             Self::Resolution(ResolutionError::RateLimited(limit)) => limit.message(),
+            Self::Resolution(ResolutionError::GuardrailBlocked(rejection)) => rejection.message(),
             _ => self
                 .spend_limit()
                 .map_or(message, SpendLimitExceeded::message),
@@ -745,6 +921,16 @@ impl InferenceHttpError {
             response
                 .headers_mut()
                 .insert(header::RETRY_AFTER, retry_after_secs.into());
+        }
+        if matches!(
+            &self,
+            Self::Resolution(ResolutionError::GuardrailBlocked(rejection))
+                if rejection.disable_retry()
+        ) {
+            response.headers_mut().insert(
+                header::HeaderName::from_static("x-should-retry"),
+                header::HeaderValue::from_static("false"),
+            );
         }
         response
     }

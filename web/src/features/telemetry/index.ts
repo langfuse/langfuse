@@ -1,6 +1,11 @@
 import { VERSION } from "@/src/constants/VERSION";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
+import {
+  Prisma,
+  prisma,
+  type GatewayGuardrailAction,
+  type GatewayGuardrailType,
+} from "@langfuse/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
 import {
   getDatasetRunItemCountsByProjectInCreationInterval,
@@ -219,6 +224,19 @@ async function posthogTelemetry({
     // All existing AI gateway keys, including expired ones, not only those created in the timeframe
     const totalGatewayKeys = await prisma.gatewayApiKeyAssociation.count();
 
+    // All existing AI gateway guardrails, grouped by type and action
+    const gatewayGuardrailGroups = await prisma.gatewayGuardrail.groupBy({
+      by: ["type", "action"],
+      _count: {
+        _all: true,
+      },
+    });
+    const {
+      totalGatewayGuardrails,
+      gatewayGuardrailsByType,
+      gatewayGuardrailsByAction,
+    } = aggregateGatewayGuardrailCounts(gatewayGuardrailGroups);
+
     // Count traces, observations and AI gateway requests
     const { countTraces, countObservations, countGatewayRequests } =
       await countTracing({
@@ -288,7 +306,7 @@ async function posthogTelemetry({
       },
     });
 
-    // Count Topics facet summaries as billing does, without insufficient_input.
+    // Count Topics facet summaries as billing does: all but those written without a model call.
     // Counted unconditionally, like Assistant runs: zero means no Topics usage.
     const countTopicFacetSummariesClickhouse =
       await getTopicFacetSummaryCountsByProjectInCreationInterval({
@@ -320,6 +338,9 @@ async function posthogTelemetry({
         userDomains: domains,
         totalProjects: totalProjects,
         totalGatewayKeys: totalGatewayKeys,
+        totalGatewayGuardrails: totalGatewayGuardrails,
+        gatewayGuardrailsByType: gatewayGuardrailsByType,
+        gatewayGuardrailsByAction: gatewayGuardrailsByAction,
         traces: countTraces,
         scores: countScores,
         observations: countObservations,
@@ -351,4 +372,34 @@ async function posthogTelemetry({
   } catch (error) {
     logger.error(error);
   }
+}
+
+function aggregateGatewayGuardrailCounts(
+  groups: Array<{
+    type: GatewayGuardrailType;
+    action: GatewayGuardrailAction;
+    _count: { _all: number };
+  }>,
+) {
+  let totalGatewayGuardrails = 0;
+  const gatewayGuardrailsByType: Partial<Record<GatewayGuardrailType, number>> =
+    {};
+  const gatewayGuardrailsByAction: Partial<
+    Record<GatewayGuardrailAction, number>
+  > = {};
+
+  for (const group of groups) {
+    const count = group._count._all;
+    totalGatewayGuardrails += count;
+    gatewayGuardrailsByType[group.type] =
+      (gatewayGuardrailsByType[group.type] ?? 0) + count;
+    gatewayGuardrailsByAction[group.action] =
+      (gatewayGuardrailsByAction[group.action] ?? 0) + count;
+  }
+
+  return {
+    totalGatewayGuardrails,
+    gatewayGuardrailsByType,
+    gatewayGuardrailsByAction,
+  };
 }

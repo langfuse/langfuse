@@ -3,12 +3,8 @@ import { formatDistanceToNow } from "date-fns";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { env } from "@/src/env.mjs";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
-import { api, type RouterOutputs } from "@/src/utils/api";
-import {
-  getEvaluatorBlockMetadata,
-  LLMAdapter,
-  supportedModels,
-} from "@langfuse/shared";
+import { api } from "@/src/utils/api";
+import { getEvaluatorBlockMetadata } from "@langfuse/shared";
 import {
   topicsModelSettingsSchema,
   type TopicsModelSlotName,
@@ -20,9 +16,7 @@ import {
 } from "./ConfigureTopicsDialog";
 import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
 import { topicsSetupPayload } from "./topics-setup";
-import { resolveTopicModelSlot } from "./topic-setup-flow";
-
-type Connection = RouterOutputs["llmApiKey"]["effective"]["data"][number];
+import { resolveTopicModelSlot, topicModelsFor } from "./topic-setup-flow";
 
 type ConfigureTopicsDialogControllerProps = {
   projectId: string;
@@ -87,31 +81,37 @@ function ConfigureTopicsSettings({
   }));
   const [saveError, setSaveError] = useState<string | null>(null);
   const test = api.topics.testModelSettings.useMutation();
+  // Fetched on every open: the first summary can be embedded while the page
+  // stays open. The server still rejects a change, so a failed read only hides
+  // the warning.
+  const hasEmbeddings = api.topics.hasCurrentEmbeddings.useQuery({ projectId });
   const utils = api.useUtils();
   const turnOn = api.topics.setAutomaticProcessing.useMutation({
     onSuccess: () => utils.topics.modelSettings.invalidate({ projectId }),
   });
   const providerGroups = connections.map<[string, string[]]>((connection) => [
     connection.provider,
-    modelsFor(connection, "chat"),
+    topicModelsFor(connection, "chat"),
   ]);
-  const embeddingGroups = connections.map<[string, string[]]>((connection) => [
-    connection.provider,
-    modelsFor(
-      connection,
-      "embedding",
-      stored.embedding?.provider === connection.provider
-        ? stored.embedding.model
-        : null,
-    ),
-  ]);
+  const embeddingGroups = connections
+    .map<[string, string[]]>((connection) => [
+      connection.provider,
+      topicModelsFor(
+        connection,
+        "embedding",
+        stored.embedding?.provider === connection.provider
+          ? stored.embedding.model
+          : null,
+      ),
+    ])
+    .filter(([, models]) => models.length > 0);
   const draft = {
     summary: stored.summary,
     embedding: stored.embedding,
     embeddingDimensions: String(stored.embeddingDimensions),
     clustering: stored.clustering,
     idleSeconds: String((traceIdleMs ?? 600_000) / 1000),
-    embeddingLocked: false,
+    hasEmbeddings: hasEmbeddings.data ?? false,
     automaticProcessing: stored.enabled ?? false,
   };
   const paused = stored.blockMessage
@@ -280,45 +280,4 @@ function useSaveTopicsSetup(projectId: string) {
       utils.topics.tracingReadinessSettings.invalidate({ projectId });
     },
   });
-}
-
-const OPENAI_EMBEDDING_MODELS = [
-  "text-embedding-3-small",
-  "text-embedding-3-large",
-  "text-embedding-ada-002",
-];
-
-const GOOGLE_EMBEDDING_MODELS = [
-  "textembedding-gecko",
-  "textembedding-gecko-multilingual",
-];
-
-function embeddingModelsFor(adapter: string) {
-  if (adapter === LLMAdapter.OpenAI || adapter === LLMAdapter.Azure)
-    return OPENAI_EMBEDDING_MODELS;
-  if (adapter === LLMAdapter.GoogleAIStudio || adapter === LLMAdapter.VertexAI)
-    return GOOGLE_EMBEDDING_MODELS;
-  return [];
-}
-
-function modelsFor(
-  connection: Connection,
-  kind: "chat" | "embedding",
-  savedModel?: string | null,
-) {
-  const chat = connection.withDefaultModels
-    ? (supportedModels[connection.adapter as keyof typeof supportedModels] ??
-      [])
-    : [];
-  const embedding =
-    kind === "embedding" && connection.withDefaultModels
-      ? embeddingModelsFor(connection.adapter)
-      : [];
-  return Array.from(
-    new Set(
-      [savedModel, ...embedding, ...connection.customModels, ...chat].filter(
-        (model): model is string => Boolean(model),
-      ),
-    ),
-  );
 }

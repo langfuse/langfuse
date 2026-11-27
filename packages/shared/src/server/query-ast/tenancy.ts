@@ -29,7 +29,7 @@ import {
   type ClickHouseSelectQueryNode,
 } from "./nodes";
 import { describeRelation } from "./relations";
-import { TENANTED_TABLES } from "./schema";
+import { REGISTRY_TABLES } from "./schema";
 import { SelectRewriteTransformer } from "./transformer";
 
 const PROJECT_ID_COLUMN = "project_id";
@@ -156,10 +156,15 @@ function injectSelect(
   };
 }
 
+/**
+ * Every registry table is tenanted. A global relation needs an exception
+ * here, not a flag in `schema.ts`, so opting a table out of the project scope
+ * is reviewed with this pass. Names outside the registry are CTEs.
+ */
 function isTenantedTable(
   r: ScopedRelation,
 ): r is Extract<ScopedRelation, { kind: "table" }> {
-  return r.kind === "table" && TENANTED_TABLES.has(r.tableName);
+  return r.kind === "table" && REGISTRY_TABLES.has(r.tableName);
 }
 
 /**

@@ -1,3 +1,4 @@
+/* eslint-disable boundaries/dependencies -- TODO: component privacy */
 // Controlled query editor. Parsing, token projection, and completion edits
 // belong to the caller; this component owns DOM editing and selection.
 //
@@ -58,7 +59,6 @@ import {
   sourceAtomForNode,
 } from "../internal/QueryInput/fns/queryInputDom";
 import { optionDomId } from "../internal/QueryInput/fns/optionDomId";
-export { optionDomId } from "../internal/QueryInput/fns/optionDomId";
 
 type QueryToken = React.ComponentProps<typeof QueryTokens>["tokens"][number];
 

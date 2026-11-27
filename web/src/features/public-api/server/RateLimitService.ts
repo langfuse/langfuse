@@ -27,14 +27,15 @@ import {
 } from "./structuredPublicApiErrorContract";
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
+/** @internal */
 export const RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit";
 
-export type RateLimitResponseOptions = {
+type RateLimitResponseOptions = {
   errorContract?: PublicApiErrorContract | undefined;
   upgradePath?: RateLimitUpgradePath | undefined;
 };
 
-export type RateLimitResponseOptionsInput =
+type RateLimitResponseOptionsInput =
   | PublicApiErrorContract
   | RateLimitResponseOptions;
 
@@ -253,6 +254,7 @@ class RateLimitHelper {
   }
 }
 
+/** @internal */
 export const sendRateLimitResponse = (
   res: NextApiResponse,
   rateLimitRes: RateLimitResult,
@@ -271,6 +273,7 @@ export const sendRateLimitResponse = (
   );
 };
 
+/** @internal */
 export const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
   return {
     "Retry-After": Math.ceil(res.msBeforeNext / 1000),
@@ -524,6 +527,7 @@ const getPlanBasedRateLimitConfig = (
     case "cloud:pro":
     case "cloud:team":
     case "cloud:enterprise":
+    case "cloud:enterprise-trial":
       switch (resource) {
         case "ingestion":
           return {

@@ -32,6 +32,12 @@ env:
   # golang-migrate release installed for ClickHouse migrations. The cache key
   # and scripts/ci/install-golang-migrate.sh both read this value.
   GOLANG_MIGRATE_VERSION: v4.19.1
+  # Test jobs build the native addon with thin instead of fat LTO, the same
+  # setting ai-gateway's release profile uses. Fat LTO is a ~45s
+  # single-threaded link on every job that builds the addon; thin LTO
+  # parallelizes it. Docker builds do not inherit this, so released images
+  # and test-docker-build keep packages/native's fat-LTO profile.
+  CARGO_PROFILE_RELEASE_LTO: thin
 
   # Disable CI cache restores for fork PRs.
   #
@@ -132,7 +138,9 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       llm_connections: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.llm_connections }}
+      topics_llm: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.topics_llm }}
       ai_gateway: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.ai_gateway }}
+      ai_gateway_guardrail_rules: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.ai_gateway_guardrail_rules }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -200,9 +208,55 @@ jobs:
         with:
           cache-key: langfuse/test-ai-gateway
       - name: Build runtime image
-        run: docker buildx build --load --pull --target runtime -t langfuse-ai-gateway:test .
+        working-directory: .
+        run: docker buildx build --load --pull --target runtime -f ai-gateway/Dockerfile -t langfuse-ai-gateway:test .
       - name: Smoke test runtime image
         run: bash scripts/smoke-image.sh langfuse-ai-gateway:test
+
+  # Rebuilds the committed WebAssembly module and fails when it is out of date,
+  # so web builds can use pkg/ without a Rust toolchain.
+  tests-ai-gateway-guardrail-rules:
+    timeout-minutes: 15
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs:
+      - pre-job
+      - llm-connections-filter
+    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.ai_gateway_guardrail_rules == 'true' || github.event_name == 'workflow_dispatch'))) }}
+    defaults:
+      run:
+        working-directory: packages/ai-gateway-guardrail-rules
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install --no-self-update
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+      - name: Lint native and WebAssembly targets
+        run: |
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo clippy --locked --no-default-features --target wasm32-unknown-unknown --features wasm -- -D warnings
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: wasm-bindgen@0.2.130,cargo-deny@0.20.2
+      - name: Check Rust dependency bans, licenses, and sources
+        run: cargo deny --locked check bans licenses sources
+      - name: Run Rust tests
+        run: cargo test --locked
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Rebuild the WebAssembly module
+        run: bash scripts/build-wasm.sh
+      - name: Fail if the committed module is out of date
+        run: |
+          git status --porcelain -- pkg
+          test -z "$(git status --porcelain -- pkg)"
+      - name: Test the committed WebAssembly module
+        run: node --test js/validate.test.mjs
 
   lint:
     timeout-minutes: 12
@@ -326,6 +380,8 @@ jobs:
       # Rust packages lint separately (ai-gateway in its own job).
       - name: lint native addon (rustfmt, clippy)
         run: pnpm --filter @langfuse/native run lint
+      - name: Test native addon
+        run: pnpm --filter @langfuse/native run test
       - name: Install Rust dependency checkers
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
@@ -369,7 +425,9 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
-      - name: run knip
+      - name: run knip in production mode
+        run: pnpm exec knip --production
+      - name: run knip in default mode
         run: pnpm exec knip
 
   format-check:
@@ -1103,6 +1161,19 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+      - name: Load default env
+        run: |
+          cp .env.dev${{ matrix.deploy-mode }}.example .env
+          cp .env.dev${{ matrix.deploy-mode }}.example web/.env
+          cp .env.dev${{ matrix.deploy-mode }}.example worker/.env
+      - name: Start dev containers in background
+        # Independent of the install and build, so let them overlap the
+        # container startup. "Wait for dev containers" collects the result.
+        run: |
+          (set +e; docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
+        env:
+          # Only start the extra floci container for default worker tests to avoid overhead elsewhere.
+          COMPOSE_PROFILES: ${{ matrix.deploy-mode == '' && 'worker-tests' || '' }}
       - name: Use Node.js ${{ matrix.node-version }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -1132,25 +1203,23 @@ jobs:
         run: |
           bash scripts/ci/install-golang-migrate.sh
           which migrate
-      - name: Load default env
+      - name: Build
+        # Runs before "Seed DB" (`prisma migrate dev`), so generate the Prisma
+        # client the shared build type-checks against here. `prisma generate`
+        # only reads the schema and needs no database.
         run: |
-          cp .env.dev${{ matrix.deploy-mode }}.example .env
-          cp .env.dev${{ matrix.deploy-mode }}.example web/.env
-          cp .env.dev${{ matrix.deploy-mode }}.example worker/.env
-      - name: Run + migrate
+          pnpm --filter=shared run db:generate
+          pnpm --filter=worker... run build
+      - name: Wait for dev containers
         run: |
-          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180
+          timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \
+            || { echo "Timed out waiting for background docker compose up"; cat /tmp/compose-up.log; exit 1; }
+          cat /tmp/compose-up.log
           docker compose ps
-        env:
-          # Only start the extra floci container for default worker tests to avoid overhead elsewhere.
-          COMPOSE_PROFILES: ${{ matrix.deploy-mode == '' && 'worker-tests' || '' }}
-      - name: Ensure no unhealthy status
-        run: |
+          if [ "$(cat /tmp/compose-up.exit)" != "0" ]; then exit 1; fi
           if docker compose ps | grep "(unhealthy)"; then
             echo "One or more services are unhealthy"
             exit 1
-          else
-            echo "All services are healthy"
           fi
       - name: Seed DB
         run: |
@@ -1171,19 +1240,11 @@ jobs:
         if: matrix.deploy-mode == ''
         run: |
           pnpm --filter=shared ch:dev-tables
-      - name: Build
-        run: pnpm --filter=worker... run build
-      - name: run native codec tests against ClickHouse
-        if: matrix.deploy-mode == ''
-        env:
-          LANGFUSE_NATIVE_FAIL_IF_CLICKHOUSE_UNAVAILABLE: "1"
-        run: |
-          pnpm --filter @langfuse/native run test
-          pnpm --filter worker run test:native-codec
       - name: run tests
         id: worker-suite
         run: pnpm --filter=worker run test:exclude-llm-connections
         env:
+          LANGFUSE_NATIVE_FAIL_IF_CLICKHOUSE_UNAVAILABLE: ${{ matrix.deploy-mode == '' && '1' || '0' }}
           VITEST_CI_TIMINGS_PATH: ${{ runner.temp }}/vitest-worker.json
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
           LANGFUSE_TEST_FLOCI_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
@@ -1318,7 +1379,7 @@ jobs:
         run: |
           docker run --rm --network host \
             -e OPENSSL_FORCE_FIPS_MODE=1 \
-            -e CI -e VITEST_MAX_WORKERS -e LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT -e LANGFUSE_TEST_FLOCI_ENDPOINT \
+            -e CI -e VITEST_MAX_WORKERS -e CARGO_PROFILE_RELEASE_LTO -e LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT -e LANGFUSE_TEST_FLOCI_ENDPOINT \
             -e PNPM_STORE_DIR=/pnpm-store \
             -v "$(pnpm store path --silent):/pnpm-store" \
             -v "$PWD:/src:ro" \
@@ -1331,7 +1392,8 @@ jobs:
     needs:
       - pre-job
       - llm-connections-filter
-    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.llm_connections == 'true' || github.event_name == 'workflow_dispatch'))) }}
+    # Fork pull requests get no provider secrets, so the live suites cannot run there.
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.llm_connections == 'true' || needs.llm-connections-filter.outputs.topics_llm == 'true' || github.event_name == 'workflow_dispatch'))) }}
     name: test-worker-llm-connections (node24, pg15)
     env:
       NODE_ENV: test
@@ -1390,9 +1452,13 @@ jobs:
           pnpm run db:migrate
           pnpm --filter=shared run db:seed
           pnpm run --filter=shared ch:up
-      - name: Build
-        run: pnpm --filter=worker... run build
+      - name: Build shared package for provider tests
+        # Vitest loads the worker test sources directly. Both suites import
+        # the built shared package, but neither loads the native addon.
+        id: build
+        run: pnpm --filter=@langfuse/shared run build
       - name: run llm connection tests
+        if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || needs.llm-connections-filter.outputs.llm_connections == 'true' }}
         run: pnpm --filter=worker run test:llm-connections-only
         env:
           LANGFUSE_LLM_CONNECTION_OPENAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_OPENAI_KEY }}
@@ -1400,6 +1466,19 @@ jobs:
           LANGFUSE_LLM_CONNECTION_AZURE_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_AZURE_KEY }}
           LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL: ${{ secrets.LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL }}
           LANGFUSE_LLM_CONNECTION_AZURE_MODEL: ${{ secrets.LANGFUSE_LLM_CONNECTION_AZURE_MODEL }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_REGION: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY }}
+          LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY }}
+          LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY }}
+      # Runs after a failed connection suite too, so both provider reports are visible.
+      - name: run topics llm provider tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || needs.llm-connections-filter.outputs.topics_llm == 'true') }}
+        run: pnpm --filter=worker run test:topics-llm-providers
+        env:
+          LANGFUSE_LLM_CONNECTION_OPENAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_OPENAI_KEY }}
+          LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY }}
           LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID }}
           LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY }}
           LANGFUSE_LLM_CONNECTION_BEDROCK_REGION: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION }}
@@ -1684,7 +1763,9 @@ jobs:
 
   test-ai-gateway-e2e:
     timeout-minutes: 25
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Cache-cold by design, so every run compiles web, worker and both Rust
+    # crates from scratch; the build saturates 8 vCPUs for about two minutes.
+    runs-on: blacksmith-16vcpu-ubuntu-2404
     needs:
       - pre-job
       - llm-connections-filter
@@ -1692,6 +1773,7 @@ jobs:
     name: test-ai-gateway-e2e
     env:
       NODE_ENV: test
+      LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: "10"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1746,23 +1828,27 @@ jobs:
             cat /tmp/gateway-jwt-public.pem
             echo "$delimiter"
           } >> "$GITHUB_ENV"
-      # Download directly. This job holds provider credentials and stays
-      # cache-cold; a shared migrate cache would execute a binary saved by
-      # another job.
-      - name: Install golang-migrate
-        run: |
-          bash scripts/ci/install-golang-migrate.sh
-      - name: Start dev containers
-        run: |
-          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
-          docker compose ps
+      # Download directly and run container startup plus schema migrations in
+      # the background so they overlap Rust toolchain setup and the build.
+      # This job holds provider credentials and stays cache-cold; a shared
+      # migrate cache would execute a binary saved by another job.
+      # `prisma migrate deploy` skips `prisma generate`, so it does not race
+      # `@langfuse/shared#db:generate` inside `pnpm run build`.
+      - name: Start dev containers and migrations in background
         env:
           POSTGRES_VERSION: 15
-      - name: Migrate and seed
         run: |
-          pnpm run db:migrate
-          pnpm --filter=shared run ch:up
-          pnpm --filter=shared run db:seed
+          (
+            set +e
+            (
+              set -euo pipefail
+              bash scripts/ci/install-golang-migrate.sh
+              docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
+              pnpm --filter=@langfuse/shared exec dotenv -e ../../.env -- prisma migrate deploy
+              pnpm --filter=shared run ch:up
+            ) > /tmp/infra-setup.log 2>&1
+            echo $? > /tmp/infra-setup.exit
+          ) > /dev/null 2>&1 &
       # Turbo starts the native addon and AI Gateway builds in parallel. They
       # may use different workspace-pinned Rust toolchains, so install both
       # serially before either build can trigger rustup.
@@ -1775,12 +1861,25 @@ jobs:
         env:
           NODE_OPTIONS: --max_old_space_size=8192
           NEXT_IGNORE_BUILD_ERRORS: "true"
+      - name: Wait for dev containers and migrations
+        run: |
+          timeout 300 bash -c 'until [ -f /tmp/infra-setup.exit ]; do sleep 1; done' \
+            || { echo "Timed out waiting for background infra setup"; cat /tmp/infra-setup.log; exit 1; }
+          cat /tmp/infra-setup.log
+          docker compose ps
+          exit "$(cat /tmp/infra-setup.exit)"
+      - name: Seed DB
+        run: pnpm --filter=shared run db:seed
       - name: Run server
-        run: (pnpm run start&)
+        run: (pnpm run start > /tmp/langfuse-start.log 2>&1 &)
       - name: Check worker health
-        run: timeout 30 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
+        run: |
+          timeout 60 bash -c 'until curl -fsS http://localhost:3030/api/health > /dev/null; do sleep 2; done' \
+            || { echo "Worker was not healthy within 60s"; cat /tmp/langfuse-start.log; exit 1; }
       - name: Check server health
-        run: timeout 30 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
+        run: |
+          timeout 60 bash -c 'until curl -fsS http://localhost:3000/api/public/health > /dev/null; do sleep 2; done' \
+            || { echo "Langfuse was not healthy within 60s"; cat /tmp/langfuse-start.log; exit 1; }
       - name: Run AI Gateway end-to-end tests
         run: pnpm --filter=web run test:e2e:ai-gateway
         env:
@@ -1790,6 +1889,9 @@ jobs:
           LANGFUSE_LLM_CONNECTION_BEDROCK_REGION: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION }}
           LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY }}
           LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY }}
+      - name: Langfuse server log
+        if: failure()
+        run: cat /tmp/langfuse-start.log || true
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
@@ -1803,6 +1905,7 @@ jobs:
         knip,
         format-check,
         tests-ai-gateway,
+        tests-ai-gateway-guardrail-rules,
         tests-eslint-plugin,
         tests-in-app-agent-sandbox-runtime,
         tests-storybook,
@@ -1893,17 +1996,18 @@ jobs:
             platform: linux/arm64
             platform_tag: arm64
             runner: blacksmith-4vcpu-ubuntu-2404-arm
-          # The gateway crate is its own build context (ai-gateway/.dockerignore).
+          # Uses ai-gateway/Dockerfile.dockerignore so only ai-gateway and
+          # packages/ai-gateway-guardrail-rules are sent in the build context.
           - component: ai-gateway
             image_name: ai-gateway
-            context: ./ai-gateway
+            context: .
             dockerfile: ./ai-gateway/Dockerfile
             platform: linux/amd64
             platform_tag: amd64
             runner: blacksmith-4vcpu-ubuntu-2404
           - component: ai-gateway
             image_name: ai-gateway
-            context: ./ai-gateway
+            context: .
             dockerfile: ./ai-gateway/Dockerfile
             platform: linux/arm64
             platform_tag: arm64

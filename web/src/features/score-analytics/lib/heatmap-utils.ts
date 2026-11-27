@@ -242,6 +242,7 @@ function formatDivisionPoint(value: number, range: number): string {
 /**
  * Fill missing bins with zero counts
  * Useful when ClickHouse doesn't return bins with count=0
+ * @internal
  */
 export function fillMissingBins(
   data: Array<{ bin_x: number; bin_y: number; count: number }>,

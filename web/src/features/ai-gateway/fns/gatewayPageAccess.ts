@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import { env } from "@/src/env.mjs";
 import {
   GATEWAY_PAGE_SLUGS,
@@ -36,6 +37,7 @@ export function gatewayPageAccess({
         canReadGateway,
         canManageGateway,
       }),
+    showGuardrails: isAiGatewayEnabled && (canReadGateway || canManageGateway),
   };
 }
 
@@ -54,6 +56,7 @@ export function gatewayPageVisibility(
     [GATEWAY_PAGE_SLUGS.overview]: showSetup || showOwnUsageAnalytics,
     [GATEWAY_PAGE_SLUGS.models]: access.showModels || showSetup,
     [GATEWAY_PAGE_SLUGS.budgets]: access.showApiKeys,
+    [GATEWAY_PAGE_SLUGS.guardrails]: access.showGuardrails,
     [GATEWAY_PAGE_SLUGS.apiKeys]: access.showApiKeys,
   };
 }

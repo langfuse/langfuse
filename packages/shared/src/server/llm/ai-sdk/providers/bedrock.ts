@@ -314,7 +314,16 @@ export function buildBedrockModel(params: {
   config?: LLMConnectionConfig | null;
   credentialSource: LLMCredentialSource;
 }): LanguageModel {
-  return createBedrockProvider(params)(params.modelId);
+  const provider = createBedrockProvider(params);
+  const modelFamily =
+    params.credentialSource !== "langfuse"
+      ? BedrockConfigSchema.parse(params.config).customModelConfig?.[
+          params.modelId
+        ]?.modelFamily
+      : undefined;
+  return modelFamily
+    ? provider(params.modelId, { modelFamily })
+    : provider(params.modelId);
 }
 
 export function buildBedrockEmbeddingModel(params: {

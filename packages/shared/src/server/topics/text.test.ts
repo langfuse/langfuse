@@ -8,7 +8,11 @@ import { logger } from "../logger";
 import type { ResourceSpan } from "../otel/OtelIngestionProcessor";
 import { generateTopicEmbeddings } from "./embeddings";
 import type { TopicsModel } from "./model-config";
-import { generateTopicText, getTopicTextResponseMetadata } from "./text";
+import {
+  generateTopicText,
+  getTopicTextResponseMetadata,
+  TOPICS_REASONING_OUTPUT_TOKENS,
+} from "./text";
 
 const { publishToOtelIngestionQueue, processorConstructor } = vi.hoisted(
   () => ({
@@ -229,15 +233,21 @@ describe("generateTopicText", () => {
           }),
         ),
       );
+      const onFailedResponseUsage = vi.fn();
       const error = await generateTopicText({
         model: bedrockModel("clustering", "eu.anthropic.claude-sonnet-5-5"),
         system: [{ text: "private system prompt" }],
         input: "private input",
         schema: z.object({ name: z.string() }),
         maxOutputTokens: 256,
+        onFailedResponseUsage,
       }).catch((error: unknown) => error);
 
       expect(error).toMatchObject({ name: errorName });
+      expect(onFailedResponseUsage).toHaveBeenCalledExactlyOnceWith({
+        usageDetails: expect.objectContaining({ input: 12, output: 4 }),
+        providedCostDetails: {},
+      });
       const metadata = getTopicTextResponseMetadata(error);
       expect(metadata).toEqual({
         "langfuse.topics.response.finish_reason": finishReason,
@@ -559,6 +569,117 @@ describe("generateTopicText", () => {
     },
   );
 
+  it("stamps langfuse-topics-internal provenance onto untraced OpenRouter text and embedding calls", async () => {
+    const captured: Array<{ headers: Headers; body: Record<string, unknown> }> =
+      [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+        const request = new Request(input, init);
+        captured.push({
+          headers: request.headers,
+          body: JSON.parse(await request.text()) as Record<string, unknown>,
+        });
+        if (request.url.endsWith("/embeddings")) {
+          return Response.json({
+            object: "list",
+            data: [{ object: "embedding", index: 0, embedding: [0.1, 0.2] }],
+            usage: { prompt_tokens: 2, total_tokens: 2 },
+          });
+        }
+        return Response.json({
+          choices: [
+            {
+              index: 0,
+              finish_reason: "stop",
+              message: {
+                role: "assistant",
+                content: '{"summary":"Account access"}',
+              },
+            },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+        });
+      }),
+    );
+
+    const openRouterConnection = {
+      secretKey: encrypt("sk-test"),
+      baseURL: "https://openrouter.ai/api/v1",
+    };
+
+    await generateTopicText({
+      model: {
+        slot: "summary",
+        provider: "openrouter",
+        adapter: LLMAdapter.OpenAI,
+        model: "openai/gpt-6-luna",
+        connection: openRouterConnection,
+      },
+      system: [{ text: "Summarize." }],
+      input: "I cannot sign in.",
+      schema: z.object({ summary: z.string() }),
+      maxOutputTokens: 256,
+    });
+
+    await generateTopicEmbeddings({
+      model: {
+        slot: "embedding",
+        provider: "openrouter",
+        adapter: LLMAdapter.OpenAI,
+        model: "openai/text-embedding-3-small",
+        connection: openRouterConnection,
+      },
+      summaries: ["Account access"],
+      dimensions: 256,
+    });
+
+    expect(captured).toHaveLength(2);
+    for (const call of captured) {
+      expect(call.headers.get("x-openrouter-trace-environment")).toBe(
+        "langfuse-topics-internal",
+      );
+      expect(call.body.trace).toEqual({
+        environment: "langfuse-topics-internal",
+      });
+    }
+    expect(publishToOtelIngestionQueue).not.toHaveBeenCalled();
+  });
+
+  it("records why InvokeModel output could not be parsed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          choices: [
+            { finish_reason: "stop", message: { content: '{"summary": "Acc' } },
+          ],
+          usage: {
+            prompt_tokens: 50,
+            completion_tokens: 40,
+            total_tokens: 90,
+            completion_tokens_details: { reasoning_tokens: 30 },
+          },
+        }),
+      ),
+    );
+    const error = await generateTopicText({
+      model: bedrockModel("summary", "us.openai.gpt-6-luna"),
+      system: [{ text: "Summarize.", cache: true }],
+      input: "Hi",
+      schema: z.object({ summary: z.string() }),
+      maxOutputTokens: 256,
+    }).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(SyntaxError);
+    expect(getTopicTextResponseMetadata(error)).toEqual({
+      "langfuse.topics.response.finish_reason": "stop",
+      "langfuse.topics.response.text_characters": 16,
+      "langfuse.topics.response.max_output_tokens": 256,
+      "langfuse.topics.response.output_tokens": 40,
+      "langfuse.topics.response.reasoning_tokens": 30,
+    });
+  });
+
   it("reports the InvokeModel HTTP status so throttling is classified", async () => {
     vi.stubGlobal(
       "fetch",
@@ -588,6 +709,7 @@ describe("generateTopicText", () => {
     ["https://eu.api.openai.com/v1", "gpt-4o", undefined, false],
     ["https://eu.api.openai.com.example.com/v1", "gpt-6-luna", "none", true],
     ["https://gateway.example/openai/v1", "Prod:gpt-5-mini", "minimal", true],
+    ["https://maas.example/compatible-mode/v1", "qwen4-max", undefined, false],
   ] as const)(
     "generates and traces Topics on %s / %s",
     async (baseURL, model, reasoning, completionTokens) => {
@@ -652,7 +774,10 @@ describe("generateTopicText", () => {
       expect(body.max_completion_tokens).toBe(
         completionTokens ? 256 : undefined,
       );
-      expect(body.max_tokens).toBe(completionTokens ? undefined : 256);
+      // Without a known reasoning setting, the model's own reasoning gets headroom.
+      expect(body.max_tokens).toBe(
+        completionTokens ? undefined : TOPICS_REASONING_OUTPUT_TOKENS,
+      );
       expect(body.reasoning_effort).toBe(reasoning);
       expect(body.response_format).toMatchObject({ type: "json_schema" });
       expect(tracedGeneration()).toMatchObject({

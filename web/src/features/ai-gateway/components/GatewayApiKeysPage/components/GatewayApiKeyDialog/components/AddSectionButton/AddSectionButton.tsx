@@ -1,7 +1,7 @@
 import { Plus } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 
 type AddSectionButtonProps = {
   label: string;
@@ -22,16 +22,8 @@ export function AddSectionButton({
     );
   }
   return (
-    // Disabled buttons fire no pointer events, so the tooltip listens on a wrapper.
-    <Tooltip label={disabledReason}>
-      {({ getTriggerProps }) => (
-        <span
-          {...getTriggerProps()}
-          className="inline-flex cursor-not-allowed [&>button]:pointer-events-none"
-        >
-          <Button text={label} icon={Plus} variant="outline" disabled />
-        </span>
-      )}
-    </Tooltip>
+    <DisabledActionTooltip label={disabledReason}>
+      <Button text={label} icon={Plus} variant="outline" disabled />
+    </DisabledActionTooltip>
   );
 }

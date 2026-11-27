@@ -6,6 +6,8 @@ import type {
 import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import type { GatewayApiKeyExpirationPreset } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
 import type { GatewayIngestionSettings } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
+import type { summarizeGuardrailAssignments } from "@/src/features/ai-gateway/fns/summarizeGuardrailAssignments";
+import type { toGuardrailConfigAnalytics } from "@/src/features/ai-gateway/fns/toGuardrailConfigAnalytics";
 import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/agentSetupInstructions";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
@@ -128,6 +130,10 @@ export type AiGatewayEventMap = {
     interval: GatewaySpendBudgetInterval;
   };
   "ai_gateway:budget_removed": GatewayBudgetChange;
+  "ai_gateway:budget_reset": OrganizationContext & {
+    surface: "budgets_page" | "api_keys_page";
+    scope: Extract<GatewaySpendLimitScope, "API_KEY" | "USER">;
+  };
   /** The user expanded a tool's setup steps ("Show all steps") after creating a key. */
   "ai_gateway:agent_setup_instructions_viewed": OrganizationContext & {
     agentId: AgentSetupInstructions["id"];
@@ -139,4 +145,17 @@ export type AiGatewayEventMap = {
       | { source: "copy_for_agent" }
       | { source: "step_code"; stepNumber: number }
     );
+  "ai_gateway:guardrail_created": OrganizationContext &
+    ReturnType<typeof toGuardrailConfigAnalytics>;
+  "ai_gateway:guardrail_updated": OrganizationContext &
+    ReturnType<typeof toGuardrailConfigAnalytics>;
+  "ai_gateway:guardrail_targets_updated": OrganizationContext &
+    ReturnType<typeof summarizeGuardrailAssignments> & {
+      guardrailCount: number;
+      isSelectAll: boolean;
+    };
+  "ai_gateway:guardrail_deleted": OrganizationContext & {
+    deletedCount: number;
+    isBulk: boolean;
+  };
 };

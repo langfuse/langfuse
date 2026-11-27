@@ -455,6 +455,13 @@ struct ResolutionResponse {
     /// model has no prices.
     #[serde(default)]
     pricing: Option<ModelPricing>,
+    /// Checked on requests in every ingestion mode; absent from Web versions without guardrails.
+    #[serde(default)]
+    guardrails: Vec<crate::guardrails::Guardrail>,
+    /// Checked on provider responses in every ingestion mode; absent from Web
+    /// versions predating response guardrails.
+    #[serde(default)]
+    response_guardrails: Vec<crate::guardrails::Guardrail>,
 }
 
 fn default_alert_thresholds() -> Vec<u8> {
@@ -517,6 +524,19 @@ impl ResolvedRequestContext {
     }
     pub(crate) fn pricing(&self) -> Option<&ModelPricing> {
         self.0.pricing.as_ref()
+    }
+    pub(crate) fn guardrails(&self) -> &[crate::guardrails::Guardrail] {
+        &self.0.guardrails
+    }
+    pub(crate) fn response_guardrails(&self) -> &[crate::guardrails::Guardrail] {
+        &self.0.response_guardrails
+    }
+    pub(crate) fn has_active_guardrails(&self) -> bool {
+        self.0
+            .guardrails
+            .iter()
+            .chain(&self.0.response_guardrails)
+            .any(crate::guardrails::Guardrail::is_active)
     }
     /// The project and grant telemetry is delivered with. Resolution guarantees both
     /// in every mode but [`IngestionMode::None`], which never delivers.
@@ -598,6 +618,11 @@ pub(super) fn decode(
             .extra_headers()
             .all(|(name, value)| valid_extra_header(name, value))
         || !valid_ingestion(&response, now)
+        || !response
+            .guardrails
+            .iter()
+            .chain(&response.response_guardrails)
+            .all(crate::guardrails::Guardrail::is_valid_from_resolve)
         || [
             connection.id.as_str(),
             attribution.organization_id.as_str(),

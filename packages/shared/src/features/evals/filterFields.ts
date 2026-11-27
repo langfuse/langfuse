@@ -2,7 +2,10 @@ import { ObservationLevel, ObservationType } from "../../domain/observations";
 import { isRootObservation } from "../../eventsTable";
 import type { ColumnDefinition } from "../../tableDefinitions/types";
 import type { FilterCondition } from "../../types";
-import type { ObservationForEval } from "./observationForEval";
+import type {
+  ObservationEvalFilterFields,
+  ObservationForEval,
+} from "./observationForEval";
 
 export type EvalFilterDefinition = {
   columns: ColumnDefinition[];
@@ -12,37 +15,9 @@ export type EvalFilterDefinition = {
   >;
 };
 
-export type ObservationEvalFilterColumnInternal =
-  /** Column identifier (must match an ObservationForEval field name) */
-  keyof Pick<
-    ObservationForEval,
-    | "type"
-    | "name"
-    | "environment"
-    | "level"
-    | "status_message"
-    | "version"
-    | "release"
-    | "trace_name"
-    | "user_id"
-    | "session_id"
-    | "provided_model_name"
-    | "prompt_name"
-    | "prompt_version"
-    | "tags"
-    | "experiment_id"
-    | "experiment_name"
-    | "experiment_dataset_id"
-    | "experiment_item_root_span_id"
-    | "metadata"
-    | "parent_span_id"
-    | "is_app_root"
-    | "tool_call_names"
-    | "tool_call_count"
-  >;
-
-export type ObservationEvalColumnDef = ColumnDefinition & {
-  internal: ObservationEvalFilterColumnInternal;
+/** A filter column and the observation field it reads. */
+type EvalFilterFieldDefinition = ColumnDefinition & {
+  internal: keyof ObservationForEval;
 };
 
 export const evalFilterFields = {
@@ -208,7 +183,15 @@ export const evalFilterFields = {
     internal: "experiment_dataset_id",
     options: [], // to be filled at runtime
   },
-} satisfies Record<string, ObservationEvalColumnDef>;
+} satisfies Record<string, EvalFilterFieldDefinition>;
+
+/** The observation fields that filter columns read, taken from `evalFilterFields`. */
+export type ObservationEvalFilterColumnInternal =
+  (typeof evalFilterFields)[keyof typeof evalFilterFields]["internal"];
+
+export type ObservationEvalColumnDef = ColumnDefinition & {
+  internal: ObservationEvalFilterColumnInternal;
+};
 
 const evalFilterFieldsById = new Map<string, ObservationEvalColumnDef>(
   Object.values(evalFilterFields).map((column) => [column.id, column]),
@@ -240,7 +223,7 @@ export const evalFilterEmptyEqualsNullColumns: ReadonlySet<string> = new Set(
  * @returns The value from the observation object
  */
 export function mapEventEvalFilterColumnIdToField(
-  observation: ObservationForEval,
+  observation: ObservationEvalFilterFields,
   column: string,
 ) {
   const columnMapping = evalFilterFieldsById.get(column);

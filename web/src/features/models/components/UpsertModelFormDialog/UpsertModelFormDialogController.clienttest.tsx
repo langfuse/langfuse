@@ -4,12 +4,10 @@ import {
   fireEvent,
   render,
   screen,
-  within,
   waitFor,
 } from "@testing-library/react";
 
 import { type GetModelResult } from "@/src/features/models/validation";
-import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
 import { UpsertModelFormDialogController } from "./UpsertModelFormDialogController";
 
 const upsertMutateAsync = vi.fn().mockResolvedValue({
@@ -19,13 +17,21 @@ const upsertMutateAsync = vi.fn().mockResolvedValue({
 
 vi.mock("@/src/utils/api", () => ({
   api: {
-    useUtils: () => ({ models: { invalidate: vi.fn() } }),
+    useUtils: () => ({
+      models: { invalidate: vi.fn() },
+      organizationModels: { invalidate: vi.fn() },
+    }),
     models: {
       upsert: {
         useMutation: () => ({
           mutateAsync: upsertMutateAsync,
           isPending: false,
         }),
+      },
+    },
+    organizationModels: {
+      upsert: {
+        useMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
       },
     },
   },
@@ -125,7 +131,7 @@ const openEditDialog = (pricingTiers: GetModelResult["pricingTiers"]) => {
   render(
     <UpsertModelFormDialogController
       action="edit"
-      projectId="p1"
+      owner={{ scope: "project", projectId: "p1" }}
       modelData={modelData(pricingTiers)}
     >
       {({ openDialog }) => <button onClick={openDialog}>Open editor</button>}
@@ -138,7 +144,7 @@ const openCloneDialog = (matchPattern: string) => {
   render(
     <UpsertModelFormDialogController
       action="clone"
-      projectId="p1"
+      owner={{ scope: "project", projectId: "p1" }}
       modelData={{ ...modelData([defaultTier]), matchPattern }}
     >
       {({ openDialog }) => <button onClick={openDialog}>Open editor</button>}
@@ -171,23 +177,6 @@ describe("UpsertModelFormDialogController price editor", () => {
 
   beforeEach(() => {
     upsertMutateAsync.mockClear();
-  });
-
-  it("keeps an unlinked model badge intact as the dialog trigger", () => {
-    render(
-      <ModelBadge
-        model="claude-sonnet-4-5"
-        internalModelId={null}
-        projectId="p1"
-        usageDetails={undefined}
-      />,
-    );
-
-    const trigger = screen.getByTitle("Create model definition");
-    const label = within(trigger).getByText("claude-sonnet-4-5");
-
-    expect(trigger.tagName).toBe("BUTTON");
-    expect(label).toHaveClass("underline-dotted");
   });
 
   it("keeps every keystroke of a usage type that extends an existing one", () => {

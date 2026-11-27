@@ -474,6 +474,7 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
     let telemetry = Telemetry::new(
         &ControlPlaneConfig::new(&web.url, "test-service-key").unwrap(),
         crate::telemetry::DEFAULT_RETAINED_BYTES,
+        Duration::from_millis(crate::telemetry::DEFAULT_BATCH_LINGER_MS),
     )
     .unwrap();
     let service = InferenceService::for_test(
@@ -543,10 +544,11 @@ fn outbound_span<'a>(spans: &'a [SpanData], name: &str) -> &'a SpanData {
 /// ingestion runs in its own trace, linked back to each request it carries.
 fn assert_phase_spans(spans: &[SpanData], server: &SpanData) {
     let named = |name: &str| spans.iter().find(|span| span.name == name).unwrap();
-    assert_eq!(spans.len(), 9);
+    assert_eq!(spans.len(), 10);
     for (name, parent) in [
         ("resolution", server),
         ("request.body", server),
+        ("request.parse", server),
         ("request.capture", server),
         ("provider.headers", server),
         ("provider.stream", server),
@@ -598,6 +600,7 @@ fn assert_phase_spans(spans: &[SpanData], server: &SpanData) {
     let request_bytes = i64::try_from(GENERATION_REQUEST.len()).unwrap();
     assert_attribute(server, "http.request.body.size", request_bytes);
     assert_attribute(server, "gateway.outcome", "eof");
+    assert_attribute(server, "gateway.has_guardrails", false);
     assert!(
         server
             .attributes
@@ -830,4 +833,68 @@ fn assert_generation_context(payload: &Value) -> Value {
     assert_eq!(metadata["team"], "search");
     assert_eq!(metadata["source"], "python");
     metadata
+}
+
+#[tokio::test]
+async fn server_span_records_whether_guardrails_were_evaluated() {
+    let guardrail = serde_json::json!([{
+        "id": "g-log",
+        "name": "Log emails",
+        "action": "log",
+        "patterns": [r"\b[a-z]+@example\.com\b"],
+    }]);
+    for (field, expected) in [
+        (None, false),
+        (Some("guardrails"), true),
+        (Some("response_guardrails"), true),
+    ] {
+        let guardrail = guardrail.clone();
+        let web = FakeServer::start(move |_| {
+            let guardrail = guardrail.clone();
+            async move {
+                let body = resolution_response("provider-secret").into_body();
+                let bytes = axum::body::to_bytes(body, 4096).await.unwrap();
+                let mut body: Value = serde_json::from_slice(&bytes).unwrap();
+                if let Some(field) = field {
+                    body[field] = guardrail;
+                }
+                Response::new(Body::from(body.to_string()))
+            }
+        })
+        .await;
+        let provider = FakeServer::start(|_| async {
+            Response::builder()
+                .header("content-type", "application/json")
+                .body(Body::from(PROVIDER_RESPONSE))
+                .unwrap()
+        })
+        .await;
+        let service = InferenceService::for_test(
+            web.control_plane(),
+            ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+        );
+        let recording = Recording::start();
+        let lifecycle = GatewayLifecycleState::default();
+        let app = instrument(crate::http::router(Some(service), lifecycle.clone()));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut serving = Box::pin(crate::server::serve(
+            listener,
+            app.clone(),
+            lifecycle,
+            std::future::pending(),
+            Duration::from_secs(1),
+        ));
+        assert!(futures_util::poll!(serving.as_mut()).is_pending());
+        let response = app.oneshot(generation_request()).await.unwrap();
+        assert_eq!(response.status(), 200);
+        axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .unwrap();
+        let spans = recording.exporter.get_finished_spans().unwrap();
+        let server = spans
+            .iter()
+            .find(|span| span.span_kind == SpanKind::Server)
+            .unwrap();
+        assert_attribute(server, "gateway.has_guardrails", expected);
+    }
 }

@@ -5,18 +5,13 @@ evaluating, and debugging AI applications.
 
 ## Scope
 
-**Outside contributor** → code and `CONTRIBUTING.md` only (build, checks, PRs).
-No tracker, handbook, or working-week context.
-
-**Maintainer** → that plus a short organisational assist: what the tracker says
-they should do today (`linear-work-rhythm`), who else touched a surface recently,
-and a concrete next step when handed a link. Keep answers short. Handbook:
-`content/handbook/**` in `langfuse/langfuse-docs` on `origin/main`.
+Outside contributions use the code and `CONTRIBUTING.md`. For maintainer work, consult linked issues or the handbook when relevant to the task; tracker access is optional for ordinary coding and review work. Handbook: `content/handbook/**` in `langfuse/langfuse-docs` on `origin/main`.
 
 ## How To Work
 
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
+- Across Langfuse repositories, all default-branch changes go through a PR with required approval; never push directly, force-push, or delete the default branch. Follow `git-workflow` for Bugbot freshness, human review of sensitive paths and public forks, automation identities, and emergency escalation.
 - Before creating a new component or reusing one from elsewhere in
   `web/src/components`, first check `web/src/components/design-system` for an
   existing component that satisfies the use case. Prefer the design-system
@@ -60,9 +55,7 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
   code that no longer exists.
 - Never commit secrets or credentials. Keep `.env*.example` files in
   sync with required env vars.
-- Tracker writes default to short. "Create a subticket", "file this", or
-  "add a ticket" get a title and a few sentences a human would write.
-  Expand with research only when they ask.
+- Use Linear only when relevant to the requested task. Do not propose routine ticket updates or end-of-session handovers; use `linear-agent-writes` for requested tracker actions.
 - Human handoff: assume the reader does not remember the ticket. Lead with
   a one-sentence TL;DR. Prefer one or two human actions per message; if
   you need more, keep every point simple and super readable. Do not dump
@@ -74,21 +67,7 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
   video, or before/after) — not only in chat. Humans can ask for more
   detail.
 - Open PRs as reviewable, not as drafts, unless a human asks for a draft.
-- When Claude, Greptile, or Codex (`chatgpt-codex-connector[bot]`) review comments appear on a PR you own, resolve each bot thread you fixed or skipped after the fix is pushed, even when the prompt only says to fix, address, or reply (see `git-workflow`). Skip only when you are sure it is wrong: tell the human in plain language, invite them to doubt that skip, then resolve it. If the task asked for a reply, post it and then resolve. Do not post `@claude review` again unless a human asks for another pass.
-
-## Context Handover
-
-- **Before changing an existing feature**, reconstruct history (commits → PRs →
-  branch → ticket). Prefer `linear-context-handover` over guessing.
-- **Before review/merge, or at the end of a productive session**, ask whether to
-  preserve results on the ticket(s) — e.g. "Should I update the ticket(s) with
-  the results of this session so they are preserved?" Show the block; write only
-  after a yes ("write the handover" counts). Policy: `linear-agent-writes`.
-  Ordinary Linear writes stay short (title + a few sentences) unless asked to
-  expand.
-- Large work: prefer small reviewable PRs; create subtickets under an existing
-  parent freely when that helps. If the tracker is unreachable, say so and leave
-  the text in the reply.
+- When Bugbot, Claude, Greptile, or Codex (`chatgpt-codex-connector[bot]`) review comments appear on a PR you own, resolve each bot thread you fixed or skipped after the fix is pushed, even when the prompt only says to fix, address, or reply (see `git-workflow`). Skip only when you are sure it is wrong: tell the human in plain language, invite them to doubt that skip, then resolve it. If the task asked for a reply, post it and then resolve. Do not post `@claude review` again unless a human asks for another pass. Resolving threads does not supply PR approval; a skipped Bugbot finding requires teammate approval under `git-workflow`.
 
 ## Project Structure
 
@@ -142,11 +121,6 @@ langfuse/
 - Ignore `git config` (`cursoragent@cursor.com`) and Cloud `gh`
   `.permissions.push` — Cloud's GitHub token is a read-only integration and
   often reports `push: false` for maintainers.
-- Linear: MCP if already authorized; else a real read with `LINEAR_API_KEY`
-  (or `LINEAR_TOKEN` / `LINEAR_API_TOKEN`). Interactive `mcp_auth` does not
-  work in Cloud. If neither works, tell them to add **`LINEAR_API_KEY`** as a
-  Cursor Cloud secret (https://cursor.com/dashboard/cloud-agents) and start a
-  new run — this one cannot see a secret added later.
 - Cursor Cloud starts the complete source-built stack through
   `scripts/agents/start-cursor-cloud.sh`; do not start a second web or worker
   process on ports 3000 or 3030.
@@ -160,9 +134,7 @@ langfuse/
   data. Previews normally run Mon-Fri 08:00-24:00 Europe/Berlin.
 - After opening a PR, apply the GitHub `cursor` label. Do not wait for a
   human to add it.
-- Use Linear's git branch name (`lfe-XXXX-short-title`). Never create a
-  `cursor/` branch, even if a Cursor Cloud prompt suggests that prefix.
-  Repo guidance wins.
+- Follow the branch naming guidance in `git-workflow`, using an issue-provided name only when it is already available. Never create a `cursor/` branch or require a tracker lookup just to name one.
 - After opening a PR, leave a short last comment on what a reviewer should
   doubt — the curious, questionable parts — not a changelog. For user-visible
   work, put proof of the fix in that comment and the PR body, not only in

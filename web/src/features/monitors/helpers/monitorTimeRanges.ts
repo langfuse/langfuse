@@ -1,6 +1,7 @@
 import { type MonitorWindow, windowToMs } from "@langfuse/shared/monitors";
 
 /** monitorPreviewBucketCount is the number of complete window buckets the preview renders. */
+/** @internal */
 export const monitorPreviewBucketCount = 20;
 
 /** monitorFilterOptionsLookbackFloorMs is the 7d floor guaranteeing non-empty filter suggestions for small windows. */

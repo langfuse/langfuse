@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     capture::{
         ExecutionCapture, InputOmission, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES,
-        ProtocolCapture, ProviderFacts,
+        ProtocolCapture, ProviderFacts, RequestInput,
     },
     resolution::ApiFormat,
     test_support::resolved_request_context_for,
@@ -32,7 +32,7 @@ async fn new_observer_for(mode: &'static str, request: &[u8]) -> ExecutionCaptur
         ApiFormat::OpenAiChatCompletions,
         &context,
         &HeaderMap::new(),
-        request,
+        RequestInput::from_body(request),
     )
 }
 
@@ -374,7 +374,7 @@ async fn multiple_choices_merge_independently_and_a_gap_drops_only_its_choice() 
 }
 
 #[tokio::test]
-async fn oversized_encoded_and_invalid_requests_explain_the_missing_input() {
+async fn oversized_requests_explain_the_missing_input() {
     let mut large = br#"{"model":"gpt-4.1-mini","messages":[{"role":"user","content":""#.to_vec();
     large.resize(MAX_INPUT_CAPTURE_BYTES + 1 - br#""}]}"#.len(), b'x');
     large.extend_from_slice(br#""}]}"#);
@@ -389,14 +389,47 @@ async fn oversized_encoded_and_invalid_requests_explain_the_missing_input() {
     );
     assert!(facts.input.is_none());
     assert!(facts.requested_model.is_none());
+}
 
-    let mut observer = new_observer_for("full", b"not json").await;
-    let (_, facts) = finalized(&mut observer);
+fn guardrail_scan(messages: &str) -> Vec<String> {
+    let mut texts = Vec::new();
+    let member = |name: &str| (name == "messages").then_some(messages);
+    let members = crate::guardrails::spec::Members::new(super::REQUEST.members, &member);
+    guardrail_turn(&members)
+        .unwrap()
+        .read(&members, &mut |text: &str| texts.push(text.to_owned()))
+        .unwrap();
+    texts
+}
+
+#[test]
+fn the_last_turn_is_everything_after_the_last_assistant_message() {
     assert_eq!(
-        facts.input_omission.map(|omission| omission.reason),
-        Some(InputOmissionReason::InvalidJson)
+        guardrail_scan(r#"[{"role":"system","content":"sys"},{"role":"user","content":"first"}]"#),
+        ["sys", "first"]
     );
+    assert_eq!(
+        guardrail_scan(
+            r#"[{"role":"system","content":"sys"},{"role":"user","content":"old"},
+            {"role":"assistant","content":null,"tool_calls":[{"id":"a"},{"id":"b"}]},
+            {"role":"tool","tool_call_id":"a","content":"result a"},
+            {"role":"tool","tool_call_id":"b","content":[{"type":"text","text":"result b"}]}]"#
+        ),
+        ["result a", "result b"]
+    );
+}
 
-    let mut observer = new_observer_for("usage", b"not json").await;
-    assert!(finalized(&mut observer).1.input_omission.is_none());
+#[test]
+fn tool_results_the_model_already_answered_are_not_scanned_again() {
+    assert_eq!(
+        guardrail_scan(
+            r#"[{"role":"system","content":"sys"},
+            {"role":"user","content":"q"},
+            {"role":"assistant","tool_calls":[{"id":"a","type":"function","function":{"name":"f","arguments":"{}"}}]},
+            {"role":"tool","tool_call_id":"a","content":"a@example.com"},
+            {"role":"assistant","content":"answer"},
+            {"role":"user","content":"thanks"}]"#
+        ),
+        ["thanks"]
+    );
 }

@@ -1,4 +1,8 @@
-import { type EvalTemplateType, EvalTemplateTypeEnum } from "@langfuse/shared";
+import {
+  type EvalTemplateType,
+  EvalTemplateTypeEnum,
+  TopicsTargetObject,
+} from "@langfuse/shared";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Slider } from "@/src/components/ui/Slider";
@@ -9,6 +13,7 @@ import {
 import { EvaluatorCostCalculationTooltipContent } from "@/src/features/evals/v2/components/EvaluatorCostCalculationTooltipContent/EvaluatorCostCalculationTooltipContent";
 import type { ActivationEstimate } from "@/src/features/evals/v2/fns/requestRuleActivation";
 import { formatEvaluatorCostCalculation } from "@/src/features/evals/v2/fns/formatEvaluatorCostCalculation";
+import type { EvaluatorTargetObject } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 
 export function EvaluatorSavedCostSummary({
@@ -20,6 +25,7 @@ export function EvaluatorSavedCostSummary({
   onSamplingChange,
   evaluatorType,
   backfill,
+  targetObject,
 }: {
   estimates: ActivationEstimate[];
   unavailableEstimateCount: number;
@@ -37,7 +43,10 @@ export function EvaluatorSavedCostSummary({
         testRunCostUsd: number | null;
         isEstimating: boolean;
       };
+  /** Trace targets have no cost estimate yet, so only sampling is shown. */
+  targetObject?: EvaluatorTargetObject;
 }) {
+  const showsEstimate = targetObject !== TopicsTargetObject;
   const estimate = estimates[0];
   const sampledObservations = Math.round(matchingObservations * sampling);
   const estimatedCostUsd = (() => {
@@ -84,7 +93,7 @@ export function EvaluatorSavedCostSummary({
         />
       </section>
 
-      {evaluatorType === EvalTemplateTypeEnum.CODE ? (
+      {showsEstimate && evaluatorType === EvalTemplateTypeEnum.CODE ? (
         <section>
           <h3 className="text-sm font-bold">Matches</h3>
           {isEstimating ? (
@@ -105,7 +114,7 @@ export function EvaluatorSavedCostSummary({
         </section>
       ) : null}
 
-      {evaluatorType !== EvalTemplateTypeEnum.CODE ? (
+      {showsEstimate && evaluatorType !== EvalTemplateTypeEnum.CODE ? (
         <section className="border-t pt-4">
           {isEstimating ? (
             <div className="space-y-2">

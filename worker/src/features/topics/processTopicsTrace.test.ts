@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { recordIncrement } from "@langfuse/shared/src/server";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import type {
   TopicFacet,
   TopicRule,
@@ -14,6 +14,7 @@ import {
 import { processTopicsTrace } from "./processTopicsTrace";
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
 import { getRuleTopicRun } from "./servingRuns";
+import { TopicInputTooLarge } from "./llm/models";
 import {
   pauseForRejectedConnection,
   TopicsProviderUnavailable,
@@ -33,7 +34,6 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   getEnabledTopicsModels: vi.fn(
     async () => new Map([["project", { embedding: { model: "embed" } }]]),
   ),
-  isTopicsProjectEnabled: () => true,
   isValidTopicSummary: () => true,
   listTopicFacets: vi.fn(),
   listTopicRules: vi.fn(),
@@ -57,7 +57,13 @@ vi.mock("./assignments", () => ({
     { topicId: "billing", runId: run.id },
   ],
 }));
-vi.mock("./models", () => ({ TopicInputTooLarge: class extends Error {} }));
+vi.mock("./llm/models", () => ({
+  TopicInputTooLarge: class extends Error {
+    constructor(readonly characters: number) {
+      super("too large");
+    }
+  },
+}));
 vi.mock("./provider-error", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./provider-error")>()),
   pauseForRejectedConnection: vi.fn(),
@@ -158,6 +164,12 @@ describe("processTopicsTrace", () => {
     expect(mocks.addToQueue).toHaveBeenCalledWith(
       "topic_facet_summaries",
       expect.anything(),
+    );
+    // The Topics dashboard ranks projects by this tag.
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.facet_summaries",
+      1,
+      { source: "trace_queue", state: "complete", projectId: "project" },
     );
     // "other" has no map yet; "unmatched" has one but the trace didn't match it.
     const assigned = mocks.addToQueue.mock.calls
@@ -278,6 +290,58 @@ describe("processTopicsTrace", () => {
 
     expect(mocks.getInputs).toHaveBeenCalledWith("stored.json");
     expect(summarizeAssembledTrace).toHaveBeenCalledOnce();
+  });
+
+  it("tags a failed trace with who owns the failure", async () => {
+    const failedWith = (owner: string) =>
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.topics.trace_outcomes",
+        1,
+        expect.objectContaining({ outcome: "failed", owner }),
+      );
+    // The project's own connection rejected the call.
+    vi.mocked(summarizeAssembledTrace).mockRejectedValueOnce(
+      new TopicsProviderUnavailable("denied", "authentication"),
+    );
+    await processTopicsTrace(event, { scheduleRetry });
+    failedWith("customer");
+
+    // The provider stayed down past the retry schedule.
+    vi.mocked(summarizeAssembledTrace).mockRejectedValueOnce(
+      new TopicsProviderUnavailable("slow", "timeout"),
+    );
+    scheduleRetry.mockResolvedValueOnce("skipped");
+    await processTopicsTrace(event, { scheduleRetry });
+    failedWith("upstream");
+
+    // Input we stored ourselves cannot be read.
+    mocks.getInputs.mockRejectedValueOnce(new SyntaxError("bad json"));
+    await processTopicsTrace(event, { scheduleRetry });
+    failedWith("platform");
+
+    // The customer's trace is over the size limit; the log keeps its length per project.
+    vi.mocked(recordIncrement).mockClear();
+    const warn = vi.spyOn(logger, "warn");
+    vi.mocked(summarizeAssembledTrace).mockResolvedValueOnce({
+      outcome: "summarized",
+      rows: [row("intent", "input_too_large")],
+      failure: new TopicInputTooLarge(600_000, 500_000),
+      failedStage: "summary",
+    });
+    await processTopicsTrace(event, { scheduleRetry });
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.trace_outcomes",
+      1,
+      expect.objectContaining({
+        outcome: "failed",
+        reason: "input_too_large",
+        owner: "customer",
+      }),
+    );
+    expect(warn).toHaveBeenCalledWith(
+      "Topics summary failed for trace",
+      expect.objectContaining({ projectId: "project", characters: 600_000 }),
+    );
   });
 
   it("drops invalid stored input but rethrows a failed read", async () => {

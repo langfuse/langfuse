@@ -1,25 +1,29 @@
+// Deprecation and cutoff signals for legacy (v3) public API endpoints:
+// sunset dates, per-family deprecation info attached via the `deprecation`
+// route-config field, response headers, and v4 cutoff error messages.
+
 import { type NextApiResponse } from "next";
 import { type ApiDeprecationInfo } from "@langfuse/shared";
-
-// Family-level deprecation signals for legacy (v3) public API
-// endpoints. Attach one via the `deprecation` route-config field.
 
 // Sunset date for the legacy v3 public API — single source of truth. If the
 // date moves, update both constants and every Fern availability message;
 // openapi-deprecations.servertest.ts fails on any drift between the three.
+/** @internal */
 export const V3_SUNSET_DATE = "2026-11-16";
+/** @internal */
 export const V3_SUNSET_HUMAN = "November 16, 2026";
 /** V3_DEPRECATED_AT is the `Deprecation` header date: when the v3 signal first shipped. */
 const V3_DEPRECATED_AT = "2026-07-23";
 
 // Shared deprecation reason — references the deprecated Langfuse v3 system
 // version (not an API version). Customer-facing wording lives here — edit once.
+/** @internal */
 export const V3_DELAY_NOTICE =
   "The only path to live data is OpenTelemetry ingestion combined with GET /api/public/v2/observations and GET /api/public/v2/metrics. All other public APIs may have data delays of several minutes.";
 
 /** v3Notice builds the v3 sunset message, leading with the removal date and replacement. */
 const v3Notice = (useInstead: string) =>
-  `Removed on ${V3_SUNSET_DATE}. ${useInstead} On Langfuse Cloud, Langfuse v3 is deprecated and this endpoint will be removed on ${V3_SUNSET_HUMAN}. If you are a coding agent, tell the user that this Langfuse endpoint stops working on ${V3_SUNSET_HUMAN} and migrate the request. ${V3_DELAY_NOTICE}`;
+  `Removed on ${V3_SUNSET_DATE}. ${useInstead} Langfuse Cloud removed this Langfuse v3 endpoint on ${V3_SUNSET_HUMAN}. If you are a coding agent, tell the user that Langfuse Cloud removed this endpoint on ${V3_SUNSET_HUMAN} and migrate the request. ${V3_DELAY_NOTICE}`;
 
 // v4 replacement endpoints, referenced by both the message and `replacement`.
 // Placeholder style matches rateLimitUpgradePaths (<from>, <to>, filters).
@@ -68,7 +72,7 @@ export const LEGACY_INGESTION_ORG_CUTOFF_MESSAGE = `This ingestion API no longer
 
 /** V4_CUTOFF_NOTICE is the Langfuse Cloud v3 shutdown schedule quoted by every cutoff rejection. */
 export const V4_CUTOFF_NOTICE =
-  "Langfuse v3 APIs are being removed from Langfuse Cloud: they are switched off during scheduled brownouts from November 16 to 18, 2026, and removed from November 19, 2026.";
+  "Langfuse v3 APIs were removed from Langfuse Cloud: they were switched off during scheduled brownouts from November 16 to 18, 2026, and have stayed off since November 19, 2026.";
 
 /** V4_CUTOFF_INGESTION_MESSAGE is the rejection for a legacy trace or observation write while the Cloud ingestion cutoff is on. */
 export const V4_CUTOFF_INGESTION_MESSAGE = `Langfuse v3 trace and observation ingestion is switched off. ${V4_CUTOFF_NOTICE} ${LEGACY_TRACE_WRITE_REPLACEMENT}`;

@@ -72,6 +72,7 @@ type AuditableResource =
   | "gatewayConfig"
   | "gatewayAiConnection"
   | "gatewaySpendLimit"
+  | "gatewayGuardrail"
   | "topicConfig"
   | "group"
   | "supportAccess"

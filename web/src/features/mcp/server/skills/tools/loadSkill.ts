@@ -34,5 +34,5 @@ export const [loadSkillTool, handleLoadSkill] = defineTool({
           path: "SKILL.md",
         }),
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

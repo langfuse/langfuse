@@ -10,7 +10,7 @@ service:
   endpoints:
     listFacets:
       docs: |
-        Unstable: Topics is in closed beta. The shape may change without notice.
+        Unstable: Topics is in public beta. The shape may change without notice.
 
         List the project's Topics facets. Only active facets (run by a Topics
         rule, or all facets if the project has no rule) are returned unless
@@ -45,7 +45,7 @@ service:
         - errors.InternalServerError
     getFacet:
       docs: |
-        Unstable: Topics is in closed beta. The shape may change without notice.
+        Unstable: Topics is in public beta. The shape may change without notice.
 
         Get one Topics facet by id, including inactive facets.
       method: GET
@@ -63,7 +63,7 @@ service:
         - errors.InternalServerError
     list:
       docs: |
-        Unstable: Topics is in closed beta. The shape may change without notice.
+        Unstable: Topics is in public beta. The shape may change without notice.
 
         List the topics of each active facet's live map, with
         the number of traces currently assigned to each topic in the window.
@@ -76,7 +76,7 @@ service:
         `filter` is a JSON array of filter conditions combined with AND.
         String matching is case-insensitive. Columns: `facetId`
         (stringOptions), `facetName` (string, stringOptions), `ruleId`
-        (stringOptions), `id` (stringOptions), `name` (string, stringOptions).
+        (stringOptions), `stableId` (stringOptions), `name` (string, stringOptions).
         Facet and rule conditions also restrict `facets`.
       method: GET
       path: /topics
@@ -112,14 +112,14 @@ service:
         - errors.InternalServerError
     get:
       docs: |
-        Unstable: Topics is in closed beta. The shape may change without notice.
+        Unstable: Topics is in public beta. The shape may change without notice.
 
         Get one topic of a facet's current map by its stable id. Retired
         topics are not found.
       method: GET
-      path: /topics/{topicId}
+      path: /topics/{topicStableId}
       path-parameters:
-        topicId: string
+        topicStableId: string
       request:
         name: GetTopicRequest
         query-parameters:
@@ -140,7 +140,7 @@ service:
         - errors.InternalServerError
     listRules:
       docs: |
-        Unstable: Topics is in closed beta. The shape may change without notice.
+        Unstable: Topics is in public beta. The shape may change without notice.
 
         List the project's Topics rules. A rule selects traces with an
         observation filter and a sampling rate, runs the facets in `facetIds`
@@ -174,7 +174,7 @@ service:
         - errors.InternalServerError
     getRule:
       docs: |
-        Unstable: Topics is in closed beta. The shape may change without notice.
+        Unstable: Topics is in public beta. The shape may change without notice.
 
         Get one Topics rule by id.
       method: GET
@@ -192,7 +192,7 @@ service:
         - errors.InternalServerError
     listSummaries:
       docs: |
-        Unstable: Topics is in closed beta. The shape may change without notice.
+        Unstable: Topics is in public beta. The shape may change without notice.
 
         List the current Topics summary per trace and facet: what the trace
         is about from the facet's perspective. Summaries are shared by all
@@ -214,19 +214,21 @@ service:
 
         `filter` is a JSON array of filter conditions combined with AND, with
         at most 100 `traceId` values. Columns: `traceId`, `facetId`, `facetName`, `ruleId`, `environment`
-        (stringOptions), `timestamp`, `processedAt` (datetime), `state`,
-        `topicId`, `topicName` (stringOptions), `assignmentStatus`
+        (stringOptions), `timestamp`, `createdAt` (datetime), `state`,
+        `topicStableId`, `topicName` (stringOptions), `assignmentStatus`
         (stringOptions, `any of` only). An unknown `topicName` matches nothing under `any of`
         and is ignored under `none of`.
 
         `state` values: `complete` (summarized), `not_applicable` (the facet
         does not apply to the trace), `insufficient_input` (too little input
-        to summarize). `assignmentStatus` values: `assigned`, `outlier` (no
+        to summarize), `empty_input` (no usable text in the trace),
+        `input_too_large` (trace text exceeded the Topics input limit).
+        `assignmentStatus` values: `assigned`, `outlier` (no
         topic fits), `awaiting_map` (summarized, not yet assigned).
 
         Common questions:
         - Summaries of specific traces: `traceId` `any of` the trace ids.
-        - Summaries of a topic's traces: `topicId` or `topicName`.
+        - Summaries of a topic's traces: `topicStableId` or `topicName`.
         - Traces without a topic yet: `assignmentStatus` `any of` `["awaiting_map", "outlier"]`.
       method: GET
       path: /topic-summaries
@@ -265,7 +267,7 @@ service:
         - errors.InternalServerError
     listAssignments:
       docs: |
-        Unstable: Topics is in closed beta. The shape may change without notice.
+        Unstable: Topics is in public beta. The shape may change without notice.
 
         List the current topic per trace, facet and rule on each rule's live
         map: `assigned` with its topic, or `outlier` when no topic fits.
@@ -288,14 +290,14 @@ service:
 
         `filter` is a JSON array of filter conditions combined with AND, with
         at most 100 `traceId` values. Columns: `traceId`, `facetId`, `facetName`, `ruleId`, `environment`,
-        `topicId`, `topicName` (stringOptions), `status` (stringOptions,
-        `any of` only: `assigned`, `outlier`), `timestamp` (datetime). An
+        `topicStableId`, `topicName` (stringOptions), `status` (stringOptions,
+        `any of` only: `assigned`, `outlier`), `timestamp`, `createdAt` (datetime). An
         unknown `topicName` matches nothing under `any of` and is ignored
         under `none of`.
 
         Common questions:
         - Topics of specific traces: `traceId` `any of` the trace ids.
-        - Traces in a topic: `topicId` or `topicName`.
+        - Traces in a topic: `topicStableId` or `topicName`.
       method: GET
       path: /topic-assignments
       request:
@@ -370,6 +372,10 @@ types:
         name: NotApplicable
       - value: insufficient_input
         name: InsufficientInput
+      - value: empty_input
+        name: EmptyInput
+      - value: input_too_large
+        name: InputTooLarge
   TopicSummary:
     properties:
       traceId: string
@@ -386,7 +392,7 @@ types:
         type: optional<string>
         docs: Set when `state` is `complete`.
       summaryTruncated: boolean
-      processedAt: datetime
+      createdAt: datetime
   TopicSummaryList:
     properties:
       window: TopicWindow
@@ -400,10 +406,12 @@ types:
         name: Outlier
   TopicAssignmentTopic:
     properties:
-      id:
+      stableId:
         type: string
         docs: Stable topic id.
-      versionId: string
+      versionId:
+        type: string
+        docs: Id of this topic version.
       name: string
   TopicAssignment:
     properties:
@@ -421,10 +429,10 @@ types:
       topic:
         type: optional<TopicAssignmentTopic>
         docs: Set when `status` is `assigned`.
-      runId:
+      mapId:
         type: optional<string>
-        docs: The run that assigned the trace. Null for assignments made as traces arrive.
-      assignedAt: datetime
+        docs: The map that assigned the trace.
+      createdAt: datetime
   TopicAssignmentList:
     properties:
       window: TopicWindow
@@ -440,7 +448,7 @@ types:
         name: NameAsc
       - value: name.desc
         name: NameDesc
-  TopicFacetPublishedRun:
+  TopicFacetPublishedMap:
     properties:
       id: string
       completedAt: optional<datetime>
@@ -463,9 +471,9 @@ types:
       prompt:
         type: string
         docs: Prompt of the latest facet version.
-      publishedRun:
-        type: optional<TopicFacetPublishedRun>
-        docs: The run that produced the facet's current map. Null before the first map.
+      publishedMap:
+        type: optional<TopicFacetPublishedMap>
+        docs: The facet's current published topic map. Null before the first map.
   TopicFacetList:
     properties:
       data: list<TopicFacet>
@@ -481,7 +489,7 @@ types:
       to: datetime
   Topic:
     properties:
-      id:
+      stableId:
         type: string
         docs: Stable topic id, kept across map updates.
       versionId:
@@ -493,9 +501,9 @@ types:
       ruleId:
         type: optional<string>
         docs: The rule whose live map has the topic. Null when the project has no rule.
-      runId:
+      mapId:
         type: string
-        docs: The run that produced this topic version.
+        docs: The map that produced this topic version.
       traceCount:
         type: integer
         docs: Traces in the window whose current result for the facet is this topic.
@@ -514,11 +522,13 @@ types:
       awaitingMap: integer
       notApplicable: integer
       insufficientInput: integer
+      emptyInput: integer
+      inputTooLarge: integer
   TopicFacetCounts:
     properties:
       facet: TopicFacetRef
       ruleId: optional<string>
-      publishedRunId: optional<string>
+      publishedMapId: optional<string>
       counts: TopicStatusCounts
   TopicList:
     properties:

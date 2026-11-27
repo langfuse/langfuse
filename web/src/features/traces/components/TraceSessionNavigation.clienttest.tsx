@@ -1,3 +1,4 @@
+/* eslint-disable boundaries/dependencies -- TODO: component privacy */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { type ComponentProps, type ReactNode } from "react";
@@ -84,17 +85,21 @@ vi.mock("./SessionTracePeek/SessionTracePeek", () => ({
 vi.mock("@/src/features/sessions/SessionPages", () => ({
   SessionEventsWorkspace: ({
     navigation,
+    renderTracePeek,
   }: ComponentProps<typeof SessionEventsWorkspace>) => (
-    <button
-      onClick={() =>
-        navigation?.onOpenTrace?.("trace", {
-          id: "trace",
-          observationId: "observation",
-        } as Parameters<NonNullable<typeof navigation.onOpenTrace>>[1])
-      }
-    >
-      Open observation
-    </button>
+    <>
+      <button
+        onClick={() =>
+          navigation?.onOpenTrace?.("trace", {
+            id: "trace",
+            observationId: "observation",
+          } as Parameters<NonNullable<typeof navigation.onOpenTrace>>[1])
+        }
+      >
+        Open observation
+      </button>
+      {renderTracePeek?.([])}
+    </>
   ),
 }));
 

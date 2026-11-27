@@ -5,10 +5,11 @@ import {
   createTopicFacet,
   createTopicRun,
   enqueueTopicRuleRefit,
-  getEnabledTopicsModels,
+  getAllEnabledTopicsModels,
   saveTopicRule,
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
+import { recordIncrement } from "@langfuse/shared/src/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
 import { nightlyRefitSlot, scheduleNightlyTopicRefits } from "./nightlyRefit";
@@ -18,7 +19,11 @@ import { env } from "../../env";
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
   enqueueTopicRuleRefit: vi.fn(),
-  getEnabledTopicsModels: vi.fn(),
+  getAllEnabledTopicsModels: vi.fn(),
+}));
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
+  recordIncrement: vi.fn(),
 }));
 
 const DIMENSIONS = 64;
@@ -63,7 +68,7 @@ describe("nightly Topics refits against storage", () => {
     usageDetails: {},
     providedCostDetails: {},
     costDetails: {},
-    processedAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
     metadata: {},
   });
 
@@ -114,7 +119,7 @@ describe("nightly Topics refits against storage", () => {
       ),
     );
     const schedule = (at: Date) => {
-      vi.mocked(getEnabledTopicsModels).mockResolvedValueOnce(
+      vi.mocked(getAllEnabledTopicsModels).mockResolvedValueOnce(
         new Map([
           [
             projectId,
@@ -123,7 +128,7 @@ describe("nightly Topics refits against storage", () => {
               embedding: { model: "embed", dimensions: DIMENSIONS },
             },
           ],
-        ]) as Awaited<ReturnType<typeof getEnabledTopicsModels>>,
+        ]) as Awaited<ReturnType<typeof getAllEnabledTopicsModels>>,
       );
       return scheduleNightlyTopicRefits(at);
     };
@@ -196,13 +201,13 @@ describe("nightly Topics refits against storage", () => {
       where: { id: refresh.id },
       data: { createdAt: new Date(slot.getTime() - 30 * 60_000) },
     });
-    vi.mocked(getEnabledTopicsModels).mockResolvedValueOnce(
+    vi.mocked(getAllEnabledTopicsModels).mockResolvedValueOnce(
       new Map([
         [
           projectId,
           { projectId, embedding: { model: "embed", dimensions: DIMENSIONS } },
         ],
-      ]) as Awaited<ReturnType<typeof getEnabledTopicsModels>>,
+      ]) as Awaited<ReturnType<typeof getAllEnabledTopicsModels>>,
     );
 
     // A later tick of the same slot, more than an hour after the refresh started.
@@ -214,5 +219,67 @@ describe("nightly Topics refits against storage", () => {
         select: { id: true, status: true },
       }),
     ).toEqual([{ id: refresh.id, status: "pending" }]);
+  });
+  it("fails a fit left open by an earlier slot and counts it as interrupted", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Interrupted",
+      description: "",
+      prompt: "Describe the request.",
+    });
+    const rule = await saveTopicRule({
+      projectId,
+      facetIds: [facet.id],
+      filter: [],
+    });
+    const open = await createTopicRun({
+      projectId,
+      facetId: facet.id,
+      facetVersion: 1,
+      ruleId: rule.id,
+      config: {
+        embeddingModel: "embed",
+        dimensions: DIMENSIONS,
+        refresh: true,
+      },
+    });
+    const slot = nightlyRefitSlot(
+      projectId,
+      new Date(Date.now() + 86_400_000),
+      env.LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC,
+    );
+    await prisma.topicClusteringRun.update({
+      where: { id: open.id },
+      data: {
+        status: "running",
+        createdAt: new Date(slot.getTime() - 86_400_000),
+      },
+    });
+    vi.mocked(getAllEnabledTopicsModels).mockResolvedValueOnce(
+      new Map([
+        [
+          projectId,
+          { projectId, embedding: { model: "embed", dimensions: DIMENSIONS } },
+        ],
+      ]) as Awaited<ReturnType<typeof getAllEnabledTopicsModels>>,
+    );
+
+    await scheduleNightlyTopicRefits(new Date(slot.getTime() + 60_000));
+
+    expect(
+      await prisma.topicClusteringRun.findUnique({
+        where: { id: open.id },
+        select: { status: true },
+      }),
+    ).toEqual({ status: "failed" });
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.rule_fits",
+      1,
+      {
+        outcome: "interrupted",
+        trigger: "manual",
+        owner: "platform",
+      },
+    );
   });
 });

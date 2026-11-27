@@ -1,4 +1,4 @@
-import { Pencil } from "@langfuse/icons";
+import { Ban, ListTree, Pencil, RotateCcw } from "@langfuse/icons";
 
 import {
   TableCard,
@@ -19,9 +19,15 @@ import {
   type GatewayBudgetStatus,
 } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
 import {
+  GATEWAY_ADMIN_SET_BUDGET_CHANGE_REASON,
+  GATEWAY_ADMIN_SET_BUDGET_RESET_REASON,
+  GATEWAY_ADMIN_SET_BUDGET_SHORT_REASON,
+} from "@/src/features/ai-gateway/constants/gatewayAdminSetBudgetReasons";
+import {
   GATEWAY_SPEND_TABS,
   type GatewaySpendTab,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import { buildGatewayTracesHref } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayTracesHref";
 import { GatewayDefaultBudgetTag } from "@/src/features/ai-gateway/components/GatewayDefaultBudgetTag/GatewayDefaultBudgetTag";
 import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
 import {
@@ -49,6 +55,9 @@ type GatewayBudgetsTableProps = Pick<
   selectColumn: LangfuseColumnDef<GatewayBudgetRow>;
   multiSelect: MultiSelect;
   onEditBudget: (row: GatewayBudgetRow) => void;
+  onResetBudget: (row: GatewayBudgetRow) => void;
+  /** Configured ingestion project the user can open; hides "Show traces" when absent. */
+  ingestionProjectId?: string | null;
   /** Right of the search and filter, e.g. the default budget. */
   toolbarActions?: TableCardProps<GatewayBudgetRow>["toolbarActions"];
 };
@@ -154,7 +163,12 @@ const columnsByTab: Record<
 
 const notEditableReasons = {
   users: "Only gateway admins can change user budgets.",
-  apiKeys: "A gateway admin set this budget, so only an admin can change it.",
+  apiKeys: GATEWAY_ADMIN_SET_BUDGET_CHANGE_REASON,
+} as const satisfies Record<GatewaySpendTab, string>;
+
+const noBudgetResetReasons = {
+  users: "This user has no budget to reset.",
+  apiKeys: "This key has no budget to reset.",
 } as const satisfies Record<GatewaySpendTab, string>;
 
 const copyByTab = {
@@ -181,10 +195,54 @@ export function GatewayBudgetsTable({
   selectColumn,
   multiSelect,
   onEditBudget,
+  onResetBudget,
+  ingestionProjectId,
   toolbarActions,
 }: GatewayBudgetsTableProps) {
   const copy = copyByTab[tab];
   const isFiltered = search.value.trim().length > 0 || status.value !== "all";
+  const getRowActions = (row: GatewayBudgetRow) => [
+    {
+      id: "editBudget",
+      type: "item" as const,
+      title: "Edit budget",
+      icon: Pencil,
+      description:
+        tab === "apiKeys" && !row.isEditable
+          ? GATEWAY_ADMIN_SET_BUDGET_SHORT_REASON
+          : undefined,
+      disabled: row.isEditable
+        ? undefined
+        : { reason: notEditableReasons[tab] },
+      onClick: () => onEditBudget(row),
+    },
+    {
+      id: "resetBudget",
+      type: "item" as const,
+      title: "Reset budget",
+      icon: isResetLockedByAdmin(row) ? Ban : RotateCcw,
+      description: isResetLockedByAdmin(row)
+        ? GATEWAY_ADMIN_SET_BUDGET_SHORT_REASON
+        : undefined,
+      disabled: getResetBudgetDisabled(row, tab),
+      onClick: () => onResetBudget(row),
+    },
+    ...(ingestionProjectId
+      ? [
+          {
+            id: "showTraces",
+            type: "item" as const,
+            title: "Show traces",
+            icon: ListTree,
+            href: buildGatewayTracesHref({
+              projectId: ingestionProjectId,
+              subject: GATEWAY_SPEND_TABS[tab].subject,
+              subjectId: row.subjectId,
+            }),
+          },
+        ]
+      : []),
+  ];
 
   return (
     <TableCard
@@ -192,18 +250,7 @@ export function GatewayBudgetsTable({
       columns={[selectColumn, ...columnsByTab[tab]]}
       data={data}
       onRowClick={onRowClick}
-      actions={(row) => [
-        {
-          id: "editBudget",
-          type: "item",
-          title: "Edit budget",
-          icon: Pencil,
-          disabled: row.isEditable
-            ? undefined
-            : { reason: notEditableReasons[tab] },
-          onClick: () => onEditBudget(row),
-        },
-      ]}
+      actions={getRowActions}
       pagination={pagination}
       multiSelect={multiSelect}
       search={{ ...search, placeholder: copy.searchPlaceholder }}
@@ -224,6 +271,18 @@ export function GatewayBudgetsTable({
       noResultsMessage={isFiltered ? copy.noMatches : copy.noBudgets}
     />
   );
+}
+
+function getResetBudgetDisabled(row: GatewayBudgetRow, tab: GatewaySpendTab) {
+  if (!row.spendLimit) return { reason: noBudgetResetReasons[tab] };
+  if (!row.canResetBudget) {
+    return { reason: GATEWAY_ADMIN_SET_BUDGET_RESET_REASON };
+  }
+  return undefined;
+}
+
+function isResetLockedByAdmin(row: GatewayBudgetRow) {
+  return row.spendLimit !== null && !row.canResetBudget;
 }
 
 function toGatewayBudgetStatus(value: string): GatewayBudgetStatus {

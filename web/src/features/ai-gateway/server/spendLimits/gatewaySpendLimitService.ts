@@ -58,6 +58,9 @@ const BULK_WRITE_TIMEOUT_MS = 30_000;
 
 const NO_SUBJECTS = { totalCount: 0, rows: [] };
 
+const ADMIN_SET_BUDGET_RESET_FORBIDDEN =
+  "A gateway admin set this key's spend budget, so only an admin can reset it.";
+
 const GATEWAY_SPEND_LIMITS_UNAVAILABLE_REASON =
   "Please switch to ingestion mode usage to enable this";
 
@@ -273,23 +276,27 @@ export class GatewaySpendLimitService {
       ? await readSpend(recordingProjectId, params.scope, budgeted)
       : null;
 
-    return params.rows.map(({ subjectId, name, user, limit }) => {
-      const applied = limit ?? params.fallback;
-      return {
-        id: subjectId,
-        subjectId,
-        name,
-        user,
-        spendLimit: applied ? toGatewaySpendLimitDto(applied) : null,
-        isDefault: limit === null && applied !== null,
-        spentUsd: applied && spend ? (spend.get(subjectId) ?? 0) : undefined,
-        // Members may add a budget to their own keys, and change only budgets they set.
-        isEditable:
-          ownUserId === undefined ||
-          (params.scope === "API_KEY" &&
-            (limit === null || limit.ownerUserId === ownUserId)),
-      };
-    });
+    return params.rows.map(
+      ({ subjectId, name, user, limit, limitsNotOwnedCount }) => {
+        const applied = limit ?? params.fallback;
+        const ownsAllLimits = limit !== null && limitsNotOwnedCount === 0;
+        return {
+          id: subjectId,
+          subjectId,
+          name,
+          user,
+          spendLimit: applied ? toGatewaySpendLimitDto(applied) : null,
+          isDefault: limit === null && applied !== null,
+          spentUsd: applied && spend ? (spend.get(subjectId) ?? 0) : undefined,
+          // Members may add a budget to their own keys without the default, and change only budgets they set.
+          isEditable:
+            ownUserId === undefined ||
+            (params.scope === "API_KEY" &&
+              (limit === null ? params.fallback === null : ownsAllLimits)),
+          canResetBudget: ownUserId === undefined || ownsAllLimits,
+        };
+      },
+    );
   }
 
   /**
@@ -355,6 +362,119 @@ export class GatewaySpendLimitService {
       );
     }
     await this.applyChanges(changes);
+  }
+
+  /**
+   * Zeros the current period's spend for one key or user budget while keeping
+   * the limit intact. If the subject inherits the organization's default
+   * budget, creates an explicit budget for the subject copied from the default
+   * with a fresh counting start. Only gateway managers may reset user budgets
+   * or another member's key; everyone else may reset only budgets they set on
+   * their own keys, never one an admin set or the default.
+   */
+  async resetForSubject(params: {
+    organizationId: string;
+    usageScope: GatewayUsageScope;
+    scope: GatewaySpendLimitScope["type"];
+    subjectId: string;
+    session: OrgAuthedContext["session"];
+  }) {
+    if (params.scope === "USER" && params.usageScope.scope !== "organization") {
+      throw new ForbiddenError("Only gateway admins can reset user budgets.");
+    }
+    const scope = toSpendLimitScope(params.scope, params.subjectId);
+    const subject = await this.requireSubject({
+      organizationId: params.organizationId,
+      usageScope: params.usageScope,
+      scope,
+    });
+    const ownerUserId = getKeyOwnerFilter(params.usageScope);
+
+    const runReset = () =>
+      this.prisma.$transaction(async (tx) => {
+        const repo = new GatewaySpendLimitRepository(tx);
+        const existing = await repo.listForUpdate({
+          organizationId: params.organizationId,
+          scope,
+        });
+        if (
+          ownerUserId !== undefined &&
+          existing.some((before) => before.ownerUserId !== ownerUserId)
+        ) {
+          throw new ForbiddenError(ADMIN_SET_BUDGET_RESET_FORBIDDEN);
+        }
+        if (existing.length > 0) {
+          const now = new Date();
+          for (const before of existing) {
+            const after = await repo.resetCountingStartedAt({
+              id: before.id,
+              countingStartedAt: nextCountingStartedAt(
+                before.countingStartedAt,
+                now,
+              ),
+            });
+            await audit(tx, {
+              session: params.session,
+              action: "reset",
+              before,
+              after,
+            });
+          }
+          return;
+        }
+
+        const fallback = await repo.findDefault({
+          organizationId: params.organizationId,
+          scope: params.scope,
+        });
+        if (!fallback) {
+          throw new LangfuseNotFoundError(
+            params.scope === "API_KEY"
+              ? "Gateway key has no spend budget"
+              : "User has no spend budget",
+          );
+        }
+        // Only gateway admins set the default, so members never own it.
+        if (ownerUserId !== undefined) {
+          throw new ForbiddenError(ADMIN_SET_BUDGET_RESET_FORBIDDEN);
+        }
+        const created = await repo.create({
+          organizationId: params.organizationId,
+          scope,
+          interval: fallback.interval,
+          limitUsd: fallback.limitUsd.toNumber(),
+          alertThresholds: normalizeGatewaySpendBudgetAlertThresholds(
+            fallback.alertThresholds,
+          ),
+          countingStartedAt: nextCountingStartedAt(
+            fallback.countingStartedAt,
+            new Date(),
+          ),
+          // Preserve the default's owner so members cannot subsequently edit or remove an admin-set default cap.
+          ownerUserId: fallback.ownerUserId,
+        });
+        await audit(tx, {
+          session: params.session,
+          action: "reset",
+          before: fallback,
+          after: created,
+        });
+      });
+
+    try {
+      await runReset();
+    } catch (error) {
+      // Two concurrent first resets of a default-budgeted subject race on creating its row; retry onto the locked update path.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        await runReset();
+      } else {
+        throw error;
+      }
+    }
+    await subject.invalidateResolveCache();
   }
 
   /** Throws unless limits can be set, so a caller can check before writing anything else. */
@@ -429,6 +549,18 @@ export class GatewaySpendLimitService {
     ) {
       throw new ForbiddenError(
         "A gateway admin set this key's spend budget, so only an admin can change it.",
+      );
+    }
+    // A key's own budget replaces the default, so adding one would lift the admin's cap.
+    if (
+      ownerUserId !== undefined &&
+      limit &&
+      existing.length === 0 &&
+      scope.type === "API_KEY" &&
+      (await this.repository.findDefault({ organizationId, scope: "API_KEY" }))
+    ) {
+      throw new ForbiddenError(
+        "This key has the organization's default budget, so only a gateway admin can change it.",
       );
     }
     if (limit && !isUnchanged) {
@@ -821,11 +953,15 @@ async function remove(
   });
 }
 
+function nextCountingStartedAt(previous: Date, now: Date) {
+  return new Date(Math.max(now.getTime(), previous.getTime() + 1));
+}
+
 function audit(
   tx: Prisma.TransactionClient,
   params: {
     session: OrgAuthedContext["session"];
-    action: "create" | "update" | "delete";
+    action: "create" | "update" | "delete" | "reset";
     before?: GatewaySpendLimitRecord;
     after?: GatewaySpendLimitRecord;
   },

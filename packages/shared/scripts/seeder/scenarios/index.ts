@@ -8,6 +8,7 @@ import { evaluatorGalleryScenario } from "./evaluator-gallery";
 import { experimentFiltersScenario } from "./experiment-filters";
 import { experimentIoScenario } from "./experiment-io";
 import { gatewayBudgetsScenario } from "./gateway-budgets";
+import { gatewayGuardrailsScenario } from "./gateway-guardrails";
 import { gatewayTrafficScenario } from "./gateway-traffic";
 import { filterVarietyScenario } from "./filter-variety";
 import { incidentSessionScenario } from "./incident-session";
@@ -40,6 +41,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "experiment-io": experimentIoScenario,
   "experiment-filters": experimentFiltersScenario,
   "gateway-budgets": gatewayBudgetsScenario,
+  "gateway-guardrails": gatewayGuardrailsScenario,
   "gateway-traffic": gatewayTrafficScenario,
   "long-session": longSessionScenario,
   "many-traces": manyTracesScenario,

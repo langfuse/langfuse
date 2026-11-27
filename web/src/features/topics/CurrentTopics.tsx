@@ -281,7 +281,8 @@ export function useCurrentTopics({
         tracesResetFor.current = refreshAfter;
         utils.topics.traces.reset();
       }
-      return results;
+      // Kept results stay on screen while another map loads; this names their map.
+      return { ...results, fetchedForRuleId: ruleId ?? null };
     },
     placeholderData: keepPreviousData,
     refetchInterval: (query) => {
@@ -351,4 +352,5 @@ function useCurrentTopicMap(projectId: string, runId: string | undefined) {
   );
 }
 
+/** @internal */
 export const __test = { useCurrentTopics, useMobileTraceSelection };

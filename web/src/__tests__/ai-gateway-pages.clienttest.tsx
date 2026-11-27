@@ -94,7 +94,10 @@ describe("useGatewayPages", () => {
   it("shows only Models with read access", () => {
     grantScopes("gateway:read");
 
-    expect(visiblePages()).toEqual([["models", false]]);
+    expect(visiblePages()).toEqual([
+      ["models", false],
+      ["guardrails", false],
+    ]);
   });
 
   it("hides Models for read-only access to the demo organization", () => {
@@ -107,7 +110,7 @@ describe("useGatewayPages", () => {
     Object.assign(env, { NEXT_PUBLIC_DEMO_ORG_ID: "demo-org" });
 
     try {
-      expect(visiblePages()).toEqual([]);
+      expect(visiblePages()).toEqual([["guardrails", false]]);
     } finally {
       Object.assign(env, { NEXT_PUBLIC_DEMO_ORG_ID: originalDemoOrgId });
     }
@@ -125,9 +128,10 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
+      ["api-keys", false],
       ["models", false],
       ["budgets", false],
-      ["api-keys", false],
+      ["guardrails", false],
     ]);
   });
 
@@ -144,7 +148,7 @@ describe("useGatewayPages", () => {
     expect(models?.tabsProps).toBeDefined();
   });
 
-  it("disables Models, Budgets and Gateway keys for managers until ingestion is set up", () => {
+  it("disables Gateway keys, Models and Budgets for managers until ingestion is set up", () => {
     grantScopes("gateway:manage", "gateway:read", "gateway:invoke");
     getSetupStatusQuery.mockReturnValue({
       data: { isConfigured: false },
@@ -153,9 +157,10 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
+      ["api-keys", true],
       ["models", true],
       ["budgets", true],
-      ["api-keys", true],
+      ["guardrails", true],
     ]);
   });
 
@@ -193,7 +198,10 @@ describe("useGatewayPages", () => {
       isPending: false,
     });
 
-    expect(visiblePages()).toEqual([["models", false]]);
+    expect(visiblePages()).toEqual([
+      ["models", false],
+      ["guardrails", false],
+    ]);
   });
 
   it("shows AI_GATEWAY members their keys, budgets, models and own analytics, even before ingestion is set up", () => {
@@ -205,9 +213,10 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
+      ["api-keys", false],
       ["models", false],
       ["budgets", false],
-      ["api-keys", false],
+      ["guardrails", false],
     ]);
   });
 
@@ -259,9 +268,10 @@ describe("useGatewayPages", () => {
     grantScopesOf(Role.MEMBER);
 
     expect(visiblePages().map(([slug]) => slug)).toEqual([
+      "api-keys",
       "models",
       "budgets",
-      "api-keys",
+      "guardrails",
     ]);
   });
 });

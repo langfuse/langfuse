@@ -54,6 +54,7 @@ export const ensureRedisReady = async (
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/only-throw-error -- preserve last connection error for test diagnostics
   throw lastError ?? new Error("Redis client not ready");
 };
 

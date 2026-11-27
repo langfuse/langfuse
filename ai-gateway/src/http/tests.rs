@@ -1718,6 +1718,918 @@ async fn spend_limit_rejections_are_recorded_as_error_generations() {
     assert_eq!(provider.calls(), 0);
 }
 
+/// Resolves the key with a `block` guardrail for SSNs and a `log` guardrail for emails.
+async fn guardrail_resolution() -> Response<Body> {
+    let bytes = to_bytes(resolution_response("provider-secret").into_body(), 4096)
+        .await
+        .unwrap();
+    let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    body["guardrails"] = serde_json::json!([
+        {"id": "g-block", "name": "No SSNs", "action": "block", "patterns": [r"\b\d{3}-\d{2}-\d{4}\b"]},
+        {"id": "g-log", "name": "Emails", "action": "log", "patterns": [r"\b[a-z]+@example\.com\b"]},
+    ]);
+    Response::new(Body::from(body.to_string()))
+}
+
+#[tokio::test]
+async fn guardrails_block_or_mark_requests_whose_last_turn_matches() {
+    for (input, status, action, level) in [
+        (
+            "my ssn is 123-45-6789",
+            StatusCode::BAD_REQUEST,
+            "block",
+            "ERROR",
+        ),
+        (
+            "mail me at jane@example.com",
+            StatusCode::OK,
+            "log",
+            "WARNING",
+        ),
+    ] {
+        let (sent, mut uploads) = tokio::sync::mpsc::unbounded_channel();
+        let web = FakeServer::start(move |request| {
+            let sent = sent.clone();
+            async move {
+                if request.uri().path().ends_with("/resolve") {
+                    return guardrail_resolution().await;
+                }
+                let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+                sent.send(crate::test_support::upload_json(&bytes)).unwrap();
+                Response::new(Body::from("{}"))
+            }
+        })
+        .await;
+        let provider = FakeServer::start(|_| async {
+            Response::builder()
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"id":"resp_1","status":"completed","output":[]}"#,
+                ))
+                .unwrap()
+        })
+        .await;
+        let telemetry = crate::telemetry::Telemetry::for_test(
+            &crate::resolution::ControlPlaneConfig::new(&web.url, "service-key").unwrap(),
+        );
+        let gateway = Gateway::start(Some(
+            InferenceService::for_test(
+                web.control_plane(),
+                ProviderTransport::for_test(
+                    format!("{}/v1", provider.url),
+                    ProviderLimits::default(),
+                )
+                .with_telemetry(telemetry.clone()),
+            )
+            .with_telemetry(telemetry.clone()),
+        ))
+        .await;
+        let response = gateway
+            .post()
+            .bearer_auth("gateway-key")
+            .body(
+                serde_json::json!({"model": "Production key:gpt-4.1", "input": input}).to_string(),
+            )
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), status, "{action}");
+        if action == "block" {
+            let body: serde_json::Value =
+                serde_json::from_str(&response.text().await.unwrap()).unwrap();
+            assert_eq!(body["error"]["code"], "guardrail_blocked");
+            assert_eq!(
+                body["error"]["message"],
+                r#"Request blocked by guardrail "No SSNs""#
+            );
+            assert_eq!(provider.calls(), 0);
+        } else {
+            response.bytes().await.unwrap();
+            assert_eq!(provider.calls(), 1);
+        }
+        telemetry
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+            .await;
+        let payload = uploads
+            .try_recv()
+            .unwrap_or_else(|_| panic!("no generation for {action}"));
+        assert_guardrail_generation(&payload, action, level);
+    }
+}
+
+fn assert_guardrail_generation(payload: &serde_json::Value, action: &str, level: &str) {
+    let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    let attribute = |key: &str| {
+        span["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|attribute| attribute["key"] == key)
+            .and_then(|attribute| attribute["value"]["stringValue"].as_str())
+            .unwrap()
+            .to_owned()
+    };
+    assert_eq!(attribute("langfuse.observation.level"), level, "{action}");
+    let metadata: serde_json::Value =
+        serde_json::from_str(&attribute("langfuse.observation.metadata")).unwrap();
+    assert_eq!(
+        metadata["langfuse.gateway.guardrails.outcome"],
+        serde_json::json!(action),
+    );
+    assert_eq!(
+        metadata[format!("langfuse.gateway.guardrails.g-{action}")],
+        serde_json::json!(action),
+    );
+    assert!(
+        metadata
+            .get(format!("langfuse.gateway.guardrails.g-{action}.finding").as_str())
+            .is_none(),
+    );
+}
+
+struct BedrockGuardrailCase {
+    guardrails: serde_json::Value,
+    input: serde_json::Value,
+    expected_bedrock_text: Option<&'static str>,
+    bedrock_status: StatusCode,
+    bedrock_action: &'static str,
+    expected_status: StatusCode,
+    expected_error_code: Option<&'static str>,
+    expected_message: Option<&'static str>,
+    expected_bedrock_calls: usize,
+    expected_provider_calls: usize,
+    expected_findings: Vec<(&'static str, &'static str)>,
+}
+
+async fn start_fake_bedrock(
+    expected_text: Option<&'static str>,
+    status: StatusCode,
+    action: &'static str,
+) -> FakeServer {
+    FakeServer::start(move |request| async move {
+        assert_eq!(request.uri().path(), "/guardrail/abc123def/version/1/apply");
+        assert_eq!(
+            request.headers().get(header::AUTHORIZATION).unwrap(),
+            "Bearer bedrock-token"
+        );
+        if let Some(expected_text) = expected_text {
+            let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+            let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(
+                json,
+                serde_json::json!({
+                    "source": "INPUT",
+                    "content": [{ "text": { "text": expected_text } }]
+                })
+            );
+        }
+        Response::builder()
+            .status(status)
+            .header("content-type", "application/json")
+            .body(Body::from(
+                serde_json::json!({ "action": action }).to_string(),
+            ))
+            .unwrap()
+    })
+    .await
+}
+
+fn assert_recorded_guardrails(payload: &serde_json::Value, expected: &[(&str, &str)]) {
+    let expected_outcome = if expected.iter().any(|(_, action)| *action == "block") {
+        "block"
+    } else if expected.iter().any(|(_, action)| *action == "redact") {
+        "redact"
+    } else {
+        "log"
+    };
+    assert_recorded_guardrails_with_outcome(payload, expected, expected_outcome);
+}
+
+fn assert_recorded_guardrails_with_outcome(
+    payload: &serde_json::Value,
+    expected: &[(&str, &str)],
+    expected_outcome: &str,
+) {
+    let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    let metadata: serde_json::Value = serde_json::from_str(
+        span["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|attribute| attribute["key"] == "langfuse.observation.metadata")
+            .and_then(|attribute| attribute["value"]["stringValue"].as_str())
+            .unwrap(),
+    )
+    .unwrap();
+    let guardrail_keys: Vec<&String> = metadata
+        .as_object()
+        .unwrap()
+        .keys()
+        .filter(|key| key.starts_with("langfuse.gateway.guardrails."))
+        .collect();
+    if expected.is_empty() {
+        assert!(guardrail_keys.is_empty(), "{guardrail_keys:?}");
+        return;
+    }
+    assert_eq!(
+        metadata["langfuse.gateway.guardrails.outcome"],
+        serde_json::json!(expected_outcome)
+    );
+    assert_eq!(guardrail_keys.len(), 1 + expected.len());
+    for (id, action) in expected {
+        assert_eq!(
+            metadata[format!("langfuse.gateway.guardrails.{id}")],
+            serde_json::json!(action)
+        );
+    }
+}
+
+async fn run_bedrock_guardrail_case(case: BedrockGuardrailCase) {
+    let (sent, mut uploads) = tokio::sync::mpsc::unbounded_channel();
+    let guardrails = case.guardrails;
+    let web = FakeServer::start(move |request| {
+        let sent = sent.clone();
+        let guardrails = guardrails.clone();
+        async move {
+            if request.uri().path().ends_with("/resolve") {
+                let bytes = to_bytes(resolution_response("provider-secret").into_body(), 4096)
+                    .await
+                    .unwrap();
+                let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                body["guardrails"] = guardrails;
+                return Response::new(Body::from(body.to_string()));
+            }
+            let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+            sent.send(crate::test_support::upload_json(&bytes)).unwrap();
+            Response::new(Body::from("{}"))
+        }
+    })
+    .await;
+    let bedrock = start_fake_bedrock(
+        case.expected_bedrock_text,
+        case.bedrock_status,
+        case.bedrock_action,
+    )
+    .await;
+    let provider = FakeServer::start(|_| async {
+        Response::builder()
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"id":"resp_1","status":"completed","output":[]}"#,
+            ))
+            .unwrap()
+    })
+    .await;
+    let telemetry = crate::telemetry::Telemetry::for_test(
+        &crate::resolution::ControlPlaneConfig::new(&web.url, "service-key").unwrap(),
+    );
+    let gateway = Gateway::start(Some(
+        InferenceService::for_test(
+            web.control_plane(),
+            ProviderTransport::for_test(format!("{}/v1", provider.url), ProviderLimits::default())
+                .with_telemetry(telemetry.clone()),
+        )
+        .with_external_guardrails(
+            crate::guardrails::external::ExternalGuardrailClient::for_test(
+                bedrock.url.clone(),
+                Duration::from_secs(2),
+            ),
+        )
+        .with_telemetry(telemetry.clone()),
+    ))
+    .await;
+    let response = gateway
+        .post()
+        .bearer_auth("gateway-key")
+        .body(
+            serde_json::json!({
+                "model": "Production key:gpt-4.1",
+                "input": case.input
+            })
+            .to_string(),
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), case.expected_status);
+    assert_eq!(bedrock.calls(), case.expected_bedrock_calls);
+    assert_eq!(provider.calls(), case.expected_provider_calls);
+    if let Some(message) = case.expected_message {
+        let body: serde_json::Value =
+            serde_json::from_str(&response.text().await.unwrap()).unwrap();
+        let expected_code = case.expected_error_code.unwrap_or("guardrail_blocked");
+        assert_eq!(body["error"]["code"], expected_code);
+        assert_eq!(body["error"]["message"], message);
+    } else {
+        response.bytes().await.unwrap();
+    }
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    let expected_outcome = if case.expected_message.is_some() {
+        "block"
+    } else if case.expected_findings.iter().any(|(_, a)| *a == "redact") {
+        "redact"
+    } else {
+        "log"
+    };
+    assert_recorded_guardrails_with_outcome(
+        &uploads.try_recv().unwrap(),
+        &case.expected_findings,
+        expected_outcome,
+    );
+}
+
+struct BedrockErrorCase {
+    action: &'static str,
+    bedrock_status: StatusCode,
+    bedrock_action: &'static str,
+    expected_status: StatusCode,
+    expected_code: Option<&'static str>,
+    expected_message: Option<&'static str>,
+    expected_provider_calls: usize,
+    expect_finding: bool,
+}
+
+fn bedrock_error_cases() -> Vec<BedrockErrorCase> {
+    let blocked = Some(r#"Request blocked by guardrail "Bedrock safety""#);
+    let throttled = Some(r#"Guardrail "Bedrock safety" is rate limited. Try again shortly."#);
+    let failed =
+        Some(r#"Guardrail "Bedrock safety" failed to run. Check its configuration or try again."#);
+    vec![
+        BedrockErrorCase {
+            action: "block",
+            bedrock_status: StatusCode::OK,
+            bedrock_action: "GUARDRAIL_INTERVENED",
+            expected_status: StatusCode::BAD_REQUEST,
+            expected_code: Some("guardrail_blocked"),
+            expected_message: blocked,
+            expected_provider_calls: 0,
+            expect_finding: true,
+        },
+        BedrockErrorCase {
+            action: "log",
+            bedrock_status: StatusCode::OK,
+            bedrock_action: "GUARDRAIL_INTERVENED",
+            expected_status: StatusCode::OK,
+            expected_code: None,
+            expected_message: None,
+            expected_provider_calls: 1,
+            expect_finding: true,
+        },
+        BedrockErrorCase {
+            action: "block",
+            bedrock_status: StatusCode::OK,
+            bedrock_action: "NONE",
+            expected_status: StatusCode::OK,
+            expected_code: None,
+            expected_message: None,
+            expected_provider_calls: 1,
+            expect_finding: false,
+        },
+        BedrockErrorCase {
+            action: "block",
+            bedrock_status: StatusCode::TOO_MANY_REQUESTS,
+            bedrock_action: "NONE",
+            expected_status: StatusCode::TOO_MANY_REQUESTS,
+            expected_code: Some("guardrail_rate_limited"),
+            expected_message: throttled,
+            expected_provider_calls: 0,
+            expect_finding: true,
+        },
+        BedrockErrorCase {
+            action: "block",
+            bedrock_status: StatusCode::BAD_REQUEST,
+            bedrock_action: "NONE",
+            expected_status: StatusCode::SERVICE_UNAVAILABLE,
+            expected_code: Some("guardrail_unavailable"),
+            expected_message: failed,
+            expected_provider_calls: 0,
+            expect_finding: true,
+        },
+        BedrockErrorCase {
+            action: "block",
+            bedrock_status: StatusCode::SERVICE_UNAVAILABLE,
+            bedrock_action: "NONE",
+            expected_status: StatusCode::SERVICE_UNAVAILABLE,
+            expected_code: Some("guardrail_unavailable"),
+            expected_message: failed,
+            expected_provider_calls: 0,
+            expect_finding: true,
+        },
+        BedrockErrorCase {
+            action: "log",
+            bedrock_status: StatusCode::NOT_FOUND,
+            bedrock_action: "NONE",
+            expected_status: StatusCode::OK,
+            expected_code: None,
+            expected_message: None,
+            expected_provider_calls: 1,
+            expect_finding: true,
+        },
+    ]
+}
+
+#[tokio::test]
+async fn bedrock_guardrails_evaluate_last_turn_and_fail_closed_on_errors() {
+    let conversation = serde_json::json!([
+        {"role": "user", "content": "earlier turn"},
+        {"role": "assistant", "content": "earlier reply"},
+        {"role": "user", "content": "latest prompt"}
+    ]);
+    for case in bedrock_error_cases() {
+        run_bedrock_guardrail_case(BedrockGuardrailCase {
+            guardrails: serde_json::json!([{
+                "id": "g-bedrock",
+                "name": "Bedrock safety",
+                "type": "bedrock",
+                "action": case.action,
+                "guardrail_id": "abc123def",
+                "guardrail_version": "1",
+                "region": "us-east-1",
+                "api_key": "bedrock-token"
+            }]),
+            input: conversation.clone(),
+            expected_bedrock_text: Some("latest prompt"),
+            bedrock_status: case.bedrock_status,
+            bedrock_action: case.bedrock_action,
+            expected_status: case.expected_status,
+            expected_error_code: case.expected_code,
+            expected_message: case.expected_message,
+            expected_bedrock_calls: 1,
+            expected_provider_calls: case.expected_provider_calls,
+            expected_findings: case
+                .expect_finding
+                .then_some(("g-bedrock", case.action))
+                .into_iter()
+                .collect(),
+        })
+        .await;
+    }
+}
+
+#[tokio::test]
+async fn mixed_regex_and_bedrock_guardrails_preserve_order_and_skip_bedrock_on_local_block() {
+    let guardrails = serde_json::json!([
+        {
+            "id": "g-regex-log",
+            "name": "Emails",
+            "type": "regex",
+            "action": "log",
+            "patterns": [r"\b[a-z]+@example\.com\b"]
+        },
+        {
+            "id": "g-bedrock",
+            "name": "Bedrock safety",
+            "type": "bedrock",
+            "action": "block",
+            "guardrail_id": "abc123def",
+            "guardrail_version": "1",
+            "region": "us-east-1",
+            "api_key": "bedrock-token"
+        },
+        {
+            "id": "g-regex-block",
+            "name": "No SSNs",
+            "type": "regex",
+            "action": "block",
+            "patterns": [r"\b\d{3}-\d{2}-\d{4}\b"]
+        }
+    ]);
+    for (
+        input,
+        bedrock_action,
+        expected_status,
+        expected_message,
+        bedrock_calls,
+        provider_calls,
+        expected_findings,
+    ) in [
+        (
+            "mail me at jane@example.com",
+            "GUARDRAIL_INTERVENED",
+            StatusCode::BAD_REQUEST,
+            Some(r#"Request blocked by guardrail "Bedrock safety""#),
+            1,
+            0,
+            vec![("g-regex-log", "log"), ("g-bedrock", "block")],
+        ),
+        (
+            "my ssn is 123-45-6789",
+            "GUARDRAIL_INTERVENED",
+            StatusCode::BAD_REQUEST,
+            Some(r#"Request blocked by guardrail "No SSNs""#),
+            0,
+            0,
+            vec![("g-regex-block", "block")],
+        ),
+        (
+            "mail me at jane@example.com",
+            "NONE",
+            StatusCode::OK,
+            None,
+            1,
+            1,
+            vec![("g-regex-log", "log")],
+        ),
+    ] {
+        run_bedrock_guardrail_case(BedrockGuardrailCase {
+            guardrails: guardrails.clone(),
+            input: serde_json::json!(input),
+            expected_bedrock_text: None,
+            bedrock_status: StatusCode::OK,
+            bedrock_action,
+            expected_status,
+            expected_error_code: None,
+            expected_message,
+            expected_bedrock_calls: bedrock_calls,
+            expected_provider_calls: provider_calls,
+            expected_findings,
+        })
+        .await;
+    }
+}
+
+#[tokio::test]
+async fn fail_closed_guardrails_enforce_action_without_calling_bedrock() {
+    for (action, expected_status, expected_code, expected_message, provider_calls) in [
+        (
+            "block",
+            StatusCode::SERVICE_UNAVAILABLE,
+            Some("guardrail_unavailable"),
+            Some(
+                r#"Guardrail "Broken Bedrock" failed to run. Check its configuration or try again."#,
+            ),
+            0,
+        ),
+        (
+            "redact",
+            StatusCode::SERVICE_UNAVAILABLE,
+            Some("guardrail_unavailable"),
+            Some(
+                r#"Guardrail "Broken Bedrock" failed to run. Check its configuration or try again."#,
+            ),
+            0,
+        ),
+        ("log", StatusCode::OK, None, None, 1),
+    ] {
+        run_bedrock_guardrail_case(BedrockGuardrailCase {
+            guardrails: serde_json::json!([{
+                "id": "g-broken",
+                "name": "Broken Bedrock",
+                "type": "fail_closed",
+                "action": action,
+                "patterns": []
+            }]),
+            input: serde_json::json!("hello"),
+            expected_bedrock_text: None,
+            bedrock_status: StatusCode::OK,
+            bedrock_action: "NONE",
+            expected_status,
+            expected_error_code: expected_code,
+            expected_message,
+            expected_bedrock_calls: 0,
+            expected_provider_calls: provider_calls,
+            expected_findings: vec![("g-broken", action)],
+        })
+        .await;
+    }
+}
+
+struct RedactHarness {
+    gateway: Gateway,
+    _web: FakeServer,
+    provider: FakeServer,
+    telemetry: crate::telemetry::Telemetry,
+    uploads: tokio::sync::mpsc::UnboundedReceiver<serde_json::Value>,
+    upstream_rx: tokio::sync::mpsc::UnboundedReceiver<serde_json::Value>,
+}
+
+async fn start_redact_harness(
+    guardrails: serde_json::Value,
+    bedrock: Option<&FakeServer>,
+) -> RedactHarness {
+    let (sent, uploads) = tokio::sync::mpsc::unbounded_channel();
+    let (upstream_tx, upstream_rx) = tokio::sync::mpsc::unbounded_channel();
+    let web = FakeServer::start(move |request| {
+        let sent = sent.clone();
+        let guardrails = guardrails.clone();
+        async move {
+            if request.uri().path().ends_with("/resolve") {
+                let bytes = to_bytes(resolution_response("provider-secret").into_body(), 4096)
+                    .await
+                    .unwrap();
+                let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                body["guardrails"] = guardrails;
+                return Response::new(Body::from(body.to_string()));
+            }
+            let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+            sent.send(crate::test_support::upload_json(&bytes)).unwrap();
+            Response::new(Body::from("{}"))
+        }
+    })
+    .await;
+    let provider = FakeServer::start(move |request| {
+        let upstream_tx = upstream_tx.clone();
+        async move {
+            let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+            upstream_tx
+                .send(serde_json::from_slice::<serde_json::Value>(&bytes).unwrap())
+                .unwrap();
+            Response::builder()
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"id":"resp_1","status":"completed","output":[]}"#,
+                ))
+                .unwrap()
+        }
+    })
+    .await;
+    let telemetry = crate::telemetry::Telemetry::for_test(
+        &crate::resolution::ControlPlaneConfig::new(&web.url, "service-key").unwrap(),
+    );
+    let mut service = InferenceService::for_test(
+        web.control_plane(),
+        ProviderTransport::for_test(format!("{}/v1", provider.url), ProviderLimits::default())
+            .with_telemetry(telemetry.clone()),
+    )
+    .with_telemetry(telemetry.clone());
+    if let Some(bedrock) = bedrock {
+        service = service.with_external_guardrails(
+            crate::guardrails::external::ExternalGuardrailClient::for_test(
+                bedrock.url.clone(),
+                Duration::from_secs(2),
+            ),
+        );
+    }
+    let gateway = Gateway::start(Some(service)).await;
+    RedactHarness {
+        gateway,
+        _web: web,
+        provider,
+        telemetry,
+        uploads,
+        upstream_rx,
+    }
+}
+
+#[tokio::test]
+async fn redact_guardrails_rewrite_upstream_body_and_record_redact_metadata() {
+    let guardrails = serde_json::json!([
+        {
+            "id": "g-email",
+            "name": "Redact emails",
+            "type": "regex",
+            "action": "redact",
+            "redaction_label": "[EMAIL]",
+            "patterns": [r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"]
+        },
+        {
+            "id": "g-ssn",
+            "name": "Redact SSNs",
+            "type": "regex",
+            "action": "redact",
+            "redaction_label": "[SSN]",
+            "patterns": [r"\b\d{3}-\d{2}-\d{4}\b"]
+        }
+    ]);
+    let mut harness = start_redact_harness(guardrails, None).await;
+
+    let response = harness
+        .gateway
+        .post()
+        .bearer_auth("gateway-key")
+        .body(
+            serde_json::json!({
+                "model": "Production key:gpt-4.1",
+                "input": [
+                    {"role": "user", "content": "earlier old@example.com"},
+                    {"role": "assistant", "content": "ok"},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": "café a@example.com 🚀"},
+                            {"type": "input_text", "text": "ssn 123-45-6789"}
+                        ]
+                    }
+                ]
+            })
+            .to_string(),
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    response.bytes().await.unwrap();
+
+    let forwarded = harness.upstream_rx.try_recv().unwrap();
+    assert_eq!(forwarded["model"], "provider-model");
+    assert_eq!(forwarded["input"][0]["content"], "earlier old@example.com");
+    assert_eq!(
+        forwarded["input"][2]["content"][0]["text"],
+        "café [EMAIL] 🚀"
+    );
+    assert_eq!(forwarded["input"][2]["content"][1]["text"], "ssn [SSN]");
+
+    harness
+        .telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    let uploaded = harness.uploads.try_recv().unwrap();
+    assert_recorded_guardrails(&uploaded, &[("g-email", "redact"), ("g-ssn", "redact")]);
+    let uploaded_text = uploaded.to_string();
+    assert!(!uploaded_text.contains("a@example.com"));
+    assert!(!uploaded_text.contains("123-45-6789"));
+}
+
+#[tokio::test]
+async fn bedrock_enforce_guardrails_anonymize_or_block_and_fail_closed() {
+    let guardrails = serde_json::json!([{
+        "id": "g-bedrock",
+        "name": "Bedrock enforce",
+        "type": "bedrock",
+        "action": "enforce",
+        "patterns": [],
+        "guardrail_id": "abc123def",
+        "guardrail_version": "1",
+        "region": "us-east-1",
+        "api_key": "bedrock-token"
+    }]);
+    for (bedrock_status, bedrock_body, expected_status, expected_code, expected_text) in [
+        (
+            StatusCode::OK,
+            r#"{"action":"GUARDRAIL_INTERVENED","outputs":[{"text":"call {PHONE}"}],"assessments":[{"sensitiveInformationPolicy":{"piiEntities":[{"match":"555-0199","type":"PHONE","action":"ANONYMIZED","detected":true}]}}]}"#,
+            StatusCode::OK,
+            None,
+            Some("call {PHONE}"),
+        ),
+        (
+            StatusCode::OK,
+            r#"{"action":"GUARDRAIL_INTERVENED","outputs":[{"text":"Sorry, I cannot help with that."}],"assessments":[{"sensitiveInformationPolicy":{"piiEntities":[{"match":"555-0199","type":"PHONE","action":"ANONYMIZED","detected":true},{"match":"123-45-6789","type":"US_SOCIAL_SECURITY_NUMBER","action":"BLOCKED","detected":true}]}}]}"#,
+            StatusCode::BAD_REQUEST,
+            Some("guardrail_blocked"),
+            None,
+        ),
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            r#"{"message":"boom"}"#,
+            StatusCode::SERVICE_UNAVAILABLE,
+            Some("guardrail_unavailable"),
+            None,
+        ),
+    ] {
+        let bedrock = FakeServer::start(move |_| async move {
+            Response::builder()
+                .status(bedrock_status)
+                .header("content-type", "application/json")
+                .body(Body::from(bedrock_body))
+                .unwrap()
+        })
+        .await;
+        let mut harness = start_redact_harness(guardrails.clone(), Some(&bedrock)).await;
+
+        let response = harness
+            .gateway
+            .post()
+            .bearer_auth("gateway-key")
+            .body(
+                serde_json::json!({
+                    "model": "Production key:gpt-4.1",
+                    "input": "call 555-0199"
+                })
+                .to_string(),
+            )
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected_status);
+        if let Some(expected_text) = expected_text {
+            response.bytes().await.unwrap();
+            assert_eq!(harness.provider.calls(), 1);
+            let forwarded = harness.upstream_rx.try_recv().unwrap();
+            assert_eq!(forwarded["input"], expected_text);
+        } else {
+            assert_eq!(harness.provider.calls(), 0);
+            let body: serde_json::Value =
+                serde_json::from_str(&response.text().await.unwrap()).unwrap();
+            assert_eq!(body["error"]["code"], expected_code.unwrap());
+        }
+        harness
+            .telemetry
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+            .await;
+        let expected_action = if expected_text.is_some() {
+            "redact"
+        } else {
+            "block"
+        };
+        assert_recorded_guardrails_with_outcome(
+            &harness.uploads.try_recv().unwrap(),
+            &[("g-bedrock", expected_action)],
+            expected_action,
+        );
+    }
+}
+
+#[tokio::test]
+async fn multiple_enforcing_bedrock_guardrails_chain_sequentially_and_short_circuit_on_block() {
+    let guardrails = serde_json::json!([
+        {
+            "id": "g-email",
+            "name": "Bedrock email",
+            "type": "bedrock",
+            "action": "enforce",
+            "patterns": [],
+            "guardrail_id": "emailguard",
+            "guardrail_version": "1",
+            "region": "us-east-1",
+            "api_key": "bedrock-token"
+        },
+        {
+            "id": "g-phone",
+            "name": "Bedrock phone",
+            "type": "bedrock",
+            "action": "enforce",
+            "patterns": [],
+            "guardrail_id": "phoneguard",
+            "guardrail_version": "1",
+            "region": "us-east-1",
+            "api_key": "bedrock-token"
+        }
+    ]);
+
+    // 1. Second Bedrock guardrail receives the first guardrail's anonymized text.
+    let bedrock = FakeServer::start(|request| async move {
+        let path = request.uri().path().to_owned();
+        let body: serde_json::Value =
+            serde_json::from_slice(&to_bytes(request.into_body(), 4096).await.unwrap()).unwrap();
+        let text = body["content"][0]["text"]["text"].as_str().unwrap();
+        let response_body = if path.contains("emailguard") {
+            assert_eq!(text, "mail alice@example.com or call 555-0199");
+            r#"{"action":"GUARDRAIL_INTERVENED","outputs":[{"text":"mail {EMAIL} or call 555-0199"}]}"#
+        } else {
+            assert_eq!(text, "mail {EMAIL} or call 555-0199");
+            r#"{"action":"GUARDRAIL_INTERVENED","outputs":[{"text":"mail {EMAIL} or call {PHONE}"}]}"#
+        };
+        Response::builder()
+            .status(StatusCode::OK)
+            .header("content-type", "application/json")
+            .body(Body::from(response_body))
+            .unwrap()
+    })
+    .await;
+    let mut harness = start_redact_harness(guardrails.clone(), Some(&bedrock)).await;
+    let response = harness
+        .gateway
+        .post()
+        .bearer_auth("gateway-key")
+        .body(
+            serde_json::json!({
+                "model": "Production key:gpt-4.1",
+                "input": "mail alice@example.com or call 555-0199"
+            })
+            .to_string(),
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    response.bytes().await.unwrap();
+    let forwarded = harness.upstream_rx.try_recv().unwrap();
+    assert_eq!(forwarded["input"], "mail {EMAIL} or call {PHONE}");
+
+    // 2. When the first enforcing Bedrock guardrail blocks, the second is skipped.
+    let blocking_bedrock = FakeServer::start(|request| async move {
+        assert!(request.uri().path().contains("emailguard"));
+        Response::builder()
+            .status(StatusCode::OK)
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"action":"GUARDRAIL_INTERVENED","outputs":[{"text":"Blocked."}],"assessments":[{"topicPolicy":{"topics":[{"name":"blocked","action":"BLOCKED","detected":true}]}}]}"#,
+            ))
+            .unwrap()
+    })
+    .await;
+    let harness = start_redact_harness(guardrails, Some(&blocking_bedrock)).await;
+    let response = harness
+        .gateway
+        .post()
+        .bearer_auth("gateway-key")
+        .body(
+            serde_json::json!({
+                "model": "Production key:gpt-4.1",
+                "input": "blocked topic"
+            })
+            .to_string(),
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(blocking_bedrock.calls(), 1);
+    assert_eq!(harness.provider.calls(), 0);
+}
+
 #[tokio::test]
 async fn anthropic_capacity_rejections_use_the_native_envelope() {
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
@@ -1949,9 +2861,12 @@ fn only_a_literal_true_stream_member_marks_a_streamed_call() {
         (r#"{"model":"m","stream":null}"#, false),
         (r#"{"model":"m"}"#, false),
     ] {
-        let request = request_body_and_model(Bytes::from_static(body.as_bytes()))
-            .ok()
-            .unwrap();
+        let request = parse_request_body(
+            Bytes::from_static(body.as_bytes()),
+            ApiFormat::OpenAiChatCompletions,
+        )
+        .ok()
+        .unwrap();
         assert_eq!(request.streaming, streaming, "{body}");
         assert_eq!(&body.as_bytes()[request.model_range], br#""m""#);
     }
@@ -1959,11 +2874,43 @@ fn only_a_literal_true_stream_member_marks_a_streamed_call() {
         r#"{"model":"m","model":"n"}"#,
         r#"{"model":"m","stream":true,"stream":true}"#,
         r#"{"stream":true}"#,
+        r#"["m"]"#,
     ] {
         assert!(
-            request_body_and_model(Bytes::from_static(body.as_bytes())).is_err(),
+            parse_request_body(
+                Bytes::from_static(body.as_bytes()),
+                ApiFormat::OpenAiChatCompletions,
+            )
+            .is_err(),
             "{body}"
         );
+    }
+}
+
+#[test]
+fn the_parse_locates_stream_options_for_the_usage_rewrite() {
+    let body = br#"{"model":"m","stream":true,"stream_options": {"include_obfuscation":false} }"#;
+    let request = parse_request_body(Bytes::from_static(body), ApiFormat::OpenAiChatCompletions)
+        .ok()
+        .unwrap();
+    let StreamOptions::At(range) = request.stream_options else {
+        panic!("stream_options not located");
+    };
+    assert_eq!(&body[range], br#"{"include_obfuscation":false}"#);
+    for (body, expected) in [
+        (r#"{"model":"m","stream":true}"#, StreamOptions::Absent),
+        (
+            r#"{"model":"m","stream_options":null,"stream_options":{}}"#,
+            StreamOptions::Duplicated,
+        ),
+    ] {
+        let request = parse_request_body(
+            Bytes::from_static(body.as_bytes()),
+            ApiFormat::OpenAiChatCompletions,
+        )
+        .ok()
+        .unwrap();
+        assert_eq!(request.stream_options, expected, "{body}");
     }
 }
 
@@ -2022,4 +2969,355 @@ async fn only_non_streamed_generations_wait_past_the_stall_for_provider_headers(
             .await;
         assert_eq!(response.unwrap().status(), status, "{path} {body}");
     }
+}
+
+async fn start_response_guardrail_harness(
+    api_format: ApiFormat,
+    guardrails: serde_json::Value,
+    provider_content_type: &'static str,
+    provider_body: &'static str,
+    bedrock: Option<&FakeServer>,
+    execution: ExecutionLimits,
+) -> (
+    Gateway,
+    FakeServer,
+    FakeServer,
+    crate::telemetry::Telemetry,
+    tokio::sync::mpsc::UnboundedReceiver<serde_json::Value>,
+) {
+    let (sent, uploads) = tokio::sync::mpsc::unbounded_channel();
+    let web = FakeServer::start(move |request| {
+        let sent = sent.clone();
+        let guardrails = guardrails.clone();
+        async move {
+            if request.uri().path().ends_with("/resolve") {
+                let bytes = to_bytes(
+                    resolution_response_for(api_format, "provider-secret").into_body(),
+                    4096,
+                )
+                .await
+                .unwrap();
+                let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                body["ingestion_mode"] = serde_json::json!("full");
+                body["response_guardrails"] = guardrails;
+                return Response::new(Body::from(body.to_string()));
+            }
+            let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+            sent.send(crate::test_support::upload_json(&bytes)).unwrap();
+            Response::new(Body::from("{}"))
+        }
+    })
+    .await;
+    let provider = FakeServer::start(move |_| async move {
+        Response::builder()
+            .status(StatusCode::OK)
+            .header("content-type", provider_content_type)
+            .body(Body::from(provider_body))
+            .unwrap()
+    })
+    .await;
+    let telemetry = crate::telemetry::Telemetry::for_test(
+        &crate::resolution::ControlPlaneConfig::new(&web.url, "service-key").unwrap(),
+    );
+    let mut service = InferenceService::for_test(
+        web.control_plane(),
+        ProviderTransport::for_test(format!("{}/v1", provider.url), ProviderLimits { execution })
+            .with_telemetry(telemetry.clone()),
+    )
+    .with_telemetry(telemetry.clone());
+    if let Some(bedrock) = bedrock {
+        service = service.with_external_guardrails(
+            crate::guardrails::external::ExternalGuardrailClient::for_test(
+                bedrock.url.clone(),
+                Duration::from_secs(2),
+            ),
+        );
+    }
+    let gateway = Gateway::start(Some(service)).await;
+    (gateway, web, provider, telemetry, uploads)
+}
+
+#[tokio::test]
+async fn response_guardrails_block_and_log_json_outputs() {
+    // 1. BLOCK on non-streaming JSON response returns 400 guardrail_blocked
+    //    and records upstream usage + response rejection metadata.
+    let block_guardrails = serde_json::json!([{
+        "id": "g-ssn-out",
+        "name": "Block output SSN",
+        "type": "regex",
+        "action": "block",
+        "patterns": [r"\b\d{3}-\d{2}-\d{4}\b"]
+    }]);
+    let (gateway, _web, provider, telemetry, mut uploads) = start_response_guardrail_harness(
+        ApiFormat::OpenAiChatCompletions,
+        block_guardrails,
+        "application/json",
+        r#"{"id":"chatcmpl-1","model":"gpt-4.1","choices":[{"index":0,"message":{"role":"assistant","content":"The SSN is 123-45-6789."},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":8,"total_tokens":18}}"#,
+        None,
+        ExecutionLimits::default(),
+    )
+    .await;
+    let response = reqwest::Client::new()
+        .post(format!("{}/openai/v1/chat/completions", gateway.url))
+        .bearer_auth("gateway-key")
+        .body(r#"{"model":"Production key:gpt-4.1","messages":[{"role":"user","content":"hi"}]}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(provider.calls(), 1);
+    let body: serde_json::Value = serde_json::from_str(&response.text().await.unwrap()).unwrap();
+    assert_eq!(body["error"]["code"], "guardrail_blocked");
+    assert_eq!(
+        body["error"]["message"],
+        r#"Response blocked by guardrail "Block output SSN""#
+    );
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    let uploaded = uploads.try_recv().unwrap();
+    assert_recorded_guardrails_with_outcome(&uploaded, &[("g-ssn-out", "block")], "block");
+    let span = &uploaded["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    let attr = |key: &str| {
+        span["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|a| a["key"] == key)
+            .and_then(|a| a["value"]["stringValue"].as_str())
+            .map(str::to_owned)
+    };
+    let metadata: serde_json::Value =
+        serde_json::from_str(&attr("langfuse.observation.metadata").unwrap()).unwrap();
+    assert_eq!(metadata["langfuse.gateway.response.status_code"], 400);
+    assert_eq!(metadata["langfuse.gateway.upstream.status_code"], 200);
+    assert!(attr("langfuse.observation.usage_details").is_some());
+
+    // 2. LOG on response forwards unchanged and records WARNING + log outcome.
+    let log_guardrails = serde_json::json!([{
+        "id": "g-email-log",
+        "name": "Log output email",
+        "type": "regex",
+        "action": "log",
+        "patterns": [r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"]
+    }]);
+    let (gateway, _web, _provider, telemetry, mut uploads) = start_response_guardrail_harness(
+        ApiFormat::AnthropicMessages,
+        log_guardrails,
+        "application/json",
+        r#"{"id":"msg_1","type":"message","role":"assistant","model":"claude-sonnet-4-5","content":[{"type":"text","text":"Write to alice@example.com"}],"stop_reason":"end_turn","usage":{"input_tokens":5,"output_tokens":5}}"#,
+        None,
+        ExecutionLimits::default(),
+    )
+    .await;
+    let response = reqwest::Client::new()
+        .post(format!("{}/anthropic/v1/messages", gateway.url))
+        .header("x-api-key", "gateway-key")
+        .body(r#"{"model":"Production key:claude","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body: serde_json::Value = serde_json::from_str(&response.text().await.unwrap()).unwrap();
+    assert_eq!(body["content"][0]["text"], "Write to alice@example.com");
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    let uploaded = uploads.try_recv().unwrap();
+    assert_recorded_guardrails_with_outcome(&uploaded, &[("g-email-log", "log")], "log");
+}
+
+#[tokio::test]
+async fn response_guardrails_redact_span_crossing_sse_output() {
+    let redact_guardrails = serde_json::json!([{
+        "id": "g-ssn-redact",
+        "name": "Redact output SSN",
+        "type": "regex",
+        "action": "redact",
+        "redaction_label": "[SSN]",
+        "patterns": [r"\b\d{3}-\d{2}-\d{4}\b"]
+    }]);
+    let sse_body = concat!(
+        "data: {\"id\":\"chatcmpl-2\",\"model\":\"gpt-4.1\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"chatcmpl-2\",\"model\":\"gpt-4.1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Your SSN is 123-\"},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"chatcmpl-2\",\"model\":\"gpt-4.1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"45-6789.\"},\"finish_reason\":null}]}\n\n",
+        "data: {\"id\":\"chatcmpl-2\",\"model\":\"gpt-4.1\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
+        "data: [DONE]\n\n"
+    );
+    let (gateway, _web, _provider, telemetry, mut uploads) = start_response_guardrail_harness(
+        ApiFormat::OpenAiChatCompletions,
+        redact_guardrails,
+        "text/event-stream",
+        sse_body,
+        None,
+        ExecutionLimits::default(),
+    )
+    .await;
+    let response = reqwest::Client::new()
+        .post(format!("{}/openai/v1/chat/completions", gateway.url))
+        .bearer_auth("gateway-key")
+        .body(r#"{"model":"Production key:gpt-4.1","stream":true,"messages":[{"role":"user","content":"hi"}]}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let delivered = response.text().await.unwrap();
+    assert!(!delivered.contains("123-"));
+    assert!(!delivered.contains("45-6789"));
+    assert!(delivered.contains("Your SSN is [SSN]."));
+    assert!(delivered.contains("data: [DONE]\n\n"));
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    let uploaded = uploads.try_recv().unwrap();
+    assert_recorded_guardrails_with_outcome(&uploaded, &[("g-ssn-redact", "redact")], "redact");
+    let uploaded_text = uploaded.to_string();
+    assert!(!uploaded_text.contains("123-45-6789"));
+    assert!(uploaded_text.contains("Your SSN is [SSN]."));
+}
+
+#[tokio::test]
+async fn bedrock_output_guardrail_uses_output_source_and_anonymizes_or_blocks_sse() {
+    let guardrails = serde_json::json!([{
+        "id": "g-br-out",
+        "name": "Bedrock output",
+        "type": "bedrock",
+        "action": "enforce",
+        "patterns": [],
+        "guardrail_id": "outguard",
+        "guardrail_version": "1",
+        "region": "us-east-1",
+        "api_key": "bedrock-token"
+    }]);
+    let responses_sse = concat!(
+        "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"content_index\":0,\"delta\":\"Call 555-\"}\n\n",
+        "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"content_index\":0,\"delta\":\"0199 now\"}\n\n",
+        "event: response.output_text.done\ndata: {\"type\":\"response.output_text.done\",\"output_index\":0,\"content_index\":0,\"text\":\"Call 555-0199 now\"}\n\n",
+        "event: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"Call 555-0199 now\"}]}}\n\n",
+        "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"Call 555-0199 now\"}]}]}}\n\n"
+    );
+
+    // 1. Anonymized output rewrites deltas + done + output_item.done + completed consistently.
+    let bedrock = FakeServer::start(|request| async move {
+        let body: serde_json::Value =
+            serde_json::from_slice(&to_bytes(request.into_body(), 8192).await.unwrap()).unwrap();
+        assert_eq!(body["source"], "OUTPUT");
+        assert_eq!(
+            body["content"],
+            serde_json::json!([{"text": {"text": "Call 555-0199 now"}}])
+        );
+        Response::builder()
+            .status(StatusCode::OK)
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"action":"GUARDRAIL_INTERVENED","outputs":[{"text":"Call {PHONE} now"}],"assessments":[{"sensitiveInformationPolicy":{"piiEntities":[{"match":"555-0199","type":"PHONE","action":"ANONYMIZED","detected":true}]}}]}"#,
+            ))
+            .unwrap()
+    })
+    .await;
+
+    let (gateway, _web, _provider, telemetry, mut uploads) = start_response_guardrail_harness(
+        ApiFormat::OpenAiResponses,
+        guardrails.clone(),
+        "text/event-stream",
+        responses_sse,
+        Some(&bedrock),
+        ExecutionLimits::default(),
+    )
+    .await;
+    let payload = r#"{"model":"Production key:gpt-4.1","stream":true,"input":"hi"}"#;
+    let send = |gw: &Gateway| gw.post().bearer_auth("gateway-key").body(payload).send();
+    let response = send(&gateway).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(bedrock.calls(), 1);
+    let delivered = response.text().await.unwrap();
+    assert!(!delivered.contains("555-") && !delivered.contains("0199"));
+    assert_eq!(delivered.matches("Call {PHONE} now").count(), 4);
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    let uploaded = uploads.try_recv().unwrap();
+    assert_recorded_guardrails_with_outcome(&uploaded, &[("g-br-out", "redact")], "redact");
+    assert!(!uploaded.to_string().contains("555-0199"));
+
+    // 2. Bedrock error on output fails closed with HTTP 503 guardrail_unavailable.
+    let bedrock_err = FakeServer::start(|_| async move {
+        Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(Body::from(r#"{"message":"boom"}"#))
+            .unwrap()
+    })
+    .await;
+    let (gateway, _web, _provider, telemetry, mut uploads) = start_response_guardrail_harness(
+        ApiFormat::OpenAiResponses,
+        guardrails,
+        "text/event-stream",
+        responses_sse,
+        Some(&bedrock_err),
+        ExecutionLimits::default(),
+    )
+    .await;
+    let response = send(&gateway).await.unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let body: serde_json::Value = serde_json::from_str(&response.text().await.unwrap()).unwrap();
+    assert_eq!(body["error"]["code"], "guardrail_unavailable");
+    assert_eq!(
+        body["error"]["message"],
+        r#"Guardrail "Bedrock output" failed to run. Check its configuration or try again."#
+    );
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    assert_recorded_guardrails_with_outcome(
+        &uploads.try_recv().unwrap(),
+        &[("g-br-out", "block")],
+        "block",
+    );
+}
+
+#[tokio::test]
+async fn response_guardrail_deadline_and_busy_preserve_usage_without_storing_unredacted_output() {
+    let guardrails = serde_json::json!([{
+        "id": "g-br-slow",
+        "name": "Slow Bedrock",
+        "type": "bedrock",
+        "action": "enforce",
+        "patterns": [],
+        "guardrail_id": "slowguard",
+        "guardrail_version": "1",
+        "region": "us-east-1",
+        "api_key": "bedrock-token"
+    }]);
+    let bedrock = FakeServer::start(|_| async move {
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        Response::new(Body::from(r#"{"action":"NONE"}"#))
+    })
+    .await;
+    let (gateway, _web, _provider, telemetry, mut uploads) = start_response_guardrail_harness(
+        ApiFormat::OpenAiChatCompletions,
+        guardrails,
+        "application/json",
+        r#"{"id":"c1","model":"gpt-4.1","choices":[{"index":0,"message":{"role":"assistant","content":"secret 123-45-6789"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}"#,
+        Some(&bedrock),
+        ExecutionLimits {
+            max_execution_time: Duration::from_millis(120),
+            stall_timeout: Duration::from_secs(1),
+        },
+    )
+    .await;
+    let response = reqwest::Client::new()
+        .post(format!("{}/openai/v1/chat/completions", gateway.url))
+        .bearer_auth("gateway-key")
+        .body(r#"{"model":"Production key:gpt-4.1","messages":[{"role":"user","content":"hi"}]}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::GATEWAY_TIMEOUT);
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    let uploaded = uploads.try_recv().unwrap();
+    let uploaded_text = uploaded.to_string();
+    assert!(!uploaded_text.contains("123-45-6789"));
+    assert!(uploaded_text.contains("prompt_tokens"));
 }

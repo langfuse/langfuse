@@ -1,8 +1,8 @@
 import { createSidebarMenuControls } from "@/src/features/app-shell/fns/createSidebarMenuControls";
-import {
-  createSidebarStore,
-  SIDEBAR_EXPANDED_STORAGE_KEY,
-} from "@/src/features/app-shell/stores/sidebarStore";
+import { createSidebarStore } from "@/src/features/app-shell/stores/sidebarStore";
+
+// Keep this independent of the store to catch changes that break saved preferences.
+const SIDEBAR_EXPANDED_STORAGE_KEY = "langfuse:sidebar:pinned:v1";
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const values = new Map(Object.entries(initial));
@@ -21,12 +21,12 @@ function setup(initial: Record<string, string> = {}) {
 }
 
 describe("desktop expansion preference", () => {
-  it("starts as an icon rail without a stored preference or available storage", () => {
-    expect(setup().store.getState().isExpanded).toBe(false);
+  it("starts expanded without a stored preference or available storage", () => {
+    expect(setup().store.getState().isExpanded).toBe(true);
     expect(
       createSidebarStore({ storage: null, isMobile: false }).getState()
         .isExpanded,
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("carries over collapsed classic and unpinned preview preferences as a rail", () => {
@@ -70,24 +70,22 @@ describe("desktop expansion preference", () => {
       isExpanded: false,
       activeMenu: null,
     });
-    for (const menu of ["account", "version"] as const) {
-      actions.setExpanded(true);
-      actions.setActiveMenu(menu);
-      actions.setExpanded(false);
-      expect(store.getState().activeMenu).toBe(menu);
-    }
+    actions.setExpanded(true);
+    actions.setActiveMenu("account");
+    actions.setExpanded(false);
+    expect(store.getState().activeMenu).toBe("account");
   });
 
   it("toggles desktop expansion with the shortcut and remembers it", () => {
     const { store, storage, actions } = setup();
 
     actions.toggleFromShortcut("desktop");
-    expect(store.getState().isExpanded).toBe(true);
-    expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBe("true");
-
-    actions.toggleFromShortcut("desktop");
     expect(store.getState().isExpanded).toBe(false);
     expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBe("false");
+
+    actions.toggleFromShortcut("desktop");
+    expect(store.getState().isExpanded).toBe(true);
+    expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBe("true");
   });
 });
 
@@ -99,7 +97,7 @@ describe("transient navigation", () => {
     actions.toggleFromShortcut("mobile");
     expect(store.getState()).toMatchObject({
       isMobileOpen: true,
-      isExpanded: false,
+      isExpanded: true,
       activeMenu: null,
     });
     actions.setActiveMenu("organization");
@@ -107,7 +105,7 @@ describe("transient navigation", () => {
     expect(store.getState()).toMatchObject({
       isMobileOpen: false,
       activeMenu: null,
-      isExpanded: false,
+      isExpanded: true,
     });
     expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBeNull();
   });
@@ -117,7 +115,7 @@ describe("transient navigation", () => {
       [SIDEBAR_EXPANDED_STORAGE_KEY]: "true",
     });
 
-    for (const menu of ["account", "version", "organization"] as const) {
+    for (const menu of ["account", "organization"] as const) {
       for (const close of [actions.close, () => actions.setMobileOpen(false)]) {
         actions.setMobileOpen(true);
         actions.setActiveMenu(menu);
@@ -163,7 +161,7 @@ describe("transient navigation", () => {
     expect(store.getState().isExpanded).toBe(true);
 
     actions.setMobileOpen(true);
-    actions.setActiveMenu("version");
+    actions.setActiveMenu("account");
     const mobile = store.getState();
     actions.setViewport(true);
     expect(store.getState()).toBe(mobile);
@@ -182,8 +180,8 @@ describe("transient navigation", () => {
     const { store, actions } = setup();
 
     for (const [menu, nextMenu] of [
-      ["account", "version"],
-      ["version", "account"],
+      ["account", "organization"],
+      ["organization", "account"],
     ] as const) {
       const controls = createSidebarMenuControls(store, menu);
       controls.onOpenChange(true);

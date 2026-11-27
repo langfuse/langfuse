@@ -1,6 +1,10 @@
+// Golden SQL for the events repository read families (point reads,
+// aggregates, IO, exports, row selection, filtered streams).
+
 import {
   afterAll,
   afterEach,
+  beforeAll,
   beforeEach,
   describe,
   expect,
@@ -18,14 +22,14 @@ import {
   formatSql,
   normalizeCapturedQueries,
   resetCaptures,
-} from "./goldenHarness";
+} from "./__tests__/goldenHarness";
 
 // Record the exec seam instead of hitting ClickHouse. The factory is hoisted
 // above imports, so it pulls the harness in via dynamic import; the captured
 // store is a module singleton shared with the assertions below.
 vi.mock("./clickhouse", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./clickhouse")>();
-  const { buildClickhouseMock } = await import("./goldenHarness.js");
+  const { buildClickhouseMock } = await import("./__tests__/goldenHarness.js");
   return buildClickhouseMock(actual);
 });
 
@@ -35,6 +39,8 @@ import {
   getEventsForBlobStorageExport,
   getEventsForBlobStorageExportParquet,
   getEventsForBlobStorageExportRaw,
+  getGatewayApiKeysLastUsedAtFromEvents,
+  getGatewaySpendSinceFromEvents,
   getLastTraceTimestampsByProjectsFromEventsTable,
   getLatestSdkVersionInfoFromEvents,
   getObservationByIdFromEventsTable,
@@ -638,8 +644,7 @@ describeWithClickhouse("golden: observations public API filters family", () => {
     expect(await captureV2List({ parentObservationId: "" })).toMatchSnapshot();
   });
 
-  // Oddity: an empty environment list renders `IN ([])` and matches nothing.
-  // Clients rely on that empty page, so the read must keep it.
+  // An empty environment list adds no environment condition.
   it("getObservationsV2FromEventsTableForPublicApi simple=environment empty", async () => {
     expect(await captureV2List({ environment: [] })).toMatchSnapshot();
   });
@@ -762,8 +767,7 @@ describeWithClickhouse("golden: observations public API filters family", () => {
         value: "needle",
       },
     ],
-    // Numeric metadata is rejected with a 400: the native `metadata` column
-    // is typed `stringObject`.
+    // Numeric metadata compares the parsed value of the key.
     [
       "metadata numberObject",
       {
@@ -783,9 +787,8 @@ describeWithClickhouse("golden: observations public API filters family", () => {
     },
   );
 
-  // Oddity: a `positionInTrace` filter is dropped without an error
-  // (`createFilterFromFilterState` skips the type), so the read is unfiltered.
-  // Clients receive unfiltered rows for it, so the read must keep that.
+  // A `positionInTrace` filter selects by place in the trace, not by a row
+  // condition, so the endpoint rejects it before sending a query.
   it("getObservationsV2FromEventsTableForPublicApi advanced=positionInTrace", async () => {
     expect(
       await captureV2List({
@@ -895,12 +898,13 @@ describeWithClickhouse("golden: observations public API filters family", () => {
   });
 
   it.each([
-    // Not in the native column definitions.
+    // Not a field of the events predicate source.
     [
       "unknown column",
       { column: "doesNotExist", type: "string", operator: "=", value: "x" },
     ],
-    // Score columns exist only in the UI planner, not the native definitions.
+    // Score columns have no events lowering. Only the UI planner filters on
+    // scores, through its own score CTEs and join.
     [
       "scores_avg",
       {
@@ -916,7 +920,7 @@ describeWithClickhouse("golden: observations public API filters family", () => {
       "input non-string type",
       { column: "input", type: "null", operator: "is not null", value: "" },
     ],
-    // `validateIndexedInputOutputFilters`: an IO filter needs a `matches` or
+    // `assertIndexedIoFilters`: an IO filter needs a `matches` or
     // `=` IO filter next to it.
     [
       "input contains without matches",
@@ -1728,34 +1732,189 @@ describeWithClickhouse("golden: events filtered streams family", () => {
   // the worker's distinct-score-names read. Its scores join is written
   // `scores_agg s ON s.trace_id = … AND s.observation_id = …`, unlike the
   // planner's `scores_agg AS s` (#15591); kept byte-equal.
-  it.each([
+  function renderBlobExportStream(
+    input: Partial<Parameters<typeof buildEventsBlobExportStreamQuery>[0]>,
+  ) {
+    const { queryBuilder, startTimeFrom } = buildEventsBlobExportStreamQuery({
+      projectId: FIXED_PROJECT_ID,
+      cutoffCreatedAt: FIXED_TO_TIMESTAMP,
+      filter: [],
+      rowLimit: 100,
+      ...input,
+    });
+    const { query, params } = queryBuilder.buildWithParams();
+    return {
+      queries: normalizeCapturedQueries([
+        { fn: "buildEventsBlobExportStreamQuery", query, params },
+      ]),
+      startTimeFrom,
+    };
+  }
+
+  // The export always reads the complete score source, so no score filter
+  // pushes `name IN (…)` into the CTEs; score leaves only change the WHERE.
+  // Exclusions (`none of`, `<>`) over the obs/trace union join with AND,
+  // inclusions with OR.
+  it.each<
+    [
+      string,
+      FilterState,
+      { searchQuery?: string; searchType?: TracingSearchType[] },
+    ]
+  >([
     ["none", [], {}],
     ["native", NATIVE_FILTER, {}],
     ["obsScore", OBSERVATION_SCORE_FILTER, {}],
-    ["startTime>=", START_TIME_FROM_FILTER, {}],
     [
-      "search",
-      [],
-      { searchQuery: "golden", searchType: ["id", "content"] as const },
+      "obsScore categoryOptions none of",
+      [
+        {
+          column: "score_categories",
+          type: "categoryOptions",
+          key: "sentiment",
+          operator: "none of",
+          value: ["negative"],
+        },
+      ],
+      {},
     ],
-  ] as const)(
+    [
+      "obsScore categoryOptions any of",
+      [
+        {
+          column: "score_categories",
+          type: "categoryOptions",
+          key: "sentiment",
+          operator: "any of",
+          value: ["positive"],
+        },
+      ],
+      {},
+    ],
+    [
+      "obsScore booleanObject <>",
+      [
+        {
+          column: "score_booleans",
+          type: "booleanObject",
+          key: "correct",
+          operator: "<>",
+          value: true,
+        },
+      ],
+      {},
+    ],
+    [
+      "obsScore booleanObject =",
+      [
+        {
+          column: "score_booleans",
+          type: "booleanObject",
+          key: "correct",
+          operator: "=",
+          value: true,
+        },
+      ],
+      {},
+    ],
+    [
+      "traceScore",
+      [
+        {
+          column: "trace_scores_avg",
+          type: "numberObject",
+          key: "quality",
+          operator: ">=",
+          value: 1,
+        },
+      ],
+      {},
+    ],
+    // A trace-score leaf before an observation-score leaf: pins the order of
+    // the score conjuncts.
+    [
+      "traceScore+obsScore",
+      [
+        {
+          column: "trace_scores_avg",
+          type: "numberObject",
+          key: "quality",
+          operator: ">",
+          value: 1,
+        },
+        {
+          column: "scores_avg",
+          type: "numberObject",
+          key: "accuracy",
+          operator: ">",
+          value: 2,
+        },
+      ],
+      {},
+    ],
+    ["startTime>=", START_TIME_FROM_FILTER, {}],
+    ["search", [], { searchQuery: "golden", searchType: ["id", "content"] }],
+  ])(
     "buildEventsBlobExportStreamQuery filter=%s",
     async (_name, filter, search) => {
-      const { queryBuilder, startTimeFrom } = buildEventsBlobExportStreamQuery({
-        projectId: FIXED_PROJECT_ID,
-        cutoffCreatedAt: FIXED_TO_TIMESTAMP,
-        filter: [...filter],
-        searchQuery: "searchQuery" in search ? search.searchQuery : undefined,
-        searchType: "searchType" in search ? [...search.searchType] : undefined,
-        rowLimit: 100,
-      });
-      const { query, params } = queryBuilder.buildWithParams();
-      expect({
-        queries: normalizeCapturedQueries([
-          { fn: "buildEventsBlobExportStreamQuery", query, params },
-        ]),
-        startTimeFrom,
-      }).toMatchSnapshot();
+      expect(renderBlobExportStream({ filter, ...search })).toMatchSnapshot();
     },
   );
+
+  // `cutoffCreatedAt` is optional on the exported input: unset drops the
+  // `startTime <` leaf. The worker always sets it.
+  it("buildEventsBlobExportStreamQuery cutoff=unset", async () => {
+    expect(
+      renderBlobExportStream({
+        cutoffCreatedAt: undefined,
+        filter: NATIVE_FILTER,
+      }),
+    ).toMatchSnapshot();
+  });
+
+  describe("scores dedup skipped", () => {
+    const originalSkipIds = env.LANGFUSE_SKIP_SCORES_DEDUP_PROJECT_IDS;
+    beforeAll(() => {
+      env.LANGFUSE_SKIP_SCORES_DEDUP_PROJECT_IDS = new Set([FIXED_PROJECT_ID]);
+    });
+    afterAll(() => {
+      env.LANGFUSE_SKIP_SCORES_DEDUP_PROJECT_IDS = originalSkipIds;
+    });
+
+    // A project listed in LANGFUSE_SKIP_SCORES_DEDUP_PROJECT_IDS reads both
+    // score CTEs without FINAL.
+    it("buildEventsBlobExportStreamQuery scoresDedup=skip", async () => {
+      expect(renderBlobExportStream({})).toMatchSnapshot();
+    });
+  });
+});
+
+describeWithClickhouse("golden: events AI gateway family", () => {
+  beforeEach(() => resetCaptures());
+
+  // The subject column is the only SQL branch: the key id, the key owner's
+  // metadata entry, or the ingestion project.
+  it.each(["API_KEY", "USER", "ORGANIZATION"] as const)(
+    "getGatewaySpendSinceFromEvents scope=%s",
+    async (scope) => {
+      await getGatewaySpendSinceFromEvents({
+        projectId: FIXED_PROJECT_ID,
+        scope,
+        subjects: [
+          { id: "golden-subject", since: FIXED_FROM_TIMESTAMP },
+          { id: "golden-subject-b", since: FIXED_START_TIME },
+        ],
+      });
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    },
+  );
+
+  it("getGatewayApiKeysLastUsedAtFromEvents", async () => {
+    await getGatewayApiKeysLastUsedAtFromEvents({
+      projectId: FIXED_PROJECT_ID,
+      apiKeyIds: ["golden-key", "golden-key-b"],
+      since: FIXED_FROM_TIMESTAMP,
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
 });

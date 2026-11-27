@@ -1,4 +1,9 @@
-import { type ComponentProps, type ReactNode, useId } from "react";
+import {
+  type ComponentProps,
+  type ReactElement,
+  type ReactNode,
+  useId,
+} from "react";
 import {
   Controller,
   useWatch,
@@ -11,6 +16,7 @@ import { Info } from "@langfuse/icons";
 
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
@@ -171,11 +177,13 @@ function SpendBudgetSections({
         label={label}
         registerLabelTooltip={registerLabelTooltip}
       />
-      <AlertThresholdField
-        control={budget.control}
-        subject={subject}
-        disabled={budget.disabled}
-      />
+      <DisabledReasonTooltip reason={budget.disabledReason}>
+        <AlertThresholdField
+          control={budget.control}
+          subject={subject}
+          disabled={budget.disabled}
+        />
+      </DisabledReasonTooltip>
     </div>
   );
 }
@@ -214,37 +222,55 @@ function SpendBudgetControls({
             errorId={errorId}
             registerLabelTooltip={registerLabelTooltip}
           >
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="w-36 shrink-0">
-                <AmountInput
-                  id={amountId}
-                  ariaDescribedBy={describedBy}
-                  field={amountField}
-                  hasError={!!fieldState.error}
-                  disabled={disabled}
-                />
+            <DisabledReasonTooltip reason={budget.disabledReason}>
+              <div className="flex w-full flex-wrap items-center gap-3">
+                <div className="w-36 shrink-0">
+                  <AmountInput
+                    id={amountId}
+                    ariaDescribedBy={describedBy}
+                    field={amountField}
+                    hasError={!!fieldState.error}
+                    disabled={disabled}
+                  />
+                </div>
+                <div className="min-w-[min(100%,22rem)] flex-1">
+                  <Controller
+                    control={control}
+                    name="spendBudget.interval"
+                    render={({ field: intervalField }) => (
+                      <IntervalTabs
+                        ariaLabel="Resets"
+                        ariaDescribedBy={descriptionId}
+                        value={intervalField.value}
+                        disabled={disabled}
+                        layout="full"
+                        onSelect={intervalField.onChange}
+                      />
+                    )}
+                  />
+                </div>
               </div>
-              <div className="min-w-[min(100%,22rem)] flex-1">
-                <Controller
-                  control={control}
-                  name="spendBudget.interval"
-                  render={({ field: intervalField }) => (
-                    <IntervalTabs
-                      ariaLabel="Resets"
-                      ariaDescribedBy={descriptionId}
-                      value={intervalField.value}
-                      disabled={disabled}
-                      layout="full"
-                      onSelect={intervalField.onChange}
-                    />
-                  )}
-                />
-              </div>
-            </div>
+            </DisabledReasonTooltip>
           </BudgetFieldSection>
         );
       }}
     />
+  );
+}
+
+/** Disabled inputs take no pointer, so the reason shows on hovering a layer over them; the label's info stays reachable. */
+function DisabledReasonTooltip({
+  reason,
+  children,
+}: {
+  reason: string | undefined;
+  children: ReactElement;
+}) {
+  if (reason === undefined) return children;
+  return (
+    <DisabledActionTooltip label={reason} isFullWidth>
+      {children}
+    </DisabledActionTooltip>
   );
 }
 
@@ -527,6 +553,7 @@ function useSpendBudget<T extends GatewaySpendBudgetFormValues>(
   return {
     control,
     description,
+    disabledReason,
     disabled: disabledReason !== undefined,
   };
 }

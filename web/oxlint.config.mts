@@ -1,6 +1,114 @@
 import baseConfig from "@repo/oxlint-config/next";
 import { globSync } from "node:fs";
 import { defineConfig } from "oxlint";
+
+// Component privacy. A PascalCase directory is a component (`Foo/`). Folders
+// named fns, hooks, utils, types, constants, contexts, stores, or lib under it
+// are private. A file placed directly in `components/` is private too. A
+// PascalCase directory under `components/` is a child component: the element
+// pattern `[A-Z]*{,/components}` treats that folder as part of the name and
+// the element path stops at the PascalCase segment, so `Foo` is `Bar`'s parent.
+//
+// `Foo/Foo.tsx -> Foo/hooks/useX.ts` is child, allowed.
+// `Foo/hooks/useX.ts -> Foo/fns/format.ts` is sibling, allowed.
+// `Foo/components/Bar/Bar.tsx -> Foo/hooks/useX.ts` is sibling, allowed.
+// `Foo/Bar/hooks/useY.ts -> Foo/Baz/Baz.tsx` is uncle, allowed.
+// `Foo/components/Bar/components/Qux/Qux.tsx -> Foo/hooks/useX.ts` is uncle, allowed.
+// `Foo/hooks/useX.ts -> Foo/components/helper.ts` is parent, allowed.
+// `Foo/Foo.tsx -> Foo/components/Bar/Bar.tsx` is child, allowed.
+// `Foo/Foo.tsx -> Foo/components/Bar/components/helper.ts` is the child element
+// but the file is private to `Bar`, so it stays an error.
+// `Other/Other.tsx -> Foo/hooks/useX.ts` is an error.
+// `Other/Other.tsx -> Foo/components/Bar/Bar.tsx` is an error.
+// `Other/Other.tsx -> Foo/components/helper.ts` is an error.
+// `Foo/Foo.tsx -> Foo/components/Bar/hooks/useY.ts` is descendant, an error.
+//
+// Extend `componentPrivacyRoots` to cover more of the app. Policies are
+// target-scoped, plus one importer-scoped policy: dropping that second policy
+// leaves `TraceSessionNavigation.clienttest.tsx` importing
+// `ObservabilityEntityDetailHeader/fns/createPeekHeaderActions` unflagged.
+// No other current import depends on it.
+const componentPrivacyRoots = [
+  "src/features/traces",
+  "src/features/sessions",
+  "src/components/ui",
+  "src/components/design-system",
+];
+
+const componentPrivacyPathPatterns = componentPrivacyRoots.map(
+  (root) => `${root}/**`,
+);
+
+const componentPrivacyMessage =
+  "Component internals are private. Import that component's entry file, or move the shared code to the nearest common ancestor.";
+
+const componentPrivacyPolicies = [
+  {
+    disallow: {
+      to: [
+        {
+          element: {
+            parent: { type: "component" },
+            path: componentPrivacyPathPatterns,
+          },
+        },
+        {
+          file: {
+            categories: "component-loose-private",
+            path: componentPrivacyPathPatterns,
+          },
+        },
+      ],
+    },
+    message: componentPrivacyMessage,
+  },
+  {
+    from: { file: { path: componentPrivacyPathPatterns } },
+    disallow: {
+      to: [
+        { element: { parent: { type: "component" } } },
+        { file: { categories: "component-loose-private" } },
+      ],
+    },
+    message: componentPrivacyMessage,
+  },
+  {
+    // A later policy wins, so this re-allows what the privacy policies blocked.
+    // It also matches a parent importing a child element. Loose files live on
+    // that element, so the policies below close them again. A part inside the
+    // owner is `parent` and is re-opened last.
+    allow: {
+      dependency: {
+        relationship: { to: ["child", "sibling", "uncle", "parent"] },
+      },
+    },
+  },
+  {
+    disallow: {
+      to: {
+        file: {
+          categories: "component-loose-private",
+          path: componentPrivacyPathPatterns,
+        },
+      },
+    },
+    message: componentPrivacyMessage,
+  },
+  {
+    from: { file: { path: componentPrivacyPathPatterns } },
+    disallow: {
+      to: { file: { categories: "component-loose-private" } },
+    },
+    message: componentPrivacyMessage,
+  },
+  {
+    allow: {
+      to: { file: { categories: "component-loose-private" } },
+      dependency: { relationship: { to: "parent" } },
+    },
+  },
+];
+
 export default defineConfig({
   ...baseConfig,
   ignorePatterns: [
@@ -28,10 +136,47 @@ export default defineConfig({
       { category: "design-system", pattern: "src/components/design-system/**" },
       { category: "app-component", pattern: "src/components/**" },
       { category: "feature", pattern: "src/features/**" },
+      {
+        category: "component-loose-private",
+        pattern: "**/[A-Z]*/components/*.{ts,tsx,js,jsx}",
+      },
+    ],
+    "boundaries/elements": [
+      { type: "component", pattern: "[A-Z]*{,/components}" },
+      {
+        type: "component-private",
+        pattern: "{fns,hooks,utils,types,constants,contexts,stores,lib}",
+      },
     ],
   },
   overrides: [
     ...baseConfig.overrides,
+    {
+      files: ["**/fns/**/*"],
+      excludeFiles: [
+        "**/*.{test,spec,clienttest,servertest,stories,story}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+        "**/{__tests__,__mocks__,tests,test,__stories__,stories}/**",
+      ],
+      jsPlugins: ["@repo/eslint-plugin"],
+      rules: {
+        "@repo/export-rules": [
+          "error",
+          {
+            allow: [
+              { kind: "function", max: 1, name: ["matchesFilename"] },
+              "type",
+            ],
+          },
+        ],
+      },
+    },
+    {
+      files: [
+        "**/fns/**/*.{test,spec,clienttest,servertest,stories,story}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+        "**/fns/**/{__tests__,__mocks__,tests,test,__stories__,stories}/**",
+      ],
+      rules: { "@repo/export-rules": "off" },
+    },
     {
       files: [
         "**/*.clienttest.ts",
@@ -258,6 +403,26 @@ export default defineConfig({
     {
       files: ["src/components/design-system/**/*.{ts,tsx}"],
       excludeFiles: [
+        "src/components/design-system/internal/**",
+        "src/components/design-system/SearchInput/**",
+        "src/components/design-system/**/*.stories.{ts,tsx}",
+        "src/components/design-system/**/*.clienttest.{ts,tsx}",
+        "src/components/design-system/**/*.{test,spec}.{ts,tsx}",
+      ],
+      jsPlugins: ["@repo/eslint-plugin"],
+      rules: {
+        "@repo/no-node-slot-props": [
+          "error",
+          {
+            // loadingCell is the per-column placeholder Table shows while that column's data is loading (a Skeleton, or a column-specific loading cell).
+            allowedPropNames: ["children", "loadingCell"],
+          },
+        ],
+      },
+    },
+    {
+      files: ["src/components/design-system/**/*.{ts,tsx}"],
+      excludeFiles: [
         "src/components/design-system/charts/**",
         "src/components/design-system/factories/**",
         "src/components/design-system/internal/**",
@@ -319,10 +484,7 @@ export default defineConfig({
       env: {
         browser: true,
       },
-      jsPlugins: [
-        "eslint-plugin-react-you-might-not-need-an-effect",
-        "eslint-plugin-boundaries",
-      ],
+      jsPlugins: ["eslint-plugin-react-you-might-not-need-an-effect"],
       rules: {
         "react-you-might-not-need-an-effect/no-derived-state": "warn",
         "react-you-might-not-need-an-effect/no-chain-state-updates": "warn",
@@ -337,8 +499,31 @@ export default defineConfig({
         "react-you-might-not-need-an-effect/no-external-store-subscription":
           "warn",
         "react-you-might-not-need-an-effect/no-initialize-state": "warn",
+      },
+    },
+    {
+      files: ["src/**/*.{ts,tsx,js,jsx}"],
+      jsPlugins: ["eslint-plugin-boundaries"],
+      rules: {
         "boundaries/dependencies": [
-          "warn",
+          "error",
+          {
+            default: "allow",
+            policies: componentPrivacyPolicies,
+          },
+        ],
+      },
+    },
+    {
+      // Oxlint replaces rule options per override, so this block repeats the
+      // privacy policies. The import ban stays on non-story design-system files.
+      // Stories are excluded here and still get privacy from the override above.
+      files: ["src/components/design-system/**/*.{ts,tsx}"],
+      excludeFiles: ["src/components/design-system/**/*.stories.tsx"],
+      jsPlugins: ["eslint-plugin-boundaries"],
+      rules: {
+        "boundaries/dependencies": [
+          "error",
           {
             default: "allow",
             policies: [
@@ -361,6 +546,7 @@ export default defineConfig({
                 message:
                   "Design-system files must not import from the outer `src/components` tree or from `src/features`.",
               },
+              ...componentPrivacyPolicies,
             ],
           },
         ],

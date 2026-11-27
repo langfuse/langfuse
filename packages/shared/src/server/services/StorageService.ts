@@ -1,3 +1,4 @@
+/* oxlint-disable unicorn/throw-new-error -- baseline before rule enablement */
 import { readFileSync } from "node:fs";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
@@ -600,7 +601,9 @@ class AzureBlobStorageService implements StorageService {
           blobHTTPHeaders: { blobContentType: fileType },
         });
       } else {
-        throw new Error("Unsupported data type. Must be Readable or string.");
+        throw new TypeError(
+          "Unsupported data type. Must be Readable or string.",
+        );
       }
 
       return;
@@ -1005,8 +1008,10 @@ class S3StorageService implements StorageService {
     err: unknown,
     fields?: Record<string, unknown>,
   ): void {
+    // A caller-initiated cancellation (AbortError) is not a client failure.
     const log =
-      this.logSlowDownAsWarning && isS3SlowDownError(err)
+      (this.logSlowDownAsWarning && isS3SlowDownError(err)) ||
+      (err instanceof Error && err.name === "AbortError")
         ? logger.warn
         : logger.error;
     if (fields) {

@@ -241,6 +241,33 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(JSON.stringify(response.body)).toContain("parseIoAsJson");
     });
 
+    it.each([
+      [
+        "positionInTrace",
+        {
+          column: "positionInTrace",
+          type: "positionInTrace",
+          operator: "=",
+          key: "root",
+        },
+      ],
+      [
+        "ill-typed",
+        {
+          column: "parentObservationId",
+          type: "number",
+          operator: ">",
+          value: 1,
+        },
+      ],
+    ])("returns 400 for a %s advanced filter", async (_name, filter) => {
+      const response = await getRaw(
+        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(JSON.stringify([filter]))}`,
+      );
+
+      expect(response.status).toBe(400);
+    });
+
     it("returns core and basic fields when fields is omitted", async () => {
       const traceId = randomUUID();
       const observationId = randomUUID();
@@ -910,6 +937,63 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(matchedObs?.name).toBe("nested-metadata-obs-1");
     });
 
+    it("filters metadata by numeric comparison with numberObject", async () => {
+      const traceId = randomUUID();
+      const timeValue = Date.now() * 1000;
+      const attempts = { "20": randomUUID(), "20.0": randomUUID() };
+      const belowId = randomUUID();
+      const nonNumericId = randomUUID();
+      const event = (id: string, attempt: string, offset: number) =>
+        createEvent({
+          id,
+          span_id: id,
+          trace_id: traceId,
+          project_id: projectId,
+          name: `attempt-${attempt}`,
+          type: "SPAN",
+          level: "DEFAULT",
+          start_time: timeValue + offset * 1000,
+          metadata_names: ["attempt"],
+          metadata_values: [attempt],
+        });
+
+      await createEventsCh([
+        event(attempts["20"], "20", 0),
+        event(attempts["20.0"], "20.0", 1),
+        event(belowId, "3", 2),
+        event(nonNumericId, "many", 3),
+      ]);
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
+            params: { projectId, traceId },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(4);
+        },
+        5000,
+        10,
+      );
+
+      const filterParam = JSON.stringify([
+        {
+          type: "numberObject",
+          column: "metadata",
+          key: "attempt",
+          operator: ">",
+          value: 10,
+        },
+      ]);
+      const response = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&filter=${encodeURIComponent(filterParam)}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.map((obs) => obs.id).sort()).toEqual(
+        Object.values(attempts).sort(),
+      );
+    });
+
     it("supports indexed literal matches filters for IO and metadata", async () => {
       const traceId = randomUUID();
       const timestamp = new Date();
@@ -1340,9 +1424,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
     ] as const;
 
     // All non-core fields across all groups — used to assert absence.
-    // Note: latency is computed from start_time/end_time (both in core). timeToFirstToken is computed from start_time
-    // and completion_start_time, but the converter spreads it when EITHER is defined; since start_time is in core and
-    // always selected, timeToFirstToken is always present (as null when completion_start_time is not selected).
     const ALL_NON_CORE_FIELDS = [
       // basic
       "name",
@@ -1378,6 +1459,9 @@ describe("/api/public/v2/observations API Endpoint", () => {
       "promptId",
       "promptName",
       "promptVersion",
+      // metrics
+      "latency",
+      "timeToFirstToken",
       // trace_context
       "traceName",
       "tags",
@@ -1482,9 +1566,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
         "usagePricingTierName",
       ],
       prompt: ["promptId", "promptName", "promptVersion"],
-      // latency and timeToFirstToken are always returned (computed from core start_time, completion_start_time,
-      // end_time), but the metrics group is still defined for documentation and to verify these fields are indeed
-      // present
       metrics: ["latency", "timeToFirstToken"],
       trace_context: ["traceName", "tags", "release"],
     };

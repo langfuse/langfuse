@@ -17,9 +17,12 @@ import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/
 import { resolveGatewayJwtKeys } from "@/src/features/ai-gateway/server/auth/gatewayJwtKeys";
 import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "@/src/features/ai-gateway/server/auth/ingestionTokenVerifier";
 import { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
+import { decodeBedrockApiKey } from "@/src/features/ai-gateway/server/provider/bedrock";
 import {
   type GatewayApiFormat,
+  type GatewayCachedGuardrails,
   type GatewayProviderId,
+  type GatewayResolveGuardrails,
   type GatewayResolveResponse,
   getGatewayUpstream,
   getGatewayUpstreamSecret,
@@ -186,6 +189,10 @@ export class GatewayResolveService {
               })
             : null,
         spend_limits: spendLimits,
+        ...decryptResolvedGuardrails(
+          context.guardrails,
+          context.organizationId,
+        ),
         pricing,
       };
     });
@@ -258,4 +265,106 @@ function getIngestionMode(context: GatewayApiKeyAuthContext) {
 // NONE mode records no spend, so it enforces no limits.
 function getEnforcedSpendLimits(context: GatewayApiKeyAuthContext) {
   return getIngestionMode(context) === "NONE" ? [] : context.spendLimits;
+}
+
+function toInputWireScope(
+  scope: GatewayCachedGuardrails[number]["scope"],
+): "last_turn" | "entire_input" | null {
+  switch (scope ?? "last_turn") {
+    case "last_turn":
+    case "last_turn_and_output":
+      return "last_turn";
+    case "entire_input":
+    case "entire_input_and_output":
+      return "entire_input";
+    case "output":
+      return null;
+  }
+}
+
+function cachedScopeChecksOutput(
+  scope: GatewayCachedGuardrails[number]["scope"],
+): boolean {
+  return (
+    scope === "output" ||
+    scope === "last_turn_and_output" ||
+    scope === "entire_input_and_output"
+  );
+}
+
+function decryptResolvedGuardrails(
+  cached: GatewayCachedGuardrails,
+  organizationId: string,
+): {
+  guardrails: GatewayResolveGuardrails;
+  response_guardrails: GatewayResolveGuardrails;
+} {
+  const guardrails: GatewayResolveGuardrails = [];
+  const response_guardrails: GatewayResolveGuardrails = [];
+  for (const guardrail of cached) {
+    const resolved = decryptResolvedGuardrail(guardrail, organizationId);
+    const inputScope = toInputWireScope(guardrail.scope);
+    if (inputScope !== null) {
+      guardrails.push({ ...resolved, scope: inputScope });
+    }
+    if (cachedScopeChecksOutput(guardrail.scope)) {
+      response_guardrails.push(resolved);
+    }
+  }
+  return { guardrails, response_guardrails };
+}
+
+function decryptResolvedGuardrail(
+  guardrail: GatewayCachedGuardrails[number],
+  organizationId: string,
+): GatewayResolveGuardrails[number] {
+  if (guardrail.type === "regex") {
+    const { scope: _, ...wire } = guardrail;
+    return wire;
+  }
+  if (guardrail.type === "fail_closed") {
+    const { scope: _, ...wire } = guardrail;
+    return wire;
+  }
+  try {
+    if (guardrail.type === "openai_moderation") {
+      return {
+        id: guardrail.id,
+        name: guardrail.name,
+        type: "openai_moderation" as const,
+        action: guardrail.action,
+        patterns: [] as [],
+        region: guardrail.region,
+        api_key: decrypt(guardrail.encrypted_credential),
+      };
+    }
+    const apiKey = decodeBedrockApiKey(decrypt(guardrail.encrypted_credential));
+    return {
+      id: guardrail.id,
+      name: guardrail.name,
+      type: "bedrock" as const,
+      action: guardrail.action,
+      patterns: [] as [],
+      guardrail_id: guardrail.guardrail_id,
+      guardrail_version: guardrail.guardrail_version,
+      region: guardrail.region,
+      api_key: apiKey,
+    };
+  } catch (error) {
+    logger.error(
+      "External guardrail credential could not be decrypted; failing closed",
+      {
+        guardrailId: guardrail.id,
+        organizationId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
+    return {
+      id: guardrail.id,
+      name: guardrail.name,
+      type: "fail_closed" as const,
+      action: guardrail.action,
+      patterns: [] as [],
+    };
+  }
 }

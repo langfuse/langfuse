@@ -8,8 +8,6 @@
  *    pass consults (`typecheck.ts`).
  *  - `TABLE_BIND_TYPES` — the ClickHouse bind types the compiler uses when a
  *    value is compared to a known column (`compiler.ts`).
- *  - `TENANTED_TABLES` — the relations the tenancy pass must scope
- *    (`tenancy.ts`).
  *  - `DEDUP_SPECS` — the per-table read idiom the lowering pass applies
  *    (`dedup.ts`). Each table names an existing production mechanism; the
  *    pass does not invent a new one.
@@ -18,6 +16,13 @@
  *
  * Column sets cover the relations the compiler targets, not a full schema
  * dump. Partition / sort keys stay unmodeled until a pass needs them.
+ *
+ * Every physical column of a registered table is either declared here or
+ * listed in {@link UNMODELED_COLUMNS}. `query-ast-registry-ddl.servertest.ts`
+ * checks both directions against the migrated ClickHouse schema: a declared
+ * column must exist with its declared type, and a column a migration adds
+ * fails until it is modeled or listed. The failure prints the `defineTable`
+ * line to paste for each new column.
  */
 
 /**
@@ -30,9 +35,11 @@ export type ChColumnType =
   | "Float64"
   | "Decimal(18,12)"
   | "DateTime64(3)"
+  | "DateTime64(3, 'UTC')"
   | "DateTime64(6)"
   | "UInt8"
   | "UInt16"
+  | "UInt32"
   | "UInt64"
   | "Bool"
   | "Nullable(UInt16)"
@@ -65,13 +72,16 @@ type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
     ? string | null
     : T extends "Float64" | "Decimal(18,12)"
       ? number
-      : T extends "UInt8" | "UInt16" | "UInt64"
+      : T extends "UInt8" | "UInt16" | "UInt32" | "UInt64"
         ? number
         : T extends "Bool"
           ? boolean
           : T extends "Nullable(UInt16)"
             ? number | null
-            : T extends "DateTime64(3)" | "DateTime64(6)"
+            : T extends
+                  | "DateTime64(3)"
+                  | "DateTime64(3, 'UTC')"
+                  | "DateTime64(6)"
               ? Date
               : T extends "Nullable(DateTime64(6))"
                 ? Date | null
@@ -99,11 +109,13 @@ const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
   "Decimal(18,12)": "number",
   UInt8: "number",
   UInt16: "number",
+  UInt32: "number",
   UInt64: "number",
   // ClickHouse stores Bool as UInt8, so numeric aggregates accept it.
   Bool: "number",
   "Nullable(UInt16)": "number",
   "DateTime64(3)": "date",
+  "DateTime64(3, 'UTC')": "date",
   "DateTime64(6)": "date",
   "Nullable(DateTime64(6))": "date",
   "Array(String)": "array",
@@ -137,13 +149,6 @@ export type DedupSpec =
 function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
   columns: Cols;
   /**
-   * Whether the tenancy pass must inject a `project_id` scope. Defaults to
-   * `true`: every relation modeled here is project-gated, and defaulting on is
-   * fail-closed — a table added without this flag is still scoped. Set `false`
-   * only for a genuinely global relation.
-   */
-  tenant?: boolean;
-  /**
    * Existing read-time collapse for this table. Omit until the family is
    * migrated; `none` is an explicit "do not collapse" (immutable rows).
    */
@@ -151,7 +156,6 @@ function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
 }) {
   return {
     columns: spec.columns,
-    tenant: spec.tenant ?? true,
     dedup: spec.dedup,
   };
 }
@@ -349,6 +353,75 @@ const TABLE_REGISTRY = {
       execution_trace_id: "Nullable(String)",
       is_deleted: "UInt8",
       metadata: "Map(String, String)",
+      evaluator_id: "String",
+      evaluation_rule_id: "String",
+    },
+  }),
+  // No dedup: definition reads take `LIMIT 1 BY project_id, id`; the naming
+  // cost sum reads every row.
+  topics: defineTable({
+    columns: {
+      project_id: "String",
+      id: "String",
+      stable_id: "String",
+      created_by_run_id: "String",
+      created_at: "DateTime64(3, 'UTC')",
+      name: "String",
+      description: "String",
+      radius: "Float64",
+      labels: "Array(String)",
+      cost_details: "Map(String, Decimal(18,12))",
+    },
+  }),
+  // No dedup: the latest-summary key spans facet versions and is computed
+  // from trace_id or session_id; cost sums and counts read every row.
+  topic_facet_summaries: defineTable({
+    columns: {
+      project_id: "String",
+      facet_id: "String",
+      facet_version: "UInt32",
+      trace_id: "String",
+      session_id: "String",
+      unit_hash: "UInt64",
+      unit_type: "String",
+      rule_ids: "Array(String)",
+      environment: "String",
+      trace_name: "String",
+      unit_start_time: "DateTime64(3, 'UTC')",
+      trigger_type: "String",
+      execution_id: "String",
+      summary: "String",
+      transcript_id: "String",
+      transcript_version: "String",
+      transcript_bytes: "UInt32",
+      summary_model: "String",
+      embedding_model: "String",
+      provided_usage_details: "Map(String, UInt64)",
+      usage_details: "Map(String, UInt64)",
+      provided_cost_details: "Map(String, Decimal(18,12))",
+      cost_details: "Map(String, Decimal(18,12))",
+      total_cost: "Decimal(18,12)",
+      created_at: "DateTime64(3, 'UTC')",
+    },
+  }),
+  // No dedup: each read keys the latest row differently (per source, per
+  // run and trace), never by the engine key, which includes origin.
+  topic_assignments: defineTable({
+    columns: {
+      project_id: "String",
+      facet_id: "String",
+      rule_id: "String",
+      clustering_run_id: "String",
+      facet_version: "UInt32",
+      trace_id: "String",
+      session_id: "String",
+      environment: "String",
+      trace_name: "String",
+      unit_start_time: "DateTime64(3, 'UTC')",
+      summary_processed_at: "DateTime64(3, 'UTC')",
+      topic_stable_id: "String",
+      topic_id: "String",
+      created_at: "DateTime64(3, 'UTC')",
     },
   }),
 } as const;
@@ -395,6 +468,97 @@ export const TABLE_COLUMN_TYPES: Record<
 );
 
 /**
+ * Physical columns of each registry table that are deliberately not
+ * queryable through the AST. A column moves out of this list into the
+ * table's `defineTable` columns when a query needs it. Keyed by every
+ * physical registry table, so registering a table forces a decision for its
+ * columns; the servertest fails on an entry that is also modeled or missing
+ * from ClickHouse.
+ */
+export const UNMODELED_COLUMNS: Record<
+  Exclude<keyof typeof TABLE_REGISTRY, "events" | "events_truncated">,
+  readonly string[]
+> = {
+  traces: [
+    "name",
+    "user_id",
+    "metadata",
+    "release",
+    "version",
+    "public",
+    "bookmarked",
+    "tags",
+    "input",
+    "output",
+    "session_id",
+    "created_at",
+    "updated_at",
+    "event_ts",
+    "is_deleted",
+  ],
+  observations: [
+    "id",
+    "type",
+    "parent_observation_id",
+    "end_time",
+    "name",
+    "metadata",
+    "level",
+    "status_message",
+    "version",
+    "input",
+    "output",
+    "provided_model_name",
+    "internal_model_id",
+    "model_parameters",
+    "provided_usage_details",
+    "provided_cost_details",
+    "total_cost",
+    "completion_start_time",
+    "prompt_id",
+    "prompt_name",
+    "prompt_version",
+    "created_at",
+    "updated_at",
+    "event_ts",
+    "is_deleted",
+    "usage_pricing_tier_id",
+    "usage_pricing_tier_name",
+    "tool_definitions",
+    "tool_calls",
+    "tool_call_names",
+  ],
+  events_core: [],
+  events_full: [],
+  scores: [
+    "long_string_value",
+    "ingestion_api_key",
+    "ingestion_sdk_name",
+    "ingestion_sdk_version",
+  ],
+  // Column types the registry has no `ChColumnType` for (Enum8, float
+  // arrays, `Nullable(Float32)`, tuple arrays), `metadata` (a String here
+  // and a Map on scores, sharing one `COLUMN_DATA_TYPES` entry), and
+  // columns no Topics read selects.
+  topics: ["centroid", "representative_summaries", "metadata"],
+  topic_facet_summaries: [
+    "processing_state",
+    "embedding",
+    "calculated_input_cost",
+    "calculated_output_cost",
+    "calculated_total_cost",
+    "metadata",
+  ],
+  topic_assignments: [
+    "unit_hash",
+    "distance",
+    "runner_up_distance",
+    "origin",
+    "coordinates",
+  ],
+};
+
+/**
  * Derived coarse runtime column-type map (column name -> category), consumed by
  * the aggregate type-check pass. Column names are consistent across tables in
  * this schema, so a flat map is unambiguous.
@@ -411,13 +575,6 @@ export const COLUMN_DATA_TYPES: Record<string, ColumnDataType> = lookupTable(
 /** Every registry relation name, the logical events relations included. */
 export const REGISTRY_TABLES: ReadonlySet<string> = new Set(
   Object.keys(TABLE_REGISTRY),
-);
-
-/** Derived set of relations the tenancy pass must scope. */
-export const TENANTED_TABLES = new Set<string>(
-  Object.entries(TABLE_REGISTRY)
-    .filter(([, spec]) => spec.tenant)
-    .map(([name]) => name),
 );
 
 /** Derived per-table read idioms, keyed by table name. */
@@ -438,12 +595,16 @@ const BIND_TYPE: Record<ChColumnType, string> = {
   "Decimal(18,12)": "Decimal(18, 12)",
   UInt8: "UInt8",
   UInt16: "UInt16",
+  UInt32: "UInt32",
   UInt64: "UInt64",
   Bool: "Bool",
   // A bound value is never NULL; NULL checks compile to `IS NULL`.
   "Nullable(String)": "String",
   "Nullable(UInt16)": "UInt16",
   "DateTime64(3)": "DateTime64(3)",
+  // Binds with the zone, so the UTC string of a `Date` parses as UTC on any
+  // server timezone.
+  "DateTime64(3, 'UTC')": "DateTime64(3, 'UTC')",
   "DateTime64(6)": "DateTime64(6)",
   "Nullable(DateTime64(6))": "DateTime64(6)",
   "Array(String)": "Array(String)",

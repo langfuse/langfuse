@@ -336,8 +336,9 @@ export const env = createEnv({
     CLICKHOUSE_URL: z.url(),
     CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
     CLICKHOUSE_DB: z.string().default("default"),
-    CLICKHOUSE_USER: z.string(),
-    CLICKHOUSE_PASSWORD: z.string(),
+    // Required unless CLICKHOUSE_AUTH_MODE is jwt; validated in the shared env.
+    CLICKHOUSE_USER: z.string().optional(),
+    CLICKHOUSE_PASSWORD: z.string().optional(),
     CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
 
     // EE ui customization
@@ -357,6 +358,9 @@ export const env = createEnv({
     // web/src/ee/features/ui-customization/instanceLinks.ts so a bad value
     // disables the instance switcher instead of failing the deployment.
     LANGFUSE_UI_INSTANCE_LINKS: z.string().optional(),
+    // Forces public sharing of traces and sessions off for every organization.
+    // Only takes effect with the self-host-ui-customization entitlement.
+    LANGFUSE_DISABLE_PUBLIC_SHARING: z.enum(["true", "false"]).optional(),
 
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
@@ -373,6 +377,11 @@ export const env = createEnv({
     // "clickhouse.conductor.one"; ENTITLEMENT_ID is this region's entitlement.
     LANGFUSE_CONDUCTORONE_ISSUER: z.string().min(1).optional(),
     LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID: z.string().min(1).optional(),
+    // Comma-separated organization IDs that support access is never granted for.
+    LANGFUSE_SUPPORT_ACCESS_DENIED_ORG_IDS: z
+      .string()
+      .default("")
+      .transform((s) => s.split(",").map((id) => id.trim())),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY: z.string().min(1).optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: z.string().min(1).optional(),
     // Whether an AI gateway is deployed next to Web. Unset, it is deployed once
@@ -517,6 +526,37 @@ export const env = createEnv({
 
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
+    // Coupon codes that start a self-serve enterprise trial on
+    // /organization/<orgId>/enterprise-trial (Langfuse Cloud only), as a JSON
+    // object from code to trial length in days, e.g.
+    // {"CODE-FOR-SHORT-TRIALS":14,"CODE-FOR-LONG-TRIALS":60}. Unset disables
+    // redemption. Attempts share the per-org coupon rate limit; use random
+    // codes all the same, since one code works for any number of orgs.
+    LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES: z
+      .string()
+      .optional()
+      .transform((value, ctx) => {
+        if (value == null || value.trim() === "") return [];
+        try {
+          const coupons = z
+            .record(
+              z.string().regex(/^\S{16,}$/),
+              z.number().int().min(1).max(365),
+            )
+            .parse(JSON.parse(value));
+          return Object.entries(coupons).map(([code, durationDays]) => ({
+            code,
+            durationDays,
+          }));
+        } catch {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES must be a JSON object mapping coupon codes of at least 16 characters without spaces to trial lengths of 1 to 365 days",
+          });
+          return z.NEVER;
+        }
+      }),
     // ClickHouse Billing (CHB) integration. First-time upgrades on/after this
     // UTC date route to CHB; unset = feature off. Date-only (YYYY-MM-DD) so the
     // cutline is a single unambiguous instant of UTC midnight, which is what
@@ -837,7 +877,8 @@ export const env = createEnv({
     // so the background-migrations status endpoint can tell dormant, env-gated
     // rows apart from migrations the worker will actually pick up. The worker
     // owns execution; the web only reads these to decide whether the sidebar
-    // migration indicator should light up.
+    // migration indicator should light up and which rows the background
+    // migrations table shows as dormant.
     LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL: z
       .enum(["true", "false"])
       .default("true"),
@@ -1258,6 +1299,8 @@ export const env = createEnv({
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE:
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_AZURE,
     LANGFUSE_UI_INSTANCE_LINKS: process.env.LANGFUSE_UI_INSTANCE_LINKS,
+    LANGFUSE_DISABLE_PUBLIC_SHARING:
+      process.env.LANGFUSE_DISABLE_PUBLIC_SHARING,
     LANGFUSE_UI_VISIBLE_PRODUCT_MODULES:
       process.env.LANGFUSE_UI_VISIBLE_PRODUCT_MODULES,
     LANGFUSE_UI_HIDDEN_PRODUCT_MODULES:
@@ -1272,6 +1315,8 @@ export const env = createEnv({
     LANGFUSE_CONDUCTORONE_ISSUER: process.env.LANGFUSE_CONDUCTORONE_ISSUER,
     LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID:
       process.env.LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID,
+    LANGFUSE_SUPPORT_ACCESS_DENIED_ORG_IDS:
+      process.env.LANGFUSE_SUPPORT_ACCESS_DENIED_ORG_IDS,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY:
       process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS:
@@ -1310,6 +1355,8 @@ export const env = createEnv({
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
+    LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES:
+      process.env.LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES,
     LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE:
       process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
     LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS:

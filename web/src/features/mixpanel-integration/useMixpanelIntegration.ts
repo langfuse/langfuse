@@ -4,6 +4,7 @@ import { api } from "@/src/utils/api";
 
 // An unconfigured integration reads as inactive on the integration page; the
 // overview card hides the badge instead (see `isConfigured`).
+/** @internal */
 export function getMixpanelStatus(config: { enabled: boolean } | null): Status {
   return config?.enabled ? "active" : "inactive";
 }

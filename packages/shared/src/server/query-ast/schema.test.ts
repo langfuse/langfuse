@@ -8,7 +8,6 @@ import {
   EVENTS_CORE_TRUNCATIONS,
   TABLE_BIND_TYPES,
   DEDUP_SPECS,
-  TENANTED_TABLES,
 } from "./schema";
 
 describe("EVENTS_CORE_TRUNCATIONS", () => {
@@ -61,18 +60,6 @@ describe("EVENTS_CORE_TRUNCATIONS", () => {
 });
 
 describe("table registry derivation", () => {
-  it("derives the tenanted table set from the registry", () => {
-    expect([...TENANTED_TABLES].sort()).toEqual([
-      "events",
-      "events_core",
-      "events_full",
-      "events_truncated",
-      "observations",
-      "scores",
-      "traces",
-    ]);
-  });
-
   it("derives coarse runtime column types for the type-check pass", () => {
     expect(COLUMN_DATA_TYPES.total_cost).toBe("number");
     expect(COLUMN_DATA_TYPES.environment).toBe("string");

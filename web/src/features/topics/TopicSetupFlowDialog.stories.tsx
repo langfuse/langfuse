@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import type { FilterState } from "@langfuse/shared";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import {
@@ -11,7 +11,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { TopicSetupFlowDialog } from "./TopicSetupFlowDialog";
-import { costEstimateFixture } from "./topicCostEstimateFixture";
+import { costEstimateFixture } from "@/.storybook/fixtures/topicCostEstimateFixture";
 import { TopicCostEstimateView } from "./TopicCostEstimateView";
 import {
   TOPIC_SETUP_QUESTIONS,
@@ -42,10 +42,12 @@ const questions: TopicSetupQuestion[] = TOPIC_SETUP_QUESTIONS.map(
 function SetupStory({
   step,
   connection = "ready",
+  slotErrors,
 }: {
   step: "questions" | "traces" | "review";
   /** "none": no AI connection yet; "viewer": none, and this user cannot add one. */
   connection?: "ready" | "none" | "viewer";
+  slotErrors?: ComponentProps<typeof TopicSetupFlowDialog>["slotErrors"];
 }) {
   const [selected, setSelected] = useState(questions);
   const [filter, setFilter] = useState<FilterState>([]);
@@ -68,14 +70,14 @@ function SetupStory({
       canWrite
       costEstimate={
         <TopicCostEstimateView
+          showUsage
           estimate={costEstimateFixture()}
           samplingPercent={samplePercent}
           dailyTraces={180}
           backfillTraces={412}
-          canAddModelPrice
           onAddModelPrice={fn()}
           starting={false}
-          disabled={false}
+          facetCount={selected.filter((question) => question.enabled).length}
           error={null}
           onStart={fn()}
         />
@@ -93,6 +95,7 @@ function SetupStory({
       }}
       embeddingProviderGroups={providerGroups}
       error={null}
+      slotErrors={slotErrors}
       onAdvancedOpenChange={fn()}
       onBack={fn()}
       onClusteringChange={fn()}
@@ -183,6 +186,17 @@ export const NoConnection = meta.story({
 export const NoConnectionViewer = meta.story({
   name: "No connection, cannot add one",
   args: { step: "questions", connection: "viewer" },
+});
+
+export const ModelTestFailed = meta.story({
+  name: "Model test failed",
+  args: {
+    step: "questions",
+    slotErrors: {
+      embedding:
+        "The connection's endpoint doesn't serve this model. Choose another model or check the connection's base URL. Provider error: 404 The model `us.cohere.embed-v4:0` does not exist.",
+    },
+  },
 });
 
 export const Traces = meta.story({

@@ -2,7 +2,10 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
-import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
+import {
+  type GatewayApiFormat,
+  GatewayResolveResponseSchema,
+} from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayResolveService } from "./resolveService";
 
 const mockEnv = vi.hoisted(() => ({
@@ -30,12 +33,24 @@ vi.mock("@/src/server/utils/jwt", () => ({
 }));
 
 vi.mock("@langfuse/shared/encryption", () => ({
-  decrypt: vi.fn(() => "sk-test"),
+  decrypt: vi.fn((value: string) => {
+    if (value === "corrupt-bedrock-guardrail") {
+      throw new Error("Unsupported state or unable to authenticate data");
+    }
+    return value === "encrypted-bedrock-guardrail"
+      ? JSON.stringify({ apiKey: "bedrock-guardrail-key" })
+      : "sk-test";
+  }),
 }));
 
-const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
+const serviceWith = (
+  findFirst: () => Promise<unknown>,
+  keyOrgId = "org-1",
+  guardrails: unknown[] = [],
+) => {
   const prisma = {
     apiKey: { findFirst },
+    gatewayGuardrail: { findMany: () => Promise.resolve(guardrails) },
     roleAssignment: {
       findMany: () =>
         Promise.resolve([
@@ -162,6 +177,8 @@ describe("GatewayResolveService", () => {
         expires_at: expect.any(Number),
       },
       spend_limits: [],
+      guardrails: [],
+      response_guardrails: [],
       pricing: null,
     });
   });
@@ -382,6 +399,280 @@ describe("GatewayResolveService", () => {
     ).rejects.toMatchObject({
       status: 403,
       message: "Gateway is not enabled for this organization",
+    });
+  });
+
+  it("decrypts Bedrock guardrail API keys in the resolve response", async () => {
+    const service = serviceWith(() => Promise.resolve(row({})), "org-1", [
+      {
+        id: "gr-bedrock",
+        name: "Bedrock filter",
+        type: "BEDROCK",
+        action: "BLOCK",
+        redactionLabel: null,
+        config: {
+          guardrailId: "abc123def",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
+        encryptedCredential: "encrypted-bedrock-guardrail",
+      },
+      {
+        id: "gr-bedrock-enforce",
+        name: "Bedrock enforce",
+        type: "BEDROCK",
+        action: "ENFORCE",
+        redactionLabel: null,
+        config: {
+          guardrailId: "abc123def",
+          guardrailVersion: "2",
+          region: "us-east-1",
+        },
+        encryptedCredential: "encrypted-bedrock-guardrail",
+      },
+    ]);
+
+    await expect(
+      service.resolve({
+        fastHashedSecretKey: "hashed-secret-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toMatchObject({
+      guardrails: [
+        {
+          id: "gr-bedrock",
+          name: "Bedrock filter",
+          type: "bedrock",
+          action: "enforce",
+          patterns: [],
+          guardrail_id: "abc123def",
+          guardrail_version: "1",
+          region: "us-east-1",
+          api_key: "bedrock-guardrail-key",
+        },
+        {
+          id: "gr-bedrock-enforce",
+          name: "Bedrock enforce",
+          type: "bedrock",
+          action: "enforce",
+          patterns: [],
+          guardrail_id: "abc123def",
+          guardrail_version: "2",
+          region: "us-east-1",
+          api_key: "bedrock-guardrail-key",
+        },
+      ],
+    });
+  });
+
+  it("resolves OpenAI moderation guardrails with a decrypted key and fails closed on invalid config", async () => {
+    const service = serviceWith(() => Promise.resolve(row({})), "org-1", [
+      {
+        id: "gr-moderation",
+        name: "Moderation",
+        type: "OPENAI_MODERATION",
+        action: "ENFORCE",
+        redactionLabel: null,
+        config: { region: "eu" },
+        encryptedCredential: "encrypted-openai-key",
+      },
+      {
+        id: "gr-moderation-invalid",
+        name: "Moderation invalid",
+        type: "OPENAI_MODERATION",
+        action: "LOG",
+        redactionLabel: null,
+        config: { region: "eu.evil.example" },
+        encryptedCredential: "encrypted-openai-key",
+      },
+    ]);
+
+    const response = await service.resolve({
+      fastHashedSecretKey: "hashed-secret-key",
+      apiFormat: "openai.responses",
+    });
+    expect(response.guardrails).toEqual([
+      {
+        id: "gr-moderation",
+        name: "Moderation",
+        type: "openai_moderation",
+        action: "block",
+        scope: "last_turn",
+        patterns: [],
+        region: "eu",
+        api_key: "sk-test",
+      },
+      {
+        id: "gr-moderation-invalid",
+        name: "Moderation invalid",
+        type: "fail_closed",
+        action: "log",
+        scope: "last_turn",
+        patterns: [],
+      },
+    ]);
+  });
+
+  it("emits fail_closed when a Bedrock guardrail credential cannot be decrypted or config is invalid", async () => {
+    const service = serviceWith(() => Promise.resolve(row({})), "org-1", [
+      {
+        id: "gr-corrupt-secret",
+        name: "Corrupt secret",
+        type: "BEDROCK",
+        action: "ENFORCE",
+        config: {
+          guardrailId: "abc123def",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
+        encryptedCredential: "corrupt-bedrock-guardrail",
+      },
+      {
+        id: "gr-missing-secret",
+        name: "Missing secret",
+        type: "BEDROCK",
+        action: "BLOCK",
+        config: {
+          guardrailId: "abc123def",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
+        encryptedCredential: null,
+      },
+      {
+        id: "gr-corrupt-enforce",
+        name: "Corrupt enforce",
+        type: "BEDROCK",
+        action: "ENFORCE",
+        redactionLabel: null,
+        config: {
+          guardrailId: "abc123def",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
+        encryptedCredential: "corrupt-bedrock-guardrail",
+      },
+      {
+        id: "gr-invalid-config",
+        name: "Invalid config",
+        type: "BEDROCK",
+        action: "LOG",
+        config: { region: "not-a-region" },
+        encryptedCredential: "encrypted-bedrock-guardrail",
+      },
+    ]);
+
+    const resolved = await service.resolve({
+      fastHashedSecretKey: "hashed-secret-key",
+      apiFormat: "openai.responses",
+    });
+    expect(GatewayResolveResponseSchema.parse(resolved)).toMatchObject({
+      guardrails: [
+        {
+          id: "gr-corrupt-secret",
+          name: "Corrupt secret",
+          type: "fail_closed",
+          action: "enforce",
+          patterns: [],
+        },
+        {
+          id: "gr-missing-secret",
+          name: "Missing secret",
+          type: "fail_closed",
+          action: "enforce",
+          patterns: [],
+        },
+        {
+          id: "gr-corrupt-enforce",
+          name: "Corrupt enforce",
+          type: "fail_closed",
+          action: "enforce",
+          patterns: [],
+        },
+        {
+          id: "gr-invalid-config",
+          name: "Invalid config",
+          type: "fail_closed",
+          action: "log",
+          patterns: [],
+        },
+      ],
+      response_guardrails: [],
+    });
+  });
+
+  it("partitions input, output, and combined scopes into guardrails and response_guardrails", async () => {
+    const service = serviceWith(() => Promise.resolve(row({})), "org-1", [
+      {
+        id: "gr-regex-in",
+        name: "Block input SSN",
+        type: "REGEX",
+        action: "BLOCK",
+        scope: "LAST_TURN",
+        redactionLabel: null,
+        config: { presets: ["us_ssn"] },
+        encryptedCredential: null,
+      },
+      {
+        id: "gr-regex-out",
+        name: "Redact output email",
+        type: "REGEX",
+        action: "REDACT",
+        scope: "OUTPUT",
+        redactionLabel: "[EMAIL]",
+        config: { presets: ["email"] },
+        encryptedCredential: null,
+      },
+      {
+        id: "gr-bedrock-both",
+        name: "Bedrock both",
+        type: "BEDROCK",
+        action: "ENFORCE",
+        scope: "ENTIRE_INPUT_AND_OUTPUT",
+        redactionLabel: null,
+        config: {
+          guardrailId: "abc123def",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
+        encryptedCredential: "encrypted-bedrock-guardrail",
+      },
+    ]);
+
+    const resolved = await service.resolve({
+      fastHashedSecretKey: "hashed-secret-key",
+      apiFormat: "openai.responses",
+    });
+    expect(GatewayResolveResponseSchema.parse(resolved)).toMatchObject({
+      guardrails: [
+        {
+          id: "gr-regex-in",
+          type: "regex",
+          action: "block",
+          scope: "last_turn",
+        },
+        {
+          id: "gr-bedrock-both",
+          type: "bedrock",
+          action: "enforce",
+          scope: "entire_input",
+          guardrail_id: "abc123def",
+        },
+      ],
+      response_guardrails: [
+        {
+          id: "gr-regex-out",
+          type: "regex",
+          action: "redact",
+          redaction_label: "[EMAIL]",
+        },
+        {
+          id: "gr-bedrock-both",
+          type: "bedrock",
+          action: "enforce",
+          guardrail_id: "abc123def",
+        },
+      ],
     });
   });
 });

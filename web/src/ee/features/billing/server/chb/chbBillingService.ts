@@ -5,11 +5,9 @@ import { type OrgAuthedContext } from "@/src/server/api/trpc";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { CloudConfigSchema, parseDbOrg } from "@langfuse/shared";
 import {
+  getBillableUnitCountsByProjectAndBucket,
   getBillingCycleEnd,
   getBillingCycleStart,
-  getObservationCountsByProjectInCreationInterval,
-  getScoreCountsByProjectInCreationInterval,
-  getTraceCountsByProjectInCreationInterval,
   logger,
 } from "@langfuse/shared/src/server";
 
@@ -633,12 +631,12 @@ export class ChbBillingService {
 
   /**
    * With an attached plan, usage is counted live over CHB's own billing
-   * period, by ingestion time (`created_at`) in the trace, observation and
-   * score tables. CHB's metering reads the billable_events ledger instead,
-   * which deletes and retention never lower, so this figure can run slightly
-   * below what CHB invoices. Without an attached plan (or a period on it),
-   * usage falls back to the cached counter the hourly free-tier job maintains
-   * for the org's anchored cycle.
+   * period from the billable_events ledger that CHB's metering also reads.
+   * It is the per-day estimate the Usage tab and the free-tier job use, so it
+   * can differ slightly from what CHB invoices, which deduplicates each window
+   * against the 24 hours before it. Without an attached plan (or a period on
+   * it), usage falls back to the cached counter the hourly free-tier job
+   * maintains for the org's anchored cycle.
    */
   async getUsage(orgId: string) {
     const { org, parsedOrg } = await this.getParsedOrg(orgId);
@@ -672,9 +670,9 @@ export class ChbBillingService {
   }
 
   /**
-   * Billable units (traces + observations + scores) ingested into the org's
-   * live projects since the period start. Soft-deleted projects are left out,
-   * as they are when usage is metered.
+   * Billable units ingested into the org's live projects since the period
+   * start, summed over UTC days. Soft-deleted projects are left out, as they
+   * are when usage is metered.
    */
   private async countBillableUnits(
     orgId: string,
@@ -687,17 +685,13 @@ export class ChbBillingService {
     const end = new Date(Math.min(Date.now(), period.end.getTime()));
     if (projects.length === 0 || period.start >= end) return 0;
 
-    const interval = {
-      start: period.start,
-      end,
+    const counts = await getBillableUnitCountsByProjectAndBucket({
       projectIds: projects.map((project) => project.id),
-    };
-    const counts = await Promise.all([
-      getTraceCountsByProjectInCreationInterval(interval),
-      getObservationCountsByProjectInCreationInterval(interval),
-      getScoreCountsByProjectInCreationInterval(interval),
-    ]);
-    return counts.flat().reduce((sum, row) => sum + row.count, 0);
+      from: period.start,
+      to: end,
+      granularity: "day",
+    });
+    return counts.reduce((sum, row) => sum + row.count, 0);
   }
 
   async applyPromotionCode(

@@ -1,0 +1,40 @@
+.panel {
+  background-color: hsl(var(--muted));
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    hsl(var(--border-contrast) / 0.7) 1px,
+    transparent 0
+  );
+  background-size: 20px 20px;
+}
+
+/* Keeps the chips lighter than the panel, as in light mode. */
+:global(.dark) .panel {
+  background-color: hsl(var(--surface-sunken));
+}
+
+.chip {
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.03))
+    drop-shadow(0 4px 12px rgb(0 0 0 / 0.05));
+}
+
+/* A traffic dot is a near-zero dash on a pathLength=100 copy of a line. */
+.pulse {
+  stroke-dasharray: 0.5 100;
+  stroke-dashoffset: 100.5;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pulse {
+    opacity: 0.5;
+    animation: gateway-fan-out-traffic 4.4s cubic-bezier(0.4, 0, 0.2, 1)
+      infinite;
+  }
+}
+
+@keyframes gateway-fan-out-traffic {
+  to {
+    stroke-dashoffset: 0;
+  }
+}

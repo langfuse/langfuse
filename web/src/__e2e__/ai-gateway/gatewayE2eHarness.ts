@@ -19,10 +19,15 @@ import type {
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import type { ModelDiscoveryError } from "@/src/features/ai-gateway/server/provider/models/types";
+import type { GatewayGuardrailPreset } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { signHmacSha256 } from "@/src/server/utils/hmac";
+import {
+  AI_GATEWAY_GUARDRAIL_METADATA_PREFIX,
+  AI_GATEWAY_GUARDRAILS_OUTCOME_METADATA_KEY,
+} from "@langfuse/shared";
 import {
   GatewayConnectionStatus,
   GatewayIngestionMode,
@@ -48,6 +53,7 @@ const DEFAULT_PROJECT_ID = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const RESOLVE_PATH = "/api/internal/ai-gateway/v1/resolve";
 export const TEST_TIMEOUT_MS = 120_000;
 export const COMPLETION_TIMEOUT_MS = 180_000;
+export const POLL_INTERVAL_MS = 200;
 
 // Chat completions has no separate models route; the OpenAI route lists the
 // responses catalog.
@@ -117,6 +123,25 @@ type GatewayKeySpendLimit = Parameters<
   Admin["caller"]["aiGateway"]["createApiKey"]
 >[0]["spendLimit"];
 
+type GatewayKeyGuardrail = {
+  action: "BLOCK" | "LOG" | "REDACT";
+  scope?:
+    | "LAST_TURN"
+    | "ENTIRE_INPUT"
+    | "OUTPUT"
+    | "LAST_TURN_AND_OUTPUT"
+    | "ENTIRE_INPUT_AND_OUTPUT";
+  redactionLabel?: string;
+  presets?: GatewayGuardrailPreset[];
+  containsWords?: string[];
+};
+
+export const REDACT_REQUEST_EMAIL = "alice@example.com";
+const REDACT_REQUEST_LABEL = "[EMAIL]";
+const REDACT_RESPONSE_TOKEN = "SECRET_OUTPUT_TOKEN";
+const REDACT_RESPONSE_LABEL = "[REDACTED_OUT]";
+export const REDACT_STREAM_PROMPT = `My email is ${REDACT_REQUEST_EMAIL}. Reply ONLY with the exact token ${REDACT_RESPONSE_TOKEN} and nothing else.`;
+
 type ConnectionSpec = Omit<CreateConnectionInput, "orgId" | "name"> & {
   /** Provider model ids the suite calls. Connections whose key may not list models get them as custom models. */
   models: string[];
@@ -163,6 +188,7 @@ let gatewayConfigPrepared = false;
 let connectionSnapshots: ConnectionSnapshot[] = [];
 let createdConnectionId: string | null = null;
 const apiKeyIds = new Set<string>();
+const guardrailIds = new Set<string>();
 const originalAllowlist = [
   ...env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
 ];
@@ -295,8 +321,17 @@ export function requiredEnv(name: string) {
 
 export async function withGatewayApiKey(
   apiFormat: GatewayApiFormat,
-  run: (key: { secretKey: string; id: string }) => Promise<void>,
-  options: { spendLimit?: GatewayKeySpendLimit } = {},
+  run: (key: {
+    secretKey: string;
+    id: string;
+    /** Ids of `options.guardrails`, in order. */
+    guardrailIds: string[];
+  }) => Promise<void>,
+  options: {
+    spendLimit?: GatewayKeySpendLimit;
+    /** Assigned to the key only; there are no guardrail routes yet, so rows are written directly. */
+    guardrails?: GatewayKeyGuardrail[];
+  } = {},
 ) {
   const { provider } = suite.connection;
   const gatewayKey = await suite.admin.caller.aiGateway.createApiKey({
@@ -310,8 +345,34 @@ export async function withGatewayApiKey(
     spendLimit: options.spendLimit,
   });
   apiKeyIds.add(gatewayKey.id);
+  const keyGuardrailIds: string[] = [];
 
   try {
+    for (const guardrail of options.guardrails ?? []) {
+      const { id } = await prisma.gatewayGuardrail.create({
+        data: {
+          organizationId: ORGANIZATION_ID,
+          name: `e2e-${guardrail.action.toLowerCase()}-${randomBytes(3).toString("hex")}`,
+          action: guardrail.action,
+          scope: guardrail.scope ?? "LAST_TURN",
+          redactionLabel: guardrail.redactionLabel,
+          config: {
+            presets: guardrail.presets ?? [],
+            containsWords: guardrail.containsWords ?? [],
+          },
+          assignments: {
+            create: {
+              organizationId: ORGANIZATION_ID,
+              scope: "API_KEY",
+              apiKeyId: gatewayKey.id,
+            },
+          },
+        },
+        select: { id: true },
+      });
+      guardrailIds.add(id);
+      keyGuardrailIds.push(id);
+    }
     const listedKeys = await suite.admin.caller.aiGateway.listApiKeys({
       orgId: ORGANIZATION_ID,
     });
@@ -319,8 +380,18 @@ export async function withGatewayApiKey(
       listedKeys.data.some(({ apiKey }) => apiKey.id === gatewayKey.id),
     ).toBe(true);
 
-    await run({ secretKey: gatewayKey.secretKey, id: gatewayKey.id });
+    await run({
+      secretKey: gatewayKey.secretKey,
+      id: gatewayKey.id,
+      guardrailIds: keyGuardrailIds,
+    });
   } finally {
+    if (keyGuardrailIds.length > 0) {
+      await prisma.gatewayGuardrail.deleteMany({
+        where: { id: { in: keyGuardrailIds } },
+      });
+      keyGuardrailIds.forEach((id) => guardrailIds.delete(id));
+    }
     await suite.admin.caller.aiGateway.revokeApiKey({
       orgId: ORGANIZATION_ID,
       id: gatewayKey.id,
@@ -446,7 +517,146 @@ export async function completeAndExpectIngested(input: CompletionRequest) {
       });
     },
     90_000,
-    1_000,
+    POLL_INTERVAL_MS,
+  );
+  return { traceId: traceId!, observationId: observationId! };
+}
+
+/**
+ * Runs one streaming request with internal regex REDACT guardrails covering
+ * both the request (email preset) and the SSE response (contains word), then
+ * verifies the delivered SSE stream and ingested ClickHouse observation contain
+ * only the redacted labels and record cost + both guardrail metadata keys.
+ */
+export async function expectRedactedStreamingCompletion(input: {
+  apiFormat: GatewayApiFormat;
+  path: string;
+  body: Record<string, unknown>;
+  headers?: Record<string, string>;
+}) {
+  await withGatewayApiKey(
+    input.apiFormat,
+    async ({
+      secretKey,
+      guardrailIds: [inputGuardrailId, outputGuardrailId],
+    }) => {
+      const response = await fetch(`${suite.gatewayBaseUrl}${input.path}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          "Content-Type": "application/json",
+          ...input.headers,
+        },
+        body: JSON.stringify(input.body),
+      });
+      const text = await response.text();
+      expect(response.status, text).toBe(200);
+      expect(response.headers.get("content-type")).toMatch(
+        /text\/event-stream/i,
+      );
+      expect(text).toContain(REDACT_RESPONSE_LABEL);
+      expect(text).not.toContain(REDACT_RESPONSE_TOKEN);
+      expect(text).not.toContain(REDACT_REQUEST_EMAIL);
+
+      const traceId = response.headers.get("langfuse-trace-id");
+      const observationId = response.headers.get("langfuse-observation-id");
+      expect(traceId).toMatch(/^[0-9a-f]{32}$/);
+      expect(observationId).toMatch(/^[0-9a-f]{16}$/);
+
+      await waitForExpect(
+        async () => {
+          const observation = await getObservationByIdFromEventsTable({
+            id: observationId!,
+            projectId: suite.projectId,
+            traceId: traceId!,
+            fetchWithInputOutput: true,
+          });
+          if (!observation) {
+            throw new Error(`Observation ${observationId} was not found`);
+          }
+          expect(observation.level).toBe("WARNING");
+          expect(observation.statusMessage).toBe(
+            "Request and response matched a guardrail",
+          );
+          const inputJson = JSON.stringify(observation.input);
+          expect(inputJson).toContain(REDACT_REQUEST_LABEL);
+          expect(inputJson).not.toContain(REDACT_REQUEST_EMAIL);
+          const outputJson = JSON.stringify(observation.output);
+          expect(outputJson).toContain(REDACT_RESPONSE_LABEL);
+          expect(outputJson).not.toContain(REDACT_RESPONSE_TOKEN);
+          expect(observation.metadata).toMatchObject({
+            [AI_GATEWAY_GUARDRAILS_OUTCOME_METADATA_KEY]: "redact",
+            [`${AI_GATEWAY_GUARDRAIL_METADATA_PREFIX}${inputGuardrailId}`]:
+              "redact",
+            [`${AI_GATEWAY_GUARDRAIL_METADATA_PREFIX}${outputGuardrailId}`]:
+              "redact",
+          });
+          expect(observation.totalCost).toBeGreaterThan(0);
+        },
+        90_000,
+        POLL_INTERVAL_MS,
+      );
+    },
+    {
+      guardrails: [
+        {
+          action: "REDACT",
+          scope: "LAST_TURN_AND_OUTPUT",
+          presets: ["email"],
+          redactionLabel: REDACT_REQUEST_LABEL,
+        },
+        {
+          action: "REDACT",
+          scope: "OUTPUT",
+          containsWords: [REDACT_RESPONSE_TOKEN],
+          redactionLabel: REDACT_RESPONSE_LABEL,
+        },
+      ],
+    },
+  );
+}
+
+/**
+ * Runs one non-streaming request for input-only formats (`openai.decisions`,
+ * `openai.embeddings`) with an internal regex REDACT guardrail and verifies the
+ * ingested observation stores the redacted input and guardrail metadata.
+ */
+export async function expectRedactedRequestOnly(
+  input: Omit<CompletionRequest, "secretKey">,
+) {
+  await withGatewayApiKey(
+    input.apiFormat,
+    async ({ secretKey, guardrailIds: [inputGuardrailId] }) => {
+      const { traceId, observationId } = await completeAndExpectIngested({
+        ...input,
+        secretKey,
+      });
+      const observation = await getObservationByIdFromEventsTable({
+        id: observationId,
+        projectId: suite.projectId,
+        traceId,
+        fetchWithInputOutput: true,
+      });
+      expect(observation?.level).toBe("WARNING");
+      const inputJson = JSON.stringify(observation?.input);
+      expect(inputJson).toContain(REDACT_REQUEST_LABEL);
+      expect(inputJson).not.toContain(REDACT_REQUEST_EMAIL);
+      expect(observation?.metadata).toMatchObject({
+        [AI_GATEWAY_GUARDRAILS_OUTCOME_METADATA_KEY]: "redact",
+        [`${AI_GATEWAY_GUARDRAIL_METADATA_PREFIX}${inputGuardrailId}`]:
+          "redact",
+      });
+    },
+    {
+      guardrails: [
+        {
+          action: "REDACT",
+          scope: "LAST_TURN",
+          presets: ["email"],
+          redactionLabel: REDACT_REQUEST_LABEL,
+        },
+      ],
+    },
   );
 }
 
@@ -606,7 +816,7 @@ export async function ingestTrace(
       ]);
     },
     40_000,
-    1_000,
+    POLL_INTERVAL_MS,
   );
 
   return { traceId, observationId };
@@ -653,6 +863,11 @@ async function addProviderConnection({ models, ...spec }: ConnectionSpec) {
 }
 
 async function cleanUpTestArtifacts() {
+  if (guardrailIds.size > 0) {
+    await prisma.gatewayGuardrail.deleteMany({
+      where: { id: { in: [...guardrailIds] } },
+    });
+  }
   if (apiKeyIds.size > 0) {
     await prisma.apiKey.deleteMany({
       where: { id: { in: [...apiKeyIds] } },
@@ -1025,6 +1240,7 @@ async function startGatewayProcess() {
       LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS: `127.0.0.1:${port}`,
       LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT: "false",
       LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS: "5",
+      LANGFUSE_AI_GATEWAY_TELEMETRY_BATCH_LINGER_MS: "10",
       LANGFUSE_AI_GATEWAY_REDIS_URL: gatewayRedisUrl(),
       LANGFUSE_LOG_FORMAT: "json",
       LANGFUSE_LOG_LEVEL: "info",

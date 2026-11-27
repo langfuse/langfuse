@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { EvalTargetObject, EvalTemplateType } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  EvalTemplateType,
+  LLMAdapter,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { encrypt } from "@langfuse/shared/encryption";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   makeAPICall,
@@ -19,7 +24,7 @@ import {
   ListEvaluatorsResponse,
   LlmAsJudgeEvaluator,
 } from "@/src/features/public-api/types/evaluation/evaluators";
-import { PublicApiError } from "@/src/features/public-api/types/public-api-errors";
+import { PublicApiError } from "./public-api-errors";
 
 describe("stable evaluators public API", () => {
   it("creates evaluators", async () => {
@@ -227,6 +232,177 @@ describe("stable evaluators public API", () => {
       auth,
     );
     expect(nestedDefinition.status).toBe(400);
+  });
+
+  it("creates and manages decision-model evaluators", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+    await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider: "typesafe",
+        adapter: LLMAdapter.TypeSafe,
+        secretKey: encrypt("sk-typesafe"),
+        displaySecretKey: "...safe",
+      },
+    });
+    const questions = [
+      {
+        id: "tone",
+        type: "choice",
+        scoreName: "tone",
+        instructions: "Classify the tone of the answer",
+        criteria: [
+          { value: "friendly", description: "Warm and polite" },
+          { value: "rude" },
+        ],
+      },
+      {
+        id: "helpful",
+        type: "boolean",
+        scoreName: "helpful",
+        instructions: { goal: "Does the answer resolve the question?" },
+        criteria: {
+          true: { description: "The answer resolves the question." },
+          false: { description: { reason: "unresolved" } },
+        },
+      },
+    ];
+
+    const created = await makeZodVerifiedAPICall(
+      Evaluator,
+      "POST",
+      "/api/public/v2/evaluators",
+      {
+        name: "decision evaluator",
+        type: "decision_model",
+        questions,
+        modelConfig: { provider: "typesafe", model: "jev-1" },
+        variableMapping: [
+          { variable: "answer", source: "output" },
+          { variable: "user_id", source: "metadata", jsonPath: "$.userId" },
+        ],
+      },
+      auth,
+      201,
+    );
+    expect(created.body).toMatchObject({
+      type: "decision_model",
+      version: 1,
+      questions,
+      variables: ["answer", "user_id"],
+      variableMapping: [
+        { variable: "answer", source: "output" },
+        { variable: "user_id", source: "metadata", jsonPath: "$.userId" },
+      ],
+      modelConfig: { provider: "typesafe", model: "jev-1" },
+    });
+    const stored = await prisma.evaluatorVersion.findFirstOrThrow({
+      where: { evaluatorId: created.body.id },
+      select: { questions: true },
+    });
+    expect(stored.questions).toMatchObject([
+      { id: "tone", type: "choice", options: questions[0].criteria },
+      {
+        id: "helpful",
+        type: "noul",
+        criteria: {
+          true: "The answer resolves the question.",
+          false: { reason: "unresolved" },
+        },
+      },
+    ]);
+
+    const { auth: otherProjectAuth } = await createOrgProjectAndApiKey();
+    const crossProjectPatch = await makeAPICall(
+      "PATCH",
+      `/api/public/v2/evaluators/${created.body.id}`,
+      {
+        name: "cross-project rename",
+        type: "decision_model",
+        questions,
+        modelConfig: { provider: "typesafe", model: "jev-2" },
+        variableMapping: [{ variable: "answer", source: "output" }],
+      },
+      otherProjectAuth,
+    );
+    expect(crossProjectPatch.status).toBe(404);
+    expect(PublicApiError.parse(crossProjectPatch.body)).toMatchObject({
+      code: "resource_not_found",
+      message: "Evaluator not found",
+    });
+    await expect(
+      prisma.evaluator.findUniqueOrThrow({
+        where: { id: created.body.id },
+        select: {
+          projectId: true,
+          name: true,
+          _count: { select: { versions: true } },
+        },
+      }),
+    ).resolves.toEqual({
+      projectId,
+      name: "decision evaluator",
+      _count: { versions: 1 },
+    });
+
+    const replaced = await makeZodVerifiedAPICall(
+      Evaluator,
+      "PATCH",
+      `/api/public/v2/evaluators/${created.body.id}`,
+      {
+        type: "decision_model",
+        questions: [
+          {
+            id: "quality",
+            type: "score",
+            scoreName: "quality",
+            instructions: "Rate the answer quality",
+            criteria: [{ description: "Poor" }, { description: "Great" }],
+          },
+        ],
+        modelConfig: { provider: "typesafe", model: "jev-2" },
+        variableMapping: [{ variable: "answer", source: "output" }],
+      },
+      auth,
+    );
+    expect(replaced.body).toMatchObject({
+      version: 2,
+      questions: [
+        {
+          id: "quality",
+          type: "score",
+          criteria: [{ description: "Poor" }, { description: "Great" }],
+        },
+      ],
+      variables: ["answer"],
+      modelConfig: { provider: "typesafe", model: "jev-2" },
+    });
+
+    const listed = await makeZodVerifiedAPICall(
+      ListEvaluatorsResponse,
+      "GET",
+      "/api/public/v2/evaluators",
+      undefined,
+      auth,
+    );
+    expect(listed.body.data.map(({ id }) => id)).toContain(created.body.id);
+
+    const invalidStateKey = await makeAPICall(
+      "POST",
+      "/api/public/v2/evaluators",
+      {
+        name: "invalid state key",
+        type: "decision_model",
+        questions,
+        modelConfig: { provider: "typesafe", model: "jev-1" },
+        variableMapping: [{ variable: "user-id", source: "metadata" }],
+      },
+      auth,
+    );
+    expect(invalidStateKey.status).toBe(400);
+    expect(PublicApiError.parse(invalidStateKey.body)).toMatchObject({
+      code: "invalid_body",
+    });
   });
 
   it("gets an evaluator", async () => {

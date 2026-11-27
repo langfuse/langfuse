@@ -91,6 +91,9 @@ minimumReleaseAgeExclude:
   - "@ai-sdk/openai-compatible@3.0.90"
   - "@ai-sdk/provider-utils@5.0.79"
   - "@ai-sdk/typesafe-ai@3.0.38"
+  # CVE-2026-15195: drops the json-schema-to-typescript chain that pulls in a
+  # vulnerable @apidevtools/json-schema-ref-parser.
+  - "@mastra/mcp@2.11.0"
 # Drop exceptions for versions no longer in the lockfile during writable installs.
 minimumReleaseAgeExcludePrune: true
 # Reject recent releases whose publishing trust is weaker than earlier versions.
@@ -139,6 +142,8 @@ allowBuilds:
   ssh2: true
   vue-demi: true
 overrides:
+  # BullMQ 5.76.6 pins msgpackr 2.0.1, which lacks the streaming decoder fix.
+  "bullmq@5.76.6>msgpackr": 2.1.4
   # BullMQ instrumentation 0.9.0 requires ^0.221.0.
   # Keep it on the same instrumentation runtime as the Node SDK.
   "@appsignal/opentelemetry-instrumentation-bullmq@0.9.0>@opentelemetry/instrumentation": 0.222.0

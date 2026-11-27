@@ -2,6 +2,7 @@ import {
   OBSERVATION_FIELD_GROUPS_PUBLIC_API,
   type ObservationFieldGroupPublicApi,
 } from "../../domain/observation-field-groups";
+import type { EventsObservationPublic } from "../queries/createGenerationsQuery";
 
 /**
  * Every events row field, in canonical SELECT order. Both the raw-SQL
@@ -369,3 +370,90 @@ export const OBSERVATION_FIELD_GROUP_FIELD_NAMES = Object.fromEntries(
 ) as {
   [K in ObservationFieldGroupPublicApi]: (typeof FIELD_SETS)[K];
 };
+
+/**
+ * The field group that returns each v2 observations response key. Exhaustive
+ * over the response type, so a new observation field cannot reach the v2 API
+ * without being assigned a group. `"enrichment"` keys are always returned (see
+ * `observation-field-groups.ts`); `null` keys are never returned.
+ */
+const OBSERVATION_V2_RESPONSE_KEY_GROUP = {
+  id: "core",
+  traceId: "core",
+  startTime: "core",
+  endTime: "core",
+  projectId: "core",
+  parentObservationId: "core",
+  type: "core",
+  name: "basic",
+  level: "basic",
+  statusMessage: "basic",
+  version: "basic",
+  environment: "basic",
+  bookmarked: "basic",
+  public: "basic",
+  userId: "basic",
+  sessionId: "basic",
+  isRootObservation: "basic",
+  completionStartTime: "time",
+  createdAt: "time",
+  updatedAt: "time",
+  input: "io",
+  output: "io",
+  metadata: "metadata",
+  model: "model",
+  internalModelId: "model",
+  modelParameters: "model",
+  usageDetails: "usage",
+  costDetails: "usage",
+  providedUsageDetails: "usage",
+  providedCostDetails: "usage",
+  inputUsage: "usage",
+  outputUsage: "usage",
+  totalUsage: "usage",
+  inputCost: "usage",
+  outputCost: "usage",
+  totalCost: "usage",
+  usagePricingTierId: "usage",
+  usagePricingTierName: "usage",
+  promptId: "prompt",
+  promptName: "prompt",
+  promptVersion: "prompt",
+  latency: "metrics",
+  timeToFirstToken: "metrics",
+  traceName: "trace_context",
+  tags: "trace_context",
+  release: "trace_context",
+  modelId: "enrichment",
+  inputPrice: "enrichment",
+  outputPrice: "enrichment",
+  totalPrice: "enrichment",
+  toolDefinitions: null,
+  toolCalls: null,
+  toolCallNames: null,
+  skillsAvailable: null,
+  skillsResourceLoaded: null,
+} satisfies Record<
+  keyof EventsObservationPublic,
+  ObservationFieldGroupPublicApi | "enrichment" | null
+>;
+
+/** Keeps only the keys of `row` that belong to core, enrichment, or `groups`. */
+export function pickObservationV2Fields(
+  row: EventsObservationPublic,
+  groups: readonly ObservationFieldGroupPublicApi[],
+): EventsObservationPublic {
+  return Object.fromEntries(
+    Object.entries(row).filter(([key]) => {
+      const group: ObservationFieldGroupPublicApi | "enrichment" | null =
+        OBSERVATION_V2_RESPONSE_KEY_GROUP[
+          key as keyof typeof OBSERVATION_V2_RESPONSE_KEY_GROUP
+        ] ?? null;
+      return (
+        group === "core" ||
+        group === "enrichment" ||
+        (group !== null && groups.includes(group))
+      );
+    }),
+  ) as EventsObservationPublic;
+}

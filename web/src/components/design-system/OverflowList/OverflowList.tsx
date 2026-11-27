@@ -6,7 +6,6 @@ import {
   type HTMLAttributes,
   type ReactElement,
   type ReactNode,
-  useCallback,
   useLayoutEffect,
   useRef,
   useState,
@@ -16,7 +15,9 @@ import { flushSync } from "react-dom";
 /**
  * Renders keyed items on one line and moves items that do not fit into a
  * caller-rendered overflow control. The component owns DOM measurement and
- * remeasures when its width, item widths, or overflow-control width changes.
+ * remeasures when its width or item widths change, when the overflow control
+ * mounts, and when the overflow control's width changes. Overflow-control
+ * remasures only lower visibleCount.
  * `additionalOverflowCount` reserves the control for paginated or virtualized
  * entries that should not be mounted in the measurement row. Item and overflow
  * presentation remain entirely caller-defined. Apply `getItemProps` to each
@@ -77,6 +78,8 @@ export function OverflowList<TItem>({
     hiddenItems: readonly TItem[];
     overflowItemCount: number;
   }) => ReactNode;
+  // TODO: typed API
+  // eslint-disable-next-line @repo/no-node-slot-props -- pinned row content is still caller-rendered
   trailingContent?: ReactNode;
   spacing?: NonNullable<VariantProps<typeof rowVariants>["spacing"]>;
   alignment?: NonNullable<VariantProps<typeof rowVariants>["alignment"]>;
@@ -194,33 +197,31 @@ function useOverflowList<TItem>({
 }) {
   const measurementRowRef = useRef<HTMLDivElement>(null);
   const overflowRef = useRef<HTMLDivElement>(null);
-  const observerRef = useRef<ResizeObserver | null>(null);
-  const measureRef = useRef<(() => void) | null>(null);
-  const setOverflowRef = useCallback((element: HTMLDivElement | null) => {
-    if (overflowRef.current) {
-      observerRef.current?.unobserve(overflowRef.current);
-    }
-    overflowRef.current = element;
-    if (element) {
-      observerRef.current?.observe(element);
-    }
-  }, []);
+  const measureRef = useRef<
+    ((options?: { allowIncrease?: boolean }) => void) | null
+  >(null);
   const trailingContentRef = useRef<HTMLDivElement>(null);
   const [visibleCount, setVisibleCount] = useState(items.length);
   const itemKeySignature = items.map(getKey).join("\u0000");
   const overflowItemCount =
     Math.max(0, items.length - visibleCount) + additionalOverflowCount;
-
-  // Mounting the overflow control changes the available width before observers fire.
-  useLayoutEffect(() => {
-    measureRef.current?.();
-  });
+  const hasOverflowControl = overflowItemCount > 0;
 
   useLayoutEffect(() => {
     const measurementRow = measurementRowRef.current;
     if (!measurementRow) return;
 
-    const measure = () => {
+    const commitVisibleCount = (
+      next: number,
+      { allowIncrease = true }: { allowIncrease?: boolean } = {},
+    ) => {
+      setVisibleCount((current) => {
+        if (next === current) return current;
+        if (!allowIncrease && next > current) return current;
+        return next;
+      });
+    };
+    const measure = (options?: { allowIncrease?: boolean }) => {
       const itemElements = Array.from(
         measurementRow.querySelectorAll<HTMLElement>(
           ":scope > [data-overflow-item]",
@@ -243,7 +244,7 @@ function useOverflowList<TItem>({
         additionalOverflowCount <= 0 &&
         contentWidth <= availableWidthBeforeOverflow + 1
       ) {
-        setVisibleCount(itemElements.length);
+        commitVisibleCount(itemElements.length, options);
         return;
       }
 
@@ -258,10 +259,11 @@ function useOverflowList<TItem>({
           availableWidthBeforeOverflow - overflowWidth - overflowGap;
         return element.offsetLeft + element.offsetWidth > availableWidth + 1;
       });
-      setVisibleCount(
+      commitVisibleCount(
         firstHiddenIndex === -1
           ? itemElements.length
           : Math.max(minVisible, firstHiddenIndex),
+        options,
       );
     };
 
@@ -275,13 +277,9 @@ function useOverflowList<TItem>({
 
     // Commit before paint so resizing doesn't flash the previous item count.
     const resizeObserver = new ResizeObserver(() => flushSync(measure));
-    observerRef.current = resizeObserver;
     resizeObserver.observe(measurementRow);
     for (const child of measurementRow.children) {
       resizeObserver.observe(child);
-    }
-    if (overflowRef.current) {
-      resizeObserver.observe(overflowRef.current);
     }
     if (trailingContentRef.current) {
       resizeObserver.observe(trailingContentRef.current);
@@ -289,7 +287,6 @@ function useOverflowList<TItem>({
 
     return () => {
       resizeObserver.disconnect();
-      observerRef.current = null;
       measureRef.current = null;
     };
   }, [
@@ -299,6 +296,27 @@ function useOverflowList<TItem>({
     spacing,
     minVisible,
   ]);
+
+  // Remeasure when the overflow control mounts or its width changes. That
+  // path only lowers visibleCount.
+  useLayoutEffect(() => {
+    if (!hasOverflowControl) return;
+    const overflowNode = overflowRef.current;
+    if (!overflowNode) return;
+
+    measureRef.current?.({ allowIncrease: false });
+    if (typeof ResizeObserver === "undefined") return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      flushSync(() => {
+        measureRef.current?.({ allowIncrease: false });
+      });
+    });
+    resizeObserver.observe(overflowNode);
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [hasOverflowControl]);
 
   const getItemProps = (
     item: TItem,
@@ -321,7 +339,7 @@ function useOverflowList<TItem>({
 
   return {
     measurementRowRef,
-    overflowRef: setOverflowRef,
+    overflowRef,
     trailingContentRef,
     visibleCount,
     overflowItemCount,

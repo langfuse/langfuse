@@ -130,10 +130,8 @@ import {
   getSfdcService,
   toSfdcPlan,
 } from "@/src/ee/features/sfdc-sync/server/sfdcService";
-import {
-  getOrganizationPlanServerSide,
-  logger,
-} from "@langfuse/shared/src/server";
+import { getSfdcResolvedPlan } from "@/src/ee/features/sfdc-sync/server/getSfdcResolvedPlan";
+import { logger } from "@langfuse/shared/src/server";
 import { parseDbOrg } from "@langfuse/shared";
 import { prisma, Role } from "@langfuse/shared/src/db";
 
@@ -406,7 +404,7 @@ async function main() {
       return;
     }
     const parsedOrg = parseDbOrg(org);
-    const resolvedPlan = getOrganizationPlanServerSide(
+    const resolvedPlan = getSfdcResolvedPlan(
       parsedOrg.cloudConfig ?? undefined,
     );
     const plan = toSfdcPlan(resolvedPlan);

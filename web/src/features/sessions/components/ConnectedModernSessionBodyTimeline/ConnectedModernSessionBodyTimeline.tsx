@@ -1,3 +1,4 @@
+/* eslint-disable boundaries/dependencies -- TODO: component privacy */
 import { type ComponentProps, useRef, useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 
@@ -30,6 +31,10 @@ type ConnectedModernSessionBodyTimelineProps = {
   projectId: string;
   sessionId: string;
   openPeek: OpenPeek;
+  activePeek?: Extract<
+    ComponentProps<typeof ConnectedSessionConversationTimeline>,
+    { state: "loaded" }
+  >["activePeek"];
   filterState?: FilterState;
   sidebarMode: ComponentProps<
     typeof ConnectedSessionConversationTimeline
@@ -45,6 +50,7 @@ export function ConnectedModernSessionBodyTimeline({
   projectId,
   sessionId,
   openPeek,
+  activePeek,
   filterState,
   sidebarMode,
   annotationActions,
@@ -251,6 +257,7 @@ export function ConnectedModernSessionBodyTimeline({
         ? { state: "loading" }
         : {
             state: "loaded",
+            activePeek,
             search,
             searchQuery,
             isSearchPending,

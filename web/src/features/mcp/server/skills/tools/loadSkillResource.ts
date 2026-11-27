@@ -39,5 +39,5 @@ export const [loadSkillResourceTool, handleLoadSkillResource] = defineTool({
           path,
         }),
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

@@ -21,7 +21,7 @@ const MemoryQueryAdapter: QueryParamAdapterComponent = ({ children }) => {
 };
 
 function FacetToolbarExample() {
-  const state = useTopicTraceFilters(facetPersistenceProject, facets);
+  const state = useTopicTraceFilters(facetPersistenceProject, facets, null);
   return (
     <div className="flex max-w-2xl flex-col gap-2">
       <Tabs

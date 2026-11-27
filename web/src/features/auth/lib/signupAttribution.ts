@@ -23,7 +23,7 @@ type AdClickIds = {
 };
 
 /** Where a new user's first visit came from, as `cloud_signup_complete` properties */
-export type SignupSource = {
+type SignupSource = {
   utm_source?: string;
   utm_medium?: string;
   utm_campaign?: string;
@@ -181,6 +181,7 @@ function getPlatformCookieValue(
  *
  * Only ids that resolved are present in the returned object, so it can be
  * spread straight into event properties.
+ * @internal
  */
 export function getAdClickIdsFromRequest(req: RequestWithCookies): AdClickIds {
   const firstTouchUrl = getPosthogFirstVisit(req)?.landingUrl;
@@ -236,6 +237,7 @@ function getLandingHost(landingUrl: URL): SignupSource {
 const WEBSITE_HOST = "langfuse.com";
 
 /** `i18n.locales` in `next.config.mjs`: Next.js serves `/en/…` as the page without that segment */
+/** @internal */
 export const LOCALES: readonly string[] = ["en"];
 
 // The app's first segments followed by an id: the id's name, and how many
@@ -291,6 +293,7 @@ function getLandingPath(landingUrl: URL): SignupSource {
 /**
  * The first visit's source, only the fields that resolved; `{}` without a
  * readable cookie.
+ * @internal
  */
 export function getSignupSourceFromRequest(
   req: RequestWithCookies,
