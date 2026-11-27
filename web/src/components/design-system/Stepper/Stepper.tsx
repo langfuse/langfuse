@@ -2,8 +2,14 @@ import { useState, type ReactNode } from "react";
 import { cva } from "class-variance-authority";
 import { Check, ChevronDown, Info } from "@langfuse/icons";
 
+import {
+  RichDescription as RichDescriptionContent,
+  type RichDescription,
+} from "@/src/components/design-system/internal/RichDescription/RichDescription";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
+
+export type { RichDescription };
 
 const markerVariants = cva(
   "flex shrink-0 items-center justify-center font-bold",
@@ -68,12 +74,16 @@ type StepperProps = {
   title: string;
   /** Shown in an info tooltip beside the title, outside the collapse control. */
   tooltipText?: string;
-  description?: ReactNode;
+  description?: RichDescription;
+  /** Keeps the description out of session replay when it contains customer data. */
+  descriptionNoCapture?: boolean;
   /**
    * A control after the title; stays visible when collapsed and gets the rest
    * of the header row. The title then takes a field label's width, so the
    * control lines up with labelled rows.
    */
+  // TODO: typed API
+  // eslint-disable-next-line @repo/no-node-slot-props -- one caller places a tabs toggle in the header
   headerEnd?: ReactNode;
   variant?: "filled" | "outline";
   size?: "default" | "md" | "sm";
@@ -109,6 +119,7 @@ export function Stepper({
   title,
   tooltipText,
   description,
+  descriptionNoCapture = false,
   headerEnd,
   variant = "filled",
   size = "default",
@@ -206,7 +217,14 @@ export function Stepper({
             )}
           >
             {description ? (
-              <p className={descriptionVariants({ size })}>{description}</p>
+              <p
+                className={cn(
+                  descriptionVariants({ size }),
+                  descriptionNoCapture && "ph-no-capture",
+                )}
+              >
+                <RichDescriptionContent description={description} />
+              </p>
             ) : null}
             {children}
           </div>

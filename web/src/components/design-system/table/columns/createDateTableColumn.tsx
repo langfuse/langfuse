@@ -1,8 +1,6 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 import { formatDistanceToNow } from "date-fns";
-import type { ReactNode } from "react";
-
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
@@ -23,7 +21,7 @@ export function createDateTableColumn<TData extends RowData>({
   ) => Date | { type: "loading" } | undefined;
   mode?: "absolute" | "relative";
   emptyValue?: string;
-  getPrefix?: (value: Date) => ReactNode;
+  getPrefix?: (value: Date) => string | null;
 }) {
   return createTableColumn<TData, Date>({
     ...options,

@@ -10,6 +10,7 @@ import { default as noMarginOnRootElements } from "./rules/no-margin-on-root-ele
 import { default as noNullRender } from "./rules/no-null-render.js";
 import { default as noLetAssignInReact } from "./rules/no-let-assign-in-react.js";
 import { default as noLocationNavigation } from "./rules/no-location-navigation.js";
+import { default as noNodeSlotProps } from "./rules/no-node-slot-props.js";
 import { default as noOverlayZindex } from "./rules/no-overlay-zindex.js";
 import { default as noRawFontWeight } from "./rules/no-raw-font-weight.js";
 import { default as requireTitleWithTruncate } from "./rules/require-title-with-truncate.js";
@@ -38,6 +39,7 @@ const plugin = {
     "no-null-render": noNullRender,
     "no-let-assign-in-react": noLetAssignInReact,
     "no-location-navigation": noLocationNavigation,
+    "no-node-slot-props": noNodeSlotProps,
     "no-overlay-zindex": noOverlayZindex,
     "no-restricted-prisma-writes": noRestrictedPrismaWrites,
     "no-raw-font-weight": noRawFontWeight,

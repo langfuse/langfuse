@@ -284,6 +284,26 @@ export default defineConfig({
     {
       files: ["src/components/design-system/**/*.{ts,tsx}"],
       excludeFiles: [
+        "src/components/design-system/internal/**",
+        "src/components/design-system/SearchInput/**",
+        "src/components/design-system/**/*.stories.{ts,tsx}",
+        "src/components/design-system/**/*.clienttest.{ts,tsx}",
+        "src/components/design-system/**/*.{test,spec}.{ts,tsx}",
+      ],
+      jsPlugins: ["@repo/eslint-plugin"],
+      rules: {
+        "@repo/no-node-slot-props": [
+          "error",
+          {
+            // loadingCell is the per-column placeholder Table shows while that column's data is loading (a Skeleton, or a column-specific loading cell).
+            allowedPropNames: ["children", "loadingCell"],
+          },
+        ],
+      },
+    },
+    {
+      files: ["src/components/design-system/**/*.{ts,tsx}"],
+      excludeFiles: [
         "src/components/design-system/charts/**",
         "src/components/design-system/factories/**",
         "src/components/design-system/internal/**",
