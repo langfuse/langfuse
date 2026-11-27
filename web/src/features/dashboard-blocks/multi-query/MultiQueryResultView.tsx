@@ -305,7 +305,7 @@ export function MultiQueryResultView({
         )}
       </div>
       {!content && config.display.chartType === "NUMBER" && (
-        <p className="text-muted-foreground px-4 pb-2 text-center text-sm">
+        <p className="text-muted-foreground shrink-0 px-4 pb-2 text-center text-sm">
           {visibleSeries[0]?.label}
         </p>
       )}
@@ -382,7 +382,13 @@ function MultiQueryUnitChart({
     prepared,
   );
   return (
-    <div className="flex h-64 min-h-64 min-w-0 shrink-0 flex-col gap-1 only:h-[var(--multi-query-plot-height,16rem)] only:min-h-[var(--multi-query-plot-height,16rem)]">
+    <div
+      className={
+        config.display.chartType === "NUMBER"
+          ? "flex min-h-0 min-w-0 flex-1 flex-col"
+          : "flex h-64 min-h-64 min-w-0 shrink-0 flex-col gap-1 only:h-[var(--multi-query-plot-height,16rem)] only:min-h-[var(--multi-query-plot-height,16rem)]"
+      }
+    >
       <VisualizationFrame content={content} />
     </div>
   );
