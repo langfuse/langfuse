@@ -1122,14 +1122,9 @@ function snapshotProgress(
   // Clustering and naming read as one step, as in a map's setup.
   const stage: TopicSetupStage =
     execution.phase === "summarizing" ? "summarizing" : "grouping";
-  const progress = orderByFacetIds(
-    execution.progress,
-    (facet) => facet.facetId,
-    facets.map((facet) => facet.id),
-  );
   return {
     stage,
-    facets: progress.map((facet) => ({
+    facets: execution.progress.map((facet) => ({
       key: facet.facetId,
       name:
         facets.find(({ id }) => id === facet.facetId)?.name ?? facet.facetId,
@@ -1137,8 +1132,9 @@ function snapshotProgress(
       requested: facet.requested,
     })),
     fits: {
-      done: progress.filter((facet) => facet.outcome !== "pending").length,
-      total: progress.length,
+      done: execution.progress.filter((facet) => facet.outcome !== "pending")
+        .length,
+      total: execution.progress.length,
     },
   };
 }

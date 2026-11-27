@@ -1411,7 +1411,7 @@ describe("Topics analyses", () => {
     );
   });
 
-  it("orders analysis facets and progress by canonical listTopicFacets order", async () => {
+  it("orders analysis facets and progress canonically", async () => {
     const base = execution();
     const baseProgress = base.facets[0]!;
     mocks.readTopicExecutionSummary.mockResolvedValue({
@@ -1425,16 +1425,17 @@ describe("Topics analyses", () => {
         { ...baseProgress, facetId: "intent-id", runId: "run-intent" },
       ],
     });
+    // Return unsorted facets from Postgres to verify canonical sorting.
     mocks.listTopicFacets.mockResolvedValue([
       {
-        id: "intent-id",
-        name: "Intent",
+        id: "issues-id",
+        name: "Issues",
         isBuiltIn: true,
         versions: [{ version: facetVersion }],
       },
       {
-        id: "issues-id",
-        name: "Issues",
+        id: "intent-id",
+        name: "Intent",
         isBuiltIn: true,
         versions: [{ version: facetVersion }],
       },
@@ -1448,8 +1449,8 @@ describe("Topics analyses", () => {
     );
     mocks.getTopicResultCounts.mockImplementation(
       async ({ facets }: { facets: Array<{ facetId: string }> }) =>
-        facets.map((facet) => ({
-          facetId: facet.facetId,
+        facets.map(({ facetId }) => ({
+          facetId,
           total: 4,
           usable: 4,
           awaiting: 0,
@@ -1467,11 +1468,11 @@ describe("Topics analyses", () => {
       projectId,
       executionId: "execution-a",
     });
-    expect(result.facets.map((facet) => facet.facetId)).toEqual([
+    expect(result.facets.map((f) => f.facetId)).toEqual([
       "intent-id",
       "issues-id",
     ]);
-    expect(result.execution.progress.map((facet) => facet.facetId)).toEqual([
+    expect(result.execution.progress.map((f) => f.facetId)).toEqual([
       "intent-id",
       "issues-id",
     ]);

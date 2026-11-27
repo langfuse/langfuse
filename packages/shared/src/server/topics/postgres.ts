@@ -3,7 +3,6 @@ import {
   DEFAULT_TOPIC_FACETS,
   DEFAULT_TOPIC_RULE_NAME,
   TOPICS_MAX_RULES,
-  sortTopicFacets,
   topicRuleSettingsSchema,
   topicTimeRangeSchema,
   sameTopicGeometry,
@@ -69,7 +68,7 @@ export async function listTopicFacets(
     // A stable order keeps the Topics summary prompt (and its cache) identical across traces.
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
-  return sortTopicFacets(rows).map(topicFacet);
+  return rows.map(topicFacet);
 }
 
 export async function getTopicFacetVersion(
@@ -172,18 +171,8 @@ export async function ensureDefaultTopicFacets(
   return listTopicFacets(projectId);
 }
 
-const topicRuleInclude = {
-  assignments: {
-    include: {
-      evaluator: {
-        select: { id: true, name: true, isBuiltIn: true, createdAt: true },
-      },
-    },
-  },
-} satisfies Prisma.EvaluationRuleInclude;
-
 type RuleRow = Prisma.EvaluationRuleGetPayload<{
-  include: typeof topicRuleInclude;
+  include: { assignments: true };
 }>;
 const topicRule = (row: RuleRow): TopicRule => ({
   id: row.id,
@@ -193,9 +182,7 @@ const topicRule = (row: RuleRow): TopicRule => ({
     filter: row.filter,
     sampling: Number(row.sampling),
   }),
-  facetIds: sortTopicFacets(
-    row.assignments.map((assignment) => assignment.evaluator),
-  ).map((facet) => facet.id),
+  facetIds: row.assignments.map((assignment) => assignment.evaluatorId),
   updatedAt: row.updatedAt.toISOString(),
   createdAt: row.createdAt.toISOString(),
   enabled: row.status === "ACTIVE",
@@ -212,7 +199,7 @@ export async function listTopicRules(
         ...topicRuleWhere(projectId),
         ...(activeOnly ? { status: JobConfigState.ACTIVE } : {}),
       },
-      include: topicRuleInclude,
+      include: { assignments: true },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     })
   ).map(topicRule);
@@ -260,7 +247,7 @@ export async function getTopicRule(
 ): Promise<TopicRule | null> {
   const row = await prisma.evaluationRule.findFirst({
     where: { ...topicRuleWhere(projectId), id },
-    include: topicRuleInclude,
+    include: { assignments: true },
   });
   return row ? topicRule(row) : null;
 }
@@ -353,7 +340,7 @@ export async function writeTopicRule(
           ...data,
           assignments: { deleteMany: {}, create: assignments },
         },
-        include: topicRuleInclude,
+        include: { assignments: true },
       })
     : await tx.evaluationRule.create({
         data: {
@@ -363,7 +350,7 @@ export async function writeTopicRule(
           createdByUserId: input.userId ?? null,
           assignments: { create: assignments },
         },
-        include: topicRuleInclude,
+        include: { assignments: true },
       });
   return topicRule(row);
 }

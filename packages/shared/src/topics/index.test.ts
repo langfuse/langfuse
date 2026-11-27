@@ -3,56 +3,18 @@ import { orderByFacetIds, sortTopicFacets } from "./index";
 
 describe("sortTopicFacets", () => {
   it("orders built-in presets canonically ahead of unlisted built-ins and custom facets", () => {
-    const sharedTimestamp = new Date("2026-11-20T12:00:00Z");
+    const t0 = new Date("2026-11-20T12:00:00Z");
+    const t1 = new Date("2026-11-21T00:00:00Z");
+    const t2 = new Date("2026-11-22T00:00:00Z");
     const facets = [
-      {
-        id: "c_custom_later",
-        name: "Alpha",
-        isBuiltIn: false,
-        createdAt: new Date("2026-11-22T00:00:00Z"),
-      },
-      {
-        id: "c_custom_intent",
-        name: "Intent",
-        isBuiltIn: false,
-        createdAt: new Date("2026-11-21T00:00:00Z"),
-      },
-      {
-        id: "a_issues",
-        name: "Issues",
-        isBuiltIn: true,
-        createdAt: sharedTimestamp,
-      },
-      {
-        id: "b_outcome",
-        name: "Outcome",
-        isBuiltIn: true,
-        createdAt: sharedTimestamp,
-      },
-      {
-        id: "c_unlisted",
-        name: "Latency",
-        isBuiltIn: true,
-        createdAt: sharedTimestamp,
-      },
-      {
-        id: "d_sentiment",
-        name: "Sentiment",
-        isBuiltIn: true,
-        createdAt: sharedTimestamp,
-      },
-      {
-        id: "z_intent",
-        name: "Intent",
-        isBuiltIn: true,
-        createdAt: sharedTimestamp,
-      },
-      {
-        id: "c_custom_tie_b",
-        name: "Beta",
-        isBuiltIn: false,
-        createdAt: new Date("2026-11-21T00:00:00Z"),
-      },
+      { id: "c_later", name: "Alpha", isBuiltIn: false, createdAt: t2 },
+      { id: "c_intent", name: "Intent", isBuiltIn: false, createdAt: t1 },
+      { id: "a_issues", name: "Issues", isBuiltIn: true, createdAt: t0 },
+      { id: "b_outcome", name: "Outcome", isBuiltIn: true, createdAt: t0 },
+      { id: "c_unlisted", name: "Latency", isBuiltIn: true, createdAt: t0 },
+      { id: "d_sentiment", name: "Sentiment", isBuiltIn: true, createdAt: t0 },
+      { id: "z_intent", name: "Intent", isBuiltIn: true, createdAt: t0 },
+      { id: "c_tie_b", name: "Beta", isBuiltIn: false, createdAt: t1 },
     ];
 
     expect(sortTopicFacets(facets).map((facet) => facet.id)).toEqual([
@@ -61,9 +23,9 @@ describe("sortTopicFacets", () => {
       "b_outcome",
       "a_issues",
       "c_unlisted",
-      "c_custom_intent",
-      "c_custom_tie_b",
-      "c_custom_later",
+      "c_intent",
+      "c_tie_b",
+      "c_later",
     ]);
   });
 
@@ -85,14 +47,10 @@ describe("sortTopicFacets", () => {
 });
 
 describe("orderByFacetIds", () => {
-  it("orders items by canonical facet IDs and keeps unknown IDs last in original order", () => {
-    const items = [
-      { facetId: "deleted-1" },
-      { facetId: "issues" },
-      { facetId: "deleted-2" },
-      { facetId: "intent" },
-      { facetId: "outcome" },
-    ];
+  it("orders items by canonical facet IDs and keeps unknown IDs last", () => {
+    const items = ["deleted-1", "issues", "deleted-2", "intent", "outcome"].map(
+      (facetId) => ({ facetId }),
+    );
 
     expect(
       orderByFacetIds(items, (item) => item.facetId, [

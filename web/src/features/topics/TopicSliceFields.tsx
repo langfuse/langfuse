@@ -65,14 +65,13 @@ function TopicFacetChecklist({
               checked={selectedIds.includes(facet.id)}
               disabled={disabled}
               aria-label={facet.name}
-              onCheckedChange={(next) => {
-                const updated = new Set(selectedIds);
-                if (next === true) updated.add(facet.id);
-                else updated.delete(facet.id);
+              onCheckedChange={(next) =>
                 onChange(
-                  facets.map((item) => item.id).filter((id) => updated.has(id)),
-                );
-              }}
+                  next === true
+                    ? [...selectedIds, facet.id]
+                    : selectedIds.filter((id) => id !== facet.id),
+                )
+              }
             />
             <span className="text-sm font-bold">{facet.name}</span>
             <span className="text-muted-foreground col-start-2 text-sm sm:col-start-auto">

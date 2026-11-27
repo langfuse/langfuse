@@ -1,6 +1,7 @@
 import { type FilterState, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   orderByFacetIds,
+  sortTopicFacets,
   TOPICS_MAX_TIME_RANGE_MS,
   topicTimeRangeSchema,
   type TopicAssignment,
@@ -289,7 +290,7 @@ export async function currentTopicResults(
   timeRange?: TopicTimeRange,
   { facetIds, ruleId }: { facetIds?: string[]; ruleId?: string } = {},
 ) {
-  const facets = (await listTopicFacets(projectId)).filter(
+  const facets = sortTopicFacets(await listTopicFacets(projectId)).filter(
     (facet) => !facetIds || facetIds.includes(facet.id),
   );
   if (!facets.length) return { hasStoredSummaries: false, facets: [] };
@@ -305,7 +306,7 @@ export async function analysisTopicResults(
   executionId: string,
 ) {
   const execution = await requireAnalysis(projectId, executionId);
-  const facets = await listTopicFacets(projectId);
+  const facets = sortTopicFacets(await listTopicFacets(projectId));
   const orderedFacetIds = facets.map((facet) => facet.id);
   const maps = await resolveFacetMaps(
     projectId,
@@ -342,7 +343,7 @@ async function currentTopicRows(
   timeRange: TopicTimeRange,
   traceIds: string[],
 ) {
-  const facets = await listTopicFacets(projectId);
+  const facets = sortTopicFacets(await listTopicFacets(projectId));
   const hasStoredSummaries =
     facets.length > 0 && (await hasStoredTopicSummaries(projectId));
   if (!hasStoredSummaries) return { hasStoredSummaries, facets: [] };

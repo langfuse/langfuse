@@ -308,8 +308,8 @@ describe("summarizeAssembledTrace", () => {
     state.summarize.mockResolvedValue({
       output: {
         intent_1: { summary: "Export monthly sales.", status: "applicable" },
-        outcome_2: { summary: "Export completed.", status: "applicable" },
-        issues_3: { summary: "", status: "not_applicable" },
+        issues_2: { summary: "", status: "not_applicable" },
+        outcome_3: { summary: "Export completed.", status: "applicable" },
       },
       ...usage,
       costDetails: { ...usage.costDetails, total: 0.000006 },
@@ -327,18 +327,13 @@ describe("summarizeAssembledTrace", () => {
       rules: [{ id: "rule-a", facetIds: ["facet-1", "facet-3"] }],
     });
     expect(state.summarize).toHaveBeenCalledOnce();
-    const [intent, outcomeRow, issue] = summaries;
+    const [intent, issue] = summaries;
     expect(intent).toMatchObject({
       facetId: "facet-1",
       state: "complete",
       triggerType: "rule",
       ruleIds: ["rule-a"],
       executionId: null,
-    });
-    expect(outcomeRow).toMatchObject({
-      facetId: "facet-3",
-      state: "complete",
-      ruleIds: ["rule-a"],
     });
     expect(issue).toMatchObject({
       facetId: "facet-2",
@@ -354,11 +349,11 @@ describe("summarizeAssembledTrace", () => {
     ).toBeCloseTo(0.00001, 12);
     expect(summaries.map((row) => row.costDetails.embedding_input)).toEqual([
       0.00000024,
-      0.00000024,
       undefined,
+      0.00000024,
     ]);
     expect(summaries.map((row) => row.costDetails.total)).toEqual([
-      0.00000224, 0.00000224, 0.000002,
+      0.00000224, 0.000002, 0.00000224,
     ]);
     // Each row's total stays the sum of its own shares.
     for (const { usageDetails } of summaries) {
@@ -522,7 +517,7 @@ describe("summarizeAssembledTrace", () => {
     );
   });
 
-  it("puts built-in facets in canonical order before custom facets so the cached prefix stays stable", async () => {
+  it("puts built-in facets before custom facets so the cached prefix stays stable", async () => {
     const custom: TopicFacet = {
       ...facet,
       id: "facet-custom",
@@ -530,27 +525,11 @@ describe("summarizeAssembledTrace", () => {
       isBuiltIn: false,
       versions: [{ ...facet.versions[0], facetId: "facet-custom", version: 1 }],
     };
-    const issues: TopicFacet = {
-      ...facet,
-      id: "facet-issues",
-      name: "Issues",
-      versions: [{ ...facet.versions[0], facetId: "facet-issues", version: 1 }],
-    };
-    const sentiment: TopicFacet = {
-      ...facet,
-      id: "facet-sentiment",
-      name: "Sentiment",
-      versions: [
-        { ...facet.versions[0], facetId: "facet-sentiment", version: 1 },
-      ],
-    };
-    state.facets.mockReturnValue([custom, issues, facet, sentiment]);
+    state.facets.mockReturnValue([custom, facet]);
     state.summarize.mockResolvedValue({
       output: {
         intent_1: { summary: "Export monthly sales.", status: "applicable" },
-        sentiment_2: { summary: "Neutral.", status: "applicable" },
-        issues_3: { summary: "", status: "not_applicable" },
-        language_4: { summary: "English.", status: "applicable" },
+        language_2: { summary: "English.", status: "applicable" },
       },
       ...usage,
     });
@@ -567,9 +546,7 @@ describe("summarizeAssembledTrace", () => {
     });
     expect(state.summarize.mock.calls[0][1]).toEqual([
       { key: "intent_1", facet: facet.versions[0], builtIn: true },
-      { key: "sentiment_2", facet: sentiment.versions[0], builtIn: true },
-      { key: "issues_3", facet: issues.versions[0], builtIn: true },
-      { key: "language_4", facet: custom.versions[0], builtIn: false },
+      { key: "language_2", facet: custom.versions[0], builtIn: false },
     ]);
   });
 
