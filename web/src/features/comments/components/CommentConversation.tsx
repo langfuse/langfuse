@@ -10,7 +10,6 @@ import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { stripMarkdown } from "@/src/utils/markdown";
 import { ReactionBar } from "../ReactionBar";
 import { ReactionPicker } from "../ReactionPicker";
-import { PopoverTrigger } from "@/src/components/ui/popover";
 import { CommentCard } from "./CommentCard";
 
 function humanizeJsonPath(path: string): string {
@@ -241,16 +240,16 @@ export function CommentConversation({
                         })
                       }
                     >
-                      <PopoverTrigger asChild>
+                      {({ getTriggerProps }) => (
                         <Button
-                          type="button"
                           variant="ghost"
                           size="sm"
                           className="h-6 gap-1 px-1.5 text-xs opacity-50 transition-opacity hover:opacity-100"
+                          {...getTriggerProps()}
                         >
                           <SmilePlusIcon size="base" color="default" />
                         </Button>
-                      </PopoverTrigger>
+                      )}
                     </ReactionPicker>
                   ) : null}
                 </>

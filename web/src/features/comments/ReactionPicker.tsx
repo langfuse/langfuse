@@ -1,41 +1,29 @@
-import { Popover, PopoverContent } from "@/src/components/ui/popover";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import { EmojiPicker } from "@ferrucc-io/emoji-picker";
 
+import { PopoverController } from "@/src/components/design-system/PopoverController/PopoverController";
+
 interface ReactionPickerProps {
-  children: ReactNode;
+  children: React.ComponentProps<typeof PopoverController>["children"];
   onEmojiSelect: (emoji: string) => void;
-  open?: boolean;
-  defaultOpen?: boolean;
-  onOpenChange?: (open: boolean) => void;
 }
 
 export function ReactionPicker({
   children,
   onEmojiSelect,
-  open,
-  defaultOpen = false,
-  onOpenChange,
 }: ReactionPickerProps) {
-  const [internalOpen, setInternalOpen] = useState(defaultOpen);
-  const resolvedOpen = open ?? internalOpen;
-
-  const changeOpen = (nextOpen: boolean) => {
-    if (open === undefined) setInternalOpen(nextOpen);
-    onOpenChange?.(nextOpen);
-  };
+  const [open, setOpen] = useState(false);
 
   return (
-    <Popover open={resolvedOpen} onOpenChange={changeOpen}>
-      {children}
-      <PopoverContent
-        className="w-fit border-none bg-transparent p-0"
-        align="start"
-      >
+    <PopoverController
+      open={open}
+      onOpenChange={setOpen}
+      placement="bottom-start"
+      content={
         <EmojiPicker
           onEmojiSelect={(emoji) => {
             onEmojiSelect(emoji);
-            changeOpen(false);
+            setOpen(false);
           }}
           className="h-[320px] w-[320px]"
         >
@@ -49,7 +37,9 @@ export function ReactionPicker({
             <EmojiPicker.List containerHeight={256} />
           </EmojiPicker.Group>
         </EmojiPicker>
-      </PopoverContent>
-    </Popover>
+      }
+    >
+      {children}
+    </PopoverController>
   );
 }
