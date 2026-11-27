@@ -3,7 +3,6 @@
  *
  * Updates labels for a specific prompt version.
  * Write operation with destructive hint.
- * This is the ONLY way to modify existing prompts (labels only).
  */
 
 import { z } from "zod";
@@ -78,19 +77,11 @@ const UpdatePromptLabelsInputSchema = z
 export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
   name: "updatePromptLabels",
   description: [
-    "Update labels for a specific prompt version.",
+    "Add or remove labels on one prompt version; returns the version's resulting labels. Get version numbers from listPrompts or getPrompt. Content, type and tags cannot be changed here; create a new version with createTextPrompt or createChatPrompt.",
     "",
-    "Important:",
-    "- ONLY way to modify existing prompts (labels only)",
-    "- Labels in newLabels are added to the version (preserving others not mentioned)",
-    "- Labels in removeLabels are removed from this version only",
-    "- Labels are unique across versions - setting a label on one version automatically removes it from others",
-    "- 'latest' label is auto-managed and cannot be set manually",
-    "- Only add the 'production' label when the user explicitly asks to promote this prompt version to production",
-    "- Only remove the 'production' label when the user explicitly asks; without it, fetching the prompt by default fails",
-    "- Cannot modify prompt content, type, or tags - use createTextPrompt or createChatPrompt for new versions",
-    "",
-    "Accepts: name, version (required), newLabels (optional array), removeLabels (optional array)",
+    "- A label is unique per prompt: adding it here removes it from the version that held it. Other labels on this version are kept.",
+    "- 'latest' is auto-managed and cannot be added or removed.",
+    "- Add or remove 'production' only when the user explicitly asks. SDK clients fetch the 'production' version by default, so moving or removing it changes or breaks what applications receive.",
   ].join("\n"),
   action: "prompts:CUD",
   baseSchema: UpdatePromptLabelsBaseSchema,

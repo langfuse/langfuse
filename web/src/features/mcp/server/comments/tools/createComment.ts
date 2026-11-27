@@ -12,9 +12,18 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 const CreateCommentToolBaseSchema = z
   .object({
     content: z.string().trim().min(1).max(5000),
-    objectId: z.string(),
+    objectId: z
+      .string()
+      .describe(
+        "A trace or observation ID (from listObservations or getObservation), a session ID, or a prompt version's id (from getPrompt).",
+      ),
     objectType: z.enum(CommentObjectType),
-    authorUserId: z.string().optional(),
+    authorUserId: z
+      .string()
+      .optional()
+      .describe(
+        "Langfuse user ID of an organization member to attribute the comment to; omit to leave it unset.",
+      ),
   })
   .strict();
 
@@ -24,10 +33,12 @@ const CreateCommentToolSchema = PostCommentsV1Body.omit({
 
 export const [createCommentTool, handleCreateComment] = defineTool({
   name: "createComment",
-  description: "Create a comment on a trace, observation, session, or prompt.",
+  description:
+    "Add a comment to a trace, observation, session, or prompt version and return its id (and UI url when available). Each call adds another comment; fails if the target does not exist.",
   action: "comments:CUD",
   baseSchema: CreateCommentToolBaseSchema,
   inputSchema: CreateCommentToolSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false },
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.comments.create",

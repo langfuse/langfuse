@@ -121,19 +121,12 @@ const CreateChatPromptInputSchema = z.object({
 export const [createChatPromptTool, handleCreateChatPrompt] = defineTool({
   name: "createChatPrompt",
   description: [
-    "Create a new chat prompt version in Langfuse. Chat prompts are arrays of messages with roles and content.",
+    "Create a new version of a chat prompt, an array of messages (version 1 if the name is new); returns the version number, labels and url. For a single text template use createTextPrompt.",
     "",
-    "Important:",
-    "- Prompts are immutable - cannot modify existing versions",
-    "- To update content, create a new version",
-    "- New prompt versions receive the 'latest' label automatically",
-    "- Cannot assign the 'production' label during creation",
-    "- To promote to production, use updatePromptLabels only when the user explicitly requests it",
-    "- Labels are unique across versions",
-    "",
-    "Message roles: system (instructions), user (input, can contain {{variables}}), assistant (examples)",
-    "Placeholder messages: {type: 'placeholder', name: '<variable>'} reference runtime variable values (e.g. conversation history) inserted when the prompt is used",
-    "Accepts: name, prompt (array of {role, content} or {type: 'placeholder', name}), optional labels, config, tags, commitMessage",
+    "- Versions are immutable; to change content, create a new version.",
+    "- The new version takes the 'latest' label. Labels you pass move to it from the version that held them, and tags you pass replace the tags on all versions.",
+    "- 'production' cannot be set here; promote with updatePromptLabels only when the user explicitly asks.",
+    "- Roles: system (instructions), user (input, may contain {{variables}}), assistant (examples). Placeholder messages insert a runtime value such as conversation history.",
   ].join("\n"),
   action: "prompts:CUD",
   baseSchema: CreateChatPromptBaseSchema,
@@ -184,5 +177,6 @@ export const [createChatPromptTool, handleCreateChatPrompt] = defineTool({
       },
     });
   },
+  // Moving labels and replacing tags changes existing prompt versions.
   annotations: { destructiveHint: true },
 });

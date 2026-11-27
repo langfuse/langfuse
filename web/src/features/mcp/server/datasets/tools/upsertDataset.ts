@@ -14,12 +14,22 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 const idField = z.string().min(1).optional();
 
 const UpsertDatasetBaseSchema = z.object({
-  id: idField,
-  name: z.string(),
+  id: idField.describe(
+    "Updates (including renaming) or creates the dataset with this ID.",
+  ),
+  name: z.string().describe("Unique per project."),
   description: z.string().optional(),
   metadata: z.any().optional(),
-  inputSchema: z.any().optional(),
-  expectedOutputSchema: z.any().optional(),
+  inputSchema: z
+    .any()
+    .optional()
+    .describe(
+      "JSON Schema (object or JSON string) every item input must satisfy; null removes it.",
+    ),
+  expectedOutputSchema: z
+    .any()
+    .optional()
+    .describe("Like inputSchema, for every item expectedOutput."),
 });
 
 const StringifiedDatasetJSONSchema = z
@@ -50,7 +60,9 @@ const UpsertDatasetInputSchema = PostDatasetsV2Body.extend({
 export const [upsertDatasetTool, handleUpsertDataset] = defineTool({
   name: "upsertDataset",
   description:
-    "Upsert a dataset, a named collection of input and optional expected-output examples for experiments and evaluations.",
+    "Create or update a dataset (named collection of input/expected-output examples) and return it with a url. " +
+    "Matches by id if given, else by name; provided fields overwrite, omitted fields are kept. " +
+    "Setting a schema validates all existing items and fails if any do not conform.",
   action: "datasets:CUD",
   baseSchema: UpsertDatasetBaseSchema,
   inputSchema: UpsertDatasetInputSchema,

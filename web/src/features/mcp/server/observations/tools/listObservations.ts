@@ -50,7 +50,7 @@ const OBSERVATION_MAX_RANGE_MS = 15 * 24 * 60 * 60 * 1000;
 const EXPENSIVE_OBSERVATION_MAX_IO_LIMIT = 50;
 
 const OBSERVATION_FILTER_DESCRIPTION =
-  "Advanced filters. Each item must be an object with column, operator, value, optional type, and optional key. When type is omitted, the first type listed for the column by getObservationFilterSchema applies. Use key for metadata filters; numeric metadata comparisons need type numberObject.";
+  "Advanced filters; type defaults to the first type getObservationFilterSchema lists for the column. Use key for metadata; numeric metadata comparisons need type numberObject.";
 
 const ListObservationsBaseSchema = z.object({
   fields: ObservationFieldsSchema,
@@ -79,14 +79,12 @@ const ListObservationsBaseSchema = z.object({
   environment: z
     .string()
     .optional()
-    .describe(
-      "Environment to filter by. Multiple environments are temporarily unsupported until the public observations API applies allow-multiple environment filters correctly.",
-    ),
+    .describe("A single environment; multiple are not supported yet."),
   fromStartTime: isoDateTime({ offset: true }).describe(
-    "Required inclusive lower bound on observation startTime, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Must be before toStartTime; the elapsed duration must not exceed 14 days (336 hours).",
+    "ISO 8601 with timezone (Z or offset).",
   ),
   toStartTime: isoDateTime({ offset: true }).describe(
-    "Required exclusive upper bound on observation startTime, as an ISO 8601 timestamp with timezone. Must be after fromStartTime and at most 336 hours later. For 14 full UTC calendar days starting 2026-10-01T00:00:00Z, use 2026-10-15T00:00:00Z, not 2026-10-15T23:59:59Z. Split longer ranges into adjacent requests of at most 336 hours each.",
+    "ISO 8601 with timezone, at most 336 hours after fromStartTime: for 14 full UTC days from 2026-10-01T00:00:00Z use 2026-10-15T00:00:00Z, not 2026-10-15T23:59:59Z.",
   ),
   filter: z
     .array(ObservationMcpFilterBaseSchema)
@@ -134,14 +132,11 @@ const getEffectiveLimit = (
 export const [listObservationsTool, handleListObservations] = defineTool({
   name: "listObservations",
   description: [
-    "Find and review observations in the current Langfuse project, such as generations, spans, events, agent steps, and tool calls.",
-    "Traces consist of observations. Use this tool when the user asks to inspect traces: pass traceId to page through the observations for a specific trace; those observation records are the trace data returned by the API.",
-    "Prefer structured filters such as trace, name, type, level, and environment, combined with narrow time ranges. Use input/output/metadata content search only when matching that content is necessary to answer the user's question. Results are paginated with an opaque cursor.",
-    'For metadata filters, first inspect metadata by passing both fromStartTime and toStartTime with a maximum range of 14 days (336 elapsed hours) and fields: ["id", "metadata"]. Then use a discovered key in a stringObject filter, or in a numberObject filter to compare its value as a number (for example {"type":"numberObject","column":"metadata","key":"retries","operator":">","value":3}).',
-    "",
-    'Start with the default compact summary fields, then use getObservation to fetch full input/output only for selected observations that need closer inspection. Pass specific field names to limit the response size; fields: ["*"] returns the full observation.',
-    'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
-    "All requests must include explicit fromStartTime (inclusive) and toStartTime (exclusive) with 0 < toStartTime - fromStartTime <= 336 hours (14 days), even when scoped by traceId or observation id. This is elapsed time, not a count of calendar dates. For example, 2026-10-01T00:00:00Z to 2026-10-15T00:00:00Z is valid; ending at 2026-10-15T23:59:59Z exceeds the limit. Split longer ranges into adjacent windows, using each window's toStartTime as the next window's fromStartTime. Reuse timestamps from earlier results to narrow the search. Pages that project input or output hold at most 50 observations; a larger limit is lowered to 50 and the cursor returns the rest.",
+    "Find and review observations (generations, spans, events, agent steps, tool calls). Traces consist of observations: to inspect a trace, pass traceId and page through its observations. For counts, sums, percentiles or time series use queryMetrics.",
+    "Prefer structured filters (trace, name, type, level, environment) and narrow time ranges; search input/output/metadata content only when needed. Paginated with an opaque cursor.",
+    'For metadata filters, first fetch fields: ["id", "metadata"] to discover keys, then use one in a stringObject filter, or a numberObject filter to compare as a number (e.g. {"type":"numberObject","column":"metadata","key":"retries","operator":">","value":3}).',
+    "Start with the compact default fields, then use getObservation for full input/output of selected observations.",
+    "Every request needs fromStartTime (inclusive) and toStartTime (exclusive) at most 336 elapsed hours (14 days) apart, even when scoped by traceId or id. Split longer ranges into adjacent windows (each toStartTime is the next fromStartTime); reuse timestamps from earlier results to narrow. Pages that project input or output hold at most 50 observations; a larger limit is lowered and the cursor returns the rest.",
   ].join("\n"),
   action: "traces:read",
   accessAudit: { resourceType: "observation", action: "list" },

@@ -8,14 +8,44 @@ import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 
 const EmptyInputSchema = z.object({});
 const ExternalMediaStorageBaseSchema = z.object({
-  type: z.enum(["S3", "S3_COMPATIBLE"]),
+  type: z
+    .enum(["S3", "S3_COMPATIBLE"])
+    .describe("S3_COMPATIBLE for MinIO, R2 and similar."),
+  authType: z
+    .enum(["ACCESS_KEYS", "ROLE_ARN"])
+    .optional()
+    .describe(
+      "Default ACCESS_KEYS. ROLE_ARN (Amazon S3 only, Enterprise plan) assumes roleArn; its trust policy needs the external ID from the project settings in the Langfuse UI.",
+    ),
   bucketName: z.string(),
-  endpoint: z.string().optional(),
-  region: z.string(),
-  accessKeyId: z.string(),
-  secretAccessKey: z.string().optional(),
-  prefix: z.string().optional(),
-  forcePathStyle: z.boolean(),
+  endpoint: z
+    .string()
+    .optional()
+    .describe(
+      "e.g. https://minio.example.com. Required for S3_COMPATIBLE, ignored for S3.",
+    ),
+  region: z
+    .string()
+    .describe("e.g. us-east-1. ROLE_ARN needs a real AWS region, not 'auto'."),
+  accessKeyId: z.string().optional().describe("Required for ACCESS_KEYS."),
+  secretAccessKey: z
+    .string()
+    .optional()
+    .describe(
+      "ACCESS_KEYS only. Empty keeps the saved secret; required again when type, endpoint, bucketName or accessKeyId changes.",
+    ),
+  roleArn: z.string().optional().describe("Required for ROLE_ARN."),
+  prefix: z
+    .string()
+    .optional()
+    .describe(
+      "Key prefix limiting which objects resolve, e.g. 'media/'; must end with '/'.",
+    ),
+  forcePathStyle: z
+    .boolean()
+    .describe(
+      "Path-style URLs (endpoint/bucket/key); usually true for MinIO, false for Amazon S3.",
+    ),
 });
 const TestObjectInputSchema = z.object({
   uri: z.string().describe("S3 URI in the form s3://bucket/path/to/object"),
@@ -59,7 +89,7 @@ export const [
 ] = defineTool({
   name: "configureExternalMediaStorage",
   description:
-    "Create or update the S3 external media storage configuration for the current project. Leave secretAccessKey empty to retain the saved secret; it is required again when type, endpoint, bucketName, or accessKeyId changes.",
+    "Create or replace the project's external media storage, the S3 bucket traces reference as s3://bucket/key media. Overwrites any existing configuration (see it with getExternalMediaStorage); verify afterwards with testExternalMediaStorage.",
   action: "integrations:CRUD",
   baseSchema: ExternalMediaStorageBaseSchema,
   inputSchema: externalMediaStorageFormSchema,
@@ -81,6 +111,7 @@ export const [
         return { success: true };
       },
     }),
+  annotations: { destructiveHint: true },
 });
 
 export const [

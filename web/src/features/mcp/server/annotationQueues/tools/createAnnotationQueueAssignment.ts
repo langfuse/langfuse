@@ -10,10 +10,11 @@ export const [
 ] = defineTool({
   name: "createAnnotationQueueAssignment",
   description:
-    "Assign a project user to an annotation queue so they can work through its review items.",
+    "Assign a project user to an annotation queue as a reviewer and return the assignment. Re-assigning an assigned user has no effect. Fails if the queue or user is not found or the user lacks project access.",
   action: "annotationQueueAssignments:CUD",
   baseSchema: CreateAnnotationQueueAssignmentToolSchema,
   inputSchema: CreateAnnotationQueueAssignmentToolSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false },
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.annotation_queue_assignments.create",

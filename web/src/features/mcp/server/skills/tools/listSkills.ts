@@ -4,12 +4,28 @@ import { SkillService } from "@/src/features/skills/server/skill-service";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
+const ListSkillsBaseSchema = ListSkillsQuerySchema.extend({
+  name: ListSkillsQuerySchema.shape.name.describe(
+    "Exact name; use search for partial matches.",
+  ),
+  search: ListSkillsQuerySchema.shape.search.describe(
+    "Case-insensitive substring of name or description.",
+  ),
+  tag: ListSkillsQuerySchema.shape.tag.describe("Exact tag."),
+  fromUpdatedAt: ListSkillsQuerySchema.shape.fromUpdatedAt.describe(
+    "Inclusive lower bound on latestVersionLastUpdatedAt.",
+  ),
+  toUpdatedAt: ListSkillsQuerySchema.shape.toUpdatedAt.describe(
+    "Exclusive upper bound on latestVersionLastUpdatedAt.",
+  ),
+});
+
 export const [listSkillsTool, handleListSkills] = defineTool({
   name: "listSkills",
   description:
-    "List and search project skills with tags and version summaries. Supports filtering and pagination.",
+    "List the project's agent skills (versioned SKILL.md bundles), most recently updated first, paginated, with name, description, tags, latestVersion and productionVersion. Filters are ANDed. Use getSkill for a skill's files and loadSkill to read its SKILL.md.",
   action: "skills:read",
-  baseSchema: ListSkillsQuerySchema,
+  baseSchema: ListSkillsBaseSchema,
   inputSchema: ListSkillsQuerySchema,
   handler: async (input, context) =>
     runMcpTool({

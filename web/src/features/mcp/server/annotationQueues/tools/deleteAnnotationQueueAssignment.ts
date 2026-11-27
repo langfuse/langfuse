@@ -10,7 +10,8 @@ export const [
   handleDeleteAnnotationQueueAssignment,
 ] = defineTool({
   name: "deleteAnnotationQueueAssignment",
-  description: "Remove a project user's assignment from an annotation queue.",
+  description:
+    "Remove a user's assignment from an annotation queue; items and scores they recorded are kept. Fails with not found if the user is not assigned.",
   action: "annotationQueueAssignments:CUD",
   baseSchema: DeleteAnnotationQueueAssignmentToolSchema,
   inputSchema: DeleteAnnotationQueueAssignmentToolSchema,

@@ -72,18 +72,12 @@ const CreateTextPromptInputSchema = z.object({
 export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
   name: "createTextPrompt",
   description: [
-    "Create a new text prompt version in Langfuse.",
+    "Create a new version of a text prompt (version 1 if the name is new); returns the version number, labels and url. For message-based prompts use createChatPrompt.",
     "",
-    "Important:",
-    "- Prompts are immutable - cannot modify existing versions",
-    "- To update content, create a new version",
-    "- New prompt versions receive the 'latest' label automatically",
-    "- Cannot assign the 'production' label during creation",
-    "- To promote to production, use updatePromptLabels only when the user explicitly requests it",
-    "- Labels are unique across versions",
-    "- Use {{variable_name}} syntax for dynamic content",
-    "",
-    "Accepts: name, prompt (string), optional labels, config, tags, commitMessage",
+    "- Versions are immutable; to change content, create a new version.",
+    "- The new version takes the 'latest' label. Labels you pass move to it from the version that held them, and tags you pass replace the tags on all versions.",
+    "- 'production' cannot be set here; promote with updatePromptLabels only when the user explicitly asks.",
+    "- Use {{variable_name}} for variables.",
   ].join("\n"),
   action: "prompts:CUD",
   baseSchema: CreateTextPromptBaseSchema,
@@ -134,5 +128,6 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
       },
     });
   },
+  // Moving labels and replacing tags changes existing prompt versions.
   annotations: { destructiveHint: true },
 });

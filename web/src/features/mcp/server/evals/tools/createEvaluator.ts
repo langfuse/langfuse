@@ -1,12 +1,8 @@
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import {
-  buildEvaluatorUrl,
-  DECISION_MODEL_CONNECTIONS_HINT,
-} from "@langfuse/shared/src/server";
+import { buildEvaluatorUrl } from "@langfuse/shared/src/server";
 import { createMcpEvaluatorService } from "../evaluator-service";
 import {
-  EVALUATOR_DEFINITION_FIELDS_DESCRIPTION,
   McpEvaluatorInput,
   McpEvaluatorInputBase,
   toEvaluatorServiceInput,
@@ -15,12 +11,8 @@ import {
 export const [createEvaluatorTool, handleCreateEvaluator] = defineTool({
   name: "createEvaluator",
   description: [
-    "Create a new evaluator with a stable id. Names do not act as identity and may be reused.",
-    "Every call must include name, type, and the definition fields for that type.",
-    EVALUATOR_DEFINITION_FIELDS_DESCRIPTION,
-    `Use ${DECISION_MODEL_CONNECTIONS_HINT}.`,
-    "Call listLlmConnections to find valid modelConfig provider names and models.",
-    "The returned `id` is the evaluatorId for getEvaluator, updateEvaluator, and deleteEvaluator.",
+    "Create a new evaluator from name, type, and that type's definition fields (see each field).",
+    "The returned `id` is the evaluatorId for getEvaluator, updateEvaluator, testEvaluator, and deleteEvaluator.",
     'Example: {"name": "Helpfulness", "type": "LLM_AS_JUDGE", "prompt": "Rate how helpful {{output}} is for {{input}}.", "outputDefinition": {"dataType": "NUMERIC", "reasoning": {"description": "Why the score was assigned"}, "score": {"description": "Helpfulness from 0 to 1"}}, "variableMapping": [{"templateVariable": "input", "selectedColumnId": "input"}, {"templateVariable": "output", "selectedColumnId": "output"}]}.',
   ].join(" "),
   action: "evaluator:CUD",
@@ -53,5 +45,5 @@ export const [createEvaluatorTool, handleCreateEvaluator] = defineTool({
         };
       },
     }),
-  annotations: { destructiveHint: true },
+  annotations: { destructiveHint: false },
 });

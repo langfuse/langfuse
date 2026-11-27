@@ -42,15 +42,17 @@ const throwCreateScoreBatchError = (error: CreateScoreBatchError): never => {
 
 export const CreateScoreBaseSchema = z
   .object({
-    id: z.string().optional(),
-    name: z.string().min(1),
-    traceId: z.string().optional().describe("Target trace ID."),
-    sessionId: z.string().optional().describe("Target session ID."),
-    datasetRunId: z.string().optional().describe("Target dataset run ID."),
-    observationId: z
+    id: z
       .string()
       .optional()
-      .describe("Optional observation ID for trace-scoped scores."),
+      .describe(
+        "Omit to generate one. An existing score's ID overwrites that score.",
+      ),
+    name: z.string().min(1),
+    traceId: z.string().optional(),
+    sessionId: z.string().optional(),
+    datasetRunId: z.string().optional(),
+    observationId: z.string().optional(),
     comment: z.string().optional(),
     metadata: z.any().optional(),
     environment: z.string().optional(),
@@ -59,25 +61,28 @@ export const CreateScoreBaseSchema = z
     value: z
       .any()
       .describe(
-        'Score value. Must be a JSON number for NUMERIC and BOOLEAN scores; numeric strings like "0.92" are invalid. Use a string for CATEGORICAL, TEXT, and CORRECTION scores.',
+        'A JSON number for NUMERIC and BOOLEAN (not a numeric string like "0.92"); a string for CATEGORICAL, TEXT, and CORRECTION.',
       ),
     dataType: z
       .enum(["NUMERIC", "CATEGORICAL", "BOOLEAN", "CORRECTION", "TEXT"])
       .optional()
+      .describe("If omitted, legacy scoring accepts string or number values."),
+    configId: z
+      .string()
+      .optional()
       .describe(
-        "Score data type. When omitted, legacy scoring accepts string or number values.",
+        "From listScoreConfigs; the value is validated against it. Archived configs are rejected.",
       ),
-    configId: z.string().optional(),
   })
   .describe(
-    "Create score request. Provide exactly one of traceId, sessionId, or datasetRunId. observationId may only be provided together with traceId.",
+    "Provide exactly one of traceId, sessionId, or datasetRunId; observationId only with traceId.",
   );
 
 export const [createScoreTool, handleCreateScore] = defineTool({
   name: "createScore",
   description: [
-    "Create one score in the current Langfuse project. To create several scores, use batchCreateScores.",
-    "Score reads are eventually consistent: after creation, getScore and listScores may not return the new score immediately. Wait briefly and retry reads when confirming creation.",
+    "Create one score and return its id (and a UI url when the target has one). For several, use batchCreateScores.",
+    "Reads are eventually consistent: getScore and listScores may not return the new score immediately; wait briefly and retry.",
   ].join("\n"),
   action: "scores:save",
   baseSchema: CreateScoreBaseSchema,

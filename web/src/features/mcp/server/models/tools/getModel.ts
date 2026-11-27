@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   GetModelV1Query,
   GetModelV1Response,
@@ -9,9 +10,14 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 
 export const [getModelTool, handleGetModel] = defineTool({
   name: "getModel",
-  description: "Get a model definition by ID from the current project scope.",
+  description:
+    "Get one model price definition, custom or Langfuse-managed: " +
+    "matchPattern, unit, prices, pricingTiers, startDate, " +
+    "isLangfuseManaged and url.",
   action: "models:read",
-  baseSchema: GetModelV1Query,
+  baseSchema: GetModelV1Query.extend({
+    modelId: z.string().describe("From listModels."),
+  }),
   inputSchema: GetModelV1Query,
   handler: async (input, context) =>
     runMcpTool({

@@ -10,7 +10,8 @@ import { GetDatasetRunItemsMcpInput } from "../schema";
 export const [listDatasetRunItemsTool, handleListDatasetRunItems] = defineTool({
   name: "listDatasetRunItems",
   description:
-    "List dataset run items, each linking one dataset item to a trace or observation within a dataset run, by dataset ID and run ID.",
+    "List dataset run items, each linking one dataset item to a trace or observation within a dataset run, by dataset ID and run ID (from listDatasetRuns)." +
+    " Fails with not-found on v4 events-only deployments; use listExperiments and listExperimentItems there.",
   action: "datasets:read",
   baseSchema: GetDatasetRunItemsMcpInput,
   inputSchema: GetDatasetRunItemsMcpInput,

@@ -32,11 +32,11 @@ const CreateScoreConfigInputSchema = z.preprocess(
 export const [createScoreConfigTool, handleCreateScoreConfig] = defineTool({
   name: "createScoreConfig",
   description:
-    "Create a score configuration. Supports numeric, categorical, boolean, and text configs. Boolean configs automatically receive True and False categories.",
+    "Create a new score config and return it. Supports numeric, categorical, boolean, and text configs. Boolean configs automatically receive True and False categories. Use the returned id as configId in createScore. Each call creates a new config; check listScoreConfigs first to reuse an existing one.",
   action: "scoreConfigs:CUD",
   baseSchema: CreateScoreConfigBaseSchema,
   inputSchema: CreateScoreConfigInputSchema,
-  annotations: { destructiveHint: true },
+  annotations: { destructiveHint: false },
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.score_configs.create",

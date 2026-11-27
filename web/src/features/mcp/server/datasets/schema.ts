@@ -7,12 +7,17 @@ const paginationSchema = {
 };
 
 export const GetDatasetsMcpInput = z.object({
-  name: z.string().optional(),
+  name: z
+    .string()
+    .optional()
+    .describe("Case-insensitive substring of the dataset name."),
   ...paginationSchema,
 });
 
 export const GetDatasetMcpInput = z.object({
-  datasetId: z.string(),
+  datasetId: z
+    .string()
+    .describe("Dataset ID (not the name) from listDatasets."),
 });
 
 export const GetDatasetRunsMcpInput = z.object({

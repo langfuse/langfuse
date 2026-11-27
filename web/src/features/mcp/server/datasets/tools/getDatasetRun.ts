@@ -9,7 +9,8 @@ import { GetDatasetRunMcpInput } from "../schema";
 export const [getDatasetRunTool, handleGetDatasetRun] = defineTool({
   name: "getDatasetRun",
   description:
-    "Get a dataset run, one experiment or evaluation execution over a dataset, and its run items by dataset ID and run ID.",
+    "Get a dataset run (one experiment execution over a dataset) with all its run items, by dataset ID and run ID from listDatasetRuns. For large runs, page with listDatasetRunItems." +
+    " Fails with not-found on v4 events-only deployments; use listExperiments and listExperimentItems there.",
   action: "datasets:read",
   baseSchema: GetDatasetRunMcpInput,
   inputSchema: GetDatasetRunMcpInput,

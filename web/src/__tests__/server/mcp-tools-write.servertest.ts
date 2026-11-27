@@ -720,7 +720,7 @@ describe("MCP Write Tools", () => {
 
     it("creates and versions an evaluator by stable id", async () => {
       const setup = await createMcpTestSetup();
-      verifyToolAnnotations(createEvaluatorTool, { destructiveHint: true });
+      verifyToolAnnotations(createEvaluatorTool, { destructiveHint: false });
       verifyToolAnnotations(updateEvaluatorTool, { destructiveHint: true });
       const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
 

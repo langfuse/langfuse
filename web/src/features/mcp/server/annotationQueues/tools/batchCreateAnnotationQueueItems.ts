@@ -4,6 +4,7 @@ import { buildAnnotationQueueItemUrl } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
+  BatchCreateAnnotationQueueItemsToolBaseSchema,
   BatchCreateAnnotationQueueItemsToolSchema,
   MAX_BATCH_CREATE_ANNOTATION_QUEUE_ITEMS,
 } from "../schema";
@@ -13,9 +14,9 @@ export const [
   handleBatchCreateAnnotationQueueItems,
 ] = defineTool({
   name: "batchCreateAnnotationQueueItems",
-  description: `Add up to ${MAX_BATCH_CREATE_ANNOTATION_QUEUE_ITEMS} annotation queue items, traces or observations to review, to one queue. Either all items are added or none.`,
+  description: `Add up to ${MAX_BATCH_CREATE_ANNOTATION_QUEUE_ITEMS} annotation queue items (traces, observations, or sessions to review) to one queue. Either all items are added or none.`,
   action: "annotationQueues:CUD",
-  baseSchema: BatchCreateAnnotationQueueItemsToolSchema,
+  baseSchema: BatchCreateAnnotationQueueItemsToolBaseSchema,
   inputSchema: BatchCreateAnnotationQueueItemsToolSchema,
   handler: async (input, context) =>
     runMcpTool({
@@ -49,4 +50,5 @@ export const [
         };
       },
     }),
+  annotations: { destructiveHint: false },
 });

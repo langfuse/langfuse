@@ -6,7 +6,7 @@ import { PutScoreConfigQuery } from "@/src/features/public-api/types/score-confi
 export const [deleteScoreConfigTool, handleDeleteScoreConfig] = defineTool({
   name: "deleteScoreConfig",
   description:
-    "Delete a score configuration from the current Langfuse project by archiving it.",
+    "Archive a score config (configId from listScoreConfigs): it stays listed with isArchived true and existing scores are unchanged, but it can no longer be used for new scores. Only the Langfuse UI can restore it.",
   action: "scoreConfigs:CUD",
   baseSchema: PutScoreConfigQuery,
   inputSchema: PutScoreConfigQuery,

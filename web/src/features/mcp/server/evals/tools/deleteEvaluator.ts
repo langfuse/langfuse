@@ -5,12 +5,13 @@ import { createMcpEvaluatorService } from "../evaluator-service";
 import { EVALUATOR_ID_DESCRIPTION } from "./evaluatorInput";
 
 const DeleteEvaluatorInput = z.object({
-  evaluatorId: z.string().describe(`Required. ${EVALUATOR_ID_DESCRIPTION}`),
+  evaluatorId: z.string().describe(EVALUATOR_ID_DESCRIPTION),
 });
 
 export const [deleteEvaluatorTool, handleDeleteEvaluator] = defineTool({
   name: "deleteEvaluator",
-  description: "Delete an evaluator. This cannot be undone.",
+  description:
+    "Permanently delete a project evaluator and all its versions. It is removed from every evaluation rule using it (getEvaluator shows how many); rules left without an evaluator are deactivated. Existing scores are kept. Langfuse-managed evaluators cannot be deleted.",
   action: "evaluator:CUD",
   baseSchema: DeleteEvaluatorInput,
   inputSchema: DeleteEvaluatorInput,

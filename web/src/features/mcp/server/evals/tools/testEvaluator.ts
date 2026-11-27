@@ -20,9 +20,7 @@ const TestEvaluatorInputBase = z
       .string()
       .min(1)
       .optional()
-      .describe(
-        "Saved evaluator ID. Provide this or a draft evaluator definition, but not both.",
-      ),
+      .describe("Saved evaluator ID; not together with draft fields."),
     ...DraftEvaluatorFields.shape,
     observationId: z.string().min(1),
     traceId: z.string().min(1),
@@ -73,10 +71,9 @@ const TestEvaluatorInput = TestEvaluatorRuntimeInputBase.superRefine(
 export const [testEvaluatorTool, handleTestEvaluator] = defineTool({
   name: "testEvaluator",
   description: [
-    "Test an evaluator draft or the latest saved version of an evaluator against one observation in the current Langfuse project.",
-    "For a saved evaluator, provide evaluatorId. For an unsaved draft, omit evaluatorId and provide type plus the matching LLM-as-a-judge, code, or decision-model evaluator fields.",
+    "Run the latest version of a saved evaluator (evaluatorId) or an unsaved draft (type plus its definition fields) against one observation.",
     "Pass the observationId, traceId, and startTime returned by the observation tools.",
-    "This executes the evaluator, emits an internal trace, and may incur model or code execution cost.",
+    "Executes the evaluator, emits an internal trace, and may incur model or code execution cost.",
   ].join(" "),
   action: "evaluator:CUD",
   baseSchema: TestEvaluatorInputBase,
