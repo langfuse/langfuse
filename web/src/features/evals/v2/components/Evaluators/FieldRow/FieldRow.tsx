@@ -2,7 +2,11 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/src/utils/tailwind";
 
-/** One labelled row of an evaluator definition. Labels share a column so the controls line up. */
+/**
+ * One labelled row of an evaluator definition. Labels share a column so the
+ * controls line up. Inside a narrow `@container/fields` the label sits above
+ * its control.
+ */
 export function FieldRow({
   label,
   info,
@@ -25,13 +29,13 @@ export function FieldRow({
   return (
     <div
       className={cn(
-        "flex gap-2 text-sm",
+        "flex gap-2 text-sm @max-sm/fields:flex-col @max-sm/fields:items-stretch",
         align === "center" ? "items-center" : "items-start",
       )}
     >
       <span
         className={cn(
-          "text-muted-foreground flex shrink-0 flex-col font-bold",
+          "text-muted-foreground flex shrink-0 flex-col font-bold @max-sm/fields:w-auto @max-sm/fields:pt-0",
           size === "wide" ? "w-28" : "w-16",
           align === "start" && "pt-2",
         )}
