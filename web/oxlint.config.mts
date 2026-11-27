@@ -16,6 +16,8 @@ import { defineConfig } from "oxlint";
 // `Foo/components/Bar/components/Qux/Qux.tsx -> Foo/hooks/useX.ts` is uncle, allowed.
 // `Foo/hooks/useX.ts -> Foo/components/helper.ts` is parent, allowed.
 // `Foo/Foo.tsx -> Foo/components/Bar/Bar.tsx` is child, allowed.
+// `Foo/Foo.tsx -> Foo/components/Bar/components/helper.ts` is the child element
+// but the file is private to `Bar`, so it stays an error.
 // `Other/Other.tsx -> Foo/hooks/useX.ts` is an error.
 // `Other/Other.tsx -> Foo/components/Bar/Bar.tsx` is an error.
 // `Other/Other.tsx -> Foo/components/helper.ts` is an error.
@@ -72,10 +74,37 @@ const componentPrivacyPolicies = [
   },
   {
     // A later policy wins, so this re-allows what the privacy policies blocked.
+    // It also matches a parent importing a child element. Loose files live on
+    // that element, so the policies below close them again. A part inside the
+    // owner is `parent` and is re-opened last.
     allow: {
       dependency: {
         relationship: { to: ["child", "sibling", "uncle", "parent"] },
       },
+    },
+  },
+  {
+    disallow: {
+      to: {
+        file: {
+          categories: "component-loose-private",
+          path: componentPrivacyPathPatterns,
+        },
+      },
+    },
+    message: componentPrivacyMessage,
+  },
+  {
+    from: { file: { path: componentPrivacyPathPatterns } },
+    disallow: {
+      to: { file: { categories: "component-loose-private" } },
+    },
+    message: componentPrivacyMessage,
+  },
+  {
+    allow: {
+      to: { file: { categories: "component-loose-private" } },
+      dependency: { relationship: { to: "parent" } },
     },
   },
 ];
