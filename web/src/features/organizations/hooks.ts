@@ -14,7 +14,7 @@ export const useQueryOrganization = () => {
   );
 };
 
-const useOrganization = (organizationId: string | null) => {
+export const useOrganization = (organizationId: string | null) => {
   const session = useSession();
 
   if (!organizationId) return null;

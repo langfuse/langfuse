@@ -216,6 +216,5 @@ export {
   FormDescription,
   FormMessage,
   FormField,
-  useFormField,
   hasArrayLevelFieldError,
 };

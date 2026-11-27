@@ -11,6 +11,7 @@ import { Role, type Plan, entitlementAccess } from "@langfuse/shared";
 import { createApiKey } from "@langfuse/shared/src/server";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { env } from "@/src/env.mjs";
+import { MAX_MEMBER_INVITES_PER_REQUEST } from "@/src/features/rbac/constants/memberInvites";
 
 import { v4 as uuidv4 } from "uuid";
 import type * as SharedServer from "@langfuse/shared/src/server";
@@ -151,10 +152,15 @@ describe("membersRouter.create - organization member limit enforcement", () => {
       await expect(
         caller.members.create({
           orgId: org.id,
-          email: newUser.email!,
+          emails: [newUser.email!],
           orgRole: Role.MEMBER,
         }),
-      ).resolves.not.toThrow();
+      ).resolves.toEqual({
+        invited: [],
+        added: [newUser.email],
+        addedToProject: [],
+        failed: [],
+      });
 
       // Verify the membership was created
       const membership = await prisma.organizationMembership.findFirst({
@@ -164,7 +170,7 @@ describe("membersRouter.create - organization member limit enforcement", () => {
       expect(membership?.role).toBe(Role.MEMBER);
     });
 
-    it("should throw FORBIDDEN when exceeding member limit with existing members", async () => {
+    it("fails the email with seat_limit when exceeding member limit with existing members", async () => {
       const { org, caller } = await prepare("cloud:hobby");
 
       // Add one more member to reach the limit (owner + 1 = 2)
@@ -181,10 +187,15 @@ describe("membersRouter.create - organization member limit enforcement", () => {
       await expect(
         caller.members.create({
           orgId: org.id,
-          email: user2.email!,
+          emails: [user2.email!],
           orgRole: Role.MEMBER,
         }),
-      ).rejects.toThrow(/at its member limit/i);
+      ).resolves.toEqual({
+        invited: [],
+        added: [],
+        addedToProject: [],
+        failed: [{ email: user2.email, reason: "seat_limit" }],
+      });
     });
 
     it("does not admit more members than the limit under concurrent requests", async () => {
@@ -199,11 +210,11 @@ describe("membersRouter.create - organization member limit enforcement", () => {
         Array.from({ length: 5 }, () => createTestUser()),
       );
 
-      const results = await Promise.allSettled(
+      const results = await Promise.all(
         users.map((user) =>
           caller.members.create({
             orgId: org.id,
-            email: user.email!,
+            emails: [user.email!],
             orgRole: Role.MEMBER,
           }),
         ),
@@ -214,12 +225,11 @@ describe("membersRouter.create - organization member limit enforcement", () => {
       });
       expect(memberCount).toBe(hobbyMemberLimit);
 
-      const rejected = results.filter((r) => r.status === "rejected");
-      expect(results.length - rejected.length).toBe(1);
+      expect(results.flatMap((result) => result.added)).toHaveLength(1);
       // every loser lost to the limit check, not to an incidental error
-      for (const result of rejected) {
-        expect(String(result.reason)).toMatch(/at its member limit/i);
-      }
+      expect(
+        results.flatMap((result) => result.failed.map(({ reason }) => reason)),
+      ).toEqual(Array(users.length - 1).fill("seat_limit"));
     }, 25_000);
 
     it("does not admit more invitations than the limit under concurrent requests", async () => {
@@ -232,11 +242,11 @@ describe("membersRouter.create - organization member limit enforcement", () => {
         () => `concurrent-${uuidv4().substring(0, 8)}@test.com`,
       );
 
-      const results = await Promise.allSettled(
+      const results = await Promise.all(
         emails.map((email) =>
           caller.members.create({
             orgId: org.id,
-            email,
+            emails: [email],
             orgRole: Role.MEMBER,
           }),
         ),
@@ -248,14 +258,13 @@ describe("membersRouter.create - organization member limit enforcement", () => {
       // owner + 1 invitation = the hobby limit
       expect(inviteCount).toBe(hobbyMemberLimit - 1);
 
-      const rejected = results.filter((r) => r.status === "rejected");
-      expect(results.length - rejected.length).toBe(1);
-      for (const result of rejected) {
-        expect(String(result.reason)).toMatch(/at its member limit/i);
-      }
+      expect(results.flatMap((result) => result.invited)).toHaveLength(1);
+      expect(
+        results.flatMap((result) => result.failed.map(({ reason }) => reason)),
+      ).toEqual(Array(emails.length - 1).fill("seat_limit"));
     }, 25_000);
 
-    it("should throw FORBIDDEN when exceeding member limit with pending invitations", async () => {
+    it("fails the email with seat_limit when exceeding member limit with pending invitations", async () => {
       const { org, caller, ownerUser } = await prepare("cloud:hobby");
 
       // Create a pending invitation (owner + 1 invite = 2)
@@ -274,10 +283,15 @@ describe("membersRouter.create - organization member limit enforcement", () => {
       await expect(
         caller.members.create({
           orgId: org.id,
-          email: newEmail,
+          emails: [newEmail],
           orgRole: Role.MEMBER,
         }),
-      ).rejects.toThrow(/at its member limit/i);
+      ).resolves.toEqual({
+        invited: [],
+        added: [],
+        addedToProject: [],
+        failed: [{ email: newEmail, reason: "seat_limit" }],
+      });
     });
   });
 
@@ -292,7 +306,7 @@ describe("membersRouter.create - organization member limit enforcement", () => {
         await expect(
           caller.members.create({
             orgId: org.id,
-            email: user.email!,
+            emails: [user.email!],
             orgRole: Role.MEMBER,
           }),
         ).resolves.not.toThrow();
@@ -316,7 +330,7 @@ describe("membersRouter.create - organization member limit enforcement", () => {
       await expect(
         caller.members.create({
           orgId: org.id,
-          email: newEmail,
+          emails: [newEmail],
           orgRole: Role.MEMBER,
         }),
       ).resolves.not.toThrow();
@@ -338,7 +352,7 @@ describe("membersRouter.create - organization member limit enforcement", () => {
         await expect(
           caller.members.create({
             orgId: org.id,
-            email: email,
+            emails: [email],
             orgRole: Role.MEMBER,
           }),
         ).resolves.not.toThrow();
@@ -362,7 +376,7 @@ describe("membersRouter.create - invitation email", () => {
     for (const email of [ssoEmail, otherEmail]) {
       await caller.members.create({
         orgId: org.id,
-        email,
+        emails: [email],
         orgRole: Role.MEMBER,
       });
     }
@@ -381,6 +395,143 @@ describe("membersRouter.create - invitation email", () => {
         ssoEnforced: false,
       }),
     );
+  });
+});
+
+describe("membersRouter.create - several emails", () => {
+  it("returns each email's outcome from one call", async () => {
+    const { org, caller, ownerUser } = await prepare("cloud:team");
+    const existingUser = await createTestUser();
+    const member = await createTestUser();
+    await createOrgMembership(prisma, {
+      userId: member.id,
+      orgId: org.id,
+      role: Role.MEMBER,
+    });
+    const pendingEmail = `pending-${uuidv4().substring(0, 8)}@test.com`;
+    await prisma.membershipInvitation.create({
+      data: {
+        orgId: org.id,
+        email: pendingEmail,
+        orgRole: Role.MEMBER,
+        invitedByUserId: ownerUser.id,
+      },
+    });
+    const newEmail = `new-${uuidv4().substring(0, 8)}@test.com`;
+
+    const result = await caller.members.create({
+      orgId: org.id,
+      emails: [
+        member.email!,
+        ` ${newEmail.toUpperCase()} `,
+        pendingEmail,
+        existingUser.email!,
+        newEmail,
+      ],
+      orgRole: Role.VIEWER,
+    });
+
+    expect(result).toEqual({
+      invited: [newEmail],
+      added: [existingUser.email],
+      addedToProject: [],
+      failed: [
+        { email: member.email, reason: "already_member" },
+        { email: pendingEmail, reason: "pending_invite" },
+      ],
+    });
+    expect(
+      await prisma.membershipInvitation.findMany({
+        where: { orgId: org.id, email: { in: [newEmail, pendingEmail] } },
+        select: { email: true, orgRole: true },
+        orderBy: { email: "asc" },
+      }),
+    ).toEqual([
+      { email: newEmail, orgRole: Role.VIEWER },
+      { email: pendingEmail, orgRole: Role.MEMBER },
+    ]);
+  });
+
+  it("invites up to the seat limit and fails the rest with seat_limit", async () => {
+    const { org, caller } = await prepare("cloud:hobby");
+    // The owner holds one of the two Hobby seats.
+    const emails = Array.from(
+      { length: 3 },
+      (_, index) => `seat-${index}-${uuidv4().substring(0, 8)}@test.com`,
+    );
+
+    const result = await caller.members.create({
+      orgId: org.id,
+      emails,
+      orgRole: Role.MEMBER,
+    });
+
+    expect(result).toEqual({
+      invited: [emails[0]],
+      added: [],
+      addedToProject: [],
+      failed: [
+        { email: emails[1], reason: "seat_limit" },
+        { email: emails[2], reason: "seat_limit" },
+      ],
+    });
+    expect(
+      await prisma.membershipInvitation.count({ where: { orgId: org.id } }),
+    ).toBe(1);
+  });
+
+  it("rejects more addresses than the cap, or a malformed one, as BAD_REQUEST and writes nothing", async () => {
+    const { org, caller } = await prepare("cloud:team");
+
+    await expect(
+      caller.members.create({
+        orgId: org.id,
+        emails: Array.from(
+          { length: MAX_MEMBER_INVITES_PER_REQUEST + 1 },
+          (_, index) => `cap-${index}-${uuidv4().substring(0, 8)}@test.com`,
+        ),
+        orgRole: Role.MEMBER,
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      caller.members.create({
+        orgId: org.id,
+        emails: [
+          `valid-${uuidv4().substring(0, 8)}@test.com`,
+          "not-an-address",
+        ],
+        orgRole: Role.MEMBER,
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(
+      await prisma.membershipInvitation.count({ where: { orgId: org.id } }),
+    ).toBe(0);
+  });
+
+  it("rejects a caller without member access as FORBIDDEN and writes nothing", async () => {
+    const { org, project, ownerUser } = await createTestOrg("cloud:team");
+    const session = memberSession(ownerUser, org, project, "cloud:team", {
+      orgRole: Role.VIEWER,
+      projectRole: Role.VIEWER,
+    });
+    const viewerCaller = appRouter.createCaller({
+      ...createInnerTRPCContext({ session, headers: {} }),
+      prisma,
+    });
+
+    await expect(
+      viewerCaller.members.create({
+        orgId: org.id,
+        emails: Array.from(
+          { length: 3 },
+          () => `denied-${uuidv4().substring(0, 8)}@test.com`,
+        ),
+        orgRole: Role.MEMBER,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(
+      await prisma.membershipInvitation.count({ where: { orgId: org.id } }),
+    ).toBe(0);
   });
 });
 
@@ -1030,7 +1181,7 @@ describe("membersRouter.updateProjectRole - orgMembership/userId consistency", (
 });
 
 describe("membersRouter.create - duplicate project membership", () => {
-  it("returns CONFLICT when re-adding an existing org member to a project they already belong to", async () => {
+  it("fails as already_member when re-adding an existing org member to a project they already belong to", async () => {
     const { org, project, caller } = await prepare("cloud:team");
     const user = await createTestUser();
     const orgMembership = await createOrgMembership(prisma, {
@@ -1049,20 +1200,55 @@ describe("membersRouter.create - duplicate project membership", () => {
     await expect(
       caller.members.create({
         orgId: org.id,
-        email: user.email!,
+        emails: [user.email!],
         orgRole: Role.NONE,
         projectId: project.id,
         projectRole: Role.VIEWER,
       }),
-    ).rejects.toMatchObject({
-      code: "CONFLICT",
-      message: "User is already a member of this project",
+    ).resolves.toEqual({
+      invited: [],
+      added: [],
+      addedToProject: [],
+      failed: [{ email: user.email, reason: "already_member" }],
     });
   });
 });
 
+describe("membersRouter.create - project role for an existing member", () => {
+  it("adds the project role and reports it apart, without an email", async () => {
+    const { org, project, caller } = await prepare("cloud:team");
+    const user = await createTestUser();
+    await createOrgMembership(prisma, {
+      userId: user.id,
+      orgId: org.id,
+      role: Role.MEMBER,
+    });
+    sendMembershipInvitationEmail.mockClear();
+
+    await expect(
+      caller.members.create({
+        orgId: org.id,
+        emails: [user.email!],
+        orgRole: Role.NONE,
+        projectId: project.id,
+        projectRole: Role.VIEWER,
+      }),
+    ).resolves.toEqual({
+      invited: [],
+      added: [],
+      addedToProject: [user.email],
+      failed: [],
+    });
+    expect(sendMembershipInvitationEmail).not.toHaveBeenCalled();
+    const row = await prisma.projectMembership.findUnique({
+      where: { projectId_userId: { projectId: project.id, userId: user.id } },
+    });
+    expect(row?.role).toBe(Role.VIEWER);
+  });
+});
+
 describe("membersRouter.create - duplicate org membership", () => {
-  it("returns CONFLICT when a concurrent request already created the org membership", async () => {
+  it("fails as already_member when a concurrent request already created the org membership", async () => {
     const { org, caller } = await prepare("cloud:team");
     const user = await createTestUser();
 
@@ -1084,12 +1270,14 @@ describe("membersRouter.create - duplicate org membership", () => {
       await expect(
         caller.members.create({
           orgId: org.id,
-          email: user.email!,
+          emails: [user.email!],
           orgRole: Role.MEMBER,
         }),
-      ).rejects.toMatchObject({
-        code: "CONFLICT",
-        message: "User is already a member of this organization",
+      ).resolves.toEqual({
+        invited: [],
+        added: [],
+        addedToProject: [],
+        failed: [{ email: user.email, reason: "already_member" }],
       });
     } finally {
       findFirstSpy.mockRestore();
@@ -1190,7 +1378,7 @@ describe("membersRouter.create - project organization consistency", () => {
       await expect(
         trpc.members.create({
           orgId: targetOrg.id,
-          email,
+          emails: [email],
           orgRole: Role.NONE,
           projectId: callerProject.id,
         }),
@@ -1300,7 +1488,7 @@ describe("membersRouter - AI_GATEWAY role", () => {
 
     await caller.members.create({
       orgId: org.id,
-      email: newUser.email!,
+      emails: [newUser.email!],
       orgRole: Role.AI_GATEWAY,
     });
 
@@ -1317,7 +1505,7 @@ describe("membersRouter - AI_GATEWAY role", () => {
     await expect(
       caller.members.create({
         orgId: org.id,
-        email: newUser.email!,
+        emails: [newUser.email!],
         orgRole: Role.AI_GATEWAY,
       }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -1385,7 +1573,7 @@ describe("membersRouter - AI_GATEWAY role", () => {
     await expect(
       caller.members.create({
         orgId: org.id,
-        email: newUser.email!,
+        emails: [newUser.email!],
         orgRole: Role.NONE,
         projectId: project.id,
         projectRole: Role.AI_GATEWAY as never,

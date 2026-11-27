@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { projectNoneRoleComment, type Role } from "@langfuse/shared";
 import { type SystemRole } from "@langfuse/shared/src/db";
@@ -40,6 +40,7 @@ export function RoleSelect({
   "aria-invalid": ariaInvalid,
   "aria-describedby": ariaDescribedBy,
   size,
+  onAfterPick,
 }: {
   roles: Role[];
   value: Role;
@@ -50,6 +51,8 @@ export function RoleSelect({
   triggerId?: string;
   "aria-invalid"?: boolean;
   "aria-describedby"?: string;
+  /** Called once the list closed on a pick, in place of focusing the trigger again. */
+  onAfterPick?: () => void;
 } & VariantProps<typeof triggerVariants>) {
   const [open, setOpen] = useState(false);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
@@ -57,7 +60,12 @@ export function RoleSelect({
     null,
   );
 
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // The list closes on a pick, but also on Escape, an outside click or a permission preview.
+  const isDismissedRef = useRef(false);
+
   const openPermissions = (role: SystemRole) => {
+    isDismissedRef.current = true;
     setOpen(false);
     setPermissionsRole(role);
     setPermissionsOpen(true);
@@ -79,6 +87,7 @@ export function RoleSelect({
         disabled={disabled}
       >
         <SelectTrigger
+          ref={triggerRef}
           id={triggerId}
           aria-invalid={ariaInvalid}
           aria-describedby={ariaDescribedBy}
@@ -92,7 +101,21 @@ export function RoleSelect({
             </span>
           </span>
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent
+          onEscapeKeyDown={() => {
+            isDismissedRef.current = true;
+          }}
+          onPointerDownOutside={() => {
+            isDismissedRef.current = true;
+          }}
+          onCloseAutoFocus={(event) => {
+            const isPick = !isDismissedRef.current;
+            isDismissedRef.current = false;
+            if (!isPick || !onAfterPick) return;
+            event.preventDefault();
+            onAfterPick();
+          }}
+        >
           {roles.map((role) => (
             <RoleSelectItem
               key={role}
@@ -114,6 +137,14 @@ export function RoleSelect({
         role={permissionsRole}
         emptyStateComment={
           isProjectRole ? projectNoneRoleComment : orgNoneRoleComment
+        }
+        onCloseAutoFocus={
+          onAfterPick
+            ? (event) => {
+                event.preventDefault();
+                triggerRef.current?.focus();
+              }
+            : undefined
         }
       />
     </>

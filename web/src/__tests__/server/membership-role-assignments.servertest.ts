@@ -543,7 +543,7 @@ describe("membership role assignments", () => {
 
       await ownerCaller().members.create({
         orgId,
-        email: user.email!,
+        emails: [user.email!],
         orgRole: Role.MEMBER,
         projectId,
         projectRole: Role.VIEWER,
@@ -558,13 +558,13 @@ describe("membership role assignments", () => {
       const user = await createUser();
       await ownerCaller().members.create({
         orgId,
-        email: user.email!,
+        emails: [user.email!],
         orgRole: Role.NONE,
       });
 
       await ownerCaller().members.create({
         orgId,
-        email: user.email!,
+        emails: [user.email!],
         orgRole: Role.NONE,
         projectId,
         projectRole: Role.ADMIN,
@@ -579,7 +579,7 @@ describe("membership role assignments", () => {
       const user = await createUser();
       await ownerCaller().members.create({
         orgId,
-        email: user.email!,
+        emails: [user.email!],
         orgRole: Role.MEMBER,
       });
 
@@ -596,7 +596,7 @@ describe("membership role assignments", () => {
       const user = await createUser();
       await ownerCaller().members.create({
         orgId,
-        email: user.email!,
+        emails: [user.email!],
         orgRole: Role.VIEWER,
       });
       const input = {
@@ -633,7 +633,7 @@ describe("membership role assignments", () => {
       const user = await createUser();
       await ownerCaller().members.create({
         orgId,
-        email: user.email!,
+        emails: [user.email!],
         orgRole: Role.MEMBER,
         projectId,
         projectRole: Role.VIEWER,
@@ -648,7 +648,7 @@ describe("membership role assignments", () => {
       });
       await callerFor(ownerId, otherOrg.id).members.create({
         orgId: otherOrg.id,
-        email: user.email!,
+        emails: [user.email!],
         orgRole: Role.VIEWER,
       });
 

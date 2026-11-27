@@ -99,6 +99,13 @@ const isWithinEntitlementLimit = (
   return p.currentUsage < limit;
 };
 
+/** A FORBIDDEN that callers can tell apart from an access check's. */
+export class EntitlementLimitExceededError extends TRPCError {
+  constructor(message: string) {
+    super({ code: "FORBIDDEN", message });
+  }
+}
+
 /**
  * Throws if usage exceeds the entitlement limit
  */
@@ -107,13 +114,11 @@ export const throwIfExceedsLimit = (
 ) => {
   if (!isWithinEntitlementLimit(p)) {
     const limit = hasEntitlementLimit(p);
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message:
-        p.entitlementLimit === "organization-member-count" &&
+    throw new EntitlementLimitExceededError(
+      p.entitlementLimit === "organization-member-count" &&
         typeof limit === "number"
-          ? organizationMemberLimitMessage(p.currentUsage, limit)
-          : `Usage (${p.currentUsage}) exceeds the limit (${limit}) for entitlement: ${p.entitlementLimit}`,
-    });
+        ? organizationMemberLimitMessage(p.currentUsage, limit)
+        : `Usage (${p.currentUsage}) exceeds the limit (${limit}) for entitlement: ${p.entitlementLimit}`,
+    );
   }
 };

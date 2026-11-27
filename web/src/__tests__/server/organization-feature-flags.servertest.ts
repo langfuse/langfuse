@@ -239,7 +239,7 @@ describe("organization feature preview defaults", () => {
 
     await caller.members.create({
       orgId: org.id,
-      email: member.email!,
+      emails: [member.email!],
       orgRole: Role.MEMBER,
     });
 

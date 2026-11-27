@@ -64,6 +64,8 @@ type DialogProps = {
     label?: string;
   };
   title: string;
+  /** One line under the title; it becomes the dialog's accessible description. */
+  description?: string;
 } & (
   | { children?: React.ReactNode; text?: never }
   | { children?: never; text: string }
@@ -85,6 +87,7 @@ function DialogRoot({
   text,
   back,
   title,
+  description,
 }: DialogProps) {
   const container = useLayerContainer("modal");
   const [popoverContainer, setPopoverContainer] =
@@ -104,6 +107,11 @@ function DialogRoot({
   const isCloseOnly =
     !hideCloseButton && !hasActions && closeLabel !== undefined;
   const actionButtonRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
+  // Without a Radix trigger, focus would go to the body on close. The opener is read on first
+  // render, before an autofocused field takes focus; DialogController remounts on every open.
+  const [opener] = React.useState(() =>
+    typeof document === "undefined" ? null : document.activeElement,
+  );
 
   return (
     <DialogPrimitive.Portal container={container}>
@@ -115,7 +123,7 @@ function DialogRoot({
         onClick={(event) => event.stopPropagation()}
       />
       <DialogPrimitive.Content
-        aria-describedby={undefined}
+        {...(!description && { "aria-describedby": undefined })}
         className={cn(
           motionStyles.content,
           dialogContentVariants({ size }),
@@ -154,6 +162,16 @@ function DialogRoot({
           }
 
           closeButtonRef.current?.focus();
+        }}
+        onCloseAutoFocus={(event) => {
+          // A dialog that opened as this one closed keeps the focus.
+          if (document.activeElement?.closest("[role$='dialog']")) {
+            event.preventDefault();
+            return;
+          }
+          if (!(opener instanceof HTMLElement) || !opener.isConnected) return;
+          event.preventDefault();
+          opener.focus();
         }}
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
@@ -204,6 +222,11 @@ function DialogRoot({
                 </DialogPrimitive.Close>
               )}
             </div>
+            {description ? (
+              <DialogPrimitive.Description className="text-muted-foreground text-sm">
+                {description}
+              </DialogPrimitive.Description>
+            ) : null}
           </header>
           <PopoverLayerProvider container={popoverContainer}>
             {text !== undefined ? <DialogBody>{text}</DialogBody> : children}

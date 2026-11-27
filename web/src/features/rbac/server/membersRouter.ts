@@ -45,7 +45,11 @@ import {
   saveProjectMembership,
   updateOrgMembership,
 } from "@langfuse/shared/memberships";
-import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
+import {
+  inviteOrganizationMembers,
+  normalizeInviteEmails,
+} from "@/src/features/rbac/server/inviteOrganizationMembers";
+import { MAX_MEMBER_INVITES_PER_REQUEST } from "@/src/features/rbac/constants/memberInvites";
 import { isSsoEnforcedForEmail } from "@/src/features/auth-credentials/server/signupApiHandler";
 import {
   assertValidOrgOwnershipChange,
@@ -77,7 +81,10 @@ export const membersRouter = createTRPCRouter({
     .input(
       z.object({
         orgId: z.string(),
-        email: z.email(),
+        emails: z
+          .array(z.string())
+          .transform(normalizeInviteEmails)
+          .pipe(z.array(z.email()).min(1).max(MAX_MEMBER_INVITES_PER_REQUEST)),
         orgRole: z.enum(Role),
         // in case a projectRole should be set for a specific project
         projectId: z.string().optional(),
@@ -85,7 +92,7 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      return inviteOrganizationMember({
+      return inviteOrganizationMembers({
         ctx,
         input,
         sendInvitationEmail: async ({ to, orgName, userExists }) =>

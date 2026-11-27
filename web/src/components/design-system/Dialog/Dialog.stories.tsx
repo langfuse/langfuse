@@ -334,3 +334,140 @@ export const ScrollableBodyKeepsControlsAboveFooter = meta.story({
     await expect(lowerControl).toHaveFocus();
   },
 });
+
+export const Description = meta.story({
+  name: "(Test) Description",
+  render: () => (
+    <DialogController
+      renderDialog={() => (
+        <Dialog
+          title="Invite your team"
+          description="They get an email to join Acme."
+          text="Dialog body content."
+          actions={[{ label: "Continue", onClick: fn() }]}
+        />
+      )}
+    >
+      {({ openDialog }) => (
+        <button type="button" onClick={() => openDialog()}>
+          Open dialog
+        </button>
+      )}
+    </DialogController>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
+
+    await expect(
+      await body.findByRole("dialog", { name: "Invite your team" }),
+    ).toHaveAccessibleDescription("They get an email to join Acme.");
+  },
+});
+
+export const ReturnsFocus = meta.story({
+  name: "(Test) Returns the focus to the opener on close",
+  render: () => (
+    <DialogController
+      renderDialog={() => (
+        <Dialog
+          title="Import prompts"
+          actions={[{ label: "Continue", onClick: fn() }]}
+        >
+          <Dialog.Body>
+            {/* An autofocused field takes the focus before the dialog's own autofocus runs. */}
+            <input aria-label="Prompt name" autoFocus />
+          </Dialog.Body>
+        </Dialog>
+      )}
+    >
+      {({ openDialog }) => (
+        <button type="button" onClick={() => openDialog()}>
+          Open dialog
+        </button>
+      )}
+    </DialogController>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const opener = canvas.getByRole("button", { name: "Open dialog" });
+
+    await userEvent.click(opener);
+    await userEvent.click(await body.findByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(opener).toHaveFocus());
+  },
+});
+
+function DialogHandOff() {
+  const [openCount, setOpenCount] = React.useState(0);
+  const [handedOff, setHandedOff] = React.useState(0);
+  const isOpen = openCount > 0 && handedOff !== openCount;
+  return (
+    <DialogController
+      renderDialog={() => (
+        <Dialog title="Invite your team">
+          <Dialog.Body>
+            <input aria-label="Email addresses" autoFocus />
+          </Dialog.Body>
+        </Dialog>
+      )}
+    >
+      {({ openDialog: openInviteDialog }) => (
+        <>
+          <button
+            type="button"
+            onClick={() => setOpenCount((count) => count + 1)}
+          >
+            Open dialog
+          </button>
+          <DialogController
+            // Unmounts the first dialog at once when it hands off.
+            key={`${openCount}:${isOpen}`}
+            initialState={() => (isOpen ? true : undefined)}
+            renderDialog={() => (
+              <Dialog
+                title="Make this trace public?"
+                actions={[
+                  {
+                    label: "Invite instead",
+                    onClick: () => {
+                      setHandedOff(openCount);
+                      openInviteDialog();
+                    },
+                  },
+                ]}
+              >
+                <Dialog.Body>Anyone with the link can view it.</Dialog.Body>
+              </Dialog>
+            )}
+          >
+            {() => null}
+          </DialogController>
+        </>
+      )}
+    </DialogController>
+  );
+}
+
+export const LeavesFocusInNextDialog = meta.story({
+  name: "(Test) Leaves the focus in a dialog that opened as it closed",
+  render: () => <DialogHandOff />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
+    await userEvent.click(
+      await body.findByRole("button", { name: "Invite instead" }),
+    );
+    const field = await body.findByRole("textbox", { name: "Email addresses" });
+    // The closed dialog's focus return runs after its content unmounts.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    expect(field).toHaveFocus();
+  },
+});
