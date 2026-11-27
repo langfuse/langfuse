@@ -41,7 +41,7 @@ export function needsTraceMapping(assignment: {
   variableMapping: ObservationVariableMapping[] | null;
   defaultVariableMapping?: ObservationVariableMapping[] | null;
 }) {
-  // Code evaluators have no user mapping; they read the whole transcript.
+  // Code evaluators have no user mapping; they read the fixed threads variable.
   if (assignment.evaluatorType === "CODE") return false;
   return (
     assignment.variableMapping ??

@@ -9,6 +9,8 @@ import {
   parseDispatchResult,
 } from "../../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
 import { CodeEvalExecutionError } from "../../../../../packages/shared/src/server/evals/codeEvalExecution";
+import { getTraceCodeEvalVariableMapping } from "../../../../../packages/shared/src/features/evals/observationForEval";
+import { extractTranscriptEvalVariables } from "../../../../../packages/shared/src/features/evals/traceTranscriptEval";
 
 const mocks = vi.hoisted(() => ({
   dispatcher: {
@@ -50,13 +52,14 @@ const evaluationContext = {
   evaluatorExecutionIsTest: false,
 };
 
+type ExecuteParams = Parameters<typeof executeCodeBasedEvaluation>[0];
+
 const executeCodeBasedEvaluationWithContext = (
-  params: Omit<
-    Parameters<typeof executeCodeBasedEvaluation>[0],
-    "evaluationContext"
-  >,
+  params: Omit<ExecuteParams, "evaluationContext" | "targetType"> &
+    Partial<Pick<ExecuteParams, "targetType">>,
 ) =>
   executeCodeBasedEvaluation({
+    targetType: "observation",
     ...params,
     evaluationContext,
   });
@@ -451,29 +454,8 @@ describe("executeCodeBasedEvaluation", () => {
       input: { city: "Zurich" },
       providerMetadata: { openai: { index: 0 } },
     };
-
-    await executeCodeBasedEvaluationWithContext({
-      projectId: "project-1",
-      organizationId: "org-1",
-      job: {
-        id: "job-1",
-        jobConfigurationId: "config-1",
-        jobInputTraceId: "trace-1",
-        jobInputObservationId: null,
-        jobInputDatasetItemId: null,
-      } as any,
-      config: { id: "config-1", scoreName: "default-score" } as any,
-      template: {
-        id: "template-1",
-        type: EvalTemplateType.CODE,
-        version: 1,
-        sourceCode: "function evaluate() {}",
-        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
-        prompt: null,
-        outputDefinition: null,
-      } as any,
-      extractedVariables: [],
-      threads: [
+    const extracted = extractTranscriptEvalVariables(
+      [
         {
           conversationHistory: [
             {
@@ -502,10 +484,36 @@ describe("executeCodeBasedEvaluation", () => {
           },
         },
       ],
+      getTraceCodeEvalVariableMapping(),
+    );
+    if (!extracted.ok) throw new Error(extracted.error);
+
+    await executeCodeBasedEvaluationWithContext({
+      projectId: "project-1",
+      organizationId: "org-1",
+      job: {
+        id: "job-1",
+        jobConfigurationId: "config-1",
+        jobInputTraceId: "trace-1",
+        jobInputObservationId: null,
+        jobInputDatasetItemId: null,
+      } as any,
+      config: { id: "config-1", scoreName: "default-score" } as any,
+      template: {
+        id: "template-1",
+        type: EvalTemplateType.CODE,
+        version: 1,
+        sourceCode: "function evaluate() {}",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        prompt: null,
+        outputDefinition: null,
+      } as any,
+      targetType: "trace",
+      extractedVariables: extracted.variables,
       executionMetadata: { job_execution_id: "job-1" },
     });
 
-    expect(mocks.dispatcher.dispatch.mock.calls[0]?.[0].payload).toEqual({
+    const expectedPayload = JSON.stringify({
       targetType: "trace",
       trace: {
         threads: [
@@ -521,6 +529,12 @@ describe("executeCodeBasedEvaluation", () => {
         ],
       },
     });
+    expect(
+      JSON.stringify(mocks.dispatcher.dispatch.mock.calls[0]?.[0].payload),
+    ).toBe(expectedPayload);
+    expect(
+      mocks.writeInternalTrace.mock.calls[0]?.[0].eventInputs[0].input,
+    ).toBe(expectedPayload);
   });
 
   it("continues successful execution when writing the internal trace fails", async () => {

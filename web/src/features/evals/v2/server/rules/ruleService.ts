@@ -938,7 +938,7 @@ export class RuleService {
       if (!latestVersion) {
         throw new LangfuseNotFoundError("Evaluator version not found");
       }
-      // Code evaluators read the threads directly and take no mapping.
+      // Code evaluators read the fixed threads variable and take no mapping.
       if (evaluator.type === EvalTemplateType.CODE) {
         if (assignment.variableMapping !== null) {
           throw new InvalidRequestError(

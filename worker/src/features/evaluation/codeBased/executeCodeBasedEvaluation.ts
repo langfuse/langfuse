@@ -24,9 +24,11 @@ export async function executeCodeBasedEvaluation(params: {
   job: JobExecution;
   config: JobConfiguration;
   template: EvalTemplateCodeBased;
+  targetType: Parameters<
+    typeof runCodeBasedEvaluationDispatch
+  >[0]["targetType"];
   extractedVariables: ExtractedVariable[];
   hasExperimentContext?: boolean;
-  threads?: Parameters<typeof runCodeBasedEvaluationDispatch>[0]["threads"];
   executionMetadata: Record<string, string>;
   evaluationContext: EvalExecutionContext;
   // Unused by code-based eval; the shared observation processor passes it.
@@ -71,9 +73,9 @@ export async function executeCodeBasedEvaluation(params: {
         jobExecutionId,
         evaluator: { id: params.evaluatorId ?? params.template.id },
         version: params.template,
+        targetType: params.targetType,
         extractedVariables: params.extractedVariables,
         hasExperimentContext: params.hasExperimentContext ?? false,
-        threads: params.threads,
         traceName: `Execute evaluator: ${params.template.name}`,
         metadata: executionMetadata,
         evaluationContext: params.evaluationContext,

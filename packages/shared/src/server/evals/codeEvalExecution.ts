@@ -27,8 +27,8 @@ import {
 import { z } from "zod";
 import type { ExtractedVariable } from "./extractObservationVariables";
 import { toolCallForEvalSchema } from "../../features/evals/observationForEval";
-import { toEvalVariables } from "../transcript/eval-threads";
-import type { Thread } from "../transcript/types";
+import { TRACE_TRANSCRIPT_EVAL_COLUMN } from "../../features/evals/traceTranscriptEval";
+import type { CodeEvalTraceThread } from "../transcript/eval-threads";
 
 const INTERNAL_CODE_EVAL_ERROR_MESSAGE = "An internal error occurred";
 const INTERNAL_CODE_EVAL_ERROR_CODE = "INTERNAL_ERROR" as const;
@@ -113,19 +113,24 @@ type CodeBasedEvaluationDispatchResult =
     };
 
 function buildCodeEvalPayload(params: {
+  targetType: CodeEvalPayload["targetType"];
   extractedVariables: ExtractedVariable[];
   hasExperimentContext: boolean;
-  threads?: Thread[];
 }): CodeEvalPayload {
-  if (params.threads) {
-    return {
-      targetType: "trace",
-      trace: { threads: toEvalVariables(params.threads) },
-    };
-  }
   const byName = new Map(
     params.extractedVariables.map((v) => [v.var, v.value]),
   );
+  if (params.targetType === "trace") {
+    // Transcript extraction already projects each message to { role, parts }.
+    return {
+      targetType: "trace",
+      trace: {
+        threads: byName.get(
+          TRACE_TRANSCRIPT_EVAL_COLUMN,
+        ) as CodeEvalTraceThread[],
+      },
+    };
+  }
   // Extraction zips tool calls into named objects (extractObservationVariables).
   // Configs saved before "toolCalls" entered the code eval mapping extract
   // nothing for it, so those evaluators see empty arrays. Parse rather than
@@ -230,19 +235,18 @@ export async function runCodeBasedEvaluationDispatch(params: {
     sourceCode: string;
     sourceCodeLanguage: CodeEvalRuntimeLanguage;
   };
+  targetType: CodeEvalPayload["targetType"];
   extractedVariables: ExtractedVariable[];
   hasExperimentContext?: boolean;
-  /** Set for trace targets: the evaluator then receives only `trace.threads`. */
-  threads?: Thread[];
   traceName: string;
   metadata: Record<string, unknown>;
   evaluationContext?: EvalExecutionContext;
   writeTrace?: InternalTraceWriter;
 }): Promise<CodeBasedEvaluationDispatchResult> {
   const payload = buildCodeEvalPayload({
+    targetType: params.targetType,
     extractedVariables: params.extractedVariables,
     hasExperimentContext: params.hasExperimentContext ?? false,
-    threads: params.threads,
   });
   const traceStartTime = new Date();
   let dispatchResult: DispatchResult | undefined;

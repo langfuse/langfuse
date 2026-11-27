@@ -2,10 +2,10 @@ import {
   EvalTargetObject,
   extractTranscriptEvalVariables,
   getCodeEvalVariableMapping,
+  getTraceCodeEvalVariableMapping,
   InvalidRequestError,
   isTraceTranscriptEvalType,
   observationVariableMappingList,
-  TRACE_TRANSCRIPT_EVAL_COLUMN,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
@@ -26,7 +26,6 @@ import {
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
   serializeTraceTranscriptInputs,
-  toEvalVariables,
   unsupportedDecisionModelMessage,
   type DecisionModelRequest,
   type ExtractedVariable,
@@ -39,9 +38,9 @@ import {
   extractEvaluatorPromptVariables,
 } from "./evaluatorValidation";
 
-type TranscriptThreads = Parameters<
+type CodeEvalTargetType = Parameters<
   typeof runCodeBasedEvaluationDispatch
->[0]["threads"];
+>[0]["targetType"];
 
 export async function testEvaluator(params: {
   orgId: string;
@@ -79,6 +78,7 @@ export async function testEvaluator(params: {
 
   const result = await runEvaluatorTest({
     ...params,
+    targetType: "observation",
     variables,
     hasExperimentContext: Boolean(observation.experiment_id),
     ...executionData,
@@ -104,10 +104,9 @@ export async function testEvaluatorOnTrace(params: {
       "Trace evaluations support LLM-as-a-judge, decision-model, and code evaluators.",
     );
   }
-  // Code evaluators receive the threads themselves, not mapped variables.
   const variableMapping =
     params.definition.type === "CODE"
-      ? null
+      ? getTraceCodeEvalVariableMapping()
       : resolveTestVariableMapping(params.definition);
   const trace = await getTraceByIdFromEventsTable({
     traceId: params.traceId,
@@ -161,22 +160,11 @@ export async function testEvaluatorOnTrace(params: {
       variables: [],
     };
   }
-  let variables: ExtractedVariable[];
-  if (variableMapping) {
-    const extracted = extractTranscriptEvalVariables(
-      transcript.threads,
-      variableMapping,
-    );
-    if (!extracted.ok) throw new InvalidRequestError(extracted.error);
-    variables = extracted.variables;
-  } else {
-    variables = [
-      {
-        var: TRACE_TRANSCRIPT_EVAL_COLUMN,
-        value: toEvalVariables(transcript.threads),
-      },
-    ];
-  }
+  const extracted = extractTranscriptEvalVariables(
+    transcript.threads,
+    variableMapping,
+  );
+  if (!extracted.ok) throw new InvalidRequestError(extracted.error);
 
   const executionData = buildEvalExecutionData({
     type: "TEST",
@@ -187,16 +175,16 @@ export async function testEvaluatorOnTrace(params: {
   });
   const result = await runEvaluatorTest({
     ...params,
-    variables,
+    targetType: "trace",
+    variables: extracted.variables,
     hasExperimentContext: false,
-    ...(variableMapping ? {} : { threads: transcript.threads }),
     ...executionData,
   });
 
   return {
     ...result,
     durationMs: Date.now() - startedAt,
-    variables,
+    variables: extracted.variables,
   };
 }
 
@@ -227,9 +215,9 @@ async function runEvaluatorTest(params: {
   projectId: string;
   evaluatorId: string;
   definition: NormalizedEvaluatorDefinition;
+  targetType: CodeEvalTargetType;
   variables: ExtractedVariable[];
   hasExperimentContext: boolean;
-  threads?: TranscriptThreads;
   executionMetadata: Record<string, string>;
   evaluationContext: ReturnType<
     typeof buildEvalExecutionData
@@ -459,9 +447,9 @@ async function testCodeEvaluator(params: {
   projectId: string;
   evaluatorId: string;
   definition: Extract<NormalizedEvaluatorDefinition, { type: "CODE" }>;
+  targetType: CodeEvalTargetType;
   variables: ExtractedVariable[];
   hasExperimentContext: boolean;
-  threads?: TranscriptThreads;
   executionMetadata: Record<string, string>;
   evaluationContext: ReturnType<
     typeof buildEvalExecutionData
@@ -484,9 +472,9 @@ async function testCodeEvaluator(params: {
     jobExecutionId: executionTraceId,
     evaluator: { id: params.evaluatorId },
     version: params.definition,
+    targetType: params.targetType,
     extractedVariables: params.variables,
     hasExperimentContext: params.hasExperimentContext,
-    threads: params.threads,
     traceName: "Test evaluator",
     metadata: params.executionMetadata,
     evaluationContext: params.evaluationContext,
