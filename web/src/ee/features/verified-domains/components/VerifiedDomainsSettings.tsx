@@ -1,17 +1,12 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useId, type ReactNode } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
-import { Button } from "@/src/components/ui/button";
-import { ConnectedVerifiedDomainsSettingsTable } from "./VerifiedDomainsSettingsTable/ConnectedVerifiedDomainsSettingsTable";
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/src/components/ui/dialog";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import Header from "@/src/components/layouts/header";
 import {
   Form,
   FormControl,
@@ -21,14 +16,11 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { ConnectedVerifiedDomainsSettingsTable } from "./VerifiedDomainsSettingsTable/ConnectedVerifiedDomainsSettingsTable";
 
 const addDomainSchema = z.object({
   domain: z
@@ -93,7 +85,18 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
     <div className="space-y-6">
       <Header
         title="Verified Domains"
-        actionButtons={<AddDomainButton orgId={orgId} />}
+        actionButtons={
+          <AddDomainDialogController orgId={orgId}>
+            {({ openDialog }) => (
+              <Button
+                type="button"
+                size="sm"
+                onClick={openDialog}
+                text="Add Domain"
+              />
+            )}
+          </AddDomainDialogController>
+        }
       />
       <p className="text-muted-foreground text-sm">
         You can only configure SSO for domains your organization owns. Verify a
@@ -104,14 +107,14 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
   );
 };
 
-function AddDomainButton({ orgId }: { orgId: string }) {
-  const [open, setOpen] = useState(false);
+function AddDomainDialogController({
+  orgId,
+  children,
+}: {
+  orgId: string;
+  children: (control: { openDialog: () => void }) => ReactNode;
+}) {
   const utils = api.useUtils();
-
-  const form = useForm<AddDomainInput>({
-    resolver: zodResolver(addDomainSchema),
-    defaultValues: { domain: "" },
-  });
 
   const createMutation = api.verifiedDomain.create.useMutation({
     onSuccess: () => {
@@ -122,59 +125,99 @@ function AddDomainButton({ orgId }: { orgId: string }) {
         description:
           "Click Verify to view the DNS TXT record, then confirm after adding it.",
       });
-      form.reset();
-      setOpen(false);
-    },
-    onError: (err) => {
-      form.setError("domain", { message: err.message });
     },
   });
 
-  function onSubmit(values: AddDomainInput) {
-    createMutation.mutate({ orgId, domain: values.domain });
+  return (
+    <DialogController<true>
+      onBeforeClose={() => !createMutation.isPending}
+      renderDialog={({ closeDialog }) => (
+        <AddDomainDialogContent
+          createMutation={createMutation}
+          orgId={orgId}
+          onSuccess={() => {
+            createMutation.reset();
+            closeDialog();
+          }}
+        />
+      )}
+    >
+      {({ openDialog }) =>
+        children({
+          openDialog: () => openDialog(true),
+        })
+      }
+    </DialogController>
+  );
+}
+
+function AddDomainDialogContent({
+  orgId,
+  createMutation,
+  onSuccess,
+}: {
+  orgId: string;
+  createMutation: {
+    isPending: boolean;
+    mutateAsync: (input: { orgId: string; domain: string }) => Promise<unknown>;
+    reset: () => void;
+  };
+  onSuccess: () => void;
+}) {
+  const formId = useId();
+
+  const form = useForm<AddDomainInput>({
+    resolver: zodResolver(addDomainSchema),
+    defaultValues: { domain: "" },
+  });
+
+  async function onSubmit(values: AddDomainInput) {
+    try {
+      await createMutation.mutateAsync({ orgId, domain: values.domain });
+      form.reset();
+      onSuccess();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to add domain";
+      form.setError("domain", { message });
+    }
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm">Add Domain</Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add a domain</DialogTitle>
-        </DialogHeader>
+    <Dialog
+      title="Add a domain"
+      actions={[
+        {
+          label: "Add",
+          loading: createMutation.isPending,
+          type: "submit",
+          form: formId,
+        },
+      ]}
+    >
+      <Dialog.Body>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <DialogBody>
-              <FormField
-                control={form.control}
-                name="domain"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Domain</FormLabel>
-                    <FormControl>
-                      <Input placeholder="acme.com" autoFocus {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </DialogBody>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" loading={createMutation.isPending}>
-                Add
-              </Button>
-            </DialogFooter>
+          <form
+            id={formId}
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="space-y-4"
+          >
+            <FormField
+              control={form.control}
+              name="domain"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Domain</FormLabel>
+                  <FormControl>
+                    <Input placeholder="acme.com" autoFocus {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </form>
         </Form>
-      </DialogContent>
+      </Dialog.Body>
     </Dialog>
   );
 }
