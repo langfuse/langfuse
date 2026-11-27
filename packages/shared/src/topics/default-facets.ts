@@ -120,4 +120,4 @@ Examples:
 - Claimed an edit that did not happen in the final answer, so the reported change is wrong.
 - Stopped after repeated failures in a tool call without a fallback, so the result is missing.`,
   },
-] as const;
+];
