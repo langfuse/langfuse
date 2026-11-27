@@ -73,7 +73,7 @@ export function DatasetsOnboarding({ projectId }: { projectId: string }) {
         label: "Learn More",
         href: "https://langfuse.com/docs/datasets",
       }}
-      videoSrc="https://static.langfuse.com/prod-assets/onboarding/datasets-overview-v1.mp4"
+      videoSrc="https://static.langfuse.com/prod-assets/onboarding/datasets-overview-v2.mp4"
     />
   );
 }
