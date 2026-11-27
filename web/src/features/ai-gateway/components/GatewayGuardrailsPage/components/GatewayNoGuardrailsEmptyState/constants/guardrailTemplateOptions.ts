@@ -16,36 +16,36 @@ export type GuardrailTemplateOption = {
   icon: IconComponent;
 };
 
-/** Display order and distinct icons for the empty-state guardrail templates. */
+/** Display order and distinct icons for the empty-state guardrail options. */
 export const GUARDRAIL_TEMPLATE_OPTIONS: readonly GuardrailTemplateOption[] = [
   {
     id: "pii",
     title: "PII",
-    hint: "Emails, SSNs, credit cards, IBANs, IPs",
+    hint: "Emails, SSNs, cards",
     icon: IdCard,
   },
   {
     id: "secrets",
     title: "Secrets and API keys",
-    hint: "API keys, tokens, JWTs, private keys",
+    hint: "Keys, tokens, JWTs",
     icon: KeyRound,
   },
   {
     id: "custom_regex",
     title: "Custom regex",
-    hint: "Your own regular expression",
+    hint: "Your own pattern",
     icon: Regex,
   },
   {
     id: "contains",
     title: "Keyword list",
-    hint: "Words and phrases you define",
+    hint: "Words and phrases",
     icon: TextSearch,
   },
   {
     id: "bedrock",
-    title: "Amazon Bedrock Guardrails",
-    hint: "Guardrail ID and Bedrock API key",
+    title: "Amazon Bedrock",
+    hint: "Guardrail ID & key",
     icon: AwsColorMark,
   },
 ];

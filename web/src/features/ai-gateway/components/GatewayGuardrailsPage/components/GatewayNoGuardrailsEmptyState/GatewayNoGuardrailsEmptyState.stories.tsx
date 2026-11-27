@@ -28,7 +28,7 @@ export const SelectsTemplate = meta.story({
     await expect(args.onSelectTemplate).toHaveBeenCalledWith("pii");
 
     await userEvent.click(
-      canvas.getByRole("button", { name: /Amazon Bedrock Guardrails/ }),
+      canvas.getByRole("button", { name: /Amazon Bedrock/ }),
     );
     await expect(args.onSelectTemplate).toHaveBeenCalledWith("bedrock");
   },

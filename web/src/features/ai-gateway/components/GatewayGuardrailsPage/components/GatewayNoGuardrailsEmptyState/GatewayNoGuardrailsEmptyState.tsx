@@ -32,7 +32,7 @@ export function GatewayNoGuardrailsEmptyState(
             href: GATEWAY_GUARDRAILS_DOCS_URL,
           },
         ]}
-        optionsHeading="Templates"
+        optionsHeading="Guardrails"
         options={GUARDRAIL_TEMPLATE_OPTIONS}
       >
         <NoGuardrailsDiagram />
@@ -56,7 +56,7 @@ export function GatewayNoGuardrailsEmptyState(
           onClick: props.onAddGuardrail,
         },
       ]}
-      optionsHeading="Templates"
+      optionsHeading="Guardrails"
       options={GUARDRAIL_TEMPLATE_OPTIONS.map((template) => ({
         ...template,
         actionLabel: "Configure",
