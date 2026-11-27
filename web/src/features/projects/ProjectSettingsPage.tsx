@@ -521,7 +521,12 @@ const Integrations = (props: { projectId: string }) => {
             <ActionButton
               variant="secondary"
               hasAccess={hasAccess}
-              hasEntitlement={blobStorage.hasEntitlement}
+              // An existing integration stays reachable after a downgrade so
+              // its status is visible and it can be deleted.
+              hasEntitlement={
+                blobStorage.hasEntitlement ||
+                Boolean(blobStorage.query.data?.config)
+              }
               href={`/project/${props.projectId}/settings/integrations/blobstorage`}
             >
               Configure

@@ -18,7 +18,7 @@ changing how it emits SQL.
   mean two relations, so later passes read every registry name as its table.
 - `shadowing.ts` — the third pass: rejects an expression alias, ARRAY JOIN alias or lambda parameter named like a FROM/JOIN relation or CTE, and a FROM/JOIN alias named like a registry column, so `t.project_id` always reads relation `t`.
 - `tenancy.ts` — the tenancy injection pass.
-- `schema.ts` — the physical table registry: one `defineTable` declaration per relation drives the Kysely row types (`ClickHouseDatabase`), the runtime column-type map (`COLUMN_DATA_TYPES`), the tenanted-table set (`TENANTED_TABLES`), and the per-table dedup specs (`DEDUP_SPECS`) — instead of hand-maintained tables that drift.
+- `schema.ts` — the physical table registry: one `defineTable` declaration per relation drives the Kysely row types (`ClickHouseDatabase`), the runtime column-type map (`COLUMN_DATA_TYPES`) and the per-table dedup specs (`DEDUP_SPECS`) — instead of hand-maintained tables that drift.
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
 - `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `withFill`, `useFinal`) and typed ClickHouse functions and aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`, `firstMetadataValue`, `mapContains`, `arrayDistinct`, `countEqual`, `tupleArrayField`, `toNullable`, `toBool`, `typedNull`, `formatDateTime`, `templateAggregate`, `quantile`, `histogram`, `toStartOfInterval`, `interval`, `literal`, …) that take `eb.ref(...)` expressions. `interval(count, unit)` takes an `IntervalUnit`: `minute`, `hour`, `day`, `week` or `month`.
 - `views.ts` / `dedup.ts` — virtual views as CTEs and per-table dedup lowering.

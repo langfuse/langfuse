@@ -168,6 +168,60 @@ pub(crate) fn relay<T: Send + 'static>(
         stall_timeout,
         owner,
         Some(capture),
+        true,
+    )
+}
+
+/// Relay an already-buffered prefix followed by the remainder of `upstream`.
+pub(crate) fn relay_with_prefix<T: Send + 'static>(
+    prefix: Vec<Bytes>,
+    upstream: reqwest::Response,
+    provider: &'static str,
+    deadline: Instant,
+    stall_timeout: Duration,
+    owner: T,
+    capture: ExecutionCapture,
+) -> Body {
+    let head = futures_util::stream::iter(prefix.into_iter().map(Ok));
+    let tail = upstream.bytes_stream().map(|chunk| {
+        chunk.map_err(|error| {
+            if error.is_timeout() {
+                ProviderError::Timeout
+            } else {
+                ProviderError::Transport
+            }
+        })
+    });
+    relay_stream(
+        head.chain(tail),
+        Some(provider),
+        deadline,
+        stall_timeout,
+        owner,
+        Some(capture),
+        true,
+    )
+}
+
+/// Relay an already-buffered provider response whose bytes were already pushed
+/// into `capture` (for example after response guardrails evaluated or redacted
+/// it). Records stream telemetry and finalizes `capture` once delivery finishes.
+pub(crate) fn relay_buffered_observed<T: Send + 'static>(
+    body: Vec<Bytes>,
+    provider: &'static str,
+    deadline: Instant,
+    stall_timeout: Duration,
+    owner: T,
+    capture: ExecutionCapture,
+) -> Body {
+    relay_stream(
+        futures_util::stream::iter(body.into_iter().map(Ok)),
+        Some(provider),
+        deadline,
+        stall_timeout,
+        owner,
+        Some(capture),
+        false,
     )
 }
 
@@ -185,6 +239,7 @@ pub(crate) fn relay_buffered<T: Send + 'static>(
         stall_timeout,
         owner,
         None,
+        false,
     )
 }
 
@@ -198,6 +253,7 @@ fn relay_stream<S, T>(
     stall_timeout: Duration,
     owner: T,
     capture: Option<ExecutionCapture>,
+    feed_capture: bool,
 ) -> Body
 where
     S: Stream<Item = Result<Bytes, ProviderError>> + Send + 'static,
@@ -242,7 +298,9 @@ where
                     .bytes
                     .fetch_add(chunk.len(), Ordering::Relaxed);
                 pump_resources.chunks.fetch_add(1, Ordering::Relaxed);
-                pump_resources.observe(|capture| capture.push_bytes(&chunk));
+                if feed_capture {
+                    pump_resources.observe(|capture| capture.push_bytes(&chunk));
+                }
                 // One queued chunk plus one pending send; no per-chunk tasks.
                 for bytes in chunk.chunks(64 * 1024) {
                     let sent = tokio::time::timeout(
@@ -256,7 +314,9 @@ where
                     }
                 }
             }
-            pump_resources.observe(ExecutionCapture::end_body);
+            if feed_capture {
+                pump_resources.observe(ExecutionCapture::end_body);
+            }
             Ok::<_, ProviderError>(())
         };
         match tokio::time::timeout_at(deadline, pump).await {
@@ -510,6 +570,7 @@ mod tests {
             Duration::from_secs(10),
             Owner(released.clone()),
             None,
+            false,
         );
         tokio::time::timeout(Duration::from_secs(1), released.notified())
             .await
@@ -552,6 +613,7 @@ mod tests {
             Duration::from_secs(10),
             Owner(released.clone()),
             None,
+            false,
         );
         tokio::task::yield_now().await;
         assert_eq!(polled.load(Ordering::SeqCst), 1);
@@ -572,6 +634,7 @@ mod tests {
             Duration::from_secs(10),
             Owner(released.clone()),
             None,
+            false,
         );
         // Wait until the pump has published its failure with the successful chunk queued.
         tokio::time::timeout(Duration::from_secs(1), released.notified())
@@ -593,6 +656,7 @@ mod tests {
             Duration::from_secs(10),
             Owner(released.clone()),
             None,
+            false,
         );
         tokio::time::timeout(Duration::from_secs(1), released.notified())
             .await
@@ -611,6 +675,7 @@ mod tests {
             Duration::from_secs(120),
             Owner(released.clone()),
             None,
+            false,
         );
         let mut downstream = body.into_data_stream();
         assert_eq!(downstream.next().await.unwrap().unwrap(), "first");
@@ -636,6 +701,7 @@ mod tests {
             Duration::from_secs(120),
             Owner(released.clone()),
             None,
+            false,
         );
         released.notified().await;
         assert!(started.elapsed() < Duration::from_secs(125));

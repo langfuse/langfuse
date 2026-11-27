@@ -1,5 +1,3 @@
-import type { ReactNode } from "react";
-
 import preview from "../../../../../.storybook/preview";
 
 import { DataTable } from "@/src/components/table/data-table";
@@ -15,7 +13,7 @@ function DateTableColumnStory({
   getPrefix,
 }: {
   data: AsyncTableData<Row[]>;
-  getPrefix?: (value: Date) => ReactNode;
+  getPrefix?: (value: Date) => string | null;
 }) {
   const columns = [
     createDateTableColumn<Row>({

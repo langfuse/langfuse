@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import { DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
 import { createDefaultGatewaySpendBudget } from "@/src/features/ai-gateway/fns/spendLimits/createDefaultGatewaySpendBudget";
 import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/spendLimits/normalizeGatewaySpendBudgetAlertThresholds";

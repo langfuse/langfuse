@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import { type SystemRole } from "@langfuse/shared/src/db";
 
 /**

@@ -48,6 +48,7 @@ export function DeleteProjectDialogController({
         projectId: project.id,
       })
       .then(() => {
+        // eslint-disable-next-line @repo/no-location-navigation -- full page load clears project-scoped client state after the project is deleted
         window.location.href = env.NEXT_PUBLIC_BASE_PATH ?? "/";
       })
       .catch((error) => reportNonTrpcError(error, "projects"));

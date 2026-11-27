@@ -171,30 +171,28 @@ impl ProtocolCapture {
     }
 }
 
-/// The top-level members of a request in `api_format` that hold the conversation
-/// guardrails scan.
-pub(crate) fn guardrail_members(api_format: ApiFormat) -> &'static [&'static str] {
+/// Where requests in `api_format` carry the conversation, for input guardrails.
+pub(crate) fn request_spec(api_format: ApiFormat) -> &'static crate::guardrails::spec::RequestSpec {
     match api_format {
-        ApiFormat::OpenAiChatCompletions => openai_chat_completions::GUARDRAIL_MEMBERS,
-        ApiFormat::OpenAiResponses => openai_responses::GUARDRAIL_MEMBERS,
-        ApiFormat::AnthropicMessages => anthropic_messages::GUARDRAIL_MEMBERS,
-        ApiFormat::OpenAiEmbeddings => openai_embeddings::GUARDRAIL_MEMBERS,
-        ApiFormat::OpenAiDecisions => openai_decisions::GUARDRAIL_MEMBERS,
+        ApiFormat::OpenAiChatCompletions => &openai_chat_completions::REQUEST,
+        ApiFormat::OpenAiResponses => &openai_responses::REQUEST,
+        ApiFormat::AnthropicMessages => &anthropic_messages::REQUEST,
+        ApiFormat::OpenAiEmbeddings => &openai_embeddings::REQUEST,
+        ApiFormat::OpenAiDecisions => &openai_decisions::REQUEST,
     }
 }
 
-/// Finds the request's last turn in the members of [`guardrail_members`] that
-/// `member` returns.
-pub(crate) fn guardrail_turn<'a>(
+/// Where an API format's responses carry model text, for output guardrails.
+pub(crate) fn response_spec(
     api_format: ApiFormat,
-    member: impl Fn(&str) -> Option<&'a str>,
-) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
+) -> Option<&'static crate::guardrails::spec::ResponseSpec> {
     match api_format {
-        ApiFormat::OpenAiChatCompletions => openai_chat_completions::guardrail_turn(member),
-        ApiFormat::OpenAiResponses => openai_responses::guardrail_turn(member),
-        ApiFormat::AnthropicMessages => anthropic_messages::guardrail_turn(member),
-        ApiFormat::OpenAiEmbeddings => Ok(openai_embeddings::guardrail_turn(member)),
-        ApiFormat::OpenAiDecisions => Ok(openai_decisions::guardrail_turn(member)),
+        ApiFormat::OpenAiChatCompletions => Some(&openai_chat_completions::RESPONSE),
+        ApiFormat::AnthropicMessages => Some(&anthropic_messages::RESPONSE),
+        ApiFormat::OpenAiResponses => Some(&openai_responses::RESPONSE),
+        // Decisions and Embeddings routes skip response guardrails in `Route::evaluates_response_guardrails`;
+        // fail closed if invoked directly.
+        ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => None,
     }
 }
 
@@ -219,6 +217,8 @@ pub(crate) struct ExecutionCapture {
     response_parse_limit: usize,
     parse_growth: Option<ResponseParseGrowth>,
     parse_reservation: Option<Box<dyn Send + Sync>>,
+    rejection: Option<GatewayRejection>,
+    suppress_output: bool,
 }
 
 impl ExecutionCapture {
@@ -244,6 +244,8 @@ impl ExecutionCapture {
             response_parse_limit: MAX_OUTPUT_CAPTURE_BYTES,
             parse_growth: None,
             parse_reservation: None,
+            rejection: None,
+            suppress_output: false,
         }
     }
 
@@ -312,6 +314,8 @@ impl ExecutionCapture {
             response_parse_limit: MAX_OUTPUT_CAPTURE_BYTES,
             parse_growth: None,
             parse_reservation: None,
+            rejection: None,
+            suppress_output: false,
         }
     }
 
@@ -358,14 +362,37 @@ impl ExecutionCapture {
         self.provider_model = bounded_string(model);
     }
 
-    /// Lists the guardrails the request matched in the generation's metadata, by id,
-    /// action and location, so generations can be filtered by each.
+    /// Appends matched guardrails to the generation's metadata, by id, action
+    /// and location, so request and response findings compose cleanly.
     pub(crate) fn record_guardrails(&mut self, guardrails: &[crate::guardrails::Finding]) {
-        if !guardrails.is_empty()
-            && let Some(metadata) = self.metadata.as_object_mut()
-        {
-            metadata.insert("guardrails".into(), json!(guardrails));
+        if guardrails.is_empty() {
+            return;
         }
+        let Some(metadata) = self.metadata.as_object_mut() else {
+            return;
+        };
+        let Value::Array(mut next) = json!(guardrails) else {
+            return;
+        };
+        match metadata.get_mut("guardrails") {
+            Some(Value::Array(existing)) => existing.append(&mut next),
+            _ => {
+                metadata.insert("guardrails".into(), Value::Array(next));
+            }
+        }
+    }
+
+    /// Marks the execution rejected after upstream execution (e.g. a response
+    /// guardrail block) so `finish` still records upstream usage and charges spend.
+    pub(crate) fn record_rejection(&mut self, rejection: GatewayRejection) {
+        self.rejection = Some(rejection);
+    }
+
+    /// Drops captured model output while preserving usage, model, and status
+    /// facts so aborted or fail-closed response guardrail paths still charge
+    /// spend limits without persisting unredacted output in FULL ingestion.
+    pub(crate) fn suppress_output(&mut self) {
+        self.suppress_output = true;
     }
 
     pub(crate) fn record_response(&mut self, status: u16, headers: &HeaderMap) {
@@ -441,7 +468,11 @@ impl ExecutionCapture {
     }
 
     fn take_facts(&mut self, outcome: RelayOutcome) -> Option<InferenceFacts> {
-        let (api_format, inference) = self.protocol.take()?.into_facts();
+        let (api_format, mut inference) = self.protocol.take()?.into_facts();
+        if self.suppress_output {
+            inference.output = None;
+            inference.output_complete = false;
+        }
         Some(InferenceFacts {
             api_format,
             start_time_unix_ms: self.start_time_unix_ms,
@@ -456,7 +487,7 @@ impl ExecutionCapture {
             metadata: std::mem::take(&mut self.metadata),
             outcome,
             charged_cost_details: None,
-            rejection: None,
+            rejection: self.rejection.take(),
             inference,
         })
     }
@@ -554,6 +585,7 @@ impl RequestInput {
     /// worker drops the body and parsed members.
     pub(crate) async fn parse_on_cpu<R: Send + 'static>(
         cpu: &crate::cpu::CpuWork,
+        class: crate::cpu::CpuClass,
         body: axum::body::Bytes,
         reservation: R,
     ) -> Option<(Self, R)> {
@@ -562,10 +594,15 @@ impl RequestInput {
         } else {
             0
         };
-        cpu.run(crate::cpu::CpuJob::ParseRequest, parse_bytes, move || {
-            let input = Self::from_body(&body);
-            (input, reservation)
-        })
+        cpu.run(
+            crate::cpu::CpuJob::ParseRequest,
+            class,
+            parse_bytes,
+            move || {
+                let input = Self::from_body(&body);
+                (input, reservation)
+            },
+        )
         .await
     }
 }

@@ -1,11 +1,11 @@
 ---
 name: cursor-agents-workflow
 description: |
-  Human handoff, Linear branch names, reviewable (non-draft) PRs, the
+  Human handoff, branch names, reviewable (non-draft) PRs, the
   `cursor` GitHub label, Bugbot, Claude, Greptile, and Codex review comments,
   preview test steps, proof of work posted on the GitHub PR, and
   review-doubt notes for Cursor agents. Use when a Cursor Cloud or
-  Cursor desktop agent implements a Linear issue, opens a GitHub PR,
+  Cursor desktop agent implements a task, opens a GitHub PR,
   asks a human to test, posts screenshots or videos, or handles Claude,
   Bugbot, Greptile, or Codex code-review comments.
 ---
@@ -17,35 +17,7 @@ loop with short, testable asks. Do not write long agent-only reports.
 
 ## Branch names
 
-Copy Linear's git branch name. Do not invent a `cursor/` name.
-
-- Preferred source: Linear **Copy git branch name**, or the issue's
-  `gitBranchName` read through the Linear MCP.
-- Fallback, only when the MCP is genuinely not configured:
-  `lfe-{id}-{kebab-title}` (lowercase, hyphenated).
-- Keep a `user/` prefix only when Linear's copied name already includes one.
-- Never use a `cursor/` prefix, even if a Cursor Cloud prompt asks for one.
-  Repo guidance wins.
-- Ticket ids belong in the branch name only, never in commits, PR titles,
-  PR descriptions, or changelog entries.
-
-Correct: `lfe-12345-short-descriptive-title`  
-Wrong: `cursor/short-descriptive-title-8c78`
-
-## Linear connection
-
-Cursor desktop can authorize the Linear MCP interactively. Cursor Cloud cannot:
-`mcp_auth` is desktop-only, and the Cloud GitHub token is unrelated to Linear.
-
-On Cloud, prove Linear with a real read. If the MCP is `needsAuth` or missing,
-use `LINEAR_API_KEY` (or `LINEAR_TOKEN` / `LINEAR_API_TOKEN`) via GraphQL or
-`lf-context.sh`. If that env is unset, **say so** and tell them to add
-**`LINEAR_API_KEY`** at https://cursor.com/dashboard/cloud-agents, then start a
-new run. Langfuse engineers: the write policy is
-[`linear-agent-writes`](../linear-agent-writes/SKILL.md).
-
-If Linear is not reachable, **say so in your handoff message** and hand back
-the context that should have gone on the ticket. Do not skip it silently.
+Follow the [Git workflow branch guidance](../git-workflow/SKILL.md#branch-names), including its tracker-free fallback. Never use a `cursor/` prefix, even if a Cursor Cloud prompt asks for one.
 
 ## Pull requests
 

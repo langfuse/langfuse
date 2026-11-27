@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 /**
  * The drill-down JSONPath grammar shared between the prompt pills and the
  * mapping panel: plain keys, numeric indices, the every-entry wildcard, and

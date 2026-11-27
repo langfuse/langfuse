@@ -33,6 +33,32 @@ export default defineConfig({
   overrides: [
     ...baseConfig.overrides,
     {
+      files: ["**/fns/**/*"],
+      excludeFiles: [
+        "**/*.{test,spec,clienttest,servertest,stories,story}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+        "**/{__tests__,__mocks__,tests,test,__stories__,stories}/**",
+      ],
+      jsPlugins: ["@repo/eslint-plugin"],
+      rules: {
+        "@repo/export-rules": [
+          "error",
+          {
+            allow: [
+              { kind: "function", max: 1, name: ["matchesFilename"] },
+              "type",
+            ],
+          },
+        ],
+      },
+    },
+    {
+      files: [
+        "**/fns/**/*.{test,spec,clienttest,servertest,stories,story}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+        "**/fns/**/{__tests__,__mocks__,tests,test,__stories__,stories}/**",
+      ],
+      rules: { "@repo/export-rules": "off" },
+    },
+    {
       files: [
         "**/*.clienttest.ts",
         "**/*.test.ts",
@@ -253,6 +279,26 @@ export default defineConfig({
       jsPlugins: ["@repo/eslint-plugin"],
       rules: {
         "@repo/no-style-props": "warn",
+      },
+    },
+    {
+      files: ["src/components/design-system/**/*.{ts,tsx}"],
+      excludeFiles: [
+        "src/components/design-system/internal/**",
+        "src/components/design-system/SearchInput/**",
+        "src/components/design-system/**/*.stories.{ts,tsx}",
+        "src/components/design-system/**/*.clienttest.{ts,tsx}",
+        "src/components/design-system/**/*.{test,spec}.{ts,tsx}",
+      ],
+      jsPlugins: ["@repo/eslint-plugin"],
+      rules: {
+        "@repo/no-node-slot-props": [
+          "error",
+          {
+            // loadingCell is the per-column placeholder Table shows while that column's data is loading (a Skeleton, or a column-specific loading cell).
+            allowedPropNames: ["children", "loadingCell"],
+          },
+        ],
       },
     },
     {

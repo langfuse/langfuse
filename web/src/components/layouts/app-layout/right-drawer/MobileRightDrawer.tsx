@@ -39,10 +39,7 @@ export function MobileRightDrawer() {
               A list of resources and options to help you with your questions.
             </DrawerDescription>
           </DrawerHeader>
-          <SupportDrawer
-            showCloseButton={false}
-            className="min-h-0 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
-          />
+          <SupportDrawer showCloseButton={false} layout="mobileDrawer" />
         </DrawerContent>
       </Drawer>
 

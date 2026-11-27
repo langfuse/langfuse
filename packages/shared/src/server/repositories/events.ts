@@ -190,7 +190,10 @@ import {
   type SessionEventsFields,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
-import { eventsFieldSetKeys } from "./events-field-sets";
+import {
+  eventsFieldSetKeys,
+  pickObservationV2Fields,
+} from "./events-field-sets";
 import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
@@ -440,7 +443,9 @@ async function enrichObservationsWithModelData(
         model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
     };
 
-    return enriched;
+    return requestedFields
+      ? pickObservationV2Fields(enriched, requestedFields)
+      : enriched;
   });
 }
 
@@ -1929,12 +1934,6 @@ export const getObservationsV2PageFromEventsTableForPublicApi = async (
       }
       const page = await scanObservationWindows(opts, from, bounds.to, scan);
       span.setAttribute("observations.scan.windows", page.windows);
-      if (page.records.length === 0 && page.cursor) {
-        throw new ClickHouseResourceError(
-          "TIMEOUT",
-          new Error("Query timed out before returning observations"),
-        );
-      }
       return {
         items: await enrichObservationsWithModelData(
           page.records.slice(0, opts.limit),
@@ -2098,19 +2097,16 @@ function planNextObservationsWindow(
   elapsedMs: number,
   remainingMs: number,
 ) {
-  if (remainingMs <= 0) return undefined;
+  const availableMs = remainingMs - OBSERVATIONS_QUERY_OVERHEAD_MS;
+  // A query started within the fixed per-query overhead cannot finish in time.
+  if (availableMs <= 0) return undefined;
 
   // Client wall time includes retries and stream consumption; GB is decimal.
   const costMs = Math.max(
     elapsedMs,
     (last.readBytes / 1e9) * OBSERVATIONS_MS_PER_GB,
   );
-  const availableMs = remainingMs - OBSERVATIONS_QUERY_OVERHEAD_MS;
-  // Near the deadline, do not shrink the interval just to reserve overhead.
-  let timeMultiplier = 1;
-  if (availableMs > 0) {
-    timeMultiplier = costMs > 0 ? availableMs / costMs : Infinity;
-  }
+  const timeMultiplier = costMs > 0 ? availableMs / costMs : Infinity;
   const rowMultiplier =
     last.readRows !== undefined && last.readRows > 0
       ? OBSERVATIONS_QUERY_ROW_TARGET / last.readRows
@@ -2129,11 +2125,11 @@ function planNextObservationsWindow(
       ),
     ),
   );
-  return {
-    durationMs,
-    estimatedMs:
-      OBSERVATIONS_QUERY_OVERHEAD_MS + (durationMs / windowMs) * costMs,
-  };
+  const scanMs = (durationMs / windowMs) * costMs;
+  // Even the smallest window would outlast the budget; end the page at the
+  // last completed boundary instead of starting a query that times out.
+  if (scanMs > availableMs) return undefined;
+  return { durationMs, estimatedMs: OBSERVATIONS_QUERY_OVERHEAD_MS + scanMs };
 }
 
 /** Own the deadline and cumulative work counters for all queries in one page. */
