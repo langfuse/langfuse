@@ -20,9 +20,8 @@ const toUtcDay = (date: Date) =>
 const addUtcDays = (day: Date, days: number) =>
   new Date(day.getTime() + days * DAY_MS);
 
-// `YYYY/MM/DD` of a UTC day, zero-padded.
-const formatUtcDayPath = (day: Date) =>
-  day.toISOString().slice(0, 10).replaceAll("-", "/");
+// `YYYY-MM-DD` of a UTC day, zero-padded.
+const formatUtcDay = (day: Date) => day.toISOString().slice(0, 10);
 
 // `created_at` is `timestamp without time zone` and is read as UTC wall-clock
 // time, as Prisma does. Bounds are passed as plain timestamps so the comparison
@@ -33,9 +32,9 @@ const toPgUtcTimestamp = (date: Date) =>
   date.toISOString().replace("T", " ").replace("Z", "");
 
 // The table name doubles as the S3 object base name, so a day lands at
-// `{prefix}mediaUsageHourly/YYYY/MM/DD.jsonl`.
+// `{prefix}mediaUsageHourly/YYYY-MM-DD.jsonl`.
 const mediaUsageDayTableName = (day: Date) =>
-  `${MEDIA_USAGE_TABLE_NAME}/${formatUtcDayPath(day)}`;
+  `${MEDIA_USAGE_TABLE_NAME}/${formatUtcDay(day)}`;
 
 const mediaUsageDayKey = (uploadPrefix: string, day: Date) =>
   `${uploadPrefix}${mediaUsageDayTableName(day)}.jsonl`;
