@@ -123,10 +123,14 @@
 /packages/shared/src/server/queries/clickhouse-sql/event-query-builder.ts @niklassemmler @Steffen911
 
 # Query AST: the tenancy pass, what it relies on, and the core compile path.
-# Helpers (extensions.ts), the schema registry, events routing, dedup, type
-# checks and tests stay open. Every registry table is tenanted; an opt-out
-# lives in tenancy.ts, so schema.ts edits cannot drop the project scope.
+# Helpers (extensions.ts), the schema registry, type checks and tests stay
+# open. Every registry table is tenanted; an opt-out lives in tenancy.ts, so
+# schema.ts edits cannot drop the project scope.
 /packages/shared/src/server/query-ast/tenancy.ts @niklassemmler @sumerman @Steffen911
+# Passes that rewrite relations around tenancy: routing renames tables before
+# it, dedup rebuilds the FROM after it and re-stamps the tree.
+/packages/shared/src/server/query-ast/eventsRouting.ts @niklassemmler @sumerman @Steffen911
+/packages/shared/src/server/query-ast/dedup.ts @niklassemmler @sumerman @Steffen911
 /packages/shared/src/server/query-ast/relations.ts @niklassemmler @sumerman @Steffen911
 /packages/shared/src/server/query-ast/transformer.ts @niklassemmler @sumerman @Steffen911
 /packages/shared/src/server/query-ast/nodes.ts @niklassemmler @sumerman @Steffen911
