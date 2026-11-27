@@ -271,7 +271,7 @@ export const sessionRouter = createTRPCRouter({
             userIds: s.user_ids,
             countTraces: s.trace_count,
             traceTags: s.trace_tags,
-            createdAt: new Date(s.min_timestamp),
+            createdAt: parseClickhouseUTCDateTimeFormat(s.min_timestamp),
             bookmarked:
               prismaSessionInfo.find((p) => p.id === s.session_id)
                 ?.bookmarked ?? false,
@@ -344,7 +344,7 @@ export const sessionRouter = createTRPCRouter({
             userIds: s.user_ids,
             countTraces: s.trace_count,
             traceTags: s.trace_tags,
-            createdAt: new Date(s.min_timestamp),
+            createdAt: parseClickhouseUTCDateTimeFormat(s.min_timestamp),
             bookmarked:
               prismaSessionInfo.find((p) => p.id === s.session_id)
                 ?.bookmarked ?? false,
@@ -478,7 +478,7 @@ export const sessionRouter = createTRPCRouter({
         userIds: s.user_ids,
         countTraces: s.trace_count,
         traceTags: s.trace_tags,
-        createdAt: new Date(s.min_timestamp),
+        createdAt: parseClickhouseUTCDateTimeFormat(s.min_timestamp),
         bookmarked:
           prismaSessionInfo.find((p) => p.id === s.session_id)?.bookmarked ??
           false,
@@ -565,7 +565,7 @@ export const sessionRouter = createTRPCRouter({
         userIds: s.user_ids,
         countTraces: s.trace_count,
         traceTags: s.trace_tags,
-        createdAt: new Date(s.min_timestamp),
+        createdAt: parseClickhouseUTCDateTimeFormat(s.min_timestamp),
         bookmarked:
           prismaSessionInfo.find((p) => p.id === s.session_id)?.bookmarked ??
           false,
