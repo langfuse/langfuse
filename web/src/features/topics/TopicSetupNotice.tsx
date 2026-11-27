@@ -48,11 +48,7 @@ export function TopicSetupNotice({
       ) : null}
       {showOnboarding ? (
         <div className="flex flex-1 flex-col items-center-safe justify-center-safe gap-7 overflow-y-auto px-4 pb-24">
-          <TopicPilesLabeling
-            facet={LANDING_FACET}
-            topics={LANDING_TOPICS}
-            traces={LANDING_TRACES}
-          />
+          <TopicPilesLabeling topics={LANDING_TOPICS} traces={LANDING_TRACES} />
           <div className="flex flex-col items-center gap-2 text-center">
             <h2 className="text-3xl leading-tight font-bold tracking-tight text-balance">
               See what your traces are about
@@ -86,9 +82,7 @@ export function TopicSetupNotice({
   );
 }
 
-// Decorative: three example topics of one facet, and the example traces read into them.
-const LANDING_FACET = "Intent";
-
+// Decorative: three example topics, and the example traces read into them.
 const LANDING_TOPICS = [
   { name: "Refunds", count: 412 },
   { name: "Order status", count: 154 },

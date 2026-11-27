@@ -1,10 +1,6 @@
 import { useRef } from "react";
+import { round } from "@/src/components/illustrations/engine/projection";
 import {
-  round,
-  textWidth,
-} from "@/src/components/illustrations/engine/projection";
-import {
-  GRID,
   PILE_COLORS,
   PLANE,
   type PileColor,
@@ -25,7 +21,6 @@ import { useLoopTime } from "./useLoopTime";
 // The drawing's box in css px, centred on everything the loop shows.
 const BOX = { width: 720, height: 480 };
 const MIDDLE = { x: 312, y: 44 };
-const TAB = { height: 36, padLeft: 17, padRight: 14 };
 const MAIN_FONT_SIZE = 19.5;
 const SMALL_FONT_SIZE = 16.5;
 const TEXT_INSET = 14;
@@ -37,9 +32,8 @@ const INK: Record<PileColor, string> = {
   amber: "fill-category-amber-foreground",
 };
 
-/** Decorative: grey traces are read one at a time next to the facet's tab, take their intent and colour, and stack up as named topics. */
+/** Decorative: grey traces are read one at a time, take their intent and colour, and stack up as named topics. */
 export function TopicPilesLabeling({
-  facet,
   topics,
   traces,
 }: TopicPilesLabelingProps) {
@@ -87,7 +81,6 @@ export function TopicPilesLabeling({
           opacity={round(frame.square)}
           className="fill-muted stroke-border-contrast"
         />
-        <FacetTab text={facet} />
       </g>
       <g opacity={round(1 - frame.back)}>
         {topics
@@ -140,32 +133,6 @@ export function TopicPilesLabeling({
 
 function colorOf(topic: number) {
   return PILE_COLORS[topic % PILE_COLORS.length] ?? PILE_COLORS[0];
-}
-
-/** The facet being asked: a dark tab on the floor next to the reading square, level with its front edge. */
-function FacetTab({ text }: FacetTabProps) {
-  const x = READING.x + CARD.width + GRID / 2;
-  const y = READING.y + CARD.depth - TAB.height;
-  return (
-    <>
-      <rect
-        x={x}
-        y={y}
-        width={TAB.padLeft + textWidth(text, MAIN_FONT_SIZE) + TAB.padRight}
-        height={TAB.height}
-        rx={1}
-        className="fill-foreground"
-      />
-      <text
-        x={x + TAB.padLeft}
-        y={round(y + TAB.height / 2 + MAIN_FONT_SIZE * 0.34)}
-        fontSize={MAIN_FONT_SIZE}
-        className="fill-background"
-      >
-        {text}
-      </text>
-    </>
-  );
 }
 
 /** One trace as a single sheet: grey with two unread lines, then its topic's colour with its intent written on it. */
@@ -260,15 +227,11 @@ function TopicLabel({ x, topic }: TopicLabelProps) {
 }
 
 type TopicPilesLabelingProps = {
-  /** The facet the traces are labeled by, written on the tab at the reading square. */
-  facet: string;
   /** The topics the traces end up in, left to right. */
   topics: readonly { name: string; count: number }[];
   /** The traces in the order they are read; each is one sheet on its topic's pile. */
   traces: readonly LabeledTrace[];
 };
-
-type FacetTabProps = { text: string };
 
 type TraceCardProps = { card: TraceCardFrame; trace: LabeledTrace };
 
