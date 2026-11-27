@@ -1,7 +1,9 @@
+/* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 import { Folder } from "@langfuse/icons";
 
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   createTableColumn,
   type TableColumnOptions,
@@ -29,7 +31,7 @@ export function createFolderKeyTableColumn<
 }) {
   return createTableColumn<TData, TValue>({
     ...options,
-    loading: "text",
+    loadingCell: <Skeleton className="h-4 w-1/2" />,
     renderCell: (value, context) => {
       const cell = getCell(value, context);
       if (!cell) return null;

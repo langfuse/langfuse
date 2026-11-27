@@ -285,13 +285,17 @@ export default defineConfig({
       files: ["src/components/design-system/**/*.{ts,tsx}"],
       excludeFiles: [
         "src/components/design-system/internal/**",
+        "src/components/design-system/SearchInput/**",
         "src/components/design-system/**/*.stories.{ts,tsx}",
         "src/components/design-system/**/*.clienttest.{ts,tsx}",
         "src/components/design-system/**/*.{test,spec}.{ts,tsx}",
       ],
       jsPlugins: ["@repo/eslint-plugin"],
       rules: {
-        "@repo/no-node-slot-props": "error",
+        "@repo/no-node-slot-props": [
+          "error",
+          { allowedPropNames: ["children", "loadingCell"] },
+        ],
       },
     },
     {

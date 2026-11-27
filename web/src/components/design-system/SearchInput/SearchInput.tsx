@@ -40,11 +40,8 @@ type SearchInputProps = {
   autoFocus?: boolean;
   onBlur?: (value: string) => void;
   dropdown?: {
-    // eslint-disable-next-line @repo/no-node-slot-props -- caller-owned search menu; feature screens import this field, so it stays public
     label: React.ReactNode;
-    // eslint-disable-next-line @repo/no-node-slot-props -- caller-owned search menu; feature screens import this field, so it stays public
     labelAccessory?: React.ReactNode;
-    // eslint-disable-next-line @repo/no-node-slot-props -- caller-owned search menu; feature screens import this field, so it stays public
     content: React.ReactNode;
   };
 } & VariantProps<typeof searchInputVariants>;

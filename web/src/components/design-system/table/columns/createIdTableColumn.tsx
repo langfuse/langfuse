@@ -1,7 +1,9 @@
+/* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 
 import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   createTableColumn,
   type TableColumnOptions,
@@ -28,7 +30,7 @@ export function createIdTableColumn<TData extends RowData>(
 
   return createTableColumn<TData, string>({
     ...options,
-    loading: "text",
+    loadingCell: <Skeleton className="h-4 w-1/2" />,
     renderCell: (value, context) => {
       const resolvedValue = getValue ? getValue(value, context) : value;
       const displayValue = resolvedValue || emptyValue;

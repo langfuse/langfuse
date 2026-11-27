@@ -123,36 +123,34 @@ export function createIOTableColumn<TData extends RowData, TValue = unknown>({
 
   const loadingCell = <IOColumnCell {...cellProps} isLoading />;
 
-  return {
-    ...createTableColumn<TData, TValue>({
-      ...options,
-      cellPadding: "none",
-      cellBackground: ioCellBackgrounds[variant],
-      renderCell: (value, context) => {
-        let cell: IOTableColumnCell<TValue>;
-        if (getCell) {
-          cell = getCell(value, context);
-        } else if (value === null || value === undefined) {
-          cell = undefined;
-        } else {
-          cell = value;
-        }
-
-        if (
-          typeof cell === "object" &&
-          cell !== null &&
-          "type" in cell &&
-          cell.type === "loading"
-        ) {
-          return loadingCell;
-        }
-
-        // An empty `cell` is passed through rather than short-circuited to a
-        // blank: the cell owns what "empty" looks like, so every table that uses
-        // it shows the same placeholder.
-        return <IOColumnCell {...cellProps} data={cell} />;
-      },
-    }),
+  return createTableColumn<TData, TValue>({
+    ...options,
+    cellPadding: "none",
+    cellBackground: ioCellBackgrounds[variant],
     loadingCell,
-  };
+    renderCell: (value, context) => {
+      let cell: IOTableColumnCell<TValue>;
+      if (getCell) {
+        cell = getCell(value, context);
+      } else if (value === null || value === undefined) {
+        cell = undefined;
+      } else {
+        cell = value;
+      }
+
+      if (
+        typeof cell === "object" &&
+        cell !== null &&
+        "type" in cell &&
+        cell.type === "loading"
+      ) {
+        return loadingCell;
+      }
+
+      // An empty `cell` is passed through rather than short-circuited to a
+      // blank: the cell owns what "empty" looks like, so every table that uses
+      // it shows the same placeholder.
+      return <IOColumnCell {...cellProps} data={cell} />;
+    },
+  });
 }

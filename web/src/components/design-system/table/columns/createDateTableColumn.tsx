@@ -25,7 +25,7 @@ export function createDateTableColumn<TData extends RowData>({
 }) {
   return createTableColumn<TData, Date>({
     ...options,
-    loading: "text",
+    loadingCell: <Skeleton className="h-4 w-1/2" />,
     renderCell: (value, context) => {
       const resolvedValue = getValue ? getValue(value, context) : value;
 

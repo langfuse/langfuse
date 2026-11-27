@@ -39,7 +39,7 @@ export function createExperimentMetricColumn<TData extends RowData>({
 
   return createTableColumn<TData, number>({
     ...options,
-    loading: "text",
+    loadingCell,
     renderCell: (value) => {
       // Rows render before their metrics, so without this the cell would first
       // claim the metric was not recorded and then correct itself.

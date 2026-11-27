@@ -60,29 +60,30 @@ const guardrailCellSkeleton = (
   </div>
 );
 
-const guardrailColumn = {
-  ...createTableColumn<GatewayGuardrailRow, GatewayGuardrailRow["name"]>({
-    accessorFn: (row) => row.name,
-    id: "guardrail",
-    header: "Guardrail",
-    size: 280,
-    enableResizing: false,
-    renderCell: (_name, { row }) => (
-      <div className="ph-no-capture flex min-w-0 items-center gap-2.5">
-        <span className="bg-muted text-foreground flex size-6 shrink-0 items-center justify-center rounded-md border font-mono text-[11px] font-bold">
-          {getGuardrailBadge(row.original)}
-        </span>
-        <span
-          className="text-foreground truncate text-sm font-medium"
-          title={row.original.name}
-        >
-          {row.original.name}
-        </span>
-      </div>
-    ),
-  }),
+const guardrailColumn = createTableColumn<
+  GatewayGuardrailRow,
+  GatewayGuardrailRow["name"]
+>({
+  accessorFn: (row) => row.name,
+  id: "guardrail",
+  header: "Guardrail",
+  size: 280,
+  enableResizing: false,
   loadingCell: guardrailCellSkeleton,
-};
+  renderCell: (_name, { row }) => (
+    <div className="ph-no-capture flex min-w-0 items-center gap-2.5">
+      <span className="bg-muted text-foreground flex size-6 shrink-0 items-center justify-center rounded-md border font-mono text-[11px] font-bold">
+        {getGuardrailBadge(row.original)}
+      </span>
+      <span
+        className="text-foreground truncate text-sm font-medium"
+        title={row.original.name}
+      >
+        {row.original.name}
+      </span>
+    </div>
+  ),
+});
 
 const runsOnColumn = createTextTableColumn<GatewayGuardrailRow>({
   accessorFn: (row) => GATEWAY_GUARDRAIL_SCOPE_LABELS[row.scope],

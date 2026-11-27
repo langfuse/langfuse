@@ -142,7 +142,7 @@ export function GatewayApiKeysTable({
       size: 200,
       hideBelowMd: true,
       enableResizing: false,
-      loading: "badge",
+      loadingCell: budgetSkeleton,
       renderCell: (spendLimit, { row }) => {
         const applied = spendLimit ?? row.original.defaultSpendLimit;
         if (!applied) {
@@ -167,7 +167,7 @@ export function GatewayApiKeysTable({
       header: "Last used",
       hideBelowMd: true,
       enableResizing: false,
-      loading: "text",
+      loadingCell: lastUsedSkeleton,
       renderCell: (lastUsedAt) => {
         if (lastUsed.status === "loading") return lastUsedSkeleton;
         if (!lastUsedAt) {
@@ -196,7 +196,7 @@ export function GatewayApiKeysTable({
       sensitive: true,
       hideBelowMd: true,
       enableResizing: false,
-      loading: "badge",
+      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
       renderCell: (patterns) => (
         <GatewayApiKeyModelsCell patterns={patterns ?? null} />
       ),

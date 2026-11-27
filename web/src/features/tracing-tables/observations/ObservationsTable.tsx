@@ -868,7 +868,7 @@ export default function ObservationsTable({
       },
       enableHiding: true,
       enableSorting,
-      loading: "badge",
+      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
       renderCell: (level) =>
         level ? <ObservationLevelTag level={level} /> : <EmptyValue />,
     }),

@@ -36,7 +36,7 @@ export function createNumberTableColumn<
 
   return createTableColumn<TData, TValue>({
     ...options,
-    loading: "text",
+    loadingCell,
     renderCell: (value, context) => {
       if (!getValue) {
         if (value === null || value === undefined)

@@ -1,7 +1,8 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
-import { type ReactNode } from "react";
 import { Check, Copy, InfoIcon, type IconComponent } from "@langfuse/icons";
+import { type ReactNode } from "react";
+
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
@@ -72,7 +73,7 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
 
   return createTableColumn<TData, TValue>({
     ...options,
-    loading: "text",
+    loadingCell,
     renderCell: (value, context) => {
       const text = mapValue ? mapValue(value, context) : value;
 
