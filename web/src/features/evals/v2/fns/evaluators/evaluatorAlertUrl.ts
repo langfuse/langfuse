@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import { encodeFiltersGeneric } from "@langfuse/shared";
 
 /** Builds an alerts-list URL, optionally filtered to one evaluator. */

@@ -9,6 +9,7 @@ import {
 } from "@langfuse/shared/topics";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 
+/** @knipignore Keeps the setup dialog stories in sync with the production question sequence. */
 export const TOPIC_SETUP_QUESTIONS = [
   { name: "Intent" },
   { name: "Sentiment" },
@@ -37,6 +38,7 @@ export type TopicSetupConnection = {
   adapter: string;
   customModels: string[];
   withDefaultModels: boolean;
+  baseURL: string | null;
 };
 
 export type TopicSetupDraft = {
@@ -93,10 +95,13 @@ const OPENAI_EMBEDDING_MODELS = [
   "text-embedding-3-large",
   "text-embedding-ada-002",
 ];
-const GOOGLE_EMBEDDING_MODELS = [
-  "textembedding-gecko",
-  "textembedding-gecko-multilingual",
+// gecko is retired; these batch the several texts setup embeds per request.
+// Vertex serves gemini-embedding-2 only on global/multi-region endpoints.
+const GOOGLE_AI_STUDIO_EMBEDDING_MODELS = [
+  "gemini-embedding-001",
+  "gemini-embedding-2",
 ];
+const VERTEX_AI_EMBEDDING_MODELS = ["gemini-embedding-001"];
 
 export function isRecommendedTopicModel(
   slot: "summary" | "embedding" | "clustering",
@@ -126,40 +131,61 @@ export function setupWaitMinutes(
   return TOPIC_SETUP_DEFAULT_WAIT_MINUTES;
 }
 
-function topicModelsFor(
+export function topicModelsFor(
   connection: TopicSetupConnection,
   kind: "chat" | "embedding",
   savedModel?: string | null,
 ) {
-  const chat = connection.withDefaultModels
-    ? (supportedModels[connection.adapter as keyof typeof supportedModels] ??
-      [])
-    : [];
+  // These adapters have no embeddings API.
+  if (
+    kind === "embedding" &&
+    (connection.adapter === LLMAdapter.Anthropic ||
+      connection.adapter === LLMAdapter.TypeSafe)
+  )
+    return [];
+  // The built-in chat lists never embed; custom models may, whatever their name.
+  const chat =
+    kind === "chat" && connection.withDefaultModels
+      ? (supportedModels[connection.adapter as keyof typeof supportedModels] ??
+        [])
+      : [];
   const embedding =
     kind === "embedding" && connection.withDefaultModels
-      ? embeddingModelsFor(connection.adapter)
+      ? embeddingModelsFor(connection)
       : [];
-  return Array.from(
+  const models = Array.from(
     new Set(
       [savedModel, ...embedding, ...connection.customModels, ...chat].filter(
         (model): model is string => Boolean(model),
       ),
     ),
   );
+  if (kind === "chat") return models;
+  const isEmbedding = (model: string) => /embed/i.test(model);
+  return [
+    ...models.filter(isEmbedding),
+    ...models.filter((m) => !isEmbedding(m)),
+  ];
 }
 
 export function topicProviderGroups(
   connections: TopicSetupConnection[],
   kind: "chat" | "embedding",
-  savedModel?: string | null,
+  saved?: JudgeModel | null,
 ) {
-  return connections.map(
-    (connection) =>
-      [connection.provider, topicModelsFor(connection, kind, savedModel)] as [
-        string,
-        string[],
-      ],
-  );
+  return connections
+    .map(
+      (connection) =>
+        [
+          connection.provider,
+          topicModelsFor(
+            connection,
+            kind,
+            saved?.provider === connection.provider ? saved.model : null,
+          ),
+        ] as [string, string[]],
+    )
+    .filter(([, models]) => models.length > 0);
 }
 
 /** @internal */
@@ -232,17 +258,17 @@ export function initialTopicSetupDraft(input: {
   const summaryGroups = topicProviderGroups(
     input.connections,
     "chat",
-    input.stored.summary?.model,
+    input.stored.summary,
   );
   const embeddingGroups = topicProviderGroups(
     input.connections,
     "embedding",
-    input.stored.embedding?.model,
+    input.stored.embedding,
   );
   const clusteringGroups = topicProviderGroups(
     input.connections,
     "chat",
-    input.stored.clustering?.model,
+    input.stored.clustering,
   );
   return {
     step: "questions",
@@ -373,10 +399,18 @@ function topicQuestionDescription(name: string, stored: string | undefined) {
   );
 }
 
-function embeddingModelsFor(adapter: string) {
-  if (adapter === LLMAdapter.OpenAI || adapter === LLMAdapter.Azure)
-    return OPENAI_EMBEDDING_MODELS;
-  if (adapter === LLMAdapter.GoogleAIStudio || adapter === LLMAdapter.VertexAI)
-    return GOOGLE_EMBEDDING_MODELS;
+function embeddingModelsFor({ adapter, baseURL }: TopicSetupConnection) {
+  // OpenAI and its data-residency hosts; compatible hosts and Azure deployments name models themselves.
+  if (adapter === LLMAdapter.OpenAI)
+    return !baseURL ||
+      (URL.canParse(baseURL) &&
+        /(^|\.)api\.openai\.com$/.test(
+          new URL(baseURL).hostname.replace(/\.$/, ""),
+        ))
+      ? OPENAI_EMBEDDING_MODELS
+      : [];
+  if (adapter === LLMAdapter.GoogleAIStudio)
+    return GOOGLE_AI_STUDIO_EMBEDDING_MODELS;
+  if (adapter === LLMAdapter.VertexAI) return VERTEX_AI_EMBEDDING_MODELS;
   return [];
 }

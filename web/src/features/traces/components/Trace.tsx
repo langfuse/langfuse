@@ -30,7 +30,7 @@ import { TracePanelNavigation } from "@/src/features/traces/components/TracePane
 import { TracePanelDetail } from "@/src/features/traces/components/TracePanelDetail";
 import { TracePanelNavigationLayoutDesktop } from "@/src/features/traces/components/TracePanelNavigationLayoutDesktop/TracePanelNavigationLayoutDesktop";
 import { TraceTree } from "@/src/features/traces/components/TraceTree";
-import { TraceTimelineCompact } from "@/src/features/traces/components/TraceTimelineDense/TraceTimelineCompact";
+import { TraceTimeline } from "@/src/features/traces/components/TraceTimeline/TraceTimeline";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
@@ -674,18 +674,16 @@ function TraceContent({
                 {panels}
               </Tabs.Content>
               <Tabs.Content value="messages" layout="fill">
-                <div className="min-h-0 flex-1 p-4">
-                  <TraceMessagesView
-                    onOpenObservation={(traceId, observationId) => {
-                      const params = new URLSearchParams({
-                        peek: traceId,
-                        observation: observationId,
-                        aggregation: "trace",
-                      });
-                      openTracePeek(params.toString());
-                    }}
-                  />
-                </div>
+                <TraceMessagesView
+                  onOpenObservation={(traceId, observationId) => {
+                    const params = new URLSearchParams({
+                      peek: traceId,
+                      observation: observationId,
+                      aggregation: "trace",
+                    });
+                    openTracePeek(params.toString());
+                  }}
+                />
               </Tabs.Content>
             </Tabs>
           ) : (
@@ -905,7 +903,7 @@ function MobileTraceContent({ shouldShowGraph }: { shouldShowGraph: boolean }) {
     <TraceLayoutMobile
       showGraph={shouldShowGraph}
       tree={<TraceTree />}
-      timeline={<TraceTimelineCompact />}
+      timeline={<TraceTimeline />}
       graph={shouldShowGraph ? <TraceGraphView /> : null}
       info={<TracePanelDetail />}
     />

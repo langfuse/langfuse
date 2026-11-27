@@ -380,10 +380,10 @@ describe("tupleArrayField", () => {
   });
 
   it("reads its column: a truncated one routes the relation to events_full", () => {
-    // `input` is truncated on events_core; `withTables` adds an Array(Tuple)
+    // `input` is truncated on events_core; `$extendTables` adds an Array(Tuple)
     // type to it so the helper accepts it.
     const qb = getClickhouseKysely()
-      .withTables<{ events: { input: Array<{ name: string }> } }>()
+      .$extendTables<{ events: { input: Array<{ name: string }> } }>()
       .selectFrom("events as e")
       .select((eb) => [tupleArrayField(eb.ref("e.input"), "name").as("names")]);
 

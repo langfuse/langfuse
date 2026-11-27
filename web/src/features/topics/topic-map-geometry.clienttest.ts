@@ -445,7 +445,7 @@ describe("trace dots", () => {
   });
 });
 describe("background group labels", () => {
-  it("reveals group context gradually and returns only one label per group", () => {
+  it("reveals group context gradually, returns one label per topic and none for Unassigned", () => {
     const model = prepareTopicMap(
       data([
         point("invoice", 0, 0),
@@ -455,13 +455,15 @@ describe("background group labels", () => {
       ]),
       topics,
     );
-    expect(prepareMapTextLabels(frameFor(model, 1))).toEqual([]);
-    const titles = prepareMapTextLabels(frameFor(model, 2));
+    const titles = prepareMapTextLabels(frameFor(model, 1));
     const details = prepareMapTextLabels(frameFor(model, 6));
+    expect(titles.some((label) => label.opacity > 0)).toBe(true);
     expect(new Set(details.map((label) => label.id)).size).toBe(details.length);
-    expect(details.map((label) => label.id).sort()).toEqual(
-      model.zones.map((zone) => zone.id).sort(),
-    );
+    // Unassigned and awaiting traces are not a topic, so they get no name.
+    expect(details.map((label) => label.id).sort()).toEqual([
+      "billing",
+      "retrieval",
+    ]);
     expect(titles.find((label) => label.id === "billing")?.detailOpacity).toBe(
       0,
     );
@@ -474,12 +476,145 @@ describe("background group labels", () => {
     expect(details.every((label) => label.kind === "zone")).toBe(true);
   });
 
-  it("keeps one Unassigned label within the viewport when the group center is offscreen", () => {
+  it("names a topic inside a larger one only when zoomed in or selected", () => {
+    const ring = (
+      prefix: string,
+      count: number,
+      cx: number,
+      r: number,
+      topicId: string,
+    ) =>
+      Array.from({ length: count }, (_, i) =>
+        point(
+          `${prefix}-${i}`,
+          cx + (Math.cos(i) * r * ((i % 4) + 1)) / 4,
+          (Math.sin(i) * r * ((i % 4) + 1)) / 4,
+          { topicId },
+        ),
+      );
     const model = prepareTopicMap(
       data([
-        point("distant-outlier", -90, 0, { topicId: null, outcome: "outlier" }),
-        point("visible-outlier", 90, 0, { topicId: null, outcome: "outlier" }),
+        ...ring("billing", 40, 0, 10, "billing"),
+        // Its core sits inside billing's, so it waits until zoomed in.
+        ...ring("retrieval", 12, 2, 4, "retrieval"),
       ]),
+      topics,
+    );
+    const shown = (frame: TopicMapNodeFrame, picked: string | null = null) =>
+      prepareMapTextLabels(frame, picked)
+        .filter((label) => label.opacity > 0)
+        .map((label) => label.id);
+    expect(shown(frameFor(model, 1))).toEqual(["billing"]);
+    expect(shown(frameFor(model, 4))).toContain("retrieval");
+    // A topic picked in the list or selected on the map is always named, at full strength.
+    const picked = prepareMapTextLabels(frameFor(model, 1), "retrieval").find(
+      (label) => label.id === "retrieval",
+    );
+    expect(picked).toMatchObject({ opacity: 1, emphasis: 1, selected: true });
+    expect(shown(frameFor(model, 1, size, "retrieval"))).toContain("retrieval");
+  });
+
+  it("names topics at fit zoom and never overlaps visible labels while zooming or panning", () => {
+    const manyTopics = Array.from({ length: 24 }, (_, i) => ({
+      id: `topic-${i}`,
+      name: `Recurring issue cluster ${i}`,
+    }));
+    const model = prepareTopicMap(
+      data([
+        ...manyTopics.flatMap((topic, i) =>
+          Array.from({ length: 4 + i }, (_, j) =>
+            point(
+              `${topic.id}-${j}`,
+              i === 23 ? (j % 5) - 2 : ((i * 37) % 50) - 25 + (j % 3),
+              i === 23 ? Math.floor(j / 5) - 2 : ((i * 53) % 30) - 15 + j / 8,
+              { topicId: topic.id },
+            ),
+          ),
+        ),
+        // A larger Unassigned cohort centred on the largest topic.
+        ...Array.from({ length: 60 }, (_, i) =>
+          point(`outlier-${i}`, Math.cos(i) * 80, Math.sin(i) * 40, {
+            topicId: null,
+            outcome: "outlier",
+          }),
+        ),
+      ]),
+      manyTopics,
+    );
+    const fit = fitCamera(model.bounds, model.bounds, size);
+    const visibleAt = (view: Camera) =>
+      prepareMapTextLabels(prepareMapNodes(model, view, size, pointer)).filter(
+        (label) => label.opacity > 0,
+      );
+
+    const atFit = visibleAt(fit);
+    expect(atFit.map((label) => label.id)).toContain("topic-23");
+    expect(atFit.length).toBeGreaterThan(1);
+    for (const zoom of [0.4, 0.8, 1, 1.3, 1.7, 2.2, 3, 4.5, 6, 9, 16]) {
+      for (const [dx, dy] of [
+        [0, 0],
+        [-37, 11],
+        [52, -23],
+      ]) {
+        const labels = visibleAt({ x: fit.x + dx, y: fit.y + dy, zoom });
+        for (const [i, label] of labels.entries())
+          for (const other of labels.slice(i + 1))
+            expect(overlaps(label.rect, other.rect)).toBe(false);
+      }
+    }
+    expect(visibleAt({ ...fit, zoom: 4 }).length).toBeGreaterThan(atFit.length);
+  });
+
+  it("fades a lower-ranked name continuously while a nearly hidden name between them clears the top name", () => {
+    const three = ["a", "b", "c"].map((id) => ({ id, name: `Topic ${id}` }));
+    const model = prepareTopicMap(
+      data([
+        ...[0, 1, 2].map((i) => point(`a-${i}`, -10, 0, { topicId: "a" })),
+        ...[0, 1].map((i) => point(`b-${i}`, 0, 0, { topicId: "b" })),
+        point("c-0", 4, 0, { topicId: "c" }),
+      ]),
+      three,
+    );
+    const fit = fitCamera(model.bounds, model.bounds, size);
+    let previous: number | undefined;
+    for (let zoom = 0.05; zoom <= 0.5; zoom += 0.0002) {
+      const labels = prepareMapTextLabels(
+        prepareMapNodes(model, { ...fit, zoom }, size, pointer),
+      );
+      const c = labels.find((label) => label.id === "c")?.opacity ?? 0;
+      if (previous !== undefined)
+        expect(Math.abs(c - previous)).toBeLessThan(0.1);
+      previous = c;
+    }
+  });
+
+  it("fades names continuously while their topics pan across the viewport edge", () => {
+    const two = ["a", "b"].map((id) => ({ id, name: `Topic ${id}` }));
+    const model = prepareTopicMap(
+      data([
+        ...[0, 1].map((i) => point(`a-${i}`, -10, 0, { topicId: "a" })),
+        point("b-0", -7, 0, { topicId: "b" }),
+      ]),
+      two,
+    );
+    const fit = fitCamera(model.bounds, model.bounds, size);
+    let previous = new Map<string, number>();
+    for (let x = fit.x - 2; x <= fit.x + 12; x += 0.002) {
+      const labels = prepareMapTextLabels(
+        prepareMapNodes(model, { ...fit, x, zoom: 0.3 }, size, pointer),
+      );
+      const current = new Map(two.map(({ id }) => [id, 0]));
+      for (const label of labels) current.set(label.id, label.opacity);
+      for (const [id, opacity] of current)
+        if (previous.has(id))
+          expect(Math.abs(opacity - previous.get(id)!)).toBeLessThan(0.1);
+      previous = current;
+    }
+  });
+
+  it("keeps one topic label within the viewport when the topic center is offscreen", () => {
+    const model = prepareTopicMap(
+      data([point("distant-invoice", -90, 0), point("visible-invoice", 90, 0)]),
       topics,
     );
     const zone = model.zones[0];
@@ -488,12 +623,11 @@ describe("background group labels", () => {
       expect(screenPoint(zone, view, model.bounds, size).x).toBeLessThan(0);
       const frame = prepareMapNodes(model, view, size, pointer);
       expect(
-        frame.nodes.some((node) => node.point.traceId === "visible-outlier"),
+        frame.nodes.some((node) => node.point.traceId === "visible-invoice"),
       ).toBe(true);
       const labels = prepareMapTextLabels(frame);
       expect(labels).toHaveLength(1);
-      expect(labels[0].id).toBe("outliers");
-      expect(labels[0].title).toBe("Unassigned");
+      expect(labels[0].id).toBe("billing");
       expect(labels[0].opacity).toBeGreaterThan(0);
       expect(labels[0].rect.x).toBeGreaterThanOrEqual(0);
       expect(labels[0].rect.y).toBeGreaterThanOrEqual(0);
@@ -503,7 +637,7 @@ describe("background group labels", () => {
       expect(labels[0].rect.y + labels[0].rect.height).toBeLessThanOrEqual(
         size.height,
       );
-      expect(frame.nodeById.get("visible-outlier")?.worldPosition).toEqual({
+      expect(frame.nodeById.get("visible-invoice")?.worldPosition).toEqual({
         x: 90,
         y: 0,
       });

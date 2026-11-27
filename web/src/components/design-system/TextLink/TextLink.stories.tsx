@@ -1,4 +1,4 @@
-import { User } from "@langfuse/icons";
+import { ArrowRight, User } from "@langfuse/icons";
 
 import preview from "../../../../.storybook/preview";
 import { TextLink } from "./TextLink";
@@ -20,6 +20,15 @@ export const WithIcon = meta.story({
     path: "#",
     value: "View user",
     icon: User,
+  },
+});
+
+export const WithTrailingIcon = meta.story({
+  name: "With Trailing Icon",
+  args: {
+    path: "#",
+    value: "12",
+    trailingIcon: ArrowRight,
   },
 });
 

@@ -1091,7 +1091,7 @@ describe("Topics definition persistence", () => {
     });
   });
 
-  it("round-trips Float64 geometry and normalized source references through ClickHouse", async () => {
+  it("round-trips every definition field, Float64 geometry and normalized source references through ClickHouse", async () => {
     const topic: TopicDefinition = {
       projectId,
       topicVersionId: randomUUID(),
@@ -1120,7 +1120,18 @@ describe("Topics definition persistence", () => {
           sessionId: "source/請求書",
         },
       ],
-      metadata: { effectiveMemberCount: 15, lineage: [], source: "請求書" },
+      // An undefined metadata value reads back as an absent key.
+      metadata: {
+        effectiveMemberCount: 15,
+        lineage: [],
+        source: "請求書",
+        namingSampled: undefined,
+      },
+      costDetails: {
+        input: 0.000123456789,
+        output: 0.5,
+        total: 0.500123456789,
+      },
     };
     const other: TopicDefinition = {
       ...topic,
@@ -1132,6 +1143,7 @@ describe("Topics definition persistence", () => {
       labels: [],
       representativeSummaries: [],
       metadata: {},
+      costDetails: undefined,
     };
 
     await writeTopicDefinitions([

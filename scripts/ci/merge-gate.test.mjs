@@ -78,6 +78,7 @@ test("changed-file selection permits only explicit exclusions", () => {
   const needs = successfulJobs();
   needs["test-worker-llm-connections"] = { result: "skipped" };
   needs["test-ai-gateway-e2e"] = { result: "skipped" };
+  needs["tests-ai-gateway-guardrail-rules"] = { result: "skipped" };
   needs["tests-worker"] = { result: "skipped" };
   needs["tests-ai-gateway"] = { result: "skipped" };
   const selection = {
@@ -85,6 +86,7 @@ test("changed-file selection permits only explicit exclusions", () => {
     outputs: {
       llm_connections: "false",
       ai_gateway: "false",
+      ai_gateway_guardrail_rules: "false",
       worker: "false",
       ai_gateway_crate: "false",
     },
@@ -99,6 +101,7 @@ test("changed-file selection permits only explicit exclusions", () => {
     for (const output of [
       "llm_connections",
       "ai_gateway",
+      "ai_gateway_guardrail_rules",
       "worker",
       "ai_gateway_crate",
     ]) {
@@ -119,6 +122,7 @@ test("changed-file selection permits only explicit exclusions", () => {
     for (const job of [
       "test-worker-llm-connections",
       "test-ai-gateway-e2e",
+      "tests-ai-gateway-guardrail-rules",
       "tests-worker",
       "tests-ai-gateway",
     ]) {

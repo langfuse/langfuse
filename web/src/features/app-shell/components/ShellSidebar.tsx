@@ -8,6 +8,7 @@ import {
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { LayerContainerProvider } from "@/src/context/LayerContext/LayerContext";
 import { PopoverLayerProvider } from "@/src/context/LayerContext/PopoverLayerProvider";
+import { SidebarBorderToggle } from "@/src/features/app-shell/components/SidebarBorderToggle";
 import { APP_SIDEBAR_ID } from "@/src/features/app-shell/constants/sidebarDom";
 import {
   useAppShellSidebar,
@@ -107,6 +108,7 @@ export function ShellSidebar({
               motion.surface,
             )}
           >
+            {mode !== "mobile" && <SidebarBorderToggle />}
             <LayerContainerProvider name="modal" container={modalContainer}>
               <PopoverLayerProvider container={popoverContainer}>
                 {children}

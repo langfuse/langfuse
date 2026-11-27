@@ -79,9 +79,13 @@ vi.mock("@/src/features/entitlements/hooks", () => ({
 
 vi.mock("@/src/utils/api", () => ({
   api: {
+    useUtils: () => ({ blobStorageIntegration: { invalidate: vi.fn() } }),
     blobStorageIntegration: {
       get: {
         useQuery: mocks.useQuery,
+      },
+      delete: {
+        useMutation: () => ({ mutate: vi.fn(), isPending: false }),
       },
     },
   },
@@ -100,17 +104,23 @@ describe("BlobStorageIntegrationPage entitlement gate", () => {
     });
   });
 
-  it("does not fetch config and shows a plan message without scheduled-blob-exports", () => {
+  it("shows a plan message, the status and a delete action without scheduled-blob-exports", () => {
+    mocks.useQuery.mockReturnValue({
+      data: { config: { enabled: false }, writeMode: "upsert" },
+      isLoading: false,
+    });
+
     render(<BlobStorageIntegrationPage />);
 
     expect(
       screen.getByText("This feature is not available in your current plan."),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Loading configuration")).not.toBeInTheDocument();
+    expect(screen.getByText("Blob storage status")).toBeInTheDocument();
+    expect(screen.getByText("Delete integration")).toBeInTheDocument();
     expect(screen.queryByText("Blob storage form")).not.toBeInTheDocument();
     expect(mocks.useQuery).toHaveBeenCalledWith(
       { projectId: "proj-1" },
-      expect.objectContaining({ enabled: false }),
+      expect.objectContaining({ enabled: true }),
     );
   });
 

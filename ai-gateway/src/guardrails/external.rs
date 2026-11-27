@@ -9,7 +9,7 @@ use reqwest::Client;
 use reqwest_middleware::ClientWithMiddleware;
 
 use crate::{
-    guardrails::{Guardrail, GuardrailKind, bedrock},
+    guardrails::{Guardrail, GuardrailKind, GuardrailLocation, bedrock},
     providers::OutboundPolicy,
     resolution::ResolutionError,
 };
@@ -18,19 +18,43 @@ const MAX_EXTERNAL_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(50);
 const TCP_KEEPALIVE: Duration = Duration::from_secs(30);
 
+/// Why an external guardrail provider call could not complete.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ExternalFailureKind {
+    RateLimited,
+    Timeout,
+    Unavailable,
+}
+
+/// Result of evaluating one external guardrail.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ExternalOutcome {
+    None,
+    /// Provider blocked the request (or intervened without anonymized text).
+    Blocked,
+    /// Provider anonymized the content blocks and returned masked outputs.
+    Anonymized(Vec<String>),
+    /// Provider error, timeout, or rate limit; fails closed.
+    Failed(ExternalFailureKind),
+}
+
 /// Pre-serialized request payloads for external guardrail providers, built once
-/// per request so `turn_text` can be dropped before awaiting network I/O.
+/// per request so temporary text copies can be dropped before awaiting network I/O.
 pub(crate) struct ExternalPayloads {
     bedrock: Option<Bytes>,
 }
 
 impl ExternalPayloads {
-    pub(crate) fn for_guardrails(guardrails: &[&Guardrail], text: &str) -> Self {
+    pub(crate) fn for_guardrails(
+        guardrails: &[&Guardrail],
+        blocks: &[&str],
+        location: GuardrailLocation,
+    ) -> Self {
         let needs_bedrock = guardrails
             .iter()
             .any(|guardrail| matches!(guardrail.kind, GuardrailKind::Bedrock(_)));
         let bedrock = needs_bedrock
-            .then(|| bedrock::serialize_request(text))
+            .then(|| bedrock::serialize_blocks(blocks, location.bedrock_source()))
             .flatten();
         Self { bedrock }
     }
@@ -72,13 +96,13 @@ impl ExternalGuardrailClient {
     }
 
     /// Evaluates every external guardrail concurrently using its pre-serialized
-    /// payload. Timeouts and errors fail closed (`true`).
+    /// payload. Timeouts and errors fail closed ([`ExternalOutcome::Failed`]).
     pub(crate) async fn evaluate_many(
         &self,
         guardrails: &[&Guardrail],
         payloads: &ExternalPayloads,
         organization_id: &str,
-    ) -> Vec<bool> {
+    ) -> Vec<ExternalOutcome> {
         if guardrails.is_empty() {
             return Vec::new();
         }
@@ -90,12 +114,12 @@ impl ExternalGuardrailClient {
         .await
     }
 
-    async fn evaluate_one(
+    pub(crate) async fn evaluate_one(
         &self,
         guardrail: &Guardrail,
         payloads: &ExternalPayloads,
         organization_id: &str,
-    ) -> bool {
+    ) -> ExternalOutcome {
         match &guardrail.kind {
             GuardrailKind::Bedrock(config) => {
                 let Some(payload) = payloads.bedrock.clone() else {
@@ -105,12 +129,12 @@ impl ExternalGuardrailClient {
                         reason = "serialization",
                         "external guardrail request failed to serialize; failing closed"
                     );
-                    return true;
+                    return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
                 };
                 bedrock::evaluate_one(self, &guardrail.id, config, payload, organization_id).await
             }
             GuardrailKind::Regex { .. } | GuardrailKind::FailClosed | GuardrailKind::Unknown => {
-                false
+                ExternalOutcome::None
             }
         }
     }

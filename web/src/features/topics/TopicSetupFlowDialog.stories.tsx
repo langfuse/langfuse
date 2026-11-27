@@ -70,6 +70,7 @@ function SetupStory({
       canWrite
       costEstimate={
         <TopicCostEstimateView
+          showUsage
           estimate={costEstimateFixture()}
           samplingPercent={samplePercent}
           dailyTraces={180}

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import { getCategoricalCategoryRuleViolations } from "@langfuse/shared";
 
 export const DUPLICATE_CATEGORY_NAMES_MESSAGE =

@@ -42,6 +42,7 @@ export function ConnectedBatchExportsTable({
         { projectId, batchExportId: id },
         {
           onSuccess: (data) => {
+            // eslint-disable-next-line @repo/no-location-navigation -- signed object URL; same-tab navigation applies the download Content-Disposition
             window.location.href = data.url;
           },
           onSettled: () =>

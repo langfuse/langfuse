@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DecisionModelRequest } from "../../evals/decisionModelEvaluatorExecution";
 import { createSecureLlmFetch } from "../secureLlmFetch";
-import { TYPESAFE_UPSTREAMS } from "../types";
+import { LangfuseInternalTraceEnvironment, TYPESAFE_UPSTREAMS } from "../types";
 import { createTypeSafeDecisionModelClient } from "./typeSafeDecisionModelClient";
 
 vi.mock("../secureLlmFetch", async (importOriginal) => {
@@ -232,11 +232,20 @@ describe("createTypeSafeDecisionModelClient", () => {
       apiKey: "sk-test",
       model: "jev-latest",
       baseURL: "https://openrouter.ai/api/v1",
+      internalEnvironment: LangfuseInternalTraceEnvironment.LLMJudge,
       fetchImpl,
     });
     const evaluation = await client.evaluate({
       state: request.state,
       questions: { refund: request.questions.refund },
+    });
+
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(
+      new Headers(init.headers).get("x-openrouter-trace-environment"),
+    ).toBe(LangfuseInternalTraceEnvironment.LLMJudge);
+    expect(JSON.parse(init.body as string).trace).toEqual({
+      environment: LangfuseInternalTraceEnvironment.LLMJudge,
     });
 
     expect(evaluation).toEqual({

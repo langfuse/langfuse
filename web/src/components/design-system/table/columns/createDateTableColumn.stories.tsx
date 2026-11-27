@@ -1,11 +1,7 @@
-import type { ReactNode } from "react";
-
 import preview from "../../../../../.storybook/preview";
 
-import {
-  DataTable,
-  type AsyncTableData,
-} from "@/src/components/table/data-table";
+import { DataTable } from "@/src/components/table/data-table";
+import type { AsyncTableData } from "@/src/components/table/types";
 import { createDateTableColumn } from "./createDateTableColumn";
 
 type Row = {
@@ -17,7 +13,7 @@ function DateTableColumnStory({
   getPrefix,
 }: {
   data: AsyncTableData<Row[]>;
-  getPrefix?: (value: Date) => ReactNode;
+  getPrefix?: (value: Date) => string | null;
 }) {
   const columns = [
     createDateTableColumn<Row>({

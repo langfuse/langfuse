@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import { stringify } from "@langfuse/shared";
 
 export interface ServerTraceDownloadParams {

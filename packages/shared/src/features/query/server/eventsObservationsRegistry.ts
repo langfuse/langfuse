@@ -214,7 +214,7 @@ function templateMeasure<A extends Record<string, TemplateAggregate>>(entry: {
 /**
  * The slot function of a measure for a query level: `single` returns the row
  * value, and the caller wraps the whole measure in the requested aggregation
- * (`QueryBuilder.translateAggregation` for the string version); `two` applies
+ * (`translateAggregation` in `sqlTextQuery.ts` for the string version); `two` applies
  * the slot's aggregate from `aggs` in the inner select.
  * @internal
  */

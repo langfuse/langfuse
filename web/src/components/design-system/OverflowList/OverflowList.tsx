@@ -78,6 +78,8 @@ export function OverflowList<TItem>({
     hiddenItems: readonly TItem[];
     overflowItemCount: number;
   }) => ReactNode;
+  // TODO: typed API
+  // eslint-disable-next-line @repo/no-node-slot-props -- pinned row content is still caller-rendered
   trailingContent?: ReactNode;
   spacing?: NonNullable<VariantProps<typeof rowVariants>["spacing"]>;
   alignment?: NonNullable<VariantProps<typeof rowVariants>["alignment"]>;

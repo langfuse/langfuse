@@ -21,7 +21,7 @@ function VariableMappingCardHeaderContent({
 }) {
   return (
     <>
-      <span className="text-primary-accent shrink-0 font-mono font-bold">
+      <span className="text-primary-accent shrink-0 font-bold">
         {variableDisplay === "stateKey" ? variable : `{{${variable}}}`}
       </span>
       <span className="text-muted-foreground shrink-0">
@@ -37,7 +37,7 @@ function VariableMappingCardHeaderContent({
           <span className="min-w-0">{mapping}</span>
           {warningMessage ? (
             <span
-              className="text-dark-yellow relative -top-px h-4 w-4 shrink-0 self-center"
+              className="text-dark-yellow flex shrink-0 items-center"
               aria-label={`Warning: ${warningMessage}`}
               title={warningMessage}
             >
