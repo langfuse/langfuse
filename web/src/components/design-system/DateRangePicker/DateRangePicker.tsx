@@ -17,7 +17,6 @@ import { Input } from "../Input/Input";
 
 type DateRangePickerProps<V extends string> = {
   value: V;
-  customValue: V;
   range?: { from: Date; to: Date };
   earliestDate?: Date;
   presets: { value: V; label: string; disabled?: boolean }[];
@@ -28,7 +27,6 @@ type DateRangePickerProps<V extends string> = {
 
 function DateRangePicker<V extends string>({
   value,
-  customValue,
   range,
   earliestDate,
   presets,

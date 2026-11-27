@@ -13,9 +13,9 @@ const presets = [
 ];
 
 export const ButtonTrigger = meta.story({
+  name: "(Test) Button trigger selects a preset",
   args: {
     value: "last7Days",
-    customValue: "custom",
     presets,
     onPresetChange: () => undefined,
     onCustomChange: () => undefined,

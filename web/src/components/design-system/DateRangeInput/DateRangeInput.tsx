@@ -7,7 +7,7 @@ import { CalendarDays, ChevronDown } from "@langfuse/icons";
 import { InputControl } from "../internal/InputControl/InputControl";
 import { DateRangePicker } from "../DateRangePicker/DateRangePicker";
 
-export type DateRangeFieldValue = {
+type DateRangeFieldValue = {
   from: string;
   to: string;
 };
@@ -47,7 +47,9 @@ type DateRangeInputProps<V extends string> =
 const dateFieldClassName =
   "placeholder:text-muted-foreground min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-sm shadow-none outline-hidden focus:ring-0 disabled:cursor-not-allowed [&::-webkit-calendar-picker-indicator]:pointer-events-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none";
 
-function DateRangeInput<V extends string>(props: DateRangeInputProps<V>) {
+function DateRangeInput<V extends string = string>(
+  props: DateRangeInputProps<V>,
+) {
   if (props.variant === "fields") return <DateRangeFieldsVariant {...props} />;
   return <DateRangePreset {...props} />;
 }
@@ -61,7 +63,7 @@ function DateRangeFieldsVariant({
   toLabel,
   disabled,
   error,
-}: FieldsDateRangeInputProps) {
+}: Omit<FieldsDateRangeInputProps, "variant">) {
   const fromRef = React.useRef<HTMLInputElement>(null);
   const toRef = React.useRef<HTMLInputElement>(null);
   const [pickerField, setPickerField] = React.useState<"from" | "to">("from");
@@ -157,7 +159,7 @@ function DateRangePreset<V extends string>({
   id,
   "aria-describedby": ariaDescribedBy,
   disabled,
-}: PresetDateRangeInputProps<V>) {
+}: Omit<PresetDateRangeInputProps<V>, "variant">) {
   const label = presets.find((preset) => preset.value === value)?.label;
   const displayValue =
     value === customValue && range
@@ -167,7 +169,6 @@ function DateRangePreset<V extends string>({
   return (
     <DateRangePicker
       value={value}
-      customValue={customValue}
       range={range}
       earliestDate={earliestDate}
       presets={presets}
