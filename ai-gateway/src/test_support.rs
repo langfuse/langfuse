@@ -72,6 +72,18 @@ pub(crate) fn upload_json(body: &[u8]) -> serde_json::Value {
     serde_json::from_str(&upload_text(body)).unwrap()
 }
 
+/// The texts response guardrails read from one SSE frame of `api_format`.
+pub(crate) fn guardrail_sse_texts(api_format: ApiFormat, frame: &serde_json::Value) -> Vec<String> {
+    use crate::guardrails::response::{ParsedResponse, ResponseFormat};
+    let sse = format!("data: {frame}\n\n");
+    ParsedResponse::parse(api_format, ResponseFormat::Sse, vec![sse.into()], None)
+        .unwrap()
+        .blocks()
+        .iter()
+        .map(|block| block.text.clone())
+        .collect()
+}
+
 pub(crate) fn ingestion_token(organization: &str, project: &str) -> String {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
     let segment = |value: serde_json::Value| URL_SAFE_NO_PAD.encode(value.to_string());

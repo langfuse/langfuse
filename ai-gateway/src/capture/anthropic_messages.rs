@@ -374,7 +374,7 @@ impl AnthropicMessagesCapture {
                     self.response_valid = false;
                 }
                 return delta.is_some_and(|delta| {
-                    ["text", "thinking", "partial_json"].iter().any(|key| {
+                    GENERATED_DELTA_FIELDS.iter().any(|key| {
                         delta
                             .get(*key)
                             .and_then(Value::as_str)
@@ -498,6 +498,14 @@ pub(super) fn guardrail_turn(
     }
     Ok(turn)
 }
+
+/// Fields of a `content_block_delta` whose first non-empty string starts the
+/// completion. Each is read by `RESPONSE` or listed in `NOT_TEXT`.
+pub(super) const GENERATED_DELTA_FIELDS: [&str; 3] = ["text", "thinking", "partial_json"];
+
+/// Generated delta fields that hold no text for guardrails to scan.
+#[cfg(test)]
+pub(super) const NOT_TEXT: &[&str] = &[];
 
 /// Where Anthropic Messages responses carry model text.
 pub(super) const RESPONSE: ResponseSpec = ResponseSpec {

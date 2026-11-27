@@ -433,3 +433,29 @@ fn tool_results_the_model_already_answered_are_not_scanned_again() {
         ["thanks"]
     );
 }
+
+#[test]
+fn every_generated_delta_field_is_scanned_by_response_guardrails_or_declared_not_text() {
+    for path in GENERATED_DELTA_FIELDS {
+        let delta = path.iter().rev().fold(json!("generated"), |value, key| {
+            if *key == "*" {
+                json!([value])
+            } else {
+                json!({ *key: value })
+            }
+        });
+        let frame = json!({"choices": [{"index": 0, "delta": delta}]});
+        let texts =
+            crate::test_support::guardrail_sse_texts(ApiFormat::OpenAiChatCompletions, &frame);
+        assert_eq!(
+            texts == ["generated"],
+            !NOT_TEXT.contains(path),
+            "{path:?}: declare it in RESPONSE or in NOT_TEXT"
+        );
+    }
+    assert!(
+        NOT_TEXT
+            .iter()
+            .all(|path| GENERATED_DELTA_FIELDS.contains(path))
+    );
+}

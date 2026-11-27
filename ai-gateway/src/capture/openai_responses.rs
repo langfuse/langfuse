@@ -179,31 +179,17 @@ impl OpenAiResponsesCapture {
             self.response_valid = false;
             return false;
         };
-        match event.get("type").and_then(Value::as_str) {
-            Some(
-                "response.output_text.delta"
-                | "response.refusal.delta"
-                | "response.function_call_arguments.delta"
-                | "response.custom_tool_call_input.delta"
-                | "response.reasoning_text.delta"
-                | "response.reasoning_summary_text.delta"
-                | "response.mcp_call_arguments.delta"
-                | "response.code_interpreter_call_code.delta"
-                | "response.audio.delta"
-                | "response.audio.transcript.delta"
-                | "response.shell_call_command.delta",
-            ) => {
-                return event
-                    .get("delta")
-                    .and_then(Value::as_str)
-                    .is_some_and(|delta| !delta.is_empty());
-            }
-            Some("response.image_generation_call.partial_image") => {
-                return event
-                    .get("partial_image_b64")
-                    .and_then(Value::as_str)
-                    .is_some_and(|image| !image.is_empty());
-            }
+        let kind = event.get("type").and_then(Value::as_str);
+        if let Some((_, field)) = GENERATED_EVENTS
+            .iter()
+            .find(|(generated, _)| kind == Some(*generated))
+        {
+            return event
+                .get(*field)
+                .and_then(Value::as_str)
+                .is_some_and(|content| !content.is_empty());
+        }
+        match kind {
             Some("response.output_item.done") if self.mode == IngestionMode::Full => {
                 if let (Some(index), Some(item)) = (
                     event.get("output_index").and_then(Value::as_u64),
@@ -452,6 +438,33 @@ fn read_guardrail_item(
     Ok(())
 }
 
+/// Streamed events, and their field, whose first non-empty string starts the
+/// completion. Each is read by `RESPONSE` or listed in `NOT_TEXT`.
+pub(super) const GENERATED_EVENTS: &[(&str, &str)] = &[
+    ("response.output_text.delta", "delta"),
+    ("response.refusal.delta", "delta"),
+    ("response.function_call_arguments.delta", "delta"),
+    ("response.custom_tool_call_input.delta", "delta"),
+    ("response.reasoning_text.delta", "delta"),
+    ("response.reasoning_summary_text.delta", "delta"),
+    ("response.mcp_call_arguments.delta", "delta"),
+    ("response.code_interpreter_call_code.delta", "delta"),
+    ("response.audio.delta", "delta"),
+    ("response.audio.transcript.delta", "delta"),
+    ("response.shell_call_command.delta", "delta"),
+    (
+        "response.image_generation_call.partial_image",
+        "partial_image_b64",
+    ),
+];
+
+/// Generated events that hold no text for guardrails to scan: base64 audio and images.
+#[cfg(test)]
+pub(super) const NOT_TEXT: &[&str] = &[
+    "response.audio.delta",
+    "response.image_generation_call.partial_image",
+];
+
 /// Where Responses API responses carry model text.
 pub(super) const RESPONSE: ResponseSpec = ResponseSpec {
     json: Object::new(&[
@@ -469,13 +482,20 @@ const OUTPUT_ITEM: Node = Object::new(&[
     ("refusal", parts(LEAF)),
     ("input", parts(LEAF)),
     ("arguments", text(JSON_LEAF)),
+    ("code", text(LEAF)),
+    (
+        "action",
+        Object::new(&[("commands", each(&COMMAND))]).node(),
+    ),
 ])
 .strict()
 .node();
+const COMMAND: Node = text(LEAF);
 
 const PART: &[&str] = &["output_index", "content_index"];
 const SUMMARY_PART: &[&str] = &["output_index", "summary_index"];
 const ITEM: &[&str] = &["output_index"];
+const SHELL_COMMAND: &[&str] = &["output_index", "command_index"];
 
 /// An event of `$type` whose `$field` holds text, with stream indices from `$index`.
 macro_rules! event {
@@ -519,6 +539,9 @@ const EVENTS: &[(&str, Object)] = &[
     event!("response.mcp_call_arguments.delta", ITEM, "delta", json_delta("mcp_call_args")),
     event!("response.reasoning_text.delta", PART, "delta", delta("reasoning_text")),
     event!("response.reasoning_summary_text.delta", SUMMARY_PART, "delta", delta("reasoning_summary")),
+    event!("response.code_interpreter_call_code.delta", ITEM, "delta", delta("code_interpreter_code")),
+    event!("response.shell_call_command.delta", SHELL_COMMAND, "delta", delta("shell_command")),
+    event!("response.audio.transcript.delta", &[], "delta", delta("audio_transcript")),
     event!("response.output_text.done", PART, "text", summary("output_text")),
     event!("response.refusal.done", PART, "refusal", summary("refusal")),
     event!("response.function_call_arguments.done", ITEM, "arguments", json_summary("function_call_args")),
@@ -526,6 +549,9 @@ const EVENTS: &[(&str, Object)] = &[
     event!("response.mcp_call_arguments.done", ITEM, "arguments", json_summary("mcp_call_args")),
     event!("response.reasoning_text.done", PART, "text", summary("reasoning_text")),
     event!("response.reasoning_summary_text.done", SUMMARY_PART, "text", summary("reasoning_summary")),
+    event!("response.code_interpreter_call_code.done", ITEM, "code", summary("code_interpreter_code")),
+    event!("response.shell_call_command.added", SHELL_COMMAND, "command", summary("shell_command")),
+    event!("response.shell_call_command.done", SHELL_COMMAND, "command", summary("shell_command")),
     ("response.content_part.done", Object::new(&[("part", OUTPUT_TEXT_PART)]).indexed(PART)),
     ("response.reasoning_summary_part.done", Object::new(&[("part", SUMMARY_TEXT_PART)]).indexed(SUMMARY_PART)),
     ("response.output_item.done", Object::new(&[("item", STREAMED_ITEM)]).indexed(ITEM)),
@@ -552,11 +578,23 @@ const STREAMED_ITEM: Node = Object::new(&[])
                 item!(REASONING_TEXT_PART, "function_call_args"),
             ),
             ("mcp_call", item!(OUTPUT_TEXT_PART, "mcp_call_args")),
+            (
+                "code_interpreter_call",
+                Object::new(&[("code", text(summary("code_interpreter_code")))]),
+            ),
+            (
+                "shell_call",
+                Object::new(&[(
+                    "action",
+                    Object::new(&[("commands", keyed_each(&STREAMED_COMMAND))]).node(),
+                )]),
+            ),
         ],
         Some(&item!(OUTPUT_TEXT_PART, "function_call_args")),
     )
     .node();
 
+const STREAMED_COMMAND: Node = text(summary("shell_command"));
 const OUTPUT_TEXT_PART: Node = text_part!("output_text");
 const REASONING_TEXT_PART: Node = text_part!("reasoning_text");
 const SUMMARY_TEXT_PART: Node = text_part!("reasoning_summary");
