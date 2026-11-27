@@ -1112,7 +1112,8 @@ const processorAttributeReplayArbitrary: Arbitrary<ProviderReplaySeed> =
   });
 
 // Spans the two paths must read the same way: one without attributes, model
-// parameters encoded three times, and an integer above 2^53.
+// parameters encoded three times, an integer above 2^53, and a generation
+// whose prompt version is the number 1e21.
 const directedEvaluationExamples: ProviderReplaySeed[][] = [
   [genericProviderSeed([])],
   ...[
@@ -1123,6 +1124,15 @@ const directedEvaluationExamples: ProviderReplaySeed[][] = [
       { key: "langfuse.observation.model.parameters", value },
     ]),
   ]),
+  [
+    {
+      ...genericProviderSeed([
+        { key: "gen_ai.request.model", value: "gpt-4" },
+        { key: "langfuse.observation.prompt.version", value: 1e21 },
+      ]),
+      scope: "ai",
+    },
+  ],
 ];
 
 // Rust strings cannot hold a lone surrogate, and a `__proto__` key is lost

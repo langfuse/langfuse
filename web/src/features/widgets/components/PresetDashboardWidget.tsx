@@ -116,7 +116,7 @@ export function PresetDashboardWidget({
     const reportHeight = () => {
       onHeightChange(
         placement.id,
-        Math.max(element.getBoundingClientRect().height, element.scrollHeight),
+        Math.max(element.offsetHeight, element.scrollHeight),
       );
     };
     const resizeObserver = new ResizeObserver(reportHeight);

@@ -2,7 +2,7 @@
 
 Server-only half of the query-builder AST module: the Kysely-based ClickHouse compiler, validation passes, physical registry, execution context, and exec integration, behind the `@langfuse/shared/src/server` export boundary. The client-safe half (predicate AST, `FilterState` codec, semantic source registry) lives under `packages/shared/src/query-ast/`.
 
-This folder is a compile-only ClickHouse dialect on Kysely 0.28: real `OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata map subscripts; a mandatory tenancy injection pass keyed on one `projectId`; per-table dedup lowering from the registry; schema-typed selection; virtual views as WITH CTEs; catalog parity.
+This folder is a compile-only ClickHouse dialect on Kysely 0.29: real `OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata map subscripts; a mandatory tenancy injection pass keyed on one `projectId`; per-table dedup lowering from the registry; schema-typed selection; virtual views as WITH CTEs; catalog parity.
 
 Two audiences: **[Using it](#using-it)** if you are calling the compiler from a
 repository, **[Developing the dialect](#developing-the-dialect)** if you are
@@ -100,7 +100,7 @@ must carry the `.golden.test.ts` suffix to run there.
   used on traces / observations / scores. `$call(limitBy(...))` remains for
   explicit non-version LIMIT BY. Auto-lowering does not declare scores as
   `{ strategy: "final" }`; callers opt in with `$call(useFinal(["scores"]))`.
-- **Value binds take their ClickHouse type from the compared column** in the table registry (`scores.value > 1` emits `{p:Float64}`, not inferred `{p:Int64}`). A `sql.ref` column is typed the same way, and a column tuple (`refTuple`, `tupleIn`) per position. Same-value binds still intern to one placeholder. A value compared to a column the compiler can't type throws `QueryCompileError`: a qualifier no relation declares, a table outside the registry (or a CTE that reads one), and an unqualified column that a relation outside the registry may provide. Qualify the column with the alias of a registry relation, or add the table to the registry. A SELECT alias takes the type of the column it names, also through another alias; a computed alias, an ARRAY JOIN alias, or a column no relation has, binds by value. A `*` over a join types a shared column name from the leftmost relation, as ClickHouse does.
+- **Value binds take their ClickHouse type from the compared column** in the table registry (`scores.value > 1` emits `{p:Float64}`, not inferred `{p:Int64}`). A `sql.ref` column is typed the same way, and a column tuple (`refTuple`, `tupleIn`) per position. Same-value binds still intern to one placeholder. A value compared to a column the compiler can't type throws `QueryCompileError`: a subcolumn or tuple element of a column (`metadata.a`), a table outside the registry (or a CTE that reads one), and an unqualified column that a relation outside the registry may provide. Bind the value with `typedValue(...)`, qualify the column with the alias of a registry relation, or add the table to the registry. A SELECT alias takes the type of the column it names, also through another alias; a computed alias, an ARRAY JOIN alias, or a column no relation has, binds by value. A `*` over a join types a shared column name from the leftmost relation, as ClickHouse does.
 - **Bind dates as JS `Date`**, never as pre-formatted strings. The compiler
   sends a `Date` as the UTC wall-clock string ingestion writes
   (`toClickhouseDateTime`), so binds match stored rows whatever the server
@@ -117,35 +117,7 @@ must carry the `.golden.test.ts` suffix to run there.
   `UInt64` is `number` so binds type-check, but query results arrive as raw
   JSON (dates as strings). Type rows with a read schema and convert them; do
   not type results with the builder's `InferResult`.
-- **Build shared expressions from the calling query's expression builder.**
-  A reusable events expression or select list is wrapped in
-  `scopedToEvents((eb) => …)` from `../repositories/events-selects.ts`, then
-  passed as `.select(traceAggregationSelects(TRACE_AGGREGATION_FIELDS))` or
-  called inside `.where((eb) => …)` with the query's own `eb`. Keyed select
-  lists (`traceAggregationSelects`, `sessionAggregationSelects`,
-  `eventsRowFieldSelects`) take the fields to select: pick only what the query
-  reads, because one selected `input`, `output` or metadata value routes a
-  logical `events` relation, CTE bodies included, to `events_full`. That only type-checks in a
-  query that reads a full events row as `e` and nothing else: no join, no
-  narrower `e`. Columns inside such a helper are written `e.…`, so an alias
-  of the same name in the calling query can't shadow them. A helper typed
-  `ExpressionBuilder<{ e: … }, "e">` checks the alias and the columns its type
-  names, but not joins or the rest of the row: fine for a fixed small column
-  set (`observationIoSelects` over `{ e: IoColumns }`), not a substitute for
-  `scopedToEvents`. A module-level constant built from a detached
-  `expressionBuilder()` loses the check entirely: helper results don't carry
-  their table scope in their type, and Kysely's `select()` / `where()` accept
-  any expression. A query that adds its joins conditionally builds with a
-  detached builder typed over every relation it may join:
-  `scoresExpressionBuilder()` in
-  `../../features/query/server/scoresRegistry.ts` for the v2 score views, and
-  `expressionBuilder<ObservationsDb, "e" | "scores">()` for the observations
-  view's `countScores` measure. It type-checks a ref to a relation the query
-  did not join. If the query reads several relations, the compiler rejects
-  that ref in any clause. If it reads one relation, the compiler rejects it
-  only where it is compared to a bound value; a SELECT ref or an uncompared
-  WHERE term (`toBool(e.name)`) compiles, and only ClickHouse rejects the
-  query.
+- **Build shared expressions from the calling query's expression builder.** A reusable events expression or select list is wrapped in `scopedToEvents((eb) => …)` from `../repositories/events-selects.ts`, then passed as `.select(traceAggregationSelects(TRACE_AGGREGATION_FIELDS))` or called inside `.where((eb) => …)` with the query's own `eb`. Keyed select lists (`traceAggregationSelects`, `sessionAggregationSelects`, `eventsRowFieldSelects`) take the fields to select: pick only what the query reads, because one selected `input`, `output` or metadata value routes a logical `events` relation, CTE bodies included, to `events_full`. That only type-checks in a query that reads a full events row as `e` and nothing else: no join, no narrower `e`. Columns inside such a helper are written `e.…`, so an alias of the same name in the calling query can't shadow them. A helper typed `ExpressionBuilder<{ e: … }, "e">` checks the alias and the columns its type names, but not joins or the rest of the row: fine for a fixed small column set (`observationIoSelects` over `{ e: IoColumns }`), not a substitute for `scopedToEvents`. A module-level constant built from a detached `expressionBuilder()` loses the check entirely: helper results don't carry their table scope in their type, and Kysely's `select()` / `where()` accept any expression. A query that adds its joins conditionally builds with a detached builder typed over every relation it may join: `scoresExpressionBuilder()` in `../../features/query/server/scoresRegistry.ts` for the v2 score views, and `expressionBuilder<ObservationsDb, "e" | "scores">()` for the observations view's `countScores` measure. It type-checks a ref to a relation the query did not join. The compiler rejects that ref in any clause. In a query over one relation, `q.x` also compiles when `q` is a registry column of that relation (`metadata.keys`); a column the registry does not model must be added to it first. The compiler does not check `x`: `scores.nope` compiles, and only ClickHouse rejects the query.
 - **Helpers take columns as expressions.** A helper parameter that names a
   column is an `Expression<T>` the caller builds (`eb.ref("e.col")`), never a
   column-name string, so the calling query's builder checks the column. Don't
@@ -365,7 +337,7 @@ widening behavior.
 
 ### The one Kysely-internals coupling (upgrade hazard)
 
-`compiler.ts` wraps Kysely's **private** `visitNode` / `nodeStack` to dispatch each `CustomNode` (`ArrayIndexNode` for `metadata[key]`, `FinalTableNode` for `FINAL`, `ParametricAggregateNode` for `quantile(0.95)(x)`, `TupleSubcolumnNode` for `q.col.field`) through `compileCustomNode`, because they are not Kysely's closed `OperationNode` kinds. Kysely is pinned to **0.28.17** for this reason. Re-verify this hack on any Kysely bump; it is the single place that reaches past Kysely's documented surface. Everything else (plugins, dialect, transformer overrides) uses public or documented-protected API.
+`compiler.ts` wraps Kysely's `protected readonly` `visitNode` / `nodeStack` to dispatch each `CustomNode` (`ArrayIndexNode` for `metadata[key]`, `FinalTableNode` for `FINAL`, `ParametricAggregateNode` for `quantile(0.95)(x)`, `TupleSubcolumnNode` for `q.col.field`) through `compileCustomNode`, because they are not Kysely's closed `OperationNode` kinds. Kysely is pinned to **0.29.9** for this reason. Re-verify this hack on any Kysely bump; it is the single place that reaches past Kysely's documented surface. Everything else (plugins, dialect, transformer overrides) uses public or documented-protected API.
 
 ### Types are asserted at compile time
 

@@ -1,0 +1,15 @@
+{
+  "name": "@langfuse/ai-gateway-guardrail-rules",
+  "version": "0.0.0",
+  "description": "Shared ASCII-only regex validator and compiler for AI Gateway guardrails",
+  "license": "MIT",
+  "private": true,
+  "main": "pkg/ai_gateway_guardrail_rules.js",
+  "types": "pkg/ai_gateway_guardrail_rules.d.ts",
+  "files": [
+    "pkg"
+  ],
+  "engines": {
+    "node": "24"
+  }
+}

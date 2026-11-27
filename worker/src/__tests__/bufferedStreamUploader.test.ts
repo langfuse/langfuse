@@ -404,6 +404,38 @@ describe("BufferedStreamUploader", () => {
       expect(methods).toContain("abort");
       expect(methods).not.toContain("complete");
     });
+
+    it("stops retrying in-flight parts once the source stream errors", async () => {
+      let uploadAttempts = 0;
+      const mock = createMockStrategy({
+        uploadPartImpl: async () => {
+          uploadAttempts++;
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          throw new Error("socket hang up");
+        },
+      });
+      const uploader = new BufferedStreamUploader({
+        ...defaultParams(mock.strategy),
+        maxPartAttempts: 2,
+      });
+
+      let pushed = false;
+      const source = new Readable({
+        read() {
+          if (pushed) return;
+          pushed = true;
+          // Two parts with one slot: the reader is waiting for the slot (not
+          // pulling) when the source errors.
+          this.push(Buffer.alloc(2048));
+          setTimeout(() => this.destroy(new Error("aborted by shutdown")), 10);
+        },
+      });
+
+      await expect(uploader.upload(source)).rejects.toThrow(
+        "aborted by shutdown",
+      );
+      expect(uploadAttempts).toBe(1);
+    });
   });
 
   describe("oversized row warning", () => {

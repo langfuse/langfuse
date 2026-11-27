@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 const EXCLUDE_PREFIX = "-";
 
 /**

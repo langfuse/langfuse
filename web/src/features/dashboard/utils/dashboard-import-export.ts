@@ -151,7 +151,7 @@ const dashboardImportSchema = z
   })
   .loose();
 
-export type DashboardExportPlacement =
+type DashboardExportPlacement =
   | ({ type: "widget"; widgetId: string } & PlacementPosition)
   | ({ type: "preset"; presetId: string } & PlacementPosition);
 

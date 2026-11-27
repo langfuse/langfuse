@@ -37,9 +37,10 @@ type TopicErrorReason =
   | "numerical"
   | "input_too_large"
   | "definition_readback"
+  | "assignment_visibility"
   | "unknown";
 
-/** Who has to act on a failure. Topics builds the request, so rejected input is ours; a trace over the size limit is the customer's. */
+/** Who has to act on a failure. Topics builds the request, so rejected input is ours; a trace over the size limit or unusable output from the customer's model is the customer's. */
 export function topicFailureOwner(
   reason: string,
 ): "platform" | "upstream" | "customer" {
@@ -50,11 +51,61 @@ export function topicFailureOwner(
       "rate_limit",
       "content_filter",
       "input_too_large",
+      "invalid_output",
     ].includes(reason)
   )
     return "customer";
   if (["timeout", "provider_error"].includes(reason)) return "upstream";
   return "platform";
+}
+
+/** The failure reason of an error, from its type; unrecognized errors keep the fallback. */
+function topicErrorReason(
+  error: unknown,
+  fallbackReason: TopicErrorReason = "unknown",
+): TopicErrorReason {
+  let reason: TopicErrorReason =
+    error instanceof TopicsProviderUnavailable ? error.reason : fallbackReason;
+  if (!(error instanceof Error)) return reason;
+  if (
+    [
+      "AI_NoObjectGeneratedError",
+      "AI_NoOutputGeneratedError",
+      "ZodError",
+    ].includes(error.name)
+  )
+    reason = "invalid_output";
+  if (["AbortError", "TimeoutError"].includes(error.name)) reason = "timeout";
+  if (error.name === "TopicInputTooLarge") reason = "input_too_large";
+  if (error.name === "TopicDefinitionReadbackError")
+    reason = "definition_readback";
+  if (error.name === "TopicAssignmentVisibilityError")
+    reason = "assignment_visibility";
+  if (
+    [
+      "PrismaClientKnownRequestError",
+      "PrismaClientUnknownRequestError",
+      "PrismaClientInitializationError",
+      "PrismaClientRustPanicError",
+      "ClickHouseError",
+    ].includes(error.name)
+  )
+    reason = "storage";
+  if (ClickHouseResourceError.is(error))
+    reason = error.errorType === "TIMEOUT" ? "timeout" : "storage";
+  return reason;
+}
+
+/** Provider errors and model output decide by reason; any other error, such as our own timeout, is ours. */
+function topicErrorOwner(
+  error: unknown,
+  reason: TopicErrorReason,
+): "platform" | "upstream" | "customer" {
+  return error instanceof TopicsProviderUnavailable ||
+    reason === "input_too_large" ||
+    reason === "invalid_output"
+    ? topicFailureOwner(reason)
+    : "platform";
 }
 
 // Statuses with their own operational meaning; exact codes are on the span.
@@ -184,22 +235,19 @@ export class TopicMetrics {
   ruleFit(
     outcome: string,
     trigger: "automatic" | "manual",
-    durationMs: number,
+    durationMs?: number,
     failure?: unknown,
   ): void {
     const tags = {
       outcome,
       trigger,
-      ...(outcome === "failed"
-        ? {
-            owner:
-              failure instanceof TopicsProviderUnavailable
-                ? topicFailureOwner(failure.reason)
-                : "platform",
-          }
+      // An interrupted fit has no failure, so it is ours.
+      ...(outcome === "failed" || outcome === "interrupted"
+        ? { owner: topicErrorOwner(failure, topicErrorReason(failure)) }
         : {}),
     };
     recordIncrement("langfuse.topics.rule_fits", 1, tags);
+    if (durationMs === undefined) return;
     recordDistribution("langfuse.topics.rule_fit_duration_ms", durationMs, {
       outcome,
       trigger,
@@ -244,46 +292,12 @@ export class TopicMetrics {
       if (this.reportedErrors.has(error)) return;
       this.reportedErrors.add(error);
     }
-    let reason: TopicErrorReason =
-      error instanceof TopicsProviderUnavailable
-        ? error.reason
-        : fallbackReason;
-    if (error instanceof Error) {
-      if (
-        [
-          "AI_NoObjectGeneratedError",
-          "AI_NoOutputGeneratedError",
-          "ZodError",
-        ].includes(error.name)
-      )
-        reason = "invalid_output";
-      if (["AbortError", "TimeoutError"].includes(error.name))
-        reason = "timeout";
-      if (error.name === "TopicInputTooLarge") reason = "input_too_large";
-      if (error.name === "TopicDefinitionReadbackError")
-        reason = "definition_readback";
-      if (
-        [
-          "PrismaClientKnownRequestError",
-          "PrismaClientUnknownRequestError",
-          "PrismaClientInitializationError",
-          "PrismaClientRustPanicError",
-          "ClickHouseError",
-        ].includes(error.name)
-      )
-        reason = "storage";
-      if (ClickHouseResourceError.is(error))
-        reason = error.errorType === "TIMEOUT" ? "timeout" : "storage";
-    }
+    const reason = topicErrorReason(error, fallbackReason);
     recordIncrement("langfuse.topics.errors", 1, {
       ...this.tags,
       stage,
       reason,
-      owner:
-        error instanceof TopicsProviderUnavailable ||
-        reason === "input_too_large"
-          ? topicFailureOwner(reason)
-          : "platform",
+      owner: topicErrorOwner(error, reason),
     });
   }
 }

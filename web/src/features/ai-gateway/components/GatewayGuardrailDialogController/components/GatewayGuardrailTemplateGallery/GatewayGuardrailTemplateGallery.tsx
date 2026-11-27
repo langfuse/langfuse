@@ -22,20 +22,32 @@ const SIZING_TEMPLATES =
     ? BUILT_IN_TEMPLATES
     : INTEGRATION_TEMPLATES;
 
+export type GatewayGuardrailTemplateGalleryTab = "built-in" | "integrations";
+
 export type GatewayGuardrailTemplateGalleryProps = {
+  activeTab: GatewayGuardrailTemplateGalleryTab;
+  onActiveTabChange: (tab: GatewayGuardrailTemplateGalleryTab) => void;
   onSelectTemplate: (template: GatewayGuardrailTemplate) => void;
 };
 
-/** Guardrail template picker with Built-in and Integrations tabs. */
+/** Guardrail template picker with Built-in and Integrations tabs, rendered inside `Dialog`. */
 export function GatewayGuardrailTemplateGallery({
+  activeTab,
+  onActiveTabChange,
   onSelectTemplate,
 }: GatewayGuardrailTemplateGalleryProps) {
+  const handleTabChange = (nextValue: string) => {
+    if (nextValue === "built-in" || nextValue === "integrations") {
+      onActiveTabChange(nextValue);
+    }
+  };
+
   return (
-    <Dialog title="Add a guardrail" size="lg" closeOnInteractionOutside>
+    <>
       <p className="bg-modal text-muted-foreground relative -mt-3 shrink-0 border-b px-4 pb-3 text-xs">
         Choose what to detect.
       </p>
-      <Tabs defaultValue="built-in" layout="fill">
+      <Tabs value={activeTab} onValueChange={handleTabChange} layout="fill">
         <Tabs.List
           variant="underline"
           aria-label="Guardrail template categories"
@@ -56,7 +68,7 @@ export function GatewayGuardrailTemplateGallery({
             {/* Hidden sizer keeps modal height constant when switching tabs. */}
             <div
               aria-hidden="true"
-              className="pointer-events-none invisible col-start-1 row-start-1 grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-3"
+              className="pointer-events-none invisible col-start-1 row-start-1 grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
             >
               {SIZING_TEMPLATES.map((template) => (
                 <TemplateCardContent key={template.id} template={template} />
@@ -79,7 +91,7 @@ export function GatewayGuardrailTemplateGallery({
           </div>
         </Dialog.Body>
       </Tabs>
-    </Dialog>
+    </>
   );
 }
 
@@ -90,7 +102,7 @@ type TemplateGridProps = {
 
 function TemplateGrid({ templates, onSelectTemplate }: TemplateGridProps) {
   return (
-    <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-3">
+    <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {templates.map((template) => (
         <TemplateCard
           key={template.id}
@@ -138,7 +150,7 @@ function TemplateCardContent({
           aria-hidden="true"
           className={cn(
             styles.preview,
-            "flex h-24 items-center justify-center overflow-hidden rounded-md px-3",
+            "flex h-20 items-center justify-center overflow-hidden rounded-md px-3",
           )}
         >
           <TemplatePreview preview={template.preview} />

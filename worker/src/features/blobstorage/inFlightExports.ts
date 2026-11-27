@@ -62,8 +62,6 @@ export const logInFlightBlobExportsOnShutdown = (): void => {
 
   const now = Date.now();
   for (const entry of inFlightExports.values()) {
-    // "in-flight at shutdown", not "aborted": worker.close() drains gracefully,
-    // so this export may still complete within the grace period.
     logger.warn(
       `[BLOB INTEGRATION] Blob storage export in-flight at shutdown signal on host ${WORKER_HOST_ID}: ` +
         `jobId=${entry.jobId} projectId=${entry.projectId} table=${entry.table} ` +
@@ -78,4 +76,28 @@ export const logInFlightBlobExportsOnShutdown = (): void => {
       table: entry.table,
     });
   }
+};
+
+// Aborted once on SIGTERM. Exports tear down their streams on it and the job is
+// re-queued, so a deploy does not count as a BullMQ stall: an export longer
+// than the ECS stop timeout would otherwise be killed on every rollout wave
+// and fail terminally once it exceeds `maxStalledCount`.
+let shutdownController = new AbortController();
+
+export const getBlobExportShutdownSignal = (): AbortSignal =>
+  shutdownController.signal;
+
+export const abortBlobExportsForShutdown = (): void => {
+  // AbortError lets the storage layer log the teardown as a warning.
+  const reason = new Error(
+    "Blob storage export aborted by worker shutdown (SIGTERM)",
+  );
+  reason.name = "AbortError";
+  shutdownController.abort(reason);
+};
+
+// Test helper — an aborted controller cannot be reset, so replace it.
+/** @internal */
+export const resetBlobExportShutdown = (): void => {
+  shutdownController = new AbortController();
 };

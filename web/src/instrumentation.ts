@@ -34,7 +34,7 @@ export async function register() {
   // abruptly and 5xx-ing them; the drain is imported lazily so its heavy
   // dependencies load only when a fatal actually fires.
   if (isNodeRuntime) {
-    const { installProcessErrorHandlers } =
+    const { installProcessErrorHandlers, initializeClickhouseAuth } =
       await import("@langfuse/shared/src/server");
     installProcessErrorHandlers({
       onFatal: async () => {
@@ -44,6 +44,16 @@ export async function register() {
     });
     const { startEventLoopMetrics } = await import("./utils/eventLoopMetrics");
     startEventLoopMetrics();
+
+    // Every replica obtains its ClickHouse credentials before it serves a
+    // request, also those that skip init. A wrong token configuration stops
+    // startup instead of failing every query.
+    try {
+      await initializeClickhouseAuth();
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
   }
 
   if (isNodeRuntime && isInitLoadingEnabled) {

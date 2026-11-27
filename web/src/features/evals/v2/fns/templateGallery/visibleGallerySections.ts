@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import {
   EVALUATOR_GALLERY_ALL_SECTION_KEY,
   EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,

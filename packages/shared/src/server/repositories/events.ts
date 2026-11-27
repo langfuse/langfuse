@@ -190,7 +190,10 @@ import {
   type SessionEventsFields,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
-import { eventsFieldSetKeys } from "./events-field-sets";
+import {
+  eventsFieldSetKeys,
+  pickObservationV2Fields,
+} from "./events-field-sets";
 import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
@@ -440,7 +443,9 @@ async function enrichObservationsWithModelData(
         model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
     };
 
-    return enriched;
+    return requestedFields
+      ? pickObservationV2Fields(enriched, requestedFields)
+      : enriched;
   });
 }
 
@@ -4457,7 +4462,7 @@ export const getGatewayGuardrailFlaggedCountsFromEvents = async (params: {
 
 /**
  * Bucketed count of flagged gateway requests over `[fromTimestamp, toTimestamp]`,
- * gap-filled in ClickHouse via `WITH FILL` (matching `queryBuilder.ts` buckets).
+ * gap-filled in ClickHouse via `WITH FILL` (matching `viewQuerySteps.ts` buckets).
  * Reads `events_core` using `idx_metadata_names` without reading `metadata_values`.
  */
 export const getGatewayGuardrailFlaggedTimeSeriesFromEvents = async (params: {

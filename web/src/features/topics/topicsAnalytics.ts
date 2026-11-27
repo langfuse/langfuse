@@ -60,7 +60,9 @@ type TopicsEventProperties = {
     filterCount: number;
   };
   /** The dialog where the user requested a processing estimate. */
-  "topics:cost_estimate_started": { source: "setup" | "new_map" | "snapshot" };
+  "topics:cost_estimate_started": {
+    source: "setup" | "new_map" | "edit_map" | "snapshot";
+  };
   /** Once per page mount and map, when the map has topics. */
   "topics:map_viewed": {
     mapKind: TopicsMapKind;

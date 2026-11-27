@@ -2,10 +2,8 @@ import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
 
-import {
-  DataTable,
-  type AsyncTableData,
-} from "@/src/components/table/data-table";
+import { DataTable } from "@/src/components/table/data-table";
+import type { AsyncTableData } from "@/src/components/table/types";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { createDropdownTableColumn } from "./createDropdownTableColumn";
 

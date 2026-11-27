@@ -207,6 +207,7 @@ it("shows the AI Gateway pages among the organization routes", () => {
     "Gateway keys",
     "Connections & Models",
     "Budgets",
+    "Guardrails",
     "Tracing",
     "Settings",
   ]);
