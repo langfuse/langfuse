@@ -93,16 +93,18 @@ function ConfigureTopicsSettings({
     connection.provider,
     topicModelsFor(connection, "chat"),
   ]);
-  const embeddingGroups = connections.map<[string, string[]]>((connection) => [
-    connection.provider,
-    topicModelsFor(
-      connection,
-      "embedding",
-      stored.embedding?.provider === connection.provider
-        ? stored.embedding.model
-        : null,
-    ),
-  ]);
+  const embeddingGroups = connections
+    .map<[string, string[]]>((connection) => [
+      connection.provider,
+      topicModelsFor(
+        connection,
+        "embedding",
+        stored.embedding?.provider === connection.provider
+          ? stored.embedding.model
+          : null,
+      ),
+    ])
+    .filter(([, models]) => models.length > 0);
   const draft = {
     summary: stored.summary,
     embedding: stored.embedding,
