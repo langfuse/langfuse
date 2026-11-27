@@ -4,27 +4,19 @@ import {
   useMutation,
 } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { Role } from "@langfuse/shared";
 import { TRPCClientError } from "@trpc/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
-import { organizationMemberLimitMessage } from "@/src/features/entitlements/constants/organizationMemberLimitMessage";
 import { CreateProjectMemberDialogController } from "@/src/features/rbac/components/CreateProjectMemberDialogController";
-import { ALREADY_PROJECT_MEMBER_MESSAGE } from "@/src/features/rbac/constants/membershipErrorMessages";
 import type * as ApiModule from "@/src/utils/api";
 
-const { invite, captureExceptionMock, trpcErrorToastMock, gates } = vi.hoisted(
-  () => ({
-    invite: vi.fn(),
-    captureExceptionMock: vi.fn(),
-    trpcErrorToastMock: vi.fn(),
-    gates: {
-      orgAccess: true,
-      projectAccess: true,
-      projectRoles: true,
-    },
-  }),
-);
+const { invite, captureExceptionMock, trpcErrorToastMock } = vi.hoisted(() => ({
+  invite: vi.fn(),
+  captureExceptionMock: vi.fn(),
+  trpcErrorToastMock: vi.fn(),
+}));
 
 vi.mock("@sentry/nextjs", () => ({
   captureException: captureExceptionMock,
@@ -35,21 +27,35 @@ vi.mock("@/src/utils/trpcErrorToast", () => ({
   trpcErrorToast: trpcErrorToastMock,
 }));
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { organizations: [{ id: "org-1", name: "Acme" }] } },
+  }),
+}));
+
+vi.mock("@/src/features/projects/hooks", () => ({
+  useQueryProjectOrOrganization: () => ({ organization: null, project: null }),
+}));
+
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
+const { hasOrganizationAccess } = vi.hoisted(() => ({
+  hasOrganizationAccess: vi.fn(() => true),
+}));
 vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
-  useHasOrganizationAccess: () => gates.orgAccess,
+  useHasOrganizationAccess: hasOrganizationAccess,
 }));
 
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
-  useHasProjectAccess: () => gates.projectAccess,
+  useHasProjectAccess: () => true,
 }));
 
 vi.mock("@/src/features/entitlements/hooks", () => ({
-  useHasEntitlement: () => gates.projectRoles,
+  useHasEntitlement: () => true,
   useEntitlementLimit: () => false,
+  usePlan: () => "cloud:hobby",
 }));
 
 vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
@@ -58,21 +64,26 @@ vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
 
 vi.mock("@/src/utils/api", async () => {
   const actual = await vi.importActual<typeof ApiModule>("@/src/utils/api");
+  const count = (totalCount: () => number) => ({
+    useQuery: () => ({ data: { totalCount: totalCount() } }),
+  });
 
   return {
     ...actual,
     api: {
-      useUtils: () => ({ members: { invalidate: vi.fn() } }),
+      useUtils: () => ({
+        members: { invalidate: vi.fn() },
+      }),
       members: {
-        allFromOrg: { useQuery: () => ({ data: undefined }) },
-        allInvitesFromOrg: { useQuery: () => ({ data: undefined }) },
+        allFromOrg: count(() => 1),
+        allInvitesFromOrg: count(() => 0),
         create: {
           useMutation: (options?: {
             onSuccess?: () => void;
             onError?: (error: unknown) => void;
           }) =>
             useMutation({
-              mutationFn: () => invite(),
+              mutationFn: (input: unknown) => invite(input),
               onSuccess: options?.onSuccess,
               onError: options?.onError,
             }),
@@ -81,6 +92,9 @@ vi.mock("@/src/utils/api", async () => {
     },
   };
 });
+
+// jsdom has no layout; the email field scrolls its input into view.
+Element.prototype.scrollIntoView = vi.fn();
 
 const trpcServerError = (opts: {
   code: string;
@@ -99,13 +113,7 @@ const trpcServerError = (opts: {
     },
   });
 
-function fieldContainer(label: string) {
-  const container = screen.getByText(label).closest("div");
-  if (!container) throw new Error(`No field container for ${label}`);
-  return container;
-}
-
-function renderInviteDialog() {
+function renderInviteDialog(defaultOrgRole?: Role) {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -118,42 +126,44 @@ function renderInviteDialog() {
     },
   });
 
-  return render(
+  render(
     <QueryClientProvider client={client}>
       <LayerProvider>
         <CreateProjectMemberDialogController
-          orgId="org-1"
-          project={{ id: "project-1", name: "Support assistant" }}
+          target={{
+            orgId: "org-1",
+            project: { id: "project-1", name: "Support assistant" },
+          }}
+          surface="members_settings"
+          defaultOrgRole={defaultOrgRole}
         >
           {({ openDialog }) => (
             <button type="button" onClick={openDialog}>
-              Add member
+              Add members
             </button>
           )}
         </CreateProjectMemberDialogController>
       </LayerProvider>
     </QueryClientProvider>,
   );
+  fireEvent.click(screen.getByRole("button", { name: "Add members" }));
 }
 
-async function submitInvite() {
-  fireEvent.click(screen.getByRole("button", { name: "Add member" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Email" }), {
-    target: { value: "ada@example.com" },
+/** Types the addresses, each ended by a space so it becomes a chip. */
+function addAddresses(...emails: string[]) {
+  fireEvent.change(screen.getByRole("textbox", { name: "Email addresses" }), {
+    target: { value: emails.map((email) => `${email} `).join("") },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Grant access" }));
-  return screen.findByText(
-    /ada@example.com|already a member|pending membership|higher than your own|member limit|could not be added/i,
-  );
+}
+
+function sendInvites() {
+  fireEvent.click(screen.getByRole("button", { name: "Send invites" }));
 }
 
 describe("member invite errors", () => {
   let warnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    gates.orgAccess = true;
-    gates.projectAccess = true;
-    gates.projectRoles = true;
     invite.mockReset();
     captureExceptionMock.mockClear();
     trpcErrorToastMock.mockClear();
@@ -165,50 +175,47 @@ describe("member invite errors", () => {
     cleanup();
   });
 
-  it("shows an already-member conflict on the email field without a toast or Sentry event", async () => {
-    invite.mockRejectedValue(
-      trpcServerError({
-        code: "CONFLICT",
-        httpStatus: 409,
-        message: ALREADY_PROJECT_MEMBER_MESSAGE,
-      }),
-    );
+  it("shows an existing member as its chip's reason, without an alert, a toast or a Sentry event", async () => {
+    invite.mockResolvedValue({
+      invited: [],
+      added: [],
+      addedToProject: [],
+      failed: [{ email: "ada@example.com", reason: "already_member" }],
+    });
     renderInviteDialog();
+    addAddresses("ada@example.com");
 
-    await submitInvite();
+    sendInvites();
 
-    expect(fieldContainer("Email")).toHaveTextContent(
-      ALREADY_PROJECT_MEMBER_MESSAGE,
-    );
-    expect(screen.getByRole("textbox", { name: "Email" })).toHaveAttribute(
-      "aria-invalid",
-      "true",
-    );
+    expect(await screen.findByText("(already a member)")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(trpcErrorToastMock).not.toHaveBeenCalled();
     expect(captureExceptionMock).not.toHaveBeenCalled();
   });
 
-  it("shows the member seat limit as a form message", async () => {
-    const message = organizationMemberLimitMessage(2, 2);
+  it("shows a refused request in an alert at the top, without a toast or a Sentry event", async () => {
+    const message =
+      "Forbidden, user does not have access to this resource or action";
     invite.mockRejectedValue(
       trpcServerError({ code: "FORBIDDEN", httpStatus: 403, message }),
     );
     renderInviteDialog();
+    addAddresses("ada@example.com");
 
-    await submitInvite();
+    sendInvites();
 
-    expect(screen.getByRole("alert")).toHaveTextContent(message);
-    expect(screen.getByRole("textbox", { name: "Email" })).not.toHaveAttribute(
-      "aria-invalid",
-      "true",
-    );
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(message);
+    expect(
+      screen.getByRole("textbox", { name: "Email addresses" }),
+    ).not.toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText("ada@example.com")).toBeInTheDocument();
     expect(trpcErrorToastMock).not.toHaveBeenCalled();
     expect(captureExceptionMock).not.toHaveBeenCalled();
   });
 
-  it("still shows and captures an internal error without a toast", async () => {
-    const message = "The member could not be added.";
+  it("shows and captures an internal error in an alert, without a toast", async () => {
+    const message = "The members could not be invited.";
     invite.mockRejectedValue(
       trpcServerError({
         code: "INTERNAL_SERVER_ERROR",
@@ -217,10 +224,11 @@ describe("member invite errors", () => {
       }),
     );
     renderInviteDialog();
+    addAddresses("ada@example.com");
 
-    await submitInvite();
+    sendInvites();
 
-    expect(screen.getByRole("alert")).toHaveTextContent(message);
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
     expect(trpcErrorToastMock).not.toHaveBeenCalled();
     expect(captureExceptionMock).toHaveBeenCalledTimes(1);
     const [, options] = captureExceptionMock.mock.calls[0]!;
@@ -229,5 +237,59 @@ describe("member invite errors", () => {
       "trpc.code": "INTERNAL_SERVER_ERROR",
       "trpc.path": "members.create",
     });
+  });
+
+  it("clears the alert when the next send goes through", async () => {
+    invite
+      .mockRejectedValueOnce(
+        trpcServerError({
+          code: "INTERNAL_SERVER_ERROR",
+          httpStatus: 500,
+          message: "The members could not be invited.",
+        }),
+      )
+      .mockResolvedValueOnce({
+        invited: [],
+        added: [],
+        addedToProject: [],
+        failed: [{ email: "ada@example.com", reason: "pending_invite" }],
+      });
+    renderInviteDialog();
+    addAddresses("ada@example.com");
+
+    sendInvites();
+    await screen.findByRole("alert");
+    sendInvites();
+
+    expect(await screen.findByText("(already invited)")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+describe("the role the dialog opens with", () => {
+  afterEach(() => {
+    cleanup();
+    hasOrganizationAccess.mockReturnValue(true);
+    invite.mockReset();
+  });
+
+  it("is the project role for someone who can only invite to the project", async () => {
+    hasOrganizationAccess.mockReturnValue(false);
+    invite.mockResolvedValue({
+      invited: ["ada@example.com"],
+      added: [],
+      addedToProject: [],
+      failed: [],
+    });
+    renderInviteDialog("VIEWER");
+    addAddresses("ada@example.com");
+
+    sendInvites();
+
+    await vi.waitFor(() =>
+      expect(invite).toHaveBeenCalledWith(
+        expect.objectContaining({ orgRole: "NONE", projectRole: "VIEWER" }),
+      ),
+    );
   });
 });

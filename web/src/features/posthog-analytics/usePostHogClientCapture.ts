@@ -5,6 +5,7 @@ import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAna
 import type { EvalOnboardingEventMap } from "@/src/features/evals/v2/types/evalOnboardingAnalytics";
 import type { AiGatewayEventMap } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
 import type { TopicsEventMap } from "@/src/features/topics/topicsAnalytics";
+import type { MembersEventMap } from "@/src/features/rbac/types/memberInviteAnalytics";
 import type {
   ToastInteractionEventProperties,
   ToastShownEventProperties,
@@ -406,6 +407,8 @@ const events = {
     "signup_survey_submitted",
   ],
   user_settings: ["theme_changed", "feature_preview_toggled"],
+  // Member invite funnel; submits are the two *_settings:send_membership_invitation.
+  members: ["invite_dialog_open", "invite_upgrade_click"],
   project_settings: [
     "project_delete",
     "rename_form_submit",
@@ -595,6 +598,7 @@ type TypedEventMap = AnnotationEventMap &
   EvalOnboardingEventMap &
   AiGatewayEventMap &
   TopicsEventMap &
+  MembersEventMap &
   ToastEventMap;
 
 type EventProperties = TypedEventMap & {

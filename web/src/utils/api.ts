@@ -180,15 +180,10 @@ export const EXPECTED_TRPC_ERROR_CODES = [
  * `inAppAgent.decideToolApproval`: the parent run is no longer
  * AWAITING_APPROVAL (already decided, expired, or cancelled). The UI tells
  * the user to reload.
- * `members.create`: a concurrent insert hits the membership unique
- * constraint. `rethrowIfMembershipExists` in `@langfuse/shared` returns
- * 409 with the already-member sentence, and the invite form shows it on
- * the email field. The pre-check for the same state is BAD_REQUEST.
  * @internal
  */
 export const EXPECTED_TRPC_CONFLICT_PATHS = [
   "inAppAgent.decideToolApproval",
-  "members.create",
 ] as const;
 
 /**

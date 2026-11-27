@@ -212,12 +212,14 @@ export function ConnectedMembersSettingsTable({
   }
 
   return (
-    <CreateProjectMemberDialogController orgId={orgId} project={project}>
+    <CreateProjectMemberDialogController
+      target={{ orgId, project }}
+      surface="members_settings"
+    >
       {({
         hasAccess,
         hasOnlySingleProjectAccess,
         isSubmitting,
-        usageLimit,
         openDialog,
       }) => (
         <MembersSettingsTable
@@ -327,7 +329,6 @@ export function ConnectedMembersSettingsTable({
               variant: "secondary",
               loading: isSubmitting,
               hasAccess,
-              usageLimit,
               icon: <PlusIcon size="base" aria-hidden="true" />,
               onClick: openDialog,
             },
