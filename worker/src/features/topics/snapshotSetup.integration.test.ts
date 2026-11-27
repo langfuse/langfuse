@@ -208,7 +208,7 @@ describe("Topics snapshot summarizing", () => {
         usageDetails: {},
         providedCostDetails: {},
         costDetails: {},
-        processedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
         metadata: {},
       })),
     );

@@ -52,7 +52,7 @@ import {
   formatSqlBatch,
   normalizeParams,
   substituteNamedParams,
-} from "./goldenHarness";
+} from "./__tests__/goldenHarness";
 
 type FilterStateCondition = EventsTableFilterState[number];
 

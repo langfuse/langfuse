@@ -8,10 +8,10 @@ import {
   mediumRowHeightPx,
   resolveRowHeightRendering,
   resolveStoredRowHeight,
-  RowHeightRenderingProvider,
   useAdjustableRowHeight,
   useBoundRowHeightIO,
 } from "@/src/components/table/data-table-row-height-switch";
+import { RowHeightRenderingProvider } from "./RowHeightRenderingProvider";
 
 const STORAGE_KEY = "experiment-items-compactHeight";
 

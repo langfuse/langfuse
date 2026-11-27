@@ -12,7 +12,6 @@ import { LLMAdapter } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { encrypt } from "@langfuse/shared/encryption";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
-import "@/src/features/mcp/server/bootstrap";
 import { handleMcpRequest } from "@/src/features/mcp/server/transport";
 import type { ServerContext } from "@/src/features/mcp/types";
 import { createMcpTestSetup } from "./mcp-helpers";

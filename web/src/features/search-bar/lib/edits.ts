@@ -115,6 +115,7 @@ function collapseSpacesOutsideQuotes(text: string): string {
  * still parses and the AST is structurally identical, so necessary grouping
  * can never be lost. Only structured edits normalize; typed text is
  * preserved as-is.
+ * @internal
  */
 export function tidyQueryText(
   text: string,

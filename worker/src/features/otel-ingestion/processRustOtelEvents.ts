@@ -28,16 +28,14 @@ import {
   redis,
   SkillCacheService,
   traceException,
-  uploadMediaForTrace,
   type EventRecordInsertType,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { resolveSkillReferences } from "../../services/IngestionService/skillReferences";
 import { env, v4WritesToLegacyTables } from "../../env";
-import { ClickhouseWriter } from "../../services/ClickhouseWriter";
-import { TableName } from "../../services/ClickhouseWriter/types";
 import { fetchEvalRules, type EvalRules } from "../evaluation/fetchEvalRules";
 import { encodeOtelLookups, type OtelLookupResult } from "./encodeOtelLookups";
+import type { RustOtelWrites } from "./otelWrites";
 import {
   createEvalSchedulerDeps,
   scheduleEvals,
@@ -62,13 +60,15 @@ type EvalRuleResolution = {
 type FinalizedEvent = FinalizedOtelBatch["events"][number];
 /**
  * Processes a native OTEL batch through service lookups, native completion,
- * evaluation scheduling, and the ClickHouse writer.
+ * evaluation scheduling, and the event write. Code in this file reaches
+ * storage, queues and the events table only through `writes`.
  */
 export async function processRustOtelEvents(params: {
   batch: EarlyOtelBatch;
   context: OtelProcessingContext;
+  writes: RustOtelWrites;
 }): Promise<OtelMediaPresence> {
-  const { batch, context } = params;
+  const { batch, context, writes } = params;
   const { projectId } = context;
   const samplingRate = isEventsDispatchEnabled()
     ? resolveTraceDispatchSamplingRate(projectId)
@@ -77,7 +77,13 @@ export async function processRustOtelEvents(params: {
   const processing = prepared.batch;
   try {
     const [mediaResults, lookups, rules] = await waitForServiceWork([
-      uploadRequestedMedia(batch, processing, prepared.mediaRequests, context),
+      uploadRequestedMedia(
+        batch,
+        processing,
+        prepared.mediaRequests,
+        context,
+        writes,
+      ),
       resolveLookups(prepared.lookupRequests, context),
       fetchSampledEvalRules(projectId, prepared.traceIds, samplingRate),
     ] as const);
@@ -87,8 +93,15 @@ export async function processRustOtelEvents(params: {
       lookups,
       rules,
       projectId,
+      writes,
     );
-    await writeRecordsAndScheduleEvals(processing, finalized, rules, context);
+    await writeRecordsAndScheduleEvals(
+      processing,
+      finalized,
+      rules,
+      context,
+      writes,
+    );
     return prepared.mediaRequests.length > 0 ? "present" : "absent";
   } finally {
     await processing.dispose();
@@ -140,6 +153,7 @@ async function completeOrFinalizeBatch(
   lookups: OtelLookupResult[],
   { evalConfigs, sampledTraceIds }: EvalRuleResolution,
   projectId: string,
+  writes: RustOtelWrites,
 ): Promise<FinalizedOtelBatch> {
   const overflowLimitBytes =
     env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED === "true"
@@ -168,6 +182,7 @@ async function completeOrFinalizeBatch(
     processing,
     completion.overflowRequests,
     projectId,
+    writes,
   );
   return processing.finalize(
     overflowResults,
@@ -180,6 +195,7 @@ async function uploadOverflowFields(
   processing: RustOtelBatch,
   requests: OtelOverflowRequest[],
   projectId: string,
+  writes: RustOtelWrites,
 ): Promise<OtelMediaResolution[]> {
   const overflowResults = new Array<OtelMediaResolution>(requests.length);
   await forEachMedia(requests, async (request) => {
@@ -195,7 +211,7 @@ async function uploadOverflowFields(
       const sha256Hash = request.sha256Hash;
       if (!sha256Hash) throw new Error("missing overflow media digest");
       const result = await otelMediaUploads.run(request.byteLength, async () =>
-        uploadMediaForTrace({
+        writes.uploadMedia({
           projectId,
           traceId: request.traceId,
           observationId: request.observationId,
@@ -301,16 +317,16 @@ async function writeRecordsAndScheduleEvals(
     evalConfigs,
   }: EvalRuleResolution,
   { projectId, fileKey }: OtelProcessingContext,
+  writes: RustOtelWrites,
 ): Promise<void> {
   const needsScheduler =
     evalConfigs.observationRules.length > 0 || sampledTraceIds.length > 0;
   const schedulerDeps = needsScheduler
-    ? createEvalSchedulerDeps(projectId, evalConfigs)
+    ? createEvalSchedulerDeps(projectId, evalConfigs, writes.evalWrites())
     : null;
   const filterRows = schedulerDeps
     ? parseEvaluationFilterRows(evaluationFilterRows)
     : [];
-  const writer = ClickhouseWriter.getNativeInstance();
   recordIngestionCounts(records);
   await Promise.all(
     records.map(async (record, index) => {
@@ -340,7 +356,7 @@ async function writeRecordsAndScheduleEvals(
         : undefined;
 
       try {
-        writer.addToQueue(TableName.EventsFull, record.event);
+        writes.writeEvent(record);
         if (
           traceActivity &&
           matchedRuleIds !== undefined &&
@@ -373,6 +389,7 @@ async function uploadRequestedMedia(
   processing: RustOtelBatch,
   mediaRequests: OtelMediaRequest[],
   { projectId, fileKey }: OtelProcessingContext,
+  writes: RustOtelWrites,
 ): Promise<OtelMediaResolution[]> {
   const mediaResults = new Array<OtelMediaResolution>(mediaRequests.length);
   const mediaStartedAt = Date.now();
@@ -405,6 +422,7 @@ async function uploadRequestedMedia(
         observationId: request.observationId,
         field,
         loadBody: () => processing.mediaBody(request.mediaIndex),
+        writes,
       });
       mediaBytesProcessed += result.byteLength;
       reference = request.reference.replace(

@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 import { EventEmitter } from "events";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The EmailProvider is only registered when SMTP is configured, and
 // `@/src/env.mjs` reads the variables when it is first imported. Set them
@@ -251,7 +251,7 @@ function csrfPair() {
 describe("POST /api/auth/signin/email code lifetime", () => {
   const SIGNUP_CALLBACK_URL = "http://localhost:3000/auth/setup-password";
   const RESET_CALLBACK_URL = "http://localhost:3000/auth/reset-password";
-  const requestedAt = new Date("2026-10-30T12:00:00.000Z");
+  let requestedAt = new Date();
   const sentAs = {
     plain: (email: string) => email,
     "a comma-suffixed domain": (email: string) => `${email},x.y`,
@@ -259,6 +259,11 @@ describe("POST /api/auth/signin/email code lifetime", () => {
     "a full-width first letter": (email: string) =>
       `${String.fromCodePoint(email.codePointAt(0)! + 0xfee0)}${email.slice(1)}`,
   };
+
+  beforeEach(() => {
+    // The DB is shared, and the sweep deletes codes expired by the real clock.
+    requestedAt = new Date();
+  });
 
   afterEach(() => {
     vi.useRealTimers();

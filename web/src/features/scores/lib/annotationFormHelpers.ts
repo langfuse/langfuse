@@ -86,6 +86,7 @@ export const resolveCategoricalNumericValue = ({
   return categories?.find(({ label }) => label === stringValue)?.value;
 };
 
+/** @internal */
 export const nextCategoryValue = (
   categories: Pick<ScoreConfigCategoryDomain, "value">[],
 ): number => {

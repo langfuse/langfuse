@@ -664,7 +664,7 @@ export const eventsRouter = createTRPCRouter({
             text: renderStoredTopicText(
               loaded.transcript,
               loaded.executionIssues,
-            ),
+            ).text,
             // Topics skips traces without projected content as insufficient input.
             hasContent: prepareAssembledTopicTranscript(loaded.transcript)
               .hasContent,

@@ -27,6 +27,8 @@ export function storyFacet(
       awaitingMap: count("awaiting_map"),
       notApplicable: count("not_applicable"),
       insufficientInput: count("insufficient_input"),
+      emptyInput: count("empty_input"),
+      inputTooLarge: count("input_too_large"),
     },
   };
 }

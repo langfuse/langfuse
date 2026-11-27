@@ -1,3 +1,6 @@
+// Query-AST compiler entry points: run every compiler pass over a Kysely query
+// or condition and render ClickHouse SQL with its binds.
+
 import {
   AliasNode,
   createQueryId,
@@ -85,6 +88,7 @@ export function compileClickhouseQuery(
  * Every compiler pass, in the order it runs. Both entry points apply this
  * list through {@link applyCompilerPasses}, so a pass added here reaches
  * compiled queries and spliced conditions alike.
+ * @internal
  */
 export function compilerPasses(projectId: string): KyselyPlugin[] {
   return [

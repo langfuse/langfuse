@@ -18,14 +18,12 @@
 // Not reachable on these views, so no case: ARRAY JOIN (`explodeArray`,
 // `pairExpand`), `aggregationFunction` dimensions, `filterSql` raw WHERE parts,
 // the `rootEventCondition` subquery, the events_core -> events_full switch
-// (base table is `scores`) and the ngram/FTS filter branches (relation filters
-// sit on the `events_traces`/`events_observations` aliases). The `*Name`
-// filter fallback (`fooName` -> `name`) renders the `name=` SQL.
+// (base table is `scores`) and the ngram/FTS filter branches (score views
+// filter the joined relations without index prefilters). The `*Name` filter
+// fallback (`fooName` -> `name`) renders the `name=` SQL.
 //
-// Legacy oddities pinned throughout, kept for byte-equality with prod:
-// - FROM aliases `scores AS scores_<view>`, but standard filters and time
-//   buckets qualify `scores.<col>`; segments and dimensions use the alias.
-// - no `is_deleted` predicate anywhere: the column is never written.
+// Legacy oddity pinned throughout: no `is_deleted` predicate anywhere, the
+// column is never written.
 import {
   afterAll,
   beforeAll,
@@ -48,7 +46,7 @@ import {
   clickhouseFormatAvailable,
   normalizeCapturedQueries,
   resetCaptures,
-} from "../../../server/repositories/goldenHarness";
+} from "../../../server/repositories/__tests__/goldenHarness";
 
 // Record the exec seam instead of hitting ClickHouse.
 vi.mock("../../../server/repositories/clickhouse", async (importOriginal) => {
@@ -57,7 +55,7 @@ vi.mock("../../../server/repositories/clickhouse", async (importOriginal) => {
       typeof import("../../../server/repositories/clickhouse")
     >();
   const { buildClickhouseMock } =
-    await import("../../../server/repositories/goldenHarness.js");
+    await import("../../../server/repositories/__tests__/goldenHarness.js");
   return buildClickhouseMock(actual);
 });
 
@@ -135,6 +133,20 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
     { column: "name", type: "string", operator: "starts with", value: "acc" },
   ],
   [
+    "string name ends-with",
+    { column: "name", type: "string", operator: "ends with", value: "acy" },
+  ],
+  [
+    "string name is-not-empty",
+    { column: "name", type: "string", operator: "is not empty", value: "" },
+  ],
+  // The `*Name` fallback: an unknown `fooName` column resolves to the `name`
+  // dimension, so it renders the `name=` SQL; pins the branch.
+  [
+    "string scoreName= fallback",
+    { column: "scoreName", type: "string", operator: "=", value: "accuracy" },
+  ],
+  [
     "stringOptions source any-of",
     {
       column: "source",
@@ -186,6 +198,19 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
     },
   ],
   [
+    "string nullIf datasetRunId is-not-empty",
+    {
+      column: "datasetRunId",
+      type: "string",
+      operator: "is not empty",
+      value: "",
+    },
+  ],
+  [
+    "null nullIf datasetRunId is-null",
+    { column: "datasetRunId", type: "null", operator: "is null", value: "" },
+  ],
+  [
     "number value>=",
     { column: "value", type: "number", operator: ">=", value: 0.5 },
   ],
@@ -193,6 +218,15 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
   [
     "boolean isEvaluatorTest=",
     { column: "isEvaluatorTest", type: "boolean", operator: "=", value: true },
+  ],
+  [
+    "boolean isEvaluatorTest<>",
+    {
+      column: "isEvaluatorTest",
+      type: "boolean",
+      operator: "<>",
+      value: true,
+    },
   ],
   [
     "datetime timestamp>=",
@@ -206,6 +240,16 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
   [
     "null environment is-null",
     { column: "environment", type: "null", operator: "is null", value: "" },
+  ],
+  // `null` on the `tags` array (a trace attribute, so a semi-join) tests
+  // emptiness, since ClickHouse arrays are never NULL.
+  [
+    "null tags is-null",
+    { column: "tags", type: "null", operator: "is null", value: "" },
+  ],
+  [
+    "null tags is-not-null",
+    { column: "tags", type: "null", operator: "is not null", value: "" },
   ],
   [
     "null environment is-not-null",
@@ -236,6 +280,24 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
       value: "eu",
     },
   ],
+  ...(
+    [
+      "does not contain",
+      "starts with",
+      "ends with",
+      "is set",
+      "is not set",
+    ] as const
+  ).map((operator): [string, Filter] => [
+    `stringObject metadata ${operator.replaceAll(" ", "-")}`,
+    {
+      column: "metadata",
+      type: "stringObject",
+      key: "region",
+      operator,
+      value: operator.startsWith("is") ? "" : "eu",
+    },
+  ]),
 ];
 
 // `tags` is an `events_traces` column: filter-only, so each renders the
@@ -349,8 +411,6 @@ describeWithClickhouse("golden: executeQuery v2 scores", () => {
       ).toMatchSnapshot();
     });
 
-    // Legacy oddity: `stringValue` reads the unqualified `string_value`, unlike
-    // every other dimension; it resolves to the only scores table in FROM.
     it("build view=scores-categorical dim=stringValue", async () => {
       expect(
         await golden({
@@ -450,6 +510,23 @@ describeWithClickhouse("golden: executeQuery v2 scores", () => {
       ).toMatchSnapshot();
     });
 
+    // A score filter next to a semi-join: the scored-ids prefilter carries it.
+    it("build semi-join filters=name,userId", async () => {
+      expect(
+        await golden({
+          filters: [
+            {
+              column: "name",
+              type: "string",
+              operator: "=",
+              value: "accuracy",
+            },
+            { column: "userId", type: "string", operator: "=", value: "u1" },
+          ],
+        }),
+      ).toMatchSnapshot();
+    });
+
     // The semi-join inside the inner WHERE of a two-level query.
     it("build semi-join filter=traceName dim=observationName", async () => {
       expect(
@@ -522,9 +599,9 @@ describeWithClickhouse("golden: executeQuery v2 scores", () => {
       ).toMatchSnapshot();
     });
 
-    // Legacy oddity: the inner select emits two `AS value` columns, the
-    // `value` dimension (`any(scores_numeric.value)`) and the `value` measure
-    // input (`any(value)`). ClickHouse accepts the duplicate; pinned as rendered.
+    // Legacy oddity: the inner select emits two `any(scores.value) AS value`
+    // columns, the `value` dimension and the `value` measure input.
+    // ClickHouse accepts the duplicate; pinned as rendered.
     it("build level=two dim=value measure=value", async () => {
       expect(
         await golden({
@@ -624,8 +701,7 @@ describeWithClickhouse("golden: executeQuery v2 scores", () => {
   });
 
   describe("aggregations", () => {
-    // Legacy oddity: the `value` measure reads the unqualified `value`, and
-    // single-level strips `@@AGG1@@` to `(value)` inside the aggregate.
+    // Single-level drops the `@@AGG1@@` slot: `<aggregation>(scores.value)`.
     it.each(metricAggregations.options)(
       "build level=single measure=value agg=%s",
       async (aggregation) => {
@@ -729,11 +805,53 @@ describeWithClickhouse("golden: executeQuery v2 scores", () => {
       ).toMatchSnapshot();
     });
 
+    it("build join=events_observations filter=null observationName is-null", async () => {
+      expect(
+        await golden({
+          filters: [
+            {
+              column: "observationName",
+              type: "null",
+              operator: "is null",
+              value: "",
+            },
+          ],
+        }),
+      ).toMatchSnapshot();
+    });
+
     it("build filter=string on number value throws", async () => {
       await expect(
         golden({
           filters: [
             { column: "value", type: "string", operator: "=", value: "1" },
+          ],
+        }),
+      ).rejects.toThrowErrorMatchingSnapshot();
+    });
+
+    // Neither a dimension, the time dimension, `metadata` nor `*Name`.
+    it("build filter=invalid column throws", async () => {
+      await expect(
+        golden({
+          filters: [
+            { column: "unknown", type: "string", operator: "=", value: "x" },
+          ],
+        }),
+      ).rejects.toThrowErrorMatchingSnapshot();
+    });
+
+    // Rejected by the zod refine on `stringOptionsFilter`.
+    it("build filter=stringOptions source any-of empty throws", async () => {
+      await expect(
+        golden({
+          filters: [
+            {
+              column: "source",
+              type: "stringOptions",
+              operator: "any of",
+              value: [],
+            },
           ],
         }),
       ).rejects.toThrowErrorMatchingSnapshot();

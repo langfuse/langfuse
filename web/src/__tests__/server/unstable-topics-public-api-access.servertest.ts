@@ -16,7 +16,7 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 import topicsHandler from "@/src/pages/api/public/unstable/topics/index";
-import topicHandler from "@/src/pages/api/public/unstable/topics/[topicId]";
+import topicHandler from "@/src/pages/api/public/unstable/topics/[topicStableId]";
 import facetsHandler from "@/src/pages/api/public/unstable/topic-facets/index";
 import facetHandler from "@/src/pages/api/public/unstable/topic-facets/[facetId]";
 import { topicsProject } from "@/src/__tests__/fixtures/topics";
@@ -51,7 +51,12 @@ function topicsRoutes(project: Awaited<ReturnType<typeof topicsProject>>) {
   const { topicId, facetId, ruleId, traceId } = project;
   return {
     "topics/index": [topicsHandler, {}, topicId, 200],
-    "topics/[topicId]": [topicHandler, { topicId }, topicId, 404],
+    "topics/[topicStableId]": [
+      topicHandler,
+      { topicStableId: topicId },
+      topicId,
+      404,
+    ],
     "topic-facets/index": [facetsHandler, {}, facetId, 200],
     "topic-facets/[facetId]": [facetHandler, { facetId }, facetId, 404],
     "topic-rules/index": [rulesHandler, {}, ruleId, 200],
@@ -120,7 +125,7 @@ describe("unstable Topics public API access", () => {
     // Every filter that can name another project's ids or labels.
     const ownerFilters = [
       filterOn("traceId", owner.traceId),
-      filterOn("topicId", owner.topicId),
+      filterOn("topicStableId", owner.topicId),
       filterOn("facetId", owner.facetId),
       filterOn("ruleId", owner.ruleId),
       filterOn("topicName", "Private topic"),

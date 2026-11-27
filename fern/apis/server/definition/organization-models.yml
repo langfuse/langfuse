@@ -1,0 +1,160 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+  errors: ./evaluation-errors.yml
+  pagination: ./utils/pagination.yml
+
+service:
+  auth: true
+  base-path: /api/public/organizations/models
+  endpoints:
+    list:
+      docs: |
+        List the model definitions of the organization. Requires an organization-scoped API key.
+
+        Returns the organization's own models by default. Pass `scope=LANGFUSE` for the read-only definitions Langfuse maintains, or `scope=ALL` for both. Results are ordered by scope (organization first), then `modelName`.
+      method: GET
+      path: ""
+      request:
+        name: ListOrganizationModelsRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: Page number, starts at 1.
+          limit:
+            type: optional<integer>
+            docs: Number of items per page. Maximum 100, default 50.
+          scope:
+            type: optional<OrganizationModelScopeFilter>
+            docs: Which definitions to return. Defaults to `ORGANIZATION`.
+          search:
+            type: optional<string>
+            docs: Case-insensitive substring match on `modelName`.
+      response: PaginatedOrganizationModels
+      errors:
+        - errors.BadRequestError
+        - OrganizationModelsUnauthorizedError
+        - OrganizationModelsAccessDeniedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+    get:
+      docs: Get one model definition of the organization, or one maintained by Langfuse. Requires an organization-scoped API key.
+      method: GET
+      path: /{id}
+      path-parameters:
+        id: string
+      response: OrganizationModel
+      errors:
+        - OrganizationModelsUnauthorizedError
+        - OrganizationModelsAccessDeniedError
+        - OrganizationModelNotFoundError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+    upsert:
+      docs: |
+        Create the organization's model with this `modelName`, or fully replace it. Requires an organization-scoped API key.
+
+        Returns `201` with the created model when no organization model has this `modelName`, and `200` with the replaced model otherwise; the id stays the same across replaces. A tokenizer set on the model in the organization settings is kept. Organization models apply to every project of the organization that has no project model matching the same observation. Using the `modelName` of a Langfuse model overrides it.
+
+        Changes apply to observations ingested after the write, typically within about 10 seconds. Costs of earlier observations are not recalculated. Pricing tier ids change on every write.
+
+        Organization API keys currently allow every organization action, not only model management.
+      method: PUT
+      path: ""
+      request: UpsertOrganizationModelRequest
+      response: OrganizationModel
+      errors:
+        - errors.BadRequestError
+        - OrganizationModelsUnauthorizedError
+        - OrganizationModelsAccessDeniedError
+        - OrganizationModelConflictError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+    delete:
+      docs: |
+        Delete a model definition of the organization. Requires an organization-scoped API key.
+
+        Models maintained by Langfuse cannot be deleted; override one by creating an organization model with the same `modelName`. A deleted model's id does not come back if you create the name again, so observations that referenced the old id no longer resolve to a model.
+      method: DELETE
+      path: /{id}
+      path-parameters:
+        id: string
+      response: DeleteOrganizationModelResponse
+      errors:
+        - OrganizationModelsUnauthorizedError
+        - OrganizationModelsAccessDeniedError
+        - OrganizationModelNotFoundError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+types:
+  OrganizationModelScopeFilter:
+    enum:
+      - ORGANIZATION
+      - LANGFUSE
+      - ALL
+
+  OrganizationModel:
+    docs: Model definition used to calculate the USD cost of observations in the organization's projects.
+    properties:
+      id: string
+      scope:
+        type: commons.ModelScope
+        docs: "`ORGANIZATION` for the organization's own models, `LANGFUSE` for the read-only models Langfuse maintains. Never `PROJECT`."
+      modelName:
+        type: string
+        docs: Name of the model. Unique within the organization.
+      matchPattern:
+        type: string
+        docs: Postgres regex matched against the `model` of an observation.
+      pricingTiers:
+        type: list<commons.PricingTier>
+        docs: Pricing tiers, ordered by priority.
+      createdAt: datetime
+      updatedAt: datetime
+
+  PaginatedOrganizationModels:
+    properties:
+      data: list<OrganizationModel>
+      meta: pagination.MetaResponse
+
+  UpsertOrganizationModelRequest:
+    docs: The complete model definition. Unknown fields, including the legacy `inputPrice`, `outputPrice`, `totalPrice`, `unit`, `startDate`, `tokenizerId` and `tokenizerConfig`, are rejected.
+    properties:
+      modelName:
+        type: string
+        docs: Name of the model, at most 255 characters and not blank. Identifies the model to create or replace, matched exactly, including case and surrounding whitespace.
+      matchPattern:
+        type: string
+        docs: Postgres regex matched against the `model` of an observation, at most 1,000 characters. Anchor it, for example `(?i)^(openai/)?gpt-4o$`.
+      pricingTiers:
+        type: list<commons.PricingTierInput>
+        docs: |
+          At most 50 tiers. Exactly one tier is the default, with `priority: 0` and no conditions; every other tier has at least one condition. Every tier prices the same usage keys as the default tier, at most 100 keys per tier.
+
+          Prices are in USD per single unit of the usage key, for example `{"input": 0.0000027}` is $2.70 per million input tokens. Usage keys must match the usage-detail keys observations are ingested with; usage without a price for its key stays unpriced.
+
+  DeleteOrganizationModelResponse:
+    properties:
+      message: string
+
+errors:
+  OrganizationModelsUnauthorizedError:
+    docs: Authentication failed.
+    status-code: 401
+    type: errors.PublicApiError
+  OrganizationModelsAccessDeniedError:
+    docs: The key is not an organization key, the plan does not include the organization API, the key's role lacks the action, or the model is maintained by Langfuse.
+    status-code: 403
+    type: errors.PublicApiError
+  OrganizationModelNotFoundError:
+    docs: No model with this id is visible to the organization.
+    status-code: 404
+    type: errors.PublicApiError
+  OrganizationModelConflictError:
+    docs: Concurrent requests wrote the same `modelName`. Retry the request.
+    status-code: 409
+    type: errors.PublicApiError

@@ -570,6 +570,7 @@ const buildStatusToggleUpdate = (monitor: Monitor): UpdateMonitor => ({
   status: monitor.status === "PAUSED" ? "ACTIVE" : "PAUSED",
 });
 
+/** @internal */
 export const __test = {
   filterStateToListMonitorFilter,
   buildStatusToggleUpdate,

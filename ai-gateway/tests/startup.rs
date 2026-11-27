@@ -21,6 +21,8 @@ fn invalid_configuration_exits_without_disclosing_the_value() {
         "LANGFUSE_AI_GATEWAY_REQUEST_MEMORY_OVERHEAD_BYTES",
         "LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS",
         "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS",
+        "LANGFUSE_AI_GATEWAY_EXTERNAL_GUARDRAIL_TIMEOUT_SECONDS",
+        "LANGFUSE_AI_GATEWAY_GUARDRAIL_MAX_SCAN_BYTES",
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_ai-gateway"))
             .env_clear()

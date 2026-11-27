@@ -543,6 +543,114 @@ describe("Topics naming boundary", () => {
     },
   );
 
+  it("asks once more when naming returns an empty structured object", async () => {
+    const emptyNaming = '{"name":"","description":"","evidenceSummaryIds":[]}';
+    const rejection = Object.assign(
+      new Error("No object generated: response did not match schema."),
+      {
+        name: "AI_NoObjectGeneratedError",
+        text: emptyNaming,
+        finishReason: "stop",
+        usage: { inputTokens: 100, outputTokens: 28 },
+      },
+    );
+    state.responseMetadata.mockImplementation((error) =>
+      error === rejection
+        ? {
+            "langfuse.topics.response.finish_reason": "stop",
+            "langfuse.topics.response.raw_finish_reason": "end_turn",
+            "langfuse.topics.response.text_characters": emptyNaming.length,
+            "langfuse.topics.response.reasoning_part_count": 0,
+            "langfuse.topics.response.output_tokens": 28,
+          }
+        : undefined,
+    );
+    state.call
+      .mockImplementationOnce(async ({ onFailedResponseUsage }) => {
+        await onFailedResponseUsage({
+          usageDetails: { input: 100, output: 28 },
+          providedCostDetails: {},
+        });
+        throw rejection;
+      })
+      .mockResolvedValueOnce({
+        output: {
+          name: "Invoice assistance",
+          description: "Invoice requests.",
+          evidenceSummaryIds: ["m1"],
+        },
+        usage: { inputTokens: 100, outputTokens: 30 },
+        usageDetails: { input: 100, output: 30 },
+        providedCostDetails: {},
+      });
+
+    const result = await nameTopicGroup(topicsModels(), evidence);
+
+    expect(result.output).toEqual({
+      name: "Invoice assistance",
+      description: "Invoice requests.",
+      evidenceSummaryIds: ["m1"],
+    });
+    expect(state.call).toHaveBeenCalledTimes(2);
+    const [failedCost, successCost] = state.onCost.mock.calls.map(
+      ([cost]) => cost,
+    );
+    expect(failedCost).toMatchObject({
+      naming_input: 0.0001,
+      naming_output: 0.00014,
+    });
+    expect(failedCost.total).toBeCloseTo(0.00024, 10);
+    expect(successCost).toEqual({
+      naming_input: 0.0001,
+      naming_output: 0.00015,
+      total: 0.00025,
+    });
+    expect(logger.warn).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Topics model request failed",
+      expect.objectContaining({
+        "langfuse.topics.error.reason": "invalid_output",
+        "langfuse.topics.error.type": "AI_NoObjectGeneratedError",
+        "langfuse.topics.response.text_characters": 52,
+        "langfuse.topics.response.output_tokens": 28,
+        "langfuse.topics.response.reasoning_part_count": 0,
+      }),
+    );
+    expect(tokenCalls()).toEqual([
+      ["langfuse.topics.tokens", 100, { stage: "naming", direction: "input" }],
+      ["langfuse.topics.tokens", 30, { stage: "naming", direction: "output" }],
+    ]);
+  });
+
+  it("does not ask again when truncated naming output fails validation", async () => {
+    const rejection = Object.assign(
+      new Error("No object generated: could not parse the response."),
+      { name: "AI_NoObjectGeneratedError", text: '{"name":"Invoice' },
+    );
+    state.responseMetadata.mockImplementation((error) =>
+      error === rejection
+        ? {
+            "langfuse.topics.response.finish_reason": "length",
+            "langfuse.topics.response.raw_finish_reason": "max_tokens",
+          }
+        : undefined,
+    );
+    state.call.mockImplementation(async ({ onFailedResponseUsage }) => {
+      await onFailedResponseUsage({
+        usageDetails: { input: 100, output: 1000 },
+        providedCostDetails: {},
+      });
+      throw rejection;
+    });
+
+    await expect(
+      nameTopicGroup(topicsModels(), evidence),
+    ).rejects.toMatchObject({ reason: "invalid_output" });
+    expect(state.call).toHaveBeenCalledOnce();
+    expect(state.onCost).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledOnce();
+  });
+
   it.each([
     [{}, "ok"],
     [{ httpStatus: 429, reason: "rate_limit" }, "429"],

@@ -13,7 +13,7 @@ import { Button } from "@/src/components/ui/button";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
-import { CopyIcon, ExternalLinkIcon } from "@langfuse/icons";
+import { CopyIcon, SquareArrowOutUpRight } from "@langfuse/icons";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { getPromptDetailHref } from "@/src/features/prompts/utils";
 
@@ -183,7 +183,7 @@ export function PromptSelectionDialog({
                       passHref
                     >
                       <Button type="button" variant="outline" size="icon">
-                        <ExternalLinkIcon size="base" color="default" />
+                        <SquareArrowOutUpRight size="base" color="default" />
                       </Button>
                     </Link>
                   )}

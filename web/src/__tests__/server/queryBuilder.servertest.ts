@@ -1,3 +1,4 @@
+/* oxlint-disable radix -- baseline before rule enablement */
 import { QueryBuilder, executeQuery } from "@langfuse/shared/query/server";
 import {
   getValidAggregationsForMeasureType,
@@ -2429,7 +2430,7 @@ describe("queryBuilder", () => {
         await setupScores(projectId, scores);
 
         // Define query with filter using "scoreName" instead of "name"
-        // This tests the fallback handling in queryBuilder.ts that handles column names ending with "Name"
+        // This tests the fallback handling in sqlTextQuery.ts that handles column names ending with "Name"
         const query: QueryType = {
           view: "scores-numeric",
           dimensions: [{ field: "name" }],
@@ -4959,12 +4960,10 @@ describe("query builder measure-aggregation validation", () => {
     const queryBuilder = new QueryBuilder(undefined, "v2");
     const result = await queryBuilder.build(query, randomUUID());
 
-    expect(result.query).toContain(
-      "INNER JOIN events_core AS events_observations",
-    );
-    expect(result.query).toContain("events_observations.experiment_name");
+    expect(result.query).toMatch(/inner join events_core as e\b/i);
+    expect(result.query).toContain("e.experiment_name");
     expect(result.query).toContain("as entity_dimension");
-    expect(result.query).toContain("GROUP BY entity_dimension");
+    expect(result.query).toMatch(/group by entity_dimension/i);
   });
 
   it("should build run-level score entity queries without joining events", async () => {
@@ -5004,7 +5003,7 @@ describe("query builder measure-aggregation validation", () => {
 
     expect(result.query).toContain("scores.dataset_run_id");
     expect(result.query).toContain("entity_dimension");
-    expect(result.query).not.toContain("JOIN events_core");
+    expect(result.query).not.toMatch(/join events_core/i);
   });
 
   it("should reject queries with both timeDimension and entityDimension", async () => {
@@ -5354,8 +5353,10 @@ describe("query builder measure-aggregation validation", () => {
         randomUUID(),
       );
 
-      expect(sql).toContain("FROM events_full events_traces");
-      expect(sql).not.toContain("events_core");
+      expect(sql).toMatch(/\bfrom events_full as e\b/i);
+      // The root-event subquery reads no truncated column, so it stays on
+      // events_core.
+      expect(sql).toMatch(/\bin \(select e\.trace_id from events_core as e\b/i);
     });
 
     it("reads events_full when a metadata filter is present (observations view)", async () => {
@@ -5382,7 +5383,7 @@ describe("query builder measure-aggregation validation", () => {
       ];
       const { query: sql } = await builder.build(query, randomUUID());
 
-      expect(sql).toContain("FROM events_core events_traces");
+      expect(sql).toMatch(/\bfrom events_core as e\b/i);
       expect(sql).not.toContain("events_full");
     });
 
@@ -5672,6 +5673,58 @@ describe("query builder measure-aggregation validation", () => {
         ]);
       },
     );
+
+    const seedSetAndEmpty = async (
+      projectId: string,
+      column: "tags" | "environment" | "observationName",
+    ) => {
+      const [setTraceId, emptyTraceId] = [randomUUID(), randomUUID()];
+      const [setScore, emptyScore] = [
+        scoreOn(projectId, setTraceId),
+        scoreOn(projectId, emptyTraceId),
+      ];
+      if (column === "tags") {
+        await createEventsCh([
+          span(projectId, setTraceId, { is_app_root: true, tags: ["x"] }),
+          span(projectId, emptyTraceId, { is_app_root: true, tags: [] }),
+        ]);
+      } else if (column === "environment") {
+        setScore.environment = "production";
+        emptyScore.environment = "";
+      } else {
+        const setSpan = span(projectId, setTraceId, { name: "gen" });
+        const emptySpan = span(projectId, emptyTraceId, { name: "" });
+        await createEventsCh([setSpan, emptySpan]);
+        setScore.observation_id = setSpan.span_id;
+        emptyScore.observation_id = emptySpan.span_id;
+      }
+      await createScoresCh([setScore, emptyScore]);
+    };
+
+    isEventsTableV2Enabled.each([
+      { column: "tags", operator: "is null" },
+      { column: "tags", operator: "is not null" },
+      { column: "environment", operator: "is null" },
+      { column: "environment", operator: "is not null" },
+      { column: "observationName", operator: "is null" },
+    ] as const)(
+      "matches only one of a set and an empty $column for $operator",
+      async ({ column, operator }) => {
+        const projectId = randomUUID();
+        await seedSetAndEmpty(projectId, column);
+
+        const result = await executeQuery(
+          projectId,
+          scoreQuery({
+            dimensions: [],
+            filters: [{ column, type: "null", operator, value: "" }],
+          }),
+          "v2",
+        );
+
+        expect(count(result)).toBe(1);
+      },
+    );
   });
 
   describe("useFinal flag on events_core joins", () => {
@@ -5695,10 +5748,10 @@ describe("query builder measure-aggregation validation", () => {
       );
 
       expect(compiledQuery).toContain("from events_core");
-      expect(compiledQuery).toMatch(/\) AS events_traces ON /);
-      expect(compiledQuery).not.toContain("events_core FINAL");
-      // scores base CTE should still use FINAL
-      expect(compiledQuery).toContain("scores scores_numeric FINAL");
+      expect(compiledQuery).toMatch(/\) as events_traces on /i);
+      expect(compiledQuery).not.toMatch(/events_core( as \w+)? final/i);
+      // the scores base table still reads FINAL
+      expect(compiledQuery).toMatch(/from scores final\b/i);
     });
 
     it("should omit FINAL for events_observations join in v2 scores-categorical view", async () => {
@@ -5721,10 +5774,8 @@ describe("query builder measure-aggregation validation", () => {
       );
 
       // events_core should be joined without FINAL (useFinal: false)
-      expect(compiledQuery).toContain("JOIN events_core");
-      expect(compiledQuery).not.toContain(
-        "JOIN events_core AS events_observations FINAL",
-      );
+      expect(compiledQuery).toMatch(/join events_core as e\b/i);
+      expect(compiledQuery).not.toMatch(/join events_core as e final/i);
     });
 
     it("should keep FINAL for non-events_core joins in v1 scores view", async () => {
@@ -5753,7 +5804,7 @@ describe("query builder measure-aggregation validation", () => {
 
   describe("rootEventCondition threshold gating", () => {
     const rootEventSubqueryPrefix =
-      "IN (SELECT events_traces.trace_id FROM events_core events_traces";
+      "in (select e.trace_id from events_core as e";
     const tracesV2Query: QueryType = {
       view: "traces",
       dimensions: [{ field: "name" }],
@@ -5777,7 +5828,7 @@ describe("query builder measure-aggregation validation", () => {
         randomUUID(),
       );
       expect(sql).toContain(
-        "anyIf(toNullable(toDate(events_core.start_time)), (events_traces.parent_span_id = '' OR events_traces.is_app_root = true))",
+        "anyIf(toNullable(toDate(e.start_time)), (e.parent_span_id = '' or e.is_app_root = true))",
       );
       expect(sql).toContain(rootEventSubqueryPrefix);
     });

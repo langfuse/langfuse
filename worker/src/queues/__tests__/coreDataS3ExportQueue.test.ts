@@ -293,6 +293,7 @@ describe("coreDataTableExports", () => {
 
     const uploadedFiles: string[] = [];
     const s3Client = {
+      listFiles: vi.fn(async () => []),
       uploadFileBuffered: vi.fn(
         async ({ fileName, data }: { fileName: string; data: Readable }) => {
           uploadedFiles.push(fileName);

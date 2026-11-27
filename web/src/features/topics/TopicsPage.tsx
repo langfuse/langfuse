@@ -477,9 +477,17 @@ function TopicsWorkspaceContent({
   const scope = analysisId
     ? { analysisId: shownAnalysisId ?? undefined }
     : { ruleId: shownRuleId };
+  // Until the maps load, or while another map's results are still shown, filters
+  // stay unscoped so no click writes into a different map's filters. A refetch of
+  // the same map keeps them.
+  const filterMapId =
+    !maps.data || switchingMap
+      ? undefined
+      : (analysisId ?? selectedRule?.id ?? null);
   const traceFilters = useTopicTraceFilters(
     projectId,
     shownResults.data?.facets ?? [],
+    filterMapId,
   );
   const { selectedFacetId } = traceFilters;
   const capture = useTopicsCapture();

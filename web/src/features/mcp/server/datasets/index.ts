@@ -1,4 +1,4 @@
-import type { McpFeatureModule } from "../registry";
+import type { McpFeatureModule } from "../tools";
 import { upsertDatasetTool, handleUpsertDataset } from "./tools/upsertDataset";
 import {
   upsertDatasetItemTool,

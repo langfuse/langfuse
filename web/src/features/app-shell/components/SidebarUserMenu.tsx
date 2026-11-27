@@ -4,6 +4,8 @@ import {
   UserMenuItems,
   type UserNavigationItem,
 } from "@/src/components/nav/UserMenuItems";
+import { VersionSubmenu } from "@/src/components/nav/VersionSubmenu";
+import { type SidebarVersionState } from "@/src/components/nav/versionState";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,11 +28,13 @@ export type SidebarUser = { name: string; email: string; avatar: string };
 export function SidebarUserMenu({
   user,
   items,
+  versionState,
   side,
   children,
 }: {
   user: SidebarUser;
   items: UserNavigationItem[];
+  versionState: SidebarVersionState;
   side: "right" | "top";
   children: (control: { Trigger: typeof DropdownMenuTrigger }) => ReactNode;
 }) {
@@ -40,6 +44,8 @@ export function SidebarUserMenu({
     store,
     "account",
   );
+  // The phone menu spans the screen, so its submenus open over it instead of beside it.
+  const submenuSideOffset = side === "top" ? -208 : undefined;
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       {children({ Trigger: DropdownMenuTrigger })}
@@ -71,8 +77,13 @@ export function SidebarUserMenu({
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <VersionSubmenu
+          state={versionState}
+          submenuSideOffset={submenuSideOffset}
+        />
+        <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <UserMenuItems items={items} />
+          <UserMenuItems items={items} submenuSideOffset={submenuSideOffset} />
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

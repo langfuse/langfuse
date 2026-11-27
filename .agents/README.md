@@ -7,6 +7,8 @@ Use `.agents/` for configuration and guidance that should apply across tools.
 Do not put durable shared guidance only in `.claude/`, `.codex/`, `.cursor/`,
 or `.vscode/`.
 
+Organization branch protection applies to agent output too: use a task branch and PR for default-branch changes, then obtain the required approval. The [Git workflow](skills/git-workflow/SKILL.md) owns the approval, automation identity, and emergency escalation process. Agent setup or MCP permissions cannot override it.
+
 ## Layout
 
 - `AGENTS.md`: canonical shared root instructions
@@ -274,7 +276,7 @@ Use HTTP/OAuth where available so credentials remain outside the agent VM.
 
 | Tool group | Cursor distribution | Default policy |
 | --- | --- | --- |
-| GitHub | Cursor GitHub App | Enabled for same-repo branches, draft PRs, CI, and preview status |
+| GitHub | Cursor GitHub App | Enabled for same-repo task branches, reviewable PRs, CI, and preview status; merge approval follows the Git workflow |
 | Langfuse Docs | Shared HTTP MCP | Enabled, read-only |
 | Linear | Shared OAuth MCP | Enabled; allow read/search tools only. Cursor Cloud cannot complete that OAuth prompt — maintainers add a personal `LINEAR_API_KEY` secret at https://cursor.com/dashboard/cloud-agents and start a new run. |
 | Datadog EU and US | Team Marketplace MCPs | Enabled; allow logs, metrics, traces, dashboards, and monitor reads only |

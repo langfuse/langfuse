@@ -11,6 +11,8 @@ import {
   COMPLETION_TIMEOUT_MS,
   completeAndExpectIngested,
   expectGatewayError,
+  expectRedactedRequestOnly,
+  expectRedactedStreamingCompletion,
   gatewayControlPlaneRequest,
   gatewayModelSlug,
   ingestTrace,
@@ -18,6 +20,8 @@ import {
   ORGANIZATION_ID,
   missingLocalEnv,
   POLL_INTERVAL_MS,
+  REDACT_REQUEST_EMAIL,
+  REDACT_STREAM_PROMPT,
   requiredEnv,
   setUpGatewayE2e,
   TEST_TIMEOUT_MS,
@@ -262,6 +266,79 @@ describe.skipIf(skip)("AI gateway OpenAI end-to-end", () => {
           ],
         },
       );
+    },
+    COMPLETION_TIMEOUT_MS,
+  );
+
+  it.each([
+    {
+      apiFormat: "openai.responses" as const,
+      path: "/openai/v1/responses",
+      body: {
+        model: "gpt-6-sol",
+        input: REDACT_STREAM_PROMPT,
+        max_output_tokens: 256,
+        stream: true,
+      },
+    },
+    {
+      apiFormat: "openai.chat-completions" as const,
+      path: "/openai/v1/chat/completions",
+      body: {
+        model: "gpt-6-sol",
+        messages: [{ role: "user", content: REDACT_STREAM_PROMPT }],
+        max_completion_tokens: 256,
+        stream: true,
+      },
+    },
+  ])(
+    "$apiFormat redacts streaming request and response with internal guardrails",
+    async (request) => {
+      await expectRedactedStreamingCompletion(request);
+    },
+    COMPLETION_TIMEOUT_MS,
+  );
+
+  it.each([
+    {
+      apiFormat: "openai.decisions" as const,
+      path: "/openai/v1/decisions",
+      providerModel: "gpt-6-luna",
+      body: {
+        model: "gpt-6-luna",
+        input: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: `Contact ${REDACT_REQUEST_EMAIL}. The sky is green.`,
+              },
+            ],
+          },
+        ],
+        questions: [
+          {
+            type: "predicate",
+            name: "is_false",
+            instructions: "Is the statement false?",
+          },
+        ],
+      },
+    },
+    {
+      apiFormat: "openai.embeddings" as const,
+      path: "/openai/v1/embeddings",
+      providerModel: "text-embedding-3-small",
+      body: {
+        model: "text-embedding-3-small",
+        input: `Contact ${REDACT_REQUEST_EMAIL}.`,
+      },
+    },
+  ])(
+    "$apiFormat redacts request with internal guardrails",
+    async (request) => {
+      await expectRedactedRequestOnly(request);
     },
     COMPLETION_TIMEOUT_MS,
   );

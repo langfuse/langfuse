@@ -1,3 +1,5 @@
+// MCP listScores tool: filtered, paginated score search with subject URLs.
+
 import {
   isoDateTime,
   InvalidRequestError,
@@ -227,5 +229,5 @@ export const [listScoresTool, handleListScores] = defineTool({
       },
     });
   },
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

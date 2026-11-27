@@ -130,7 +130,7 @@ import {
   getSfdcService,
   toSfdcPlan,
 } from "@/src/ee/features/sfdc-sync/server/sfdcService";
-import { getSfdcResolvedPlan } from "@/src/ee/features/sfdc-sync/server/planChangeSync";
+import { getSfdcResolvedPlan } from "@/src/ee/features/sfdc-sync/server/getSfdcResolvedPlan";
 import { logger } from "@langfuse/shared/src/server";
 import { parseDbOrg } from "@langfuse/shared";
 import { prisma, Role } from "@langfuse/shared/src/db";

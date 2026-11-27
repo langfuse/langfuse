@@ -63,7 +63,8 @@ export const organizationModelRouter = createTRPCRouter({
       return listModelDefinitions({
         owner: { type: "organization", organizationId: input.orgId },
         searchString: input.searchString,
-        page: input.page,
+        // The table's page index starts at 0.
+        page: input.page + 1,
         limit: input.limit,
       });
     }),

@@ -44,6 +44,7 @@ type CreateContextOptions = {
  * - tRPC's `createSSGHelpers`, where we don't have req/res
  *
  * @see https://create.t3.gg/en/usage/trpc#-serverapitrpcts
+ * @internal
  */
 export const createInnerTRPCContext = (opts: CreateContextOptions) => {
   return {
@@ -111,6 +112,7 @@ import {
   type TrpcMeta,
 } from "@/src/features/audit-logs/server/auditedQuery";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
+import { isPublicSharingDisabledForProject } from "@/src/ee/features/public-sharing/server/publicSharing";
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
 import { recordBackendActivity } from "@/src/features/posthog-analytics/server/backendActivity";
@@ -357,6 +359,7 @@ export const authenticatedProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthed);
 
+/** @internal */
 export const protectedProcedureWithoutTracing = t.procedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthed);
@@ -517,6 +520,7 @@ const inputTraceSchema = z.object({
   projectId: z.string(),
   timestamp: z.date().nullish(),
   fromTimestamp: z.date().nullish(),
+  minStartTime: z.coerce.date().nullish().catch(undefined),
   truncated: z.boolean().default(false),
   verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
 });
@@ -539,6 +543,7 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
     const projectId = result.data.projectId;
     const timestamp = result.data.timestamp;
     const fromTimestamp = result.data.fromTimestamp;
+    const minStartTime = result.data.minStartTime;
     const verbosity = result.data.verbosity;
     const isEventsOnly = env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
 
@@ -550,6 +555,8 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
         ? await getTraceByIdFromEventsTable({
             traceId,
             projectId,
+            fromTimestamp:
+              fromTimestamp ?? timestamp ?? minStartTime ?? undefined,
             excludeInputOutput: true,
             excludeMetadata: true,
             renderingProps: {
@@ -634,8 +641,15 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
         : null;
 
     const isSessionPublic = traceSession?.public === true;
+    const hasPublicAccess =
+      !sessionProject &&
+      (trace?.public === true || isSessionPublic) &&
+      !(await isPublicSharingDisabledForProject({
+        prisma: ctx.prisma,
+        projectId,
+      }));
 
-    if (!trace?.public && !sessionProject && !isSessionPublic) {
+    if (!sessionProject && !hasPublicAccess) {
       logger.error(
         `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
       );
@@ -703,15 +717,21 @@ const enforceSessionAccess = t.middleware(async (opts) => {
       })
     : null;
 
-  const isPublicSession = session?.public ?? false;
-
   const userSessionProject = ctx.session?.user?.organizations
     .flatMap((org) =>
       org.projects.map((project) => ({ ...project, organization: org })),
     )
     .find(({ id }) => id === projectId);
 
-  if (!isPublicSession && !userSessionProject) {
+  const hasPublicAccess =
+    !userSessionProject &&
+    session?.public === true &&
+    !(await isPublicSharingDisabledForProject({
+      prisma: ctx.prisma,
+      projectId,
+    }));
+
+  if (!userSessionProject && !hasPublicAccess) {
     logger.error(
       `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
     );

@@ -44,7 +44,7 @@ fn model_rewrite_changes_only_the_top_level_model_bytes() {
     );
     let model_range = model_range(&original).unwrap();
     assert_eq!(
-        rewrite_body(original, model_range, "provider-model", None).unwrap(),
+        rewrite_body(original, model_range, "provider-model", None, Vec::new()).unwrap(),
         expected
     );
 }
@@ -53,7 +53,7 @@ fn model_rewrite_changes_only_the_top_level_model_bytes() {
 fn model_rewrite_fails_closed_for_an_invalid_model_range() {
     let missing = Bytes::from_static(br#"{"input":{"model":"nested-model"}}"#);
     assert!(matches!(
-        rewrite_body(missing, 100..110, "provider-model", None),
+        rewrite_body(missing, 100..110, "provider-model", None, Vec::new()),
         Err(ProviderError::Configuration)
     ));
 }
@@ -64,26 +64,29 @@ async fn invalid_model_rewrite_never_reaches_the_provider() {
     let relay = provider(&upstream);
     let result = relay
         .forward_route(
-            relay.admit(None),
-            resolved_request_context("provider-secret").await,
-            &HeaderMap::new(),
-            RequestBody {
-                bytes: Bytes::from_static(br#"{"model":"requested"}"#),
-                model_range: 100..110,
-                streaming: true,
-                reservation: None,
-                parse_growth: None,
-                input: Some(crate::capture::RequestInput::from_body(
-                    br#"{"model":"requested"}"#,
-                )),
-                stream_options: StreamOptions::from_body(br#"{"model":"requested"}"#),
+            ForwardRequest {
+                permit: relay.admit(None),
+                context: resolved_request_context("provider-secret").await,
+                headers: &HeaderMap::new(),
+                request: RequestBody {
+                    bytes: Bytes::from_static(br#"{"model":"requested"}"#),
+                    model_range: 100..110,
+                    streaming: true,
+                    reservation: None,
+                    parse_growth: None,
+                    stream_options: StreamOptions::from_body(br#"{"model":"requested"}"#),
+                },
+                route: Route::OpenAiResponses,
+                guardrails: None,
             },
-            Route::OpenAiResponses,
             &mut RequestCorrelation::default(),
         )
         .await;
 
-    assert!(matches!(result, Err(ProviderError::Configuration)));
+    assert!(matches!(
+        result,
+        Err(ForwardError::Provider(ProviderError::Configuration))
+    ));
     assert_eq!(upstream.calls(), 0);
 }
 
@@ -188,7 +191,7 @@ fn model_rewrite_accepts_a_shorter_provider_model() {
     let original = Bytes::from_static(br#"{"model":"connection:model","input":"large"}"#);
     let model_range = model_range(&original).unwrap();
     assert_eq!(
-        rewrite_body(original, model_range, "m", None).unwrap(),
+        rewrite_body(original, model_range, "m", None, Vec::new()).unwrap(),
         r#"{"model":"m","input":"large"}"#
     );
 }
@@ -831,19 +834,21 @@ async fn compact_posts_compact_path_and_captures_ingestion() {
     let relay = provider(&upstream).with_telemetry(telemetry.clone());
     let compact = relay
         .forward_route(
-            relay.admit(None),
-            resolved_request_context("provider-secret").await,
-            &HeaderMap::new(),
-            RequestBody {
-                bytes: Bytes::from_static(COMPACT),
-                model_range: model_range(COMPACT).unwrap(),
-                streaming: true,
-                reservation: None,
-                parse_growth: None,
-                input: Some(crate::capture::RequestInput::from_body(COMPACT)),
-                stream_options: StreamOptions::from_body(COMPACT),
+            ForwardRequest {
+                permit: relay.admit(None),
+                context: resolved_request_context("provider-secret").await,
+                headers: &HeaderMap::new(),
+                request: RequestBody {
+                    bytes: Bytes::from_static(COMPACT),
+                    model_range: model_range(COMPACT).unwrap(),
+                    streaming: true,
+                    reservation: None,
+                    parse_growth: None,
+                    stream_options: StreamOptions::from_body(COMPACT),
+                },
+                route: Route::OpenAiResponsesCompact,
+                guardrails: None,
             },
-            Route::OpenAiResponsesCompact,
             &mut RequestCorrelation::default(),
         )
         .await
@@ -900,20 +905,26 @@ async fn decisions_records_questions_answers_and_usage() {
     let relay = provider(&upstream).with_telemetry(telemetry.clone());
     let response = relay
         .forward_route(
-            relay.admit(None),
-            resolved_request_context_for(ApiFormat::OpenAiDecisions, "provider-secret", "full")
+            ForwardRequest {
+                permit: relay.admit(None),
+                context: resolved_request_context_for(
+                    ApiFormat::OpenAiDecisions,
+                    "provider-secret",
+                    "full",
+                )
                 .await,
-            &HeaderMap::new(),
-            RequestBody {
-                bytes: Bytes::from_static(DECISION),
-                model_range: model_range(DECISION).unwrap(),
-                streaming: false,
-                reservation: None,
-                parse_growth: None,
-                input: Some(crate::capture::RequestInput::from_body(DECISION)),
-                stream_options: StreamOptions::from_body(DECISION),
+                headers: &HeaderMap::new(),
+                request: RequestBody {
+                    bytes: Bytes::from_static(DECISION),
+                    model_range: model_range(DECISION).unwrap(),
+                    streaming: false,
+                    reservation: None,
+                    parse_growth: None,
+                    stream_options: StreamOptions::from_body(DECISION),
+                },
+                route: Route::OpenAiDecisions,
+                guardrails: None,
             },
-            Route::OpenAiDecisions,
             &mut RequestCorrelation::default(),
         )
         .await
@@ -993,20 +1004,26 @@ async fn embeddings_records_input_vector_summary_and_usage() {
     let relay = provider(&upstream).with_telemetry(telemetry.clone());
     let response = relay
         .forward_route(
-            relay.admit(None),
-            resolved_request_context_for(ApiFormat::OpenAiEmbeddings, "provider-secret", "full")
+            ForwardRequest {
+                permit: relay.admit(None),
+                context: resolved_request_context_for(
+                    ApiFormat::OpenAiEmbeddings,
+                    "provider-secret",
+                    "full",
+                )
                 .await,
-            &HeaderMap::new(),
-            RequestBody {
-                bytes: Bytes::from_static(EMBEDDING),
-                model_range: model_range(EMBEDDING).unwrap(),
-                streaming: false,
-                reservation: None,
-                parse_growth: None,
-                input: Some(crate::capture::RequestInput::from_body(EMBEDDING)),
-                stream_options: StreamOptions::from_body(EMBEDDING),
+                headers: &HeaderMap::new(),
+                request: RequestBody {
+                    bytes: Bytes::from_static(EMBEDDING),
+                    model_range: model_range(EMBEDDING).unwrap(),
+                    streaming: false,
+                    reservation: None,
+                    parse_growth: None,
+                    stream_options: StreamOptions::from_body(EMBEDDING),
+                },
+                route: Route::OpenAiEmbeddings,
+                guardrails: None,
             },
-            Route::OpenAiEmbeddings,
             &mut RequestCorrelation::default(),
         )
         .await
@@ -1210,36 +1227,38 @@ async fn sends_the_x_api_key_credential_and_forwards_the_open_anthropic_header_f
             .await;
     let response = relay
         .forward_route(
-            relay.admit(None),
-            context,
-            &headers(
-                &[
+            ForwardRequest {
+                permit: relay.admit(None),
+                context,
+                headers: &headers(
                     &[
-                        ("x-api-key", "gateway-secret"),
-                        ("authorization", "Bearer gateway-secret"),
-                        ("anthropic-version", "2023-06-01"),
-                        (
-                            "anthropic-beta",
-                            "interleaved-thinking-2025-05-14,context-1m-2025-08-07",
-                        ),
-                        ("anthropic-future-capability", "on"),
-                        ("content-type", "application/json"),
-                        ("accept-encoding", "gzip"),
-                    ],
-                    CONSUMED_HEADERS,
-                ]
-                .concat(),
-            ),
-            RequestBody {
-                bytes: Bytes::from_static(REQUEST),
-                model_range: model_range(REQUEST).unwrap(),
-                streaming: true,
-                reservation: None,
-                parse_growth: None,
-                input: Some(crate::capture::RequestInput::from_body(REQUEST)),
-                stream_options: StreamOptions::from_body(REQUEST),
+                        &[
+                            ("x-api-key", "gateway-secret"),
+                            ("authorization", "Bearer gateway-secret"),
+                            ("anthropic-version", "2023-06-01"),
+                            (
+                                "anthropic-beta",
+                                "interleaved-thinking-2025-05-14,context-1m-2025-08-07",
+                            ),
+                            ("anthropic-future-capability", "on"),
+                            ("content-type", "application/json"),
+                            ("accept-encoding", "gzip"),
+                        ],
+                        CONSUMED_HEADERS,
+                    ]
+                    .concat(),
+                ),
+                request: RequestBody {
+                    bytes: Bytes::from_static(REQUEST),
+                    model_range: model_range(REQUEST).unwrap(),
+                    streaming: true,
+                    reservation: None,
+                    parse_growth: None,
+                    stream_options: StreamOptions::from_body(REQUEST),
+                },
+                route: Route::AnthropicMessages,
+                guardrails: None,
             },
-            Route::AnthropicMessages,
             &mut RequestCorrelation::default(),
         )
         .await
@@ -1288,24 +1307,24 @@ async fn count_tokens_relays_the_body() {
             .await;
     let response = relay
         .forward_route(
-            relay.admit(None),
-            context,
-            &headers(&[("content-type", "application/json")]),
-            RequestBody {
-                bytes: Bytes::from_static(br#"{"model":"claude-sonnet-4-5","messages":[]}"#),
-                model_range: model_range(br#"{"model":"claude-sonnet-4-5","messages":[]}"#)
-                    .unwrap(),
-                streaming: true,
-                reservation: None,
-                parse_growth: None,
-                input: Some(crate::capture::RequestInput::from_body(
-                    br#"{"model":"claude-sonnet-4-5","messages":[]}"#,
-                )),
-                stream_options: StreamOptions::from_body(
-                    br#"{"model":"claude-sonnet-4-5","messages":[]}"#,
-                ),
+            ForwardRequest {
+                permit: relay.admit(None),
+                context,
+                headers: &headers(&[("content-type", "application/json")]),
+                request: RequestBody {
+                    bytes: Bytes::from_static(br#"{"model":"claude-sonnet-4-5","messages":[]}"#),
+                    model_range: model_range(br#"{"model":"claude-sonnet-4-5","messages":[]}"#)
+                        .unwrap(),
+                    streaming: true,
+                    reservation: None,
+                    parse_growth: None,
+                    stream_options: StreamOptions::from_body(
+                        br#"{"model":"claude-sonnet-4-5","messages":[]}"#,
+                    ),
+                },
+                route: Route::AnthropicCountTokens,
+                guardrails: None,
             },
-            Route::AnthropicCountTokens,
             &mut RequestCorrelation::default(),
         )
         .await
@@ -1389,30 +1408,32 @@ async fn chat_completions_streams_request_usage_and_relay_the_usage_chunk() {
         let relay = provider(&upstream).with_telemetry(telemetry.clone());
         let response = relay
             .forward_route(
-                relay.admit(None),
-                resolved_request_context_for(
-                    ApiFormat::OpenAiChatCompletions,
-                    "provider-secret",
-                    "full",
-                )
-                .await,
-                &headers(
-                    &[
-                        CHAT_CONTEXT_HEADERS.as_slice(),
-                        &[("authorization", "Bearer gateway-secret")],
-                    ]
-                    .concat(),
-                ),
-                RequestBody {
-                    bytes: Bytes::from_static(request.as_bytes()),
-                    model_range: model_range(request.as_bytes()).unwrap(),
-                    streaming: true,
-                    reservation: None,
-                    parse_growth: None,
-                    input: Some(crate::capture::RequestInput::from_body(request.as_bytes())),
-                    stream_options: StreamOptions::from_body(request.as_bytes()),
+                ForwardRequest {
+                    permit: relay.admit(None),
+                    context: resolved_request_context_for(
+                        ApiFormat::OpenAiChatCompletions,
+                        "provider-secret",
+                        "full",
+                    )
+                    .await,
+                    headers: &headers(
+                        &[
+                            CHAT_CONTEXT_HEADERS.as_slice(),
+                            &[("authorization", "Bearer gateway-secret")],
+                        ]
+                        .concat(),
+                    ),
+                    request: RequestBody {
+                        bytes: Bytes::from_static(request.as_bytes()),
+                        model_range: model_range(request.as_bytes()).unwrap(),
+                        streaming: true,
+                        reservation: None,
+                        parse_growth: None,
+                        stream_options: StreamOptions::from_body(request.as_bytes()),
+                    },
+                    route: Route::OpenAiChatCompletions,
+                    guardrails: None,
                 },
-                Route::OpenAiChatCompletions,
                 &mut RequestCorrelation::default(),
             )
             .await
@@ -1450,26 +1471,26 @@ async fn chat_completions_rewrite_non_streamed_models() {
     let relay = transport(&upstream);
     let response = relay
         .forward_route(
-            relay.admit(None),
-            resolved_request_context_for(
-                ApiFormat::OpenAiChatCompletions,
-                "provider-secret",
-                "usage",
-            )
-            .await,
-            &headers(&[("content-type", "application/json")]),
-            RequestBody {
-                bytes: Bytes::from_static(JSON_REQUEST.as_bytes()),
-                model_range: model_range(JSON_REQUEST.as_bytes()).unwrap(),
-                streaming: false,
-                reservation: None,
-                parse_growth: None,
-                input: Some(crate::capture::RequestInput::from_body(
-                    JSON_REQUEST.as_bytes(),
-                )),
-                stream_options: StreamOptions::from_body(JSON_REQUEST.as_bytes()),
+            ForwardRequest {
+                permit: relay.admit(None),
+                context: resolved_request_context_for(
+                    ApiFormat::OpenAiChatCompletions,
+                    "provider-secret",
+                    "usage",
+                )
+                .await,
+                headers: &headers(&[("content-type", "application/json")]),
+                request: RequestBody {
+                    bytes: Bytes::from_static(JSON_REQUEST.as_bytes()),
+                    model_range: model_range(JSON_REQUEST.as_bytes()).unwrap(),
+                    streaming: false,
+                    reservation: None,
+                    parse_growth: None,
+                    stream_options: StreamOptions::from_body(JSON_REQUEST.as_bytes()),
+                },
+                route: Route::OpenAiChatCompletions,
+                guardrails: None,
             },
-            Route::OpenAiChatCompletions,
             &mut RequestCorrelation::default(),
         )
         .await

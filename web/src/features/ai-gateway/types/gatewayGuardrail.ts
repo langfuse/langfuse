@@ -1,9 +1,17 @@
+import type {
+  GatewayGuardrailAction,
+  GatewayGuardrailScope,
+  GatewayGuardrailType,
+} from "@langfuse/shared/src/db";
 import { z } from "zod/v4";
 
 import {
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH,
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS,
+  GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH,
+  GATEWAY_GUARDRAIL_MAX_REDACTION_LABEL_LENGTH,
   GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES,
+  GATEWAY_GUARDRAIL_SCOPES,
   GATEWAY_GUARDRAIL_SECRET_BODY_MIN_LENGTH,
   GATEWAY_GUARDRAIL_SECRET_PREFIX_MAX_LENGTH,
   GATEWAY_GUARDRAIL_SECRET_PREFIX_MIN_LENGTH,
@@ -51,8 +59,8 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
       String.raw`\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b`,
       // IPv6 (full 8-group)
       String.raw`\b(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}\b`,
-      // IPv6 (compressed `::` form; capture group 1 holds the IP without surrounding boundary chars)
-      String.raw`(?:^|[^0-9A-Za-z_:])((?:[0-9A-Fa-f]{1,4}:){1,6}:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,5}|(?:[0-9A-Fa-f]{1,4}:){1,7}:|::(?:[0-9A-Fa-f]{1,4}:){0,6}[0-9A-Fa-f]{1,4})(?:$|[^0-9A-Za-z_:])`,
+      // IPv6 (compressed `::` form; named capture group `__lf_match` holds the IP without surrounding boundary chars)
+      String.raw`(?:^|[^0-9A-Za-z_:])(?<__lf_match>(?:[0-9A-Fa-f]{1,4}:){1,6}:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,5}|(?:[0-9A-Fa-f]{1,4}:){1,7}:|::(?:[0-9A-Fa-f]{1,4}:){0,6}[0-9A-Fa-f]{1,4})(?:$|[^0-9A-Za-z_:])`,
     ],
   },
   aws_access_key_id: {
@@ -94,7 +102,12 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
   },
   private_key: {
     group: "secrets",
-    patterns: [String.raw`-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----`],
+    patterns: [
+      // Matches a full PEM block (real or JSON-escaped `\n`/`\r\n`) when an END
+      // marker follows, or the opening BEGIN header alone if truncated. Disallowing
+      // `--` inside the body keeps repeated BEGIN headers strictly linear time.
+      String.raw`-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----(?:(?:\s|\\[nr])+(?:[A-Za-z0-9+/=:, \t\r\n\\]|-[A-Za-z0-9])*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----)?`,
+    ],
   },
   jwt: {
     group: "secrets",
@@ -134,6 +147,69 @@ export const PRINTABLE_ASCII_NO_WHITESPACE_REGEX = /^[\x21-\x7E]+$/;
 
 /** Printable ASCII including spaces (0x20-0x7E). */
 export const PRINTABLE_ASCII_TEXT_REGEX = /^[\x20-\x7E]+$/;
+
+// Matches AWS Bedrock ApplyGuardrail URI parameter constraints and GatewayBedrockConfigSchema.
+const BEDROCK_GUARDRAIL_ID_MAX_LENGTH = 2048;
+const BEDROCK_API_KEY_MAX_LENGTH = 8192;
+const BEDROCK_GUARDRAIL_ID_REGEX =
+  /^(?:[a-z0-9]+|arn:aws(?:-[a-z0-9-]+)?:bedrock:[a-z0-9-]{1,20}:[0-9]{12}:guardrail\/[a-z0-9]+)$/;
+const BEDROCK_GUARDRAIL_VERSION_REGEX = /^(?:[1-9][0-9]{0,7}|DRAFT)$/;
+const BEDROCK_AWS_REGION_REGEX = /^[a-z]{2}(-[a-z]+)+-[0-9]+$/;
+
+export const GatewayBedrockGuardrailConfigSchema = z.object({
+  guardrailId: z
+    .string()
+    .trim()
+    .min(1, "Enter a Bedrock guardrail ID or ARN")
+    .max(
+      BEDROCK_GUARDRAIL_ID_MAX_LENGTH,
+      `Guardrail ID must be at most ${BEDROCK_GUARDRAIL_ID_MAX_LENGTH} characters`,
+    )
+    .regex(
+      BEDROCK_GUARDRAIL_ID_REGEX,
+      "Enter a valid Bedrock guardrail ID (lowercase alphanumeric) or ARN",
+    ),
+  guardrailVersion: z
+    .string()
+    .trim()
+    .min(1, "Enter a guardrail version")
+    .regex(
+      BEDROCK_GUARDRAIL_VERSION_REGEX,
+      "Enter a version number (e.g. 1) or DRAFT",
+    ),
+  region: z
+    .string()
+    .trim()
+    .min(1, "Select an AWS region")
+    .regex(BEDROCK_AWS_REGION_REGEX, "Select a valid AWS region"),
+});
+
+export type GatewayBedrockGuardrailConfig = z.infer<
+  typeof GatewayBedrockGuardrailConfigSchema
+>;
+
+export const GatewayBedrockGuardrailApiKeySchema = z
+  .string()
+  .trim()
+  .min(1, "Enter a Bedrock API key")
+  .max(
+    BEDROCK_API_KEY_MAX_LENGTH,
+    `Bedrock API key must be at most ${BEDROCK_API_KEY_MAX_LENGTH} characters`,
+  )
+  .refine(
+    (value) => PRINTABLE_ASCII_NO_WHITESPACE_REGEX.test(value),
+    "Bedrock API key must be printable ASCII with no whitespace",
+  );
+
+export const GatewayBedrockGuardrailCreateInputSchema =
+  GatewayBedrockGuardrailConfigSchema.extend({
+    apiKey: GatewayBedrockGuardrailApiKeySchema,
+  });
+
+export const GatewayBedrockGuardrailUpdateInputSchema =
+  GatewayBedrockGuardrailConfigSchema.extend({
+    apiKey: GatewayBedrockGuardrailApiKeySchema.optional(),
+  });
 
 const GatewayGuardrailSecretPrefixSchema = z
   .string()
@@ -177,16 +253,113 @@ export const GatewayGuardrailContainsListSchema = z
     `At most ${GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS} entries are allowed`,
   );
 
-/** Actions the gateway enforces and the management UI offers. */
-export const GATEWAY_GUARDRAIL_UI_ACTIONS = ["BLOCK", "LOG"] as const;
+export const GatewayGuardrailCustomRegexSchema = z
+  .string()
+  .min(1, "Enter a regular expression")
+  .max(
+    GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH,
+    `Regular expression must be at most ${GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH} characters`,
+  );
 
-export const GatewayGuardrailUiActionSchema = z.enum(
-  GATEWAY_GUARDRAIL_UI_ACTIONS,
-);
+type GuardrailTypeCapability = {
+  readonly actions: readonly [
+    GatewayGuardrailAction,
+    ...GatewayGuardrailAction[],
+  ];
+  readonly defaultAction: GatewayGuardrailAction;
+  readonly supportsRedactionLabel: boolean;
+};
 
-export type GatewayGuardrailUiAction = z.infer<
-  typeof GatewayGuardrailUiActionSchema
+/**
+ * Single control-plane source of truth for what each guardrail type supports.
+ * The gateway itself stays action-agnostic and executes whatever action the
+ * control plane resolves.
+ */
+export const GATEWAY_GUARDRAIL_TYPE_CAPABILITIES = {
+  REGEX: {
+    actions: ["BLOCK", "REDACT", "LOG"],
+    defaultAction: "BLOCK",
+    supportsRedactionLabel: true,
+  },
+  BEDROCK: {
+    actions: ["ENFORCE", "LOG"],
+    defaultAction: "ENFORCE",
+    supportsRedactionLabel: false,
+  },
+} as const satisfies Record<GatewayGuardrailType, GuardrailTypeCapability>;
+
+export type GatewayGuardrailActionForType<T extends GatewayGuardrailType> =
+  (typeof GATEWAY_GUARDRAIL_TYPE_CAPABILITIES)[T]["actions"][number];
+
+/** All actions the management UI offers across guardrail types. */
+export type GatewayGuardrailUiAction =
+  GatewayGuardrailActionForType<GatewayGuardrailType>;
+
+export function resolveSupportedGuardrailAction<T extends GatewayGuardrailType>(
+  type: T,
+  action: GatewayGuardrailAction,
+): GatewayGuardrailActionForType<T> {
+  const capability = GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[type];
+  return (capability.actions as readonly GatewayGuardrailAction[]).includes(
+    action,
+  )
+    ? (action as GatewayGuardrailActionForType<T>)
+    : capability.defaultAction;
+}
+
+export const GatewayGuardrailScopeSchema = z.enum(GATEWAY_GUARDRAIL_SCOPES);
+
+/** Evaluation scopes permitted per guardrail action. Blocking only evaluates the last turn on input. */
+export const GATEWAY_GUARDRAIL_ACTION_SCOPES = {
+  BLOCK: ["LAST_TURN", "OUTPUT", "LAST_TURN_AND_OUTPUT"],
+  LOG: GATEWAY_GUARDRAIL_SCOPES,
+  REDACT: GATEWAY_GUARDRAIL_SCOPES,
+  ENFORCE: GATEWAY_GUARDRAIL_SCOPES,
+} as const satisfies Record<
+  GatewayGuardrailAction,
+  readonly [GatewayGuardrailScope, ...GatewayGuardrailScope[]]
 >;
+
+export function supportsEntireInputScope(
+  action: GatewayGuardrailAction,
+): boolean {
+  return (
+    GATEWAY_GUARDRAIL_ACTION_SCOPES[action] as readonly GatewayGuardrailScope[]
+  ).includes("ENTIRE_INPUT");
+}
+
+export function guardrailScopeChecksOutput(
+  scope: GatewayGuardrailScope,
+): boolean {
+  return (
+    scope === "OUTPUT" ||
+    scope === "LAST_TURN_AND_OUTPUT" ||
+    scope === "ENTIRE_INPUT_AND_OUTPUT"
+  );
+}
+
+export function resolveSupportedGuardrailScope(
+  action: GatewayGuardrailAction,
+  scope: GatewayGuardrailScope,
+): GatewayGuardrailScope {
+  if (supportsEntireInputScope(action)) return scope;
+  if (scope === "ENTIRE_INPUT") return "LAST_TURN";
+  if (scope === "ENTIRE_INPUT_AND_OUTPUT") return "LAST_TURN_AND_OUTPUT";
+  return scope;
+}
+
+export const GatewayGuardrailRedactionLabelSchema = z
+  .string()
+  .trim()
+  .min(1, "Enter a replacement label")
+  .max(
+    GATEWAY_GUARDRAIL_MAX_REDACTION_LABEL_LENGTH,
+    `Replacement label must be at most ${GATEWAY_GUARDRAIL_MAX_REDACTION_LABEL_LENGTH} characters`,
+  )
+  .regex(
+    /^[^\p{Cc}]*$/u,
+    "Replacement label cannot contain control characters or line breaks",
+  );
 
 const GatewayGuardrailAssignmentInputSchema = z.discriminatedUnion("scope", [
   z.object({ scope: z.literal("ORGANIZATION") }),
@@ -217,6 +390,7 @@ export const GatewayRegexGuardrailConfigSchema = z.object({
   presets: z.array(z.string()).default([]),
   secretPrefixes: z.array(z.string()).default([]),
   containsWords: z.array(z.string()).default([]),
+  customRegex: z.string().optional(),
 });
 
 function presetPatterns(preset: string): readonly string[] {
@@ -258,7 +432,7 @@ function escapeAsciiCaseInsensitive(literal: string) {
  */
 function compileSecretPrefixPattern(prefix: string): string {
   const escaped = escapeRegexLiteral(prefix);
-  return `(?:^|[^A-Za-z0-9_-])(${escaped}[A-Za-z0-9_-]{${GATEWAY_GUARDRAIL_SECRET_BODY_MIN_LENGTH},})(?:$|[^A-Za-z0-9_-])`;
+  return `(?:^|[^A-Za-z0-9_-])(?<__lf_match>${escaped}[A-Za-z0-9_-]{${GATEWAY_GUARDRAIL_SECRET_BODY_MIN_LENGTH},})(?:$|[^A-Za-z0-9_-])`;
 }
 
 /**
@@ -271,7 +445,7 @@ function compileContainsPattern(words: readonly string[]): string | null {
   // Longest first so phrases win over shorter prefixes in leftmost-first engines.
   const sorted = [...deduped].sort((a, b) => b.length - a.length);
   const alternatives = sorted.map(escapeAsciiCaseInsensitive);
-  return `(?:^|[^A-Za-z0-9_])((?:${alternatives.join("|")}))(?:$|[^A-Za-z0-9_])`;
+  return `(?:^|[^A-Za-z0-9_])(?<__lf_match>(?:${alternatives.join("|")}))(?:$|[^A-Za-z0-9_])`;
 }
 
 /** Parses newline-separated words/phrases and deduplicates case-insensitively. */
@@ -332,6 +506,7 @@ export function compileGuardrailConfigPatterns(config: {
   presets?: readonly string[];
   secretPrefixes?: readonly string[];
   containsWords?: readonly string[];
+  customRegex?: string | null;
 }): string[] {
   const patterns: string[] = [];
   for (const preset of config.presets ?? []) {
@@ -351,49 +526,8 @@ export function compileGuardrailConfigPatterns(config: {
   );
   const containsPattern = compileContainsPattern(validContains);
   if (containsPattern) patterns.push(containsPattern);
-  return patterns;
-}
-
-/**
- * Estimates compiled Thompson NFA bytes for a set of ASCII regex patterns
- * using an 8-byte state + 8-byte transition model.
- */
-export function estimateCompiledPatternsBytes(
-  patterns: readonly string[],
-): number {
-  const STATE_BYTES = 8;
-  const TRANSITION_BYTES = 8;
-  let bytes = 0;
-  for (const pattern of patterns) {
-    // Each character class `[Aa]` compiles to one state (~24 B); simple literals to one state (~16 B).
-    let index = 0;
-    while (index < pattern.length) {
-      const char = pattern[index];
-      if (char === "\\") {
-        bytes += STATE_BYTES + TRANSITION_BYTES;
-        index += 2;
-        continue;
-      }
-      if (char === "[") {
-        const end = pattern.indexOf("]", index + 1);
-        const span = end === -1 ? pattern.length - index : end - index;
-        bytes += STATE_BYTES + Math.min(span, 8) * TRANSITION_BYTES;
-        index = end === -1 ? pattern.length : end + 1;
-        continue;
-      }
-      if (char === "{") {
-        const end = pattern.indexOf("}", index + 1);
-        const body = end === -1 ? "" : pattern.slice(index + 1, end);
-        const repeat = Number.parseInt(body.split(",")[0] ?? "1", 10);
-        if (Number.isFinite(repeat) && repeat > 1) {
-          bytes += (repeat - 1) * (STATE_BYTES + TRANSITION_BYTES);
-        }
-        index = end === -1 ? pattern.length : end + 1;
-        continue;
-      }
-      bytes += STATE_BYTES + TRANSITION_BYTES;
-      index += 1;
-    }
+  if (config.customRegex && config.customRegex.length > 0) {
+    patterns.push(config.customRegex);
   }
-  return bytes;
+  return patterns;
 }

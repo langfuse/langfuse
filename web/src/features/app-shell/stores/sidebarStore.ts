@@ -1,7 +1,7 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 export type SidebarLayout = "desktop" | "mobile";
-export type SidebarMenu = "account" | "version" | "organization";
+export type SidebarMenu = "account" | "organization";
 
 export type SidebarStoreState = {
   /** Desktop preference: full navigation when true, a persistent icon rail otherwise. */
@@ -29,17 +29,19 @@ export type SidebarStore = StoreApi<SidebarStoreState>;
 type SidebarStorage = Pick<Storage, "getItem" | "setItem">;
 
 /** Reuses the shell preview preference: pinned becomes expanded, unpinned becomes the rail. */
-export const SIDEBAR_EXPANDED_STORAGE_KEY = "langfuse:sidebar:pinned:v1";
+const SIDEBAR_EXPANDED_STORAGE_KEY = "langfuse:sidebar:pinned:v1";
 /** The classic sidebar's expanded/collapsed preference seeds the first shell visit. */
 const LEGACY_SIDEBAR_STATE_STORAGE_KEY = "sidebar:state";
 
 function readExpanded(storage: SidebarStorage | null): boolean {
-  if (!storage) return false;
+  if (!storage) return true;
   try {
     const stored =
       storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY) ??
       storage.getItem(LEGACY_SIDEBAR_STATE_STORAGE_KEY);
-    return stored !== null && JSON.parse(stored) === true;
+    // No stored preference opens the full navigation.
+    if (stored === null) return true;
+    return JSON.parse(stored) === true;
   } catch {
     return false;
   }

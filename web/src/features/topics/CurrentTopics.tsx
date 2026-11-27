@@ -370,4 +370,5 @@ function useCurrentTopicMap(projectId: string, runId: string | undefined) {
   );
 }
 
+/** @internal */
 export const __test = { useCurrentTopics, useMobileTraceSelection };

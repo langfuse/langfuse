@@ -1,0 +1,11 @@
+**
+!ai-gateway/Cargo.toml
+!ai-gateway/Cargo.lock
+!ai-gateway/rust-toolchain.toml
+!ai-gateway/about.toml
+!ai-gateway/about.hbs
+!ai-gateway/src
+!ai-gateway/src/**
+!packages/ai-gateway-guardrail-rules/Cargo.toml
+!packages/ai-gateway-guardrail-rules/src
+!packages/ai-gateway-guardrail-rules/src/**

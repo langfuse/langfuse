@@ -435,6 +435,7 @@ const events = {
     "delete_organization",
     "ai_features_toggle",
     "ai_telemetry_toggle",
+    "public_sharing_toggle",
     "feature_flag_default_toggled",
     "personal_feature_previews_opened",
     "user_feature_flag_toggled",
@@ -502,12 +503,8 @@ const events = {
     "agent_setup_instructions_copied",
   ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
-  // Sidebar presentation and shell adoption, using state flags and static sources.
-  app_shell: [
-    "sidebar_pin_toggled",
-    "sidebar_expansion_toggled",
-    "variant_switched",
-  ],
+  // Sidebar presentation, using state flags and static sources.
+  app_shell: ["sidebar_pin_toggled", "sidebar_expansion_toggled"],
   spend_alert: ["created", "updated", "deleted"],
   billing_coupon: ["submitted"],
   // Launch surfaces answer "which entry point and state lead people into

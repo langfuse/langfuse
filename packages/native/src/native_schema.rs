@@ -15,7 +15,14 @@ use serde_json::Value;
 use crate::native_codec::{DateTime64Micros, Decimal64, SkillReference, SkillResourceLoaded};
 use crate::otel::attributes::AttributeSource::{Resource, Scope, Span};
 
-const OPTIONAL_EXPERIMENT_EVALUATION_FIELDS: [&str; 7] = [
+/// Attributes that TypeScript leaves undefined when a span does not carry them.
+const EVALUATION_FIELDS_OMITTED_WHEN_NULL: [&str; 13] = [
+    "user_id",
+    "session_id",
+    "provided_model_name",
+    "prompt_version",
+    "input",
+    "output",
     "experiment_id",
     "experiment_name",
     "experiment_description",
@@ -80,12 +87,15 @@ impl OtelStorageRow {
         let object = value.as_object_mut().expect("row is an object");
         object.insert("id".into(), Value::String(self.span_id.clone()));
 
-        // TypeScript leaves missing experiment attributes undefined, so evaluation
-        // uploads omit those keys even though the storage row allows nulls.
-        for field in OPTIONAL_EXPERIMENT_EVALUATION_FIELDS {
+        // Evaluation uploads omit these keys even though the storage row allows nulls.
+        for field in EVALUATION_FIELDS_OMITTED_WHEN_NULL {
             if object.get(field).is_some_and(Value::is_null) {
                 object.remove(field);
             }
+        }
+        // TypeScript gives a span without a linked prompt an empty prompt id.
+        if object.get("prompt_id").is_some_and(Value::is_null) {
+            object.insert("prompt_id".into(), Value::String(String::new()));
         }
         Ok(value)
     }

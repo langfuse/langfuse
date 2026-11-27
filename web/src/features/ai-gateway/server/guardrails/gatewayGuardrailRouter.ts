@@ -2,8 +2,10 @@ import { z } from "zod/v4";
 
 import {
   GATEWAY_GUARDRAIL_MAX_BULK_DELETE,
+  GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH,
   GATEWAY_GUARDRAIL_MAX_NAME_LENGTH,
   GATEWAY_GUARDRAIL_MAX_TARGETS,
+  GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH,
   GATEWAY_GUARDRAIL_TARGET_SEARCH_LIMIT,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import {
@@ -11,17 +13,25 @@ import {
   requireGatewayGuardrailsRead,
 } from "@/src/features/ai-gateway/server/gatewayAccess";
 import { GatewayGuardrailService } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailService";
+import { ProviderCredentialRejectedError } from "@/src/features/ai-gateway/server/provider/connection/ProviderCredentialRejectedError";
 import {
+  GATEWAY_GUARDRAIL_ACTION_SCOPES,
+  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
+  GatewayBedrockGuardrailCreateInputSchema,
+  GatewayBedrockGuardrailUpdateInputSchema,
   GatewayGuardrailAssignmentsInputSchema,
   GatewayGuardrailContainsListSchema,
+  GatewayGuardrailCustomRegexSchema,
   GatewayGuardrailPresetSchema,
+  GatewayGuardrailRedactionLabelSchema,
+  GatewayGuardrailScopeSchema,
   GatewayGuardrailSecretPrefixesSchema,
-  GatewayGuardrailUiActionSchema,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
+  protectedOrganizationProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 
 const organizationInput = z.object({ orgId: z.string() });
@@ -36,30 +46,83 @@ const assignmentsInput = GatewayGuardrailAssignmentsInputSchema.refine(
   `Select at most ${GATEWAY_GUARDRAIL_MAX_TARGETS} targets`,
 );
 
-const writeFields = {
+const commonWriteFields = {
   name: z
     .string()
     .trim()
     .min(1, "Guardrails need a name")
     .max(GATEWAY_GUARDRAIL_MAX_NAME_LENGTH),
-  action: GatewayGuardrailUiActionSchema,
+  scope: GatewayGuardrailScopeSchema.optional(),
+  assignments: assignmentsInput,
+};
+
+const regexRuleFields = {
+  type: z.literal("REGEX"),
   presets: z.array(GatewayGuardrailPresetSchema).default([]),
   secretPrefixes: GatewayGuardrailSecretPrefixesSchema.default([]),
   containsWords: GatewayGuardrailContainsListSchema.default([]),
-  assignments: assignmentsInput,
+  customRegex: GatewayGuardrailCustomRegexSchema.optional(),
 };
 
 const hasGuardrailRule = (value: {
   presets: unknown[];
   secretPrefixes: unknown[];
   containsWords: unknown[];
+  customRegex?: string;
 }) =>
   value.presets.length > 0 ||
   value.secretPrefixes.length > 0 ||
-  value.containsWords.length > 0;
+  value.containsWords.length > 0 ||
+  Boolean(value.customRegex);
 
 const GUARDRAIL_RULE_REQUIRED_MESSAGE =
-  "Configure at least one pattern, prefix, or keyword to detect";
+  "Configure at least one pattern, prefix, keyword, or custom regex to detect";
+
+const regexWriteSchema = z
+  .discriminatedUnion("action", [
+    z.object({
+      ...commonWriteFields,
+      ...regexRuleFields,
+      action: z.literal("REDACT"),
+      redactionLabel: GatewayGuardrailRedactionLabelSchema.optional(),
+    }),
+    z.object({
+      ...commonWriteFields,
+      ...regexRuleFields,
+      action: z.literal("BLOCK"),
+      scope: z.enum(GATEWAY_GUARDRAIL_ACTION_SCOPES.BLOCK).optional(),
+    }),
+    z.object({
+      ...commonWriteFields,
+      ...regexRuleFields,
+      action: z.literal("LOG"),
+    }),
+  ])
+  .refine(hasGuardrailRule, GUARDRAIL_RULE_REQUIRED_MESSAGE);
+
+const bedrockActionSchema = z.enum(
+  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.actions,
+);
+
+const createGuardrailInput = z.union([
+  organizationInput.and(regexWriteSchema),
+  organizationInput.extend({
+    ...commonWriteFields,
+    type: z.literal("BEDROCK"),
+    action: bedrockActionSchema,
+    bedrock: GatewayBedrockGuardrailCreateInputSchema,
+  }),
+]);
+
+const updateGuardrailInput = z.union([
+  guardrailIdInput.and(regexWriteSchema),
+  guardrailIdInput.extend({
+    ...commonWriteFields,
+    type: z.literal("BEDROCK"),
+    action: bedrockActionSchema,
+    bedrock: GatewayBedrockGuardrailUpdateInputSchema,
+  }),
+]);
 
 const bulkTargetInput = z.discriminatedUnion("type", [
   z.object({
@@ -184,48 +247,126 @@ export const gatewayGuardrailRouter = createTRPCRouter({
       });
     }),
 
-  create: protectedOrganizationProcedure
+  previewRegex: protectedOrganizationProcedureWithoutTracing
     .input(
-      organizationInput
-        .extend(writeFields)
-        .refine(hasGuardrailRule, GUARDRAIL_RULE_REQUIRED_MESSAGE),
+      organizationInput.extend({
+        pattern: z.string().max(GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH),
+        text: z.string().max(GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH),
+      }),
+    )
+    .query(({ input, ctx }) => {
+      requireGatewayGuardrailsAdmin({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      return new GatewayGuardrailService(ctx.prisma).previewRegex({
+        pattern: input.pattern,
+        text: input.text,
+      });
+    }),
+
+  test: protectedOrganizationProcedureWithoutTracing
+    .input(
+      organizationInput.extend({
+        id: z.string().optional(),
+        type: z.literal("BEDROCK"),
+        bedrock: GatewayBedrockGuardrailUpdateInputSchema,
+      }),
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayGuardrailsAdmin({
         session: ctx.session,
         orgId: input.orgId,
       });
-      return new GatewayGuardrailService(ctx.prisma).create({
+      try {
+        return await new GatewayGuardrailService(ctx.prisma).test({
+          organizationId: input.orgId,
+          id: input.id,
+          type: input.type,
+          bedrock: input.bedrock,
+        });
+      } catch (error) {
+        if (error instanceof ProviderCredentialRejectedError) {
+          return {
+            success: false as const,
+            providerResponse: error.providerResponse,
+          };
+        }
+        throw error;
+      }
+    }),
+
+  create: protectedOrganizationProcedureWithoutTracing
+    .input(createGuardrailInput)
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayGuardrailsAdmin({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      const service = new GatewayGuardrailService(ctx.prisma);
+      if (input.type === "BEDROCK") {
+        return service.create({
+          organizationId: input.orgId,
+          type: "BEDROCK",
+          name: input.name,
+          action: input.action,
+          scope: input.scope,
+          bedrock: input.bedrock,
+          assignments: input.assignments,
+          session: ctx.session,
+        });
+      }
+      return service.create({
         organizationId: input.orgId,
+        type: "REGEX",
         name: input.name,
         action: input.action,
+        scope: input.scope,
+        redactionLabel:
+          input.action === "REDACT" ? input.redactionLabel : undefined,
         presets: input.presets,
         secretPrefixes: input.secretPrefixes,
         containsWords: input.containsWords,
+        customRegex: input.customRegex,
         assignments: input.assignments,
         session: ctx.session,
       });
     }),
 
-  update: protectedOrganizationProcedure
-    .input(
-      guardrailIdInput
-        .extend(writeFields)
-        .refine(hasGuardrailRule, GUARDRAIL_RULE_REQUIRED_MESSAGE),
-    )
+  update: protectedOrganizationProcedureWithoutTracing
+    .input(updateGuardrailInput)
     .mutation(async ({ input, ctx }) => {
       requireGatewayGuardrailsAdmin({
         session: ctx.session,
         orgId: input.orgId,
       });
-      return new GatewayGuardrailService(ctx.prisma).update({
+      const service = new GatewayGuardrailService(ctx.prisma);
+      if (input.type === "BEDROCK") {
+        return service.update({
+          organizationId: input.orgId,
+          id: input.id,
+          type: "BEDROCK",
+          name: input.name,
+          action: input.action,
+          scope: input.scope,
+          bedrock: input.bedrock,
+          assignments: input.assignments,
+          session: ctx.session,
+        });
+      }
+      return service.update({
         organizationId: input.orgId,
         id: input.id,
+        type: "REGEX",
         name: input.name,
         action: input.action,
+        scope: input.scope,
+        redactionLabel:
+          input.action === "REDACT" ? input.redactionLabel : undefined,
         presets: input.presets,
         secretPrefixes: input.secretPrefixes,
         containsWords: input.containsWords,
+        customRegex: input.customRegex,
         assignments: input.assignments,
         session: ctx.session,
       });

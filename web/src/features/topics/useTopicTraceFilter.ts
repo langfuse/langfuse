@@ -174,6 +174,7 @@ export function useTopicResultsTraceSuggestions(projectId: string) {
 }
 
 /** Mode, search bar and validity of the setup trace filter; no data fetching. */
+/** @knipignore Lets dialog stories exercise real filter state without a live query. */
 export function useTopicTraceFilterState({
   projectId,
   filters,
