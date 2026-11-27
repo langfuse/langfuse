@@ -38,6 +38,10 @@ const DEFAULT_PROMPT = `Evaluate the quality of the response.
 Input: {{input}}
 Response: {{output}}`;
 
+const DEFAULT_TRACE_PROMPT = `Evaluate the quality of the conversation.
+
+Messages: {{messages}}`;
+
 const DEFAULT_STATE_KEYS = ["input", "output"];
 
 function buildInitialStateKeys(
@@ -188,24 +192,51 @@ export const selectHasValidModel = (state: EvaluatorSetupStoreState) => {
   return true;
 };
 
+/** An unedited starter prompt of a new judge follows the test target. */
+function starterPromptForTarget(
+  state: Pick<EvaluatorSetupStoreState, "initialDefinition" | "promptMessages">,
+  targetObject: EvaluatorTargetObject,
+) {
+  const [message, ...rest] = state.promptMessages;
+  const isUneditedStarter =
+    state.initialDefinition?.type !== EvalTemplateTypeEnum.LLM_AS_JUDGE &&
+    message?.role === "user" &&
+    rest.length === 0 &&
+    (message.content === DEFAULT_PROMPT ||
+      message.content === DEFAULT_TRACE_PROMPT);
+  if (!isUneditedStarter) return state.promptMessages;
+  return [
+    {
+      ...message,
+      content:
+        targetObject === TopicsTargetObject
+          ? DEFAULT_TRACE_PROMPT
+          : DEFAULT_PROMPT,
+    },
+  ];
+}
+
 /** A new target drops the sample and resets every mapping to the target's default. */
 const targetChange = (
   state: EvaluatorSetupStoreState,
   targetObject: EvaluatorTargetObject,
-) => ({
-  targetObject,
-  selectedObservation: null,
-  activeMapping: null,
-  variableFields:
-    targetObject === TopicsTargetObject
-      ? Object.fromEntries(
-          prepareEvaluatorDraft(state).mappings.map(({ variable }) => [
-            variable,
-            TRACE_TRANSCRIPT_DEFAULT_FIELD,
-          ]),
-        )
-      : {},
-});
+) => {
+  const promptMessages = starterPromptForTarget(state, targetObject);
+  return {
+    targetObject,
+    selectedObservation: null,
+    activeMapping: null,
+    promptMessages,
+    variableFields:
+      targetObject === TopicsTargetObject
+        ? Object.fromEntries(
+            prepareEvaluatorDraft({ ...state, promptMessages }).mappings.map(
+              ({ variable }) => [variable, TRACE_TRANSCRIPT_DEFAULT_FIELD],
+            ),
+          )
+        : {},
+  };
+};
 
 export function createEvaluatorSetupStore({
   initialEvaluator,
@@ -301,12 +332,19 @@ export function createEvaluatorSetupStore({
       setType: (type) =>
         set((state) => {
           if (type === state.type) return state;
-          // Types that cannot run on a trace transcript test on observations.
-          const target =
-            state.targetObject === TopicsTargetObject &&
-            !isTraceTranscriptEvalType(type)
-              ? targetChange(state, EvalTargetObject.EVENT)
-              : {};
+          const target = (() => {
+            if (state.targetObject !== TopicsTargetObject) return {};
+            // Types that cannot run on a trace transcript test on observations.
+            if (!isTraceTranscriptEvalType(type)) {
+              return targetChange(state, EvalTargetObject.EVENT);
+            }
+            // On a trace transcript the mappings follow the type's variables.
+            const { promptMessages, variableFields } = targetChange(
+              { ...state, type },
+              TopicsTargetObject,
+            );
+            return { promptMessages, variableFields };
+          })();
           if (type === EvalTemplateTypeEnum.DECISION_MODEL) {
             return {
               ...target,
