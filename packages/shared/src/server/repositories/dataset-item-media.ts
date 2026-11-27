@@ -23,6 +23,14 @@ type DatasetItemMediaSource = DatasetItemMediaValues & {
   datasetItemValidFrom: Date;
 };
 
+const COMPLETED_UPLOAD_HTTP_STATUSES = [200, 201] as const;
+
+function isCompletedUploadHttpStatus(
+  status: number | null | undefined,
+): boolean {
+  return status === 200 || status === 201;
+}
+
 function collectMediaReferences(item: DatasetItemMediaValues) {
   const fieldValues: { field: DatasetItemMediaField; value: unknown }[] = [
     { field: "input", value: item.input },
@@ -66,7 +74,7 @@ export async function findUnresolvableMediaReferences(props: {
     where: {
       projectId: props.projectId,
       id: { in: mediaIds },
-      uploadHttpStatus: { in: [200, 201] },
+      uploadHttpStatus: { in: [...COMPLETED_UPLOAD_HTTP_STATUSES] },
     },
     select: { id: true },
   });
@@ -103,6 +111,9 @@ export async function validateDatasetItemMediaReferences(props: {
  * Records a dataset media upload result, refusing to overwrite an
  * already-successful upload — datasets:CUD reaches any project media id via
  * SHA-256 dedupe, so a completed upload must not be flippable to a failure.
+ *
+ * Failure reports use a single conditional update so a stale check-then-act
+ * cannot overwrite a completion that committed between the read and the write.
  */
 export async function markDatasetMediaUploadComplete(props: {
   projectId: string;
@@ -121,24 +132,52 @@ export async function markDatasetMediaUploadComplete(props: {
       `Media asset ${props.mediaId} not found in project ${props.projectId}`,
     );
   }
-  const hasCompletedUpload =
-    media.uploadHttpStatus === 200 || media.uploadHttpStatus === 201;
-  const isCompletingUpload =
-    props.uploadHttpStatus === 200 || props.uploadHttpStatus === 201;
+  const hasCompletedUpload = isCompletedUploadHttpStatus(
+    media.uploadHttpStatus,
+  );
+  const isCompletingUpload = isCompletedUploadHttpStatus(
+    props.uploadHttpStatus,
+  );
   if (hasCompletedUpload && !isCompletingUpload) {
     throw new InvalidRequestError(
       `Media asset ${props.mediaId} already has a completed upload`,
     );
   }
 
-  await prisma.media.update({
-    where: { projectId_id: { projectId: props.projectId, id: props.mediaId } },
-    data: {
-      uploadedAt: props.uploadedAt,
-      uploadHttpStatus: props.uploadHttpStatus,
-      uploadHttpError: isCompletingUpload ? null : props.uploadHttpError,
-    },
-  });
+  const data = {
+    uploadedAt: props.uploadedAt,
+    uploadHttpStatus: props.uploadHttpStatus,
+    uploadHttpError: isCompletingUpload ? null : props.uploadHttpError,
+  };
+
+  if (isCompletingUpload) {
+    await prisma.media.update({
+      where: {
+        projectId_id: { projectId: props.projectId, id: props.mediaId },
+      },
+      data,
+    });
+  } else {
+    // Conditional write: exclude rows already at 200/201. A concurrent
+    // success can commit after the read above; this predicate is evaluated
+    // at write time so that race cannot flip the row to a failure.
+    const updated = await prisma.media.updateMany({
+      where: {
+        projectId: props.projectId,
+        id: props.mediaId,
+        OR: [
+          { uploadHttpStatus: null },
+          { uploadHttpStatus: { notIn: [...COMPLETED_UPLOAD_HTTP_STATUSES] } },
+        ],
+      },
+      data,
+    });
+    if (updated.count === 0) {
+      throw new InvalidRequestError(
+        `Media asset ${props.mediaId} already has a completed upload`,
+      );
+    }
+  }
 
   recordIncrement("langfuse.media.upload_http_status", 1, {
     status_code: props.uploadHttpStatus,
