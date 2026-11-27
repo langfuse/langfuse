@@ -140,11 +140,14 @@ impl<'a> Walker<'_, 'a> {
         for_each_entry(raw, self.budget, |key, value| {
             if !request {
                 entries.push((key, value));
-            } else if wanted(&key) {
-                duplicated |= entries
+            } else if !duplicated && wanted(&key) {
+                // Each read member is kept at most once, so a repeated one cannot grow `entries`.
+                duplicated = entries
                     .get(start..)
                     .is_some_and(|kept| kept.iter().any(|(kept, _)| *kept == key));
-                entries.push((key, value));
+                if !duplicated {
+                    entries.push((key, value));
+                }
             }
         })?;
         if duplicated {
