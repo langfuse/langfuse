@@ -10,8 +10,28 @@ import { CommentComposer } from "./CommentComposer";
 const mocks = vi.hoisted(() => ({
   focus: vi.fn(),
   mutate: vi.fn(),
+  canInvite: false,
+  openInviteDialog: vi.fn(),
 }));
 
+// The invite controller needs the router; this test is about its host.
+vi.mock(
+  "@/src/features/rbac/components/CreateProjectMemberDialogController",
+  () => ({
+    CreateProjectMemberDialogController: ({
+      children,
+    }: {
+      children: (control: {
+        hasAccess: boolean;
+        openDialog: () => void;
+      }) => unknown;
+    }) =>
+      children({
+        hasAccess: mocks.canInvite,
+        openDialog: mocks.openInviteDialog,
+      }),
+  }),
+);
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => false,
 }));
@@ -86,4 +106,43 @@ it("does not restore focus after the composer becomes inactive during comment re
   await act(async () => resolveRefresh());
   expect(mocks.mutate).toHaveBeenCalledOnce();
   expect(mocks.focus).not.toHaveBeenCalled();
+});
+
+describe("the invite link", () => {
+  const composer = (
+    <CommentComposer
+      projectId="project"
+      objectId="trace"
+      objectType="TRACE"
+      isActive
+      onCommentCreated={vi.fn()}
+    />
+  );
+
+  beforeEach(() => {
+    mocks.mutate.mockClear();
+  });
+
+  afterEach(() => {
+    mocks.canInvite = false;
+    mocks.openInviteDialog.mockClear();
+  });
+
+  it("opens the invite dialog for someone who can invite", () => {
+    mocks.canInvite = true;
+    render(composer);
+
+    fireEvent.click(screen.getByRole("button", { name: "Invite teammates" }));
+
+    expect(mocks.openInviteDialog).toHaveBeenCalledOnce();
+    expect(mocks.mutate).not.toHaveBeenCalled();
+  });
+
+  it("is hidden from someone who can't invite", () => {
+    render(composer);
+
+    expect(
+      screen.queryByRole("button", { name: "Invite teammates" }),
+    ).not.toBeInTheDocument();
+  });
 });
