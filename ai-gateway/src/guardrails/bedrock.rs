@@ -279,7 +279,7 @@ mod tests {
     use super::*;
     use crate::guardrails::{
         Guardrail, GuardrailAction, GuardrailKind, GuardrailLocation, GuardrailScope,
-        external::{ExternalBlock, ExternalFailureKind, ExternalPayloads},
+        external::{ExternalBlock, ExternalFailureKind, ExternalGuardrail, ExternalPayloads},
     };
     use axum::{body::Body, http::Response};
     use http_body_util::BodyExt;
@@ -301,7 +301,10 @@ mod tests {
             action: GuardrailAction::Block,
             scope: GuardrailScope::LastTurn,
             redaction_label: None,
-            kind: GuardrailKind::Bedrock(sample_config(guardrail_id, "1")),
+            kind: GuardrailKind::External(ExternalGuardrail::Bedrock(sample_config(
+                guardrail_id,
+                "1",
+            ))),
         }
     }
 

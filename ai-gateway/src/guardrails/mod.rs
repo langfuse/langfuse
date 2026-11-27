@@ -20,7 +20,7 @@ use std::{ops::Range, sync::Arc, time::Duration};
 
 use axum::body::Bytes;
 use regex_automata::{Input, PatternSet, util::captures::Captures};
-use secrecy::{ExposeSecret, SecretString};
+use secrecy::SecretString;
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use tokio::sync::Semaphore;
 use tracing::Instrument;
@@ -33,12 +33,10 @@ use crate::{
     providers::OutboundPolicy,
     resolution::{ApiFormat, ResolutionError, ResolvedRequestContext},
 };
-use bedrock::BedrockGuardrail;
 use external::{
-    ExternalBlock, ExternalFailureKind, ExternalGuardrailClient, ExternalOutcome, ExternalPayloads,
+    ExternalBlock, ExternalFailureKind, ExternalFields, ExternalGuardrail, ExternalGuardrailClient,
+    ExternalOutcome, ExternalPayloads,
 };
-use lakera::LakeraGuardrail;
-use openai_moderation::OpenAiModerationGuardrail;
 use redact::{BodyEdit, RedactionSpan};
 use regex::Compiled;
 use response::{ParsedResponse, RedactionApply, ResponseFormat, ResponseParseError};
@@ -409,9 +407,8 @@ pub(crate) enum GuardrailKind {
     Regex {
         patterns: Vec<String>,
     },
-    Bedrock(BedrockGuardrail),
-    OpenAiModeration(OpenAiModerationGuardrail),
-    Lakera(LakeraGuardrail),
+    /// Evaluated over HTTP by an external guardrail provider.
+    External(ExternalGuardrail),
     /// Control plane could not decrypt or validate a fail-closed guardrail;
     /// always matches so the gateway enforces its action without forwarding
     /// unscreened requests.
@@ -419,6 +416,15 @@ pub(crate) enum GuardrailKind {
     /// A guardrail type this gateway does not know skips the guardrail rather
     /// than failing resolution, so Web can add types before every gateway upgrades.
     Unknown,
+}
+
+impl GuardrailKind {
+    pub(crate) fn external(&self) -> Option<&ExternalGuardrail> {
+        match self {
+            Self::External(external) => Some(external),
+            Self::Regex { .. } | Self::FailClosed | Self::Unknown => None,
+        }
+    }
 }
 
 /// Which part of the request input a guardrail evaluates.
@@ -450,10 +456,7 @@ impl Guardrail {
         }
         match &self.kind {
             GuardrailKind::Regex { patterns } => !patterns.is_empty(),
-            GuardrailKind::Bedrock(_)
-            | GuardrailKind::OpenAiModeration(_)
-            | GuardrailKind::Lakera(_)
-            | GuardrailKind::FailClosed => true,
+            GuardrailKind::External(_) | GuardrailKind::FailClosed => true,
             GuardrailKind::Unknown => false,
         }
     }
@@ -463,46 +466,19 @@ impl Guardrail {
             GuardrailKind::Regex { .. } | GuardrailKind::FailClosed | GuardrailKind::Unknown => {
                 true
             }
-            GuardrailKind::Bedrock(config) => {
-                crate::resolution::bedrock::is_aws_region(&config.region)
-                    && !config.guardrail_id.trim().is_empty()
-                    && !config.guardrail_version.trim().is_empty()
-                    && crate::resolution::valid_token(config.api_key.expose_secret())
-            }
-            // An unknown region fails only this guardrail closed at check time,
-            // so Web can add regions before every gateway knows them.
-            GuardrailKind::OpenAiModeration(config) => {
-                crate::resolution::valid_token(config.api_key.expose_secret())
-            }
-            GuardrailKind::Lakera(config) => {
-                config
-                    .project_id
-                    .as_deref()
-                    .is_none_or(crate::resolution::valid_token)
-                    && crate::resolution::valid_token(config.api_key.expose_secret())
-            }
+            GuardrailKind::External(external) => external.is_valid(),
         }
     }
 
     fn regex_patterns(&self) -> Option<&[String]> {
         match &self.kind {
             GuardrailKind::Regex { patterns } => Some(patterns),
-            GuardrailKind::Bedrock(_)
-            | GuardrailKind::OpenAiModeration(_)
-            | GuardrailKind::Lakera(_)
-            | GuardrailKind::FailClosed
-            | GuardrailKind::Unknown => None,
+            GuardrailKind::External(_) | GuardrailKind::FailClosed | GuardrailKind::Unknown => None,
         }
     }
 
     fn is_external(&self) -> bool {
-        self.is_active()
-            && matches!(
-                self.kind,
-                GuardrailKind::Bedrock(_)
-                    | GuardrailKind::OpenAiModeration(_)
-                    | GuardrailKind::Lakera(_)
-            )
+        self.is_active() && self.kind.external().is_some()
     }
 
     fn is_external_enforce(&self) -> bool {
@@ -550,41 +526,21 @@ impl<'de> Deserialize<'de> for Guardrail {
             None | Some("regex") => GuardrailKind::Regex {
                 patterns: raw.patterns,
             },
-            Some("bedrock") => GuardrailKind::Bedrock(BedrockGuardrail {
-                guardrail_id: raw
-                    .guardrail_id
-                    .ok_or_else(|| D::Error::missing_field("guardrail_id"))?,
-                guardrail_version: raw
-                    .guardrail_version
-                    .ok_or_else(|| D::Error::missing_field("guardrail_version"))?,
-                region: raw
-                    .region
-                    .ok_or_else(|| D::Error::missing_field("region"))?,
-                api_key: raw
-                    .api_key
-                    .ok_or_else(|| D::Error::missing_field("api_key"))?,
-            }),
-            Some("openai_moderation") => {
-                GuardrailKind::OpenAiModeration(OpenAiModerationGuardrail {
-                    region: raw
-                        .region
-                        .ok_or_else(|| D::Error::missing_field("region"))?,
-                    api_key: raw
-                        .api_key
-                        .ok_or_else(|| D::Error::missing_field("api_key"))?,
-                })
-            }
-            Some("lakera") => GuardrailKind::Lakera(LakeraGuardrail {
-                region: raw
-                    .region
-                    .ok_or_else(|| D::Error::missing_field("region"))?,
-                project_id: raw.project_id,
-                api_key: raw
-                    .api_key
-                    .ok_or_else(|| D::Error::missing_field("api_key"))?,
-            }),
             Some("fail_closed") => GuardrailKind::FailClosed,
-            Some(_) => GuardrailKind::Unknown,
+            Some(kind) => {
+                let fields = ExternalFields {
+                    guardrail_id: raw.guardrail_id,
+                    guardrail_version: raw.guardrail_version,
+                    region: raw.region,
+                    project_id: raw.project_id,
+                    api_key: raw.api_key,
+                };
+                match ExternalGuardrail::from_resolve(kind, fields) {
+                    Ok(Some(external)) => GuardrailKind::External(external),
+                    Ok(None) => GuardrailKind::Unknown,
+                    Err(field) => return Err(D::Error::missing_field(field)),
+                }
+            }
         };
         Ok(Self {
             id: raw.id,

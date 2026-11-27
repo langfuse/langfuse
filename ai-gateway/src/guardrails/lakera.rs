@@ -192,7 +192,7 @@ mod tests {
     use super::*;
     use crate::guardrails::{
         Guardrail, GuardrailAction, GuardrailKind, GuardrailLocation, GuardrailScope,
-        external::{ExternalFailureKind, ExternalPayloads},
+        external::{ExternalFailureKind, ExternalGuardrail, ExternalPayloads},
     };
     use axum::{body::Body, http::Response};
     use http_body_util::BodyExt;
@@ -205,17 +205,19 @@ mod tests {
             action: GuardrailAction::Block,
             scope: GuardrailScope::LastTurn,
             redaction_label: None,
-            kind: GuardrailKind::Lakera(LakeraGuardrail {
+            kind: GuardrailKind::External(ExternalGuardrail::Lakera(LakeraGuardrail {
                 region: "eu".into(),
                 project_id: project_id.map(str::to_owned),
                 api_key: SecretString::from("lakera-api-key-secret"),
-            }),
+            })),
         }
     }
 
     #[test]
     fn debug_redacts_api_key() {
-        let GuardrailKind::Lakera(config) = sample_guardrail("g", Some("project-1")).kind else {
+        let GuardrailKind::External(ExternalGuardrail::Lakera(config)) =
+            sample_guardrail("g", Some("project-1")).kind
+        else {
             unreachable!();
         };
         assert!(!format!("{config:?}").contains("lakera-api-key-secret"));
