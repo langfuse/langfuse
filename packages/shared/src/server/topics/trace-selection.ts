@@ -200,9 +200,10 @@ export async function selectTopicMapMatches(
 ): Promise<string[]> {
   const { from, to } = input.timeRange;
   const extraConditions = input.extraTraceConditions ?? [];
-  const extraWhere = extraConditions.length
-    ? ` AND ${extraConditions.map((condition) => condition.query).join(" AND ")}`
-    : "";
+  const extraWhere =
+    extraConditions.length > 0
+      ? ` AND ${extraConditions.map((condition) => condition.query).join(" AND ")}`
+      : "";
   const extraParams = Object.assign(
     {},
     ...extraConditions.map((condition) => condition.params),

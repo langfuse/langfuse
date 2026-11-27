@@ -1,4 +1,5 @@
 import { type ComponentProps, useMemo, useRef } from "react";
+import { type FilterState } from "@langfuse/shared";
 import { CircleAlert } from "@langfuse/icons";
 import { TopicsCenteredState } from "./TopicsCenteredState";
 import { Spinner } from "@/src/components/layouts/Spinner";
@@ -26,6 +27,10 @@ import {
   UNASSIGNED_TOPIC_ID,
 } from "./prepare-topic-display";
 import { useTopicsCapture, useTopicsViewCapture } from "./useTopicsCapture";
+import {
+  partitionTopicTraceFilters,
+  resolveFacetTopicIds,
+} from "./topic-trace-filters";
 import {
   FacetTraceSource,
   useFacetTopicTraces,
@@ -159,6 +164,7 @@ function CurrentFacet({
         <MobileTopics
           projectId={projectId}
           facet={facet}
+          allFacets={allFacets}
           view={mobileVisualization.view}
           onViewChange={mobileVisualization.onViewChange}
           mapResult={mapResult}
@@ -201,6 +207,7 @@ function CurrentFacet({
 function MobileTopics({
   projectId,
   facet,
+  allFacets,
   view,
   onViewChange,
   mapResult,
@@ -210,7 +217,12 @@ function MobileTopics({
   mapActions,
 }: Pick<
   CurrentFacetProps,
-  "projectId" | "facet" | "traceFilters" | "showUnassigned" | "mapActions"
+  | "projectId"
+  | "facet"
+  | "allFacets"
+  | "traceFilters"
+  | "showUnassigned"
+  | "mapActions"
 > & {
   view: MobileTopicsVisualization;
   onViewChange: ComponentProps<typeof MobileTopicsView>["onViewChange"];
@@ -223,12 +235,25 @@ function MobileTopics({
     facet.facetId,
   );
   // Mobile filters by active-facet topic and assignment only; Scatter's trace and cross-facet filters stay preserved.
-  const topicFilters = traceFilters.filters.filter(
-    (filter) => filter.column === "topicId" || filter.column === "assignment",
-  );
-  const scatterFilters = traceFilters.filters.filter(
-    (filter) => filter.column !== "topicId" && filter.column !== "assignment",
-  );
+  const { activeFacetFilters, otherFacetFilters, traceFieldFilters } =
+    partitionTopicTraceFilters(traceFilters.filters, facet, allFacets);
+  const topicFilters: FilterState = activeFacetFilters.flatMap((filter) => {
+    if (filter.column === "topics" && filter.type === "categoryOptions") {
+      const topicIds = resolveFacetTopicIds(facet, filter.value);
+      return topicIds.length > 0
+        ? [
+            {
+              column: "topicId" as const,
+              type: "stringOptions" as const,
+              operator: filter.operator,
+              value: topicIds,
+            },
+          ]
+        : [];
+    }
+    return [filter];
+  });
+  const scatterFilters = [...otherFacetFilters, ...traceFieldFilters];
   return (
     <MobileTopicsView
       projectId={projectId}

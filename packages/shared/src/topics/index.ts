@@ -29,7 +29,7 @@ export const topicIdSchema = z
 export const crossFacetTopicFilterSchema = z.object({
   facetId: topicIdSchema,
   operator: z.enum(["any of", "none of"]),
-  topicIds: z.array(z.string().min(1)).min(1).max(1000),
+  topicIds: z.array(z.string().min(1)).min(1).max(200),
 });
 export type CrossFacetTopicFilter = z.infer<typeof crossFacetTopicFilterSchema>;
 /** The longest time range any Topics read or update accepts. */

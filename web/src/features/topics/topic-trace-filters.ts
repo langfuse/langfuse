@@ -1,5 +1,5 @@
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
-import { type TopicTraceQuery } from "./facet-topics";
+import { orderedFacetTopics, type TopicTraceQuery } from "./facet-topics";
 import {
   type CrossFacetTopicFilter,
   topicRuleFilterError,
@@ -164,17 +164,6 @@ function splitTopicTraceFilters(
   ];
 }
 
-function orderedTopicsOf(facet: TopicFilterFacet) {
-  if (!facet.map) return facet.topics;
-  const mapped = facet.map.topics;
-  return [
-    ...mapped,
-    ...facet.topics.filter(
-      (topic) => !mapped.some((item) => item.id === topic.id),
-    ),
-  ];
-}
-
 /**
  * Assigns each facet a unique search-bar key under `topics.<key>`.
  * Unique facet names stay bare; duplicate case-insensitive names append
@@ -243,7 +232,7 @@ export function resolveFacetTopicIds(
   facet: TopicFilterFacet,
   values: readonly string[],
 ): string[] {
-  const topics = orderedTopicsOf(facet);
+  const topics = orderedFacetTopics(facet);
   const options = buildTopicOptions(topics);
   const byDisplay = new Map(
     options.map((option) => [option.displayValue, option.value]),
@@ -359,7 +348,7 @@ export function rewriteTopicIdFiltersForFacet(
   if (!filters.some((filter) => filter.column === "topicId")) return filters;
   const key = facetFilterKey(facet, allFacets);
   const displayById = new Map(
-    buildTopicOptions(orderedTopicsOf(facet)).map((option) => [
+    buildTopicOptions(orderedFacetTopics(facet)).map((option) => [
       option.value,
       option.displayValue,
     ]),
@@ -412,7 +401,7 @@ export function topicTracingFilters(
   ) => {
     // Tracing identifies facets by bare name; duplicate facet names cannot link unambiguously.
     if (facetKeys.get(facet.facetId) !== facet.name) return undefined;
-    const topics = orderedTopicsOf(facet);
+    const topics = orderedFacetTopics(facet);
     const nameById = new Map(topics.map((topic) => [topic.id, topic.name]));
     const selectedIds = new Set(topicIds);
     const names = [
@@ -444,7 +433,7 @@ export function topicTracingFilters(
   for (const filter of combined) {
     if (filter.column === "topicId" && filter.type === "stringOptions") {
       if (filter.value.length === 0) return undefined;
-      const topics = orderedTopicsOf(activeFacet);
+      const topics = orderedFacetTopics(activeFacet);
       if (filter.value.some((id) => !topics.some((topic) => topic.id === id)))
         return undefined;
       const converted = toTracingTopicFilter(
@@ -476,7 +465,9 @@ export function topicTracingFilters(
       return undefined;
     }
   }
-  return out.length > 0 ? out : undefined;
+  // Tracing's `none of` (`NOT IN`) includes unsummarized and unassigned traces;
+  // require at least one positive topic filter so the link stays bounded to assigned traces.
+  return out.some((filter) => filter.operator === "any of") ? out : undefined;
 }
 
 export function selectTopicTraceFilters(

@@ -462,14 +462,13 @@ export async function resolveCrossFacetTraceConditions(
   otherFacetTopics: CrossFacetTopicFilter[] | undefined,
   projectFacets?: TopicFacet[],
 ): Promise<{ query: string; params: Record<string, unknown> }[] | null> {
-  if (!otherFacetTopics?.length) return [];
+  if (!otherFacetTopics || otherFacetTopics.length === 0) return [];
   const referencedIds = new Set(otherFacetTopics.map((item) => item.facetId));
   const facets = (projectFacets ?? (await listTopicFacets(projectId))).filter(
     (facet) => referencedIds.has(facet.id),
   );
-  const maps = facets.length
-    ? await resolveFacetMaps(projectId, scope, facets)
-    : [];
+  const maps =
+    facets.length > 0 ? await resolveFacetMaps(projectId, scope, facets) : [];
   const runByFacetId = new Map(
     maps.flatMap((map) =>
       map.run ? [[map.facet.id, map.run.id] as const] : [],

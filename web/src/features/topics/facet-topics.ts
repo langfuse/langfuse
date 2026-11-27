@@ -50,7 +50,10 @@ export function useTracesWithSelection(
 }
 
 /** Map topics first, then topics only seen in assignments. Index order drives topic colors in every view. */
-export function orderedFacetTopics(facet: Facet) {
+export function orderedFacetTopics<T extends { id: string }>(facet: {
+  topics: readonly T[];
+  map?: { topics: readonly T[] } | null;
+}): readonly T[] {
   if (!facet.map) return facet.topics;
   const mapped = facet.map.topics;
   return [

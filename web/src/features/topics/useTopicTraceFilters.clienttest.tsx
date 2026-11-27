@@ -218,6 +218,58 @@ describe("Topics map-scoped filters", () => {
     expect(getSearch()).toBe("");
   });
 
+  it("rewrites shorthand topicId filters when navigating to another facet via URL", async () => {
+    const first = setup("", "project", "map-a");
+    act(() => first.result.current.setFilters([topic]));
+    first.unmount();
+
+    const viaUrl = setup("?topicFacet=sentiment", "project", "map-a");
+    expect(viaUrl.result.current.selectedFacetId).toBe("sentiment");
+    expect(viaUrl.result.current.filters).toEqual([
+      {
+        column: "topics",
+        type: "categoryOptions",
+        key: "Intent",
+        operator: "any of",
+        value: ["Billing questions"],
+      },
+    ]);
+  });
+
+  it("restores legacy v1 filters when v2 has no entry and stops reading v1 once cleared", () => {
+    localStorage.setItem(
+      "topics-trace-filters-v1",
+      JSON.stringify({
+        [JSON.stringify(["project", "map-a", "intent"])]: {
+          filter: encodeFiltersGeneric([topic]),
+          search: "invoice",
+        },
+      }),
+    );
+
+    const restored = setup("", "project", "map-a");
+    expect(restored.result.current.filters).toEqual([
+      {
+        column: "topics",
+        type: "categoryOptions",
+        key: "Intent",
+        operator: "any of",
+        value: ["Billing questions"],
+      },
+    ]);
+    expect(restored.result.current.searchQuery).toBe("invoice");
+
+    act(() => {
+      restored.result.current.setFilters([]);
+      restored.result.current.setSearchQuery(null);
+    });
+    restored.unmount();
+
+    const afterClear = setup("", "project", "map-a");
+    expect(afterClear.result.current.filters).toEqual([]);
+    expect(afterClear.result.current.searchQuery).toBeNull();
+  });
+
   it("ignores malformed cached state", () => {
     localStorage.setItem(
       "topics-trace-filters-v2",

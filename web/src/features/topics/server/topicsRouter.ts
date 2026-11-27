@@ -112,7 +112,7 @@ const traceFilterInput = topicRuleConfigSchema.shape.filter.refine(
   (filter) => !topicRuleFilterError(filter),
   { message: "These filters can't be used on Topics traces." },
 );
-const otherFacetTopicsInput = z.array(crossFacetTopicFilterSchema).max(20);
+const otherFacetTopicsInput = z.array(crossFacetTopicFilterSchema).max(10);
 const mapMatchesInput = mapInput.extend({
   ruleId: topicIdSchema.optional(),
   analysisId: topicIdSchema.optional(),
@@ -421,7 +421,7 @@ async function topicMapMatches(
   if (
     run.status !== "completed" ||
     !cohortRange.success ||
-    (input.filter.length === 0 && !input.otherFacetTopics?.length)
+    (input.filter.length === 0 && (input.otherFacetTopics?.length ?? 0) === 0)
   )
     return { traceIds: [] };
   const analysisId = input.analysisId ?? run.batchActionId ?? undefined;

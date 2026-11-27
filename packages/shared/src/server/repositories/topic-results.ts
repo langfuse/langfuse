@@ -310,6 +310,7 @@ type ListInput = {
 };
 
 const MAX_CANDIDATE_BATCHES = 10;
+const MAX_CANDIDATE_BATCHES_WITH_EXTRA_FILTERS = 3;
 // Same guards as the observations v2 scan: replica reads, a request deadline,
 // read-in-order without buffering, and cancellation when the client goes away.
 const READ_OPTIONS = {
@@ -318,6 +319,16 @@ const READ_OPTIONS = {
   clickhouseSettings: {
     read_in_order_use_buffering: 0,
     cancel_http_readonly_queries_on_client_close: 1,
+  },
+} as const;
+const CANDIDATE_EXTRA_FILTER_READ_OPTIONS = {
+  preferredClickhouseService: "ReadOnly",
+  clickhouseConfigs: { request_timeout: 15_000 },
+  clickhouseSettings: {
+    ...READ_OPTIONS.clickhouseSettings,
+    max_threads: 2,
+    max_execution_time: 10,
+    timeout_overflow_mode: "throw",
   },
 } as const;
 const TRACE_FILTER_TIMEOUT_SECONDS = 10;
@@ -483,7 +494,13 @@ async function listCurrentRows<T extends CandidateRow>(
   if (input.facetIds.length === 0) return { rows: [] };
   const batchSize =
     input.scan?.batchSize ?? Math.min(1000, Math.max(200, input.limit * 4));
-  const maxBatches = input.scan?.maxBatches ?? MAX_CANDIDATE_BATCHES;
+  const hasCandidateTraceFilters =
+    (input.candidateTraceFilters?.length ?? 0) > 0;
+  const maxBatches =
+    input.scan?.maxBatches ??
+    (hasCandidateTraceFilters
+      ? MAX_CANDIDATE_BATCHES_WITH_EXTRA_FILTERS
+      : MAX_CANDIDATE_BATCHES);
   const publishedRunIds =
     input.publishedRunIds ??
     (await getPublishedTopicRunIds(input.projectId, input.facetIds));
@@ -507,7 +524,9 @@ async function listCurrentRows<T extends CandidateRow>(
       publishedRunIds,
     );
     const found = await queryClickhouse<CandidateRow>({
-      ...READ_OPTIONS,
+      ...(hasCandidateTraceFilters
+        ? CANDIDATE_EXTRA_FILTER_READ_OPTIONS
+        : READ_OPTIONS),
       query: candidates.query,
       params: {
         ...baseParams,

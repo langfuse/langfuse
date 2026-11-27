@@ -732,4 +732,91 @@ describe("topic search registry", () => {
       topicTracingFilters(rewritten, null, firstIntent, duplicateFacets),
     ).toBeUndefined();
   });
+
+  it("falls back to trace IDs in Tracing when only negated topic filters are active", () => {
+    const intentFacet = {
+      facetId: "facet-intent",
+      name: "Intent",
+      topics,
+    };
+    const sentimentFacet = {
+      facetId: "facet-sentiment",
+      name: "Sentiment",
+      topics: [{ id: "neg", name: "Negative" }],
+    };
+    const allFacets = [intentFacet, sentimentFacet];
+
+    expect(
+      topicTracingFilters(
+        [
+          {
+            column: "topicId",
+            type: "stringOptions",
+            operator: "none of",
+            value: ["billing"],
+          },
+        ],
+        null,
+        intentFacet,
+        allFacets,
+      ),
+    ).toBeUndefined();
+
+    expect(
+      topicTracingFilters(
+        [
+          {
+            column: "topics",
+            type: "categoryOptions",
+            key: "Sentiment",
+            operator: "none of",
+            value: ["Negative"],
+          },
+        ],
+        null,
+        intentFacet,
+        allFacets,
+      ),
+    ).toBeUndefined();
+
+    // Combining a positive topic filter with a negated one is safe because the positive filter
+    // already constrains Tracing to summarized traces in that facet.
+    expect(
+      topicTracingFilters(
+        [
+          {
+            column: "topicId",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["billing"],
+          },
+          {
+            column: "topics",
+            type: "categoryOptions",
+            key: "Sentiment",
+            operator: "none of",
+            value: ["Negative"],
+          },
+        ],
+        null,
+        intentFacet,
+        allFacets,
+      ),
+    ).toEqual([
+      {
+        column: "topics",
+        type: "categoryOptions",
+        key: "Intent",
+        operator: "any of",
+        value: ["Billing questions"],
+      },
+      {
+        column: "topics",
+        type: "categoryOptions",
+        key: "Sentiment",
+        operator: "none of",
+        value: ["Negative"],
+      },
+    ]);
+  });
 });

@@ -3,6 +3,7 @@ import type { FilterState } from "@langfuse/shared";
 import { type ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { cn } from "@/src/utils/tailwind";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { orderedFacetTopics } from "./facet-topics";
 import {
   buildFacetFilterKeys,
   buildTopicOptions,
@@ -10,17 +11,6 @@ import {
   TOPIC_ASSIGNMENT_OPTIONS,
   type TopicFilterFacet,
 } from "./topic-trace-filters";
-
-function facetTopicsList(facet: TopicFilterFacet) {
-  if (!facet.map) return facet.topics;
-  const mapped = facet.map.topics;
-  return [
-    ...mapped,
-    ...facet.topics.filter(
-      (topic) => !mapped.some((item) => item.id === topic.id),
-    ),
-  ];
-}
 
 export function TopicsTraceToolbar({
   projectId,
@@ -37,7 +27,7 @@ export function TopicsTraceToolbar({
   const filterableFacets = useMemo(() => {
     if (!allFacets || allFacets.length === 0) return [];
     const withTopics = allFacets
-      .map((facet) => ({ facet, topics: facetTopicsList(facet) }))
+      .map((facet) => ({ facet, topics: orderedFacetTopics(facet) }))
       .filter((entry) => entry.topics.length > 0);
     // Sibling facets first so cross-facet filters surface immediately in autocomplete.
     return [
@@ -133,7 +123,7 @@ type TopicTraceFieldSuggestions = {
 
 type TopicsTraceToolbarProps = {
   projectId?: string;
-  topics: { id: string; name: string }[];
+  topics: readonly { id: string; name: string }[];
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
   searchQuery: string | null;
