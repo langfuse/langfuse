@@ -205,7 +205,9 @@ impl ParsedResponse {
         if edits.is_empty() {
             return Ok(RedactionApply::Unchanged);
         }
-        let mut splices: Vec<(Range<usize>, Cow<'_, str>)> = Vec::new();
+        // Each replacement is encoded once; its spans refer to it by index.
+        let mut encoded: Vec<String> = Vec::with_capacity(edits.len());
+        let mut splices: Vec<(Range<usize>, Option<usize>)> = Vec::new();
         for (index, replacement) in edits {
             let Some(block) = self.blocks.get(*index) else {
                 return Ok(RedactionApply::Failed);
@@ -218,21 +220,23 @@ impl ParsedResponse {
             {
                 return Ok(RedactionApply::InvalidJson);
             }
-            let Ok(encoded) = serde_json::to_string(replacement) else {
+            let Ok(text) = serde_json::to_string(replacement) else {
                 return Ok(RedactionApply::Failed);
             };
+            let text_index = Some(encoded.len());
+            encoded.push(text);
             for (position, span) in block.deltas.iter().enumerate() {
-                let text = if position == 0 {
-                    Cow::Owned(encoded.clone())
-                } else {
-                    Cow::Borrowed(EMPTY_JSON_STRING)
-                };
-                splices.push((span.clone(), text));
+                splices.push((span.clone(), text_index.filter(|_| position == 0)));
             }
             for span in &block.leaves {
-                splices.push((span.clone(), Cow::Owned(encoded.clone())));
+                splices.push((span.clone(), text_index));
             }
         }
+        let text = |index: Option<usize>| {
+            index
+                .and_then(|index| encoded.get(index))
+                .map_or(EMPTY_JSON_STRING, String::as_str)
+        };
         splices.sort_unstable_by_key(|(span, _)| span.start);
         let mut len = self.body.len;
         for pair in splices.windows(2) {
@@ -242,21 +246,24 @@ impl ParsedResponse {
                 return Ok(RedactionApply::Failed);
             }
         }
-        for (span, text) in &splices {
-            len = (len - span.len()).saturating_add(text.len());
+        for (span, index) in &splices {
+            len = (len - span.len()).saturating_add(text(*index).len());
         }
+        let held = len
+            + encoded.iter().map(String::capacity).sum::<usize>()
+            + splices.capacity() * size_of::<(Range<usize>, Option<usize>)>();
         let _out_reservation = budget
-            .filter(|_| len > 0)
-            .map(|budget| MemoryReservation::from_budget(budget, len, "guardrails"))
+            .filter(|_| held > 0)
+            .map(|budget| MemoryReservation::from_budget(budget, held, "guardrails"))
             .transpose()?;
         let mut out = Vec::with_capacity(len);
         let mut copied = 0;
-        for (span, text) in splices {
+        for (span, index) in splices {
             let Some(unchanged) = self.body.slice(copied..span.start) else {
                 return Ok(RedactionApply::Failed);
             };
             out.extend_from_slice(&unchanged);
-            out.extend_from_slice(text.as_bytes());
+            out.extend_from_slice(text(index).as_bytes());
             copied = span.end;
         }
         let Some(rest) = self.body.slice(copied..self.body.len) else {

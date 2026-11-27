@@ -849,9 +849,14 @@ enum BufferedResponse {
     UpstreamError(ProviderError, Vec<Bytes>),
 }
 
-/// Buffers a provider response body up to `max_bytes` as the chunks it arrives
-/// in, reserving their exact size from the shared memory budget and honoring
-/// both the execution deadline and per-chunk stall timeout.
+/// Largest buffer one buffered response body is copied into; a body grows by
+/// whole segments, so it is never copied again or over-allocated by more than one.
+const RESPONSE_SEGMENT_BYTES: usize = 64 * 1024;
+
+/// Buffers a provider response body up to `max_bytes`, copying it into segments
+/// the gateway owns so hyper can reuse its read buffer, reserving their capacity
+/// from the shared memory budget and honoring both the execution deadline and
+/// per-chunk stall timeout.
 async fn read_bounded_response(
     mut response: reqwest::Response,
     max_bytes: usize,
@@ -872,8 +877,15 @@ async fn read_bounded_response(
     let Ok(mut reservation) = MemoryReservation::from_budget(budget, 0, "guardrails") else {
         return BufferedResponse::Busy(Vec::new());
     };
-    let mut chunks: Vec<Bytes> = Vec::new();
+    let mut segments: Vec<Bytes> = Vec::new();
+    let mut segment: Vec<u8> = Vec::new();
     let mut total = 0usize;
+    let take = |mut segments: Vec<Bytes>, segment: Vec<u8>| {
+        if !segment.is_empty() {
+            segments.push(Bytes::from(segment));
+        }
+        segments
+    };
     loop {
         let chunk_deadline = deadline.min(Instant::now() + stall_timeout);
         let next = match tokio::time::timeout_at(chunk_deadline, response.chunk()).await {
@@ -884,28 +896,56 @@ async fn read_bounded_response(
                 } else {
                     ProviderError::Transport
                 };
-                return BufferedResponse::UpstreamError(kind, chunks);
+                return BufferedResponse::UpstreamError(kind, take(segments, segment));
             }
-            Err(_) => return BufferedResponse::UpstreamError(ProviderError::Timeout, chunks),
+            Err(_) => {
+                return BufferedResponse::UpstreamError(
+                    ProviderError::Timeout,
+                    take(segments, segment),
+                );
+            }
         };
         let Some(chunk) = next else {
-            return BufferedResponse::Complete(chunks, reservation);
+            return BufferedResponse::Complete(take(segments, segment), reservation);
         };
         total = total.saturating_add(chunk.len());
         if total > max_bytes {
-            chunks.push(chunk);
+            let mut prefix = take(segments, segment);
+            prefix.push(chunk);
             return BufferedResponse::TooLarge {
-                prefix: chunks,
+                prefix,
                 response,
                 reservation: Some(reservation),
             };
         }
-        let held = total.saturating_add((chunks.len() + 1) * size_of::<Bytes>());
-        if reservation.try_reserve_body(held, "guardrails").is_err() {
-            chunks.push(chunk);
-            return BufferedResponse::Busy(chunks);
+        let mut rest = &chunk[..];
+        while !rest.is_empty() {
+            if segment.len() == RESPONSE_SEGMENT_BYTES {
+                segments.push(Bytes::from(std::mem::take(&mut segment)));
+            }
+            let (now, later) =
+                rest.split_at(rest.len().min(RESPONSE_SEGMENT_BYTES - segment.len()));
+            if segment.len() + now.len() > segment.capacity() {
+                let capacity = (segment.capacity() * 2)
+                    .clamp(segment.len() + now.len(), RESPONSE_SEGMENT_BYTES)
+                    .min(
+                        declared
+                            .unwrap_or(usize::MAX)
+                            .max(segment.len() + now.len()),
+                    );
+                let held = segments.len() * RESPONSE_SEGMENT_BYTES
+                    + capacity
+                    + (segments.len() + 1) * size_of::<Bytes>();
+                if reservation.try_reserve_body(held, "guardrails").is_err() {
+                    let mut partial = take(segments, segment);
+                    partial.push(chunk.slice(chunk.len() - rest.len()..));
+                    return BufferedResponse::Busy(partial);
+                }
+                segment.reserve_exact(capacity - segment.len());
+            }
+            segment.extend_from_slice(now);
+            rest = later;
         }
-        chunks.push(chunk);
     }
 }
 
