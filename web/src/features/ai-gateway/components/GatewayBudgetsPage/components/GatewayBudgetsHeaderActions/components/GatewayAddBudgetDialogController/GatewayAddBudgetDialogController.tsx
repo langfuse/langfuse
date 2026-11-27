@@ -18,6 +18,11 @@ const ALREADY_BUDGETED = {
   secondaryLabel: "Has a budget",
 } as const;
 
+const ADMIN_DEFAULT_BUDGET = {
+  disabled: true,
+  secondaryLabel: "Default budget set by an admin",
+} as const;
+
 type GatewayAddBudgetDialogProps = ComponentProps<
   typeof GatewayAddBudgetDialog
 >;
@@ -131,9 +136,7 @@ function toTargetOption(
   targetType: GatewaySpendTab,
   row: GatewayBudgetRow,
 ): GatewayAddBudgetDialogProps["targetPicker"]["options"][number] {
-  // Rows on the default have no budget of their own, so one can be added.
-  const budgeted =
-    row.spendLimit !== null && !row.isDefault ? ALREADY_BUDGETED : undefined;
+  const budgeted = toUnavailableTarget(row);
   if (targetType === "apiKeys") {
     return {
       value: row.subjectId,
@@ -150,4 +153,11 @@ function toTargetOption(
         : row.name,
     ...budgeted,
   };
+}
+
+/** Rows on the default have no budget of their own, but only admins may replace it. */
+function toUnavailableTarget(row: GatewayBudgetRow) {
+  if (row.spendLimit !== null && !row.isDefault) return ALREADY_BUDGETED;
+  if (!row.isEditable) return ADMIN_DEFAULT_BUDGET;
+  return undefined;
 }
