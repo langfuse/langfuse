@@ -123,7 +123,7 @@ export function TracesSetupOnboardingCard({
             <ApiKeyDetailContent
               scope="project"
               secretKey={apiKeys.secretKey}
-              publicKey={apiKeys.publicKey}
+              projectId={projectId}
               baseUrl={baseUrl}
               className="mt-1"
               showMcpSection={false}

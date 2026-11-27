@@ -13,20 +13,21 @@ A complete list of tools can be seen under [mcp.reference.langfuse.com](https://
 ### Prerequisites
 
 - Langfuse instance running locally
-- Project-scoped API key (Public Key + Secret Key)
+- Project ID and a project-scoped API key's secret key
 - Claude Code or another MCP-compatible client
 
 ### Steps
 
 1. **Get API Keys**
    - Navigate to `http://localhost:3000/project/{project-id}/settings`
-   - Create or copy a project-scoped API key (`pk-lf-...` and `sk-lf-...`)
+   - Create a project-scoped API key and copy its secret key (`sk-lf-...`)
+   - Copy the project ID from the URL or the project settings
    - Note: Organization-level keys are not supported
 
 2. **Encode Credentials**
 
    ```bash
-   echo -n "pk-lf-xxx:sk-lf-xxx" | base64
+   echo -n "{project-id}:sk-lf-xxx" | base64
    ```
 
    Output:
@@ -79,7 +80,7 @@ Resources are served by the SDK: the bundled Langfuse skills through its Skills 
 ```
 1. Client sends request with Authorization header
    ↓
-2. API endpoint validates BasicAuth (PUBLIC_KEY:SECRET_KEY)
+2. API endpoint validates BasicAuth (PROJECT_ID:SECRET_KEY)
    ↓
 3. Verify API key has project-level scope
    ↓
@@ -151,14 +152,14 @@ A host sends a view its tool result once. A view that starts again in the same f
 
 ## Authentication
 
-All clients require BasicAuth authentication using your Langfuse API keys.
+All clients require BasicAuth authentication using your project ID and a Langfuse secret key.
 
 ### 1. Generate Basic Auth Token
 
-Encode your Langfuse API keys (Public Key:Secret Key) to base64:
+Encode your project ID and secret key (Project ID:Secret Key) to base64:
 
 ```bash
-echo -n "pk-lf-your-public-key:sk-lf-your-secret-key" | base64
+echo -n "your-project-id:sk-lf-your-secret-key" | base64
 ```
 
 This outputs your BasicAuth token (e.g., `cGstbGYt...`).

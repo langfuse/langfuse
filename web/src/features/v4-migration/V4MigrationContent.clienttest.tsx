@@ -1517,7 +1517,7 @@ describe("V4MigrationHeaderContent", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText(/LANGFUSE_PUBLIC_KEY=pk-lf-project-1/),
+        screen.getByText(/LANGFUSE_PUBLIC_KEY=project-1\b/),
       ).toBeInTheDocument(),
     );
     expect(
@@ -1559,7 +1559,7 @@ describe("V4MigrationHeaderContent", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText(/LANGFUSE_PUBLIC_KEY=pk-lf-project-1/),
+        screen.getByText(/LANGFUSE_PUBLIC_KEY=project-1\b/),
       ).toBeInTheDocument(),
     );
 
@@ -1568,12 +1568,12 @@ describe("V4MigrationHeaderContent", () => {
     );
 
     expect(
-      screen.queryByText(/LANGFUSE_PUBLIC_KEY=pk-lf-project-1/),
+      screen.queryByText(/LANGFUSE_PUBLIC_KEY=project-1\b/),
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Create API keys" }));
     await waitFor(() =>
       expect(
-        screen.getByText(/LANGFUSE_PUBLIC_KEY=pk-lf-project-2/),
+        screen.getByText(/LANGFUSE_PUBLIC_KEY=project-2\b/),
       ).toBeInTheDocument(),
     );
     expect(mocks.createProjectApiKey).toHaveBeenLastCalledWith({

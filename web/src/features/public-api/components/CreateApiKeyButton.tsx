@@ -6,6 +6,7 @@ import { useState } from "react";
 import { PlusIcon } from "@langfuse/icons";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
+import { useOrganizationProjects } from "@/src/features/public-api/hooks/useOrganizationProjects";
 import {
   ApiKeyCreateDialogContent,
   type ApiKeyCreateValues,
@@ -28,19 +29,13 @@ export function CreateApiKeyButton(props: {
   });
 
   const [open, setOpen] = useState(false);
-  const [generatedKeys, setGeneratedKeys] = useState<{
-    secretKey: string;
-    publicKey: string;
-  } | null>(null);
+  const [secretKey, setSecretKey] = useState<string | null>(null);
   const baseUrl = useLangfuseBaseUrl();
+  const organizationProjects = useOrganizationProjects(props.entityId);
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
-    if (!newOpen) setGeneratedKeys(null);
-  };
-
-  const onCreated = (keys: { secretKey: string; publicKey: string }) => {
-    setGeneratedKeys(keys);
+    if (!newOpen) setSecretKey(null);
   };
 
   const createApiKey = (values: ApiKeyCreateValues) => {
@@ -52,8 +47,8 @@ export function CreateApiKeyButton(props: {
           ...(values.role === undefined ? {} : { role: values.role }),
           expiresAt: values.expiresAt,
         })
-        .then(({ secretKey, publicKey }) => {
-          onCreated({ secretKey, publicKey });
+        .then((created) => {
+          setSecretKey(created.secretKey);
           capture(`${props.scope}_settings:api_key_create`, {
             role: values.role,
             expiresAt: values.expiresAt?.toISOString() ?? null,
@@ -68,8 +63,8 @@ export function CreateApiKeyButton(props: {
           ...(values.role === undefined ? {} : { role: values.role }),
           expiresAt: values.expiresAt,
         })
-        .then(({ secretKey, publicKey }) => {
-          onCreated({ secretKey, publicKey });
+        .then((created) => {
+          setSecretKey(created.secretKey);
           capture(`${props.scope}_settings:api_key_create`, {
             role: values.role,
             expiresAt: values.expiresAt?.toISOString() ?? null,
@@ -77,6 +72,41 @@ export function CreateApiKeyButton(props: {
         })
         .catch((error) => reportNonTrpcError(error, "api-keys"));
     }
+  };
+
+  const dialogContent = () => {
+    if (secretKey === null) {
+      return (
+        <ApiKeyCreateDialogContent
+          type="form"
+          scope={props.scope}
+          onSubmit={createApiKey}
+          isPending={
+            mutCreateProjectApiKey.isPending || mutCreateOrgApiKey.isPending
+          }
+        />
+      );
+    }
+    if (props.scope === "project") {
+      return (
+        <ApiKeyCreateDialogContent
+          type="detail"
+          scope="project"
+          projectId={props.entityId}
+          secretKey={secretKey}
+          baseUrl={baseUrl}
+        />
+      );
+    }
+    return (
+      <ApiKeyCreateDialogContent
+        type="detail"
+        scope="organization"
+        projects={organizationProjects}
+        secretKey={secretKey}
+        baseUrl={baseUrl}
+      />
+    );
   };
 
   return (
@@ -91,24 +121,7 @@ export function CreateApiKeyButton(props: {
           Create new API keys
         </Button>
       </DialogTrigger>
-      <ApiKeyCreateDialogContent
-        scope={props.scope}
-        {...(generatedKeys
-          ? {
-              type: "detail" as const,
-              secretKey: generatedKeys.secretKey,
-              publicKey: generatedKeys.publicKey,
-              baseUrl,
-              showMcpSection: true,
-            }
-          : {
-              type: "form" as const,
-              onSubmit: createApiKey,
-              isPending:
-                mutCreateProjectApiKey.isPending ||
-                mutCreateOrgApiKey.isPending,
-            })}
-      />
+      {dialogContent()}
     </Dialog>
   );
 }

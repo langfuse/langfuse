@@ -5,7 +5,12 @@ import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSect
 import Header from "@/src/components/layouts/header";
 import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
 import { ConnectedApiKeySettingsTable } from "@/src/features/public-api/components/ApiKeySettingsTable/ConnectedApiKeySettingsTable";
+import {
+  ExampleProjectSelect,
+  useExampleProjectId,
+} from "@/src/features/public-api/components/ExampleProjectSelect";
 import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
+import { useOrganizationProjects } from "@/src/features/public-api/hooks/useOrganizationProjects";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -13,7 +18,13 @@ type ApiKeyScope = "project" | "organization";
 
 export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   const { entityId, scope } = props;
-  const envCode = useLangfuseEnvCode();
+  const organizationProjects = useOrganizationProjects(entityId);
+  const [exampleProjectId, setExampleProjectId] = useExampleProjectId(
+    scope === "organization" ? organizationProjects : [],
+  );
+  const envCode = useLangfuseEnvCode(
+    scope === "project" ? entityId : exampleProjectId,
+  );
 
   if (!entityId) {
     throw new Error(
@@ -67,6 +78,13 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
           ) : undefined
         }
       />
+      {scope === "organization" && organizationProjects.length > 0 ? (
+        <ExampleProjectSelect
+          projects={organizationProjects}
+          value={exampleProjectId}
+          onValueChange={setExampleProjectId}
+        />
+      ) : null}
       <CodeSection
         title=".env"
         variant="outline"

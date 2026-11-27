@@ -2,26 +2,33 @@
 import { type ReactNode } from "react";
 import { FileCode, Plug, type IconComponent } from "@langfuse/icons";
 
-import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Label } from "@/src/components/ui/label";
 import { MaskedGatewayKey } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/MaskedGatewayKey";
 import { StepCodeSection } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/components/StepCodeSection";
 import { GatewaySecretKeyContext } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/contexts/gatewaySecretKeyContext";
 import { GATEWAY_KEY_PLACEHOLDER } from "@/src/features/ai-gateway/constants/agentSetupInstructions";
+import {
+  ExampleProjectSelect,
+  useExampleProjectId,
+} from "@/src/features/public-api/components/ExampleProjectSelect";
 import { getLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
+import { type ExampleProject } from "@/src/features/public-api/hooks/useOrganizationProjects";
 import { cn } from "@/src/utils/tailwind";
 
-type ApiKeyScope = "project" | "organization";
-
+/**
+ * ApiKeyDetailContentProps name the project the examples use as the public
+ * key: a project key's own project, or one of an organization key's projects.
+ */
 export type ApiKeyDetailContentProps = {
-  scope: ApiKeyScope;
   secretKey: string;
-  publicKey: string;
   baseUrl: string;
   className?: string;
   showMcpSection: boolean;
-};
+} & (
+  | { scope: "project"; projectId: string }
+  | { scope: "organization"; projects: ExampleProject[] }
+);
 
 type UsageTab = {
   id: string;
@@ -35,8 +42,9 @@ type UsageTab = {
   secret: string;
 };
 
-function encodeMcpCredential(publicKey: string, secretKey: string) {
-  const credential = `${publicKey}:${secretKey}`;
+/** encodeMcpCredential returns the Basic auth token for a project id and secret key. */
+function encodeMcpCredential(projectId: string, secretKey: string) {
+  const credential = `${projectId}:${secretKey}`;
 
   if (typeof globalThis.btoa === "function") {
     return globalThis.btoa(credential);
@@ -46,8 +54,11 @@ function encodeMcpCredential(publicKey: string, secretKey: string) {
 }
 
 export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
-  const { scope, secretKey, publicKey, baseUrl, className, showMcpSection } =
-    props;
+  const { scope, secretKey, baseUrl, className, showMcpSection } = props;
+  const projects = props.scope === "organization" ? props.projects : [];
+  const [exampleProjectId, setExampleProjectId] = useExampleProjectId(projects);
+  const projectId =
+    props.scope === "project" ? props.projectId : exampleProjectId;
 
   const tabs: UsageTab[] = [
     {
@@ -57,8 +68,8 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       description:
         "Add these environment variables to your application to send traces to Langfuse.",
       code: getLangfuseEnvCode(baseUrl, {
+        projectId,
         secretKey: GATEWAY_KEY_PLACEHOLDER,
-        publicKey,
       }),
       secret: secretKey,
     },
@@ -86,7 +97,7 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       ),
       codeLabel: "Header",
       code: `Authorization: Basic ${GATEWAY_KEY_PLACEHOLDER}`,
-      secret: encodeMcpCredential(publicKey, secretKey),
+      secret: encodeMcpCredential(projectId, secretKey),
     });
   }
 
@@ -100,13 +111,16 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
         </p>
         <MaskedGatewayKey secretKey={secretKey} />
       </div>
-      <div className="flex flex-col gap-1.5">
-        <h4 className="text-sm font-bold">Public Key</h4>
-        <CodeSection variant="outline" content={publicKey} />
-      </div>
       <hr />
       <div className="flex flex-col gap-2">
         <h3 className="font-bold">Usage instructions</h3>
+        {props.scope === "organization" && props.projects.length > 0 ? (
+          <ExampleProjectSelect
+            projects={props.projects}
+            value={projectId}
+            onValueChange={setExampleProjectId}
+          />
+        ) : null}
         <Tabs defaultValue="env">
           <div className="flex h-9 items-center border-b">
             <Tabs.List variant="underline" aria-label="Usage instructions">

@@ -47,7 +47,7 @@ export const TracingSetup = ({
           <ApiKeyDetailContent
             scope="project"
             secretKey={apiKeys.secretKey}
-            publicKey={apiKeys.publicKey}
+            projectId={projectId}
             baseUrl={baseUrl}
             className="mt-4"
             showMcpSection={false}

@@ -71,6 +71,7 @@ export const WithoutRoleSelection = meta.story({
 });
 
 const SECRET_KEY = "sk-lf-4d164bc4-3275-43dd-8b18-150e006da4e7";
+const PROJECT_ID = "cm1demoproject00000000001";
 
 export const Created = meta.story({
   name: "(Test) Created Masks Secret Key",
@@ -78,7 +79,7 @@ export const Created = meta.story({
     type: "detail",
     scope: "project",
     secretKey: SECRET_KEY,
-    publicKey: "pk-lf-779bffdd-3973-4881-8cb0-06fd83d40ccc",
+    projectId: PROJECT_ID,
     baseUrl: "https://cloud.langfuse.com",
   },
   play: async ({ canvasElement }) => {
@@ -89,6 +90,10 @@ export const Created = meta.story({
       "writeText",
     ).mockResolvedValue();
     try {
+      await expect(body.textContent).toContain(
+        `LANGFUSE_PUBLIC_KEY="${PROJECT_ID}"`,
+      );
+      await expect(body.textContent).not.toContain("pk-lf-");
       await expect(body.textContent).not.toContain(SECRET_KEY);
 
       await userEvent.click(screen.getByRole("button", { name: "Copy key" }));
@@ -102,5 +107,37 @@ export const Created = meta.story({
     } finally {
       writeText.mockRestore();
     }
+  },
+});
+
+export const CreatedOrganizationKey = meta.story({
+  name: "(Test) Created Organization Key Uses Selected Project",
+  args: {
+    type: "detail",
+    scope: "organization",
+    secretKey: SECRET_KEY,
+    projects: [
+      { id: "cm1alphaproject0000000001", name: "Alpha" },
+      { id: "cm1betaproject00000000001", name: "Beta" },
+    ],
+    baseUrl: "https://cloud.langfuse.com",
+  },
+  play: async ({ canvasElement }) => {
+    const body = canvasElement.ownerDocument.body;
+    const screen = within(body);
+    await expect(body.textContent).toContain(
+      'LANGFUSE_PUBLIC_KEY="cm1alphaproject0000000001"',
+    );
+    await expect(body.textContent).not.toContain("pk-lf-");
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Project" }));
+    // The open select hides everything else from the accessibility tree,
+    // including its own options while it positions them.
+    await userEvent.click(
+      await screen.findByRole("option", { name: "Beta", hidden: true }),
+    );
+    await expect(body.textContent).toContain(
+      'LANGFUSE_PUBLIC_KEY="cm1betaproject00000000001"',
+    );
   },
 });
