@@ -3,13 +3,16 @@ import "./helpers/otelReplaySetup";
 import { randomInt } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import fc, { type Arbitrary } from "fast-check";
+import { isDeepStrictEqual } from "node:util";
 import { describe, expect, it } from "vitest";
 import {
   comparableOtelReplayRows,
   expectRawNativeParity,
   type OtelReplayResult,
+  runOneOtelReplay,
   runOtelReplayComparison,
 } from "./helpers/otelReplayHarness";
+import { otelReplayMocks } from "./helpers/otelReplaySetup";
 import {
   FILE_KEY,
   PROJECT_PREFIX,
@@ -18,7 +21,10 @@ import {
   paddedHex,
 } from "./helpers/otelReplayPropertyFixtures";
 import { type Json, recursiveJsonArbitrary } from "./helpers/arbitraries/json";
-import { objectKeysReadBy } from "./helpers/sourceObjectKeys";
+import {
+  attributeKeysNamedIn,
+  objectKeysReadBy,
+} from "./helpers/sourceObjectKeys";
 
 const providerKeys = {
   ai: [
@@ -1013,12 +1019,256 @@ async function toolSweepDifferences(cases: ToolSweepCase[]): Promise<string[]> {
     );
 }
 
+const OTEL_SOURCE = (file: string) =>
+  fileURLToPath(
+    new URL(
+      `../../../packages/shared/src/server/otel/${file}`,
+      import.meta.url,
+    ),
+  );
+
+// Attributes whose malformed values the two paths read differently. The
+// generator leaves them out until the paths agree.
+const attributeKeysReadDifferently = new Set([
+  // JavaScript's Date and Number accept text that is not a timestamp or a duration.
+  "langfuse.observation.completion_start_time",
+  "langfuse.experiment.item.version",
+  "ai.response.msToFirstChunk",
+  "ai.stream.msToFirstChunk",
+  "gen_ai.client.operation.time_to_first_chunk",
+  // Token counts of the Vercel AI SDK scope that are not plain numbers.
+  "gen_ai.usage.completion_tokens",
+  "gen_ai.usage.input_tokens",
+  "gen_ai.usage.output_tokens",
+  "gen_ai.usage.prompt_tokens",
+  "ai.usage.cachedInputTokens",
+  "ai.usage.reasoningTokens",
+  "ai.usage.tokens",
+]);
+
+// Every attribute key the TypeScript processor names, so a key it starts
+// reading is generated without a change here.
+const processorAttributeKeys = [
+  ...new Set(
+    [
+      "OtelIngestionProcessor.ts",
+      "ObservationTypeMapper.ts",
+      "attributes.ts",
+    ].flatMap((file) => attributeKeysNamedIn(OTEL_SOURCE(file))),
+  ),
+].filter((key) => !attributeKeysReadDifferently.has(key));
+
+// Values that JavaScript and Rust tend to read differently: empty and padded
+// text, text that is JSON or a number, numbers at type boundaries.
+const attributeValueArbitrary: Arbitrary<Json> = fc.oneof(
+  { withCrossShrink: true },
+  fc.constantFrom<Json>(
+    null,
+    "",
+    " ",
+    "0",
+    "3",
+    " 3 ",
+    "-1",
+    "1.5",
+    "65536",
+    "1e3",
+    "0x10",
+    "true",
+    "false",
+    "null",
+    "undefined",
+    "[]",
+    "{}",
+    "{broken",
+    "text",
+    "😀",
+    JSON.stringify("text"),
+    JSON.stringify(JSON.stringify({ region: "eu" })),
+    '{"max_tokens":9223372036854775807}',
+  ),
+  fc.constantFrom<Json>(0, 1, -1, 65535, 65536, 2 ** 53, 0.5, 1e21),
+  fc.boolean(),
+  recursiveJsonArbitrary(2, 3),
+  recursiveJsonArbitrary(2, 3).map((value) => JSON.stringify(value)),
+);
+
+const processorAttributeReplayArbitrary: Arbitrary<ProviderReplaySeed> =
+  fc.record({
+    scope: fc.constantFrom(...(Object.keys(providerKeys) as ProviderScope[])),
+    spanName: fc.option(attributeValueArbitrary, { nil: undefined }),
+    sources: fc.array(
+      fc.record({
+        key: fc.constantFrom(...processorAttributeKeys),
+        value: attributeValueArbitrary,
+      }),
+      { maxLength: 6 },
+    ),
+    toolMetadata: fc.constant({
+      root: false,
+      attributes: "none" as const,
+      name: "tool",
+    }),
+  });
+
+// Spans the two paths must read the same way: one without attributes, model
+// parameters encoded three times, an integer above 2^53, and a generation
+// whose prompt version is the number 1e21.
+const directedEvaluationExamples: ProviderReplaySeed[][] = [
+  [genericProviderSeed([])],
+  ...[
+    JSON.stringify(JSON.stringify(JSON.stringify({ region: "eu" }))),
+    '{"max_tokens":9223372036854775807}',
+  ].map((value) => [
+    genericProviderSeed([
+      { key: "langfuse.observation.model.parameters", value },
+    ]),
+  ]),
+  [
+    {
+      ...genericProviderSeed([
+        { key: "gen_ai.request.model", value: "gpt-4" },
+        { key: "langfuse.observation.prompt.version", value: 1e21 },
+      ]),
+      scope: "ai",
+    },
+  ],
+];
+
+// Rust strings cannot hold a lone surrogate, and a `__proto__` key is lost
+// when the Rust row crosses into JavaScript.
+function withoutUnportableText(value: Json): Json {
+  if (typeof value === "string") return value.toWellFormed();
+  if (Array.isArray(value)) return value.map(withoutUnportableText);
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== "__proto__")
+      .map(([key, item]) => [key.toWellFormed(), withoutUnportableText(item)]),
+  );
+}
+
+/**
+ * Record what a path hands evaluation for each span, without the differences
+ * the Rust path is known to have. Returns a function that takes the
+ * observations recorded since it was last called.
+ */
+function recordEvaluationObservations() {
+  let recorded = new Map<string, Json>();
+  otelReplayMocks.scheduleObservationEvals.mockImplementation(
+    async ({ observation, loadSnapshot }) => {
+      // The snapshot is uploaded as JSON, which drops undefined fields.
+      const uploaded = withoutUnportableText(
+        JSON.parse(JSON.stringify(loadSnapshot())),
+      ) as Record<string, Json>;
+      // Rust hands over a null experiment item metadata value as the empty
+      // string it is stored as.
+      const itemMetadata = uploaded.experiment_item_metadata;
+      if (itemMetadata && typeof itemMetadata === "object") {
+        uploaded.experiment_item_metadata = Object.fromEntries(
+          Object.entries(itemMetadata).map(([key, item]) => [key, item ?? ""]),
+        );
+      }
+      recorded.set(observation.span_id, uploaded);
+    },
+  );
+  return () => {
+    const taken = recorded;
+    recorded = new Map();
+    return taken;
+  };
+}
+
+/** `span field: TypeScript value -> Rust value` for each field the two paths hand evaluation differently. */
+function evaluationDifferences(
+  typeScript: Map<string, Json>,
+  rust: Map<string, Json>,
+): string[] {
+  const show = (value: unknown) => String(JSON.stringify(value)).slice(0, 160);
+  return [...new Set([...typeScript.keys(), ...rust.keys()])].flatMap(
+    (span) => {
+      const expected = typeScript.get(span) as Record<string, Json> | undefined;
+      const actual = rust.get(span) as Record<string, Json> | undefined;
+      if (!expected || !actual) {
+        return [
+          `${span}: evaluated only by ${expected ? "TypeScript" : "Rust"}`,
+        ];
+      }
+      return Object.keys({ ...expected, ...actual })
+        .filter((field) => !isDeepStrictEqual(expected[field], actual[field]))
+        .map(
+          (field) =>
+            `${span} ${field}: ${show(expected[field])} -> ${show(actual[field])}`,
+        );
+    },
+  );
+}
+
+async function assertRowAndEvaluationParity(
+  seeds: ProviderReplaySeed[],
+): Promise<void> {
+  const takeObservations = recordEvaluationObservations();
+  const replay = (mode: "early-ts" | "early-rust") =>
+    runOneOtelReplay({
+      mode,
+      bytes: buildProviderReplay(seeds),
+      projectId: `${PROJECT_PREFIX}-evaluation-${seeds.length}`,
+      fileKey: FILE_KEY,
+      mediaUploadEnabled: true,
+      captureSideEffects: takeObservations,
+    });
+  try {
+    // Both paths extract media early, so only the implementation differs.
+    // TypeScript rejects some malformed batches; those have nothing to compare.
+    const typeScript = await replay("early-ts").catch(() => {
+      takeObservations();
+      return undefined;
+    });
+    fc.pre(typeScript !== undefined);
+    const rust = await replay("early-rust");
+    expect(comparableOtelReplayRows(rust.storedRows)).toEqual(
+      comparableOtelReplayRows(typeScript!.storedRows),
+    );
+    expect(
+      evaluationDifferences(
+        typeScript!.sideEffects as Map<string, Json>,
+        rust.sideEffects as Map<string, Json>,
+      ),
+    ).toEqual([]);
+  } finally {
+    otelReplayMocks.scheduleObservationEvals.mockResolvedValue(undefined);
+  }
+}
+
 // The replay writer retries internally; Vitest retries could overlap an
 // unfinished replay and race the shared writer singleton.
 describe(
   "OTEL replay adversarial properties",
   { retry: 0, timeout: 120_000 },
   () => {
+    it("stores the same row and gives evaluation the same observation for the attributes the TypeScript processor reads", async () => {
+      const seed = randomInt(2 ** 31);
+      process.stderr.write(`OTEL attribute replay seed=${seed}\n`);
+      await fc.assert(
+        fc.asyncProperty(
+          fc.array(
+            fc.oneof(
+              { weight: 2, arbitrary: processorAttributeReplayArbitrary },
+              providerReplayArbitrary,
+              genericUsageReplayArbitrary,
+            ),
+            { minLength: 1, maxLength: 24 },
+          ),
+          assertRowAndEvaluationParity,
+        ),
+        {
+          seed,
+          numRuns: 64,
+          examples: directedEvaluationExamples.map((example) => [example]),
+        },
+      );
+    });
+
     it("keeps provider fallback and serialized-value parity", async () => {
       const seed = randomInt(2 ** 31);
       process.stderr.write(`OTEL provider replay seed=${seed}\n`);

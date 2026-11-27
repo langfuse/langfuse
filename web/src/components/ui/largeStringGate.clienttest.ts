@@ -1,9 +1,7 @@
 // @vitest-environment node
 
-import {
-  LARGE_STRING_RENDER_CHAR_LIMIT,
-  isLargeRenderString,
-} from "@/src/components/ui/largeStringGate";
+import { LARGE_STRING_RENDER_CHAR_LIMIT } from "./constants";
+import { isLargeRenderString } from "@/src/components/ui/largeStringGate";
 
 describe("isLargeRenderString", () => {
   it("returns false for typical, KB-scale strings", () => {

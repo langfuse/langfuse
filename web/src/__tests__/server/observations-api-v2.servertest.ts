@@ -1424,9 +1424,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
     ] as const;
 
     // All non-core fields across all groups — used to assert absence.
-    // Note: latency is computed from start_time/end_time (both in core). timeToFirstToken is computed from start_time
-    // and completion_start_time, but the converter spreads it when EITHER is defined; since start_time is in core and
-    // always selected, timeToFirstToken is always present (as null when completion_start_time is not selected).
     const ALL_NON_CORE_FIELDS = [
       // basic
       "name",
@@ -1462,6 +1459,9 @@ describe("/api/public/v2/observations API Endpoint", () => {
       "promptId",
       "promptName",
       "promptVersion",
+      // metrics
+      "latency",
+      "timeToFirstToken",
       // trace_context
       "traceName",
       "tags",
@@ -1566,9 +1566,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
         "usagePricingTierName",
       ],
       prompt: ["promptId", "promptName", "promptVersion"],
-      // latency and timeToFirstToken are always returned (computed from core start_time, completion_start_time,
-      // end_time), but the metrics group is still defined for documentation and to verify these fields are indeed
-      // present
       metrics: ["latency", "timeToFirstToken"],
       trace_context: ["traceName", "tags", "release"],
     };

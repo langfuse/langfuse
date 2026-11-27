@@ -1,3 +1,5 @@
+// Pins the golden harness's param normalization and WHERE-clause splitting.
+
 import { describe, expect, it } from "vitest";
 
 import { normalizeParams, splitConditions } from "./__tests__/goldenHarness";

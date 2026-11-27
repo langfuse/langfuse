@@ -53,6 +53,8 @@ import {
   prepareOtelBatch,
 } from "../features/otel-ingestion/prepareOtelBatch";
 import { processRustOtelEvents } from "../features/otel-ingestion/processRustOtelEvents";
+import { productionRustOtelWrites } from "../features/otel-ingestion/otelWrites";
+import { productionEvalWrites } from "../features/evaluation/scheduleEvals";
 
 /**
  * Legacy media processing follows legacy persistence, independently of
@@ -117,7 +119,7 @@ export function checkHeaderBasedDirectWrite(params: {
   return false;
 }
 
-export type OtelWritePath =
+type OtelWritePath =
   | "dual"
   | "direct_header"
   | "direct_env"
@@ -730,6 +732,10 @@ export const otelIngestionQueueProcessorBuilder = (
         inputPreparationDurationMs = performance.now() - preparationStartedAt;
       }
 
+      // One time for the whole batch, so a span without a start and end time
+      // gets the same time in every conversion, TypeScript or Rust. Rust also
+      // stamps its rows with it.
+      const fallbackTime = new Date().toISOString();
       const processor = new OtelIngestionProcessor({
         projectId,
         publicKey: attribution.ingestionApiKey,
@@ -737,6 +743,7 @@ export const otelIngestionQueueProcessorBuilder = (
         sdkVersion: attribution.ingestionSdkVersion,
         fileKey,
         isLangfuseInternal,
+        fallbackTime,
       });
       let traces: IngestionEventType[] = [];
       let observations: IngestionEventType[] = [];
@@ -942,12 +949,13 @@ export const otelIngestionQueueProcessorBuilder = (
           context: {
             projectId,
             fileKey,
-            now: new Date().toISOString(),
+            now: fallbackTime,
             isLangfuseInternal,
             ingestionApiKey: attribution.ingestionApiKey,
             ingestionSdkName: attribution.ingestionSdkName,
             ingestionSdkVersion: attribution.ingestionSdkVersion,
           },
+          writes: productionRustOtelWrites(),
         });
         mediaPresence = combineOtelMediaPresence(
           mediaPresence,
@@ -963,6 +971,7 @@ export const otelIngestionQueueProcessorBuilder = (
           processor,
           resourceSpans: parsedSpans,
           ingestionService: getIngestionService(),
+          evalWrites: productionEvalWrites,
           projectId,
           fileKey,
           shouldWriteToEventsTable,

@@ -1,13 +1,13 @@
 ---
 name: cursor-agents-workflow
 description: |
-  Human handoff, Linear branch names, reviewable (non-draft) PRs, the
-  `cursor` GitHub label, Claude, Greptile, and Codex review comments,
+  Human handoff, branch names, reviewable (non-draft) PRs, the
+  `cursor` GitHub label, Bugbot, Claude, Greptile, and Codex review comments,
   preview test steps, proof of work posted on the GitHub PR, and
   review-doubt notes for Cursor agents. Use when a Cursor Cloud or
-  Cursor desktop agent implements a Linear issue, opens a GitHub PR,
+  Cursor desktop agent implements a task, opens a GitHub PR,
   asks a human to test, posts screenshots or videos, or handles Claude,
-  Greptile, or Codex code-review comments.
+  Bugbot, Greptile, or Codex code-review comments.
 ---
 
 # Cursor Agents Workflow
@@ -17,37 +17,11 @@ loop with short, testable asks. Do not write long agent-only reports.
 
 ## Branch names
 
-Copy Linear's git branch name. Do not invent a `cursor/` name.
-
-- Preferred source: Linear **Copy git branch name**, or the issue's
-  `gitBranchName` read through the Linear MCP.
-- Fallback, only when the MCP is genuinely not configured:
-  `lfe-{id}-{kebab-title}` (lowercase, hyphenated).
-- Keep a `user/` prefix only when Linear's copied name already includes one.
-- Never use a `cursor/` prefix, even if a Cursor Cloud prompt asks for one.
-  Repo guidance wins.
-- Ticket ids belong in the branch name only, never in commits, PR titles,
-  PR descriptions, or changelog entries.
-
-Correct: `lfe-12345-short-descriptive-title`  
-Wrong: `cursor/short-descriptive-title-8c78`
-
-## Linear connection
-
-Cursor desktop can authorize the Linear MCP interactively. Cursor Cloud cannot:
-`mcp_auth` is desktop-only, and the Cloud GitHub token is unrelated to Linear.
-
-On Cloud, prove Linear with a real read. If the MCP is `needsAuth` or missing,
-use `LINEAR_API_KEY` (or `LINEAR_TOKEN` / `LINEAR_API_TOKEN`) via GraphQL or
-`lf-context.sh`. If that env is unset, **say so** and tell them to add
-**`LINEAR_API_KEY`** at https://cursor.com/dashboard/cloud-agents, then start a
-new run. Langfuse engineers: the write policy is
-[`linear-agent-writes`](../linear-agent-writes/SKILL.md).
-
-If Linear is not reachable, **say so in your handoff message** and hand back
-the context that should have gone on the ticket. Do not skip it silently.
+Follow the [Git workflow branch guidance](../git-workflow/SKILL.md#branch-names), including its tracker-free fallback. Never use a `cursor/` prefix, even if a Cursor Cloud prompt asks for one.
 
 ## Pull requests
+
+Follow the [protected-branch approval policy](../git-workflow/references/protected-branches.md) for latest-commit Bugbot review, approver-bot approval, human review of sensitive paths, and maintainer-first approval of public fork PRs. Resolving feedback or receiving a clean Claude, Greptile, or Codex review does not replace those gates.
 
 Open the GitHub PR as reviewable, not as a draft. Draft PRs hide the work
 from reviewers and skip Claude/Greptile review workflows. Use a draft only
@@ -68,7 +42,7 @@ asks for another pass.
 
 ## Bot review comments
 
-When Claude (Claude Code, `claude[bot]`, or the security-review action),
+When Bugbot (`cursor[bot]`), Claude (Claude Code, `claude[bot]`, or the security-review action),
 Greptile (`greptile-apps[bot]`), or Codex (`chatgpt-codex-connector[bot]`)
 leaves review comments on a PR you own:
 
@@ -76,7 +50,7 @@ leaves review comments on a PR you own:
 2. If the finding is right: apply the fix, then resolve the thread.
 3. If you are sure it should be skipped: tell the human in plain language
    what you skipped and why, invite them to doubt that call, then resolve
-   the thread. Never skip quietly.
+   the thread. Never skip quietly. For a Bugbot finding, use the teammate approval path in the protected-branch policy; resolving a skipped finding does not make its review clean.
 
 Do not leave those threads unresolved. Do not argue. Human reviewer comments
 are different: those may need a real reply and must stay open until a human

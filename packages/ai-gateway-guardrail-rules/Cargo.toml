@@ -1,0 +1,40 @@
+[package]
+name = "ai-gateway-guardrail-rules"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+# Built as an `rlib` for the gateway (`compile`, default `gateway` feature) and
+# as a WebAssembly `cdylib` for the control plane (`validate`, `--no-default-features --features wasm`).
+# Regex versions are pinned to ai-gateway/Cargo.lock so both sides parse and
+# translate rules identically.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["gateway"]
+gateway = [
+    "regex-automata/perf",
+    "regex-automata/meta",
+    "regex-automata/nfa",
+    "regex-automata/dfa-onepass",
+]
+wasm = ["dep:serde", "dep:tsify", "dep:wasm-bindgen"]
+
+[dependencies]
+regex-automata = { version = "=0.4.18", default-features = false, features = ["std", "syntax", "nfa-thompson", "nfa-pikevm", "hybrid"] }
+regex-syntax = { version = "=0.8.11", default-features = false, features = ["std"] }
+serde = { version = "1", features = ["derive"], optional = true }
+tsify = { version = "0.5", default-features = false, features = ["js"], optional = true }
+# Exact, so the generated glue matches the wasm-bindgen CLI pinned in scripts/build-wasm.sh.
+wasm-bindgen = { version = "=0.2.130", optional = true }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+# Keeps pkg/ byte-identical across machines: no debug info, which carries
+# build paths (scripts/build-wasm.sh remaps the rest).
+debug = false
+panic = "abort"

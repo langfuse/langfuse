@@ -6,7 +6,11 @@ import {
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { logger, recordIncrement } from "@langfuse/shared/src/server";
-import { createEvalSchedulerDeps, scheduleEvals } from "../scheduleEvals";
+import {
+  createEvalSchedulerDeps as createDepsWithWrites,
+  productionEvalWrites,
+  scheduleEvals,
+} from "../scheduleEvals";
 import type { EvalRules } from "../fetchEvalRules";
 import {
   createMockSchedulerDeps,
@@ -40,6 +44,8 @@ vi.mock("../../traceDispatch/traceRuleRecording", () => ({
 }));
 
 const projectId = "test-project-123";
+const createEvalSchedulerDeps = (project: string, rules: EvalRules) =>
+  createDepsWithWrites(project, rules, productionEvalWrites());
 const startTimeISO = "2026-11-02T08:00:00.000Z";
 /** What a caller that holds the full observation hands the scheduler. */
 const loaded = (observation: ReturnType<typeof createTestObservation>) => ({

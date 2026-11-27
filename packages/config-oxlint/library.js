@@ -132,6 +132,8 @@ export default {
         "no-nested-ternary": "warn",
         "unicorn/throw-new-error": "warn",
         "prefer-promise-reject-errors": "warn",
+        radix: "warn",
+        "default-param-last": "warn",
         "no-use-before-define": [
           "warn",
           {

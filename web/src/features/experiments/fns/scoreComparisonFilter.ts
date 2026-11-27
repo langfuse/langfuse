@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import { type AggregatedScoreData } from "@langfuse/shared";
 import {
   readOrderedScoreValue,

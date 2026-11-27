@@ -137,16 +137,14 @@ function matchesVercelAiSdkOperation(
   const operationName = attributes["operation.name"];
   const operationId = attributes["ai.operationId"];
 
-  if (hasMeaningfulValue(operationName)) {
-    const opNameStr = operationName as string;
-    if (prefixes.some((prefix) => opNameStr.startsWith(prefix))) {
+  if (typeof operationName === "string") {
+    if (prefixes.some((prefix) => operationName.startsWith(prefix))) {
       return true;
     }
   }
 
-  if (hasMeaningfulValue(operationId)) {
-    const opIdStr = operationId as string;
-    if (prefixes.includes(opIdStr)) {
+  if (typeof operationId === "string") {
+    if (prefixes.includes(operationId)) {
       return true;
     }
   }
@@ -365,10 +363,9 @@ export class ObservationTypeMapperRegistry {
         const operationId = attributes["ai.operationId"];
 
         const hasAiOperation =
-          (hasMeaningfulValue(operationName) &&
-            (operationName as string).startsWith("ai.")) ||
-          (hasMeaningfulValue(operationId) &&
-            (operationId as string).startsWith("ai."));
+          (typeof operationName === "string" &&
+            operationName.startsWith("ai.")) ||
+          (typeof operationId === "string" && operationId.startsWith("ai."));
 
         if (!hasAiOperation) {
           return false;

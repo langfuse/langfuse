@@ -9,6 +9,7 @@ import {
   pickRecommendedTopicModel,
   setupWaitMinutes,
   topicConnectionCaption,
+  topicProviderGroups,
 } from "./topic-setup-flow";
 
 const connections = [
@@ -43,6 +44,39 @@ it("recommends only the listed models for each job", () => {
   expect(
     isRecommendedTopicModel("clustering", "us.anthropic.claude-opus-5-5"),
   ).toBe(false);
+});
+
+it("lists embedding models first in the embedding picker only", () => {
+  expect(topicProviderGroups(connections, "embedding")).toEqual([
+    [
+      "Amazon Bedrock",
+      [
+        "us.cohere.embed-v4:0",
+        "us.anthropic.claude-haiku-5-5",
+        "us.anthropic.claude-sonnet-5-5",
+      ],
+    ],
+  ]);
+  expect(topicProviderGroups(connections, "chat")[0]![1]).toEqual(
+    connections[0]!.customModels,
+  );
+});
+
+it("offers no retired gecko models for Google connections", () => {
+  const groups = topicProviderGroups(
+    ["google-ai-studio", "google-vertex-ai"].map((adapter) => ({
+      id: adapter,
+      provider: adapter,
+      adapter,
+      customModels: [],
+      withDefaultModels: true,
+    })),
+    "embedding",
+  );
+  for (const [, models] of groups) {
+    expect(models.some((model) => /gecko/.test(model))).toBe(false);
+    expect(models.some((model) => /embed/.test(model))).toBe(true);
+  }
 });
 
 it("preselects the highest-ranked recommended model across connections", () => {

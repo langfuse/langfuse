@@ -627,19 +627,21 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
     );
     let forwarded = provider
         .forward_route(
-            provider.admit(None),
-            context,
-            &headers,
-            crate::providers::RequestBody {
-                bytes: Bytes::from_static(REQUEST),
-                model_range: crate::providers::model_range(REQUEST).unwrap(),
-                streaming: true,
-                reservation: None,
-                parse_growth: None,
-                input: Some(RequestInput::from_body(REQUEST)),
-                stream_options: crate::providers::StreamOptions::default(),
+            crate::providers::ForwardRequest {
+                permit: provider.admit(None),
+                context,
+                headers: &headers,
+                request: crate::providers::RequestBody {
+                    bytes: Bytes::from_static(REQUEST),
+                    model_range: crate::providers::model_range(REQUEST).unwrap(),
+                    streaming: true,
+                    reservation: None,
+                    parse_growth: None,
+                    stream_options: crate::providers::StreamOptions::default(),
+                },
+                route: Route::AnthropicMessages,
+                guardrails: None,
             },
-            Route::AnthropicMessages,
             &mut crate::correlation::RequestCorrelation::default(),
         )
         .await
@@ -746,9 +748,10 @@ fn guardrail_scan(system: &str, messages: &str) -> Vec<String> {
         "messages" => Some(messages),
         _ => None,
     };
-    guardrail_turn(member)
+    let members = crate::guardrails::spec::Members::new(super::REQUEST.members, &member);
+    guardrail_turn(&members)
         .unwrap()
-        .read(member, &mut |text: &str| texts.push(text.to_owned()))
+        .read(&members, &mut |text: &str| texts.push(text.to_owned()))
         .unwrap();
     texts
 }

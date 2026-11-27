@@ -297,7 +297,7 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
   );
 
   it.each([false, true])(
-    "rejects an unfinished empty page with interrupted query=%s",
+    "returns an empty page with a cursor after empty windows, interrupted query=%s",
     async (interrupted) => {
       const clock = vi.spyOn(performance, "now").mockReturnValue(0);
       mockQueryClickhouseWithProgress.mockImplementationOnce(
@@ -308,40 +308,79 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
       );
       if (interrupted) mockProgressError(new ClickHouseQueryAbortedError());
 
-      await expect(
-        getObservationsV2PageFromEventsTableForPublicApi(boundedOpts),
-      ).rejects.toMatchObject({ errorType: "TIMEOUT" });
+      const page =
+        await getObservationsV2PageFromEventsTableForPublicApi(boundedOpts);
+
+      expect(page.items).toEqual([]);
+      expect(page.cursor?.lastStartTimeTo).toEqual(
+        new Date("2026-10-12T00:00:00Z"),
+      );
       expect(mockQueryClickhouseWithProgress).toHaveBeenCalledTimes(
         interrupted ? 2 : 1,
       );
     },
   );
 
-  it.each([30_000, 42_000, 44_999])(
-    "keeps filling the page before the deadline: %i ms elapsed",
+  it("keeps filling the page while the next window fits the budget", async () => {
+    const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+    mockQueryClickhouseWithProgress.mockImplementationOnce(async function* () {
+      clock.mockReturnValue(30_000);
+      yield progressEvent(0);
+    });
+    mockProgressQuery(
+      rowEvent(observation("older", "2026-10-11 00:00:00.000")),
+      rowEvent(observation("lookahead", "2026-10-10 00:00:00.000")),
+    );
+    const page = await getObservationsV2PageFromEventsTableForPublicApi({
+      ...boundedOpts,
+      limit: 1,
+    });
+    expect(page.items.map((row) => row.id)).toEqual(["older"]);
+    expect(page.cursor?.lastId).toBe("older");
+    const calls = mockQueryClickhouseWithProgress.mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[1][0].clickhouseSettings.max_execution_time).toBe(15);
+  });
+
+  it("ends the page when even the smallest window would outlast the budget", async () => {
+    const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+    mockQueryClickhouseWithProgress.mockImplementationOnce(async function* () {
+      clock.mockReturnValue(30_000);
+      yield rowEvent(observation("newer", "2026-10-13 00:00:00.000"));
+      // Read volume so large that a 1 ms window is predicted to take ~25 s.
+      yield progressEvent(1, 1e19);
+    });
+    const page = await getObservationsV2PageFromEventsTableForPublicApi({
+      ...boundedOpts,
+      fields: ["core"],
+    });
+    expect(page.items.map((row) => row.id)).toEqual(["newer"]);
+    expect(page.cursor?.lastStartTimeTo).toEqual(
+      new Date("2026-10-12T00:00:00Z"),
+    );
+    expect(mockQueryClickhouseWithProgress).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([42_000, 44_999])(
+    "ends the page instead of starting a window that cannot finish: %i ms elapsed",
     async (elapsed) => {
       const clock = vi.spyOn(performance, "now").mockReturnValue(0);
       mockQueryClickhouseWithProgress.mockImplementationOnce(
         async function* () {
           clock.mockReturnValue(elapsed);
-          yield progressEvent(0);
+          yield rowEvent(observation("newer", "2026-10-13 00:00:00.000"));
+          yield progressEvent(1);
         },
-      );
-      mockProgressQuery(
-        rowEvent(observation("older", "2026-10-11 00:00:00.000")),
-        rowEvent(observation("lookahead", "2026-10-10 00:00:00.000")),
       );
       const page = await getObservationsV2PageFromEventsTableForPublicApi({
         ...boundedOpts,
-        limit: 1,
+        fields: ["core"],
       });
-      expect(page.items.map((row) => row.id)).toEqual(["older"]);
-      expect(page.cursor?.lastId).toBe("older");
-      const calls = mockQueryClickhouseWithProgress.mock.calls;
-      expect(calls).toHaveLength(2);
-      expect(calls[1][0].clickhouseSettings.max_execution_time).toBe(
-        (45_000 - elapsed) / 1_000,
+      expect(page.items.map((row) => row.id)).toEqual(["newer"]);
+      expect(page.cursor?.lastStartTimeTo).toEqual(
+        new Date("2026-10-12T00:00:00Z"),
       );
+      expect(mockQueryClickhouseWithProgress).toHaveBeenCalledTimes(1);
     },
   );
 
@@ -513,14 +552,12 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
       clock.mockReturnValue(45_000);
       yield progressEvent(0);
     });
-    await expect(
-      getObservationsV2PageFromEventsTableForPublicApi({
-        ...baseOpts,
-        traceId: "trace-1",
-        fromStartTime: "1970-01-01T00:00:00Z",
-        toStartTime: "2026-10-19T00:00:00Z",
-      }),
-    ).rejects.toMatchObject({ errorType: "TIMEOUT" });
+    await getObservationsV2PageFromEventsTableForPublicApi({
+      ...baseOpts,
+      traceId: "trace-1",
+      fromStartTime: "1970-01-01T00:00:00Z",
+      toStartTime: "2026-10-19T00:00:00Z",
+    });
     const scans = mockQueryClickhouseWithProgress.mock.calls;
     expect(scans).toHaveLength(3);
     expect(

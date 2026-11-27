@@ -130,7 +130,9 @@ export function ScoreOutputSection({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span>Return</span>
+        <span className="text-muted-foreground w-16 shrink-0 font-bold">
+          Return
+        </span>
         {state.dataType === ScoreDataTypeEnum.CATEGORICAL &&
         allowMultipleMatches ? (
           <Select
@@ -155,7 +157,9 @@ export function ScoreOutputSection({
             </SelectContent>
           </Select>
         ) : (
-          <span>{allowMultipleMatches ? "a" : "one"}</span>
+          !allowMultipleMatches && (
+            <span className="text-muted-foreground">one</span>
+          )
         )}
         <Select
           value={state.dataType}
@@ -175,7 +179,7 @@ export function ScoreOutputSection({
             ))}
           </SelectContent>
         </Select>
-        <span>
+        <span className="text-muted-foreground">
           {state.dataType === ScoreDataTypeEnum.CATEGORICAL &&
           state.shouldAllowMultipleMatches
             ? "scores"
@@ -184,7 +188,10 @@ export function ScoreOutputSection({
 
         {state.dataType === ScoreDataTypeEnum.NUMERIC && (
           <>
-            {minimum || maximum ? <span>with values</span> : null}
+            {minimum || maximum ? (
+              // Follows "score": a word space, not the row gap.
+              <span className="text-muted-foreground -ml-1">with values</span>
+            ) : null}
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -243,7 +250,7 @@ export function ScoreOutputSection({
 
         {state.dataType === ScoreDataTypeEnum.CATEGORICAL && (
           <>
-            <span>from</span>
+            <span className="text-muted-foreground">from</span>
             {state.choices.map((choice, index) => (
               <CategoryEditorPopover
                 key={index}
@@ -330,11 +337,11 @@ export function ScoreOutputSection({
 
         {state.dataType === ScoreDataTypeEnum.BOOLEAN && (
           <>
-            <span>as</span>
+            <span className="text-muted-foreground">as</span>
             <span className="bg-muted/50 text-foreground inline-flex h-8 items-center rounded-md border px-3 opacity-50">
               true
             </span>
-            <span>or</span>
+            <span className="text-muted-foreground">or</span>
             <span className="bg-muted/50 text-foreground inline-flex h-8 items-center rounded-md border px-3 opacity-50">
               false
             </span>

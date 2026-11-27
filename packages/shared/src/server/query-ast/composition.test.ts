@@ -1,3 +1,5 @@
+// Pins ARRAY JOIN, LIMIT BY and FINAL placement at every nesting position.
+
 import { type ExpressionBuilder } from "kysely";
 import { describe, expect, it } from "vitest";
 

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import { type FilterState, computeSelectedValues } from "@langfuse/shared";
 import { type ASTNode, type FilterNode, type Span } from "../ast";
 import { type FieldRegistry } from "../fields";

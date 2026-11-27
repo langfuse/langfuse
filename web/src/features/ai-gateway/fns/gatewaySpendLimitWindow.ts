@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import type { GatewaySpendLimitInterval } from "@langfuse/shared/src/db";
 
 const DAY_MS = 24 * 60 * 60 * 1000;

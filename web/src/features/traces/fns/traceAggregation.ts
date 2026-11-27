@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 /**
  * Trace-level metrics aggregation utility
  *

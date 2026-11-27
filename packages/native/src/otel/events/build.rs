@@ -30,7 +30,14 @@ use super::EventBuildConfig;
 
 use crate::native_schema::OtelStorageRow;
 
-const INTERNAL_LLM_JUDGE_ENVIRONMENT: &str = "langfuse-llm-as-a-judge";
+const INTERNAL_TRACE_ENVIRONMENTS: &[&str] = &[
+    "langfuse-prompt-experiment",
+    "langfuse-llm-as-a-judge",
+    "langfuse-code-eval",
+    "langfuse-natural-language-filter",
+    "langfuse-in-app-agent",
+    "langfuse-topics-internal",
+];
 pub(super) const AI_GATEWAY_SERVICE_NAME: &str = "langfuse-ai-gateway";
 const AI_GATEWAY_INGESTION_API_KEY_PREFIX: &str = "gateway:";
 const AI_GATEWAY_KEY_ID_METADATA_KEY: &str = "langfuse.gateway.api_key.id";
@@ -85,7 +92,7 @@ impl<'a> EventAssembly<'a> {
         }
         let mut source = EventSource::new(span, resource, scope_name, scope_version, config);
         let (row, evaluation_fields) =
-            source.row(trace_id, span_id, resource, scope, scope_version, config);
+            source.row(trace_id, span_id, resource, scope, scope_version, config)?;
         let event = OwnedEvent {
             row,
             evaluation_fields,
@@ -304,7 +311,7 @@ impl<'a> EventSource<'a> {
         scope: &Object,
         scope_version: Option<&str>,
         config: &EventBuildConfig,
-    ) -> (OtelStorageRow, Option<Box<JsonObject>>) {
+    ) -> Option<(OtelStorageRow, Option<Box<JsonObject>>)> {
         let parent_span_id = self
             .span
             .parent_span_id
@@ -327,11 +334,20 @@ impl<'a> EventSource<'a> {
             self.scope_name,
             &mut evaluation_fields,
         );
-        let (start_time, end_time) = resolve_timestamps(
+        let Some((start_time, end_time)) = resolve_timestamps(
             self.span.start_time.as_deref(),
             self.span.end_time.as_deref(),
             &config.fallback_time,
-        );
+        ) else {
+            // ClickHouse cannot store such a time. Dropping only this span preserves its siblings.
+            // A wrong time unit hits every span of an exporter, so this is counted, not logged.
+            metrics::counter!(
+                "langfuse.ingestion.otel.conversion_failure",
+                "failure_type" => "timestamp_out_of_range", "timestamp_field" => "unknown"
+            )
+            .increment(1);
+            return None;
+        };
         let mut attributes = EventAttributes {
             span: &self.attributes,
             resource,
@@ -380,7 +396,7 @@ impl<'a> EventSource<'a> {
             ingestion_sdk_version: config.ingestion_sdk_version.clone(),
             ..row
         };
-        (row, evaluation_fields)
+        Some((row, evaluation_fields))
     }
 
     fn payloads(&mut self, row: &OtelStorageRow) -> ProviderIO {
@@ -597,27 +613,24 @@ fn extract_environment(
         }
     }
 
-    // An OpenRouter failure payload with a null completion and the reserved raw-request
-    // environment uses the internal evaluator environment from the legacy recovery rule.
+    // An OpenRouter failure payload with a null completion and a reserved raw-request
+    // environment recovers that internal environment before public normalization.
     if resource.get("service.name").and_then(Value::as_str) == Some("openrouter")
         && attributes.get("openrouter.source").and_then(Value::as_str) == Some("openrouter")
     {
         let completion = attributes
             .get("gen_ai.completion")
             .and_then(|value| parse_json_value(value, parse_cache));
-        if completion
+        if let Some(raw_environment) = completion
             .as_ref()
-            .and_then(|value| value.get("completion"))
-            .is_some_and(Value::is_null)
-            && completion
-                .as_ref()
-                .and_then(|value| value.path(["rawRequest", "trace", "environment"]))
-                .and_then(Value::as_str)
-                == Some(INTERNAL_LLM_JUDGE_ENVIRONMENT)
+            .filter(|value| value.get("completion").is_some_and(Value::is_null))
+            .and_then(|value| value.path(["rawRequest", "trace", "environment"]))
+            .and_then(Value::as_str)
+            .filter(|environment| INTERNAL_TRACE_ENVIRONMENTS.contains(environment))
         {
-            // The fallback normalizes the reserved environment with internal=false, matching the
-            // public processor contract.
-            return normalize_environment(INTERNAL_LLM_JUDGE_ENVIRONMENT, false);
+            // The fallback normalizes the reserved environment with internal=false, matching
+            // the public processor contract.
+            return normalize_environment(raw_environment, false);
         }
     }
 

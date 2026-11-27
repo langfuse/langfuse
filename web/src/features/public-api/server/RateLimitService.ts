@@ -30,12 +30,12 @@ import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rate
 /** @internal */
 export const RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit";
 
-export type RateLimitResponseOptions = {
+type RateLimitResponseOptions = {
   errorContract?: PublicApiErrorContract | undefined;
   upgradePath?: RateLimitUpgradePath | undefined;
 };
 
-export type RateLimitResponseOptionsInput =
+type RateLimitResponseOptionsInput =
   | PublicApiErrorContract
   | RateLimitResponseOptions;
 

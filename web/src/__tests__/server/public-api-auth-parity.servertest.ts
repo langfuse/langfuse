@@ -140,7 +140,7 @@ const projectRoutes: Route[] = [
   },
   { route: "unstable/skills/files/content", methods: ["GET"] },
   { route: "unstable/topics/index", methods: ["GET"] },
-  { route: "unstable/topics/[topicId]", methods: ["GET"] },
+  { route: "unstable/topics/[topicStableId]", methods: ["GET"] },
   { route: "unstable/topic-facets/index", methods: ["GET"] },
   { route: "unstable/topic-facets/[facetId]", methods: ["GET"] },
   { route: "unstable/topic-summaries/index", methods: ["GET"] },
@@ -160,6 +160,8 @@ const orgRoutes: Route[] = [
     route: "organizations/llm-connections/[id]",
     methods: ["DELETE"],
   },
+  { route: "organizations/models/index", methods: ["GET", "PUT"] },
+  { route: "organizations/models/[id]", methods: ["GET", "DELETE"] },
   {
     route: "organizations/memberships/index",
     methods: ["GET", "PUT", "DELETE"],

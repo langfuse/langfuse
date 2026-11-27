@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { EvalTemplateType } from "@langfuse/shared";
+import { EvalTemplateType, TopicsTargetObject } from "@langfuse/shared";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
@@ -35,9 +35,10 @@ export function useRuleCostEstimate({
   store: RuleSetupStore;
   matchingObservations?: number;
 }) {
-  const { filter, sampling, assignments } = useStore(
+  const { filter, sampling, assignments, targetObject } = useStore(
     store,
     useShallow((state) => ({
+      targetObject: state.targetObject,
       filter: state.filter,
       sampling: state.sampling,
       assignments: state.assignments,
@@ -64,6 +65,15 @@ export function useRuleCostEstimate({
       setState(nextState);
     };
     const currentRequestId = ++requestId.current;
+    // Trace rules have no cost estimate yet.
+    if (targetObject === TopicsTargetObject) {
+      updateState({
+        status: "idle",
+        estimates: [],
+        estimatingEvaluatorIds: [],
+      });
+      return;
+    }
     const filterSignature = JSON.stringify(filter);
     const filterChanged = previousFilter.current !== filterSignature;
     previousFilter.current = filterSignature;
@@ -192,7 +202,7 @@ export function useRuleCostEstimate({
     }, ESTIMATE_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timeout);
-  }, [assignments, estimateCost, filter, projectId]);
+  }, [assignments, estimateCost, filter, projectId, targetObject]);
 
   return {
     ...state,

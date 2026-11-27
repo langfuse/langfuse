@@ -12,43 +12,55 @@ import {
 } from "../components/PresetDashboardWidget";
 import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type FilterState } from "@langfuse/shared";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback } from "react";
+import { flushSync } from "react-dom";
+import { reduceWidthSample } from "@/src/features/widgets/dashboardGridWidth";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 
 export type DashboardPlacement = WidgetPlacement | PresetPlacement;
 
-/**
- * Container width, measured once immediately and then with a trailing
- * debounce. WidthProvider re-renders the whole grid (and every chart in it)
- * on each resize frame; measuring ourselves keeps continuous window resizes
- * from burning CPU — the layout snaps once, when the resize settles.
- */
 function useDebouncedContainerWidth(delayMs: number) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [element, setElement] = useState<HTMLDivElement | null>(null);
   const [width, setWidth] = useState<number | null>(null);
 
-  useEffect(() => {
-    const element = containerRef.current;
+  useLayoutEffect(() => {
     if (!element) return;
 
-    setWidth(element.getBoundingClientRect().width);
+    let phase: "quiet" | "pending" = "quiet";
+    let committed: number | null = null;
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-    const observer = new ResizeObserver(() => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        setWidth(element.getBoundingClientRect().width);
+    const publish = (next: number, sync: boolean) => {
+      if (next <= 0 || next === committed) return;
+      committed = next;
+      const apply = () => setWidth(next);
+      if (sync) flushSync(apply);
+      else apply();
+    };
+
+    const onSample = (sync: boolean) => {
+      const next = Math.round(element.clientWidth);
+      const decision = reduceWidthSample(phase, next, committed);
+      phase = decision.phase;
+      if (decision.publish !== null) publish(decision.publish, sync);
+      if (!decision.armTimer) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        phase = "quiet";
+        publish(Math.round(element.clientWidth), false);
       }, delayMs);
-    });
-    observer.observe(element);
+    };
 
+    onSample(false);
+    const observer = new ResizeObserver(() => onSample(true));
+    observer.observe(element);
     return () => {
-      clearTimeout(timeout);
+      clearTimeout(timer);
       observer.disconnect();
     };
-  }, [delayMs]);
+  }, [element, delayMs]);
 
-  return { containerRef, width };
+  return { ref: setElement, width };
 }
 
 // Hook to detect screen size
@@ -117,7 +129,6 @@ export function DashboardGrid({
     activeKey: activeChartKey,
     onActiveKeyChange: setActiveChartKey,
   };
-  const { containerRef, width } = useDebouncedContainerWidth(200);
   const [contentHeights, setContentHeights] = useState<Record<string, number>>(
     {},
   );
@@ -137,6 +148,7 @@ export function DashboardGrid({
   const MIN_ROW_HEIGHT = 58;
   // Matches the page padding (p-3) around the grid.
   const GRID_GAP = 12;
+  const { ref: containerRef, width } = useDebouncedContainerWidth(200);
   const rowHeight =
     width !== null ? Math.max(MIN_ROW_HEIGHT, ((width / 12) * 9) / 16) : 150;
 
@@ -146,7 +158,6 @@ export function DashboardGrid({
   // stacked layout must never overlap them. (LFE-10813)
   const isSmallScreen = useMediaQuery("(max-width: 1023.98px)");
 
-  // Convert WidgetPlacement to react-grid-layout format
   const layout = widgets.map((w) => {
     const contentHeight = contentHeights[w.id];
     const contentRows = contentHeight
@@ -162,7 +173,7 @@ export function DashboardGrid({
         w.type === "preset" && w.presetId === "home-score-analytics"
           ? Math.max(w.y_size, contentRows)
           : w.y_size,
-      isDraggable: canEdit && !isSmallScreen, // Disable dragging on small screens
+      isDraggable: canEdit && !isSmallScreen,
       minW: 2,
       minH: 2,
     };
@@ -265,9 +276,9 @@ export function DashboardGrid({
     );
   }
 
-  // Render grid layout for larger screens
+  // Desktop grid. Small screens render the stacked layout above.
   return (
-    <div ref={containerRef}>
+    <div ref={containerRef} className="w-full min-w-0">
       {width !== null && (
         <Responsive
           className="layout"
