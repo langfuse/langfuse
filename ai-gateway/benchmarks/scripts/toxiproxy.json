@@ -1,0 +1,8 @@
+[
+  {
+    "name": "web",
+    "listen": "0.0.0.0:3001",
+    "upstream": "langfuse-web:3000",
+    "enabled": true
+  }
+]
