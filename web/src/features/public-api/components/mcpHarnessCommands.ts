@@ -11,14 +11,14 @@ export type McpHarnessCommand = {
   icon: IconComponent;
   /** Product name used in the tab's instruction. */
   product: string;
-  /** Command with GATEWAY_KEY_PLACEHOLDER where `secret` goes; key-bearing commands start with a space to stay out of shell history. */
+  /** Command with GATEWAY_KEY_PLACEHOLDER where `secret` goes. */
   code: string;
   secret: string;
 };
 
-/** shellCommand joins a command's arguments into one bash command, one argument per line, starting with a space so a key in it stays out of shell history. */
+/** shellCommand joins a command's arguments into one bash command, one argument per line. */
 export function shellCommand(...lines: string[]): string {
-  return ` ${lines.join(" \\\n  ")}`;
+  return lines.join(" \\\n\t");
 }
 
 /** McpCredential is the Authorization scheme and token a key connects to the MCP server with. */
@@ -54,12 +54,12 @@ export function buildMcpHarnessCommands(
       icon: SiOpenai,
       // Codex sends HTTP MCP credentials only as a bearer token read from an environment variable.
       code: [
-        ` export ${codexTokenEnvVar}="${GATEWAY_KEY_PLACEHOLDER}"`,
+        `export ${codexTokenEnvVar}="${GATEWAY_KEY_PLACEHOLDER}"`,
         shellCommand(
           `codex mcp add ${serverName}`,
           `--url ${mcpUrl}`,
           `--bearer-token-env-var ${codexTokenEnvVar}`,
-        ).trimStart(),
+        ),
       ].join("\n"),
       secret: secretKey,
     },
