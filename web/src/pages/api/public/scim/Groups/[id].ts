@@ -13,15 +13,18 @@ import {
   writeScimErrorResponse,
 } from "@/src/features/scim/server/scimGroups";
 
+const METHODS = ["GET", "PUT", "PATCH", "DELETE"] as const;
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
   const scope = await authorizeScimGroupsRequest(req, res, {
     route: "/api/public/scim/Groups/[id]",
-    methods: ["GET", "PUT", "PATCH", "DELETE"],
+    methods: [...METHODS],
   });
   if (!scope) return;
+  const method = req.method as (typeof METHODS)[number];
 
   const groupId = req.query.id as string;
   const excludeMembers = isMembersExcluded(req);
@@ -36,7 +39,7 @@ export default async function handler(
       return writeScimErrorResponse(res, 404, "Group not found");
     }
 
-    switch (req.method) {
+    switch (method) {
       case "GET":
         return res.status(200).json(toScimGroup(existing, { excludeMembers }));
 
@@ -44,7 +47,7 @@ export default async function handler(
       case "PATCH": {
         const body = parseScimBody(req);
         const updated =
-          req.method === "PUT"
+          method === "PUT"
             ? await replaceScimGroup(scope, existing, body)
             : await patchScimGroup(scope, existing, body);
         return res.status(200).json(toScimGroup(updated, { excludeMembers }));
@@ -54,6 +57,11 @@ export default async function handler(
         await deleteScimGroup(scope, existing);
         logger.info(`[SCIM] Deleted group ${groupId} in org ${scope.orgId}`);
         return res.status(204).end();
+      }
+
+      default: {
+        const unhandled: never = method;
+        throw new Error(`Unhandled method: ${unhandled}`);
       }
     }
   } catch (error) {
