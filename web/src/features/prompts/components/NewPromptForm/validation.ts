@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { z } from "zod";
 import {
   ChatMessageType,

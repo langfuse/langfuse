@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { type FilterState, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   TOPICS_MAX_TIME_RANGE_MS,
@@ -135,10 +136,11 @@ async function resolveFacetMaps(
   const scoped = scope.ruleId
     ? rules.filter((rule) => rule.id === scope.ruleId)
     : rules;
-  if (scope.ruleId && scoped.length === 0)
+  if (scope.ruleId && !scoped.length)
     throw new LangfuseNotFoundError("Topic rule not found in this project.");
-  const enabledFacetIds =
-    scoped.length > 0 ? new Set(scoped.flatMap((rule) => rule.facetIds)) : null;
+  const enabledFacetIds = scoped.length
+    ? new Set(scoped.flatMap((rule) => rule.facetIds))
+    : null;
   const enabled = facets.filter(
     (facet) => !enabledFacetIds || enabledFacetIds.has(facet.id),
   );
@@ -285,7 +287,7 @@ export async function currentTopicResults(
   const facets = (await listTopicFacets(projectId)).filter(
     (facet) => !facetIds || facetIds.includes(facet.id),
   );
-  if (facets.length === 0) return { hasStoredSummaries: false, facets: [] };
+  if (!facets.length) return { hasStoredSummaries: false, facets: [] };
   const hasStoredSummaries = await hasStoredTopicSummaries(projectId);
   if (!hasStoredSummaries) return { hasStoredSummaries, facets: [] };
   const maps = await resolveFacetMaps(projectId, { ruleId }, facets, timeRange);
@@ -335,8 +337,9 @@ async function currentTopicRows(
   if (!hasStoredSummaries) return { hasStoredSummaries, facets: [] };
   // Only facets enabled on a rule get tabs; without rules, all show.
   const rules = await listTopicRules(projectId);
-  const enabledFacetIds =
-    rules.length > 0 ? new Set(rules.flatMap((rule) => rule.facetIds)) : null;
+  const enabledFacetIds = rules.length
+    ? new Set(rules.flatMap((rule) => rule.facetIds))
+    : null;
   const ruleNames = new Map(rules.map((rule) => [rule.id, rule.name]));
   const shown = facets.filter(
     (facet) => !enabledFacetIds || enabledFacetIds.has(facet.id),
@@ -370,7 +373,7 @@ async function currentTopicRows(
       ]);
       const summaries = storedSummaries.filter((row) => row.traceId !== null);
       // Rules sharing the facet each keep a map; a trace has a result in each.
-      return (maps.length > 0 ? maps : [null]).map((map) => {
+      return (maps.length ? maps : [null]).map((map) => {
         const run = runs.find((item) => item.id === map?.run.id);
         const assignmentByTrace = new Map(
           storedAssignments
@@ -506,20 +509,19 @@ export async function listTopicTraces(input: {
     includeAssignment: true,
     truncateSummaries: false,
     // Same matching as a rule filter: any observation that starts within the margin after the trace.
-    traceFilter:
-      input.filter != null && input.filter.length > 0
-        ? ({ from, to, traceIds }) =>
-            topicMatchingTraceIdsQuery(
-              {
-                projectId: input.projectId,
-                filter: input.filter!,
-                from,
-                to: new Date(to.getTime() + TRACE_SPAN_MARGIN_MS),
-                traceIds,
-              },
-              prisma,
-            )
-        : undefined,
+    traceFilter: input.filter?.length
+      ? ({ from, to, traceIds }) =>
+          topicMatchingTraceIdsQuery(
+            {
+              projectId: input.projectId,
+              filter: input.filter!,
+              from,
+              to: new Date(to.getTime() + TRACE_SPAN_MARGIN_MS),
+              traceIds,
+            },
+            prisma,
+          )
+      : undefined,
   });
   const names = new Map(
     run?.topics.map((topic) => [topic.topicVersionId, topic.name]),

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { api } from "@/src/utils/api";
 import {
   TableViewPresetTableName,
@@ -379,8 +380,7 @@ export function useTableViewManager({
 
       if (
         setExpandedFiltersRef.current &&
-        validationContext.expandableFilterColumns != null &&
-        validationContext.expandableFilterColumns.length > 0
+        validationContext.expandableFilterColumns?.length
       ) {
         const nextExpandedFilters = Array.from(
           new Set([

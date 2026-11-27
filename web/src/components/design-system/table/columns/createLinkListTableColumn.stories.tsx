@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import preview from "../../../../../.storybook/preview";
 
 import { DataTable } from "@/src/components/table/data-table";
@@ -15,7 +16,7 @@ const columns = [
     header: "User IDs",
     getCell: (userIds, { row }) => {
       if (row.original.isLinkListLoading) return { type: "loading" };
-      if (userIds == null || userIds.length === 0) return undefined;
+      if (!userIds?.length) return undefined;
 
       return userIds.map((userId) => ({
         path: `/users/${encodeURIComponent(userId)}`,

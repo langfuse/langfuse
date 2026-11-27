@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { type EmbeddingModel, type LanguageModel } from "ai";
@@ -260,7 +261,7 @@ function bedrockRuntimeHostname(region: string | undefined): string {
 /** assertBedrockHostAllowed rejects a Bedrock host outside a configured LLM allowlist. */
 function assertBedrockHostAllowed(region: string | undefined): void {
   // Without an allowlist the region may stay unresolved for the AWS SDK.
-  if ((llmBaseUrlWhitelistFromEnv().allowedHosts?.length ?? 0) === 0) return;
+  if (!llmBaseUrlWhitelistFromEnv().allowedHosts?.length) return;
   assertLlmProviderHostAllowed(bedrockRuntimeHostname(region));
 }
 

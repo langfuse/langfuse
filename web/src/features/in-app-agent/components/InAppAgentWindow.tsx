@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable no-nested-ternary -- Legacy UI usage retained during migration to design-system components. */
 "use client";
 
@@ -129,9 +130,7 @@ function InAppAgentQuickActionPicker({
 }) {
   const [selectedContext, setSelectedContext] = useState(initialContext);
   const selectedActions =
-    selectedContext === initialContext &&
-    focusedActions != null &&
-    focusedActions.length > 0
+    selectedContext === initialContext && focusedActions?.length
       ? focusedActions
       : getInAppAgentQuickActions(selectedContext);
   const contextFallbackIcon =

@@ -32,6 +32,14 @@ ruleTester.run("no-length-as-boolean", rule, {
     `if (foo().length > 0) {}`,
     `items["length"];`,
     `items[length];`,
+    `const { length } = items; if (length) {}`,
+    `items.map((item) => item.length);`,
+    `items.filter(function (item) { return item.length; });`,
+    `const read = (item) => item.length;`,
+    `const kept = collect((item) => item.length);`,
+    `items["filter"]((item) => item.length);`,
+    `const present = Boolean(items.length, true);`,
+    `const count = names.length;`,
     `const element = <span>{items.length}</span>;`,
     `const element = <span>{items?.length ?? 0}</span>;`,
     `const element = <span>{flag && items.length}</span>;`,
@@ -104,12 +112,12 @@ ruleTester.run("no-length-as-boolean", rule, {
     },
     {
       code: `if (items?.length) {}`,
-      output: `if ((items != null && items.length > 0)) {}`,
+      output: null,
       errors: [{ messageId: "lengthAsBoolean" }],
     },
     {
       code: `const empty = !items?.length;`,
-      output: `const empty = (items == null || items.length === 0);`,
+      output: null,
       errors: [{ messageId: "lengthAsBoolean" }],
     },
     {
@@ -219,12 +227,12 @@ ruleTester.run("no-length-as-boolean", rule, {
     },
     {
       code: `if (!items?.length) items.map(fn);`,
-      output: `if ((items == null || items.length === 0)) items.map(fn);`,
+      output: null,
       errors: [{ messageId: "lengthAsBoolean" }],
     },
     {
       code: `const present = !!items?.length;`,
-      output: `const present = (items != null && items.length > 0);`,
+      output: null,
       errors: [{ messageId: "lengthAsBoolean" }],
     },
     {
@@ -235,6 +243,51 @@ ruleTester.run("no-length-as-boolean", rule, {
     {
       code: `const element = <span>{(flag || items.length) && <List />}</span>;`,
       output: `const element = <span>{(flag || items.length > 0) && <List />}</span>;`,
+      errors: [{ messageId: "lengthAsBoolean" }],
+    },
+    {
+      code: `const present = Boolean(items.length);`,
+      output: `const present = Boolean(items.length > 0);`,
+      errors: [{ messageId: "lengthAsBoolean" }],
+    },
+    {
+      code: `const kept = Boolean(items?.length);`,
+      output: null,
+      errors: [{ messageId: "lengthAsBoolean" }],
+    },
+    {
+      code: `const rows = filter((item) => item.length);`,
+      output: `const rows = filter((item) => item.length > 0);`,
+      errors: [{ messageId: "lengthAsBoolean" }],
+    },
+    {
+      code: `const rows = items.filter((item) => item.length);`,
+      output: `const rows = items.filter((item) => item.length > 0);`,
+      errors: [{ messageId: "lengthAsBoolean" }],
+    },
+    {
+      code: `if ((0, items.length)) {}`,
+      output: `if ((0, items.length > 0)) {}`,
+      errors: [{ messageId: "lengthAsBoolean" }],
+    },
+    {
+      code: `if (items /* keep */ .length) {}`,
+      output: null,
+      errors: [{ messageId: "lengthAsBoolean" }],
+    },
+    {
+      code: `const empty = !/* keep */ items.length;`,
+      output: null,
+      errors: [{ messageId: "lengthAsBoolean" }],
+    },
+    {
+      code: `while (stack.length) stack.pop();`,
+      output: `while (stack.length > 0) stack.pop();`,
+      errors: [{ messageId: "lengthAsBoolean" }],
+    },
+    {
+      code: `if (fn.length) fn();`,
+      output: `if (fn.length > 0) fn();`,
       errors: [{ messageId: "lengthAsBoolean" }],
     },
   ],

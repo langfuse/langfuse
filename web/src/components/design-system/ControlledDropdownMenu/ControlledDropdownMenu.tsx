@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 "use client";
 
 import {
@@ -1044,8 +1045,7 @@ function DropdownMenuNode({
               <div
                 className={menuBodyVariants({
                   hasTitle: hasHeader || Boolean(search),
-                  showBottomGradient:
-                    bottom && (footerItems == null || footerItems.length === 0),
+                  showBottomGradient: bottom && !footerItems?.length,
                   showTopGradient: top,
                 })}
               >

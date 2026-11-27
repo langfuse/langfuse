@@ -100,7 +100,7 @@ export function useExtractVariables({
     }
 
     // If no variables, only update if current state is not empty
-    if (!Boolean(variables.length)) {
+    if (!Boolean(variables.length > 0)) {
       setExtractedVariables((prev) => (prev.length === 0 ? prev : []));
       return;
     }

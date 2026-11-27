@@ -168,7 +168,7 @@ export const experimentsRouter = createTRPCRouter({
 
       const allVariables = [...extractedVariables, ...placeholderNames];
 
-      if (!Boolean(allVariables.length)) {
+      if (!Boolean(allVariables.length > 0)) {
         return {
           isValid: false,
           message: "Selected prompt has no variables or placeholders.",
@@ -200,7 +200,7 @@ export const experimentsRouter = createTRPCRouter({
         variables: allVariables,
       });
 
-      if (!Boolean(Object.keys(variablesMap).length)) {
+      if (!Boolean(Object.keys(variablesMap).length > 0)) {
         return {
           isValid: false,
           message: describeVariableMismatch(allVariables),

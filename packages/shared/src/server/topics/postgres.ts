@@ -416,7 +416,7 @@ async function hydrateRuns(
 // Definitions are written when their run completes, inside the run's stored range.
 function definitionTimeRange(rows: RunRow[]) {
   const ranges = rows
-    .filter((row) => row.topicVersionIds.length)
+    .filter((row) => row.topicVersionIds.length > 0)
     .map((row) =>
       topicTimeRangeSchema.parse(
         (row.config as Record<string, unknown>).definitionTimeRange,

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { EvalTemplateType, EvaluatorBlockReason, Prisma } from "@prisma/client";
 import { prisma } from "../../db";
@@ -303,7 +304,7 @@ const getBlockedEvaluatorConfigNotifications = (
   blockedByReason: BlockedEvaluatorConfigIdsByReason,
 ): BlockedEvaluatorConfigNotification[] =>
   Object.entries(blockedByReason).flatMap(([blockReason, blockedIds]) =>
-    blockedIds != null && blockedIds.length > 0
+    blockedIds?.length
       ? [
           {
             blockReason: blockReason as EvaluatorBlockReason,

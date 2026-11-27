@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 import { type IconComponent } from "@langfuse/icons";
 
@@ -85,7 +86,7 @@ export function createBadgeListTableColumn<
     ...options,
     loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
     renderCell: (values, context) => {
-      if (values == null || values.length === 0) return <EmptyValue />;
+      if (!values?.length) return <EmptyValue />;
 
       const badges = values.map((value, index) => {
         const badge =

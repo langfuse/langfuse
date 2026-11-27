@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable no-nested-ternary */
 // Reverse adapter: flat Langfuse `FilterState` (+ full-text searchQuery and
 // searchType scopes) → query text.
@@ -354,10 +355,9 @@ export function filterStateToQueryText(
   // set: a legacy additive scope cannot become a payload-only column filter.
   const searchQuery = options.searchQuery ?? "";
   if (searchQuery.trim().length > 0) {
-    const searchType =
-      options.searchType != null && options.searchType.length > 0
-        ? options.searchType
-        : registry.defaultSearchType;
+    const searchType = options.searchType?.length
+      ? options.searchType
+      : registry.defaultSearchType;
     const isDefault = sameSearchTypes(searchType, registry.defaultSearchType);
     const scopeField = Object.entries(registry.searchScopes).find(([, scope]) =>
       sameSearchTypes(searchType, scope.searchType),

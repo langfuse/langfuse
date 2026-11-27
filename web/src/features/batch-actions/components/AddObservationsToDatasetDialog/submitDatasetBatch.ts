@@ -36,7 +36,7 @@ export async function submitDatasetBatch({
     !dataset ||
     !observation ||
     prepareDatasetMapping(mapping, observation, dataset).some(
-      (field) => field.errors.length,
+      (field) => field.errors.length > 0,
     )
   )
     return;

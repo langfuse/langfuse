@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { subHours } from "date-fns";
@@ -3361,7 +3362,7 @@ function buildDynamicFilters(params: ListFilterParams): {
 
   for (const { key, field } of STRING_OPTIONS_FILTERS) {
     const values = params[key];
-    if (values && values.length > 0) {
+    if (values?.length) {
       filterList.push(
         new StringOptionsFilter({
           clickhouseTable: "scores",
@@ -3421,11 +3422,7 @@ function buildDynamicFilters(params: ListFilterParams): {
   const extraClauses: string[] = [];
   const extraParams: Record<string, unknown> = {};
 
-  if (
-    params.value &&
-    params.value.length > 0 &&
-    params.dataType?.length === 1
-  ) {
+  if (params.value?.length && params.dataType?.length === 1) {
     const dt = params.dataType[0] as ScoreDataTypeType;
     const uid = clickhouseCompliantRandomCharacters();
     const varName = `valueFilter${uid}`;

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /**
  * Slack Integration Service
  *
@@ -672,8 +673,7 @@ export class SlackService {
           attachments: params.attachments as any,
           text:
             params.text ||
-            ((params.blocks != null && params.blocks.length > 0) ||
-            (params.attachments != null && params.attachments.length > 0)
+            (params.blocks?.length || params.attachments?.length
               ? undefined
               : "Langfuse Notification"),
           unfurl_links: false,

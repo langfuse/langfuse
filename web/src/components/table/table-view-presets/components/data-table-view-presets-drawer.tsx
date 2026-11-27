@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
 import { X, Plus, Link, MoreVertical, Pen, Lock } from "@langfuse/icons";
@@ -623,8 +624,7 @@ function TableViewPresetsDrawerContentBody({
               <CommandEmpty>No views found</CommandEmpty>
               <CommandGroup className="pb-0">
                 {/* System Preset: Langfuse Default - hidden when page-specific presets exist */}
-                {(systemFilterPresets == null ||
-                  systemFilterPresets.length === 0) && (
+                {!systemFilterPresets?.length && (
                   <CommandItem
                     key={SYSTEM_PRESETS.DEFAULT.id}
                     onSelect={() => handleSetViewId(null)}
@@ -670,10 +670,7 @@ function TableViewPresetsDrawerContentBody({
                 ))}
 
                 {/* Separator between system and user presets */}
-                {systemFilterPresets != null &&
-                systemFilterPresets.length > 0 &&
-                drawerPresetList != null &&
-                drawerPresetList.length > 0 ? (
+                {systemFilterPresets?.length && drawerPresetList?.length ? (
                   <Separator className="my-2" />
                 ) : null}
 

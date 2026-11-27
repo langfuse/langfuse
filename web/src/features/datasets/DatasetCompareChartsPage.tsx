@@ -192,32 +192,59 @@ function DatasetCompareChartsLegacy() {
             />
           </div>
           <div className="overflow-y-auto">
-            {Boolean(selectedMetrics.length) && Boolean(chartDataMap?.size) && (
-              <div className="grid w-full grid-cols-2 gap-4 xl:grid-cols-3">
-                {selectedMetrics.map((key) => {
-                  if (isLoading) {
-                    return (
-                      <div key={key} className="h-52 w-full">
-                        <VisualizationFrame
-                          content={{
-                            type: "loading",
-                            progress: { type: "spinner" },
-                          }}
-                        />
-                      </div>
+            {Boolean(selectedMetrics.length > 0) &&
+              Boolean(chartDataMap?.size) && (
+                <div className="grid w-full grid-cols-2 gap-4 xl:grid-cols-3">
+                  {selectedMetrics.map((key) => {
+                    if (isLoading) {
+                      return (
+                        <div key={key} className="h-52 w-full">
+                          <VisualizationFrame
+                            content={{
+                              type: "loading",
+                              progress: { type: "spinner" },
+                            }}
+                          />
+                        </div>
+                      );
+                    }
+
+                    const adapter = new CompareViewAdapter(chartDataMap, key);
+                    const { chartData, chartLabels } = adapter.toChartData();
+
+                    const scoreData = scoreKeyToData.get(key);
+                    const title = scoreData
+                      ? `${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`
+                      : (RESOURCE_METRICS.find((metric) => metric.key === key)
+                          ?.label ?? key);
+
+                    if (isEmptyChart({ data: chartData })) {
+                      return (
+                        <div
+                          key={key}
+                          className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
+                        >
+                          <span className="shrink-0 text-sm font-bold">
+                            {title}
+                          </span>
+                          <div className="min-h-32 flex-1">
+                            <VisualizationFrame content={{ type: "empty" }} />
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    const dataPoints = compareViewChartDataToDataPoints(
+                      chartData,
+                      chartLabels,
+                      key,
                     );
-                  }
 
-                  const adapter = new CompareViewAdapter(chartDataMap, key);
-                  const { chartData, chartLabels } = adapter.toChartData();
+                    const chartType =
+                      chartLabels.length === 1
+                        ? "LINE_TIME_SERIES"
+                        : "BAR_TIME_SERIES";
 
-                  const scoreData = scoreKeyToData.get(key);
-                  const title = scoreData
-                    ? `${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`
-                    : (RESOURCE_METRICS.find((metric) => metric.key === key)
-                        ?.label ?? key);
-
-                  if (isEmptyChart({ data: chartData })) {
                     return (
                       <div
                         key={key}
@@ -226,51 +253,25 @@ function DatasetCompareChartsLegacy() {
                         <span className="shrink-0 text-sm font-bold">
                           {title}
                         </span>
-                        <div className="min-h-32 flex-1">
-                          <VisualizationFrame content={{ type: "empty" }} />
+                        <div className="min-h-[200px] min-w-0 flex-1">
+                          <DatasetCompareChart
+                            chartType={chartType}
+                            data={dataPoints}
+                            unit={getCompareViewChartUnit(key)}
+                            hideXAxisLabels
+                          />
                         </div>
                       </div>
                     );
-                  }
-
-                  const dataPoints = compareViewChartDataToDataPoints(
-                    chartData,
-                    chartLabels,
-                    key,
-                  );
-
-                  const chartType =
-                    chartLabels.length === 1
-                      ? "LINE_TIME_SERIES"
-                      : "BAR_TIME_SERIES";
-
-                  return (
-                    <div
-                      key={key}
-                      className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
-                    >
-                      <span className="shrink-0 text-sm font-bold">
-                        {title}
-                      </span>
-                      <div className="min-h-[200px] min-w-0 flex-1">
-                        <DatasetCompareChart
-                          chartType={chartType}
-                          data={dataPoints}
-                          unit={getCompareViewChartUnit(key)}
-                          hideXAxisLabels
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                  })}
+                </div>
+              )}
             {!(
-              Boolean(selectedMetrics.length) && Boolean(chartDataMap?.size)
+              Boolean(selectedMetrics.length > 0) && Boolean(chartDataMap?.size)
             ) &&
               isLoading && <Skeleton className="h-52 w-full" />}
             {!(
-              Boolean(selectedMetrics.length) && Boolean(chartDataMap?.size)
+              Boolean(selectedMetrics.length > 0) && Boolean(chartDataMap?.size)
             ) &&
               !isLoading && (
                 <span className="text-muted-foreground -mt-2 text-sm">

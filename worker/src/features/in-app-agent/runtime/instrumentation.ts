@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { EventType } from "@ag-ui/core";
 import { Buffer } from "node:buffer";
 import { getInternalTracingHandler, logger } from "@langfuse/shared/src/server";
@@ -960,7 +961,7 @@ export class InAppAgentInstrumentation {
     if (
       !thinking &&
       lastMessage?.role === "assistant" &&
-      (lastMessage.tool_calls == null || lastMessage.tool_calls.length === 0)
+      !lastMessage.tool_calls?.length
     ) {
       lastMessage.content = `${typeof lastMessage.content === "string" ? lastMessage.content : ""}${delta}`;
       return;
@@ -1274,7 +1275,7 @@ function getAgentRunMessages(messages: AgUiMessage[]): AgentRunChatMessage[] {
         type: "function" as const,
       }));
 
-      if (!message.content && (toolCalls == null || toolCalls.length === 0)) {
+      if (!message.content && !toolCalls?.length) {
         return [];
       }
 
@@ -1283,9 +1284,7 @@ function getAgentRunMessages(messages: AgUiMessage[]): AgentRunChatMessage[] {
           role: "assistant",
           ...(message.name ? { name: message.name } : {}),
           content: message.content ?? "",
-          ...(toolCalls != null && toolCalls.length > 0
-            ? { tool_calls: toolCalls }
-            : {}),
+          ...(toolCalls?.length ? { tool_calls: toolCalls } : {}),
         },
       ];
     }

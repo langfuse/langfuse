@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { useMemo } from "react";
 
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
@@ -58,7 +59,7 @@ export function ConnectedWebCalloutSettingsTable({
     if (endpoints.isError) {
       return "Could not load the callout endpoint configuration.";
     }
-    if (endpoints.data != null && endpoints.data.length > 0) {
+    if (endpoints.data?.length) {
       return "Currently you can only create one callout per project.";
     }
     return undefined;

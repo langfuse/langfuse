@@ -58,7 +58,7 @@ export const UploadDatasetCsv = ({
         collectSamples: true,
       });
 
-      if (!Boolean(preview.columns.length)) {
+      if (!Boolean(preview.columns.length > 0)) {
         showErrorToast("Invalid CSV", "CSV must have at least 1 column", {
           operation: "dataset_items.import",
           errorOrigin: "frontend",

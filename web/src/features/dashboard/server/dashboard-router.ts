@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { z } from "zod";
 import {
   createTRPCRouter,
@@ -182,8 +183,7 @@ function clickhouseHistogramToChartData(
   const histogramBins = result[0]?.histogram_value as
     | Array<[number, number, number]>
     | undefined;
-  if (histogramBins == null || histogramBins.length === 0)
-    return { chartData: [], chartLabels: [] };
+  if (!histogramBins?.length) return { chartData: [], chartLabels: [] };
 
   const round = (v: number) => parseFloat(v.toFixed(2));
   return {

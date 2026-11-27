@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* oxlint-disable unicorn/throw-new-error -- baseline before rule enablement */
 import {
   throwIfNoOrganizationAccess,
@@ -122,7 +123,7 @@ async function getMembers(
     });
   }
 
-  if (query.roles != null && query.roles.length > 0) {
+  if (query.roles?.length) {
     conditions.push(roleFilter(query.roles, projectId));
   }
 

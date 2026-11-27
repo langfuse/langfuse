@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import "./helpers/otelReplaySetup";
 
 import { createHash, randomInt } from "node:crypto";
@@ -2120,11 +2121,7 @@ describe(
         ...argumentCases,
         ...codexCases,
         ...successfulToolCases
-          .filter(
-            (testCase) =>
-              testCase.expectedResources != null &&
-              testCase.expectedResources.length > 0,
-          )
+          .filter((testCase) => (testCase.expectedResources?.length ?? 0) > 0)
           .flatMap((testCase) => [
             {
               ...testCase,

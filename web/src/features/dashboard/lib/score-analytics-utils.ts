@@ -55,7 +55,7 @@ export function createHistogramData(
   maxBins = 10,
 ) {
   const numericScoreValues = data.map((item) => item.value as number);
-  if (!Boolean(numericScoreValues.length))
+  if (!Boolean(numericScoreValues.length > 0))
     return { chartData: [], chartLabels: [] };
 
   // Bin edges are derived from the RAW min/max, and values are assigned by their

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { compactEvents } from "@ag-ui/client";
 import { EventType } from "@ag-ui/core";
 
@@ -1410,11 +1411,11 @@ function mergeToolCalls(
   existing: Extract<AgUiMessage, { role: "assistant" }>["toolCalls"],
   next: Extract<AgUiMessage, { role: "assistant" }>["toolCalls"],
 ) {
-  if (!existing || existing.length === 0) {
+  if (!existing?.length) {
     return next;
   }
 
-  if (!next || next.length === 0) {
+  if (!next?.length) {
     return existing;
   }
 

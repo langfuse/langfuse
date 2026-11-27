@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { type TopicFacet, type TopicRule } from "@langfuse/shared/topics";
 import { useAutomaticProcessing } from "./useAutomaticProcessing";
@@ -65,7 +66,7 @@ export function useTopicSettings({
   let status: TopicSetupNoticeState["status"] = null;
   if (settings.data?.blockMessage)
     status = { kind: "paused", message: settings.data.blockMessage };
-  else if (settings.data && !configured && facetsReady && facets.length === 0)
+  else if (settings.data && !configured && facetsReady && !facets.length)
     status = { kind: "setup" };
   else if (settings.data && !configured) status = { kind: "models" };
 

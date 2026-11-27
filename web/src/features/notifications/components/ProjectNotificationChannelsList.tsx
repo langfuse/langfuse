@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { SiPagerduty, SiSlack } from "@langfuse/icons/si";
 import { Webhook, Plus, Pencil, Trash2 } from "@langfuse/icons";
 
@@ -95,7 +96,7 @@ export function ProjectNotificationChannelsList({
       )}
 
       {/* One channel per project: adding is only offered while none exists. */}
-      {!isLoading && (channels == null || channels.length === 0) && (
+      {!isLoading && !channels?.length && (
         <div>
           <Button variant="secondary" onClick={onAdd}>
             <Plus size="base" __rawClassName="mr-2" />

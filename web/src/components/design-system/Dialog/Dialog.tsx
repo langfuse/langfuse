@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 "use client";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";

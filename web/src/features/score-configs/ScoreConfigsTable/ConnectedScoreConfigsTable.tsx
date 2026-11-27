@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { useMemo } from "react";
 
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
@@ -96,11 +97,9 @@ export function ConnectedScoreConfigsTable({
                         minValue: config.range.minValue ?? undefined,
                         maxValue: config.range.maxValue ?? undefined,
                         description: config.description ?? undefined,
-                        categories:
-                          config.range.categories != null &&
-                          config.range.categories.length > 0
-                            ? config.range.categories
-                            : undefined,
+                        categories: config.range.categories?.length
+                          ? config.range.categories
+                          : undefined,
                       }),
                   }}
                   archiveAction={{

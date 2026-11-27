@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { useCallback, useMemo } from "react";
 import { Pencil, Plus, Trash2 } from "@langfuse/icons";
 
@@ -41,8 +42,7 @@ export function WebCalloutSettingsTable({
       createTextTableColumn<WebCalloutEndpoint, string[]>({
         accessorKey: "requestHeaderKeys",
         header: "Headers",
-        mapValue: (headers) =>
-          headers != null && headers.length > 0 ? headers.join(", ") : "None",
+        mapValue: (headers) => (headers?.length ? headers.join(", ") : "None"),
       }),
       createStatusTableColumn<WebCalloutEndpoint, boolean>({
         accessorKey: "enabled",

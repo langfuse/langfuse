@@ -128,7 +128,7 @@ export const GroupedScoreBadges = <T extends ChipScore>({
           showLevels={showLevels}
         />
       ))}
-      {Boolean(hiddenScores.length) && overflow}
+      {Boolean(hiddenScores.length > 0) && overflow}
     </>
   );
 };

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable react/no-unstable-nested-components */
 import { useEffect, useState } from "react";
 import { ChevronLeft } from "@langfuse/icons";
@@ -625,7 +626,7 @@ function TopicsWorkspaceContent({
           analysisId &&
           analysisResults.data &&
           !analysisResults.error &&
-          (analysisFacet?.map?.topics.length ?? 0) === 0
+          !analysisFacet?.map?.topics.length
             ? {
                 status: analysisResults.data.execution.status,
                 outcome: analysisFacet?.outcome,
@@ -969,7 +970,7 @@ function useVisibleRunCosts(
           due.push(id);
         }
       }
-      if (due.length > 0) {
+      if (due.length) {
         const amounts = await utils.client.topics.executionCostBreakdown.query(
           {
             projectId,

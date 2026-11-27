@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { useMemo } from "react";
 import { BarChart } from "@/src/components/design-system/charts/BarChart/BarChart";
 import { StackedBarChart } from "@/src/components/design-system/charts/StackedBarChart/StackedBarChart";
@@ -72,11 +73,7 @@ export function ScoreDistributionCategoricalChart({
     };
   }, [stackedDistribution, score2Categories, score2Name, score2Source, colors]);
 
-  if (
-    stackedDistribution != null &&
-    stackedDistribution.length > 0 &&
-    score2Categories
-  ) {
+  if (stackedDistribution?.length && score2Categories) {
     return (
       <StackedBarChart
         data={data}

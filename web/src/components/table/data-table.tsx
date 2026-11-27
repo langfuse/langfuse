@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-style-props */
 "use client";
@@ -423,7 +424,7 @@ export function DataTable<TData extends object, TValue>({
     if (
       !data.isLoading &&
       !data.isError &&
-      (data.data == null || data.data.length === 0) &&
+      (data.data?.length ?? 0) === 0 &&
       pagination.state.pageIndex > 0 &&
       !pagination.hasNextPage
     ) {

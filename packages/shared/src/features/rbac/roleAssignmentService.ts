@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import {
   SystemRole,
   type Prisma,
@@ -236,6 +237,6 @@ function validateRole(roleId: RoleId) {
 
 /** byTags matches assignments carrying every tag, or every assignment when no tags are given. */
 function byTags(tags: string[] | undefined) {
-  if (tags == null || tags.length === 0) return undefined;
+  if (!tags?.length) return undefined;
   return { hasEvery: tags };
 }

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import type { AgUiMessage } from "./schema";
 
 /**
@@ -18,11 +19,7 @@ export function dropUnpairedAssistantToolCalls(
   let changed = false;
 
   const sanitizedMessages = messages.map((message): AgUiMessage => {
-    if (
-      message.role !== "assistant" ||
-      !message.toolCalls ||
-      message.toolCalls.length === 0
-    ) {
+    if (message.role !== "assistant" || !message.toolCalls?.length) {
       return message;
     }
 

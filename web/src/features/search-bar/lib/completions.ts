@@ -2035,8 +2035,7 @@ function planUnscopedInputCompletions(
       run.text.length >= MIN_VALUE_MATCH_LENGTH &&
       registry.fields.some(
         (field) =>
-          isValueMatchField(field) &&
-          (field.knownValues == null || field.knownValues.length === 0),
+          isValueMatchField(field) && (field.knownValues?.length ?? 0) === 0,
       );
     if (
       fields.length +

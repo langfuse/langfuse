@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { SquareArrowOutUpRight } from "@langfuse/icons";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
@@ -162,9 +163,7 @@ function ConnectedDeleteEvalTemplateDialogContent({
             ? `This evaluator is used by ${usageCount} running evaluator${usageCount === 1 ? "" : "s"}. Delete those running evaluators first.`
             : "This action cannot be undone. It permanently deletes all versions of this evaluator. Scores already produced by it will not be deleted."}
         </p>
-        {isBlocked &&
-        referencingEvaluators != null &&
-        referencingEvaluators.length > 0 ? (
+        {isBlocked && referencingEvaluators?.length ? (
           <ul className="max-h-40 list-inside list-disc overflow-y-auto text-sm">
             {referencingEvaluators.map((evaluator) => (
               <li key={evaluator.id}>

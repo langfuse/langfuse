@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { ScoreDataTypeEnum } from "@langfuse/shared";
 import { type ReactNode } from "react";
 
@@ -52,10 +53,9 @@ export function CreateScoreConfigDialogController({
               projectId,
               ...values,
               description: values.description ?? null,
-              categories:
-                values.categories != null && values.categories.length > 0
-                  ? values.categories
-                  : undefined,
+              categories: values.categories?.length
+                ? values.categories
+                : undefined,
             });
             capture("score_configs:create_form_submit", {
               dataType: values.dataType,

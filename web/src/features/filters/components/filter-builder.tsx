@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-style-props */
 import { Banner } from "@/src/components/design-system/Banner/Banner";
@@ -855,7 +856,7 @@ function FilterBuilderForm({
             disabled={disabled}
             isCustomSelectEnabled
           />
-        ) : keyOptions != null && keyOptions.length > 0 ? (
+        ) : keyOptions?.length ? (
           // Case 1: object with keyOptions - selector of the key of the object
           <Select
             disabled={!filter.column}

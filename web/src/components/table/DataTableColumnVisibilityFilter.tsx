@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import React, {
   useCallback,
   useMemo,
@@ -121,7 +122,7 @@ function hasVisibilityChanges<TData, TValue>(
   columnVisibility: VisibilityState,
 ): boolean {
   return columns.some((column) =>
-    column.columns != null && column.columns.length > 0
+    column.columns?.length
       ? hasVisibilityChanges(column.columns, columnVisibility)
       : column.enableHiding &&
         !column.isFixedPosition &&

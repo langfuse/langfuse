@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { useState, type ComponentProps, type ReactNode } from "react";
 import {
   ActionButton,

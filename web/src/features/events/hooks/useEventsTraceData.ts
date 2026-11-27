@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { useMemo } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 import {
@@ -87,13 +88,13 @@ export function useEventsTraceData(
     | undefined;
 
   const rootObservation = useMemo(() => {
-    if (observations == null || observations.length === 0) return null;
+    if (!observations?.length) return null;
     return observations.find((o) => !o.parentObservationId);
   }, [observations]);
 
   // Prefer the root observation when present, otherwise fall back to the earliest one.
   const primaryObservation = useMemo(() => {
-    if (observations == null || observations.length === 0) return null;
+    if (!observations?.length) return null;
     if (rootObservation) return rootObservation;
     // Fallback to earliest observation
     return (
@@ -104,7 +105,7 @@ export function useEventsTraceData(
   }, [observations, rootObservation]);
 
   const timeRange = useMemo(() => {
-    if (observations == null || observations.length === 0) return null;
+    if (!observations?.length) return null;
     const times = observations.map((o) => o.startTime.getTime());
     return {
       min: new Date(Math.min(...times)),
@@ -150,7 +151,7 @@ export function useEventsTraceData(
 
   // Step 5: Transform and merge data
   const transformed = useMemo(() => {
-    if (observations == null || observations.length === 0) return null;
+    if (!observations?.length) return null;
 
     // Validate and partition scores
     const validatedScores = filterAndValidateDbScoreList({

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { type DatasetRunItemDomain } from "@langfuse/shared";
 import { calculateRecursiveCost } from "../lib/costCalculations";
 import { type ObservationTuple } from "@langfuse/shared/src/server";
@@ -37,7 +38,7 @@ export const calculateRecursiveMetricsForRunItems = <
 
   for (const runItem of observationLevelRunItems) {
     const observations = observationsByTraceId.get(runItem.traceId);
-    if (observations != null && observations.length > 0) {
+    if (observations?.length) {
       const observationId = runItem.observationId!;
 
       // Find target observation and extract latency

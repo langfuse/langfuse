@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import {
   AggregateFunctionNode,
   AliasNode,
@@ -1029,7 +1030,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       this.compileDistinctOn(node.distinctOn);
     }
 
-    if (node.frontModifiers && node.frontModifiers.length > 0) {
+    if (node.frontModifiers?.length) {
       this.append(" ");
       this.compileList(node.frontModifiers, " ");
     }
@@ -1055,7 +1056,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     }
 
     const chNode = node as ClickHouseSelectQueryNode;
-    if (chNode.arrayJoins && chNode.arrayJoins.length > 0) {
+    if (chNode.arrayJoins?.length) {
       for (const arrayJoin of chNode.arrayJoins) {
         this.append(" ");
         this.visitArrayJoin(arrayJoin);
@@ -1117,7 +1118,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       this.visitNode(node.fetch);
     }
 
-    if (node.endModifiers && node.endModifiers.length > 0) {
+    if (node.endModifiers?.length) {
       this.append(" ");
       this.compileList(this.sortSelectModifiers(node.endModifiers), " ");
     }

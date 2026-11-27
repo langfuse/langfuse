@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /**
  * Highlight text utilities for rendering search and comment highlights
  */
@@ -30,7 +31,7 @@ export function highlightTextWithComments(
   preview?: string;
 }> {
   if (
-    (commentRanges == null || commentRanges.length === 0) &&
+    !commentRanges?.length &&
     (searchStart === undefined || searchEnd === undefined)
   ) {
     return [{ text, type: null }];

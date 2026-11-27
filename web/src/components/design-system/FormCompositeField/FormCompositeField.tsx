@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 "use client";
 
 import { useId, type ComponentProps } from "react";
@@ -33,9 +34,7 @@ export function FormCompositeField({
       label={label}
       labelId={`${id}-label`}
       sublabel={sublabel}
-      description={
-        description != null && description.length > 0 ? description : undefined
-      }
+      description={description?.length ? description : undefined}
       descriptionId={`${id}-description`}
       registerLabelTooltip={registerLabelTooltip}
       required={required}

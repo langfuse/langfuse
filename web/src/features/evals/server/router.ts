@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import {
@@ -1451,10 +1452,9 @@ const generateExecutionsQuery = (
   page: number,
   jobConfigurationIds?: string[],
 ) => {
-  const configCondition =
-    jobConfigurationIds != null && jobConfigurationIds.length > 0
-      ? Prisma.sql`AND je.job_configuration_id IN (${Prisma.join(jobConfigurationIds)})`
-      : Prisma.empty;
+  const configCondition = jobConfigurationIds?.length
+    ? Prisma.sql`AND je.job_configuration_id IN (${Prisma.join(jobConfigurationIds)})`
+    : Prisma.empty;
 
   return Prisma.sql`
   SELECT

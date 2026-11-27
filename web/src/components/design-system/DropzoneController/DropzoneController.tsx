@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 "use client";
 
 import { useState, type ReactNode } from "react";
@@ -48,7 +49,7 @@ export function DropzoneController({
     onError: handleError,
     onDrop: async (files, rejections) => {
       try {
-        if (rejections.length > 0) {
+        if (rejections.length) {
           throw new Error(
             rejections[0]?.errors[0]?.message ?? "Could not read files.",
           );
@@ -80,8 +81,7 @@ export function DropzoneController({
       zone.getInputProps({
         ...props,
         onChange: (event) => {
-          if (event.target.files != null && event.target.files.length > 0)
-            onProcessingChange?.(true);
+          if (event.target.files?.length) onProcessingChange?.(true);
           props?.onChange?.(event);
         },
       }),

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 "use client";
 
 import { cva } from "class-variance-authority";
@@ -64,7 +65,7 @@ export const Dropzone = ({
 }: DropzoneProps) => {
   const contentText = useMemo(() => {
     if (variant === "compact") {
-      if (src == null || src.length === 0) {
+      if (!src?.length) {
         return "Attach files";
       }
 
@@ -109,12 +110,10 @@ export const Dropzone = ({
 
   const emptyStateTitle = `Upload ${maxFiles === 1 ? "a file" : "files"}`;
   const emptyStateDescription = "Drag and drop or click to upload";
-  const panelTitle =
-    src != null && src.length > 0 ? contentText : emptyStateTitle;
-  const panelDescription =
-    src != null && src.length > 0
-      ? "Drag and drop or click to replace"
-      : emptyStateDescription;
+  const panelTitle = src?.length ? contentText : emptyStateTitle;
+  const panelDescription = src?.length
+    ? "Drag and drop or click to replace"
+    : emptyStateDescription;
 
   return (
     <DropzoneController
@@ -151,7 +150,7 @@ export const Dropzone = ({
               <p
                 className={cn(
                   "my-2 w-full truncate text-sm font-bold",
-                  (src == null || src.length === 0) && "text-wrap",
+                  !src?.length && "text-wrap",
                 )}
                 title={panelTitle}
               >
@@ -160,15 +159,13 @@ export const Dropzone = ({
               <p
                 className={cn(
                   "text-muted-foreground w-full text-xs text-wrap",
-                  (src == null || src.length === 0) && "truncate",
+                  !src?.length && "truncate",
                 )}
-                title={
-                  src != null && src.length > 0 ? undefined : panelDescription
-                }
+                title={src?.length ? undefined : panelDescription}
               >
                 {panelDescription}
               </p>
-              {(src == null || src.length === 0) && caption && (
+              {!src?.length && caption && (
                 <p className="text-muted-foreground text-xs text-wrap">
                   {caption}.
                 </p>

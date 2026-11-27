@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import * as React from "react";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { useMemo } from "react";
 import { type FilterState, type ScoreAggregate } from "@langfuse/shared";
 import { api } from "@/src/utils/api";

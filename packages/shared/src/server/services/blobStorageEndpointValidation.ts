@@ -209,7 +209,7 @@ function isBlobStorageEndpointValidationEnabled(
     whitelist.hosts.length > 0 ||
     whitelist.ips.length > 0 ||
     whitelist.ip_ranges.length > 0 ||
-    (whitelist.allowedHosts != null && whitelist.allowedHosts.length > 0)
+    (whitelist.allowedHosts?.length ?? 0) > 0
   );
 }
 

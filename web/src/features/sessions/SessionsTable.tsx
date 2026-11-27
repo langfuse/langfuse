@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 import { useRouter } from "next/router";
 import { DataTable } from "@/src/components/table/data-table";
@@ -704,7 +705,7 @@ export default function SessionsTable({
       enableHiding: true,
       getCell: (userIds) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
-        if (userIds == null || userIds.length === 0) return undefined;
+        if (!userIds?.length) return undefined;
 
         return userIds.map((userId) => ({
           path: `/project/${projectId}/users/${encodeURIComponent(userId)}`,

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import {
   cloneElement,
   useCallback,
@@ -421,7 +422,7 @@ export function SessionConversationSidebar(
                       {!isCollapsed && (
                         <div
                           className={
-                            transcriptRows != null && transcriptRows.length > 0
+                            transcriptRows?.length
                               ? "mt-2 overflow-hidden"
                               : "-mx-1"
                           }

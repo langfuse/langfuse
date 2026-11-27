@@ -60,8 +60,7 @@ export function ConnectedGatewayGuardrailsTable({
     table.pagination.state.pageIndex === 0 &&
     totalCount !== null &&
     totalCount > table.pagination.state.pageSize &&
-    rows != null &&
-    rows.length > 0;
+    (rows?.length ?? 0) > 0;
   const showSelectAllBanner = useStore(selectionStore, (s) => {
     if (!canShowSelectAllBanner || !rows) return false;
     return rows.every((row) => Boolean(s.rowSelection[row.id]));

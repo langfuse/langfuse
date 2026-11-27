@@ -131,9 +131,8 @@ const ListScoresInputSchema = ListScoresBaseSchema.superRefine((data, ctx) => {
   }
 
   if (
-    data.observationId != null &&
-    data.observationId.length > 0 &&
-    (data.traceId == null || data.traceId.length === 0)
+    (data.observationId?.length ?? 0) > 0 &&
+    (data.traceId?.length ?? 0) === 0
   ) {
     ctx.addIssue({
       code: "custom",

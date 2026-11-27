@@ -93,8 +93,7 @@ export function useAnnotationKeyboard({
         !isNumericDataType(field.dataType) &&
         !!config &&
         !config.isArchived &&
-        config.categories != null &&
-        config.categories.length > 0
+        (config.categories?.length ?? 0) > 0
       );
     };
     const handleKeyDown = (event: KeyboardEvent) => {

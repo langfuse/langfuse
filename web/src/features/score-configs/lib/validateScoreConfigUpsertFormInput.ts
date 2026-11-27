@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import {
   NumericConfigFields,
   SCORE_CONFIG_NAME_MAX_LENGTH,
@@ -31,10 +32,7 @@ export const validateScoreConfigUpsertFormInput = (
 ): string | null => {
   const result = ScoreConfigValidationSchema.safeParse({
     ...values,
-    categories:
-      values.categories != null && values.categories.length > 0
-        ? values.categories
-        : undefined,
+    categories: values.categories?.length ? values.categories : undefined,
   });
 
   return result.error

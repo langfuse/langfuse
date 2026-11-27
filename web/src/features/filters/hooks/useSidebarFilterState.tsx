@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable no-nested-ternary */
 import {
   type default as React,
@@ -647,7 +648,7 @@ export function useSidebarFilterStateCore(
   const omittedColumns = config.omittedFilterColumns;
   const stripOmittedColumns = useCallback(
     (filters: FilterState): FilterState =>
-      omittedColumns == null || omittedColumns.length === 0
+      !omittedColumns?.length
         ? filters
         : filters.filter((filter) => !omittedColumns.includes(filter.column)),
     [omittedColumns],

@@ -1503,7 +1503,7 @@ export function CategoricalFacet({
   // Which input mode the facet is in (checkbox select vs contains/does-not-
   // contain text). Seeded from the applied filters so a deep link carrying
   // text filters opens in text mode instead of hiding them behind the tab.
-  const hasTextFilters = textFilters != null && textFilters.length > 0;
+  const hasTextFilters = (textFilters?.length ?? 0) > 0;
   const [filterMode, setFilterMode] = useState<"select" | "text">(() =>
     hasTextFilters ? "text" : "select",
   );

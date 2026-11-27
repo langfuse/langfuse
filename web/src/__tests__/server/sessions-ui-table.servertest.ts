@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* oxlint-disable radix -- baseline before rule enablement */
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
@@ -199,8 +200,7 @@ async function seedSessionData(
   observations?: ObservationRecordInsertType[],
 ) {
   await createTracesCh(traces);
-  if (observations != null && observations.length > 0)
-    await createObservationsCh(observations);
+  if (observations?.length) await createObservationsCh(observations);
 
   if (isEventsPath) {
     const events = buildMatchingEvents(traces, observations ?? []);

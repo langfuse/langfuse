@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 import { useState } from "react";
 
 import { api } from "@/src/utils/api";

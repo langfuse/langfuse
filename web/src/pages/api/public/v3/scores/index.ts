@@ -73,9 +73,8 @@ const GetScoresV3Query = GetScoresQueryV3.extend({
       });
     }
   }
-  const hasTraceId = data.traceId != null && data.traceId.length > 0;
-  const hasObservationId =
-    data.observationId != null && data.observationId.length > 0;
+  const hasTraceId = (data.traceId?.length ?? 0) > 0;
+  const hasObservationId = (data.observationId?.length ?? 0) > 0;
 
   if (hasObservationId && !hasTraceId) {
     ctx.addIssue({

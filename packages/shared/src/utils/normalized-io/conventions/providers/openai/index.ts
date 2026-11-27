@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable no-nested-ternary */
 import { claimed, unmatched } from "../..";
 import {
@@ -443,14 +444,16 @@ function isResponsesRequest(root: Record<string, unknown>): boolean {
     return true;
   }
   const responseInput = parseArray(root.input);
-  if (!responseInput || responseInput.length === 0) return false;
-  return responseInput.every((item) => {
-    const record = asRecord(item);
-    return (
-      record &&
-      (typeof record.role === "string" || typeof record.type === "string")
-    );
-  });
+  return Boolean(
+    responseInput?.length &&
+    responseInput.every((item) => {
+      const record = asRecord(item);
+      return (
+        record &&
+        (typeof record.role === "string" || typeof record.type === "string")
+      );
+    }),
+  );
 }
 
 /**

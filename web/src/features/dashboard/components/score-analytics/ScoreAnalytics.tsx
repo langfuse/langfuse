@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable @repo/no-style-props */
 import { api } from "@/src/utils/api";
 import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
@@ -182,14 +183,13 @@ export function ScoreAnalytics(props: {
         {!props.isLoading &&
           !scoreKeysAndProps.isPending &&
           !scoreKeysAndProps.isError &&
-          scoreAnalyticsValues.length === 0 && (
+          !scoreAnalyticsValues.length && (
             <VisualizationFrame
               content={{
                 type: "empty",
-                message:
-                  scoreSelectorOptions.length > 0
-                    ? "Select a score to view analytics"
-                    : "No data",
+                message: scoreSelectorOptions.length
+                  ? "Select a score to view analytics"
+                  : "No data",
               }}
             />
           )}

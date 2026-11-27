@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React, { useCallback, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -242,9 +243,9 @@ const TurnCard = React.memo(
       hasMatchingTraceLevelIO && observations?.length === 0;
     const observationListClassName = useMemo(() => {
       if (isTraceLevelIOOnly) return "-mx-1 mt-2";
-      if (observations != null && observations.length > 0) return "mt-2";
+      if (observations?.length) return "mt-2";
       return "-mx-1";
-    }, [isTraceLevelIOOnly, observations]);
+    }, [isTraceLevelIOOnly, observations?.length]);
 
     return (
       <div

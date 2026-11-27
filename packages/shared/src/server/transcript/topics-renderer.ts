@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import type { Observation } from "../../domain/observations";
 import type {
@@ -270,7 +271,7 @@ export function renderTranscript(
       .messages.filter((message) => message.source === source)
       .flatMap((message) => message.parts.map(partContent))
       .filter(Boolean);
-    return parts.length > 0 ? parts.join("\n") : json(value);
+    return parts.length ? parts.join("\n") : json(value);
   };
 
   const observationIndices = new Map(
@@ -338,8 +339,7 @@ export function renderTranscript(
     const sameSection = available?.filter(
       (candidate) => candidate.history === history,
     );
-    const candidates =
-      sameSection != null && sameSection.length > 0 ? sameSection : available;
+    const candidates = sameSection?.length ? sameSection : available;
     const call = newest ? candidates?.at(-1) : candidates?.[0];
     if (call) matchedCalls.add(call);
     return call?.callNumber;
@@ -709,12 +709,12 @@ export function renderTranscript(
     }
     if (threads.length > 1 && activeThread !== null) header("</thread>");
   };
-  if (history.length > 0) {
+  if (history.length) {
     header('<earlier_conversation source="replayed input">');
     addEvents(history, true);
     header("</earlier_conversation>");
   }
-  if (rootInputLine || current.length > 0 || rootOutputLine) {
+  if (rootInputLine || current.length || rootOutputLine) {
     header("<this_run>");
     if (rootInputLine)
       lines.push({ text: rootInputLine, removable: false, history: false });

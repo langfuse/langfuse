@@ -24,8 +24,12 @@ const rule = createRule({
     const sourceCode = context.sourceCode;
 
     return {
-      MemberExpression(node) {
-        if (!isLengthMember(node)) return;
+      // Selector keeps non-length members out of this callback.
+      "MemberExpression[property.name='length']"(
+        node: TSESTree.MemberExpression,
+      ) {
+        if (node.computed || node.property.type !== AST_NODE_TYPES.Identifier)
+          return;
 
         const use = booleanUse(node);
         if (!use) return;
@@ -34,26 +38,13 @@ const rule = createRule({
           node,
           messageId: "lengthAsBoolean",
           fix(fixer) {
-            const expression = unwrapTransparent(node);
-            if (
-              expression.type === AST_NODE_TYPES.TSAsExpression ||
-              expression.type === AST_NODE_TYPES.TSSatisfiesExpression ||
-              expression.type === AST_NODE_TYPES.TSTypeAssertion ||
-              expression.type === AST_NODE_TYPES.TSNonNullExpression
-            ) {
-              return null;
-            }
-            if (
-              accessCanBeNullish(node) &&
-              nullishCoalesceOwnsValue(expression)
-            ) {
-              return null;
-            }
+            // Optional chains, `??`, and casts are reported only. A rewritten
+            // comparison does not preserve null or the original value.
+            if (accessCanBeNullish(node)) return null;
+            const expression = liftSequence(unwrapTransparent(node));
+            if (isTypeWrapper(expression)) return null;
 
             const lengthText = sourceCode.getText(node);
-            const optionalObject = optionalIdentifier(node);
-
-            if (accessCanBeNullish(node) && !optionalObject) return null;
 
             if (use === "negated" || use === "double-negated") {
               const inner = parentOf(expression);
@@ -63,20 +54,18 @@ const rule = createRule({
                 outer?.type === AST_NODE_TYPES.UnaryExpression
                   ? outer
                   : inner;
-              const comparison = negatedComparison(
-                use,
-                optionalObject,
-                lengthText,
-              );
+              if (hasCommentInside(sourceCode, target)) return null;
+              const comparison =
+                use === "negated"
+                  ? `(${lengthText} === 0)`
+                  : `(${lengthText} > 0)`;
               return fixer.replaceText(target, comparison);
             }
 
             if (!truthyFixPreservesValue(expression)) return null;
             if (comparisonWouldBindInsideNullish(node)) return null;
-            const truthy = optionalObject
-              ? `(${optionalObject} != null && ${optionalObject}.length > 0)`
-              : `${lengthText} > 0`;
-            return fixer.replaceText(node, truthy);
+            if (hasCommentInside(sourceCode, node)) return null;
+            return fixer.replaceText(node, `${lengthText} > 0`);
           },
         });
       },
@@ -84,30 +73,28 @@ const rule = createRule({
   },
 });
 
-function negatedComparison(
-  use: BooleanUse,
-  optionalObject: string | null,
-  lengthText: string,
-): string {
-  if (optionalObject) {
-    if (use === "negated") {
-      return `(${optionalObject} == null || ${optionalObject}.length === 0)`;
-    }
-    return `(${optionalObject} != null && ${optionalObject}.length > 0)`;
-  }
-  if (use === "negated") return `(${lengthText} === 0)`;
-  return `(${lengthText} > 0)`;
+const PREDICATE_METHODS = new Set([
+  "filter",
+  "some",
+  "every",
+  "find",
+  "findLast",
+  "findIndex",
+]);
+
+function hasCommentInside(
+  sourceCode: { getCommentsInside: (node: TSESTree.Node) => unknown[] },
+  node: TSESTree.Node,
+): boolean {
+  return sourceCode.getCommentsInside(node).length > 0;
 }
 
-function isLengthMember(
-  node: TSESTree.MemberExpression,
-): node is TSESTree.MemberExpression & {
-  property: TSESTree.Identifier;
-} {
+function isTypeWrapper(expression: TSESTree.Node): boolean {
   return (
-    !node.computed &&
-    node.property.type === AST_NODE_TYPES.Identifier &&
-    node.property.name === "length"
+    expression.type === AST_NODE_TYPES.TSAsExpression ||
+    expression.type === AST_NODE_TYPES.TSSatisfiesExpression ||
+    expression.type === AST_NODE_TYPES.TSTypeAssertion ||
+    expression.type === AST_NODE_TYPES.TSNonNullExpression
   );
 }
 
@@ -116,7 +103,7 @@ function parentOf(node: TSESTree.Node): TSESTree.Node {
 }
 
 function booleanUse(member: TSESTree.MemberExpression): BooleanUse | null {
-  const expression = unwrapTransparent(member);
+  const expression = liftSequence(unwrapTransparent(member));
   const parent = parentOf(expression);
 
   if (
@@ -136,6 +123,8 @@ function booleanUse(member: TSESTree.MemberExpression): BooleanUse | null {
   }
 
   if (isDirectTest(parent, expression)) return "truthy";
+  if (isBooleanCall(parent, expression)) return "truthy";
+  if (isPredicateBody(expression)) return "truthy";
 
   if (!isAndOr(parent) && !isNullish(parent)) return null;
 
@@ -228,21 +217,11 @@ function resultUsedAsBoolean(node: TSESTree.Node): boolean {
  * value is not returned as the original number (for example `length || fallback`
  * yields the count when it is non-zero).
  */
-/** `a?.length ?? fallback` uses the missing length as nullish, not as a count. */
-function nullishCoalesceOwnsValue(expression: TSESTree.Node): boolean {
-  let current = expression;
-  let parent = parentOf(current);
-  while (isAndOr(parent) || isNullish(parent)) {
-    if (isNullish(parent)) return true;
-    current = parent;
-    parent = parentOf(current);
-  }
-  return false;
-}
-
 function truthyFixPreservesValue(expression: TSESTree.Node): boolean {
   const parent = parentOf(expression);
   if (isDirectTest(parent, expression)) return true;
+  if (isBooleanCall(parent, expression)) return true;
+  if (isPredicateBody(expression)) return true;
   if (
     isAndOr(parent) &&
     parent.operator === "&&" &&
@@ -260,6 +239,55 @@ function truthyFixPreservesValue(expression: TSESTree.Node): boolean {
   }
   if (!isAndOr(parent) && !isNullish(parent)) return false;
   return truthyFixPreservesValue(parent);
+}
+
+function liftSequence(node: TSESTree.Node): TSESTree.Node {
+  let current = node;
+  let parent = parentOf(current);
+  while (
+    parent.type === AST_NODE_TYPES.SequenceExpression &&
+    parent.expressions[parent.expressions.length - 1] === current
+  ) {
+    current = parent;
+    parent = parentOf(current);
+  }
+  return current;
+}
+
+function isBooleanCall(
+  parent: TSESTree.Node,
+  expression: TSESTree.Node,
+): boolean {
+  return (
+    parent.type === AST_NODE_TYPES.CallExpression &&
+    parent.arguments.length === 1 &&
+    parent.arguments[0] === expression &&
+    parent.callee.type === AST_NODE_TYPES.Identifier &&
+    parent.callee.name === "Boolean"
+  );
+}
+
+function isPredicateBody(expression: TSESTree.Node): boolean {
+  const parent = parentOf(expression);
+  if (
+    (parent.type !== AST_NODE_TYPES.ArrowFunctionExpression &&
+      parent.type !== AST_NODE_TYPES.FunctionExpression) ||
+    parent.body !== expression
+  ) {
+    return false;
+  }
+  const call = parent.parent;
+  if (call?.type !== AST_NODE_TYPES.CallExpression) return false;
+  const callee = call.callee;
+  if (callee.type === AST_NODE_TYPES.Identifier) {
+    return PREDICATE_METHODS.has(callee.name);
+  }
+  return (
+    callee.type === AST_NODE_TYPES.MemberExpression &&
+    !callee.computed &&
+    callee.property.type === AST_NODE_TYPES.Identifier &&
+    PREDICATE_METHODS.has(callee.property.name)
+  );
 }
 
 function unwrapTransparent(node: TSESTree.Node): TSESTree.Node {
@@ -335,13 +363,6 @@ function isJsxAttributeExpression(expression: TSESTree.Node): boolean {
     parent.expression === unwrapped &&
     parent.parent?.type === AST_NODE_TYPES.JSXAttribute
   );
-}
-
-/** `items?.length` can be rewritten with a null check. Calls and deeper chains cannot. */
-function optionalIdentifier(member: TSESTree.MemberExpression): string | null {
-  if (!member.optional) return null;
-  if (member.object.type !== AST_NODE_TYPES.Identifier) return null;
-  return member.object.name;
 }
 
 function accessCanBeNullish(member: TSESTree.MemberExpression): boolean {

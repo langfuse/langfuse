@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable no-nested-ternary */
 // @vitest-environment node
 
@@ -54,7 +55,7 @@ function legacyReconstruct(iv: WidgetInitialValues): WidgetSavePayload {
   const selectedDimension = iv.dimension;
 
   const selectedMetrics =
-    isPivot && iv.metrics != null && iv.metrics.length > 0
+    isPivot && iv.metrics?.length
       ? iv.metrics.map((m) => ({
           id: `${m.agg}_${m.measure}`,
           measure: m.measure,
@@ -69,9 +70,7 @@ function legacyReconstruct(iv: WidgetInitialValues): WidgetSavePayload {
         ];
 
   const pivotDimensions =
-    isPivot && iv.dimensions != null && iv.dimensions.length > 0
-      ? iv.dimensions.map((d) => d.field)
-      : [];
+    isPivot && iv.dimensions?.length ? iv.dimensions.map((d) => d.field) : [];
 
   const initialDefaultSort = isPivot
     ? sanitizePivotTableDefaultSort(iv.chartConfig?.defaultSort, {

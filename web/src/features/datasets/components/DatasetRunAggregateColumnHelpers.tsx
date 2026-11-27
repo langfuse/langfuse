@@ -203,7 +203,7 @@ export const constructDatasetRunAggregateColumns = ({
         )
           return <Skeleton className="h-full min-h-0 w-full" />;
 
-        if (!Boolean(Object.keys(runData).length)) return null;
+        if (!Boolean(Object.keys(runData).length > 0)) return null;
         if (!runData.hasOwnProperty(id)) return null;
 
         const value: EnrichedDatasetRunItem | undefined = runData[id];

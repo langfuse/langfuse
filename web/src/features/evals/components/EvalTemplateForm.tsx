@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { useState } from "react";
 import Link from "next/link";
@@ -762,8 +763,7 @@ const InnerEvalTemplateForm = (props: {
                         />
                       </FormControl>
                       <FormMessage />
-                      {extractedVariables != null &&
-                      extractedVariables.length > 0 ? (
+                      {extractedVariables?.length ? (
                         <PromptVariableListPreview
                           variables={extractedVariables}
                         />

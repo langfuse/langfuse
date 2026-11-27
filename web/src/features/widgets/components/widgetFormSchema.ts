@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import startCase from "lodash/startCase";
@@ -577,7 +578,7 @@ export function toDefaultValues(
   const isPivot = initialValues.chartType === "PIVOT_TABLE";
 
   const metrics: MetricField[] =
-    isPivot && initialValues.metrics != null && initialValues.metrics.length > 0
+    isPivot && initialValues.metrics?.length
       ? initialValues.metrics.map((m) => ({
           measure: m.measure,
           aggregation: m.agg as z.infer<typeof metricAggregations>,
@@ -590,7 +591,7 @@ export function toDefaultValues(
         ];
 
   const dimensions = isPivot
-    ? initialValues.dimensions != null && initialValues.dimensions.length > 0
+    ? initialValues.dimensions?.length
       ? initialValues.dimensions.map((d) => ({ field: d.field }))
       : []
     : initialValues.dimension && initialValues.dimension !== "none"

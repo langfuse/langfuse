@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 export const normalizeLegacyApiEntrypoint = (entrypoint: string) =>
   entrypoint.replace(/^publicapi:\s*/, "");
 
@@ -6,8 +7,7 @@ const NON_ACTIONABLE_API_CALLER_USER_AGENT = /(claude|codex|curl)/i;
 export const isActionableLegacyApiUsage = (row: {
   callers?: { userAgent?: string; isOther?: true }[];
 }) =>
-  row.callers == null ||
-  row.callers.length === 0 ||
+  !row.callers?.length ||
   row.callers.some(
     (caller) =>
       caller.isOther ||

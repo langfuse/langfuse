@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-length-as-boolean */
 /* eslint-disable react/no-unstable-nested-components */
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -271,20 +272,17 @@ function DatasetRunsTableInternal(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runs.isSuccess, runs.data]);
 
-  const datasetRuns = runs.data?.runs;
-
   const { scoreColumns, isLoading: isColumnLoading } =
     useScoreColumns<DatasetRunRowData>({
       displayFormat: "aggregate",
       scoreColumnKey: "runItemScores",
       projectId: props.projectId,
-      filter:
-        datasetRuns && datasetRuns.length > 0
-          ? scoreFilters.forDatasetRunItems({
-              datasetRunIds: datasetRuns.map((r) => r.id),
-              datasetId: props.datasetId,
-            })
-          : [],
+      filter: runs.data?.runs?.length
+        ? scoreFilters.forDatasetRunItems({
+            datasetRunIds: runs.data.runs.map((r) => r.id),
+            datasetId: props.datasetId,
+          })
+        : [],
       isFilterDataPending: runs.isPending,
     });
 
@@ -292,12 +290,11 @@ function DatasetRunsTableInternal(
     useScoreColumns<DatasetRunRowData>({
       scoreColumnKey: "runScores",
       projectId: props.projectId,
-      filter:
-        datasetRuns && datasetRuns.length > 0
-          ? scoreFilters.forDatasetRuns({
-              datasetRunIds: datasetRuns.map((r) => r.id),
-            })
-          : [],
+      filter: runs.data?.runs?.length
+        ? scoreFilters.forDatasetRuns({
+            datasetRunIds: runs.data?.runs.map((r) => r.id),
+          })
+        : [],
       prefix: "Run-level",
       isFilterDataPending: runs.isPending,
     });
@@ -305,13 +302,12 @@ function DatasetRunsTableInternal(
   const scoreKeysAndProps = api.scores.getScoreColumns.useQuery(
     {
       projectId: props.projectId,
-      filter:
-        datasetRuns && datasetRuns.length > 0
-          ? scoreFilters.forDatasetRunItems({
-              datasetRunIds: datasetRuns.map((r) => r.id),
-              datasetId: props.datasetId,
-            })
-          : [],
+      filter: runs.data?.runs?.length
+        ? scoreFilters.forDatasetRunItems({
+            datasetRunIds: runs.data?.runs.map((r) => r.id),
+            datasetId: props.datasetId,
+          })
+        : [],
     },
     {
       enabled: runs.isSuccess,
