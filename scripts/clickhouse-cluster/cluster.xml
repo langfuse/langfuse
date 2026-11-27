@@ -1,0 +1,37 @@
+<!-- One shard, two replicas, named "default" to match the Helm chart and the
+     CLICKHOUSE_CLUSTER_NAME default. Mounted into both server containers of
+     docker-compose.dev-clickhouse-cluster.yml; each sets CLICKHOUSE_REPLICA. -->
+<clickhouse>
+    <remote_servers replace="true">
+        <default>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>clickhouse-01</host>
+                    <port>9000</port>
+                    <user from_env="CLICKHOUSE_USER" />
+                    <password from_env="CLICKHOUSE_PASSWORD" />
+                </replica>
+                <replica>
+                    <host>clickhouse-02</host>
+                    <port>9000</port>
+                    <user from_env="CLICKHOUSE_USER" />
+                    <password from_env="CLICKHOUSE_PASSWORD" />
+                </replica>
+            </shard>
+        </default>
+    </remote_servers>
+    <zookeeper>
+        <node>
+            <host>clickhouse-keeper</host>
+            <port>9181</port>
+        </node>
+    </zookeeper>
+    <macros>
+        <shard>01</shard>
+        <replica from_env="CLICKHOUSE_REPLICA" />
+    </macros>
+    <distributed_ddl>
+        <path>/clickhouse/task_queue/ddl</path>
+    </distributed_ddl>
+</clickhouse>
