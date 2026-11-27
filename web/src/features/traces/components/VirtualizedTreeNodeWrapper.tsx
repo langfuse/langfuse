@@ -87,7 +87,6 @@ export function VirtualizedTreeNodeWrapper(
 
   return (
     <div
-      data-tree-row
       className={cn(
         "group relative flex w-full px-0",
         onSelect && "cursor-pointer",

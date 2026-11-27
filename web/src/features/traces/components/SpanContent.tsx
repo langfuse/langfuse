@@ -22,7 +22,6 @@ import { type TreeNode } from "../types/treeNode";
 import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
-import { SampleBadge } from "@/src/features/traces/components/SampleBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -157,6 +156,9 @@ function LoadedSpanContent({
           </span>
 
           <div className="flex items-center gap-x-2">
+            {isSelectedObservation ? (
+              <span className="sr-only">Will be evaluated</span>
+            ) : null}
             {/* Comment count */}
             {showComments &&
               commentCount !== undefined &&
@@ -174,8 +176,7 @@ function LoadedSpanContent({
         {/* Metrics and scores row */}
         {(shouldRenderAnyMetrics ||
           shouldRenderScores ||
-          shouldRenderCorrection ||
-          isSelectedObservation) && (
+          shouldRenderCorrection) && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 font-mono">
             {/* Duration (own span) */}
             {shouldRenderDuration ? (
@@ -228,8 +229,6 @@ function LoadedSpanContent({
                 {shouldRenderCorrection && <CorrectionBadge />}
               </span>
             )}
-
-            {isSelectedObservation ? <SampleBadge /> : null}
           </div>
         )}
       </div>
