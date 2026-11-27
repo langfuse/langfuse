@@ -4,7 +4,11 @@ import {
   CancellationReasonPlacementSchema,
 } from "@/src/ee/features/billing/utils/cancellationReasons";
 import { recordCancellationSurvey } from "@/src/ee/features/billing/server/cancellationSurvey";
-import { captureBillingEvent } from "@/src/ee/features/billing/server/billingEvents";
+import {
+  captureBillingEvent,
+  planChangeDirection,
+  planOfProduct,
+} from "@/src/ee/features/billing/server/billingEvents";
 
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
@@ -140,7 +144,10 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const { service } = await resolveBillingService(ctx, input.orgId);
+      const { billingProvider, service } = await resolveBillingService(
+        ctx,
+        input.orgId,
+      );
 
       // opId is forwarded: the CHB path keys its checkout request on it, so
       // dropping it would send a concurrent retry to CHB with no idempotency
@@ -159,6 +166,11 @@ export const cloudBillingRouter = createTRPCRouter({
         resourceId: input.orgId,
         action: "BillingService.createStripeCheckoutSession",
       });
+      captureBillingEvent(
+        billingEventContext(ctx, input.orgId, billingProvider),
+        "billing:checkout_started",
+        { targetPlan: planOfProduct(input.stripeProductId) },
+      );
 
       return url;
     }),
@@ -190,11 +202,25 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const { service } = await resolveBillingService(ctx, input.orgId);
+      const { billingProvider, service } = await resolveBillingService(
+        ctx,
+        input.orgId,
+      );
 
       // opId is intentionally not forwarded: the Stripe path never received
       // it here, and §4.2 keeps Stripe behavior byte-identical.
       await service.changePlan(input.orgId, input.stripeProductId);
+
+      const eventContext = billingEventContext(
+        ctx,
+        input.orgId,
+        billingProvider,
+      );
+      const targetPlan = planOfProduct(input.stripeProductId);
+      captureBillingEvent(eventContext, "billing:plan_change_requested", {
+        targetPlan,
+        direction: planChangeDirection(eventContext.plan, targetPlan),
+      });
     }),
   cancelStripeSubscription: protectedOrganizationProcedure
     .input(
@@ -336,9 +362,18 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const { service } = await resolveBillingService(ctx, input.orgId);
+      const { billingProvider, service } = await resolveBillingService(
+        ctx,
+        input.orgId,
+      );
 
       await service.clearPlanSwitchSchedule(input.orgId, input.opId);
+
+      captureBillingEvent(
+        billingEventContext(ctx, input.orgId, billingProvider),
+        "billing:plan_change_reverted",
+        {},
+      );
 
       return { ok: true } as const;
     }),
