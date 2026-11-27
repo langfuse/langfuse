@@ -2,7 +2,7 @@ import { ChevronDown, MoreVertical } from "@langfuse/icons";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { Button } from "@/src/components/ui/button";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import preview from "../../../../../../../../.storybook/preview";
 import { PromptVariableEditor } from "./PromptVariableEditor";
 
@@ -107,26 +107,24 @@ export const MessageHeader = meta.story({
     onToolbarClick: fn(),
     toolbarStart: (
       <>
-        <Button
+        <IconButton
           type="button"
           variant="ghost"
-          size="icon-xs"
-          className="shrink-0"
-        >
-          <ChevronDown size="sm" color="default" />
-        </Button>
+          size="sm"
+          icon={ChevronDown}
+          label="Expand message"
+        />
         <Badge color="filled" size="md" text="User" />
       </>
     ),
     toolbarActions: (
-      <Button
+      <IconButton
         type="button"
         variant="ghost"
-        size="icon-xs"
-        aria-label="Prompt message settings"
-      >
-        <MoreVertical size="sm" color="default" />
-      </Button>
+        size="sm"
+        icon={MoreVertical}
+        label="Prompt message settings"
+      />
     ),
   },
 });
@@ -142,18 +140,13 @@ export const CollapsedMessage = meta.story({
     collapsed: true,
     toolbarStart: (
       <>
-        <Button
+        <IconButton
           type="button"
           variant="ghost"
-          size="icon-xs"
-          className="shrink-0"
-        >
-          <ChevronDown
-            size="sm"
-            color="default"
-            __rawClassName="-translate-x-0.5 -rotate-90"
-          />
-        </Button>
+          size="sm"
+          icon={ChevronDown}
+          label="Collapse message"
+        />
         <Badge color="filled" size="md" text="User" />
         <span className="text-muted-foreground min-w-0 flex-1 truncate px-1 text-xs leading-none">
           Evaluate whether the response is correct and follows the rubric.
@@ -161,14 +154,13 @@ export const CollapsedMessage = meta.story({
       </>
     ),
     toolbarActions: (
-      <Button
+      <IconButton
         type="button"
         variant="ghost"
-        size="icon-xs"
-        aria-label="Prompt message settings"
-      >
-        <MoreVertical size="sm" color="default" />
-      </Button>
+        size="sm"
+        icon={MoreVertical}
+        label="Prompt message settings"
+      />
     ),
   },
 });
