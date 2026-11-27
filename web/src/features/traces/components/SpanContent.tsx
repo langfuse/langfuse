@@ -157,12 +157,7 @@ function LoadedSpanContent({
 
           <div className="flex items-center gap-x-2">
             {isSelectedObservation ? (
-              <span
-                role="img"
-                aria-label="Will be evaluated"
-                title="Will be evaluated"
-                className="bg-category-blue-foreground size-1.5 shrink-0 rounded-full"
-              />
+              <span className="sr-only">Will be evaluated</span>
             ) : null}
             {/* Comment count */}
             {showComments &&
