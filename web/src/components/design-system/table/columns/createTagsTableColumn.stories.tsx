@@ -1,9 +1,7 @@
 import preview from "../../../../../.storybook/preview";
 
-import {
-  DataTable,
-  type AsyncTableData,
-} from "@/src/components/table/data-table";
+import { DataTable } from "@/src/components/table/data-table";
+import type { AsyncTableData } from "@/src/components/table/types";
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import { createTagsTableColumn } from "./createTagsTableColumn";
 

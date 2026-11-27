@@ -2,10 +2,12 @@ import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import {
-  ConfigureTopicsDialog,
-  type ConfigureTopicsDraft,
-} from "./ConfigureTopicsDialog";
+import type { ComponentProps } from "react";
+import { ConfigureTopicsDialog } from "./ConfigureTopicsDialog";
+
+type ConfigureTopicsDraft = ComponentProps<
+  typeof ConfigureTopicsDialog
+>["draft"];
 
 const providerGroups: Array<[string, string[]]> = [
   [

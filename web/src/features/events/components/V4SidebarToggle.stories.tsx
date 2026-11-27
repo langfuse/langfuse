@@ -16,7 +16,7 @@ import {
   useAppShellSidebar,
   useAppShellSidebarActions,
 } from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
-import { SIDEBAR_EXPANDED_STORAGE_KEY } from "@/src/features/app-shell/stores/sidebarStore";
+
 import { V4_PREVIEW_DESCRIPTION } from "@/src/features/events/lib/v4PreviewLabel";
 
 const storyApi = createTRPCReact<AppRouter>();
@@ -36,6 +36,8 @@ const session: Session = {
     canToggleV4: true,
   },
 };
+
+const SIDEBAR_EXPANDED_STORAGE_KEY = "langfuse:sidebar:pinned:v1";
 
 const meta = preview.meta({
   component: V4SidebarToggle,

@@ -99,15 +99,14 @@ function AvatarGroup({ avatars, max, label }: AvatarGroupProps) {
             </span>
           ))}
           {overflow > 0 && (
-            // Sits a pixel left of centre: the plus sign is lighter than the
-            // digits, so a centred count reads as pushed right.
-            <span
-              className={cn(
-                stackedItemClass,
-                "bg-muted text-muted-foreground h-6 min-w-6 items-center justify-center pr-1.25 pl-0.75 text-xs tabular-nums",
-              )}
-            >
-              +{overflow}
+            // Opaque backing, same as the avatars: the count fill is
+            // translucent and the stack overlaps the previous avatar.
+            <span className={cn(stackedItemClass, "bg-background")}>
+              {/* Sits a pixel left of centre: the plus sign is lighter than
+                  the digits, so a centred count reads as pushed right. */}
+              <span className="bg-foreground/5 text-muted-foreground dark:bg-foreground/10 flex h-6 min-w-6 items-center justify-center rounded-full pr-1.25 pl-0.75 text-xs tabular-nums">
+                +{overflow}
+              </span>
             </span>
           )}
         </span>

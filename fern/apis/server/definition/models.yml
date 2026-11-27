@@ -14,7 +14,7 @@ service:
       response: commons.Model
     upsert:
       method: PUT
-      docs: Create or replace a project-owned model using its id. Built-in models cannot be modified.
+      docs: Create or replace a project-owned model using its id. Organization and built-in models cannot be modified; targeting an organization model returns 403.
       path: /models/{id}
       path-parameters:
         id: string
@@ -43,7 +43,7 @@ service:
       response: commons.Model
     delete:
       method: DELETE
-      docs: Delete a model. Cannot delete models managed by Langfuse. You can create your own definition with the same modelName to override the definition though.
+      docs: Delete a project-owned model. Cannot delete organization models (returns 403) or models managed by Langfuse. You can create your own definition with the same modelName to override the definition though.
       path: /models/{id}
       path-parameters:
         id: string

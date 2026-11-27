@@ -627,18 +627,21 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
     );
     let forwarded = provider
         .forward_route(
-            provider.admit(None),
-            context,
-            &headers,
-            crate::providers::RequestBody {
-                bytes: Bytes::from_static(REQUEST),
-                model_range: crate::providers::model_range(REQUEST).unwrap(),
-                streaming: true,
-                reservation: None,
-                parse_growth: None,
-                stream_options: crate::providers::StreamOptions::default(),
+            crate::providers::ForwardRequest {
+                permit: provider.admit(None),
+                context,
+                headers: &headers,
+                request: crate::providers::RequestBody {
+                    bytes: Bytes::from_static(REQUEST),
+                    model_range: crate::providers::model_range(REQUEST).unwrap(),
+                    streaming: true,
+                    reservation: None,
+                    parse_growth: None,
+                    stream_options: crate::providers::StreamOptions::default(),
+                },
+                route: Route::AnthropicMessages,
+                guardrails: None,
             },
-            Route::AnthropicMessages,
             &mut crate::correlation::RequestCorrelation::default(),
         )
         .await

@@ -1,9 +1,7 @@
 import { fn } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import {
-  V4_MIGRATION_DECEMBER_DEADLINE_MESSAGE,
-  V4_MIGRATION_DELAYED_DEADLINE_MESSAGE,
-  V4_MIGRATION_STATUS_LINK_LABEL,
+  resolveV4MigrationBannerCopy,
   V4_MIGRATION_TOP_BANNER_MESSAGE,
 } from "./v4MigrationBannerCopy";
 import { V4MigrationTopBannerView } from "./V4MigrationTopBannerView";
@@ -34,15 +32,21 @@ export const Critical = meta.story({
 /** Top customers whose cutoff moved to November 23. Same page as the deadline banner. */
 export const DelayedDeadline = meta.story({
   args: {
-    message: V4_MIGRATION_DELAYED_DEADLINE_MESSAGE,
-    linkLabel: V4_MIGRATION_STATUS_LINK_LABEL,
+    ...resolveV4MigrationBannerCopy({
+      actionNeededProjectIds: ["demo"],
+      cutoffExemptProjectIds: ["demo"],
+      decemberProjectIds: [],
+    }),
   },
 });
 
 /** Organizations whose deadline is December 31. Same page as the other banners. */
 export const DecemberDeadline = meta.story({
   args: {
-    message: V4_MIGRATION_DECEMBER_DEADLINE_MESSAGE,
-    linkLabel: V4_MIGRATION_STATUS_LINK_LABEL,
+    ...resolveV4MigrationBannerCopy({
+      actionNeededProjectIds: ["demo"],
+      cutoffExemptProjectIds: [],
+      decemberProjectIds: ["demo"],
+    }),
   },
 });

@@ -16,7 +16,7 @@ type TopicCostEstimateInput = {
   projectId: string;
   filter: FilterState;
   facetIds: string[];
-  source: "setup" | "new_map" | "snapshot";
+  source: "setup" | "new_map" | "edit_map" | "snapshot";
 };
 
 export function useTopicCostEstimate({

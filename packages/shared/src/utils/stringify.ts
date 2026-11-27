@@ -1,3 +1,4 @@
+/* oxlint-disable radix -- baseline before rule enablement */
 import { decodeUnicodeEscapesOnly } from "./unicode";
 
 // Replacer that keeps bigints JSON-serializable and decodes \uXXXX escapes so

@@ -2,10 +2,8 @@ import type { ReactNode } from "react";
 
 import preview from "../../../../../.storybook/preview";
 
-import {
-  DataTable,
-  type AsyncTableData,
-} from "@/src/components/table/data-table";
+import { DataTable } from "@/src/components/table/data-table";
+import type { AsyncTableData } from "@/src/components/table/types";
 import { createDateTableColumn } from "./createDateTableColumn";
 
 type Row = {

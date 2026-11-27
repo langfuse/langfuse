@@ -7,10 +7,11 @@ import { env } from "../../env";
 import { logger } from "../logger";
 import { compareParsedVersions } from "../utils/compareVersions";
 import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
+import { getClickhouseAuth } from "./auth";
 
 type ClickHouseVersionTuple = readonly [number, number, number, number];
 
-export type ClickHouseVersion = {
+type ClickHouseVersion = {
   raw: string;
   major: number;
   minor: number;
@@ -19,7 +20,7 @@ export type ClickHouseVersion = {
   tuple: ClickHouseVersionTuple;
 };
 
-export type ClickHouseVersionBand = {
+type ClickHouseVersionBand = {
   minInclusive: string;
   maxExclusive?: string;
 };
@@ -340,8 +341,7 @@ const getClickHouseVersionClientConfig =
   (): NodeClickHouseClientConfigOptions => {
     return {
       url: env.CLICKHOUSE_URL,
-      username: env.CLICKHOUSE_USER,
-      password: env.CLICKHOUSE_PASSWORD,
+      ...getClickhouseAuth().config,
       database: env.CLICKHOUSE_DB,
       application: `langfuse/${VERSION.replace("v", "")}`,
       request_timeout: 10_000,

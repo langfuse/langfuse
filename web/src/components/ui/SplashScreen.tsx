@@ -5,6 +5,7 @@ import Image from "next/image";
 import { type IconComponent } from "@langfuse/icons";
 import { ActionButton } from "@/src/components/ActionButton";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 
 export interface ValueProposition {
@@ -23,6 +24,8 @@ export interface ActionConfig {
 interface Step {
   title: string;
   description?: string;
+  /** Info tooltip shown after the description. */
+  descriptionInfo?: { label: string; text: string };
   badge?: React.ReactNode;
   content?: React.ReactNode;
 }
@@ -196,6 +199,16 @@ export function SplashScreen({
                 {step.description && (
                   <p className="text-muted-foreground text-sm">
                     {step.description}
+                    {step.descriptionInfo && (
+                      <>
+                        {" "}
+                        <span className="inline-flex align-middle">
+                          <InfoTooltip label={step.descriptionInfo.label}>
+                            {step.descriptionInfo.text}
+                          </InfoTooltip>
+                        </span>
+                      </>
+                    )}
                   </p>
                 )}
                 {step.content && <div className="mt-3">{step.content}</div>}
