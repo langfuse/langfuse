@@ -1,17 +1,8 @@
 /* eslint-disable @repo/prefer-stories-over-client-tests */
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 
 import { ObservationFilterBuilder } from "./ObservationFilterBuilder";
-
-let containerWidth = 560;
-
-vi.mock("@/src/hooks/useElementSize", () => ({
-  useElementSize: () => [
-    { current: null },
-    { width: containerWidth, height: 200 },
-  ],
-}));
 
 const columns: ColumnDefinition[] = [
   {
@@ -32,32 +23,43 @@ const filterState: FilterState = [
   },
 ];
 
-const renderBuilder = () =>
-  render(
-    <ObservationFilterBuilder
-      columns={columns}
-      filterState={filterState}
-      onChange={vi.fn()}
-      queryOnlyColumnIds={[]}
-    />,
-  );
-
 describe("ObservationFilterBuilder", () => {
   beforeEach(() => {
-    containerWidth = 560;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("shows a selected query-only column and preserves unavailable filters on removal", () => {
+    const onChange = vi.fn();
+    const unavailable = { ...filterState[0], column: "unavailable" };
+    render(
+      <ObservationFilterBuilder
+        columns={columns}
+        filterState={[...filterState, unavailable]}
+        onChange={onChange}
+        queryOnlyColumnIds={["environment"]}
+      />,
+    );
+
+    expect(screen.getByLabelText("Column")).toHaveTextContent("Environment");
+    fireEvent.click(screen.getByRole("button", { name: "Remove filter 1" }));
+    expect(onChange).toHaveBeenCalledWith([unavailable]);
   });
 
-  it("keeps the table layout when space is limited", () => {
-    renderBuilder();
-
-    expect(screen.getByRole("table")).toBeInTheDocument();
-  });
-
-  it("wraps into the compact row layout when space is too narrow", () => {
-    containerWidth = 420;
-    renderBuilder();
-
-    expect(screen.queryByRole("table")).not.toBeInTheDocument();
-    expect(screen.getByText("Where")).toBeInTheDocument();
+  it("shows externally replaced filters without emitting edits", () => {
+    const props = { columns, onChange: vi.fn(), queryOnlyColumnIds: [] };
+    const { rerender } = render(
+      <ObservationFilterBuilder {...props} filterState={[]} />,
+    );
+    rerender(<ObservationFilterBuilder {...props} filterState={filterState} />);
+    expect(screen.getByLabelText("Column")).toHaveTextContent("Environment");
+    expect(props.onChange).not.toHaveBeenCalled();
   });
 });

@@ -153,8 +153,32 @@ export const WithCustomOption = meta.story({
         ],
       },
     ],
-    customOption: { value: "custom", label: "Custom" },
+    getAdditionalOption: () => ({ value: "custom", label: "Custom" }),
     onValueChange: fn(),
+  },
+});
+
+export const SearchableWithAdditionalOption = meta.story({
+  args: {
+    value: "",
+    placeholder: "Select a region",
+    search: { placeholder: "Search regions" },
+    options: [{ value: "eu", label: "Europe" }],
+    getAdditionalOption: ({ query }) =>
+      query ? { value: query.toLowerCase(), label: query } : undefined,
+    onValueChange: fn(),
+  },
+  render: (args) => {
+    const [value, setValue] = useState(args.value);
+    return <SelectInput {...args} value={value} onValueChange={setValue} />;
+  },
+  play: async ({ canvasElement }) => {
+    const trigger = within(canvasElement).getByRole("combobox");
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(trigger);
+    await userEvent.type(body.getByPlaceholderText("Search regions"), "Asia");
+    await userEvent.click(await body.findByRole("option", { name: "Asia" }));
+    await expect(trigger).toHaveTextContent("Asia");
   },
 });
 

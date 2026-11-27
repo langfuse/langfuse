@@ -14,10 +14,8 @@ import {
   type ColumnGroupTogglePayload,
 } from "@/src/components/table/DataTableColumnVisibilityFilter";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
-import {
-  InlineFilterBuilder,
-  PopoverFilterBuilder,
-} from "@/src/features/filters/components/filter-builder";
+import { ToolbarFilterBuilder } from "@/src/features/filters/components/ToolbarFilterBuilder";
+import { FilterBuilderEditor } from "@/src/components/design-system/FilterBuilderEditor/FilterBuilderEditor";
 import {
   type FilterState,
   type ColumnDefinition,
@@ -400,6 +398,10 @@ export function DataTableToolbar<TData, TValue>({
     React.isValidElement(mobileSearch) ? mobileSearch.key : null,
   );
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
+  const filterBuilderColumns = filterColumnDefinition?.map((column) => ({
+    ...column,
+    allowCustomValues: columnsWithCustomSelect?.includes(column.id),
+  }));
 
   const capture = usePostHogClientCapture();
   // One definition of the two analytics dimensions for everything the toolbar
@@ -652,7 +654,7 @@ export function DataTableToolbar<TData, TValue>({
             className="my-0 w-auto overflow-hidden"
           />
         )}
-        {!!filterColumnDefinition && !!filterState && !!setFilterState && (
+        {!!filterBuilderColumns && !!filterState && !!setFilterState && (
           <>
             {mobileSearch && !isDesktop && (
               <SearchBarDraftCacheContext.Provider
@@ -710,12 +712,10 @@ export function DataTableToolbar<TData, TValue>({
                       {mobileSearch}
                     </div>
                     <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                      <InlineFilterBuilder
-                        columns={filterColumnDefinition}
-                        filterState={filterState}
-                        onChange={setFilterState}
-                        columnsWithCustomSelect={columnsWithCustomSelect}
-                        compact
+                      <FilterBuilderEditor
+                        columns={filterBuilderColumns}
+                        initialFilters={filterState}
+                        onFiltersChange={setFilterState}
                       />
                     </div>
                   </SheetContent>
@@ -723,11 +723,10 @@ export function DataTableToolbar<TData, TValue>({
               </SearchBarDraftCacheContext.Provider>
             )}
             {(!mobileSearch || isDesktop) && (
-              <PopoverFilterBuilder
-                columns={filterColumnDefinition}
-                filterState={filterState}
+              <ToolbarFilterBuilder
+                columns={filterBuilderColumns}
+                value={filterState}
                 onChange={setFilterState}
-                columnsWithCustomSelect={columnsWithCustomSelect}
                 filterWithAI={filterWithAI}
                 // Analytics (LFE-10781): the table's own identity, so popover
                 // filters:applied/cleared events aren't mislabeled "unknown". Shares

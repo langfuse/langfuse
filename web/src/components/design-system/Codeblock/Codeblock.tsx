@@ -127,6 +127,7 @@ export const Codeblock = memo(function Codeblock({
     "auto" | CodeblockLanguage
   >("auto");
   const [format, setFormat] = useState<"original" | "pretty">("pretty");
+  const [languageOpen, setLanguageOpen] = useState(false);
   const { copy, isCopied } = useCopyToClipboard();
   const text = useMemo(() => {
     if (typeof value === "string") return value;
@@ -216,6 +217,7 @@ export const Codeblock = memo(function Codeblock({
           ) : null}
           {configuredLanguage === undefined ? (
             <SelectDropdown
+              openState={{ open: languageOpen, onOpenChange: setLanguageOpen }}
               aria-label={`${label} language`}
               value={selectedLanguage}
               onValueChange={handleLanguageChange}

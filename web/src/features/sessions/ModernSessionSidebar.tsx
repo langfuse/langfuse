@@ -40,7 +40,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
+import { FilterSummary } from "@/src/features/filters/components/FilterSummary";
 import { QueryTokens } from "@/src/components/design-system/QueryTokens/QueryTokens";
 import { deriveQueryTokens } from "@/src/features/search-bar/lib/fns/deriveQueryTokens";
 import { EVENTS_FIELD_REGISTRY } from "@/src/features/search-bar/lib/fields";
@@ -596,7 +596,7 @@ export function ModernSessionSidebar(
                             />
                           </span>
                         ) : null}
-                        <InlineFilterState
+                        <FilterSummary
                           filterState={activeFilterQuery.skippedFilters}
                           className="m-0"
                         />

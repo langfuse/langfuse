@@ -74,7 +74,6 @@ const makeProps = (): Props => ({
   projectId: "project",
   filterState: [],
   filterColumns: [],
-  filterColumnsWithCustomSelect: [],
   onChange: vi.fn(),
   viewControllers: {
     selectedViewId: "saved-view",

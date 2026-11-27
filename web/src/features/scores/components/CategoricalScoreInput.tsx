@@ -6,7 +6,7 @@ import {
   type ScoreConfigDomain,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
-import { AsyncSelectInput } from "@/src/components/design-system/AsyncSelectInput/AsyncSelectInput";
+import { ControlledSelectInput } from "@/src/components/design-system/ControlledSelectInput/ControlledSelectInput";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -57,6 +57,7 @@ export function CategoricalScoreInput({
   });
   const [pendingLabel, setPendingLabel] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
   const query = search.trim();
   const canAddCategory =
     hasConfigCudAccess &&
@@ -79,7 +80,8 @@ export function CategoricalScoreInput({
   return (
     <>
       {useCombobox ? (
-        <AsyncSelectInput
+        <ControlledSelectInput
+          openState={{ open, onOpenChange: setOpen }}
           aria-label={config.name}
           disabled={disabled || !isActive}
           placeholder="Select category"

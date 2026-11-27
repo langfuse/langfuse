@@ -41,6 +41,7 @@ import { useSession } from "next-auth/react";
 import { Download, MoreVertical, Webhook } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useFilterBuilderAnalytics } from "@/src/features/filters/hooks/useFilterBuilderAnalytics";
 import Page from "@/src/components/layouts/Page";
 import {
   type ColumnDefinition,
@@ -67,7 +68,7 @@ import {
   buildSidebarFilterQueryStorageKey,
   readPersistedSidebarFilterQuery,
 } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
-import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { FilterBuilderDropdown } from "@/src/components/design-system/FilterBuilderDropdown/FilterBuilderDropdown";
 
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
@@ -1128,7 +1129,9 @@ const LoadedSessionEventsPage: React.FC<{
   });
   const typedFilterOptions = filterOptions as EventFilterOptions;
 
-  const filterColumns = React.useMemo<ColumnDefinition[]>(() => {
+  const filterColumns = React.useMemo<
+    React.ComponentProps<typeof FilterBuilderDropdown>["columns"][number][]
+  >(() => {
     const scoreCategoryOptions = isMultiValueOptionRecord(
       typedFilterOptions.score_categories,
     )
@@ -1187,7 +1190,11 @@ const LoadedSessionEventsPage: React.FC<{
           };
 
           const options = optionMap[column.id];
-          return options ? { ...column, options } : column;
+          return {
+            ...column,
+            options: options ?? column.options,
+            allowCustomValues: true,
+          };
         }
 
         if (
@@ -1246,17 +1253,10 @@ const LoadedSessionEventsPage: React.FC<{
       });
   }, [typedFilterOptions, sessionEventsFilterConfig.columnDefinitions]);
 
-  const filterColumnsWithCustomSelect = React.useMemo(
-    () =>
-      filterColumns
-        .filter(
-          (column) =>
-            column.type === "stringOptions" || column.type === "arrayOptions",
-        )
-        .map((column) => column.id),
-    [filterColumns],
+  const onFilterAnalyticsEvent = useFilterBuilderAnalytics(
+    "session-detail",
+    false,
   );
-
   const { viewControllersRef, onExplicitFilterStateChange } =
     useTableViewFilterChange();
   const hasUserFilterEditRef = useRef(false);
@@ -2085,19 +2085,19 @@ const LoadedSessionEventsPage: React.FC<{
                 trace (it does not filter the list of traces) — labelled to say
                 so (LFE-10520). */}
                           {!isModernSessionEnabled ? (
-                            <PopoverFilterBuilder
+                            <FilterBuilderDropdown
                               key={viewControllers.filterEditorResetKey}
-                              columns={filterColumns}
-                              filterState={visibleFilterState}
+                              columns={filterColumns.filter(
+                                (
+                                  column,
+                                ): column is React.ComponentProps<
+                                  typeof FilterBuilderDropdown
+                                >["columns"][number] => column.type !== "null",
+                              )}
+                              value={visibleFilterState}
                               onChange={queryFilter.setFilterState}
-                              columnsWithCustomSelect={
-                                filterColumnsWithCustomSelect
-                              }
+                              onAnalyticsEvent={onFilterAnalyticsEvent}
                               label="Filter observations"
-                              // Analytics (LFE-10781): session-detail observation refinement is a
-                              // v3/legacy surface (the v4 events table filters via the grammar bar).
-                              tableName="session-detail"
-                              isV4={false}
                             />
                           ) : null}
                         </SessionControlsBar>
@@ -2283,7 +2283,6 @@ const LoadedSessionEventsPage: React.FC<{
                             projectId,
                             filterState: visibleFilterState,
                             filterColumns,
-                            filterColumnsWithCustomSelect,
                             onChange: queryFilter.setFilterState,
                             viewControllers,
                             currentViewState: {

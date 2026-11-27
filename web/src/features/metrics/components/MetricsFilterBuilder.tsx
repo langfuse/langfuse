@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { startCase } from "lodash";
+import { isEqual, startCase } from "lodash";
+import { useState, type ComponentProps } from "react";
 
 import {
   type ColumnDefinition,
@@ -17,7 +18,7 @@ import {
   mapViewFilterToUiTableFilter,
   partitionWidgetUiTableFiltersToView,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { ControlledFilterBuilderEditor } from "@/src/components/design-system/ControlledFilterBuilderEditor/ControlledFilterBuilderEditor";
 import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
 import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { type GetMetricsFilterColumnsParams } from "@/src/features/metrics/metricsFilterColumns";
@@ -40,7 +41,11 @@ type MetricsFilterBuilderProps = {
 };
 
 /** Renders the filter controls without fetching. */
-export function MetricsFilterBuilder({
+export function MetricsFilterBuilder(props: MetricsFilterBuilderProps) {
+  return <MetricsFilterEditor key={props.view} {...props} />;
+}
+
+function MetricsFilterEditor({
   view,
   columns,
   columnsWithCustomSelect,
@@ -53,6 +58,20 @@ export function MetricsFilterBuilder({
   const renderable = editorFilters.filter((filter) =>
     resolvesToColumn(filter, columns),
   );
+  type EditorProps = ComponentProps<typeof ControlledFilterBuilderEditor>;
+  const [draft, setDraft] = useState<EditorProps["draft"]>(() =>
+    renderable.length ? renderable : [{}],
+  );
+  const [editorVersion, setEditorVersion] = useState(0);
+  const [previousRenderable, setPreviousRenderable] = useState(renderable);
+  const [lastEmitted, setLastEmitted] = useState<FilterState>();
+  if (!isEqual(previousRenderable, renderable)) {
+    setPreviousRenderable(renderable);
+    if (!isEqual(lastEmitted, filters)) {
+      setDraft(renderable.length ? renderable : [{}]);
+      setEditorVersion(editorVersion + 1);
+    }
+  }
   const unsupportedColumns = Array.from(
     new Set(
       hiddenEditorFilters(view, filters, columns).map(unsupportedFilterLabel),
@@ -78,16 +97,32 @@ export function MetricsFilterBuilder({
           {". Switch back to a compatible view to edit them, or remove them."}
         </Banner>
       )}
-      <InlineFilterBuilder
-        columns={columns}
-        filterState={renderable}
-        onChange={(next: FilterState) =>
-          onChange(applyEditorChange(view, columns, filters, next))
+      <ControlledFilterBuilderEditor
+        columns={columns.map((column) => ({
+          ...column,
+          allowCustomValues: columnsWithCustomSelect.includes(column.id),
+        }))}
+        draft={draft}
+        key={editorVersion}
+        onDraftChange={(next, { validFilters }) => {
+          setDraft(next);
+          const merged = applyEditorChange(
+            view,
+            columns,
+            filters,
+            validFilters,
+          );
+          setLastEmitted(merged);
+          onChange(merged);
+        }}
+        stringObjectSuggestions={
+          stringObjectValueOptions || onStringObjectKeyChange
+            ? {
+                valuesByKey: stringObjectValueOptions,
+                onKeyChange: onStringObjectKeyChange,
+              }
+            : undefined
         }
-        columnsWithCustomSelect={columnsWithCustomSelect}
-        stringObjectValueOptions={stringObjectValueOptions}
-        onStringObjectKeyChange={onStringObjectKeyChange}
-        compact
       />
     </div>
   );

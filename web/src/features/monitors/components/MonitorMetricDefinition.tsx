@@ -1,4 +1,4 @@
-import { type ComponentProps, useMemo } from "react";
+import { type ComponentProps, useMemo, useState } from "react";
 import { startCase } from "lodash";
 import { type UseFormReturn } from "react-hook-form";
 
@@ -49,6 +49,10 @@ export const MonitorMetricDefinition = ({
     [view],
   );
 
+  const [openPicker, setOpenPicker] = useState<
+    "view" | "aggregation" | "measure"
+  >();
+
   /** changeAggregation snaps the measure to the first one the new aggregation supports. */
   const changeAggregation = (next: MonitorAggregation) => {
     form.setValue("metric.aggregation", next, { shouldValidate: true });
@@ -87,7 +91,12 @@ export const MonitorMetricDefinition = ({
             render={({ field }) => (
               <FormItem className="min-w-0 flex-1 space-y-0">
                 <FormControl>
-                  <SelectDropdown
+                  <SelectDropdown<MonitorView>
+                    openState={{
+                      open: openPicker === "view",
+                      onOpenChange: (open) =>
+                        setOpenPicker(open ? "view" : undefined),
+                    }}
                     value={field.value as MonitorView}
                     onValueChange={changeView}
                     options={MonitorViewSchema.options.map(viewOption)}
@@ -113,7 +122,12 @@ export const MonitorMetricDefinition = ({
             render={({ field }) => (
               <FormItem className="min-w-0 flex-1 space-y-0">
                 <FormControl>
-                  <SelectDropdown
+                  <SelectDropdown<MonitorAggregation>
+                    openState={{
+                      open: openPicker === "aggregation",
+                      onOpenChange: (open) =>
+                        setOpenPicker(open ? "aggregation" : undefined),
+                    }}
                     value={field.value}
                     onValueChange={changeAggregation}
                     options={[...measuresByAggregation.keys()].map((a) => ({
@@ -141,6 +155,11 @@ export const MonitorMetricDefinition = ({
               <FormItem className="min-w-0 flex-1 space-y-0">
                 <FormControl>
                   <SelectDropdown
+                    openState={{
+                      open: openPicker === "measure",
+                      onOpenChange: (open) =>
+                        setOpenPicker(open ? "measure" : undefined),
+                    }}
                     value={field.value}
                     onValueChange={field.onChange}
                     options={measureOptions(

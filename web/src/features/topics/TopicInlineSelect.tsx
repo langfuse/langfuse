@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { SelectDropdown } from "@/src/components/design-system/SelectDropdown/SelectDropdown";
 
@@ -13,8 +14,10 @@ export function TopicInlineSelect<V extends string>({
   onChange: (value: V) => void;
   label: string;
 }) {
+  const [open, setOpen] = useState(false);
   return (
-    <SelectDropdown
+    <SelectDropdown<V>
+      openState={{ open, onOpenChange: setOpen }}
       aria-label={label}
       value={value}
       options={options}

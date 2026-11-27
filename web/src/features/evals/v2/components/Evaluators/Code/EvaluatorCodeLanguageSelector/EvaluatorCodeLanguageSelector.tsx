@@ -27,8 +27,10 @@ export function EvaluatorCodeLanguageSelector({
   onValueChange: (value: EvalTemplateSourceCodeLanguage) => void;
   disabled?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   return (
-    <SelectDropdown
+    <SelectDropdown<EvalTemplateSourceCodeLanguage>
+      openState={{ open, onOpenChange: setOpen }}
       aria-label="Code language"
       value={value}
       options={LANGUAGE_OPTIONS}
@@ -47,3 +49,4 @@ export function EvaluatorCodeLanguageSelector({
     </SelectDropdown>
   );
 }
+import { useState } from "react";

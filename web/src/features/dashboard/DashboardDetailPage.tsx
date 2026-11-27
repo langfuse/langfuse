@@ -10,12 +10,11 @@ import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions
 import Page from "@/src/components/layouts/Page";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TimeRangePicker } from "@/src/components/date-picker";
-import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { FilterBuilderDropdown } from "@/src/components/design-system/FilterBuilderDropdown/FilterBuilderDropdown";
 import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
-  type ColumnDefinition,
   type FilterState,
   LANGFUSE_HOME_DASHBOARD_ID,
   type HomeDashboardPresetId,
@@ -40,6 +39,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useFilterBuilderAnalytics } from "@/src/features/filters/hooks/useFilterBuilderAnalytics";
 import {
   type DashboardPlacement,
   DashboardGrid,
@@ -142,6 +142,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const onFilterAnalyticsEvent = useFilterBuilderAnalytics("dashboard", false);
 
   const { projectId, dashboardId, addWidgetId } = router.query as {
     projectId: string;
@@ -1028,8 +1029,9 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     () => [...currentFilters, ...environmentFilter],
     [currentFilters, environmentFilter],
   );
-  // Filter columns for PopoverFilterBuilder
-  const filterColumns: ColumnDefinition[] = [
+  const filterColumns: React.ComponentProps<
+    typeof FilterBuilderDropdown
+  >["columns"] = [
     {
       name: "Environment",
       id: "environment",
@@ -1309,14 +1311,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                           options={environmentOptions}
                           className="my-0 w-auto overflow-hidden"
                         />
-                        <PopoverFilterBuilder
+                        <FilterBuilderDropdown
                           columns={filterColumns}
-                          filterState={currentFilters}
+                          value={currentFilters}
                           onChange={setCurrentFilters}
-                          // Analytics (LFE-10781): custom dashboard filter — a v3/legacy
-                          // surface (not the v4 events table).
-                          tableName="dashboard"
-                          isV4={false}
+                          onAnalyticsEvent={onFilterAnalyticsEvent}
                         />
                       </>
                     ),

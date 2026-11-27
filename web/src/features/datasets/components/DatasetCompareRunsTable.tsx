@@ -8,7 +8,7 @@ import { createIOTableColumn } from "@/src/components/design-system/table/column
 import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { api } from "@/src/utils/api";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
@@ -26,6 +26,8 @@ import { type Prisma } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
+
+const RUN_FILTER_QUERY_DEBOUNCE_MS = 500;
 
 export type DatasetCompareRunRowData = {
   id: string;
@@ -46,7 +48,7 @@ function DatasetCompareRunsTableInternal(props: {
   const {
     updateColumnFilters: updateRunFilters,
     getFiltersForColumnById: getFiltersForRun,
-    convertToColumnFilterList,
+    columnFilterList: activeRunFilters,
   } = useColumnFilterState();
   const { setDetailPageList } = useDetailPageLists();
   const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
@@ -55,27 +57,33 @@ function DatasetCompareRunsTableInternal(props: {
   );
 
   useEffect(() => {
-    const allFilters = convertToColumnFilterList();
-    allFilters.forEach((filter) => {
+    activeRunFilters.forEach((filter) => {
       if (!props.runIds.includes(filter.runId)) {
         updateRunFilters(filter.runId, []);
       }
     });
-  }, [props.runIds, convertToColumnFilterList, updateRunFilters]);
+  }, [props.runIds, activeRunFilters, updateRunFilters]);
 
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
     limit: "pageSize",
   });
-  const activeRunFilters = convertToColumnFilterList();
   const hasActiveRunFilters = activeRunFilters.length > 0;
+  const [queryRunFilters, setQueryRunFilters] = useState(activeRunFilters);
+  useEffect(() => {
+    const timeout = setTimeout(
+      () => setQueryRunFilters(activeRunFilters),
+      RUN_FILTER_QUERY_DEBOUNCE_MS,
+    );
+    return () => clearTimeout(timeout);
+  }, [activeRunFilters]);
 
   const datasetItemsWithRunData = api.datasets.datasetItemsWithRunData.useQuery(
     {
       projectId: props.projectId,
       datasetId: props.datasetId,
       runIds: props.runIds,
-      filterByRun: activeRunFilters,
+      filterByRun: queryRunFilters,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
     },
@@ -85,7 +93,7 @@ function DatasetCompareRunsTableInternal(props: {
     projectId: props.projectId,
     datasetId: props.datasetId,
     runIds: props.runIds,
-    filterByRun: activeRunFilters,
+    filterByRun: queryRunFilters,
   });
 
   const totalCount = totalCountQuery.data?.totalCount ?? null;

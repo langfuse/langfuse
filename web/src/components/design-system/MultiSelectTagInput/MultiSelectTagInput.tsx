@@ -18,6 +18,10 @@ type MultiSelectTagInputProps<V extends string> = Omit<
   value: V[];
   onValueChange: (newValue: V[]) => void;
   searchPlaceholder: string;
+  /** Pure resolver; the search query is trimmed. */
+  getAdditionalOption?: (context: {
+    query: string;
+  }) => MultiSelectTagOption<V> | undefined;
 };
 
 /** Filters `options` locally as the user types. */
@@ -27,13 +31,23 @@ export function MultiSelectTagInput<V extends string>({
   onValueChange,
   searchPlaceholder,
   selectAllLabel,
+  getAdditionalOption,
   ...props
 }: MultiSelectTagInputProps<V>) {
   const [searchValue, setSearchValue] = React.useState("");
   const query = searchValue.trim();
+  const candidate = getAdditionalOption?.({ query });
+  const additionalOption =
+    candidate && !options.some((option) => option.value === candidate.value)
+      ? candidate
+      : undefined;
+  const filteredOptions = query ? rankOptions(options, query) : options;
   const selected = value.map(
     (selectedValue) =>
-      options.find((option) => option.value === selectedValue) ?? {
+      options.find((option) => option.value === selectedValue) ??
+      (additionalOption?.value === selectedValue
+        ? additionalOption
+        : undefined) ?? {
         value: selectedValue,
         label: selectedValue,
       },
@@ -46,7 +60,11 @@ export function MultiSelectTagInput<V extends string>({
     <AsyncMultiSelectTagInput
       {...props}
       value={selected}
-      options={query ? rankOptions(options, query) : options}
+      options={
+        additionalOption
+          ? [...filteredOptions, additionalOption]
+          : filteredOptions
+      }
       onValueChange={handleValueChange}
       // Selecting all while a search hides some options would be ambiguous.
       selectAllLabel={query ? undefined : selectAllLabel}

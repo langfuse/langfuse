@@ -21,8 +21,10 @@ export function EvaluatorFilterModeDropdown({
   mode: EvaluatorFilterExperience;
   onChange: (mode: EvaluatorFilterExperience) => void;
 }) {
+  const [open, setOpen] = useState(false);
   return (
-    <SelectDropdown
+    <SelectDropdown<EvaluatorFilterExperience>
+      openState={{ open, onOpenChange: setOpen }}
       aria-label="Filter editor mode"
       value={mode}
       options={FILTER_MODE_OPTIONS}
@@ -37,3 +39,4 @@ export function EvaluatorFilterModeDropdown({
     </SelectDropdown>
   );
 }
+import { useState } from "react";

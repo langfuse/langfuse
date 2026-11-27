@@ -1,17 +1,17 @@
 "use client";
 
 import * as React from "react";
-import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { Command } from "cmdk";
+import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 
+import type { SelectDropdown } from "../SelectDropdown/SelectDropdown";
+import type { InputControl } from "../internal/InputControl/InputControl";
+import { InputDropdown } from "../internal/InputDropdown/InputDropdown";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
 import { cn } from "@/src/utils/tailwind";
 import { assertUnreachable } from "@/src/utils/types";
-import { type SelectDropdown } from "../SelectDropdown/SelectDropdown";
-import type { InputControl } from "../internal/InputControl/InputControl";
-import { InputDropdown } from "../internal/InputDropdown/InputDropdown";
 import { SelectControl } from "../internal/SelectControl/SelectControl";
 
 type SelectedOption<V extends string> = Pick<
@@ -23,11 +23,13 @@ type SelectedOption<V extends string> = Pick<
 >;
 
 /** Search and selection are caller-owned; options are rendered without filtering. */
-export function AsyncSelectInput<V extends string>({
+export function ControlledSelectInput<V extends string>({
   value,
   options,
   onValueChange,
   search,
+  openState,
+  noCapture,
   placeholder,
   loading,
   callToActionOption,
@@ -67,6 +69,8 @@ export function AsyncSelectInput<V extends string>({
     onValueChange: (value: string) => void;
   };
   loading?: { message: string };
+  openState: React.ComponentProps<typeof SelectDropdown<V>>["openState"];
+  noCapture?: boolean;
   callToActionOption?: {
     label: string;
     position: "first" | "last";
@@ -80,10 +84,10 @@ export function AsyncSelectInput<V extends string>({
   ref?: React.Ref<HTMLButtonElement>;
 }) {
   const container = useLayerContainer("popover");
-  const [open, setOpen] = React.useState(false);
+  const { open } = openState;
   const handleOpenChange = (nextOpen: boolean) => {
-    setOpen(nextOpen);
     if (!nextOpen) search.onValueChange("");
+    openState.onOpenChange(nextOpen);
   };
   const listId = React.useId();
   const actionId = React.useId();
@@ -219,6 +223,7 @@ export function AsyncSelectInput<V extends string>({
           width={dropdownWidth === "wide" ? "popover-wide" : "popover-trigger"}
         >
           <PopoverPrimitive.Content
+            className={noCapture ? "ph-no-capture" : undefined}
             align={align}
             sideOffset={4}
             collisionPadding={dropdownWidth === "wide" ? 8 : undefined}

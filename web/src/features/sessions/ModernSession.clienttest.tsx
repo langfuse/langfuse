@@ -70,7 +70,6 @@ const defaultProps = {
     projectId: "project-id",
     filterState: [],
     filterColumns: [],
-    filterColumnsWithCustomSelect: [],
     onChange: vi.fn(),
     viewControllers: {
       selectedViewId: null,

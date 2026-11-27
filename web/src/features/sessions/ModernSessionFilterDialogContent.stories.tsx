@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type ColumnDefinition, type FilterState } from "@langfuse/shared";
 import { type ComponentProps } from "react";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { ModernSessionFilterDialogContent } from "@/src/features/sessions/ModernSessionFilterDialogContent";
@@ -36,7 +36,6 @@ const filters = [
 const defaultArgs = {
   initialFilters: [],
   filterColumns,
-  filterColumnsWithCustomSelect: [],
   viewActions: { type: "none" },
   onCancel: fn(),
   onApplyFilters: fn(),
@@ -64,6 +63,19 @@ export const WithFilters = meta.story({
   args: {
     ...defaultArgs,
     initialFilters: filters,
+  },
+  play: async ({ args, canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    const dialog = within(await page.findByRole("dialog"));
+    await userEvent.click(
+      dialog.getByRole("button", { name: "Remove filter 1" }),
+    );
+    await expect(args.onApplyFilters).not.toHaveBeenCalled();
+    await userEvent.click(
+      dialog.getByRole("button", { name: "Apply filters" }),
+    );
+    await expect(args.onApplyFilters).toHaveBeenCalledTimes(1);
+    await expect(args.onApplyFilters).toHaveBeenCalledWith([]);
   },
 });
 

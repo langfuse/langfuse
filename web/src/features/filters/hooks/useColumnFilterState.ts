@@ -1,5 +1,11 @@
 import { type FilterState } from "@langfuse/shared";
+import { useMemo } from "react";
 import { useQueryParam, JsonParam, withDefault } from "use-query-params";
+
+const columnFiltersParam = withDefault(
+  JsonParam,
+  {} as Record<string, FilterState>,
+);
 
 /**
  * Hook for managing per-column filter state with URL persistence
@@ -10,7 +16,7 @@ export const useColumnFilterState = () => {
   // Use JsonParam for automatic JSON encoding/decoding of complex objects
   const [columnFiltersState, setColumnFiltersState] = useQueryParam(
     "columnFilters",
-    withDefault(JsonParam, {} as Record<string, FilterState>),
+    columnFiltersParam,
   );
 
   const updateColumnFilters = (columnId: string, filters: FilterState) => {
@@ -25,21 +31,18 @@ export const useColumnFilterState = () => {
     return columnFiltersState?.[columnId] ?? [];
   };
 
-  // Transform object to array format
-  const convertToColumnFilterList = (): {
-    runId: string;
-    filters: FilterState;
-  }[] => {
-    const filters = columnFiltersState as Record<string, FilterState>;
-    return Object.entries(filters ?? {})
-      .filter(([_, filterArray]) => filterArray.length > 0)
-      .map(([runId, filterArray]) => ({ runId, filters: filterArray }));
-  };
+  const columnFilterList = useMemo(
+    () =>
+      Object.entries((columnFiltersState ?? {}) as Record<string, FilterState>)
+        .filter(([, filters]) => filters.length > 0)
+        .map(([runId, filters]) => ({ runId, filters })),
+    [columnFiltersState],
+  );
 
   return {
     columnFilters: columnFiltersState,
     updateColumnFilters,
     getFiltersForColumnById,
-    convertToColumnFilterList,
+    columnFilterList,
   } as const;
 };

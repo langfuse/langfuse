@@ -10,11 +10,12 @@ import { SelectInput } from "@/src/components/design-system/SelectInput/SelectIn
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Separator } from "@/src/components/ui/separator";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import type { ComponentProps, ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import type { Control } from "react-hook-form";
+import { useWatch } from "react-hook-form";
 import { TriggerEventSource, type ActionTypes } from "@langfuse/shared";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { ControlledFilterBuilderEditor } from "@/src/components/design-system/ControlledFilterBuilderEditor/ControlledFilterBuilderEditor";
 import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 import { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
 import type { FormValues } from "../ConnectedAutomationForm";
@@ -269,10 +270,15 @@ function VersionTriggerFields({
   eventSource: TriggerEventSource;
   control: Control<FormValues>;
   disabled: boolean;
-  columns: ComponentProps<typeof InlineFilterBuilder>["columns"];
+  columns: ComponentProps<typeof ControlledFilterBuilderEditor>["columns"];
   optionsLoading: boolean;
   onOptionsOpen: () => void;
 }) {
+  type EditorProps = ComponentProps<typeof ControlledFilterBuilderEditor>;
+  const filters = useWatch({ control, name: "filter" });
+  const [draft, setDraft] = useState<EditorProps["draft"]>(() =>
+    filters?.length ? filters : [{}],
+  );
   const resource =
     eventSource === TriggerEventSource.Skill ? "skill" : "prompt";
 
@@ -328,17 +334,23 @@ function VersionTriggerFields({
             aria-label="Filter"
             aria-describedby={field.inputDescribedById}
           >
-            <InlineFilterBuilder
-              columns={columns}
-              columnsWithCustomSelect={["labels", "tags"]}
-              loadingOptionColumns={optionsLoading ? ["labels", "tags"] : []}
-              onOptionsOpen={(columnId) => {
+            <ControlledFilterBuilderEditor
+              columns={columns.map((column) => ({
+                ...column,
+                allowCustomValues:
+                  column.id === "labels" || column.id === "tags",
+              }))}
+              loadingColumnIds={optionsLoading ? ["labels", "tags"] : []}
+              draft={draft}
+              onDraftChange={(next, { validFilters }) => {
+                setDraft(next);
+                field.onChange(validFilters);
+              }}
+              onValuePickerOpen={({ columnId }) => {
                 if (columnId === "labels" || columnId === "tags") {
                   onOptionsOpen();
                 }
               }}
-              filterState={field.value || []}
-              onChange={field.onChange}
               disabled={disabled}
             />
           </div>

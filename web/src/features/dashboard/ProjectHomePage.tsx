@@ -4,18 +4,25 @@ import { api } from "@/src/utils/api";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
-import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { FilterBuilderDropdown } from "@/src/components/design-system/FilterBuilderDropdown/FilterBuilderDropdown";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useFilterBuilderAnalytics } from "@/src/features/filters/hooks/useFilterBuilderAnalytics";
 import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 
 import {
   LANGFUSE_HOME_DASHBOARD_DEFINITION,
   LANGFUSE_HOME_DASHBOARD_ID,
-  type ColumnDefinition,
   type FilterState,
 } from "@langfuse/shared";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+} from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
@@ -53,6 +60,8 @@ import { ConnectedHomeDashboardSelect } from "@/src/features/dashboard/component
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
 
+const WIDGET_FILTER_DEBOUNCE_MS = 600;
+
 // Controller: no widget query may fire before the session resolves the v3/v4
 // read path — an unresolved session used to read as v3, fire a full wave of
 // legacy-table queries, then re-run the whole dashboard on v4 once the
@@ -75,6 +84,10 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const onFilterAnalyticsEvent = useFilterBuilderAnalytics(
+    "home-dashboard",
+    false,
+  );
   const projectId = router.query.projectId as string;
   const { project } = useQueryProjectOrOrganization();
   const { data: hasTracingConfigured, isLoading: isTracingCheckLoading } =
@@ -114,6 +127,14 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
     "dashboard",
     projectId,
   );
+  const [widgetFilters, setWidgetFilters] = useState(userFilterState);
+  useEffect(() => {
+    const timeout = setTimeout(
+      () => setWidgetFilters(userFilterState),
+      WIDGET_FILTER_DEBOUNCE_MS,
+    );
+    return () => clearTimeout(timeout);
+  }, [userFilterState]);
 
   const { nameOptions, tagsOptions } = useDashboardFilterOptions({
     projectId,
@@ -131,42 +152,42 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
   const { selectedEnvironments, setSelectedEnvironments } =
     useEnvironmentFilter(environmentOptions, projectId);
   const setSelectedEnvironmentsDebounced = useDebounce(setSelectedEnvironments);
-  const setUserFilterStateDebounced = useDebounce(setUserFilterState);
 
-  const filterColumns: ColumnDefinition[] = [
-    {
-      name: "Trace Name",
-      id: "traceName",
-      type: "stringOptions",
-      options: nameOptions,
-      internal: "internalValue",
-    },
-    {
-      name: "Tags",
-      id: "tags",
-      type: "arrayOptions",
-      options: tagsOptions,
-      internal: "internalValue",
-    },
-    {
-      name: "User",
-      id: "user",
-      type: "string",
-      internal: "internalValue",
-    },
-    {
-      name: "Release",
-      id: "release",
-      type: "string",
-      internal: "internalValue",
-    },
-    {
-      name: "Version",
-      id: "version",
-      type: "string",
-      internal: "internalValue",
-    },
-  ];
+  const filterColumns: ComponentProps<typeof FilterBuilderDropdown>["columns"] =
+    [
+      {
+        name: "Trace Name",
+        id: "traceName",
+        type: "stringOptions",
+        options: nameOptions,
+        internal: "internalValue",
+      },
+      {
+        name: "Tags",
+        id: "tags",
+        type: "arrayOptions",
+        options: tagsOptions,
+        internal: "internalValue",
+      },
+      {
+        name: "User",
+        id: "user",
+        type: "string",
+        internal: "internalValue",
+      },
+      {
+        name: "Release",
+        id: "release",
+        type: "string",
+        internal: "internalValue",
+      },
+      {
+        name: "Version",
+        id: "version",
+        type: "string",
+        internal: "internalValue",
+      },
+    ];
 
   const dashboardTimeRangePresets = DASHBOARD_AGGREGATION_OPTIONS;
 
@@ -278,10 +299,10 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
   const gridFilterState: FilterState = useMemo(
     () => [
       ...(displayedDashboard?.filters ?? []),
-      ...userFilterState,
+      ...widgetFilters,
       ...environmentFilter,
     ],
-    [displayedDashboard?.filters, userFilterState, environmentFilter],
+    [displayedDashboard?.filters, widgetFilters, environmentFilter],
   );
 
   const getWidgetSchedulerId = useCallback(
@@ -297,7 +318,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
       metricsVersion,
       absoluteTimeRange?.from?.toISOString() ?? "",
       absoluteTimeRange?.to?.toISOString() ?? "",
-      JSON.stringify(userFilterState),
+      JSON.stringify(widgetFilters),
       selectedEnvironments.join(","),
     ].join("|");
   }, [
@@ -307,7 +328,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
     metricsVersion,
     projectId,
     selectedEnvironments,
-    userFilterState,
+    widgetFilters,
   ]);
 
   const schedulerStore = useDashboardQueryScheduler({
@@ -342,6 +363,15 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
     });
   };
 
+  const filterBuilder = (
+    <FilterBuilderDropdown
+      value={userFilterState}
+      onChange={setUserFilterState}
+      onAnalyticsEvent={onFilterAnalyticsEvent}
+      columns={filterColumns}
+    />
+  );
+
   return (
     <DashboardQuerySchedulerProvider
       store={schedulerStore}
@@ -364,15 +394,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                 }))}
                 className="my-0 w-auto overflow-hidden"
               />
-              <PopoverFilterBuilder
-                columns={filterColumns}
-                filterState={userFilterState}
-                onChange={setUserFilterStateDebounced}
-                // Analytics (LFE-10781): project-home dashboard filter — a
-                // v3/legacy surface (not the v4 events table).
-                tableName="home-dashboard"
-                isV4={false}
-              />
+              {filterBuilder}
             </>
           ),
           actionButtonsRight: (
@@ -512,14 +534,8 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                   options={environmentOptions.map((env) => ({ value: env }))}
                   className="my-0 w-full overflow-hidden"
                 />
-                <div className="[&_button]:w-full [&_button]:justify-between [&>div]:w-full">
-                  <PopoverFilterBuilder
-                    columns={filterColumns}
-                    filterState={userFilterState}
-                    onChange={setUserFilterStateDebounced}
-                    tableName="home-dashboard"
-                    isV4={false}
-                  />
+                <div className="[&>div>button:first-child]:flex-1">
+                  {filterBuilder}
                 </div>
               </div>
             </>
