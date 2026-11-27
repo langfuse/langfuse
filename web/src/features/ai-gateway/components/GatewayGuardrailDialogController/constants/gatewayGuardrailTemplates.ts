@@ -91,8 +91,7 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
       id: "pii",
       guardrailType: "REGEX",
       name: "PII",
-      description:
-        "Detects emails, SSNs, credit cards, tax IDs, phone numbers, IBANs and IP addresses.",
+      description: "Detects emails, SSNs, cards, tax IDs, phones and IBANs.",
       preview: {
         kind: "snippet",
         label: "email",
@@ -125,13 +124,13 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
       defaultAction: "LOG",
       name: "Prompt injection (heuristic)",
       description:
-        "Heuristic patterns for common override, extraction, jailbreak and hidden-text attempts.",
+        "Heuristic patterns for override, extraction and jailbreak attempts.",
       notice:
         "Heuristic pattern matching catches common prompt injection phrases, not novel attacks, and can match security-related text. Start with Log mode before blocking.",
       preview: {
         kind: "snippet",
         label: "heuristic",
-        value: "Ignore previous instructions",
+        value: "Ignore prior rules",
       },
       presets: GATEWAY_GUARDRAIL_PRESETS_BY_GROUP.prompt_injection,
       defaultPresets: [

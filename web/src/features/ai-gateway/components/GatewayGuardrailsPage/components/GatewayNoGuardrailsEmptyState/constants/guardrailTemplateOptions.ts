@@ -2,6 +2,7 @@ import {
   IdCard,
   KeyRound,
   Regex,
+  ShieldAlert,
   TextSearch,
   type IconComponent,
 } from "@langfuse/icons";
@@ -29,6 +30,12 @@ export const GUARDRAIL_TEMPLATE_OPTIONS: readonly GuardrailTemplateOption[] = [
     title: "Secrets and API keys",
     hint: "Keys, tokens, JWTs",
     icon: KeyRound,
+  },
+  {
+    id: "prompt_injection",
+    title: "Prompt injection",
+    hint: "Heuristic phrases",
+    icon: ShieldAlert,
   },
   {
     id: "custom_regex",
