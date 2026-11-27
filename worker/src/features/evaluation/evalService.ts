@@ -416,7 +416,7 @@ export const createEvalJobs = async ({
 
       // Fetch trace data and store it. If observation data is required, we'll make a separate lookup.
       // Those fields are used rarely, though.
-      // oxlint-disable-next-line typescript/no-deprecated -- eval trace cache still uses legacy trace table
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       cachedTrace = await getTraceById({
         traceId: event.traceId,
         projectId: event.projectId,
@@ -1704,7 +1704,7 @@ export async function extractVariablesFromTracingData({
       const traceCacheKey = `${projectId}:${traceId}`;
       let trace = traceCache.get(traceCacheKey);
       if (!traceCache.has(traceCacheKey)) {
-        // oxlint-disable-next-line typescript/no-deprecated -- eval trace cache still uses legacy trace table
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         trace = await getTraceById({
           traceId,
           projectId,

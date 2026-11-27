@@ -29,7 +29,7 @@ async function buildCommentLink(opts: {
 
   switch (comment.objectType) {
     case "OBSERVATION": {
-      // oxlint-disable-next-line typescript/no-deprecated -- legacy observation lookup for comment deep links
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       const observation = await getObservationById({
         id: comment.objectId,
         projectId,
