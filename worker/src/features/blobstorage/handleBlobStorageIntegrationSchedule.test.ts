@@ -27,7 +27,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
   },
 }));
 
-vi.mock("./handleBlobStorageIntegrationProjectJob", () => ({
+vi.mock("./terminalExportError", () => ({
   notifyBlobStorageExportFailed,
 }));
 
