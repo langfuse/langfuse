@@ -769,7 +769,7 @@ fn redacts_json_responses_across_formats() {
     assert_eq!(ant_out["content"][2]["input"]["email"], "[EMAIL]");
 
     // OpenAI Responses: output_text dedupe + function_call + custom_tool_call + code + shell commands.
-    let responses = r#"{"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"SSN 123-45-6789"}]},{"type":"function_call","arguments":"{\"email\":\"bob@example.com\"}"},{"type":"custom_tool_call","input":"123-45-6789"},{"type":"code_interpreter_call","code":"print(\"123-45-6789\")","outputs":[]},{"type":"shell_call","action":{"commands":["echo \"bob@example.com\"","ls"],"timeout_ms":null}},{"type":"local_shell_call","action":{"type":"exec","command":["bash","-lc","echo 123-45-6789"]}}],"output_text":"SSN 123-45-6789"}"#;
+    let responses = r#"{"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"SSN 123-45-6789"},{"type":"output_audio","data":"UklG","transcript":"Spoken 123-45-6789"}]},{"type":"function_call","arguments":"{\"email\":\"bob@example.com\"}"},{"type":"custom_tool_call","input":"123-45-6789"},{"type":"code_interpreter_call","code":"print(\"123-45-6789\")","outputs":[]},{"type":"shell_call","action":{"commands":["echo \"bob@example.com\"","ls"],"timeout_ms":null}},{"type":"local_shell_call","action":{"type":"exec","command":["bash","-lc","echo 123-45-6789"]}}],"output_text":"SSN 123-45-6789"}"#;
     let parsed_resp = ParsedResponse::parse(
         ApiFormat::OpenAiResponses,
         ResponseFormat::Json,
@@ -777,7 +777,7 @@ fn redacts_json_responses_across_formats() {
         None,
     )
     .unwrap();
-    assert_eq!(parsed_resp.blocks().len(), 9);
+    assert_eq!(parsed_resp.blocks().len(), 10);
     let resp_out: serde_json::Value =
         serde_json::from_str(&rewritten_response_str(check_response_local(
             &guardrails,
@@ -787,6 +787,10 @@ fn redacts_json_responses_across_formats() {
         )))
         .unwrap();
     assert_eq!(resp_out["output"][0]["content"][0]["text"], "SSN [SSN]");
+    assert_eq!(
+        resp_out["output"][0]["content"][1],
+        serde_json::json!({"type": "output_audio", "data": "UklG", "transcript": "Spoken [SSN]"})
+    );
     assert_eq!(resp_out["output_text"], "SSN [SSN]");
     assert_eq!(resp_out["output"][1]["arguments"], r#"{"email":"[EMAIL]"}"#);
     assert_eq!(resp_out["output"][2]["input"], "[SSN]");
@@ -877,6 +881,8 @@ fn redacts_sse_responses_across_formats_and_span_boundaries() {
         "\n\n",
         r#"data: {"type":"response.audio.transcript.delta","delta":"45-6789"}"#,
         "\n\n",
+        r#"data: {"type":"response.output_item.done","output_index":5,"item":{"type":"message","content":[{"type":"output_audio","data":"UklG","transcript":"Spoken 123-45-6789"}]}}"#,
+        "\n\n",
         "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"r1\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"SSN 123-45-6789\"}]},{\"type\":\"function_call\",\"arguments\":\"{\\\"ssn\\\":\\\"123-45-6789\\\"}\"}]}}\n\n"
     );
     let resp_out = rewritten_response_str(check_response_local(
@@ -891,7 +897,7 @@ fn redacts_sse_responses_across_formats_and_span_boundaries() {
     assert_eq!(resp_out.matches(r#"print(\"[SSN]\")"#).count(), 3);
     assert_eq!(resp_out.matches(r#"echo \"[SSN]\""#).count(), 3);
     assert!(resp_out.contains(r#""command":["echo [SSN]"]"#));
-    assert_eq!(resp_out.matches("Spoken [SSN]").count(), 1);
+    assert_eq!(resp_out.matches("Spoken [SSN]").count(), 2);
     for data in resp_out
         .lines()
         .filter_map(|line| line.strip_prefix("data: "))

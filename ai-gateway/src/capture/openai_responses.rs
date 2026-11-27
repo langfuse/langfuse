@@ -524,6 +524,7 @@ macro_rules! text_part {
         Object::new(&[
             ("text", text(summary($slot))),
             ("refusal", text(summary("refusal"))),
+            ("transcript", text(summary("audio_transcript"))),
         ])
         .node()
     };
