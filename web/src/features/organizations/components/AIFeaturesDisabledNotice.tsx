@@ -1,8 +1,8 @@
 import { type ReactNode } from "react";
-import { ExternalLink } from "@langfuse/icons";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
 export function openAIFeaturesSettings(organizationId: string) {
   window.open(
@@ -45,7 +45,11 @@ export function AIFeaturesDisabledNotice({
           className="w-fit"
         >
           Enable in Organization Settings
-          <ExternalLink size="base" color="default" __rawClassName="ml-2" />
+          <SquareArrowOutUpRight
+            size="base"
+            color="default"
+            __rawClassName="ml-2"
+          />
         </Button>
       ) : null}
     </div>

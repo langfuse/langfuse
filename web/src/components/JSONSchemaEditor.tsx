@@ -2,8 +2,8 @@
 import React from "react";
 import { ArrowUpRight } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
-import { CodeMirrorEditor } from "@/src/components/editor";
-import { showErrorToast } from "@/src/features/notifications";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { assertUnreachable } from "@langfuse/shared";
 
 type JSONSchemaEditorMode = "json"; // Future: "json" | "builder"

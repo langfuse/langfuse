@@ -1,4 +1,4 @@
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { TopicSetupProgressView } from "./TopicSetupProgressView";
 
@@ -7,8 +7,6 @@ const facets = ["Intent", "Sentiment", "Outcome", "Issues"].map((name) => ({
   name,
   complete: 200,
   requested: 500,
-  outcome: null as string | null,
-  topicCount: null as number | null,
 }));
 
 const meta = preview.meta({
@@ -18,30 +16,53 @@ const meta = preview.meta({
     facets,
     retrying: false,
     canRetry: true,
-    onDisplayResults: fn(),
     onRetry: fn(),
   },
 });
 
 export const Summarizing = meta.story({});
 
-export const Naming = meta.story({
+export const ClusteringTopics = meta.story({
+  name: "(Test) Building topics counts finished fits, not summaries",
   args: {
-    stage: "naming" as const,
+    stage: "grouping" as const,
     facets: facets.map((facet) => ({ ...facet, complete: 500 })),
+    fits: { done: 2, total: 4 },
   },
-});
-
-export const Done = meta.story({
-  args: {
-    stage: "done" as const,
-    facets: facets.map((facet, index) => ({
-      ...facet,
-      complete: 500,
-      outcome: index === 3 ? "insufficient_data" : "published",
-      topicCount: index === 3 ? null : 4 + index,
-    })),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("Clustering and identifying topics"),
+    ).toBeInTheDocument();
+    await expect(canvas.getByText(/^2\s*\/\s*4$/)).toBeInTheDocument();
   },
 });
 
 export const Failed = meta.story({ args: { stage: "failed" as const } });
+
+export const WaitingForTraces = meta.story({
+  args: { waiting: true, facets: [], canRetry: false },
+});
+
+export const SnapshotSummarizing = meta.story({
+  name: "Snapshot summarizing",
+  args: {
+    variant: "snapshot" as const,
+    facets: facets.map((facet) => ({
+      ...facet,
+      complete: 140,
+      requested: 300,
+    })),
+    canRetry: false,
+  },
+});
+
+export const SnapshotFailed = meta.story({
+  name: "Snapshot failed",
+  args: {
+    variant: "snapshot" as const,
+    stage: "failed" as const,
+    canRetry: false,
+    onViewDetails: fn(),
+  },
+});

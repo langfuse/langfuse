@@ -1,7 +1,7 @@
 //! `OpenAI` Chat Completions request, JSON response and streamed choice capture.
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, bounded_string, facts::ProviderFacts,
-    parse_request, response::ResponseBody,
+    InputOmission, MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest,
+    bounded_string, error_detail, facts::ProviderFacts, response::ResponseBody,
 };
 use crate::resolution::IngestionMode;
 use axum::http::HeaderMap;
@@ -45,9 +45,9 @@ const REQUEST_METADATA: [&str; 4] = ["metadata", "prompt_cache_key", "safety_ide
 const IDENTITY_FIELDS: [&str; 3] = ["role", "id", "type"];
 
 pub(super) struct OpenAiChatCompletionsCapture {
-    facts: ProviderFacts,
+    pub(super) facts: ProviderFacts,
     mode: IngestionMode,
-    body: ResponseBody,
+    pub(super) body: ResponseBody,
     /// Present only in full mode; usage mode never records output.
     output: Option<Choices>,
     terminal: bool,
@@ -272,7 +272,7 @@ fn has_generated_content(delta: &Map<String, Value>) -> bool {
 }
 
 impl OpenAiChatCompletionsCapture {
-    pub(super) fn new(headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
+    pub(super) fn new(request: Result<RawRequest, InputOmission>, mode: IngestionMode) -> Self {
         let mut capture = Self {
             facts: ProviderFacts::default(),
             mode,
@@ -282,7 +282,7 @@ impl OpenAiChatCompletionsCapture {
             request_complete: false,
             response_valid: true,
         };
-        match parse_request(headers, body) {
+        match request {
             Ok(request) => {
                 capture.capture_request(request);
                 capture.request_complete = true;
@@ -296,20 +296,16 @@ impl OpenAiChatCompletionsCapture {
     }
 
     pub(super) fn record_response(&mut self, headers: &HeaderMap) {
-        self.facts.provider_request_id = headers
-            .get("x-request-id")
-            .and_then(|v| v.to_str().ok())
-            .and_then(bounded_string);
         self.body = ResponseBody::from_headers(headers);
         if matches!(self.body, ResponseBody::Unavailable) {
             self.response_valid = false;
         }
     }
 
-    pub(super) fn push_bytes(&mut self, bytes: &[u8]) -> bool {
+    pub(super) fn push_bytes(&mut self, bytes: &[u8], parse_limit: usize) -> bool {
         let mut body = std::mem::replace(&mut self.body, ResponseBody::Unavailable);
         let mut completion_started = false;
-        if !body.push(bytes, |event| {
+        if !body.push(bytes, parse_limit, |event| {
             completion_started |= self.handle_event(event);
         }) {
             self.response_valid = false;
@@ -349,15 +345,14 @@ impl OpenAiChatCompletionsCapture {
         self.facts
     }
 
-    fn capture_request(&mut self, mut request: Map<String, Value>) {
+    fn capture_request(&mut self, mut request: RawRequest) {
         self.facts.requested_model = request
-            .remove("model")
+            .take("model")
             .as_ref()
             .and_then(Value::as_str)
             .and_then(bounded_string);
-        self.facts.model.clone_from(&self.facts.requested_model);
         for key in SCALAR_PARAMETERS {
-            if let Some(value) = request.remove(key).filter(|v| {
+            if let Some(value) = request.take(key).filter(|v| {
                 self.mode == IngestionMode::Full
                     || v.is_number()
                     || v.is_boolean()
@@ -368,18 +363,18 @@ impl OpenAiChatCompletionsCapture {
         }
         if self.mode == IngestionMode::Full {
             for key in STRUCTURED_PARAMETERS {
-                if let Some(value) = request.remove(key) {
+                if let Some(value) = request.take(key) {
                     self.facts.model_parameters.insert(key.to_owned(), value);
                 }
             }
             for key in REQUEST_METADATA {
-                if let Some(value) = request.remove(key) {
+                if let Some(value) = request.take(key) {
                     self.facts.request_metadata.insert(key.to_owned(), value);
                 }
             }
             // `messages`, `tools`, legacy `functions` and unknown fields remain native.
-            self.facts.input = Some(Value::Object(request));
-            self.facts.input_complete = true;
+            self.facts.input = request.into_input();
+            self.facts.input_complete = self.facts.input.is_some();
         }
     }
 
@@ -492,18 +487,166 @@ impl OpenAiChatCompletionsCapture {
         if self.mode != IngestionMode::Full {
             return;
         }
-        let detail = ["code", "message"]
-            .into_iter()
-            .filter_map(|key| error.get(key).and_then(Value::as_str))
-            .filter(|value| !value.is_empty())
-            .map(|value| &value[..value.floor_char_boundary(MAX_FACT_STRING)])
-            .collect::<Vec<_>>()
-            .join(": ");
-        if !detail.is_empty() {
-            self.facts.error_message =
-                Some(detail[..detail.floor_char_boundary(MAX_FACT_STRING)].to_owned());
+        if let Some(detail) = error_detail(error, ["code", "message"]) {
+            self.facts.error_message = Some(detail);
         }
     }
+}
+
+/// Chat Completions keeps the whole conversation in `messages`. The last turn is
+/// the user's message, or the results of the assistant's (possibly parallel) tool
+/// calls: `tool` messages count as caller messages, so an assistant answer after
+/// them ends their turn.
+/// The top-level members guardrails scan.
+pub(super) const GUARDRAIL_MEMBERS: &[&str] = &["messages"];
+
+pub(super) fn guardrail_turn<'a>(
+    member: impl Fn(&str) -> Option<&'a str>,
+) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
+    let mut turn = crate::guardrails::text::LastTurn::default();
+    if let Some(messages) = member("messages") {
+        turn.push_items(
+            "messages",
+            messages,
+            crate::guardrails::text::classify_role_message,
+            crate::guardrails::text::read_role_message,
+        )?;
+    }
+    Ok(turn)
+}
+
+pub(super) fn extract_response_json(
+    value: &Value,
+    blocks: &mut Vec<crate::guardrails::response::ResponseBlock>,
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    use crate::guardrails::response::{collect_text_or_parts, ptr_push, push_json_leaf, push_leaf};
+    use crate::guardrails::text::Unreadable;
+
+    let Some(choices) = value.get("choices").filter(|v| !v.is_null()) else {
+        return Ok(());
+    };
+    let choices = choices.as_array().ok_or(Unreadable)?;
+    for (index, choice) in choices.iter().enumerate() {
+        let Some(message) = choice.get("message").filter(|v| !v.is_null()) else {
+            continue;
+        };
+        let msg_ptr = format!("/choices/{index}/message");
+        let map = message.as_object().ok_or(Unreadable)?;
+        for key in ["content", "refusal", "reasoning", "reasoning_content"] {
+            if let Some(field) = map.get(key) {
+                collect_text_or_parts(field, &ptr_push(&msg_ptr, key), 0, blocks)?;
+            }
+        }
+        if let Some(calls) = map.get("tool_calls").filter(|v| !v.is_null()) {
+            for (call_idx, call) in calls.as_array().ok_or(Unreadable)?.iter().enumerate() {
+                if let Some(args) = call.pointer("/function/arguments").and_then(Value::as_str) {
+                    push_json_leaf(
+                        blocks,
+                        args,
+                        format!("{msg_ptr}/tool_calls/{call_idx}/function/arguments"),
+                    );
+                }
+                if let Some(input) = call.pointer("/custom/input").and_then(Value::as_str) {
+                    push_leaf(
+                        blocks,
+                        input,
+                        format!("{msg_ptr}/tool_calls/{call_idx}/custom/input"),
+                        true,
+                    );
+                }
+            }
+        }
+        if let Some(args) = message
+            .pointer("/function_call/arguments")
+            .and_then(Value::as_str)
+        {
+            push_json_leaf(blocks, args, format!("{msg_ptr}/function_call/arguments"));
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn extract_response_sse(
+    frame_idx: usize,
+    value: &Value,
+    collector: &mut crate::guardrails::response::StreamCollector,
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    use crate::guardrails::response::{StreamKey, ptr_push, visit_text_or_parts};
+    use crate::guardrails::text::Unreadable;
+
+    let Some(choices) = value.get("choices").filter(|v| !v.is_null()) else {
+        return Ok(());
+    };
+    for (pos, choice) in choices.as_array().ok_or(Unreadable)?.iter().enumerate() {
+        let choice_idx = choice.get("index").and_then(Value::as_u64).unwrap_or(0);
+        let Some(delta) = choice.get("delta").filter(|v| !v.is_null()) else {
+            continue;
+        };
+        let delta_ptr = format!("/choices/{pos}/delta");
+        let map = delta.as_object().ok_or(Unreadable)?;
+        for key in ["content", "refusal", "reasoning", "reasoning_content"] {
+            match map.get(key) {
+                None | Some(Value::Null) => {}
+                Some(Value::String(text)) => {
+                    collector.push_delta(
+                        StreamKey::Chat(choice_idx, key),
+                        frame_idx,
+                        ptr_push(&delta_ptr, key),
+                        text,
+                    );
+                }
+                Some(field @ Value::Array(_)) => {
+                    visit_text_or_parts(
+                        field,
+                        &ptr_push(&delta_ptr, key),
+                        0,
+                        &mut |leaf_ptr, text| {
+                            collector.push_delta(
+                                StreamKey::Chat(choice_idx, key),
+                                frame_idx,
+                                leaf_ptr,
+                                text,
+                            );
+                        },
+                    )?;
+                }
+                Some(_) => return Err(Unreadable),
+            }
+        }
+        if let Some(calls) = map.get("tool_calls").filter(|v| !v.is_null()) {
+            for (call_pos, call) in calls.as_array().ok_or(Unreadable)?.iter().enumerate() {
+                let call_idx = call.get("index").and_then(Value::as_u64).unwrap_or(0);
+                if let Some(args) = call.pointer("/function/arguments").and_then(Value::as_str) {
+                    collector.push_delta(
+                        StreamKey::ChatToolArgs(choice_idx, call_idx),
+                        frame_idx,
+                        format!("{delta_ptr}/tool_calls/{call_pos}/function/arguments"),
+                        args,
+                    );
+                }
+                if let Some(input) = call.pointer("/custom/input").and_then(Value::as_str) {
+                    collector.push_delta(
+                        StreamKey::ChatToolCustomInput(choice_idx, call_idx),
+                        frame_idx,
+                        format!("{delta_ptr}/tool_calls/{call_pos}/custom/input"),
+                        input,
+                    );
+                }
+            }
+        }
+        if let Some(args) = delta
+            .pointer("/function_call/arguments")
+            .and_then(Value::as_str)
+        {
+            collector.push_delta(
+                StreamKey::Chat(choice_idx, "function_call"),
+                frame_idx,
+                format!("{delta_ptr}/function_call/arguments"),
+                args,
+            );
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

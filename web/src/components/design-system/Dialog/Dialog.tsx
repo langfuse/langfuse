@@ -1,12 +1,12 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 "use client";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
-import { X, type IconComponent } from "@langfuse/icons";
+import { ChevronLeft, X, type IconComponent } from "@langfuse/icons";
 import * as React from "react";
 
 import { Button } from "@/src/components/design-system/Button/Button";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { PopoverLayerProvider } from "@/src/context/LayerContext/PopoverLayerProvider";
 import { cn } from "@/src/utils/tailwind";
@@ -33,22 +33,36 @@ const dialogContentVariants = cva(
 
 type DialogAction = {
   disabled?: boolean;
+  /** Shown on hover while the action is disabled. */
+  disabledReason?: string;
   form?: string;
   icon?: IconComponent;
   label: string;
   loading?: boolean;
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
   type?: "button" | "submit";
-  variant?: "default" | "destructive";
+  variant?: "default" | "destructive" | "secondary";
 };
 
 type DialogProps = {
+  /** Blocks the portaled dialog's text and attributes from session replay. */
+  noCapture?: boolean;
   /** Defaults to "Cancel". Without `actions`, the close button is the only, primary button. */
   closeLabel?: string;
+  /** Hide the footer close button when every footer button is a workflow action. */
+  hideCloseButton?: boolean;
   closeOnInteractionOutside?: boolean;
+  /** Only the footer close button closes the dialog: Escape and the header close button are disabled. */
+  requireExplicitClose?: boolean;
   /** Disable when a child interaction handles activation keys on the document. */
   stopPropagationOnEnterSpace?: boolean;
   size?: VariantProps<typeof dialogContentVariants>["size"];
+  /** Renders a leading back button next to the title for multi-step dialogs. */
+  back?: {
+    onClick: () => void;
+    /** Accessible label for the back button. Defaults to "Back". */
+    label?: string;
+  };
   title: string;
 } & (
   | { children?: React.ReactNode; text?: never }
@@ -60,12 +74,16 @@ type DialogProps = {
 
 function DialogRoot({
   actions,
+  noCapture,
   children,
   closeLabel,
+  hideCloseButton = false,
   closeOnInteractionOutside = false,
+  requireExplicitClose = false,
   stopPropagationOnEnterSpace = true,
   size,
   text,
+  back,
   title,
 }: DialogProps) {
   const container = useLayerContainer("modal");
@@ -83,7 +101,8 @@ function DialogRoot({
     [],
   );
   const hasActions = Boolean(actions?.length);
-  const isCloseOnly = !hasActions && closeLabel !== undefined;
+  const isCloseOnly =
+    !hideCloseButton && !hasActions && closeLabel !== undefined;
   const actionButtonRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
 
   return (
@@ -97,7 +116,11 @@ function DialogRoot({
       />
       <DialogPrimitive.Content
         aria-describedby={undefined}
-        className={cn(motionStyles.content, dialogContentVariants({ size }))}
+        className={cn(
+          motionStyles.content,
+          dialogContentVariants({ size }),
+          noCapture && "ph-no-capture",
+        )}
         onOpenAutoFocus={(event) => {
           // Radix otherwise focuses Cancel because it is the first tabbable.
           // Prefer the rightmost safe action, falling back to Cancel rather
@@ -141,26 +164,45 @@ function DialogRoot({
             event.stopPropagation();
           }
         }}
+        onEscapeKeyDown={(event) => {
+          if (requireExplicitClose) event.preventDefault();
+        }}
         onPointerDownOutside={(event) => {
-          if (!closeOnInteractionOutside) event.preventDefault();
+          if (!closeOnInteractionOutside || requireExplicitClose)
+            event.preventDefault();
         }}
         onInteractOutside={(event) => {
-          if (!closeOnInteractionOutside) event.preventDefault();
+          if (!closeOnInteractionOutside || requireExplicitClose)
+            event.preventDefault();
         }}
       >
         <div className="isolate flex min-h-0 flex-1 flex-col overflow-hidden">
           <header className="bg-modal flex shrink-0 flex-col gap-1 rounded-t-lg p-4">
             <div className="flex w-full items-center justify-between gap-4 text-left">
-              <DialogPrimitive.Title className="min-w-0 flex-1 text-lg leading-none font-bold tracking-tight">
-                {title}
-              </DialogPrimitive.Title>
-              <DialogPrimitive.Close
-                className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -mt-2 -mr-2 inline-flex size-8 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
-                tabIndex={-1}
-              >
-                <X size="base" />
-                <span className="sr-only">Close</span>
-              </DialogPrimitive.Close>
+              <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                {back ? (
+                  <button
+                    type="button"
+                    aria-label={back.label ?? "Back"}
+                    onClick={back.onClick}
+                    className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring -ml-1.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
+                  >
+                    <ChevronLeft size="base" aria-hidden />
+                  </button>
+                ) : null}
+                <DialogPrimitive.Title className="min-w-0 flex-1 text-lg leading-none font-bold tracking-tight">
+                  {title}
+                </DialogPrimitive.Title>
+              </div>
+              {requireExplicitClose ? null : (
+                <DialogPrimitive.Close
+                  className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -mt-2 -mr-2 inline-flex size-8 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
+                  tabIndex={-1}
+                >
+                  <X size="base" />
+                  <span className="sr-only">Close</span>
+                </DialogPrimitive.Close>
+              )}
             </div>
           </header>
           <PopoverLayerProvider container={popoverContainer}>
@@ -168,36 +210,65 @@ function DialogRoot({
           </PopoverLayerProvider>
           {hasActions || isCloseOnly ? (
             <DialogFooter>
-              <DialogPrimitive.Close asChild>
-                {isCloseOnly ? (
-                  <Button
-                    ref={attachCloseOnlyButton}
-                    variant="primary"
-                    text={closeLabel}
-                  />
-                ) : (
-                  <Button
-                    ref={closeButtonRef}
-                    variant="secondary"
-                    text={closeLabel ?? "Cancel"}
-                  />
-                )}
-              </DialogPrimitive.Close>
+              {hideCloseButton ? null : (
+                <DialogPrimitive.Close asChild>
+                  {isCloseOnly ? (
+                    <Button
+                      ref={attachCloseOnlyButton}
+                      variant="primary"
+                      text={closeLabel}
+                    />
+                  ) : (
+                    <Button
+                      ref={closeButtonRef}
+                      variant="secondary"
+                      text={closeLabel ?? "Cancel"}
+                      disabled={actions?.some((action) => action.loading)}
+                    />
+                  )}
+                </DialogPrimitive.Close>
+              )}
               {actions?.map(
-                ({ icon: Icon, label, variant, ...buttonProps }, index) => (
-                  <Button
-                    key={label}
-                    icon={Icon}
-                    ref={(button) => {
-                      actionButtonRefs.current[index] = button;
-                    }}
-                    text={label}
-                    {...buttonProps}
-                    variant={
-                      variant === "destructive" ? "destructive" : "primary"
-                    }
-                  />
-                ),
+                (
+                  {
+                    icon: Icon,
+                    label,
+                    variant,
+                    disabledReason,
+                    ...buttonProps
+                  },
+                  index,
+                ) => {
+                  const button = (
+                    <Button
+                      key={label}
+                      icon={Icon}
+                      ref={(element) => {
+                        actionButtonRefs.current[index] = element;
+                      }}
+                      text={label}
+                      {...buttonProps}
+                      shouldFill={Boolean(
+                        buttonProps.disabled && disabledReason,
+                      )}
+                      variant={
+                        variant === undefined || variant === "default"
+                          ? "primary"
+                          : variant
+                      }
+                    />
+                  );
+                  if (!buttonProps.disabled || !disabledReason) return button;
+                  return (
+                    <DisabledActionTooltip
+                      key={label}
+                      label={disabledReason}
+                      shouldFill
+                    >
+                      {button}
+                    </DisabledActionTooltip>
+                  );
+                },
               )}
             </DialogFooter>
           ) : null}
@@ -212,9 +283,21 @@ function DialogRoot({
   );
 }
 
-function DialogBody({ children }: { children: React.ReactNode }) {
+function DialogBody({
+  children,
+  separators = "none",
+}: {
+  children: React.ReactNode;
+  /** Separates the scrolling body from the header and footer with borders. */
+  separators?: "none" | "both";
+}) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 text-sm leading-relaxed">
+    <div
+      className={cn(
+        "flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 text-sm leading-relaxed",
+        separators === "both" && "border-y",
+      )}
+    >
       {children}
     </div>
   );

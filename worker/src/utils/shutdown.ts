@@ -5,10 +5,11 @@ import { disconnectAllRedisInstances } from "@langfuse/shared/src/server";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { setSigtermReceived } from "../features/health";
 import { server } from "../index";
-import { freeAllTokenizers } from "../features/tokenisation/usage";
-import { getTokenCountWorkerManager } from "../features/tokenisation/async-usage";
 import { WorkerManager } from "../queues/workerManager";
-import { logInFlightBlobExportsOnShutdown } from "../features/blobstorage/inFlightExports";
+import {
+  abortBlobExportsForShutdown,
+  logInFlightBlobExportsOnShutdown,
+} from "../features/blobstorage/inFlightExports";
 import { abortActiveInAppAgentRuns } from "../features/in-app-agent/executeInAppAgentRun";
 import { prisma } from "@langfuse/shared/src/db";
 import { BackgroundMigrationManager } from "../backgroundMigrations/backgroundMigrationManager";
@@ -19,6 +20,7 @@ import {
   inAppAgentRetentionCleaner,
   batchProjectMediaCleaner,
   batchProjectBlobCleaner,
+  eventsDispatchTranscriptCleaner,
   batchTraceDeletionCleaner,
   traceDeleteBatchActionRunner,
   inAppAgentIntegrityRunner,
@@ -27,12 +29,20 @@ import {
   queueMetricsRunner,
   monitorRunners,
   inAppAgentDlqRetryRunner,
-  traceBatchDispatcher,
-  traceBatchMetricsRunner,
+  traceDispatcher,
+  traceDispatchMetricsRunner,
+  topicsNightlyRefitRunner,
 } from "../app";
+
+// Blob exports are aborted and re-queued only when a signal starts the drain.
+// A fatal-error drain never re-queues, even if a signal follows (its closed
+// health server makes the orchestrator send SIGTERM): an export that crashes
+// the worker would otherwise loop across the fleet without ever failing.
+let drainStartedBySignal = false;
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info(`Received ${signal}, closing server...`);
+  if (!drainPromise) drainStartedBySignal = true;
   await drainAndClose();
 };
 
@@ -56,7 +66,7 @@ const runDrainAndClose = async () => {
   logger.info("Server has been closed.");
 
   // Give in-flight dispatch up to five seconds before continuing shutdown.
-  await traceBatchDispatcher?.drain();
+  await traceDispatcher?.drain();
 
   // Stop batch project cleaners
   for (const cleaner of batchProjectCleaners) {
@@ -78,6 +88,9 @@ const runDrainAndClose = async () => {
   // Stop batch project blob cleaner
   batchProjectBlobCleaner?.stop();
 
+  // Stop events-dispatch transcript cleaner
+  eventsDispatchTranscriptCleaner?.stop();
+
   // Stop batch trace deletion cleaner
   batchTraceDeletionCleaner?.stop();
 
@@ -93,7 +106,7 @@ const runDrainAndClose = async () => {
 
   // Stop queue metrics runner
   queueMetricsRunner?.stop();
-  traceBatchMetricsRunner?.stop();
+  traceDispatchMetricsRunner?.stop();
 
   // Stop monitor runners
   for (const runner of monitorRunners) {
@@ -101,9 +114,13 @@ const runDrainAndClose = async () => {
   }
 
   inAppAgentDlqRetryRunner?.stop();
+  topicsNightlyRefitRunner?.stop();
 
   // Before closeWorkers(), while the registry is still populated (LFE-10388).
   logInFlightBlobExportsOnShutdown();
+  // Abort running exports so closeWorkers() can re-queue their jobs instead
+  // of waiting until ECS kills the task.
+  if (drainStartedBySignal) abortBlobExportsForShutdown();
 
   // Abort in-flight agent loops at their next step boundary so closeWorkers()
   // does not wait out a full agent turn; each run finishes FAILED
@@ -138,17 +155,6 @@ const runDrainAndClose = async () => {
 
   // Shutdown clickhouse connections
   await ClickHouseClientManager.getInstance().closeAllConnections();
-
-  // Shutdown tokenization worker threads
-  try {
-    await getTokenCountWorkerManager().terminate();
-    logger.info("Token count worker threads have been terminated.");
-  } catch (error) {
-    logger.error("Error terminating token count worker threads", error);
-  }
-
-  freeAllTokenizers();
-  logger.info("All tokenizers are cleaned up from memory.");
 
   logger.info("Shutdown complete, exiting process...");
 };

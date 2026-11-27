@@ -1,98 +1,135 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Keep the MCP low-level Server API for now; migration to McpServer needs endpoint-level coverage. */
 /**
  * MCP Streamable HTTP Transport
  *
- * Implements the Streamable HTTP transport for the Model Context Protocol (2025-03-26 spec).
- * This transport allows MCP communication over HTTP with JSON-RPC messages.
- *
+ * Serves both MCP protocol eras through the SDK's createMcpHandler: 2026-07-28
+ * requests directly, 2025-era requests through its stateless legacy fallback.
+ * Every request gets a fresh server from createMcpServer(context).
  */
 
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { type Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { EXTENSION_ID as MCP_APPS_EXTENSION_ID } from "@modelcontextprotocol/ext-apps/server";
+import { toNodeHandler } from "@modelcontextprotocol/node";
+import {
+  CLIENT_CAPABILITIES_META_KEY,
+  createMcpHandler,
+  type ClientCapabilities,
+} from "@modelcontextprotocol/server";
+import { getCurrentSpan, logger } from "@langfuse/shared/src/server";
 import { formatErrorForUser } from "../core/error-formatting";
-import { logger } from "@langfuse/shared/src/server";
+import type { ServerContext } from "../types";
+import { createMcpServer } from "./mcpServer";
+import { recordResourceRead } from "./resources";
 
 /**
- * Handle MCP request using Streamable HTTP transport.
+ * Capabilities a 2026-07-28 request declares in its `_meta` envelope, as sent:
+ * the SDK validates the request only after the server is built.
+ */
+const declaredClientCapabilities = (
+  body: unknown,
+): ClientCapabilities | undefined =>
+  (
+    body as
+      | { params?: { _meta?: Record<string, ClientCapabilities | undefined> } }
+      | undefined
+  )?.params?._meta?.[CLIENT_CAPABILITIES_META_KEY];
+
+const TRACKED_CAPABILITIES = [
+  "elicitation",
+  "roots",
+  "sampling",
+  "tasks",
+] as const satisfies readonly (keyof ClientCapabilities)[];
+
+/**
+ * The non-experimental extensions from
+ * https://modelcontextprotocol.io/extensions/overview that a client declares.
+ * Server Cards is left out: it is a document clients fetch, not a declaration.
+ */
+const TRACKED_EXTENSIONS = {
+  enterprise_managed_authorization:
+    "io.modelcontextprotocol/enterprise-managed-authorization",
+  events: "io.modelcontextprotocol/events",
+  oauth_client_credentials: "io.modelcontextprotocol/oauth-client-credentials",
+  skills: "io.modelcontextprotocol/skills",
+  tasks: "io.modelcontextprotocol/tasks",
+  ui: MCP_APPS_EXTENSION_ID,
+} as const;
+
+/**
+ * One boolean span attribute per tracked capability and extension, `false`
+ * included, so each one splits requests into supported and unsupported.
+ */
+const clientSupportAttributes = (
+  capabilities: ClientCapabilities,
+): Record<string, boolean> => {
+  const extensions: unknown = capabilities?.extensions;
+  const declaredExtensions =
+    extensions !== null && typeof extensions === "object" ? extensions : {};
+  return {
+    ...Object.fromEntries(
+      TRACKED_CAPABILITIES.map((name) => [
+        `mcp.client.capabilities.${name}`,
+        capabilities?.[name] !== undefined,
+      ]),
+    ),
+    ...Object.fromEntries(
+      Object.entries(TRACKED_EXTENSIONS).map(([name, id]) => [
+        `mcp.client.extensions.${name}`,
+        id in declaredExtensions,
+      ]),
+    ),
+  };
+};
+
+/**
+ * Handle an authenticated MCP request.
  *
- * This function:
- * 1. Validates request headers
- * 2. Creates a StreamableHTTPServerTransport (stateless mode)
- * 3. Connects the server to the transport
- * 4. Routes the request to the transport handler
- * 5. Transport handles the response lifecycle
+ * Request validation, CORS headers, OPTIONS handling, and authentication
+ * happen in the API route before this is called.
  *
  * Supports:
- * - POST: JSON-RPC requests (initialize, tool calls, etc.)
- * - GET: SSE stream for server-initiated messages (optional)
- * - DELETE: Session termination (returns 405 for stateless)
- * - OPTIONS: CORS preflight
+ * - POST: JSON-RPC requests of either protocol era
+ * - GET/DELETE: 405, since serving is stateless
  *
- * @param server - MCP Server instance (created per-request)
- * @param req - Next.js API request
+ * @param context - Server context from the authenticated request
+ * @param req - Next.js API request (body already parsed)
  * @param res - Next.js API response
  */
 export async function handleMcpRequest(
-  server: Server,
+  context: ServerContext,
   req: NextApiRequest,
   res: NextApiResponse,
 ): Promise<void> {
   try {
-    // Note: request validation, CORS headers, and OPTIONS handling happen in index.ts
-
-    // Validate Accept header for POST requests (per spec)
-    if (req.method === "POST") {
-      const acceptHeader = req.headers.accept || "";
-      if (
-        !acceptHeader.includes("application/json") &&
-        !acceptHeader.includes("text/event-stream") &&
-        !acceptHeader.includes("*/*")
-      ) {
-        res.status(406).json({
-          jsonrpc: "2.0",
-          error: {
-            code: -32600,
-            message:
-              "Invalid Request: Accept header must include application/json or text/event-stream",
-          },
-          id: null,
-        });
-        return;
-      }
+    const span = getCurrentSpan();
+    const protocolVersion = req.headers["mcp-protocol-version"];
+    if (protocolVersion !== undefined) {
+      span?.setAttribute("mcp.protocol.version", protocolVersion);
     }
 
-    // Create Streamable HTTP transport (stateless mode - no sessionIdGenerator)
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined, // Stateless mode
-      enableJsonResponse: true, // Use JSON response (simpler for stateless mode)
-    });
-
-    try {
-      // Connect server to transport
-      await server.connect(transport);
-
-      logger.debug("MCP server connected via Streamable HTTP transport", {
-        method: req.method,
-      });
-
-      // Handle the request through the transport
-      // IMPORTANT: The transport manages the response lifecycle internally.
-      // It will send the response and end it when appropriate.
-      // Do NOT call res.end() after this - the transport handles it.
-      await transport.handleRequest(req, res, req.body);
-
-      // Note: Do NOT end the response here. The transport has already
-      // sent the response (JSON or SSE) and ended it appropriately.
-    } finally {
-      // Clean up server and transport to prevent memory leaks
-      // server.close() internally calls transport.close()
-      await server.close().catch((err) => {
-        logger.warn("Error closing MCP server", {
-          error: err instanceof Error ? err.message : "Unknown",
-        });
-      });
+    // 2025-era clients declare capabilities only on `initialize`, so only
+    // 2026-07-28 requests carry them.
+    const clientCapabilities = declaredClientCapabilities(req.body);
+    if (clientCapabilities !== undefined) {
+      span?.setAttributes(clientSupportAttributes(clientCapabilities));
     }
+    recordResourceRead(req.body, clientCapabilities);
+
+    const handler = createMcpHandler(
+      ({ era }) => {
+        span?.setAttribute("mcp.protocol.era", era);
+        return createMcpServer(context, clientCapabilities);
+      },
+      {
+        onerror: (error) => {
+          logger.warn("MCP request error", {
+            message: error.message,
+            name: error.name,
+          });
+        },
+      },
+    );
+    await toNodeHandler(handler)(req, res, req.body);
   } catch (error) {
     logger.error("MCP transport error", {
       message: error instanceof Error ? error.message : "Unknown error",

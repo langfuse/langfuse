@@ -5,10 +5,6 @@ import { z } from "zod";
 export const MessageTypeSchema = z.enum(["Question", "Feedback", "Bug"]);
 export type MessageType = z.infer<typeof MessageTypeSchema>;
 
-/** ── Form Sections (for your stepper/wizard) ─────────────────────────────── */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
-const FormSectionSchema = z.enum(["intro", "form", "success"]);
-
 /** ── Topics (grouped + flattened) ────────────────────────────────────────── */
 export const TopicGroups = {
   Operations: [
@@ -53,12 +49,14 @@ export const SEVERITY_3 = SeveritySchema.options[2];
 
 /**
  * Plans that may raise Severity 1 (Sev-1) and Severity 2 (Sev-2) support
- * requests — Enterprise only. All other plans (and free/unknown plans) are
- * limited to Severity 3. Mirrors the check in `mapToPylonCaseSeverity`.
+ * requests — Enterprise and Government only. All other plans (and
+ * free/unknown plans) are limited to Severity 3. Mirrors the check in
+ * `mapToPylonCaseSeverity`.
  */
 const ENTERPRISE_SUPPORT_PLANS = [
   "cloud:enterprise",
   "self-hosted:enterprise",
+  "self-hosted:gov",
 ] as const;
 
 /** Whether the given plan may raise Severity 1/2 support requests. */
@@ -81,6 +79,7 @@ export const isPlanWithoutCaseSeverity = (plan?: string): boolean =>
  * Whether a given severity level can be selected on the given plan. Used both
  * to grey out options in the UI and as a server-side safeguard in
  * `mapToPylonCaseSeverity`.
+ * @internal
  */
 export const isSeverityAllowedForPlan = (
   severity: string,

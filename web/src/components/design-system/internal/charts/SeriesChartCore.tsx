@@ -19,7 +19,7 @@ type LineChartValues = {
 type TimeLineChartDatum = LineChartValues & { x: Date };
 type CategoryLineChartDatum = LineChartValues & { x: string };
 
-export type LineChartSeries = {
+type LineChartSeries = {
   id: string;
   label: string;
   color: string;
@@ -62,6 +62,8 @@ type CommonLineChartProps = {
     onActiveKeyChange: (key: string | undefined) => void;
   };
   legend?: LineChartLegend;
+  /** compactYAxis shrinks the y-axis gutter to fit short tick labels. */
+  compactYAxis?: boolean;
 };
 
 type LineChartProps = CommonLineChartProps &
@@ -305,6 +307,7 @@ export function SeriesChartCore(
                 props.xAxis.type !== "category" ||
                 props.xAxis.labels !== "hidden"
               }
+              compactYAxis={props.compactYAxis}
             >
               {(layout) => (
                 <LineChartContent

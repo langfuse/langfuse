@@ -9,14 +9,23 @@ export type UpdatePromptParams = {
   projectId: string;
   promptVersion: number;
   newLabels: string[];
+  /** Labels to remove from this version only. Applied after newLabels. */
+  removeLabels?: string[];
   user?: { id: string; name: string | null; email: string | null };
 };
 
 export const updatePrompt = async (params: UpdatePromptParams) => {
-  const { promptName, projectId, promptVersion, newLabels, user } = params;
+  const {
+    promptName,
+    projectId,
+    promptVersion,
+    newLabels,
+    removeLabels = [],
+    user,
+  } = params;
 
   logger.info(
-    `Updating prompt ${promptName} in project ${projectId} version ${promptVersion} with labels ${newLabels}`,
+    `Updating prompt ${promptName} in project ${projectId} version ${promptVersion}: adding ${newLabels.length} labels, removing ${removeLabels.length} labels`,
   );
   const promptService = new PromptService(prisma, redis);
   const touchedPromptIds: string[] = [];
@@ -49,11 +58,13 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
 
     touchedPromptIds.push(prompt.id);
 
-    const newLabelsSet = new Set([...newLabels, ...prompt.labels]);
+    // newLabels are additive; only labels listed in removeLabels are dropped.
+    const newLabelsSet = new Set([...prompt.labels, ...newLabels]);
+    for (const label of removeLabels) {
+      newLabelsSet.delete(label);
+    }
     const removedLabels = [];
 
-    // Prompt labels cannot be removed here since the newLabelsSet includes the old labels
-    // Keeping this dependent check below as a safeguard in case the above changes
     for (const oldLabel of prompt.labels) {
       if (!newLabelsSet.has(oldLabel)) {
         removedLabels.push(oldLabel);
@@ -99,9 +110,7 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
     }
 
     logger.info(
-      `Setting labels for prompt: ${prompt.id}, ${prompt.name}, ${prompt.version}, ${JSON.stringify(
-        Array.from(newLabelsSet),
-      )}`,
+      `Setting labels for prompt: ${prompt.id}, ${prompt.name}, ${prompt.version}, countBefore: ${prompt.labels.length}, countAfter: ${newLabelsSet.size}`,
     );
 
     const { touchedPromptIds: labelsTouchedPromptIds, updates: labelUpdates } =

@@ -23,7 +23,7 @@
 
 import { type ReactNode } from "react";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { useSelection } from "../contexts/SelectionContext";
+import { useSelection } from "../contexts/SelectionProvider";
 import { TraceTruncationNotice } from "./TraceTruncationNotice";
 
 export type MobileTraceTab = "tree" | "timeline" | "graph" | "info";

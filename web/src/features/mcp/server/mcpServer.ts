@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Keep the MCP low-level Server API for now; migration to McpServer needs endpoint-level coverage. */
 /**
  * MCP Server Instance
  *
@@ -12,19 +11,29 @@
  * - Server discarded after request completes
  */
 
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
-  ListToolsRequestSchema,
-  CallToolRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
-import { isProductFeedbackAvailable } from "@/src/features/feedback/server";
-import { shadowAuthorize } from "@/src/features/public-api/server";
+  McpServer,
+  ProtocolError,
+  ProtocolErrorCode,
+  isInputRequiredResult,
+  type ClientCapabilities,
+} from "@modelcontextprotocol/server";
+import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
+import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import { formatErrorForUser } from "../core/error-formatting";
 import type { ServerContext } from "../types";
 import type { ToolDefinition } from "../core/define-tool";
-import { toolRegistry } from "./registry";
+import { canCallTool, getEnabledTool, getEnabledTools } from "./tools";
+import {
+  clientMayRenderApps,
+  isAppTool,
+  isAppToolResult,
+  MCP_APPS_EXTENSION,
+} from "../core/mcp-app";
 import { contextWithLangfuseProps, logger } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
+import { langfuseSkills } from "@/src/features/mcp/server/skills/resources";
+import { registerWidgetAppResource } from "@/src/features/mcp/server/apps/resources";
 
 const MCP_SERVER_NAME = "langfuse";
 
@@ -36,10 +45,12 @@ const MCP_SERVER_INSTRUCTIONS = [
   "Use this server for project-scoped Langfuse data and actions such as prompts, datasets, scores, comments, metrics, observations etc.",
   "Inspect the available tools and their schemas dynamically; do not assume a fixed tool list.",
   "For conceptual Langfuse product guidance, SDK/API documentation, instrumentation help, or prompt-migration guidance, prefer the Langfuse docs MCP server or installed Langfuse agent skills when they are available.",
+  "Discover bundled Langfuse skills with skills/list, retrieve metadata with skills/get, and read skill files with resources/read.",
 ];
 const MCP_FEEDBACK_INSTRUCTION =
   "To send feedback about Langfuse skills, MCP tools, CLI, docs, or public API, ask the user for permission and show the exact feedback payload; if they want a reply, include only an email address they explicitly provide in the feedback text; exclude secrets, customer/project data, trace payloads, and unrelated context, then call submitFeedback.";
 
+/** @internal */
 export const getMcpServerInstructions = (): string =>
   isProductFeedbackAvailable()
     ? [...MCP_SERVER_INSTRUCTIONS, MCP_FEEDBACK_INSTRUCTION].join("\n")
@@ -51,36 +62,71 @@ export const getMcpServerInstructions = (): string =>
  * Creates a fresh MCP server for each request with context captured in closures.
  * This follows the stateless pattern where no server state persists between requests.
  *
- * Tools are dynamically loaded from the global registry, eliminating hardcoded tool lists.
- * Features register themselves at application startup via the bootstrap module.
+ * Tools come from the feature modules listed in `tools.ts`.
  *
  * @param context - Server context from authenticated request (captured in closures)
+ * @param clientCapabilities - Capabilities the request declared, if any;
+ *   decides whether MCP App tools and their resources are offered
  * @returns Configured MCP Server instance
  *
  * @example
  * // In API route:
- * const server = createMcpServer(context);
+ * const server = await createMcpServer(context);
  * await server.connect(transport);
  * // ... handle request ...
  * // Server discarded after request
  */
-export function createMcpServer(context: ServerContext): Server {
-  const server = new Server(
+export async function createMcpServer(
+  context: ServerContext,
+  clientCapabilities?: ClientCapabilities,
+): Promise<McpServer> {
+  const server = new McpServer(
     {
       name: MCP_SERVER_NAME,
       version: MCP_SERVER_VERSION,
     },
     {
       capabilities: {
-        tools: {},
+        // Each request gets a fresh instance and nothing publishes change
+        // events, so no list-changed notification is ever sent. Advertising
+        // them would have 2026-07-28 clients hold a subscriptions/listen
+        // response open until they disconnect.
+        tools: { listChanged: false },
+        resources: { listChanged: false },
+        extensions: MCP_APPS_EXTENSION,
       },
       instructions: getMcpServerInstructions(),
+      // A stateless 2025-era request carries no client capabilities (those
+      // are only declared in `initialize`), so there is nothing to check a
+      // server-to-client prompt against; tools never ask for input there.
+      inputRequired: { legacyShim: false },
     },
   );
 
+  const skillCatalog = await langfuseSkills;
+  skillCatalog.attach(server);
+  if (clientMayRenderApps(clientCapabilities)) {
+    registerWidgetAppResource(server);
+  }
+
+  // Tools keep their own handlers on the underlying low-level server.
+  server.server.registerCapabilities({ tools: {} });
+
   // ListTools handler - dynamically load from registry
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    const tools = await toolRegistry.getToolDefinitions(context);
+  server.server.setRequestHandler("tools/list", async () => {
+    // Protocol fields only: `action` is for the server's permission check.
+    const definitions = (await getEnabledTools(context)).map(
+      ({ definition }) => ({
+        name: definition.name,
+        description: definition.description,
+        inputSchema: definition.inputSchema,
+        annotations: definition.annotations,
+        _meta: definition._meta,
+      }),
+    );
+    const tools = clientMayRenderApps(clientCapabilities)
+      ? definitions
+      : definitions.filter((definition) => !isAppTool(definition));
 
     logger.debug("MCP ListTools", {
       projectId: context.projectId,
@@ -92,7 +138,7 @@ export function createMcpServer(context: ServerContext): Server {
   });
 
   // CallTool handler - route to registered tool handlers
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.server.setRequestHandler("tools/call", async (request, ctx) => {
     const { name, arguments: args } = request.params;
 
     logger.debug("MCP CallTool", {
@@ -100,18 +146,21 @@ export function createMcpServer(context: ServerContext): Server {
       toolName: name,
     });
 
-    // Look up tool in registry and apply feature gates. Direct calls should
-    // fail the same way as absent tools when a gated feature is disabled.
-    const registeredTool = await toolRegistry.getEnabledTool(name, context);
+    // Tools of disabled features and tools the context may not call fail the
+    // same way as absent tools.
+    const registeredTool = await getEnabledTool(name, context);
 
-    if (!registeredTool) {
-      throw new Error(`Unknown tool: ${name}`);
+    if (!registeredTool || !canCallTool(registeredTool, context)) {
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        `Unknown tool: ${name}`,
+      );
     }
 
     assertToolAuthorized(registeredTool.definition, context);
 
     // Execute handler with context
-    // Handler performs validation and error handling via defineTool wrapper
+    // Handler validates input; errors are formatted only at this boundary.
     const clickHouseCtx = contextWithLangfuseProps({
       projectId: context.projectId,
       apiKeyId: context.apiKeyId,
@@ -120,21 +169,38 @@ export function createMcpServer(context: ServerContext): Server {
         route: name,
       },
     });
-    const result = await otelContext.with(clickHouseCtx, () =>
-      registeredTool.handler(args, context),
-    );
+    try {
+      const result = await otelContext.with(clickHouseCtx, () =>
+        registeredTool.handler(args, context, ctx),
+      );
 
-    return {
-      content: [
-        {
-          type: "text",
-          text:
-            typeof result === "string"
-              ? result
-              : JSON.stringify(result, null, 2),
-        },
-      ],
-    };
+      if (isInputRequiredResult(result)) return result;
+
+      if (isAppToolResult(result)) {
+        return {
+          content: [{ type: "text", text: result.text }],
+          _meta: result.meta,
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text:
+              typeof result === "string"
+                ? result
+                : JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      const { message } = formatErrorForUser(error);
+      return {
+        content: [{ type: "text", text: message }],
+        isError: true,
+      };
+    }
   });
 
   return server;
@@ -154,7 +220,11 @@ function assertToolAuthorized(
       scope: { accessLevel: context.accessLevel },
     },
   });
-  if (!decision.success) throw formatErrorForUser(decision.error);
+  if (!decision.success) {
+    const { code, message } = formatErrorForUser(decision.error);
+    throw new ProtocolError(code, message);
+  }
 }
 
+/** @internal */
 export const __test = { assertToolAuthorized };

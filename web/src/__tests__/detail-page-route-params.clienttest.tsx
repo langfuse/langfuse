@@ -3,6 +3,24 @@ import type { ReactNode } from "react";
 import type { Mock } from "vitest";
 import { useRouter } from "next/router";
 
+const sessionView = vi.hoisted(() => ({
+  isV4: false,
+  unifiedEnabled: false,
+}));
+
+vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
+  default: () => sessionView.unifiedEnabled,
+}));
+
+vi.mock(
+  "@/src/features/sessions/ConnectedSessionDetailPage/ConnectedSessionDetailPage",
+  () => ({
+    ConnectedSessionDetailPage: ({ sessionId }: { sessionId: string }) => (
+      <div data-testid="unified-session-page">{sessionId}</div>
+    ),
+  }),
+);
+
 vi.mock("next/router", () => ({
   useRouter: vi.fn(),
 }));
@@ -23,10 +41,10 @@ vi.mock("@/src/features/sessions/SessionPages", () => ({
 }));
 
 vi.mock("@/src/features/events/hooks/useReadPath", () => ({
-  useReadPath: () => ({ isV4: false, isResolved: true }),
+  useReadPath: () => ({ isV4: sessionView.isV4, isResolved: true }),
 }));
 
-vi.mock("@/src/features/widgets", () => ({
+vi.mock("@/src/features/widgets/components/ConnectedWidgetForm", () => ({
   ConnectedWidgetForm: ({ projectId }: { projectId: string }) => (
     <div data-testid="widget-form">{projectId}</div>
   ),
@@ -59,7 +77,7 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
-vi.mock("@/src/components/layouts/page", () => ({
+vi.mock("@/src/components/layouts/Page", () => ({
   default: ({ children }: { children: ReactNode }) => (
     <div data-testid="page">{children}</div>
   ),
@@ -96,8 +114,8 @@ vi.mock("@/src/features/datasets/components/DatasetRunsTable", () => ({
   ),
 }));
 
-vi.mock("@/src/features/experiments/components/table", () => ({
-  ExperimentsTable: ({ projectId }: { projectId: string }) => (
+vi.mock("@/src/features/experiments/components/table/ExperimentsTable", () => ({
+  default: ({ projectId }: { projectId: string }) => (
     <div data-testid="experiments-table">{projectId}</div>
   ),
 }));
@@ -117,6 +135,11 @@ function mockRouterQuery(query: Record<string, string | string[] | undefined>) {
 }
 
 describe("detail page deep-link route params", () => {
+  beforeEach(() => {
+    sessionView.isV4 = false;
+    sessionView.unifiedEnabled = false;
+  });
+
   test("trace detail does not mount the page while router.query is empty", () => {
     mockRouterQuery({});
     render(<TracePageRoute />);
@@ -139,6 +162,35 @@ describe("detail page deep-link route params", () => {
     mockRouterQuery({ projectId: "p1", sessionId: "s1" });
     render(<SessionPageRoute />);
     expect(screen.getByTestId("session-page")).toHaveTextContent("s1");
+  });
+
+  test("session deep links use the unified workspace when enabled", () => {
+    sessionView.isV4 = true;
+    sessionView.unifiedEnabled = true;
+    mockRouterQuery({
+      projectId: "p1",
+      sessionId: "s1",
+      traceView: "messages",
+    });
+    render(<SessionPageRoute />);
+    expect(screen.getByTestId("unified-session-page")).toHaveTextContent("s1");
+    expect(screen.queryByTestId("session-events-page")).toBeNull();
+  });
+
+  test("session deep links retain the events page when the flag is off", () => {
+    sessionView.isV4 = true;
+    mockRouterQuery({ projectId: "p1", sessionId: "s1" });
+    render(<SessionPageRoute />);
+    expect(screen.getByTestId("session-events-page")).toHaveTextContent("s1");
+    expect(screen.queryByTestId("unified-session-page")).toBeNull();
+  });
+
+  test("legacy sessions retain their page when the unified flag is on", () => {
+    sessionView.unifiedEnabled = true;
+    mockRouterQuery({ projectId: "p1", sessionId: "s1" });
+    render(<SessionPageRoute />);
+    expect(screen.getByTestId("session-page")).toHaveTextContent("s1");
+    expect(screen.queryByTestId("unified-session-page")).toBeNull();
   });
 
   test("session detail waits inline, without the full-screen branded overlay", () => {

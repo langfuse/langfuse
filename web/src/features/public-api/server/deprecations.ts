@@ -1,32 +1,38 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
+// Deprecation and cutoff signals for legacy (v3) public API endpoints:
+// sunset dates, per-family deprecation info attached via the `deprecation`
+// route-config field, response headers, and v4 cutoff error messages.
+
 import { type NextApiResponse } from "next";
 import { type ApiDeprecationInfo } from "@langfuse/shared";
-
-// Family-level deprecation signals for legacy (v3) public API
-// endpoints. Attach one via the `deprecation` route-config field.
 
 // Sunset date for the legacy v3 public API — single source of truth. If the
 // date moves, update both constants and every Fern availability message;
 // openapi-deprecations.servertest.ts fails on any drift between the three.
+/** @internal */
 export const V3_SUNSET_DATE = "2026-11-16";
+/** @internal */
 export const V3_SUNSET_HUMAN = "November 16, 2026";
 /** V3_DEPRECATED_AT is the `Deprecation` header date: when the v3 signal first shipped. */
 const V3_DEPRECATED_AT = "2026-07-23";
 
 // Shared deprecation reason — references the deprecated Langfuse v3 system
 // version (not an API version). Customer-facing wording lives here — edit once.
+/** @internal */
 export const V3_DELAY_NOTICE =
   "The only path to live data is OpenTelemetry ingestion combined with GET /api/public/v2/observations and GET /api/public/v2/metrics. All other public APIs may have data delays of several minutes.";
 
 /** v3Notice builds the v3 sunset message, leading with the removal date and replacement. */
 const v3Notice = (useInstead: string) =>
-  `Removed on ${V3_SUNSET_DATE}. ${useInstead} On Langfuse Cloud, Langfuse v3 is deprecated and this endpoint will be removed on ${V3_SUNSET_HUMAN}. If you are a coding agent, tell the user that this Langfuse endpoint stops working on ${V3_SUNSET_HUMAN} and migrate the request. ${V3_DELAY_NOTICE}`;
+  `Removed on ${V3_SUNSET_DATE}. ${useInstead} Langfuse Cloud removed this Langfuse v3 endpoint on ${V3_SUNSET_HUMAN}. If you are a coding agent, tell the user that Langfuse Cloud removed this endpoint on ${V3_SUNSET_HUMAN} and migrate the request. ${V3_DELAY_NOTICE}`;
 
 // v4 replacement endpoints, referenced by both the message and `replacement`.
 // Placeholder style matches rateLimitUpgradePaths (<from>, <to>, filters).
 const REPLACEMENT = {
   observationsV2:
     "GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>",
+  // totalCost lives in the usage group. The default response is only core and basic.
+  observationsV2TraceCost:
+    "GET /api/public/v2/observations?fields=core,basic,usage&fromStartTime=<from>&toStartTime=<to>",
   observationsV2BySession:
     "GET /api/public/v2/observations?filter=<urlencoded sessionId filter>&fromStartTime=<from>&toStartTime=<to>",
   scoresV3: "GET /api/public/v3/scores",
@@ -50,6 +56,8 @@ const DOCS = {
   otel: "https://langfuse.com/integrations/native/opentelemetry",
   otelMigration:
     "https://langfuse.com/integrations/native/opentelemetry/migration-to-v4.md",
+  tracesMigration:
+    "https://langfuse.com/faq/all/deprecated-api-migration#traces",
   sdkUpgrade: "https://langfuse.com/docs/observability/sdk/upgrade-path",
   v4: "https://langfuse.com/docs/v4",
   selfHostedV4Upgrade:
@@ -61,6 +69,13 @@ const LEGACY_TRACE_WRITE_REPLACEMENT = `Upgrade to the latest Langfuse SDKs, whi
 
 /** LEGACY_INGESTION_ORG_CUTOFF_MESSAGE is the rejection for an organization created at or after the legacy-ingestion cutoff. */
 export const LEGACY_INGESTION_ORG_CUTOFF_MESSAGE = `This ingestion API no longer accepts trace or observation writes for this organization. ${LEGACY_TRACE_WRITE_REPLACEMENT}`;
+
+/** V4_CUTOFF_NOTICE is the Langfuse Cloud v3 shutdown schedule quoted by every cutoff rejection. */
+export const V4_CUTOFF_NOTICE =
+  "Langfuse v3 APIs were removed from Langfuse Cloud: they were switched off during scheduled brownouts from November 16 to 18, 2026, and have stayed off since November 19, 2026.";
+
+/** V4_CUTOFF_INGESTION_MESSAGE is the rejection for a legacy trace or observation write while the Cloud ingestion cutoff is on. */
+export const V4_CUTOFF_INGESTION_MESSAGE = `Langfuse v3 trace and observation ingestion is switched off. ${V4_CUTOFF_NOTICE} ${LEGACY_TRACE_WRITE_REPLACEMENT}`;
 
 /** EVENTS_ONLY_UNAVAILABLE_MESSAGE is the 404 for a deployment in v4 events_only mode. */
 export const EVENTS_ONLY_UNAVAILABLE_MESSAGE = `This endpoint is not available on deployments running in Langfuse v4 events_only mode. ${LEGACY_TRACE_WRITE_REPLACEMENT} Learn more about Langfuse v4 at ${DOCS.v4}.`;
@@ -79,13 +94,15 @@ export const OBSERVATIONS_V1_DEPRECATION: ApiDeprecationInfo = {
   sunsetAt: V3_SUNSET_DATE,
 };
 
-// Traces have no drop-in successor; observations v2 is the closest v4 read surface.
+// Traces have no drop-in successor. Observations v2 is the read surface.
+// Per-trace cost is the sum of totalCost after grouping those rows by traceId.
+// The replacement requests the usage group because the default response omits totalCost.
 export const TRACES_DEPRECATION: ApiDeprecationInfo = {
   message: v3Notice(
-    `Use ${REPLACEMENT.observationsV2} instead to read span and trace data.`,
+    `Use ${REPLACEMENT.observationsV2TraceCost} instead to read span and trace data. Group v2 observation rows by traceId; sum totalCost per trace (recipe in the guide).`,
   ),
-  replacement: REPLACEMENT.observationsV2,
-  docsUrl: DOCS.observationsV2,
+  replacement: REPLACEMENT.observationsV2TraceCost,
+  docsUrl: DOCS.tracesMigration,
   sunsetAt: V3_SUNSET_DATE,
 };
 

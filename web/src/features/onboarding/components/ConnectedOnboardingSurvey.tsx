@@ -1,11 +1,10 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
-import { showErrorToast } from "@/src/features/notifications";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { reportError } from "@/src/utils/reportError";
@@ -84,6 +83,7 @@ export function ConnectedOnboardingSurvey() {
           `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`,
           window.location.origin,
         );
+        // eslint-disable-next-line @repo/no-location-navigation -- the client router replace already failed, so load this path with a full page navigation
         window.location.assign(destination.href);
       }
     },

@@ -315,9 +315,12 @@ export const encodeCursor = (
 export const GetObservationsV2Query = z.object({
   // Field groups parameter (optional - defaults to all groups)
   // Comma-separated list of field groups: fields=basic,metadata,io
+  // A list left empty after dropping unknown groups falls back to the default.
   fields: commaSeparatedEnumArray(OBSERVATION_FIELD_GROUPS_PUBLIC_API, null, {
     unknownValues: "filter",
-  }),
+  }).transform((groups) =>
+    groups !== null && groups.length > 0 ? groups : null,
+  ),
   // Metadata expansion keys (optional)
   // Comma-separated list of metadata keys to return non-truncated: expandMetadata=transcript,steps
   expandMetadata: optionalCommaSeparatedStringArray.transform(
@@ -434,6 +437,7 @@ export const GetObservationsV2Response = z
     data: z.array(APIObservationV2),
     meta: z.object({
       cursor: EncodedObservationsCursorV2String.optional(),
+      comment: z.string().optional(),
     }),
   })
   .strict();

@@ -9,6 +9,7 @@ import { default as noUnescapedPrismaLikePattern } from "./rules/no-unescaped-pr
 import { default as noMarginOnRootElements } from "./rules/no-margin-on-root-elements.js";
 import { default as noNullRender } from "./rules/no-null-render.js";
 import { default as noLetAssignInReact } from "./rules/no-let-assign-in-react.js";
+import { default as noLocationNavigation } from "./rules/no-location-navigation.js";
 import { default as noOverlayZindex } from "./rules/no-overlay-zindex.js";
 import { default as noRawFontWeight } from "./rules/no-raw-font-weight.js";
 import { default as requireTitleWithTruncate } from "./rules/require-title-with-truncate.js";
@@ -19,8 +20,13 @@ import { default as storybookPlayRequiresTestName } from "./rules/storybook-play
 import { default as preferStoriesOverClientTests } from "./rules/prefer-stories-over-client-tests.js";
 import { default as storybookPlayNoImplementationDetailAssertions } from "./rules/storybook-play-no-implementation-detail-assertions.js";
 
+import noInternalBarrelFiles from "./rules/no-internal-barrel-files.js";
+import exportRules from "./rules/export-rules.js";
+
 const plugin = {
   rules: {
+    "no-internal-barrel-files": noInternalBarrelFiles,
+    "export-rules": exportRules,
     "component-file-structure": componentFileStructure,
     "no-abstracted-overlay-trigger": noAbstractedOverlayTrigger,
     "no-arbitrary-colors": noArbitraryColors,
@@ -31,6 +37,7 @@ const plugin = {
     "no-margin-on-root-elements": noMarginOnRootElements,
     "no-null-render": noNullRender,
     "no-let-assign-in-react": noLetAssignInReact,
+    "no-location-navigation": noLocationNavigation,
     "no-overlay-zindex": noOverlayZindex,
     "no-restricted-prisma-writes": noRestrictedPrismaWrites,
     "no-raw-font-weight": noRawFontWeight,

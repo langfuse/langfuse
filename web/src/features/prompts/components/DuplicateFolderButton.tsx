@@ -1,6 +1,7 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/ui/button";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import {
@@ -29,8 +30,8 @@ import { z } from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { Copy } from "@langfuse/icons";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useEntitlementLimit } from "@/src/features/entitlements";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 
 enum CopySettings {
   LATEST_ONLY = "latest_only",
@@ -229,10 +230,9 @@ export function DuplicateFolderButton({ folderPath }: { folderPath: string }) {
                   </p>
                 )}
               {error && (
-                <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  <p className="font-bold">Error:</p>
+                <Banner variant="error" title="Error">
                   <p className="whitespace-pre-wrap">{error}</p>
-                </div>
+                </Banner>
               )}
             </DialogBody>
             <DialogFooter>

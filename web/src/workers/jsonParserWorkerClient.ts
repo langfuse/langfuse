@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Client for the JSON-parser Web Worker.
  *
@@ -39,7 +38,7 @@ import {
  * Payload size (in characters) from which parsing moves off the main thread.
  * Below it the message round trip costs more than the parse.
  */
-export const PARSE_IN_WEBWORKER_THRESHOLD = 100_000; // 100KB
+const PARSE_IN_WEBWORKER_THRESHOLD = 100_000; // 100KB
 
 /**
  * How long one request may stay unanswered before the worker counts as dead.
@@ -47,6 +46,7 @@ export const PARSE_IN_WEBWORKER_THRESHOLD = 100_000; // 100KB
  * this covers the silent deaths — OOM, a killed thread, an extension — where
  * nothing is reported at all. Generous on purpose: it is a liveness check, not
  * a performance budget.
+ * @internal
  */
 export const PARSE_DEADLINE_MS = 30_000;
 

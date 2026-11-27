@@ -14,7 +14,7 @@ const { capture, updatePromptVariableValues } = vi.hoisted(() => ({
   updatePromptVariableValues: vi.fn(),
 }));
 
-vi.mock("../context", () => ({
+vi.mock("../context/PlaygroundProvider", () => ({
   usePlaygroundContext: () => ({
     tools: [],
     structuredOutputSchema: null,
@@ -35,7 +35,7 @@ vi.mock("../hooks/usePlaygroundWindowSize", () => ({
   }),
 }));
 
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => capture,
 }));
 

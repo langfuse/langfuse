@@ -9,6 +9,12 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  createOrgMembership,
+  createProjectMembership,
+  deleteOrgMembership,
+  updateOrgMembership,
+} from "@langfuse/shared/memberships";
 import { randomUUID } from "crypto";
 import { createMocks } from "node-mocks-http";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -743,12 +749,10 @@ describe("SCIM API", () => {
             name: "Test User",
           },
         });
-        await prisma.organizationMembership.create({
-          data: {
-            userId: user.id,
-            orgId: orgId,
-            role: "NONE",
-          },
+        await createOrgMembership(prisma, {
+          userId: user.id,
+          orgId: orgId,
+          role: "NONE",
         });
 
         testUserId = user.id;
@@ -792,12 +796,10 @@ describe("SCIM API", () => {
             name: "Test User",
           },
         });
-        await prisma.organizationMembership.create({
-          data: {
-            userId: user.id,
-            orgId: orgId,
-            role: "NONE",
-          },
+        await createOrgMembership(prisma, {
+          userId: user.id,
+          orgId: orgId,
+          role: "NONE",
         });
         testUserId = user.id;
       });
@@ -829,9 +831,7 @@ describe("SCIM API", () => {
 
       it("should reactivate a user when active is true", async () => {
         // First deactivate the user
-        await prisma.organizationMembership.deleteMany({
-          where: { userId: testUserId, orgId: orgId },
-        });
+        await deleteOrgMembership(prisma, { userId: testUserId, orgId: orgId });
 
         const response = await makeZodVerifiedAPICall(
           ScimUserSchema,
@@ -860,9 +860,7 @@ describe("SCIM API", () => {
 
       it("should reactivate a user with specified role", async () => {
         // First deactivate the user
-        await prisma.organizationMembership.deleteMany({
-          where: { userId: testUserId, orgId: orgId },
-        });
+        await deleteOrgMembership(prisma, { userId: testUserId, orgId: orgId });
 
         const response = await makeZodVerifiedAPICall(
           ScimUserSchema,
@@ -891,9 +889,7 @@ describe("SCIM API", () => {
       });
 
       it("should create the membership with NONE when no roles are provided (PUT active:true)", async () => {
-        await prisma.organizationMembership.deleteMany({
-          where: { userId: testUserId, orgId: orgId },
-        });
+        await deleteOrgMembership(prisma, { userId: testUserId, orgId: orgId });
 
         const response = await makeAPICall(
           "PUT",
@@ -932,9 +928,10 @@ describe("SCIM API", () => {
       it("should NOT modify an existing member's role when no roles are provided (PUT active:true, no downgrade)", async () => {
         // Simulate a real, elevated member (the role someone set in-app or via
         // the create flow).
-        await prisma.organizationMembership.updateMany({
-          where: { userId: testUserId, orgId: orgId },
-          data: { role: "MEMBER" },
+        await updateOrgMembership(prisma, {
+          userId: testUserId,
+          orgId: orgId,
+          role: "MEMBER",
         });
         const before = await prisma.organizationMembership.findFirst({
           where: { userId: testUserId, orgId: orgId },
@@ -974,6 +971,69 @@ describe("SCIM API", () => {
           },
         });
         expect(auditLogs.length).toBe(0);
+      });
+
+      it("should update an existing member's role when active is omitted (Okta profile push)", async () => {
+        const before = await prisma.organizationMembership.findFirst({
+          where: { userId: testUserId, orgId: orgId },
+        });
+
+        const response = await makeZodVerifiedAPICall(
+          ScimUserSchema,
+          "PUT",
+          `/api/public/scim/Users/${testUserId}`,
+          {
+            schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            id: testUserId,
+            userName: "test.user@example.com",
+            roles: ["ADMIN"],
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+          200,
+        );
+        expect(response.status).toBe(200);
+
+        const after = await prisma.organizationMembership.findFirst({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(after!.id).toBe(before!.id);
+        expect(after!.role).toBe("ADMIN");
+
+        const auditLogs = await prisma.auditLog.findMany({
+          where: {
+            resourceType: "orgMembership",
+            resourceId: before!.id,
+            action: "update",
+            orgId: orgId,
+          },
+        });
+        expect(auditLogs.length).toBe(1);
+      });
+
+      it("should leave an existing member untouched when both active and roles are omitted", async () => {
+        await updateOrgMembership(prisma, {
+          userId: testUserId,
+          orgId: orgId,
+          role: "MEMBER",
+        });
+
+        const response = await makeAPICall(
+          "PUT",
+          `/api/public/scim/Users/${testUserId}`,
+          {
+            schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            id: testUserId,
+            userName: "test.user@example.com",
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+        expect(response.status).toBe(200);
+
+        const after = await prisma.organizationMembership.findMany({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(after.length).toBe(1);
+        expect(after[0].role).toBe("MEMBER");
       });
 
       it("should write a delete audit log when PUT active:false deprovisions a membership", async () => {
@@ -1056,12 +1116,10 @@ describe("SCIM API", () => {
             name: "Test User",
           },
         });
-        await prisma.organizationMembership.create({
-          data: {
-            userId: user.id,
-            orgId: orgId,
-            role: "NONE",
-          },
+        await createOrgMembership(prisma, {
+          userId: user.id,
+          orgId: orgId,
+          role: "NONE",
         });
         testUserId = user.id;
       });
@@ -1124,13 +1182,12 @@ describe("SCIM API", () => {
         // Give the user project-level access. This row is cascade-deleted when
         // the org membership is removed, so the audit before payload is the
         // only place it can be preserved.
-        await prisma.projectMembership.create({
-          data: {
-            orgMembershipId: orgMembership.id,
-            projectId: seededProjectId,
-            userId: testUserId,
-            role: "VIEWER",
-          },
+        await createProjectMembership(prisma, {
+          orgId: orgId,
+          orgMembershipId: orgMembership.id,
+          projectId: seededProjectId,
+          userId: testUserId,
+          role: "VIEWER",
         });
 
         try {
@@ -1194,16 +1251,19 @@ describe("SCIM API", () => {
         const user = await prisma.user.create({
           data: { email: uniqueEmail, name: "Test User" },
         });
-        await prisma.organizationMembership.create({
-          data: { userId: user.id, orgId: orgId, role: "NONE" },
+        await createOrgMembership(prisma, {
+          userId: user.id,
+          orgId: orgId,
+          role: "NONE",
         });
         testUserId = user.id;
       });
 
       it("should not modify an existing member's role on PATCH active:true (no-op, no audit)", async () => {
-        await prisma.organizationMembership.updateMany({
-          where: { userId: testUserId, orgId: orgId },
-          data: { role: "MEMBER" },
+        await updateOrgMembership(prisma, {
+          userId: testUserId,
+          orgId: orgId,
+          role: "MEMBER",
         });
         const before = await prisma.organizationMembership.findFirst({
           where: { userId: testUserId, orgId: orgId },
@@ -1234,9 +1294,7 @@ describe("SCIM API", () => {
       });
 
       it("should write a create audit log when PATCH active:true provisions a missing membership", async () => {
-        await prisma.organizationMembership.deleteMany({
-          where: { userId: testUserId, orgId: orgId },
-        });
+        await deleteOrgMembership(prisma, { userId: testUserId, orgId: orgId });
 
         const result = await makeAPICall(
           "PATCH",
@@ -1331,8 +1389,10 @@ describe("SCIM API", () => {
           },
         });
         scopedOwnerUserId = owner.id;
-        await prisma.organizationMembership.create({
-          data: { userId: owner.id, orgId: scopedOrgId, role: "OWNER" },
+        await createOrgMembership(prisma, {
+          userId: owner.id,
+          orgId: scopedOrgId,
+          role: "OWNER",
         });
 
         scopedOrgPublicKey = `pk-lf-org-${randomUUID().substring(0, 8)}`;
@@ -1459,12 +1519,10 @@ describe("SCIM API", () => {
             name: "Second Owner",
           },
         });
-        await prisma.organizationMembership.create({
-          data: {
-            userId: secondOwner.id,
-            orgId: scopedOrgId,
-            role: "OWNER",
-          },
+        await createOrgMembership(prisma, {
+          userId: secondOwner.id,
+          orgId: scopedOrgId,
+          role: "OWNER",
         });
 
         try {
@@ -1490,8 +1548,9 @@ describe("SCIM API", () => {
           });
           expect(demoted?.role).toBe("MEMBER");
         } finally {
-          await prisma.organizationMembership.deleteMany({
-            where: { userId: secondOwner.id, orgId: scopedOrgId },
+          await deleteOrgMembership(prisma, {
+            userId: secondOwner.id,
+            orgId: scopedOrgId,
           });
           await prisma.user.deleteMany({ where: { id: secondOwner.id } });
         }
@@ -1504,12 +1563,10 @@ describe("SCIM API", () => {
             name: "Second Owner",
           },
         });
-        await prisma.organizationMembership.create({
-          data: {
-            userId: secondOwner.id,
-            orgId: scopedOrgId,
-            role: "OWNER",
-          },
+        await createOrgMembership(prisma, {
+          userId: secondOwner.id,
+          orgId: scopedOrgId,
+          role: "OWNER",
         });
 
         try {
@@ -1552,9 +1609,6 @@ describe("SCIM API", () => {
 
     afterEach(async () => {
       if (createdUserIds.length > 0) {
-        await prisma.organizationMembership.deleteMany({
-          where: { userId: { in: createdUserIds } },
-        });
         await prisma.user.deleteMany({
           where: { id: { in: createdUserIds } },
         });
@@ -1592,7 +1646,10 @@ describe("SCIM API", () => {
       const result = await makeAPICall<{ detail: string; userName?: string }>(
         "PUT",
         `/api/public/scim/Users/${outsider.id}`,
-        { schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"] },
+        {
+          schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          roles: ["ADMIN"],
+        },
         createBasicAuthHeader(orgApiKey, orgSecretKey),
       );
 
@@ -1843,14 +1900,13 @@ describe("SCIM ownership boundary", () => {
     });
     orgId = org.id;
     const [owner, secondOwner, member] = await Promise.all(
-      (["OWNER", "OWNER", "MEMBER"] as const).map((role) =>
-        prisma.user.create({
-          data: {
-            email: `${randomUUID()}@example.com`,
-            organizationMemberships: { create: { orgId, role } },
-          },
-        }),
-      ),
+      (["OWNER", "OWNER", "MEMBER"] as const).map(async (role) => {
+        const user = await prisma.user.create({
+          data: { email: `${randomUUID()}@example.com` },
+        });
+        await createOrgMembership(prisma, { orgId, userId: user.id, role });
+        return user;
+      }),
     );
     ownerId = owner!.id;
     secondOwnerId = secondOwner!.id;
@@ -2069,13 +2125,9 @@ describe("SCIM ownership boundary", () => {
       expect(await keyExists(key.id)).toBe(false);
     });
 
-    it.each([
-      ["MEMBER", true],
-      ["VIEWER", false],
-      ["NONE", false],
-    ])(
-      "keeps gateway keys of an OWNER moved to %s only while the role can invoke the gateway",
-      async (role, kept) => {
+    it.each(["MEMBER", "VIEWER", "NONE"])(
+      "keeps gateway keys of an OWNER moved to %s, since a user key acts with its user's current roles",
+      async (role) => {
         const key = await createBoundGatewayKey(ownerId);
 
         const response = await callScimRoute(scimUserRoute, {
@@ -2091,8 +2143,78 @@ describe("SCIM ownership boundary", () => {
 
         expect(response.status).toBe(200);
         expect(await roleOf(ownerId)).toBe(role);
-        expect(await keyExists(key.id)).toBe(kept);
+        expect(await keyExists(key.id)).toBe(true);
       },
     );
+  });
+
+  describe("AI_GATEWAY role", () => {
+    const originalGatewayAvailability = {
+      NODE_ENV: env.NODE_ENV,
+      LANGFUSE_AI_GATEWAY_ENABLED: env.LANGFUSE_AI_GATEWAY_ENABLED,
+      NEXT_PUBLIC_PREVIEW_PR_URL: env.NEXT_PUBLIC_PREVIEW_PR_URL,
+      LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST:
+        env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
+    };
+
+    // Only the org allowlist enables the gateway in these tests.
+    beforeEach(() => {
+      Object.assign(env, {
+        NODE_ENV: "test",
+        LANGFUSE_AI_GATEWAY_ENABLED: "false",
+        NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+        LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: [],
+      });
+    });
+
+    afterEach(() => {
+      Object.assign(env, originalGatewayAvailability);
+    });
+
+    it("rejects creating an AI_GATEWAY user via POST while the AI Gateway is off", async () => {
+      const email = `${randomUUID()}@example.com`;
+      createdEmails.push(email);
+
+      const status = await call(scimUsersRoute, "POST", {
+        schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        userName: email,
+        roles: ["AI_GATEWAY"],
+      });
+
+      expect(status).toBe(403);
+      expect(
+        await prisma.organizationMembership.count({
+          where: { orgId, user: { email } },
+        }),
+      ).toBe(0);
+    });
+
+    it("rejects moving a member to AI_GATEWAY via PUT while the AI Gateway is off", async () => {
+      expect(await putUser(memberId, ["AI_GATEWAY"])).toBe(403);
+
+      expect(await roleOf(memberId)).toBe("MEMBER");
+    });
+
+    it("keeps an existing AI_GATEWAY member through a sync while the AI Gateway is off", async () => {
+      await updateOrgMembership(prisma, {
+        orgId,
+        userId: memberId,
+        role: "AI_GATEWAY",
+      });
+
+      expect(await putUser(memberId, ["AI_GATEWAY"])).toBe(200);
+
+      expect(await roleOf(memberId)).toBe("AI_GATEWAY");
+    });
+
+    it("moves a member to AI_GATEWAY via PUT while the AI Gateway is on for the org", async () => {
+      Object.assign(env, {
+        LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: [orgId],
+      });
+
+      expect(await putUser(memberId, ["AI_GATEWAY"])).toBe(200);
+
+      expect(await roleOf(memberId)).toBe("AI_GATEWAY");
+    });
   });
 });

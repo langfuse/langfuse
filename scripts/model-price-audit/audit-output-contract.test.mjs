@@ -5,6 +5,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 import {
+  buildPullRequestTitle,
   collectTypeModelChanges,
   renderAuditSummary,
   renderPullRequestBody,
@@ -119,7 +120,6 @@ function runContract({
         JSON.stringify(basePrices) !== JSON.stringify(currentPrices) ||
           typesDiff.length > 0,
       ),
-      MEMORY_SNAPSHOT_ONLY: "false",
       STRUCTURED_OUTPUT: JSON.stringify(output),
       STRUCTURED_OUTPUT_PATH: normalizedOutputPath,
       TYPES_DIFF_FILE: typesDiffPath,
@@ -195,6 +195,48 @@ test("derives changed pricing metadata from the semantic diff", () => {
   assert.equal(result.status, 0, result.stderr);
   assert.equal(normalizedOutput.modelsChecked[0].change, "added");
   assert.deepEqual(normalizedOutput.changedModels, [`${model} (added)`]);
+});
+
+test("generates a pull request title when Claude omits it for a model change", () => {
+  const { normalizedOutput, result } = runContract({
+    basePrices: [pricingEntry("gpt-5.6-sol", 5)],
+    currentPrices: [pricingEntry("gpt-5.6-sol", 4)],
+    output: structuredOutput([auditRow({ model: "gpt-5.6-sol" })]),
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    normalizedOutput.pullRequestTitle,
+    "chore(pricing): update gpt-5.6-sol",
+  );
+  assert.match(result.stderr, /::warning::pullRequestTitle was empty/);
+});
+
+test("keeps the title empty when no model changed", () => {
+  const { normalizedOutput, result } = runContract({
+    basePrices: [pricingEntry("gpt-4o")],
+    output: structuredOutput([auditRow({ model: "gpt-4o" })]),
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(normalizedOutput.pullRequestTitle, "");
+});
+
+test("summarizes long generated titles by change counts", () => {
+  const removed = Array.from({ length: 12 }, (_, index) => ({
+    modelName: `gpt-legacy-snapshot-${index}`,
+    expectedChange: "removed",
+  }));
+  const title = buildPullRequestTitle([
+    { modelName: "gpt-6.1-terra", expectedChange: "added" },
+    ...removed,
+  ]);
+
+  assert.equal(
+    title,
+    "chore(pricing): add 1 model; remove 12 models from model pickers",
+  );
+  assert.ok(title.length <= 100);
 });
 
 test("accepts TypeSafe docs as the official source for a jev price update", () => {
@@ -750,7 +792,15 @@ test("runs formatting cleanup before the extracted output contract", () => {
   );
   const summaryIndex = workflow.indexOf("      - name: Write audit summary");
 
+  const discardIndex = workflow.indexOf(
+    "      - name: Discard edits without price or selectable-model changes",
+  );
+
   assert.ok(cleanupIndex >= 0, "workflow must clean up formatting-only diffs");
+  assert.ok(
+    cleanupIndex < discardIndex && discardIndex < summaryIndex,
+    "edits without model changes must be discarded after formatting cleanup and before reconciliation",
+  );
   assert.ok(
     cleanupIndex < summaryIndex,
     "semantic cleanup must run before report reconciliation",

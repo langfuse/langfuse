@@ -121,8 +121,7 @@ describe("handleBlobStorageIntegrationProjectJob — GOOGLE_CLOUD_STORAGE", () =
       bucketName: "allowed-bucket",
       useGoogleCloudStorage: true,
       useAzureBlob: false,
-      accessKeyId: undefined,
-      secretAccessKey: undefined,
+      credentials: undefined,
       googleCloudCredentials: undefined,
     });
     expect(uploadCalls.length).toBeGreaterThan(0);
@@ -137,7 +136,7 @@ describe("handleBlobStorageIntegrationProjectJob — GOOGLE_CLOUD_STORAGE", () =
     // rather than retried.
     expect(factoryCalls).toHaveLength(0);
     expect(uploadCalls).toHaveLength(0);
-    expect(prisma.blobStorageIntegration.update).toHaveBeenCalledWith(
+    expect(prisma.blobStorageIntegration.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           lastError: expect.stringContaining(
@@ -166,8 +165,7 @@ describe("handleBlobStorageIntegrationProjectJob — GOOGLE_CLOUD_STORAGE", () =
       bucketName: "customer-bucket",
       useGoogleCloudStorage: true,
       googleCloudCredentials: key,
-      accessKeyId: undefined,
-      secretAccessKey: undefined,
+      credentials: undefined,
     });
     expect(uploadCalls.length).toBeGreaterThan(0);
   });
@@ -182,7 +180,7 @@ describe("handleBlobStorageIntegrationProjectJob — GOOGLE_CLOUD_STORAGE", () =
     // A credential fault: disabled rather than retried.
     expect(factoryCalls).toHaveLength(0);
     expect(uploadCalls).toHaveLength(0);
-    expect(prisma.blobStorageIntegration.update).toHaveBeenCalledWith(
+    expect(prisma.blobStorageIntegration.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           lastError: expect.stringContaining("service account JSON key"),

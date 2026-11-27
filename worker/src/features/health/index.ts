@@ -39,6 +39,7 @@ const isEventPropagationEnabled = (): boolean =>
  * threshold. A missing heartbeat (job never ran yet — e.g. fresh boot or during
  * a rollout) is treated as NOT stuck to avoid restart loops before the first
  * scheduled run. A disabled job is never stuck.
+ * @internal
  */
 export const evaluateEventPropagationStuck = (input: {
   enabled: boolean;
@@ -94,6 +95,7 @@ export const evaluateEventPropagationStuck = (input: {
  * Fetch event-propagation health from Redis (cursor + run heartbeat) and
  * evaluate it. Redis-only: no ClickHouse query, so it is cheap enough to run on
  * every health probe.
+ * @internal
  */
 export const getEventPropagationHealth =
   async (): Promise<EventPropagationHealth> => {
@@ -142,6 +144,14 @@ type ContainerHealthOptions = {
    * probe that should force restarts evaluates it.
    */
   failIfQueueConsumptionStuck?: boolean;
+  /**
+   * Skip the Postgres `SELECT 1`. Opt-out via ?skipPostgresCheck=true so a
+   * liveness probe does not restart a busy worker when the connection pool is
+   * saturated or Postgres is slow.
+   */
+  skipPostgresCheck?: boolean;
+  /** Skip the Redis ping. Opt-out via ?skipRedisCheck=true, as above. */
+  skipRedisCheck?: boolean;
 };
 
 /**
@@ -155,6 +165,8 @@ export const checkContainerHealth = async (
     failOnSigterm,
     failIfEventPropagationStuck = false,
     failIfQueueConsumptionStuck = false,
+    skipPostgresCheck = false,
+    skipRedisCheck = false,
   } = options;
 
   if (failOnSigterm && isSigtermReceived()) {
@@ -166,22 +178,25 @@ export const checkContainerHealth = async (
     });
   }
 
-  //check database health
-  await prisma.$queryRaw`SELECT 1;`;
-
-  if (!redis) {
-    throw new Error("Redis connection not available");
+  if (!skipPostgresCheck) {
+    await prisma.$queryRaw`SELECT 1;`;
   }
 
-  await Promise.race([
-    redis?.ping(),
-    new Promise((_, reject) =>
-      setTimeout(
-        () => reject(new Error("Redis ping timeout after 2 seconds")),
-        2000,
+  if (!skipRedisCheck) {
+    if (!redis) {
+      throw new Error("Redis connection not available");
+    }
+
+    await Promise.race([
+      redis.ping(),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Redis ping timeout after 2 seconds")),
+          2000,
+        ),
       ),
-    ),
-  ]);
+    ]);
+  }
 
   const failures: string[] = [];
   const details: Record<string, unknown> = {};

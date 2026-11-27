@@ -1,4 +1,5 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* oxlint-disable radix -- baseline before rule enablement */
+/* eslint-disable no-nested-ternary */
 import {
   Card,
   CardContent,
@@ -12,6 +13,7 @@ import { type ImportedWidgetFormSnapshot } from "@/src/features/widgets/utils/im
 import {
   buildWidgetOrderBy,
   getValidAggregationsForMeasureType,
+  isNumericMetadataFilter,
   isV2BreakdownChart,
   validateQuery,
   viewDeclarations,
@@ -23,8 +25,9 @@ import {
 } from "@langfuse/shared/query";
 import {
   mapWidgetUiTableFilterToView,
-  partitionWidgetUiTableFiltersToView,
-} from "@/src/features/dashboard";
+  partitionWidgetQueryFiltersToView,
+  UNSUPPORTED_NUMERIC_METADATA_REASON,
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import React, { useMemo, useRef } from "react";
 import {
   useController,
@@ -36,16 +39,16 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Label } from "@/src/components/ui/label";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 
 import { type z } from "zod";
 
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import startCase from "lodash/startCase";
 import { DateRangeInput } from "@/src/components/design-system/DateRangeInput/DateRangeInput";
-import { useEntitlementLimit } from "@/src/features/entitlements";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { addMinutes } from "date-fns";
 import { MetricsFilterBuilder } from "@/src/features/metrics/components/MetricsFilterBuilder";
 import { type useMetricsFilterBuilderData } from "@/src/features/metrics/components/ConnectedMetricsFilterBuilder";
@@ -60,16 +63,10 @@ import {
 } from "@/src/utils/date-range-utils";
 import { Button } from "@/src/components/ui/button";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import {
-  Plus,
-  X,
-  AlertCircle,
-  Sparkles,
-  type IconComponent,
-} from "@langfuse/icons";
+import { Plus, X, Sparkles, type IconComponent } from "@langfuse/icons";
 import { dashboardWidgetChartTypeIcons } from "@/src/features/widgets/chart-library/chartTypeIcons";
 import {
   Popover,
@@ -103,10 +100,6 @@ import {
   type WidgetInitialValues,
   type WidgetSavePayload,
 } from "./widgetFormSchema";
-
-// Re-exported from the schema module so co-located tests keep importing it from
-// this file; it now backs the shared normalizeWidgetFormValues healing.
-export { resolveAggregationAndChartType } from "./widgetFormSchema";
 
 type ChartType = {
   group: "time-series" | "total-value";
@@ -554,14 +547,14 @@ export function WidgetForm({
         </CardHeader>
         <CardContent className="space-y-4 overflow-y-auto">
           {isV4 && selectedView === "traces" && (
-            <Alert variant="warning" icon={AlertCircle}>
-              <Alert.Title>Traces view is not available in v4</Alert.Title>
-              <Alert.Description>
-                This widget uses the traces view which is not supported in v4.
-                It will continue to use v3 definitions. To use v4, change the
-                view to observations or scores.
-              </Alert.Description>
-            </Alert>
+            <Banner
+              variant="warning"
+              title="Traces view is not available in v4"
+            >
+              This widget uses the traces view which is not supported in v4. It
+              will continue to use v3 definitions. To use v4, change the view to
+              observations or scores.
+            </Banner>
           )}
           {/* Data Selection Section */}
           <div className="space-y-4">
@@ -1691,23 +1684,31 @@ export function useWidgetFormState({
       setTimeRange({ range: option });
     }
   };
-  const unsupportedFilters = useMemo(
+  const { mappedFilters: normalizedUserFilters, unsupportedFilters } = useMemo(
     () =>
-      partitionWidgetUiTableFiltersToView(selectedView, values.filters)
-        .unsupportedFilters,
-    [selectedView, values.filters],
+      partitionWidgetQueryFiltersToView(
+        selectedView,
+        viewVersion,
+        values.filters,
+      ),
+    [selectedView, viewVersion, values.filters],
   );
-  const unsupportedFilterColumns = useMemo(
-    () =>
-      Array.from(
-        new Set(unsupportedFilters.map((filter) => filter.column)),
-      ).join(", "),
-    [unsupportedFilters],
-  );
-  const normalizedUserFilters = useMemo(
-    () => mapWidgetUiTableFilterToView(selectedView, values.filters),
-    [selectedView, values.filters],
-  );
+  const { unsupportedFilterColumns, hasUnsupportedNumericMetadata } =
+    useMemo(() => {
+      return {
+        unsupportedFilterColumns: Array.from(
+          new Set(
+            unsupportedFilters
+              // Numeric metadata gets its own reason below, not "legacy column".
+              .filter((filter) => !isNumericMetadataFilter(filter))
+              .map((filter) => filter.column),
+          ),
+        ).join(", "),
+        hasUnsupportedNumericMetadata: unsupportedFilters.some(
+          isNumericMetadataFilter,
+        ),
+      };
+    }, [unsupportedFilters]);
 
   const previewSortState = effectiveSort ?? null;
   const pivotDimensionFields = values.dimensions.map((d) => d.field);
@@ -1796,15 +1797,26 @@ export function useWidgetFormState({
 
   const queryValidation = useMemo(() => {
     if (unsupportedFilters.length > 0) {
+      const reasons = [
+        hasUnsupportedNumericMetadata && UNSUPPORTED_NUMERIC_METADATA_REASON,
+        unsupportedFilterColumns &&
+          `Unsupported legacy filter column(s): ${unsupportedFilterColumns}.`,
+      ].filter(Boolean);
       return {
         valid: false as const,
         reason:
-          `Unsupported legacy filter column(s): ${unsupportedFilterColumns}. ` +
+          `${reasons.join(" ")} ` +
           "Remove them or switch to a compatible view before saving this widget.",
       };
     }
     return validateQuery(query, viewVersion);
-  }, [query, unsupportedFilterColumns, unsupportedFilters.length, viewVersion]);
+  }, [
+    query,
+    unsupportedFilterColumns,
+    hasUnsupportedNumericMetadata,
+    unsupportedFilters.length,
+    viewVersion,
+  ]);
 
   useCaptureWidgetHighCardinalityError({
     validation: queryValidation,

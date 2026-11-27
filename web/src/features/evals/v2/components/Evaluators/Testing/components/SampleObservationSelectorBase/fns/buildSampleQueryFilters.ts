@@ -1,6 +1,7 @@
+/* eslint-disable @repo/export-rules */
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 
-import type { ObservedOptions } from "@/src/features/search-bar";
+import type { ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import {
   INTERNAL_EVALUATION_ENVIRONMENTS,
   INTERNAL_EVALUATION_ENVIRONMENT_FILTERS,

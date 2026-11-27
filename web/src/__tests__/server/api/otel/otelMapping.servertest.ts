@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   OtelIngestionProcessor,
   createIngestionEventSchema,
@@ -1461,6 +1460,57 @@ describe("OTel Resource Span Mapping", () => {
       expect(events.map((event) => event.body.environment)).toEqual([
         "llm-as-a-judge",
         "llm-as-a-judge",
+      ]);
+    });
+
+    it("recovers langfuse-topics-internal from failed OpenRouter Broadcast requests as topics-internal", async () => {
+      const events = await convertOtelSpanToIngestionEvent(
+        createOpenRouterBroadcastSpan({
+          rawRequestEnvironment: "langfuse-topics-internal",
+        }),
+        new Set(),
+      );
+
+      expect(events.map((event) => event.body.environment)).toEqual([
+        "topics-internal",
+        "topics-internal",
+      ]);
+    });
+
+    it("strips public langfuse-topics-internal to topics-internal while keeping customer topics untouched", async () => {
+      const bounced = await convertOtelSpanToIngestionEvent(
+        createOpenRouterBroadcastSpan({
+          explicitEnvironment: "langfuse-topics-internal",
+        }),
+        new Set(),
+      );
+      expect(bounced.map((event) => event.body.environment)).toEqual([
+        "topics-internal",
+        "topics-internal",
+      ]);
+
+      const customer = await convertOtelSpanToIngestionEvent(
+        createOpenRouterBroadcastSpan({
+          explicitEnvironment: "topics",
+        }),
+        new Set(),
+      );
+      expect(customer.map((event) => event.body.environment)).toEqual([
+        "topics",
+        "topics",
+      ]);
+
+      const internal = await convertOtelSpanToIngestionEvent(
+        createOpenRouterBroadcastSpan({
+          explicitEnvironment: "langfuse-topics-internal",
+        }),
+        new Set(),
+        undefined,
+        { isLangfuseInternal: true },
+      );
+      expect(internal.map((event) => event.body.environment)).toEqual([
+        "langfuse-topics-internal",
+        "langfuse-topics-internal",
       ]);
     });
 
@@ -3295,6 +3345,49 @@ describe("OTel Resource Span Mapping", () => {
       // Then
       expect(langfuseEvents[0].body.name).toBe("right name");
       expect(langfuseEvents[1].body.name).toBe("right name");
+    });
+
+    it("should prefer LiteLLM's dispatched provider model over the router alias", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            scope: { name: "litellm" },
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "chat" },
+                  },
+                  {
+                    key: "gen_ai.request.model",
+                    value: { stringValue: "router" },
+                  },
+                  {
+                    key: "gen_ai.response.model",
+                    value: { stringValue: "router" },
+                  },
+                  {
+                    key: "litellm.provider.model",
+                    value: { stringValue: "openai/gpt-4o-mini" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observationEvent = langfuseEvents.find(
+        (event) => event.type !== "trace-create",
+      );
+
+      expect(observationEvent?.body.model).toBe("openai/gpt-4o-mini");
     });
 
     it.each([
@@ -6042,7 +6135,7 @@ describe("OTel Resource Span Mapping", () => {
       },
       {
         scenario: "preserves other model spans",
-        spanName: "anthropic.messages.create",
+        spanName: "anthropic.model_request",
         expectedType: "GENERATION",
         expectedModel: "claude-test-model",
       },
@@ -6211,6 +6304,65 @@ describe("OTel Resource Span Mapping", () => {
           type: expectedType,
           name: expectedName,
         });
+      },
+    );
+
+    it.each([
+      {
+        scenario: "platform request spans defer to their model request",
+        scopeName: "com.anthropic.claude-platform",
+        expectedTypes: ["SPAN", "GENERATION"],
+      },
+      {
+        scenario: "SDK request spans stay generations",
+        scopeName: "com.anthropic.sdk.python",
+        expectedTypes: ["GENERATION", "GENERATION"],
+      },
+    ])(
+      "Claude request spans: $scenario",
+      async ({ scopeName, expectedTypes }) => {
+        const modelAttributes = {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "claude-test-model",
+          "gen_ai.usage.input_tokens": "12",
+          "gen_ai.usage.output_tokens": "5",
+        };
+        const { legacyObservations, eventInputs } = await mapCmaSpans(
+          [
+            { name: "anthropic.messages.create", attributes: modelAttributes },
+            {
+              name: "anthropic.model_request",
+              parentSpanId: Buffer.alloc(8, 1),
+              attributes: modelAttributes,
+            },
+          ],
+          scopeName,
+        );
+
+        const expectedUsage = (type: string) =>
+          type === "GENERATION" ? { input: 12, output: 5 } : undefined;
+        expect(
+          legacyObservations.map((observation) => ({
+            type: observation.type,
+            usageDetails: observation.body.usageDetails,
+          })),
+        ).toEqual(
+          expectedTypes.map((type) => ({
+            type: `${type.toLowerCase()}-create`,
+            usageDetails: expectedUsage(type) ?? {},
+          })),
+        );
+        expect(
+          eventInputs.map((event) => ({
+            type: event.type,
+            providedUsageDetails: event.providedUsageDetails,
+          })),
+        ).toEqual(
+          expectedTypes.map((type) => ({
+            type,
+            providedUsageDetails: expectedUsage(type),
+          })),
+        );
       },
     );
 
@@ -6569,7 +6721,8 @@ describe("OTel Resource Span Mapping", () => {
   });
 
   describe("Missing span timestamps", () => {
-    it("should process spans with no start/end times without throwing", async () => {
+    it("should give spans with no start/end times the batch's fallback time", async () => {
+      const fallbackTime = "2026-01-02T03:04:05.678Z";
       const resourceSpan = {
         resource: {
           attributes: [{ key: "service.name", value: { stringValue: "test" } }],
@@ -6594,27 +6747,25 @@ describe("OTel Resource Span Mapping", () => {
         ],
       } as unknown as ResourceSpan;
 
-      const processor = createTestOtelProcessor();
+      const processor = createTestOtelProcessor({ fallbackTime });
       const eventInputs = processor.processToEvent([resourceSpan]);
       expect(eventInputs).toHaveLength(1);
-      expect(eventInputs[0].startTimeISO).toBeDefined();
-      expect(eventInputs[0].endTimeISO).toBeDefined();
-      expect(eventInputs[0].startTimeISO).toBe(eventInputs[0].endTimeISO);
+      expect(eventInputs[0].startTimeISO).toBe(fallbackTime);
+      expect(eventInputs[0].endTimeISO).toBe(fallbackTime);
 
       const ingestionEvents = await convertOtelSpanToIngestionEvent(
         resourceSpan,
         new Set(),
+        undefined,
+        { fallbackTime },
       );
 
       const trace = ingestionEvents.find((e) => e.type === "trace-create");
       const observation = ingestionEvents.find((e) => e.type === "span-create");
 
-      expect(trace).toBeDefined();
-      expect(trace?.body.timestamp).toBeDefined();
-      expect(observation).toBeDefined();
-      expect(observation?.body.startTime).toBeDefined();
-      expect(observation?.body.endTime).toBeDefined();
-      expect(observation?.body.startTime).toBe(observation?.body.endTime);
+      expect(trace?.body.timestamp).toBe(fallbackTime);
+      expect(observation?.body.startTime).toBe(fallbackTime);
+      expect(observation?.body.endTime).toBe(fallbackTime);
     });
 
     it("should use the present timestamp as fallback when only one edge is missing", async () => {
@@ -8128,6 +8279,49 @@ describe("OTel Resource Span Mapping", () => {
       expect(toolEvents.length).toBe(1);
     });
 
+    it.each([
+      ["ai.operationId", { intValue: 0 }],
+      ["operation.name", { boolValue: true }],
+    ])(
+      "should map a span whose %s is not text to span-create",
+      async (key, value) => {
+        const otelSpans = [
+          {
+            resource: { attributes: [] },
+            scopeSpans: [
+              {
+                scope: { name: "ai" },
+                spans: [
+                  {
+                    traceId: {
+                      data: [
+                        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                      ],
+                    },
+                    spanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                    name: "tool-execution",
+                    startTimeUnixNano: 1000000000,
+                    endTimeUnixNano: 2000000000,
+                    attributes: [{ key, value }],
+                    status: {},
+                  },
+                ],
+              },
+            ],
+          },
+        ];
+
+        const events = await convertOtelSpanToIngestionEvent(
+          otelSpans[0],
+          new Set(),
+          publicKey,
+        );
+
+        const spanEvents = events.filter((e) => e.type === "span-create");
+        expect(spanEvents.length).toBe(1);
+      },
+    );
+
     it("should map Vercel AI SDK generation WITH model to generation-create", async () => {
       const otelSpans = [
         {
@@ -9078,6 +9272,114 @@ describe("OTel Resource Span Mapping", () => {
       expect(usageDetails["cache_creation.input_tokens"]).toBeUndefined();
       expect(usageDetails["cache_creation_input_tokens"]).toBeUndefined();
     });
+
+    it.each([
+      {
+        name: "5m-only breakdown covering the whole cache write",
+        attributes: {
+          "gen_ai.usage.input_tokens": 8756,
+          "gen_ai.usage.output_tokens": 665,
+          "gen_ai.usage.cache_read.input_tokens": 4842,
+          "gen_ai.usage.cache_creation.input_tokens": 3910,
+          "gen_ai.usage.cache_creation.5m_input_tokens": 3910,
+        },
+        expected: {
+          input: 4,
+          input_cached_tokens: 4842,
+          input_cache_creation: 0,
+          input_cache_creation_5m: 3910,
+          output: 665,
+        },
+      },
+      {
+        name: "5m and 1h breakdown with an unattributed remainder",
+        attributes: {
+          "gen_ai.usage.input_tokens": 6000,
+          "gen_ai.usage.cache_creation.input_tokens": 5000,
+          "gen_ai.usage.cache_creation.5m_input_tokens": 3000,
+          "gen_ai.usage.cache_creation.1h_input_tokens": 1500,
+        },
+        expected: {
+          input: 1000,
+          input_cache_creation: 500,
+          input_cache_creation_5m: 3000,
+          input_cache_creation_1h: 1500,
+        },
+      },
+      {
+        name: "Claude Platform anthropic.usage breakdown",
+        attributes: {
+          "gen_ai.usage.input_tokens": 6000,
+          "gen_ai.usage.cache_write.input_tokens": 4500,
+          "anthropic.usage.cache_creation.ephemeral_5m_input_tokens": 1500,
+          "anthropic.usage.cache_creation.ephemeral_1h_input_tokens": 3000,
+        },
+        expected: {
+          input: 1500,
+          input_cache_creation: 0,
+          input_cache_creation_5m: 1500,
+          input_cache_creation_1h: 3000,
+        },
+      },
+    ])(
+      "should split the cache-write TTL breakdown out of input_cache_creation ($name)",
+      async ({ attributes, expected }) => {
+        const traceId = "abcdef1234567890abcdef1234567898";
+
+        const span = {
+          resource: {
+            attributes: [
+              {
+                key: "service.name",
+                value: { stringValue: "test-service" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "@mastra/langfuse",
+                version: "1.0.0",
+              },
+              spans: [
+                {
+                  traceId: Buffer.from(traceId, "hex"),
+                  spanId: Buffer.from("1234567890abcde6", "hex"),
+                  name: "cache-write-ttl-breakdown",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1000000,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 2000000,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  attributes: Object.entries(attributes).map(
+                    ([key, value]) => ({
+                      key,
+                      value: {
+                        intValue: { low: value, high: 0, unsigned: false },
+                      },
+                    }),
+                  ),
+                  status: {},
+                },
+              ],
+            },
+          ],
+        };
+
+        const events = await convertOtelSpanToIngestionEvent(span, new Set());
+        const observationEvent = events.find(
+          (e) => e.type === "generation-create" || e.type === "span-create",
+        );
+
+        expect(observationEvent?.body.usageDetails).toEqual(expected);
+      },
+    );
 
     it("should let a dotted cache value of 0 shadow the flat spelling (?? alias chain)", async () => {
       // pins pre-existing ??-chain behavior: a dotted 0 shadows the flat spelling

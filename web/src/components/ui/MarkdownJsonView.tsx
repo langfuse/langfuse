@@ -6,36 +6,28 @@ import {
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
-import { type MediaReturnType } from "@/src/features/media";
-import { Check, Copy, type IconComponent } from "@langfuse/icons";
-import { type IOSectionAction } from "@/src/components/ui/IOSection";
+import { MarkdownView } from "@/src/components/ui/MarkdownView";
+import { type MediaReturnType } from "@/src/features/media/validation";
+import { Check, Copy } from "@langfuse/icons";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
-import { cn } from "@/src/utils/tailwind";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 
 type MarkdownJsonViewHeaderProps = {
   title: string | React.ReactNode;
   titleIcon?: React.ReactNode;
-  handleOnCopy: (event?: React.MouseEvent<HTMLButtonElement>) => void;
+  copyButton?: {
+    onCopy: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  };
   controlButtons?: React.ReactNode;
-  /** Hosts that render their own copy control (e.g. inside the content box)
-      suppress the header's. */
-  hideCopyButton?: boolean;
-  /** Reveal the right-side controls only while hovering the hosting section
-      (requires a `group/iosection` ancestor). */
-  hoverRevealControls?: boolean;
 };
 
 export function MarkdownJsonViewHeader({
   title,
   titleIcon,
-  handleOnCopy,
+  copyButton,
   controlButtons,
-  hideCopyButton = false,
-  hoverRevealControls = false,
 }: MarkdownJsonViewHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
 
@@ -47,17 +39,9 @@ export function MarkdownJsonViewHeader({
         {titleIcon}
         {title}
       </div>
-      <div
-        className={cn(
-          "mr-1 flex min-w-0 shrink flex-row items-center gap-1",
-          // pointer-coarse: touch devices have no hover, so the controls
-          // stay visible there instead of being unreachable.
-          hoverRevealControls &&
-            "opacity-0 transition-opacity group-hover/iosection:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100",
-        )}
-      >
+      <div className="mr-1 flex min-w-0 shrink flex-row items-center gap-1 opacity-0 transition-opacity group-hover/iosection:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
         {controlButtons}
-        {!hideCopyButton && (
+        {copyButton && (
           <Button
             title="Copy to clipboard"
             variant="ghost"
@@ -65,7 +49,7 @@ export function MarkdownJsonViewHeader({
             type="button"
             onClick={(event) => {
               setIsCopied(true);
-              handleOnCopy(event);
+              copyButton.onCopy(event);
               setTimeout(() => setIsCopied(false), 1000);
             }}
             className="text-muted-foreground hover:text-foreground hover:bg-transparent"
@@ -126,43 +110,16 @@ const isOpenAIContentWithExternalS3Image = (content: unknown) => {
   return hasExternalS3Image && hasOnlyRenderableParts;
 };
 
-// MarkdownJsonView renders markdown whenever the content is valid markdown
-// (see canRenderContentAsMarkdown), otherwise it falls back to JSON.
 export function MarkdownJsonView({
   content,
-  title,
-  titleIcon,
   className,
   audio,
   media,
-  actions,
-  beforeContent,
-  afterContent,
-  isSystemPrompt,
-  defaultCollapsed,
-  collapsed,
-  onCollapsedChange,
 }: {
   content?: unknown;
-  title?: string;
-  titleIcon?: IconComponent;
   className?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
-  /** Section header actions. */
-  actions?: IOSectionAction[];
-  /** Rendered inside the section box above the content (e.g. thinking blocks). */
-  beforeContent?: React.ReactNode;
-  /** Rendered inside the section box below the content (e.g. tool calls). */
-  afterContent?: React.ReactNode;
-  /** Long system prompts start collapsed (from raw `role === "system"`, since
-      the title can carry a message `name` instead of the role). */
-  isSystemPrompt?: boolean;
-  /** Initial collapsed state of the section; system prompts use their own rule. */
-  defaultCollapsed?: boolean;
-  /** Controlled collapsed state; long system prompts still follow their rule. */
-  collapsed?: boolean;
-  onCollapsedChange?: (collapsed: boolean) => void;
 }) {
   const characterLimit = useMarkdownRenderCharacterLimit();
   // Boxed so a renderable `null` content stays distinguishable from
@@ -178,33 +135,16 @@ export function MarkdownJsonView({
   return markdownContent ? (
     <MarkdownView
       markdown={markdownContent.value}
-      title={title}
-      titleIcon={titleIcon}
       audio={audio}
       media={media}
-      actions={actions}
-      beforeContent={beforeContent}
-      afterContent={afterContent}
-      isSystemPrompt={isSystemPrompt}
-      defaultCollapsed={defaultCollapsed}
-      collapsed={collapsed}
-      onCollapsedChange={onCollapsedChange}
     />
   ) : (
-    <PrettyJsonView
-      json={content ?? (audio ? { audio } : null)}
-      title={title}
-      titleIcon={titleIcon}
-      className={className}
-      media={media}
-      currentView="pretty"
-      actions={actions}
-      beforeContent={beforeContent}
-      afterContent={afterContent}
-      isSystemPrompt={isSystemPrompt}
-      defaultCollapsed={defaultCollapsed}
-      collapsed={collapsed}
-      onCollapsedChange={onCollapsedChange}
-    />
+    <div className={className}>
+      <PrettyJsonView
+        json={content ?? (audio ? { audio } : null)}
+        media={media}
+        currentView="pretty"
+      />
+    </div>
   );
 }

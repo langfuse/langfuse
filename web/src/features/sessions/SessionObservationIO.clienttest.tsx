@@ -32,7 +32,16 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 
 // The component imports IOPreview through the traces feature surface, so the
 // mock has to intercept the surface — mocking the module behind it does nothing.
-vi.mock("@/src/features/traces", () => ({
+vi.mock("@/src/features/traces/components/IOPreview/IOPreview", () => ({
+  IOPreview: ({ media }: { media?: { mediaId: string }[] }) => (
+    <div
+      data-testid="io-preview"
+      data-media-ids={(media ?? []).map((m) => m.mediaId).join(",")}
+    />
+  ),
+  useMedia: (args: Record<string, unknown>) => useMediaMock(args),
+}));
+vi.mock("@/src/features/traces/hooks/useMedia", () => ({
   IOPreview: ({ media }: { media?: { mediaId: string }[] }) => (
     <div
       data-testid="io-preview"

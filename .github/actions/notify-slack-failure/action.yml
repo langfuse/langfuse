@@ -8,6 +8,10 @@ inputs:
   webhook-url:
     description: Slack Workflow webhook URL.
     required: true
+  ignore-job:
+    description: Name of a job to leave out of the failure reason, e.g. a gate job that fails itself whenever one of its dependencies fails.
+    required: false
+    default: ""
 
 outputs:
   reason:
@@ -24,6 +28,7 @@ runs:
         GH_TOKEN: ${{ github.token }}
         REPOSITORY: ${{ github.repository }}
         RUN_ID: ${{ github.run_id }}
+        IGNORE_JOB: ${{ inputs.ignore-job }}
       run: |
         # GitHub Actions runs composite `bash` steps with `-e -o pipefail`.
         # Several greps below intentionally return 1 on "no match" (e.g. no
@@ -34,9 +39,13 @@ runs:
         set +e
         set +o pipefail
 
+        # Cancelled jobs are included because a job that exceeds its
+        # timeout-minutes concludes as `cancelled`, not `failure`. Failed jobs
+        # sort first so the MAX_JOBS cap below keeps them.
         FAILED_JOBS_JSON="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" --paginate \
-          | jq -sc --arg self_job "$GITHUB_JOB" \
-            '[.[].jobs[] | select(.conclusion == "failure" and .name != $self_job)]')"
+          | jq -sc --arg self_job "$GITHUB_JOB" --arg ignore_job "$IGNORE_JOB" \
+            '[.[].jobs[] | select((.conclusion == "failure" or .conclusion == "cancelled") and .name != $self_job and .name != $ignore_job)]
+             | sort_by(.conclusion != "failure")')"
         FAILED_COUNT=$(jq 'length' <<<"$FAILED_JOBS_JSON")
         MAX_JOBS=3
         MAX_EXCERPT_LEN=250
@@ -46,14 +55,14 @@ runs:
         # Cap how many failed jobs we pull logs for — a GitHub-wide outage can
         # fail a dozen unrelated jobs at once, and we don't want to balloon the
         # Slack message or the API call count for that case. Excludes the
-        # current job itself: the gate jobs that call this action
-        # (all-ci-passed, notify-docker-image-release) deliberately fail
-        # themselves to propagate branch-protection status, which would
-        # otherwise always show up as meaningless noise.
+        # current job and `ignore-job`: a gate job such as all-ci-passed
+        # deliberately fails itself to propagate branch-protection status,
+        # which would otherwise always show up as meaningless noise.
         while IFS= read -r job; do
           JOB_ID=$(jq -r '.id' <<<"$job")
           JOB_NAME=$(jq -r '.name' <<<"$job")
-          FAILED_STEPS=$(jq -r '[.steps[]? | select(.conclusion == "failure") | .name] | join(", ")' <<<"$job")
+          [ "$(jq -r '.conclusion' <<<"$job")" = "cancelled" ] && JOB_NAME="$JOB_NAME (cancelled, e.g. timed out)"
+          FAILED_STEPS=$(jq -r '[.steps[]? | select(.conclusion == "failure" or .conclusion == "cancelled") | .name] | join(", ")' <<<"$job")
 
           JOB_LOG="$(gh api "repos/$REPOSITORY/actions/jobs/$JOB_ID/logs" 2>/dev/null || true)"
 
@@ -110,11 +119,11 @@ runs:
         done < <(jq -c ".[0:$MAX_JOBS][]" <<<"$FAILED_JOBS_JSON")
 
         if [ "$FAILED_COUNT" -gt "$MAX_JOBS" ]; then
-          REASON="$(printf '%s\n\n…and %s more failed job(s)' "$REASON" "$((FAILED_COUNT - MAX_JOBS))")"
+          REASON="$(printf '%s\n\n…and %s more failed or cancelled job(s)' "$REASON" "$((FAILED_COUNT - MAX_JOBS))")"
         fi
 
         if [ -z "$REASON" ]; then
-          REASON="Unknown (no failed job found via the Actions API — check the workflow run)"
+          REASON="Unknown (no failed or cancelled job found via the Actions API — check the workflow run)"
         fi
 
         max_len=1200

@@ -38,5 +38,5 @@ export const [listEvaluationRulesTool, handleListEvaluationRules] = defineTool({
         });
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

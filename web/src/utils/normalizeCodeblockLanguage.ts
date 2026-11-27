@@ -1,6 +1,6 @@
 import type { CodeblockLanguage } from "@/src/components/design-system/Codeblock/Codeblock";
 
-// Prism's bundled grammars and aliases, plus shell labels used by existing callers.
+// Grammars and aliases available to Prism in `SyntaxHighlight`.
 const supportedLanguages = [
   "plain",
   "plaintext",
@@ -53,7 +53,9 @@ const supportedLanguages = [
   "json",
   "webmanifest",
   "bash",
+  "sh",
   "shell",
+  "toml",
 ] as const satisfies readonly CodeblockLanguage[];
 
 export function normalizeCodeblockLanguage(

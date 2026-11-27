@@ -1,7 +1,7 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { addSecureOutboundConnectionValidation } from "./connection";
 import type { OutboundUrlValidationWhitelist } from "./validation";
 import { logger } from "../logger";
+import { withoutBaggage } from "../instrumentation";
 import { WebhookSignatureHeader } from "../../domain/webhooks";
 
 const SENSITIVE_REDIRECT_HEADERS = new Set([
@@ -199,7 +199,9 @@ export async function fetchWithSecureRedirects(
     });
 
     // Fetch the current URL
-    const response = await fetch(currentUrl, fetchOptions);
+    const response = await withoutBaggage(() =>
+      fetch(currentUrl, fetchOptions),
+    );
 
     // Check if this is a redirect response (3xx status codes)
     const isRedirect =

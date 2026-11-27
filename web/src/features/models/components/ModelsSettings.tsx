@@ -1,17 +1,28 @@
 import Header from "@/src/components/layouts/header";
 import { ConnectedModelDefinitionsTable } from "@/src/features/models/ModelDefinitionsTable/ConnectedModelDefinitionsTable";
+import { OrganizationModelsNotice } from "@/src/features/models/components/OrganizationModelsNotice/OrganizationModelsNotice";
+import { useOrganizationModelsNotice } from "@/src/features/models/hooks/useOrganizationModelsNotice";
 
 export function ModelsSettings(props: { projectId: string }) {
+  const notice = useOrganizationModelsNotice(props.projectId);
   return (
     <>
-      <Header title="Model Definitions" />
+      <Header title="Model definitions" />
       <p className="mb-2 text-sm">
-        A configuration that stores pricing information for an LLM model. Model
-        definitions specify the cost per input and output token, enabling
-        Langfuse to automatically calculate the price of generations based on
-        token usage.
+        Model definitions store the prices Langfuse uses to calculate the cost
+        of generations. The match pattern decides which definition applies: a
+        project model whose pattern matches the generation&apos;s model name is
+        used first, then a matching organization model, then a matching Langfuse
+        default.
       </p>
-      <ConnectedModelDefinitionsTable projectId={props.projectId} />
+      {notice ? (
+        <div className="mb-4">
+          <OrganizationModelsNotice {...notice} />
+        </div>
+      ) : null}
+      <ConnectedModelDefinitionsTable
+        owner={{ scope: "project", projectId: props.projectId }}
+      />
     </>
   );
 }

@@ -1,13 +1,16 @@
-/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
-import { ObservationsTable } from "@/src/features/tracing-tables";
-import Page from "@/src/components/layouts/page";
+import { default as ObservationsTable } from "@/src/features/tracing-tables/observations/ObservationsTable";
+import Page from "@/src/components/layouts/Page";
 import { api } from "@/src/utils/api";
 import { TracesOnboarding } from "@/src/components/onboarding/TracesOnboarding";
-import { getTracingTabs, TRACING_TABS } from "@/src/features/navigation";
-import { useReadPath } from "@/src/features/events";
+import {
+  getTracingTabs,
+  TRACING_TABS,
+} from "@/src/features/navigation/utils/tracing-tabs";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
-import { useQueryProject } from "@/src/features/projects";
+import { useQueryProject } from "@/src/features/projects/hooks";
+import { tracingPageView } from "@/src/features/traces/fns/tracingPageView";
 import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function ObservationsPage() {
@@ -18,7 +21,7 @@ export default function ObservationsPage() {
 
   // Check if the user has tracing configured
   // Skip polling entirely if the project flag is already set in the session
-  const { data: hasTracingConfigured, isLoading } =
+  const { data: hasTracingConfigured, isPending } =
     api.traces.hasTracingConfigured.useQuery(
       { projectId },
       {
@@ -34,7 +37,7 @@ export default function ObservationsPage() {
       },
     );
 
-  const showOnboarding = !isLoading && !hasTracingConfigured;
+  const view = tracingPageView({ isPending, hasTracingConfigured });
 
   return (
     <Page
@@ -43,9 +46,10 @@ export default function ObservationsPage() {
         divider: false,
         // Match traces/index.tsx: no delay badge while onboarding tells the
         // user to set up tracing for the first time.
-        titleBadges: showOnboarding ? undefined : (
-          <V4MigrationDelayBadge page="observations" />
-        ),
+        titleBadges:
+          view === "table" ? (
+            <V4MigrationDelayBadge page="observations" />
+          ) : undefined,
         help: {
           description:
             "An observation captures a single function call in an application. See docs to learn more.",
@@ -59,24 +63,25 @@ export default function ObservationsPage() {
                 activeTab: TRACING_TABS.OBSERVATIONS,
               },
       }}
-      scrollable={showOnboarding}
+      scrollable={view !== "table"}
     >
-      {/* Show onboarding screen if user has no traces */}
+      {view === "onboarding" && <TracesOnboarding projectId={projectId} />}
       {/* Wait for the beta flag before mounting either table. Otherwise the
           legacy table can briefly mount, restore a v3 saved view, and
           promote its viewId into the URL before the correct mode
           resolves. */}
-      {showOnboarding ? (
-        <TracesOnboarding projectId={projectId} />
-      ) : !isResolved ? null : isV4 ? (
-        <ObservationsEventsTable
-          projectId={projectId}
-          showControlsInPageHeader
-          enableAppRootDefault
-        />
-      ) : (
-        <ObservationsTable projectId={projectId} showControlsInPageHeader />
-      )}
+      {view === "table" &&
+        isResolved &&
+        (isV4 ? (
+          <ObservationsEventsTable
+            projectId={projectId}
+            showControlsInPageHeader
+            enableAppRootDefault
+            showAllEnvironments={router.query.showAllEnvironments === "true"}
+          />
+        ) : (
+          <ObservationsTable projectId={projectId} showControlsInPageHeader />
+        ))}
     </Page>
   );
 }

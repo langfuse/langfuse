@@ -333,3 +333,53 @@ maybeDescribe(
     });
   },
 );
+
+describe("getScoresForAnalyticsIntegrations free-form field caps", () => {
+  it("cuts comment, string_value and each metadata value to 32,768 characters", async () => {
+    const projectId = randomUUID();
+    const now = Date.now();
+    // Repetitive multi-byte text, like the lint findings that pushed a score
+    // past PostHog's event size limit.
+    const oversized = "⟦u⟧ ".repeat(50_000);
+    // Compare length and prefix so a failure does not print 200k characters.
+    const shape = (value: unknown) =>
+      typeof value === "string"
+        ? { length: value.length, isPrefix: oversized.startsWith(value) }
+        : value;
+    const capped = { length: 32_768, isPrefix: true };
+
+    await createScoresCh([
+      createTraceScore({
+        project_id: projectId,
+        timestamp: now,
+        data_type: "CATEGORICAL",
+        string_value: oversized,
+        comment: oversized,
+        metadata: { instances: oversized, kept: "short" },
+      }),
+    ]);
+
+    const rows = await collect(
+      getScoresForAnalyticsIntegrations(
+        projectId,
+        "Test Project",
+        new Date(now - HOUR_MS),
+        new Date(now + HOUR_MS),
+      ),
+    );
+
+    expect(rows).toHaveLength(1);
+    const metadata = rows[0].langfuse_score_metadata as Record<string, string>;
+    expect({
+      comment: shape(rows[0].langfuse_score_comment),
+      stringValue: shape(rows[0].langfuse_score_string_value),
+      instances: shape(metadata.instances),
+      kept: metadata.kept,
+    }).toEqual({
+      comment: capped,
+      stringValue: capped,
+      instances: capped,
+      kept: "short",
+    });
+  });
+});

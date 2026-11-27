@@ -1,7 +1,10 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/export-rules */
 import type { z } from "zod";
-import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
-import type { combineInputOutputMessages } from "@/src/utils/chatml";
+import type {
+  ChatMlMessageSchema,
+  combineInputOutputMessages,
+} from "@langfuse/shared";
+
 import type { IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
 
 export type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
@@ -77,6 +80,7 @@ export function isOnlyJsonMessage(message: ChatMlMessage): boolean {
 
 /**
  * Check if message should be rendered (has content, audio, additional data, or is placeholder).
+ * @internal
  */
 export function shouldRenderMessage(message: ChatMlMessage): boolean {
   return (

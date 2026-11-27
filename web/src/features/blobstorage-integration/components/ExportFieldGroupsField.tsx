@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useFormState, useWatch } from "react-hook-form";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import {
   FormDescription,
   FormField,
@@ -13,6 +14,7 @@ import {
   EXPORT_FIELD_GROUP_OPTIONS,
   SCORE_EXPORT_CORE_FIELD_GROUP_OPTION,
   SCORE_EXPORT_FIELD_GROUP_OPTIONS,
+  TRACE_EXPORT_FIELD_GROUP_OPTIONS,
 } from "@langfuse/shared";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
 import { FieldGroupCheckbox } from "@/src/features/blobstorage-integration/components/FieldGroupCheckbox";
@@ -63,16 +65,47 @@ export const ExportFieldGroupsField = ({
         <FormItem>
           <FormLabel>Export Field Groups</FormLabel>
           <FormDescription>
-            Choose which field groups to include in the observation and score
-            exports. Deselect large groups (e.g. Input / Output) to reduce
-            export size, or privacy-sensitive groups (e.g. Metadata) to avoid
-            storing user data.
+            Choose which field groups to include in the exports. Deselect large
+            groups (e.g. Input / Output) to reduce export size, or
+            privacy-sensitive groups (e.g. Metadata) to avoid storing user data.
             {includesLegacyExport
               ? isLegacyOnlyExport
-                ? " Traces are always exported in full. Field groups that only exist on the enriched observations (e.g. Trace Context) are not available for this export source."
-                : " Traces are always exported in full. Fields that only exist on the enriched observations (e.g. Trace Context) are omitted from the legacy observations export."
+                ? " Field groups that only exist on the enriched observations (e.g. Trace Context) are not available for this export source."
+                : " Fields that only exist on the enriched observations (e.g. Trace Context) are omitted from the legacy observations export."
               : ""}
           </FormDescription>
+          {includesLegacyExport && (
+            <>
+              <div className="text-sm font-bold">Traces</div>
+              <div className="mt-2 space-y-2">
+                {TRACE_EXPORT_FIELD_GROUP_OPTIONS.map((option) =>
+                  option.value === "trace_core" ? (
+                    <FieldGroupCheckbox
+                      key={option.value}
+                      id="field-group-trace-core"
+                      required
+                      label={option.label}
+                      description={option.description}
+                    />
+                  ) : (
+                    <FieldGroupCheckbox
+                      key={option.value}
+                      value={option.value}
+                      label={option.label}
+                      description={option.description}
+                      selected={field.value ?? []}
+                      onChange={field.onChange}
+                    />
+                  ),
+                )}
+              </div>
+              <Banner variant="warning">
+                Trace field groups can only be set here. The public API
+                doesn&apos;t show them, and updating field groups through the
+                API keeps this selection.
+              </Banner>
+            </>
+          )}
           <div className="text-sm font-bold">Observations</div>
           <div className="mt-2 space-y-2">
             {EXPORT_FIELD_GROUP_OPTIONS.filter(

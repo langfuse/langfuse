@@ -4,11 +4,14 @@ import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
-import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations";
+import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { BlobStorageIntegrationContainer } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationContainer";
-import { useBlobStorageIntegration } from "@/src/features/blobstorage-integration/useBlobStorageIntegration";
+import {
+  useBlobStorageIntegration,
+  useDeleteBlobStorageIntegration,
+} from "@/src/features/blobstorage-integration/useBlobStorageIntegration";
 import { BlobStorageStatusSection } from "@/src/features/blobstorage-integration/components/BlobStorageStatusSection";
 
 export default function BlobStorageIntegrationPage() {
@@ -50,9 +53,17 @@ export default function BlobStorageIntegrationPage() {
         Now&quot; button to trigger an immediate export.
       </p>
       {!hasEntitlement ? (
-        <p className="text-sm">
-          This feature is not available in your current plan.
-        </p>
+        <>
+          <p className="text-sm">
+            This feature is not available in your current plan.
+          </p>
+          {hasAccess && state.data?.config && (
+            <div className="flex flex-col items-start gap-4">
+              <BlobStorageStatusSection config={state.data.config} />
+              <DeleteIntegrationButton projectId={projectId} />
+            </div>
+          )}
+        </>
       ) : !hasAccess ? (
         <p className="text-sm">
           Your current role does not grant you access to these settings, please
@@ -72,11 +83,35 @@ export default function BlobStorageIntegrationPage() {
                 config={state.data.config ?? null}
                 projectId={projectId}
                 writeMode={state.data.writeMode}
+                crossAccountRoleArn={state.data.crossAccountRoleArn}
+                roleAuthRequiresUpgrade={state.data.roleAuthRequiresUpgrade}
               />
             )}
           </Card>
         </>
       )}
     </ContainerPage>
+  );
+}
+
+// The only action left once the plan no longer includes scheduled exports:
+// removing the integration and its stored credentials.
+function DeleteIntegrationButton({ projectId }: { projectId: string }) {
+  const mutDelete = useDeleteBlobStorageIntegration(projectId);
+  return (
+    <Button
+      variant="destructive"
+      loading={mutDelete.isPending}
+      onClick={() => {
+        if (
+          confirm(
+            "Are you sure you want to delete the Blob Storage integration for this project?",
+          )
+        )
+          mutDelete.mutate({ projectId });
+      }}
+    >
+      Delete integration
+    </Button>
   );
 }

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 /**
  * Which tree node owns a trace's trace-level scores (`observationId === null`).
  *
@@ -42,4 +43,17 @@ export function selectNodeScores<T extends LeveledScore>(
   nodeId: string,
 ): T[] {
   return scores.filter((score) => score.observationId === nodeId);
+}
+
+/**
+ * Observation-scoped CORRECTIONs for a tree row. Trace-level
+ * (`observationId === null`) never appear here — those stay on TraceHeader.
+ */
+export function selectNodeCorrections<T extends LeveledScore>(
+  corrections: T[],
+  nodeId: string,
+): T[] {
+  return corrections.filter(
+    (correction) => correction.observationId === nodeId,
+  );
 }

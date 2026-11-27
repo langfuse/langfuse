@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
+import { EVENTS_CORE_TRUNCATION_LIMIT } from "../../../server/queries/clickhouse-sql/events-core-truncation";
 import type { FilterCondition } from "../../../types";
 import { getViewDeclaration } from "../dataModel";
 import type { QueryType, ViewVersion } from "../types";
@@ -74,7 +75,7 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toContain("prompt_version = {numberFilter");
+      expect(query).toMatch(/prompt_version = \{\w+: ?Decimal128\(12\)\}/);
       expect(query).not.toContain("position(");
     },
   );
@@ -130,7 +131,7 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toContain("prompt_version = {numberFilter");
+      expect(query).toMatch(/prompt_version = \{\w+: ?Decimal128\(12\)\}/);
     },
   );
 
@@ -291,8 +292,10 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toContain("scores_numeric.evaluator_id");
-      expect(query).toContain("IN ({stringOptionsFilter");
+      // v1 qualifies the view alias, v2 the unaliased `scores`.
+      expect(query).toMatch(
+        /scores(_numeric)?\.evaluator_id in \(\{\w+: ?Array\(String\)\}\)/i,
+      );
     },
   );
 
@@ -310,8 +313,9 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toContain("scores_numeric.evaluation_rule_id");
-      expect(query).toContain("IN ({stringOptionsFilter");
+      expect(query).toMatch(
+        /scores(_numeric)?\.evaluation_rule_id in \(\{\w+: ?Array\(String\)\}\)/i,
+      );
     },
   );
 
@@ -329,8 +333,8 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toContain("scores_numeric.metadata['evaluator_test']");
-      expect(query).toContain(": Boolean}");
+      expect(query).toMatch(/scores(_numeric)?\.metadata\['evaluator_test'\]/);
+      expect(query).toMatch(/: ?Boolean\}/);
     },
   );
 
@@ -357,13 +361,11 @@ describe("queryBuilder filter type validation", () => {
     );
 
     expect(evaluatorIdQuery.query).toContain(
-      "coalesce(nullIf(events_observations.evaluator_id, ''), events_observations.evaluation_rule_id)",
+      "coalesce(nullIf(e.evaluator_id, ''), e.evaluation_rule_id)",
     );
-    expect(evaluatorTestQuery.query).toContain(
-      "events_observations.evaluator_execution_is_test",
-    );
+    expect(evaluatorTestQuery.query).toContain("e.evaluator_execution_is_test");
     expect(evaluatorIdQuery.query).toContain("!= ''");
-    expect(evaluatorTestQuery.query).toContain(": Boolean}");
+    expect(evaluatorTestQuery.query).toContain(":Boolean}");
   });
 
   it("lowers the semantic-root observation filter only in the v2 events view", async () => {
@@ -378,10 +380,9 @@ describe("queryBuilder filter type validation", () => {
       "v2",
     );
 
-    expect(query).toContain(
-      "toBool((events_observations.parent_span_id = '' OR events_observations.is_app_root = true)) = {booleanFilter",
+    expect(query).toMatch(
+      /toBool\(\(e\.parent_span_id = '' or e\.is_app_root = true\)\) = \{\w+:Boolean\}/,
     );
-    expect(query).toContain(": Boolean}");
 
     await expect(
       buildQueryWithFilter(
@@ -396,6 +397,67 @@ describe("queryBuilder filter type validation", () => {
       ),
     ).rejects.toThrow(/Invalid filter column isRootObservation/);
   });
+
+  it("keeps an owner starts-with on events_core only while the value fits the truncated copy", async () => {
+    const table = async (value: string) =>
+      (
+        await buildQueryWithFilter(
+          {
+            column: "aiGatewayKeyOwnerUserId",
+            operator: "starts with",
+            value,
+            type: "string",
+          },
+          undefined,
+          "v2",
+        )
+      ).query.match(/from (events_core|events_full)\b/i)?.[1];
+
+    expect(await table("owner")).toBe("events_core");
+    expect(await table("x".repeat(EVENTS_CORE_TRUNCATION_LIMIT + 1))).toBe(
+      "events_full",
+    );
+  });
+
+  it("rejects a column that is no dimension of the v2 observations view", async () => {
+    await expect(
+      buildQueryWithFilter(
+        { column: "notAColumn", operator: "=", value: "x", type: "string" },
+        undefined,
+        "v2",
+      ),
+    ).rejects.toThrow(
+      new InvalidRequestError(
+        `Invalid filter column notAColumn. Must be one of ${Object.keys(getViewDeclaration("observations", "v2").dimensions)} or start_time`,
+      ),
+    );
+  });
+
+  it.each([
+    ["v1", "dimension", { dimensions: [{ field: "toString" }] }],
+    ["v2", "dimension", { dimensions: [{ field: "toString" }] }],
+    [
+      "v1",
+      "metric",
+      { metrics: [{ measure: "constructor", aggregation: "count" }] },
+    ],
+    [
+      "v2",
+      "metric",
+      { metrics: [{ measure: "constructor", aggregation: "count" }] },
+    ],
+    ["v2", "entity dimension", { entityDimension: { field: "toString" } }],
+  ] as const)(
+    "rejects a %s %s named after an Object.prototype member",
+    async (version, _kind, overrides) => {
+      await expect(
+        new QueryBuilder(undefined, version).build(
+          { ...baseQuery, ...overrides } as QueryType,
+          "test-project",
+        ),
+      ).rejects.toThrow(InvalidRequestError);
+    },
+  );
 });
 
 describe("legacy traces compatibility when routed through v2", () => {
@@ -426,7 +488,7 @@ describe("legacy traces compatibility when routed through v2", () => {
       ).build(query, "test-project", true);
 
       expect(compiledQuery).toContain(
-        `uniq(nullIf(events_traces.${column}, '')) as ${measure}`,
+        `uniq(nullIf(e.${column}, '')) as ${measure}`,
       );
       expect(compiledQuery).toContain(`max(${measure}) as max_${measure}`);
     },
@@ -455,7 +517,7 @@ describe("legacy traces compatibility when routed through v2", () => {
       ).build(query, "test-project");
 
       expect(twoLevelQuery).toContain(
-        `argMaxIf(nullIf(events_traces.${column}, ''), events_traces.event_ts, events_traces.${column} <> '') as ${measure}`,
+        `argMaxIf(nullIf(e.${column}, ''), e.event_ts, e.${column} != '') as ${measure}`,
       );
       expect(twoLevelQuery).toContain(`uniq(${measure}) as count_${measure}`);
     },
@@ -484,7 +546,7 @@ describe("legacy traces compatibility when routed through v2", () => {
       ).build(query, "test-project");
 
       expect(compiledQuery).toContain(
-        `argMaxIf(nullIf(events_traces.${column}, ''), events_traces.event_ts, events_traces.${column} <> '') as ${measure}`,
+        `argMaxIf(nullIf(e.${column}, ''), e.event_ts, e.${column} != '') as ${measure}`,
       );
       expect(compiledQuery).toContain(`uniq(${measure}) as uniq_${measure}`);
     },
@@ -533,24 +595,13 @@ describe("queryBuilder DateTime64 parameter encoding", () => {
     );
 
     expect(compiledQuery).toContain("DateTime64(3, 'UTC')");
-    expect(compiledQuery).not.toContain(": DateTime64(3)}");
+    expect(compiledQuery).not.toContain(":DateTime64(3)}");
+    // Threshold 0 keeps the root-event subquery, which binds the window too.
+    expect(compiledQuery).toMatch(/not exists/i);
 
-    const dateTimeParams = Object.entries(parameters).filter(
-      ([key]) =>
-        key.startsWith("dateTimeFilter") ||
-        key.startsWith("subFrom") ||
-        key.startsWith("subTo"),
-    );
-
-    expect(dateTimeParams.length).toBeGreaterThan(0);
-    expect(dateTimeParams.some(([key]) => key.startsWith("subFrom"))).toBe(
-      true,
-    );
-    expect(dateTimeParams.some(([key]) => key.startsWith("subTo"))).toBe(true);
-    for (const [, value] of dateTimeParams) {
+    for (const value of Object.values(parameters)) {
       // ClickHouse rejects numeric 0 for DateTime64(3) query parameters.
       expect(value).not.toBe(0);
-      expect(typeof value).toBe("string");
     }
     expect(Object.values(parameters)).toContain("1970-01-01 00:00:00.000");
     expect(Object.values(parameters)).toContain("2026-08-14 21:30:00.000");
@@ -573,14 +624,14 @@ describe("queryBuilder DateTime64 parameter encoding", () => {
       "v2",
     ).build(query, "test-project", true);
 
-    expect(compiledQuery).toContain(
-      "toDate({fillFromDate: DateTime64(3, 'UTC')})",
-    );
-    expect(compiledQuery).toContain(
-      "toDate({fillToDate: DateTime64(3, 'UTC')})",
-    );
-    expect(parameters.fillFromDate).toBe("2025-01-01 00:00:00.000");
-    expect(parameters.fillToDate).toBe("2025-01-02 00:00:00.000");
+    // with fill from toDate({from:DateTime64(3, 'UTC')}) to toDate({to:DateTime64(3, 'UTC')})
+    const fill =
+      /with fill from toDate\(\{(\w+):DateTime64\(3, 'UTC'\)\}\) to toDate\(\{(\w+):DateTime64\(3, 'UTC'\)\}\)/.exec(
+        compiledQuery,
+      );
+    expect(fill).not.toBeNull();
+    expect(parameters[fill?.[1] ?? ""]).toBe("2025-01-01 00:00:00.000");
+    expect(parameters[fill?.[2] ?? ""]).toBe("2025-01-02 00:00:00.000");
   });
 });
 
@@ -620,15 +671,13 @@ describe("toolCallInvocations measure", () => {
     );
 
     expect(compiledQuery).toContain(
-      "arrayJoin(arrayDistinct(events_observations.tool_call_names)) as calledToolNames",
+      "arrayJoin(arrayDistinct(e.tool_call_names)) as calledToolNames",
     );
     expect(compiledQuery).toContain(
-      "sum(countEqual((events_observations.tool_call_names), calledToolNames))",
+      "sum(countEqual(e.tool_call_names, calledToolNames))",
     );
-    expect(compiledQuery).not.toContain(
-      "any(events_observations.tool_call_names)",
-    );
-    expect(compiledQuery.match(/\bSELECT\b/g)).toHaveLength(1);
+    expect(compiledQuery).not.toContain("any(e.tool_call_names)");
+    expect(compiledQuery.match(/\bselect\b/gi)).toHaveLength(1);
   });
 
   it("honors a stored count aggregation instead of the UI default sum", async () => {

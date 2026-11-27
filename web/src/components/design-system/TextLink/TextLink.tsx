@@ -5,16 +5,13 @@ export function TextLink({
   path,
   value,
   icon,
+  trailingIcon,
   onClick,
   title,
-}: {
-  path: string;
-  value: string;
-  icon?: IconComponent;
-  onClick?: (event: React.MouseEvent) => void;
-  title?: string;
-}) {
+  external = false,
+}: TextLinkProps) {
   const Icon = icon;
+  const TrailingIcon = trailingIcon;
   const handleClick = (event: React.MouseEvent) => {
     if (!onClick) return;
     // Preserve native new-tab gestures when the link has a real destination.
@@ -32,14 +29,16 @@ export function TextLink({
       title={title ?? value}
       prefetch={false}
       onClick={handleClick}
+      {...(external && { target: "_blank", rel: "noopener noreferrer" })}
     >
       <span className="inline-block max-w-full overflow-hidden align-middle leading-normal text-nowrap text-ellipsis">
-        {Icon ? (
+        {Icon || TrailingIcon ? (
           <span className="inline-flex max-w-full items-center gap-1">
-            <Icon size="base" />
+            {Icon ? <Icon size="base" /> : null}
             <span className="truncate" title={title ?? value}>
               {value}
             </span>
+            {TrailingIcon ? <TrailingIcon size="base" aria-hidden /> : null}
           </span>
         ) : (
           value
@@ -48,3 +47,17 @@ export function TextLink({
     </Link>
   );
 }
+
+/** A link shows at most one icon, either before or after its text. */
+export type TextLinkIconProps =
+  | { icon?: IconComponent; trailingIcon?: never }
+  | { icon?: never; trailingIcon?: IconComponent };
+
+type TextLinkProps = {
+  path: string;
+  value: string;
+  onClick?: (event: React.MouseEvent) => void;
+  title?: string;
+  /** Opens in a new tab. */
+  external?: boolean;
+} & TextLinkIconProps;

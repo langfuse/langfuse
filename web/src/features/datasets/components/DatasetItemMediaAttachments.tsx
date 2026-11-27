@@ -5,13 +5,13 @@ import { type Extension } from "@codemirror/state";
 import { Check, Copy, Loader2, Paperclip } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
-import { createFileDropPasteExtension } from "@/src/components/editor";
+import { createFileDropPasteExtension } from "@/src/components/editor/fileDropPaste";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type PendingMediaUpload } from "../hooks/useDatasetItemMediaUpload";
-import {
-  type MediaContentType,
-  type MediaReturnType,
-} from "@/src/features/media";
+import type {
+  MediaContentType,
+  MediaReturnType,
+} from "@/src/features/media/validation";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
@@ -24,6 +24,7 @@ import {
  * Extracts media references from live dataset item fields, deduped by media id.
  * Valid JSON uses the backend-style collector; invalid mid-edit JSON falls back
  * to regex so previews do not disappear while typing.
+ * @internal
  */
 export function collectMediaReferenceStrings(
   jsonStrings: (string | undefined)[],
@@ -61,6 +62,7 @@ type SliceableDoc = {
   sliceString(from: number, to?: number): string;
 };
 
+/** @internal */
 export function getMediaReferenceInsertRange(
   doc: SliceableDoc,
   from: number,

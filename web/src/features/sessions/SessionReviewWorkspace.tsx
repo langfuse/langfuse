@@ -2,8 +2,8 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Group, Panel, Separator, useGroupRef } from "react-resizable-panels";
 import { useStore } from "zustand";
 import { SessionReviewPanel } from "@/src/features/traces/components/TraceReviewPanel";
-import { useTraceReviewPanel } from "@/src/features/traces/contexts/TraceReviewPanelContext";
-import { SessionReviewLeadingProvider } from "@/src/features/sessions/sessionReviewLeading";
+import { useTraceReviewPanel } from "@/src/features/traces/contexts/TraceReviewPanelProvider";
+import { SessionReviewLeadingProvider } from "@/src/features/sessions/SessionReviewLeadingProvider";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { cn } from "@/src/utils/tailwind";
 
@@ -20,9 +20,11 @@ function reviewPanelPercent(available: number, preferredPx: number) {
 export function SessionReviewWorkspace({
   projectId,
   children,
+  enabled = true,
 }: {
   projectId: string;
   children: ReactNode;
+  enabled?: boolean;
 }) {
   const store = useTraceReviewPanel();
   const active = useStore(store, (state) => state.active);
@@ -40,9 +42,10 @@ export function SessionReviewWorkspace({
 
   useLayoutEffect(() => {
     setLeadingElement(leadingRef.current);
-  }, []);
+  }, [enabled]);
 
   useLayoutEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
@@ -63,10 +66,10 @@ export function SessionReviewWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [open, vertical, groupRef, rootRef]);
+  }, [enabled, open, vertical, groupRef, rootRef]);
 
   useLayoutEffect(() => {
-    if (!active || !vertical) return;
+    if (!enabled || !active || !vertical) return;
     const frame = requestAnimationFrame(() => {
       const root = rootRef.current;
       const review = reviewRef.current;
@@ -81,7 +84,9 @@ export function SessionReviewWorkspace({
         Math.max(0, visibleHeight - review.clientHeight);
     });
     return () => cancelAnimationFrame(frame);
-  }, [active, vertical, rootRef]);
+  }, [enabled, active, vertical, rootRef]);
+
+  if (!enabled) return children;
 
   return (
     <SessionReviewLeadingProvider element={leadingElement}>

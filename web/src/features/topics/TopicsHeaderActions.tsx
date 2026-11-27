@@ -1,81 +1,51 @@
-import { MoreHorizontal, Settings } from "@langfuse/icons";
+import { EllipsisVertical, MessageSquare, Pencil } from "@langfuse/icons";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { AutomaticProcessingControl } from "./AutomaticProcessingControl";
-import { type useTopicModelSettings } from "./TopicModelSettings";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { type TopicsActions } from "./prepare-topics-actions";
 
-export function TopicsHeaderActions({
-  automaticProcessing,
-  configure,
-  configured,
-  canWrite,
-  manualAvailable,
-  openManual,
-  onAutomaticProcessing,
-  onConfigure,
-  onHistory,
-  onRefresh,
-}: TopicsHeaderActionsProps) {
+export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
   return (
-    <div className="ph-no-capture flex items-center justify-end gap-1">
-      <AutomaticProcessingControl
-        state={automaticProcessing.state}
-        canWrite={canWrite && !automaticProcessing.saving}
-        onOpen={onAutomaticProcessing}
-      />
-      {!configured ? (
+    <div className="ph-no-capture flex shrink-0 items-center justify-end gap-1">
+      {actions.giveFeedback && (
         <Button
-          text="Configure Topics"
-          variant={configure.triggerVariant}
-          size="sm"
-          disabled={!configure.settings}
-          onClick={onConfigure}
+          text="Give feedback"
+          icon={MessageSquare}
+          size="default"
+          variant="ghost"
+          onClick={actions.giveFeedback}
         />
-      ) : null}
-      {manualAvailable ? (
-        <Button
-          text="Manual processing"
-          variant="secondary"
-          size="sm"
-          onClick={openManual}
-        />
-      ) : null}
+      )}
+      {actions.editRun && <EditMapButton editRun={actions.editRun} />}
       <DropdownMenu
         ariaLabel="Topics actions"
         placement="bottom-end"
         items={[
-          ...(configured
-            ? [
-                {
-                  id: "configure",
-                  type: "item" as const,
-                  title: "Configure Topics",
-                  icon: Settings,
-                  onClick: onConfigure,
-                },
-              ]
-            : []),
-          {
-            id: "history",
-            type: "item",
-            title: "History",
-            onClick: onHistory,
-          },
-          {
-            id: "refresh",
-            type: "item",
-            title: "Refresh results",
-            onClick: onRefresh,
-          },
+          ...actions.menu.map((action) => ({
+            id: action.id,
+            type: "item" as const,
+            title: action.label,
+            icon: action.icon,
+            badge: action.badge ? (
+              <Badge text={action.badge} size="sm" />
+            ) : undefined,
+            disabled: action.disabledReason
+              ? { reason: action.disabledReason }
+              : undefined,
+            // The reason's title tooltip never shows on touch screens.
+            description: action.disabledReason,
+            onClick: action.onSelect,
+          })),
         ]}
       >
         {({ getTriggerProps }) => (
           <IconButton
             {...getTriggerProps()}
-            icon={MoreHorizontal}
+            icon={EllipsisVertical}
             label="Topics actions"
-            size="sm"
+            size="md"
           />
         )}
       </DropdownMenu>
@@ -83,19 +53,38 @@ export function TopicsHeaderActions({
   );
 }
 
-type ModelSettings = ReturnType<typeof useTopicModelSettings>;
-type TopicsHeaderActionsProps = {
-  automaticProcessing: Pick<
-    ModelSettings["automaticProcessing"],
-    "state" | "saving"
-  >;
-  configure: Pick<ModelSettings["configure"], "settings" | "triggerVariant">;
-  configured: boolean;
-  canWrite: boolean;
-  manualAvailable: boolean;
-  openManual: () => void;
-  onAutomaticProcessing: () => void;
-  onConfigure: () => void;
-  onHistory: () => void;
-  onRefresh: () => void;
-};
+function EditMapButton({
+  editRun,
+}: {
+  editRun: NonNullable<TopicsActions["editRun"]>;
+}) {
+  if (!editRun.disabledReason)
+    return (
+      <Button
+        text="Edit map"
+        icon={Pencil}
+        size="default"
+        variant="ghost"
+        onClick={editRun.onSelect}
+      />
+    );
+  return (
+    // Disabled buttons fire no pointer events, so the tooltip listens on a wrapper.
+    <Tooltip label={editRun.disabledReason}>
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps()}
+          className="inline-flex cursor-not-allowed [&>button]:pointer-events-none"
+        >
+          <Button
+            text="Edit map"
+            icon={Pencil}
+            size="default"
+            variant="ghost"
+            disabled
+          />
+        </span>
+      )}
+    </Tooltip>
+  );
+}

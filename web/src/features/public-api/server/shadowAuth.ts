@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type NextApiRequest } from "next";
 import { getRequestMeta } from "next/dist/server/request-meta";
 
@@ -317,7 +316,7 @@ export type ShadowAuthorizeParams = {
 };
 
 /** ShadowAuthAccessResult is a verified scope; the authorizing context rides along only when the new pipeline produced it. */
-export type ShadowAuthAccessResult = Success & {
+type ShadowAuthAccessResult = Success & {
   scope: ApiAccessScope;
   ctx?: AuthorizationContext;
 };

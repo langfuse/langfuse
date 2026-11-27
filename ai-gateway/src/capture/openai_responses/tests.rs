@@ -1,7 +1,8 @@
 use super::*;
 use crate::capture::{
-    ExecutionCapture, InputOmission, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES, ProtocolCapture,
-    RelayOutcome, sse::SseDecoder,
+    ExecutionCapture, InputOmission, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES,
+    MAX_RESPONSE_PARSE_BYTES, ProtocolCapture, RawRequest, RelayOutcome, RequestInput,
+    sse::SseDecoder,
 };
 use crate::config::ExecutionLimits;
 use crate::resolution::ApiFormat;
@@ -18,7 +19,10 @@ use serde_json::json;
 use std::{
     convert::Infallible,
     future::pending,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 use tokio::sync::Notify;
@@ -32,7 +36,7 @@ fn captured(execution: &ExecutionCapture) -> &OpenAiResponsesCapture {
 
 async fn observer(mode: &'static str) -> ExecutionCapture {
     let context = resolved_request_context_with_mode("provider-secret", mode).await;
-    ExecutionCapture::for_request(ApiFormat::OpenAiResponses, &context, &HeaderMap::new(), br#"{"model":"requested","instructions":"prompt-canary","input":[{"role":"user","content":"hello"}],"tools":[{"type":"function","name":"weather","parameters":{"type":"object"}}],"text":{"format":{"type":"json_schema","schema":{"description":"schema-canary"}}},"service_tier":"auto","metadata":{"label":"request-metadata-canary"},"safety_identifier":"safety-id-canary","prompt_cache_key":"cache-id-canary","user":"user-id-canary"}"#)
+    ExecutionCapture::for_request(ApiFormat::OpenAiResponses, &context, &HeaderMap::new(), RequestInput::from_body(br#"{"model":"requested","instructions":"prompt-canary","input":[{"role":"user","content":"hello"}],"tools":[{"type":"function","name":"weather","parameters":{"type":"object"}}],"text":{"format":{"type":"json_schema","schema":{"description":"schema-canary"}}},"service_tier":"auto","metadata":{"label":"request-metadata-canary"},"safety_identifier":"safety-id-canary","prompt_cache_key":"cache-id-canary","user":"user-id-canary"}"#))
 }
 
 fn record_response(observer: &mut ExecutionCapture, content_type: &'static str) {
@@ -96,7 +100,7 @@ async fn captures_completed_items_only_in_order_without_duplication() {
         40
     );
     assert_eq!(
-        capture.facts.input.as_ref().unwrap()["instructions"],
+        capture.facts.input_json().unwrap()["instructions"],
         "prompt-canary"
     );
     assert!(capture.facts.output_complete);
@@ -161,6 +165,37 @@ async fn json_and_streaming_capture_equivalent_native_items_and_facts() {
 }
 
 #[tokio::test]
+async fn gateway_billing_outside_usage_is_kept_in_usage_mode() {
+    let mut observer = observer("usage").await;
+    record_response(&mut observer, "text/event-stream");
+    // A streamed Vercel Responses reply, trimmed to its usage and billing:
+    // the cost arrives only on `response.completed`.
+    let created = json!({"type": "response.created", "sequence_number": 0, "response": {
+        "id": "gen_01M73068ZS9J5BCKSY9HJVN969", "status": "in_progress", "output": [],
+        "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+    }});
+    let gateway = json!({
+        "routing": {"modelAttempts": [{"success": true, "providerAttempts": [
+            {"provider": "bedrock", "credentialType": "system", "success": true, "statusCode": 200},
+        ]}]},
+        "cost": "0.00013992",
+    });
+    let completed = json!({"type": "response.completed", "sequence_number": 21, "response": {
+        "id": "gen_01M73068ZS9J5BCKSY9HJVN969", "status": "completed", "output": [],
+        "usage": {"input_tokens": 49, "output_tokens": 45, "total_tokens": 94},
+        "provider_metadata": {"gateway": gateway},
+    }});
+    for event in [created, completed] {
+        let kind = event["type"].as_str().unwrap();
+        observer.push_bytes(format!("event: {kind}\ndata: {event}\n\n").as_bytes());
+    }
+    observer.end_body();
+    let (_, facts) = observer.protocol.take().unwrap().into_facts();
+    assert_eq!(facts.provider_metadata.unwrap()["gateway"], gateway);
+    assert_eq!(facts.usage_details.unwrap()["output_tokens"], 45);
+}
+
+#[tokio::test]
 async fn usage_mode_excludes_content_and_context_credentials() {
     let mut observer = observer("usage").await;
     record_response(&mut observer, "text/event-stream");
@@ -200,13 +235,15 @@ async fn request_configuration_is_projected_out_of_input() {
         "metadata": {"purpose": "test"}, "prompt_cache_key": "cache-key"
     });
     let capture = OpenAiResponsesCapture::new(
-        &HeaderMap::new(),
-        request.to_string().as_bytes(),
+        RawRequest::from_input(
+            &HeaderMap::new(),
+            RequestInput::from_body(request.to_string().as_bytes()),
+        ),
         IngestionMode::Full,
     )
     .into_facts();
     assert_eq!(
-        capture.input.unwrap(),
+        capture.input_json().unwrap(),
         json!({
             "input": "hello", "instructions": "be brief",
             "tools": [{"type": "function", "name": "weather"}],
@@ -226,6 +263,36 @@ async fn request_configuration_is_projected_out_of_input() {
 }
 
 #[tokio::test]
+async fn configuration_beyond_the_parse_budget_stays_in_input() {
+    // Each member fits the budget on its own, but not together.
+    let half = json!({"schema": vec![json!({"": 0}); 5 * 1024]});
+    let request = json!({
+        "model": "requested", "input": "hello",
+        "text": half, "metadata": half, "temperature": 0.5,
+    });
+    let capture = OpenAiResponsesCapture::new(
+        RawRequest::from_input(
+            &HeaderMap::new(),
+            RequestInput::from_body(request.to_string().as_bytes()),
+        ),
+        IngestionMode::Full,
+    )
+    .into_facts();
+    assert_eq!(
+        capture.input_json().unwrap(),
+        json!({"input": "hello", "metadata": half})
+    );
+    assert_eq!(
+        capture.model_parameters,
+        json!({"temperature": 0.5, "text": half})
+            .as_object()
+            .unwrap()
+            .clone()
+    );
+    assert!(capture.request_metadata.is_empty());
+}
+
+#[tokio::test]
 async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
     let codex = json!({
         "model": "requested", "input": "hello", "future_field": {"keep": true},
@@ -236,8 +303,13 @@ async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
         }
     });
     for mode in [IngestionMode::Full, IngestionMode::Usage] {
-        let capture =
-            OpenAiResponsesCapture::new(&HeaderMap::new(), codex.to_string().as_bytes(), mode);
+        let capture = OpenAiResponsesCapture::new(
+            RawRequest::from_input(
+                &HeaderMap::new(),
+                RequestInput::from_body(codex.to_string().as_bytes()),
+            ),
+            mode,
+        );
         assert_eq!(
             capture.client_metadata().unwrap()["x-codex-installation-id"],
             "install-1"
@@ -245,7 +317,7 @@ async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
         let facts = capture.into_facts();
         if mode == IngestionMode::Full {
             assert_eq!(
-                facts.input.unwrap(),
+                facts.input_json().unwrap(),
                 json!({"input": "hello", "future_field": {"keep": true}})
             );
         } else {
@@ -258,13 +330,15 @@ async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
         "client_metadata": {"team": "search"}
     });
     let capture = OpenAiResponsesCapture::new(
-        &HeaderMap::new(),
-        unknown.to_string().as_bytes(),
+        RawRequest::from_input(
+            &HeaderMap::new(),
+            RequestInput::from_body(unknown.to_string().as_bytes()),
+        ),
         IngestionMode::Full,
     );
     assert!(capture.client_metadata().is_none());
     assert_eq!(
-        capture.into_facts().input.unwrap(),
+        capture.into_facts().input_json().unwrap(),
         json!({"input": "hello", "client_metadata": {"team": "search"}})
     );
 }
@@ -313,7 +387,7 @@ async fn completion_time_requires_sse_generated_content_in_either_ingestion_mode
             ApiFormat::OpenAiResponses,
             &context,
             &HeaderMap::new(),
-            br#"{"stream":true,"input":"hello"}"#,
+            RequestInput::from_body(br#"{"stream":true,"input":"hello"}"#),
         );
         record_response(&mut observer, "application/json; charset=utf-8");
         observer.push_bytes(br#"{"output":[],"status":"completed"}"#);
@@ -362,7 +436,7 @@ async fn oversized_and_malformed_events_do_not_prevent_later_facts() {
     record_response(&mut observer, "text/event-stream");
     observer.push_bytes(b"data: malformed\n\n");
     observer
-        .push_bytes(format!("data: {}\n\n", "x".repeat(MAX_OUTPUT_CAPTURE_BYTES + 1)).as_bytes());
+        .push_bytes(format!("data: {}\n\n", "x".repeat(MAX_RESPONSE_PARSE_BYTES + 1)).as_bytes());
     observer.push_bytes(terminal("completed", 0).as_bytes());
     observer.end_body();
     let capture = captured(&observer);
@@ -373,6 +447,53 @@ async fn oversized_and_malformed_events_do_not_prevent_later_facts() {
         capture.facts.usage_details.as_ref().unwrap()["total_tokens"],
         130
     );
+}
+
+#[tokio::test]
+async fn reads_usage_next_to_a_generated_image_only_for_charged_requests() {
+    let image = "A".repeat(3 * MAX_OUTPUT_CAPTURE_BYTES);
+    let completed = event(
+        "response.completed",
+        json!({"response":{"id":"resp-1","status":"completed","usage":{"input_tokens":10,"output_tokens":4160,"total_tokens":4170},"output":[{"type":"image_generation_call","result":image}]}}),
+    );
+    // (charged, memory available for the larger parse, usage read)
+    for (charged, available, expected) in [
+        (false, true, None),
+        (true, true, Some(json!(4170))),
+        (true, false, None),
+    ] {
+        let mut observer = observer("usage").await;
+        let grown = Arc::new(AtomicUsize::new(0));
+        if charged {
+            observer.parse_growth = Some(growth(&grown, available));
+        }
+        record_response(&mut observer, "text/event-stream");
+        observer.push_bytes(event("response.output_text.delta", json!({"delta":"hi"})).as_bytes());
+        assert_eq!(
+            grown.load(Ordering::Relaxed),
+            0,
+            "a small event needs no growth"
+        );
+        observer.push_bytes(completed.as_bytes());
+        observer.end_body();
+        assert_eq!(
+            captured(&observer)
+                .facts
+                .usage_details
+                .as_ref()
+                .map(|usage| usage["total_tokens"].clone()),
+            expected,
+        );
+        assert_eq!(grown.load(Ordering::Relaxed), usize::from(charged));
+    }
+}
+
+fn growth(grown: &Arc<AtomicUsize>, available: bool) -> crate::capture::ResponseParseGrowth {
+    let grown = Arc::clone(grown);
+    Box::new(move || {
+        grown.fetch_add(1, Ordering::Relaxed);
+        available.then(|| -> Box<dyn Send + Sync> { Box::new(()) })
+    })
 }
 
 #[tokio::test]
@@ -528,7 +649,7 @@ async fn upstream_read_timeout_is_logged_as_timeout() {
     let _guard = tracing::subscriber::set_default(subscriber);
     let response = provider
         .forward(
-            provider.admit(),
+            provider.admit(None),
             context,
             &HeaderMap::new(),
             Bytes::from_static(br#"{"model":"requested"}"#),
@@ -583,7 +704,7 @@ async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
         let _guard = tracing::subscriber::set_default(subscriber);
         let response = provider
             .forward(
-                provider.admit(),
+                provider.admit(None),
                 context,
                 &HeaderMap::new(),
                 Bytes::from_static(br#"{"model":"requested","input":"request-content"}"#),
@@ -646,7 +767,7 @@ async fn provider_future_finalizes_on_timeout_and_cancellation_before_headers() 
         let _guard = tracing::subscriber::set_default(subscriber);
         let headers = HeaderMap::new();
         let call = provider.forward(
-            provider.admit(),
+            provider.admit(None),
             context,
             &headers,
             Bytes::from_static(br#"{"model":"requested"}"#),
@@ -729,6 +850,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
             &crate::resolution::ControlPlaneConfig::new(&collector.url, "test-service-key")
                 .unwrap(),
             telemetry::DEFAULT_RETAINED_BYTES,
+            Duration::from_millis(telemetry::DEFAULT_BATCH_LINGER_MS),
         )
         .unwrap();
         let context = resolved_request_context_with_mode("provider-secret", "full").await;
@@ -742,7 +864,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
         );
         let forwarded = provider
             .forward(
-                provider.admit(),
+                provider.admit(None),
                 context,
                 &headers,
                 Bytes::from(
@@ -765,7 +887,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
         assert!(metadata.get("output_complete").is_none());
         assert!(metadata.get("provider_status").is_none());
         assert!(metadata.get("native_usage").is_none());
-        assert_eq!(metadata["langfuse.gateway.response.id"], "resp-1");
+        assert_eq!(metadata["langfuse.gateway.upstream.response.id"], "resp-1");
         assert!(
             uploaded_attribute(&upload, "langfuse.observation.usage_details")["input_tokens"]
                 .is_number()
@@ -802,6 +924,7 @@ async fn codex_body_metadata_reaches_the_generation_without_agent_headers() {
     let telemetry = telemetry::Telemetry::new(
         &crate::resolution::ControlPlaneConfig::new(&collector.url, "test-service-key").unwrap(),
         telemetry::DEFAULT_RETAINED_BYTES,
+        Duration::from_millis(telemetry::DEFAULT_BATCH_LINGER_MS),
     )
     .unwrap();
     let context = resolved_request_context_with_mode("provider-secret", "full").await;
@@ -824,7 +947,7 @@ async fn codex_body_metadata_reaches_the_generation_without_agent_headers() {
     });
     let forwarded = provider
         .forward(
-            provider.admit(),
+            provider.admit(None),
             context,
             &HeaderMap::new(),
             Bytes::from(body.to_string()),
@@ -858,7 +981,7 @@ async fn codex_body_metadata_reaches_the_generation_without_agent_headers() {
     assert_eq!(metadata["agent.request_kind"], "turn");
     assert_eq!(metadata["agent.sandbox_mode"], "workspace-write");
     assert!(metadata.get("agent.tool_namespaces_info").is_none());
-    assert_eq!(metadata["langfuse.gateway.response.id"], "resp-1");
+    assert_eq!(metadata["langfuse.gateway.upstream.response.id"], "resp-1");
     assert_eq!(
         uploaded_attribute(&upload, "langfuse.observation.input"),
         json!({"input": "hello"})
@@ -874,7 +997,7 @@ async fn capture_regression_large_request_does_not_invalidate_output() {
             ApiFormat::OpenAiResponses,
             &context,
             &HeaderMap::new(),
-            request.as_bytes(),
+            RequestInput::from_body(request.as_bytes()),
         );
         record_response(
             &mut observer,
@@ -917,16 +1040,13 @@ async fn request_at_input_limit_is_captured_in_full() {
         ApiFormat::OpenAiResponses,
         &context,
         &HeaderMap::new(),
-        request.as_bytes(),
+        RequestInput::from_body(request.as_bytes()),
     );
     let facts = &captured(&observer).facts;
     assert!(facts.input_complete);
     assert!(facts.input_omission.is_none());
     assert_eq!(
-        facts.input.as_ref().unwrap()["input"]
-            .as_str()
-            .unwrap()
-            .len(),
+        facts.input_json().unwrap()["input"].as_str().unwrap().len(),
         MAX_INPUT_CAPTURE_BYTES - 12
     );
 }
@@ -946,7 +1066,7 @@ async fn capture_regression_preserves_native_request_and_usage() {
                     ApiFormat::OpenAiResponses,
                     &context,
                     &HeaderMap::new(),
-                    request.to_string().as_bytes(),
+                    RequestInput::from_body(request.to_string().as_bytes()),
                 );
                 record_response(
                     &mut execution,
@@ -968,7 +1088,7 @@ async fn capture_regression_preserves_native_request_and_usage() {
                 let mut expected_input = request.clone();
                 expected_input.as_object_mut().unwrap().remove("model");
                 assert_eq!(
-                    facts.input.as_ref(),
+                    facts.input_json().as_ref(),
                     if mode == "full" {
                         Some(&expected_input)
                     } else {
@@ -1021,4 +1141,127 @@ async fn downstream_cancellation_does_not_erase_completed_capture() {
         assert_eq!(facts[0]["output_complete"], true);
         assert_eq!(facts[0]["capture_complete"], true);
     }
+}
+
+fn guardrail_scan(instructions: &str, input: &str) -> Vec<String> {
+    guardrail_scan_members(&[("instructions", instructions), ("input", input)])
+}
+
+fn guardrail_scan_members(members: &[(&str, &str)]) -> Vec<String> {
+    let mut texts = Vec::new();
+    let member = |name: &str| {
+        members
+            .iter()
+            .find(|(member, _)| *member == name)
+            .map(|(_, value)| *value)
+    };
+    guardrail_turn(member)
+        .unwrap()
+        .read(member, &mut |text: &str| texts.push(text.to_owned()))
+        .unwrap();
+    texts
+}
+
+#[test]
+fn the_last_turn_follows_the_last_item_the_model_produced() {
+    assert_eq!(guardrail_scan(r#""sys""#, r#""hello""#), ["hello", "sys"]);
+    assert_eq!(
+        guardrail_scan(
+            r#""sys""#,
+            r#"[{"role":"user","content":[{"type":"input_text","text":"old"}]},
+            {"type":"reasoning","summary":[]},
+            {"type":"function_call","call_id":"a","name":"f","arguments":"{}"},
+            {"type":"function_call","call_id":"b","name":"f","arguments":"{}"},
+            {"type":"function_call_output","call_id":"a","output":"result a"},
+            {"type":"function_call_output","call_id":"b","output":[{"type":"input_text","text":"result b"}]}]"#
+        ),
+        ["result a", "result b"]
+    );
+}
+
+#[test]
+fn instructions_are_scanned_only_when_no_earlier_turn_is_stored_upstream() {
+    let scan = |previous: (&str, &str)| {
+        guardrail_scan_members(&[
+            ("instructions", r#""sys""#),
+            ("input", r#"[{"role":"user","content":"hello"}]"#),
+            previous,
+        ])
+    };
+    assert_eq!(scan(("previous_response_id", r#""resp_1""#)), ["hello"]);
+    assert_eq!(scan(("conversation", r#""conv_1""#)), ["hello"]);
+    assert_eq!(scan(("previous_response_id", "null")), ["hello", "sys"]);
+}
+
+#[test]
+fn prompt_variables_are_scanned_on_every_turn() {
+    assert_eq!(
+        guardrail_scan_members(&[
+            (
+                "input",
+                r#"[{"role":"assistant","content":"hi"},{"role":"user","content":"go"}]"#
+            ),
+            ("previous_response_id", r#""resp_1""#),
+            (
+                "prompt",
+                r#"{"id":"pmpt_1","variables":{"name":"ssn 123-45-6789","doc":{"type":"input_text","text":"card"},"img":{"type":"input_image","image_url":"https://x"}}}"#,
+            ),
+        ]),
+        ["go", "ssn 123-45-6789", "card"]
+    );
+}
+
+#[test]
+fn every_output_answering_the_newest_calls_is_scanned_when_calls_and_outputs_interleave() {
+    let interleaved = r#"[{"role":"user","content":"old"},
+        {"type":"reasoning","summary":[]},
+        {"type":"function_call","call_id":"a","name":"f","arguments":"{}"},
+        {"type":"function_call_output","call_id":"a","output":"result a"},
+        {"type":"function_call","call_id":"b","name":"f","arguments":"{}"},
+        {"type":"function_call_output","call_id":"b","output":"result b"}]"#;
+    assert_eq!(
+        guardrail_scan(r#""sys""#, interleaved),
+        ["result a", "result b"]
+    );
+    // Without a reasoning item, the caller message that led to the calls stays out.
+    let without_reasoning = r#"[{"role":"user","content":"old"},
+        {"type":"function_call","call_id":"a","name":"f","arguments":"{}"},
+        {"type":"function_call_output","call_id":"a","output":"result a"},
+        {"type":"function_call","call_id":"b","name":"f","arguments":"{}"},
+        {"type":"function_call_output","call_id":"b","output":"result b"},
+        {"role":"user","content":"new"}]"#;
+    assert_eq!(
+        guardrail_scan(r#""sys""#, without_reasoning),
+        ["result a", "result b", "new"]
+    );
+}
+
+#[test]
+fn a_model_item_after_the_newest_user_message_does_not_hide_it() {
+    assert_eq!(
+        guardrail_scan(
+            r#""sys""#,
+            r#"[{"role":"user","content":"ssn 123-45-6789"},
+            {"type":"web_search_call","id":"ws_1","status":"completed"}]"#
+        ),
+        ["ssn 123-45-6789", "sys"]
+    );
+}
+
+#[test]
+fn model_items_between_the_newest_calls_neither_hide_outputs_nor_get_scanned() {
+    assert_eq!(
+        guardrail_scan(
+            r#""sys""#,
+            r#"[{"role":"user","content":"old"},
+            {"type":"reasoning","summary":[]},
+            {"type":"function_call","call_id":"a","name":"f","arguments":"{}"},
+            {"type":"function_call_output","call_id":"a","output":"result a"},
+            {"type":"reasoning","summary":[]},
+            {"role":"assistant","content":[{"type":"output_text","text":"model text"}]},
+            {"type":"function_call","call_id":"b","name":"f","arguments":"{}"},
+            {"type":"function_call_output","call_id":"b","output":"result b"}]"#
+        ),
+        ["result a", "result b"]
+    );
 }

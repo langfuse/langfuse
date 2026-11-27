@@ -1,6 +1,7 @@
 import preview from "@/.storybook/preview";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { type ComponentProps, useState } from "react";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { SessionConversationSidebar } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationSidebar/SessionConversationSidebar";
 
 type Props = ComponentProps<typeof SessionConversationSidebar>;
@@ -78,21 +79,10 @@ function SessionConversationSidebarStory(args: Props) {
         <SessionConversationSidebar state="loading" />
       </div>
     );
-  const normalizedSearch = search.trim().toLowerCase();
-  const traces = normalizedSearch
-    ? args.traces.flatMap((trace) => {
-        const transcriptRows = trace.transcriptRows?.filter((row) =>
-          `${row.role} ${row.label}`.toLowerCase().includes(normalizedSearch),
-        );
-        if (transcriptRows?.length === 0) return [];
-        return [{ ...trace, transcriptRows }];
-      })
-    : args.traces;
   return (
     <div className="h-screen w-[296px]">
       <SessionConversationSidebar
         {...args}
-        traces={traces}
         search={search}
         onSearchChange={(value) => {
           setSearch(value);
@@ -124,6 +114,15 @@ export const DarkMode = meta.story({
   globals: { theme: "dark" },
 });
 export const Empty = meta.story({ args: { ...loadedArgs, traces: [] } });
+
+export const CustomizeView = meta.story({
+  args: {
+    ...loadedArgs,
+    searchActions: (
+      <Button variant="ghost" size="sm" text="Customize view" onClick={fn()} />
+    ),
+  },
+});
 
 export const GroupedToolStatuses = meta.story({
   name: "(Test) Grouped and Individual Tool Status Indicators",
@@ -360,6 +359,80 @@ export const SelectMessagesAndTools = meta.story({
       })[1]!,
     );
     await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-1", "0:4");
+  },
+});
+export const PeekedObservationTurn = meta.story({
+  name: "(Test) Highlights the turn containing the peeked observation",
+  args: {
+    ...loadedArgs,
+    activeTraceId: undefined,
+    activePeek: { traceId: "turn-1", observationId: "search" },
+    traces: [
+      { ...loadedArgs.traces[0]!, itemId: "turn-1:first" },
+      {
+        ...loadedArgs.traces[0]!,
+        itemId: "turn-1:second",
+        trace: { ...loadedArgs.traces[0]!.trace, name: "Search documentation" },
+        turnNumber: 2,
+        transcriptRows: [
+          {
+            id: "1:0",
+            role: "tool",
+            label: "search_documentation",
+            observationId: "search",
+          },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvas, userEvent }) => {
+    const firstTurn = await canvas.findByRole("group", {
+      name: "Configure tracing",
+    });
+    const secondTurn = await canvas.findByRole("group", {
+      name: "Search documentation",
+    });
+    await expect(firstTurn).not.toHaveAttribute("data-peeked");
+    await expect(secondTurn).toHaveAttribute("data-peeked", "true");
+    await userEvent.type(
+      canvas.getByRole("textbox", { name: "Search session" }),
+      "configure",
+    );
+    await expect(
+      canvas.queryByRole("group", { name: "Search documentation" }),
+    ).not.toBeInTheDocument();
+    await expect(firstTurn).not.toHaveAttribute("data-peeked");
+  },
+});
+export const UniformRowHoverArea = meta.story({
+  name: "(Test) Uniform Row Hover Area",
+  args: loadedArgs,
+  play: async ({ canvas }) => {
+    const card = await canvas.findByRole("group", {
+      name: "Configure tracing",
+    });
+    const [firstAssistant, lastRow] = canvas.getAllByRole("button", {
+      name: "Assistant message",
+    });
+    const rows = [
+      canvas.getByRole("button", { name: "System message" }),
+      canvas.getByRole("button", { name: "User message" }),
+      firstAssistant!,
+      canvas.getByRole("button", { name: "tool: search_documentation" }),
+      lastRow!,
+    ];
+    const heights = new Set(
+      rows.map((row) => row.getBoundingClientRect().height),
+    );
+    await expect(heights.size).toBe(1);
+    const cardStyle = getComputedStyle(card);
+    const cardContentBottom =
+      card.getBoundingClientRect().bottom -
+      Number.parseFloat(cardStyle.borderBottomWidth) -
+      Number.parseFloat(cardStyle.paddingBottom);
+    await expect(lastRow!.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      cardContentBottom,
+    );
   },
 });
 export const SearchAndCollapse = meta.story({

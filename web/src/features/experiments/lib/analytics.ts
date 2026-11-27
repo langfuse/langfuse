@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ScoreComparisonOperator } from "@/src/features/experiments/fns/scoreComparisonFilter";
 
 /**
@@ -33,6 +32,7 @@ function experimentAnalyticsDimensions(
 }
 
 /** Unique non-empty dataset ids — missing ids are ignored, not treated as distinct. */
+/** @internal */
 export function isSameDataset(
   datasetIds: Array<string | null | undefined>,
 ): boolean {
@@ -41,12 +41,14 @@ export function isSameDataset(
   return known.every((id) => id === known[0]);
 }
 
+/** @internal */
 export function uniqueDatasetCount(
   datasetIds: Array<string | null | undefined>,
 ): number {
   return new Set(datasetIds.filter((id): id is string => Boolean(id))).size;
 }
 
+/** @internal */
 export function chartMetricGroup(metricId: string): ExperimentChartMetricGroup {
   return metricId.startsWith("base:") ? "base" : "score";
 }
@@ -59,6 +61,7 @@ const SCORE_COLUMN_GROUP_SCOPE: Record<string, ExperimentScoreScope> = {
   experimentScores: "experiment",
 };
 
+/** @internal */
 export function scoreColumnGroupScope(
   groupId: string,
 ): ExperimentScoreScope | null {

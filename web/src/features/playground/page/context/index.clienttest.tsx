@@ -9,7 +9,7 @@ import {
 import {
   PlaygroundProvider,
   usePlaygroundContext,
-} from "@/src/features/playground/page/context";
+} from "@/src/features/playground/page/context/PlaygroundProvider";
 import { getCacheKey } from "@/src/features/playground/page/storage/keys";
 import { type PlaygroundCache } from "@/src/features/playground/page/types";
 
@@ -19,7 +19,7 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-vi.mock("@/src/features/posthog-analytics", () => {
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => {
   const capture = vi.fn();
   return { usePostHogClientCapture: () => capture };
 });
@@ -28,11 +28,11 @@ vi.mock("@/src/hooks/useProjectIdFromURL", () => ({
   default: () => "test-project",
 }));
 
-vi.mock("@/src/components/ChatMessages/MessageSearch", () => ({
+vi.mock("@/src/components/ChatMessages/messageSearch/context", () => ({
   useSyncMessageSearchMessages: vi.fn(),
 }));
 
-vi.mock("@/src/features/notifications", () => ({
+vi.mock("@/src/features/notifications/showErrorToast", () => ({
   showErrorToast: vi.fn(),
 }));
 

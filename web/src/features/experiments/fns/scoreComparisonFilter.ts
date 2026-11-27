@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import { type AggregatedScoreData } from "@langfuse/shared";
 import {
   readOrderedScoreValue,
@@ -81,6 +82,7 @@ export const isSameScoreComparisonTarget = (
  * it: an item only one of the two experiments scored is not comparable, so it is
  * never a regression and never kept. A categorical score has no order, so only
  * `differs` can match it.
+ * @internal
  */
 export const matchesScoreComparisonFilter = ({
   operator,

@@ -1,18 +1,17 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   EvalTemplateType,
   extractVariables,
+  evalVariableMappingListSchema,
   InvalidRequestError,
-  observationVariableMappingList,
 } from "@langfuse/shared";
 import {
+  DECISION_MODEL_CONNECTIONS_HINT,
   DefaultEvalModelService,
   getClientInitiatedNonStreamingLlmTimeoutMs,
   getLLMErrorInfo,
   isAllowedDecisionModel,
   isDecisionModelAdapter,
-  LLMAdapter,
-  OPENAI_DECISION_MODEL_IDS,
+  unsupportedDecisionModelMessage,
 } from "@langfuse/shared/src/server";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
@@ -37,7 +36,7 @@ export function extractEvaluatorPromptVariables(
   ];
 }
 
-export function assertEvaluatorVariablesMatchPrompt(params: {
+function assertEvaluatorVariablesMatchPrompt(params: {
   promptVariables: string[];
   variables: string[];
 }) {
@@ -53,15 +52,25 @@ export function assertEvaluatorVariablesMatchPrompt(params: {
   }
 }
 
+/**
+ * Pass `targetObject` when the mapping runs against a known target (a rule or
+ * an observation); omit it for target-agnostic evaluator definitions.
+ */
 export function assertCompleteEvaluatorVariableMapping(params: {
   promptVariables: string[];
   variableMapping: unknown;
+  targetObject?: string;
 }) {
-  const parsed = observationVariableMappingList.safeParse(
+  const parsed = evalVariableMappingListSchema(params.targetObject).safeParse(
     params.variableMapping,
   );
   if (!parsed.success) {
-    throw new InvalidRequestError("Evaluator variable mapping is invalid");
+    const unknownColumnIssue = parsed.error.issues.find(
+      ({ code }) => code === "custom",
+    );
+    throw new InvalidRequestError(
+      unknownColumnIssue?.message ?? "Evaluator variable mapping is invalid",
+    );
   }
 
   for (const mapping of parsed.data) {
@@ -225,7 +234,7 @@ export async function getDecisionModelConfigurationError(params: {
     params.definition.model,
   );
   if (!modelConfig.valid) {
-    return `No decision-model connection found for evaluator "${params.name}". ${modelConfig.error}. Add an OpenAI connection using ${OPENAI_DECISION_MODEL_IDS.join(", ")}, or a TypeSafe connection, under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) first.`;
+    return `No decision-model connection found for evaluator "${params.name}". ${modelConfig.error}. Add ${DECISION_MODEL_CONNECTIONS_HINT} under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) first.`;
   }
   if (
     !isAllowedDecisionModel(
@@ -233,10 +242,13 @@ export async function getDecisionModelConfigurationError(params: {
       modelConfig.config.model,
     )
   ) {
-    if (modelConfig.config.apiKey.adapter === LLMAdapter.OpenAI) {
-      return `Model "${modelConfig.config.model}" is not supported for decision models. Use ${OPENAI_DECISION_MODEL_IDS.join(", ")}.`;
-    }
-    return `Connection "${params.definition.provider}" is not a decision-model connection. Decision-model evaluators need an OpenAI connection using ${OPENAI_DECISION_MODEL_IDS.join(", ")}, or a TypeSafe connection.`;
+    return (
+      unsupportedDecisionModelMessage(
+        modelConfig.config.apiKey.adapter,
+        modelConfig.config.model,
+      ) ??
+      `Connection "${params.definition.provider}" is not a decision-model connection. Decision-model evaluators need ${DECISION_MODEL_CONNECTIONS_HINT}.`
+    );
   }
   return null;
 }

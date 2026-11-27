@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
@@ -11,6 +10,7 @@ import {
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const PRE_CUTOFF = new Date(
@@ -37,41 +37,16 @@ const RACED_PREFLIGHT_CREATED_AT = new Date(
     30 * MS_PER_DAY,
 );
 
-const buildSession = (orgId: string, projectId: string): Session => ({
-  expires: "1",
-  user: {
-    id: "user-1",
-    name: "Demo User",
-    canCreateOrganizations: true,
+const buildSession = (orgId: string, projectId: string): Session =>
+  createSession({
     organizations: [
       {
         id: orgId,
         role: "OWNER",
-        plan: "cloud:hobby",
-        cloudConfig: undefined,
-        name: "Test Organization",
-        metadata: {},
-        aiFeaturesEnabled: false,
-        aiTelemetryEnabled: false,
-        projects: [
-          {
-            id: projectId,
-            role: "ADMIN",
-            name: "Test Project",
-            deletedAt: null,
-            retentionDays: null,
-            hasTraces: false,
-            metadata: {},
-            createdAt: new Date().toISOString(),
-          },
-        ],
+        projects: [{ id: projectId, role: "ADMIN", retentionDays: null }],
       },
     ],
-    featureFlags: testFeatureFlags(),
-    admin: true,
-  },
-  environment: {} as any,
-});
+  });
 
 describe("PostHog Integration SSRF Protection", () => {
   const originalEncryptionKey = process.env.ENCRYPTION_KEY;
@@ -868,6 +843,28 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
         baseConfig.posthogProjectApiKey,
       );
       expect(row.enabled).toBe(false);
+    });
+
+    it("update changing the hostname with a blank key → BAD_REQUEST", async () => {
+      const { caller, project } = await prepare();
+      await caller.posthogIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+      });
+      await expect(
+        caller.posthogIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          posthogHostname: "https://eu.posthog.com",
+          posthogProjectApiKey: "",
+        }),
+      ).rejects.toThrow(
+        "PostHog Project API Key is required when changing the hostname",
+      );
+      const row = await prisma.posthogIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.posthogHostName).toBe("https://us.posthog.com/");
     });
 
     it("create with a blank key → BAD_REQUEST", async () => {

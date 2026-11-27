@@ -22,7 +22,11 @@ const deleteTopicResultsForTraces = async (
   if (!traceIds.length) return;
 
   await Promise.all(
-    ["topic_facet_summaries", "topic_assignments"].map(async (table) => {
+    [
+      "topic_facet_summaries",
+      "topic_assignments",
+      "topic_assignments_by_trace",
+    ].map(async (table) => {
       const params = { projectId, traceIds };
       const clickhouseConfigs = {
         request_timeout: sharedEnv.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
@@ -55,11 +59,6 @@ const deleteTopicResultsForTraces = async (
           maxTimestamp: bounds.max_timestamp,
         },
         clickhouseConfigs,
-        // Patch parts disable the summary projection until they are materialized.
-        clickhouseSettings:
-          table === "topic_facet_summaries"
-            ? { lightweight_delete_mode: "alter_update" }
-            : undefined,
         tags: { projectId },
       });
     }),

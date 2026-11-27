@@ -1,6 +1,7 @@
+/* eslint-disable @repo/export-rules */
 /** Why the Graph view is or is not available for a trace. */
 
-import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view";
+import type { AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
 
 export const MAX_NODES_FOR_GRAPH_UI = 5000;
 

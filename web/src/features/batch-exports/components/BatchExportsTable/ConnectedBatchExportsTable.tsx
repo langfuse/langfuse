@@ -3,7 +3,7 @@ import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { BatchExportsTable, type BatchExportRow } from "./BatchExportsTable";
@@ -42,6 +42,7 @@ export function ConnectedBatchExportsTable({
         { projectId, batchExportId: id },
         {
           onSuccess: (data) => {
+            // eslint-disable-next-line @repo/no-location-navigation -- signed object URL; same-tab navigation applies the download Content-Disposition
             window.location.href = data.url;
           },
           onSettled: () =>

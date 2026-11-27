@@ -1,9 +1,7 @@
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import {
-  updateScoreConfig,
-  PutScoreConfigQuery,
-} from "@/src/features/public-api/server";
+import { updateScoreConfig } from "@/src/features/public-api/server/score-configs-api-service";
+import { PutScoreConfigQuery } from "@/src/features/public-api/types/score-configs";
 
 export const [deleteScoreConfigTool, handleDeleteScoreConfig] = defineTool({
   name: "deleteScoreConfig",
@@ -26,5 +24,5 @@ export const [deleteScoreConfigTool, handleDeleteScoreConfig] = defineTool({
       },
     });
   },
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

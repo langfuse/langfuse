@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useSession } from "next-auth/react";
 
 /** The events read path a data-fetching surface must use. */
@@ -25,13 +24,18 @@ export function useReadPath(): {
 
   // A session re-check reports "loading" with the previous session still in
   // hand — that keeps the resolved path. Only a cold load is unknown.
-  const readPath: ReadPath = session?.user
-    ? session.user.v4BetaEnabled === true
-      ? "v4"
-      : "v3"
-    : status === "loading"
-      ? "unknown"
-      : "v3";
+  const readPath = ((): ReadPath => {
+    if (session?.user?.v4BetaEnabled === true) {
+      return "v4";
+    }
+    if (session?.user) {
+      return "v3";
+    }
+    if (status === "loading") {
+      return "unknown";
+    }
+    return "v3";
+  })();
 
   return {
     readPath,

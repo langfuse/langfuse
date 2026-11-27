@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
 import { Check, Plus } from "@langfuse/icons";
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   Command,
   CommandEmpty,
@@ -41,9 +41,7 @@ function EvaluationRulePickerOption({ rule }: { rule: EvaluationRule }) {
           {rule.name}
         </span>
         {rule.enabled !== undefined ? (
-          <Badge variant="secondary" className="shrink-0 whitespace-nowrap">
-            {rule.enabled ? "Active" : "Inactive"}
-          </Badge>
+          <Badge color="filled" text={rule.enabled ? "Active" : "Inactive"} />
         ) : null}
       </div>
       {hasMetadata ? (
@@ -130,7 +128,7 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
       {children(resolvedOpen)}
       <PopoverContent
         align={align}
-        className="w-(--radix-popover-trigger-width) max-w-[calc(100vw-2rem)] p-0"
+        className="ph-no-capture w-(--radix-popover-trigger-width) max-w-[calc(100vw-2rem)] p-0"
         onWheel={(event) => event.stopPropagation()}
       >
         <Command shouldFilter={onSearchChange === undefined}>

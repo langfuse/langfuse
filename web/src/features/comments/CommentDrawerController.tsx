@@ -1,20 +1,18 @@
 import { useRouter } from "next/router";
 import { useRef, useState, type ReactNode } from "react";
 import { type CommentObjectType } from "@langfuse/shared";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import {
   useTraceReviewPanelOptional,
   useReviewPanelOpen,
-} from "@/src/features/traces/contexts/TraceReviewPanelContext";
+} from "@/src/features/traces/contexts/TraceReviewPanelProvider";
 import {
   createCommentOverlayStore,
   type CommentTarget,
 } from "./state/commentOverlayStore";
-import {
-  CommentOverlayHost,
-  CommentOverlayState,
-} from "./components/CommentOverlayHost";
+import { CommentOverlayHost } from "./components/CommentOverlayHost";
+import { CommentOverlayState } from "./components/CommentOverlayState";
 
 export type CommentDrawerControllerProps = {
   projectId: string;

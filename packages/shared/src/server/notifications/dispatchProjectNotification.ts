@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
 
 import { ActionExecutionStatus, JobConfigState, prisma } from "../../db";
@@ -110,6 +109,7 @@ async function dispatchToChannels({
         projectId,
         automationId: automation.id,
         executionId,
+        actionType: automation.action.type,
         payload: {
           id: executionId,
           timestamp: new Date(),
@@ -174,7 +174,7 @@ async function sendEventAdminEmails({
         projectName: event.projectName,
         settingsUrl: `${emailEnv.NEXTAUTH_URL}/project/${event.projectId}/settings/integrations/blobstorage`,
         receiverEmails,
-        disabled: event.disabled ?? false,
+        disabledMessage: event.disabled ? event.message : undefined,
       });
       return;
     }
@@ -184,7 +184,7 @@ async function sendEventAdminEmails({
         projectName: event.projectName,
         settingsUrl: `${emailEnv.NEXTAUTH_URL}/project/${event.projectId}/settings/integrations/posthog`,
         receiverEmails,
-        disabled: event.disabled ?? false,
+        disabledMessage: event.disabled ? event.message : undefined,
       });
       return;
     }

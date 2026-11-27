@@ -1,8 +1,8 @@
 import {
   DeleteModelV1Query,
   DeleteModelV1Response,
-} from "@/src/features/public-api/server";
-import { deleteModelForApi } from "@/src/features/models/server";
+} from "@/src/features/public-api/types/models";
+import { deleteModelForApi } from "@/src/features/models/server/publicApiModelService";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
@@ -29,5 +29,5 @@ export const [deleteModelTool, handleDeleteModel] = defineTool({
         return DeleteModelV1Response.parse(result);
       },
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

@@ -21,7 +21,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/src/components/ui/tooltip";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   mixpanelIntegrationFormSchema,
   MIXPANEL_REGIONS,
@@ -33,7 +33,7 @@ import {
   type V4WriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
@@ -41,10 +41,10 @@ import {
   getExportSourceFieldState,
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
-  IntegrationSettingsSkeleton,
-} from "@/src/features/analytics-integrations";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { useQueryProject } from "@/src/features/projects";
+} from "@/src/features/analytics-integrations/exportSource";
+import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import { useMixpanelIntegration } from "@/src/features/mixpanel-integration/useMixpanelIntegration";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -55,7 +55,7 @@ import { useRouter } from "next/router";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod";
-import { Info, ExternalLink } from "@langfuse/icons";
+import { Info, SquareArrowOutUpRight } from "@langfuse/icons";
 
 export default function MixpanelIntegrationPage() {
   const router = useRouter();
@@ -318,7 +318,7 @@ const MixpanelIntegrationSettingsForm = ({
                           className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                         >
                           For further information see
-                          <ExternalLink size="sm" />
+                          <SquareArrowOutUpRight size="sm" />
                         </a>
                       </div>
                     </TooltipContent>
@@ -353,14 +353,12 @@ const MixpanelIntegrationSettingsForm = ({
           />
         )}
         {!watchedValidation.ok && (
-          <Alert variant="destructive">
-            <Alert.Title>
-              Saved export source is no longer available
-            </Alert.Title>
-            <Alert.Description>
-              {getExportSourceUnavailableMessage(watchedValidation.reason)}
-            </Alert.Description>
-          </Alert>
+          <Banner
+            variant="error"
+            title="Saved export source is no longer available"
+          >
+            {getExportSourceUnavailableMessage(watchedValidation.reason)}
+          </Banner>
         )}
         <FormField
           control={mixpanelForm.control}

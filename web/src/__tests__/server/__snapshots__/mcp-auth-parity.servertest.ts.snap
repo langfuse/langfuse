@@ -3,11 +3,11 @@
 exports[`MCP connection auth parity > legacy matches the captured baseline 1`] = `
 {
   "admin/admin": 401,
-  "agent/basic": 400,
+  "agent/basic": 200,
   "agent/bearer": 403,
   "org/basic": 403,
   "org/bearer": 401,
-  "project/basic": 400,
+  "project/basic": 200,
   "project/bearer": 403,
 }
 `;

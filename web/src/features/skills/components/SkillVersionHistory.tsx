@@ -1,13 +1,13 @@
 import { type MouseEvent, useState } from "react";
 import { FileDiffIcon, PanelLeftClose, PanelLeftOpen } from "@langfuse/icons";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { Badge } from "@/src/components/ui/badge";
-import { Button } from "@/src/components/ui/button";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Timeline } from "@/src/components/design-system/Timeline/Timeline";
 import { cn } from "@/src/utils/tailwind";
 import { type SkillEditorStore } from "./skillEditorStore";
 import { SkillLabelsSelect } from "./SkillMetadataSelect";
-import { SkillVersionComparisonController } from "./SkillVersionComparison";
+import { SkillVersionComparisonController } from "./SkillVersionComparisonController";
 
 export function SkillVersionHistory(
   props:
@@ -73,22 +73,17 @@ export function SkillVersionHistory(
         {isCollapsed ? null : (
           <span className="text-sm font-bold">Versions</span>
         )}
-        <Button
+        <IconButton
           type="button"
           variant="ghost"
-          size="icon-sm"
-          aria-label={
+          size="sm"
+          icon={isCollapsed ? PanelLeftOpen : PanelLeftClose}
+          label={
             isCollapsed ? "Expand version history" : "Collapse version history"
           }
           aria-expanded={!isCollapsed}
           onClick={() => setIsCollapsed((collapsed) => !collapsed)}
-        >
-          {isCollapsed ? (
-            <PanelLeftOpen size="base" color="default" />
-          ) : (
-            <PanelLeftClose size="base" color="default" />
-          )}
-        </Button>
+        />
       </div>
       {isCollapsed ? null : (
         <div className="overflow-y-auto p-2">
@@ -108,16 +103,12 @@ export function SkillVersionHistory(
                         await props.onSelectDraft();
                     }}
                   >
-                    <Badge variant="outline" className="w-fit">
-                      Draft
-                    </Badge>
+                    <Badge color="outline" text="Draft" />
                     <Badge
-                      variant="secondary"
-                      className="h-5 w-fit max-w-full truncate px-1.5 text-[10px]"
-                      title="Unreleased local changes"
-                    >
-                      Unreleased local changes
-                    </Badge>
+                      color="filled"
+                      size="md"
+                      text="Unreleased local changes"
+                    />
                   </button>
                   {props.kind === "versions" ? (
                     <SkillVersionComparisonController {...props}>
@@ -166,11 +157,10 @@ export function SkillVersionHistory(
                           onClick={() => selectVersion(version)}
                         >
                           <Badge
-                            variant="outline"
-                            className="bg-background/50 h-6 shrink-0"
-                          >
-                            # {version}
-                          </Badge>
+                            color="outline"
+                            size="lg"
+                            text={`# ${version}`}
+                          />
                         </button>
                         <SkillLabelsSelect
                           showOnlyOnHover
@@ -264,10 +254,9 @@ export function SkillVersionHistory(
                 size="sm"
                 disabled={props.isLoadingMore}
                 loading={props.isLoadingMore}
+                text="Load older versions"
                 onClick={props.onLoadMore}
-              >
-                Load older versions
-              </Button>
+              />
             </div>
           ) : null}
         </div>

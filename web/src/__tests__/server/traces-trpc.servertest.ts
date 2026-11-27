@@ -1,5 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -19,8 +17,9 @@ import {
 import waitForExpect from "wait-for-expect";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
-import { composeAggregateScoreKey } from "@/src/features/scores/server";
+import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { BatchExportFileFormat, BatchTableNames } from "@langfuse/shared";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 describe("traces trpc", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -30,41 +29,15 @@ describe("traces trpc", () => {
   const originalLegacyIoSearchDisabled =
     mutableEnv.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH;
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: "seed-org-id",
-          name: "Test Organization",
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: projectId,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: "Test Project",
-              hasTraces: true,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-      admin: true,
-    },
-    environment: {} as any,
-  };
+  const session = createSession({
+    organizations: [
+      {
+        id: "seed-org-id",
+        role: "OWNER",
+        projects: [{ id: projectId, role: "ADMIN", hasTraces: true }],
+      },
+    ],
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
@@ -1108,29 +1081,22 @@ describe("traces trpc", () => {
         },
       });
 
-      const freshSession: Session = {
-        ...session,
-        user: {
-          ...session.user!,
-          organizations: [
-            {
-              ...session.user!.organizations[0],
-              projects: [
-                {
-                  id: freshProjectId,
-                  role: "ADMIN",
-                  retentionDays: null,
-                  deletedAt: null,
-                  name: "legacy-onboarding",
-                  hasTraces: false,
-                  metadata: {},
-                  createdAt: new Date().toISOString(),
-                },
-              ],
-            },
-          ],
-        },
-      };
+      const freshSession = createSession({
+        organizations: [
+          {
+            id: "seed-org-id",
+            role: "OWNER",
+            projects: [
+              {
+                id: freshProjectId,
+                role: "ADMIN",
+                retentionDays: null,
+                name: "legacy-onboarding",
+              },
+            ],
+          },
+        ],
+      });
       const freshCtx = createInnerTRPCContext({
         session: freshSession,
         headers: {},
@@ -1343,6 +1309,74 @@ describe("traces trpc", () => {
         code: "NOT_FOUND",
         message: "Trace not found",
       });
+    });
+
+    it("rejects publishing but allows unsharing while the org has disabled public sharing", async () => {
+      const orgId = randomUUID();
+      const sharingOffProjectId = randomUUID();
+      await prisma.organization.create({
+        data: {
+          id: orgId,
+          name: "Sharing disabled org",
+          publicSharingDisabled: true,
+          projects: {
+            create: { id: sharingOffProjectId, name: "Sharing disabled" },
+          },
+        },
+      });
+      const sharingOffCaller = appRouter.createCaller({
+        ...createInnerTRPCContext({
+          session: createSession({
+            organizations: [
+              {
+                id: orgId,
+                role: "OWNER",
+                projects: [
+                  { id: sharingOffProjectId, role: "ADMIN", hasTraces: true },
+                ],
+              },
+            ],
+          }),
+          headers: {},
+        }),
+        prisma,
+      });
+      const trace = createTrace({
+        project_id: sharingOffProjectId,
+        public: true,
+      });
+      await createTracesCh([trace]);
+      if (useEventsTable) {
+        await createEventsCh([
+          createEvent({
+            id: trace.id,
+            span_id: trace.id,
+            trace_id: trace.id,
+            project_id: sharingOffProjectId,
+            parent_span_id: null,
+            public: true,
+          }),
+        ]);
+      }
+
+      try {
+        await expect(
+          sharingOffCaller.traces.publish({
+            projectId: sharingOffProjectId,
+            traceId: trace.id,
+            public: true,
+          }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+        const result = await sharingOffCaller.traces.publish({
+          projectId: sharingOffProjectId,
+          traceId: trace.id,
+          public: false,
+        });
+        expect(result?.public).toBe(false);
+      } finally {
+        await prisma.organization.delete({ where: { id: orgId } });
+      }
     });
   });
 });

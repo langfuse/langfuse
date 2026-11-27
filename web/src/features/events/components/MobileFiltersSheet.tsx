@@ -4,7 +4,7 @@
 import { type ReactNode } from "react";
 import { SlidersHorizontal, X } from "@langfuse/icons";
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import {
   Sheet,
@@ -90,9 +90,9 @@ export function MobileFiltersSheet({
           <SlidersHorizontal size="base" color="default" />
           <span>Filters</span>
           {activeCount > 0 && (
-            <Badge variant="secondary" className="ml-0.5 h-5 px-1.5 text-xs">
-              {activeCount}
-            </Badge>
+            <span className="ml-0.5">
+              <Badge color="filled" size="md" text={String(activeCount)} />
+            </span>
           )}
         </Button>
       </SheetTrigger>

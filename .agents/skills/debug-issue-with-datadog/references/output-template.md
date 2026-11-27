@@ -1,8 +1,6 @@
 # Output Template
 
-The analysis should be structured so it can be pasted directly as the first
-investigative comment on the Linear issue. The example to anchor on is the
-first comment on `LFE-9475` (PostHog Integration Processing Failures).
+Return the analysis in chat unless the user requests another destination. For a requested tracker action, use [`linear-agent-writes`](../../linear-agent-writes/SKILL.md).
 
 Findings come first, recommendations last. If the data doesn't support a
 hypothesis, say so — do not invent root causes to fill the template.

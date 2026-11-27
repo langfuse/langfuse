@@ -1,285 +1,106 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
-import { useElementSize } from "@/src/hooks/useElementSize";
-import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
+import { useMediaQuery } from "react-responsive";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
-import { cn } from "@/src/utils/tailwind";
 import { TopicsEmptyState } from "./TopicsEmptyState";
-import { type Facet, type FacetTopic } from "./facet-topics";
 import {
-  treemapSwatchColor,
-  treemapTileClasses,
-  UNASSIGNED_SWATCH_COLOR,
-  unassignedTileClasses,
-} from "./topic-map-colors";
-import { layoutTreemap } from "./topic-treemap-layout";
+  type Facet,
+  type TopicTraceQuery,
+  type UseTopicTraces,
+} from "./facet-topics";
+import {
+  prepareTopicDisplay,
+  UNASSIGNED_TOPIC_ID,
+} from "./prepare-topic-display";
+import { TopicTreemap } from "./TopicTreemap";
 import { TopicTraceList } from "./TopicTraceList";
+import { TopicsSplit } from "./TopicsSplit";
+import { useTopicsCapture } from "./useTopicsCapture";
 
-const TILE_GAP = 8;
-const UNASSIGNED_ID = "__unassigned";
-/** Tiles above this area (px²) get the stronger resting tint. */
-const BIG_TILE_AREA = 30_000;
-
-const TILE_PADDING: Record<TileTier, string> = {
-  large: "p-3",
-  medium: "p-3",
-  small: "p-2",
-  tiny: "p-0",
-};
-
-/** Vertical padding, name line height and count+share block height (px) for tiers that show a name. */
-const PADDING_Y_PX = 24;
-const NAME_LINE_PX = { large: 28, medium: 20 };
-const FOOTER_PX = { large: 54, medium: 46 };
-const NAME_CLAMP = ["line-clamp-1", "line-clamp-2", "line-clamp-3"];
-
-const COUNT_SIZE: Record<TileTier, string> = {
-  large: "text-3xl",
-  medium: "text-xl",
-  small: "text-sm",
-  tiny: "",
+type TopicTreemapViewProps = {
+  projectId: string;
+  facet: Facet;
+  peekView: DataTablePeekViewProps;
+  /** Treemap left, traces right on wide screens. */
+  sideBySide?: boolean;
+  /** Applied to the trace list only when side by side, so the peek matches its width. */
+  tracePanelRef?: (element: HTMLElement | null) => void;
+  useTraces: UseTopicTraces;
+  /** Off leaves unassigned traces out of the all-traces list, as their tile is hidden. */
+  showUnassigned?: boolean;
 };
 
 export function TopicTreemapView({
   projectId,
   facet,
   peekView,
-  onGenerateTopics,
-  canGenerateTopics,
+  sideBySide = false,
+  tracePanelRef,
+  useTraces,
+  showUnassigned = true,
 }: TopicTreemapViewProps) {
+  const capture = useTopicsCapture();
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+  const { topics, total } = prepareTopicDisplay(facet, "treemap");
+  // No tile picked lists every trace; picking a tile again clears it.
+  const selected = topics.find((topic) => topic.id === selectedTopicId);
+  const allTraces = showUnassigned ? {} : { assigned: true };
+  const traces = useTraces(selected ? topicQuery(selected.id) : allTraces);
+  const isWide = useMediaQuery({ query: "(min-width: 1024px)" });
+  const horizontal = sideBySide && isWide;
   if (facet.topics.length === 0) {
-    return (
-      <TopicsEmptyState
-        onGenerateTopics={onGenerateTopics}
-        canGenerateTopics={canGenerateTopics}
-      />
-    );
+    return <TopicsEmptyState />;
   }
-  const unassignedCount = facet.rows.filter((row) => !row.topicId).length;
-  const topics: FacetTopic[] =
-    unassignedCount > 0
-      ? [
-          ...facet.topics,
-          {
-            id: UNASSIGNED_ID,
-            name: "Unassigned",
-            description: "",
-            count: unassignedCount,
-          },
-        ]
-      : facet.topics;
-  const selected =
-    topics.find((topic) => topic.id === selectedTopicId) ?? topics[0];
-  const selectedRowTopicId = selected.id === UNASSIGNED_ID ? null : selected.id;
-  const rows = facet.rows.filter(
-    (row) => (row.topicId ?? null) === selectedRowTopicId,
-  );
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <TopicTreemap
-        facet={facet}
-        topics={topics}
-        selectedTopicId={selected.id}
-        onSelectTopic={setSelectedTopicId}
-      />
-      <TopicTraceList
-        key={selected.id}
-        projectId={projectId}
-        title={selected.name}
-        description={selected.description}
-        swatchColor={swatchFor(facet, selected.id)}
-        rows={rows}
-        peekView={peekView}
-        divider="top"
-      />
-    </div>
-  );
-}
-
-function TopicTreemap({
-  facet,
-  topics,
-  selectedTopicId,
-  onSelectTopic,
-}: TopicTreemapProps) {
-  const [ref, size] = useElementSize<HTMLDivElement>();
-  const total = facet.rows.length;
-  function tileColors(topicId: string, big: boolean) {
-    if (topicId === UNASSIGNED_ID) return unassignedTileClasses;
-    return treemapTileClasses(
-      facet.topics.findIndex((topic) => topic.id === topicId),
-      big,
-    );
-  }
-  const tiles = size
-    ? layoutTreemap(topics, size.width, size.height, TILE_GAP)
-    : [];
-  return (
-    <section
-      aria-label="Topics"
-      ref={ref}
-      className="relative m-4 min-h-48 min-w-0 shrink-0 basis-1/2"
-    >
-      {tiles.map(({ item, x, y, width, height }) => (
-        <TopicTile
-          key={item.id}
-          topic={item}
-          share={total > 0 ? item.count / total : 0}
-          colors={tileColors(item.id, width * height > BIG_TILE_AREA)}
-          isSelected={item.id === selectedTopicId}
-          onSelect={onSelectTopic}
-          rect={{ left: x, top: y, width, height }}
-          tier={tileTier(width, height)}
+    <TopicsSplit
+      id="topics-treemap-split"
+      orientation={horizontal ? "horizontal" : "vertical"}
+      defaultTopicsSize={horizontal ? "60%" : "50%"}
+      topics={
+        <TopicTreemap
+          total={total}
+          topics={topics}
+          selectedTopicId={selected?.id ?? null}
+          onSelectTopic={(topicId) => {
+            if (topicId !== selectedTopicId)
+              capture("topics:topic_selected", {
+                view: "treemap",
+                surface: "tile",
+                isUnassigned: topicId === UNASSIGNED_TOPIC_ID,
+              });
+            setSelectedTopicId(topicId === selectedTopicId ? null : topicId);
+          }}
         />
-      ))}
-    </section>
-  );
-}
-
-function TopicTile(props: TopicTileProps) {
-  const { topic, share, tier } = props;
-  const shareLabel = `${Math.round(share * 100)}% of traces`;
-  if (tier === "large" || tier === "medium") {
-    return <TopicTileButton {...props} shareLabel={shareLabel} />;
-  }
-  return (
-    <CustomTooltip
-      placement="top"
-      content={
-        <span className="ph-no-capture flex flex-col gap-0.5">
-          <span className="font-bold">{topic.name}</span>
-          <span className="text-muted-foreground text-xs">
-            {topic.count.toLocaleString()} traces · {shareLabel}
-          </span>
-        </span>
       }
-    >
-      {({ getTriggerProps }) => (
-        <TopicTileButton
-          {...props}
-          shareLabel={shareLabel}
-          triggerProps={getTriggerProps()}
+      traces={
+        <TopicTraceList
+          key={selected?.id ?? "all"}
+          rowHeightKey="topicTracesTreemap"
+          projectId={projectId}
+          title={selected ? selected.name : "All traces"}
+          description={
+            !selected || selected.id === UNASSIGNED_TOPIC_ID
+              ? undefined
+              : selected.description
+          }
+          swatchColor={selected?.color}
+          traces={traces}
+          totalCount={selected ? selected.count : facet.counts.total}
+          tracingTopic={
+            !selected || selected.id === UNASSIGNED_TOPIC_ID
+              ? undefined
+              : { facet, name: selected.name }
+          }
+          topicColors={new Map(topics.map((topic) => [topic.id, topic.color]))}
+          peekView={peekView}
+          tracePanelRef={horizontal ? tracePanelRef : undefined}
+          divider="none"
         />
-      )}
-    </CustomTooltip>
+      }
+    />
   );
 }
 
-function TopicTileButton({
-  topic,
-  colors,
-  isSelected,
-  onSelect,
-  rect,
-  tier,
-  shareLabel,
-  triggerProps,
-}: TopicTileButtonProps) {
-  function selectTopic() {
-    onSelect(topic.id);
-  }
-  const showName = tier === "large" || tier === "medium";
-  /** Name lines that fit above the count. */
-  const nameLines = showName
-    ? Math.min(
-        3,
-        Math.max(
-          1,
-          Math.floor(
-            (rect.height - PADDING_Y_PX - FOOTER_PX[tier]) / NAME_LINE_PX[tier],
-          ),
-        ),
-      )
-    : 0;
-  return (
-    <button
-      {...triggerProps}
-      type="button"
-      onClick={selectTopic}
-      aria-pressed={isSelected}
-      aria-label={`${topic.name}, ${topic.count} traces`}
-      style={rect}
-      className={cn(
-        "absolute flex flex-col justify-between overflow-hidden rounded-md text-left",
-        TILE_PADDING[tier],
-        isSelected
-          ? cn(
-              colors.active,
-              "text-foreground outline-foreground outline-2 outline-offset-2",
-            )
-          : cn(
-              colors.tile,
-              colors.hover,
-              "text-muted-foreground hover:text-foreground",
-            ),
-      )}
-    >
-      {showName && (
-        <span
-          className={cn(
-            NAME_CLAMP[nameLines - 1],
-            "font-bold",
-            tier === "large" ? "text-lg" : "text-sm",
-          )}
-        >
-          {topic.name}
-        </span>
-      )}
-      {tier !== "tiny" && (
-        <span className="flex flex-col gap-0.5">
-          <span className={cn("font-bold tabular-nums", COUNT_SIZE[tier])}>
-            {topic.count.toLocaleString()}
-          </span>
-          {showName && <span className="text-xs opacity-80">{shareLabel}</span>}
-        </span>
-      )}
-    </button>
-  );
+function topicQuery(topicId: string): TopicTraceQuery {
+  if (topicId === UNASSIGNED_TOPIC_ID) return { assigned: false };
+  return { topicIds: { operator: "any of", values: [topicId] } };
 }
-
-function tileTier(width: number, height: number): TileTier {
-  if (width >= 240 && height >= 160) return "large";
-  if (width >= 112 && height >= 96) return "medium";
-  if (width >= 40 && height >= 32) return "small";
-  return "tiny";
-}
-
-function swatchFor(facet: Facet, topicId: string) {
-  if (topicId === UNASSIGNED_ID) return UNASSIGNED_SWATCH_COLOR;
-  return treemapSwatchColor(
-    facet.topics.findIndex((topic) => topic.id === topicId),
-  );
-}
-
-type TopicTreemapViewProps = {
-  projectId: string;
-  facet: Facet;
-  peekView: DataTablePeekViewProps;
-  onGenerateTopics: () => void;
-  canGenerateTopics: boolean;
-};
-
-type TopicTreemapProps = {
-  facet: Facet;
-  topics: FacetTopic[];
-  selectedTopicId: string;
-  onSelectTopic: (topicId: string) => void;
-};
-
-type TileTier = "large" | "medium" | "small" | "tiny";
-
-type TopicTileProps = {
-  topic: FacetTopic;
-  share: number;
-  colors: { tile: string; active: string; hover: string };
-  isSelected: boolean;
-  onSelect: (topicId: string) => void;
-  rect: { left: number; top: number; width: number; height: number };
-  tier: TileTier;
-};
-
-type TopicTileButtonProps = TopicTileProps & {
-  shareLabel: string;
-  triggerProps?: Record<string, unknown>;
-};

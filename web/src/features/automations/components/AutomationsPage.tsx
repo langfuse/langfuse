@@ -3,14 +3,14 @@ import { useRouter } from "next/router";
 import { AutomationSidebar } from "@/src/features/automations/components/AutomationSidebar";
 import { AutomationDetails } from "@/src/features/automations/components/AutomationDetails";
 import {
-  AutomationForm,
+  ConnectedAutomationForm,
   parseCreateAutomationPrefill,
-} from "@/src/features/automations/components/AutomationForm";
+} from "@/src/features/automations/components/ConnectedAutomationForm";
 import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
 import { Button } from "@/src/components/ui/button";
 import { Plus } from "@langfuse/icons";
 import { useEffect, useMemo, useState, useCallback } from "react";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { api, getPathnameWithoutBasePath } from "@/src/utils/api";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import {
@@ -23,7 +23,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { type AutomationDomain } from "@langfuse/shared";
-import { ErrorPage } from "@/src/components/error-page";
+import { ErrorPage } from "@/src/components/ErrorPage";
 
 export default function AutomationsPage() {
   const router = useRouter();
@@ -330,7 +330,7 @@ export default function AutomationsPage() {
     if (view === "create") {
       return (
         <div className="h-full p-6">
-          <AutomationForm
+          <ConnectedAutomationForm
             projectId={projectId}
             onSuccess={handleCreateSuccess}
             onCancel={handleReturnToList}
@@ -344,7 +344,7 @@ export default function AutomationsPage() {
     if (view === "edit" && editingAutomation) {
       return (
         <div className="h-full p-6">
-          <AutomationForm
+          <ConnectedAutomationForm
             projectId={projectId}
             onSuccess={handleEditSuccess}
             onCancel={handleReturnToList}

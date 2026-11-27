@@ -22,7 +22,7 @@ import { assignRole } from "@langfuse/shared/rbac/server";
 
 import { env } from "@/src/env.mjs";
 import { authorize } from "@/src/features/rbac/authorize";
-import { type ShadowAuthParams } from "@/src/features/public-api/server";
+import type { ShadowAuthParams } from "@/src/features/public-api/server/shadowAuth";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 // The seam is imported dynamically so the authenticator singleton captures
@@ -477,6 +477,14 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
     );
     expect(legacy).toMatchObject({ success: false, error: { httpCode: 403 } });
     expect(enforce).toMatchObject({ success: false, error: { httpCode: 403 } });
+  });
+
+  it("a Basic public key containing a NUL byte 401s in both modes", async () => {
+    const { legacy, enforce } = await projectResultUnderModes(
+      createBasicAuthHeader("pk-lf-\u0000scan", `sk-lf-${randomUUID()}`),
+    );
+    expect(legacy).toMatchObject({ success: false, error: { httpCode: 401 } });
+    expect(enforce).toMatchObject({ success: false, error: { httpCode: 401 } });
   });
 
   it("an organization key on a project-nested route stays org-gated in legacy and authorizes its own project in enforce", async () => {

@@ -1,6 +1,7 @@
 import type { FilterState } from "@langfuse/shared";
 const URL_STATE_PARAMS = ["filter", "search", "searchType", "orderBy"];
 
+/** @internal */
 export const APP_ROOT_OBSERVATION_FILTER = {
   column: "isRootObservation",
   type: "boolean",
@@ -57,23 +58,25 @@ export const getAppRootDefaultPolicy = (params: {
   };
 };
 
-const hasEnabledAppRootFilter = (filters: FilterState) =>
-  filters.some(
-    (filter) =>
-      filter.column === APP_ROOT_OBSERVATION_FILTER.column &&
-      filter.type === "boolean" &&
-      filter.operator === "=" &&
-      filter.value === true,
+const hasEnabledAppRootFilter = (filters: FilterState) => {
+  const rootFilters = filters.filter(
+    (filter) => filter.column === APP_ROOT_OBSERVATION_FILTER.column,
   );
+  if (rootFilters.length !== 1) return false;
+  const [filter] = rootFilters;
+  return (
+    filter.type === "boolean" &&
+    filter.operator === "=" &&
+    filter.value === true
+  );
+};
 
-export const removeAppRootDefaultFilter = (filters: FilterState) =>
-  filters.filter(
-    (filter) =>
-      filter.column !== APP_ROOT_OBSERVATION_FILTER.column ||
-      filter.type !== "boolean" ||
-      filter.operator !== "=" ||
-      filter.value !== true,
+export const removeAppRootDefaultFilter = (filters: FilterState) => {
+  if (!hasEnabledAppRootFilter(filters)) return filters;
+  return filters.filter(
+    (filter) => filter.column !== APP_ROOT_OBSERVATION_FILTER.column,
   );
+};
 
 export const getAppRootSavedViewComparisonFilters = (
   filters: FilterState,

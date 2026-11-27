@@ -20,7 +20,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   traceException: vi.fn(),
 }));
 
-vi.mock("../../features/utils", () => ({
+vi.mock("../../features/utils/retry-handler", () => ({
   retryLLMRateLimitError: vi.fn(),
 }));
 
@@ -38,7 +38,7 @@ vi.mock("../../errors/UnrecoverableError", async () => {
 
 import { classifyEvaluatorLlmError } from "@langfuse/shared/src/server";
 import { createExperimentJobClickhouse } from "../../features/experiments/experimentServiceClickhouse";
-import { retryLLMRateLimitError } from "../../features/utils";
+import { retryLLMRateLimitError } from "../../features/utils/retry-handler";
 import { experimentCreateQueueProcessor } from "../experimentQueue";
 import { isUnrecoverableError } from "../../errors/UnrecoverableError";
 

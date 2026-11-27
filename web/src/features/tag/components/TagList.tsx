@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tag, TagShell } from "@/src/components/design-system/Tag/Tag";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
@@ -50,7 +49,7 @@ function EditableTag({ tag, disabled }: { tag: string; disabled: boolean }) {
       <button
         type="button"
         disabled={disabled}
-        className="focus-visible:ring-ring hover:bg-accent w-fit max-w-40 min-w-0 focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
+        className="focus-visible:ring-ring hover:bg-foreground/10 dark:hover:bg-foreground/15 w-fit max-w-40 min-w-0 focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
       >
         <TagIcon size="sm" color="tertiary" />
         <span className="truncate py-0.5" title={tag}>

@@ -1,5 +1,4 @@
-/* eslint-disable @repo/no-style-props */
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { api } from "@/src/utils/api";
 import { ListFilter } from "@langfuse/icons";
@@ -13,7 +12,6 @@ interface FilteredRunPillsProps {
     runId: string;
     filters: FilterState;
   }[];
-  className?: string;
 }
 
 function operatorToText(operator: FilterCondition["operator"]): string {
@@ -56,7 +54,6 @@ export function FilteredRunPills({
   projectId,
   datasetId,
   filteredRuns,
-  className,
 }: FilteredRunPillsProps) {
   // Get run names from the API
   const { data: runs } = api.datasets.baseRunDataByDatasetId.useQuery({
@@ -81,7 +78,7 @@ export function FilteredRunPills({
   );
 
   return (
-    <div className={`flex flex-wrap items-center gap-1 ${className ?? ""}`}>
+    <div className="flex flex-wrap items-center gap-1 px-2 pb-2">
       {allFilters.map((item) => {
         return (
           <HoverCard
@@ -103,16 +100,12 @@ export function FilteredRunPills({
           >
             {({ getTriggerProps }) => (
               <Badge
-                variant="secondary"
-                className="hover:bg-secondary/80 cursor-pointer text-xs transition-colors"
+                color="filled"
+                text={formatFilterForPill(item.filter)}
+                leadingIcon={ListFilter}
                 tabIndex={0}
                 {...getTriggerProps()}
-              >
-                <ListFilter size="sm" __rawClassName="mr-1" />
-                <div className="font-normal">
-                  {formatFilterForPill(item.filter)}
-                </div>
-              </Badge>
+              />
             )}
           </HoverCard>
         );

@@ -1,11 +1,12 @@
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 
 // A persisted fault outranks active/inactive: it is the state the admin has
 // to act on, and it is cleared by the next successful sync. An unconfigured
 // integration reads as inactive on the integration page; the overview card
 // hides the badge instead (see `isConfigured`).
+/** @internal */
 export function getPostHogStatus(
   config: { enabled: boolean; lastError: string | null } | null,
 ): Status {

@@ -15,6 +15,7 @@ import {
   anyValue,
   arrayExists,
   arrayLength,
+  arraySort,
   concat,
   countIf,
   dateDiff,
@@ -93,7 +94,14 @@ type StringColumn = {
 }[EventsColumn];
 type EventsSelection = SelectExpression<EventsDb, "e">;
 
-type EventsExpressionBuilder = ExpressionBuilder<EventsDb, "e">;
+/**
+ * The expression builder of a query reading only a full events row as `e`,
+ * like the one `selectFrom("events as e")` hands out: `eb.ref("e.name")`
+ * type-checks, `eb.ref("e.nope")` and `eb.ref("t.name")` do not. Its
+ * database type (`EventsDb`) has one relation, `e`, whose row is the logical
+ * events row of `schema.ts`.
+ */
+export type EventsExpressionBuilder = ExpressionBuilder<EventsDb, "e">;
 
 const OBSERVATION_BY_ID_FIELDS = orderedFieldKeys([
   "id",
@@ -221,6 +229,32 @@ export const eventsTraceNameOrEmpty = scopedToEvents((eb) =>
   ifNull(eventsTraceName(eb), literal("")),
 );
 
+/**
+ * A trace's name over its events, grouped by trace: the latest non-empty
+ * `trace_name`, else the latest non-empty name of a root observation, else
+ * NULL. The aggregate counterpart of {@link eventsTraceName}.
+ */
+export const eventsTraceNameAggregate = scopedToEvents((eb) =>
+  eb.fn.coalesce(
+    nullIf(
+      argMaxIf(
+        eb.ref("e.trace_name"),
+        eb.ref("e.event_ts"),
+        eb("e.trace_name", "<>", literal("")),
+      ),
+      literal(""),
+    ),
+    nullIf(
+      argMaxIf(
+        eb.ref("e.name"),
+        eb.ref("e.event_ts"),
+        eb.and([eventsIsRootObservation(eb), eb("e.name", "<>", literal(""))]),
+      ),
+      literal(""),
+    ),
+  ),
+);
+
 const traceNameSelect = (eb: EventsExpressionBuilder) =>
   eventsTraceNameOrEmpty(eb).as("trace_name");
 
@@ -254,29 +288,7 @@ function traceAggregationSelectMap(eb: EventsExpressionBuilder) {
   return {
     id: eb.ref("e.trace_id").as("id"),
     project_id: "e.project_id as project_id",
-    name: eb.fn
-      .coalesce(
-        nullIf(
-          argMaxIf(
-            eb.ref("e.trace_name"),
-            eb.ref("e.event_ts"),
-            eb("e.trace_name", "<>", literal("")),
-          ),
-          literal(""),
-        ),
-        nullIf(
-          argMaxIf(
-            eb.ref("e.name"),
-            eb.ref("e.event_ts"),
-            eb.and([
-              eventsIsRootObservation(eb),
-              eb("e.name", "<>", literal("")),
-            ]),
-          ),
-          literal(""),
-        ),
-      )
-      .as("name"),
+    name: eventsTraceNameAggregate(eb).as("name"),
     timestamp: eb.fn.min("e.start_time").as("timestamp"),
     environment: latestNonEmptyOf(eb, "e.environment").as("environment"),
     version: latestNonEmptyOf(eb, "e.version").as("version"),
@@ -338,10 +350,8 @@ function traceAggregationSelectMap(eb: EventsExpressionBuilder) {
     error_count: countLevel(eb, "ERROR").as("error_count"),
     default_count: countLevel(eb, "DEFAULT").as("default_count"),
     debug_count: countLevel(eb, "DEBUG").as("debug_count"),
-    tags: argMaxIf(
-      eb.ref("e.tags"),
-      eb.ref("e.event_ts"),
-      notEmpty(eb.ref("e.tags")),
+    tags: arraySort(
+      groupUniqArrayArrayIf(eb.ref("e.tags"), notEmpty(eb.ref("e.tags"))),
     ).as("tags"),
     release: latestNonEmptyOf(eb, "e.release").as("release"),
     // Evaluator execution fields are stamped on every internal evaluation span.
@@ -500,19 +510,21 @@ export const millisecondsSinceStart = scopedToEvents(
 );
 
 /** {@link millisecondsSinceStart} in seconds. */
-const secondsSinceStart = (
-  eb: EventsExpressionBuilder,
-  end: "e.end_time" | "e.completion_start_time",
-) =>
-  ifElse(
-    isNull(eb.ref(end)),
-    literal(null),
-    eb(
-      dateDiff("millisecond", eb.ref("e.start_time"), eb.ref(end)),
-      "/",
-      literal(1000),
+export const secondsSinceStart = scopedToEvents(
+  (
+    eb: EventsExpressionBuilder,
+    end: "e.end_time" | "e.completion_start_time",
+  ) =>
+    ifElse(
+      isNull(eb.ref(end)),
+      literal(null),
+      eb(
+        dateDiff("millisecond", eb.ref("e.start_time"), eb.ref(end)),
+        "/",
+        literal(1000),
+      ),
     ),
-  );
+);
 
 type RowFieldSet =
   | "core"

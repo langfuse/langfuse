@@ -46,11 +46,11 @@ vi.mock("@/src/ee/features/multi-tenant-sso/utils", () => ({
   isAnySsoConfigured: async () => false,
 }));
 
-vi.mock("@/src/features/auth/components/AuthCloudRegionSwitch", () => ({
+vi.mock("@/src/features/auth/components/CloudRegionSwitch", () => ({
   CloudRegionSwitch: () => null,
 }));
 
-vi.mock("@/src/features/auth/components/AuthCloudPrivacyNotice", () => ({
+vi.mock("@/src/features/auth/components/CloudPrivacyNotice", () => ({
   CloudPrivacyNotice: () => null,
 }));
 
@@ -456,8 +456,8 @@ describe("sign-in page last used SSO email", () => {
 
     await waitFor(() => {
       expect(signInMock).toHaveBeenCalledWith("acme.com.okta", undefined);
+      expect(storedSsoEmail()).toBe("jane@acme.com");
     });
-    expect(storedSsoEmail()).toBe("jane@acme.com");
   });
 
   it("forgets a remembered address once an email falls back to a password", async () => {
@@ -467,11 +467,11 @@ describe("sign-in page last used SSO email", () => {
     renderTwoStepSignIn();
     continueWithEmail("someone-else@example.com");
 
-    // The password step appearing is what marks the email as not SSO-backed.
+    // Password focus can precede the effect that clears the stored email.
     await waitFor(() => {
       expect(screen.getByLabelText(/Password/)).toHaveFocus();
+      expect(storedSsoEmail()).toBe("");
     });
-    expect(storedSsoEmail()).toBe("");
     expect(signInMock).not.toHaveBeenCalled();
   });
 

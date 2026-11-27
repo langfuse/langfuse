@@ -5,7 +5,7 @@ import {
   planEventFacetQueries,
   splitFacetFilter,
 } from "@/src/features/events/lib/facet-query-plan";
-import { sortOptionValues } from "@/src/features/filters";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
 
 type EventFilterOptionColumnsInput =
@@ -50,6 +50,8 @@ const ALL_EVENT_FILTER_OPTION_COLUMNS = [
   "isRootObservation",
   "toolNames",
   "calledToolNames",
+  "skillNamesAvailable",
+  "skillsNamesLoaded",
   "scores_avg",
   "score_categories",
   "score_booleans",
@@ -386,6 +388,8 @@ export function useEventsFilterOptions({
       isRootObservation: rawData.isRootObservation ?? undefined,
       toolNames: rawData.toolNames ?? undefined,
       calledToolNames: rawData.calledToolNames ?? undefined,
+      skillNamesAvailable: rawData.skillNamesAvailable ?? undefined,
+      skillsNamesLoaded: rawData.skillsNamesLoaded ?? undefined,
       toolDefinitions: [],
       toolCalls: [],
       latency: [],

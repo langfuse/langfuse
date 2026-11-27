@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { FilterState } from "@langfuse/shared";
 import { DATASET_ITEMS_FIELD_REGISTRY } from "./datasetItemsSearchRegistry";
+import { planCommit } from "@/src/features/search-bar/lib/commit";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import {
-  planCommit,
-  filterStateToQueryText,
   applyPick,
   planInputCompletions,
-  runSearchBarInvariants,
-} from "@/src/features/search-bar";
+} from "@/src/features/search-bar/lib/completions";
+import { runSearchBarInvariants } from "@/src/features/search-bar/__tests__/searchBarInvariants";
 
 const registry = DATASET_ITEMS_FIELD_REGISTRY;
 const metadataFilter: FilterState = [
@@ -132,7 +132,18 @@ describe("dataset item search contract", () => {
         sidebarFilters: [metadataFilter],
       }),
     ).toEqual([]);
-    for (const query of ["status:ACTIVE", "scores.quality:1", "traceId:abc"]) {
+    expect(planCommit("status:ACTIVE", undefined, registry)).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "status",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["ACTIVE"],
+        },
+      ],
+    });
+    for (const query of ["scores.quality:1", "traceId:abc"]) {
       expect(planCommit(query, undefined, registry).status).toBe("invalid");
     }
   });

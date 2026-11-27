@@ -1,14 +1,15 @@
 import { expect, it } from "vitest";
+import { DEFAULT_TOPIC_RULE_NAME } from "@langfuse/shared/topics";
 import {
   canLeaveTopicQuestions,
+  defaultTopicMapName,
   followsTopicRecommendations,
   initialTopicSetupDraft,
   isRecommendedTopicModel,
   pickRecommendedTopicModel,
   setupWaitMinutes,
-  topicSetupRun,
-  topicSetupStage,
   topicConnectionCaption,
+  topicProviderGroups,
 } from "./topic-setup-flow";
 
 const connections = [
@@ -43,6 +44,39 @@ it("recommends only the listed models for each job", () => {
   expect(
     isRecommendedTopicModel("clustering", "us.anthropic.claude-opus-5-5"),
   ).toBe(false);
+});
+
+it("lists embedding models first in the embedding picker only", () => {
+  expect(topicProviderGroups(connections, "embedding")).toEqual([
+    [
+      "Amazon Bedrock",
+      [
+        "us.cohere.embed-v4:0",
+        "us.anthropic.claude-haiku-5-5",
+        "us.anthropic.claude-sonnet-5-5",
+      ],
+    ],
+  ]);
+  expect(topicProviderGroups(connections, "chat")[0]![1]).toEqual(
+    connections[0]!.customModels,
+  );
+});
+
+it("offers no retired gecko models for Google connections", () => {
+  const groups = topicProviderGroups(
+    ["google-ai-studio", "google-vertex-ai"].map((adapter) => ({
+      id: adapter,
+      provider: adapter,
+      adapter,
+      customModels: [],
+      withDefaultModels: true,
+    })),
+    "embedding",
+  );
+  for (const [, models] of groups) {
+    expect(models.some((model) => /gecko/.test(model))).toBe(false);
+    expect(models.some((model) => /embed/.test(model))).toBe(true);
+  }
 });
 
 it("preselects the highest-ranked recommended model across connections", () => {
@@ -84,7 +118,7 @@ it("keeps a stored 10 minute idle time and a stored model", () => {
   const draft = initialTopicSetupDraft({
     stored: {
       summary: {
-        llmApiKeyId: "bedrock",
+        provider: "Amazon Bedrock",
         model: "eu.anthropic.claude-sonnet-4-5",
       },
       embedding: null,
@@ -142,52 +176,39 @@ it("requires one question and all three models before the first step can save", 
   ).toBe(false);
 });
 
-it("follows a setup run from summaries through its topic update", () => {
-  const now = Date.parse("2026-10-22T08:00:00Z");
-  const process = (status: string, updatedAt = now) => ({
-    id: "setup",
-    status,
-    phase: status,
-    updatedAt: new Date(updatedAt).toISOString(),
-    input: {
-      operation: "process" as const,
-      requestId: "r",
-      thenUpdate: { timeRange: {} },
-    },
-  });
-  const update = (status: string, phase = status) => ({
-    id: "topics",
-    status,
-    phase,
-    updatedAt: new Date(now).toISOString(),
-    input: { operation: "update" as const, requestId: "setup-topics" },
-  });
-  const stage = (executions: Parameters<typeof topicSetupRun>[0]) =>
-    topicSetupStage(topicSetupRun(executions)!, now);
-  expect(topicSetupRun([update("completed")])).toBeNull();
-  expect(stage([process("running")]).stage).toBe("summarizing");
-  expect(stage([process("completed")]).stage).toBe("grouping");
-  expect(stage([process("completed", now - 5 * 60_000)])).toEqual({
-    stage: "failed",
-    retryId: null,
-  });
+it("names the map after the trace names its filter selects", () => {
+  expect(defaultTopicMapName([])).toBe(DEFAULT_TOPIC_RULE_NAME);
   expect(
-    stage([update("running", "clustering"), process("completed")]).stage,
-  ).toBe("grouping");
-  expect(stage([update("running", "naming"), process("completed")]).stage).toBe(
-    "naming",
-  );
+    defaultTopicMapName([
+      { column: "traceName", type: "string", operator: "=", value: "chat" },
+    ]),
+  ).toBe("chat");
   expect(
-    stage([update("completed"), process("completed_with_errors")]),
-  ).toEqual({ stage: "done", retryId: null });
-  expect(stage([process("failed")])).toEqual({
-    stage: "failed",
-    retryId: "setup",
-  });
-  expect(stage([update("failed"), process("completed")])).toEqual({
-    stage: "failed",
-    retryId: "topics",
-  });
+    defaultTopicMapName([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["production"],
+      },
+      {
+        column: "traceName",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["support-agent", "billing-agent"],
+      },
+    ]),
+  ).toBe("support-agent, billing-agent");
+  expect(
+    defaultTopicMapName([
+      {
+        column: "traceName",
+        type: "string",
+        operator: "contains",
+        value: "agent",
+      },
+    ]),
+  ).toBe(DEFAULT_TOPIC_RULE_NAME);
 });
 
 it("names the connection when the project has one provider", () => {

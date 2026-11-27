@@ -1,4 +1,4 @@
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import {
   type DeleteModelV1Query,
@@ -6,10 +6,19 @@ import {
   type GetModelsV1Query,
   type PostModelsV1Body,
   prismaToApiModelDefinition,
-} from "@/src/features/public-api/server";
-import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
+} from "@/src/features/public-api/types/models";
+
+import {
+  ForbiddenError,
+  InvalidRequestError,
+  LangfuseNotFoundError,
+  ModelScope,
+} from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
-import { clearModelCacheForProject } from "@langfuse/shared/src/server";
+import {
+  clearModelCacheForProject,
+  visibleModelsWhere,
+} from "@langfuse/shared/src/server";
 import type { z } from "zod";
 
 const modelPricingInclude = {
@@ -59,9 +68,32 @@ type UpsertModelInput = z.infer<typeof GetModelV1Query> & {
 
 type DeleteModelInput = z.infer<typeof DeleteModelV1Query> & ModelAuditScope;
 
-const visibleModelsWhere = (projectId: string) => ({
-  OR: [{ projectId }, { projectId: null }],
-});
+const ORGANIZATION_MODEL_READ_ONLY_MESSAGE =
+  "This model is defined by the organization and cannot be changed through a project. Change it with the organization models API, or create a project model with the same modelName to override it.";
+
+const assertNotOwnOrganizationModel = async ({
+  tx,
+  projectId,
+  modelId,
+}: {
+  tx: Prisma.TransactionClient;
+  projectId: string;
+  modelId: string;
+}) => {
+  const organizationModel = await tx.model.findFirst({
+    where: {
+      AND: [
+        { id: modelId, scope: ModelScope.ORGANIZATION },
+        visibleModelsWhere(projectId),
+      ],
+    },
+    select: { id: true },
+  });
+
+  if (organizationModel) {
+    throw new ForbiddenError(ORGANIZATION_MODEL_READ_ONLY_MESSAGE);
+  }
+};
 
 const createModelPricing = async ({
   tx,
@@ -224,6 +256,7 @@ export const createModelForApi = async ({
       data: {
         ...rest,
         tokenizerConfig: tokenizerConfig ?? undefined,
+        scope: ModelScope.PROJECT,
         projectId,
       },
     });
@@ -279,6 +312,7 @@ export const upsertModelForApi = async ({
     });
 
     if (existingModel && existingModel.projectId !== projectId) {
+      await assertNotOwnOrganizationModel({ tx, projectId, modelId });
       throw new LangfuseNotFoundError("No model with this id found.");
     }
 
@@ -312,6 +346,7 @@ export const upsertModelForApi = async ({
       where: { id: modelId },
       create: {
         id: modelId,
+        scope: ModelScope.PROJECT,
         projectId,
         ...modelData,
       },
@@ -365,6 +400,7 @@ export const deleteModelForApi = async ({
   });
 
   if (!model) {
+    await assertNotOwnOrganizationModel({ tx: prisma, projectId, modelId });
     throw new LangfuseNotFoundError(
       "No model with this id found. Note: You cannot delete built-in models, override them with a model with the same name.",
     );

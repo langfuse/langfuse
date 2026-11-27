@@ -2,9 +2,11 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import {
+  buildEvalScoreBucketPrefix,
   createOrgProjectAndApiKey,
   StorageService,
   StorageServiceFactory,
+  storageKeys,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { EvalTargetObject } from "@langfuse/shared";
@@ -36,8 +38,7 @@ describe("Production Dependency Factories Integration Tests", () => {
   beforeAll(async () => {
     // Initialize S3 client for verification and cleanup
     s3StorageService = StorageServiceFactory.getInstance({
-      accessKeyId: minioAccessKeyId,
-      secretAccessKey: minioAccessKeySecret,
+      credentials: storageKeys(minioAccessKeyId, minioAccessKeySecret),
       bucketName,
       endpoint: minioEndpoint,
       region: "auto",
@@ -442,9 +443,8 @@ describe("Production Dependency Factories Integration Tests", () => {
         },
       });
 
-      const prefix = env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX || "";
       createdS3Paths.push(
-        `${prefix}${projectId}/score/${scoreId}/${eventId}.json`,
+        `${buildEvalScoreBucketPrefix({ projectId, scoreId })}${eventId}.json`,
       );
 
       // Verify final state

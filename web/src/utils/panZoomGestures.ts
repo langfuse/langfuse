@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-const PINCH_ZOOM_RATE = 1 / 40;
+/** @knipignore Storybook generates wheel input for a specific zoom increment. */
+export const PINCH_ZOOM_RATE = 1 / 40;
 const WHEEL_LINE_PX = 16;
 
 /** Scroll pans; only pinch or an explicit modifier asks for zoom. */

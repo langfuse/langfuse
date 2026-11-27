@@ -2,18 +2,18 @@
 # The gateway is not FIPS 140-3 validated. It serves plain HTTP, but its
 # outbound HTTPS (provider APIs, OTLP export) uses rustls with the aws-lc-rs
 # backend, statically linked in its non-FIPS build. The binary links no system
-# libcrypto, so the OpenSSL FIPS provider in the runtime image does not cover
-# it. Validated TLS would need aws-lc-rs's `fips` feature or an OpenSSL-backed
-# client.
+# libcrypto, and the runtime image ships no OpenSSL. Validated TLS would need
+# aws-lc-rs's `fips` feature or an OpenSSL-backed client (which would also need
+# openssl-libs added back to the runtime packages).
 # The defaults are Red Hat's public UBI9 images, so the build needs no
 # credentials. Iron Bank serves the same content from an authenticated registry
 # with DoD provenance and scan attestations. Release builds opt in by overriding
 # both args after `docker login registry1.dso.mil` (free P1 account plus a CLI
 # secret):
-#   --build-arg BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8
-#   --build-arg MICRO_BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8
-ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
-ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
+#   --build-arg BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.9
+#   --build-arg MICRO_BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.9
+ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.9
+ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.9
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS toolchain
 
@@ -63,12 +63,14 @@ RUN cargo install --locked --root /usr/local --features cli cargo-about@0.9.2 &&
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} toolchain AS deps
 
-WORKDIR /app
+WORKDIR /app/ai-gateway
 
 # Fetch the locked dependency sources against empty targets, so this layer and
 # everything built on it stay cached until Cargo.toml or Cargo.lock change.
-COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
-RUN mkdir src && echo 'fn main() {}' > src/main.rs && touch src/lib.rs && \
+COPY ai-gateway/Cargo.toml ai-gateway/Cargo.lock ai-gateway/rust-toolchain.toml ./
+COPY packages/ai-gateway-guardrail-rules/Cargo.toml /app/packages/ai-gateway-guardrail-rules/Cargo.toml
+RUN mkdir -p src /app/packages/ai-gateway-guardrail-rules/src && \
+    echo 'fn main() {}' > src/main.rs && touch src/lib.rs /app/packages/ai-gateway-guardrail-rules/src/lib.rs && \
     cargo fetch --locked
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} deps AS builder
@@ -80,10 +82,11 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} deps AS builder
 # rebuild just the crate. `cargo clean -p` drops the stub's own artifacts so
 # the real sources always rebuild regardless of their mtimes.
 RUN cargo build --release --frozen && \
-    cargo clean --release --frozen -p ai-gateway && \
-    rm -rf src
+    cargo clean --release --frozen -p ai-gateway -p ai-gateway-guardrail-rules && \
+    rm -rf src /app/packages/ai-gateway-guardrail-rules/src
 
-COPY src ./src
+COPY ai-gateway/src ./src
+COPY packages/ai-gateway-guardrail-rules/src /app/packages/ai-gateway-guardrail-rules/src
 
 RUN cargo auditable build --release --frozen
 
@@ -92,7 +95,7 @@ RUN cargo auditable build --release --frozen
 # about.toml does not accept.
 FROM --platform=${TARGETPLATFORM:-linux/amd64} deps AS licenses
 
-COPY about.toml about.hbs ./
+COPY ai-gateway/about.toml ai-gateway/about.hbs ./
 RUN cargo about generate --frozen --fail about.hbs -o THIRD_PARTY_LICENSES.txt
 
 # Runtime rootfs assembled with dnf --installroot and layered onto ubi9-micro:
@@ -105,15 +108,16 @@ RUN cargo about generate --frozen --fail about.hbs -o THIRD_PARTY_LICENSES.txt
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS rpm-installer
 
 # glibc and libgcc are the binary's dynamic dependencies (libgcc_s for panics).
-# openssl-libs ships the OpenSSL FIPS provider module and crypto-policies the
-# system policy it reads; the gateway binary links neither today, they are
-# there for an OpenSSL-backed client. ca-certificates is the trust store rustls
-# reads for outbound TLS. wget serves the ECS container health command
+# ca-certificates is the trust store rustls reads for outbound TLS. wget serves
+# the ECS container health command
 # (`sh -c 'wget -qO /dev/null http://localhost:8080/health'`, exercised by
-# scripts/smoke-image.sh); ubi9-micro already provides the shell.
+# scripts/smoke-image.sh); ubi9-micro already provides the shell. crypto-policies
+# is the system policy wget's GnuTLS reads. coreutils-single satisfies the
+# packages' `coreutils` requirement, which dnf would otherwise resolve to the
+# much larger full coreutils (same pin as worker/Dockerfile).
 RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0 \
     --setopt=tsflags=nodocs --disableexcludes=all \
-    install glibc libgcc ca-certificates crypto-policies openssl-libs wget && \
+    install glibc libgcc coreutils-single ca-certificates crypto-policies wget && \
     dnf --installroot /mnt/rootfs clean all && \
     rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
 
@@ -122,11 +126,19 @@ RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0
 RUN echo "gateway:x:10001:" >> /mnt/rootfs/etc/group && \
     echo "gateway:x:10001:10001::/home/gateway:/sbin/nologin" >> /mnt/rootfs/etc/passwd
 
+# The UBI EULA requires every image derived from UBI to include it unmodified.
+# The magic-byte check rejects an HTML error page served in its place.
+# Keep in sync with web/Dockerfile and worker/Dockerfile.
+RUN mkdir -p /mnt/rootfs/usr/share/licenses/redhat-ubi && \
+    curl -fsSL --retry 5 --retry-all-errors -o /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf \
+    https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf && \
+    head -c 5 /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf | grep -qx '%PDF-'
+
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${MICRO_BASE_IMAGE} AS runtime
 
 COPY --from=rpm-installer /mnt/rootfs /
-COPY --from=builder /app/target/release/ai-gateway /usr/local/bin/ai-gateway
-COPY --from=licenses /app/THIRD_PARTY_LICENSES.txt /usr/share/licenses/ai-gateway/THIRD_PARTY_LICENSES.txt
+COPY --from=builder /app/ai-gateway/target/release/ai-gateway /usr/local/bin/ai-gateway
+COPY --from=licenses /app/ai-gateway/THIRD_PARTY_LICENSES.txt /usr/share/licenses/ai-gateway/THIRD_PARTY_LICENSES.txt
 ARG BUILD_ID
 ENV BUILD_ID=$BUILD_ID
 

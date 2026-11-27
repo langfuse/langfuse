@@ -90,10 +90,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          pnpm install -g vercel@54.7.0
+          pnpm install -g vercel@65.11.0
 
           set +e
-          deploy_output=$(vercel deploy api-reference --yes --scope langfuse 2>&1)
+            deploy_output=$(vercel deploy api-reference --yes --token="${VERCEL_TOKEN}" 2>&1)
           deploy_status=$?
           set -e
 
@@ -112,7 +112,15 @@ jobs:
           fi
 
           preview_alias="pr-${PR_NUMBER}-api-spec.langfuse.vercel.app"
-          vercel alias set "${preview_url}" "${preview_alias}" --scope langfuse
+          echo "Deployment succeeded: ${preview_url}"
+          echo "Assigning alias: ${preview_alias}"
+          # The CLI alias command requires user access, which project-scoped tokens lack.
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${VERCEL_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data "$(jq -cn --arg alias "${preview_alias}" '{alias: $alias}')" \
+            "https://api.vercel.com/v2/deployments/${preview_url#https://}/aliases?teamId=${VERCEL_ORG_ID}"
           preview_url="https://${preview_alias}"
 
           echo "url=${preview_url}" >> "$GITHUB_OUTPUT"

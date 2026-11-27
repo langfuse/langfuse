@@ -4,22 +4,22 @@ import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { ChevronDown, ChevronUp, type IconComponent } from "@langfuse/icons";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { InputDropdown } from "@/src/components/design-system/internal/InputDropdown/InputDropdown";
+import { type Badge } from "../Badge/Badge";
 
 type SelectOption<V> = {
+  type?: "option";
   value: V;
   label: string;
+  secondaryLabel?: string;
   icon?: IconComponent;
   explanation?: {
     title: string;
     description?: string;
     badges?: { label: string; value: string }[];
   };
-  badges?: Array<
-    Pick<React.ComponentProps<typeof Badge>, "text" | "color" | "title">
-  >;
+  badges?: Array<Pick<React.ComponentProps<typeof Badge>, "text" | "title">>;
 } & (
   | { disabled?: false; disabledReason?: never }
   | { disabled: true; disabledReason: string }
@@ -37,7 +37,7 @@ type SelectNode<V> =
 function isSelectGroup<V>(
   node: SelectNode<V>,
 ): node is Extract<SelectNode<V>, { type: "group" }> {
-  return "type" in node && node.type === "group";
+  return node.type === "group";
 }
 
 type TriggerControls = {
@@ -81,6 +81,8 @@ export function SelectDropdown<V extends string>({
   options,
   onValueChange,
   emptyMessage = "No options available.",
+  noCapture,
+  customOption,
   children,
   ref,
   ...triggerProps
@@ -89,18 +91,28 @@ export function SelectDropdown<V extends string>({
   options: readonly SelectNode<V>[];
   onValueChange: (value: V) => void;
   emptyMessage?: string;
+  /** Keeps the portaled option list out of session replay. */
+  noCapture?: boolean;
+  /** A single option after the regular ones, set apart by a separator and without a heading, e.g. "Custom". */
+  customOption?: SelectOption<V>;
   children: (
     controls: TriggerControls & { selectedLabel: string | undefined },
   ) => React.ReactNode;
   ref?: React.Ref<HTMLButtonElement>;
 } & Pick<
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>,
-  "id" | "aria-describedby" | "aria-invalid" | "aria-label" | "disabled"
+  | "id"
+  | "aria-describedby"
+  | "aria-invalid"
+  | "aria-label"
+  | "disabled"
+  | "onBlur"
 >) {
   const container = useLayerContainer("popover");
-  const selectedOption = options
-    .flatMap((node) => (isSelectGroup(node) ? node.options : [node]))
-    .find((option) => option.value === value);
+  const selectedOption = [
+    ...options.flatMap((node) => (isSelectGroup(node) ? node.options : [node])),
+    ...(customOption ? [customOption] : []),
+  ].find((option) => option.value === value);
   const hasOptions = options.some((node) =>
     isSelectGroup(node) ? node.options.length > 0 : true,
   );
@@ -127,21 +139,23 @@ export function SelectDropdown<V extends string>({
     const item = (
       <InputDropdown.Option highlight="focus">
         <SelectPrimitive.Item value={node.value} disabled={node.disabled}>
-          <InputDropdown.OptionContent
-            type="radio"
+          <InputDropdown.SingleSelectOptionContent
             checked={value === node.value}
             label={
               <SelectPrimitive.ItemText>
-                <span className="flex items-center gap-2">
+                <span className="flex min-w-0 items-center gap-2">
                   {node.icon && <node.icon size="base" />}
-                  {node.label}
+                  <span
+                    className="truncate"
+                    title={node.disabled ? node.disabledReason : node.label}
+                  >
+                    {node.label}
+                  </span>
                 </span>
               </SelectPrimitive.ItemText>
             }
             title={node.disabled ? node.disabledReason : node.label}
-            badges={node.badges?.map((badge, index) => (
-              <Badge key={index} {...badge} />
-            ))}
+            badges={node.badges}
           />
         </SelectPrimitive.Item>
       </InputDropdown.Option>
@@ -207,7 +221,11 @@ export function SelectDropdown<V extends string>({
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal container={container}>
         <InputDropdown.Content width="select-trigger">
-          <SelectPrimitive.Content position="popper" sideOffset={4}>
+          <SelectPrimitive.Content
+            position="popper"
+            sideOffset={4}
+            className={noCapture ? "ph-no-capture" : undefined}
+          >
             <SelectPrimitive.ScrollUpButton
               aria-label="Scroll up"
               className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 top-0 z-3 flex h-6 cursor-pointer items-center justify-center duration-300 [animation-delay:.5s]"
@@ -228,6 +246,12 @@ export function SelectDropdown<V extends string>({
                     ),
                   )
                 )}
+                {customOption ? (
+                  <>
+                    <SelectPrimitive.Separator className="bg-border my-2 h-px" />
+                    {renderNode(customOption, false)}
+                  </>
+                ) : null}
               </SelectPrimitive.Viewport>
             </InputDropdown.List>
             <SelectPrimitive.ScrollDownButton

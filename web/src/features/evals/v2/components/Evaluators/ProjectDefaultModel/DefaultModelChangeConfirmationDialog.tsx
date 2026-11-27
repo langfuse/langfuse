@@ -1,54 +1,77 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { ArrowRight } from "@langfuse/icons";
+import type { ReactNode } from "react";
 
-import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
+import type { ProjectDefaultModelConfig } from "@/src/features/evals/v2/types/ProjectDefaultModelConfig";
 
 export function DefaultModelChangeConfirmationDialog({
-  open,
   currentModel,
-  nextModel,
+  children,
   loading,
-  onOpenChange,
   onConfirm,
 }: {
-  open: boolean;
   currentModel: JudgeModel | null;
-  nextModel: JudgeModel;
+  children: (control: {
+    openDialog: (model: ProjectDefaultModelConfig) => void;
+  }) => ReactNode;
   loading: boolean;
-  onOpenChange: (open: boolean) => void;
-  onConfirm: () => void;
+  onConfirm: (model: ProjectDefaultModelConfig) => Promise<void>;
 }) {
   return (
-    <ConfirmDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title="Set project default model"
-      description="Evaluators that follow the project default will use the new model on their next run. Evaluators with their own model are untouched. New evaluators start on the default."
-      confirmLabel={currentModel ? "Update default" : "Set default"}
-      confirmVariant="default"
-      loading={loading}
-      onConfirm={onConfirm}
-    >
-      <div className="bg-muted flex items-center gap-2 rounded-md border px-3 py-2 font-mono text-sm">
-        {currentModel ? (
-          <>
-            <span
-              className="truncate"
-              title={`${currentModel.provider} / ${currentModel.model}`}
-            >
-              {currentModel.provider} / {currentModel.model}
-            </span>
-            <ArrowRight size="base" color="muted" />
-          </>
-        ) : null}
-        <span
-          className="truncate"
-          title={`${nextModel.provider} / ${nextModel.model}`}
+    <DialogController<ProjectDefaultModelConfig>
+      onBeforeClose={() => !loading}
+      renderDialog={({ state, closeDialog }) => (
+        <Dialog
+          closeOnInteractionOutside
+          size="sm"
+          title="Set project default model"
+          actions={[
+            {
+              label: currentModel ? "Update default" : "Set default",
+              loading,
+              onClick: async () => {
+                try {
+                  await onConfirm(state);
+                  closeDialog();
+                } catch {
+                  // The mutation reports the error; keep the selection for retry.
+                }
+              },
+            },
+          ]}
         >
-          {nextModel.provider} / {nextModel.model}
-        </span>
-      </div>
-    </ConfirmDialog>
+          <Dialog.Body>
+            <p className="text-muted-foreground">
+              Evaluators that follow the project default will use the new model
+              on their next run. Evaluators with their own model are untouched.
+              New evaluators start on the default.
+            </p>
+            <div className="bg-muted flex items-center gap-2 rounded-md border px-3 py-2 font-mono text-sm">
+              {currentModel ? (
+                <>
+                  <span
+                    className="truncate"
+                    title={`${currentModel.provider} / ${currentModel.model}`}
+                  >
+                    {currentModel.provider} / {currentModel.model}
+                  </span>
+                  <ArrowRight size="base" color="muted" />
+                </>
+              ) : null}
+              <span
+                className="truncate"
+                title={`${state.provider} / ${state.model}`}
+              >
+                {state.provider} / {state.model}
+              </span>
+            </div>
+          </Dialog.Body>
+        </Dialog>
+      )}
+    >
+      {children}
+    </DialogController>
   );
 }

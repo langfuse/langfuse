@@ -20,10 +20,12 @@ D=../../web/src/components/design-system
   echo 'else globalThis.process.env = Object.assign({}, env, globalThis.process.env);'
 } > process-shim.js
 # Public assets: DS components load web/public files via
-# `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/<file>`. The bundle ships no loose files,
+# `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/<file>` or, after
+# `const basePath = env.NEXT_PUBLIC_BASE_PATH ?? ""`, `${basePath}/<file>`.
+# The bundle ships no loose files,
 # so embed each as a data URL and remap matching <img src> values at runtime.
 # copy-css.sh injects the same script into the reference iframe.html.
-ASSETS="$(cd "$D" && grep -rhoE 'NEXT_PUBLIC_BASE_PATH \?\? ""\}/[A-Za-z0-9._/-]+' --include='*.tsx' --exclude='*.stories.tsx' . \
+ASSETS="$(cd "$D" && grep -rhoE '(NEXT_PUBLIC_BASE_PATH \?\? ""|\{basePath)\}/[A-Za-z0-9._/-]+' --include='*.tsx' --exclude='*.stories.tsx' . \
   | sed -E 's|.*\}/||' | LC_ALL=C sort -u)"
 # shellcheck disable=SC2086
 node - ../../web/public $ASSETS > public-assets.js <<'JS'
@@ -76,8 +78,7 @@ JS
   S=../../web/src/components
   while read -r mod names; do echo "export { $names } from \"$S/$mod\";"; done <<'EOF'
 CrashModal/CrashModal CrashModal
-EnvLabelBadge EnvLabelBadge
-grouped-score-badge GroupedScoreBadges
+GroupedScoreBadges GroupedScoreBadges
 ItemBadge ItemBadge, ItemTypeIcon
 MediaFileCard/MediaFileCard MediaFileCard
 MediaTag/MediaTag MediaTag
@@ -85,8 +86,8 @@ OrganizationDropdownMenu/OrganizationDropdownMenu OrganizationDropdownMenu
 ProjectDropdownMenu/ProjectDropdownMenu ProjectDropdownMenu
 ScoreBadge/ScoreBadge ScoreBadge
 ScoreTag ScoreTag, SCORE_LEVEL_LABELS
-layouts/mobile-page-actions-content MobilePageActionsContent
-nav/AppSidebar/AppSidebar AppSidebar
+layouts/MobilePageActionsContent MobilePageActionsContent
+ui/popover Popover, PopoverTrigger
 onboarding/components/EvaluatorsOnboardingView/EvaluatorsOnboardingView EvaluatorsOnboardingView
 table/ColumnVisibilityHeader ColumnVisibilityHeader
 table/data-table DataTable
@@ -94,11 +95,10 @@ table/FacetHeader FacetHeader
 table/KeyValueFilterBuilder KeyValueFilterBuilder
 table/OverviewSelectionBar/OverviewSelectionBar OverviewSelectionBar
 table/table-view-presets/components/TableViewPresetsButton TableViewPresetsButton
-ui/MarkdownViewer MarkdownView
+ui/MarkdownView MarkdownView
 ui/StatusBadge/StatusBadge StatusBadge
-ui/ai-assisted-input AIAssistedInput
+ui/AIAssistedInput AIAssistedInput
 ui/drawer Drawer, DrawerController, DrawerTrigger, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription
-ui/sidebar SidebarProvider, SidebarInset
 EOF
   echo "export { LangfuseProvider } from \"./LangfuseProvider\";"
   # Icon props (Button/IconButton `icon`, ...) take typed icon wrappers; the

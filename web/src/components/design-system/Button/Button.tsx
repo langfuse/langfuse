@@ -1,5 +1,5 @@
 import { cva } from "class-variance-authority";
-import { ExternalLink, type IconComponent } from "@langfuse/icons";
+import { SquareArrowOutUpRight, type IconComponent } from "@langfuse/icons";
 import Link from "next/link";
 import {
   type ButtonHTMLAttributes,
@@ -18,6 +18,8 @@ const buttonVariants = cva(
         primary: "bg-primary text-primary-foreground hover:bg-primary/90",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        outline:
+          "border border-border-contrast bg-background hover:bg-accent hover:text-accent-foreground",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         ghost: "hover:bg-accent hover:text-accent-foreground",
@@ -28,8 +30,17 @@ const buttonVariants = cva(
         default: "h-8 px-3 py-1 text-sm",
         sm: "h-7 px-2 text-xs",
       },
+      width: {
+        full: "w-full",
+      },
     },
-    compoundVariants: [{ variant: "text", class: "h-auto px-0 py-0" }],
+    compoundVariants: [
+      { variant: "text", class: "h-auto px-0 py-0" },
+      {
+        variant: "outline",
+        class: "aria-pressed:border-primary aria-pressed:bg-primary/5",
+      },
+    ],
     defaultVariants: {
       variant: "primary",
       size: "default",
@@ -39,7 +50,15 @@ const buttonVariants = cva(
 
 type ButtonProps = {
   text: string;
-  variant?: "primary" | "secondary" | "destructive" | "ghost" | "text";
+  /** Stretch to the width of the parent. Used by dialog footer actions. */
+  shouldFill?: boolean;
+  variant?:
+    | "primary"
+    | "secondary"
+    | "outline"
+    | "destructive"
+    | "ghost"
+    | "text";
   size?: "default" | "sm";
 } & (
   | {
@@ -64,7 +83,11 @@ type ButtonProps = {
       "data-state"?: string;
     } & Pick<
       ButtonHTMLAttributes<HTMLButtonElement>,
-      "id" | "aria-controls" | "aria-expanded" | "aria-haspopup"
+      | "id"
+      | "aria-controls"
+      | "aria-expanded"
+      | "aria-haspopup"
+      | "aria-pressed"
     >)
 );
 
@@ -74,6 +97,7 @@ export function Button(props: ButtonProps) {
     buttonVariants({
       variant: props.variant,
       size: props.size,
+      width: props.shouldFill ? "full" : undefined,
     }),
   );
   const iconColor = props.variant === "ghost" ? "default" : "inherit";
@@ -98,13 +122,7 @@ export function Button(props: ButtonProps) {
         >
           {Icon ? <Icon color={iconColor} aria-hidden /> : null}
           {props.text}
-          {/* The glyph reaches the bottom of its box, so centered it dips below the text baseline. */}
-          <ExternalLink
-            size="sm"
-            color={iconColor}
-            aria-hidden
-            __rawClassName="-translate-y-px"
-          />
+          <SquareArrowOutUpRight color={iconColor} aria-hidden />
         </a>
       );
     }
@@ -133,6 +151,7 @@ export function Button(props: ButtonProps) {
       aria-controls={props["aria-controls"]}
       aria-expanded={props["aria-expanded"]}
       aria-haspopup={props["aria-haspopup"]}
+      aria-pressed={props["aria-pressed"]}
       data-state={props["data-state"]}
     >
       <span

@@ -7,10 +7,8 @@ import {
   type EditableVariableMappingProps,
 } from "./components/EditableVariableMapping/EditableVariableMapping";
 import { VariableMappingBinding } from "./components/VariableMappingBinding/VariableMappingBinding";
-import {
-  ReadOnlyVariableMappingCardShell,
-  type VariableDisplay,
-} from "./components/VariableMappingCardShell";
+import { ReadOnlyVariableMappingCardShell } from "./components/ReadOnlyVariableMappingCardShell";
+import { type VariableDisplay } from "./components/VariableMappingCardShell";
 
 type VariableMappingProps = {
   mappings: Array<{ variable: string; fieldState: VariableFieldState }>;
@@ -36,7 +34,7 @@ function ReadOnlyVariableMapping({
   variableDisplay?: VariableDisplay;
 }) {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-2">
       {mappings.map((mapping) => (
         <ReadOnlyVariableMappingCardShell
           key={mapping.variable}

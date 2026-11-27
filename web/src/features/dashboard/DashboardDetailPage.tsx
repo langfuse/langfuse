@@ -1,12 +1,17 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { useReadPath, type ResolvedReadPath } from "@/src/features/events";
+import {
+  useReadPath,
+  type ResolvedReadPath,
+} from "@/src/features/events/hooks/useReadPath";
+
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
-import Page from "@/src/components/layouts/page";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import Page from "@/src/components/layouts/Page";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { TimeRangePicker } from "@/src/components/date-picker";
-import { PopoverFilterBuilder, MultiSelect } from "@/src/features/filters";
+import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
@@ -25,26 +30,30 @@ import {
   MoreVertical,
   PencilIcon,
 } from "@langfuse/icons";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   SelectWidgetDialog,
   type WidgetItem,
 } from "@/src/features/widgets/components/SelectWidgetDialog";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   type DashboardPlacement,
+  DashboardGrid,
+} from "@/src/features/widgets/components/DashboardGrid";
+import {
   parsePastedWidget,
   toWidgetCreateFields,
   type PastedWidgetParseResult,
   type WidgetExportSource,
-  pushDownForInsertion,
-  useClipboardWidgetProbe,
-} from "@/src/features/widgets";
-import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
-import { CloneFirstDialogController } from "@/src/features/dashboard/components/CloneFirstDialogController";
+} from "@/src/features/widgets/utils/import-export-utils";
+import { pushDownForInsertion } from "@/src/features/widgets/utils/grid-placement";
+import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
+
+import { ConnectedCloneDashboardDialogController } from "@/src/features/dashboard/components/ConnectedCloneDashboardDialogController";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import {
   DropdownMenu,
@@ -59,19 +68,17 @@ import {
   DASHBOARD_AGGREGATION_OPTIONS,
   toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
-import { useEntitlementLimit } from "@/src/features/entitlements";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
 
-import {
-  convertSelectedEnvironmentsToFilter,
-  useEnvironmentFilter,
-} from "@/src/hooks/useEnvironmentFilter";
+import { useEnvironmentFilter } from "@/src/hooks/useEnvironmentFilter";
+import { convertSelectedEnvironmentsToFilter } from "@/src/utils/environmentFilter";
 import {
   DashboardQuerySchedulerProvider,
   getDashboardQuerySchedulerMaxConcurrent,
   getDashboardSchedulerResetKey,
   useDashboardQueryScheduler,
-} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+} from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import {
   isPasteablePlacementPayload,
   parseDashboardImport,
@@ -122,7 +129,9 @@ export default function DashboardDetailPage() {
           ],
         }}
       >
-        <NoDataOrLoading isLoading />
+        <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
+          <Skeleton className="h-full w-full" />
+        </div>
       </Page>
     );
   }
@@ -178,8 +187,6 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
 
   // gridResetKey remounts the grid to revert an attempted drag/resize when the
   // user cancels the clone-first flow.
-  const [cloneFirstPendingDefinition, setCloneFirstPendingDefinition] =
-    useState<{ widgets: DashboardPlacement[] } | null>(null);
   const [gridResetKey, setGridResetKey] = useState(0);
 
   // Filter state - use persistent filters from dashboard
@@ -1199,16 +1206,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   });
 
   return (
-    <CloneFirstDialogController
-      projectId={projectId}
-      dashboardId={dashboardId}
-      dashboardName={dashboard.data?.name ?? "Dashboard"}
-      pendingDefinition={cloneFirstPendingDefinition}
-      onCancel={() => {
-        setCloneFirstPendingDefinition(null);
-        setGridResetKey((key) => key + 1);
-      }}
-    >
+    <ConnectedCloneDashboardDialogController>
       {({ openDialog: openCloneFirstDialog }) => {
         const openCloneFirst = (
           attempt:
@@ -1223,8 +1221,15 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
             attempt,
             surface: "detail",
           });
-          setCloneFirstPendingDefinition(pendingDefinition ?? null);
-          openCloneFirstDialog();
+          openCloneFirstDialog({
+            projectId,
+            dashboardId,
+            dashboardName: dashboard.data?.name ?? "Dashboard",
+            pendingDefinition,
+            onCancel: () => {
+              setGridResetKey((key) => key + 1);
+            },
+          });
         };
 
         const handleDeleteWidget = (tileId: string) => {
@@ -1482,62 +1487,70 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                     onSelectPreset={addPresetToDashboard}
                     dashboardId={dashboardId}
                   />
-                  {dashboard.isPending || !dashboardDefinition ? (
-                    <NoDataOrLoading isLoading={true} />
-                  ) : dashboard.isError ? (
-                    <div className="flex h-64 items-center justify-center">
-                      <div className="text-destructive">
-                        Error: {dashboard.error.message}
-                      </div>
+                  {(dashboard.isPending || !dashboardDefinition) && (
+                    <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
+                      <Skeleton className="h-full w-full" />
                     </div>
-                  ) : (
-                    <div>
-                      <DashboardGrid
-                        key={gridResetKey}
-                        readPath={readPath}
-                        widgets={dashboardDefinition.widgets}
-                        onChange={(updatedWidgets) => {
-                          if (isLockedEditable) {
-                            // Carry the attempted layout change into the clone.
-                            openCloneFirst("layout_change", {
+                  )}
+                  {!dashboard.isPending &&
+                    dashboardDefinition &&
+                    dashboard.isError && (
+                      <div className="flex h-64 items-center justify-center">
+                        <div className="text-destructive">
+                          Error: {dashboard.error.message}
+                        </div>
+                      </div>
+                    )}
+                  {!dashboard.isPending &&
+                    dashboardDefinition &&
+                    !dashboard.isError && (
+                      <div>
+                        <DashboardGrid
+                          key={gridResetKey}
+                          readPath={readPath}
+                          widgets={dashboardDefinition.widgets}
+                          onChange={(updatedWidgets) => {
+                            if (isLockedEditable) {
+                              // Carry the attempted layout change into the clone.
+                              openCloneFirst("layout_change", {
+                                ...dashboardDefinition,
+                                widgets: updatedWidgets,
+                              });
+                              return;
+                            }
+                            applyDashboardDefinition({
                               ...dashboardDefinition,
                               widgets: updatedWidgets,
                             });
-                            return;
+                          }}
+                          canEdit={hasRbacCUDAccess}
+                          dashboardId={dashboardId}
+                          projectId={projectId}
+                          dateRange={absoluteTimeRange}
+                          filterState={gridFilterState}
+                          onDeleteWidget={handleDeleteWidget}
+                          dashboardOwner={dashboard.data?.owner}
+                          getWidgetSchedulerId={getWidgetSchedulerId}
+                          onLockedEditAttempt={
+                            isLockedEditable
+                              ? () => openCloneFirst("widget_pencil")
+                              : undefined
                           }
-                          applyDashboardDefinition({
-                            ...dashboardDefinition,
-                            widgets: updatedWidgets,
-                          });
-                        }}
-                        canEdit={hasRbacCUDAccess}
-                        dashboardId={dashboardId}
-                        projectId={projectId}
-                        dateRange={absoluteTimeRange}
-                        filterState={gridFilterState}
-                        onDeleteWidget={handleDeleteWidget}
-                        dashboardOwner={dashboard.data?.owner}
-                        getWidgetSchedulerId={getWidgetSchedulerId}
-                        onLockedEditAttempt={
-                          isLockedEditable
-                            ? () => openCloneFirst("widget_pencil")
-                            : undefined
-                        }
-                        onDuplicateWidget={
-                          hasCUDAccess ? handleDuplicateWidget : undefined
-                        }
-                        onDuplicatePreset={
-                          hasCUDAccess ? handleDuplicatePreset : undefined
-                        }
-                      />
-                    </div>
-                  )}
+                          onDuplicateWidget={
+                            hasCUDAccess ? handleDuplicateWidget : undefined
+                          }
+                          onDuplicatePreset={
+                            hasCUDAccess ? handleDuplicatePreset : undefined
+                          }
+                        />
+                      </div>
+                    )}
                 </Page>
               </DashboardQuerySchedulerProvider>
             )}
           </DialogController>
         );
       }}
-    </CloneFirstDialogController>
+    </ConnectedCloneDashboardDialogController>
   );
 }

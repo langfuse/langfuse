@@ -1,8 +1,8 @@
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { useMemo, useState } from "react";
 import { deepParseJsonIterative } from "@langfuse/shared";
 import { ChevronDown, TriangleAlert } from "@langfuse/icons";
 
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { extractVariableMappingValue } from "@/src/features/evals/v2/fns/variableMapping/extractVariableMappingValue";
 import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
 import { cn } from "@/src/utils/tailwind";
@@ -44,16 +44,18 @@ export function DecisionModelStatePreview({
 }: {
   fields: PreviewField[];
   sourceObject: Record<string, unknown> | null;
-  /** Included beside the state. OpenAI sends these on the same request. */
+  /** Included beside the state. OpenAI and Gemini send these on the same request. */
   questions?: unknown[];
   title?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const statePreview = useMemo(() => {
-    const state = buildStatePreview(fields, sourceObject);
-    if (!state) return null;
-    return questions ? { ...state, questions } : state;
-  }, [fields, questions, sourceObject]);
+  const state = useMemo(
+    () => buildStatePreview(fields, sourceObject),
+    [fields, sourceObject],
+  );
+  // Nested so a mapped state key named `questions` is not overwritten.
+  const statePreview = state && questions ? { state, questions } : state;
+  const fieldCount = state ? Object.keys(state).length : 0;
   const stateSize = statePreview ? JSON.stringify(statePreview).length : 0;
   const tooLarge = stateSize > STATE_SIZE_WARNING_CHARS;
 
@@ -75,9 +77,8 @@ export function DecisionModelStatePreview({
               )}
             >
               {tooLarge ? <TriangleAlert size="base" /> : null}
-              {Object.keys(statePreview).length} field
-              {Object.keys(statePreview).length === 1 ? "" : "s"} ·{" "}
-              {stateSize.toLocaleString()} chars
+              {fieldCount} field
+              {fieldCount === 1 ? "" : "s"} · {stateSize.toLocaleString()} chars
               {tooLarge ? " · trim fields, ~32k limit" : ""}
             </span>
           ) : (
@@ -96,16 +97,14 @@ export function DecisionModelStatePreview({
         />
       </button>
       {open && statePreview ? (
-        <div className="border-t">
+        <div className="max-h-80 overflow-y-auto border-t">
           <PrettyJsonView
             json={statePreview}
             currentView="pretty"
-            isLoading={false}
-            showNullValues={true}
+            showNullValues
             stickyTopLevelKey={false}
             showObservationTypeBadge={false}
-            scrollable={true}
-            className="max-h-80 [&_.border]:border-0 [&_.rounded-sm]:rounded-none"
+            borderless
           />
         </div>
       ) : null}

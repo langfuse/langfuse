@@ -1,7 +1,6 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { getLLMErrorInfo } from "../llm/errors";
 import { embedLLMText, type LLMProviderOptions } from "../llm/llmText";
-import { LLMAdapter } from "../llm/types";
+import { LangfuseInternalTraceEnvironment, LLMAdapter } from "../llm/types";
 import { topicEmbeddingConfigSchema } from "../../topics";
 import type { TopicsModel } from "./model-config";
 
@@ -29,6 +28,7 @@ async function embedWithSizeFallback(
       values: params.summaries,
       dimensions,
       providerOptions: embeddingProviderOptions(params.model),
+      internalEnvironment: LangfuseInternalTraceEnvironment.Topics,
       maxRetries: 2,
       // Single-text models (Bedrock Titan, Nova) split a batch into one request per text.
       maxParallelCalls: 10,

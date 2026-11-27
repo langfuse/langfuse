@@ -7,7 +7,7 @@ description: Triage an engineer's work queue across Linear, Pylon, and GitHub. U
 
 ## Scope
 
-Review live work queues and recommend what the engineer should do next. Triage is a recommendation, not an action: every state change this skill produces — assigning, moving, closing, cancelling, re-prioritising — belongs to the engineer, so the output is a table they act on.
+Review live work queues and recommend what the engineer should do next. Return recommendations in chat; do not turn a queue review into unsolicited tracker changes.
 
 Use this skill for:
 
@@ -40,7 +40,7 @@ Include confidence for each recommendation: `high`, `medium`, `low`, or `unknown
 3. Inspect comments, latest activity, linked issues, checks, and review threads when status or ownership is ambiguous.
 4. Cluster duplicates or related items before prioritizing.
 5. Return recommendations ordered by urgency, then quick wins, then cleanup.
-6. Present the recommendations as a decision table for the engineer to act on. Every action this skill recommends is a state change reserved for a human, so do not perform them. If a queue item needs a note left on it for someone else, that is a comment or a description edit — propose it, get a yes, then write; see [`linear-agent-writes`](../linear-agent-writes/SKILL.md).
+6. Present the recommendations as a decision table. Use [`linear-agent-writes`](../linear-agent-writes/SKILL.md) only for a tracker action the user requests; an explicit request authorizes that action without another proposal.
 
 ## Linear Review
 
@@ -98,30 +98,30 @@ Inspect:
 - PR title, repo, age, author, requested reviewer source, mergeability, review decision, and checks;
 - changed files and diff size;
 - unresolved comments, bot findings, requested changes, and author responses;
+- latest-commit Bugbot review and actual approval, fork origin, sensitive paths, and required human or team reviews under the [approval policy](../git-workflow/references/protected-branches.md);
 - whether failures are code failures or external authorization/noise.
 
 Recommend:
 
-- `quick-win` with `approve` only for small focused diffs, acceptable checks, no unresolved material concerns, and tests or plainly trivial behavior.
+- `quick-win` with `approve` only for small focused diffs, acceptable checks, no unresolved material concerns, and tests or plainly trivial behavior. This recommends a human review action; report any remaining approval gates separately and never equate it with permission to merge.
 - `quick-win` with `comment` for small PRs needing one narrow author action such as rebase, CLA, missing test, or cleanup.
 - `act-now` for blocked releases, security fixes, production regressions, or PRs where the engineer is the bottleneck.
 - `todo` for meaningful PRs that need real review soon.
 - `stale-candidate` for old, conflicting, duplicate, or superseded PRs.
 - `no-action` when a PR is blocked on the author, failing CLA, merge conflicts, unresolved requested changes, or unrelated team ownership.
 
-Do not approve, request changes, comment, close, merge, or edit a PR without explicit human approval for that PR. This is about **GitHub pull requests**, not the issue tracker — tracker comments and description edits follow [`linear-agent-writes`](../linear-agent-writes/SKILL.md) (propose, then write).
+Do not approve, request changes, comment, close, merge, or edit a PR without explicit human approval for that PR.
 
 ## Human Gates
 
 These writes require explicit human confirmation by row ID:
 
-- Linear state — status, priority, assignee, labels, cancellation, or customer-need changes. Comments and description edits are permitted agent shapes but still need a propose-then-write yes — leave them to [`linear-agent-writes`](../linear-agent-writes/SKILL.md).
 - Pylon replies, internal notes, status changes, assignment, tags, snoozes, closes, or external-issue links. This is customer-facing, and that gate stays.
 - GitHub approvals, comments, requested changes, reviewer changes, closes, merges, labels, or branch actions.
 
-If the user says "do the quick ones", first show the exact proposed writes and ask for confirmation unless they already named the exact row IDs.
+For these Pylon or GitHub actions, if the user says "do the quick ones", first show the exact proposed writes and ask for confirmation unless they already named the exact row IDs.
 
-Use this table before writes:
+Use this table before these Pylon or GitHub writes:
 
 | ID | System | Item | Recommended Action | Proposed Write | Confidence | Human Decision |
 | --- | --- | --- | --- | --- | --- | --- |

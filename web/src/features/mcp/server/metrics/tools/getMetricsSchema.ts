@@ -4,7 +4,7 @@ import {
   viewDeclarations,
 } from "@langfuse/shared/query";
 import { filterOperators } from "@langfuse/shared";
-import { publicGranularities } from "@/src/features/public-api/server";
+import { publicGranularities } from "@/src/features/public-api/types/metrics";
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -157,5 +157,5 @@ export const [getMetricsSchemaTool, handleGetMetricsSchema] = defineTool({
       },
     });
   },
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

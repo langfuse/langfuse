@@ -43,17 +43,21 @@ const getLLMQueueRetryDelaySeconds = ({
   elapsedSeconds,
   maxRetryAttempts,
   maxAgeSeconds,
+  offsetsSeconds,
 }: {
   attempt: number;
   elapsedSeconds: number;
   maxRetryAttempts: number;
   maxAgeSeconds: number;
+  offsetsSeconds?: readonly number[];
 }) => {
-  const targetOffsetSeconds = getLLMQueueRetryTargetOffsetSeconds({
-    attempt,
-    maxRetryAttempts,
-    maxAgeSeconds,
-  });
+  const targetOffsetSeconds =
+    offsetsSeconds?.[attempt - 1] ??
+    getLLMQueueRetryTargetOffsetSeconds({
+      attempt,
+      maxRetryAttempts,
+      maxAgeSeconds,
+    });
   const delaySeconds = Math.max(0, targetOffsetSeconds - elapsedSeconds);
   const jitterMultiplier =
     1 -
@@ -65,24 +69,54 @@ const getLLMQueueRetryDelaySeconds = ({
   return Math.min(jitteredDelaySeconds, remainingAgeSeconds);
 };
 
+const getProviderDelaySeconds = ({
+  providerDelayMs,
+  elapsedSeconds,
+  maxAgeSeconds,
+}: {
+  providerDelayMs: number;
+  elapsedSeconds: number;
+  maxAgeSeconds: number;
+}) => {
+  // Jitter only upwards so a job never wakes before the provider's delay ends.
+  const jitterMultiplier = 1 + Math.random() * LLM_QUEUE_RETRY_JITTER_FACTOR;
+  const remainingAgeSeconds = Math.max(0, maxAgeSeconds - elapsedSeconds);
+
+  return Math.min(
+    Math.ceil((providerDelayMs / 1000) * jitterMultiplier),
+    remainingAgeSeconds,
+  );
+};
+
 const getInitialQueueDelayMs = (delay: unknown) =>
   typeof delay === "number" && Number.isFinite(delay) ? Math.max(0, delay) : 0;
 
 /**
  * Configuration for retry handling with rate limiting and age checks
  */
-interface RetryConfig {
-  /** Database table to check age against */
-  table: "dataset_runs" | "job_executions";
-  /** Name of the ID field in the payload */
-  idField: "runId" | "jobExecutionId";
+type RetryConfig = (
+  | {
+      /** Database table to check age against */
+      table: "dataset_runs" | "job_executions";
+      /** Name of the ID field in the payload */
+      idField: "runId" | "jobExecutionId";
+    }
+  | {
+      /** No database row: the retry window starts at the first failure. */
+      table: null;
+      /** Payload field that identifies the job in logs */
+      idField: string;
+    }
+) & {
   /** Queue instance to add retry job to */
   queue: any;
   /** Queue name for the retry job */
   queueName: string;
   /** Job name for the retry job */
   jobName: string;
-}
+  /** Replaces the LLM-as-judge budget: one retry per offset from the window start. */
+  schedule?: { offsetsSeconds: readonly number[]; maxAgeSeconds: number };
+};
 
 export type RetryScheduleResult =
   | {
@@ -98,10 +132,40 @@ export type RetryScheduleResult =
       outcome: "queue_unavailable";
     };
 
+async function getRetryWindowStartTimeMs(
+  job: Parameters<typeof retryLLMRateLimitError>[0],
+  config: RetryConfig,
+  jobId: string,
+): Promise<number> {
+  // Without a row, the window starts at the first failure, not at enqueue, so queue backlog does not consume it.
+  if (config.table === null)
+    return job.data.retryBaggage?.originalJobTimestamp
+      ? new Date(job.data.retryBaggage.originalJobTimestamp).getTime()
+      : Date.now();
+
+  const record =
+    config.table === "dataset_runs"
+      ? await prisma.datasetRuns.findFirstOrThrow({
+          select: { createdAt: true },
+          where: { id: jobId, projectId: job.data.payload.projectId },
+        })
+      : await prisma.jobExecution.findFirstOrThrow({
+          select: { createdAt: true },
+          where: { id: jobId, projectId: job.data.payload.projectId },
+        });
+
+  // The retry budget starts when the LLM call is first attempted, not when a
+  // delayed evaluation job row was created.
+  return (
+    record.createdAt.getTime() + getInitialQueueDelayMs(job.data.payload.delay)
+  );
+}
+
 /**
  * Handles rate limiting and retry logic for queue jobs.
  * Automatically retries jobs that fail with 429/5xx errors unless they exceed
- * the configured retry budget or age limit.
+ * the configured retry budget or age limit. A retry waits at least
+ * `providerDelayMs`, the delay the provider or an LLM connection cooldown asked for.
  */
 export async function retryLLMRateLimitError(
   job: {
@@ -112,28 +176,22 @@ export async function retryLLMRateLimitError(
     };
   },
   config: RetryConfig,
+  options?: { providerDelayMs?: number },
 ): Promise<RetryScheduleResult> {
   try {
     const jobId = job.data.payload[config.idField];
-    const maxRetryAttempts = env.LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_ATTEMPTS;
-    const maxAgeSeconds = env.LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_AGE_SECONDS;
+    const maxRetryAttempts =
+      config.schedule?.offsetsSeconds.length ??
+      env.LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_ATTEMPTS;
+    const maxAgeSeconds =
+      config.schedule?.maxAgeSeconds ??
+      env.LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_AGE_SECONDS;
 
-    const record =
-      config.table === "dataset_runs"
-        ? await prisma.datasetRuns.findFirstOrThrow({
-            select: { createdAt: true },
-            where: { id: jobId, projectId: job.data.payload.projectId },
-          })
-        : await prisma.jobExecution.findFirstOrThrow({
-            select: { createdAt: true },
-            where: { id: jobId, projectId: job.data.payload.projectId },
-          });
-
-    // The retry budget starts when the LLM call is first attempted, not when a
-    // delayed evaluation job row was created.
-    const retryWindowStartTimeMs =
-      record.createdAt.getTime() +
-      getInitialQueueDelayMs(job.data.payload.delay);
+    const retryWindowStartTimeMs = await getRetryWindowStartTimeMs(
+      job,
+      config,
+      jobId,
+    );
 
     const elapsedSeconds = Math.max(
       0,
@@ -160,12 +218,23 @@ export async function retryLLMRateLimitError(
       };
     }
 
-    const delaySeconds = getLLMQueueRetryDelaySeconds({
-      attempt: currentAttempt,
-      elapsedSeconds,
-      maxRetryAttempts,
-      maxAgeSeconds,
-    });
+    const providerDelayMs = options?.providerDelayMs;
+    const delaySeconds = Math.max(
+      getLLMQueueRetryDelaySeconds({
+        attempt: currentAttempt,
+        elapsedSeconds,
+        maxRetryAttempts,
+        maxAgeSeconds,
+        offsetsSeconds: config.schedule?.offsetsSeconds,
+      }),
+      providerDelayMs === undefined
+        ? 0
+        : getProviderDelaySeconds({
+            providerDelayMs,
+            elapsedSeconds,
+            maxAgeSeconds,
+          }),
+    );
     const delayMs = Math.round(delaySeconds * 1000);
 
     const retryWindowStart = new Date(retryWindowStartTimeMs);

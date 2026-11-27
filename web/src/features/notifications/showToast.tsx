@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { toast, type ExternalToast } from "sonner";
 import { useRef, type ReactNode } from "react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   getToastErrorProperties,
   type ToastErrorAnalytics,
@@ -36,6 +36,7 @@ export const showToast = (
 };
 
 /** Custom rendering must declare metadata too; dismissal does not create a new shown event. */
+/** @internal */
 export const showCustomToast = (
   render: (id: string | number) => ReactNode,
   metadata: ToastMetadata,

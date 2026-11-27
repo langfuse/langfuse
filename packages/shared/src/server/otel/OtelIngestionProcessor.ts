@@ -1,3 +1,4 @@
+/* oxlint-disable prefer-promise-reject-errors, radix -- baseline before rule enablement */
 /* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
 import { extractSkillsFromObservation } from "../ingestion/extractSkillsBackend";
@@ -25,27 +26,54 @@ import {
   normalizeToolMetadataForObservation,
   normalizeEnvironment,
   DEFAULT_TRACE_ENVIRONMENT,
-  LangfuseInternalTraceEnvironment,
   sanitizeSdkMetricTagValue,
   normalizeIngestionSdkName,
   isStructuredMetadataSdkVersion,
   type IngestionSdkCanonicalName,
 } from "../";
+import { LangfuseInternalTraceEnvironment } from "../llm/types";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
 import {
   isClaudeManagedAgentSessionCreation,
+  isClaudePlatformRequestSpan,
   isClaudeManagedAgentSpan,
   ObservationTypeMapperRegistry,
 } from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
-import { isValidDateString, flattenJsonToPathArrays } from "./utils";
+import {
+  isValidDateString,
+  flattenJsonToPathArrays,
+  hasUnstorableYear,
+} from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
 import { defineOwnValue } from "../../utils/objects";
 
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
+
+const AI_GATEWAY_INGESTION_API_KEY_PREFIX = "gateway:";
+
+export { AI_GATEWAY_KEY_ID_METADATA_KEY } from "../../features/ai-gateway/constants";
+
+/** Metadata key under which the AI gateway marks costs it calculated from model pricing. */
+export const AI_GATEWAY_COST_SOURCE_METADATA_KEY =
+  "langfuse.gateway.cost.source";
+export const AI_GATEWAY_COST_SOURCE_CALCULATED = "calculated";
+
+/**
+ * The ingestion API key Web records for an upload authorized by a gateway
+ * ingestion grant. Unlike the instrumentation scope name, an OTLP sender cannot
+ * choose it, so it is the marker for behavior that trusts the gateway.
+ */
+export const aiGatewayIngestionApiKey = (grantId: string) =>
+  `${AI_GATEWAY_INGESTION_API_KEY_PREFIX}${grantId}`;
+
+export const isAiGatewayIngestionApiKey = (
+  ingestionApiKey: string | null | undefined,
+): boolean =>
+  ingestionApiKey?.startsWith(AI_GATEWAY_INGESTION_API_KEY_PREFIX) ?? false;
 
 // Foreign level vocabularies observed from OTel senders (OTel severity
 // names, python logging, loguru, console) mapped onto the Langfuse enum.
@@ -104,6 +132,11 @@ export interface OtelIngestionProcessorConfig {
    * log line points at the replayable payload.
    */
   fileKey?: string;
+  /**
+   * ISO time given to every span of the batch that has neither a start nor an
+   * end time. Defaults to the time the span is converted.
+   */
+  fallbackTime?: string;
 }
 
 interface MetadataDropContext {
@@ -314,6 +347,7 @@ export class OtelIngestionProcessor {
   private readonly ingestionVersion?: string;
   private readonly isLangfuseInternal?: boolean;
   private readonly fileKey?: string;
+  private readonly fallbackTime?: string;
 
   constructor(config: OtelIngestionProcessorConfig) {
     this.projectId = config.projectId;
@@ -329,6 +363,7 @@ export class OtelIngestionProcessor {
     this.ingestionVersion = config.ingestionVersion;
     this.isLangfuseInternal = config.isLangfuseInternal;
     this.fileKey = config.fileKey;
+    this.fallbackTime = config.fallbackTime;
   }
 
   /**
@@ -421,11 +456,15 @@ export class OtelIngestionProcessor {
                 const parentSpanId = span?.parentSpanId
                   ? this.parseId(span.parentSpanId)
                   : null;
-                const { startTimeISO, endTimeISO } =
-                  OtelIngestionProcessor.resolveSpanTimestamps({
+                const timestamps = OtelIngestionProcessor.resolveSpanTimestamps(
+                  {
                     startTimeUnixNano: span.startTimeUnixNano,
                     endTimeUnixNano: span.endTimeUnixNano,
-                  });
+                    fallbackTime: this.fallbackTime,
+                  },
+                );
+                if (!timestamps) continue;
+                const { startTimeISO, endTimeISO } = timestamps;
 
                 const isLangfuseSDKSpans =
                   scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
@@ -637,6 +676,7 @@ export class OtelIngestionProcessor {
                     input,
                     output,
                     isError: level === ObservationLevel.ERROR,
+                    metadata,
                     projectId: this.projectId,
                   }),
                   promptName: canLinkPrompt
@@ -1005,11 +1045,13 @@ export class OtelIngestionProcessor {
       "trace",
       resourceAttributes,
     );
-    const { startTimeISO, endTimeISO } =
-      OtelIngestionProcessor.resolveSpanTimestamps({
-        startTimeUnixNano: span.startTimeUnixNano,
-        endTimeUnixNano: span.endTimeUnixNano,
-      });
+    const timestamps = OtelIngestionProcessor.resolveSpanTimestamps({
+      startTimeUnixNano: span.startTimeUnixNano,
+      endTimeUnixNano: span.endTimeUnixNano,
+      fallbackTime: this.fallbackTime,
+    });
+    if (!timestamps) return events;
+    const { startTimeISO, endTimeISO } = timestamps;
 
     const isRootSpan =
       !parentObservationId ||
@@ -1338,6 +1380,7 @@ export class OtelIngestionProcessor {
         input,
         output,
         isError: level === ObservationLevel.ERROR,
+        metadata,
         projectId: this.projectId,
       }),
       promptName: canLinkPrompt
@@ -2549,7 +2592,7 @@ export class OtelIngestionProcessor {
   private extractOpenRouterFailedRequestEnvironment(
     attributes: Record<string, unknown>,
     resourceAttributes: Record<string, unknown>,
-  ): LangfuseInternalTraceEnvironment.LLMJudge | undefined {
+  ): LangfuseInternalTraceEnvironment | undefined {
     if (
       resourceAttributes["service.name"] !== "openrouter" ||
       attributes["openrouter.source"] !== "openrouter"
@@ -2568,11 +2611,15 @@ export class OtelIngestionProcessor {
     }
 
     // OpenRouter Broadcast can omit custom trace metadata when a request fails,
-    // but echoes the original request here. Recover only our reserved evaluator
-    // marker so failed judge calls cannot be scheduled as fresh evaluations.
-    return completion.rawRequest.trace.environment ===
-      LangfuseInternalTraceEnvironment.LLMJudge
-      ? LangfuseInternalTraceEnvironment.LLMJudge
+    // but echoes the original request here. Recover any reserved Langfuse
+    // internal environment marker so failed internal calls (e.g. judge evals or
+    // Topics) cannot be scheduled as fresh customer traces.
+    const rawEnvironment = completion.rawRequest.trace.environment;
+    return typeof rawEnvironment === "string" &&
+      (Object.values(LangfuseInternalTraceEnvironment) as string[]).includes(
+        rawEnvironment,
+      )
+      ? (rawEnvironment as LangfuseInternalTraceEnvironment)
       : undefined;
   }
 
@@ -2868,7 +2915,9 @@ export class OtelIngestionProcessor {
       const providerMetadata = this.parseJsonPayload(
         attributes["ai.response.providerMetadata"],
       );
-      const responseServiceTier = providerMetadata?.openai?.serviceTier;
+      const responseServiceTier =
+        providerMetadata?.openai?.serviceTier ??
+        this.getGoogleServiceTier(providerMetadata);
 
       return {
         maxSteps:
@@ -2960,6 +3009,21 @@ export class OtelIngestionProcessor {
     );
   }
 
+  private getGoogleServiceTier(providerMetadata: any): string | undefined {
+    // The AI SDK writes Vertex metadata under `googleVertex` and `vertex`
+    // (older versions used `google`), and Gemini API metadata under `google`.
+    // The Gemini API reports the tier as `serviceTier` ("flex"); Vertex AI
+    // reports it as `usageMetadata.trafficType` ("ON_DEMAND_FLEX"). Pricing
+    // tier conditions list both spellings.
+    const google =
+      providerMetadata?.googleVertex ??
+      providerMetadata?.vertex ??
+      providerMetadata?.google;
+    const tier = google?.serviceTier ?? google?.usageMetadata?.trafficType;
+
+    return typeof tier === "string" ? tier : undefined;
+  }
+
   private sanitizeModelParams<T>(params: T): Record<string, string> | T {
     // Model params in Langfuse must be key value pairs where value is string
     if (typeof params === "object" && params != null)
@@ -2982,6 +3046,7 @@ export class OtelIngestionProcessor {
    * are unaffected unless they have one of these operation names.
    *
    * CMA session creation only configures a model and must not trigger enrichment.
+   * The Claude Platform request span repeats the usage of its model_request child.
    */
   private shouldSkipModelUsageAndCost(
     attributes: Record<string, unknown>,
@@ -2991,6 +3056,10 @@ export class OtelIngestionProcessor {
   ): boolean {
     const operationName = attributes["gen_ai.operation.name"];
     if (operationName === "invoke_agent" || operationName === "agent_step") {
+      return true;
+    }
+
+    if (isClaudePlatformRequestSpan(scopeName, spanName)) {
       return true;
     }
 
@@ -3005,6 +3074,7 @@ export class OtelIngestionProcessor {
   ): string | undefined {
     const modelNameKeys = [
       LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
+      "litellm.provider.model",
       "gen_ai.response.model",
       "ai.model.id",
       "gen_ai.request.model",
@@ -3321,6 +3391,23 @@ export class OtelIngestionProcessor {
       {},
     );
 
+    // Claude Platform reports the cache-write TTL split outside gen_ai.usage.*.
+    for (const ttl of ["5m", "1h"]) {
+      const usageDetailKey = `cache_creation.${ttl}_input_tokens`;
+      const attribute =
+        attributes[
+          `anthropic.usage.cache_creation.ephemeral_${ttl}_input_tokens`
+        ];
+      const value = Number(attribute);
+      if (
+        rawUsageDetails[usageDetailKey] === undefined &&
+        attribute !== undefined &&
+        !Number.isNaN(value)
+      ) {
+        rawUsageDetails[usageDetailKey] = value;
+      }
+    }
+
     const inputTokens =
       rawUsageDetails["prompt_tokens"] ??
       rawUsageDetails["input_tokens"] ??
@@ -3348,6 +3435,21 @@ export class OtelIngestionProcessor {
       rawUsageDetails["details.cache_creation_input_tokens"] ??
       rawUsageDetails["prompt_details.cache_write"] ??
       rawUsageDetails["input_cache_creation"];
+    // TTL breakdown of the cache-write total; only the unattributed remainder
+    // stays in input_cache_creation so each write is counted and priced once.
+    const cacheCreation5mTokens =
+      rawUsageDetails["cache_creation.5m_input_tokens"];
+    const cacheCreation1hTokens =
+      rawUsageDetails["cache_creation.1h_input_tokens"];
+    const hasCacheCreationBreakdown =
+      cacheCreation5mTokens !== undefined ||
+      cacheCreation1hTokens !== undefined;
+    const cacheCreationBreakdownTokens =
+      (cacheCreation5mTokens ?? 0) + (cacheCreation1hTokens ?? 0);
+    const cacheCreationRemainderTokens =
+      cacheCreationTokens !== undefined && hasCacheCreationBreakdown
+        ? Math.max(cacheCreationTokens - cacheCreationBreakdownTokens, 0)
+        : cacheCreationTokens;
     // Reasoning/audio details are included in the emitted output token count
     // and are therefore subtracted from output below to avoid double counting.
     const outputReasoningTokens =
@@ -3382,6 +3484,8 @@ export class OtelIngestionProcessor {
             "details.cache_creation_input_tokens",
             "prompt_details.cache_write",
             "input_cache_creation",
+            "cache_creation.5m_input_tokens",
+            "cache_creation.1h_input_tokens",
             "reasoning.output_tokens",
             "completion_details.reasoning",
             "completion_details.audio",
@@ -3402,7 +3506,10 @@ export class OtelIngestionProcessor {
 
     if (inputTokens !== undefined) {
       normalizedUsageDetails.input = Math.max(
-        inputTokens - (cacheReadTokens ?? 0) - (cacheCreationTokens ?? 0),
+        inputTokens -
+          (cacheReadTokens ?? 0) -
+          (cacheCreationRemainderTokens ?? 0) -
+          cacheCreationBreakdownTokens,
         0,
       );
     }
@@ -3422,8 +3529,17 @@ export class OtelIngestionProcessor {
       normalizedUsageDetails.input_cached_tokens = cacheReadTokens;
     }
 
-    if (cacheCreationTokens !== undefined) {
-      normalizedUsageDetails.input_cache_creation = cacheCreationTokens;
+    if (cacheCreationRemainderTokens !== undefined) {
+      normalizedUsageDetails.input_cache_creation =
+        cacheCreationRemainderTokens;
+    }
+
+    if (cacheCreation5mTokens !== undefined) {
+      normalizedUsageDetails.input_cache_creation_5m = cacheCreation5mTokens;
+    }
+
+    if (cacheCreation1hTokens !== undefined) {
+      normalizedUsageDetails.input_cache_creation_1h = cacheCreation1hTokens;
     }
 
     if (outputReasoningTokens !== undefined) {
@@ -4090,12 +4206,16 @@ export class OtelIngestionProcessor {
 
   /**
    * Ensure a stable time range for spans even if a timestamp is missing.
-   * If one edge is missing, use the other edge. If both are missing, use current time.
+   * If one edge is missing, use the other edge. If both are missing, use the
+   * batch's fallback time, or the current time when none was given.
+   * Returns undefined when an edge lies outside years 0000-9999: ClickHouse
+   * cannot store such a time, so the caller drops the span.
    */
   private static resolveSpanTimestamps(params: {
     startTimeUnixNano?: NanoTimestamp;
     endTimeUnixNano?: NanoTimestamp;
-  }): { startTimeISO: string; endTimeISO: string } {
+    fallbackTime?: string;
+  }): { startTimeISO: string; endTimeISO: string } | undefined {
     const startTimeISO = OtelIngestionProcessor.convertNanoTimestampToISO(
       params.startTimeUnixNano,
       "start_time",
@@ -4104,7 +4224,7 @@ export class OtelIngestionProcessor {
       params.endTimeUnixNano,
       "end_time",
     );
-    const fallbackISO = new Date().toISOString();
+    const fallbackISO = params.fallbackTime ?? new Date().toISOString();
 
     if (!startTimeISO && endTimeISO) {
       OtelIngestionProcessor.recordConversionFailure(
@@ -4122,10 +4242,18 @@ export class OtelIngestionProcessor {
       );
     }
 
-    return {
+    const resolved = {
       startTimeISO: startTimeISO ?? endTimeISO ?? fallbackISO,
       endTimeISO: endTimeISO ?? startTimeISO ?? fallbackISO,
     };
+    if (
+      hasUnstorableYear(resolved.startTimeISO) ||
+      hasUnstorableYear(resolved.endTimeISO)
+    ) {
+      OtelIngestionProcessor.recordConversionFailure("timestamp_out_of_range");
+      return undefined;
+    }
+    return resolved;
   }
 
   private static recordConversionFailure(

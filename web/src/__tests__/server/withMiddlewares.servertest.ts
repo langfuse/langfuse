@@ -109,6 +109,22 @@ describe("clickHouseRouteForRequest", () => {
     );
   });
 
+  it("reports static routes as themselves even where a template overlaps them", () => {
+    const apiDir = `${__dirname}/../../pages/api`;
+    const staticPaths = readdirSync(apiDir, { recursive: true })
+      .map(String)
+      .filter((file) => file.endsWith(".ts") && !file.includes("["))
+      .map(
+        (file) => "/api/" + file.replace(/\.ts$/, "").replace(/\/index$/, ""),
+      );
+
+    const misreported = staticPaths.filter(
+      (path) =>
+        clickHouseRouteForRequest(request("GET", path)) !== `GET ${path}`,
+    );
+    expect(misreported).toEqual([]);
+  });
+
   it("falls back to UNKNOWN method for missing methods", () => {
     expect(
       clickHouseRouteForRequest(request(undefined, "/api/public/health")),
@@ -291,36 +307,41 @@ describe("withMiddlewares error handling", () => {
   });
 
   describe("ClickHouseResourceError handling", () => {
-    it("should handle ClickHouseResourceError with 422 status", async () => {
-      const originalError = new Error("Memory limit exceeded: maximum: 10GB");
-      const resourceError = new ClickHouseResourceError(
-        "MEMORY_LIMIT",
-        originalError,
-      );
+    it.each(["MEMORY_LIMIT", "RESULT_SIZE"] as const)(
+      "should handle %s with 422 status",
+      async (errorType) => {
+        const originalError = new Error("Memory limit exceeded: maximum: 10GB");
+        const resourceError = new ClickHouseResourceError(
+          errorType,
+          originalError,
+        );
 
-      const handler = withMiddlewares({
-        POST: async () => {
-          throw resourceError;
-        },
-      });
+        const handler = withMiddlewares({
+          POST: async () => {
+            throw resourceError;
+          },
+        });
 
-      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
-        method: "POST",
-        headers: {
-          "x-langfuse-public-key": "test-key",
-        },
-      });
+        const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+          method: "POST",
+          headers: {
+            "x-langfuse-public-key": "test-key",
+          },
+        });
 
-      await handler(req, res);
+        await handler(req, res);
 
-      expect(res._getStatusCode()).toBe(422);
-      const jsonData = JSON.parse(res._getData());
-      expect(jsonData["message"]).toBeDefined();
-      expect(jsonData["message"]).toContain(
-        ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
-      );
-      expect(jsonData["error"]).toBe("Request timed out");
-    });
+        expect(res._getStatusCode()).toBe(422);
+        const jsonData = JSON.parse(res._getData());
+        expect(jsonData["message"]).toBeDefined();
+        expect(jsonData["message"]).toContain(resourceError.adviceMessage);
+        expect(jsonData["error"]).toBe(
+          errorType === "RESULT_SIZE"
+            ? "Query result too large"
+            : "Request timed out",
+        );
+      },
+    );
 
     it("should include tags from the error in the warn log", async () => {
       const originalError = new Error("Memory limit exceeded");
@@ -331,6 +352,8 @@ describe("withMiddlewares error handling", () => {
           tag_schema_version: "1",
           surface: "publicapi",
           route: "GET /api/public/test",
+          projectSize: "unknown",
+          queryWindow: "none",
         },
       );
 
@@ -359,6 +382,8 @@ describe("withMiddlewares error handling", () => {
             tag_schema_version: "1",
             surface: "publicapi",
             route: "GET /api/public/test",
+            projectSize: "unknown",
+            queryWindow: "none",
           },
         }),
       );
@@ -477,39 +502,6 @@ describe("withMiddlewares error handling", () => {
     });
   });
 
-  describe("ServiceUnavailableError handling", () => {
-    it("should handle ServiceUnavailableError with 503 status", async () => {
-      const error = new ServiceUnavailableError(
-        "Storage service temporarily unavailable due to network issues",
-      );
-
-      const handler = withMiddlewares({
-        POST: async () => {
-          throw error;
-        },
-      });
-
-      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
-        method: "POST",
-        headers: {
-          "x-langfuse-public-key": "test-key",
-        },
-      });
-
-      await handler(req, res);
-
-      expect(res._getStatusCode()).toBe(503);
-      const jsonData = JSON.parse(res._getData());
-      expect(jsonData).toMatchObject({
-        message:
-          "Storage service temporarily unavailable due to network issues",
-        error: "ServiceUnavailableError",
-      });
-      // Should trace 5xx errors
-      expect(traceException).toHaveBeenCalledWith(error);
-    });
-  });
-
   describe("Generic error handling", () => {
     it("should keep handler RangeError instances on the generic 500 path", async () => {
       const error = new RangeError("Invalid string length");
@@ -570,6 +562,7 @@ describe("withMiddlewares error handling", () => {
     it("should handle non-Error thrown values with 500 status", async () => {
       const handler = withMiddlewares({
         PATCH: async () => {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentional non-Error for middleware coverage
           throw "string error";
         },
       });
@@ -594,6 +587,7 @@ describe("withMiddlewares error handling", () => {
     it("should handle null/undefined errors with 500 status", async () => {
       const handler = withMiddlewares({
         PUT: async () => {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentional non-Error for middleware coverage
           throw null;
         },
       });

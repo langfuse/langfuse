@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { useEffect, useState } from "react";
-import { showToast } from "@/src/features/notifications";
+import { showToast } from "@/src/features/notifications/showToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export const StripeCustomerPortalButton = ({
@@ -49,8 +49,10 @@ export const StripeCustomerPortalButton = ({
     try {
       setLoading(true);
       const { data, error } = await portalQuery.refetch();
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- rethrown here and handled by the local catch + showToast below
       if (error) throw error;
       if (data) {
+        // eslint-disable-next-line @repo/no-location-navigation -- Stripe Customer Portal is an external URL
         window.location.href = data;
       } else {
         showToast({

@@ -1,5 +1,5 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { showErrorToast } from "@/src/features/notifications";
+/* eslint-disable no-nested-ternary -- Legacy UI usage retained during migration to design-system components. */
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import CodeMirror, {
   Decoration,
   EditorView,
@@ -27,11 +27,7 @@ import { Loader2 } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { darkTheme } from "@/src/components/editor/dark-theme";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
@@ -423,7 +419,7 @@ export function CodeEvalTemplateFormBody({
       )}
       Format
       <span className="ml-2 hidden md:inline-flex">
-        <KeyboardShortcut size="sm" keys={["Shift", "Alt", "F"]} />
+        <KeyboardShortcut keys={["Shift", "Alt", "F"]} />
       </span>
     </Button>
   );
@@ -437,13 +433,15 @@ export function CodeEvalTemplateFormBody({
         </div>
         {shouldShowFormatButton ? (
           formatDisabledReason ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex cursor-not-allowed">
+            <Tooltip label={formatDisabledReason}>
+              {({ getTriggerProps }) => (
+                <span
+                  {...getTriggerProps()}
+                  className="inline-flex cursor-not-allowed"
+                >
                   {formatButton}
                 </span>
-              </TooltipTrigger>
-              <TooltipContent>{formatDisabledReason}</TooltipContent>
+              )}
             </Tooltip>
           ) : (
             formatButton

@@ -1,61 +1,75 @@
-import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTopicsCapture } from "./useTopicsCapture";
 
-const VIEWS = [
+const TOPICS_RESULTS_VIEWS = [
   { value: "treemap", label: "Treemap" },
-  { value: "grid", label: "Grid" },
-  { value: "map", label: "Map" },
+  { value: "scatter", label: "Scatter" },
 ] as const;
 
-export type TopicsResultsView = (typeof VIEWS)[number]["value"];
+export type TopicsResultsView = (typeof TOPICS_RESULTS_VIEWS)[number]["value"];
 
 export function TopicsResultsViewSelect({
   value,
   onValueChange,
 }: TopicsResultsViewSelectProps) {
-  const capture = usePostHogClientCapture();
-  function changeView(view: TopicsResultsView) {
-    if (view === value) return;
-    capture("topics:results_view_select", { view, previousView: value });
-    onValueChange(view);
-  }
-  const selected = VIEWS.find((option) => option.value === value);
   return (
-    <DropdownMenu
-      ariaLabel="Topics view"
-      items={VIEWS.map((option) => ({
-        type: "item" as const,
-        id: option.value,
-        title: option.label,
-        onClick: () => changeView(option.value),
-      }))}
+    <Tabs
+      value={value}
+      onValueChange={(next) => onValueChange(next as TopicsResultsView)}
     >
-      {({ getTriggerProps }) => (
-        <button
-          {...getTriggerProps()}
-          type="button"
-          aria-label={`Topics view: ${selected?.label ?? ""}`}
-          className="text-foreground hover:bg-accent focus-visible:ring-ring inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-bold focus-visible:ring-2 focus-visible:outline-hidden"
-        >
-          {selected?.label}
-          <DropdownIndicator />
-        </button>
-      )}
-    </DropdownMenu>
+      <Tabs.List variant="inset" size="sm" aria-label="Topics view">
+        {TOPICS_RESULTS_VIEWS.map((option) => (
+          <Tabs.Trigger
+            key={option.value}
+            value={option.value}
+            label={option.label}
+          />
+        ))}
+      </Tabs.List>
+    </Tabs>
   );
 }
 
 export function useTopicsResultsView() {
-  const [view, setView] = useLocalStorage<TopicsResultsView>(
+  const { view, selectView } = usePersistedResultsView(
     "topicsResultsView",
-    "treemap",
+    TOPICS_RESULTS_VIEWS.map((option) => option.value),
   );
-  return [
-    VIEWS.some((option) => option.value === view) ? view : "treemap",
-    setView,
-  ] as const;
+  return [view, selectView] as const;
+}
+
+/** Mobile keeps its own stored choice; "map" is the scatter there. */
+export type MobileTopicsVisualization = "treemap" | "map";
+
+/** The handheld Visualize tab. */
+export function useMobileTopicsVisualization() {
+  const { view, selectView } =
+    usePersistedResultsView<MobileTopicsVisualization>(
+      "topicsMobileVisualization",
+      ["treemap", "map"],
+      "mobile",
+    );
+  return { view, onViewChange: selectView };
+}
+
+/** Falls back to the treemap when the stored view is no longer available. */
+function usePersistedResultsView<
+  T extends TopicsResultsView | MobileTopicsVisualization,
+>(storageKey: string, views: readonly T[], surface?: "mobile") {
+  const capture = useTopicsCapture();
+  const [stored, setStored] = useLocalStorage<T>(storageKey, "treemap" as T);
+  const view = views.includes(stored) ? stored : ("treemap" as T);
+  function selectView(nextView: T) {
+    if (nextView === view) return;
+    capture("topics:results_view_select", {
+      view: nextView,
+      previousView: view,
+      ...(surface && { surface }),
+    });
+    setStored(nextView);
+  }
+  return { view, selectView };
 }
 
 type TopicsResultsViewSelectProps = {

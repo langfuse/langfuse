@@ -1,12 +1,13 @@
 /* eslint-disable no-nested-ternary */
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useSession } from "next-auth/react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
-import {
-  featurePreviewLabels,
-  useInternalFeaturesEnabled,
-} from "@/src/features/feature-flags";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
+import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import { belongsToTraceEvalsProject } from "@/src/features/evals/transcriptEvalsAccess";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
@@ -55,39 +56,54 @@ export function ControlledFeaturePreviewModal({
   const onToggle = (flag: PreviewFlag) => (enabled: boolean) =>
     setFeaturePreviewEnabled.mutate({ flag, enabled });
 
+  const hasTraceEvalsProject = belongsToTraceEvalsProject(
+    authSession.data?.user,
+  );
+
+  const isTraceEvalsPreviewOn =
+    internalViewEnabled ||
+    authSession.data?.user?.featureFlags.traceTranscriptEvals === true;
+
+  const traceEvalsWarningReason = internalViewEnabled
+    ? "Trace transcript evals are enabled by Internal view. Switching to External view hides them unless they have been enabled for you separately."
+    : undefined;
+
   const isModernSessionEnabled =
     isV4 &&
     (authSession.data?.user?.featureFlags.sessionViewV2 === true ||
       authSession.data?.environment.enableExperimentalFeatures === true);
 
+  const enableExperimentalFeatures =
+    authSession.data?.environment.enableExperimentalFeatures === true;
+  const unifiedViewWarningReason = (() => {
+    if (!isV4) {
+      return `Unified Trace and Session View requires ${V4_PREVIEW_LABEL}.`;
+    }
+    if (enableExperimentalFeatures) {
+      return "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it.";
+    }
+    return undefined;
+  })();
+
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
-    skillManagement: {
+    unifiedTraceSessionView: {
       enabled:
         isV4 &&
-        (authSession.data?.user?.featureFlags.skillManagement === true ||
-          authSession.data?.environment.enableExperimentalFeatures === true),
-      disabled:
-        !isV4 ||
-        authSession.data?.environment.enableExperimentalFeatures === true,
-      warningReason: !isV4
-        ? `Skill Management requires ${V4_PREVIEW_LABEL}. Turn it on to enable this preview.`
-        : authSession.data?.environment.enableExperimentalFeatures === true
-          ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
-          : undefined,
-      onToggle: onToggle("skillManagement"),
+        (authSession.data?.user?.featureFlags.unifiedTraceSessionView ===
+          true ||
+          enableExperimentalFeatures),
+      disabled: !isV4 || enableExperimentalFeatures,
+      warningReason: unifiedViewWarningReason,
+      onToggle: onToggle("unifiedTraceSessionView"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
-    ...(authSession.data?.user?.admin === true
+    ...(hasTraceEvalsProject
       ? {
-          langfuseTopics: {
-            enabled:
-              internalViewEnabled ||
-              authSession.data.user.featureFlags.langfuseTopics === true,
+          traceTranscriptEvals: {
+            enabled: isTraceEvalsPreviewOn,
             disabled: internalViewEnabled,
-            warningReason: internalViewEnabled
-              ? "Topics is enabled by Internal view. Switch to External view to manage this preview separately."
-              : undefined,
-            onToggle: onToggle("langfuseTopics"),
+            warningReason: traceEvalsWarningReason,
+            onToggle: onToggle("traceTranscriptEvals"),
             isToggling: setFeaturePreviewEnabled.isPending,
           },
         }
@@ -111,7 +127,6 @@ export function ControlledFeaturePreviewModal({
         (authSession.data?.user?.featureFlags.sessionViewV2Timeline === true ||
           authSession.data?.environment.enableExperimentalFeatures === true),
       disabled:
-        !isV4 ||
         !isModernSessionEnabled ||
         authSession.data?.environment.enableExperimentalFeatures === true,
       warningReason: !isV4

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { stringifyValue } from "../../utils/stringChecks";
 import type { EvalExecutionContext } from "../../features/evals/evalExecutionMetadata";
 import {
@@ -36,13 +35,15 @@ const INTERNAL_CODE_EVAL_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
   CodeEvalDispatcherErrorCodes.LAMBDA_CONCURRENCY_LIMIT,
   CodeEvalDispatcherErrorCodes.LAMBDA_CONFIGURATION_ERROR,
   CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
+  CodeEvalDispatcherErrorCodes.EXTERNAL_CONFIGURATION_ERROR,
+  CodeEvalDispatcherErrorCodes.EXTERNAL_INVOCATION_ERROR,
 ]);
 
 const USER_VISIBLE_CODE_EVAL_ERROR_MESSAGE_BY_CODE: Partial<
   Record<CodeEvalDispatcherErrorCode, string>
 > = {
   [CodeEvalDispatcherErrorCodes.INVALID_RESULT]: withCodeEvalDocs(
-    "The evaluator returned an invalid result. Return { scores: [...] } with at least one score. Each score requires a name, dataType, and value; dataType must match the value type.",
+    "The evaluator returned an invalid result. Return { scores: [...] }. Each score requires a name, dataType, and value; dataType must match the value type.",
   ),
   [CodeEvalDispatcherErrorCodes.TIMEOUT]: withCodeEvalDocs(
     "Evaluator timed out. Code-based evaluators must complete within the configured runtime limit. Long executions can be caused by network calls, which are forbidden and may never complete. Remove network calls, optimize your evaluator code, and try again.",
@@ -140,7 +141,6 @@ function buildCodeEvalPayload(params: {
       toolCalls,
     },
   };
-
   if (params.hasExperimentContext) {
     payload.experiment = {
       itemExpectedOutput: byName.get("experimentItemExpectedOutput") ?? null,

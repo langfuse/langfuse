@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EventType } from "@ag-ui/core";
 import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "@langfuse/shared/in-app-agent";
 import {
@@ -10,6 +9,7 @@ import {
   isInAppAgentToolWithInputs,
 } from "@langfuse/shared/in-app-agent";
 import { toAgUiToolResultContent } from "@langfuse/shared/in-app-agent/server/toolResults";
+import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
 import type { AgUiRunAgentInput, ResumeForwardedProps } from "./types";
 
 const MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE =
@@ -173,7 +173,11 @@ async function executeApprovedToolCall(params: {
       params.resumeData,
     );
 
-    return { toolResult: result, modelToolResult: modelResult };
+    return {
+      toolResult: result,
+      modelToolResult: modelResult,
+      toolError: getToolFailureMessage(undefined, result),
+    };
   } catch (error) {
     const toolError = formatToolExecutionError(error);
 

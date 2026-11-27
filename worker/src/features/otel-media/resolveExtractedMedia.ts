@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { EarlyOtelBatch, ExtractedOtelMedia } from "@langfuse/native";
 import pLimit from "p-limit";
 import {
@@ -28,7 +27,13 @@ import {
 
 const MEDIA_PAGE_SIZE = 4_096;
 
-type CachedMediaUpload = {
+/** The durable media writes: the stored object with its record, and its link to a trace or observation. */
+export type MediaWrites = {
+  uploadMedia: typeof uploadMediaForTrace;
+  linkMedia: typeof linkMediaToTraceOrObservation;
+};
+
+export type CachedMediaUpload = {
   mediaId: string;
   outcome: "uploaded" | "reused";
   byteLength: number;
@@ -51,7 +56,7 @@ async function batchMedia(batch: EarlyOtelBatch): Promise<MediaRegistry> {
   const load = (async () => {
     const count = batch.mediaCount();
     const media = new Map<string, ExtractedOtelMedia>();
-    for (let offset = 0; offset < count; ) {
+    for (let offset = 0; offset < count;) {
       const resultStartedAt = performance.now();
       const page = batch.mediaPage(offset, MEDIA_PAGE_SIZE);
       for (const entry of page) media.set(entry.reference, entry);
@@ -95,6 +100,7 @@ export async function uploadExtractedMediaOnce(params: {
   contentType: MediaContentType;
   byteLengthUpperBound: number;
   loadBody: () => Promise<Buffer>;
+  writes: MediaWrites;
 }): Promise<CachedMediaUpload> {
   const {
     batch,
@@ -107,6 +113,7 @@ export async function uploadExtractedMediaOnce(params: {
     sha256Hash,
     contentType,
     loadBody,
+    writes,
   } = params;
   const key = [
     projectId,
@@ -123,7 +130,7 @@ export async function uploadExtractedMediaOnce(params: {
   const cached = cache.get(key);
   if (cached) {
     const result = await cached;
-    await linkMediaToTraceOrObservation({
+    await writes.linkMedia({
       projectId,
       traceId,
       observationId,
@@ -139,7 +146,7 @@ export async function uploadExtractedMediaOnce(params: {
     async (): Promise<CachedMediaUpload> => {
       const contentBytes = await loadBody();
       return {
-        ...(await uploadMediaForTrace({
+        ...(await writes.uploadMedia({
           projectId,
           traceId,
           observationId,
@@ -240,6 +247,10 @@ export async function resolveExtractedMedia(params: {
         // Native retains encoded source spelling, which bounds the decoded body.
         byteLengthUpperBound: entry.originalByteLength,
         loadBody: () => batch.mediaBody(entry.index),
+        writes: {
+          uploadMedia: uploadMediaForTrace,
+          linkMedia: linkMediaToTraceOrObservation,
+        },
       });
       const replacement = entry.reference.replace(
         /\|id=[^|@]+/,
@@ -294,7 +305,7 @@ export async function resolveExtractedMedia(params: {
 }
 
 /** Record outcomes for media discovered by the native extractor. */
-function recordExtractedMediaUpload(
+export function recordExtractedMediaUpload(
   outcome: "uploaded" | "reused" | "failed",
   kind: string,
   writePath: OtelMediaWritePath,

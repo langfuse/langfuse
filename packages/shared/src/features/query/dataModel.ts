@@ -3,10 +3,12 @@ import {
   type ViewVersion,
   type ViewDeclarationType,
   type DimensionsDeclarationType,
+  type metricAggregations,
   type views,
+  type viewsV2,
   SCORES_LISTABLE_COUNT_VIEW,
 } from "./types";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import {
   eventsTableIsRootObservationSqlForAlias,
   eventsTableTraceNameAggregationSqlForAlias,
@@ -14,8 +16,22 @@ import {
 } from "../../eventsTable";
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { EvalExecutionMetadataKey } from "../evals/evalExecutionMetadata";
+import {
+  AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
+  AI_GATEWAY_SERVICE_NAME,
+} from "../ai-gateway/constants";
+
+/** numericMeasureTypes are the measure types whose values carry their own unit. */
+const numericMeasureTypes = new Set(["integer", "decimal", "number"]);
+
+/** The relations the v2 score views join, as their entries' `relationTable` names them. */
+export const SCORE_V2_RELATIONS = {
+  traces: "events_traces",
+  observations: "events_observations",
+} as const;
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
+// New views build their SQL on the query AST, not from these `sql` strings: see ./AGENTS.md.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
 
 export const traceView: ViewDeclarationType = {
@@ -126,7 +142,7 @@ export const traceView: ViewDeclarationType = {
       relationTable: "observations",
       description:
         "Elapsed time between the first and last observation inside the trace.",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     totalTokens: {
@@ -248,7 +264,7 @@ export const eventsTracesView: ViewDeclarationType = {
         "argMaxIf(events_traces.environment, events_traces.event_ts, events_traces.environment <> '')",
     },
     timestampMonth: {
-      sql: "events_traces.start_time",
+      sql: "formatDateTime(events_traces.start_time, '%Y-%m')",
       alias: "timestampMonth",
       type: "string",
       description: "Month of the trace timestamp in YYYY-MM format.",
@@ -331,7 +347,7 @@ export const eventsTracesView: ViewDeclarationType = {
       type: "integer",
       description:
         "Elapsed time between the first and last observation inside the trace.",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     totalTokens: {
@@ -543,7 +559,7 @@ export const observationsView: ViewDeclarationType = {
       type: "integer",
       description:
         "Latency of an individual observation (start time to end time).",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     streamingLatency: {
@@ -554,7 +570,7 @@ export const observationsView: ViewDeclarationType = {
       type: "integer",
       description:
         "Latency of the generation step (completion start time to end time).",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     inputTokens: {
@@ -641,7 +657,7 @@ export const observationsView: ViewDeclarationType = {
       alias: "timeToFirstToken",
       type: "integer",
       description: "Time to first token for the observation.",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     countScores: {
@@ -795,19 +811,19 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     highCardinality: true,
     uiHidden: true,
   },
-  // Trace metadata on events table (accessed via events_traces JOIN)
+  // Trace attributes aggregated over the trace's spans (events_traces JOIN)
   traceName: {
-    sql: eventsTableTraceNameSqlForAlias("events_traces"),
+    sql: "events_traces.name",
     alias: "traceName",
     type: "string",
-    relationTable: "events_traces",
+    relationTable: SCORE_V2_RELATIONS.traces,
     description: "Name of the parent trace.",
   },
   userId: {
     sql: "nullIf(events_traces.user_id, '')",
     alias: "userId",
     type: "string",
-    relationTable: "events_traces",
+    relationTable: SCORE_V2_RELATIONS.traces,
     description: "Identifier of the user.",
     highCardinality: true,
   },
@@ -815,21 +831,21 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     sql: "events_traces.tags",
     alias: "tags",
     type: "string[]",
-    relationTable: "events_traces",
+    relationTable: SCORE_V2_RELATIONS.traces,
     description: "User-defined tags.",
   },
   traceRelease: {
     sql: "nullIf(events_traces.release, '')",
     alias: "traceRelease",
     type: "string",
-    relationTable: "events_traces",
+    relationTable: SCORE_V2_RELATIONS.traces,
     description: "Release version.",
   },
   traceVersion: {
     sql: "nullIf(events_traces.version, '')",
     alias: "traceVersion",
     type: "string",
-    relationTable: "events_traces",
+    relationTable: SCORE_V2_RELATIONS.traces,
     description: "Version of the parent trace.",
   },
   // Observation fields from events table (accessed via events_observations JOIN)
@@ -837,28 +853,28 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     sql: "events_observations.name",
     alias: "observationName",
     type: "string",
-    relationTable: "events_observations",
+    relationTable: SCORE_V2_RELATIONS.observations,
     description: "Name of the observation associated with the score.",
   },
   observationModelName: {
     sql: "nullIf(events_observations.provided_model_name, '')",
     alias: "observationModelName",
     type: "string",
-    relationTable: "events_observations",
+    relationTable: SCORE_V2_RELATIONS.observations,
     description: "Name of the model used for the observation.",
   },
   observationPromptName: {
     sql: "nullIf(events_observations.prompt_name, '')",
     alias: "observationPromptName",
     type: "string",
-    relationTable: "events_observations",
+    relationTable: SCORE_V2_RELATIONS.observations,
     description: "Name of the prompt used for the observation.",
   },
   observationPromptVersion: {
     sql: "events_observations.prompt_version",
     alias: "observationPromptVersion",
     type: "number",
-    relationTable: "events_observations",
+    relationTable: SCORE_V2_RELATIONS.observations,
     description: "Version of the prompt used for the observation.",
   },
   // Experiment fields for observation-attached scores. These stay hidden from
@@ -868,7 +884,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     sql: "nullIf(events_observations.experiment_name, '')",
     alias: "experimentName",
     type: "string",
-    relationTable: "events_observations",
+    relationTable: SCORE_V2_RELATIONS.observations,
     description: "Name of the experiment associated with the score.",
     highCardinality: true,
     uiHidden: true,
@@ -877,7 +893,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     sql: "nullIf(events_observations.experiment_id, '')",
     alias: "experimentId",
     type: "string",
-    relationTable: "events_observations",
+    relationTable: SCORE_V2_RELATIONS.observations,
     description: "ID of the experiment associated with the score.",
     highCardinality: true,
     uiHidden: true,
@@ -1008,20 +1024,19 @@ const createScoreTableRelations = (
     };
   }
 
+  // The score views compile their joins on the query AST (scoresQuery.ts);
+  // these strings only describe them.
   return {
-    events_traces: {
+    // Trace attributes are spread over spans in v4, so the join reads one
+    // aggregated row per trace (see eventsTraceAttributes).
+    [SCORE_V2_RELATIONS.traces]: {
       name: "events_core",
-      // Legacy and dual-write ingestion materialize a parentless synthetic
-      // trace event and propagate trace metadata to it. Native V4 may not, but
-      // its app roots come from newer SDKs and are expected to carry trace_name.
-      // A semantic-root join can match both rows in dual-write data and
-      // multiply scores for little fallback value.
       joinConditionSql:
-        "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
+        "ON scores.trace_id = events_traces.id AND scores.project_id = events_traces.project_id",
       timeDimension: "start_time",
       useFinal: false,
     },
-    events_observations: {
+    [SCORE_V2_RELATIONS.observations]: {
       name: "events_core",
       joinConditionSql:
         "ON scores.project_id = events_observations.project_id AND scores.trace_id = events_observations.trace_id AND scores.observation_id = events_observations.span_id",
@@ -1050,14 +1065,16 @@ function scoresNumericViewBase(version: "v1" | "v2"): ViewDeclarationType {
     },
     measures: {
       count: {
-        sql: "count(*)",
+        sql: "@@AGG1@@(1)",
+        aggs: { agg1: "count" },
         alias: "count",
         type: "integer",
         description: "Total number of scores.",
         unit: "scores",
       },
       value: {
-        sql: "any(value)",
+        sql: "@@AGG1@@(value)",
+        aggs: { agg1: "any" },
         alias: "value",
         type: "number",
         description: "Value of the score.",
@@ -1099,7 +1116,8 @@ function scoresCategoricalViewBase(version: "v1" | "v2"): ViewDeclarationType {
     },
     measures: {
       count: {
-        sql: "count(*)",
+        sql: "@@AGG1@@(1)",
+        aggs: { agg1: "count" },
         alias: "count",
         type: "integer",
         description: "Total number of scores.",
@@ -1139,14 +1157,16 @@ function scoresBooleanViewBase(version: "v1" | "v2"): ViewDeclarationType {
     },
     measures: {
       count: {
-        sql: "count(*)",
+        sql: "@@AGG1@@(1)",
+        aggs: { agg1: "count" },
         alias: "count",
         type: "integer",
         description: "Total number of scores.",
         unit: "scores",
       },
       value: {
-        sql: "any(value)",
+        sql: "@@AGG1@@(value)",
+        aggs: { agg1: "any" },
         alias: "value",
         type: "number",
         description:
@@ -1213,7 +1233,8 @@ function scoresListableCountViewBase(
     },
     measures: {
       count: {
-        sql: "count(*)",
+        sql: "@@AGG1@@(1)",
+        aggs: { agg1: "count" },
         alias: "count",
         type: "integer",
         description: "Total number of scores across every listable score type.",
@@ -1324,6 +1345,29 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "string",
       description: "Identifier of the session triggering the observation.",
       highCardinality: true,
+    },
+    aiGatewayKeyId: {
+      // Ingestion only writes the gateway service name on uploads the gateway
+      // authenticated, and then sets ingestion_api_key to the gateway key id.
+      sql: `if(events_observations.service_name = '${AI_GATEWAY_SERVICE_NAME}', nullIf(events_observations.ingestion_api_key, ''), NULL)`,
+      alias: "aiGatewayKeyId",
+      type: "string",
+      description:
+        "Identifier of the AI Gateway API key that produced the observation. Empty for traffic that did not pass through the gateway.",
+      highCardinality: true,
+      uiHidden: true,
+    },
+    aiGatewayKeyOwnerUserId: {
+      // The span's user_id is not used: a key without an owner lets its caller
+      // set any user ID. The owner ID comes from metadata the gateway writes,
+      // so it outlives the key's deletion.
+      sql: `if(events_observations.service_name = '${AI_GATEWAY_SERVICE_NAME}', nullIf(events_observations.metadata_values[indexOf(events_observations.metadata_names, '${AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY}')], ''), NULL)`,
+      alias: "aiGatewayKeyOwnerUserId",
+      type: "string",
+      description:
+        "Identifier of the user an AI Gateway key is bound to. Empty for service keys and for traffic that did not pass through the gateway.",
+      highCardinality: true,
+      uiHidden: true,
     },
     tags: {
       sql: "events_observations.tags",
@@ -1522,7 +1566,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "integer",
       description:
         "Latency of an individual observation (start time to end time).",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     streamingLatency: {
@@ -1532,7 +1576,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "integer",
       description:
         "Latency of the generation step (completion start time to end time).",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     inputTokens: {
@@ -1615,7 +1659,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       alias: "timeToFirstToken",
       type: "integer",
       description: "Time to first token for the observation.",
-      unit: "millisecond",
+      unit: "milliseconds",
       defaultAggregation: "avg",
     },
     countScores: {
@@ -1750,16 +1794,23 @@ export function getViewDeclaration(
   return versionViews[viewName as keyof typeof versionViews];
 }
 
+/** isNumericMetadataFilter reports whether the filter compares metadata values as numbers. */
+export const isNumericMetadataFilter = (filter: {
+  column: string;
+  type?: string;
+}): boolean => filter.column === "metadata" && filter.type === "numberObject";
+
 /**
  * Check whether a widget's selected fields require v2 view declarations.
  * Returns true if any dimension or measure only exists in the v2 declaration
- * for the given view (e.g. pairExpand dimensions, requiresDimension measures).
+ * for the given view (e.g. pairExpand dimensions, requiresDimension measures),
+ * or if a filter compares metadata as a number, which only v2 lowers.
  */
 export function requiresV2(params: {
   view: string;
   dimensions: { field: string }[];
   measures: { measure: string }[];
-  filters?: { column: string }[];
+  filters?: { column: string; type?: string }[];
 }): boolean {
   const v1View =
     viewDeclarations.v1[params.view as keyof (typeof viewDeclarations)["v1"]];
@@ -1777,14 +1828,16 @@ export function requiresV2(params: {
   return (
     params.dimensions.some((d) => v2OnlyDims.includes(d.field)) ||
     params.measures.some((m) => v2OnlyMeasures.includes(m.measure)) ||
-    (params.filters ?? []).some((f) => v2OnlyDims.includes(f.column))
+    (params.filters ?? []).some(
+      (f) => v2OnlyDims.includes(f.column) || isNumericMetadataFilter(f),
+    )
   );
 }
 
 /**
  * Returns the declared unit for a measure in a given view/version, or undefined
  * if the view or measure is not found. Use this to drive display formatting
- * (e.g. unit === "millisecond" → convert to seconds before rendering).
+ * (e.g. unit === "milliseconds" → convert to seconds before rendering).
  */
 function getMeasureUnit(
   viewName: string,
@@ -1810,6 +1863,22 @@ export function getResultUnit(
 ): string | undefined {
   if (aggregation === "count" || aggregation === "uniq") return "integer";
   return getMeasureUnit(viewName, measureName, version);
+}
+
+/** getMetricUnit returns the declared unit of a v2 metric's value, using the view's row unit for any count. */
+export function getMetricUnit(
+  view: z.infer<typeof viewsV2>,
+  metric: {
+    measure: string;
+    aggregation: z.infer<typeof metricAggregations>;
+  },
+): string | undefined {
+  const measures = viewDeclarations.v2[view].measures;
+  const definition = measures[metric.measure];
+  const isNumeric = numericMeasureTypes.has(definition?.type ?? "");
+  if (metric.aggregation === "count") return measures.count?.unit;
+  if (metric.aggregation === "uniq" && isNumeric) return undefined;
+  return definition?.unit;
 }
 
 const measureNamesSet = new Set<string>();

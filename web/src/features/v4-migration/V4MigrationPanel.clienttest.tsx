@@ -48,6 +48,7 @@ vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
     <div data-testid="readiness">{readiness ?? "unknown"}</div>
   ),
   V4MigrationDetailsContent: () => <div>Details</div>,
+  allRemainingActionsAreMigratedKeys: () => false,
 }));
 
 describe("V4MigrationPanel", () => {

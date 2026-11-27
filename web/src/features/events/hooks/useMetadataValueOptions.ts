@@ -7,7 +7,7 @@ import {
 } from "@langfuse/shared";
 
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { normalizeSingleValueOptions } from "@/src/features/filters";
+import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
 
 /** metadataValueQueryOptions is the shared react-query config for each per-key metadata-value query. */
 const metadataValueQueryOptions = {
@@ -99,4 +99,5 @@ type MetadataValueResult = {
   data: RouterOutputs["events"]["metadataValues"] | undefined;
 };
 
+/** @internal */
 export const __test = { zipMetadataValueOptions, metadataKeysInUse };

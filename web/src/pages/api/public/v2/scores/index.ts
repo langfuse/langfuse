@@ -1,3 +1,4 @@
+import { logger } from "@langfuse/shared/src/server";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
@@ -8,7 +9,7 @@ import {
 } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "/api/public/scores",
@@ -93,7 +94,9 @@ export default withMiddlewares({
       const finalCount = count ? count : 0;
 
       return {
-        data: filterAndValidateV2GetScoreList(items),
+        data: filterAndValidateV2GetScoreList(items, (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
+        ),
         meta: {
           page: query.page,
           limit: query.limit,

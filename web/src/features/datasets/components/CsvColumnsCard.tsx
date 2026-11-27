@@ -4,6 +4,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { cn } from "@/src/utils/tailwind";
 import { useDraggable } from "@dnd-kit/core";
 import { GripVertical } from "@langfuse/icons";
@@ -67,9 +68,11 @@ export function CsvColumnsCard({
             <DraggableColumn key={column.name} column={column} />
           ))}
         </div>
-        <div className="bg-light-blue/40 text-accent-dark-blue shrink-0 rounded-lg p-3 text-xs leading-relaxed">
-          <strong className="font-bold">Tip:</strong> Drag columns from this
-          list to the mapping fields on the right.
+        <div className="shrink-0">
+          <Banner variant="info">
+            <strong className="font-bold">Tip:</strong> Drag columns from this
+            list to the mapping fields on the right.
+          </Banner>
         </div>
       </CardContent>
     </Card>

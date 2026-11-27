@@ -2,13 +2,17 @@ import {
   createEvent as createEventBase,
   createEventsCh,
   createOrgProjectAndApiKey,
+  EventsQueryBuilder,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
-import { GetObservationsV2Response } from "@/src/features/public-api/types/observations";
+import {
+  GetObservationsV2Response,
+  encodeCursor,
+} from "@/src/features/public-api/types/observations";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import waitForExpect from "wait-for-expect";
@@ -46,11 +50,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
     const fixture = await createOrgProjectAndApiKey();
     projectId = fixture.projectId;
     auth = fixture.auth;
-  });
-
-  it("should kill redis connection", () => {
-    // we need at least one test case to avoid hanging
-    // redis connection when everything else is skipped.
   });
 
   it("rejects matches filters on v1 observations", async () => {
@@ -240,6 +239,33 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty("error");
       expect(JSON.stringify(response.body)).toContain("parseIoAsJson");
+    });
+
+    it.each([
+      [
+        "positionInTrace",
+        {
+          column: "positionInTrace",
+          type: "positionInTrace",
+          operator: "=",
+          key: "root",
+        },
+      ],
+      [
+        "ill-typed",
+        {
+          column: "parentObservationId",
+          type: "number",
+          operator: ">",
+          value: 1,
+        },
+      ],
+    ])("returns 400 for a %s advanced filter", async (_name, filter) => {
+      const response = await getRaw(
+        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(JSON.stringify([filter]))}`,
+      );
+
+      expect(response.status).toBe(400);
     });
 
     it("returns core and basic fields when fields is omitted", async () => {
@@ -911,6 +937,63 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(matchedObs?.name).toBe("nested-metadata-obs-1");
     });
 
+    it("filters metadata by numeric comparison with numberObject", async () => {
+      const traceId = randomUUID();
+      const timeValue = Date.now() * 1000;
+      const attempts = { "20": randomUUID(), "20.0": randomUUID() };
+      const belowId = randomUUID();
+      const nonNumericId = randomUUID();
+      const event = (id: string, attempt: string, offset: number) =>
+        createEvent({
+          id,
+          span_id: id,
+          trace_id: traceId,
+          project_id: projectId,
+          name: `attempt-${attempt}`,
+          type: "SPAN",
+          level: "DEFAULT",
+          start_time: timeValue + offset * 1000,
+          metadata_names: ["attempt"],
+          metadata_values: [attempt],
+        });
+
+      await createEventsCh([
+        event(attempts["20"], "20", 0),
+        event(attempts["20.0"], "20.0", 1),
+        event(belowId, "3", 2),
+        event(nonNumericId, "many", 3),
+      ]);
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
+            params: { projectId, traceId },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(4);
+        },
+        5000,
+        10,
+      );
+
+      const filterParam = JSON.stringify([
+        {
+          type: "numberObject",
+          column: "metadata",
+          key: "attempt",
+          operator: ">",
+          value: 10,
+        },
+      ]);
+      const response = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&filter=${encodeURIComponent(filterParam)}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.map((obs) => obs.id).sort()).toEqual(
+        Object.values(attempts).sort(),
+      );
+    });
+
     it("supports indexed literal matches filters for IO and metadata", async () => {
       const traceId = randomUUID();
       const timestamp = new Date();
@@ -1341,9 +1424,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
     ] as const;
 
     // All non-core fields across all groups — used to assert absence.
-    // Note: latency is computed from start_time/end_time (both in core). timeToFirstToken is computed from start_time
-    // and completion_start_time, but the converter spreads it when EITHER is defined; since start_time is in core and
-    // always selected, timeToFirstToken is always present (as null when completion_start_time is not selected).
     const ALL_NON_CORE_FIELDS = [
       // basic
       "name",
@@ -1379,6 +1459,9 @@ describe("/api/public/v2/observations API Endpoint", () => {
       "promptId",
       "promptName",
       "promptVersion",
+      // metrics
+      "latency",
+      "timeToFirstToken",
       // trace_context
       "traceName",
       "tags",
@@ -1483,9 +1566,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
         "usagePricingTierName",
       ],
       prompt: ["promptId", "promptName", "promptVersion"],
-      // latency and timeToFirstToken are always returned (computed from core start_time, completion_start_time,
-      // end_time), but the metrics group is still defined for documentation and to verify these fields are indeed
-      // present
       metrics: ["latency", "timeToFirstToken"],
       trace_context: ["traceName", "tags", "release"],
     };
@@ -1745,6 +1825,112 @@ describe("/api/public/v2/observations API Endpoint", () => {
   });
 
   maybe("Cursor-based pagination", () => {
+    it("paginates across empty scan windows without repeating boundary rows", async () => {
+      const traceId = randomUUID();
+      const ids = [randomUUID(), randomUUID(), randomUUID()];
+      const upper = new Date();
+      upper.setUTCHours(0, 0, 0, 0);
+      const daysBefore = (days: number) =>
+        new Date(upper.getTime() - days * 24 * 60 * 60 * 1000);
+      const timestamps = [7, 15, 17].map(daysBefore);
+      await createEventsCh(
+        ids.map((id, index) =>
+          createEvent({
+            id,
+            span_id: id,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            start_time: timestamps[index].getTime() * 1000,
+          }),
+        ),
+      );
+
+      const url = `/api/public/v2/observations?traceId=${traceId}&fields=core&limit=2&fromStartTime=${daysBefore(18).toISOString()}&toStartTime=${upper.toISOString()}`;
+      const first = await getObservations(url);
+      expect(first.status).toBe(200);
+      expect(first.body.data.map((row) => row.id)).toEqual(ids.slice(0, 2));
+      expect(first.body.meta.cursor).toBeDefined();
+      const second = await getObservations(
+        `${url}&cursor=${encodeURIComponent(first.body.meta.cursor!)}`,
+      );
+      expect(second.body.data.map((row) => row.id)).toEqual(ids.slice(2));
+      expect(second.body.meta.cursor).toBeUndefined();
+
+      const boundaryCursor = encodeCursor({
+        lastStartTimeTo: timestamps[0],
+        lastTraceId: "CUR00254FG5s",
+        lastId: "",
+      });
+      const afterEmptyWindow = await getObservations(
+        `${url}&cursor=${encodeURIComponent(boundaryCursor)}`,
+      );
+      expect(afterEmptyWindow.body.data.map((row) => row.id)).toEqual(
+        ids.slice(1),
+      );
+      expect(afterEmptyWindow.body.meta.cursor).toBeUndefined();
+
+      const [{ hash }] = await queryClickhouse<{ hash: number }>({
+        query: "SELECT xxHash32({traceId: String}) AS hash",
+        params: { traceId: "CUR00254FG5s" },
+      });
+      expect(hash).toBe(0);
+    });
+
+    it("scans sparse future windows without clamping customer timestamps", async () => {
+      const traceId = randomUUID();
+      const olderId = randomUUID();
+      const futureId = randomUUID();
+      const from = new Date("2026-10-01T00:00:00.000Z");
+      const to = new Date("2100-02-01T00:00:00.000Z");
+      const older = new Date("2026-10-15T00:00:00.000Z");
+      const future = new Date("2099-12-15T00:00:00.000Z");
+
+      await createEventsCh([
+        createEvent({
+          id: olderId,
+          span_id: olderId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          start_time: older.getTime() * 1000,
+        }),
+        createEvent({
+          id: futureId,
+          span_id: futureId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          start_time: future.getTime() * 1000,
+        }),
+      ]);
+
+      const countQuery = new EventsQueryBuilder({ projectId })
+        .selectRaw("count() AS count")
+        .whereRaw("e.trace_id = {traceId: String}", { traceId })
+        .buildWithParams();
+
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>(countQuery);
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(2);
+        },
+        5000,
+        10,
+      );
+
+      const response = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=core&limit=10&fromStartTime=${from.toISOString()}&toStartTime=${to.toISOString()}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.map((row) => row.id)).toEqual([
+        futureId,
+        olderId,
+      ]);
+      expect(response.body.meta.cursor).toBeUndefined();
+    });
+
     it("should apply LIMIT to query even on first request (no cursor)", async () => {
       // This test verifies the bug fix - the v2 API should respect limit
       // even on the first request without a cursor

@@ -1,3 +1,5 @@
+// Golden SQL for getEnvironmentsForProject across v4 write modes.
+
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { env } from "../../env";
@@ -6,14 +8,14 @@ import {
   clickhouseFormatAvailable,
   normalizeCapturedQueries,
   resetCaptures,
-} from "./goldenHarness";
+} from "./__tests__/goldenHarness";
 
 // Record the exec seam instead of hitting ClickHouse. The factory is hoisted
 // above imports, so it pulls the harness in via dynamic import; the captured
 // store is a module singleton shared with the assertions below.
 vi.mock("./clickhouse", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./clickhouse")>();
-  const { buildClickhouseMock } = await import("./goldenHarness.js");
+  const { buildClickhouseMock } = await import("./__tests__/goldenHarness.js");
   return buildClickhouseMock(actual);
 });
 

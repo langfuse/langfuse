@@ -1,8 +1,7 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import type { BlobStorageIntegrationStatusResponseType } from "@/src/features/public-api/types/blob-storage-integrations";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
@@ -17,7 +16,9 @@ async function handleDeleteBlobStorageIntegration(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  const scope = await authorizeBlobStorageRequest(req);
+  const scope = await authorizeBlobStorageRequest(req, {
+    requireEntitlement: false,
+  });
 
   const { id } = req.query;
 
@@ -62,7 +63,9 @@ async function handleGetBlobStorageIntegrationStatus(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  const scope = await authorizeBlobStorageRequest(req);
+  const scope = await authorizeBlobStorageRequest(req, {
+    requireEntitlement: false,
+  });
 
   const { id } = req.query;
   if (!id || typeof id !== "string") {

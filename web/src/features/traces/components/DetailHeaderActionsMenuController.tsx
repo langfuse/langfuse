@@ -1,6 +1,4 @@
-/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 import { useRouter } from "next/router";
-import { useSession } from "next-auth/react";
 import { CheckIcon, CopyIcon, Webhook } from "@langfuse/icons";
 import { useState, type ComponentProps, type ReactNode } from "react";
 import {
@@ -10,20 +8,20 @@ import {
 import {
   buildEventsTablePathForObservationType,
   buildEventsTablePathForSpanName,
-} from "@/src/features/events";
+} from "@/src/features/events/lib/eventsTablePaths";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
-import { useWebCalloutAction } from "@/src/features/web-callouts";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
+import type { useWebCalloutAction } from "@/src/features/web-callouts/components/useWebCalloutAction";
 
 type IdItem = {
   name: string;
   id: string;
 };
 
-type DetailHeaderActionsProps = {
+export type DetailHeaderActionsProps = {
   idItems: IdItem[];
-  isAdmin: boolean;
+  internalFeaturesEnabled: boolean;
   observationType?: ObservationType;
   projectId: string;
   observation?: {
@@ -35,7 +33,7 @@ type DetailHeaderActionsProps = {
   webCalloutAction?: ReturnType<typeof useWebCalloutAction>;
 };
 
-type MenuPresentation =
+export type MenuPresentation =
   | {
       children: ComponentProps<typeof DropdownMenu>["children"];
       renderMenu?: never;
@@ -47,18 +45,6 @@ type MenuPresentation =
 
 type DetailHeaderActionsMenuControllerProps = DetailHeaderActionsProps &
   MenuPresentation;
-
-type ConnectedDetailHeaderActionsMenuControllerProps = Omit<
-  DetailHeaderActionsProps,
-  "isAdmin" | "webCalloutAction"
-> &
-  MenuPresentation & {
-    webCallout?: {
-      traceId: string | null;
-      observationId?: string | null;
-      sessionId?: string | null;
-    };
-  };
 
 function buildObservationClickHouseQuery(
   projectId: string,
@@ -74,7 +60,7 @@ function buildObservationClickHouseQuery(
     .replace("T", " ");
 
   // Match the events_full primary-key prefix, without requiring microsecond
-  // precision from the browser's Date. The query runs in the admin's SQL client.
+  // precision from the browser's Date. The query runs in an internal SQL client.
   return `SELECT *
 FROM events_full
 WHERE project_id = ${quote(projectId)}
@@ -87,60 +73,9 @@ ORDER BY event_ts DESC
 LIMIT 1;`;
 }
 
-export function ConnectedDetailHeaderActionsMenuController({
-  webCallout,
-  ...props
-}: ConnectedDetailHeaderActionsMenuControllerProps) {
-  const session = useSession();
-  const isAdmin = session.data?.user?.admin === true;
-
-  if (!webCallout) {
-    return <DetailHeaderActionsMenuController {...props} isAdmin={isAdmin} />;
-  }
-
-  return (
-    <WebCalloutActionController
-      projectId={props.projectId}
-      webCallout={webCallout}
-    >
-      {(webCalloutAction) => (
-        <DetailHeaderActionsMenuController
-          {...props}
-          isAdmin={isAdmin}
-          webCalloutAction={webCalloutAction}
-        />
-      )}
-    </WebCalloutActionController>
-  );
-}
-
-function WebCalloutActionController({
-  projectId,
-  webCallout,
-  children,
-}: {
-  projectId: string;
-  webCallout: NonNullable<
-    ConnectedDetailHeaderActionsMenuControllerProps["webCallout"]
-  >;
-  children: (action: ReturnType<typeof useWebCalloutAction>) => ReactNode;
-}) {
-  const action = useWebCalloutAction(
-    {
-      projectId,
-      traceId: webCallout.traceId,
-      observationId: webCallout.observationId,
-      sessionId: webCallout.sessionId,
-    },
-    true,
-  );
-
-  return children(action);
-}
-
 export function DetailHeaderActionsMenuController({
   idItems,
-  isAdmin,
+  internalFeaturesEnabled,
   observationType,
   projectId,
   observation,
@@ -153,7 +88,7 @@ export function DetailHeaderActionsMenuController({
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const clickHouseQuery =
-    isAdmin && observation
+    internalFeaturesEnabled && observation
       ? buildObservationClickHouseQuery(projectId, observation)
       : null;
 
@@ -241,7 +176,7 @@ export function DetailHeaderActionsMenuController({
             type: "item" as const,
             id: "copy-clickhouse-query",
             title: "Copy ClickHouse query",
-            badge: <InternalFeatureBadge />,
+            badge: <FeatureReleaseStatus status="internal" />,
             icon: copiedId === clickHouseQuery ? CheckIcon : CopyIcon,
             onClick: () => handleCopy(clickHouseQuery),
           },

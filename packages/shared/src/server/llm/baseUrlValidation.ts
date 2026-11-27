@@ -1,10 +1,10 @@
 import { env } from "../../env";
 import {
+  enforcePositiveAllowlist,
   type OutboundUrlValidationWhitelist,
-  OutboundUrlValidationError,
-  parseOutboundUrl,
   validateOutboundUrlHost,
-} from "../outbound-url";
+} from "../outbound-url/validation";
+import { assertLlmBaseUrlHttps, parseLlmBaseUrl } from "./llmBaseUrlRules";
 
 export type LlmBaseUrlValidationWhitelist = OutboundUrlValidationWhitelist;
 
@@ -28,6 +28,16 @@ export function llmBaseUrlWhitelistFromEnv(): LlmBaseUrlValidationWhitelist {
   };
 }
 
+/**
+ * Applies the LLM host allowlist to provider hosts that skip the
+ * private-address checks, such as official origins and Bedrock regional hosts
+ * reached through VPC endpoints. Custom base URLs get the same check inside
+ * validateLlmConnectionBaseURL.
+ */
+export function assertLlmProviderHostAllowed(hostname: string): void {
+  enforcePositiveAllowlist(hostname, llmBaseUrlWhitelistFromEnv());
+}
+
 export async function validateLlmConnectionBaseURL(
   urlString: string,
   whitelist: LlmBaseUrlValidationWhitelist = llmBaseUrlWhitelistFromEnv(),
@@ -36,14 +46,7 @@ export async function validateLlmConnectionBaseURL(
     ? EMPTY_LLM_BASE_URL_WHITELIST
     : whitelist;
 
-  const url = parseOutboundUrl(urlString);
-
-  if (!["https:", "http:"].includes(url.protocol)) {
-    throw new OutboundUrlValidationError(
-      "protocol-not-allowed",
-      "Only HTTP and HTTPS protocols are allowed",
-    );
-  }
+  const url = parseLlmBaseUrl(urlString);
 
   await validateOutboundUrlHost({
     url,
@@ -54,10 +57,5 @@ export async function validateLlmConnectionBaseURL(
     shouldSkipDnsCheckForLiteralIps: true,
   });
 
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && url.protocol !== "https:") {
-    throw new OutboundUrlValidationError(
-      "https-required",
-      "Only HTTPS base URLs are allowed on Langfuse Cloud",
-    );
-  }
+  assertLlmBaseUrlHttps(url, Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION));
 }

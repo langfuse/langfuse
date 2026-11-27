@@ -6,6 +6,7 @@ import {
 } from "@/src/components/ItemBadge";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import DocPopup, {
+  DocPopupTrigger,
   type DocPopupProps,
 } from "@/src/components/layouts/doc-popup";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
@@ -44,7 +45,7 @@ export function EntityTitle({
       <Heading
         className={cn(
           // Explicit colour: titles are the emphasis tier and never inherit a container tint.
-          "text-primary min-w-0 truncate pt-px pb-0.75 text-lg leading-6 font-bold",
+          "ph-no-capture text-primary min-w-0 truncate pt-px pb-0.75 text-lg leading-6 font-bold",
           isFocusable && "focus:outline-hidden",
         )}
         title={tooltip ? undefined : title}
@@ -69,7 +70,11 @@ export function EntityTitle({
               description={help.description}
               href={help.href}
               className={help.className}
-            />
+            >
+              {({ getTriggerProps }) => (
+                <DocPopupTrigger triggerProps={getTriggerProps()} />
+              )}
+            </DocPopup>
           </span>
         )}
       </Heading>

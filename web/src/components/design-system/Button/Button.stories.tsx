@@ -21,17 +21,34 @@ export const VariantMatrix = meta.story({
   parameters: { controls: { disable: true } },
   render: () => (
     <div className="grid grid-cols-2 items-center gap-3">
-      {(["primary", "secondary", "destructive", "ghost", "text"] as const).map(
-        (variant) =>
-          (["default", "sm"] as const).map((size) => (
-            <Button
-              key={`${variant}-${size}`}
-              text={`${variant} / ${size}`}
-              variant={variant}
-              size={size}
-            />
-          )),
+      {(
+        [
+          "primary",
+          "secondary",
+          "outline",
+          "destructive",
+          "ghost",
+          "text",
+        ] as const
+      ).map((variant) =>
+        (["default", "sm"] as const).map((size) => (
+          <Button
+            key={`${variant}-${size}`}
+            text={`${variant} / ${size}`}
+            variant={variant}
+            size={size}
+          />
+        )),
       )}
+      {(["default", "sm"] as const).map((size) => (
+        <Button
+          key={`outline-pressed-${size}`}
+          text={`outline pressed / ${size}`}
+          variant="outline"
+          size={size}
+          aria-pressed
+        />
+      ))}
     </div>
   ),
 });

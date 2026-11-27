@@ -5,17 +5,6 @@ import { Label } from "@/src/components/ui/label";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 
-const COPY = {
-  default: {
-    description:
-      "Give the evaluator a clear name (it's also used as the score name) and explain when it should be used.",
-  },
-  decisionModel: {
-    description:
-      "Give the evaluator a clear name and explain when it should be used.",
-  },
-} as const;
-
 export function NameStep({
   step,
   variant,
@@ -29,7 +18,7 @@ export function NameStep({
   descriptionAIAssistance,
 }: {
   step: number;
-  variant: keyof typeof COPY;
+  variant: "default" | "decisionModel";
   open: boolean;
   onOpenChange: (open: boolean) => void;
   name: string;
@@ -44,14 +33,17 @@ export function NameStep({
   return (
     <Stepper
       number={step}
+      size="md"
       title="Name evaluator"
-      description={COPY[variant].description}
       open={open}
       onOpenChange={onOpenChange}
     >
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 pt-2 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="evaluator-name" className="flex items-center gap-1.5">
+          <Label
+            htmlFor="evaluator-name"
+            className="text-muted-foreground flex items-center gap-1.5"
+          >
             Name
             {variant === "default" ? (
               <InfoTooltip label="About evaluator names">
@@ -75,7 +67,7 @@ export function NameStep({
         <div className="space-y-2">
           <Label
             htmlFor="evaluator-description"
-            className="flex items-center gap-1"
+            className="text-muted-foreground flex items-center gap-1"
           >
             Description
             <span className="text-muted-foreground font-normal">

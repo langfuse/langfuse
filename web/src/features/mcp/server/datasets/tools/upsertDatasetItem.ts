@@ -1,5 +1,5 @@
-import { createDatasetItemForApi } from "@/src/features/datasets/server";
-import { PostDatasetItemsV1Response } from "@/src/features/public-api/server";
+import { createDatasetItemForApi } from "@/src/features/datasets/server/publicDatasetService";
+import { PostDatasetItemsV1Response } from "@/src/features/public-api/types/datasets";
 import { defineTool } from "../../../core/define-tool";
 import { buildDatasetItemUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -40,5 +40,5 @@ export const [upsertDatasetItemTool, handleUpsertDatasetItem] = defineTool({
         };
       },
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

@@ -21,8 +21,10 @@ import {
   getObservationById,
   getScoreById,
   getTraceById,
+  queryClickhouse,
   StorageService,
   StorageServiceFactory,
+  storageKeys,
   toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { prisma, Prisma, PrismaClient } from "@langfuse/shared/src/db";
@@ -70,8 +72,10 @@ describe("DataRetentionProcessingJob", () => {
 
   beforeAll(() => {
     storageService = StorageServiceFactory.getInstance({
-      accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
+      credentials: storageKeys(
+        env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
+        env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
+      ),
       bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
       endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
@@ -896,6 +900,78 @@ describe("DataRetentionProcessingJob", () => {
     });
   });
 
+  it("should delete Topics summaries and assignments older than retention days", async ({
+    onTestFinished,
+  }) => {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: 7 },
+    });
+    onTestFinished(async () => {
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: null },
+      });
+    });
+    const now = Date.now();
+    const oldTraceId = randomUUID();
+    const recentTraceId = randomUUID();
+    const sources = [
+      { traceId: oldTraceId, unitStartTime: now - 30 * 86_400_000 },
+      { traceId: recentTraceId, unitStartTime: now - 86_400_000 },
+    ].map(({ traceId, unitStartTime }) => ({
+      project_id: projectId,
+      facet_id: "intent",
+      facet_version: 1,
+      trace_id: traceId,
+      environment: "default",
+      unit_start_time: toClickhouseDateTime(unitStartTime),
+      created_at: toClickhouseDateTime(now),
+    }));
+    await Promise.all([
+      clickhouseClient().insert({
+        table: "topic_facet_summaries",
+        format: "JSONEachRow",
+        values: sources.map((source) => ({
+          ...source,
+          processing_state: "complete",
+          summary: "A trace summary.",
+        })),
+      }),
+      clickhouseClient().insert({
+        table: "topic_assignments",
+        format: "JSONEachRow",
+        values: sources.map((source) => ({
+          ...source,
+          clustering_run_id: "run",
+          summary_processed_at: toClickhouseDateTime(now),
+          origin: "online",
+        })),
+      }),
+    ]);
+
+    await handleDataRetentionProcessingJob({
+      data: { payload: { projectId, retention: 7 } },
+    } as Job);
+
+    for (const table of [
+      "topic_facet_summaries",
+      "topic_assignments",
+      "topic_assignments_by_trace",
+    ]) {
+      const rows = await queryClickhouse<{ trace_id: string }>({
+        query: `SELECT trace_id FROM ${table}
+          WHERE project_id = {projectId: String}
+            AND trace_id IN {traceIds: Array(String)}`,
+        params: { projectId, traceIds: [oldTraceId, recentTraceId] },
+      });
+      expect(
+        rows.map((row) => row.trace_id),
+        table,
+      ).toEqual([recentTraceId]);
+    }
+  });
+
   it("should skip deletion when retention is changed to 0 (indefinite) after job was queued", async () => {
     // Setup: Create data that would be deleted if retention was still 7 days
     const baseId = randomUUID();
@@ -1089,19 +1165,25 @@ describe("DataRetentionProcessingJob", () => {
       expect(trace).toBeDefined();
     });
 
-    it("should delete expired data on a self-hosted enterprise license", async () => {
-      const traceId = `${randomUUID()}-trace-ee`;
-      await seedExpiredTrace(traceId);
+    it.each([
+      ["enterprise", "langfuse_ee_some-key"],
+      ["government", "lf_gov_some-key"],
+    ])(
+      "should delete expired data on a self-hosted %s license",
+      async (label, licenseKey) => {
+        const traceId = `${randomUUID()}-trace-${label}`;
+        await seedExpiredTrace(traceId);
 
-      await withSelfHostedLicense("langfuse_ee_some-key", async () => {
-        await handleDataRetentionProcessingJob({
-          data: { payload: { projectId, retention: 7 } },
-        } as Job);
-      });
+        await withSelfHostedLicense(licenseKey, async () => {
+          await handleDataRetentionProcessingJob({
+            data: { payload: { projectId, retention: 7 } },
+          } as Job);
+        });
 
-      // Pins that the guard is the license and not an unrelated skip.
-      const trace = await getTraceById({ traceId, projectId });
-      expect(trace).toBeUndefined();
-    });
+        // Pins that the guard is the license and not an unrelated skip.
+        const trace = await getTraceById({ traceId, projectId });
+        expect(trace).toBeUndefined();
+      },
+    );
   });
 });

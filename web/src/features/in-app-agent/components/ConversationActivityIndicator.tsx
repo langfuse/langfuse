@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { CircleAlert, Loader2 } from "@langfuse/icons";
 import { type ReactNode } from "react";
 

@@ -21,9 +21,12 @@ vi.mock("@/src/utils/api", () => ({
   sendAsPostOption: {},
 }));
 
-vi.mock("@/src/features/evals", () => ({
-  buildSelectedSampleObject: () => ({}),
-}));
+vi.mock(
+  "@/src/features/evals/v2/fns/evaluatorTesting/buildSelectedSampleObject",
+  () => ({
+    buildSelectedSampleObject: () => ({}),
+  }),
+);
 
 vi.mock(
   "@/src/features/experiments/components/ExperimentEvaluatorAssignments/components/ExperimentEvaluatorAssignmentsEditor/ExperimentEvaluatorAssignmentsEditor",
