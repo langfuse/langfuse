@@ -463,9 +463,10 @@ impl Guardrail {
                     && !config.guardrail_version.trim().is_empty()
                     && crate::resolution::valid_token(config.api_key.expose_secret())
             }
+            // An unknown region fails only this guardrail closed at check time,
+            // so Web can add regions before every gateway knows them.
             GuardrailKind::OpenAiModeration(config) => {
-                openai_moderation::is_known_region(&config.region)
-                    && crate::resolution::valid_token(config.api_key.expose_secret())
+                crate::resolution::valid_token(config.api_key.expose_secret())
             }
         }
     }

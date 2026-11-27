@@ -50,10 +50,6 @@ pub(crate) struct ModerationPayload {
     inputs: usize,
 }
 
-pub(crate) fn is_known_region(region: &str) -> bool {
-    moderation_origin(region).is_some()
-}
-
 /// Serializes `blocks` into one moderation request with one input per block.
 pub(crate) fn serialize_blocks(blocks: &[&str]) -> Option<ModerationPayload> {
     let body = serde_json::to_vec(&ModerationRequest {
@@ -74,13 +70,9 @@ pub(crate) async fn evaluate_one(
     payload: ModerationPayload,
     organization_id: &str,
 ) -> ExternalOutcome {
-    #[cfg(test)]
-    let origin = client
-        .origin_override
-        .as_deref()
-        .or_else(|| moderation_origin(&config.region));
-    #[cfg(not(test))]
     let origin = moderation_origin(&config.region);
+    #[cfg(test)]
+    let origin = origin.map(|origin| client.origin_override.as_deref().unwrap_or(origin));
     let Some(Ok(url)) = origin.map(|origin| Url::parse(&format!("{origin}{MODERATION_PATH}")))
     else {
         tracing::warn!(
@@ -233,6 +225,28 @@ mod tests {
             region: "eu".into(),
             api_key: SecretString::from(api_key.to_owned()),
         }
+    }
+
+    #[tokio::test]
+    async fn unknown_region_resolves_and_fails_only_its_guardrail_closed() {
+        let mut guardrail = sample_guardrail("g1", "clean");
+        let GuardrailKind::OpenAiModeration(config) = &mut guardrail.kind else {
+            unreachable!()
+        };
+        config.region = "jp".into();
+        assert!(guardrail.is_valid_from_resolve());
+
+        let client = ExternalGuardrailClient::for_test(
+            "http://127.0.0.1:1".into(),
+            Duration::from_millis(80),
+        );
+        let refs = [&guardrail];
+        let payloads =
+            ExternalPayloads::for_guardrails(&refs, &["hello"], GuardrailLocation::Request);
+        assert_eq!(
+            client.evaluate_many(&refs, &payloads, "org-1").await,
+            vec![ExternalOutcome::Failed(ExternalFailureKind::Unavailable)]
+        );
     }
 
     fn sample_guardrail(id: &str, api_key: &str) -> Guardrail {
