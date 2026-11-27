@@ -167,7 +167,6 @@ export { toEvalRecord } from "./normalized-io/projections/eval-record";
 export { toToolColumns } from "./normalized-io/projections/tool-call-columns";
 export { toEvalVariables } from "./transcript/eval-threads";
 export { type CodeEvalTraceThread } from "./transcript/eval-threads";
-export { toCodeEvalThreads } from "./transcript/eval-threads";
 export { orderObservations } from "./transcript/ordering";
 export { assembleTranscript } from "./transcript/transcript";
 export {

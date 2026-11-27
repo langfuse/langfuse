@@ -26,7 +26,7 @@ import {
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
   serializeTraceTranscriptInputs,
-  toCodeEvalThreads,
+  toEvalVariables,
   unsupportedDecisionModelMessage,
   type DecisionModelRequest,
   type ExtractedVariable,
@@ -173,7 +173,7 @@ export async function testEvaluatorOnTrace(params: {
     variables = [
       {
         var: TRACE_TRANSCRIPT_EVAL_COLUMN,
-        value: toCodeEvalThreads(transcript.threads),
+        value: toEvalVariables(transcript.threads),
       },
     ];
   }

@@ -11,19 +11,14 @@ type StoredThread = Partial<Pick<Thread, "conversationHistory">> & {
 };
 
 /**
- * Stored threads as eval variable paths read them: one history-first `messages`
- * list per thread with only `role` and `parts`; anything else passes through.
+ * Stored threads as evaluators read them: one history-first `messages` list
+ * per thread with only `role` and `parts`; anything else passes through.
  */
+export function toEvalVariables(threads: StoredThread[]): CodeEvalTraceThread[];
+export function toEvalVariables(threads: unknown): unknown;
 export function toEvalVariables(threads: unknown) {
   if (!Array.isArray(threads)) return threads;
-  return toCodeEvalThreads(threads as StoredThread[]);
-}
-
-/** The same projection, typed, for the code evaluator payload. */
-export function toCodeEvalThreads(
-  threads: StoredThread[],
-): CodeEvalTraceThread[] {
-  return threads.map((thread) => ({
+  return (threads as StoredThread[]).map((thread) => ({
     messages: [
       ...(thread.conversationHistory ?? []),
       ...(thread.currentTurn?.messages ?? []),
