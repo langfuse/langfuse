@@ -472,13 +472,22 @@ export function chatCompletionRequest(providerModel: string) {
 export async function expectExternalGuardrailBlocks(input: {
   providerModel: string;
   guardrail: Extract<GatewayKeyGuardrail, { type: string }>;
+  benignPrompt: string;
   flaggedPrompt: string;
 }) {
   const request = chatCompletionRequest(input.providerModel);
+  const withPrompt = (content: string) => ({
+    ...request.body,
+    messages: [{ role: "user", content }],
+  });
   await withGatewayApiKey(
     request.apiFormat,
     async ({ secretKey }) => {
-      await completeAndExpectIngested({ ...request, secretKey });
+      await completeAndExpectIngested({
+        ...request,
+        body: withPrompt(input.benignPrompt),
+        secretKey,
+      });
 
       const blocked = await fetch(`${suite.gatewayBaseUrl}${request.path}`, {
         method: "POST",
@@ -486,10 +495,7 @@ export async function expectExternalGuardrailBlocks(input: {
           Authorization: `Bearer ${secretKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          ...request.body,
-          messages: [{ role: "user", content: input.flaggedPrompt }],
-        }),
+        body: JSON.stringify(withPrompt(input.flaggedPrompt)),
       });
       await expectGatewayError(blocked, 400, {
         error: {

@@ -33,6 +33,7 @@ describe.skipIf(skip)(
             config: { region: "us" },
             apiKey: requiredEnv("LANGFUSE_LLM_CONNECTION_OPENAI_KEY"),
           },
+          benignPrompt: "What is the capital of France?",
           flaggedPrompt:
             "I am going to find you tonight and kill you and your whole family.",
         });
