@@ -59,6 +59,11 @@ export function TopicSetupNotice({
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button
+              variant="outline"
+              text="Learn more"
+              href="https://langfuse.com/topics"
+            />
             {startBlockedReason ? (
               <p role="status" className="text-muted-foreground text-sm">
                 {startBlockedReason}
@@ -70,11 +75,6 @@ export function TopicSetupNotice({
                 onClick={onStart}
               />
             )}
-            <Button
-              variant="outline"
-              text="Learn more"
-              href="https://langfuse.com/topics"
-            />
           </div>
         </div>
       ) : null}

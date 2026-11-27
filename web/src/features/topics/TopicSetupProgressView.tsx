@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { type TopicSetupStage } from "./topic-setup-flow";
-import { type TopicPileBar, TopicPileBars } from "./TopicPileBars";
+import { TopicPilesBuilding } from "./TopicPilesBuilding";
 
 type TopicSetupProgressFacet = {
   key: string;
@@ -11,11 +11,8 @@ type TopicSetupProgressFacet = {
   requested: number;
 };
 
-const PILE_SLOTS = [
-  { name: "Group 1", slots: 9, color: "violet" },
-  { name: "Group 2", slots: 6, color: "blue" },
-  { name: "Group 3", slots: 4, color: "amber" },
-] as const;
+// Sheets each pile holds when full, left to right.
+const PILE_SHEETS = [17, 6, 4] as const;
 
 const TICK_MS = 260;
 
@@ -56,13 +53,10 @@ export function TopicSetupProgressView({
     variant === "snapshot"
       ? snapshotCopy(failed)
       : progressCopy(failed, waiting);
-  const piles: TopicPileBar[] = PILE_SLOTS.map((pile, index) => ({
-    ...pile,
-    filled: pileFill(pile.slots, index, tick),
-  }));
+  const sheets = PILE_SHEETS.map((full, index) => pileFill(full, index, tick));
   return (
     <div className="flex flex-1 flex-col items-center-safe justify-center-safe gap-6 overflow-y-auto px-4 pb-35">
-      <TopicPileBars piles={piles} />
+      <TopicPilesBuilding sheets={sheets} />
       <div className="flex flex-col items-center gap-2 text-center">
         <h2 className="text-3xl leading-tight font-bold tracking-tight text-balance">
           {copy.title}
