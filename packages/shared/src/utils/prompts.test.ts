@@ -41,6 +41,28 @@ describe("compileTemplateString unicode variables", () => {
 });
 
 describe("compileEvalPrompt", () => {
+  it("preserves unprovided placeholders named after prototype properties", () => {
+    expect(
+      compileEvalPrompt({
+        templatePrompt: "{{input}} / {{constructor}} / {{toString}}",
+        variables: [{ var: "input", value: "answer" }],
+      }),
+    ).toBe("answer / {{constructor}} / {{toString}}");
+  });
+
+  it("interpolates explicitly provided prototype-named variables", () => {
+    expect(
+      compileEvalPrompt({
+        templatePrompt: "{{constructor}} / {{hasOwnProperty}} / {{__proto__}}",
+        variables: [
+          { var: "constructor", value: "provided" },
+          { var: "hasOwnProperty", value: false },
+          { var: "__proto__", value: null },
+        ],
+      }),
+    ).toBe("provided / false / ");
+  });
+
   it("serializes structured evaluator variables before interpolation", () => {
     expect(
       compileEvalPrompt({
