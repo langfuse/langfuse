@@ -6,7 +6,6 @@ import { useState } from "react";
 import { PlusIcon } from "@langfuse/icons";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
-import { useOrganizationProjects } from "@/src/features/public-api/hooks/useOrganizationProjects";
 import {
   ApiKeyCreateDialogContent,
   type ApiKeyCreateValues,
@@ -38,7 +37,6 @@ export function CreateApiKeyButton(props: {
   const secretKey =
     createdKey?.entityId === props.entityId ? createdKey.secretKey : null;
   const baseUrl = useLangfuseBaseUrl();
-  const organizationProjects = useOrganizationProjects(props.entityId);
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
@@ -110,7 +108,6 @@ export function CreateApiKeyButton(props: {
       <ApiKeyCreateDialogContent
         type="detail"
         scope="organization"
-        projects={organizationProjects}
         secretKey={secretKey}
         baseUrl={baseUrl}
       />
