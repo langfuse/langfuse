@@ -440,6 +440,89 @@ describe("executeCodeBasedEvaluation", () => {
     );
   });
 
+  it("passes trace threads with only role and parts per message", async () => {
+    mocks.dispatcher.dispatch.mockResolvedValue({
+      scores: [{ name: "score", value: 1, dataType: "NUMERIC" }],
+    });
+    const toolCall = {
+      type: "tool-call" as const,
+      toolCallId: "call-1",
+      toolName: "get_weather",
+      input: { city: "Zurich" },
+      providerMetadata: { openai: { index: 0 } },
+    };
+
+    await executeCodeBasedEvaluationWithContext({
+      projectId: "project-1",
+      organizationId: "org-1",
+      job: {
+        id: "job-1",
+        jobConfigurationId: "config-1",
+        jobInputTraceId: "trace-1",
+        jobInputObservationId: null,
+        jobInputDatasetItemId: null,
+      } as any,
+      config: { id: "config-1", scoreName: "default-score" } as any,
+      template: {
+        id: "template-1",
+        type: EvalTemplateType.CODE,
+        version: 1,
+        sourceCode: "function evaluate() {}",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        prompt: null,
+        outputDefinition: null,
+      } as any,
+      extractedVariables: [],
+      threads: [
+        {
+          conversationHistory: [
+            {
+              id: "message-0",
+              role: "user",
+              senderName: "alice",
+              parts: [{ type: "text", text: "Weather in Zurich?" }],
+              source: "input",
+            },
+          ],
+          currentTurn: {
+            nestingLevel: 0,
+            observations: [{ id: "observation-1", traceId: "trace-1" }],
+            messages: [
+              {
+                role: "assistant",
+                parts: [toolCall],
+                finishReason: { type: "tool-calls", raw: "tool_calls" },
+                source: "output",
+                observationId: "observation-1",
+                traceId: "trace-1",
+                startTime: new Date("2026-11-26T09:00:00.000Z"),
+                endTime: null,
+              },
+            ],
+          },
+        },
+      ],
+      executionMetadata: { job_execution_id: "job-1" },
+    });
+
+    expect(mocks.dispatcher.dispatch.mock.calls[0]?.[0].payload).toEqual({
+      targetType: "trace",
+      trace: {
+        threads: [
+          {
+            messages: [
+              {
+                role: "user",
+                parts: [{ type: "text", text: "Weather in Zurich?" }],
+              },
+              { role: "assistant", parts: [toolCall] },
+            ],
+          },
+        ],
+      },
+    });
+  });
+
   it("continues successful execution when writing the internal trace fails", async () => {
     mocks.dispatcher.dispatch.mockResolvedValue({
       scores: [{ name: "score", value: 1, dataType: "NUMERIC" }],

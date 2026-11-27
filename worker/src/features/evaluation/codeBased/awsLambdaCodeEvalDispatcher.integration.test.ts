@@ -293,12 +293,10 @@ def evaluate(ctx):
           messages: [
             {
               role: "user",
-              source: "input",
               parts: [{ type: "text", text: "Weather in Zurich?" }],
             },
             {
               role: "assistant",
-              source: "output",
               parts: [
                 {
                   type: "tool-call",
@@ -307,19 +305,13 @@ def evaluate(ctx):
                   input: { city: "Zurich" },
                 },
               ],
-              observationId: "observation-1",
-              traceId: "trace-1",
-              startTime: "2026-11-26T09:00:00.000Z",
-              endTime: "2026-11-26T09:00:01.000Z",
             },
           ],
         },
         {
-          // Replayed history carries no observationId.
           messages: [
             {
               role: "assistant",
-              source: "output",
               parts: [
                 {
                   type: "tool-call",
@@ -341,32 +333,30 @@ def evaluate(ctx):
       const source: Record<CodeEvalRuntimeLanguage, string> = {
         TYPESCRIPT: `
 function evaluate(ctx: any) {
-  const own = ctx.trace.threads.flatMap((t: any) =>
-    t.messages.filter((m: any) => m.observationId),
-  );
-  const calls = own
+  const messages = ctx.trace.threads.flatMap((t: any) => t.messages);
+  const calls = messages
     .flatMap((m: any) => m.parts)
     .filter((p: any) => p.type === "tool-call");
   return {
     scores: [
       { name: "target", value: ctx.targetType, dataType: "CATEGORICAL" },
       { name: "threads", value: ctx.trace.threads.length, dataType: "NUMERIC" },
-      { name: "own-tool-calls", value: calls.length, dataType: "NUMERIC" },
-      { name: "start-time", value: own[0].startTime, dataType: "TEXT" },
+      { name: "tool-calls", value: calls.length, dataType: "NUMERIC" },
+      { name: "first-role", value: messages[0].role, dataType: "CATEGORICAL" },
     ],
   };
 }
 `,
         PYTHON: `
 def evaluate(ctx):
-    own = [m for t in ctx.trace.threads for m in t["messages"] if "observationId" in m]
-    calls = [p for m in own for p in m["parts"] if p["type"] == "tool-call"]
+    messages = [m for t in ctx.trace.threads for m in t["messages"]]
+    calls = [p for m in messages for p in m["parts"] if p["type"] == "tool-call"]
     return {
         "scores": [
             {"name": "target", "value": ctx.target_type, "dataType": "CATEGORICAL"},
             {"name": "threads", "value": len(ctx.trace.threads), "dataType": "NUMERIC"},
-            {"name": "own-tool-calls", "value": len(calls), "dataType": "NUMERIC"},
-            {"name": "start-time", "value": own[0]["startTime"], "dataType": "TEXT"},
+            {"name": "tool-calls", "value": len(calls), "dataType": "NUMERIC"},
+            {"name": "first-role", "value": messages[0]["role"], "dataType": "CATEGORICAL"},
         ]
     }
 `,
@@ -383,12 +373,8 @@ def evaluate(ctx):
         scores: [
           { name: "target", value: "trace", dataType: "CATEGORICAL" },
           { name: "threads", value: 2, dataType: "NUMERIC" },
-          { name: "own-tool-calls", value: 1, dataType: "NUMERIC" },
-          {
-            name: "start-time",
-            value: "2026-11-26T09:00:00.000Z",
-            dataType: "TEXT",
-          },
+          { name: "tool-calls", value: 2, dataType: "NUMERIC" },
+          { name: "first-role", value: "user", dataType: "CATEGORICAL" },
         ],
       });
     },

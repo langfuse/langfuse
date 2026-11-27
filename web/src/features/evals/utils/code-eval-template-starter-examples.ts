@@ -295,26 +295,6 @@ type MessagePart =
 type TraceMessage = {
   role: "system" | "user" | "assistant" | "tool";
   parts: MessagePart[];
-  source: "input" | "output";
-  id?: string;
-  senderName?: string;
-  finishReason?: {
-    type:
-      | "stop"
-      | "length"
-      | "tool-calls"
-      | "content-filter"
-      | "error"
-      | "other"
-      | "unknown";
-    raw: string;
-  };
-  /** Only on messages this trace produced; replayed history has none. */
-  observationId?: string;
-  traceId?: string;
-  /** ISO 8601. */
-  startTime?: string;
-  endTime?: string | null;
 };
 
 type TraceThread = { messages: TraceMessage[] };

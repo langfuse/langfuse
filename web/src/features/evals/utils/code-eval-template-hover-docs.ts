@@ -262,11 +262,9 @@ The score config id to attach to the score.`,
 } satisfies CodeEvalHoverDocs & Record<PythonCodeEvalCompletionName, string>;
 
 const THREAD_SHAPE_DOC = `Each thread has one messages list, replayed
-history first, matching the threads LLM-as-a-judge evaluators read. Messages
-are normalized: role, parts (text, reasoning, tool-call, tool-result, file,
-data, custom) and source. Messages this trace produced also carry
-observationId, traceId, and the source observation's startTime and endTime as
-ISO strings; replayed history has none.`;
+history first, the same threads LLM-as-a-judge evaluators read. Each message
+has a role and its parts (text, reasoning, tool-call, tool-result, file, data,
+custom).`;
 
 const TYPESCRIPT_TRACE_HOVER_DOCS = {
   evaluate: `function evaluate(ctx: EvaluationContext<"observation" | "trace">): EvaluationResult
@@ -312,18 +310,9 @@ ${THREAD_SHAPE_DOC}`,
   TraceMessage: `type TraceMessage = {
   role: "system" | "user" | "assistant" | "tool";
   parts: MessagePart[];
-  source: "input" | "output";
-  id?: string;
-  senderName?: string;
-  finishReason?: { type: "stop" | "length" | ...; raw: string };
-  observationId?: string;
-  traceId?: string;
-  startTime?: string;
-  endTime?: string | null;
 }
 
-One normalized message of a trace thread. observationId, traceId, startTime
-and endTime (ISO 8601) are set only on messages this trace produced.`,
+One message of a trace thread: its role and its parts.`,
   targetType: `property EvaluationContext.targetType: "observation" | "trace"
 
 Whether the evaluator runs on an observation or on a trace transcript.`,
