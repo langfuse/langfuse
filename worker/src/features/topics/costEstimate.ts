@@ -22,6 +22,7 @@ import {
   topicMatchingTraceIdsQuery,
 } from "@langfuse/shared/topics/server";
 import {
+  sortTopicFacets,
   TOPICS_COST_ESTIMATE_SAMPLE_SIZE,
   topicProcessingConfigSchema,
   type TopicCostEstimate,
@@ -108,11 +109,13 @@ export async function runTopicCostEstimate(
 
   try {
     const { filter, facets: refs, summaryModel } = record.inputs;
-    const allFacets = await listTopicFacets(projectId);
-    const selected = refs.flatMap(({ facetId, version }) => {
-      const facet = allFacets.find(({ id }) => id === facetId);
-      const facetVersion = facet?.versions.find((v) => v.version === version);
-      return facet && facetVersion
+    const allFacets = sortTopicFacets(await listTopicFacets(projectId));
+    const selected = allFacets.flatMap((facet) => {
+      const ref = refs.find(({ facetId }) => facetId === facet.id);
+      const facetVersion = ref
+        ? facet.versions.find((v) => v.version === ref.version)
+        : undefined;
+      return facetVersion
         ? [
             {
               name: facet.name,
@@ -124,10 +127,7 @@ export async function runTopicCostEstimate(
     });
     if (selected.length === 0)
       throw new EstimateError("None of the selected questions exist anymore.");
-    const keyed = keyTopicTraceFacets([
-      ...selected.filter((facet) => facet.builtIn),
-      ...selected.filter((facet) => !facet.builtIn),
-    ]);
+    const keyed = keyTopicTraceFacets(selected);
     const config = topicProcessingConfigSchema.parse({});
     // Everything but the transcript is the same for every trace.
     const fixed = buildTopicSummaryRequest(keyed, "", config);
