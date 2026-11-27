@@ -9,8 +9,8 @@ use secrecy::SecretString;
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::guardrails::{
-    GuardrailLocation,
-    external::{ExternalCallFailure, ExternalGuardrailClient, ExternalOutcome},
+    external::{ExternalBlock, ExternalCallFailure, ExternalGuardrailClient, ExternalOutcome},
+    text::Speaker,
 };
 
 const MAX_LAKERA_RESPONSE_BYTES: usize = 64 * 1024;
@@ -47,22 +47,30 @@ pub(crate) fn origin(region: &str) -> Option<&'static str> {
     }
 }
 
-/// Serializes `blocks` into a Lakera Guard request body without `project_id`.
-/// Lakera screens only the most recent user or assistant message, so all blocks
-/// go into one message to be screened together.
-pub(crate) fn serialize_blocks(blocks: &[&str], location: GuardrailLocation) -> Option<Bytes> {
-    let role = match location {
-        GuardrailLocation::Request => "user",
-        GuardrailLocation::Response => "assistant",
-    };
-    serde_json::to_vec(&GuardRequest {
-        messages: [GuardMessage {
-            role,
-            content: JoinedBlocks(blocks),
-        }],
-    })
-    .ok()
-    .map(Bytes::from)
+/// Serializes `blocks` into a Lakera Guard request body without `project_id`,
+/// one message per run of blocks with the same role. Lakera trusts system
+/// prompts, screens tool outputs as untrusted, and screens only the most recent
+/// user and assistant content, so consecutive blocks of a role are screened
+/// together. System prompts lead, as the model reads them first.
+pub(crate) fn serialize_blocks(blocks: &[ExternalBlock<'_>]) -> Option<Bytes> {
+    let is_system = |block: &&ExternalBlock<'_>| block.speaker == Speaker::System;
+    let ordered: Vec<&ExternalBlock<'_>> = blocks
+        .iter()
+        .filter(is_system)
+        .chain(blocks.iter().filter(|block| !is_system(block)))
+        .collect();
+    let messages: Vec<GuardMessage<'_>> = ordered
+        .chunk_by(|left, right| left.speaker == right.speaker)
+        .map(|run| GuardMessage {
+            role: run
+                .first()
+                .map_or("user", |block| block.speaker.chat_role()),
+            content: JoinedBlocks(run),
+        })
+        .collect();
+    serde_json::to_vec(&GuardRequest { messages })
+        .ok()
+        .map(Bytes::from)
 }
 
 pub(crate) async fn evaluate_one(
@@ -142,7 +150,7 @@ fn with_project_id(payload: Bytes, project_id: Option<&str>) -> Option<(Body, us
 
 #[derive(Serialize)]
 struct GuardRequest<'a> {
-    messages: [GuardMessage<'a>; 1],
+    messages: Vec<GuardMessage<'a>>,
 }
 
 #[derive(Serialize)]
@@ -152,7 +160,7 @@ struct GuardMessage<'a> {
 }
 
 /// Serializes blocks as one JSON string without first joining them in memory.
-struct JoinedBlocks<'a>(&'a [&'a str]);
+struct JoinedBlocks<'a>(&'a [&'a ExternalBlock<'a>]);
 
 impl fmt::Display for JoinedBlocks<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -160,7 +168,7 @@ impl fmt::Display for JoinedBlocks<'_> {
             if index > 0 {
                 formatter.write_str(BLOCK_SEPARATOR)?;
             }
-            formatter.write_str(block)?;
+            formatter.write_str(block.text)?;
         }
         Ok(())
     }
@@ -183,7 +191,7 @@ mod tests {
 
     use super::*;
     use crate::guardrails::{
-        Guardrail, GuardrailAction, GuardrailKind, GuardrailScope,
+        Guardrail, GuardrailAction, GuardrailKind, GuardrailLocation, GuardrailScope,
         external::{ExternalFailureKind, ExternalPayloads},
     };
     use axum::{body::Body, http::Response};
@@ -214,7 +222,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn screens_joined_blocks_with_project_id_and_maps_flagged_and_failures() {
+    async fn screens_blocks_as_role_messages_with_project_id_and_maps_flagged_and_failures() {
         let server = crate::test_support::FakeServer::start(|request| async move {
             assert_eq!(request.method(), reqwest::Method::POST);
             assert_eq!(request.uri().path(), "/v2/guard");
@@ -232,7 +240,11 @@ mod tests {
             assert_eq!(
                 json,
                 serde_json::json!({
-                    "messages": [{ "role": "user", "content": "hello\n\nworld \"quoted\"" }]
+                    "messages": [
+                        { "role": "system", "content": "Be brief." },
+                        { "role": "user", "content": "hello\n\nworld \"quoted\"" },
+                        { "role": "tool", "content": "42" }
+                    ]
                 })
             );
             match project_id.as_deref() {
@@ -270,7 +282,19 @@ mod tests {
         let refs: Vec<&Guardrail> = guardrails.iter().collect();
         let payloads = ExternalPayloads::for_guardrails(
             &refs,
-            &["hello", "world \"quoted\""],
+            &[
+                ExternalBlock::user("hello"),
+                ExternalBlock::user("world \"quoted\""),
+                ExternalBlock {
+                    text: "42",
+                    speaker: Speaker::Tool,
+                },
+                // Anthropic's top-level `system` is read after its messages.
+                ExternalBlock {
+                    text: "Be brief.",
+                    speaker: Speaker::System,
+                },
+            ],
             GuardrailLocation::Request,
         );
         let results = client.evaluate_many(&refs, &payloads, "org-1").await;

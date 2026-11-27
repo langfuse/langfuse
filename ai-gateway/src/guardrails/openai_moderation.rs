@@ -142,7 +142,7 @@ mod tests {
     use super::*;
     use crate::guardrails::{
         Guardrail, GuardrailAction, GuardrailKind, GuardrailLocation, GuardrailScope,
-        external::{ExternalFailureKind, ExternalPayloads},
+        external::{ExternalBlock, ExternalFailureKind, ExternalPayloads},
     };
     use axum::{body::Body, http::Response};
     use http_body_util::BodyExt;
@@ -174,8 +174,11 @@ mod tests {
             Duration::from_millis(80),
         );
         let refs = [&guardrail];
-        let payloads =
-            ExternalPayloads::for_guardrails(&refs, &["hello"], GuardrailLocation::Request);
+        let payloads = ExternalPayloads::for_guardrails(
+            &refs,
+            &[ExternalBlock::user("hello")],
+            GuardrailLocation::Request,
+        );
         assert_eq!(
             client.evaluate_many(&refs, &payloads, "org-1").await,
             vec![ExternalOutcome::Failed(ExternalFailureKind::Unavailable)]
@@ -266,7 +269,7 @@ mod tests {
         let refs: Vec<&Guardrail> = guardrails.iter().collect();
         let payloads = ExternalPayloads::for_guardrails(
             &refs,
-            &["hello", "world"],
+            &[ExternalBlock::user("hello"), ExternalBlock::user("world")],
             GuardrailLocation::Request,
         );
         let results = client.evaluate_many(&refs, &payloads, "org-1").await;

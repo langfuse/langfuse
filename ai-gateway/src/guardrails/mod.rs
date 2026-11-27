@@ -34,14 +34,16 @@ use crate::{
     resolution::{ApiFormat, ResolutionError, ResolvedRequestContext},
 };
 use bedrock::BedrockGuardrail;
-use external::{ExternalFailureKind, ExternalGuardrailClient, ExternalOutcome, ExternalPayloads};
+use external::{
+    ExternalBlock, ExternalFailureKind, ExternalGuardrailClient, ExternalOutcome, ExternalPayloads,
+};
 use lakera::LakeraGuardrail;
 use openai_moderation::OpenAiModerationGuardrail;
 use redact::{BodyEdit, RedactionSpan};
 use regex::Compiled;
 use response::{ParsedResponse, RedactionApply, ResponseFormat, ResponseParseError};
 use spec::Members;
-use text::{LastTurn, Unreadable};
+use text::{LastTurn, Speaker, Unreadable};
 
 /// Evaluates local regex and external provider guardrails against a request's
 /// configured scope (`last_turn` or `entire_input`), keeping CPU work off the
@@ -1036,8 +1038,9 @@ enum BlockMutation {
 /// Per-`TurnBlock` structural overhead (struct + heap `String` allocator slack)
 /// charged against `memory_budget` when buffering leaves.
 const TURN_BLOCK_OVERHEAD_BYTES: usize = size_of::<TurnBlock>() + 32;
-/// Per-block JSON wrapper overhead (`{"text":{"text":""}},`) in external payloads.
-const EXTERNAL_PAYLOAD_BLOCK_OVERHEAD_BYTES: usize = 24;
+/// Per-block JSON wrapper overhead in external payloads; the widest is a Lakera
+/// message (`{"role":"assistant","content":""},`).
+const EXTERNAL_PAYLOAD_BLOCK_OVERHEAD_BYTES: usize = 40;
 
 enum EditTarget {
     BodyRange(Range<usize>),
@@ -1049,6 +1052,7 @@ struct TurnBlock {
     target: EditTarget,
     text: String,
     in_last_turn: bool,
+    speaker: Speaker,
     mutation: BlockMutation,
 }
 
@@ -1099,12 +1103,14 @@ impl TurnBlocks {
         target: EditTarget,
         text: String,
         in_last_turn: bool,
+        speaker: Speaker,
         mutation: BlockMutation,
     ) {
         self.0.push(TurnBlock {
             target,
             text,
             in_last_turn,
+            speaker,
             mutation,
         });
     }
@@ -1124,13 +1130,16 @@ impl TurnBlocks {
         guardrails: &[&Guardrail],
         location: GuardrailLocation,
     ) -> ExternalPayloads {
-        let texts: Vec<&str> = self
+        let blocks: Vec<ExternalBlock<'_>> = self
             .0
             .iter()
             .filter(|block| Self::matches_scope(block, scope))
-            .map(|block| block.text.as_str())
+            .map(|block| ExternalBlock {
+                text: &block.text,
+                speaker: block.speaker,
+            })
             .collect();
-        ExternalPayloads::for_guardrails(guardrails, &texts, location)
+        ExternalPayloads::for_guardrails(guardrails, &blocks, location)
     }
 
     /// Applies one enforcing external guardrail's anonymized `outputs` 1:1 onto
@@ -1215,6 +1224,14 @@ impl TurnBlocks {
     #[cfg(test)]
     fn texts(&self) -> Vec<&str> {
         self.0.iter().map(|block| block.text.as_str()).collect()
+    }
+
+    #[cfg(test)]
+    fn speakers(&self) -> Vec<(&str, Speaker)> {
+        self.0
+            .iter()
+            .map(|block| (block.text.as_str(), block.speaker))
+            .collect()
     }
 }
 
@@ -1484,7 +1501,7 @@ fn apply_local_response_guardrails(
                 } else {
                     EditTarget::Uneditable
                 };
-                if !state.evaluate_text_block(&block.text, target, true) {
+                if !state.evaluate_text_block(&block.text, target, true, Speaker::Assistant) {
                     break;
                 }
             }
@@ -1653,16 +1670,22 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
         turn.read_scoped_leaves(
             &Members::new(scanned.declared, &find),
             include_entire_input,
-            &mut |leaf, in_last_turn| {
+            &mut |leaf, in_last_turn, speaker| {
                 let target =
                     raw_range(body, leaf.raw).map_or(EditTarget::Uneditable, EditTarget::BodyRange);
-                self.evaluate_text_block(leaf.text, target, in_last_turn)
+                self.evaluate_text_block(leaf.text, target, in_last_turn, speaker)
             },
         )
         .is_err()
     }
 
-    fn evaluate_text_block(&mut self, text: &str, target: EditTarget, in_last_turn: bool) -> bool {
+    fn evaluate_text_block(
+        &mut self,
+        text: &str,
+        target: EditTarget,
+        in_last_turn: bool,
+        speaker: Speaker,
+    ) -> bool {
         if self.budget_exhausted {
             return false;
         }
@@ -1711,7 +1734,7 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
         match redacted {
             BlockRedaction::Redacted(target, text) => {
                 self.blocks
-                    .push(target, text, in_last_turn, BlockMutation::Local);
+                    .push(target, text, in_last_turn, speaker, BlockMutation::Local);
             }
             BlockRedaction::Unchanged(target) if external_needs_leaf && !text.is_empty() => {
                 if reserve_guardrail_bytes(
@@ -1728,6 +1751,7 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
                     target,
                     text.to_owned(),
                     in_last_turn,
+                    speaker,
                     BlockMutation::Unchanged,
                 );
             }

@@ -423,6 +423,73 @@ fn bedrock_enforce_applies_anonymized_outputs_and_blocks_on_block_or_failure() {
 }
 
 #[test]
+fn external_blocks_keep_the_chat_role_of_their_text() {
+    fn blocks(
+        guardrail: Guardrail,
+        api_format: ApiFormat,
+        body: &str,
+        members: &'static [&'static str],
+    ) -> Vec<(String, Speaker)> {
+        let members = scanned(body, members);
+        let eval = apply_local_guardrails(
+            &[guardrail],
+            body.as_bytes(),
+            &members,
+            &last_turn(api_format, body.as_bytes(), &members),
+            TEST_MAX_SCAN_BYTES,
+            None,
+        )
+        .unwrap();
+        eval.blocks
+            .speakers()
+            .into_iter()
+            .map(|(text, speaker)| (text.to_owned(), speaker))
+            .collect()
+    }
+
+    let lakera = |scope| Guardrail {
+        id: "lk".into(),
+        name: "lk".into(),
+        action: GuardrailAction::Log,
+        scope,
+        redaction_label: None,
+        kind: GuardrailKind::Lakera(LakeraGuardrail {
+            region: "eu".into(),
+            project_id: None,
+            api_key: SecretString::from("lakera-key"),
+        }),
+    };
+
+    // On the first turn Anthropic's top-level system prompt is part of the last turn.
+    assert_eq!(
+        blocks(
+            lakera(GuardrailScope::LastTurn),
+            ApiFormat::AnthropicMessages,
+            r#"{"system":"Be brief.","messages":[{"role":"user","content":"hi"}]}"#,
+            &["messages", "system"],
+        ),
+        [
+            ("hi".to_owned(), Speaker::User),
+            ("Be brief.".to_owned(), Speaker::System),
+        ]
+    );
+    assert_eq!(
+        blocks(
+            lakera(GuardrailScope::EntireInput),
+            ApiFormat::OpenAiChatCompletions,
+            r#"{"messages":[{"role":"developer","content":"d"},{"role":"user","content":"u"},{"role":"assistant","content":"a"},{"role":"tool","tool_call_id":"c","content":"t"}]}"#,
+            &["messages"],
+        ),
+        [
+            ("d".to_owned(), Speaker::System),
+            ("u".to_owned(), Speaker::User),
+            ("a".to_owned(), Speaker::Assistant),
+            ("t".to_owned(), Speaker::Tool),
+        ]
+    );
+}
+
+#[test]
 fn bedrock_enforce_maps_blocks_one_to_one_and_chains_sequentially() {
     let mut entire_bedrock = bedrock_enforce_guardrail("br-all");
     entire_bedrock.scope = GuardrailScope::EntireInput;

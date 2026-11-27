@@ -490,11 +490,7 @@ pub(super) fn guardrail_turn(
         None => false,
     };
     if let Some(system) = members.get("system")? {
-        if had_model_turn {
-            turn.push_earlier_member("system", system);
-        } else {
-            turn.push_member("system", system);
-        }
+        turn.push_system_member("system", system, had_model_turn);
     }
     Ok(turn)
 }

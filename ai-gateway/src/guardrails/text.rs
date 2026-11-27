@@ -93,15 +93,14 @@ struct RoleMessage<'a> {
 }
 
 /// An `assistant` message is the model's; every other role is a caller message.
-pub(crate) fn classify_role_message(item: &RawValue) -> Result<TurnItem, Unreadable> {
+pub(crate) fn classify_role_message(item: &RawValue) -> Result<(TurnItem, Speaker), Unreadable> {
     let message = object_item::<RoleMessage<'_>>(item)?;
-    Ok(
-        if message.role.and_then(string).as_deref() == Some("assistant") {
-            TurnItem::Model
-        } else {
-            TurnItem::Message
-        },
-    )
+    Ok(match message.role.and_then(string).as_deref() {
+        Some("assistant") => (TurnItem::Model, Speaker::Assistant),
+        Some("system" | "developer") => (TurnItem::Message, Speaker::System),
+        Some("tool") => (TurnItem::Message, Speaker::Tool),
+        _ => (TurnItem::Message, Speaker::User),
+    })
 }
 
 /// A conversation item, which is an object. Serde would also read an array into
@@ -125,8 +124,30 @@ pub(crate) enum TurnItem {
     Output,
 }
 
-/// Tells who produced one conversation item.
-pub(crate) type ClassifyItem = fn(&RawValue) -> Result<TurnItem, Unreadable>;
+/// Which chat role a text block had, for providers that screen by role (such as
+/// Lakera, which trusts system prompts and screens tool outputs as untrusted).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Speaker {
+    System,
+    User,
+    Assistant,
+    Tool,
+}
+
+impl Speaker {
+    /// The Chat Completions role name.
+    pub(crate) fn chat_role(self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::User => "user",
+            Self::Assistant => "assistant",
+            Self::Tool => "tool",
+        }
+    }
+}
+
+/// Tells who produced one conversation item and which role its text has.
+pub(crate) type ClassifyItem = fn(&RawValue) -> Result<(TurnItem, Speaker), Unreadable>;
 
 /// Where a request's last turn and full input sit: whole members, and
 /// conversation items from an offset on. Finding it reads the conversation's
@@ -147,6 +168,7 @@ enum TurnPart {
         member: &'static str,
         read: &'static Node,
         in_last_turn: bool,
+        speaker: Speaker,
     },
     /// The items of a member's array: `first` starts the entire array, while
     /// `start` starts the last turn. Model items before byte `tail` are skipped
@@ -182,14 +204,19 @@ impl LastTurn {
         self.push_member_with(name, raw, &CONTENT);
     }
 
-    /// Adds all of member `name`, whose JSON is `raw`, as earlier-turn input
-    /// (scanned only by guardrails with `entire_input` scope).
-    pub(crate) fn push_earlier_member(&mut self, name: &'static str, raw: &str) {
+    /// Adds the system prompt in member `name`, whose JSON is `raw`. A prompt
+    /// `resent` after the first turn is earlier-turn input, scanned only by
+    /// guardrails with `entire_input` scope.
+    pub(crate) fn push_system_member(&mut self, name: &'static str, raw: &str, resent: bool) {
         self.parts.push(TurnPart::Member {
             member: name,
             read: &CONTENT,
-            in_last_turn: false,
+            in_last_turn: !resent,
+            speaker: Speaker::System,
         });
+        if !resent {
+            self.bytes += raw.len();
+        }
         self.entire_bytes += raw.len();
     }
 
@@ -199,6 +226,7 @@ impl LastTurn {
             member: name,
             read,
             in_last_turn: true,
+            speaker: Speaker::User,
         });
         self.bytes += raw.len();
         self.entire_bytes += raw.len();
@@ -229,7 +257,7 @@ impl LastTurn {
             let offset = item.get().as_ptr().addr() - raw.as_ptr().addr();
             let end = offset + item.get().len();
             first.get_or_insert(offset);
-            let kind = classify(item)?;
+            let (kind, _) = classify(item)?;
             if kind == TurnItem::Model {
                 model_since_message = true;
                 model_seen = true;
@@ -262,14 +290,15 @@ impl LastTurn {
     }
 
     /// Sends text leaves (raw JSON slice + decoded text) together with whether
-    /// each leaf belongs to the last turn. When `include_entire_input` is
-    /// `false`, earlier items and resent system prompts are skipped completely.
-    /// Returning `false` from `sink` stops walking early.
+    /// each leaf belongs to the last turn and which role it has. When
+    /// `include_entire_input` is `false`, earlier items and resent system
+    /// prompts are skipped completely. Returning `false` from `sink` stops
+    /// walking early.
     pub(crate) fn read_scoped_leaves(
         &self,
         members: &crate::guardrails::spec::Members<'_, '_>,
         include_entire_input: bool,
-        sink: &mut dyn FnMut(TextLeaf<'_>, bool) -> bool,
+        sink: &mut dyn FnMut(TextLeaf<'_>, bool, Speaker) -> bool,
     ) -> Result<(), Unreadable> {
         let mut keep_going = true;
         for part in &self.parts {
@@ -281,6 +310,7 @@ impl LastTurn {
                     member: name,
                     read,
                     in_last_turn,
+                    speaker,
                 } => {
                     if !include_entire_input && !in_last_turn {
                         continue;
@@ -290,7 +320,7 @@ impl LastTurn {
                     };
                     read_leaves(read, raw, &mut |leaf| {
                         if keep_going {
-                            keep_going = sink(leaf, in_last_turn);
+                            keep_going = sink(leaf, in_last_turn, speaker);
                         }
                     })?;
                 }
@@ -315,12 +345,13 @@ impl LastTurn {
                             serde_json::Deserializer::from_str(rest).into_iter::<&RawValue>();
                         let item = items.next().ok_or(Unreadable)?.map_err(|_| Unreadable)?;
                         let offset = item.get().as_ptr().addr() - raw.as_ptr().addr();
-                        let in_last_turn = offset >= start
-                            && (offset >= tail || classify(item)? != TurnItem::Model);
+                        let (kind, speaker) = classify(item)?;
+                        let in_last_turn =
+                            offset >= start && (offset >= tail || kind != TurnItem::Model);
                         if include_entire_input || in_last_turn {
                             read_leaves(read, item.get(), &mut |leaf| {
                                 if keep_going {
-                                    keep_going = sink(leaf, in_last_turn);
+                                    keep_going = sink(leaf, in_last_turn, speaker);
                                 }
                             })?;
                         }
@@ -342,7 +373,7 @@ impl LastTurn {
         members: &crate::guardrails::spec::Members<'_, '_>,
         sink: &mut dyn FnMut(TextLeaf<'_>),
     ) -> Result<(), Unreadable> {
-        self.read_scoped_leaves(members, false, &mut |leaf, _| {
+        self.read_scoped_leaves(members, false, &mut |leaf, _, _| {
             sink(leaf);
             true
         })
@@ -411,12 +442,12 @@ mod tests {
         );
     }
 
-    fn classify_role(item: &RawValue) -> Result<TurnItem, Unreadable> {
+    fn classify_role(item: &RawValue) -> Result<(TurnItem, Speaker), Unreadable> {
         let role: &str = serde_json::from_str(item.get()).map_err(|_| Unreadable)?;
         Ok(match role {
-            "assistant" | "call" => TurnItem::Model,
-            "tool" => TurnItem::Output,
-            _ => TurnItem::Message,
+            "assistant" | "call" => (TurnItem::Model, Speaker::Assistant),
+            "tool" => (TurnItem::Output, Speaker::Tool),
+            _ => (TurnItem::Message, Speaker::User),
         })
     }
 

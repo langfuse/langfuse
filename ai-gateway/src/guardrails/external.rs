@@ -14,7 +14,10 @@ use reqwest_tracing::DisableOtelPropagation;
 use secrecy::{ExposeSecret, SecretString};
 
 use crate::{
-    guardrails::{Guardrail, GuardrailKind, GuardrailLocation, bedrock, lakera, openai_moderation},
+    guardrails::{
+        Guardrail, GuardrailKind, GuardrailLocation, bedrock, lakera, openai_moderation,
+        text::Speaker,
+    },
     providers::OutboundPolicy,
     resolution::ResolutionError,
 };
@@ -130,6 +133,23 @@ impl ExternalCallFailure {
     }
 }
 
+/// One text block an external guardrail screens, with the chat role it had.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ExternalBlock<'a> {
+    pub text: &'a str,
+    pub speaker: Speaker,
+}
+
+#[cfg(test)]
+impl<'a> ExternalBlock<'a> {
+    pub(crate) fn user(text: &'a str) -> Self {
+        Self {
+            text,
+            speaker: Speaker::User,
+        }
+    }
+}
+
 /// Pre-serialized request payloads for external guardrail providers, built once
 /// per request so temporary text copies can be dropped before awaiting network I/O.
 pub(crate) struct ExternalPayloads {
@@ -152,26 +172,27 @@ impl ExternalPayloads {
 
     pub(crate) fn for_guardrails(
         guardrails: &[&Guardrail],
-        blocks: &[&str],
+        blocks: &[ExternalBlock<'_>],
         location: GuardrailLocation,
     ) -> Self {
+        let texts: Vec<&str> = blocks.iter().map(|block| block.text).collect();
         let needs_bedrock = guardrails
             .iter()
             .any(|guardrail| matches!(guardrail.kind, GuardrailKind::Bedrock(_)));
         let bedrock = needs_bedrock
-            .then(|| bedrock::serialize_blocks(blocks, location.bedrock_source()))
+            .then(|| bedrock::serialize_blocks(&texts, location.bedrock_source()))
             .flatten();
         let needs_openai_moderation = guardrails
             .iter()
             .any(|guardrail| matches!(guardrail.kind, GuardrailKind::OpenAiModeration(_)));
         let openai_moderation = needs_openai_moderation
-            .then(|| openai_moderation::serialize_blocks(blocks))
+            .then(|| openai_moderation::serialize_blocks(&texts))
             .flatten();
         let needs_lakera = guardrails
             .iter()
             .any(|guardrail| matches!(guardrail.kind, GuardrailKind::Lakera(_)));
         let lakera = needs_lakera
-            .then(|| lakera::serialize_blocks(blocks, location))
+            .then(|| lakera::serialize_blocks(blocks))
             .flatten();
         Self {
             bedrock,

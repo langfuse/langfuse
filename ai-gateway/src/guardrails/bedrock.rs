@@ -279,7 +279,7 @@ mod tests {
     use super::*;
     use crate::guardrails::{
         Guardrail, GuardrailAction, GuardrailKind, GuardrailLocation, GuardrailScope,
-        external::{ExternalFailureKind, ExternalPayloads},
+        external::{ExternalBlock, ExternalFailureKind, ExternalPayloads},
     };
     use axum::{body::Body, http::Response};
     use http_body_util::BodyExt;
@@ -441,8 +441,11 @@ mod tests {
             sample_guardrail("g6", "error"),
         ];
         let refs: Vec<&Guardrail> = guardrails.iter().collect();
-        let payloads =
-            ExternalPayloads::for_guardrails(&refs, &["hello world"], GuardrailLocation::Request);
+        let payloads = ExternalPayloads::for_guardrails(
+            &refs,
+            &[ExternalBlock::user("hello world")],
+            GuardrailLocation::Request,
+        );
         let results = client.evaluate_many(&refs, &payloads, "org-1").await;
         assert_eq!(
             results,
