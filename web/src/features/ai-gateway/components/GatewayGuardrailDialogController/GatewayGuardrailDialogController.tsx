@@ -395,10 +395,13 @@ function GuardrailDialogContent({
               secretPrefixes: [],
               containsWords: [],
               customRegex: null,
-              action:
-                GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[
-                  selectedTemplate.guardrailType
-                ].defaultAction,
+              action: resolveSupportedGuardrailAction(
+                selectedTemplate.guardrailType,
+                selectedTemplate.defaultAction ??
+                  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[
+                    selectedTemplate.guardrailType
+                  ].defaultAction,
+              ),
               scope: "LAST_TURN",
               redactionLabel: GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
               targets: [EVERYONE_TARGET_OPTION],
@@ -593,6 +596,22 @@ function resolveEditableTemplate(guardrail: GatewayGuardrailRow): {
       templateKind: "secrets",
       availablePresets:
         secretsTemplate?.presets ?? GATEWAY_GUARDRAIL_PRESET_KEYS,
+    };
+  }
+  const allPromptInjection =
+    guardrail.presets.length > 0 &&
+    guardrail.presets.every(
+      (preset) =>
+        GATEWAY_GUARDRAIL_PRESETS[preset].group === "prompt_injection",
+    );
+  if (allPromptInjection) {
+    const promptInjectionTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
+      (template) => template.id === "prompt_injection",
+    );
+    return {
+      templateKind: "prompt_injection",
+      availablePresets:
+        promptInjectionTemplate?.presets ?? GATEWAY_GUARDRAIL_PRESET_KEYS,
     };
   }
   const piiTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(

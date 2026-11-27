@@ -268,5 +268,12 @@ function getGuardrailBadge(row: GatewayGuardrailRow) {
       row.presets.every(
         (preset) => GATEWAY_GUARDRAIL_PRESETS[preset].group === "secrets",
       ));
-  return isSecrets ? "***" : "PII";
+  if (isSecrets) return "***";
+  const isPromptInjection =
+    row.presets.length > 0 &&
+    row.presets.every(
+      (preset) =>
+        GATEWAY_GUARDRAIL_PRESETS[preset].group === "prompt_injection",
+    );
+  return isPromptInjection ? "INJ" : "PII";
 }
