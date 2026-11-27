@@ -6,17 +6,14 @@
     0 8px 20px 0 rgb(0 0 0 / 0.06);
 }
 
-/* Takes no room at rest, so the hint keeps the full width. */
+/* Space is always reserved so hovering never shifts or re-wraps card text. */
 .action {
-  max-width: 0;
-  overflow: hidden;
   opacity: 0;
   transform: translateX(-4px);
 }
 
 .interactive:hover .action,
 .interactive:focus-visible .action {
-  max-width: none;
   opacity: 1;
   transform: none;
 }
