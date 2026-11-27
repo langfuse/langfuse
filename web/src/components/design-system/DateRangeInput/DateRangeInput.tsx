@@ -59,7 +59,7 @@ type DateRangeInputProps<V extends string> =
   | FieldsDateRangeInputProps;
 
 const dateFieldClassName =
-  "date-range-input-field placeholder:text-muted-foreground min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-sm shadow-none outline-hidden focus:ring-0 disabled:cursor-not-allowed [&::-webkit-calendar-picker-indicator]:pointer-events-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none [&::-moz-calendar-picker-indicator]:hidden";
+  "placeholder:text-muted-foreground min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-sm shadow-none outline-hidden focus:ring-0 disabled:cursor-not-allowed [&::-webkit-calendar-picker-indicator]:pointer-events-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none";
 
 function DateRangeInput<V extends string>(props: DateRangeInputProps<V>) {
   if (props.variant === "fields") return <DateRangeFieldsVariant {...props} />;
