@@ -8,7 +8,6 @@ import {
 } from "react-hook-form";
 
 import { Banner } from "@/src/components/design-system/Banner/Banner";
-import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
@@ -348,21 +347,14 @@ function OptionalSections({
             disabled={isExpirationDisabled}
           />
         );
-      case "spendBudget": {
-        const field = (
+      case "spendBudget":
+        return (
           <GatewaySpendBudgetField
             subject="key"
             control={form.control}
             disabledReason={spendBudgetDisabledReason}
           />
         );
-        if (spendBudgetDisabledReason === undefined) return field;
-        return (
-          <DisabledActionTooltip label={spendBudgetDisabledReason} isFullWidth>
-            <div className="w-full">{field}</div>
-          </DisabledActionTooltip>
-        );
-      }
       case "models":
         return (
           <GatewayApiKeyModelsField
