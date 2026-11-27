@@ -44,6 +44,9 @@ const oidcIssuer = z
   .url({ message: "OIDC issuer urls must be a valid URL" })
   .startsWith("https://", {
     message: "OIDC issuer urls must start with https://",
+  })
+  .refine((issuer) => !/[?#]/.test(issuer), {
+    message: "OIDC issuer URLs must omit query strings and fragments",
   });
 
 const GoogleProviderSchema = base.extend({
@@ -163,19 +166,26 @@ const OneLoginProviderSchema = base.extend({
     .nullish(),
 });
 
+export const AzureMultiTenantIdSchema = z.enum([
+  "common",
+  "organizations",
+  "consumers",
+]);
+const azureTenantDomain = z.hostname().regex(/\.[a-z][a-z0-9-]*$/i);
+
 const AzureAdProviderSchema = base.extend({
   authProvider: z.literal("azure-ad"),
   authConfig: z
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      // NextAuth interpolates tenantId straight into
-      // https://login.microsoftonline.com/<tenantId>/v2.0/...; an empty
-      // string saves cleanly and only blows up at sign-in (double slash,
-      // no tenant). Same class of footgun as a schemeless issuer URL.
-      tenantId: z.string().min(1, {
-        message: "Azure AD tenantId is required",
-      }),
+      tenantId: z.union(
+        [AzureMultiTenantIdSchema, z.guid(), azureTenantDomain],
+        {
+          error:
+            "Enter a tenant GUID, tenant domain, common, organizations, or consumers",
+        },
+      ),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
       tokenEndpointAuthMethod: tokenEndpointAuthMethod,
       idTokenSignedResponseAlg: idTokenSignedResponseAlg,
