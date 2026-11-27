@@ -45,8 +45,7 @@ import {
   decodeBedrockApiKey,
   encodeBedrockCredential,
 } from "@/src/features/ai-gateway/server/provider/bedrock";
-import { ProviderCredentialRejectedError } from "@/src/features/ai-gateway/server/provider/connection/ProviderCredentialRejectedError";
-import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
+import { postExternalGuardrailTest } from "@/src/features/ai-gateway/server/guardrails/postExternalGuardrailTest";
 import { validateOpenAiModerationGuardrail } from "@/src/features/ai-gateway/server/guardrails/validateOpenAiModerationGuardrail";
 import type {
   GatewayCachedGuardrailScope,
@@ -103,8 +102,6 @@ const GATEWAY_MEMBER_ROLES = Object.values(Role).filter((role) =>
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DUPLICATE_NAME_MESSAGE = "A guardrail with this name already exists";
-const EXTERNAL_GUARDRAIL_TEST_TIMEOUT_MS = 10_000;
-const GUARDRAIL_TEST_FAILED_MESSAGE = "Guardrail test failed";
 
 export type GatewayGuardrailDeleteTarget =
   | { type: "ids"; ids: string[] }
@@ -1031,68 +1028,18 @@ async function validateBedrockGuardrail(
   params: GatewayBedrockGuardrailConfig & { apiKey: string },
 ) {
   const origin = bedrockRuntimeOrigin({ region: params.region });
-  const url = `${origin}/guardrail/${encodeURIComponent(params.guardrailId)}/version/${encodeURIComponent(params.guardrailVersion)}/apply`;
-  const fetcher = getGatewayFetch({
-    baseURL: null,
-    extraHeaders: {},
-    logContext: "AI Gateway Bedrock guardrail validation",
+  await postExternalGuardrailTest({
+    url: `${origin}/guardrail/${encodeURIComponent(params.guardrailId)}/version/${encodeURIComponent(params.guardrailVersion)}/apply`,
+    apiKey: params.apiKey,
+    body: { source: "INPUT", content: [{ text: { text: "Hello" } }] },
+    providerName: "Amazon Bedrock",
+    unreachableMessage:
+      "Could not reach Amazon Bedrock in the selected region.",
+    isExpectedResponse: (json) => {
+      const action = (json as { action?: unknown } | null)?.action;
+      return action === "NONE" || action === "GUARDRAIL_INTERVENED";
+    },
   });
-
-  let response: Response;
-  try {
-    response = await fetcher(url, {
-      method: "POST",
-      redirect: "error",
-      signal: AbortSignal.timeout(EXTERNAL_GUARDRAIL_TEST_TIMEOUT_MS),
-      headers: {
-        authorization: `Bearer ${params.apiKey}`,
-        "content-type": "application/json",
-        accept: "application/json",
-      },
-      body: JSON.stringify({
-        source: "INPUT",
-        content: [{ text: { text: "Hello" } }],
-      }),
-    });
-  } catch (error) {
-    if (error instanceof InvalidRequestError) throw error;
-    throw new ProviderCredentialRejectedError(
-      {
-        status: null,
-        body: "Could not reach Amazon Bedrock in the selected region.",
-      },
-      GUARDRAIL_TEST_FAILED_MESSAGE,
-    );
-  }
-
-  const body = await response.text().catch(() => "");
-  if (!response.ok) {
-    throw new ProviderCredentialRejectedError(
-      {
-        status: response.status,
-        body:
-          body || response.statusText || "Amazon Bedrock rejected the request.",
-      },
-      GUARDRAIL_TEST_FAILED_MESSAGE,
-    );
-  }
-
-  let action: unknown;
-  try {
-    const parsed = JSON.parse(body) as { action?: unknown };
-    action = parsed.action;
-  } catch {
-    action = null;
-  }
-  if (action !== "NONE" && action !== "GUARDRAIL_INTERVENED") {
-    throw new ProviderCredentialRejectedError(
-      {
-        status: response.status,
-        body: "Unexpected response from Amazon Bedrock.",
-      },
-      GUARDRAIL_TEST_FAILED_MESSAGE,
-    );
-  }
 }
 
 function deduplicateAssignments(

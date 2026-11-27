@@ -430,7 +430,7 @@ export function GatewayGuardrailFormDialog({
       bedrockGuardrailVersion: initialValues.bedrock?.guardrailVersion ?? "",
       bedrockRegion: initialValues.bedrock?.region ?? "",
       bedrockApiKey: "",
-      openAiModerationRegion: initialValues.openAiModeration?.region ?? "eu",
+      openAiModerationRegion: initialValues.openAiModeration?.region ?? "us",
       openAiModerationApiKey: "",
       action: initialValues.action,
       scope: resolveSupportedGuardrailScope(
