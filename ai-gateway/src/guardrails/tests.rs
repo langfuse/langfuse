@@ -77,16 +77,59 @@ fn bedrock_enforce_guardrail(id: &str) -> Guardrail {
     }
 }
 
-fn scanned(body: &str, members: &[&'static str]) -> ScannedMembers {
+fn scanned(body: &str, members: &'static [&'static str]) -> ScannedMembers {
     let parsed: std::collections::BTreeMap<&str, &serde_json::value::RawValue> =
         serde_json::from_str(body).unwrap();
-    let mut scanned = ScannedMembers::default();
+    let mut scanned = ScannedMembers::new(members);
     for name in members {
-        let value = parsed[name].get();
+        let Some(value) = parsed.get(name).map(|value| value.get()) else {
+            continue;
+        };
         let start = value.as_ptr().addr() - body.as_ptr().addr();
         scanned.push(name, start..start + value.len());
     }
     scanned
+}
+
+#[test]
+fn every_format_reads_only_the_request_members_it_declares() {
+    let find = |_: &str| Some(r#"[{"role":"user","content":"hi"}]"#);
+    for api_format in [
+        ApiFormat::OpenAiChatCompletions,
+        ApiFormat::OpenAiResponses,
+        ApiFormat::AnthropicMessages,
+        ApiFormat::OpenAiEmbeddings,
+        ApiFormat::OpenAiDecisions,
+    ] {
+        let spec = crate::capture::request_spec(api_format);
+        assert!(
+            (spec.last_turn)(&Members::new(spec.members, &find)).is_ok(),
+            "{api_format:?} reads a member it does not declare"
+        );
+        assert!(Members::new(spec.members, &find).get("undeclared").is_err());
+    }
+}
+
+#[test]
+fn a_conversation_item_that_is_not_an_object_fails_closed() {
+    let rules = [guardrail("ssn", GuardrailAction::Block, &[SSN])];
+    for (api_format, body, member) in [
+        (
+            ApiFormat::OpenAiChatCompletions,
+            r#"{"messages":[["user","ssn 123-45-6789"]]}"#,
+            "messages",
+        ),
+        (
+            ApiFormat::OpenAiResponses,
+            r#"{"input":[["message","user","ssn 123-45-6789"]]}"#,
+            "input",
+        ),
+    ] {
+        let members = crate::capture::request_spec(api_format).members;
+        assert!(members.contains(&member));
+        let outcome = check_request(&rules, api_format, body.as_bytes(), &scanned(body, members));
+        assert!(outcome.rejection().is_some(), "{api_format:?}");
+    }
 }
 
 #[test]
@@ -681,7 +724,7 @@ fn check_response_local(
     let parsed = ParsedResponse::parse(
         api_format,
         format,
-        Bytes::copy_from_slice(body.as_bytes()),
+        vec![Bytes::copy_from_slice(body.as_bytes())],
         None,
     )
     .ok();
@@ -750,7 +793,7 @@ fn redacts_json_responses_across_formats() {
     let parsed_resp = ParsedResponse::parse(
         ApiFormat::OpenAiResponses,
         ResponseFormat::Json,
-        Bytes::from_static(responses.as_bytes()),
+        vec![Bytes::from_static(responses.as_bytes())],
         None,
     )
     .unwrap();
@@ -829,6 +872,60 @@ fn redacts_sse_responses_across_formats_and_span_boundaries() {
 }
 
 #[test]
+fn sse_responses_read_the_same_however_the_stream_is_chunked() {
+    let chat = concat!(
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"SSN 123-\"}}]}\n\n",
+        ": ping\n\n",
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"45-6789 \\u00e9🔑\"}}]}\n\n",
+        "data: [DONE]\n\n"
+    );
+    let anthropic = concat!(
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"SSN 123-\"}}\n\n",
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\n",
+        "data: \"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"45-6789 é\"}}\n\n"
+    );
+    let cases = [
+        (ApiFormat::OpenAiChatCompletions, chat.to_owned()),
+        (ApiFormat::OpenAiChatCompletions, chat.replace('\n', "\r\n")),
+        (ApiFormat::OpenAiChatCompletions, chat.replace('\n', "\r")),
+        (
+            ApiFormat::AnthropicMessages,
+            anthropic.replace('\n', "\r\n"),
+        ),
+    ];
+    for (api_format, sse) in cases {
+        let read = |chunks: Vec<Bytes>| {
+            let parsed =
+                ParsedResponse::parse(api_format, ResponseFormat::Sse, chunks, None).unwrap();
+            let blocks = format!("{:?}", parsed.blocks());
+            let edits: Vec<_> = (0..parsed.blocks().len())
+                .map(|i| (i, "[SSN]".to_owned()))
+                .collect();
+            let RedactionApply::Rewritten(rewritten) =
+                parsed.apply_redactions(&edits, None).unwrap()
+            else {
+                panic!("every block is rewritten");
+            };
+            (blocks, rewritten)
+        };
+        let whole = read(vec![Bytes::copy_from_slice(sse.as_bytes())]);
+        assert!(whole.0.contains("SSN 123-45-6789"));
+        for first in 0..=sse.len() {
+            for second in [first, first + 1, first + 7].map(|at| at.min(sse.len())) {
+                let chunks = [0..first, first..second, second..sse.len()]
+                    .map(|range| Bytes::copy_from_slice(&sse.as_bytes()[range]))
+                    .to_vec();
+                assert_eq!(
+                    read(chunks),
+                    whole,
+                    "{api_format:?} split at {first} and {second}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn response_fail_closed_cases_signed_thinking_and_memory_budget() {
     let block_rules = [guardrail("block", GuardrailAction::Block, &[SSN])];
 
@@ -895,9 +992,9 @@ fn response_fail_closed_cases_signed_thinking_and_memory_budget() {
         );
     }
 
-    // High-expansion JSON (`[{"":0},...]`) is bounded by dynamic memory_budget charging.
+    // Wide JSON (`[{"":0},...]`) is bounded by dynamic memory_budget charging of its keys.
     let mut entries = String::from(r#"{"choices":["#);
-    for idx in 0..400 {
+    for idx in 0..2000 {
         if idx > 0 {
             entries.push(',');
         }
@@ -909,7 +1006,7 @@ fn response_fail_closed_cases_signed_thinking_and_memory_budget() {
         ParsedResponse::parse(
             ApiFormat::OpenAiChatCompletions,
             ResponseFormat::Json,
-            Bytes::from(entries),
+            vec![Bytes::from(entries)],
             Some(&tight_budget),
         ),
         Err(ResponseParseError::Busy)

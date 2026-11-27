@@ -8,6 +8,7 @@ import {
   GATEWAY_SPEND_LIMIT_DTO_SELECT,
   toGatewaySpendLimitDto,
 } from "@/src/features/ai-gateway/server/spendLimits/gatewaySpendLimitDto";
+import { gatewaySpendLimitsNotOwnedBy } from "@/src/features/ai-gateway/server/spendLimits/gatewaySpendLimitsNotOwnedBy";
 
 const GATEWAY_API_KEY_SELECT = {
   metadata: true,
@@ -23,24 +24,6 @@ const GATEWAY_API_KEY_SELECT = {
       lastUsedAt: true,
       createdByUserId: true,
       user: { select: { name: true, email: true, image: true } },
-    },
-  },
-} as const;
-
-/**
- * List rows also carry the key's first spend limit, so the edit dialog can show
- * it, and whether there are more, which the dialog cannot edit.
- */
-const GATEWAY_API_KEY_LIST_SELECT = {
-  ...GATEWAY_API_KEY_SELECT,
-  apiKey: {
-    select: {
-      ...GATEWAY_API_KEY_SELECT.apiKey.select,
-      gatewaySpendLimits: {
-        select: GATEWAY_SPEND_LIMIT_DTO_SELECT,
-        orderBy: { createdAt: "asc" },
-        take: 2,
-      },
     },
   },
 } as const;
@@ -105,7 +88,7 @@ export class GatewayApiKeyRepository {
     };
     const findPage = this.prisma.gatewayApiKeyAssociation.findMany({
       where,
-      select: GATEWAY_API_KEY_LIST_SELECT,
+      select: gatewayApiKeyListSelect(params.ownerUserId),
       orderBy: [gatewayApiKeyOrderBy(params.orderBy), { apiKeyId: "desc" }],
       take: params.limit,
       skip: params.page * params.limit,
@@ -115,13 +98,17 @@ export class GatewayApiKeyRepository {
       this.prisma.gatewayApiKeyAssociation.count({ where }),
     ]);
     const data = rows.map(
-      ({ apiKey: { gatewaySpendLimits, ...apiKey }, ...row }) => ({
+      ({ apiKey: { gatewaySpendLimits, _count, ...apiKey }, ...row }) => ({
         ...row,
         apiKey,
         spendLimit: gatewaySpendLimits[0]
           ? toGatewaySpendLimitDto(gatewaySpendLimits[0])
           : null,
         hasSeveralSpendLimits: gatewaySpendLimits.length > 1,
+        // Members may reset only budgets they set, never an admin's or the default.
+        canResetBudget:
+          params.ownerUserId === undefined ||
+          (gatewaySpendLimits.length > 0 && _count.gatewaySpendLimits === 0),
       }),
     );
     return { data, totalCount };
@@ -258,4 +245,35 @@ function gatewayApiKeyOrderBy(
     default:
       return { apiKey: { createdAt: "desc" } };
   }
+}
+
+/**
+ * List rows also carry the key's first spend limit, so the edit dialog can show
+ * it, and whether there are more, which the dialog cannot edit.
+ */
+function gatewayApiKeyListSelect(ownerUserId: string | undefined) {
+  return {
+    ...GATEWAY_API_KEY_SELECT,
+    apiKey: {
+      select: {
+        ...GATEWAY_API_KEY_SELECT.apiKey.select,
+        gatewaySpendLimits: {
+          select: GATEWAY_SPEND_LIMIT_DTO_SELECT,
+          orderBy: { createdAt: "asc" },
+          take: 2,
+        },
+        // Counts every limit, so members see the same answer the reset check gives.
+        _count: {
+          select: {
+            gatewaySpendLimits: {
+              where:
+                ownerUserId === undefined
+                  ? {}
+                  : gatewaySpendLimitsNotOwnedBy(ownerUserId),
+            },
+          },
+        },
+      },
+    },
+  } as const;
 }

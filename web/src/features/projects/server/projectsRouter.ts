@@ -15,6 +15,8 @@ import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEnti
 import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { type Prisma, type PrismaClient } from "@langfuse/shared/src/db";
+import { type Session } from "next-auth";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import {
   redis,
@@ -24,6 +26,43 @@ import {
 import { StringNoHTMLNonEmpty } from "@langfuse/shared";
 import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
 import { createDefaultScoreConfigs } from "@/src/features/projects/server/defaultScoreConfigs";
+
+/** updateAuditedProject locks the project, then writes the row and an audit log of the row it replaced. */
+async function updateAuditedProject({
+  prisma,
+  session,
+  projectId,
+  data,
+}: {
+  prisma: PrismaClient;
+  session: Omit<Session, "user"> & {
+    orgId: string;
+    projectId?: string;
+    user: NonNullable<Session["user"]>;
+  };
+  projectId: string;
+  data: Prisma.ProjectUpdateInput;
+}) {
+  await prisma.$transaction(async (tx) => {
+    // Hold the row until this update commits so the before snapshot is the
+    // state this write replaces, not a row a concurrent update already changed.
+    await tx.$queryRaw`SELECT id FROM projects WHERE id = ${projectId} AND org_id = ${session.orgId} FOR UPDATE`;
+    const where = { id: projectId, orgId: session.orgId };
+    const before = await tx.project.findFirst({ where });
+    const after = await tx.project.update({ where, data });
+    await auditLog(
+      {
+        session,
+        resourceType: "project",
+        resourceId: projectId,
+        action: "update",
+        before,
+        after,
+      },
+      tx,
+    );
+  });
+}
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
@@ -121,21 +160,11 @@ export const projectsRouter = createTRPCRouter({
         });
       }
 
-      const project = await ctx.prisma.project.update({
-        where: {
-          id: input.projectId,
-          orgId: ctx.session.orgId,
-        },
-        data: {
-          name: input.newName,
-        },
-      });
-      await auditLog({
+      await updateAuditedProject({
+        prisma: ctx.prisma,
         session: ctx.session,
-        resourceType: "project",
-        resourceId: input.projectId,
-        action: "update",
-        after: project,
+        projectId: input.projectId,
+        data: { name: input.newName },
       });
       return true;
     }),
@@ -161,21 +190,11 @@ export const projectsRouter = createTRPCRouter({
         });
       }
 
-      const project = await ctx.prisma.project.update({
-        where: {
-          id: input.projectId,
-          orgId: ctx.session.orgId,
-        },
-        data: {
-          retentionDays: input.retention,
-        },
-      });
-      await auditLog({
+      await updateAuditedProject({
+        prisma: ctx.prisma,
         session: ctx.session,
-        resourceType: "project",
-        resourceId: input.projectId,
-        action: "update",
-        after: project,
+        projectId: input.projectId,
+        data: { retentionDays: input.retention },
       });
       return true;
     }),

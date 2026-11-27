@@ -35,7 +35,6 @@ import {
   GATEWAY_GUARDRAIL_PRESET_LABELS,
   GATEWAY_GUARDRAIL_TEMPLATES,
   getGuardrailTypeForTemplate,
-  type GatewayGuardrailTemplateKind,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
 import { RegionSelect } from "@/src/features/ai-gateway/components/RegionSelect";
 import { bedrockRegionGroups } from "@/src/features/ai-gateway/constants/bedrockRegions";
@@ -66,10 +65,11 @@ import {
   GATEWAY_GUARDRAIL_ACTION_SCOPES,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
-  GatewayBedrockGuardrailApiKeySchema,
   GatewayBedrockGuardrailConfigSchema,
   GatewayGuardrailCustomRegexSchema,
   GatewayGuardrailRedactionLabelSchema,
+  GATEWAY_OPENAI_MODERATION_REGIONS,
+  GatewayExternalGuardrailApiKeySchema,
   guardrailScopeChecksOutput,
   parseContainsWordsText,
   resolveSupportedGuardrailScope,
@@ -77,7 +77,9 @@ import {
   validateContainsWordsText,
   validateSecretPrefix,
   type GatewayGuardrailPreset,
+  type GatewayGuardrailTemplateKind,
   type GatewayGuardrailUiAction,
+  type GatewayOpenAiModerationGuardrailConfig,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import type {
   GatewayGuardrailScope,
@@ -116,7 +118,19 @@ const ACTION_OPTIONS_BY_TYPE: Record<
   REGEX: GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.REGEX.actions.map(toActionOption),
   BEDROCK:
     GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.actions.map(toActionOption),
+  OPENAI_MODERATION:
+    GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.OPENAI_MODERATION.actions.map(
+      toActionOption,
+    ),
 };
+
+const OPENAI_MODERATION_REGION_OPTIONS: {
+  value: GatewayOpenAiModerationGuardrailConfig["region"];
+  label: string;
+}[] = [
+  { value: "us", label: "US (api.openai.com)" },
+  { value: "eu", label: "EU (eu.api.openai.com)" },
+];
 
 const SCOPE_OPTIONS_ALL = GATEWAY_GUARDRAIL_SCOPES.map(toScopeSelectOption);
 const SCOPE_OPTIONS_BLOCK =
@@ -162,7 +176,8 @@ function createGuardrailFormSchema(
       bedrockGuardrailId: z.string(),
       bedrockGuardrailVersion: z.string(),
       bedrockRegion: z.string(),
-      bedrockApiKey: z.string(),
+      openAiModerationRegion: z.enum(GATEWAY_OPENAI_MODERATION_REGIONS),
+      apiKey: z.string(),
       action: z.enum(capabilities.actions),
       scope: z.enum(GATEWAY_GUARDRAIL_SCOPES),
       redactionLabel: z.string(),
@@ -222,18 +237,18 @@ function createGuardrailFormSchema(
             }
           }
         }
-        const trimmedApiKey = values.bedrockApiKey.trim();
-        if (!hasSavedApiKey || trimmedApiKey.length > 0) {
-          const apiKeyResult = GatewayBedrockGuardrailApiKeySchema.safeParse(
-            values.bedrockApiKey,
+      }
+      if (isExternalTemplate(templateKind)) {
+        if (!hasSavedApiKey || values.apiKey.trim()) {
+          const apiKeyResult = GatewayExternalGuardrailApiKeySchema.safeParse(
+            values.apiKey,
           );
           if (!apiKeyResult.success) {
             ctx.addIssue({
               code: "custom",
-              path: ["bedrockApiKey"],
+              path: ["apiKey"],
               message:
-                apiKeyResult.error.issues[0]?.message ??
-                "Enter a Bedrock API key",
+                apiKeyResult.error.issues[0]?.message ?? "Enter an API key",
             });
           }
         }
@@ -306,6 +321,9 @@ export type GatewayGuardrailFormValues = {
     guardrailId: string;
     guardrailVersion: string;
     region: string;
+    apiKey?: string;
+  };
+  openAiModeration?: GatewayOpenAiModerationGuardrailConfig & {
     apiKey?: string;
   };
   action: GatewayGuardrailUiAction;
@@ -391,7 +409,8 @@ export function GatewayGuardrailFormDialog({
       bedrockGuardrailId: initialValues.bedrock?.guardrailId ?? "",
       bedrockGuardrailVersion: initialValues.bedrock?.guardrailVersion ?? "",
       bedrockRegion: initialValues.bedrock?.region ?? "",
-      bedrockApiKey: "",
+      openAiModerationRegion: initialValues.openAiModeration?.region ?? "us",
+      apiKey: "",
       action: initialValues.action,
       scope: resolveSupportedGuardrailScope(
         initialValues.action,
@@ -412,7 +431,7 @@ export function GatewayGuardrailFormDialog({
   const bedrockGuardrailId = form.watch("bedrockGuardrailId");
   const bedrockGuardrailVersion = form.watch("bedrockGuardrailVersion");
   const bedrockRegion = form.watch("bedrockRegion");
-  const bedrockApiKey = form.watch("bedrockApiKey");
+  const apiKey = form.watch("apiKey");
   const selectedAction = form.watch("action");
   const selectedScope = form.watch("scope");
   const checksOutput = guardrailScopeChecksOutput(selectedScope);
@@ -423,23 +442,27 @@ export function GatewayGuardrailFormDialog({
   );
   const guardrailType = getGuardrailTypeForTemplate(templateKind);
   const capabilities = GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[guardrailType];
-  const externalTemplate =
-    GATEWAY_GUARDRAIL_TEMPLATES.find((template) => template.id === templateKind)
-      ?.external ?? null;
+  const activeTemplate =
+    GATEWAY_GUARDRAIL_TEMPLATES.find(
+      (template) => template.id === templateKind,
+    ) ?? null;
+  const externalTemplate = activeTemplate?.external ?? null;
+  const templateNotice = activeTemplate?.notice ?? null;
   const isExternal = externalTemplate !== null;
   const isTesting = externalTest?.isPending ?? false;
   const isBusy = isSubmitting || isTesting;
+  const isApiKeyReady =
+    (hasSavedApiKey && apiKey.trim().length === 0) ||
+    GatewayExternalGuardrailApiKeySchema.safeParse(apiKey).success;
   const canTestExternal =
-    templateKind === "bedrock" &&
-    GatewayBedrockGuardrailConfigSchema.safeParse({
-      guardrailId: bedrockGuardrailId,
-      guardrailVersion: bedrockGuardrailVersion,
-      region: bedrockRegion,
-    }).success &&
-    (hasSavedApiKey
-      ? bedrockApiKey.trim().length === 0 ||
-        GatewayBedrockGuardrailApiKeySchema.safeParse(bedrockApiKey).success
-      : GatewayBedrockGuardrailApiKeySchema.safeParse(bedrockApiKey).success);
+    isExternal &&
+    isApiKeyReady &&
+    (templateKind !== "bedrock" ||
+      GatewayBedrockGuardrailConfigSchema.safeParse({
+        guardrailId: bedrockGuardrailId,
+        guardrailVersion: bedrockGuardrailVersion,
+        region: bedrockRegion,
+      }).success);
 
   const isCustomRegex = templateKind === "custom_regex";
   const activeCustomRegexPreview =
@@ -470,8 +493,8 @@ export function GatewayGuardrailFormDialog({
   const toFormValues = (
     values: GuardrailFormSchemaValues,
   ): GatewayGuardrailFormValues => {
+    const apiKey = values.apiKey.trim();
     if (templateKind === "bedrock") {
-      const apiKey = values.bedrockApiKey.trim();
       return {
         name: values.name.trim(),
         presets: [],
@@ -482,6 +505,22 @@ export function GatewayGuardrailFormDialog({
           guardrailId: values.bedrockGuardrailId.trim(),
           guardrailVersion: values.bedrockGuardrailVersion.trim(),
           region: values.bedrockRegion.trim(),
+          ...(apiKey ? { apiKey } : {}),
+        },
+        action: values.action,
+        scope: values.scope,
+        targets: values.targets,
+      };
+    }
+    if (templateKind === "openai_moderation") {
+      return {
+        name: values.name.trim(),
+        presets: [],
+        secretPrefixes: [],
+        containsWords: [],
+        customRegex: null,
+        openAiModeration: {
+          region: values.openAiModerationRegion,
           ...(apiKey ? { apiKey } : {}),
         },
         action: values.action,
@@ -599,6 +638,9 @@ export function GatewayGuardrailFormDialog({
             actions={[]}
             onSubmit={form.handleSubmit(handleValidSubmit)}
           >
+            {templateNotice ? (
+              <Banner variant="info">{templateNotice}</Banner>
+            ) : null}
             <FormField control={form.control} name="name" label="Name">
               {({ id, inputDescribedById, error, ...field }) => (
                 <Input
@@ -901,6 +943,14 @@ function TemplateRuleFields({
       />
     );
   }
+  if (templateKind === "openai_moderation") {
+    return (
+      <OpenAiModerationGuardrailFields
+        control={control}
+        hasSavedApiKey={hasSavedApiKey}
+      />
+    );
+  }
   if (templateKind === "contains") {
     return (
       <Controller
@@ -1035,50 +1085,127 @@ function BedrockGuardrailFields({
         </FormField>
       </div>
 
+      <ExternalApiKeyField
+        control={control}
+        hasSavedApiKey={hasSavedApiKey}
+        tooltip={{
+          docsHref:
+            "https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html",
+          docsLabel: "Amazon Bedrock API keys",
+          note: "Needs the bedrock:ApplyGuardrail permission in the selected region.",
+        }}
+      />
+    </>
+  );
+}
+
+type OpenAiModerationGuardrailFieldsProps = {
+  control: Control<GuardrailFormSchemaValues>;
+  hasSavedApiKey: boolean;
+};
+
+function OpenAiModerationGuardrailFields({
+  control,
+  hasSavedApiKey,
+}: OpenAiModerationGuardrailFieldsProps) {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <CustomTooltip
         content={
           <span>
-            Use{" "}
-            <TextLink
-              path="https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html"
-              value="Amazon Bedrock API keys"
-              icon={SquareArrowOutUpRight}
-              external
-            />
-            . Needs{" "}
-            <code className="bg-muted rounded-md px-1 py-px font-mono text-xs">
-              bedrock:ApplyGuardrail
-            </code>{" "}
-            permission in the selected region.
+            EU requires an OpenAI project with EU data residency enabled.
           </span>
         }
       >
         {({ getTriggerProps }) => (
           <FormField
             control={control}
-            name="bedrockApiKey"
-            label="API key"
+            name="openAiModerationRegion"
+            label="Region"
             registerLabelTooltip={getTriggerProps}
           >
-            {({ id, inputDescribedById, error, ...field }) => (
-              <PasswordInput
-                {...field}
+            {({ id, inputDescribedById, error, value, onChange, onBlur }) => (
+              <SelectInput
                 id={id}
-                autoComplete="new-password"
                 aria-describedby={inputDescribedById}
                 aria-invalid={Boolean(error)}
                 error={Boolean(error)}
-                placeholder={
-                  hasSavedApiKey
-                    ? "Leave blank to keep current key"
-                    : "Enter API key"
-                }
+                placeholder="Select region"
+                value={value}
+                onValueChange={onChange}
+                onBlur={onBlur}
+                options={OPENAI_MODERATION_REGION_OPTIONS}
               />
             )}
           </FormField>
         )}
       </CustomTooltip>
-    </>
+
+      <ExternalApiKeyField
+        control={control}
+        hasSavedApiKey={hasSavedApiKey}
+        tooltip={{
+          docsHref: "https://platform.openai.com/api-keys",
+          docsLabel: "OpenAI API keys",
+          note: "Use a key from the project matching the region.",
+        }}
+      />
+    </div>
+  );
+}
+
+type ExternalApiKeyFieldProps = {
+  control: Control<GuardrailFormSchemaValues>;
+  hasSavedApiKey: boolean;
+  /** Where to get the key, and what it needs or limits. */
+  tooltip: { docsHref: string; docsLabel: string; note: string };
+};
+
+function ExternalApiKeyField({
+  control,
+  hasSavedApiKey,
+  tooltip,
+}: ExternalApiKeyFieldProps) {
+  return (
+    <CustomTooltip
+      content={
+        <span>
+          Use{" "}
+          <TextLink
+            path={tooltip.docsHref}
+            value={tooltip.docsLabel}
+            icon={SquareArrowOutUpRight}
+            external
+          />
+          . {tooltip.note}
+        </span>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <FormField
+          control={control}
+          name="apiKey"
+          label="API key"
+          registerLabelTooltip={getTriggerProps}
+        >
+          {({ id, inputDescribedById, error, ...field }) => (
+            <PasswordInput
+              {...field}
+              id={id}
+              autoComplete="new-password"
+              aria-describedby={inputDescribedById}
+              aria-invalid={Boolean(error)}
+              error={Boolean(error)}
+              placeholder={
+                hasSavedApiKey
+                  ? "Leave blank to keep current key"
+                  : "Enter API key"
+              }
+            />
+          )}
+        </FormField>
+      )}
+    </CustomTooltip>
   );
 }
 
@@ -1374,6 +1501,10 @@ function getLimitFeedbackReason(
     default:
       return null;
   }
+}
+
+function isExternalTemplate(templateKind: GatewayGuardrailTemplateKind) {
+  return getGuardrailTypeForTemplate(templateKind) !== "REGEX";
 }
 
 function isExternalGuardrailAlternativeError(

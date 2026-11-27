@@ -1,4 +1,5 @@
 import { ChevronRight } from "@langfuse/icons";
+import { SiOpenai } from "@langfuse/icons/si";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -68,7 +69,7 @@ export function GatewayGuardrailTemplateGallery({
             {/* Hidden sizer keeps modal height constant when switching tabs. */}
             <div
               aria-hidden="true"
-              className="pointer-events-none invisible col-start-1 row-start-1 grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2"
+              className="pointer-events-none invisible col-start-1 row-start-1 grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
             >
               {SIZING_TEMPLATES.map((template) => (
                 <TemplateCardContent key={template.id} template={template} />
@@ -102,7 +103,7 @@ type TemplateGridProps = {
 
 function TemplateGrid({ templates, onSelectTemplate }: TemplateGridProps) {
   return (
-    <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {templates.map((template) => (
         <TemplateCard
           key={template.id}
@@ -150,7 +151,7 @@ function TemplateCardContent({
           aria-hidden="true"
           className={cn(
             styles.preview,
-            "flex h-24 items-center justify-center overflow-hidden rounded-md px-3",
+            "flex h-20 items-center justify-center overflow-hidden rounded-md px-3",
           )}
         >
           <TemplatePreview preview={template.preview} />
@@ -189,6 +190,8 @@ function TemplatePreview({
     switch (preview.provider) {
       case "aws":
         return <AwsColorLogo />;
+      case "openai":
+        return <SiOpenai size="xl" aria-hidden />;
     }
   }
   return (

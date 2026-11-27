@@ -49,6 +49,7 @@ import {
   count,
   dateDiff,
   emptyMap,
+  firstMetadataValue,
   has,
   hasAny,
   interval,
@@ -190,7 +191,10 @@ import {
   type SessionEventsFields,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
-import { eventsFieldSetKeys } from "./events-field-sets";
+import {
+  eventsFieldSetKeys,
+  pickObservationV2Fields,
+} from "./events-field-sets";
 import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
@@ -440,7 +444,9 @@ async function enrichObservationsWithModelData(
         model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
     };
 
-    return enriched;
+    return requestedFields
+      ? pickObservationV2Fields(enriched, requestedFields)
+      : enriched;
   });
 }
 
@@ -1929,12 +1935,6 @@ export const getObservationsV2PageFromEventsTableForPublicApi = async (
       }
       const page = await scanObservationWindows(opts, from, bounds.to, scan);
       span.setAttribute("observations.scan.windows", page.windows);
-      if (page.records.length === 0 && page.cursor) {
-        throw new ClickHouseResourceError(
-          "TIMEOUT",
-          new Error("Query timed out before returning observations"),
-        );
-      }
       return {
         items: await enrichObservationsWithModelData(
           page.records.slice(0, opts.limit),
@@ -2098,19 +2098,16 @@ function planNextObservationsWindow(
   elapsedMs: number,
   remainingMs: number,
 ) {
-  if (remainingMs <= 0) return undefined;
+  const availableMs = remainingMs - OBSERVATIONS_QUERY_OVERHEAD_MS;
+  // A query started within the fixed per-query overhead cannot finish in time.
+  if (availableMs <= 0) return undefined;
 
   // Client wall time includes retries and stream consumption; GB is decimal.
   const costMs = Math.max(
     elapsedMs,
     (last.readBytes / 1e9) * OBSERVATIONS_MS_PER_GB,
   );
-  const availableMs = remainingMs - OBSERVATIONS_QUERY_OVERHEAD_MS;
-  // Near the deadline, do not shrink the interval just to reserve overhead.
-  let timeMultiplier = 1;
-  if (availableMs > 0) {
-    timeMultiplier = costMs > 0 ? availableMs / costMs : Infinity;
-  }
+  const timeMultiplier = costMs > 0 ? availableMs / costMs : Infinity;
   const rowMultiplier =
     last.readRows !== undefined && last.readRows > 0
       ? OBSERVATIONS_QUERY_ROW_TARGET / last.readRows
@@ -2129,11 +2126,11 @@ function planNextObservationsWindow(
       ),
     ),
   );
-  return {
-    durationMs,
-    estimatedMs:
-      OBSERVATIONS_QUERY_OVERHEAD_MS + (durationMs / windowMs) * costMs,
-  };
+  const scanMs = (durationMs / windowMs) * costMs;
+  // Even the smallest window would outlast the budget; end the page at the
+  // last completed boundary instead of starting a query that times out.
+  if (scanMs > availableMs) return undefined;
+  return { durationMs, estimatedMs: OBSERVATIONS_QUERY_OVERHEAD_MS + scanMs };
 }
 
 /** Own the deadline and cumulative work counters for all queries in one page. */
@@ -4325,15 +4322,23 @@ export const getLatestEvaluatorRunCost = async (
   return rows[0] ? Number(rows[0].trace_total_cost) : null;
 };
 
-/** Gateway ingestion stamps the calling key's owner on every generation. */
-const GATEWAY_KEY_OWNER_USER_ID_EXPRESSION = `e.metadata_values[indexOf(e.metadata_names, '${AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY}')]`;
+type GatewaySpendBuilder = ExpressionBuilder<
+  { e: ClickHouseDatabase["events_truncated"] },
+  "e"
+>;
 
-/** The column that identifies a spend limit's subject on gateway generations. */
-const GATEWAY_SPEND_SUBJECT_COLUMNS = {
-  API_KEY: "e.ingestion_api_key",
-  USER: GATEWAY_KEY_OWNER_USER_ID_EXPRESSION,
+/** The expression that identifies a spend limit's subject on gateway generations. */
+const GATEWAY_SPEND_SUBJECTS = {
+  API_KEY: (eb: GatewaySpendBuilder) => eb.ref("e.ingestion_api_key"),
+  // Gateway ingestion stamps the calling key's owner on every generation.
+  USER: (eb: GatewaySpendBuilder) =>
+    firstMetadataValue(
+      eb.ref("e.metadata_names"),
+      eb.ref("e.metadata_values"),
+      literal(AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY),
+    ),
   // The gateway records all of an organization's requests in its one ingestion project.
-  ORGANIZATION: "e.project_id",
+  ORGANIZATION: (eb: GatewaySpendBuilder) => eb.ref("e.project_id"),
 } as const;
 
 /**
@@ -4344,34 +4349,59 @@ const GATEWAY_SPEND_SUBJECT_COLUMNS = {
  */
 export const getGatewaySpendSinceFromEvents = async (params: {
   projectId: string;
-  scope: keyof typeof GATEWAY_SPEND_SUBJECT_COLUMNS;
+  scope: keyof typeof GATEWAY_SPEND_SUBJECTS;
   subjects: { id: string; since: Date }[];
 }): Promise<{ id: string; spendUsd: number }[]> => {
   if (params.subjects.length === 0) return [];
 
-  const column = GATEWAY_SPEND_SUBJECT_COLUMNS[params.scope];
+  const subject = GATEWAY_SPEND_SUBJECTS[params.scope];
   const earliest = new Date(
     Math.min(...params.subjects.map(({ since }) => since.getTime())),
   );
-  const { query, params: queryParams } = new EventsAggQueryBuilder({
-    projectId: params.projectId,
-    groupByColumn: column,
-    selectExpression: `${column} as subject_id, toString(sum(e.total_cost)) as spend`,
-  })
-    .whereRaw("e.start_time >= {earliest: DateTime64(3)}", {
-      earliest: convertDateToClickhouseDateTime(earliest),
-    })
-    .whereRaw("e.service_name = {gatewayServiceName: String}", {
-      gatewayServiceName: AI_GATEWAY_SERVICE_NAME,
-    })
-    .whereRaw(`${column} IN {subjectIds: Array(String)}`, {
-      subjectIds: params.subjects.map(({ id }) => id),
-    })
-    .whereRaw(
-      `toUnixTimestamp64Milli(e.start_time) >= arrayElement({sinceMs: Array(Int64)}, indexOf({subjectIds: Array(String)}, ${column}))`,
-      { sinceMs: params.subjects.map(({ since }) => since.getTime()) },
+  const subjectIds = params.subjects.map(({ id }) => id);
+  const sinceMs = typedValue<number[]>(
+    params.subjects.map(({ since }) => since.getTime()),
+    "Array(Int64)",
+  );
+
+  // The owner id is read as events_core stores it; owner ids never reach its cut.
+  const builder = getClickhouseKysely()
+    .selectFrom("events_truncated as e")
+    .select((eb) => [
+      subject(eb).as("subject_id"),
+      eb.fn<string>("toString", [eb.fn.sum("e.total_cost")]).as("spend"),
+    ])
+    .where("e.start_time", ">=", earliest)
+    .where("e.service_name", "=", literal(AI_GATEWAY_SERVICE_NAME))
+    .where((eb) =>
+      eb(
+        subject(eb),
+        "in",
+        eb.parens(typedValue<string>(subjectIds, "Array(String)")),
+      ),
     )
-    .buildWithParams();
+    // Reads the subject through its alias: routing cannot prove an `indexOf`
+    // over the owner's metadata entry safe on events_core, while the `in`
+    // above already limits subjects to the short ids it can prove.
+    .where((eb) =>
+      eb(
+        eb.fn<number>("toUnixTimestamp64Milli", [eb.ref("e.start_time")]),
+        ">=",
+        eb.fn<number>("arrayElement", [
+          sinceMs,
+          eb.fn<number>("indexOf", [
+            typedValue<string[]>(subjectIds, "Array(String)"),
+            aliasRef("subject_id"),
+          ]),
+        ]),
+      ),
+    )
+    .groupBy((eb) => subject(eb));
+
+  const { sql: query, params: queryParams } = compileClickhouseQuery(
+    builder,
+    params.projectId,
+  );
 
   const rows = await queryClickhouse<{ subject_id: string; spend: string }>({
     query,
@@ -4383,6 +4413,54 @@ export const getGatewaySpendSinceFromEvents = async (params: {
   return rows.map((row) => ({
     id: row.subject_id,
     spendUsd: Number(row.spend),
+  }));
+};
+
+/**
+ * Latest gateway request per gateway key in the gateway ingestion project.
+ *
+ * Gateway ingestion stores the calling gateway key id as `ingestion_api_key`
+ * and `langfuse-ai-gateway` as `service_name`. `project_id` and the
+ * `start_time` lower bound are the events_core primary key prefix and
+ * partition key, so ClickHouse reads only the project's granules since
+ * `since`. Keys without traffic in that window are absent from the result.
+ */
+export const getGatewayApiKeysLastUsedAtFromEvents = async (params: {
+  projectId: string;
+  apiKeyIds: string[];
+  since: Date;
+}) => {
+  if (params.apiKeyIds.length === 0) return [];
+
+  const builder = getClickhouseKysely()
+    .selectFrom("events as e")
+    .select((eb) => [
+      eb.ref("e.ingestion_api_key").as("api_key_id"),
+      eb.fn.max("e.start_time").as("last_used_at"),
+    ])
+    .where("e.start_time", ">=", params.since)
+    .where("e.service_name", "=", literal(AI_GATEWAY_SERVICE_NAME))
+    .where("e.ingestion_api_key", "in", params.apiKeyIds)
+    .groupBy("e.ingestion_api_key");
+
+  const { sql: query, params: queryParams } = compileClickhouseQuery(
+    builder,
+    params.projectId,
+  );
+
+  const rows = await queryClickhouse<{
+    api_key_id: string;
+    last_used_at: string;
+  }>({
+    query,
+    params: queryParams,
+    tags: { projectId: params.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    id: row.api_key_id,
+    lastUsedAt: parseClickhouseUTCDateTimeFormat(row.last_used_at),
   }));
 };
 

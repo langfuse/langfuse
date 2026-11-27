@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import type { EvalTemplateType } from "@langfuse/shared";
 
 import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 /** @internal */
 export const PROMPT_EXPORT_VERSION_LIMIT = 10_000;
 

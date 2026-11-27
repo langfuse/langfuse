@@ -39,6 +39,8 @@ import {
   getEventsForBlobStorageExport,
   getEventsForBlobStorageExportParquet,
   getEventsForBlobStorageExportRaw,
+  getGatewayApiKeysLastUsedAtFromEvents,
+  getGatewaySpendSinceFromEvents,
   getLastTraceTimestampsByProjectsFromEventsTable,
   getLatestSdkVersionInfoFromEvents,
   getObservationByIdFromEventsTable,
@@ -1884,5 +1886,35 @@ describeWithClickhouse("golden: events filtered streams family", () => {
     it("buildEventsBlobExportStreamQuery scoresDedup=skip", async () => {
       expect(renderBlobExportStream({})).toMatchSnapshot();
     });
+  });
+});
+
+describeWithClickhouse("golden: events AI gateway family", () => {
+  beforeEach(() => resetCaptures());
+
+  // The subject column is the only SQL branch: the key id, the key owner's
+  // metadata entry, or the ingestion project.
+  it.each(["API_KEY", "USER", "ORGANIZATION"] as const)(
+    "getGatewaySpendSinceFromEvents scope=%s",
+    async (scope) => {
+      await getGatewaySpendSinceFromEvents({
+        projectId: FIXED_PROJECT_ID,
+        scope,
+        subjects: [
+          { id: "golden-subject", since: FIXED_FROM_TIMESTAMP },
+          { id: "golden-subject-b", since: FIXED_START_TIME },
+        ],
+      });
+      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+    },
+  );
+
+  it("getGatewayApiKeysLastUsedAtFromEvents", async () => {
+    await getGatewayApiKeysLastUsedAtFromEvents({
+      projectId: FIXED_PROJECT_ID,
+      apiKeyIds: ["golden-key", "golden-key-b"],
+      since: FIXED_FROM_TIMESTAMP,
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
 });

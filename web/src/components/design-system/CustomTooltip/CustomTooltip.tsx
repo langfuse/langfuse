@@ -32,6 +32,7 @@ function CustomTooltip({
   React.ComponentProps<typeof FloatingController>,
   "children" | "enabled" | "placement" | "hoverableContent"
 > & {
+  // eslint-disable-next-line @repo/no-node-slot-props -- overlay body supplied by the caller
   content: React.ReactElement;
   delay?: number;
   padding?: NonNullable<VariantProps<typeof tooltipVariants>["padding"]>;

@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-style-props, @typescript-eslint/no-use-before-define */
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -16,24 +15,13 @@ import { SuccessSection } from "@/src/features/support-chat/SuccessSection";
 import { ConnectedSupportFormSection } from "@/src/features/support-chat/ConnectedSupportFormSection";
 import { cn } from "@/src/utils/tailwind";
 
-export const SupportDrawer = (props: {
-  showCloseButton?: boolean;
-  className?: string;
-}) => {
-  const { openEpoch } = useSupportDrawer();
-
-  // Keyed by openEpoch so re-opening (openWithMode while already open)
-  // remounts the content and re-seeds mode/topic from the provider.
-  return <SupportDrawerContent key={openEpoch} {...props} />;
-};
-
-const SupportDrawerContent = ({
+function SupportDrawerContent({
   showCloseButton = true,
-  className,
+  layout = "default",
 }: {
   showCloseButton?: boolean;
-  className?: string;
-}) => {
+  layout?: "default" | "mobileDrawer";
+}) {
   const { setOpen, initialMode } = useSupportDrawer();
   const [currentMode, setCurrentMode] = useState<"intro" | "form" | "success">(
     initialMode,
@@ -42,10 +30,11 @@ const SupportDrawerContent = ({
 
   return (
     <div
-      className={cn([
+      className={cn(
         "bg-background flex h-full w-full min-w-0 flex-col",
-        className,
-      ])}
+        layout === "mobileDrawer" &&
+          "min-h-0 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]",
+      )}
     >
       <div className="bg-background">
         <div className="flex min-h-11 w-full items-center justify-between gap-1 px-4 py-1">
@@ -112,4 +101,15 @@ const SupportDrawerContent = ({
       </div>
     </div>
   );
-};
+}
+
+export function SupportDrawer(props: {
+  showCloseButton?: boolean;
+  layout?: "default" | "mobileDrawer";
+}) {
+  const { openEpoch } = useSupportDrawer();
+
+  // Keyed by openEpoch so re-opening (openWithMode while already open)
+  // remounts the content and re-seeds mode/topic from the provider.
+  return <SupportDrawerContent key={openEpoch} {...props} />;
+}

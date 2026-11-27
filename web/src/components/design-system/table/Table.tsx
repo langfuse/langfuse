@@ -43,7 +43,7 @@ export interface TableProps<TData> {
   orderBy?: OrderByState;
   setOrderBy?: (state: OrderByState) => void;
   loadingRowCount?: number;
-  noResultsMessage?: React.ReactNode;
+  noResultsMessage?: string | null;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowLabel?: (row: TData) => string;
   selectedRowId?: string | null;

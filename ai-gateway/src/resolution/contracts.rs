@@ -531,6 +531,13 @@ impl ResolvedRequestContext {
     pub(crate) fn response_guardrails(&self) -> &[crate::guardrails::Guardrail] {
         &self.0.response_guardrails
     }
+    pub(crate) fn has_active_guardrails(&self) -> bool {
+        self.0
+            .guardrails
+            .iter()
+            .chain(&self.0.response_guardrails)
+            .any(crate::guardrails::Guardrail::is_active)
+    }
     /// The project and grant telemetry is delivered with. Resolution guarantees both
     /// in every mode but [`IngestionMode::None`], which never delivers.
     pub fn delivery_target(&self) -> Option<(&ProjectId, &IngestionGrant)> {

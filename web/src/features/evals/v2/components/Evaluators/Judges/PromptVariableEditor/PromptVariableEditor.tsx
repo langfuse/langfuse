@@ -174,6 +174,7 @@ export function PromptVariableEditor({
   toolbarActions,
   onToolbarClick,
   collapsed = false,
+  maxHeight = "50dvh",
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -209,6 +210,7 @@ export function PromptVariableEditor({
   onToolbarClick?: () => void;
   /** Hides the editor/preview while preserving the prompt header. */
   collapsed?: boolean;
+  maxHeight?: number | string;
 }) {
   // Statuses and labels travel as serialized keys and are parsed back inside
   // the memo, so the memo depends on their content rather than their identity.
@@ -309,7 +311,7 @@ export function PromptVariableEditor({
               // Keep the editor mounted while previewing so it remains the
               // stable height anchor for both surfaces.
               minHeight={48}
-              maxHeight="50dvh"
+              maxHeight={maxHeight}
               lineNumbers={false}
               extensions={extensions}
               className={cn(hasToolbar && "rounded-t-none", "text-sm")}

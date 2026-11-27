@@ -93,7 +93,7 @@ Repo-local skills in `langfuse/.agents/skills`:
 - `changelog-writing`: user-facing release notes.
 - `clickhouse-best-practices`: ClickHouse schema/query/migration review.
 - `code-review`: repo-specific correctness/regression review.
-- `cursor-agents-workflow`: Cursor agent Linear branch names, the `cursor` GitHub label, human test steps, proof of work posted on the GitHub PR, Claude/Greptile/Codex review comments, and review-doubt PR notes.
+- `cursor-agents-workflow`: Cursor agent branch names, the `cursor` GitHub label, human test steps, proof of work posted on the GitHub PR, Claude/Greptile/Codex review comments, and review-doubt PR notes.
 - `datadog-query-recipes`: reusable Datadog query shapes for production research.
 - `debug-issue-with-datadog`: production debugging tied to Langfuse code paths.
 - `frontend-browser-review`: user-visible `web/**` changes and browser verification.
@@ -101,7 +101,6 @@ Repo-local skills in `langfuse/.agents/skills`:
 - `git-workflow`: Langfuse repo Git, GitHub, branch, commit, PR, and issue workflow.
 - `housekeeping`: recurring work queue review across Linear, Pylon, and GitHub.
 - `langfuse-codebase-navigator`: org, repository, folder, and skill routing.
-- `linear-bug-triage`: Linear issue deduplication and bug evidence workflows.
 - `pnpm-upgrade-package`: dependency upgrades under pnpm release-age constraints.
 - `security-review`: security review patterns for user-supplied URLs, secrets, tenancy, and auth scopes.
 - `seed-test-data`: local Langfuse seed scenarios for traces, sessions, lists, and event data.

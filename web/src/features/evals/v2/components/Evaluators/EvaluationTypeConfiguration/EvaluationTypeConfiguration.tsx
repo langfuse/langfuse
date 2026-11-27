@@ -2,9 +2,11 @@ import { type ReactNode } from "react";
 
 import { type EvalTemplateType } from "@langfuse/shared";
 
+import { FieldRow } from "@/src/features/evals/v2/components/Evaluators/FieldRow/FieldRow";
+
 import { EvaluationTypeToggle } from "./components/EvaluationTypeToggle/EvaluationTypeToggle";
 
-/** Shared execution row; its container owns which mode-specific selector follows it. */
+/** Shared execution rows; the container owns which mode-specific selector fills the second one. */
 export function EvaluationTypeConfiguration({
   mode,
   onModeChange,
@@ -17,15 +19,17 @@ export function EvaluationTypeConfiguration({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 text-sm">
-      <span>Use</span>
-      <EvaluationTypeToggle
-        value={mode}
-        onValueChange={onModeChange}
-        disabled={disabled}
-      />
-      <span>{mode === "CODE" ? "written in" : "with"}</span>
-      {children}
+    <div className="flex flex-col gap-2">
+      <FieldRow label="Use">
+        <EvaluationTypeToggle
+          value={mode}
+          onValueChange={onModeChange}
+          disabled={disabled}
+        />
+      </FieldRow>
+      <FieldRow label={mode === "CODE" ? "Language" : "Model"}>
+        {children}
+      </FieldRow>
     </div>
   );
 }
