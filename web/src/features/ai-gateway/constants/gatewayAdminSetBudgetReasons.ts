@@ -4,3 +4,6 @@ export const GATEWAY_ADMIN_SET_BUDGET_CHANGE_REASON =
 
 export const GATEWAY_ADMIN_SET_BUDGET_RESET_REASON =
   "A gateway admin set this budget, so only an admin can reset it.";
+
+export const GATEWAY_DEFAULT_BUDGET_CHANGE_REASON =
+  "This key gets the organization's default budget. Only a gateway admin can give it a different one.";

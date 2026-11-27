@@ -10,7 +10,10 @@ import { toGatewayApiKeyMetadataRows } from "@/src/features/ai-gateway/component
 import { toGatewaySpendLimitUpdate } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/toGatewaySpendLimitUpdate";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import { isGatewayApiKeyBudgetLockedByAdmin } from "@/src/features/ai-gateway/fns/spendLimits/isGatewayApiKeyBudgetLockedByAdmin";
-import { GATEWAY_ADMIN_SET_BUDGET_CHANGE_REASON } from "@/src/features/ai-gateway/constants/gatewayAdminSetBudgetReasons";
+import {
+  GATEWAY_ADMIN_SET_BUDGET_CHANGE_REASON,
+  GATEWAY_DEFAULT_BUDGET_CHANGE_REASON,
+} from "@/src/features/ai-gateway/constants/gatewayAdminSetBudgetReasons";
 import { localDateInputValue } from "@/src/features/apiKey/fns/localDateInputValue";
 import { useCaptureGatewayBudgetChange } from "@/src/features/ai-gateway/hooks/useCaptureGatewayBudgetChange";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -133,11 +136,7 @@ export function EditGatewayApiKeyDialogController({
               ? ["issuedAs", "expiration", "spendBudget"]
               : ["issuedAs", "expiration"]
           }
-          spendBudgetLockedReason={
-            isGatewayApiKeyBudgetLockedByAdmin(state)
-              ? GATEWAY_ADMIN_SET_BUDGET_CHANGE_REASON
-              : undefined
-          }
+          spendBudgetLockedReason={getSpendBudgetLockedReason(state)}
           defaultValues={toEditableGatewayApiKeyFields(state)}
           errorMessage={
             update.isError
@@ -152,6 +151,13 @@ export function EditGatewayApiKeyDialogController({
       {({ openDialog }) => children({ openDialog })}
     </DialogController>
   );
+}
+
+function getSpendBudgetLockedReason(apiKey: EditableGatewayApiKey) {
+  if (!isGatewayApiKeyBudgetLockedByAdmin(apiKey)) return undefined;
+  return apiKey.spendLimit
+    ? GATEWAY_ADMIN_SET_BUDGET_CHANGE_REASON
+    : GATEWAY_DEFAULT_BUDGET_CHANGE_REASON;
 }
 
 function toEditableGatewayApiKeyFields(

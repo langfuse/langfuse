@@ -403,6 +403,11 @@ function OptionalSections({
           ))}
         </div>
       ) : null}
+      {isSpendBudgetDisabled && !sections.includes("spendBudget") ? (
+        <Banner variant="info" title="Spend budget">
+          {spendBudgetLockedReason}
+        </Banner>
+      ) : null}
     </>
   );
 }
