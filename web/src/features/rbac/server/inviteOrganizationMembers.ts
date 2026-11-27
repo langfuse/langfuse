@@ -4,6 +4,7 @@ import { logger, traceException } from "@langfuse/shared/src/server";
 import {
   getSfdcService,
   type SetUserRoleInput,
+  type SfdcService,
 } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { EntitlementLimitExceededError } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import {
@@ -76,7 +77,7 @@ export async function inviteOrganizationMembers({
       result.failed.push({ email, reason });
     }
   }
-  syncSfdcUserRolesInBackground(sfdcUserRoles);
+  syncSfdcUserRolesInBackground(getSfdcService(), sfdcUserRoles);
 
   return result;
 }
@@ -93,8 +94,10 @@ function getFailureReason(error: unknown): MemberInviteFailureReason {
  * the response for minutes. They run in the background instead; each sync
  * logs its own delivery failures.
  */
-function syncSfdcUserRolesInBackground(inputs: SetUserRoleInput[]) {
-  const sfdc = getSfdcService();
+export function syncSfdcUserRolesInBackground(
+  sfdc: SfdcService | null,
+  inputs: SetUserRoleInput[],
+) {
   if (!sfdc || inputs.length === 0) return;
   Promise.all(inputs.map((input) => sfdc.setUserRole(input))).catch((error) => {
     logger.error("Failed to sync invited members to SFDC", { error });

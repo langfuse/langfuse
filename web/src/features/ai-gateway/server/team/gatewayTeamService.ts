@@ -18,6 +18,10 @@ import {
   type SetUserRoleInput,
 } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
+import {
+  normalizeInviteEmails,
+  syncSfdcUserRolesInBackground,
+} from "@/src/features/rbac/server/inviteOrganizationMembers";
 import { OrganizationMembersService } from "@/src/features/rbac/server/organizationMembersService";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
@@ -47,11 +51,6 @@ function getInvitationJobId(payload: GatewayInvitationEmail) {
 
 function isEmailConfigured() {
   return Boolean(env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS);
-}
-
-/** Addresses are stored lowercase, so lookups and dedupe compare lowercase. */
-function normalizeEmails(emails: string[]) {
-  return [...new Set(emails.map((email) => email.trim().toLowerCase()))];
 }
 
 type GatewayTeamContext = Pick<OrgAuthedContext, "session" | "prisma">;
@@ -97,7 +96,7 @@ export class GatewayTeamService {
       organizationId: params.organizationId,
       scope: GATEWAY_USER_SCOPE,
       excludeUserId: params.currentUserId,
-      excludeEmails: normalizeEmails(params.excludeEmails),
+      excludeEmails: normalizeInviteEmails(params.excludeEmails),
       search: params.search,
       limit: MEMBER_SUGGESTION_LIMIT,
     });
@@ -113,7 +112,7 @@ export class GatewayTeamService {
     currentUserId: string;
     emails: string[];
   }) {
-    const emails = normalizeEmails(params.emails);
+    const emails = normalizeInviteEmails(params.emails);
     const members = new Map(
       (
         await this.members.findMembersByEmail({
@@ -166,7 +165,7 @@ export class GatewayTeamService {
     const emailJobs: GatewayInvitationEmail[] = [];
     const sfdcUserRoles: SetUserRoleInput[] = [];
 
-    const emails = normalizeEmails(params.emails);
+    const emails = normalizeInviteEmails(params.emails);
     const existingMembers = new Map(
       (
         await this.members.findMembersByEmail({
@@ -240,7 +239,7 @@ export class GatewayTeamService {
     }
     // Started before anything else can throw: the memberships are saved, and a
     // retry would find these users as members and never sync them again.
-    this.syncSfdcUserRoles(sfdcUserRoles);
+    syncSfdcUserRolesInBackground(this.sfdc, sfdcUserRoles);
 
     if (params.notifyMembers && sendsEmail) {
       const members = await this.members.findMembersWithScope({
@@ -290,20 +289,5 @@ export class GatewayTeamService {
       failed,
       notifiedCount: notified.size,
     };
-  }
-
-  /**
-   * Each sync is a Mulesoft round trip of seconds, so a large team would hold
-   * the response for minutes. They run in the background instead; each sync
-   * logs its own delivery failures.
-   */
-  private syncSfdcUserRoles(inputs: SetUserRoleInput[]) {
-    const { sfdc } = this;
-    if (!sfdc) return;
-    Promise.all(inputs.map((input) => sfdc.setUserRole(input))).catch(
-      (error) => {
-        logger.error("Failed to sync AI Gateway invitees to SFDC", { error });
-      },
-    );
   }
 }
