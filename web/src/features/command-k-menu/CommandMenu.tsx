@@ -1382,6 +1382,16 @@ function usePageShortcuts(mainNavigation: NavigationItem[]): PageShortcuts {
  * Fetches names while the menu is open, only for pages the user can see and
  * read. Evaluators are searched on the server since their list is capped.
  */
+/**
+ * Remove command-menu keywords before sending evaluator searches to the server.
+ * The client-side group matcher still receives the full search string.
+ */
+export const getEvaluatorSearchTerm = (search: string): string | undefined => {
+  const trimmed = search.trim();
+  const withoutKeyword = trimmed.replace(/^(?:evaluator|eval)(?:\s+|$)/i, "").trim();
+  return withoutKeyword || undefined;
+};
+
 function useEntityGroups(
   mainNavigation: NavigationItem[],
   search: string,
@@ -1426,7 +1436,7 @@ function useEntityGroups(
     {
       projectId,
       limit: ENTITY_LIMIT,
-      search: debouncedSearch.trim() || undefined,
+      search: getEvaluatorSearchTerm(debouncedSearch),
     },
     {
       enabled: open && evaluatorsUrl !== null,
