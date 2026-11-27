@@ -183,6 +183,8 @@ function TextWithAction({
   action,
   value,
 }: {
+  // TODO: typed API
+  // eslint-disable-next-line @repo/no-node-slot-props -- text cells still append a copy button or an info tooltip
   action: ReactNode;
   value?: string;
 }) {

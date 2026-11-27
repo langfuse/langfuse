@@ -15,11 +15,11 @@ import {
  * mirrors a sidebar (the header sidebar control, the mobile hamburger, the
  * mobile brand mark) does not render.
  *
- * Both shells implement the same interface, so feature components that open
- * a drawer from the sidebar (Support, migration panel) work in either.
+ * The app shell implements this interface, so feature components that open
+ * a drawer from the sidebar (Support, migration panel) share one contract.
  */
 export type AppNavigation = {
-  shell: "classic" | "next";
+  shell: "next";
   /** Desktop expansion determines whether page chrome repeats the organization selector. */
   readonly isSidebarExpanded: boolean;
   /** Optional desktop page-header control; shells with their own expansion control omit it. */

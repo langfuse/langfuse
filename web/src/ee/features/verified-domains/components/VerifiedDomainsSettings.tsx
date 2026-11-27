@@ -1,52 +1,13 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { type ReactNode } from "react";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
-import { Button } from "@/src/components/ui/button";
-import { ConnectedVerifiedDomainsSettingsTable } from "./VerifiedDomainsSettingsTable/ConnectedVerifiedDomainsSettingsTable";
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/src/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/src/components/ui/form";
-import { Input } from "@/src/components/ui/input";
+import { Button } from "@/src/components/design-system/Button/Button";
 import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { api } from "@/src/utils/api";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-
-const addDomainSchema = z.object({
-  domain: z
-    .string()
-    .trim()
-    .min(3)
-    .max(253)
-    .transform((v) => v.toLowerCase())
-    .refine(
-      (v) =>
-        /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(
-          v,
-        ),
-      { message: "Must be a valid domain (e.g. acme.com)" },
-    ),
-});
-
-type AddDomainInput = z.infer<typeof addDomainSchema>;
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
+import { AddDomainDialogController } from "./AddDomainDialogController/AddDomainDialogController";
+import { ConnectedVerifiedDomainsSettingsTable } from "./VerifiedDomainsSettingsTable/ConnectedVerifiedDomainsSettingsTable";
 
 export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
   const hasEntitlement = useHasEntitlement("cloud-multi-tenant-sso");
@@ -93,7 +54,18 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
     <div className="space-y-6">
       <Header
         title="Verified Domains"
-        actionButtons={<AddDomainButton orgId={orgId} />}
+        actionButtons={
+          <ConnectedAddDomainDialogController orgId={orgId}>
+            {({ openDialog }) => (
+              <Button
+                type="button"
+                size="sm"
+                onClick={openDialog}
+                text="Add Domain"
+              />
+            )}
+          </ConnectedAddDomainDialogController>
+        }
       />
       <p className="text-muted-foreground text-sm">
         You can only configure SSO for domains your organization owns. Verify a
@@ -104,14 +76,14 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
   );
 };
 
-function AddDomainButton({ orgId }: { orgId: string }) {
-  const [open, setOpen] = useState(false);
+function ConnectedAddDomainDialogController({
+  orgId,
+  children,
+}: {
+  orgId: string;
+  children: (control: { openDialog: () => void }) => ReactNode;
+}) {
   const utils = api.useUtils();
-
-  const form = useForm<AddDomainInput>({
-    resolver: zodResolver(addDomainSchema),
-    defaultValues: { domain: "" },
-  });
 
   const createMutation = api.verifiedDomain.create.useMutation({
     onSuccess: () => {
@@ -122,59 +94,21 @@ function AddDomainButton({ orgId }: { orgId: string }) {
         description:
           "Click Verify to view the DNS TXT record, then confirm after adding it.",
       });
-      form.reset();
-      setOpen(false);
     },
-    onError: (err) => {
-      form.setError("domain", { message: err.message });
-    },
+    // Inline field errors are shown in AddDomainDialogController.
+    onError: (error) => reportTrpcErrorWithoutToast(error, "verified-domains"),
   });
 
-  function onSubmit(values: AddDomainInput) {
-    createMutation.mutate({ orgId, domain: values.domain });
+  async function onSubmitDomain(domain: string) {
+    await createMutation.mutateAsync({ orgId, domain });
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm">Add Domain</Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add a domain</DialogTitle>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <DialogBody>
-              <FormField
-                control={form.control}
-                name="domain"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Domain</FormLabel>
-                    <FormControl>
-                      <Input placeholder="acme.com" autoFocus {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </DialogBody>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" loading={createMutation.isPending}>
-                Add
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+    <AddDomainDialogController
+      isSubmitting={createMutation.isPending}
+      onSubmitDomain={onSubmitDomain}
+    >
+      {children}
+    </AddDomainDialogController>
   );
 }

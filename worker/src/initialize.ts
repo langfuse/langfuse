@@ -3,6 +3,7 @@ import { upsertDefaultModelPrices } from "./scripts/upsertDefaultModelPrices";
 import { upsertLangfuseDashboards } from "./scripts/upsertLangfuseDashboards";
 import { hello, initTelemetry } from "@langfuse/native";
 import {
+  initializeClickhouseAuth,
   initializeClickhouseCompatibility,
   logger,
   recordIncrement,
@@ -13,6 +14,7 @@ import { env, v4WritesToEventsTable } from "./env";
 export const initializeWorker = async (): Promise<void> => {
   initializeNativeAddon();
 
+  await initializeClickhouseAuth();
   await initializeClickhouseCompatibility();
   if (v4WritesToEventsTable(env)) {
     await initializeEventByteAccounting();

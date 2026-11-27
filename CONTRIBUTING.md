@@ -204,7 +204,7 @@ in the Cloud Agents dashboard; Linear MCP OAuth does not complete in Cloud.
 After local verification, a Cursor agent should open a same-repo reviewable
 PR (not a draft), apply the GitHub `cursor` label, and test its
 `pr-<N>.preview.langfuse.com` deployment.
-Use Linear's git branch name (`lfe-XXXX-short-title`), not a `cursor/` prefix.
+Follow the [Git workflow branch guidance](.agents/skills/git-workflow/SKILL.md#branch-names), including its tracker-free fallback. Do not require a tracker lookup just to name a branch, and never use a `cursor/` prefix.
 When handing work to a human, give a one-sentence TL;DR, a preview URL with
 exact test steps (including how to seed or hit the same path on
 `http://localhost:3000`), and proof of the fix for user-visible changes
@@ -581,7 +581,7 @@ The background color of the following component will be `hsl(var(--primary))` an
 | --dark-yellow                    | Dark yellow for warning text                                       | LevelColor                       |
 | --light-green                    | Light green for success status badge background                    | StatusBadge                      |
 | --dark-green                     | Dark green for success text, badge text and dots (emerald-800)     | StatusBadge, Badge, Switch       |
-| --light-blue                     | Light blue for background of Staging label                         | LangfuseLogo                     |
+| --light-blue                     | Light blue for background of Staging label                         | StatusBadge                      |
 | --dark-blue                      | Dark blue for info text, links and badge text (blue-800)           | StatusBadge, Badge, Banner       |
 | --accent-light-blue              | Light blue accent for table link hover effect                      | TableLink                        |
 | --accent-dark-blue               | Dark blue accent for table link text                               | TableLink                        |

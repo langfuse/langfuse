@@ -1,13 +1,13 @@
 /**
  * The steps every dashboard view query shares, whether it compiles through
- * the query AST (the v2 observations and score views) or is assembled as SQL
+ * the query AST (the v2 observations, traces and score views) or is assembled as SQL
  * text (`buildSqlText`, `sqlTextQuery.ts`): mapping a query's dimensions, metrics,
  * bucket and order by onto a view declaration, and validating its filters and
  * relations, all throwing `InvalidRequestError` for what the view rejects.
  * The AST-only steps build the outer select, its `group by … order by …
  * [with fill …] [limit n]` and the aggregates, and compile the result for a
  * project. Each view's FROM, joins and WHERE live in its own module
- * (`scoresQuery.ts`, `eventsObservationsQuery.ts`).
+ * (`scoresQuery.ts`, `eventsObservationsQuery.ts`, `eventsTracesQuery.ts`).
  */
 import {
   type AliasableExpression,
@@ -143,7 +143,7 @@ export type AppliedBucketingDimension =
 
 const MINUTE_MS = 60_000;
 
-const HOUR_MS = 60 * MINUTE_MS;
+export const HOUR_MS = 60 * MINUTE_MS;
 
 const DAY_MS = 24 * HOUR_MS;
 
@@ -179,6 +179,9 @@ export const utcDateTime = (date: Date) =>
     convertDateToClickhouseDateTime(date),
     "DateTime64(3, 'UTC')",
   );
+
+/** A query's time window, bound as {@link utcDateTime}. */
+export type TimeWindow = { from: Expression<Date>; to: Expression<Date> };
 
 /** A time granularity after `auto` is resolved to one of the others. */
 type Granularity = Exclude<z.infer<typeof granularities>, "auto">;
@@ -263,10 +266,20 @@ type OuterClauses = {
   rowLimit: number | undefined;
 };
 
-/** What a time bucket truncates and an entity bucket reads, per view. */
+/** A granularity's bucket of a time value, e.g. `toDate(t)` for `day`. */
+export type TimeBucketOf = (t: Expression<Date>) => AliasableExpression<Date>;
+
+/**
+ * What a time bucket truncates and an entity bucket reads, per view.
+ * `perEntityTime` is the time bucket in the inner select of a two-level
+ * query, built from the granularity's bucket function (the v2 traces view
+ * prefers its root event's bucket); without it that bucket is
+ * `any(<bucket of time>)`.
+ */
 export type BucketValues = {
   time: Expression<Date>;
   entity: (field: string) => AliasableExpression<unknown>;
+  perEntityTime?: (bucketOf: TimeBucketOf) => AliasableExpression<unknown>;
 };
 
 /**
@@ -902,7 +915,8 @@ export function dimensionAlias(dimension: AppliedDimensionType): string {
 
 /**
  * The time or entity bucket as `time_dimension` / `entity_dimension`, from
- * the view's time column or its entity dimension.
+ * the view's time column or its entity dimension; `any(…)` in the inner
+ * select of a two-level query, or the view's `perEntityTime` there.
  */
 export function astBucketSelection(
   bucket: AppliedBucketingDimension,
@@ -910,6 +924,13 @@ export function astBucketSelection(
   values: BucketValues,
 ) {
   if (bucket.type === "none") return [];
+  if (bucket.type === "time" && level === "two" && values.perEntityTime) {
+    return [
+      values
+        .perEntityTime(timeBucket(bucket.granularity).bucket)
+        .as(bucket.bucketDimensionAlias),
+    ];
+  }
   const value =
     bucket.type === "time"
       ? timeBucket(bucket.granularity).bucket(values.time)

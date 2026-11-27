@@ -270,6 +270,7 @@ async function testDecisionModelEvaluator(params: {
       extraHeaders: decryptAndParseExtraHeaders(
         modelConfig.config.apiKey.extraHeaders,
       ),
+      internalEnvironment: LangfuseInternalTraceEnvironment.LLMJudge,
     });
     const execution = await executeDecisionModelEvaluator({
       variables: params.variables,

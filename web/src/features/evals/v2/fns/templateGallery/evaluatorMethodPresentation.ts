@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import { Code2, Gavel, Split, Tags } from "@langfuse/icons";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 

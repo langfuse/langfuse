@@ -287,6 +287,46 @@ describe("/api/public/organizations/models", () => {
     ).not.toBeNull();
   });
 
+  it("denies a member organization key without organization model scopes", async () => {
+    const { orgId, orgAuth } = await createOrganizationWithKey();
+    const name = `org-model-${randomUUID()}`;
+    const { body: model } = await makeZodVerifiedAPICall(
+      PutOrganizationModelV1Response,
+      "PUT",
+      BASE,
+      modelBody(name),
+      orgAuth,
+      201,
+    );
+    const { publicKey, secretKey } = await createApiKey(prisma, {
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
+      role: SystemRoleId("MEMBER"),
+      createdBy: "system",
+    });
+    const memberAuth = createBasicAuthHeader(publicKey, secretKey);
+
+    const denied = await Promise.all([
+      makeAPICall("GET", BASE, undefined, memberAuth),
+      makeAPICall("GET", `${BASE}/${model.id}`, undefined, memberAuth),
+      makeAPICall("PUT", BASE, modelBody(name, 0.000009), memberAuth),
+      makeAPICall("DELETE", `${BASE}/${model.id}`, undefined, memberAuth),
+    ]);
+    for (const response of denied) {
+      expect(response.status).toBe(403);
+      expect(response.body).toMatchObject({ code: "access_denied" });
+    }
+
+    const after = await makeZodVerifiedAPICall(
+      GetOrganizationModelV1Response,
+      "GET",
+      `${BASE}/${model.id}`,
+      undefined,
+      orgAuth,
+    );
+    expect(after.body).toEqual(model);
+  });
+
   it("rejects legacy fields, invalid tiers and project keys", async () => {
     const { orgAuth, auth: projectAuth } = await createOrganizationWithKey();
     const name = `org-model-${randomUUID()}`;

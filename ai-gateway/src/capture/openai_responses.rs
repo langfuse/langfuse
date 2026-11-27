@@ -8,6 +8,11 @@ use axum::http::HeaderMap;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
+use crate::guardrails::spec::{
+    Emit, JSON_LEAF, LEAF, Node, Object, ResponseSpec, delta, each, json_delta, json_summary,
+    keyed_each, maybe_keyed_each, parts, summary, text,
+};
+
 pub(super) struct OpenAiResponsesCapture {
     pub(super) facts: ProviderFacts,
     mode: IngestionMode,
@@ -314,13 +319,18 @@ impl OpenAiResponsesCapture {
 /// The top-level members guardrails scan.
 /// `previous_response_id` and `conversation` are only read to tell whether earlier
 /// turns are stored upstream; `prompt` for the variables it fills a stored prompt with.
-pub(super) const GUARDRAIL_MEMBERS: &[&str] = &[
-    "input",
-    "instructions",
-    "previous_response_id",
-    "conversation",
-    "prompt",
-];
+/// Where Responses API requests carry the conversation guardrails scan.
+pub(super) const REQUEST: crate::guardrails::spec::RequestSpec =
+    crate::guardrails::spec::RequestSpec {
+        members: &[
+            "input",
+            "instructions",
+            "previous_response_id",
+            "conversation",
+            "prompt",
+        ],
+        last_turn: guardrail_turn,
+    };
 
 #[derive(serde::Deserialize)]
 struct GuardrailItem<'a> {
@@ -328,11 +338,13 @@ struct GuardrailItem<'a> {
     kind: Option<&'a serde_json::value::RawValue>,
     #[serde(borrow, default)]
     role: Option<&'a serde_json::value::RawValue>,
-    #[serde(borrow, default)]
-    content: Option<&'a serde_json::value::RawValue>,
-    /// The result of a tool call, in `*_call_output` items.
-    #[serde(borrow, default)]
-    output: Option<&'a serde_json::value::RawValue>,
+    /// `content` and `output` (a tool call's result) are read by `GUARDRAIL_ITEM`;
+    /// declared so that a duplicate makes the input unreadable even where it is
+    /// not read.
+    #[serde(borrow, default, rename = "content")]
+    _content: Option<&'a serde_json::value::RawValue>,
+    #[serde(borrow, default, rename = "output")]
+    _output: Option<&'a serde_json::value::RawValue>,
 }
 
 impl GuardrailItem<'_> {
@@ -360,18 +372,17 @@ impl GuardrailItem<'_> {
 fn classify_guardrail_item(
     item: &serde_json::value::RawValue,
 ) -> Result<crate::guardrails::text::TurnItem, crate::guardrails::text::Unreadable> {
-    let item: GuardrailItem<'_> =
-        serde_json::from_str(item.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
+    let item: GuardrailItem<'_> = crate::guardrails::text::object_item(item)?;
     Ok(item.turn_item())
 }
 
-pub(super) fn guardrail_turn<'a>(
-    member: impl Fn(&str) -> Option<&'a str>,
+pub(super) fn guardrail_turn(
+    members: &crate::guardrails::spec::Members<'_, '_>,
 ) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
     let mut turn = crate::guardrails::text::LastTurn::default();
-    let had_model_item = match member("input") {
+    let had_model_item = match members.get("input")? {
         Some(items) if items.starts_with('[') => {
-            turn.push_items("input", items, classify_guardrail_item, read_guardrail_item)?
+            turn.push_items("input", items, classify_guardrail_item, &GUARDRAIL_ITEM)?
         }
         Some(input) => {
             turn.push_member("input", input);
@@ -381,61 +392,153 @@ pub(super) fn guardrail_turn<'a>(
     };
     // Instructions are resent on every turn, also when the provider stores the earlier
     // turns, so they are scanned only on the first one.
-    let continues = ["previous_response_id", "conversation"]
-        .into_iter()
-        .any(|name| member(name).is_some_and(|value| value != "null"));
-    if !had_model_item
-        && !continues
-        && let Some(instructions) = member("instructions")
-    {
-        turn.push_member("instructions", instructions);
+    let mut continues = false;
+    for name in ["previous_response_id", "conversation"] {
+        continues |= members.get(name)?.is_some_and(|value| value != "null");
+    }
+    if let Some(instructions) = members.get("instructions")? {
+        if had_model_item || continues {
+            turn.push_earlier_member("instructions", instructions);
+        } else {
+            turn.push_member("instructions", instructions);
+        }
     }
     // Variables fill a stored prompt with new caller text on every request.
-    if let Some(prompt) = member("prompt").filter(|prompt| prompt.starts_with('{')) {
-        turn.push_member_with("prompt", prompt, read_guardrail_prompt);
+    if let Some(prompt) = members
+        .get("prompt")?
+        .filter(|prompt| prompt.starts_with('{'))
+    {
+        turn.push_member_with("prompt", prompt, &GUARDRAIL_PROMPT);
     }
     Ok(turn)
 }
 
-#[derive(serde::Deserialize)]
-struct GuardrailPrompt<'a> {
-    #[serde(borrow, default)]
-    variables: Option<&'a serde_json::value::RawValue>,
-}
+/// A conversation item's text: a message's `content`, a tool output's `output`.
+const GUARDRAIL_ITEM: Node = Object::new(&[
+    ("content", crate::guardrails::spec::CONTENT),
+    ("output", crate::guardrails::spec::CONTENT),
+])
+.node();
 
-/// Variable values are strings or input parts.
-fn read_guardrail_prompt(
-    prompt: &serde_json::value::RawValue,
-    sink: &mut dyn FnMut(&str),
-) -> Result<(), crate::guardrails::text::Unreadable> {
-    let prompt: GuardrailPrompt<'_> =
-        serde_json::from_str(prompt.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
-    let Some(variables) = prompt
-        .variables
-        .filter(|variables| variables.get().starts_with('{'))
-    else {
-        return Ok(());
+/// A stored prompt's variables, which fill it with new caller text on every
+/// request: each a string, or input parts.
+const GUARDRAIL_PROMPT: Node = Object::new(&[(
+    "variables",
+    Node::Values(&Node::OneOf(&[
+        crate::guardrails::spec::PART,
+        crate::guardrails::spec::CONTENT,
+    ])),
+)])
+.node();
+
+/// Where Responses API responses carry model text.
+pub(super) const RESPONSE: ResponseSpec = ResponseSpec {
+    json: Object::new(&[
+        ("output", each(&OUTPUT_ITEM)),
+        ("output_text", text(Emit::Copy)),
+    ])
+    .node(),
+    sse: Object::new(&[]).by("type", EVENTS, None).node(),
+};
+
+const OUTPUT_ITEM: Node = Object::new(&[
+    ("content", parts(LEAF)),
+    ("summary", parts(LEAF)),
+    ("text", parts(LEAF)),
+    ("refusal", parts(LEAF)),
+    ("input", parts(LEAF)),
+    ("arguments", text(JSON_LEAF)),
+])
+.strict()
+.node();
+
+const PART: &[&str] = &["output_index", "content_index"];
+const SUMMARY_PART: &[&str] = &["output_index", "summary_index"];
+const ITEM: &[&str] = &["output_index"];
+
+/// An event of `$type` whose `$field` holds text, with stream indices from `$index`.
+macro_rules! event {
+    ($type:literal, $index:expr, $field:literal, $emit:expr) => {
+        ($type, Object::new(&[($field, text($emit))]).indexed($index))
     };
-    crate::guardrails::text::for_each_value(variables.get(), |value| {
-        if value.get().starts_with('{') {
-            crate::guardrails::text::collect_part(value, sink)
-        } else {
-            crate::guardrails::text::collect(value, sink)
-        }
-    })
 }
 
-fn read_guardrail_item(
-    item: &serde_json::value::RawValue,
-    sink: &mut dyn FnMut(&str),
-) -> Result<(), crate::guardrails::text::Unreadable> {
-    let item: GuardrailItem<'_> =
-        serde_json::from_str(item.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
-    for value in [item.content, item.output].into_iter().flatten() {
-        crate::guardrails::text::collect(value, sink)?;
-    }
-    Ok(())
+/// An output item's text parts and tool input, with its tool arguments in `$arguments`.
+macro_rules! item {
+    ($content:expr, $arguments:literal) => {
+        Object::new(&[
+            ("content", maybe_keyed_each(&$content)),
+            ("summary", maybe_keyed_each(&SUMMARY_TEXT_PART)),
+            ("arguments", text(json_summary($arguments))),
+            ("input", text(summary("custom_tool_call_input"))),
+            ("text", text(LEAF)),
+            ("refusal", text(LEAF)),
+        ])
+    };
 }
+
+/// Text and refusal of a content part, text in the `$slot` stream.
+macro_rules! text_part {
+    ($slot:literal) => {
+        Object::new(&[
+            ("text", text(summary($slot))),
+            ("refusal", text(summary("refusal"))),
+        ])
+        .node()
+    };
+}
+
+/// Streamed events, each a piece of a stream (`*.delta`) or a complete copy of one.
+#[rustfmt::skip]
+const EVENTS: &[(&str, Object)] = &[
+    event!("response.output_text.delta", PART, "delta", delta("output_text")),
+    event!("response.refusal.delta", PART, "delta", delta("refusal")),
+    event!("response.function_call_arguments.delta", ITEM, "delta", json_delta("function_call_args")),
+    event!("response.custom_tool_call_input.delta", ITEM, "delta", delta("custom_tool_call_input")),
+    event!("response.mcp_call_arguments.delta", ITEM, "delta", json_delta("mcp_call_args")),
+    event!("response.reasoning_text.delta", PART, "delta", delta("reasoning_text")),
+    event!("response.reasoning_summary_text.delta", SUMMARY_PART, "delta", delta("reasoning_summary")),
+    event!("response.output_text.done", PART, "text", summary("output_text")),
+    event!("response.refusal.done", PART, "refusal", summary("refusal")),
+    event!("response.function_call_arguments.done", ITEM, "arguments", json_summary("function_call_args")),
+    event!("response.custom_tool_call_input.done", ITEM, "input", summary("custom_tool_call_input")),
+    event!("response.mcp_call_arguments.done", ITEM, "arguments", json_summary("mcp_call_args")),
+    event!("response.reasoning_text.done", PART, "text", summary("reasoning_text")),
+    event!("response.reasoning_summary_text.done", SUMMARY_PART, "text", summary("reasoning_summary")),
+    ("response.content_part.done", Object::new(&[("part", OUTPUT_TEXT_PART)]).indexed(PART)),
+    ("response.reasoning_summary_part.done", Object::new(&[("part", SUMMARY_TEXT_PART)]).indexed(SUMMARY_PART)),
+    ("response.output_item.done", Object::new(&[("item", STREAMED_ITEM)]).indexed(ITEM)),
+    ("response.completed", COMPLETED),
+    ("response.incomplete", COMPLETED),
+];
+
+const COMPLETED: Object = Object::new(&[(
+    "response",
+    Object::new(&[
+        ("output", keyed_each(&STREAMED_ITEM)),
+        ("output_text", text(Emit::Copy)),
+    ])
+    .node(),
+)]);
+
+/// An output item in a streamed event: complete copies of its streams.
+const STREAMED_ITEM: Node = Object::new(&[])
+    .by(
+        "type",
+        &[
+            (
+                "reasoning",
+                item!(REASONING_TEXT_PART, "function_call_args"),
+            ),
+            ("mcp_call", item!(OUTPUT_TEXT_PART, "mcp_call_args")),
+        ],
+        Some(&item!(OUTPUT_TEXT_PART, "function_call_args")),
+    )
+    .node();
+
+const OUTPUT_TEXT_PART: Node = text_part!("output_text");
+const REASONING_TEXT_PART: Node = text_part!("reasoning_text");
+const SUMMARY_TEXT_PART: Node = text_part!("reasoning_summary");
 
 #[cfg(test)]
 mod tests;

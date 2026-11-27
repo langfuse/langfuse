@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import type { z } from "zod";
 import type {
   ChatMlMessageSchema,

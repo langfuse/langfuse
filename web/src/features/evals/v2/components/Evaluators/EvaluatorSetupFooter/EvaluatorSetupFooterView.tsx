@@ -1,9 +1,7 @@
-import { ArrowRight } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { cn } from "@/src/utils/tailwind";
 
-type EvaluatorSetupFooterViewBaseProps = {
+export type EvaluatorSetupFooterViewProps = {
   closeLabel: string;
   saveLabel: string;
   isSaving: boolean;
@@ -12,11 +10,6 @@ type EvaluatorSetupFooterViewBaseProps = {
   onClose: () => void;
   onSave: () => void;
 };
-
-export type EvaluatorSetupFooterViewProps =
-  EvaluatorSetupFooterViewBaseProps & {
-    mode: "create" | "edit";
-  };
 
 export function EvaluatorSetupFooterView(props: EvaluatorSetupFooterViewProps) {
   const {
@@ -33,18 +26,15 @@ export function EvaluatorSetupFooterView(props: EvaluatorSetupFooterViewProps) {
       type="button"
       disabled={saveDisabled}
       loading={isSaving}
-      className={cn("gap-1.5", disabledReason && "pointer-events-none")}
+      className={disabledReason ? "pointer-events-none" : undefined}
       onClick={onSave}
     >
       {saveLabel}
-      {props.mode === "create" ? (
-        <ArrowRight size="base" aria-hidden="true" />
-      ) : null}
     </Button>
   );
 
   return (
-    <div className="flex shrink-0 items-center justify-end gap-2 border-t px-6 py-3">
+    <div className="flex shrink-0 items-center justify-end gap-2 border-t px-4 py-2.5">
       <Button type="button" variant="outline" onClick={onClose}>
         {closeLabel}
       </Button>

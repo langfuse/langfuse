@@ -109,11 +109,19 @@
   transition:
     block-size var(--sidebar-motion-duration, 0ms)
       var(--sidebar-motion-ease, ease),
+    margin-block var(--sidebar-motion-duration, 0ms)
+      var(--sidebar-motion-ease, ease),
     background-color 150ms ease;
+}
+
+/* Both desktop states fill a 2.5rem slot, so the rows above stay put. */
+.account[data-surface="expanded"] {
+  block-size: 2.5rem;
 }
 
 .account[data-surface="collapsed"] {
   block-size: 2rem;
+  margin-block: 0.25rem;
 }
 
 .account .identity {

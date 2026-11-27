@@ -11,6 +11,7 @@ import preview from "../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { TopicRuleDialogView } from "./TopicRuleDialogView";
+import { TopicCostEstimateView } from "./TopicCostEstimateView";
 import {
   topicsFilterRegistry,
   useTopicTraceFilterState,
@@ -116,6 +117,19 @@ function EditScanStory({
       samplingPercent={samplingPercent}
       onSamplingPercentChange={setSamplingPercent}
       dailyTraces={dailyTraces}
+      costEstimateField={
+        <TopicCostEstimateView
+          showUsage
+          estimate={null}
+          samplingPercent={samplingPercent}
+          dailyTraces={dailyTraces}
+          backfillTraces={null}
+          starting={false}
+          facetCount={facetIds.length}
+          error={null}
+          onStart={fn()}
+        />
+      }
       canSave={traceFilterState.ready && facetIds.length > 0}
       saving={saving}
       saveError={saveError}

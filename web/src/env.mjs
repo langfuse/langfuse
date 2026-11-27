@@ -336,8 +336,9 @@ export const env = createEnv({
     CLICKHOUSE_URL: z.url(),
     CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
     CLICKHOUSE_DB: z.string().default("default"),
-    CLICKHOUSE_USER: z.string(),
-    CLICKHOUSE_PASSWORD: z.string(),
+    // Required unless CLICKHOUSE_AUTH_MODE is jwt; validated in the shared env.
+    CLICKHOUSE_USER: z.string().optional(),
+    CLICKHOUSE_PASSWORD: z.string().optional(),
     CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
 
     // EE ui customization
@@ -357,6 +358,9 @@ export const env = createEnv({
     // web/src/ee/features/ui-customization/instanceLinks.ts so a bad value
     // disables the instance switcher instead of failing the deployment.
     LANGFUSE_UI_INSTANCE_LINKS: z.string().optional(),
+    // Forces public sharing of traces and sessions off for every organization.
+    // Only takes effect with the self-host-ui-customization entitlement.
+    LANGFUSE_DISABLE_PUBLIC_SHARING: z.enum(["true", "false"]).optional(),
 
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
@@ -1301,6 +1305,8 @@ export const env = createEnv({
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE:
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_AZURE,
     LANGFUSE_UI_INSTANCE_LINKS: process.env.LANGFUSE_UI_INSTANCE_LINKS,
+    LANGFUSE_DISABLE_PUBLIC_SHARING:
+      process.env.LANGFUSE_DISABLE_PUBLIC_SHARING,
     LANGFUSE_UI_VISIBLE_PRODUCT_MODULES:
       process.env.LANGFUSE_UI_VISIBLE_PRODUCT_MODULES,
     LANGFUSE_UI_HIDDEN_PRODUCT_MODULES:

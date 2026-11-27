@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { decodeFiltersGeneric } from "@langfuse/shared";
 
+import { GATEWAY_GUARDRAIL_FLAGGED_DATE_RANGE } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { buildGatewayTracesHref } from "./buildGatewayTracesHref";
 
 describe("buildGatewayTracesHref", () => {
@@ -13,6 +14,7 @@ describe("buildGatewayTracesHref", () => {
     const url = new URL(href, "http://localhost");
 
     expect(url.pathname).toBe("/project/proj-1/traces");
+    expect(url.searchParams.get("dateRange")).toBeNull();
     expect(decodeFiltersGeneric(url.searchParams.get("filter") ?? "")).toEqual([
       {
         column: "metadata",
@@ -42,5 +44,41 @@ describe("buildGatewayTracesHref", () => {
         value: "key;456,789",
       },
     ]);
+  });
+
+  it("builds a 7-day traces URL filtered by guardrail metadata key presence", () => {
+    const href = buildGatewayTracesHref({
+      projectId: "proj-1",
+      subject: "guardrail",
+      subjectId: "gr-123",
+      dateRange: GATEWAY_GUARDRAIL_FLAGGED_DATE_RANGE,
+    });
+    const url = new URL(href, "http://localhost");
+
+    expect(url.pathname).toBe("/project/proj-1/traces");
+    expect(url.searchParams.get("dateRange")).toBe("7d");
+    expect(decodeFiltersGeneric(url.searchParams.get("filter") ?? "")).toEqual([
+      {
+        column: "metadata",
+        type: "stringObject",
+        key: "langfuse.gateway.guardrails.gr-123",
+        operator: "is set",
+        value: "",
+      },
+    ]);
+  });
+
+  it("targets observations when requested for legacy read paths", () => {
+    const href = buildGatewayTracesHref({
+      projectId: "proj-1",
+      subject: "guardrail",
+      subjectId: "gr-123",
+      dateRange: GATEWAY_GUARDRAIL_FLAGGED_DATE_RANGE,
+      target: "observations",
+    });
+    const url = new URL(href, "http://localhost");
+
+    expect(url.pathname).toBe("/project/proj-1/observations");
+    expect(url.searchParams.get("dateRange")).toBe("7d");
   });
 });

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 /**
  * Which tree node owns a trace's trace-level scores (`observationId === null`).
  *

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useArgs } from "storybook/preview-api";
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 
 import preview from "../../../../../../../../../.storybook/preview";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
@@ -52,6 +52,25 @@ export const Narrow = meta.story({
   },
   args: { value: EvalTemplateTypeEnum.LLM_AS_JUDGE, onValueChange: fn() },
   render: StatefulEvaluationTypeToggle,
+});
+export const SwitchesToDropdownInNarrowSlot = meta.story({
+  name: "(Test) Switches to a dropdown in a narrow slot",
+  args: { value: EvalTemplateTypeEnum.LLM_AS_JUDGE, onValueChange: fn() },
+  render: StatefulEvaluationTypeToggle,
+  decorators: [
+    (Story) => (
+      <div className="flex w-80">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("combobox", { name: "Evaluation type" }),
+    ).toBeVisible();
+    await expect(canvas.queryByRole("tab")).toBeNull();
+  },
 });
 export const LockedForEdit = meta.story({
   args: {
