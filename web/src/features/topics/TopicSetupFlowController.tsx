@@ -154,6 +154,7 @@ function TopicSetupSession({
       adapter: connection.adapter,
       customModels: connection.customModels,
       withDefaultModels: connection.withDefaultModels,
+      baseURL: connection.baseURL,
     }),
   );
   const [draft, setDraft] = useState(() =>

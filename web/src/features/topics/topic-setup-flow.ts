@@ -38,6 +38,7 @@ export type TopicSetupConnection = {
   adapter: string;
   customModels: string[];
   withDefaultModels: boolean;
+  baseURL: string | null;
 };
 
 export type TopicSetupDraft = {
@@ -135,13 +136,22 @@ export function topicModelsFor(
   kind: "chat" | "embedding",
   savedModel?: string | null,
 ) {
-  const chat = connection.withDefaultModels
-    ? (supportedModels[connection.adapter as keyof typeof supportedModels] ??
-      [])
-    : [];
+  // These adapters have no embeddings API.
+  if (
+    kind === "embedding" &&
+    (connection.adapter === LLMAdapter.Anthropic ||
+      connection.adapter === LLMAdapter.TypeSafe)
+  )
+    return [];
+  // The built-in chat lists never embed; custom models may, whatever their name.
+  const chat =
+    kind === "chat" && connection.withDefaultModels
+      ? (supportedModels[connection.adapter as keyof typeof supportedModels] ??
+        [])
+      : [];
   const embedding =
     kind === "embedding" && connection.withDefaultModels
-      ? embeddingModelsFor(connection.adapter)
+      ? embeddingModelsFor(connection)
       : [];
   const models = Array.from(
     new Set(
@@ -151,7 +161,6 @@ export function topicModelsFor(
     ),
   );
   if (kind === "chat") return models;
-  // Chat models stay pickable for embedding, but embedding-named ones come first.
   const isEmbedding = (model: string) => /embed/i.test(model);
   return [
     ...models.filter(isEmbedding),
@@ -164,13 +173,15 @@ export function topicProviderGroups(
   kind: "chat" | "embedding",
   savedModel?: string | null,
 ) {
-  return connections.map(
-    (connection) =>
-      [connection.provider, topicModelsFor(connection, kind, savedModel)] as [
-        string,
-        string[],
-      ],
-  );
+  return connections
+    .map(
+      (connection) =>
+        [connection.provider, topicModelsFor(connection, kind, savedModel)] as [
+          string,
+          string[],
+        ],
+    )
+    .filter(([, models]) => models.length > 0);
 }
 
 /** @internal */
@@ -384,9 +395,13 @@ function topicQuestionDescription(name: string, stored: string | undefined) {
   );
 }
 
-function embeddingModelsFor(adapter: string) {
-  if (adapter === LLMAdapter.OpenAI || adapter === LLMAdapter.Azure)
-    return OPENAI_EMBEDDING_MODELS;
+function embeddingModelsFor({ adapter, baseURL }: TopicSetupConnection) {
+  // Other OpenAI-compatible hosts and Azure deployments use their own model names.
+  if (adapter === LLMAdapter.OpenAI)
+    return !baseURL ||
+      (URL.canParse(baseURL) && new URL(baseURL).hostname === "api.openai.com")
+      ? OPENAI_EMBEDDING_MODELS
+      : [];
   if (adapter === LLMAdapter.GoogleAIStudio)
     return GOOGLE_AI_STUDIO_EMBEDDING_MODELS;
   if (adapter === LLMAdapter.VertexAI) return VERTEX_AI_EMBEDDING_MODELS;
