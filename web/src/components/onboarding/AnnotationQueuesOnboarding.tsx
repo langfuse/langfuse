@@ -2,13 +2,24 @@ import {
   SplashScreen,
   type ValueProposition,
 } from "@/src/components/ui/SplashScreen";
-import { ClipboardCheck, Users, BarChart4, GitMerge } from "@langfuse/icons";
-import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
+import {
+  ClipboardCheck,
+  Users,
+  BarChart4,
+  GitMerge,
+  PlusIcon,
+} from "@langfuse/icons";
+import { type ComponentProps } from "react";
+import { ActionButton } from "@/src/components/ActionButton";
 
 export function AnnotationQueuesOnboarding({
-  projectId,
+  disabled,
+  usageLimit,
+  onClick,
 }: {
-  projectId: string;
+  disabled: { reason: string } | undefined;
+  usageLimit: ComponentProps<typeof ActionButton>["usageLimit"];
+  onClick: () => void;
 }) {
   const valuePropositions: ValueProposition[] = [
     {
@@ -45,18 +56,23 @@ export function AnnotationQueuesOnboarding({
       primaryAction={{
         label: "Create Annotation Queue",
         component: (
-          <CreateOrEditAnnotationQueueButton
+          <ActionButton
             variant="default"
-            projectId={projectId}
+            hasAccess={!disabled}
+            usageLimit={usageLimit}
+            onClick={onClick}
+            icon={<PlusIcon size="base" aria-hidden="true" />}
             size="lg"
-          />
+          >
+            <span className="ml-1 text-sm font-normal">New queue</span>
+          </ActionButton>
         ),
       }}
       secondaryAction={{
         label: "Learn More",
         href: "https://langfuse.com/docs/scores/annotation",
       }}
-      videoSrc="https://static.langfuse.com/prod-assets/onboarding/annotation-queue-overview-v1.mp4"
+      videoSrc="https://static.langfuse.com/prod-assets/onboarding/annotation-queue-overview-v2.mp4"
     />
   );
 }

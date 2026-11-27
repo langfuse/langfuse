@@ -1,13 +1,16 @@
+// Custom Kysely nodes for ClickHouse-only syntax (ARRAY JOIN, LIMIT BY, FINAL,
+// WITH FILL, parametric aggregates, typed params) and their tree helpers.
+
 import {
   AndNode,
   FunctionNode,
   OrNode,
   ParensNode,
   RawNode,
-  SelectQueryNode,
+  ReferenceNode,
   type IdentifierNode,
   type OperationNode,
-  type ReferenceNode,
+  type SelectQueryNode,
 } from "kysely";
 
 import { QueryCompileError } from "./errors";
@@ -140,11 +143,78 @@ export const ArrayIndexNode = {
   },
 };
 
+/**
+ * ClickHouse parametric aggregate `func(parameters)(args)`:
+ * `quantile(0.95)(latency)`, `histogram(25)(toFloat64(latency))`. The
+ * parameters are inlined constants, as ClickHouse requires. `func` is an
+ * identifier, so the compiler checks it like any other name. A
+ * {@link CustomNode}.
+ */
+export type ParametricAggregateNode = {
+  readonly kind: "ParametricAggregateNode";
+  readonly func: IdentifierNode;
+  readonly parameters: ReadonlyArray<OperationNode>;
+  readonly args: ReadonlyArray<OperationNode>;
+};
+
+export const ParametricAggregateNode = {
+  is(node: { kind: string }): node is ParametricAggregateNode {
+    return node.kind === "ParametricAggregateNode";
+  },
+  create(
+    func: IdentifierNode,
+    parameters: ReadonlyArray<OperationNode>,
+    args: ReadonlyArray<OperationNode>,
+  ): ParametricAggregateNode {
+    return Object.freeze({
+      kind: "ParametricAggregateNode",
+      func,
+      parameters: Object.freeze([...parameters]),
+      args: Object.freeze([...args]),
+    });
+  },
+};
+
+/**
+ * ClickHouse `WITH FILL FROM <from> TO <to> STEP <step>` after the last
+ * ORDER BY item: rows for the missing values of that item between `from`
+ * and `to`, `step` apart. An extra field of
+ * {@link ClickHouseSelectQueryNode}, like LIMIT BY.
+ */
+export type WithFillNode = {
+  readonly kind: "WithFillNode";
+  readonly from: OperationNode;
+  readonly to: OperationNode;
+  readonly step: OperationNode;
+};
+
+export const WithFillNode = {
+  create(
+    from: OperationNode,
+    to: OperationNode,
+    step: OperationNode,
+  ): WithFillNode {
+    return Object.freeze({ kind: "WithFillNode", from, to, step });
+  },
+};
+
+/** A name ClickHouse reads without quotes, which the compiler writes as is. */
+export const PLAIN_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
 // A type name with optional arguments: identifiers, integers, nested types
 // and quoted time zones (`DateTime64(3, 'UTC')`). No `{`, `}` or `:`, so the
 // type cannot close its `{p:<type>}` placeholder.
 const PLACEHOLDER_TYPE =
   /^[A-Za-z][A-Za-z0-9_]*(\((?:[A-Za-z0-9_(), ]|'[A-Za-z0-9_/+-]*')*\))?$/;
+
+/**
+ * A type a `{p:<type>}` placeholder may bind as: a value type. `Identifier`
+ * substitutes the bound string as a name, so `t.id in {p:Identifier}` bound
+ * to `scores` reads the table.
+ */
+function isPlaceholderType(type: string): boolean {
+  return PLACEHOLDER_TYPE.test(type) && !/identifier/i.test(type);
+}
 
 /** The payload of a `typedValue` bind (extensions.ts): value and placeholder type. */
 export class TypedParam {
@@ -152,9 +222,9 @@ export class TypedParam {
     readonly value: unknown,
     readonly type: string,
   ) {
-    if (!PLACEHOLDER_TYPE.test(type)) {
+    if (!isPlaceholderType(type)) {
       throw new QueryCompileError(
-        `typedValue type must be a ClickHouse type name, got ${type}.`,
+        `typedValue type must be a ClickHouse value type name, got ${type}.`,
       );
     }
   }
@@ -196,15 +266,11 @@ export const TupleSubcolumnNode = {
 export type ClickHouseSelectQueryNode = SelectQueryNode & {
   readonly arrayJoins?: ReadonlyArray<ArrayJoinNode>;
   readonly limitBy?: LimitByNode;
-  /** Set by `includeDeleted()`: the soft-delete pass skips this select. */
-  readonly includeDeleted?: true;
-  /**
-   * Set by `softDeleteAfterLimit()`: the soft-delete pass filters this
-   * select's output instead of its relation.
-   */
-  readonly softDeleteAfterLimit?: true;
+  /** Set by `withFill(...)`: the fill of the last ORDER BY item. */
+  readonly withFill?: WithFillNode;
 };
 
+/** @internal */
 export function isClickHouseSelectQueryNode(
   node: OperationNode,
 ): node is ClickHouseSelectQueryNode {
@@ -242,7 +308,11 @@ export const FinalTableNode = {
  * here: they are extra fields on {@link ClickHouseSelectQueryNode}, never in a
  * node slot.
  */
-export type CustomNode = ArrayIndexNode | FinalTableNode | TupleSubcolumnNode;
+export type CustomNode =
+  | ArrayIndexNode
+  | FinalTableNode
+  | ParametricAggregateNode
+  | TupleSubcolumnNode;
 
 type CustomNodeByKind = { [N in CustomNode as N["kind"]]: N };
 
@@ -283,6 +353,25 @@ const CUSTOM_NODE_OPS: {
     compile: (node, child, sql) => {
       child(node.table);
       sql(" final");
+    },
+  },
+  ParametricAggregateNode: {
+    transform: (node, child) =>
+      ParametricAggregateNode.create(
+        child(node.func),
+        node.parameters.map(child),
+        node.args.map(child),
+      ),
+    compile: (node, child, sql) => {
+      child(node.func);
+      for (const list of [node.parameters, node.args]) {
+        sql("(");
+        list.forEach((item, index) => {
+          if (index > 0) sql(", ");
+          child(item);
+        });
+        sql(")");
+      }
     },
   },
   TupleSubcolumnNode: {
@@ -373,8 +462,7 @@ export function walkNodes(
 /**
  * `condition`, bracketed when AND-ing a predicate onto it would rebind it: the
  * compiler emits `and`/`or` chains without brackets, so `p and a or b` reads
- * as `(p and a) or b`. Brackets a top-level `or`, and any raw SQL, whose text
- * may hold one.
+ * as `(p and a) or b`. Brackets a top-level `or`.
  */
 export function bracketForAnd(condition: OperationNode): OperationNode {
   return needsBracketsUnderAnd(condition)
@@ -391,11 +479,20 @@ export function needsBracketsUnderAnd(node: OperationNode): boolean {
       needsBracketsUnderAnd(node.left) || needsBracketsUnderAnd(node.right)
     );
   }
-  let hasRaw = false;
-  walkNodes(node, (child) => {
-    if (RawNode.is(child)) hasRaw = true;
-    // A subquery compiles inside its own brackets.
-    return !hasRaw && !SelectQueryNode.is(child);
-  });
-  return hasRaw;
+  return false;
+}
+
+/**
+ * `sql.ref("t.col")`: raw SQL with no text of its own around one column
+ * reference. The one raw shape that compiles as an expression.
+ */
+export function isRawReference(
+  node: OperationNode,
+): node is RawNode & { parameters: readonly [ReferenceNode] } {
+  return (
+    RawNode.is(node) &&
+    node.parameters.length === 1 &&
+    ReferenceNode.is(node.parameters[0]) &&
+    node.sqlFragments.every((fragment) => fragment === "")
+  );
 }

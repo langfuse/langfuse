@@ -23,14 +23,16 @@ function CustomTooltip({
   children,
   content,
   delay = 150,
+  enabled,
   hoverableContent = true,
   placement = "top",
   padding = "default",
   overflow = "hidden",
 }: Pick<
   React.ComponentProps<typeof FloatingController>,
-  "children" | "placement" | "hoverableContent"
+  "children" | "enabled" | "placement" | "hoverableContent"
 > & {
+  // eslint-disable-next-line @repo/no-node-slot-props -- overlay body supplied by the caller
   content: React.ReactElement;
   delay?: number;
   padding?: NonNullable<VariantProps<typeof tooltipVariants>["padding"]>;
@@ -43,6 +45,7 @@ function CustomTooltip({
       open={open}
       onOpenChange={setOpen}
       role="tooltip"
+      enabled={enabled}
       openDelay={delay}
       closeDelay={0}
       placement={placement}

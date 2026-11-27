@@ -18,14 +18,8 @@ audit from the linked source rows.
   timezone. State both local and UTC query windows in one short scope line.
 - Cover all production environments unless the user narrows scope:
   `prod-us`, `prod-eu`, `prod-hipaa`, and `prod-jp`.
-- The review itself changes nothing outside the tracker. Do not touch incident.io
-  records, follow-ups, alerts, monitors, files, Slack messages, or production
-  systems unless the user explicitly asks after reviewing the findings.
-- Linear is the exception: evidence comments on existing issues and new
-  parentless filings both need a propose-then-write yes — show the set, take
-  one go-ahead, then write and label. [`linear-agent-writes`](../linear-agent-writes/SKILL.md)
-  is the authority; [`linear-bug-triage`](../linear-bug-triage/SKILL.md) applies
-  it to measured findings.
+- Return the review in chat. Do not touch incident.io records, follow-ups, alerts, monitors, files, Slack messages, or production systems unless the user explicitly asks after reviewing the findings.
+- Use [`linear-agent-writes`](../linear-agent-writes/SKILL.md) only if the user requests a tracker action. Do not propose updates or file findings by default.
 - For chat-only reviews, avoid creating report artifacts or local analysis
   workspaces unless a required tool workflow explicitly does so or the user asks
   for a file. If incident.io analysis tooling requires a local playbook
@@ -38,12 +32,7 @@ audit from the linked source rows.
 
 - Use [`datadog-query-recipes`](../datadog-query-recipes/SKILL.md) for
   production Datadog query shapes and environment/site routing.
-- Use [`linear-bug-triage`](../linear-bug-triage/SKILL.md) for the Linear
-  write-back: it proposes measured evidence comments and new filings, then
-  writes once you approve the set.
-- Use [`incident-alert-tickets`](../incident-alert-tickets/SKILL.md) to check
-  each alert cluster against the per-monitor knowledge base and record newly
-  root-caused clusters there as a labelled description edit.
+- Check each alert cluster against the monitor's runbook in the infrastructure repo (`runbooks/<slug>.md`). After the review, offer to propose each newly root-caused cluster as a runbook update; write it only after approval.
 
 ## Workflow
 
@@ -73,11 +62,7 @@ audit from the linked source rows.
    Group repeated firings by monitor/page title or ID, environment, service/team,
    and trigger reason.
 6. For every Datadog alert/page cluster, perform the deep dive before writing the
-   final row. Do not stop at the monitor title or count. Check the monitor's
-   `incident-alert` ticket first (see
-   [`incident-alert-tickets`](../incident-alert-tickets/SKILL.md)); a
-   documented cause section may explain the cluster — cite the ticket in the
-   `incident.io / Linear Link` column. Inspect matching APM
+   final row. Do not stop at the monitor title or count. Check the monitor's runbook in the infrastructure repo (`runbooks/<slug>.md`) first; a documented cause may explain the cluster — cite the runbook in the `incident.io / Linear Link` column. Inspect matching APM
    spans, representative traces, related logs, error records, exception details,
    failed job logs, dependency spans, queue backlog/delay context, and monitor
    time windows. Put the relevant trace/span evidence and relevant logs/errors
@@ -122,12 +107,9 @@ Keep incident.io incidents, incident.io alert load, Linear, Datadog alerts, and
 Datadog logs as separate output tables. Use links inside each table to show
 relationships instead of synthesizing a separate cross-source table.
 
-Use Linear as the source of truth for deduplication across weeks and workflows.
-Before reporting a bug, security finding, cost concern, or alert as new, search
-Linear for matching issue keys, titles, source URLs, and comments — covering
-both the `bug` label set and the `incident-alert` label set. If an
-existing issue covers it, link to that issue and mark the row as already
-tracked instead of reporting it again as fresh work.
+When Linear data is available for the review, search for matching issue keys, titles, source URLs, and comments before calling a finding new. Link matching issues and mark them as already tracked. If tracking status cannot be verified, mark it unknown and continue the report.
+
+An alert cluster that matches a cause documented in the monitor's runbook is already tracked even without a Linear issue: link the runbook instead. It matches only when every recognition signal of that cause fits the evidence; report a partial match as new and name the near-miss.
 
 Use short stable link labels:
 
@@ -138,9 +120,9 @@ Use short stable link labels:
 - `incident.io: <INC reference>`
 - `incident.io alert load: <escalation path or team>`
 - `Linear: <issue key>`
+- `Runbook: <slug>`
 
-Do not write links, create follow-ups, or update external systems unless the
-user explicitly asks for changes after reviewing the report.
+Changes to other external systems require an explicit request after reviewing the report.
 
 ## incident.io Table
 
@@ -254,8 +236,7 @@ Column rules:
   retry exhaustion, validation failures, or `No measurements found`.
 - `Verdict`: use `customer incident`, `confirmed bug`, `infra/dependency`,
   `expected/test`, `monitor noise`, or `unknown/no measurements`.
-- `incident.io / Linear Link`: matching incident.io reference, Linear issue key,
-  explicit disposition, or `none found`.
+- `incident.io / Linear Link`: matching incident.io reference, Linear issue key, runbook (`Runbook: <slug>`), explicit disposition, or `none found`.
 
 For API route and queue consumer errors, start from APM spans matching:
 

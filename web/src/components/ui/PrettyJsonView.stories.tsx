@@ -17,7 +17,7 @@ import { JsonViewController } from "./JsonViewController";
 import { IOSection } from "./IOSection";
 import { PrettyJsonView } from "./PrettyJsonView";
 import { PrettyJsonViewContent } from "./PrettyJsonViewContent";
-import { LARGE_STRING_RENDER_CHAR_LIMIT } from "./largeStringGate";
+import { LARGE_STRING_RENDER_CHAR_LIMIT } from "./constants";
 
 function SectionPreview(props: ComponentProps<typeof PrettyJsonView>) {
   const { title = "Input" } = props;

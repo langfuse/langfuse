@@ -22,7 +22,7 @@ function DescriptionLabel({
   return (
     <Label className="flex items-center gap-1.5">
       {children}
-      <span className="text-muted-foreground font-regular">(optional)</span>
+      <span className="text-muted-foreground font-normal">(optional)</span>
       {!disabled ? (
         <InfoTooltip label={`About ${children.toLowerCase()}`}>
           {tooltip}
@@ -50,13 +50,14 @@ export function ScoreOutputDescriptionFields({
   const [advancedOpen, setAdvancedOpen] = useState(defaultAdvancedOpen);
 
   return (
-    <div className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-1.5">
+    <div className="flex flex-col">
       <button
         type="button"
-        className="col-span-2 flex w-fit items-center gap-1.5 text-sm font-bold"
+        className="text-muted-foreground flex w-fit items-center gap-1 text-sm font-bold"
         aria-expanded={advancedOpen}
         onClick={() => setAdvancedOpen((current) => !current)}
       >
+        Advanced
         <ChevronDown
           size="base"
           color="tertiary"
@@ -65,11 +66,10 @@ export function ScoreOutputDescriptionFields({
             !advancedOpen && "-rotate-90",
           )}
         />
-        Advanced
       </button>
 
       {advancedOpen ? (
-        <div className="col-start-2 mt-4 flex flex-col gap-4">
+        <div className="mt-3 flex flex-col gap-4 pl-18">
           <div className="flex flex-col gap-2">
             <DescriptionLabel
               tooltip="Gives the judge context on what the score field should capture."

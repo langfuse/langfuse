@@ -1,11 +1,15 @@
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest, bounded_string,
-    facts::ProviderFacts, parse_request, response::ResponseBody,
+    InputOmission, MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest,
+    bounded_string, error_detail, facts::ProviderFacts, response::ResponseBody,
 };
 use crate::resolution::IngestionMode;
 use axum::http::HeaderMap;
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
+
+use crate::guardrails::spec::{
+    Emit, LEAF, Node, Object, ResponseSpec, SIGNED_LEAF, delta, each, json_delta, strings, text,
+};
 
 const SCALAR_PARAMETERS: [&str; 7] = [
     "max_tokens",
@@ -26,9 +30,9 @@ const STRUCTURED_PARAMETERS: [&str; 5] = [
 ];
 
 pub(super) struct AnthropicMessagesCapture {
-    facts: ProviderFacts,
+    pub(super) facts: ProviderFacts,
     mode: IngestionMode,
-    body: ResponseBody,
+    pub(super) body: ResponseBody,
     usage: Option<Map<String, Value>>,
     /// Present only in full mode; usage mode never records output.
     output: Option<AssistantMessage>,
@@ -205,7 +209,7 @@ fn block_index(event: &Map<String, Value>) -> Option<u64> {
 }
 
 impl AnthropicMessagesCapture {
-    pub(super) fn new(headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
+    pub(super) fn new(request: Result<RawRequest, InputOmission>, mode: IngestionMode) -> Self {
         let mut capture = Self {
             facts: ProviderFacts::default(),
             mode,
@@ -216,7 +220,7 @@ impl AnthropicMessagesCapture {
             request_complete: false,
             response_valid: true,
         };
-        match parse_request(headers, body) {
+        match request {
             Ok(request) => {
                 capture.capture_request(request);
                 capture.request_complete = true;
@@ -230,20 +234,16 @@ impl AnthropicMessagesCapture {
     }
 
     pub(super) fn record_response(&mut self, headers: &HeaderMap) {
-        self.facts.provider_request_id = headers
-            .get("request-id")
-            .and_then(|v| v.to_str().ok())
-            .and_then(bounded_string);
         self.body = ResponseBody::from_headers(headers);
         if matches!(self.body, ResponseBody::Unavailable) {
             self.response_valid = false;
         }
     }
 
-    pub(super) fn push_bytes(&mut self, bytes: &[u8]) -> bool {
+    pub(super) fn push_bytes(&mut self, bytes: &[u8], parse_limit: usize) -> bool {
         let mut body = std::mem::replace(&mut self.body, ResponseBody::Unavailable);
         let mut completion_started = false;
-        if !body.push(bytes, |event| {
+        if !body.push(bytes, parse_limit, |event| {
             completion_started |= self.handle_event(event);
         }) {
             self.response_valid = false;
@@ -458,19 +458,105 @@ impl AnthropicMessagesCapture {
         let Some(error) = envelope.get("error").and_then(Value::as_object) else {
             return;
         };
-        let detail = ["type", "message"]
-            .into_iter()
-            .filter_map(|key| error.get(key).and_then(Value::as_str))
-            .filter(|value| !value.is_empty())
-            .map(|value| &value[..value.floor_char_boundary(MAX_FACT_STRING)])
-            .collect::<Vec<_>>()
-            .join(": ");
-        if !detail.is_empty() {
-            self.facts.error_message =
-                Some(detail[..detail.floor_char_boundary(MAX_FACT_STRING)].to_owned());
+        if let Some(detail) = error_detail(error, ["type", "message"]) {
+            self.facts.error_message = Some(detail);
         }
     }
 }
+
+/// Anthropic Messages keeps the conversation in `messages` and the system prompt in
+/// `system`. The last turn is the user's message after the model last answered; tool
+/// results arrive as `tool_result` blocks of one user message. The system prompt
+/// counts only on the first turn.
+/// The top-level members guardrails scan.
+/// Where Anthropic Messages requests carry the conversation guardrails scan.
+pub(super) const REQUEST: crate::guardrails::spec::RequestSpec =
+    crate::guardrails::spec::RequestSpec {
+        members: &["messages", "system"],
+        last_turn: guardrail_turn,
+    };
+
+pub(super) fn guardrail_turn(
+    members: &crate::guardrails::spec::Members<'_, '_>,
+) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
+    let mut turn = crate::guardrails::text::LastTurn::default();
+    let had_model_turn = match members.get("messages")? {
+        Some(messages) => turn.push_items(
+            "messages",
+            messages,
+            crate::guardrails::text::classify_role_message,
+            &crate::guardrails::spec::ROLE_MESSAGE,
+        )?,
+        None => false,
+    };
+    if let Some(system) = members.get("system")? {
+        if had_model_turn {
+            turn.push_earlier_member("system", system);
+        } else {
+            turn.push_member("system", system);
+        }
+    }
+    Ok(turn)
+}
+
+/// Where Anthropic Messages responses carry model text.
+pub(super) const RESPONSE: ResponseSpec = ResponseSpec {
+    json: Object::new(&[("content", each(&CONTENT_BLOCK))]).node(),
+    sse: Object::new(&[])
+        .indexed(&["index"])
+        .by(
+            "type",
+            &[
+                (
+                    "content_block_start",
+                    Object::new(&[("content_block", BLOCK_START)]),
+                ),
+                (
+                    "content_block_delta",
+                    Object::new(&[("delta", BLOCK_DELTA)]),
+                ),
+            ],
+            None,
+        )
+        .node(),
+};
+
+const CONTENT_BLOCK: Node = Object::new(&[
+    ("signature", text(Emit::Signature)),
+    ("thinking", text(SIGNED_LEAF)),
+    ("text", text(LEAF)),
+    ("input", strings(LEAF)),
+])
+.strict()
+.node();
+const BLOCK_START: Node = Object::new(&[
+    ("signature", text(Emit::Signature)),
+    ("text", text(delta("text"))),
+    ("thinking", text(delta("thinking"))),
+    ("input", strings(LEAF)),
+])
+.node();
+const BLOCK_DELTA: Node = Object::new(&[])
+    .by(
+        "type",
+        &[
+            (
+                "signature_delta",
+                Object::new(&[("signature", text(Emit::Signature))]),
+            ),
+            ("text_delta", Object::new(&[("text", text(delta("text")))])),
+            (
+                "thinking_delta",
+                Object::new(&[("thinking", text(delta("thinking")))]),
+            ),
+            (
+                "input_json_delta",
+                Object::new(&[("partial_json", text(json_delta("partial_json")))]),
+            ),
+        ],
+        None,
+    )
+    .node();
 
 #[cfg(test)]
 mod tests;

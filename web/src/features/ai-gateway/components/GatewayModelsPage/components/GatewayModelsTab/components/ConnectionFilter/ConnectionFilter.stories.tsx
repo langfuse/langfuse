@@ -18,7 +18,7 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
-const longAnthropicName = "Anthropic production credential for the EU team";
+const longAnthropicName = "Anthropic production connection for the EU team";
 
 export const LongNames = meta.story({
   name: "(Test) Long names truncate and show in full on hover",
@@ -31,7 +31,7 @@ export const LongNames = meta.story({
       },
       {
         id: "openai",
-        name: "OpenAI production credential for the EU team",
+        name: "OpenAI production connection for the EU team",
         provider: "OPENAI" as const,
       },
     ],

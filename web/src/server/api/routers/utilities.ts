@@ -18,6 +18,7 @@ const IMAGE_URL_VALIDATION_OPTIONS = {
   shouldSkipDnsCheckForLiteralIps: true,
 } satisfies Omit<ValidateOutboundUrlHostOptions, "url">;
 
+/** @internal */
 export const isValidAndSecureUrl = async (
   urlString: string,
 ): Promise<boolean> => {
@@ -157,6 +158,7 @@ const validatePresignedS3Url = async (
   }
 };
 
+/** @internal */
 export const isValidImageUrl = async (url: string): Promise<boolean> => {
   try {
     // Pre-signed URLs (AWS S3) often have restricted access methods. Some only allow GET requests, others only HEAD. We need to try both.

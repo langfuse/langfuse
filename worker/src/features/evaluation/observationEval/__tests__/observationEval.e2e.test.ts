@@ -7,7 +7,7 @@ import {
 } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { scheduleObservationEvals } from "../scheduleObservationEvals";
-import { processObservationEval } from "../observationEvalProcessor";
+import { processEval } from "../observationEvalProcessor";
 import { type ObservationEvalSchedulerDeps } from "../types";
 import {
   createTestObservation,
@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
   writeInternalTrace: vi.fn(),
 }));
 
-// Mock prisma for processObservationEval
+// Mock prisma for processEval
 vi.mock("@langfuse/shared/src/db", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/db");
 
@@ -213,6 +213,7 @@ describe("Observation Eval E2E Pipeline", () => {
       // ACT: Schedule the observation eval
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps: pipeline.schedulerDeps,
       });
@@ -298,7 +299,7 @@ describe("Observation Eval E2E Pipeline", () => {
       mockMigratedAssignment(mockConfig);
 
       // ACT: Process the observation eval job
-      await processObservationEval({
+      await processEval({
         event: {
           projectId,
           jobExecutionId: capturedJobExecutionId!,
@@ -348,6 +349,7 @@ describe("Observation Eval E2E Pipeline", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps: pipeline.schedulerDeps,
         executionMode: "MANUAL",
@@ -398,7 +400,7 @@ describe("Observation Eval E2E Pipeline", () => {
       });
       mockMigratedAssignment(mockConfig);
 
-      await processObservationEval({
+      await processEval({
         event: {
           projectId,
           jobExecutionId: enqueued.jobExecutionId,
@@ -506,7 +508,7 @@ describe("Observation Eval E2E Pipeline", () => {
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
       mockMigratedAssignment(mockConfig);
 
-      await processObservationEval({
+      await processEval({
         event: {
           projectId,
           jobExecutionId: job.id,
@@ -585,6 +587,7 @@ describe("Observation Eval E2E Pipeline", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps: pipeline.schedulerDeps,
       });
@@ -610,6 +613,7 @@ describe("Observation Eval E2E Pipeline", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps: pipeline.schedulerDeps,
       });
@@ -669,6 +673,7 @@ describe("Observation Eval E2E Pipeline", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config1, config2, config3],
         schedulerDeps: pipeline.schedulerDeps,
       });
@@ -756,7 +761,7 @@ describe("Observation Eval E2E Pipeline", () => {
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
       mockMigratedAssignment(mockConfig);
 
-      await processObservationEval({
+      await processEval({
         event: {
           projectId,
           jobExecutionId: "job-123",
@@ -853,7 +858,7 @@ describe("Observation Eval E2E Pipeline", () => {
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
       mockMigratedAssignment(mockConfig);
 
-      await processObservationEval({
+      await processEval({
         event: {
           projectId,
           jobExecutionId: "job-123",
@@ -909,12 +914,14 @@ describe("Observation Eval E2E Pipeline", () => {
 
       await scheduleObservationEvals({
         observation: prodObservation,
+        loadSnapshot: () => prodObservation,
         configs: [config],
         schedulerDeps: pipeline1.schedulerDeps,
       });
 
       await scheduleObservationEvals({
         observation: stagingObservation,
+        loadSnapshot: () => stagingObservation,
         configs: [config],
         schedulerDeps: pipeline2.schedulerDeps,
       });
@@ -957,12 +964,14 @@ describe("Observation Eval E2E Pipeline", () => {
 
       await scheduleObservationEvals({
         observation: taggedObservation,
+        loadSnapshot: () => taggedObservation,
         configs: [config],
         schedulerDeps: pipeline1.schedulerDeps,
       });
 
       await scheduleObservationEvals({
         observation: untaggedObservation,
+        loadSnapshot: () => untaggedObservation,
         configs: [config],
         schedulerDeps: pipeline2.schedulerDeps,
       });

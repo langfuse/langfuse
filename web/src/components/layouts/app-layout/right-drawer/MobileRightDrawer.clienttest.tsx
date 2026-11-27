@@ -54,7 +54,7 @@ vi.mock("@/src/features/v4-migration/V4MigrationPanel", () => ({
 }));
 
 vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
-  useV4MigrationTitle: () => "Ensure compatibility after November 16",
+  useV4MigrationTitle: () => "Ensure compatibility after November 19",
 }));
 
 describe("MobileRightDrawer", () => {
@@ -79,7 +79,7 @@ describe("MobileRightDrawer", () => {
     render(<MobileRightDrawer />, { wrapper: LayerProvider });
 
     expect(
-      screen.getByText("Ensure compatibility after November 16"),
+      screen.getByText("Ensure compatibility after November 19"),
     ).toBeInTheDocument();
   });
 

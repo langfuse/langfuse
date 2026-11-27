@@ -14,6 +14,7 @@ import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils"
 import { INTERNAL_FEATURE_FLAG } from "@/src/features/feature-flags/available-flags";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
 import { getAuthOptions } from "@/src/server/auth";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -27,7 +28,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   });
 
   it.each([{ emailDomain: "example.com" }, { emailDomain: "langfuse.com" }])(
-    "rejects a Topics toggle in external view without a grant ($emailDomain)",
+    "rejects a trace evals toggle in external view without a grant ($emailDomain)",
     async (options) => {
       const { caller, userId } = await createCaller({
         ...options,
@@ -38,7 +39,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
       });
       await expect(
         caller.userAccount.setFeaturePreviewEnabled({
-          flag: "langfuseTopics",
+          flag: "traceTranscriptEvals",
           enabled: true,
         }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -52,41 +53,44 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     },
   );
 
-  it("lets internal staff manage Topics locally without changing other flags", async () => {
+  it("lets internal staff manage trace evals locally without changing other flags", async () => {
     const { caller, userId } = await createCaller({
       emailDomain: "clickhouse.com",
     });
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "langfuseTopics",
+      flag: "traceTranscriptEvals",
       enabled: true,
     });
     expect(
       (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
         .featureFlags,
-    ).toEqual(["templateFlag", "langfuseTopics"]);
+    ).toEqual(["templateFlag", "traceTranscriptEvals"]);
     await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "langfuseTopics",
+      flag: "traceTranscriptEvals",
       enabled: false,
     });
     expect(
       (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
         .featureFlags,
-    ).not.toContain("langfuseTopics");
+    ).not.toContain("traceTranscriptEvals");
   });
 
-  it("lets an external user turn off an existing Topics grant", async () => {
+  it("lets an external user turn off an existing trace evals grant", async () => {
     const { caller, userId } = await createCaller({
-      featureFlags: ["templateFlag", "langfuseTopics"],
+      featureFlags: ["templateFlag", "traceTranscriptEvals"],
     });
     await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "langfuseTopics",
+      flag: "traceTranscriptEvals",
       enabled: false,
     });
     expect(
       (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
         .featureFlags,
-    ).toEqual(["templateFlag", getFeaturePreviewOptOutFlag("langfuseTopics")]);
+    ).toEqual([
+      "templateFlag",
+      getFeaturePreviewOptOutFlag("traceTranscriptEvals"),
+    ]);
   });
 
   it("enables a preview, leaving other flags intact", async () => {
@@ -242,27 +246,23 @@ describe("userAccountRouter.signOutAllSessions", () => {
   });
 
   it("evicts an older session and admits a later one", async () => {
-    const { caller, email, session } = await createCaller();
+    const { caller, userId, email, session } = await createCaller();
     const revokedLoginAt = (await getSessionLoginAt(email, prisma)).getTime();
 
     await caller.userAccount.signOutAllSessions();
 
-    const sessionCallback = (await getAuthOptions()).callbacks
-      ?.session as (params: {
-      session: Session;
-      token: JWT;
-    }) => Promise<Session>;
+    const sessionCallback = await getSessionCallback();
 
     const revoked = await sessionCallback({
       session,
-      token: { email, loginAt: revokedLoginAt },
+      token: { email, sub: userId, loginAt: revokedLoginAt },
     });
     expect(revoked.user).toBeNull();
 
     const reLoginAt = (await getSessionLoginAt(email, prisma)).getTime();
     const admitted = await sessionCallback({
       session,
-      token: { email, loginAt: reLoginAt },
+      token: { email, sub: userId, loginAt: reLoginAt },
     });
     expect(admitted.user).not.toBeNull();
   });
@@ -309,7 +309,40 @@ describe("userAccountRouter.delete", () => {
       }),
     ).toBe(0);
   });
+
+  it("does not let a deleted account's session resolve to a new account with the same email", async () => {
+    const { caller, userId, email, session } = await createCaller();
+    const deletedLoginAt = (await getSessionLoginAt(email, prisma)).getTime();
+
+    await caller.userAccount.delete();
+    const replacement = await prisma.user.create({
+      data: { id: `user-${randomUUID()}`, email },
+    });
+
+    const sessionCallback = await getSessionCallback();
+    const stale = await sessionCallback({
+      session,
+      token: { email, sub: userId, loginAt: deletedLoginAt },
+    });
+    expect(stale.user).toBeNull();
+
+    const replacementLoginAt = (
+      await getSessionLoginAt(email, prisma)
+    ).getTime();
+    const fresh = await sessionCallback({
+      session,
+      token: { email, sub: replacement.id, loginAt: replacementLoginAt },
+    });
+    expect(fresh.user?.id).toBe(replacement.id);
+  });
 });
+
+async function getSessionCallback() {
+  return (await getAuthOptions()).callbacks?.session as (params: {
+    session: Session;
+    token: JWT;
+  }) => Promise<Session>;
+}
 
 async function createCaller({
   plan = "cloud:hobby",
@@ -354,56 +387,45 @@ async function createCaller({
     },
   });
 
-  const session: Session = {
-    expires: "1",
+  const session: Session = createSession({
     user: {
       id: user.id,
       email: user.email,
       v4BetaEnabled: false,
       name: user.name,
-      canCreateOrganizations: true,
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: org.aiFeaturesEnabled,
-          aiTelemetryEnabled: true,
-          projects: includeProjectInSession
-            ? [
-                {
-                  id: project.id,
-                  name: project.name,
-                  role: "ADMIN",
-                  deletedAt: null,
-                  retentionDays: null,
-                  hasTraces: false,
-                  metadata: {},
-                  createdAt: project.createdAt.toISOString(),
-                },
-              ]
-            : [],
-        },
-      ],
       featureFlags: testFeatureFlags({
         internalFeatures: !featureFlags.includes(
           getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
         ),
-        langfuseTopics: featureFlags.includes("langfuseTopics"),
+        traceTranscriptEvals: featureFlags.includes("traceTranscriptEvals"),
         sessionViewV2: featureFlags.includes("sessionViewV2"),
         sessionViewV2Timeline: featureFlags.includes("sessionViewV2Timeline"),
-        searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
       }),
     },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:enterprise",
-    },
-  };
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role: "OWNER",
+        plan,
+        aiFeaturesEnabled: org.aiFeaturesEnabled,
+        aiTelemetryEnabled: true,
+        projects: includeProjectInSession
+          ? [
+              {
+                id: project.id,
+                name: project.name,
+                role: "ADMIN",
+                retentionDays: null,
+                createdAt: project.createdAt.toISOString(),
+              },
+            ]
+          : [],
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:enterprise" },
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
 

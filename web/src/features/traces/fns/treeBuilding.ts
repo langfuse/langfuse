@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 /**
  * Tree building utilities for trace component.
  *
@@ -28,24 +29,8 @@ import {
   metricEmphasisFor,
   type TraceMetricEmphasis,
 } from "@/src/features/traces/fns/metricEmphasis";
-import {
-  type ObservationLevelType,
-  ObservationLevel,
-  type TraceDomain,
-} from "@langfuse/shared";
-import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-
-type TraceType = Omit<
-  WithStringifiedMetadata<TraceDomain>,
-  "input" | "output"
-> & {
-  input: string | null;
-  output: string | null;
-  latency?: number;
-  // For events-based traces: when set, root observation becomes tree root
-  rootObservationType?: string;
-  rootObservationId?: string;
-};
+import { type ObservationLevelType, ObservationLevel } from "@langfuse/shared";
+import { type TraceDataTrace } from "../types/traceScope";
 
 /**
  * Processing node for iterative tree building.
@@ -416,7 +401,7 @@ function buildTreeNodesBottomUp(
  * - Events-based traces (rootObservationType set): [obs1, obs2, ...] directly. Array because there could be multiple roots now
  */
 function buildTraceTree(
-  trace: TraceType,
+  trace: TraceDataTrace,
   observations: ObservationReturnType[],
 ): {
   roots: TreeNode[];
@@ -544,9 +529,9 @@ function buildTraceTree(
  * - searchItems: Flattened list for search/virtualized rendering
  */
 export function buildTraceUiData(
-  trace: TraceType,
+  trace: TraceDataTrace | null,
   observations: ObservationReturnType[],
-  sessionTraces?: TraceType[],
+  sessionTraces?: TraceDataTrace[],
 ): {
   roots: TreeNode[];
   searchItems: TraceSearchListItem[];
@@ -554,7 +539,10 @@ export function buildTraceUiData(
   metricEmphasis: TraceMetricEmphasis;
 } {
   const { roots, nodeMap } = (() => {
-    if (!sessionTraces) return buildTraceTree(trace, observations);
+    if (!sessionTraces) {
+      if (trace) return buildTraceTree(trace, observations);
+      return { roots: [], nodeMap: new Map<string, TreeNode>() };
+    }
 
     const roots: TreeNode[] = [];
     const nodeMap = new Map<string, TreeNode>();
@@ -569,7 +557,7 @@ export function buildTraceUiData(
       group.push(observation);
       observationsByTrace.set(observation.traceId, group);
     }
-    let sessionStart = trace.timestamp.getTime();
+    let sessionStart = trace?.timestamp.getTime() ?? Infinity;
     for (const sessionTrace of sessionTraces) {
       sessionStart = Math.min(sessionStart, sessionTrace.timestamp.getTime());
     }

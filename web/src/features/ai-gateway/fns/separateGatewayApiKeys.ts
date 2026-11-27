@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import { type SystemRole } from "@langfuse/shared/src/db";
 
 /**
@@ -7,7 +8,10 @@ import { type SystemRole } from "@langfuse/shared/src/db";
  */
 export const SEPARATE_GATEWAY_API_KEYS = true;
 
-export const GATEWAY_ROLE: SystemRole = "AI_GATEWAY";
+export const GATEWAY_ROLE: SystemRole = "AI_GATEWAY_INFERENCE";
+
+/** Existing gateway keys minted before AI_GATEWAY_INFERENCE keep the AI_GATEWAY assignment. */
+export const GATEWAY_KEY_ROLES: SystemRole[] = [GATEWAY_ROLE, "AI_GATEWAY"];
 
 /** withoutGatewayRole drops the gateway role from the roles offered when creating an organization API key. */
 export function withoutGatewayRole(roles: SystemRole[]): SystemRole[] {

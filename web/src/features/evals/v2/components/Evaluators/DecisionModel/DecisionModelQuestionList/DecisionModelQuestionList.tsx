@@ -65,25 +65,6 @@ export const QUESTION_EXAMPLES: Record<
   },
 };
 
-/** OpenAI questions cannot name state fields, so these examples stay plain. */
-export const OPENAI_QUESTION_EXAMPLES: Record<
-  DecisionModelQuestionType,
-  Omit<DecisionModelQuestionDraft, "id">
-> = {
-  [DecisionModelQuestionType.CHOICE]: {
-    ...QUESTION_EXAMPLES[DecisionModelQuestionType.CHOICE],
-    instructions: "Is the reply ready to send to the customer?",
-  },
-  [DecisionModelQuestionType.SCORE]: {
-    ...QUESTION_EXAMPLES[DecisionModelQuestionType.SCORE],
-    instructions: "How frustrated is the customer?",
-  },
-  [DecisionModelQuestionType.NOUL]: {
-    ...QUESTION_EXAMPLES[DecisionModelQuestionType.NOUL],
-    instructions: "Does the customer request a refund?",
-  },
-};
-
 /**
  * The ordered questions of a decision-model evaluator. Every question is
  * answered in the same call, so adding one costs only its own tokens; the
@@ -100,7 +81,6 @@ export function DecisionModelQuestionList({
   onAddExample,
   onRemove,
   onReorder,
-  plainInstructions = false,
   examples = QUESTION_EXAMPLES,
 }: {
   questions: DecisionModelQuestionDraft[];
@@ -113,7 +93,6 @@ export function DecisionModelQuestionList({
   onAddExample: (type: DecisionModelQuestionType) => void;
   onRemove: (id: string) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
-  plainInstructions?: boolean;
   examples?: Record<
     DecisionModelQuestionType,
     Omit<DecisionModelQuestionDraft, "id">
@@ -121,7 +100,7 @@ export function DecisionModelQuestionList({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <Label className="flex items-baseline gap-1.5">
+      <Label className="text-muted-foreground flex items-baseline gap-1.5">
         Questions
         <span className="inline-flex self-center">
           <InfoTooltip label="About questions">
@@ -183,18 +162,16 @@ export function DecisionModelQuestionList({
                 questions.length > 1 ? () => onRemove(question.id) : null
               }
               errors={errorsById[question.id]}
-              plainInstructions={plainInstructions}
             />
           )}
         />
       )}
 
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         <TextActionButton text="Add question" onClick={onAdd} />
-        <InfoTooltip label="About extra questions">
-          Answered together in one call; extra questions add only their own
-          tokens.
-        </InfoTooltip>
+        <span className="text-muted-foreground inline-flex h-6 items-center text-xs leading-none">
+          One call; extra questions add only their own tokens.
+        </span>
       </div>
     </div>
   );

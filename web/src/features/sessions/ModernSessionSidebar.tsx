@@ -35,10 +35,11 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import {
-  Tooltip,
+  Tooltip as LegacyTooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
 import { QueryTokens } from "@/src/components/design-system/QueryTokens/QueryTokens";
 import { deriveQueryTokens } from "@/src/features/search-bar/lib/fns/deriveQueryTokens";
@@ -230,7 +231,7 @@ const TurnCard = React.memo(
     onToggleCollapse: (traceId: string) => void;
     onSelect: (index: number, observationId?: string) => void;
     hasFilters: boolean;
-    onFilterObservationByName: (
+    onFilterObservationByName?: (
       name: string,
       operator: "any of" | "none of",
     ) => void;
@@ -331,6 +332,7 @@ export function ModernSessionSidebar(
         state: "loaded";
         traces: ModernSessionSidebarTrace[];
         activeTraceId: string | undefined;
+        peekTraceId?: string;
         search: string;
         onSearchChange: (search: string) => void;
         expandedTraceIds: ReadonlySet<string>;
@@ -343,13 +345,12 @@ export function ModernSessionSidebar(
         onLoadMoreObservations: () => void;
         onViewportUnderfilled?: () => void;
         filterControls?: ModernSessionSidebarFilterControls;
-        onFilterObservationByName: (
+        onFilterObservationByName?: (
           name: string,
           operator: "any of" | "none of",
         ) => void;
       }
   ) & {
-    onCustomizeView?: () => void;
     activeFilterCount?: number;
     observationLayout?: "flat" | "grouped";
   },
@@ -513,12 +514,9 @@ export function ModernSessionSidebar(
   );
   const activeFilterCount =
     props.activeFilterCount ?? filterControls?.activeFilterCount ?? 0;
-  const customization = props.onCustomizeView
-    ? { activeFilterCount, onCustomizeView: props.onCustomizeView }
-    : undefined;
   const sidebarSearch =
     props.observationLayout === "flat"
-      ? { search, onSearchChange: handleSearchChange, customization }
+      ? { search, onSearchChange: handleSearchChange }
       : undefined;
   const emptyListMessage = (() => {
     if (props.isLoadingMoreObservations) return "Loading observations...";
@@ -568,7 +566,7 @@ export function ModernSessionSidebar(
           {filterControls && showFilterSummary ? (
             <div className="border-t px-2 py-2.5">
               <div className="border-border/80 bg-muted/30 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5 rounded-md border py-2 pr-1 pl-2.5">
-                <Tooltip>
+                <LegacyTooltip>
                   <TooltipTrigger asChild>
                     <span
                       className="ph-no-capture text-muted-foreground min-w-0 overflow-hidden font-mono text-[10px] text-ellipsis whitespace-nowrap"
@@ -609,12 +607,13 @@ export function ModernSessionSidebar(
                       </span>
                     )}
                   </TooltipContent>
-                </Tooltip>
+                </LegacyTooltip>
                 <div className="flex shrink-0 items-center">
                   {!filterControls.activeViewName ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
+                    <Tooltip label="Save as view">
+                      {({ getTriggerProps }) => (
                         <Button
+                          {...getTriggerProps()}
                           type="button"
                           variant="ghost"
                           size="icon-xs"
@@ -624,13 +623,13 @@ export function ModernSessionSidebar(
                         >
                           <Save size="sm" color="default" />
                         </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Save as view</TooltipContent>
+                      )}
                     </Tooltip>
                   ) : null}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                  <Tooltip label="Edit filters">
+                    {({ getTriggerProps }) => (
                       <Button
+                        {...getTriggerProps()}
                         type="button"
                         variant="ghost"
                         size="icon-xs"
@@ -640,12 +639,12 @@ export function ModernSessionSidebar(
                       >
                         <Pencil size="sm" color="default" />
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Edit filters</TooltipContent>
+                    )}
                   </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                  <Tooltip label="Clear filters">
+                    {({ getTriggerProps }) => (
                       <Button
+                        {...getTriggerProps()}
                         type="button"
                         variant="ghost"
                         size="icon-xs"
@@ -655,8 +654,7 @@ export function ModernSessionSidebar(
                       >
                         <X size="sm" color="default" />
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Clear filters</TooltipContent>
+                    )}
                   </Tooltip>
                 </div>
               </div>
@@ -730,6 +728,7 @@ export function ModernSessionSidebar(
                   >
                     {props.observationLayout === "flat" && (
                       <SessionSidebarTraceCard
+                        isPeeked={trace.id === props.peekTraceId}
                         title={trace.name ?? "Trace"}
                         isActive={trace.id === activeTraceId}
                         number={sidebarTrace.turnNumber}

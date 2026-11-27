@@ -78,6 +78,16 @@ describe("typedValue", () => {
     );
   });
 
+  // `t.id in {p:Identifier}` bound to `scores` reads the table.
+  it.each(["Identifier", "Array(Identifier)"])(
+    "rejects the type %s, which binds a name",
+    (type) => {
+      expect(() => typedValue<string>("scores", type)).toThrow(
+        QueryCompileError,
+      );
+    },
+  );
+
   it("rejects a typed value inside an IN list, whose array bind would drop its type", () => {
     expect(() =>
       compile(
@@ -432,7 +442,7 @@ describe("typed params from the column registry", () => {
             .selectFrom("events as o")
             .select("o.span_id"),
         ),
-      ).toThrow(/no relation in scope is named "o"/);
+      ).toThrow(/Qualifier "o" names no relation/);
     });
   });
 
@@ -604,17 +614,6 @@ describe("typed params from the column registry", () => {
     expect(sql).toMatch(/start_time -> start_time = \{p\d+:String\}/);
   });
 
-  // A raw fragment around a column is not the column: `length(...)` is a number.
-  it("binds a raw expression around a sql.ref column by value", () => {
-    const { sql } = compile(
-      getClickhouseKysely()
-        .selectFrom("events_truncated as e")
-        .select("e.span_id")
-        .where(sql_<number>`length(${sql_.ref("e.input")})`, ">", 5),
-    );
-    expect(sql).toMatch(/length\(e\.input\) > \{p\d+:Int64\}/);
-  });
-
   describe("columns the compiler can't resolve to a relation", () => {
     const db = getClickhouseKysely();
 
@@ -665,13 +664,13 @@ describe("typed params from the column registry", () => {
       expect(sql).toMatch(/c\.constructor > \{p\d+:Int64\}/);
     });
 
-    it("binds a named raw-SQL CTE column by value", () => {
+    it("binds a computed CTE column by value", () => {
       const { sql } = compile(
         db
           .with("t", (qb) =>
             qb
               .selectFrom("events_truncated")
-              .select(sql_`is_deleted`.as("is_deleted")),
+              .select(literal(0).as("is_deleted")),
           )
           .selectFrom("t")
           .select("is_deleted")
@@ -692,117 +691,77 @@ describe("typed params from the column registry", () => {
       expect(sql).toMatch(/is_deleted = \{p\d+:Int64\}/);
     });
 
-    // Nothing is bound, so the column's type is never needed.
-    it("compiles an unresolvable column compared to an inlined constant", () => {
-      const { sql } = compile(
-        db
-          .selectFrom("events")
-          .select("span_id")
-          .where((eb) => eb(db.dynamic.ref("x.is_deleted"), "=", eb.lit(0))),
-      );
-      expect(sql).toContain("x.is_deleted = 0");
-    });
-
+    // `metadata` is a column of `scores`, so `metadata.a` compiles as its
+    // subcolumn, whose type the registry does not record.
     it.each([
       [
-        // No FROM or JOIN in scope is named `x`.
-        "a qualifier declared nowhere",
+        "a subcolumn",
         () =>
           db
-            .selectFrom("events")
-            .select("span_id")
-            .where(db.dynamic.ref("x.is_deleted"), "=", 0),
-        /no relation in scope is named "x"/,
+            .selectFrom("scores")
+            .select("id")
+            .where(db.dynamic.ref("metadata.a"), "=", "v"),
       ],
       [
         // `sql.ref` names a column like a plain reference does.
-        "a sql.ref column whose qualifier is declared nowhere",
+        "a sql.ref subcolumn",
         () =>
           db
-            .selectFrom("events")
-            .select("span_id")
-            .where(sql_.ref("x.is_deleted"), "=", 0),
-        /no relation in scope is named "x"/,
+            .selectFrom("scores")
+            .select("id")
+            .where(sql_.ref("metadata.a"), "=", "v"),
       ],
       [
-        "a CTE qualified * whose qualifier no relation declares",
+        // Each tuple position takes its column's type.
+        "a TupleParam whose tuple has a subcolumn",
         () =>
           db
-            .with("t", (qb) =>
-              qb.selectFrom("events as e").selectAll("x" as never),
-            )
-            .selectFrom("t as t")
-            .select(db.dynamic.ref("t.span_id"))
-            .where(db.dynamic.ref("t.start_time"), ">=", START),
-        /It selects x\.\* but no relation in that select is named "x"/,
-      ],
-      [
-        // `t` selects `x.*` over no relation named `x`, so its columns are
-        // unknown and may include trace_id.
-        "an unqualified column of a CTE whose columns are unknown",
-        () =>
-          db
-            .with("t", (qb) =>
-              qb.selectFrom("events as e").selectAll("x" as never),
-            )
-            .selectFrom("t")
-            .select(db.dynamic.ref("t.span_id"))
-            .where(db.dynamic.ref("trace_id"), "=", "x"),
-        /may come from a relation whose columns are unknown/,
-      ],
-      [
-        // Each tuple position takes its column's type; `x.a` has none.
-        "a TupleParam whose tuple has a column declared nowhere",
-        () =>
-          db
-            .selectFrom("events as e")
-            .select("e.span_id")
+            .selectFrom("scores as s")
+            .select("s.id")
             .where((eb) =>
-              tupleIn(eb.refTuple(db.dynamic.ref("x.a"), "e.span_id"), [
-                new TupleParam(["a", "s"]),
+              tupleIn(eb.refTuple(db.dynamic.ref("metadata.a"), "s.id"), [
+                new TupleParam(["v", "i"]),
               ]),
             ),
-        /no relation in scope is named "x"/,
       ],
       [
         // Each value binds with the type of the column at its position.
-        "a tuple of values against a tuple with a column declared nowhere",
+        "a tuple of values against a tuple with a subcolumn",
         () =>
           db
-            .selectFrom("events as e")
-            .select("e.span_id")
+            .selectFrom("scores as s")
+            .select("s.id")
             .where((eb) =>
-              eb(eb.refTuple(db.dynamic.ref("x.a"), "e.span_id"), "in", [
-                eb.tuple("a", "s"),
+              eb(eb.refTuple(db.dynamic.ref("metadata.a"), "s.id"), "in", [
+                eb.tuple("v", "i"),
               ]),
             ),
-        /no relation in scope is named "x"/,
       ],
       [
-        // An empty list has no value to infer from, so `x.a` decides its type.
-        "an empty TupleParam list whose tuple has a column declared nowhere",
+        // An empty list has no value to infer from, so `metadata.a` decides its type.
+        "an empty TupleParam list whose tuple has a subcolumn",
         () =>
           db
-            .selectFrom("events as e")
-            .select("e.span_id")
+            .selectFrom("scores as s")
+            .select("s.id")
             .where((eb) =>
-              tupleIn(eb.refTuple(db.dynamic.ref("x.a"), "e.span_id"), []),
+              tupleIn(eb.refTuple(db.dynamic.ref("metadata.a"), "s.id"), []),
             ),
-        /no relation in scope is named "x"/,
       ],
       [
         // An IN list binds an array of the column's type.
-        "an IN list against a qualifier declared nowhere",
+        "an IN list against a subcolumn",
         () =>
           db
-            .selectFrom("events")
-            .select("span_id")
-            .where(db.dynamic.ref("x.trace_id"), "in", ["a", "b"]),
-        /no relation in scope is named "x"/,
+            .selectFrom("scores")
+            .select("id")
+            .where(db.dynamic.ref("metadata.a"), "in", ["v", "w"]),
       ],
-    ])("rejects a value bound against %s", (_, build, message) => {
+    ])("rejects a value bound against %s", (_, build) => {
       expect(() => compile(build())).toThrow(QueryCompileError);
-      expect(() => compile(build())).toThrow(message);
+      expect(() => compile(build())).toThrow(
+        /Cannot type the value compared to metadata\.a: "metadata" names no relation in scope/,
+      );
     });
   });
 

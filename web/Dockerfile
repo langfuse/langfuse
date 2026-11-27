@@ -9,10 +9,10 @@
 # with DoD provenance and scan attestations. Release builds opt in by overriding
 # both args after `docker login registry1.dso.mil` (free P1 account plus a CLI
 # secret):
-#   --build-arg BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8
-#   --build-arg MICRO_BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8
-ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
-ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
+#   --build-arg BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.9
+#   --build-arg MICRO_BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.9
+ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.9
+ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.9
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
 
@@ -141,6 +141,14 @@ ENV GOFIPS140=v1.0.0
 # eg.: https://github.com/golang-migrate/migrate/issues/1357
 RUN /usr/local/go/bin/go install -trimpath -tags 'clickhouse' -ldflags='-s -w' \
     github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+# The migrate CLI cannot send a ClickHouse access token. Migrations with
+# CLICKHOUSE_AUTH_MODE=jwt run through this wrapper around the same driver.
+# Its unit tests run here, for the build platform, because no CI job has a Go
+# toolchain.
+COPY packages/shared/clickhouse/jwt-migrate /src/clickhouse-jwt-migrate
+RUN cd /src/clickhouse-jwt-migrate && \
+    GOOS= GOARCH= /usr/local/go/bin/go test ./... && \
+    /usr/local/go/bin/go build -trimpath -ldflags='-s -w' -o /out/clickhouse-jwt-migrate .
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner
 
@@ -177,7 +185,6 @@ ARG NEXT_IGNORE_BUILD_ERRORS
 ENV NEXT_IGNORE_BUILD_ERRORS=$NEXT_IGNORE_BUILD_ERRORS
 
 # pass public variables in build step
-ARG NEXT_PUBLIC_PLAIN_APP_ID
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 ENV NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 ARG NEXT_PUBLIC_DEMO_ORG_ID
@@ -293,6 +300,7 @@ COPY --from=web-tools /opt/prisma-cli /usr/local
 COPY --from=web-tools --chown=nextjs:nodejs /opt/dd/node_modules ./node_modules
 
 COPY --from=migrate-builder /out/migrate /usr/bin/migrate
+COPY --from=migrate-builder /out/clickhouse-jwt-migrate /usr/bin/clickhouse-jwt-migrate
 
 COPY --from=builder --chown=nextjs:nodejs /app/web/next.config.mjs .
 COPY --from=builder --chown=nextjs:nodejs /app/web/package.json .
@@ -317,6 +325,8 @@ USER ${UID}
 
 # Default port to 3000
 ENV PORT 3000
+# Next.js standalone server reads its keep-alive timeout from the environment.
+ENV KEEP_ALIVE_TIMEOUT 110000
 
 # Docker ENTRYPOINT (dumb-init) is covered by semantic versioning, not the entrypoint.sh itself
 # Reasoning: ENTRYPOINT is overridden by some self-hosted deployments, thus changing this is breaking
@@ -324,7 +334,7 @@ ENTRYPOINT ["dumb-init", "--", "./web/entrypoint.sh"]
 
 # startup command - use dd-trace if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
 CMD if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
-    node --import dd-trace/initialize.mjs ./web/server.js --keepAliveTimeout 110000; \
+    exec node --import dd-trace/initialize.mjs ./web/server.js; \
     else \
-    node ./web/server.js --keepAliveTimeout 110000; \
+    exec node ./web/server.js; \
     fi

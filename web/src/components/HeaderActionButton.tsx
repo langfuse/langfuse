@@ -12,12 +12,20 @@ type HeaderActionButtonProps = Omit<
 > & {
   label: string;
   icon: React.ReactNode;
-  shortcut?: KeyboardKey;
+  shortcut?: KeyboardKey | readonly [KeyboardKey, ...KeyboardKey[]];
   active?: boolean;
   /** Count shown on the button, the same badge the labelled action uses. */
   count?: number;
   showLabel?: boolean;
 };
+
+function shortcutKeyList(
+  shortcut: HeaderActionButtonProps["shortcut"],
+): readonly [KeyboardKey, ...KeyboardKey[]] | undefined {
+  if (shortcut === undefined) return undefined;
+  if (typeof shortcut === "string") return [shortcut];
+  return shortcut;
+}
 
 export const HeaderActionButton = React.forwardRef<
   HTMLButtonElement,
@@ -55,10 +63,11 @@ export const HeaderActionButton = React.forwardRef<
     </Button>
   );
   if (showLabel) return button;
+  const shortcutKeys = shortcutKeyList(shortcut);
   return (
     <Tooltip
       label={label}
-      shortcut={shortcut ? { keys: [shortcut] } : undefined}
+      shortcut={shortcutKeys ? { keys: shortcutKeys } : undefined}
     >
       {({ getTriggerProps }) =>
         React.cloneElement(button, getTriggerProps({ ...props, ref }))

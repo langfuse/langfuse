@@ -6,19 +6,19 @@ import {
   saveOrgMembership,
   saveProjectMembership,
 } from "@langfuse/shared/memberships";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
-import { CloudConfigSchema } from "@langfuse/shared";
+import { hasEntitlementBasedOnPlan, CloudConfigSchema } from "@langfuse/shared";
+import {
+  getOrganizationPlanServerSide,
+  initializeClickhouseCompatibility,
+  logger,
+} from "@langfuse/shared/src/server";
+import { isPublicSharingDisabledByInstance } from "@/src/ee/features/public-sharing/server/publicSharing";
 import {
   OrganizationId,
   ProjectId,
   SystemRoleId,
   UserId,
 } from "@langfuse/shared/rbac";
-import {
-  initializeClickhouseCompatibility,
-  logger,
-} from "@langfuse/shared/src/server";
 
 await initializeClickhouseCompatibility();
 
@@ -44,6 +44,15 @@ if (!env.LANGFUSE_INIT_ORG_ID) {
         `Set LANGFUSE_INIT_ORG_ID to enable initialization.`,
     );
   }
+}
+
+if (
+  env.LANGFUSE_DISABLE_PUBLIC_SHARING === "true" &&
+  !isPublicSharingDisabledByInstance()
+) {
+  logger.warn(
+    "LANGFUSE_DISABLE_PUBLIC_SHARING is set but has no effect: it requires a Langfuse Enterprise license.",
+  );
 }
 
 // Create Organization

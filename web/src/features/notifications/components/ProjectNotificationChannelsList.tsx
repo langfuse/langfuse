@@ -39,7 +39,7 @@ export type ProjectNotificationChannelsListProps = {
 /**
  * ProjectNotificationChannelsList is the presentational list of configured
  * channels: props in, callbacks out. The create/edit form is the reused
- * <AutomationForm>, rendered by the container instead of this component.
+ * <ConnectedAutomationForm>, rendered by the container instead of this component.
  */
 export function ProjectNotificationChannelsList({
   channels,

@@ -2,6 +2,7 @@
 /* eslint-disable @repo/no-style-props */
 import { useRouter } from "next/router";
 import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
+import { buildExperimentFilterContextId } from "@/src/features/experiments/lib/experiment-filter-context";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { DataTableControlsProvider } from "@/src/components/table/data-table-controls";
@@ -9,7 +10,7 @@ import { ExperimentFilterSidebar } from "../filters/ExperimentFilterSidebar";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
-import { LightbulbIcon } from "@langfuse/icons";
+import { LightbulbIcon, ListFilter } from "@langfuse/icons";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import type { TableAction } from "@/src/features/table/types";
@@ -108,10 +109,7 @@ import {
 import { ScoreColumnHeaderSummary } from "./ScoreColumnHeaderSummary";
 import { ExperimentListInputHeader } from "./ExperimentListInputHeader";
 import { ExperimentScoreHover, scoreValueOf } from "./ExperimentScoreHover";
-import {
-  ScoreColumnFilterMenu,
-  ScoreColumnFilterMenuTrigger,
-} from "./ScoreColumnFilterMenu";
+import { ScoreColumnFilterMenu } from "./ScoreColumnFilterMenu";
 import { ScoreComparisonFilterPills } from "./ScoreComparisonFilterPills";
 import {
   ExperimentScoreMatrix,
@@ -342,12 +340,10 @@ const StackedExperimentCell = ({
 const StackedOutputRow = ({
   output,
   markerClass,
-  singleLine,
   chip,
 }: {
   output: string;
   markerClass: string;
-  singleLine: boolean;
   /** Rendered after the value, e.g. the expected-output verdict. */
   chip?: React.ReactNode;
 }) => {
@@ -362,7 +358,7 @@ const StackedOutputRow = ({
       <ConnectedIOTableCell
         data={output}
         followRowHeight={false}
-        singleLine={singleLine}
+        singleLine={false}
         variant="output"
       />
       {chip}
@@ -404,13 +400,12 @@ const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
 
 /**
  * Cell component that renders stacked output values for each experiment.
- * Display chooses text or JSON. Row height does not.
+ * Output renders as a JSON tree. Row height does not collapse it to one line.
  */
 const StackedOutputCell = ({
   outputs,
   allExperimentIds,
   colorExperimentIds,
-  singleLine,
   isLoading,
   expectedOutput,
   row,
@@ -419,7 +414,6 @@ const StackedOutputCell = ({
   outputs: ExperimentOutputData[];
   allExperimentIds: string[];
   colorExperimentIds?: string[];
-  singleLine: boolean;
   isLoading: boolean;
   /**
    * The item's expected output, shown as the cell's first line with a verdict on
@@ -455,7 +449,7 @@ const StackedOutputCell = ({
               isLoading={false}
               data={expectedOutput ?? null}
               followRowHeight={false}
-              singleLine={singleLine}
+              singleLine={false}
             />
           </div>
         </div>
@@ -497,14 +491,13 @@ const StackedOutputCell = ({
                 <ConnectedIOTableCell
                   isLoading
                   followRowHeight={false}
-                  singleLine={singleLine}
+                  singleLine={false}
                 />
               </div>
             ) : out?.output ? (
               <StackedOutputRow
                 output={out.output}
                 markerClass={colorStyles.markerClass}
-                singleLine={singleLine}
                 chip={
                   expectedMatch === null ? undefined : (
                     <ExpectedMatchChip matches={expectedMatch} />
@@ -535,7 +528,6 @@ const StackedOutputCell = ({
  */
 export default function ExperimentItemsTable({
   projectId,
-  ioRenderMode,
   hideControls = false,
   toolbarSettings,
 }: ExperimentItemsTableProps) {
@@ -558,7 +550,7 @@ export default function ExperimentItemsTable({
     layout,
     diffMode,
     itemVisibility,
-  } = useExperimentResultsState();
+  } = useExperimentResultsState(projectId);
 
   // "Off" turns the whole diff apparatus into plain values; "expected" keeps the
   // baseline deltas on the scores (a score has no expected value to diff
@@ -635,7 +627,6 @@ export default function ExperimentItemsTable({
     setCustomPx,
     ...adjustableRowHeight
   } = useAdjustableRowHeight("experiment-items-compact", "s");
-  const ioSingleLine = ioRenderMode === "text";
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "startTime",
@@ -679,7 +670,12 @@ export default function ExperimentItemsTable({
     experimentItemsFilterConfig,
     scoreFilterOptions,
     {
-      stateLocation: "url",
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: buildExperimentFilterContextId({
+        projectId,
+        baselineId,
+        comparisonIds,
+      }),
       onExplicitFilterStateChange,
       loading: isFilterOptionsLoading,
       // v4-only surface — drives `isV4` on filters:* analytics.
@@ -1050,17 +1046,24 @@ export default function ExperimentItemsTable({
                             removeScoreComparisonFilter(activeComparisonFilter)
                           }
                         >
-                          {({ Trigger }) => (
+                          {({ getTriggerProps }) => (
                             // The header cell sorts on click, so opening the menu
                             // must not also reorder the table.
-                            <Trigger
-                              asChild
-                              onClick={(event) => event.stopPropagation()}
+                            <button
+                              type="button"
+                              aria-label="Filter items by this score"
+                              className={cn(
+                                "hover:bg-muted mt-0.5 shrink-0 rounded-sm p-0.5",
+                                activeComparisonFilter
+                                  ? "text-primary-accent"
+                                  : "text-muted-foreground opacity-0 group-hover:opacity-100",
+                              )}
+                              {...getTriggerProps({
+                                onClick: (event) => event.stopPropagation(),
+                              })}
                             >
-                              <ScoreColumnFilterMenuTrigger
-                                isActive={Boolean(activeComparisonFilter)}
-                              />
-                            </Trigger>
+                              <ListFilter size="sm" />
+                            </button>
                           )}
                         </ScoreColumnFilterMenu>
                       )
@@ -1217,9 +1220,9 @@ export default function ExperimentItemsTable({
     defaultHidden: true,
     // An empty expected output used to render as two literal quote characters.
     getCell: (value) => (ioLoading ? { type: "loading" } : value || undefined),
-    // Display chooses text or JSON. Row height does not.
+    // JSON tree. Row height does not collapse this cell to one line.
     followRowHeight: false,
-    singleLine: ioSingleLine,
+    singleLine: false,
     variant: "output",
   }) as LangfuseColumnDef<ExperimentItemsTableRow>;
 
@@ -1285,9 +1288,9 @@ export default function ExperimentItemsTable({
         size: 300,
         enableHiding: true,
         getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
-        // Display chooses text or JSON. Row height does not.
+        // JSON tree. Row height does not collapse this cell to one line.
         followRowHeight: false,
-        singleLine: ioSingleLine,
+        singleLine: false,
       }),
       // The scores sit between the item's input and its outputs: the input says
       // which item this is, the score headers carry the judgement, and the outputs
@@ -1335,7 +1338,6 @@ export default function ExperimentItemsTable({
               colorExperimentIds={colorExperimentIds}
               row={row.original}
               onExperimentClick={onExperimentCellClick}
-              singleLine={ioSingleLine}
               isLoading={ioLoading}
               // Items with no expected output get no expected line and no
               // verdict, rather than a diff against nothing.
@@ -2101,7 +2103,6 @@ export default function ExperimentItemsTable({
                   }
                   useExperimentColors={hasBaseline}
                   showDiff={showComparisonDiff}
-                  singleLine={ioSingleLine}
                   rows={rows}
                   isLoading={items.status === "loading" || isViewLoading}
                   ioLoading={ioLoading}

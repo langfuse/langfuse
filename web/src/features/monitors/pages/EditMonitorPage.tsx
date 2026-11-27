@@ -1,10 +1,13 @@
+/* oxlint-disable eqeqeq -- tRPC error code guard matches existing APIError typing */
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRouter } from "next/router";
 import { useState } from "react";
 
-import { ErrorPage } from "@/src/components/error-page";
+import { ErrorPage } from "@/src/components/ErrorPage";
 import Page from "@/src/components/layouts/Page";
-import { DeleteMonitorButton } from "@/src/features/monitors/components/DeleteMonitorButton";
+import { Trash2 } from "@langfuse/icons";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { DeleteMonitorDialogController } from "@/src/features/monitors/components/DeleteMonitorDialogController/DeleteMonitorDialogController";
 import { MonitorForm } from "@/src/features/monitors/components/MonitorForm";
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
 import { invalidateMonitorQueriesAfterDelete } from "@/src/features/monitors/fns/invalidateMonitorQueriesAfterDelete";
@@ -87,7 +90,7 @@ const EditMonitorFormPage = ({ monitor }: { monitor: Monitor }) => {
         onNameChange={setLiveName}
         secondaryAction={
           canDelete && (
-            <DeleteMonitorButton
+            <DeleteMonitorDialogController
               monitorName={monitor.name}
               deleting={deleteMonitor.isPending}
               onDelete={async () => {
@@ -96,7 +99,17 @@ const EditMonitorFormPage = ({ monitor }: { monitor: Monitor }) => {
                   id: monitor.id,
                 });
               }}
-            />
+            >
+              {({ openDialog }) => (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  icon={Trash2}
+                  text="Delete alert"
+                  onClick={openDialog}
+                />
+              )}
+            </DeleteMonitorDialogController>
           )
         }
       />

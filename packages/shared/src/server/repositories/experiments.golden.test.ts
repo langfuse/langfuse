@@ -1,3 +1,5 @@
+// Golden SQL for the experiments repository aggregate reads.
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -5,11 +7,11 @@ import {
   clickhouseFormatAvailable,
   normalizeCapturedQueries,
   resetCaptures,
-} from "./goldenHarness";
+} from "./__tests__/goldenHarness";
 
 vi.mock("./clickhouse", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./clickhouse")>();
-  const { buildClickhouseMock } = await import("./goldenHarness.js");
+  const { buildClickhouseMock } = await import("./__tests__/goldenHarness.js");
   return buildClickhouseMock(actual);
 });
 
@@ -20,6 +22,7 @@ import {
   getExperimentMetricsFromEvents,
   getExperimentsCountFromEvents,
   getExperimentsFromEvents,
+  getExperimentsStartTime,
 } from "../index";
 
 const FIXED_PROJECT_ID = "golden-project";
@@ -44,6 +47,22 @@ describeWithClickhouse("golden: experiments simple aggregates family", () => {
 
   it("getExperimentMetricsFromEvents experimentIds=set", async () => {
     await getExperimentMetricsFromEvents({
+      projectId: FIXED_PROJECT_ID,
+      experimentIds: FIXED_EXPERIMENT_IDS,
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getExperimentsStartTime experimentIds=empty", async () => {
+    await getExperimentsStartTime({
+      projectId: FIXED_PROJECT_ID,
+      experimentIds: [],
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it("getExperimentsStartTime experimentIds=set", async () => {
+    await getExperimentsStartTime({
       projectId: FIXED_PROJECT_ID,
       experimentIds: FIXED_EXPERIMENT_IDS,
     });

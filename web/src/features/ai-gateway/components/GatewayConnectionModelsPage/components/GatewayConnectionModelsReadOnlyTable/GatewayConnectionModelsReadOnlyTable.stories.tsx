@@ -43,7 +43,7 @@ export const WithProviderFilter = meta.story({
 });
 
 export const LoadingKeepsToolbarInPlace = meta.story({
-  name: "(Test) Loading skeleton keeps the provider select in place",
+  name: "(Test) Loading skeleton keeps the connection select in place",
   args: { filters: providerFilter },
   render: (args) => (
     <div className="flex flex-col gap-8">
@@ -61,7 +61,7 @@ export const LoadingKeepsToolbarInPlace = meta.story({
     const loaded = canvas.getByRole("region", { name: "Loaded" });
     const offset = (section: HTMLElement) =>
       within(section)
-        .getByRole("combobox", { name: "Provider" })
+        .getByRole("combobox", { name: "Connection" })
         .getBoundingClientRect().left - section.getBoundingClientRect().left;
 
     await expect(Math.abs(offset(loading) - offset(loaded))).toBeLessThan(1);

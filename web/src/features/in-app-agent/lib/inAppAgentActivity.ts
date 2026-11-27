@@ -7,6 +7,7 @@ export type InAppAgentActivityState =
   | "failed-unread"
   | "done-unread";
 
+/** @internal */
 export type InAppAgentConversationLatestRun = {
   id: string;
   status: InAppAgentRunStatus;
@@ -81,6 +82,7 @@ export function getInAppAgentDeliveredReceiptsStorageKey(
   return `langfuse-in-app-agent-delivered:v${IN_APP_AGENT_DELIVERED_RECEIPTS_VERSION}:${projectId}:${userId}`;
 }
 
+/** @internal */
 export function getInAppAgentActivityKey(run: {
   id: string;
   status: InAppAgentRunStatus;
@@ -374,9 +376,11 @@ export function getInAppAgentPendingNotificationCards(params: {
  * The activity poll only needs to tick while the server can still change a
  * run on its own. Parked approvals wait on the user; `refetchOnWindowFocus`
  * is enough if another tab decides them.
+ * @internal
  */
 export const IN_APP_AGENT_ACTIVITY_POLL_INTERVAL_MS = 4_000;
 
+/** @internal */
 export function hasInFlightInAppAgentActivity(
   conversations: readonly InAppAgentActivityConversation[],
 ): boolean {

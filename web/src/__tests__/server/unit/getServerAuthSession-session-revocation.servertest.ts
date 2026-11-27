@@ -31,6 +31,10 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   instrumentAsync: mockInstrumentAsync,
 }));
 
+vi.mock("@/src/features/auth/policy/contextResolver", () => ({
+  getPoliciesForUser: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock("@/src/ee/features/multi-tenant-sso/utils", () => ({
   findMultiTenantSsoConfig: vi.fn(),
   getSsoAuthProviderIdForDomain: vi.fn(),
@@ -38,6 +42,7 @@ vi.mock("@/src/ee/features/multi-tenant-sso/utils", () => ({
 }));
 
 import { getAuthOptions } from "@/src/server/auth";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const loginAt = new Date("2026-09-09T12:00:00.000Z").getTime();
 
@@ -54,21 +59,14 @@ const dbUser = {
   organizationMemberships: [],
 };
 
-const baseSession: Session = {
-  expires: "2026-09-23T12:00:00.000Z",
+const baseSession: Session = createSession({
   user: {
-    id: "user-1",
     name: "Test User",
     email: "user@example.com",
-    canCreateOrganizations: true,
-    organizations: [],
     featureFlags: testFeatureFlags({ templateFlag: false }),
   },
-  environment: {
-    enableExperimentalFeatures: false,
-    selfHostedInstancePlan: null,
-  },
-};
+  expires: "2026-09-23T12:00:00.000Z",
+});
 
 async function getCallbacks() {
   const callbacks = (await getAuthOptions()).callbacks;
@@ -118,34 +116,47 @@ describe("NextAuth JWT session revocation", () => {
     expect(mockQueryRaw).toHaveBeenCalledTimes(1);
   });
 
+  it("denies a token without a user id instead of matching on email alone", async () => {
+    mockFindUnique.mockResolvedValue(dbUser);
+
+    const { session } = await getCallbacks();
+    const result = await session({
+      session: baseSession,
+      token: { email: "user@example.com", loginAt },
+    });
+
+    expect(result.user).toBeNull();
+    expect(mockFindUnique).not.toHaveBeenCalled();
+  });
+
   it.each([
     {
       name: "denies a token issued before the revocation timestamp",
-      token: { email: "USER@example.com", loginAt },
+      token: { email: "USER@example.com", sub: "user-1", loginAt },
       sessionsExpiredAt: new Date(loginAt + 1),
       isAllowed: false,
     },
     {
       name: "allows a user who has never revoked sessions",
-      token: { email: "USER@example.com", loginAt },
+      token: { email: "USER@example.com", sub: "user-1", loginAt },
       sessionsExpiredAt: null,
       isAllowed: true,
     },
     {
       name: "denies a token issued at the revocation timestamp",
-      token: { email: "USER@example.com", loginAt },
+      token: { email: "USER@example.com", sub: "user-1", loginAt },
       sessionsExpiredAt: new Date(loginAt),
       isAllowed: false,
     },
     {
       name: "allows a token issued strictly after the revocation timestamp",
-      token: { email: "USER@example.com", loginAt: loginAt + 1 },
+      token: { email: "USER@example.com", sub: "user-1", loginAt: loginAt + 1 },
       sessionsExpiredAt: new Date(loginAt),
       isAllowed: true,
     },
     {
       name: "denies a legacy token after sessions have been revoked",
-      token: { email: "USER@example.com" },
+      token: { email: "USER@example.com", sub: "user-1" },
       sessionsExpiredAt: new Date(loginAt),
       isAllowed: false,
     },
@@ -178,6 +189,7 @@ describe("NextAuth JWT session revocation", () => {
     expect(mockFindUnique).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
+          id: "user-1",
           email: "user@example.com",
           OR: [
             { sessionsExpiredAt: null },

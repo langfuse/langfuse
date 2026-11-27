@@ -11,7 +11,7 @@ import Link from "next/link";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { type Details } from "@/src/features/traces/fns/calculateAggregatedUsage";
-import { ExternalLink, InfoIcon } from "@langfuse/icons";
+import { SquareArrowOutUpRight, InfoIcon } from "@langfuse/icons";
 import { centCostFormatter, usdFormatter } from "@/src/utils/numbers";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/src/utils/tailwind";
@@ -148,7 +148,7 @@ export const BreakdownTooltip = ({
                   >
                     Calculated · {priceSource.pricingTierName} Tier Pricing
                   </span>
-                  <ExternalLink size="sm" />
+                  <SquareArrowOutUpRight size="sm" />
                 </Link>
               ) : null}
 

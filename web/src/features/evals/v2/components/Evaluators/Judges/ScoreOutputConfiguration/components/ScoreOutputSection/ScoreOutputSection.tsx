@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { useId, useState, type ReactNode } from "react";
+import { useId, useState } from "react";
 import { Plus, TriangleAlert } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
@@ -15,7 +14,6 @@ import {
   SelectValue,
   selectTriggerClassName,
 } from "@/src/components/ui/select";
-import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import {
   Popover,
   PopoverContent,
@@ -23,11 +21,7 @@ import {
 } from "@/src/components/ui/popover";
 import { ScoreDataTypeEnum } from "@langfuse/shared";
 import { CategoryEditorPopover } from "./components/CategoryEditorPopover/CategoryEditorPopover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
 
 import {
@@ -37,8 +31,8 @@ import {
 } from "@/src/features/evals/v2/scoreOutputTypes";
 
 const DATA_TYPE_OPTIONS: { value: ScoreOutputDataType; label: string }[] = [
-  { value: ScoreDataTypeEnum.NUMERIC, label: "number" },
-  { value: ScoreDataTypeEnum.CATEGORICAL, label: "category" },
+  { value: ScoreDataTypeEnum.NUMERIC, label: "numeric" },
+  { value: ScoreDataTypeEnum.CATEGORICAL, label: "categorical" },
   { value: ScoreDataTypeEnum.BOOLEAN, label: "boolean" },
 ];
 
@@ -46,29 +40,6 @@ const DATA_TYPE_OPTIONS: { value: ScoreOutputDataType; label: string }[] = [
 const DEFAULT_CHOICES: ScoreOutputChoice[] = [{ label: "" }, { label: "" }];
 const DEFAULT_MIN_VALUE = "0";
 const DEFAULT_MAX_VALUE = "1";
-
-/** A section label with its helper copy tucked into a hover tooltip instead
-    of a permanent paragraph — keeps the label row compact. */
-function LabelWithTooltip({
-  htmlFor,
-  label,
-  tooltip,
-  children,
-}: {
-  htmlFor?: string;
-  label: string;
-  tooltip: ReactNode | null;
-  children: ReactNode;
-}) {
-  return (
-    <Label htmlFor={htmlFor} className="flex items-center gap-1.5">
-      {children}
-      {tooltip ? (
-        <InfoTooltip label={`About ${label}`}>{tooltip}</InfoTooltip>
-      ) : null}
-    </Label>
-  );
-}
 
 export type ScoreOutputConstraints = {
   dataTypes?: ScoreOutputDataType[];
@@ -158,18 +129,10 @@ export function ScoreOutputSection({
 
   return (
     <div className="flex flex-col gap-2">
-      <LabelWithTooltip
-        label="score output"
-        tooltip={
-          readOnly
-            ? null
-            : "Use a number for continuous judgments like helpfulness. Use a category for explicit labels like correct or incorrect. Use a boolean for binary decisions like true or false."
-        }
-      >
-        Score output
-      </LabelWithTooltip>
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span>Return</span>
+        <span className="text-muted-foreground w-16 shrink-0 font-bold">
+          Return
+        </span>
         {state.dataType === ScoreDataTypeEnum.CATEGORICAL &&
         allowMultipleMatches ? (
           <Select
@@ -194,7 +157,9 @@ export function ScoreOutputSection({
             </SelectContent>
           </Select>
         ) : (
-          <span>{allowMultipleMatches ? "a" : "one"}</span>
+          !allowMultipleMatches && (
+            <span className="text-muted-foreground">one</span>
+          )
         )}
         <Select
           value={state.dataType}
@@ -209,18 +174,24 @@ export function ScoreOutputSection({
           <SelectContent>
             {dataTypeOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
-                {option.value === ScoreDataTypeEnum.CATEGORICAL &&
-                state.shouldAllowMultipleMatches
-                  ? "categories"
-                  : option.label}
+                {option.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        <span className="text-muted-foreground">
+          {state.dataType === ScoreDataTypeEnum.CATEGORICAL &&
+          state.shouldAllowMultipleMatches
+            ? "scores"
+            : "score"}
+        </span>
 
         {state.dataType === ScoreDataTypeEnum.NUMERIC && (
           <>
-            {minimum || maximum ? <span>with values</span> : null}
+            {minimum || maximum ? (
+              // Follows "score": a word space, not the row gap.
+              <span className="text-muted-foreground -ml-1">with values</span>
+            ) : null}
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -279,7 +250,7 @@ export function ScoreOutputSection({
 
         {state.dataType === ScoreDataTypeEnum.CATEGORICAL && (
           <>
-            <span>from</span>
+            <span className="text-muted-foreground">from</span>
             {state.choices.map((choice, index) => (
               <CategoryEditorPopover
                 key={index}
@@ -311,9 +282,10 @@ export function ScoreOutputSection({
                       {choice.label.trim() || `Category ${index + 1}`}
                     </span>
                     {categoryWarnings[index] ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                      <Tooltip label={categoryWarnings[index]}>
+                        {({ getTriggerProps }) => (
                           <span
+                            {...getTriggerProps()}
                             className="text-dark-yellow inline-flex shrink-0"
                             aria-label={`Warning: ${categoryWarnings[index]}`}
                           >
@@ -323,10 +295,7 @@ export function ScoreOutputSection({
                               aria-hidden="true"
                             />
                           </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {categoryWarnings[index]}
-                        </TooltipContent>
+                        )}
                       </Tooltip>
                     ) : null}
                     {!readOnly ? <DropdownIndicator /> : null}
@@ -368,11 +337,11 @@ export function ScoreOutputSection({
 
         {state.dataType === ScoreDataTypeEnum.BOOLEAN && (
           <>
-            <span>as</span>
+            <span className="text-muted-foreground">as</span>
             <span className="bg-muted/50 text-foreground inline-flex h-8 items-center rounded-md border px-3 opacity-50">
               true
             </span>
-            <span>or</span>
+            <span className="text-muted-foreground">or</span>
             <span className="bg-muted/50 text-foreground inline-flex h-8 items-center rounded-md border px-3 opacity-50">
               false
             </span>

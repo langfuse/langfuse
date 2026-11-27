@@ -13,7 +13,7 @@
  * - updatePromptLabels: Update labels on prompt versions (destructive)
  */
 
-import type { McpFeatureModule } from "../registry";
+import type { McpFeatureModule } from "../tools";
 import { getPromptTool, handleGetPrompt } from "./tools/getPrompt";
 import {
   getPromptUnresolvedTool,

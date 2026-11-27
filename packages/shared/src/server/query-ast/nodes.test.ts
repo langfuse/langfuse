@@ -1,25 +1,36 @@
+// Pins tenancy injection and the custom AST nodes across query shapes.
+
 import {
   AliasNode,
+  BinaryOperationNode,
   CommonTableExpressionNode,
+  ExpressionWrapper,
   FromNode,
+  OperatorNode,
+  OrNode,
   SelectQueryNode,
+  ValueNode,
   WithNode,
   createQueryId,
   sql,
+  expressionBuilder,
   type KyselyPlugin,
+  type Expression,
   type OperationNode,
-  type RawBuilder,
+  type SqlBool,
 } from "kysely";
 import { describe, expect, it } from "vitest";
 
-import { compileClickhouseQuery } from "./compile";
+import { compileClickhouseQuery, type ClickhouseCompilable } from "./compile";
 import { ClickHouseQueryCompiler } from "./compiler";
 import { CteNamePlugin } from "./ctes";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
 import {
   arrayJoin,
+  arrayMap,
   limitBy,
+  literal,
   mapExists,
   mapKeys,
   mapValues,
@@ -33,10 +44,30 @@ import {
   finalTable,
   isClickHouseSelectQueryNode,
 } from "./nodes";
+import { applyPassOnly, renderPassOutput } from "./__tests__/passHarness";
+import { type ClickHouseDatabase } from "./schema";
+import { NameShadowingPlugin } from "./shadowing";
 import { TenancyInjectionPlugin } from "./tenancy";
 import { defineView, fromView } from "./views";
 
 const projectId = "proj-1";
+
+// An earlier pass that rejected the same shape would hide a tenancy gap.
+const tenancyOnly = (query: ClickhouseCompilable) =>
+  applyPassOnly(query, new TenancyInjectionPlugin(projectId));
+
+// `1 = 1`, a condition that reads no column.
+const oneIsOne = expressionBuilder<ClickHouseDatabase, "traces">()(
+  literal(1),
+  "=",
+  literal(1),
+);
+
+// `a or b` unbracketed; `eb.or` brackets its OR.
+const bareOr = (left: Expression<SqlBool>, right: Expression<SqlBool>) =>
+  new ExpressionWrapper<ClickHouseDatabase, "traces", SqlBool>(
+    OrNode.create(left.toOperationNode(), right.toOperationNode()),
+  );
 
 describe("tenancy injection", () => {
   it("requires a projectId at compile time", () => {
@@ -102,7 +133,7 @@ describe("tenancy injection", () => {
       .select("environment")
       .where("events.project_id", "=", "proj-1");
 
-    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled } = renderPassOutput(tenancyOnly(qb));
     const matches = compiled.match(/project_id/gi) ?? [];
     expect(matches).toHaveLength(1);
   });
@@ -112,12 +143,8 @@ describe("tenancy injection", () => {
       .selectFrom(sql<{ environment: string }>`traces`.as("t"))
       .select("environment");
 
-    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
-      UnscopedRelationError,
-    );
-    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
-      /Raw SQL table sources are rejected/,
-    );
+    expect(() => tenancyOnly(qb)).toThrow(UnscopedRelationError);
+    expect(() => tenancyOnly(qb)).toThrow(/Raw SQL table sources are rejected/);
   });
 
   it("rejects aliased raw SQL that would introduce an unscoped relation", () => {
@@ -125,9 +152,7 @@ describe("tenancy injection", () => {
       .selectFrom(sql<{ environment: string }>`(SELECT * FROM traces)`.as("t"))
       .selectAll();
 
-    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
-      UnscopedRelationError,
-    );
+    expect(() => tenancyOnly(qb)).toThrow(UnscopedRelationError);
   });
 
   it.each(["remote", "clusterAllReplicas", "merge"])(
@@ -143,9 +168,7 @@ describe("tenancy injection", () => {
         )
         .select("t.environment");
 
-      expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
-        UnscopedRelationError,
-      );
+      expect(() => tenancyOnly(qb)).toThrow(UnscopedRelationError);
     },
   );
 
@@ -163,9 +186,7 @@ describe("tenancy injection", () => {
         )
         .select("t.id");
 
-      expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
-        UnscopedRelationError,
-      );
+      expect(() => tenancyOnly(qb)).toThrow(UnscopedRelationError);
     },
   );
 
@@ -198,41 +219,7 @@ describe("tenancy injection", () => {
       .selectFrom("scores as s")
       .select("s.id");
 
-    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
-      UnscopedRelationError,
-    );
-  });
-
-  it("rejects raw SQL fragments in SELECT and WHERE, not only FROM/JOIN", () => {
-    const selectRaw = getClickhouseKysely()
-      .selectFrom("events_truncated")
-      .select(
-        sql<string>`(SELECT environment FROM traces LIMIT 1)`.as("stolen"),
-      );
-
-    const whereRaw = getClickhouseKysely()
-      .selectFrom("events_truncated")
-      .select("environment")
-      .where(sql<boolean>`id IN (SELECT id FROM traces)`);
-
-    expect(() => compileClickhouseQuery(selectRaw, projectId)).toThrow(
-      UnscopedRelationError,
-    );
-    expect(() => compileClickhouseQuery(whereRaw, projectId)).toThrow(
-      UnscopedRelationError,
-    );
-  });
-
-  it("rejects a table reference inside raw SQL outside FROM/JOIN", () => {
-    // `s.trace_id IN traces` reads every row of `traces`, unscoped.
-    const qb = getClickhouseKysely()
-      .selectFrom("scores as s")
-      .select("s.id")
-      .where(sql<boolean>`s.trace_id IN ${sql.table("traces")}`);
-
-    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
-      /A table reference inside raw SQL/,
-    );
+    expect(() => tenancyOnly(qb)).toThrow(UnscopedRelationError);
   });
 
   it("does not treat a copied langfuseTenancy property as a valid stamp", () => {
@@ -278,10 +265,12 @@ describe("tenancy injection", () => {
     const qb = getClickhouseKysely()
       .selectFrom("traces as t")
       .innerJoin("scores as s", (join) =>
-        join.on(sql<boolean>`s.trace_id = t.id or 1 = 1`),
+        join.on((eb) =>
+          bareOr(eb("s.trace_id", "=", eb.ref("t.id")), oneIsOne),
+        ),
       )
       .select("t.id")
-      .where(sql<boolean>`1 = 1 or 1 = 1`);
+      .where(bareOr(oneIsOne, oneIsOne));
 
     expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
       `"select t.id from traces as t inner join scores as s on (s.trace_id = t.id or 1 = 1) and s.project_id = {p1:String} where t.project_id = {p1:String} and (1 = 1 or 1 = 1)"`,
@@ -293,15 +282,15 @@ describe("tenancy injection", () => {
       .selectFrom("traces as t")
       .innerJoin("scores as s", (join) =>
         join
-          .on("s.project_id", "=", projectId)
-          .on(sql<boolean>`s.trace_id = t.id or 1 = 1`),
+          .on((eb) => bareOr(eb("s.trace_id", "=", eb.ref("t.id")), oneIsOne))
+          .on("s.project_id", "=", projectId),
       )
       .select("t.id")
-      .where("t.project_id", "=", projectId)
-      .where(sql<boolean>`1 = 1 or 1 = 1`);
+      .where(bareOr(oneIsOne, oneIsOne))
+      .where("t.project_id", "=", projectId);
 
-    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
-      `"select t.id from traces as t inner join scores as s on (s.project_id = {p1:String} and s.trace_id = t.id or 1 = 1) and s.project_id = {p1:String} where t.project_id = {p1:String} and (t.project_id = {p1:String} and 1 = 1 or 1 = 1)"`,
+    expect(renderPassOutput(tenancyOnly(qb)).sql).toMatchInlineSnapshot(
+      `"select t.id from traces as t inner join scores as s on (s.trace_id = t.id or 1 = 1 and s.project_id = {p1:String}) and s.project_id = {p1:String} where t.project_id = {p1:String} and (1 = 1 or 1 = 1 and t.project_id = {p1:String})"`,
     );
   });
 
@@ -314,11 +303,10 @@ describe("tenancy injection", () => {
           .on("scores.project_id", "=", projectId),
       )
       .select("traces.id")
-      .where("traces.project_id", "=", projectId)
-      .where(sql<boolean>`1 = 1`);
+      .where((eb) => bareOr(eb("traces.project_id", "=", projectId), oneIsOne));
 
-    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
-      `"select traces.id from traces inner join scores on scores.trace_id = traces.id and scores.project_id = {p1:String} where traces.project_id = {p1:String} and (traces.project_id = {p1:String} and 1 = 1)"`,
+    expect(renderPassOutput(tenancyOnly(qb)).sql).toMatchInlineSnapshot(
+      `"select traces.id from traces inner join scores on scores.trace_id = traces.id and scores.project_id = {p1:String} where traces.project_id = {p1:String} and (traces.project_id = {p1:String} or 1 = 1)"`,
     );
   });
 
@@ -337,6 +325,109 @@ describe("tenancy injection", () => {
     );
   });
 
+  it("injects the project scope into the ON clause of a LEFT join", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("traces as t")
+      .leftJoin("scores as s", (join) => join.onRef("s.trace_id", "=", "t.id"))
+      .select("t.id");
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+      `"select t.id from traces as t left join scores as s on s.trace_id = t.id and s.project_id = {p1:String} where t.project_id = {p1:String}"`,
+    );
+  });
+
+  it("gives an inner join written without ON the project scope as its ON", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("traces as t")
+      .innerJoin("scores as s", (join) => join)
+      .select("t.id");
+
+    expect(renderPassOutput(tenancyOnly(qb)).sql).toContain(
+      "inner join scores as s on s.project_id = {p1:String}",
+    );
+  });
+
+  it("rejects a RIGHT or FULL join scoped only in ON", () => {
+    // The joined table's unmatched rows survive the join, and nothing outside
+    // the ON clause filters them: the FROM is a subquery. A caller-written ON
+    // scope is rejected like an injected one.
+    const db = getClickhouseKysely();
+    const from = () =>
+      db.selectFrom("traces").select(["id", "project_id"]).as("s");
+    const right = db
+      .selectFrom(from())
+      .rightJoin("events as e", (join) => join.onRef("e.trace_id", "=", "s.id"))
+      .select("e.span_id");
+    const full = db
+      .selectFrom(from())
+      .fullJoin("scores", (join) => join.onRef("scores.trace_id", "=", "s.id"))
+      .select("scores.value");
+
+    expect(() => tenancyOnly(right)).toThrow(UnscopedRelationError);
+    expect(() => tenancyOnly(full)).toThrow(UnscopedRelationError);
+    const scopedInOn = db
+      .selectFrom(from())
+      .rightJoin("events as e", (join) =>
+        join
+          .onRef("e.trace_id", "=", "s.id")
+          .on("e.project_id", "=", projectId),
+      )
+      .select("e.span_id");
+    expect(() => tenancyOnly(scopedInOn)).toThrow(UnscopedRelationError);
+  });
+
+  it("accepts a RIGHT join whose joined table WHERE scopes", () => {
+    const db = getClickhouseKysely();
+    const qb = db
+      .selectFrom(db.selectFrom("traces").select(["id", "project_id"]).as("s"))
+      .rightJoin("scores", (join) => join.onRef("scores.trace_id", "=", "s.id"))
+      .where("scores.project_id", "=", projectId)
+      .select("scores.value");
+
+    expect(compileClickhouseQuery(qb, projectId).sql).toMatchInlineSnapshot(
+      `"select scores.value from (select id, project_id from traces where traces.project_id = {p1:String}) as s right join scores on scores.trace_id = s.id where scores.project_id = {p1:String}"`,
+    );
+  });
+
+  it("rejects every join type but inner, left, right and full, tenanted or not", () => {
+    // ClickHouse has no `CROSS JOIN … ON`, so there is nowhere to inject, and
+    // no lateral join at all.
+    const db = getClickhouseKysely();
+    const sub = () =>
+      db.selectFrom("traces").select(["id", "project_id"]).as("s");
+    const tenanted = db
+      .selectFrom(sub())
+      .crossJoin("scores")
+      .select("scores.value");
+    const subqueryOnly = db
+      .selectFrom("traces as t")
+      .crossJoin(sub())
+      .select("t.id");
+    const lateral = db
+      .selectFrom("traces as t")
+      .crossJoinLateral(sub())
+      .select("t.id");
+
+    expect(() => tenancyOnly(tenanted)).toThrow(UnscopedRelationError);
+    expect(() => tenancyOnly(subqueryOnly)).toThrow(UnscopedRelationError);
+    expect(() => tenancyOnly(lateral)).toThrow("LateralCrossJoin is rejected");
+  });
+
+  it("rejects a select with more than one FROM item", () => {
+    // ClickHouse reads `from a, b` as a cross join.
+    const db = getClickhouseKysely();
+    const qb = db
+      .selectFrom([
+        "traces as t",
+        db.selectFrom("scores").select(["trace_id"]).as("s"),
+      ])
+      .select("t.id");
+
+    expect(() => tenancyOnly(qb)).toThrow(
+      "A select with 2 FROM items is rejected",
+    );
+  });
+
   it("does not count a bare project_id that a SELECT alias shadows as coverage", () => {
     // ClickHouse resolves a bare name to a SELECT alias before a table column.
     const qb = getClickhouseKysely()
@@ -344,7 +435,7 @@ describe("tenancy injection", () => {
       .select((eb) => ["id", eb.val(projectId).as("project_id")])
       .where("project_id", "=", projectId);
 
-    expect(compileClickhouseQuery(qb, projectId).sql).toContain(
+    expect(renderPassOutput(tenancyOnly(qb)).sql).toContain(
       "where traces.project_id = {p1:String}",
     );
   });
@@ -396,23 +487,42 @@ describe("tenancy injection", () => {
       .select("t.environment")
       .where("traces.project_id", "=", "proj-1");
 
-    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    const { sql: compiled } = renderPassOutput(tenancyOnly(qb));
     expect(compiled).toMatch(/t\.project_id/i);
     const matches = compiled.match(/project_id/gi) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("rejects a select whose FROM and JOIN items share a name", () => {
+    // ClickHouse binds `traces.` to the alias `scores as traces`, so one
+    // `traces.project_id` predicate would leave the physical `traces` unscoped.
+    const qb = getClickhouseKysely()
+      .selectFrom("traces")
+      .innerJoin("scores as traces", (join) =>
+        join.on("traces.trace_id", "=", "t1"),
+      )
+      .select("traces.id");
+
+    // The CTE pass owns the rule, so it is checked with that pass alone.
+    expect(() => applyPassOnly(qb, new CteNamePlugin())).toThrow(
+      `FROM/JOIN name "traces" names two relations`,
+    );
   });
 
   describe("CTE names", () => {
     const db = getClickhouseKysely();
     // Knows the CTE names `a` and `b` as tables, so a body can read a name
     // before its CTE is declared without a cast.
-    const loose = db.withTables<{
+    const loose = db.$extendTables<{
       a: { id: string };
       b: { id: string };
     }>();
     const compile = (
       query: Parameters<typeof compileClickhouseQuery>[0],
     ): string => compileClickhouseQuery(query, projectId).sql;
+    // A rejection of the CTE pass's own name rules, with no other pass run.
+    const checkNames = (query: Parameters<typeof compileClickhouseQuery>[0]) =>
+      applyPassOnly(query, new CteNamePlugin());
 
     // Every pass treats a FROM/JOIN of a registry name as that table, so a
     // CTE of that name is rejected whether or not the query reads it. One
@@ -421,7 +531,7 @@ describe("tenancy injection", () => {
       "rejects a CTE named like the registry table %s",
       (name) => {
         expect(() =>
-          compile(
+          checkNames(
             db
               .with(name, (qb) => qb.selectFrom("scores").select("trace_id"))
               .selectFrom("scores")
@@ -434,7 +544,7 @@ describe("tenancy injection", () => {
     it("rejects a nested WITH named like a registry table", () => {
       // The WITH is declared in a FROM subquery, not at the root.
       expect(() =>
-        compile(
+        checkNames(
           db
             .selectFrom(
               db
@@ -455,7 +565,7 @@ describe("tenancy injection", () => {
       const view = defineView("traces")<{ id: string }>(() =>
         db.selectFrom("scores").select("trace_id as id"),
       );
-      expect(() => compile(fromView(view).select("id"))).toThrow(
+      expect(() => checkNames(fromView(view).select("id"))).toThrow(
         `A CTE cannot be named "traces"`,
       );
     });
@@ -487,7 +597,7 @@ describe("tenancy injection", () => {
             .select("sub.id"),
       ],
     ])("rejects a CTE that reuses the name of %s", (_, build) => {
-      expect(() => compile(build())).toThrow(`CTE "a" is declared twice`);
+      expect(() => checkNames(build())).toThrow(`CTE "a" is declared twice`);
     });
 
     it("accepts the same CTE name in two separate subqueries", () => {
@@ -588,8 +698,8 @@ describe("tenancy injection", () => {
             .select("sub.id"),
       ],
     ])("rejects a CTE body that reads %s", (_, build) => {
-      expect(() => compile(build())).toThrow(UnscopedRelationError);
-      expect(() => compile(build())).toThrow(
+      expect(() => checkNames(build())).toThrow(UnscopedRelationError);
+      expect(() => checkNames(build())).toThrow(
         "is neither a registry table nor a CTE in scope",
       );
     });
@@ -648,45 +758,41 @@ describe("tenancy injection", () => {
     it("accepts a nested WITH that reuses the name of the CTE whose body it is in", () => {
       // Inside its own body `a` is not in scope, so the nested `a` is the
       // only `a` the body can read.
-      expect(
-        compile(
+      const query = loose
+        .with("a", () =>
           loose
-            .with("a", () =>
-              loose
-                .with("a", (qb) => qb.selectFrom("traces").select("id"))
-                .selectFrom("a")
-                .select("id"),
-            )
+            .with("a", (qb) => qb.selectFrom("traces").select("id"))
             .selectFrom("a")
             .select("id"),
-        ),
-      ).toBe(
+        )
+        .selectFrom("a")
+        .select("id");
+      expect(() => checkNames(query)).not.toThrow();
+      expect(compile(query)).toBe(
         "with a as (with a as (select id from traces where traces.project_id = {p1:String}) select id from a) select id from a",
       );
     });
 
     it("accepts reads of an earlier sibling, an enclosing CTE and a CTE of the body's own WITH", () => {
-      expect(
-        compile(
-          db
-            .with("x", (qb) => qb.selectFrom("traces").select("id"))
-            .with("y", (qb) =>
+      const query = db
+        .with("x", (qb) => qb.selectFrom("traces").select("id"))
+        .with("y", (qb) =>
+          qb
+            .selectFrom("x")
+            .select("id")
+            .where(
+              "id",
+              "in",
               qb
-                .selectFrom("x")
-                .select("id")
-                .where(
-                  "id",
-                  "in",
-                  qb
-                    .with("z", (inner) => inner.selectFrom("x").select("id"))
-                    .selectFrom("z")
-                    .select("id"),
-                ),
-            )
-            .selectFrom("y")
-            .select("id"),
-        ),
-      ).toBe(
+                .with("z", (inner) => inner.selectFrom("x").select("id"))
+                .selectFrom("z")
+                .select("id"),
+            ),
+        )
+        .selectFrom("y")
+        .select("id");
+      expect(() => checkNames(query)).not.toThrow();
+      expect(compile(query)).toBe(
         "with x as (select id from traces where traces.project_id = {p1:String}), y as (select id from x where id in (with z as (select id from x) select id from z)) select id from y",
       );
     });
@@ -695,7 +801,7 @@ describe("tenancy injection", () => {
       // The registry describes `traces`, not `default.traces` or
       // `otherdb.traces`; the read is in a CTE body, so the walk reaches it.
       const build = () =>
-        compile(
+        checkNames(
           db
             .with("a", (qb) =>
               qb.withSchema("otherdb").selectFrom("traces").select("id"),
@@ -726,8 +832,8 @@ describe("tenancy injection", () => {
     });
 
     it("accepts a CTE named like an Object prototype key", () => {
-      // The registry lookups of the soft-delete and dedup passes must not
-      // find `Object.prototype.constructor` for it.
+      // The dedup pass's registry lookup must not find
+      // `Object.prototype.constructor` for it.
       expect(
         compile(
           db
@@ -909,6 +1015,151 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
   });
 });
 
+// ClickHouse reads `t.project_id` from an expression aliased `t`, or from a
+// column `t` of the relation, before it reads relation `t`. A shadowing name
+// would turn the injected tenancy predicate into a read of that expression.
+describe("names that shadow a relation", () => {
+  const db = getClickhouseKysely();
+  // A value whose `project_id` field always equals the bound project.
+  const eb = expressionBuilder<ClickHouseDatabase, never>();
+  const fakeScope = () =>
+    eb.fn("CAST", [
+      eb.fn("tuple", [eb.val(projectId)]),
+      literal("Tuple(project_id String)"),
+    ]);
+  const check = (query: { toOperationNode(): OperationNode }) => () =>
+    new NameShadowingPlugin().transformQuery({
+      node: query.toOperationNode() as SelectQueryNode,
+      queryId: createQueryId(),
+    });
+
+  it.each([
+    [
+      "a select alias named like the FROM alias",
+      db.selectFrom("traces as t").select([fakeScope().as("t"), "t.id"]),
+    ],
+    [
+      "a select alias named like an unaliased FROM table",
+      db.selectFrom("scores").select([fakeScope().as("scores")]),
+    ],
+    [
+      "a select alias named like a JOIN alias",
+      db
+        .selectFrom("traces as t")
+        .innerJoin("scores as s", "s.trace_id", "t.id")
+        .select([fakeScope().as("s")]),
+    ],
+    [
+      "an alias inside WHERE",
+      db
+        .selectFrom("traces as t")
+        .select("t.id")
+        .where((eb) =>
+          eb(
+            eb.fn("tupleElement", [
+              fakeScope().as("t") as never,
+              literal("project_id"),
+            ]),
+            "=",
+            projectId,
+          ),
+        ),
+    ],
+    [
+      "an ARRAY JOIN alias",
+      db
+        .selectFrom("traces as t")
+        .select("t.id")
+        .$call(
+          arrayJoin((eb) => ({
+            t: eb.fn<unknown[]>("array", [fakeScope()]),
+          })),
+        ),
+    ],
+    [
+      "a lambda parameter",
+      db
+        .selectFrom("scores as s")
+        .select((eb) =>
+          arrayMap((v) => v, mapKeys(eb.ref("s.metadata")), "s").as("k"),
+        ),
+    ],
+    [
+      "an alias in a subquery named like the outer relation",
+      db
+        .selectFrom("traces as t")
+        .select((eb) => [
+          eb
+            .selectFrom("scores as s")
+            .select(fakeScope().as("t"))
+            .limit(1)
+            .as("x"),
+        ]),
+    ],
+    [
+      "an alias in a CTE body named like its own relation",
+      db
+        .with("x", (qb) =>
+          qb.selectFrom("scores as s").select([fakeScope().as("s"), "s.value"]),
+        )
+        .selectFrom("x")
+        .select("x.value"),
+    ],
+    [
+      "an sql.ref lambda parameter",
+      db
+        .selectFrom("traces as t")
+        .select(
+          new ExpressionWrapper(
+            BinaryOperationNode.create(
+              sql.ref("t").toOperationNode(),
+              OperatorNode.create("->"),
+              ValueNode.createImmediate(1),
+            ),
+          ).as("f"),
+        ),
+    ],
+    [
+      "a select alias named like a CTE",
+      db
+        .with("x", (qb) => qb.selectFrom("scores as s").select("s.value"))
+        .selectFrom("x")
+        .select([fakeScope().as("x")]),
+    ],
+  ])("rejects %s", (_shape, query) => {
+    expect(check(query)).toThrow(UnscopedRelationError);
+    expect(check(query)).toThrow("names both a relation and an expression");
+  });
+
+  it("rejects a FROM alias named like a column", () => {
+    const query = db.selectFrom("traces as metadata").select("metadata.id");
+    expect(check(query)).toThrow(
+      'FROM/JOIN alias "metadata" is also a column name',
+    );
+  });
+
+  it("accepts aliases that name no relation", () => {
+    const query = db
+      .with("x", (qb) => qb.selectFrom("scores as s").select("s.value as v"))
+      .selectFrom("traces as t")
+      .innerJoin("x", "x.v", "t.id")
+      .select([fakeScope().as("scope"), "t.id as id"]);
+    expect(check(query)).not.toThrow();
+  });
+});
+
+describe("query roots", () => {
+  const db = getClickhouseKysely();
+
+  it("rejects a delete, which the passes do not scope", () => {
+    const query = db.deleteFrom("traces").where("id", "=", "x");
+    expect(() =>
+      // @ts-expect-error - only select builders are ClickhouseCompilable
+      compileClickhouseQuery(query, projectId),
+    ).toThrow("Only select queries compile");
+  });
+});
+
 // ClickHouse binds an unqualified column of a SELECT with several relations to
 // the left-most one that has it, without an ambiguity error.
 describe("bare columns in a SELECT with several relations", () => {
@@ -955,19 +1206,6 @@ describe("bare columns in a SELECT with several relations", () => {
       () => tracesWithScores().select(sql.ref("metadata.1").as("k")),
       /Qualifier "metadata" names no relation/,
     ],
-    [
-      "an unqualified sql.id column",
-      () =>
-        tracesWithScores()
-          .select("t.id")
-          .where(sql.id("timestamp") as RawBuilder<Date>, ">", new Date(0)),
-      /Column "timestamp" is unqualified/,
-    ],
-    [
-      "an sql.id subcolumn of an unqualified column",
-      () => tracesWithScores().select(sql.id("metadata", "keys").as("k")),
-      /Qualifier "metadata" names no relation/,
-    ],
   ])("rejects %s", (_, build, error) => {
     expect(() => compileClickhouseQuery(build(), projectId)).toThrow(error);
   });
@@ -988,28 +1226,40 @@ describe("bare columns in a SELECT with several relations", () => {
   });
 });
 
+describe("qualifiers in a SELECT with one relation", () => {
+  const db = getClickhouseKysely();
+
+  it("rejects a relation the query did not join", () => {
+    const qb = db.selectFrom("scores").select(sql.ref("zz.name").as("n"));
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      /Qualifier "zz" names no relation, registry column/,
+    );
+  });
+
+  it("accepts a subcolumn of its relation's column", () => {
+    const qb = db.selectFrom("scores").select(sql.ref("metadata.keys").as("k"));
+    expect(() => compileClickhouseQuery(qb, projectId)).not.toThrow();
+  });
+});
+
 describe("names the compiler writes verbatim", () => {
   const db = getClickhouseKysely();
 
   it.each(["columns ", "tuple(s.comment), length", "default.f"])(
     "rejects the function name %j",
     (name) => {
-      expect(() =>
-        compileClickhouseQuery(
-          db
-            .selectFrom("scores as s")
-            .select((eb) => eb.fn<string>(name, [eb.val("x")]).as("x")),
-          projectId,
-        ),
-      ).toThrow(QueryCompileError);
-      expect(() =>
-        compileClickhouseQuery(
-          db
-            .selectFrom("scores as s")
-            .select((eb) => eb.fn.agg<string>(name, [eb.val("x")]).as("x")),
-          projectId,
-        ),
-      ).toThrow(QueryCompileError);
+      const eb = expressionBuilder<ClickHouseDatabase, "scores">();
+      const compile =
+        (expression: { toOperationNode(): OperationNode }) => () =>
+          new ClickHouseQueryCompiler().compileExpression(
+            expression.toOperationNode(),
+          );
+      expect(compile(eb.fn<string>(name, [eb.val("x")]))).toThrow(
+        `Function name "${name}" is not a plain identifier`,
+      );
+      expect(compile(eb.fn.agg<string>(name, [eb.val("x")]))).toThrow(
+        `Aggregate function name "${name}" is not a plain identifier`,
+      );
     },
   );
 
@@ -1067,10 +1317,6 @@ describe("names the compiler writes verbatim", () => {
         .select(sql.ref<string>("s.1 from scores --").as("x")),
     ],
     [
-      "sql.id",
-      db.selectFrom("scores as s").select(sql.id("s", "id --").as("x")),
-    ],
-    [
       "array join alias",
       db
         .selectFrom("observations")
@@ -1084,7 +1330,7 @@ describe("names the compiler writes verbatim", () => {
     [
       "tuple subcolumn field",
       db
-        .withTables<{
+        .$extendTables<{
           events: {
             skills_available: Array<{ "skillName from x --": string }>;
           };

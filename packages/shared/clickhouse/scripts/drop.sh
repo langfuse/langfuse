@@ -11,8 +11,10 @@ if [ "$CLICKHOUSE_CLUSTER_ENABLED" != "false" ]; then
     exit 1
 fi
 
+. "$SCRIPT_DIR/jwt-migrate.sh"
+
 # Check if golang-migrate is installed
-if ! command -v migrate >/dev/null 2>&1
+if [ "$MIGRATE_WITH_JWT" != "true" ] && ! command -v migrate >/dev/null 2>&1
 then
     echo "Error: golang-migrate is not installed or not in PATH."
     echo "Please install golang-migrate via 'brew install golang-migrate' to run this script."
@@ -25,16 +27,33 @@ if [ -z "${CLICKHOUSE_DB}" ]; then
     export CLICKHOUSE_DB="default"
 fi
 
+# Uses the migration credentials when set, see up.sh.
+if [ -n "${CLICKHOUSE_MIGRATION_USER}" ]; then
+    MIGRATION_USER="${CLICKHOUSE_MIGRATION_USER}"
+    MIGRATION_PASSWORD="${CLICKHOUSE_MIGRATION_PASSWORD}"
+else
+    MIGRATION_USER="${CLICKHOUSE_USER}"
+    MIGRATION_PASSWORD="${CLICKHOUSE_PASSWORD}"
+fi
+
 # Construct the database URL
 if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
-    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
+    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${MIGRATION_USER}&password=${MIGRATION_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
 else
-    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-migrations-table-engine=MergeTree"
+    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${MIGRATION_USER}&password=${MIGRATION_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-migrations-table-engine=MergeTree"
 fi
 # Drop does not execute migration SQL, so the canonical source needs no rendering.
 MIGRATIONS_DIRECTORY="$SCRIPT_DIR/../migrations/canonical"
+run_drop() {
+    if [ "$MIGRATE_WITH_JWT" = "true" ]; then
+        jwt_migrate "$MIGRATIONS_DIRECTORY" "MergeTree" "" drop "$@"
+    else
+        migrate -source "file://${MIGRATIONS_DIRECTORY}" -database "$DATABASE_URL" drop "$@"
+    fi
+}
+
 if [ "$SKIP_CONFIRM" = "1" ] || [ "$SKIP_CONFIRM" = "true" ]; then
-    migrate -source "file://${MIGRATIONS_DIRECTORY}" -database "$DATABASE_URL" drop -f
+    run_drop -f
 else
-    migrate -source "file://${MIGRATIONS_DIRECTORY}" -database "$DATABASE_URL" drop
+    run_drop
 fi

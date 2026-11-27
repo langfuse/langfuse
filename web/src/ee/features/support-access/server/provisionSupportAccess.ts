@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 
@@ -71,6 +72,9 @@ async function grant(
     return rejected(
       `Organization or project ${request.orgOrProjectId} not found in this region.`,
     );
+  }
+  if ((env.LANGFUSE_SUPPORT_ACCESS_DENIED_ORG_IDS ?? []).includes(orgId)) {
+    return rejected(`Support access is disabled for organization ${orgId}.`);
   }
 
   const expiresAt = new Date(now.getTime() + request.durationMs);

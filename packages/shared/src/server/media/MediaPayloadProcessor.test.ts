@@ -12,7 +12,7 @@ import {
   TEXT_BASE64,
   TEXT_DATA_URI,
   providerMediaCases,
-} from "./MediaPayloadProcessor.fixtures";
+} from "./__tests__/MediaPayloadProcessor.fixtures";
 
 const MEDIA_REFERENCE = `@@@langfuseMedia:type=image/png|id=${MEDIA_ID}|source=base64_data_uri@@@`;
 
@@ -108,6 +108,31 @@ describe("transformMediaPayload", () => {
       Buffer.byteLength(`${dataUri} between ${dataUri}`, "utf8"),
     );
   });
+
+  it.each([true, false])(
+    "processes inline media between references (upload succeeds: %s)",
+    async (uploadSucceeds) => {
+      const value = `${MEDIA_REFERENCE} caption ${DATA_URI} ${MEDIA_REFERENCE}`;
+      const processCandidate = vi
+        .fn()
+        .mockResolvedValue(uploadSucceeds ? MEDIA_REFERENCE : undefined);
+
+      const transformed = await transformMediaPayload(value, {
+        processCandidate,
+        onInvalidCandidate: vi.fn(),
+        onIgnoredCandidate: vi.fn(),
+        onDetectionPath: vi.fn(),
+      });
+
+      expect(processCandidate).toHaveBeenCalledOnce();
+      expect(processCandidate).toHaveBeenCalledWith(
+        expect.objectContaining({ encodedData: PNG_BASE64 }),
+      );
+      expect(transformed.value).toBe(
+        uploadSucceeds ? value.replace(DATA_URI, MEDIA_REFERENCE) : value,
+      );
+    },
+  );
 
   it.each(DATA_URI_PUNCTUATIONS)(
     "processes an embedded Data URI followed by %s",

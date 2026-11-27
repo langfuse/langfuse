@@ -1,11 +1,21 @@
-import type { FilterState } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  TopicsTargetObject,
+  TRACE_TRANSCRIPT_EVAL_COLUMN,
+  type FilterState,
+} from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 
 import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 import {
+  TRACE_TRANSCRIPT_DEFAULT_FIELD,
+  variableFieldsForTarget,
+} from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
+import {
   createEvaluatorSetupStore,
   selectHasValidModel,
 } from "./evaluatorSetupStore";
+import type { NormalizedEvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
 describe("createEvaluatorSetupStore", () => {
   it("starts new evaluator descriptions empty", () => {
@@ -67,6 +77,136 @@ describe("createEvaluatorSetupStore", () => {
     });
   });
 
+  it("resets variable mappings to the defaults of a new test target", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+    const { actions } = store.getState();
+    actions.setPromptMessage(0, {
+      role: "user",
+      content: "Judge {{input}} {{output}}",
+    });
+    actions.setVariableField("output", {
+      selectedColumnId: "metadata",
+      jsonSelector: "$.answer",
+    });
+
+    actions.setTargetObject(TopicsTargetObject);
+    expect(store.getState().variableFields).toEqual({
+      input: TRACE_TRANSCRIPT_DEFAULT_FIELD,
+      output: TRACE_TRANSCRIPT_DEFAULT_FIELD,
+    });
+
+    actions.setTargetObject(EvalTargetObject.EVENT);
+    expect(store.getState().variableFields).toEqual({});
+  });
+
+  it("swaps an unedited starter prompt for the one of a new test target", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+    const { actions } = store.getState();
+    const starter = store.getState().promptMessages;
+
+    actions.setTargetObject(TopicsTargetObject);
+    expect(store.getState().promptMessages[0]?.content).toContain(
+      "{{messages}}",
+    );
+    expect(store.getState().variableFields).toEqual({
+      messages: TRACE_TRANSCRIPT_DEFAULT_FIELD,
+    });
+
+    actions.setTargetObject(EvalTargetObject.EVENT);
+    expect(store.getState().promptMessages).toEqual(starter);
+
+    const edited = { role: "user" as const, content: "Judge {{output}}" };
+    actions.setPromptMessage(0, edited);
+    actions.setTargetObject(TopicsTargetObject);
+    expect(store.getState().promptMessages).toEqual([edited]);
+  });
+
+  it("maps the variables of a new evaluator type to the transcript on trace messages", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+    const { actions } = store.getState();
+    actions.setTargetObject(TopicsTargetObject);
+
+    actions.setType("DECISION_MODEL");
+    expect(store.getState().variableFields).toEqual({
+      input: TRACE_TRANSCRIPT_DEFAULT_FIELD,
+      output: TRACE_TRANSCRIPT_DEFAULT_FIELD,
+    });
+
+    actions.setType("LLM_AS_JUDGE");
+    expect(store.getState().variableFields).toEqual({
+      messages: TRACE_TRANSCRIPT_DEFAULT_FIELD,
+    });
+  });
+
+  it("opens a trace-only evaluator on trace messages without rewriting its stored mapping", () => {
+    const definition = {
+      type: "LLM_AS_JUDGE" as const,
+      promptMessages: [
+        { role: "user" as const, content: "{{threads}} {{input}}" },
+      ],
+      provider: null,
+      model: null,
+      modelParams: null,
+      vars: ["threads", "input"],
+      variableMapping: [
+        {
+          templateVariable: "threads",
+          selectedColumnId: TRACE_TRANSCRIPT_EVAL_COLUMN,
+          jsonSelector: "$[1].messages",
+        },
+        { templateVariable: "input", selectedColumnId: "input" },
+      ],
+      outputDefinition: {
+        version: 1,
+        score: { dataType: "NUMERIC", description: "Score" },
+        reasoning: { description: "Reasoning" },
+      },
+    } as unknown as NormalizedEvaluatorDefinition;
+    const evaluator = { name: "Trace judge", description: null, definition };
+    const storedFields = {
+      threads: {
+        selectedColumnId: TRACE_TRANSCRIPT_EVAL_COLUMN,
+        jsonSelector: "$[1].messages",
+      },
+      input: { selectedColumnId: "input", jsonSelector: null },
+    };
+
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: evaluator,
+      initialTargetObject: TopicsTargetObject,
+      mode: "edit",
+    });
+    expect(store.getState().targetObject).toBe(TopicsTargetObject);
+    expect(store.getState().variableFields).toEqual(storedFields);
+    expect(
+      variableFieldsForTarget(
+        TopicsTargetObject,
+        store.getState().variableFields,
+      ),
+    ).toEqual({
+      threads: storedFields.threads,
+      input: TRACE_TRANSCRIPT_DEFAULT_FIELD,
+    });
+
+    store.getState().actions.applyDefinition(definition);
+    expect(store.getState().variableFields).toEqual(storedFields);
+
+    const withoutTarget = createEvaluatorSetupStore({
+      initialEvaluator: evaluator,
+      mode: "edit",
+    });
+    expect(withoutTarget.getState().targetObject).toBe(EvalTargetObject.EVENT);
+  });
+
   it("initializes an existing code evaluator", () => {
     const store = createEvaluatorSetupStore({
       initialEvaluator: {
@@ -95,6 +235,49 @@ describe("createEvaluatorSetupStore", () => {
           value: true,
         },
       ],
+    });
+  });
+
+  it("leaves variables of a legacy trace or dataset mapping unmapped", () => {
+    const legacyMapping = [
+      {
+        templateVariable: "output",
+        langfuseObject: "trace",
+        selectedColumnId: "output",
+      },
+      {
+        templateVariable: "expected",
+        langfuseObject: "dataset_item",
+        selectedColumnId: "expected_output",
+      },
+    ];
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: {
+        name: "Correctness",
+        description: "Compares the answer to the expected output",
+        definition: {
+          type: "LLM_AS_JUDGE",
+          promptMessages: [
+            { role: "user", content: "Judge {{output}} against {{expected}}" },
+          ],
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: ["output", "expected"],
+          variableMapping: legacyMapping,
+          outputDefinition: {
+            dataType: "NUMERIC",
+            score: { description: "Correctness" },
+            reasoning: { description: "Explain the score" },
+          },
+        },
+      },
+      mode: "edit",
+    });
+
+    expect(store.getState().variableFields).toEqual({
+      output: { selectedColumnId: null, jsonSelector: null },
+      expected: { selectedColumnId: null, jsonSelector: null },
     });
   });
 

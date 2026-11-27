@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 /**
  * Visual depth capping for deeply nested trees (LFE-10959).
  *
@@ -34,6 +35,7 @@ export const TREE_VISUAL_DEPTH: VisualDepthConfig = {
 };
 
 /** Timeline gutter: 14px/level rails, narrow resizable pane (160-560px). */
+/** @internal */
 export const GUTTER_VISUAL_DEPTH: VisualDepthConfig = {
   indentPx: 14,
   reservedPx: 120,

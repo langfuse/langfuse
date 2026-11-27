@@ -1,12 +1,12 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { Role } from "@langfuse/shared";
-import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 // `validateSsoConfig` does a live OIDC discovery fetch. Default mock returns
 // a valid response that mirrors the issuer; individual tests override.
@@ -56,50 +56,19 @@ async function createTestOrg() {
   return { org, user };
 }
 
-function createSession(
-  user: { id: string; email: string | null; name: string | null },
-  org: { id: string; name: string },
-  role: Role,
-  plan: "cloud:enterprise" | "cloud:hobby",
-): Session {
-  return {
-    expires: "1",
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      canCreateOrganizations: true,
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role,
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:enterprise",
-    },
-  };
-}
-
 async function prepareWithRole(
   role: Role,
   plan: "cloud:enterprise" | "cloud:hobby" = "cloud:enterprise",
 ) {
   const { org, user } = await createTestOrg();
-  await prisma.organizationMembership.create({
-    data: { userId: user.id, orgId: org.id, role },
+  await createOrgMembership(prisma, { userId: user.id, orgId: org.id, role });
+  const session = createSession({
+    user: { id: user.id, email: user.email, name: user.name },
+    organizations: [
+      { id: org.id, role, name: org.name, plan, aiTelemetryEnabled: true },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:enterprise" },
   });
-  const session = createSession(user, org, role, plan);
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
   return { org, user, session, caller };
@@ -1051,6 +1020,37 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
           clientId: "onelogin-client",
           clientSecret: "onelogin-secret",
           issuer,
+          allowDangerousEmailAccountLinking: false,
+        },
+      };
+    }
+  });
+
+  describe("GitHub Enterprise", () => {
+    it("rejects an internal base URL", async () => {
+      const { org, caller } = await prepare();
+      const domain = `ghe-ssrf-${uuidv4().slice(0, 8)}.com`;
+      await addVerifiedDomain(org.id, domain);
+
+      await expect(
+        caller.ssoConfig.save({
+          orgId: org.id,
+          payload: gitHubEnterprisePayload(domain, "https://169.254.169.254"),
+        }),
+      ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+
+      const row = await prisma.ssoConfig.findUnique({ where: { domain } });
+      expect(row).toBeNull();
+    });
+
+    function gitHubEnterprisePayload(domain: string, baseUrl: string) {
+      return {
+        domain,
+        authProvider: "github-enterprise" as const,
+        authConfig: {
+          clientId: "ghe-client",
+          clientSecret: "ghe-secret",
+          enterprise: { baseUrl },
           allowDangerousEmailAccountLinking: false,
         },
       };

@@ -7,7 +7,7 @@ export type GatewayProvidersHeaderActionsProps = {
   organizationId: string;
 };
 
-/** "Add provider" in the page header of the Providers tab; managers only. */
+/** "Add connection" in the page header of the Connections tab; managers only. */
 export function GatewayProvidersHeaderActions({
   organizationId,
 }: GatewayProvidersHeaderActionsProps) {
@@ -19,7 +19,7 @@ export function GatewayProvidersHeaderActions({
       {({ openAddDialog }) => (
         <Button onClick={openAddDialog}>
           <Plus size="base" __rawClassName="mr-1.5" />
-          Add provider
+          Add connection
         </Button>
       )}
     </ProviderDialogController>

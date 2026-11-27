@@ -116,7 +116,13 @@ export function ResizableSplitLayout({
       },
       undefined,
     );
-  }, [keepSecondaryMounted, open, secondaryPanelRef, defaultSecondarySize]);
+  }, [
+    keepSecondaryMounted,
+    open,
+    secondaryPanelRef,
+    defaultSecondarySize,
+    collapsedSecondarySize,
+  ]);
 
   // Rail mode: a drag can snap the panel to its collapsed rail (or pull it back
   // open) without going through the caller's toggle, so report the panel's

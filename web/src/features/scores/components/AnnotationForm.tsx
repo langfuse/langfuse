@@ -1,6 +1,6 @@
 /* eslint-disable @repo/component-file-structure */
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
-import { ExternalLink, Plus } from "@langfuse/icons";
+import { SquareArrowOutUpRight, Plus } from "@langfuse/icons";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/src/components/ui/button";
@@ -32,7 +32,7 @@ import { createAnnotationFormActions } from "@/src/features/scores/actions/annot
 import { AnnotationScoreRow } from "@/src/features/scores/components/AnnotationScoreRow";
 import { ScoreConfigRowTooltip } from "@/src/features/scores/components/ScoreConfigRowTooltip";
 import { AnnotationSaveStatus } from "@/src/features/scores/components/AnnotationSaveStatus";
-import { CreateScoreConfigDialogController } from "@/src/features/score-configs/components/UpsertScoreConfigDialogController";
+import { CreateScoreConfigDialogController } from "@/src/features/score-configs/components/CreateScoreConfigDialogController";
 import type {
   AnnotateFormSchemaType,
   AnnotationScoreSchemaType,
@@ -334,7 +334,7 @@ export function AnnotationFormContent({
                           type: "item",
                           id: "view-score-config-settings",
                           title: "Score settings",
-                          icon: ExternalLink,
+                          icon: SquareArrowOutUpRight,
                           searchBehavior: "hide",
                           href: `/project/${scoreMetadata.projectId}/settings/scores`,
                           linkTarget: "_blank",

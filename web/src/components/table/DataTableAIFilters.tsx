@@ -1,13 +1,8 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Info } from "@langfuse/icons";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -79,19 +74,11 @@ export function DataTableAIFilters({
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <span className="text-sm font-bold">Filter with AI</span>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Info size="base" color="muted" />
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="text-xs">
-                We convert natural language into deterministic filters which you
-                can adjust afterwards
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Tooltip label="We convert natural language into deterministic filters which you can adjust afterwards">
+          {({ getTriggerProps }) => (
+            <Info size="base" color="muted" {...getTriggerProps()} />
+          )}
+        </Tooltip>
       </div>
       <Textarea
         autoFocus
@@ -124,11 +111,7 @@ export function DataTableAIFilters({
       >
         {createFilterMutation.isPending ? "Loading..." : "Generate"}
       </Button>
-      {aiError && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-          {aiError}
-        </div>
-      )}
+      {aiError && <Banner variant="error">{aiError}</Banner>}
     </div>
   );
 }

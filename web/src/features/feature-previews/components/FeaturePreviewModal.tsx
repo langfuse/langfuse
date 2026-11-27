@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import Image from "next/image";
 import { useState } from "react";
 
@@ -57,11 +58,11 @@ export type PreviewState = {
 // Previews may include separate light/dark illustrations.
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   {
-    flag: "langfuseTopics",
+    flag: "traceTranscriptEvals",
     description:
-      "Discover common topics across traces, with summaries and an interactive topic map.",
+      "Evaluate a whole trace from its conversation transcript instead of a single observation.",
     details:
-      "Choose traces and facets, run the topic pipeline, and explore the resulting clusters and trace summaries.",
+      "Set an evaluation rule to trace scope, map evaluator variables to the trace's messages, and test it on sample traces. Rules run once a trace has been idle.",
     feedbackUrl: "https://github.com/orgs/langfuse/discussions",
   },
   {
@@ -165,8 +166,10 @@ export function FeaturePreviewModal({
             {selected && selectedState ? (
               <>
                 {selectedState.warningReason ? (
-                  <div className="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-800 dark:text-yellow-200">
-                    {selectedState.warningReason}
+                  <div className="mb-4">
+                    <Banner variant="warning">
+                      {selectedState.warningReason}
+                    </Banner>
                   </div>
                 ) : null}
 

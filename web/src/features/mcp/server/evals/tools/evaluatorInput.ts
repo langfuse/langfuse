@@ -6,7 +6,10 @@ import {
   DecisionModelQuestionsSchema,
   DecisionModelStateKeySchema,
   EvalOutputDataTypeSchema,
+  EvalTargetObject,
   EvalTemplateType,
+  evalVariableMappingListSchema,
+  getEvalVariableColumnIds,
   observationVariableMapping,
 } from "@langfuse/shared";
 import { z } from "zod";
@@ -21,7 +24,7 @@ const CreateEvaluatorWithoutProjectSchema = CreateEvaluatorSchema.omit({
   projectId: true,
 });
 
-const McpEvaluatorModelConfigSchema = EvaluatorModelConfigSchema.extend({
+export const McpEvaluatorModelConfigSchema = EvaluatorModelConfigSchema.extend({
   modelParams: z
     .object({
       max_tokens: z.number().optional(),
@@ -34,8 +37,17 @@ const McpEvaluatorModelConfigSchema = EvaluatorModelConfigSchema.extend({
 });
 
 const McpObservationVariableMappingSchema = observationVariableMapping.extend({
+  selectedColumnId: observationVariableMapping.shape.selectedColumnId.describe(
+    `Column the variable reads from. One of: ${getEvalVariableColumnIds(EvalTargetObject.EVENT).join(", ")}.`,
+  ),
   jsonSelector: z.string().optional(),
 });
+
+// Evaluator definitions also accept the transcript column `threads`;
+// MCP accepts observation columns only.
+const McpVariableMappingColumnsSchema = evalVariableMappingListSchema(
+  EvalTargetObject.EVENT,
+);
 
 const McpDecisionModelQuestionBaseSchema = z.object({
   id: DecisionModelChoiceQuestionSchema.shape.id.describe(
@@ -127,15 +139,36 @@ const McpEvalOutputDefinitionSchema = z.object({
     ),
 });
 
+export const EVALUATOR_DEFINITION_FIELDS_DESCRIPTION =
+  "Required fields by type: `LLM_AS_JUDGE` needs prompt and outputDefinition, with optional modelConfig and variableMapping. `CODE` needs sourceCode and sourceCodeLanguage (`PYTHON` or `TYPESCRIPT`) and accepts no variableMapping. `DECISION_MODEL` needs questions, a modelConfig with provider and model only, and at least one variableMapping entry defining its state.";
+
+export const EVALUATOR_ID_DESCRIPTION =
+  "Evaluator id: the `id` field returned by listEvaluators, getEvaluator, or createEvaluator.";
+
 export const McpEvaluatorInputBase = z.object({
-  name: CreateEvaluatorSchema.shape.name,
-  description: CreateEvaluatorSchema.shape.description.unwrap().optional(),
-  type: z.enum([
-    EvalTemplateType.LLM_AS_JUDGE,
-    EvalTemplateType.CODE,
-    EvalTemplateType.DECISION_MODEL,
-  ]),
-  prompt: z.string().min(1).optional(),
+  name: CreateEvaluatorSchema.shape.name.describe(
+    "Required. Evaluator display name. Names are not unique identifiers.",
+  ),
+  description: CreateEvaluatorSchema.shape.description
+    .unwrap()
+    .optional()
+    .describe("Optional human-readable description of what is evaluated."),
+  type: z
+    .enum([
+      EvalTemplateType.LLM_AS_JUDGE,
+      EvalTemplateType.CODE,
+      EvalTemplateType.DECISION_MODEL,
+    ])
+    .describe(
+      "Evaluator type. Determines which definition fields must be provided.",
+    ),
+  prompt: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "Required for LLM-as-a-judge evaluators. Judge prompt; reference mapped variables as {{variable}}.",
+    ),
   modelConfig: McpEvaluatorModelConfigSchema.optional().describe(
     "Model configuration. Required for decision-model evaluators. Optional for LLM-as-a-judge evaluators, which use the project default when omitted.",
   ),
@@ -150,9 +183,12 @@ export const McpEvaluatorInputBase = z.object({
     .describe(
       "Required for decision-model evaluators. Each question produces its own score.",
     ),
-  sourceCode: CodeEvaluatorDefinitionSchema.shape.sourceCode.optional(),
-  sourceCodeLanguage:
-    CodeEvaluatorDefinitionSchema.shape.sourceCodeLanguage.optional(),
+  sourceCode: CodeEvaluatorDefinitionSchema.shape.sourceCode
+    .optional()
+    .describe("Required for code evaluators. Evaluator source code."),
+  sourceCodeLanguage: CodeEvaluatorDefinitionSchema.shape.sourceCodeLanguage
+    .optional()
+    .describe("Required for code evaluators. Language of sourceCode."),
   variableMapping: z
     .array(McpObservationVariableMappingSchema)
     .optional()
@@ -274,6 +310,19 @@ function validateEvaluatorInput(
     });
   }
 
+  if (input.type !== EvalTemplateType.CODE && input.variableMapping) {
+    const columns = McpVariableMappingColumnsSchema.safeParse(
+      input.variableMapping,
+    );
+    for (const issue of columns.error?.issues ?? []) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["variableMapping", ...issue.path],
+        message: issue.message,
+      });
+    }
+  }
+
   const parsed = CreateEvaluatorWithoutProjectSchema.safeParse(
     toEvaluatorInput(input),
   );
@@ -293,7 +342,7 @@ export const McpEvaluatorInput = McpEvaluatorRuntimeInputBase.superRefine(
 );
 
 export const McpUpdateEvaluatorInputBase = McpEvaluatorInputBase.extend({
-  evaluatorId: z.string(),
+  evaluatorId: z.string().describe(`Required. ${EVALUATOR_ID_DESCRIPTION}`),
 });
 
 const McpUpdateEvaluatorRuntimeInputBase = McpEvaluatorRuntimeInputBase.extend({

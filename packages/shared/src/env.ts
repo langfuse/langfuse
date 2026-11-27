@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseOutboundUrl } from "./server/outbound-url/parse";
 import { parseBlockedCidr } from "./server/webhooks/parseBlockedCidr";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
@@ -60,9 +61,8 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
-  // Internal Topics PoC controls; not a supported self-hosting configuration.
-  LANGFUSE_TOPICS_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_TOPICS_ENABLED_PROJECT_IDS: z
+  // Internal trace evals beta control; not a supported self-hosting configuration.
+  LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS: z
     .string()
     .default("")
     .transform((value) =>
@@ -71,7 +71,7 @@ const EnvSchema = z.object({
         .map((id) => id.trim())
         .filter(Boolean),
     ),
-  LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS: z
+  LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL: z
     .string()
     .default("")
     .transform((value) =>
@@ -80,11 +80,6 @@ const EnvSchema = z.object({
         .map((id) => id.trim())
         .filter(Boolean),
     ),
-  LANGFUSE_TOPICS_REDIS_TTL_SECONDS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(10800),
   // NextAuth.js falls back to VERCEL_URL when NEXTAUTH_URL is unset; the
   // shared base-URL helper mirrors that (see web/src/env.mjs preprocess).
   VERCEL_URL: z.string().optional(),
@@ -172,8 +167,30 @@ const EnvSchema = z.object({
   CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
-  CLICKHOUSE_USER: z.string(),
-  CLICKHOUSE_PASSWORD: z.string(),
+  // `password` sends CLICKHOUSE_USER and CLICKHOUSE_PASSWORD. `jwt` sends a
+  // bearer token instead (ClickHouse Cloud only) from exactly one of
+  // CLICKHOUSE_JWT_TOKEN, CLICKHOUSE_JWT_TOKEN_FILE or CLICKHOUSE_JWT_TOKEN_URL.
+  // In `jwt` mode CLICKHOUSE_USER and CLICKHOUSE_PASSWORD are ignored, and
+  // migrations send the same token unless CLICKHOUSE_MIGRATION_USER is set.
+  CLICKHOUSE_AUTH_MODE: z.enum(["password", "jwt"]).default("password"),
+  CLICKHOUSE_USER: z.string().optional(),
+  CLICKHOUSE_PASSWORD: z.string().optional(),
+  CLICKHOUSE_JWT_TOKEN: z.string().optional(),
+  CLICKHOUSE_JWT_TOKEN_FILE: z.string().optional(),
+  // OAuth 2.0 token endpoint, called with the client credentials grant. Must
+  // use https unless it is on localhost.
+  CLICKHOUSE_JWT_TOKEN_URL: z.url().optional(),
+  CLICKHOUSE_JWT_CLIENT_ID: z.string().optional(),
+  // Exactly one of the two. The file is read for every token request, for a
+  // secret that the platform rotates.
+  CLICKHOUSE_JWT_CLIENT_SECRET: z.string().optional(),
+  CLICKHOUSE_JWT_CLIENT_SECRET_FILE: z.string().optional(),
+  CLICKHOUSE_JWT_CLIENT_AUTH_METHOD: z
+    .enum(["client_secret_basic", "client_secret_post"])
+    .default("client_secret_basic"),
+  CLICKHOUSE_JWT_SCOPE: z.string().optional(),
+  // Sent as the `audience` form parameter, as Auth0 and Okta expect.
+  CLICKHOUSE_JWT_AUDIENCE: z.string().optional(),
   CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: z.coerce.number().int().default(9000),
   CLICKHOUSE_MAX_OPEN_CONNECTIONS: z.coerce.number().int().default(25),
   LANGFUSE_JSON_BAD_UNICODE_ESCAPE: z
@@ -190,6 +207,10 @@ const EnvSchema = z.object({
   CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: z
     .enum(["alter_update", "lightweight_update", "lightweight_update_force"])
     .default("alter_update"),
+  // Comma-separated tables whose DELETE FROM always runs with
+  // lightweight_delete_mode = 'alter_update'.
+  CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE_EXCLUDED_TABLES:
+    optionalCommaSeparatedLowercase,
   CLICKHOUSE_USE_LIGHTWEIGHT_UPDATE: z.enum(["true", "false"]).default("false"),
   CLICKHOUSE_UPDATE_PARALLEL_MODE: z
     .enum(["sync", "async", "auto"])
@@ -373,6 +394,12 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_S3_CONCURRENT_WRITES: z.coerce.number().positive().default(50),
+  LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(2_147_483_647)
+    .default(2_000),
   LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED: z
     .enum(["true", "false"])
     .default("false"),
@@ -388,11 +415,6 @@ const EnvSchema = z.object({
     .default(3),
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string(), // Langfuse requires a bucket name for S3 Event Uploads.
   LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
-  LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(10_000), // 10 seconds
   LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
   LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
   LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
@@ -504,8 +526,6 @@ const EnvSchema = z.object({
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_S3_CORE_DATA_EXPORT_SSE: z.enum(["AES256", "aws:kms"]).optional(),
-  LANGFUSE_S3_CORE_DATA_EXPORT_SSE_KMS_KEY_ID: z.string().optional(),
   LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -527,6 +547,12 @@ const EnvSchema = z.object({
     .default(20_000),
   LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(600_000), // 10 minutes
   LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().default(3), // Maximum attempts for socket hang up errors
+  // Sends ClickHouse query() parameters as multipart/form-data body parts
+  // instead of URL query-string entries, so parameter values stay out of
+  // request URLs (proxy access logs, HTTP client spans).
+  LANGFUSE_CLICKHOUSE_MULTIPART_QUERY_PARAMS: z
+    .enum(["true", "false"])
+    .default("true"),
   LANGFUSE_SKIP_S3_LIST_FOR_OBSERVATIONS_PROJECT_IDS: z.string().optional(),
   LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: z
     .string()
@@ -895,13 +921,13 @@ const ValidatedEnvSchema = EnvSchema.superRefine((env, ctx) => {
     });
   }
 
-  const endpoint = URL.parse(env.LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT ?? "");
-  if (
-    !endpoint ||
-    !["http:", "https:"].includes(endpoint.protocol) ||
-    endpoint.username !== "" ||
-    endpoint.password !== ""
-  ) {
+  let endpoint: URL | undefined;
+  try {
+    endpoint = parseOutboundUrl(env.LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT ?? "");
+  } catch {
+    endpoint = undefined;
+  }
+  if (!endpoint || !["http:", "https:"].includes(endpoint.protocol)) {
     ctx.addIssue({
       code: "custom",
       path: ["LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT"],
@@ -913,7 +939,75 @@ const ValidatedEnvSchema = EnvSchema.superRefine((env, ctx) => {
 
 export type SharedEnv = z.infer<typeof EnvSchema>;
 
+const validateClickhouseAuth = (
+  values: SharedEnv,
+  ctx: z.RefinementCtx,
+): void => {
+  if (values.CLICKHOUSE_AUTH_MODE === "password") {
+    for (const key of ["CLICKHOUSE_USER", "CLICKHOUSE_PASSWORD"] as const) {
+      if (values[key] === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: [key],
+          message: `${key} is required when CLICKHOUSE_AUTH_MODE is password`,
+        });
+      }
+    }
+    return;
+  }
+
+  const sources = (
+    [
+      "CLICKHOUSE_JWT_TOKEN",
+      "CLICKHOUSE_JWT_TOKEN_FILE",
+      "CLICKHOUSE_JWT_TOKEN_URL",
+    ] as const
+  ).filter((key) => values[key] !== undefined);
+  if (sources.length !== 1) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["CLICKHOUSE_AUTH_MODE"],
+      message: `CLICKHOUSE_AUTH_MODE jwt needs exactly one of CLICKHOUSE_JWT_TOKEN, CLICKHOUSE_JWT_TOKEN_FILE or CLICKHOUSE_JWT_TOKEN_URL, found ${sources.length === 0 ? "none" : sources.join(", ")}`,
+    });
+  }
+  if (values.CLICKHOUSE_JWT_TOKEN_URL !== undefined) {
+    // The request carries the client secret and the response the token.
+    const tokenUrl = URL.parse(values.CLICKHOUSE_JWT_TOKEN_URL);
+    const isLocalHttp =
+      tokenUrl?.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(tokenUrl.hostname);
+    if (tokenUrl?.protocol !== "https:" && !isLocalHttp) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["CLICKHOUSE_JWT_TOKEN_URL"],
+        message: "CLICKHOUSE_JWT_TOKEN_URL must use https, except on localhost",
+      });
+    }
+    if (values.CLICKHOUSE_JWT_CLIENT_ID === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["CLICKHOUSE_JWT_CLIENT_ID"],
+        message:
+          "CLICKHOUSE_JWT_CLIENT_ID is required when CLICKHOUSE_JWT_TOKEN_URL is set",
+      });
+    }
+    if (
+      (values.CLICKHOUSE_JWT_CLIENT_SECRET === undefined) ===
+      (values.CLICKHOUSE_JWT_CLIENT_SECRET_FILE === undefined)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["CLICKHOUSE_JWT_CLIENT_SECRET"],
+        message:
+          "CLICKHOUSE_JWT_TOKEN_URL needs exactly one of CLICKHOUSE_JWT_CLIENT_SECRET or CLICKHOUSE_JWT_CLIENT_SECRET_FILE",
+      });
+    }
+  }
+};
+
 export const env: SharedEnv =
   process.env.DOCKER_BUILD === "1" // eslint-disable-line turbo/no-undeclared-env-vars
     ? (process.env as any)
-    : ValidatedEnvSchema.parse(removeEmptyEnvVariables(process.env));
+    : ValidatedEnvSchema.superRefine(validateClickhouseAuth).parse(
+        removeEmptyEnvVariables(process.env),
+      );

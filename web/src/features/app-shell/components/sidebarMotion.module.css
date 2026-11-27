@@ -1,0 +1,284 @@
+.surface,
+.gutter {
+  --sidebar-expanded-width: 12.75rem;
+  --sidebar-collapsed-width: 3rem;
+  --sidebar-motion-duration: 360ms;
+  --sidebar-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --sidebar-label-duration: 160ms;
+  --sidebar-label-delay: 0ms;
+  --sidebar-label-opacity: 0;
+  --sidebar-label-offset: -6px;
+}
+
+.surface,
+.gutter {
+  inline-size: var(--sidebar-collapsed-width);
+}
+
+.surface {
+  overflow: visible;
+}
+
+.gutter {
+  flex: 0 0 auto;
+  pointer-events: none;
+}
+
+.surface[data-sidebar-mode="expanded"],
+.gutter[data-sidebar-mode="expanded"] {
+  --sidebar-label-delay: 90ms;
+  --sidebar-label-opacity: 1;
+  --sidebar-label-offset: 0px;
+  inline-size: var(--sidebar-expanded-width);
+}
+
+.surface[data-sidebar-mode="mobile"] {
+  --sidebar-presence-duration: 260ms;
+  --sidebar-motion-duration: 0ms;
+  --sidebar-label-duration: 0ms;
+  --sidebar-label-delay: 0ms;
+  --sidebar-label-opacity: 1;
+  --sidebar-label-offset: 0px;
+  inline-size: 100%;
+  border-inline-end-width: 0;
+  opacity: 1;
+  translate: 0;
+  visibility: visible;
+  transition:
+    translate var(--sidebar-presence-duration) var(--sidebar-motion-ease),
+    opacity var(--sidebar-presence-duration) ease,
+    visibility 0s;
+}
+
+.surface[data-sidebar-mode="mobile"][data-mobile-open="false"] {
+  opacity: 0;
+  pointer-events: none;
+  translate: -24px 0;
+  visibility: hidden;
+  transition-delay: 0s, 0s, var(--sidebar-presence-duration);
+}
+
+.gutter[data-sidebar-mode="mobile"] {
+  inline-size: 0;
+  transition-duration: 0ms;
+}
+
+.label {
+  opacity: var(--sidebar-label-opacity, 1);
+  transform: translateX(var(--sidebar-label-offset, 0px));
+  transition:
+    opacity var(--sidebar-label-duration, 0ms) ease
+      var(--sidebar-label-delay, 0ms),
+    transform var(--sidebar-motion-duration, 0ms)
+      var(--sidebar-motion-ease, ease);
+}
+
+.brand {
+  display: flex;
+  min-inline-size: 0;
+  flex: 1;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.brandLink {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding-inline: 0.5rem;
+}
+
+.control {
+  display: flex;
+  flex: 0 0 2.5rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.account {
+  display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  align-items: center;
+  overflow: hidden;
+  border-radius: 0.375rem;
+  text-align: start;
+  block-size: 3rem;
+  gap: 0.25rem;
+  transition:
+    block-size var(--sidebar-motion-duration, 0ms)
+      var(--sidebar-motion-ease, ease),
+    margin-block var(--sidebar-motion-duration, 0ms)
+      var(--sidebar-motion-ease, ease),
+    background-color 150ms ease;
+}
+
+/* Both desktop states fill a 2.5rem slot, so the rows above stay put. */
+.account[data-surface="expanded"] {
+  block-size: 2.5rem;
+}
+
+.account[data-surface="collapsed"] {
+  block-size: 2rem;
+  margin-block: 0.25rem;
+}
+
+.account .identity {
+  inline-size: calc(var(--sidebar-expanded-width, 12.75rem) - 5rem);
+}
+
+.iconLane {
+  position: relative;
+  display: flex;
+  flex: 0 0 2rem;
+  block-size: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.identity {
+  display: flex;
+  inline-size: calc(var(--sidebar-expanded-width, 12.75rem) - 4.5rem);
+  min-inline-size: 0;
+  flex-shrink: 0;
+  flex-direction: column;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.identity[data-surface="mobile"] {
+  inline-size: auto;
+  flex: 1;
+}
+
+.statusDot {
+  position: absolute;
+  display: flex;
+  inset-block-start: 0.125rem;
+  inset-inline-end: 0.125rem;
+}
+
+.chevron {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding-inline: 0.25rem;
+}
+
+.groupHeading {
+  position: relative;
+  block-size: 1.75rem;
+  padding-block-start: 0.75rem;
+  overflow: hidden;
+}
+
+.groupHeading::before {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline: 0.5rem;
+  border-block-start: 1px solid hsl(var(--border));
+  content: "";
+  opacity: calc(1 - var(--sidebar-label-opacity, 1));
+  transition: opacity var(--sidebar-label-duration, 0ms) ease;
+}
+
+.groupCaption {
+  display: flex;
+  block-size: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  padding-inline: 0.5rem;
+  white-space: nowrap;
+}
+
+.expandedSection {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.expandedSection[data-collapsed="true"] {
+  grid-template-rows: 0fr;
+}
+
+.expandedSection {
+  transition: grid-template-rows var(--sidebar-motion-duration, 0ms)
+    var(--sidebar-motion-ease, ease);
+}
+
+.sectionContent {
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+/* The hit target rides the animating edge. It stays inert until that width
+   transition finishes, so a stationary pointer does not strobe the hover line
+   while the border passes under it. Two animation names restart the arming
+   delay when expansion changes. */
+.rail {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: -0.5rem;
+  inline-size: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+  transition: none;
+}
+
+.rail::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: 2px;
+}
+
+.rail:hover::after {
+  background: hsl(var(--sidebar-border));
+}
+
+.surface[data-sidebar-mode="expanded"] .rail {
+  animation: sidebar-rail-arm-expanded var(--sidebar-motion-duration) step-end
+    forwards;
+}
+
+.surface[data-sidebar-mode="collapsed"] .rail {
+  animation: sidebar-rail-arm-collapsed var(--sidebar-motion-duration) step-end
+    forwards;
+}
+
+@keyframes sidebar-rail-arm-expanded {
+  from {
+    pointer-events: none;
+  }
+  to {
+    pointer-events: auto;
+  }
+}
+
+@keyframes sidebar-rail-arm-collapsed {
+  from {
+    pointer-events: none;
+  }
+  to {
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surface[data-sidebar-mode],
+  .gutter[data-sidebar-mode] {
+    --sidebar-motion-duration: 0ms;
+    --sidebar-label-duration: 0ms;
+    --sidebar-label-delay: 0ms;
+    --sidebar-presence-duration: 0ms;
+  }
+
+  .rail {
+    animation: none;
+    pointer-events: auto;
+  }
+}

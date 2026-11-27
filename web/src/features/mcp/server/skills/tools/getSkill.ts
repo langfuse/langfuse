@@ -33,5 +33,5 @@ export const [getSkillTool, handleGetSkill] = defineTool({
           fallbackToLatest: true,
         }),
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

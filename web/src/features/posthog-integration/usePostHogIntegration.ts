@@ -6,6 +6,7 @@ import { api } from "@/src/utils/api";
 // to act on, and it is cleared by the next successful sync. An unconfigured
 // integration reads as inactive on the integration page; the overview card
 // hides the badge instead (see `isConfigured`).
+/** @internal */
 export function getPostHogStatus(
   config: { enabled: boolean; lastError: string | null } | null,
 ): Status {

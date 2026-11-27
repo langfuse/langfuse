@@ -8,7 +8,7 @@ const topic = (id: string, centroid = [1, 0]): TopicDefinition => ({
   projectId: "project",
   createdByRunId: "run",
   createdAt: "2026-01-01T00:00:00.000Z",
-  tags: [],
+  labels: [],
   name: id,
   description: id,
   centroid,
@@ -59,7 +59,7 @@ describe("Topics identity continuity", () => {
     ]);
   });
 
-  it("gives all material split children new identities, including a dominant 80% child", () => {
+  it("keeps the identity on a split's dominant child and gives the other children new identities", () => {
     const result = match(
       members("old", 30),
       [...members("large", 24), ...members("small", 6, 24)],
@@ -67,14 +67,47 @@ describe("Topics identity continuity", () => {
       [topic("large"), topic("small")],
     );
     expect(result.map((row) => row.topicId)).toEqual([
-      "stable-large",
+      "stable-old",
       "stable-small",
+    ]);
+    expect(result.map((row) => row.metadata.continuity)).toMatchObject([
+      { status: "continued", inheritedFrom: "split" },
+      { status: "split" },
     ]);
     for (const row of result)
       expect(row.metadata).toMatchObject({
         predecessorTopicIds: ["stable-old"],
-        continuity: { status: "split" },
       });
+  });
+
+  it("does not hand a split's identity to a child made mostly of former outliers", () => {
+    const [mostlyOutliers] = match(
+      [...members("old", 20), ...members(null, 185, 20)],
+      [
+        ...members("large", 15),
+        ...members("small", 5, 15),
+        ...members("large", 185, 20),
+      ],
+      undefined,
+      [topic("large"), topic("small")],
+    );
+    expect(mostlyOutliers).toMatchObject({
+      topicId: "stable-large",
+      metadata: { continuity: { status: "split" } },
+    });
+  });
+
+  it("keeps a merge's identity only for a clearly dominant predecessor", () => {
+    const topics = [topic("old-a"), topic("old-b")];
+    const [absorbed] = match(
+      [...members("old-a", 30), ...members("old-b", 10, 30)],
+      members("candidate", 40),
+      topics,
+    );
+    expect(absorbed).toMatchObject({
+      topicId: "stable-old-a",
+      metadata: { continuity: { status: "continued", inheritedFrom: "merge" } },
+    });
   });
 
   it("records both predecessors for a merge but ignores tiny boundary movements", () => {

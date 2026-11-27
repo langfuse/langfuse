@@ -5,14 +5,10 @@ import {
   render,
   screen,
 } from "@testing-library/react";
-import { Home, Settings } from "@langfuse/icons";
 
 import { APP_SHELL_CHROME_ROW_TEST_ID } from "@/src/components/layouts/app-shell-chrome";
 import { MobilePageTitle } from "@/src/components/layouts/MobilePageTitle";
 import PageHeader from "@/src/components/layouts/page-header";
-import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
-import { SidebarPresenceProvider } from "@/src/components/nav/SidebarPresenceProvider";
-import { SidebarProvider } from "@/src/components/ui/sidebar";
 
 vi.mock("next/router", () => ({
   useRouter: () => ({
@@ -63,86 +59,23 @@ vi.mock("@/src/components/nav/TopbarBrand", () => ({
   TopbarBrand: () => null,
 }));
 
-const sidebarArgs = {
-  navItems: {
-    ungrouped: [{ title: "Home", url: "/", icon: Home, isActive: true }],
-    grouped: null,
-  },
-  secondaryNavItems: {
-    ungrouped: [{ title: "Settings", url: "/settings", icon: Settings }],
-    grouped: null,
-  },
-  user: { name: "Ada Lovelace", email: "ada@example.com", avatar: "" },
-  userMenuItems: [
-    {
-      type: "link" as const,
-      name: "Settings",
-      href: "/account/settings",
-    },
-  ],
-  isMobile: false,
-  logo: {},
-  versionState: { deployment: "cloud" as const },
-  showDemoBadge: false,
-  v4UpgradeUiEnabled: true,
-  notificationState: {
-    dismissedIds: [] as string[],
-    onDismiss: vi.fn(),
-    onLinkClick: vi.fn(),
-  },
-  organization: null,
-  project: null,
-  organizations: null,
-  canCreateOrganizations: false,
-  canCreateProjects: false,
-};
-
-const Shell = () => (
-  <SidebarPresenceProvider>
-    <SidebarProvider>
-      <AppSidebar {...sidebarArgs} />
-      <PageHeader title="Tracing" />
-    </SidebarProvider>
-  </SidebarPresenceProvider>
-);
-
 describe("app shell chrome row", () => {
-  it("puts the sidebar and page-header dividers on the same min-h-11 row", () => {
-    const { container } = render(<Shell />);
-
-    const rows = screen.getAllByTestId(APP_SHELL_CHROME_ROW_TEST_ID);
-    expect(rows).toHaveLength(2);
-
-    for (const row of rows) {
-      expect(row.className).toContain("min-h-11");
-      expect(row.className).toContain("border-b");
-      expect(row.className).toContain("items-center");
-    }
-
-    expect(container.querySelector(".h-1.flex-1.border-b")).toBeNull();
-  });
-
-  it("sizes each page-header flex line as a full chrome row", () => {
-    const { container } = render(<Shell />);
+  it("sizes the page-header row to a full chrome line", () => {
+    const { container } = render(<PageHeader title="Tracing" />);
 
     const pageHeaderRow = container.querySelector(
       `#page-header [data-testid="${APP_SHELL_CHROME_ROW_TEST_ID}"]`,
     );
-    const rowContent = pageHeaderRow?.firstElementChild;
+    expect(pageHeaderRow?.className).toContain("min-h-11");
 
+    const rowContent = pageHeaderRow?.firstElementChild;
     expect(rowContent?.className).toContain("gap-y-px");
     expect(rowContent?.firstElementChild?.className).toContain("min-h-[43px]");
     expect(rowContent?.lastElementChild?.className).toContain("min-h-[43px]");
   });
 
   it("keeps the page-header chrome divider full-width on container pages", () => {
-    render(
-      <SidebarPresenceProvider>
-        <SidebarProvider>
-          <PageHeader title="Settings" container />
-        </SidebarProvider>
-      </SidebarPresenceProvider>,
-    );
+    render(<PageHeader title="Settings" container />);
 
     const row = screen.getByTestId(APP_SHELL_CHROME_ROW_TEST_ID);
     expect(row.className).toContain("border-b");

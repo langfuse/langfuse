@@ -1,12 +1,16 @@
 //! `OpenAI` Chat Completions request, JSON response and streamed choice capture.
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest, bounded_string,
-    facts::ProviderFacts, parse_request, response::ResponseBody,
+    InputOmission, MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest,
+    bounded_string, error_detail, facts::ProviderFacts, response::ResponseBody,
 };
 use crate::resolution::IngestionMode;
 use axum::http::HeaderMap;
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
+
+use crate::guardrails::spec::{
+    JSON_LEAF, LEAF, Node, Object, ResponseSpec, delta, each, json_delta, parts, strict_parts, text,
+};
 
 const SCALAR_PARAMETERS: [&str; 17] = [
     "temperature",
@@ -45,9 +49,9 @@ const REQUEST_METADATA: [&str; 4] = ["metadata", "prompt_cache_key", "safety_ide
 const IDENTITY_FIELDS: [&str; 3] = ["role", "id", "type"];
 
 pub(super) struct OpenAiChatCompletionsCapture {
-    facts: ProviderFacts,
+    pub(super) facts: ProviderFacts,
     mode: IngestionMode,
-    body: ResponseBody,
+    pub(super) body: ResponseBody,
     /// Present only in full mode; usage mode never records output.
     output: Option<Choices>,
     terminal: bool,
@@ -272,7 +276,7 @@ fn has_generated_content(delta: &Map<String, Value>) -> bool {
 }
 
 impl OpenAiChatCompletionsCapture {
-    pub(super) fn new(headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
+    pub(super) fn new(request: Result<RawRequest, InputOmission>, mode: IngestionMode) -> Self {
         let mut capture = Self {
             facts: ProviderFacts::default(),
             mode,
@@ -282,7 +286,7 @@ impl OpenAiChatCompletionsCapture {
             request_complete: false,
             response_valid: true,
         };
-        match parse_request(headers, body) {
+        match request {
             Ok(request) => {
                 capture.capture_request(request);
                 capture.request_complete = true;
@@ -296,20 +300,16 @@ impl OpenAiChatCompletionsCapture {
     }
 
     pub(super) fn record_response(&mut self, headers: &HeaderMap) {
-        self.facts.provider_request_id = headers
-            .get("x-request-id")
-            .and_then(|v| v.to_str().ok())
-            .and_then(bounded_string);
         self.body = ResponseBody::from_headers(headers);
         if matches!(self.body, ResponseBody::Unavailable) {
             self.response_valid = false;
         }
     }
 
-    pub(super) fn push_bytes(&mut self, bytes: &[u8]) -> bool {
+    pub(super) fn push_bytes(&mut self, bytes: &[u8], parse_limit: usize) -> bool {
         let mut body = std::mem::replace(&mut self.body, ResponseBody::Unavailable);
         let mut completion_started = false;
-        if !body.push(bytes, |event| {
+        if !body.push(bytes, parse_limit, |event| {
             completion_started |= self.handle_event(event);
         }) {
             self.response_valid = false;
@@ -491,19 +491,92 @@ impl OpenAiChatCompletionsCapture {
         if self.mode != IngestionMode::Full {
             return;
         }
-        let detail = ["code", "message"]
-            .into_iter()
-            .filter_map(|key| error.get(key).and_then(Value::as_str))
-            .filter(|value| !value.is_empty())
-            .map(|value| &value[..value.floor_char_boundary(MAX_FACT_STRING)])
-            .collect::<Vec<_>>()
-            .join(": ");
-        if !detail.is_empty() {
-            self.facts.error_message =
-                Some(detail[..detail.floor_char_boundary(MAX_FACT_STRING)].to_owned());
+        if let Some(detail) = error_detail(error, ["code", "message"]) {
+            self.facts.error_message = Some(detail);
         }
     }
 }
+
+/// Chat Completions keeps the whole conversation in `messages`. The last turn is
+/// the user's message, or the results of the assistant's (possibly parallel) tool
+/// calls: `tool` messages count as caller messages, so an assistant answer after
+/// them ends their turn.
+/// The top-level members guardrails scan.
+/// Where Chat Completions requests carry the conversation guardrails scan.
+pub(super) const REQUEST: crate::guardrails::spec::RequestSpec =
+    crate::guardrails::spec::RequestSpec {
+        members: &["messages"],
+        last_turn: guardrail_turn,
+    };
+
+pub(super) fn guardrail_turn(
+    members: &crate::guardrails::spec::Members<'_, '_>,
+) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
+    let mut turn = crate::guardrails::text::LastTurn::default();
+    if let Some(messages) = members.get("messages")? {
+        turn.push_items(
+            "messages",
+            messages,
+            crate::guardrails::text::classify_role_message,
+            &crate::guardrails::spec::ROLE_MESSAGE,
+        )?;
+    }
+    Ok(turn)
+}
+
+/// Where Chat Completions responses carry model text.
+pub(super) const RESPONSE: ResponseSpec = ResponseSpec {
+    json: Object::new(&[("choices", each(&CHOICE))]).node(),
+    sse: Object::new(&[("choices", each(&CHOICE_DELTA))]).node(),
+};
+
+const CHOICE: Node = Object::new(&[("message", MESSAGE)]).node();
+const MESSAGE: Node = Object::new(&[
+    ("content", parts(LEAF)),
+    ("refusal", parts(LEAF)),
+    ("reasoning", parts(LEAF)),
+    ("reasoning_content", parts(LEAF)),
+    ("tool_calls", each(&TOOL_CALL)),
+    ("function_call", ARGUMENTS),
+])
+.strict()
+.node();
+const TOOL_CALL: Node = Object::new(&[
+    ("function", ARGUMENTS),
+    ("custom", Object::new(&[("input", text(LEAF))]).node()),
+])
+.node();
+const ARGUMENTS: Node = Object::new(&[("arguments", text(JSON_LEAF))]).node();
+
+const CHOICE_DELTA: Node = Object::new(&[("delta", DELTA)]).indexed(&["index"]).node();
+const DELTA: Node = Object::new(&[
+    ("content", strict_parts(delta("content"))),
+    ("refusal", strict_parts(delta("refusal"))),
+    ("reasoning", strict_parts(delta("reasoning"))),
+    (
+        "reasoning_content",
+        strict_parts(delta("reasoning_content")),
+    ),
+    ("tool_calls", each(&TOOL_CALL_DELTA)),
+    (
+        "function_call",
+        Object::new(&[("arguments", text(json_delta("function_call")))]).node(),
+    ),
+])
+.strict()
+.node();
+const TOOL_CALL_DELTA: Node = Object::new(&[
+    (
+        "function",
+        Object::new(&[("arguments", text(json_delta("tool_arguments")))]).node(),
+    ),
+    (
+        "custom",
+        Object::new(&[("input", text(delta("tool_input")))]).node(),
+    ),
+])
+.indexed(&["index"])
+.node();
 
 #[cfg(test)]
 mod tests;

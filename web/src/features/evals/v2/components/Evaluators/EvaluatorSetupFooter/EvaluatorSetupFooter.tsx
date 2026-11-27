@@ -114,7 +114,7 @@ export function EvaluatorSetupFooter({
   };
 
   if (isEditing) {
-    return <EvaluatorSetupFooterView mode="edit" {...sharedProps} />;
+    return <EvaluatorSetupFooterView {...sharedProps} />;
   }
 
   return (
@@ -128,12 +128,9 @@ export function EvaluatorSetupFooter({
     >
       {({ openDialog }) => (
         <EvaluatorSetupFooterView
-          mode="create"
           {...sharedProps}
           onSave={hasValidModel ? onSave : openDialog}
-        >
-          Next: attach a rule to run this evaluator on incoming observations.
-        </EvaluatorSetupFooterView>
+        />
       )}
     </ConfirmationDialogController>
   );

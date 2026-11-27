@@ -5,6 +5,7 @@ import { DEFAULT_SEARCH_TYPE } from "../lib/commit";
 import type { ComponentProps } from "react";
 import type { FieldRegistry } from "../lib/fields";
 import type { ObservedOptions } from "../lib/observed-options";
+import type { ManagedEnvironmentPolicyConfig } from "@/src/features/filters/lib/managedEnvironmentPolicy";
 
 const noSearchLane = () => {};
 
@@ -15,12 +16,14 @@ export function TableSearchBar({
   filterState,
   setFilterState,
   observed,
+  managedEnvironmentPolicy,
   isV4,
   search,
   onRequestColumns,
   erroredColumns,
   inset = false,
   size = "default",
+  spacing,
 }: {
   projectId?: string;
   tableName: string;
@@ -28,6 +31,7 @@ export function TableSearchBar({
   filterState: FilterState;
   setFilterState: (filters: FilterState) => void;
   observed: ObservedOptions | undefined;
+  managedEnvironmentPolicy?: ManagedEnvironmentPolicyConfig;
   isV4: boolean;
   search?: {
     query: string | null;
@@ -40,6 +44,8 @@ export function TableSearchBar({
   inset?: boolean;
   /** `large` on full-page lists; embedded toolbars keep the default. */
   size?: ComponentProps<typeof EventsSearchBarRow>["size"];
+  /** `page` on full-page lists, matching Tracing's 12px inset. */
+  spacing?: ComponentProps<typeof EventsSearchBarRow>["spacing"];
 }) {
   // The host owns the applied query and scope; the bar edits both together.
   const { store, commit, applyFilters } = useEventsSearchBar({
@@ -63,6 +69,7 @@ export function TableSearchBar({
       <div className="min-w-0 flex-1">
         <EventsSearchBarRow
           className={inset ? "p-0" : undefined}
+          spacing={spacing}
           projectId={projectId}
           tableName={tableName}
           registry={registry}
@@ -70,6 +77,7 @@ export function TableSearchBar({
           store={store}
           commit={commit}
           observed={observed}
+          managedEnvironmentPolicy={managedEnvironmentPolicy}
           onApplyFilters={applyFilters}
           onRequestColumns={onRequestColumns}
           erroredColumns={erroredColumns}

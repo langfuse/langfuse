@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Mock } from "vitest";
 import type { Session } from "next-auth";
 
@@ -23,6 +22,7 @@ import {
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const PRE_CUTOFF = new Date(
@@ -73,43 +73,18 @@ const prepare = async ({
 } = {}) => {
   const { project, org } = await createOrgProjectAndApiKey();
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: project.id,
-              role: projectRole,
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              name: project.name,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: plan,
-    },
-  };
+  const session: Session = createSession({
+    organizations: [
+      {
+        id: org.id,
+        role: "OWNER",
+        name: org.name,
+        plan,
+        projects: [{ id: project.id, role: projectRole, name: project.name }],
+      },
+    ],
+    environment: { selfHostedInstancePlan: plan },
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
@@ -228,22 +203,18 @@ describe("Blob Storage Integration tRPC Router", () => {
   });
 
   describe("scheduled-blob-exports entitlement", () => {
-    it("blocks an OWNER on cloud:hobby from all blobStorageIntegration procedures", async () => {
+    it("lets an OWNER on cloud:hobby read and delete the integration but nothing else", async () => {
       const { caller, project } = await prepare({
         plan: "cloud:hobby",
       });
       await createIntegration({ projectId: project.id });
 
       await expect(
-        caller.blobStorageIntegration.get({ projectId: project.id }),
+        caller.blobStorageIntegration.getExternalId({ projectId: project.id }),
       ).rejects.toMatchObject({
         code: "FORBIDDEN",
         message: expect.stringContaining("scheduled-blob-exports"),
       });
-
-      await expect(
-        caller.blobStorageIntegration.getExternalId({ projectId: project.id }),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
       await expect(
         caller.blobStorageIntegration.update({
@@ -260,14 +231,16 @@ describe("Blob Storage Integration tRPC Router", () => {
         caller.blobStorageIntegration.validate({ projectId: project.id }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
-      await expect(
-        caller.blobStorageIntegration.delete({ projectId: project.id }),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.config?.projectId).toBe(project.id);
 
-      const stillThere = await prisma.blobStorageIntegration.findUnique({
+      await caller.blobStorageIntegration.delete({ projectId: project.id });
+      const remaining = await prisma.blobStorageIntegration.findUnique({
         where: { projectId: project.id },
       });
-      expect(stillThere).not.toBeNull();
+      expect(remaining).toBeNull();
     });
 
     it("allows an OWNER on cloud:team to read the integration", async () => {

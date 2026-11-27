@@ -1,3 +1,4 @@
+/* eslint-disable boundaries/dependencies -- TODO: component privacy */
 import { useMemo, useState, type ComponentProps } from "react";
 import { useRouter } from "next/router";
 import { ErrorBoundary } from "@sentry/nextjs";

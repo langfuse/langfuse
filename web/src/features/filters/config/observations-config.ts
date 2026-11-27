@@ -1,5 +1,6 @@
 import { observationsTableCols } from "@langfuse/shared";
 import {
+  dropNumericMetadataFilters,
   omitFilterFacets,
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
@@ -17,10 +18,13 @@ export const OBSERVATION_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
   tags: "traceTags",
 };
 
+/** @internal */
 export const observationFilterConfig: FilterConfig = {
   tableName: "observations",
 
   columnDefinitions: observationsTableCols,
+
+  migrateFilterState: dropNumericMetadataFilters,
 
   defaultExpanded: ["environment", "name"],
 

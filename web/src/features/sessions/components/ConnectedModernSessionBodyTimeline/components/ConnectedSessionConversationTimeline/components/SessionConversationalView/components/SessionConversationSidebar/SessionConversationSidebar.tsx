@@ -51,6 +51,40 @@ export type SessionConversationSidebarTrace = {
 const EMPTY_TRACES: SessionConversationSidebarTrace[] = [];
 const SIDEBAR_SCROLL_PADDING = 16;
 
+type ActivePeek = { traceId: string; observationId: string | undefined };
+
+function filterSidebarTraces(
+  traces: SessionConversationSidebarTrace[],
+  search: string,
+) {
+  const query = search.toLowerCase();
+  if (!query) return traces;
+  return traces.flatMap((turn) => {
+    if ((turn.trace.name ?? "").toLowerCase().includes(query)) return [turn];
+    const transcriptRows = turn.transcriptRows?.filter((row) =>
+      `${row.role} ${row.label}`.toLowerCase().includes(query),
+    );
+    if (transcriptRows?.length === 0) return [];
+    return [{ ...turn, transcriptRows: transcriptRows ?? turn.transcriptRows }];
+  });
+}
+
+function selectPeekedTurnId(
+  traces: SessionConversationSidebarTrace[],
+  activePeek: ActivePeek | undefined,
+) {
+  if (!activePeek) return undefined;
+  const peekTrace =
+    traces.find(
+      ({ trace, transcriptRows }) =>
+        trace.id === activePeek.traceId &&
+        transcriptRows?.some(
+          (row) => row.observationId === activePeek.observationId,
+        ),
+    ) ?? traces.find(({ trace }) => trace.id === activePeek.traceId);
+  return peekTrace?.itemId ?? peekTrace?.trace.id;
+}
+
 export function SessionConversationSidebar(
   props: (
     | { state: "loading" }
@@ -58,6 +92,7 @@ export function SessionConversationSidebar(
         state: "loaded";
         traces: SessionConversationSidebarTrace[];
         activeTraceId: string | undefined;
+        activePeek?: ActivePeek;
         search: string;
         searchQuery?: string;
         onSearchChange: (search: string) => void;
@@ -75,18 +110,21 @@ export function SessionConversationSidebar(
       }
   ) & {
     searchVisibility?: "hidden";
+    sidebarToggle?: ReactNode;
     customization?: {
       activeFilterCount: number;
       onCustomizeView: () => void;
     };
   },
 ) {
-  const { customization } = props;
-  const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
+  const allTraces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
+  const activePeek = props.state === "loaded" ? props.activePeek : undefined;
   const activeTraceId =
     props.state === "loaded" ? props.activeTraceId : undefined;
+  const peekedTurnId = selectPeekedTurnId(allTraces, activePeek);
   const appliedSearch =
     props.state === "loaded" ? (props.searchQuery ?? props.search) : "";
+  const traces = filterSidebarTraces(allTraces, appliedSearch);
   const listRef = useRef<HTMLDivElement>(null);
   const textContextRef = useRef<CanvasRenderingContext2D | null>(null);
   const [toolGroupMeasurement, setToolGroupMeasurement] = useState<{
@@ -239,6 +277,7 @@ export function SessionConversationSidebar(
     return (
       <SessionSidebar
         label="Session messages and tools"
+        sidebarToggle={props.sidebarToggle}
         isLoading
         search={
           props.searchVisibility !== "hidden"
@@ -246,7 +285,6 @@ export function SessionConversationSidebar(
                 search: "",
                 disabled: true,
                 onSearchChange: () => {},
-                customization,
               }
             : undefined
         }
@@ -265,6 +303,7 @@ export function SessionConversationSidebar(
   return (
     <SessionSidebar
       label="Session messages and tools"
+      sidebarToggle={props.sidebarToggle}
       isListScrolled={isListScrolled}
       search={
         props.searchVisibility !== "hidden"
@@ -274,7 +313,6 @@ export function SessionConversationSidebar(
                 virtualizer.scrollToOffset(0);
                 props.onSearchChange(search);
               },
-              customization,
             }
           : undefined
       }
@@ -370,6 +408,7 @@ export function SessionConversationSidebar(
                     <SessionSidebarTraceCard
                       title={trace.name ?? "Trace"}
                       isActive={isActive}
+                      isPeeked={itemId === peekedTurnId}
                       number={sidebarTrace.displayNumber ?? turnNumber}
                       onSelect={() => props.onSelect(targetIndex)}
                       collapse={{
@@ -383,7 +422,7 @@ export function SessionConversationSidebar(
                         <div
                           className={
                             transcriptRows?.length
-                              ? "mt-2 -mb-2 overflow-hidden"
+                              ? "mt-2 overflow-hidden"
                               : "-mx-1"
                           }
                         >
@@ -403,7 +442,7 @@ export function SessionConversationSidebar(
                               {emptyTranscriptLabel}
                             </p>
                           )}
-                          <div className="flex flex-col [&>section:last-child>button:last-child]:pb-2">
+                          <div className="flex flex-col">
                             {Array.from(threads, ([threadIndex, rows]) => (
                               <section
                                 key={threadIndex}
@@ -477,7 +516,7 @@ export function SessionConversationSidebar(
                                                 firstTool.id,
                                               )
                                             }
-                                            className="ph-no-capture text-muted-foreground hover:bg-foreground/10 focus-visible:ring-ring -mx-2 flex min-w-0 items-center gap-2 px-2 py-1 text-left text-[13px] transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+                                            className="ph-no-capture text-muted-foreground hover:bg-foreground/10 focus-visible:ring-ring flex min-w-0 items-center gap-2 py-1 text-left text-[13px] transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
                                           >
                                             <span
                                               className="min-w-0 flex-1 truncate"
@@ -611,7 +650,7 @@ export function SessionConversationSidebar(
                                           row.id,
                                         )
                                       }
-                                      className="ph-no-capture hover:bg-foreground/10 focus-visible:ring-ring -mx-2 flex min-w-0 items-center gap-2 px-2 py-1 text-left transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+                                      className="ph-no-capture hover:bg-foreground/10 focus-visible:ring-ring flex min-w-0 items-center gap-2 py-1 text-left transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
                                       aria-label={
                                         row.role === "tool"
                                           ? `tool: ${row.label}`

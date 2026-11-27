@@ -29,6 +29,8 @@ const ruleColumns = new Set(
   traceTranscriptFilterDefinition.columns.map((column) => column.id),
 );
 // Rules match at ingestion, so they only offer the trace-transcript filter fields.
+// Lookup stays on the full rule registry so an out-of-list filter (e.g. from
+// Ask AI) shows as a token that validation flags, instead of hiding.
 export const topicsFilterRegistry = {
   ...RULE_FIELD_REGISTRY,
   fields: RULE_FIELD_REGISTRY.fields.filter((field) =>
@@ -36,6 +38,19 @@ export const topicsFilterRegistry = {
   ),
   columns: RULE_FIELD_REGISTRY.columns.filter((column) =>
     ruleColumns.has(column.id),
+  ),
+  // Live scans reject negated filters, so no `-env:dev` example.
+  searchExamples: [
+    "level:ERROR",
+    "env:prod",
+    "tags:billing",
+    "type:GENERATION",
+  ],
+  aiContextFields: RULE_FIELD_REGISTRY.aiContextFields.filter(
+    ({ observedOptionsKey }) =>
+      ruleColumns.has(
+        observedOptionsKey === "traceTags" ? "tags" : observedOptionsKey,
+      ),
   ),
   filterStateErrors: (filters: FilterState) => {
     const error = topicRuleFilterError(filters);
@@ -67,7 +82,7 @@ const OPTION_COLUMNS = topicsFilterRegistry.columns
   .map((column) => optionColumn(column.id)) as OptionColumns;
 
 // Matches the setup backfill window.
-const WINDOW_MS = 7 * 86_400_000;
+const DAY_MS = 86_400_000;
 const PREVIEW_TRACES = 20;
 
 export type TopicTracePreviewRow =
@@ -77,7 +92,89 @@ export type TopicTracePreview =
   | { status: "error"; message: string }
   | { status: "ready"; traces: TopicTracePreviewRow[]; count: number };
 
+/** Value suggestions for the trace fields a rule filters on. */
+function useTopicTraceSuggestions({
+  projectId,
+  startTimeFilter,
+  enabled,
+  allColumns = false,
+}: {
+  projectId: string;
+  startTimeFilter: TimeFilter[];
+  enabled: boolean;
+  /** Lists every option column up front (builder mode); otherwise they load per field. */
+  allColumns?: boolean;
+}) {
+  const options = useEventsFilterOptions({
+    projectId,
+    startTimeFilter,
+    lazy: !allColumns,
+    columns: allColumns ? OPTION_COLUMNS : undefined,
+    enabled,
+  });
+  const { filterOptions, isFilterOptionsPending, requestColumns } = options;
+  const traceNames = api.topics.setupTraceNames.useQuery(
+    { projectId },
+    { enabled, retry: false },
+  );
+  const observed = useMemo(() => {
+    const values = removeInternalEvaluationEnvironmentOptions(
+      toObservedOptions(filterOptions, isFilterOptionsPending),
+    );
+    if (!values) return values;
+    return {
+      ...values,
+      // Left out until loaded, so the search bar requests the column lazily.
+      ...(values.traceTags && { tags: values.traceTags }),
+      traceName: traceNames.data ?? [],
+    };
+  }, [filterOptions, isFilterOptionsPending, traceNames.data]);
+  const requestFieldColumns = useCallback(
+    (fields: readonly string[]) => requestColumns(fields.map(optionColumn)),
+    [requestColumns],
+  );
+  // Reported per field ID, so a failed tags load stops loading instead of retrying.
+  const erroredColumns = useMemo(
+    () =>
+      options.erroredColumns.has("traceTags")
+        ? new Set([...options.erroredColumns, "tags"])
+        : options.erroredColumns,
+    [options.erroredColumns],
+  );
+  return { options, traceNames, observed, requestFieldColumns, erroredColumns };
+}
+
+// Results search suggests values from the last week, like the rule setup's preview.
+const SUGGESTION_WINDOW_MS = 7 * DAY_MS;
+
+/** Trace field suggestions for the results search bar; option columns load per field. */
+export function useTopicResultsTraceSuggestions(projectId: string) {
+  const [startTimeFilter] = useState<TimeFilter[]>(() => [
+    {
+      column: "startTime",
+      type: "datetime",
+      operator: ">=",
+      value: new Date(Date.now() - SUGGESTION_WINDOW_MS),
+    },
+  ]);
+  const { observed, requestFieldColumns, erroredColumns } =
+    useTopicTraceSuggestions({
+      projectId,
+      startTimeFilter,
+      enabled: true,
+    });
+  return useMemo(
+    () => ({
+      observed,
+      onRequestColumns: requestFieldColumns,
+      erroredColumns,
+    }),
+    [observed, requestFieldColumns, erroredColumns],
+  );
+}
+
 /** Mode, search bar and validity of the setup trace filter; no data fetching. */
+/** @knipignore Lets dialog stories exercise real filter state without a live query. */
 export function useTopicTraceFilterState({
   projectId,
   filters,
@@ -139,17 +236,21 @@ export function useTopicTraceFilter({
   active,
   filters,
   onFiltersChange,
+  days = 7,
 }: {
   projectId: string;
   /** Loads suggestions and the preview only while the Traces step shows. */
   active: boolean;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
+  /** Window the preview counts, ending when the hook mounts. */
+  days?: number;
 }) {
-  const [range] = useState(() => {
-    const to = new Date();
-    return { from: new Date(to.getTime() - WINDOW_MS), to };
-  });
+  const [to] = useState(() => new Date());
+  const range = useMemo(
+    () => ({ from: new Date(to.getTime() - days * DAY_MS), to }),
+    [to, days],
+  );
   const startTimeFilter = useMemo<TimeFilter[]>(
     () => [
       {
@@ -162,30 +263,14 @@ export function useTopicTraceFilter({
     [range],
   );
   const [mode, setMode] = useState<EvaluatorFilterExperience>("query");
-  // Builder mode lists every option column up front; query mode loads per field.
-  const options = useEventsFilterOptions({
-    projectId,
-    startTimeFilter,
-    lazy: mode === "query",
-    columns: mode === "builder" ? OPTION_COLUMNS : undefined,
-    enabled: active,
-  });
-  const { filterOptions, isFilterOptionsPending, requestColumns } = options;
-  const traceNames = api.topics.setupTraceNames.useQuery(
-    { projectId },
-    { enabled: active, retry: false },
-  );
-  const observed = useMemo(() => {
-    const values = removeInternalEvaluationEnvironmentOptions(
-      toObservedOptions(filterOptions, isFilterOptionsPending),
-    );
-    if (!values) return values;
-    return {
-      ...values,
-      tags: values.traceTags ?? [],
-      traceName: traceNames.data ?? [],
-    };
-  }, [filterOptions, isFilterOptionsPending, traceNames.data]);
+  const { options, traceNames, observed, requestFieldColumns, erroredColumns } =
+    useTopicTraceSuggestions({
+      projectId,
+      startTimeFilter,
+      enabled: active,
+      allColumns: mode === "builder",
+    });
+  const { filterOptions } = options;
   const state = useTopicTraceFilterState({
     projectId,
     filters,
@@ -210,10 +295,6 @@ export function useTopicTraceFilter({
       ),
     [filterOptions, traceNames.data],
   );
-  const requestFieldColumns = useCallback(
-    (fields: readonly string[]) => requestColumns(fields.map(optionColumn)),
-    [requestColumns],
-  );
   const preview = api.topics.previewTraces.useQuery(
     {
       projectId,
@@ -229,7 +310,7 @@ export function useTopicTraceFilter({
     ...state,
     mode,
     observed,
-    erroredColumns: options.erroredColumns,
+    erroredColumns,
     requestColumns: requestFieldColumns,
     builderColumns,
     preview: tracePreview(state.error, preview),

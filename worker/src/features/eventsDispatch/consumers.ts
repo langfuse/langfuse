@@ -3,56 +3,79 @@ import {
   EvalTemplateType,
   JobConfigState,
   TopicsTargetObject,
+  TRACE_TRANSCRIPT_EVAL_TYPES,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   QueueJobs,
   TopicsTraceQueue,
-  type TraceBatchInputReference,
+  type TraceTranscriptReference,
 } from "@langfuse/shared/src/server";
+import {
+  TRACE_TRANSCRIPT_EVAL_CONSUMER,
+  enqueueTraceTranscriptEvals,
+} from "./traceTranscriptEval";
 
 export const JOB_MAX_AGE_MS = 2 * 60 * 60_000;
 
 /** A queue that runs per-trace work from the stored transcript; it resolves its rule's definitions itself. */
+type EventsDispatchEnqueueContext = {
+  transcriptS3Path: string;
+  /** The snapshot that seeded the trace, when it came from one. */
+  batchActionId?: string;
+};
+
 type EventsDispatchConsumer = {
   name: string;
-  evaluatorType: EvalTemplateType;
+  evaluatorTypes: readonly EvalTemplateType[];
+  enqueueWhenTranscriptNull: boolean;
   enqueue: (
-    reference: TraceBatchInputReference,
+    reference: TraceTranscriptReference,
     ruleIds: string[],
+    context: EventsDispatchEnqueueContext,
   ) => Promise<void>;
 };
 
+const TOPICS_CONSUMER: EventsDispatchConsumer = {
+  name: "topics",
+  evaluatorTypes: [EvalTemplateType.FACET],
+  // Marks its facets insufficient_input from the null-transcript envelope.
+  enqueueWhenTranscriptNull: true,
+  enqueue: async (reference, ruleIds, { transcriptS3Path, batchActionId }) => {
+    const queue = TopicsTraceQueue.getInstance({
+      shardingKey: `${reference.projectId}-${reference.traceId}`,
+    });
+    if (!queue) throw new Error("Topics trace queue is unavailable.");
+    await queue.add(
+      QueueJobs.TopicsTraceJob,
+      {
+        name: QueueJobs.TopicsTraceJob,
+        id: randomUUID(),
+        timestamp: new Date(),
+        payload: { ...reference, transcriptS3Path, ruleIds, batchActionId },
+      },
+      {
+        // A retried job within its lifetime never enqueues a trace revision twice.
+        deduplication: {
+          id: JSON.stringify([
+            reference.projectId,
+            reference.traceId,
+            reference.revision,
+          ]),
+          ttl: JOB_MAX_AGE_MS,
+        },
+      },
+    );
+  },
+};
+
 const CONSUMERS: EventsDispatchConsumer[] = [
+  TOPICS_CONSUMER,
   {
-    name: "topics",
-    evaluatorType: EvalTemplateType.FACET,
-    enqueue: async (reference, ruleIds) => {
-      const queue = TopicsTraceQueue.getInstance({
-        shardingKey: `${reference.projectId}-${reference.traceId}`,
-      });
-      if (!queue) throw new Error("Topics trace queue is unavailable.");
-      await queue.add(
-        QueueJobs.TopicsTraceJob,
-        {
-          name: QueueJobs.TopicsTraceJob,
-          id: randomUUID(),
-          timestamp: new Date(),
-          payload: { ...reference, ruleIds },
-        },
-        {
-          // A retried job within its lifetime never enqueues a trace revision twice.
-          deduplication: {
-            id: JSON.stringify([
-              reference.projectId,
-              reference.traceId,
-              reference.revision,
-            ]),
-            ttl: JOB_MAX_AGE_MS,
-          },
-        },
-      );
-    },
+    name: TRACE_TRANSCRIPT_EVAL_CONSUMER,
+    evaluatorTypes: TRACE_TRANSCRIPT_EVAL_TYPES,
+    enqueueWhenTranscriptNull: false,
+    enqueue: enqueueTraceTranscriptEvals,
   },
 ];
 
@@ -101,6 +124,9 @@ function ruleEvaluatorTypes(
   return rules;
 }
 
+/** A snapshot's traces go to Topics alone; its execution names the facets. */
+export const SNAPSHOT_JOBS = [{ consumer: TOPICS_CONSUMER, ruleIds: [] }];
+
 /** Routes recorded rule IDs to the consumers whose evaluator type each rule runs; unknown IDs are returned separately. */
 export async function routeRules(
   projectId: string,
@@ -113,7 +139,7 @@ export async function routeRules(
   const unresolved = ruleIds.filter((id) => !types.has(id));
   const jobs = CONSUMERS.flatMap((consumer) => {
     const selected = ruleIds.filter((id) =>
-      types.get(id)?.has(consumer.evaluatorType),
+      consumer.evaluatorTypes.some((type) => types.get(id)?.has(type)),
     );
     return selected.length > 0 ? [{ consumer, ruleIds: selected }] : [];
   });

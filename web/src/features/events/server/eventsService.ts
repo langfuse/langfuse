@@ -485,8 +485,10 @@ const EVENT_FILTER_OPTIONS_NON_PARTICIPATING_COLUMNS = new Set([
   "output",
   "commentCount",
   "commentContent",
+  "topics",
 ]);
 
+/** @internal */
 export const partitionEventFilterOptionsFilter = (
   filter: FilterState = [],
 ): {

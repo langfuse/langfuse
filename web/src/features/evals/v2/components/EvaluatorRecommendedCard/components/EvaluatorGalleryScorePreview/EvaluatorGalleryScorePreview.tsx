@@ -15,7 +15,7 @@ const MESH_TINT: Partial<Record<EvalTemplateType, string>> = {
   [EvalTemplateTypeEnum.CODE]: styles.code,
 };
 
-/** Sample `name: value` chips on a type-tinted mesh, styled like trace score badges. */
+/** Sample `name: value` chips on a type-tinted mesh. The page-coloured backing keeps the translucent badge solid on the tint. */
 type EvaluatorGalleryScorePreviewProps = {
   scores: ManagedTemplate["previewScores"];
   type: EvalTemplateType;
@@ -39,7 +39,10 @@ export function EvaluatorGalleryScorePreview({
     >
       <div className="flex max-w-full min-w-0 items-center justify-center gap-1">
         {visibleScores.map((score) => (
-          <span key={score.name} className="flex min-w-0">
+          <span
+            key={score.name}
+            className="bg-background flex min-w-0 rounded-sm"
+          >
             <BadgeShell color="filled" size="md">
               <span className="text-muted-foreground flex min-w-0 font-mono">
                 <span className="truncate py-0.5" title={score.name}>
@@ -57,11 +60,13 @@ export function EvaluatorGalleryScorePreview({
           </span>
         ))}
         {hiddenCount > 0 ? (
-          <BadgeShell color="filled" size="md">
-            <span className="text-muted-foreground py-0.5 font-mono">
-              +{hiddenCount}
-            </span>
-          </BadgeShell>
+          <span className="bg-background flex rounded-sm">
+            <BadgeShell color="filled" size="md">
+              <span className="text-muted-foreground py-0.5 font-mono">
+                +{hiddenCount}
+              </span>
+            </BadgeShell>
+          </span>
         ) : null}
       </div>
       {/* Shown while the parent card (group/card) is hovered. */}

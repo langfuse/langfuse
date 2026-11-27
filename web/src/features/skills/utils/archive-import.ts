@@ -7,7 +7,6 @@ import {
 import { parseSkillFrontmatterMetadata } from "@/src/features/skills/utils/parseSkillFrontmatterMetadata";
 
 const MAX_EXPANDED_BYTES = 20 * 1024 * 1024;
-const MAX_RESPONSE_BYTES = 3 * 1024 * 1024;
 
 export function readSkillArchive(
   archive: Uint8Array,
@@ -216,13 +215,5 @@ export function discoverFileSkills({
         }
       : skill,
   );
-  if (
-    new TextEncoder().encode(JSON.stringify(skills)).byteLength >
-    MAX_RESPONSE_BYTES
-  ) {
-    throw new InvalidRequestError(
-      "The discovered skills are too large to import together.",
-    );
-  }
   return skills;
 }

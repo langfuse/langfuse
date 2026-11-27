@@ -3,6 +3,7 @@
 
 import * as React from "react";
 
+import { Banner } from "../Banner/Banner";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Input } from "@/src/components/ui/input";
@@ -24,7 +25,7 @@ function ConfirmationDialogController<TValue = undefined>({
   confirmLabel,
   disabled = false,
   error,
-  loading = false,
+  loading: externalLoading = false,
   onAfterDismiss,
   onConfirm,
   text,
@@ -47,6 +48,8 @@ function ConfirmationDialogController<TValue = undefined>({
   variant: "default" | "destructive";
 }) {
   const [confirmationInput, setConfirmationInput] = React.useState("");
+  const [confirming, setConfirming] = React.useState(false);
+  const loading = externalLoading || confirming;
 
   const [selectedValue, setSelectedValue] = React.useState<TValue>();
 
@@ -74,8 +77,6 @@ function ConfirmationDialogController<TValue = undefined>({
     <DialogController
       onBeforeClose={() => !loading}
       onDismiss={() => {
-        setConfirmationInput("");
-        setSelectedValue(undefined);
         onAfterDismiss?.();
       }}
       renderDialog={({ closeDialog }) => (
@@ -90,6 +91,8 @@ function ConfirmationDialogController<TValue = undefined>({
               label: confirmLabel,
               loading,
               onClick: async () => {
+                if (loading) return;
+                setConfirming(true);
                 try {
                   await (
                     onConfirm as (
@@ -98,9 +101,10 @@ function ConfirmationDialogController<TValue = undefined>({
                   )(selectedValue);
                 } catch {
                   return;
+                } finally {
+                  setConfirming(false);
                 }
                 closeDialog();
-                setConfirmationInput("");
               },
               variant,
             },
@@ -109,10 +113,9 @@ function ConfirmationDialogController<TValue = undefined>({
           <Dialog.Body>
             <p className="text-muted-foreground text-sm">{resolvedText}</p>
             {error ? (
-              <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                <p className="font-bold">Error:</p>
+              <Banner variant="error" title="Error">
                 <p className="whitespace-pre-wrap">{error}</p>
-              </div>
+              </Banner>
             ) : null}
             {requiresConfirmationInput ? (
               <div className="grid gap-2">

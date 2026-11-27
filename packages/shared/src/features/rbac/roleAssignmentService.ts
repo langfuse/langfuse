@@ -52,12 +52,14 @@ export async function assignRole(
         ...ownerAndTenantFields,
         ...principalFields(ra.principalId),
         ...roleFields,
+        tags: ra.tags,
+        expiresAt: ra.expiresAt,
       },
     });
   });
 }
 
-/** replaceRolesForPrincipal revokes all existing roles for a principal on an owner before assigning the principal a new role. */
+/** replaceRolesForPrincipal replaces a principal's roles on an owner that carry the new role's tags. */
 export async function replaceRolesForPrincipal(
   prisma: Prisma.TransactionClient,
   ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">,
@@ -67,22 +69,34 @@ export async function replaceRolesForPrincipal(
       tenantId: ra.tenantId,
       principalId: ra.principalId,
       ownerId: ra.ownerId,
+      tags: ra.tags,
     });
     return await assignRole(tx, ra);
   });
 }
 
-/** revokeRolesForPrincipal removes a principal's assignments in a tenant, optionally limited to one owner. */
+/** revokeRolesForPrincipal removes a principal's assignments in a tenant, optionally limited to an owner and to the given tags. */
 export async function revokeRolesForPrincipal(
   prisma: Prisma.TransactionClient,
   {
     tenantId,
     principalId,
     ownerId,
-  }: { tenantId: TenantId; principalId: PrincipalId; ownerId?: OwnerId },
+    tags,
+  }: {
+    tenantId: TenantId;
+    principalId: PrincipalId;
+    ownerId?: OwnerId;
+    tags?: string[];
+  },
 ): Promise<void> {
   await prisma.roleAssignment.deleteMany({
-    where: { orgId: untag(tenantId), principalId, ownerId },
+    where: {
+      orgId: untag(tenantId),
+      principalId,
+      ownerId,
+      tags: byTags(tags),
+    },
   });
 }
 
@@ -110,12 +124,17 @@ export async function transferApiKeyRoles(
   });
 }
 
-/** findRoleAssignments reads a principal's stored assignments. */
+/** findRoleAssignments reads a principal's stored assignments that have not expired. */
 async function findRoleAssignments(
   prisma: Prisma.TransactionClient,
   principalId: PrincipalId,
 ): Promise<StoredRoleAssignment[]> {
-  return await prisma.roleAssignment.findMany({ where: { principalId } });
+  return await prisma.roleAssignment.findMany({
+    where: {
+      principalId,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    },
+  });
 }
 
 /**
@@ -213,4 +232,10 @@ function validateRole(roleId: RoleId) {
     throw new InvalidRequestError("Unknown system role");
   }
   return { roleId, systemRole };
+}
+
+/** byTags matches assignments carrying every tag, or every assignment when no tags are given. */
+function byTags(tags: string[] | undefined) {
+  if (!tags?.length) return undefined;
+  return { hasEvery: tags };
 }

@@ -26,12 +26,16 @@ vi.mock("next/router", () => ({ useRouter: () => ({ query: {} }) }));
 
 const getSetupStatusQuery = vi.hoisted(() => vi.fn());
 const getAnalyticsLabelsQuery = vi.hoisted(() => vi.fn());
+const listConnectionsQuery = vi.hoisted(() => vi.fn());
+const listModelConnectionsQuery = vi.hoisted(() => vi.fn());
 vi.mock("@/src/utils/api", () => ({
   api: {
     aiGateway: {
       getSetupStatus: { useQuery: getSetupStatusQuery },
       listApiKeys: { useQuery: () => ({ data: undefined }) },
       getAnalyticsLabels: { useQuery: getAnalyticsLabelsQuery },
+      listConnections: { useInfiniteQuery: listConnectionsQuery },
+      listModelConnections: { useQuery: listModelConnectionsQuery },
     },
   },
 }));
@@ -47,6 +51,10 @@ vi.mock(
 vi.mock(
   "@/src/features/ai-gateway/components/GatewayModelsPage/GatewayModelsPage",
   () => ({ GatewayModelsPage: () => null }),
+);
+vi.mock(
+  "@/src/features/ai-gateway/components/GatewayBudgetsPage/GatewayBudgetsPage",
+  () => ({ GatewayBudgetsPage: () => null }),
 );
 vi.mock(
   "@/src/features/ai-gateway/components/GatewayNotDeployedNotice/GatewayNotDeployedNotice",
@@ -79,12 +87,17 @@ describe("useGatewayPages", () => {
       isPending: false,
     });
     getAnalyticsLabelsQuery.mockReturnValue({ data: undefined });
+    listConnectionsQuery.mockReturnValue({ data: undefined });
+    listModelConnectionsQuery.mockReturnValue({ data: undefined });
   });
 
   it("shows only Models with read access", () => {
     grantScopes("gateway:read");
 
-    expect(visiblePages()).toEqual([["models", false]]);
+    expect(visiblePages()).toEqual([
+      ["models", false],
+      ["guardrails", false],
+    ]);
   });
 
   it("hides Models for read-only access to the demo organization", () => {
@@ -97,7 +110,7 @@ describe("useGatewayPages", () => {
     Object.assign(env, { NEXT_PUBLIC_DEMO_ORG_ID: "demo-org" });
 
     try {
-      expect(visiblePages()).toEqual([]);
+      expect(visiblePages()).toEqual([["guardrails", false]]);
     } finally {
       Object.assign(env, { NEXT_PUBLIC_DEMO_ORG_ID: originalDemoOrgId });
     }
@@ -115,12 +128,27 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
-      ["models", false],
       ["api-keys", false],
+      ["models", false],
+      ["budgets", false],
+      ["guardrails", false],
     ]);
   });
 
-  it("disables Models and Gateway keys for managers until ingestion is set up", () => {
+  it("keeps the Models page tabs for managers whose only connection failed", () => {
+    grantScopes("gateway:manage", "gateway:read", "gateway:invoke");
+    listConnectionsQuery.mockReturnValue({
+      data: { pages: [{ data: [{ id: "conn-1", status: "ERROR" }] }] },
+    });
+    listModelConnectionsQuery.mockReturnValue({ data: [] });
+
+    const { result } = renderHook(() => useGatewayPages());
+    const models = result.current.find(({ slug }) => slug === "models");
+
+    expect(models?.tabsProps).toBeDefined();
+  });
+
+  it("disables Gateway keys, Models and Budgets for managers until ingestion is set up", () => {
     grantScopes("gateway:manage", "gateway:read", "gateway:invoke");
     getSetupStatusQuery.mockReturnValue({
       data: { isConfigured: false },
@@ -129,8 +157,10 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
-      ["models", true],
       ["api-keys", true],
+      ["models", true],
+      ["budgets", true],
+      ["guardrails", true],
     ]);
   });
 
@@ -168,10 +198,13 @@ describe("useGatewayPages", () => {
       isPending: false,
     });
 
-    expect(visiblePages()).toEqual([["models", false]]);
+    expect(visiblePages()).toEqual([
+      ["models", false],
+      ["guardrails", false],
+    ]);
   });
 
-  it("shows AI_GATEWAY members their keys, models and own analytics, even before ingestion is set up", () => {
+  it("shows AI_GATEWAY members their keys, budgets, models and own analytics, even before ingestion is set up", () => {
     grantScopesOf(Role.AI_GATEWAY);
     getSetupStatusQuery.mockReturnValue({
       data: { isConfigured: false },
@@ -180,8 +213,10 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
-      ["models", false],
       ["api-keys", false],
+      ["models", false],
+      ["budgets", false],
+      ["guardrails", false],
     ]);
   });
 
@@ -233,8 +268,10 @@ describe("useGatewayPages", () => {
     grantScopesOf(Role.MEMBER);
 
     expect(visiblePages().map(([slug]) => slug)).toEqual([
-      "models",
       "api-keys",
+      "models",
+      "budgets",
+      "guardrails",
     ]);
   });
 });

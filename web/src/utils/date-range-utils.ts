@@ -371,6 +371,7 @@ export function getOptimalInterval(
  * - Handles both abbreviated ("7d") and full ("last7Days") named ranges
  * - Handles custom timestamp ranges ("1693872000000-1694131199999")
  * - Returns fallback if parsing fails or range is not in allowedRanges
+ * @internal
  */
 export function rangeFromString<T extends string>(
   abbreviatedRange: string,
