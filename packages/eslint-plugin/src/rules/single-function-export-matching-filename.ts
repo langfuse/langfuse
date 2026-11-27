@@ -6,13 +6,23 @@ const SOURCE_EXTENSION = /\.(?:[cm]?[jt]sx?)$/;
 
 type PendingExport = { local: string; name: string | null };
 
+function unwrap(node: TSESTree.Node): TSESTree.Node {
+  let current = node;
+  // Oxlint keeps parentheses. typescript-eslint removes them before the rule runs.
+  while ((current.type as string) === "ParenthesizedExpression") {
+    current = (current as { expression: TSESTree.Node }).expression;
+  }
+  return current;
+}
+
 function isFunctionValue(
   node: TSESTree.Expression | null | undefined,
 ): boolean {
   if (!node) return false;
+  const value = unwrap(node);
   return (
-    node.type === N.ArrowFunctionExpression ||
-    node.type === N.FunctionExpression
+    value.type === N.ArrowFunctionExpression ||
+    value.type === N.FunctionExpression
   );
 }
 
@@ -87,23 +97,30 @@ function noteDefault(
   counts: Counts,
   declaration: TSESTree.ExportDefaultDeclaration["declaration"],
 ) {
-  if (declaration.type === N.FunctionDeclaration) {
-    const name = declarationName(declaration);
+  const value = unwrap(declaration);
+  if (
+    value.type === N.TSInterfaceDeclaration ||
+    value.type === N.TSTypeAliasDeclaration
+  ) {
+    return;
+  }
+  if (value.type === N.FunctionDeclaration) {
+    const name = declarationName(value);
     rememberFunction(counts, name);
     noteFunction(counts, name);
     return;
   }
-  if (declaration.type === N.FunctionExpression) {
-    const name = declarationName(declaration);
+  if (value.type === N.FunctionExpression) {
+    const name = declarationName(value);
     noteFunction(counts, name);
     return;
   }
-  if (declaration.type === N.ArrowFunctionExpression) {
+  if (value.type === N.ArrowFunctionExpression) {
     noteFunction(counts, null);
     return;
   }
-  if (declaration.type === N.Identifier) {
-    counts.pending.push({ local: declaration.name, name: declaration.name });
+  if (value.type === N.Identifier) {
+    counts.pending.push({ local: value.name, name: value.name });
     return;
   }
   noteOther(counts);
@@ -154,7 +171,11 @@ function noteNamed(counts: Counts, statement: TSESTree.ExportNamedDeclaration) {
     return;
   }
   if (statement.source !== null) {
-    noteOther(counts);
+    let hasValue = false;
+    for (const specifier of statement.specifiers) {
+      if (specifier.exportKind !== "type") hasValue = true;
+    }
+    if (hasValue || statement.specifiers.length === 0) noteOther(counts);
     return;
   }
   for (const specifier of statement.specifiers)
@@ -177,7 +198,7 @@ function noteStatement(counts: Counts, statement: TSESTree.ProgramStatement) {
     return;
   }
   if (statement.type === N.ExportAllDeclaration) {
-    noteOther(counts);
+    if (statement.exportKind !== "type") noteOther(counts);
     return;
   }
   if (statement.type === N.ExportNamedDeclaration) {

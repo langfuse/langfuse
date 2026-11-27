@@ -1,3 +1,4 @@
+import { expect, test } from "vitest";
 import { RuleTester } from "@typescript-eslint/rule-tester";
 import * as typescriptEslintParser from "@typescript-eslint/parser";
 import rule from "./single-function-export-matching-filename.js";
@@ -132,6 +133,18 @@ ruleTester.run("single-function-export-matching-filename", rule, {
       filename: file("pack.ts"),
     },
     {
+      code: "export function pack() { return 1; }\nexport { type Foo } from './types';",
+      filename: file("pack.ts"),
+    },
+    {
+      code: "export function pack() { return 1; }\nexport default interface Foo { id: string }",
+      filename: file("pack.ts"),
+    },
+    {
+      code: "export function pack() { return 1; }\nexport type * from './types';",
+      filename: file("pack.ts"),
+    },
+    {
       code: "const pack = () => 1;\ntype Foo = string;\nexport { pack, type Foo };",
       filename: file("pack.ts"),
     },
@@ -235,6 +248,11 @@ ruleTester.run("single-function-export-matching-filename", rule, {
       errors: count(2),
     },
     {
+      code: "export function pack() { return 1; }\nexport { type Foo, value } from './other';",
+      filename: file("pack.ts"),
+      errors: count(2),
+    },
+    {
       code: "const pack = () => 1;\nconst other = () => 2;\nexport { pack, other };",
       filename: file("pack.ts"),
       errors: count(2),
@@ -319,5 +337,38 @@ ruleTester.run("single-function-export-matching-filename", rule, {
       filename: file("pack.ts"),
       errors: filename("pack"),
     },
+    {
+      code: "export function pack() { return 1; }\nexport {} from './other';",
+      filename: file("pack.ts"),
+      errors: count(2),
+    },
   ],
+});
+
+test("oxlint parentheses stay wrapped around a default function", () => {
+  const reports: string[] = [];
+  const visitors = rule.create({
+    filename: file("pack.ts"),
+    report(problem: { messageId: string }) {
+      reports.push(problem.messageId);
+    },
+  } as never);
+  visitors.Program?.({
+    type: "Program",
+    body: [
+      {
+        type: "ExportDefaultDeclaration",
+        declaration: {
+          type: "ParenthesizedExpression",
+          expression: {
+            type: "FunctionExpression",
+            id: { type: "Identifier", name: "pack" },
+            params: [],
+            body: { type: "BlockStatement", body: [] },
+          },
+        },
+      },
+    ],
+  } as never);
+  expect(reports).toEqual([]);
 });
