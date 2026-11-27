@@ -1,3 +1,1 @@
-import { EvaluatorDetail } from "@/src/features/evals/components/evaluator-detail";
-
-export default EvaluatorDetail;
+export { default } from "@/src/features/evals/v2/pages/EvaluatorDetailPage";

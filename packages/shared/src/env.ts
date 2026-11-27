@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { parseOutboundUrl } from "./server/outbound-url/parse";
+import { parseBlockedCidr } from "./server/webhooks/parseBlockedCidr";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
 // Per-segment byte budget for S3 event keys. Off by default (2048 > 800-byte
@@ -27,6 +29,23 @@ export const redisSocketTimeoutMsSchema = z.coerce
   })
   .default(30_000);
 
+function commaSeparatedLowercase(value: string | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((part) => part.toLowerCase().trim())
+    .filter((part) => part.length > 0);
+}
+
+const optionalCommaSeparatedLowercase = z
+  .string()
+  .optional()
+  .transform(commaSeparatedLowercase);
+
+function isCidr(value: string): boolean {
+  return parseBlockedCidr(value) !== undefined;
+}
+
 const DEFAULT_LLM_COMPLETION_TIMEOUT_MS = 120_000;
 
 const EnvSchema = z.object({
@@ -37,10 +56,30 @@ const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
   // Same, for the integration-level cutoff (BlobStorageIntegration.createdAt).
   NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF: z.iso.datetime().optional(),
+  NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF: z.iso.datetime().optional(),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
+  // Internal trace evals beta control; not a supported self-hosting configuration.
+  LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
   // NextAuth.js falls back to VERCEL_URL when NEXTAUTH_URL is unset; the
   // shared base-URL helper mirrors that (see web/src/env.mjs preprocess).
   VERCEL_URL: z.string().optional(),
@@ -116,16 +155,47 @@ const EnvSchema = z.object({
     .default(20_000),
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(3600), // 1h
+  LANGFUSE_CACHE_SKILL_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_CACHE_SKILL_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(3600), // 1h
   CLICKHOUSE_URL: z.url(),
   CLICKHOUSE_READ_ONLY_URL: z.url().optional(),
   CLICKHOUSE_EVENTS_READ_ONLY_URL: z.url().optional(),
   CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
-  CLICKHOUSE_USER: z.string(),
-  CLICKHOUSE_PASSWORD: z.string(),
+  // `password` sends CLICKHOUSE_USER and CLICKHOUSE_PASSWORD. `jwt` sends a
+  // bearer token instead (ClickHouse Cloud only) from exactly one of
+  // CLICKHOUSE_JWT_TOKEN, CLICKHOUSE_JWT_TOKEN_FILE or CLICKHOUSE_JWT_TOKEN_URL.
+  // In `jwt` mode CLICKHOUSE_USER and CLICKHOUSE_PASSWORD are ignored, and
+  // migrations send the same token unless CLICKHOUSE_MIGRATION_USER is set.
+  CLICKHOUSE_AUTH_MODE: z.enum(["password", "jwt"]).default("password"),
+  CLICKHOUSE_USER: z.string().optional(),
+  CLICKHOUSE_PASSWORD: z.string().optional(),
+  CLICKHOUSE_JWT_TOKEN: z.string().optional(),
+  CLICKHOUSE_JWT_TOKEN_FILE: z.string().optional(),
+  // OAuth 2.0 token endpoint, called with the client credentials grant. Must
+  // use https unless it is on localhost.
+  CLICKHOUSE_JWT_TOKEN_URL: z.url().optional(),
+  CLICKHOUSE_JWT_CLIENT_ID: z.string().optional(),
+  // Exactly one of the two. The file is read for every token request, for a
+  // secret that the platform rotates.
+  CLICKHOUSE_JWT_CLIENT_SECRET: z.string().optional(),
+  CLICKHOUSE_JWT_CLIENT_SECRET_FILE: z.string().optional(),
+  CLICKHOUSE_JWT_CLIENT_AUTH_METHOD: z
+    .enum(["client_secret_basic", "client_secret_post"])
+    .default("client_secret_basic"),
+  CLICKHOUSE_JWT_SCOPE: z.string().optional(),
+  // Sent as the `audience` form parameter, as Auth0 and Okta expect.
+  CLICKHOUSE_JWT_AUDIENCE: z.string().optional(),
   CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: z.coerce.number().int().default(9000),
   CLICKHOUSE_MAX_OPEN_CONNECTIONS: z.coerce.number().int().default(25),
+  LANGFUSE_JSON_BAD_UNICODE_ESCAPE: z
+    .enum(["auto", "no_throw", "sanitize"])
+    .optional(),
   // Optional to allow for server-setting fallbacks
   CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: z.string().optional(),
   CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS: z.coerce.number().int().optional(),
@@ -137,14 +207,26 @@ const EnvSchema = z.object({
   CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: z
     .enum(["alter_update", "lightweight_update", "lightweight_update_force"])
     .default("alter_update"),
+  // Comma-separated tables whose DELETE FROM always runs with
+  // lightweight_delete_mode = 'alter_update'.
+  CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE_EXCLUDED_TABLES:
+    optionalCommaSeparatedLowercase,
   CLICKHOUSE_USE_LIGHTWEIGHT_UPDATE: z.enum(["true", "false"]).default("false"),
   CLICKHOUSE_UPDATE_PARALLEL_MODE: z
     .enum(["sync", "async", "auto"])
     .default("auto"),
-  // Workaround for ClickHouse analyzer/lazy materialization bugs. In "auto",
-  // Langfuse detects the ClickHouse version on startup and applies known
-  // compatibility settings for affected version bands.
+  // Workarounds for ClickHouse version-specific parser and analyzer bugs. In
+  // "auto", Langfuse detects the ClickHouse version on startup and applies
+  // known compatibility settings for affected version bands.
   CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: z
+    .enum(["auto", "true", "false"])
+    .default("auto"),
+  CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: z
+    .enum(["auto", "true", "false"])
+    .default("auto"),
+  // Read-time skip-index evaluation, applied only from the version that fixes
+  // the patch-part read bug. See the compatibility rule for details.
+  CLICKHOUSE_ENABLE_SKIP_INDEXES_ON_DATA_READ: z
     .enum(["auto", "true", "false"])
     .default("auto"),
   CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
@@ -191,13 +273,70 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_TOPICS_TRACE_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
   LANGFUSE_CODE_EVAL_EXECUTION_QUEUE_SHARD_COUNT: z.coerce
     .number()
     .positive()
     .default(1),
   LANGFUSE_CODE_EVAL_DISPATCHER: z
-    .enum(["insecure-local", "aws-lambda"])
+    .enum(["insecure-local", "aws-lambda", "external"])
     .optional(),
+  LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT: z.string().optional(),
+  LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET: z.string().min(32).optional(),
+  LANGFUSE_CODE_EVAL_EXTERNAL_HEADERS: z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      if (value == null || value.trim() === "") return {};
+
+      let json: unknown;
+      try {
+        json = JSON.parse(value);
+      } catch {
+        json = undefined;
+      }
+      const parsed = z.record(z.string(), z.string()).safeParse(json);
+      if (!parsed.success) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "LANGFUSE_CODE_EVAL_EXTERNAL_HEADERS must be a JSON object of string header names and values",
+        });
+        return z.NEVER;
+      }
+      return parsed.data;
+    }),
+  LANGFUSE_CODE_EVAL_EXTERNAL_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(15_000)
+    .default(10_000),
+  LANGFUSE_CODE_EVAL_EXTERNAL_CONNECT_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .max(15_000)
+    .default(3_000),
+  LANGFUSE_CODE_EVAL_EXTERNAL_MAX_ATTEMPTS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .default(3),
+  LANGFUSE_CODE_EVAL_EXTERNAL_LANGUAGES: z
+    .string()
+    .default("PYTHON,TYPESCRIPT")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((language) => language.trim().toUpperCase())
+        .filter(Boolean),
+    )
+    .pipe(z.array(z.enum(["PYTHON", "TYPESCRIPT"])).min(1)),
   LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: z.string().optional(),
   LANGFUSE_CODE_EVAL_AWS_LAMBDA_NODE_FUNCTION_NAME: z
     .string()
@@ -219,7 +358,24 @@ const EnvSchema = z.object({
     .number()
     .nonnegative()
     .default(5_000),
+  LANGFUSE_LARGE_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform(
+      (value) =>
+        new Set(
+          value
+            .split(",")
+            .map((id) => id.trim())
+            .filter(Boolean),
+        ),
+    ),
   LANGFUSE_DELETE_SKIP_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
+  // Has no effect in events_only mode, where the v3 experience cannot work.
+  LANGFUSE_FORCE_V3_EXPERIENCE: z
     .string()
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
@@ -238,6 +394,12 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_S3_CONCURRENT_WRITES: z.coerce.number().positive().default(50),
+  LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(2_147_483_647)
+    .default(2_000),
   LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED: z
     .enum(["true", "false"])
     .default("false"),
@@ -264,10 +426,21 @@ const EnvSchema = z.object({
   LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_EVENT_KEY_MAX_SEGMENT_BYTES:
     langfuseS3EventKeyMaxSegmentBytesSchema,
+  LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(100),
+  LANGFUSE_OTEL_MEDIA_UPLOAD_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(128 * 1024 * 1024),
   LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: z
@@ -275,6 +448,14 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30_000),
+  // Intermediate role that customer storage roles trust. Integrations can use
+  // IAM role auth only when this is set.
+  LANGFUSE_CROSS_ACCOUNT_ROLE_ARN: z.string().optional(),
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
   LANGFUSE_AZURE_SKIP_CONTAINER_CHECK: z
     .enum(["true", "false"])
@@ -345,8 +526,6 @@ const EnvSchema = z.object({
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_S3_CORE_DATA_EXPORT_SSE: z.enum(["AES256", "aws:kms"]).optional(),
-  LANGFUSE_S3_CORE_DATA_EXPORT_SSE_KMS_KEY_ID: z.string().optional(),
   LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -354,11 +533,26 @@ const EnvSchema = z.object({
   LANGFUSE_CUSTOM_SSO_EMAIL_CLAIM: z.string().default("email"),
   LANGFUSE_CUSTOM_SSO_NAME_CLAIM: z.string().default("name"),
   LANGFUSE_CUSTOM_SSO_SUB_CLAIM: z.string().default("sub"),
+  LANGFUSE_CUSTOM_SSO_IMAGE_CLAIM: z.string().default("picture"),
   LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES: z.coerce
     .number()
     .default(80e6), // 80MB
+  // How many observations the trace detail view loads (startTime ASC, so the
+  // chronological tail is what a bigger trace loses). Also a crash guard: the
+  // client builds one node per observation before it renders.
+  LANGFUSE_MAX_OBSERVATIONS_PER_TRACE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20_000),
   LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(600_000), // 10 minutes
   LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().default(3), // Maximum attempts for socket hang up errors
+  // Sends ClickHouse query() parameters as multipart/form-data body parts
+  // instead of URL query-string entries, so parameter values stay out of
+  // request URLs (proxy access logs, HTTP client spans).
+  LANGFUSE_CLICKHOUSE_MULTIPART_QUERY_PARAMS: z
+    .enum(["true", "false"])
+    .default("true"),
   LANGFUSE_SKIP_S3_LIST_FOR_OBSERVATIONS_PROJECT_IDS: z.string().optional(),
   LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: z
     .string()
@@ -410,6 +604,11 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, webhook URLs must use one of these hosts. Distinct from
+  // LANGFUSE_WEBHOOK_WHITELISTED_HOST, which only exempts a host from the
+  // private-address block. Does not apply to other callers of that exemption
+  // list. Entries are exact hostnames (no scheme or port; IPv6 in brackets).
+  LANGFUSE_WEBHOOK_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -428,6 +627,14 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, every outbound LLM request must use one of these hosts,
+  // including provider default hosts and Langfuse AI. Bedrock checks
+  // bedrock-runtime.<region>.<partition>, or the host of
+  // AWS_ENDPOINT_URL_BEDROCK_RUNTIME / AWS_ENDPOINT_URL when one of those is
+  // set. AI Gateway Bedrock connections also call bedrock.<region>.amazonaws.com
+  // to test credentials and list models. Ignored on Langfuse Cloud, same as the
+  // LLM exemption list above.
+  LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -446,6 +653,87 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, blob storage export endpoints must use one of these hosts,
+  // and blob endpoint validation is on. Listed hosts may resolve to private
+  // addresses. Bucket names under a listed host ({bucket}.{host}) are allowed
+  // too, but still may not resolve to a private address unless it is in
+  // LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS / _IP_SEGMENTS; private
+  // S3-compatible stores can use path-style instead. S3 exports without a
+  // custom endpoint connect to s3.<region>.amazonaws.com, which must then be
+  // listed; region "auto" first connects to s3.us-east-1.amazonaws.com. S3
+  // exports using host credentials (web identity or an assumed role) also
+  // call sts.<region>.amazonaws.com through the same check, so list it too.
+  // GCS exports always connect to Google and are not checked. Ignored on
+  // Langfuse Cloud.
+  LANGFUSE_BLOB_STORAGE_ENDPOINT_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IPS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  // When non-empty, external media storage endpoints must use one of these
+  // hosts. Ignored on Langfuse Cloud.
+  LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_ALLOWED_HOSTS:
+    optionalCommaSeparatedLowercase,
+  // Buckets that keyless GOOGLE_CLOUD_STORAGE blob exports (default credentials,
+  // no service account key) may write to. Those run as the deployment's own GCP
+  // identity (ADC), so without this allowlist any project owner could export into
+  // any bucket that identity can write. Empty disables keyless GCS exports;
+  // exports with a service account key are unaffected.
+  LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s
+        ? s
+            .split(",")
+            .map((s) => s.toLowerCase().trim())
+            .filter(Boolean)
+        : [],
+    ),
+  LANGFUSE_SSO_DISCOVERY_WHITELISTED_IPS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_SSO_DISCOVERY_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  // Extra CIDR ranges merged into the private-address block for outbound URL
+  // checks that already run. Blob storage stays opt-in: these ranges apply
+  // there only when a blob endpoint exemption or allowed-hosts list turns
+  // blob endpoint validation on. Exemptions
+  // in the per-surface *_WHITELISTED_* lists still win.
+  LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS: optionalCommaSeparatedLowercase.refine(
+    (segments) => segments.every(isCidr),
+    {
+      message:
+        "LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS must be a comma-separated list of CIDR ranges",
+    },
+  ),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
@@ -477,83 +765,76 @@ const EnvSchema = z.object({
     .positive()
     .default(3_600_000), // 60 minutes
 
-  LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
-    .number()
-    .positive()
-    .default(10),
-
   LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS: z.coerce
     .number()
     .int()
     .positive()
     .default(DEFAULT_LLM_COMPLETION_TIMEOUT_MS), // 2 minutes
 
-  LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
-  LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
-  LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
-  // Ambient AWS profile of the host process; the in-app agent prefers it over
-  // the configured Bedrock profile so local dev credentials win.
+  // LANGFUSE_AI_PROVIDER is optional at boot. Unset means unconfigured;
+  // bedrock requires LANGFUSE_AI_PROVIDER=bedrock.
+  // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
+  // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
+  // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
+  // LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
+  // LANGFUSE_AI_VERTEX_LOCATION applies to vertex only; like bedrock, vertex
+  // authenticates through the instance credential chain (GCP application
+  // default credentials) and takes no key.
+  LANGFUSE_AI_PROVIDER: z
+    .enum(["bedrock", "anthropic", "openai", "vertex"])
+    .optional(),
+  LANGFUSE_AI_MODEL: z.string().optional(),
+  LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
+  LANGFUSE_AI_API_KEY: z.string().optional(),
+  LANGFUSE_AI_BASE_URL: z.string().optional(),
+  LANGFUSE_AI_USE_RESPONSES_API: z.enum(["true", "false"]).optional(),
+  LANGFUSE_AI_EXTRA_HEADERS: z
+    .string()
+    .optional()
+    .refine(
+      (value) => {
+        if (value == null || value.trim() === "") {
+          return true;
+        }
+
+        try {
+          z.record(z.string(), z.string()).parse(JSON.parse(value));
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      {
+        message:
+          "LANGFUSE_AI_EXTRA_HEADERS must be a JSON object of string header names and values",
+      },
+    ),
+  LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
+  // Cloud runtime credentials require an operator-provisioned connection.
+  LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  // Local AI credentials; production normally uses the AWS role chain.
   AWS_PROFILE: z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
-    .enum(["dangerous-docker", "lambda-microvm"])
+  LANGFUSE_AI_FEATURES_AWS_PROFILE: z.string().optional(),
+  // Legacy local profile alias.
+  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
+  LANGFUSE_AI_VERTEX_LOCATION: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
+  LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z
+    .enum(["url", "inline", "disabled"])
     .optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER: z
-    .string()
-    .optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN: z
-    .string()
-    .optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN:
-    z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: z
-    .string()
-    .optional(),
-  LANGFUSE_IN_APP_AGENT_HEARTBEAT_INTERVAL_MS: z.coerce
+  LANGFUSE_EVALUATOR_MEDIA_INLINE_MAX_BYTES: z.coerce
     .number()
     .int()
     .positive()
-    .default(5_000),
-  LANGFUSE_IN_APP_AGENT_HEARTBEAT_STALE_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(60_000),
-  LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(5 * 60_000),
-  LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(15 * 60_000),
-  LANGFUSE_IN_APP_AGENT_APPROVAL_TTL_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(24 * 60 * 60_000),
-  LANGFUSE_IN_APP_AGENT_WATCH_TAIL_POLL_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(1_000),
-  LANGFUSE_IN_APP_AGENT_WATCH_KEEPALIVE_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(15_000),
-  LANGFUSE_IN_APP_AGENT_WATCH_RECONCILE_INTERVAL_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(5_000),
-  LANGFUSE_IN_APP_AGENT_WATCH_MAX_CONNECTION_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(90_000),
+    .default(20_000_000),
 
   // API Performance Flags
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.
@@ -566,6 +847,20 @@ const EnvSchema = z.object({
   LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
     .enum(["true", "false"])
     .default("false"),
+  // Comma-separated project ids whose scores are never updated after ingestion.
+  // Reads of the scores table skip deduplication (FINAL / LIMIT 1 BY) for them.
+  LANGFUSE_SKIP_SCORES_DEDUP_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform(
+      (value) =>
+        new Set(
+          value
+            .split(",")
+            .map((id) => id.trim())
+            .filter(Boolean),
+        ),
+    ),
 
   // Langfuse AI Features
   LANGFUSE_AI_FEATURES_PUBLIC_KEY: z.string().optional(),
@@ -589,6 +884,10 @@ const EnvSchema = z.object({
   // EE License
   LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
 
+  // FIPS mode (EE feature): refuse to start without an enterprise license or
+  // an active OpenSSL FIPS provider. See server/ee/fips.
+  LANGFUSE_REQUIRE_FIPS: z.enum(["true", "false"]).default("false"),
+
   // Ingestion Masking (EE feature)
   LANGFUSE_INGESTION_MASKING_CALLBACK_URL: z.url().optional(),
   LANGFUSE_INGESTION_MASKING_CALLBACK_TIMEOUT_MS: z.coerce
@@ -610,9 +909,105 @@ const EnvSchema = z.object({
     ),
 });
 
+const ValidatedEnvSchema = EnvSchema.superRefine((env, ctx) => {
+  if (env.LANGFUSE_CODE_EVAL_DISPATCHER !== "external") return;
+
+  if (!env.LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET"],
+      message:
+        "LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET is required when LANGFUSE_CODE_EVAL_DISPATCHER=external",
+    });
+  }
+
+  let endpoint: URL | undefined;
+  try {
+    endpoint = parseOutboundUrl(env.LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT ?? "");
+  } catch {
+    endpoint = undefined;
+  }
+  if (!endpoint || !["http:", "https:"].includes(endpoint.protocol)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT"],
+      message:
+        "LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT must be an http(s) URL without credentials when LANGFUSE_CODE_EVAL_DISPATCHER=external",
+    });
+  }
+});
+
 export type SharedEnv = z.infer<typeof EnvSchema>;
+
+const validateClickhouseAuth = (
+  values: SharedEnv,
+  ctx: z.RefinementCtx,
+): void => {
+  if (values.CLICKHOUSE_AUTH_MODE === "password") {
+    for (const key of ["CLICKHOUSE_USER", "CLICKHOUSE_PASSWORD"] as const) {
+      if (values[key] === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: [key],
+          message: `${key} is required when CLICKHOUSE_AUTH_MODE is password`,
+        });
+      }
+    }
+    return;
+  }
+
+  const sources = (
+    [
+      "CLICKHOUSE_JWT_TOKEN",
+      "CLICKHOUSE_JWT_TOKEN_FILE",
+      "CLICKHOUSE_JWT_TOKEN_URL",
+    ] as const
+  ).filter((key) => values[key] !== undefined);
+  if (sources.length !== 1) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["CLICKHOUSE_AUTH_MODE"],
+      message: `CLICKHOUSE_AUTH_MODE jwt needs exactly one of CLICKHOUSE_JWT_TOKEN, CLICKHOUSE_JWT_TOKEN_FILE or CLICKHOUSE_JWT_TOKEN_URL, found ${sources.length === 0 ? "none" : sources.join(", ")}`,
+    });
+  }
+  if (values.CLICKHOUSE_JWT_TOKEN_URL !== undefined) {
+    // The request carries the client secret and the response the token.
+    const tokenUrl = URL.parse(values.CLICKHOUSE_JWT_TOKEN_URL);
+    const isLocalHttp =
+      tokenUrl?.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(tokenUrl.hostname);
+    if (tokenUrl?.protocol !== "https:" && !isLocalHttp) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["CLICKHOUSE_JWT_TOKEN_URL"],
+        message: "CLICKHOUSE_JWT_TOKEN_URL must use https, except on localhost",
+      });
+    }
+    if (values.CLICKHOUSE_JWT_CLIENT_ID === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["CLICKHOUSE_JWT_CLIENT_ID"],
+        message:
+          "CLICKHOUSE_JWT_CLIENT_ID is required when CLICKHOUSE_JWT_TOKEN_URL is set",
+      });
+    }
+    if (
+      (values.CLICKHOUSE_JWT_CLIENT_SECRET === undefined) ===
+      (values.CLICKHOUSE_JWT_CLIENT_SECRET_FILE === undefined)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["CLICKHOUSE_JWT_CLIENT_SECRET"],
+        message:
+          "CLICKHOUSE_JWT_TOKEN_URL needs exactly one of CLICKHOUSE_JWT_CLIENT_SECRET or CLICKHOUSE_JWT_CLIENT_SECRET_FILE",
+      });
+    }
+  }
+};
 
 export const env: SharedEnv =
   process.env.DOCKER_BUILD === "1" // eslint-disable-line turbo/no-undeclared-env-vars
     ? (process.env as any)
-    : EnvSchema.parse(removeEmptyEnvVariables(process.env));
+    : ValidatedEnvSchema.superRefine(validateClickhouseAuth).parse(
+        removeEmptyEnvVariables(process.env),
+      );

@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { Button } from "@/src/components/ui/button";
-import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
 import { useEffect, useState } from "react";
 import {
@@ -12,19 +13,21 @@ import {
 } from "@/src/components/ui/dialog";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   useLangfuseCloudRegion,
   useQueryOrganization,
 } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
-import { LockIcon, ExternalLink } from "lucide-react";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
+import { AIFeatureSettingRow } from "@/src/features/organizations/components/AIFeatureSettingRow";
 
 export default function AIFeatureSwitch() {
-  const { update: updateSession } = useSession();
+  const { data: session, update: updateSession } = useSession();
   const utils = api.useUtils();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const aiFeaturesTracingConfigured =
+    session?.environment.aiFeaturesTracingConfigured === true;
   const capture = usePostHogClientCapture();
   const organization = useQueryOrganization();
   const aiFeaturesEnabled = organization?.aiFeaturesEnabled;
@@ -44,8 +47,6 @@ export default function AIFeatureSwitch() {
   const updateAIFeatures = api.organizations.update.useMutation({
     onSuccess: async () => {
       await updateSession();
-      // Admins resolve org context from this query, not the session
-      utils.organizations.byId.invalidate();
       setConfirmOpen(false);
     },
     onError: () => {
@@ -56,8 +57,7 @@ export default function AIFeatureSwitch() {
   const updateAITelemetry = api.organizations.update.useMutation({
     onSuccess: async () => {
       await updateSession();
-      // Admins resolve org context from this query, not the session
-      utils.organizations.byId.invalidate();
+      utils.inAppAgent.telemetryProject.invalidate();
     },
     onError: () => {
       setIsAITelemetrySwitchEnabled(aiTelemetryEnabled ?? true);
@@ -114,72 +114,52 @@ export default function AIFeatureSwitch() {
     });
   }
 
-  if (!isLangfuseCloud) return null;
-
   return (
     <div>
       <Header title="AI Features" />
       <Card className="mb-4 p-3">
-        <div className="flex flex-row items-center justify-between">
-          <div className="flex flex-col gap-1">
-            <h4 className="font-bold">
-              Enable AI powered features for your organization
-            </h4>
-            <p className="text-sm">
-              This setting applies to all users and projects. Any data{" "}
-              <i>can</i> be sent to AWS Bedrock within the Langfuse data region.
-              Traces are sent to Langfuse Cloud in your data region. Your data
-              will not be used for training models. Applicable HIPAA, SOC2,
-              GDPR, and ISO 27001 compliance remains intact.{" "}
-              <a
-                href="https://langfuse.com/security/ai-features"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary inline-flex items-center gap-1 hover:underline"
-              >
-                More details in the docs here.
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </p>
-          </div>
-          <div className="relative">
-            <Switch
-              checked={isAIFeatureSwitchEnabled}
-              onCheckedChange={handleSwitchChange}
-              disabled={!hasAccess}
-            />
-            {!hasAccess && (
-              <span title="No access">
-                <LockIcon className="text-muted absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
-              </span>
-            )}
-          </div>
-        </div>
-        {isAIFeatureSwitchEnabled && (
-          <div className="mt-4 flex flex-row items-center justify-between border-t pt-4">
-            <div className="flex flex-col gap-1">
-              <h4 className="font-bold">
-                AI Data Use for Product/Service Improvement
-              </h4>
-              <p className="text-sm">
-                Share data about your use of AI with Langfuse for product and
-                service improvement.
-              </p>
-            </div>
-            <div className="relative">
-              <Switch
+        <AIFeatureSettingRow
+          title="Enable AI powered features for your organization"
+          description={
+            isLangfuseCloud ? (
+              <>
+                This setting applies to all users and projects. Any data{" "}
+                <i>can</i> be sent to AWS Bedrock within the Langfuse data
+                region. Your data will not be used to train models. Applicable
+                HIPAA, SOC2, GDPR, and ISO 27001 compliance remains intact.{" "}
+                <a
+                  href="https://langfuse.com/security/ai-features"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary inline-flex items-center gap-1 hover:underline"
+                >
+                  More details in the docs here.
+                  <SquareArrowOutUpRight size="sm" />
+                </a>
+              </>
+            ) : (
+              "This setting applies to all users and projects. When enabled, Halo can send relevant project data to the model provider configured by your instance administrator."
+            )
+          }
+          checked={isAIFeatureSwitchEnabled}
+          onCheckedChange={handleSwitchChange}
+          disabled={!hasAccess}
+          locked={!hasAccess}
+        />
+        {isLangfuseCloud &&
+          isAIFeatureSwitchEnabled &&
+          aiFeaturesTracingConfigured && (
+            <div className="mt-4 border-t pt-4">
+              <AIFeatureSettingRow
+                title="AI Data Use for Product/Service Improvement"
+                description="Share data about your use of AI with Langfuse for product and service improvement."
                 checked={isAITelemetrySwitchEnabled}
                 onCheckedChange={handleTelemetrySwitchChange}
                 disabled={!hasAccess || updateAITelemetry.isPending}
+                locked={!hasAccess}
               />
-              {!hasAccess && (
-                <span title="No access">
-                  <LockIcon className="text-muted absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
-                </span>
-              )}
             </div>
-          </div>
-        )}
+          )}
       </Card>
 
       <Dialog
@@ -200,20 +180,27 @@ export default function AIFeatureSwitch() {
               <strong>
                 {isAIFeatureSwitchEnabled ? "enable " : "disable"}
               </strong>{" "}
-              AI features for your organization. When enabled, any data{"  "}
-              <i>can</i> be sent to AWS Bedrock in your data region for
-              processing.
-              <br />
-              <br />{" "}
-              <a
-                href="https://langfuse.com/security/ai-features"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary inline-flex items-center gap-1 hover:underline"
-              >
-                Learn more in the docs.
-                <ExternalLink className="h-3 w-3" />
-              </a>
+              AI features for your organization. When enabled, relevant data can
+              be sent{" "}
+              {isLangfuseCloud
+                ? "to AWS Bedrock in your data region"
+                : "to the model provider configured by your instance administrator"}{" "}
+              for processing.
+              {isLangfuseCloud && (
+                <>
+                  <br />
+                  <br />{" "}
+                  <a
+                    href="https://langfuse.com/security/ai-features"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary inline-flex items-center gap-1 hover:underline"
+                  >
+                    Learn more in the docs.
+                    <SquareArrowOutUpRight size="sm" />
+                  </a>
+                </>
+              )}
             </span>
             <p className="text-muted-foreground mt-3 text-sm">
               Are you sure you want to proceed?

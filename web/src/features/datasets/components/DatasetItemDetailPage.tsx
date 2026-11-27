@@ -1,37 +1,41 @@
-import Page from "@/src/components/layouts/page";
+/* eslint-disable no-nested-ternary */
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import Page from "@/src/components/layouts/Page";
+import { ActionButton } from "@/src/components/ActionButton";
 import { Button } from "@/src/components/ui/button";
-import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
+import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
-import { ListTree, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import {
+  CopyIcon,
+  ListTree,
+  MoreVertical,
+  Pencil,
+  Trash2,
+} from "@langfuse/icons";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { DatasetStatus } from "@langfuse/shared";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   getDatasetItemTabs,
   DATASET_ITEM_TABS,
+  type DatasetItemTab,
 } from "@/src/features/navigation/utils/dataset-item-tabs";
-import { type DatasetItemTab } from "@/src/features/navigation/utils/dataset-item-tabs";
+
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { type ReactNode } from "react";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { EditDatasetItemDialog } from "@/src/features/datasets/components/EditDatasetItemDialog";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 import { toDatasetSchema } from "@/src/features/datasets/utils/datasetItemUtils";
+
 export const DatasetItemDetailPage = ({
   activeTab,
   withPadding = true,
@@ -60,10 +64,16 @@ export const DatasetItemDetailPage = ({
     (tab) => !isExperimentsBetaActive || tab.value !== DATASET_ITEM_TABS.RUNS,
   );
 
-  const dataset = api.datasets.byId.useQuery({
-    datasetId,
-    projectId,
-  });
+  const routeReady =
+    Boolean(projectId) && Boolean(datasetId) && Boolean(itemId);
+
+  const dataset = api.datasets.byId.useQuery(
+    {
+      datasetId,
+      projectId,
+    },
+    { enabled: routeReady },
+  );
   const item = api.datasets.itemByIdAtVersion.useQuery(
     {
       datasetId,
@@ -71,6 +81,7 @@ export const DatasetItemDetailPage = ({
       datasetItemId: itemId,
     },
     {
+      enabled: routeReady,
       refetchOnWindowFocus: false, // breaks dirty form state
     },
   );
@@ -123,6 +134,26 @@ export const DatasetItemDetailPage = ({
       });
     }
   };
+
+  const datasetItemDialogPayload = item.data
+    ? {
+        fromDatasetId: item.data.datasetId,
+        traceId: item.data.sourceTraceId ?? undefined,
+        observationId: item.data.sourceObservationId ?? undefined,
+        input: JSON.stringify(item.data.input),
+        output: JSON.stringify(item.data.expectedOutput),
+        metadata: JSON.stringify(item.data.metadata),
+      }
+    : null;
+
+  const actionDisabledReason = (() => {
+    if (!hasAccess)
+      return "You do not have permission to modify dataset items.";
+    if (isViewingOldVersion)
+      return "Select the latest version to modify this item.";
+    if (!item.data) return "Dataset item is not available.";
+    return undefined;
+  })();
 
   return (
     <Page
@@ -197,7 +228,7 @@ export const DatasetItemDetailPage = ({
                   href={`/project/${projectId}/traces/${item.data.sourceTraceId}`}
                   title={`View source ${item.data.sourceObservationId ? "observation" : "trace"}`}
                 >
-                  <ListTree className="h-4 w-4" />
+                  <ListTree size="sm" color="default" />
                 </Link>
               </Button>
             )}
@@ -212,50 +243,67 @@ export const DatasetItemDetailPage = ({
               }
               listKey="datasetItems"
             />
-            {item.data ? (
-              <NewDatasetItemFromExistingObject
+            {datasetItemDialogPayload ? (
+              <NewDatasetItemFromExistingObjectDialogController
                 projectId={projectId}
-                fromDatasetId={item.data.datasetId}
-                traceId={item.data.sourceTraceId ?? undefined}
-                observationId={item.data.sourceObservationId ?? undefined}
-                input={JSON.stringify(item.data.input)}
-                output={JSON.stringify(item.data.expectedOutput)}
-                metadata={JSON.stringify(item.data.metadata)}
-                isCopyItem
-              />
+              >
+                {({ openDialog }) => (
+                  <ActionButton
+                    variant="outline"
+                    size="icon"
+                    hasAccess={hasAccess}
+                    title="Copy item"
+                    aria-label="Copy item"
+                    onClick={() => openDialog(datasetItemDialogPayload)}
+                  >
+                    <CopyIcon size="sm" color="default" />
+                  </ActionButton>
+                )}
+              </NewDatasetItemFromExistingObjectDialogController>
             ) : (
               <Button variant="outline" size="icon" disabled>
                 <Skeleton className="h-5 w-5" />
               </Button>
             )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <MoreVertical className="h-4 w-4" />
+            <DropdownMenu
+              items={[
+                {
+                  type: "item",
+                  id: "edit",
+                  title: "Edit",
+                  icon: Pencil,
+                  onClick: () => setEditDialogOpen(true),
+                  disabled: actionDisabledReason
+                    ? { reason: actionDisabledReason }
+                    : undefined,
+                },
+                {
+                  type: "item",
+                  id: "delete",
+                  title: mutDelete.isPending ? "Deleting..." : "Delete",
+                  icon: Trash2,
+                  variant: "destructive",
+                  onClick: handleDelete,
+                  disabled:
+                    actionDisabledReason || mutDelete.isPending
+                      ? {
+                          reason:
+                            actionDisabledReason ?? "Deletion in progress.",
+                        }
+                      : undefined,
+                },
+              ]}
+            >
+              {({ getTriggerProps }) => (
+                <Button
+                  {...getTriggerProps()}
+                  variant="outline"
+                  size="icon"
+                  aria-label="Item actions"
+                >
+                  <MoreVertical size="base" color="default" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
-                <DropdownMenuItem
-                  onClick={() => setEditDialogOpen(true)}
-                  disabled={!hasAccess || isViewingOldVersion || !item.data}
-                >
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={handleDelete}
-                  disabled={
-                    !hasAccess ||
-                    mutDelete.isPending ||
-                    isViewingOldVersion ||
-                    !item.data
-                  }
-                  className="text-destructive"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  {mutDelete.isPending ? "Deleting..." : "Delete"}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
+              )}
             </DropdownMenu>
           </>
         ),

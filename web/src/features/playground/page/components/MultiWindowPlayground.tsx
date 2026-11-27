@@ -1,21 +1,22 @@
+/* eslint-disable @repo/no-null-render -- Legacy UI usage retained during migration to design-system components. */
 import React, { useMemo, useCallback, useRef, useEffect } from "react";
-import { PlaygroundProvider } from "../context";
+import {
+  PlaygroundProvider,
+  usePlaygroundContext,
+} from "../context/PlaygroundProvider";
 import { SaveToPromptButton } from "./SaveToPromptButton";
+import { SourcePromptHeading } from "./SourcePromptHeading";
 import { Button } from "@/src/components/ui/button";
-import { Plus, X } from "lucide-react";
+import { Plus, Save, X } from "@langfuse/icons";
+import { PopoverTrigger } from "@/src/components/ui/popover";
 import { MULTI_WINDOW_CONFIG, type MultiWindowState } from "../types";
 import { ModelParameters } from "@/src/components/ModelParameters";
-import { usePlaygroundContext } from "../context";
 import { Messages } from "@/src/features/playground/page/components/Messages";
 import { ConfigurationDropdowns } from "@/src/features/playground/page/components/ConfigurationDropdowns";
-import { useMessageSearchActions } from "@/src/components/ChatMessages/MessageSearch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { useMessageSearchActions } from "@/src/components/ChatMessages/messageSearch/context";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { useIsMobile } from "@/src/hooks/use-mobile";
+import { getMessagesFingerprint } from "@/src/features/playground/page/utils/messagesFingerprint";
 
 /**
  * MultiWindowPlayground Component
@@ -157,6 +158,15 @@ function PlaygroundWindowContent({
   const { registerPageTarget, unregisterPageTarget } =
     useMessageSearchActions();
   const windowContainerRef = useRef<HTMLDivElement | null>(null);
+  const { messages, sourcePrompt } = playgroundContext;
+
+  const isSourcePromtEdited = useMemo(
+    () =>
+      Boolean(sourcePrompt) &&
+      getMessagesFingerprint(messages) !==
+        sourcePrompt?.initialMessagesFingerprint,
+    [messages, sourcePrompt],
+  );
 
   const handleRemove = useCallback(() => {
     onRemove(windowId);
@@ -181,63 +191,80 @@ function PlaygroundWindowContent({
       ref={windowContainerRef}
       className="playground-window bg-background @container flex h-full min-w-0 flex-col rounded-lg border shadow-xs"
     >
-      {/* Window Header */}
-      <div className="bg-muted/50 relative shrink-0 border-b px-3 py-1">
-        <div className="flex items-center pr-32 @xl:pr-96">
+      <div className="bg-muted/50 shrink-0 border-b">
+        <div className="relative flex items-center py-1 pr-32 pl-3 @xl:pr-96">
           <div className="flex items-center gap-2">
             <ModelParameters {...playgroundContext} layout="compact" />
           </div>
 
           <div className="absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-2">
-            <TooltipProvider delayDuration={300}>
-              <SaveToPromptButton />
-
-              {/* Hide copy button on mobile */}
-              {!isMobile && (
-                <>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        onClick={handleCopy}
-                        className="h-7 gap-1.5 px-2.5 text-xs @xl:hidden"
-                      >
-                        <Plus size={14} />
-                        <span className="sr-only">New split window</span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className="text-xs">
-                      New split window
-                    </TooltipContent>
-                  </Tooltip>
-                  <Button
-                    variant="outline"
-                    onClick={handleCopy}
-                    className="hidden h-7 gap-1.5 px-2.5 text-xs @xl:flex"
-                  >
-                    <Plus size={14} />
-                    <span>New split window</span>
-                  </Button>
-                </>
-              )}
-              {canRemove && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
+            <SaveToPromptButton>
+              <Tooltip label="Save as prompt" delay={300}>
+                {({ getTriggerProps }) => (
+                  <PopoverTrigger asChild>
                     <Button
-                      variant="ghost"
-                      onClick={handleRemove}
-                      className="hover:bg-destructive/10 hover:text-destructive h-6 w-6 p-0"
+                      {...getTriggerProps()}
+                      variant="outline"
+                      className="h-7 gap-1.5 px-2.5 text-xs @xl:hidden"
                     >
-                      <X size={14} />
-                      <span className="sr-only">Remove window</span>
+                      <Save size="base" color="default" />
+                      <span className="sr-only">Save as prompt</span>
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent className="text-xs">
-                    Remove window
-                  </TooltipContent>
+                  </PopoverTrigger>
+                )}
+              </Tooltip>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="hidden h-7 gap-1.5 px-2.5 text-xs @xl:flex"
+                >
+                  <Save size="base" color="default" />
+                  <span>Save as prompt</span>
+                </Button>
+              </PopoverTrigger>
+            </SaveToPromptButton>
+
+            {/* Hide copy button on mobile */}
+            {!isMobile && (
+              <>
+                <Tooltip label="New split window" delay={300}>
+                  {({ getTriggerProps }) => (
+                    <Button
+                      {...getTriggerProps()}
+                      variant="outline"
+                      onClick={handleCopy}
+                      className="h-7 gap-1.5 px-2.5 text-xs @xl:hidden"
+                    >
+                      <Plus size="base" color="default" />
+                      <span className="sr-only">New split window</span>
+                    </Button>
+                  )}
                 </Tooltip>
-              )}
-            </TooltipProvider>
+                <Button
+                  variant="outline"
+                  onClick={handleCopy}
+                  className="hidden h-7 gap-1.5 px-2.5 text-xs @xl:flex"
+                >
+                  <Plus size="base" color="default" />
+                  <span>New split window</span>
+                </Button>
+              </>
+            )}
+            {canRemove && (
+              <Tooltip label="Remove window" delay={300}>
+                {({ getTriggerProps }) => (
+                  <Button
+                    {...getTriggerProps()}
+                    variant="ghost"
+                    onClick={handleRemove}
+                    className="hover:bg-destructive/10 hover:text-destructive h-6 w-6 p-0"
+                  >
+                    <X size="base" />
+                    <span className="sr-only">Remove window</span>
+                  </Button>
+                )}
+              </Tooltip>
+            )}
           </div>
         </div>
       </div>
@@ -247,7 +274,15 @@ function PlaygroundWindowContent({
         <div className="flex h-full flex-col">
           <ConfigurationDropdowns />
 
-          <div className="flex-1 overflow-auto p-4">
+          <div className="relative flex-1 overflow-auto p-4">
+            {playgroundContext.sourcePrompt && (
+              <div className="absolute top-1 flex max-w-[calc(100%-4rem)] justify-end">
+                <SourcePromptHeading
+                  sourcePrompt={playgroundContext.sourcePrompt}
+                  isEdited={isSourcePromtEdited}
+                />
+              </div>
+            )}
             <Messages {...playgroundContext} />
           </div>
         </div>

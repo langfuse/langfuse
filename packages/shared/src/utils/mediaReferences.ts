@@ -2,9 +2,6 @@ import { JSONPath } from "jsonpath-plus";
 
 import { MediaReferenceStringSchema } from "./IORepresentation/chatML/types";
 
-// Matches the format parsed by MediaReferenceStringSchema.
-export const MEDIA_REFERENCE_PATTERN = /@@@langfuseMedia:.+?@@@/g;
-
 /**
  * Scans a JSON value for `@@@langfuseMedia:...@@@` reference strings and
  * returns each occurrence with the JSONPath of the containing string.

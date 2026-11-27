@@ -1,12 +1,13 @@
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 "use client";
 
 import * as React from "react";
 import { useMediaQuery } from "react-responsive";
-import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { PanelRightClose, PanelRightOpen } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
-import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
+import { ResizableSplitLayout } from "@/src/components/ui/ResizableSplitLayout";
 
 // --- Toggle Button ---
 
@@ -31,9 +32,9 @@ const OverviewPanelToggle = React.forwardRef<
     {...props}
   >
     {open ? (
-      <PanelRightClose className="h-4 w-4" />
+      <PanelRightClose size="base" color="default" />
     ) : (
-      <PanelRightOpen className="h-4 w-4" />
+      <PanelRightOpen size="base" color="default" />
     )}
   </Button>
 ));
@@ -210,13 +211,4 @@ const OverviewPanelSection = React.forwardRef<
 ));
 OverviewPanelSection.displayName = "OverviewPanelSection";
 
-export {
-  OverviewPanelToggle,
-  OverviewPanelLayout,
-  OverviewPanel,
-  OverviewPanelHeader,
-  OverviewPanelContent,
-  OverviewPanelFooter,
-  OverviewPanelField,
-  OverviewPanelSection,
-};
+export { OverviewPanelToggle, OverviewPanelLayout };

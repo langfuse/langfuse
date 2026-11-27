@@ -13,6 +13,7 @@ import {
   type GetExperimentItemsV1QueryType,
   type GetExperimentsV1QueryType,
 } from "@/src/features/public-api/types/experiments";
+
 import {
   queryExperimentItemsForPublicApi,
   queryExperimentSummariesForPublicApi,
@@ -62,7 +63,7 @@ const scoreRecordsToV3 = (scores: ScoreRecordReadType[], projectId: string) => {
     try {
       items.push(toExperimentScoreV3(row));
     } catch (error) {
-      logger.error(
+      logger.warn(
         "experiments score row dropped from response: conversion error",
         {
           error,

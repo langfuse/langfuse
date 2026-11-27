@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { pushDownForInsertion } from "./grid-placement";
 
 const tile = (id: string, x: number, y: number, x_size = 6, y_size = 6) => ({

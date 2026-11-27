@@ -1,0 +1,466 @@
+/* eslint-disable no-nested-ternary */
+import {
+  assertUnreachable,
+  EvalTemplateType,
+  extractVariables,
+  InternalServerError,
+  observationVariableMappingList,
+  parseDecisionModelQuestions,
+  PersistedEvalOutputDefinitionSchema,
+  resolvePersistedEvalOutputDefinition,
+  variableMappingList,
+  type FilterState,
+  type ObservationVariableMapping,
+} from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
+import { EvaluatorDefinitionInputSchema } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import type { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+import type { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
+import {
+  EvaluationRule,
+  type CreateEvaluationRuleBodyType,
+} from "@/src/features/public-api/types/evaluation/evaluationRules";
+import {
+  Evaluator,
+  EvaluatorVersion,
+  type EvaluatorDefinitionType,
+} from "@/src/features/public-api/types/evaluation/evaluators";
+import {
+  LegacyPromptVariableMapping,
+  PublicEvaluationRuleReadFilter,
+  PUBLIC_EVALUATOR_TYPE_CODE,
+  PUBLIC_EVALUATOR_TYPE_DECISION_MODEL,
+  PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+  toInternalDecisionModelQuestion,
+  toPublicDecisionModelQuestion,
+  type LegacyPromptVariableMappingType,
+  type PromptVariableMappingInputType,
+  type PromptVariableMappingReadType,
+  type PublicEvaluatorOutputDefinitionType,
+} from "@/src/features/public-api/types/evaluation/publicEvalsContract";
+
+const PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN: Record<
+  PromptVariableMappingInputType["source"],
+  ObservationVariableMapping["selectedColumnId"]
+> = {
+  input: "input",
+  output: "output",
+  metadata: "metadata",
+  tool_calls: "toolCalls",
+  expected_output: "experimentItemExpectedOutput",
+  experiment_item_metadata: "experimentItemMetadata",
+};
+
+const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
+  string,
+  PromptVariableMappingInputType["source"]
+> = {
+  input: "input",
+  output: "output",
+  metadata: "metadata",
+  toolCalls: "tool_calls",
+  tool_calls: "tool_calls",
+  expected_output: "expected_output",
+  expectedOutput: "expected_output",
+  experiment_item_expected_output: "expected_output",
+  experimentItemExpectedOutput: "expected_output",
+  experimentItemMetadata: "experiment_item_metadata",
+  experiment_item_metadata: "experiment_item_metadata",
+};
+
+export const PUBLIC_API_EVALUATOR_TYPES: EvalTemplateType[] = [
+  EvalTemplateType.LLM_AS_JUDGE,
+  EvalTemplateType.CODE,
+  EvalTemplateType.DECISION_MODEL,
+];
+
+export function isPublicApiEvaluatorType(type: EvalTemplateType) {
+  return PUBLIC_API_EVALUATOR_TYPES.includes(type);
+}
+
+export function toPublicEvaluatorType(type: EvalTemplateType) {
+  switch (type) {
+    case EvalTemplateType.CODE:
+      return PUBLIC_EVALUATOR_TYPE_CODE;
+    case EvalTemplateType.LLM_AS_JUDGE:
+      return PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE;
+    case EvalTemplateType.DECISION_MODEL:
+      return PUBLIC_EVALUATOR_TYPE_DECISION_MODEL;
+  }
+}
+
+export function toStoredMappingList(
+  mappings: PromptVariableMappingInputType[],
+) {
+  return observationVariableMappingList.parse(
+    mappings.map((mapping) => ({
+      templateVariable: mapping.variable,
+      selectedColumnId:
+        PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN[mapping.source],
+      jsonSelector: mapping.jsonPath ?? null,
+    })),
+  );
+}
+
+export function toApiReadMappings(
+  mappings: unknown,
+): PromptVariableMappingReadType[] {
+  const parsed = observationVariableMappingList.safeParse(mappings);
+  if (!parsed.success) {
+    logger.error("Failed to parse public evaluation rule mappings", {
+      issues: parsed.error.issues,
+    });
+    throw new InternalServerError("Evaluation rule mapping is corrupted");
+  }
+
+  return parsed.data.map((mapping) => {
+    const source = Object.hasOwn(
+      INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE,
+      mapping.selectedColumnId,
+    )
+      ? INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE[mapping.selectedColumnId]
+      : undefined;
+    // One unknown column must not fail a whole page of evaluators or rules.
+    if (!source && mapping.selectedColumnId.trim()) {
+      logger.warn("Unknown column in public evaluation mapping", {
+        selectedColumnId: mapping.selectedColumnId,
+      });
+    }
+    return {
+      variable: mapping.templateVariable,
+      source: source ?? null,
+      ...(mapping.jsonSelector ? { jsonPath: mapping.jsonSelector } : {}),
+    };
+  });
+}
+
+function toApiLegacyMappings(
+  mappings: unknown,
+): LegacyPromptVariableMappingType[] {
+  const parsed = variableMappingList.safeParse(mappings);
+  if (!parsed.success) {
+    logger.error("Failed to parse public legacy evaluation rule mappings", {
+      issues: parsed.error.issues,
+    });
+    throw new InternalServerError("Evaluation rule mapping is corrupted");
+  }
+
+  return LegacyPromptVariableMapping.array().parse(
+    parsed.data.map((mapping) => ({
+      mappingType: "legacy",
+      variable: mapping.templateVariable,
+      langfuseObject: mapping.langfuseObject,
+      objectName: mapping.objectName ?? null,
+      source: mapping.selectedColumnId,
+      ...(mapping.jsonSelector ? { jsonPath: mapping.jsonSelector } : {}),
+    })),
+  );
+}
+
+function toPublicOutputDefinition(outputDefinition: unknown) {
+  const parsed =
+    PersistedEvalOutputDefinitionSchema.safeParse(outputDefinition);
+  if (!parsed.success) {
+    logger.error("Failed to parse public evaluator output definition", {
+      issues: parsed.error.issues,
+    });
+    throw new InternalServerError("Evaluator output definition is corrupted");
+  }
+
+  const resolved = resolvePersistedEvalOutputDefinition(parsed.data);
+  const descriptions = {
+    ...(resolved.reasoningDescription
+      ? { scoreReasoningInstructions: resolved.reasoningDescription }
+      : {}),
+    ...(resolved.scoreDescription
+      ? { scoreValueInstructions: resolved.scoreDescription }
+      : {}),
+  };
+  if (resolved.dataType === "NUMERIC") {
+    return {
+      dataType: resolved.dataType,
+      ...descriptions,
+      ...(resolved.minValue === undefined
+        ? {}
+        : { minValue: resolved.minValue }),
+      ...(resolved.maxValue === undefined
+        ? {}
+        : { maxValue: resolved.maxValue }),
+    };
+  }
+  if (resolved.dataType === "BOOLEAN") {
+    return { dataType: resolved.dataType, ...descriptions };
+  }
+  return {
+    dataType: resolved.dataType,
+    ...descriptions,
+    categories: resolved.categories,
+    shouldAllowMultipleMatches: resolved.shouldAllowMultipleMatches,
+  };
+}
+
+function toCreator(
+  creator: {
+    id: string;
+    name: string | null;
+  } | null,
+) {
+  return creator ? { id: creator.id, name: creator.name } : null;
+}
+
+function toInternalOutputDefinition(
+  outputDefinition: PublicEvaluatorOutputDefinitionType,
+) {
+  const descriptions = {
+    reasoning: {
+      description: outputDefinition.scoreReasoningInstructions ?? "",
+    },
+    scoreDescription: outputDefinition.scoreValueInstructions ?? "",
+  };
+  if (outputDefinition.dataType === "NUMERIC") {
+    return {
+      dataType: outputDefinition.dataType,
+      reasoning: descriptions.reasoning,
+      score: {
+        description: descriptions.scoreDescription,
+        ...(outputDefinition.minValue === undefined
+          ? {}
+          : { minValue: outputDefinition.minValue }),
+        ...(outputDefinition.maxValue === undefined
+          ? {}
+          : { maxValue: outputDefinition.maxValue }),
+      },
+    };
+  }
+  if (outputDefinition.dataType === "BOOLEAN") {
+    return {
+      dataType: outputDefinition.dataType,
+      reasoning: descriptions.reasoning,
+      score: { description: descriptions.scoreDescription },
+    };
+  }
+  return {
+    dataType: outputDefinition.dataType,
+    reasoning: descriptions.reasoning,
+    score: {
+      description: descriptions.scoreDescription,
+      categories: outputDefinition.categories,
+      shouldAllowMultipleMatches: outputDefinition.shouldAllowMultipleMatches,
+    },
+  };
+}
+
+export function toEvaluatorServiceDefinition(
+  definition: EvaluatorDefinitionType,
+) {
+  switch (definition.type) {
+    case PUBLIC_EVALUATOR_TYPE_CODE:
+      return EvaluatorDefinitionInputSchema.parse({
+        type: EvalTemplateType.CODE,
+        sourceCode: definition.sourceCode,
+        sourceCodeLanguage: definition.sourceCodeLanguage,
+      });
+    case PUBLIC_EVALUATOR_TYPE_DECISION_MODEL:
+      return EvaluatorDefinitionInputSchema.parse({
+        type: EvalTemplateType.DECISION_MODEL,
+        questions: definition.questions.map(toInternalDecisionModelQuestion),
+        modelConfig: definition.modelConfig,
+        variableMapping: toStoredMappingList(definition.variableMapping),
+      });
+    case PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE:
+      return EvaluatorDefinitionInputSchema.parse({
+        type: EvalTemplateType.LLM_AS_JUDGE,
+        promptMessages: definition.prompt,
+        modelConfig: definition.modelConfig ?? null,
+        variableMapping:
+          definition.variableMapping == null
+            ? null
+            : toStoredMappingList(definition.variableMapping),
+        outputDefinition: toInternalOutputDefinition(
+          definition.outputDefinition,
+        ),
+      });
+    default:
+      return assertUnreachable(definition);
+  }
+}
+
+type ServiceEvaluator = Awaited<ReturnType<EvaluatorService["get"]>>;
+type ServiceEvaluatorVersion =
+  | ServiceEvaluator["versions"][number]
+  | Awaited<ReturnType<EvaluatorService["listVersions"]>>["data"][number];
+
+export function toPublicEvaluatorVersion(
+  evaluatorType: EvalTemplateType,
+  version: ServiceEvaluatorVersion,
+) {
+  const common = {
+    id: version.id,
+    version: version.version,
+    createdAt: version.createdAt,
+    createdBy: toCreator(version.createdByUser),
+  };
+
+  if (evaluatorType === EvalTemplateType.DECISION_MODEL) {
+    if (!version.provider || !version.model) {
+      throw new InternalServerError(
+        "Decision-model evaluator model configuration is corrupted",
+      );
+    }
+    const questions = parseDecisionModelQuestions(version.questions);
+    if (!questions.success) {
+      throw new InternalServerError(
+        "Decision-model evaluator questions are corrupted",
+      );
+    }
+    return EvaluatorVersion.parse({
+      ...common,
+      type: PUBLIC_EVALUATOR_TYPE_DECISION_MODEL,
+      questions: questions.data.map(toPublicDecisionModelQuestion),
+      variables: version.vars,
+      variableMapping: toApiReadMappings(version.variableMapping),
+      modelConfig: { provider: version.provider, model: version.model },
+    });
+  }
+
+  if (evaluatorType === EvalTemplateType.CODE) {
+    if (!version.sourceCode || !version.sourceCodeLanguage) {
+      throw new InternalServerError("Code evaluator definition is corrupted");
+    }
+    return EvaluatorVersion.parse({
+      ...common,
+      type: PUBLIC_EVALUATOR_TYPE_CODE,
+      sourceCode: version.sourceCode,
+      sourceCodeLanguage: version.sourceCodeLanguage,
+    });
+  }
+
+  if (!version.promptMessages) {
+    throw new InternalServerError("Evaluator prompt messages are corrupted");
+  }
+  const prompt = version.promptMessages;
+  return EvaluatorVersion.parse({
+    ...common,
+    type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+    prompt,
+    variables:
+      version.vars.length > 0
+        ? version.vars
+        : extractVariables(prompt.map(({ content }) => content).join("\n")),
+    variableMapping:
+      version.variableMapping === null
+        ? null
+        : toApiReadMappings(version.variableMapping),
+    modelConfig:
+      version.provider && version.model
+        ? {
+            provider: version.provider,
+            model: version.model,
+          }
+        : null,
+    outputDefinition: toPublicOutputDefinition(version.outputDefinition),
+  });
+}
+
+export function toPublicEvaluator(evaluator: ServiceEvaluator) {
+  const latestVersion = evaluator.versions[0];
+  if (!latestVersion) {
+    throw new InternalServerError("Evaluator version is missing");
+  }
+  const common = {
+    id: evaluator.id,
+    name: evaluator.name,
+    description: evaluator.description,
+    createdBy: toCreator(evaluator.createdByUser),
+    status: evaluator.blockedAt ? ("paused" as const) : ("active" as const),
+    pausedAt: evaluator.blockedAt,
+    pausedReason: evaluator.blockReason,
+    pausedMessage: evaluator.blockMessage,
+    evaluationRuleAssignments: evaluator.assignments.map(
+      ({ evaluationRule, variableMapping }) => ({
+        evaluationRuleId: evaluationRule.id,
+        ...(variableMapping === null
+          ? {}
+          : {
+              variableMappingOverride: isLegacyEvalTarget(
+                evaluationRule.targetObject,
+              )
+                ? toApiLegacyMappings(variableMapping)
+                : toApiReadMappings(variableMapping),
+            }),
+      }),
+    ),
+    createdAt: evaluator.createdAt,
+    updatedAt: evaluator.updatedAt,
+  };
+  const {
+    id: versionId,
+    createdAt: versionCreatedAt,
+    createdBy: versionCreatedBy,
+    ...version
+  } = toPublicEvaluatorVersion(evaluator.type, latestVersion);
+  return Evaluator.parse({
+    ...common,
+    ...version,
+    versionId,
+    versionCreatedAt,
+    versionCreatedBy,
+  });
+}
+
+export function toInternalFilters(filters: FilterState) {
+  return filters.map((filter) =>
+    filter.column === "datasetId"
+      ? { ...filter, column: "experimentDatasetId" }
+      : filter,
+  ) as FilterState;
+}
+
+function toPublicFilters(filters: unknown) {
+  return PublicEvaluationRuleReadFilter.array()
+    .parse(filters)
+    .map((filter) =>
+      filter.column === "experimentDatasetId"
+        ? { ...filter, column: "datasetId" }
+        : filter,
+    );
+}
+
+export function toInternalAssignments(
+  assignments: CreateEvaluationRuleBodyType["evaluatorAssignments"],
+) {
+  return assignments.map((assignment) => ({
+    evaluatorId: assignment.evaluatorId,
+    variableMapping:
+      assignment.variableMapping === null
+        ? null
+        : (toStoredMappingList(
+            assignment.variableMapping,
+          ) as ObservationVariableMapping[]),
+  }));
+}
+
+type ServiceRule = Awaited<ReturnType<RuleService["get"]>>;
+
+export function toPublicRule(rule: ServiceRule) {
+  return EvaluationRule.parse({
+    id: rule.id,
+    name: rule.name,
+    createdBy: toCreator(rule.createdByUser),
+    enabled: rule.enabled,
+    sampling: rule.sampling,
+    filter: toPublicFilters(rule.filter),
+    evaluatorAssignments: rule.assignments.map((assignment) => ({
+      evaluatorId: assignment.evaluator.id,
+      variableMapping:
+        assignment.variableMapping === null
+          ? null
+          : isLegacyEvalTarget(rule.targetObject)
+            ? toApiLegacyMappings(assignment.variableMapping)
+            : toApiReadMappings(assignment.variableMapping),
+    })),
+    createdAt: rule.createdAt,
+    updatedAt: rule.updatedAt,
+  });
+}

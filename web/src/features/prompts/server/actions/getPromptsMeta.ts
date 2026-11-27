@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   type GetPromptsMetaType,
   type FilterState,
@@ -5,7 +6,12 @@ import {
   type PromptType,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
+import {
+  addTagsToCurrentSpan,
+  PromptService,
+  redis,
+  tableColumnsToSqlFilterAndPrefix,
+} from "@langfuse/shared/src/server";
 
 export type GetPromptsMetaParams = GetPromptsMetaType & { projectId: string };
 
@@ -14,57 +20,87 @@ export const getPromptsMeta = async (
 ): Promise<PromptsMetaResponse> => {
   const { projectId, page, limit } = params;
 
-  const promptsMeta = (await prisma.$queryRaw`
-    WITH versions AS (
-      SELECT
-        p.name AS name,
-        MAX(p.tags) AS tags,  -- use max to get tags, they are the same for all versions of a prompt
-        MAX(p.updated_at) as "lastUpdatedAt",
-        array_agg(DISTINCT p.version) AS versions,
-        COALESCE(array_agg(DISTINCT label) FILTER (WHERE label IS NOT NULL), '{}'::text[]) AS labels --- COALESCE is necessary to return an empty array if there are no labels and remove NULLs
-      FROM
-          prompts p -- needs to be p for filter conditions
-      LEFT JOIN LATERAL unnest(p.labels) AS label ON true
-      WHERE
-          p."project_id" = ${projectId}
-          ${getPromptsFilterCondition(params)}
-      GROUP BY
-          p.name
-      ORDER BY
-          p.name --- necessary for consistent pagination
-      LIMIT
-          ${limit}
-      OFFSET
-          ${limit * (page - 1)}
-    )
+  addTagsToCurrentSpan({
+    "langfuse.prompt_list.page": page,
+    "langfuse.prompt_list.limit": limit,
+    "langfuse.prompt_list.offset": limit * (page - 1),
+  });
 
+  const promptsMeta = (await prisma.$queryRaw`
+    WITH page_names AS MATERIALIZED (
+      SELECT p.name
+      FROM prompts p
+      WHERE p."project_id" = ${projectId}
+        ${getPromptsFilterCondition(params)}
+      GROUP BY p.name
+      ORDER BY p.name
+      LIMIT ${limit}
+      OFFSET ${limit * (page - 1)}
+    )
     SELECT
-      v.*,
+      n.name,
+      metadata.tags,
+      metadata."lastUpdatedAt",
+      metadata.versions,
+      metadata.labels,
       latest.type AS type,
       latest.config AS "lastConfig"
-    FROM
-      versions v
+    FROM page_names n
+    CROSS JOIN LATERAL (
+      SELECT
+        MAX(p.tags) AS tags,
+        MAX(p.updated_at) AS "lastUpdatedAt",
+        array_agg(DISTINCT p.version) AS versions,
+        COALESCE(
+          array_agg(DISTINCT label) FILTER (WHERE label IS NOT NULL),
+          '{}'::text[]
+        ) AS labels
+      FROM prompts p
+      LEFT JOIN LATERAL unnest(p.labels) AS label ON true
+      WHERE p."project_id" = ${projectId}
+        AND p.name = n.name
+        ${getPromptsFilterCondition(params)}
+    ) metadata
     LEFT JOIN LATERAL (
       SELECT p.config, p.type
       FROM prompts p
       WHERE p."project_id" = ${projectId}
-        AND p.name = v.name
+        AND p.name = n.name
         ${getPromptsFilterCondition(params)}
       ORDER BY p.version DESC
       LIMIT 1
     ) latest ON true
-    ORDER BY v.name
+    ORDER BY n.name
   `) as PromptsMeta[];
 
-  const [{ count: totalItemsCount }] = (await prisma.$queryRaw`
-    SELECT COUNT(DISTINCT p.name) AS count
-    FROM prompts p
-    WHERE "project_id" = ${projectId} 
-    ${getPromptsFilterCondition(params)}
-  `) as { count: BigInt }[];
-
-  const totalItems = Number(totalItemsCount);
+  // Page crawls repeat the same full-project count on every page.
+  const filterCondition = getPromptsFilterCondition(params);
+  let countSource: "cache" | "computed" = "cache";
+  const totalItems = await new PromptService(prisma, redis).getPromptListCount({
+    projectId,
+    filterKey: JSON.stringify([filterCondition.sql, filterCondition.values]),
+    computeCount: async () => {
+      countSource = "computed";
+      const [{ count }] = (await prisma.$queryRaw`
+          SELECT COUNT(*) AS count
+          FROM (
+            SELECT p.name
+            FROM prompts p
+            WHERE p."project_id" = ${projectId}
+            ${filterCondition}
+            GROUP BY p.name
+          ) names
+        `) as { count: BigInt }[];
+      return Number(count);
+    },
+  });
   const totalPages = Math.ceil(totalItems / limit);
+
+  addTagsToCurrentSpan({
+    "langfuse.prompt_list.result_count": promptsMeta.length,
+    "langfuse.prompt_list.total_items": totalItems,
+    "langfuse.prompt_list.count_source": countSource,
+  });
 
   return {
     data: promptsMeta,
@@ -105,6 +141,14 @@ export type PromptsMetaResponse = {
 };
 
 const getPromptsFilterCondition = (params: GetPromptsMetaType) => {
+  if (params.filter !== undefined) {
+    return tableColumnsToSqlFilterAndPrefix(
+      params.filter,
+      promptsTableCols,
+      "prompts",
+    );
+  }
+
   const { name, version, label, tag, fromUpdatedAt, toUpdatedAt } = params;
   const filters: FilterState = [];
 

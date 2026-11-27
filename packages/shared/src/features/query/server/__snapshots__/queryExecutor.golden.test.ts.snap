@@ -1,0 +1,2012 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden: SQL-text executeQuery options > histogram bins > single-level 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "generation",
+      "param2": "golden-project",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT histogram(20)(toFloat64((total_cost))) AS histogram_totalCost
+FROM observations
+FINAL
+WHERE (observations.type = {param1:String})
+    AND (observations.project_id = {param2:String})
+    AND (observations.start_time >= {param3:DateTime64(3, 'UTC')})
+    AND (observations.start_time <= {param4:DateTime64(3, 'UTC')})
+ORDER BY histogram_totalCost DESC",
+  },
+]
+`;
+
+exports[`golden: SQL-text executeQuery options > histogram bins > two-level 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "generation",
+      "param2": "golden-project",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT histogram(20)(toFloat64(totalCost)) AS histogram_totalCost
+FROM
+(
+    SELECT
+        observations.project_id,
+        observations.id,
+        sum(total_cost) AS totalCost
+    FROM observations
+    FINAL
+    WHERE (observations.type = {param1:String})
+        AND (observations.project_id = {param2:String})
+        AND (observations.start_time >= {param3:DateTime64(3, 'UTC')})
+        AND (observations.start_time <= {param4:DateTime64(3, 'UTC')})
+    GROUP BY
+        observations.project_id,
+        observations.id
+)
+ORDER BY histogram_totalCost DESC",
+  },
+]
+`;
+
+exports[`golden: SQL-text executeQuery options > root-event window > threshold 0 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2025-01-01 00:00:00.000",
+      "param3": "2026-01-01 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    name AS name,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        e.project_id,
+        e.trace_id,
+        coalesce(
+            nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+            nullIf(
+                argMaxIf(e.name, e.event_ts, (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))),
+                ''
+            )
+        ) AS name,
+        uniq(e.trace_id) AS count
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String})
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+        AND ((e.trace_id IN (
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+        )) OR (NOT exists((
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            LIMIT 1
+        ))))
+    GROUP BY
+        e.project_id,
+        e.trace_id
+) AS per_trace
+GROUP BY name
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: SQL-text executeQuery options > root-event window > window above the threshold 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-04 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    name AS name,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        e.project_id,
+        e.trace_id,
+        coalesce(
+            nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+            nullIf(
+                argMaxIf(e.name, e.event_ts, (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))),
+                ''
+            )
+        ) AS name,
+        uniq(e.trace_id) AS count
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String})
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+    GROUP BY
+        e.project_id,
+        e.trace_id
+) AS per_trace
+GROUP BY name
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: SQL-text executeQuery options > root-event window > window below the threshold 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-04 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    name AS name,
+    time_dimension,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        e.project_id,
+        e.trace_id,
+        coalesce(
+            nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+            nullIf(
+                argMaxIf(e.name, e.event_ts, (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))),
+                ''
+            )
+        ) AS name,
+        ifNull(
+            anyIf(toNullable(toDate(e.start_time)), ((e.parent_span_id = '') OR (e.is_app_root = true))),
+            min(toDate(e.start_time))
+        ) AS time_dimension,
+        uniq(e.trace_id) AS count
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String})
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+        AND ((e.trace_id IN (
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+        )) OR (NOT exists((
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            LIMIT 1
+        ))))
+    GROUP BY
+        e.project_id,
+        e.trace_id
+) AS per_trace
+GROUP BY
+    name,
+    time_dimension
+ORDER BY time_dimension ASC WITH FILL FROM toDate({param2:DateTime64(3, 'UTC')}) TO toDate({param3:DateTime64(3, 'UTC')}) STEP toIntervalDay(1)",
+  },
+]
+`;
+
+exports[`golden: SQL-text executeQuery options > row_limit > set 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    name AS name,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        observations.project_id,
+        observations.id,
+        any(observations.name) AS name,
+        count(1) AS count
+    FROM observations
+    FINAL
+    WHERE (observations.project_id = {param1:String})
+        AND (observations.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (observations.start_time <= {param3:DateTime64(3, 'UTC')})
+    GROUP BY
+        observations.project_id,
+        observations.id
+)
+GROUP BY name
+ORDER BY name ASC
+LIMIT 5",
+  },
+]
+`;
+
+exports[`golden: SQL-text executeQuery options > row_limit > unset 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    name AS name,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        observations.project_id,
+        observations.id,
+        any(observations.name) AS name,
+        count(1) AS count
+    FROM observations
+    FINAL
+    WHERE (observations.project_id = {param1:String})
+        AND (observations.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (observations.start_time <= {param3:DateTime64(3, 'UTC')})
+    GROUP BY
+        observations.project_id,
+        observations.id
+)
+GROUP BY name
+ORDER BY name ASC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-categorical > filter name 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-score",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+      "param5": "CATEGORICAL",
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.name = {param2:String})
+    AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
+    AND (scores.data_type = {param5:String})
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-categorical > filter observationName 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-observation-name",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+      "param5": "CATEGORICAL",
+    },
+    "route": "unknown",
+    "sql": "SELECT count(count) AS count_count
+FROM
+(
+    SELECT
+        scores.project_id,
+        scores.id,
+        count(1) AS count
+    FROM scores
+    FINAL
+    INNER JOIN events_core AS e ON (scores.project_id = e.project_id) AND (scores.trace_id = e.trace_id) AND (scores.observation_id = e.span_id) AND (e.project_id = {param1:String})
+    WHERE (scores.project_id = {param1:String})
+        AND (e.name = {param2:String})
+        AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
+        AND (scores.data_type = {param5:String})
+        AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
+    GROUP BY
+        scores.project_id,
+        scores.id
+) AS per_score
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-categorical > filter sessionId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-session",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+      "param5": "CATEGORICAL",
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.session_id = {param2:String})
+    AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
+    AND (scores.data_type = {param5:String})
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-categorical > filter tags 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "CATEGORICAL",
+      "param5": [
+        "golden-tag",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+    AND (scores.data_type = {param4:String})
+    AND (scores.trace_id IN (
+        SELECT events_traces.id
+        FROM
+        (
+            SELECT
+                e.trace_id AS id,
+                e.project_id AS project_id,
+                arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            GROUP BY
+                e.trace_id,
+                e.project_id
+        ) AS events_traces
+        WHERE (hasAny({param5:Array(String)}, events_traces.tags) = true)
+            AND (events_traces.id IN (
+                SELECT scores.trace_id
+                FROM scores
+                WHERE (scores.project_id = {param1:String})
+                    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                    AND (scores.data_type = {param4:String})
+            ))
+    ))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-categorical > filter traceId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-trace-id",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+      "param5": "CATEGORICAL",
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.trace_id = {param2:String})
+    AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
+    AND (scores.data_type = {param5:String})
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-categorical > filter traceName 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "CATEGORICAL",
+      "param5": "golden-trace-name",
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+    AND (scores.data_type = {param4:String})
+    AND (scores.trace_id IN (
+        SELECT events_traces.id
+        FROM
+        (
+            SELECT
+                e.trace_id AS id,
+                e.project_id AS project_id,
+                coalesce(
+                    nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                    nullIf(
+                        argMaxIf(
+                            e.name,
+                            e.event_ts,
+                            (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                        ),
+                        ''
+                    )
+                ) AS name
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            GROUP BY
+                e.trace_id,
+                e.project_id
+        ) AS events_traces
+        WHERE (events_traces.name = {param5:String})
+            AND (events_traces.id IN (
+                SELECT scores.trace_id
+                FROM scores
+                WHERE (scores.project_id = {param1:String})
+                    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                    AND (scores.data_type = {param4:String})
+            ))
+    ))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-categorical > filter userId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "CATEGORICAL",
+      "param5": "golden-user",
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+    AND (scores.data_type = {param4:String})
+    AND (scores.trace_id IN (
+        SELECT events_traces.id
+        FROM
+        (
+            SELECT
+                e.trace_id AS id,
+                e.project_id AS project_id,
+                argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            GROUP BY
+                e.trace_id,
+                e.project_id
+        ) AS events_traces
+        WHERE (events_traces.user_id = {param5:String})
+            AND (events_traces.id IN (
+                SELECT scores.trace_id
+                FROM scores
+                WHERE (scores.project_id = {param1:String})
+                    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                    AND (scores.data_type = {param4:String})
+            ))
+    ))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-categorical > group by name 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "CATEGORICAL",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    scores.name AS name,
+    count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+    AND (scores.data_type = {param4:String})
+GROUP BY name
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-categorical > group by observationName 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "CATEGORICAL",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    observationName AS observationName,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        scores.project_id,
+        scores.id,
+        any(e.name) AS observationName,
+        count(1) AS count
+    FROM scores
+    FINAL
+    INNER JOIN events_core AS e ON (scores.project_id = e.project_id) AND (scores.trace_id = e.trace_id) AND (scores.observation_id = e.span_id) AND (e.project_id = {param1:String})
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type = {param4:String})
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+    GROUP BY
+        scores.project_id,
+        scores.id
+) AS per_score
+GROUP BY observationName
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-categorical > group by sessionId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "CATEGORICAL",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    scores.session_id AS sessionId,
+    count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+    AND (scores.data_type = {param4:String})
+GROUP BY sessionId
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-categorical > group by tags 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "CATEGORICAL",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    tags AS tags,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        scores.project_id,
+        scores.id,
+        any(events_traces.tags) AS tags,
+        count(1) AS count
+    FROM scores
+    FINAL
+    INNER JOIN
+    (
+        SELECT *
+        FROM
+        (
+            SELECT
+                e.trace_id AS id,
+                e.project_id AS project_id,
+                arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            GROUP BY
+                e.trace_id,
+                e.project_id
+        ) AS events_traces_all
+        WHERE events_traces_all.id IN (
+            SELECT scores.trace_id
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type = {param4:String})
+        )
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type = {param4:String})
+    GROUP BY
+        scores.project_id,
+        scores.id
+) AS per_score
+GROUP BY tags
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-categorical > group by traceId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "CATEGORICAL",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    scores.trace_id AS traceId,
+    count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+    AND (scores.data_type = {param4:String})
+GROUP BY traceId
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-categorical > group by traceName 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "CATEGORICAL",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    traceName AS traceName,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        scores.project_id,
+        scores.id,
+        any(events_traces.name) AS traceName,
+        count(1) AS count
+    FROM scores
+    FINAL
+    INNER JOIN
+    (
+        SELECT *
+        FROM
+        (
+            SELECT
+                e.trace_id AS id,
+                e.project_id AS project_id,
+                coalesce(
+                    nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                    nullIf(
+                        argMaxIf(
+                            e.name,
+                            e.event_ts,
+                            (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                        ),
+                        ''
+                    )
+                ) AS name
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            GROUP BY
+                e.trace_id,
+                e.project_id
+        ) AS events_traces_all
+        WHERE events_traces_all.id IN (
+            SELECT scores.trace_id
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type = {param4:String})
+        )
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type = {param4:String})
+    GROUP BY
+        scores.project_id,
+        scores.id
+) AS per_score
+GROUP BY traceName
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-categorical > group by userId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "CATEGORICAL",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    userId AS userId,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        scores.project_id,
+        scores.id,
+        any(nullIf(events_traces.user_id, '')) AS userId,
+        count(1) AS count
+    FROM scores
+    FINAL
+    INNER JOIN
+    (
+        SELECT *
+        FROM
+        (
+            SELECT
+                e.trace_id AS id,
+                e.project_id AS project_id,
+                argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            GROUP BY
+                e.trace_id,
+                e.project_id
+        ) AS events_traces_all
+        WHERE events_traces_all.id IN (
+            SELECT scores.trace_id
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type = {param4:String})
+        )
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type = {param4:String})
+    GROUP BY
+        scores.project_id,
+        scores.id
+) AS per_score
+GROUP BY userId
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-numeric > filter name 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-score",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+      "param5": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.name = {param2:String})
+    AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param5:Array(String)}))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-numeric > filter observationName 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-observation-name",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+      "param5": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(count) AS count_count
+FROM
+(
+    SELECT
+        scores.project_id,
+        scores.id,
+        count(1) AS count
+    FROM scores
+    FINAL
+    INNER JOIN events_core AS e ON (scores.project_id = e.project_id) AND (scores.trace_id = e.trace_id) AND (scores.observation_id = e.span_id) AND (e.project_id = {param1:String})
+    WHERE (scores.project_id = {param1:String})
+        AND (e.name = {param2:String})
+        AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param5:Array(String)}))
+        AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
+    GROUP BY
+        scores.project_id,
+        scores.id
+) AS per_score
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-numeric > filter sessionId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-session",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+      "param5": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.session_id = {param2:String})
+    AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param5:Array(String)}))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-numeric > filter tags 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+      "param5": [
+        "golden-tag",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param4:Array(String)}))
+    AND (scores.trace_id IN (
+        SELECT events_traces.id
+        FROM
+        (
+            SELECT
+                e.trace_id AS id,
+                e.project_id AS project_id,
+                arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            GROUP BY
+                e.trace_id,
+                e.project_id
+        ) AS events_traces
+        WHERE (hasAny({param5:Array(String)}, events_traces.tags) = true)
+            AND (events_traces.id IN (
+                SELECT scores.trace_id
+                FROM scores
+                WHERE (scores.project_id = {param1:String})
+                    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                    AND (scores.data_type IN ({param4:Array(String)}))
+            ))
+    ))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-numeric > filter traceId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-trace-id",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+      "param5": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.trace_id = {param2:String})
+    AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param5:Array(String)}))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-numeric > filter traceName 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+      "param5": "golden-trace-name",
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param4:Array(String)}))
+    AND (scores.trace_id IN (
+        SELECT events_traces.id
+        FROM
+        (
+            SELECT
+                e.trace_id AS id,
+                e.project_id AS project_id,
+                coalesce(
+                    nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                    nullIf(
+                        argMaxIf(
+                            e.name,
+                            e.event_ts,
+                            (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                        ),
+                        ''
+                    )
+                ) AS name
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            GROUP BY
+                e.trace_id,
+                e.project_id
+        ) AS events_traces
+        WHERE (events_traces.name = {param5:String})
+            AND (events_traces.id IN (
+                SELECT scores.trace_id
+                FROM scores
+                WHERE (scores.project_id = {param1:String})
+                    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                    AND (scores.data_type IN ({param4:Array(String)}))
+            ))
+    ))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-numeric > filter userId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+      "param5": "golden-user",
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param4:Array(String)}))
+    AND (scores.trace_id IN (
+        SELECT events_traces.id
+        FROM
+        (
+            SELECT
+                e.trace_id AS id,
+                e.project_id AS project_id,
+                argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            GROUP BY
+                e.trace_id,
+                e.project_id
+        ) AS events_traces
+        WHERE (events_traces.user_id = {param5:String})
+            AND (events_traces.id IN (
+                SELECT scores.trace_id
+                FROM scores
+                WHERE (scores.project_id = {param1:String})
+                    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                    AND (scores.data_type IN ({param4:Array(String)}))
+            ))
+    ))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-numeric > group by name 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    scores.name AS name,
+    count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param4:Array(String)}))
+GROUP BY name
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-numeric > group by observationName 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    observationName AS observationName,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        scores.project_id,
+        scores.id,
+        any(e.name) AS observationName,
+        count(1) AS count
+    FROM scores
+    FINAL
+    INNER JOIN events_core AS e ON (scores.project_id = e.project_id) AND (scores.trace_id = e.trace_id) AND (scores.observation_id = e.span_id) AND (e.project_id = {param1:String})
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+    GROUP BY
+        scores.project_id,
+        scores.id
+) AS per_score
+GROUP BY observationName
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-numeric > group by sessionId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    scores.session_id AS sessionId,
+    count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param4:Array(String)}))
+GROUP BY sessionId
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-numeric > group by tags 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    tags AS tags,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        scores.project_id,
+        scores.id,
+        any(events_traces.tags) AS tags,
+        count(1) AS count
+    FROM scores
+    FINAL
+    INNER JOIN
+    (
+        SELECT *
+        FROM
+        (
+            SELECT
+                e.trace_id AS id,
+                e.project_id AS project_id,
+                arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            GROUP BY
+                e.trace_id,
+                e.project_id
+        ) AS events_traces_all
+        WHERE events_traces_all.id IN (
+            SELECT scores.trace_id
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type IN ({param4:Array(String)}))
+        )
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
+    GROUP BY
+        scores.project_id,
+        scores.id
+) AS per_score
+GROUP BY tags
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-numeric > group by traceId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    scores.trace_id AS traceId,
+    count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param4:Array(String)}))
+GROUP BY traceId
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-numeric > group by traceName 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    traceName AS traceName,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        scores.project_id,
+        scores.id,
+        any(events_traces.name) AS traceName,
+        count(1) AS count
+    FROM scores
+    FINAL
+    INNER JOIN
+    (
+        SELECT *
+        FROM
+        (
+            SELECT
+                e.trace_id AS id,
+                e.project_id AS project_id,
+                coalesce(
+                    nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+                    nullIf(
+                        argMaxIf(
+                            e.name,
+                            e.event_ts,
+                            (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                        ),
+                        ''
+                    )
+                ) AS name
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            GROUP BY
+                e.trace_id,
+                e.project_id
+        ) AS events_traces_all
+        WHERE events_traces_all.id IN (
+            SELECT scores.trace_id
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type IN ({param4:Array(String)}))
+        )
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
+    GROUP BY
+        scores.project_id,
+        scores.id
+) AS per_score
+GROUP BY traceName
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > scores-numeric > group by userId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    userId AS userId,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        scores.project_id,
+        scores.id,
+        any(nullIf(events_traces.user_id, '')) AS userId,
+        count(1) AS count
+    FROM scores
+    FINAL
+    INNER JOIN
+    (
+        SELECT *
+        FROM
+        (
+            SELECT
+                e.trace_id AS id,
+                e.project_id AS project_id,
+                argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            GROUP BY
+                e.trace_id,
+                e.project_id
+        ) AS events_traces_all
+        WHERE events_traces_all.id IN (
+            SELECT scores.trace_id
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type IN ({param4:Array(String)}))
+        )
+    ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
+    GROUP BY
+        scores.project_id,
+        scores.id
+) AS per_score
+GROUP BY userId
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > traces > filter sessionId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-session",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT count(count) AS count_count
+FROM
+(
+    SELECT
+        e.project_id,
+        e.trace_id,
+        uniq(e.trace_id) AS count
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String})
+        AND ((lower(e.session_id) = lower({param2:String})) AND (e.session_id = {param2:String}))
+        AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
+        AND ((e.trace_id IN (
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
+        )) OR (NOT exists((
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
+            LIMIT 1
+        ))))
+    GROUP BY
+        e.project_id,
+        e.trace_id
+) AS per_trace
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > traces > filter tags 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "golden-tag",
+      ],
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT count(count) AS count_count
+FROM
+(
+    SELECT
+        e.project_id,
+        e.trace_id,
+        uniq(e.trace_id) AS count
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String})
+        AND (hasAny({param2:Array(String)}, e.tags) = true)
+        AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
+        AND ((e.trace_id IN (
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
+        )) OR (NOT exists((
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
+            LIMIT 1
+        ))))
+    GROUP BY
+        e.project_id,
+        e.trace_id
+) AS per_trace
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > traces > filter traceId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-trace-id",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT count(count) AS count_count
+FROM
+(
+    SELECT
+        e.project_id,
+        e.trace_id,
+        uniq(e.trace_id) AS count
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String})
+        AND (e.trace_id = {param2:String})
+        AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
+        AND ((e.trace_id IN (
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
+        )) OR (NOT exists((
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
+            LIMIT 1
+        ))))
+    GROUP BY
+        e.project_id,
+        e.trace_id
+) AS per_trace
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > traces > filter traceName 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": "golden-trace-name",
+    },
+    "route": "unknown",
+    "sql": "SELECT count(count) AS count_count
+FROM
+(
+    SELECT
+        e.project_id,
+        e.trace_id,
+        uniq(e.trace_id) AS count
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String})
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+        AND ((e.trace_name = {param4:String}) OR ((lower(e.name) = lower({param4:String})) AND (e.name = {param4:String})))
+        AND (coalesce(nullIf(e.trace_name, ''), if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)) = {param4:String})
+        AND ((e.trace_id IN (
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+        )) OR (NOT exists((
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            LIMIT 1
+        ))))
+    GROUP BY
+        e.project_id,
+        e.trace_id
+) AS per_trace
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > traces > filter userId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-user",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT count(count) AS count_count
+FROM
+(
+    SELECT
+        e.project_id,
+        e.trace_id,
+        uniq(e.trace_id) AS count
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String})
+        AND ((lower(e.user_id) = lower({param2:String})) AND (e.user_id = {param2:String}))
+        AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
+        AND ((e.trace_id IN (
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
+        )) OR (NOT exists((
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
+            LIMIT 1
+        ))))
+    GROUP BY
+        e.project_id,
+        e.trace_id
+) AS per_trace
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > traces > group by sessionId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    sessionId AS sessionId,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        e.project_id,
+        e.trace_id,
+        argMaxIf(e.session_id, e.event_ts, e.session_id != '') AS sessionId,
+        uniq(e.trace_id) AS count
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String})
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+        AND ((e.trace_id IN (
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+        )) OR (NOT exists((
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            LIMIT 1
+        ))))
+    GROUP BY
+        e.project_id,
+        e.trace_id
+) AS per_trace
+GROUP BY sessionId
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > traces > group by tags 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    tags AS tags,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        e.project_id,
+        e.trace_id,
+        arrayDistinct(flatten(groupArray(e.tags))) AS tags,
+        uniq(e.trace_id) AS count
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String})
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+        AND ((e.trace_id IN (
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+        )) OR (NOT exists((
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            LIMIT 1
+        ))))
+    GROUP BY
+        e.project_id,
+        e.trace_id
+) AS per_trace
+GROUP BY tags
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > traces > group by traceId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    id AS id,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        e.project_id,
+        e.trace_id,
+        any(e.trace_id) AS id,
+        uniq(e.trace_id) AS count
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String})
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+        AND ((e.trace_id IN (
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+        )) OR (NOT exists((
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            LIMIT 1
+        ))))
+    GROUP BY
+        e.project_id,
+        e.trace_id
+) AS per_trace
+GROUP BY id
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > traces > group by traceName 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    name AS name,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        e.project_id,
+        e.trace_id,
+        coalesce(
+            nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
+            nullIf(
+                argMaxIf(e.name, e.event_ts, (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))),
+                ''
+            )
+        ) AS name,
+        uniq(e.trace_id) AS count
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String})
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+        AND ((e.trace_id IN (
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+        )) OR (NOT exists((
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            LIMIT 1
+        ))))
+    GROUP BY
+        e.project_id,
+        e.trace_id
+) AS per_trace
+GROUP BY name
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: metrics v2 executeQuery > traces > group by userId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-02 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    userId AS userId,
+    count(count) AS count_count
+FROM
+(
+    SELECT
+        e.project_id,
+        e.trace_id,
+        argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS userId,
+        uniq(e.trace_id) AS count
+    FROM events_core AS e
+    WHERE (e.project_id = {param1:String})
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+        AND ((e.trace_id IN (
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+        )) OR (NOT exists((
+            SELECT e.trace_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND ((e.parent_span_id = '') OR (e.is_app_root = true))
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            LIMIT 1
+        ))))
+    GROUP BY
+        e.project_id,
+        e.trace_id
+) AS per_trace
+GROUP BY userId
+ORDER BY count_count DESC",
+  },
+]
+`;

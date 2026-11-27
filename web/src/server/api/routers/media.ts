@@ -7,13 +7,48 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
-import {
-  type MediaContentType,
-  type MediaReturnType,
-  type MediaEnabledFields,
+import type {
+  MediaContentType,
+  MediaReturnType,
+  MediaEnabledFields,
 } from "@/src/features/media/validation";
 
+import { createExternalMediaStorageService } from "@/src/ee/features/external-media-storage/server/service";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { InvalidRequestError } from "@langfuse/shared";
+import { getMediaDownloadUrl, logger } from "@langfuse/shared/src/server";
+
 export const mediaRouter = createTRPCRouter({
+  resolveExternalMedia: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), uri: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const projectId = ctx.session.projectId;
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId,
+        scope: "project:read",
+      });
+
+      try {
+        return await createExternalMediaStorageService(ctx.prisma).resolveUrl({
+          projectId,
+          uri: input.uri,
+        });
+      } catch (error) {
+        if (!(error instanceof InvalidRequestError)) {
+          logger.error("Unexpected external media resolution failure", {
+            projectId,
+            operation: "media.resolveExternalMedia",
+            errorType: error instanceof Error ? error.name : typeof error,
+          });
+        }
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "External media is not available",
+        });
+      }
+    }),
+
   getById: protectedProjectProcedure
     .input(z.object({ mediaId: z.string(), projectId: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -48,11 +83,12 @@ export const mediaRouter = createTRPCRouter({
       const ttlSeconds = env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS;
       const urlExpiry = new Date(Date.now() + ttlSeconds * 1000).toISOString();
 
-      const url = await mediaStorageClient.getSignedUrl(
-        media.bucketPath,
+      const url = await getMediaDownloadUrl({
+        storageService: mediaStorageClient,
+        bucketPath: media.bucketPath,
+        contentType: media.contentType,
         ttlSeconds,
-        false,
-      );
+      });
 
       return {
         mediaId,
@@ -60,6 +96,7 @@ export const mediaRouter = createTRPCRouter({
         contentLength: Number(media.contentLength),
         url,
         urlExpiry,
+        urlTtlSeconds: ttlSeconds,
       };
     }),
   getByTraceOrObservationId: protectedProjectProcedure
@@ -153,11 +190,12 @@ export const mediaRouter = createTRPCRouter({
       // Use Promise.all as better to fail all media requests than one of them only
       return await Promise.all(
         media.map<Promise<MediaReturnType>>(async (m) => {
-          const url = await mediaStorageClient.getSignedUrl(
-            m.bucket_path,
+          const url = await getMediaDownloadUrl({
+            storageService: mediaStorageClient,
+            bucketPath: m.bucket_path,
+            contentType: m.content_type,
             ttlSeconds,
-            false,
-          );
+          });
           return {
             mediaId: m.id,
             contentType: m.content_type as MediaContentType,

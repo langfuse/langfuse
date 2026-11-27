@@ -1,6 +1,7 @@
+/* eslint-disable no-nested-ternary */
 import { Card } from "@/src/components/ui/card";
 import { Input } from "@/src/components/ui/input";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import type * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -13,7 +14,7 @@ import {
 } from "@/src/components/ui/form";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { LockIcon } from "lucide-react";
+import { LockIcon } from "@langfuse/icons";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -23,7 +24,6 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 export default function ConfigureRetention() {
   const { update: updateSession } = useSession();
-  const utils = api.useUtils();
   const { project } = useQueryProject();
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
@@ -41,9 +41,6 @@ export default function ConfigureRetention() {
   const setRetention = api.projects.setRetention.useMutation({
     onSuccess: (_) => {
       updateSession();
-      // Admins resolve org/project context from these queries, not the session
-      utils.organizations.byId.invalidate();
-      utils.projects.byId.invalidate();
     },
     onError: (error) => form.setError("retention", { message: error.message }),
   });
@@ -59,9 +56,7 @@ export default function ConfigureRetention() {
       .then(() => {
         form.reset();
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch((error) => reportTrpcErrorWithoutToast(error, "projects"));
   }
 
   return (
@@ -120,7 +115,10 @@ export default function ConfigureRetention() {
                       />
                       {!hasAccess && (
                         <span title="No access">
-                          <LockIcon className="text-muted absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
+                          <LockIcon
+                            size="base"
+                            __rawClassName="text-muted absolute top-1/2 right-3 -translate-y-1/2 transform"
+                          />
                         </span>
                       )}
                     </div>

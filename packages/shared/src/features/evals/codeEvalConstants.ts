@@ -1,0 +1,1 @@
+export const CODE_EVAL_SOURCE_MAX_BYTES = 256 * 1024;

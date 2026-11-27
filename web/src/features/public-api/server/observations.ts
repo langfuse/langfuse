@@ -6,8 +6,7 @@ import {
   StringFilter,
   observationsTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
-import { observationsTableCols } from "@langfuse/shared";
-import type { FilterState } from "@langfuse/shared";
+import { observationsTableCols, type FilterState } from "@langfuse/shared";
 
 type ObservationsApiQueryProps = {
   page: number;
@@ -27,11 +26,7 @@ type ObservationsApiQueryProps = {
 };
 
 const publicApiObservationsFilterParams =
-  createPublicApiObservationsColumnMapping(
-    "observations",
-    "o",
-    "parent_observation_id",
-  );
+  createPublicApiObservationsColumnMapping();
 
 function buildObservationsFilter(props: ObservationsApiQueryProps) {
   const { advancedFilters, ...simpleFilterProps } = props;

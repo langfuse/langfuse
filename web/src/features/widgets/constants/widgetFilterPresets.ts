@@ -1,6 +1,6 @@
 import { type views } from "@langfuse/shared/query";
 import { type z } from "zod";
-import { BeakerIcon, type LucideIcon } from "lucide-react";
+import { BeakerIcon, type IconComponent } from "@langfuse/icons";
 import { type FilterState } from "@langfuse/shared";
 
 /**
@@ -9,7 +9,7 @@ import { type FilterState } from "@langfuse/shared";
 type WidgetFilterPreset = {
   label: string;
   description: string;
-  icon: LucideIcon;
+  icon: IconComponent;
   /** The view this preset applies to */
   view: z.infer<typeof views>;
   /** Filters to apply - must be complete, valid filters */
@@ -41,5 +41,3 @@ export const WIDGET_FILTER_PRESETS = {
     ],
   },
 } as const satisfies Record<string, WidgetFilterPreset>;
-
-export type WidgetFilterPresetKey = keyof typeof WIDGET_FILTER_PRESETS;

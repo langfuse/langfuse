@@ -1,23 +1,27 @@
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
+/* eslint-disable @repo/no-null-render */
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { ArrowRight } from "lucide-react";
-import ContainerPage from "@/src/components/layouts/container-page";
+import { ArrowRight } from "@langfuse/icons";
+import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { Card } from "@/src/components/ui/card";
+import { Table } from "@/src/components/design-system/table/Table";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
-import { useCopyMigrationPrompt } from "@/src/features/v4-migration/V4MigrationContent";
+  useCopyMigrationPrompt,
+  useHasV4MigrationDeadline,
+  useV4MigrationTitle,
+  V4MigrationDeadlineNote,
+  V4MigrationDocsLink,
+  V4_MIGRATION_DEADLINE,
+} from "@/src/features/v4-migration/V4MigrationContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
-import { cn } from "@/src/utils/tailwind";
+import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 import {
@@ -26,10 +30,15 @@ import {
 } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import {
   getProjectMigrationReadiness,
+  type MigrationActionState,
   type MigrationCountState,
   type ProjectMigrationReadiness,
   type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
+import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
+import { V4MigrationLoadingState } from "@/src/features/v4-migration/V4MigrationLoadingState";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const SDK_UPGRADE_URL =
@@ -65,28 +74,45 @@ function AffectedCell({ count }: { count: MigrationCountState }) {
   return <span>{count.count}</span>;
 }
 
+function MigrationActionCell({ state }: { state: MigrationActionState }) {
+  if (state.status === "loading") {
+    return <span className="text-foreground-tertiary">Checking…</span>;
+  }
+  if (state.status === "error") {
+    return <span className="text-foreground-tertiary">Unavailable</span>;
+  }
+  if (state.result === "required") {
+    return <span>Update required</span>;
+  }
+  if (state.result === "sdk_usage_inconclusive") {
+    return <span>Needs review</span>;
+  }
+  return <span className="text-foreground-tertiary">Up to date</span>;
+}
+
 function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
-  const label =
-    readiness === "ready"
-      ? "Migrated"
-      : readiness === "checking"
-        ? "Checking"
-        : readiness === "unavailable"
-          ? "Unavailable"
-          : "Action needed";
+  // Forced-v3 projects are managed by their integration partner — link the pill
+  // straight to the FAQ instead of showing a migration action state.
+  if (readiness === "partner-managed") {
+    return (
+      <a
+        data-row-click-ignore
+        href={PARTNER_INTEGRATION_FAQ_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="bg-muted text-muted-foreground inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap hover:underline"
+        title="Upgrade is handled by your integration partner"
+      >
+        Integration partner
+      </a>
+    );
+  }
+
+  if (readiness !== "action-needed") return null;
 
   return (
-    <span
-      className={cn(
-        "inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap",
-        readiness === "ready"
-          ? "bg-light-green text-dark-green"
-          : readiness === "checking" || readiness === "unavailable"
-            ? "bg-muted text-muted-foreground"
-            : "bg-light-yellow text-dark-yellow",
-      )}
-    >
-      {label}
+    <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
+      Action needed
     </span>
   );
 }
@@ -96,6 +122,7 @@ type SortKey =
   | "status"
   | "sdk"
   | "evals"
+  | "experiments"
   | "apis"
   | "exports"
   | "lastTrace";
@@ -103,7 +130,7 @@ type OrderBy = { column: SortKey; order: "ASC" | "DESC" } | null;
 
 // Header styling and none → DESC → ASC → none sort cycle copied from the
 // trace table (DataTable); sorting here is client-side over the static rows.
-function SortableHead({
+function SortableHeader({
   label,
   column,
   orderBy,
@@ -115,8 +142,8 @@ function SortableHead({
   onSort: (column: SortKey) => void;
 }) {
   return (
-    <TableHead
-      className="group cursor-pointer px-2"
+    <div
+      className="-mx-2 flex h-10 w-[calc(100%+1rem)] items-center px-2"
       onClick={() => onSort(column)}
     >
       <div className="flex items-center select-none">
@@ -129,33 +156,42 @@ function SortableHead({
           </span>
         )}
       </div>
-    </TableHead>
+    </div>
   );
 }
 
 function OrgStatusSection({
   org,
   statusByProjectId,
+  lastTraceTimes,
 }: {
   org: V4MigrationOrganization;
   statusByProjectId: Map<string, ProjectMigrationStatus>;
+  lastTraceTimes: { projectId: string; lastTraceAt: Date }[];
 }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const openMigrationPanel = useOpenV4MigrationPanel();
-  const { data: lastTraceTimes } =
-    api.organizations.lastTraceByProject.useQuery(
-      { orgId: org.id },
-      { enabled: org.projects.length > 0 },
-    );
 
-  const openProjectMigration = (row: { id: string; name: string }) => {
+  const openProjectMigration = (
+    row: { id: string; name: string },
+    readiness: ProjectMigrationReadiness,
+  ) => {
     capture("v4_migration:status_row_clicked");
-    openMigrationPanel({ id: row.id, name: row.name });
+    openMigrationPanel(
+      { id: row.id, name: row.name, readiness },
+      "status_page_row",
+    );
   };
 
-  const handleRowClick = (row: { id: string; name: string }) => {
-    openProjectMigration(row);
+  const handleRowClick = (
+    row: { id: string; name: string; status: ProjectMigrationStatus },
+    readiness: ProjectMigrationReadiness,
+  ) => {
+    // Forced-v3 projects have no migration panel — just navigate to the project.
+    if (!row.status.forceV3Experience) {
+      openProjectMigration(row, readiness);
+    }
     router.push(`/project/${row.id}/traces`);
   };
 
@@ -175,19 +211,28 @@ function OrgStatusSection({
     setOrderBy(next);
   };
 
-  const rows = org.projects.map((project) => {
+  // The page is a work list: projects with nothing left to do drop out of the
+  // table. The summary card still counts them.
+  const rows = org.projects.flatMap((project) => {
+    const status = statusByProjectId.get(project.id);
+    if (!status) return [];
+    const readiness = getProjectMigrationReadiness(status);
+    if (readiness === "ready") return [];
     const lastTraceAt = lastTraceTimes?.find(
       (trace) => trace.projectId === project.id,
     )?.lastTraceAt;
-    return {
-      id: project.id,
-      name: project.name,
-      status: statusByProjectId.get(project.id),
-      lastTraceLabel: lastTraceAt
-        ? formatCompactRelativeTime(new Date(lastTraceAt))
-        : "—",
-      lastTraceSort: lastTraceAt ? new Date(lastTraceAt).getTime() : -1,
-    };
+    return [
+      {
+        id: project.id,
+        name: project.name,
+        status,
+        readiness,
+        lastTraceLabel: lastTraceAt
+          ? formatCompactRelativeTime(new Date(lastTraceAt))
+          : "—",
+        lastTraceSort: lastTraceAt ? new Date(lastTraceAt).getTime() : -1,
+      },
+    ];
   });
 
   const sortValue = (
@@ -198,36 +243,50 @@ function OrgStatusSection({
       case "name":
         return row.name.toLowerCase();
       case "status":
-        return row.status
-          ? {
-              unavailable: 0,
-              checking: 1,
-              "action-needed": 2,
-              ready: 3,
-            }[getProjectMigrationReadiness(row.status)]
-          : 0;
+        return {
+          unavailable: 0,
+          checking: 1,
+          "action-needed": 2,
+          ready: 3,
+          "partner-managed": 4,
+        }[row.readiness];
       case "sdk":
-        return row.status?.sdk.status === "latest"
-          ? 5
-          : row.status?.sdk.status === "otel_realtime"
-            ? 5
-            : row.status?.sdk.status === "no_data"
-              ? 5
-              : row.status?.sdk.status === "legacy"
-                ? 4
-                : row.status?.sdk.status === "otel_header_required"
-                  ? 3
-                  : row.status?.sdk.status === "unknown"
-                    ? 2
-                    : row.status?.sdk.status === "checking"
-                      ? 1
-                      : 0;
+        if (row.status.sdk.status === "latest") {
+          return 5;
+        }
+        if (row.status.sdk.status === "otel_realtime") {
+          return 5;
+        }
+        if (row.status.sdk.status === "no_data") {
+          return 5;
+        }
+        if (row.status.sdk.status === "legacy") {
+          return 4;
+        }
+        if (row.status.sdk.status === "otel_header_required") {
+          return 3;
+        }
+        if (row.status.sdk.status === "unknown") {
+          return 2;
+        }
+        if (row.status.sdk.status === "checking") {
+          return 1;
+        }
+        return 0;
       case "evals":
-        return row.status?.evals.count ?? 0;
+        return row.status.evals.count;
+      case "experiments":
+        if (row.status.experiments.result === "required") {
+          return 2;
+        }
+        if (row.status.experiments.result === "sdk_usage_inconclusive") {
+          return 1;
+        }
+        return 0;
       case "apis":
-        return row.status?.apis.count ?? 0;
+        return row.status.apis.count;
       case "exports":
-        return row.status?.exports.count ?? 0;
+        return row.status.exports.count;
       case "lastTrace":
         return row.lastTraceSort;
     }
@@ -245,6 +304,133 @@ function OrgStatusSection({
       })
     : rows;
 
+  const sortableHeader = (label: string, column: SortKey) => (
+    <SortableHeader
+      label={label}
+      column={column}
+      orderBy={orderBy}
+      onSort={handleSort}
+    />
+  );
+
+  const columnOptions = {
+    cellPadding: "comfortable" as const,
+  };
+
+  const columns: LangfuseColumnDef<(typeof rows)[number]>[] = [
+    {
+      ...columnOptions,
+      accessorKey: "name",
+      size: 192,
+      header: () => sortableHeader("Project", "name"),
+      cell: ({ row }) => (
+        <Link
+          data-row-click-ignore
+          href={`/project/${row.original.id}/traces`}
+          className="block truncate font-bold hover:underline"
+          title={row.original.name}
+          onClick={() => {
+            if (!row.original.status.forceV3Experience) {
+              openProjectMigration(row.original, row.original.readiness);
+            }
+          }}
+        >
+          {row.original.name}
+        </Link>
+      ),
+    },
+    {
+      ...columnOptions,
+      accessorKey: "readiness",
+      header: () => sortableHeader("Status", "status"),
+      cell: ({ row }) => <StatusPill readiness={row.original.readiness} />,
+    },
+    {
+      ...columnOptions,
+      accessorKey: "sdk",
+      header: () => sortableHeader("SDK", "sdk"),
+      cell: ({ row }) => {
+        if (row.original.status.sdk.status === "latest") {
+          return <span className="text-foreground-tertiary">Latest</span>;
+        }
+        if (row.original.status.sdk.status === "otel_realtime") {
+          return (
+            <span className="text-foreground-tertiary">OTel real-time</span>
+          );
+        }
+        if (row.original.status.sdk.status === "no_data") {
+          return (
+            <span className="text-foreground-tertiary">No data detected</span>
+          );
+        }
+        if (row.original.status.sdk.status === "checking") {
+          return <span className="text-foreground-tertiary">Checking…</span>;
+        }
+        if (row.original.status.sdk.status === "unknown") {
+          return <span className="text-foreground-tertiary">Unknown</span>;
+        }
+        if (row.original.status.sdk.status === "otel_header_required") {
+          return (
+            <span>
+              {row.original.status.sdk.delayedOtelIngestionCount} OTel header{" "}
+              {row.original.status.sdk.delayedOtelIngestionCount === 1
+                ? "required"
+                : "issues"}
+            </span>
+          );
+        }
+        if (row.original.status.sdk.status === "error") {
+          return <span className="text-foreground-tertiary">Unavailable</span>;
+        }
+        return (
+          <span>{row.original.status.sdk.upgradeRequiredCount} outdated</span>
+        );
+      },
+    },
+    {
+      ...columnOptions,
+      accessorKey: "evals",
+      header: () => sortableHeader("Affected Evals", "evals"),
+      cell: ({ row }) => <AffectedCell count={row.original.status.evals} />,
+    },
+    {
+      ...columnOptions,
+      accessorKey: "experiments",
+      header: () => sortableHeader("Affected Experiments", "experiments"),
+      cell: ({ row }) => (
+        <MigrationActionCell state={row.original.status.experiments} />
+      ),
+    },
+    {
+      ...columnOptions,
+      accessorKey: "apis",
+      header: () => sortableHeader("Affected APIs", "apis"),
+      cell: ({ row }) => <AffectedCell count={row.original.status.apis} />,
+    },
+    {
+      ...columnOptions,
+      accessorKey: "exports",
+      header: () => sortableHeader("Affected Exports", "exports"),
+      cell: ({ row }) => <AffectedCell count={row.original.status.exports} />,
+    },
+    createTextTableColumn<(typeof rows)[number]>({
+      ...columnOptions,
+      accessorKey: "lastTraceLabel",
+      header: () => sortableHeader("Last trace", "lastTrace"),
+    }),
+    {
+      accessorKey: "id",
+      header: "",
+      size: 96,
+      cellPadding: "comfortable",
+      cell: () => (
+        <span className="text-dark-blue flex items-center justify-end gap-1 whitespace-nowrap opacity-0 transition-opacity group-hover/row:opacity-100">
+          Review <ArrowRight size="sm" />
+        </span>
+      ),
+    },
+  ];
+
   if (rows.length === 0) return null;
 
   return (
@@ -254,145 +440,17 @@ function OrgStatusSection({
       </h3>
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <Table className="min-w-[60rem] table-auto">
-            <TableHeader>
-              <TableRow>
-                <SortableHead
-                  label="Project"
-                  column="name"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Status"
-                  column="status"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="SDK"
-                  column="sdk"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Affected Evals"
-                  column="evals"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Affected APIs"
-                  column="apis"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Affected Exports"
-                  column="exports"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Last trace"
-                  column="lastTrace"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <TableHead className="w-24" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedRows.map((row) => {
-                if (!row.status) return null;
-                const readiness = getProjectMigrationReadiness(row.status);
-                return (
-                  <TableRow
-                    key={row.id}
-                    className="group/row cursor-pointer"
-                    onClick={() => handleRowClick(row)}
-                  >
-                    <TableCell density="comfortable" className="max-w-48">
-                      <Link
-                        href={`/project/${row.id}/traces`}
-                        className="block truncate font-bold hover:underline"
-                        title={row.name}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openProjectMigration(row);
-                        }}
-                      >
-                        {row.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell
-                      density="comfortable"
-                      className="overflow-hidden"
-                    >
-                      <StatusPill readiness={readiness} />
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      {row.status.sdk.status === "latest" ? (
-                        <span className="text-foreground-tertiary">Latest</span>
-                      ) : row.status.sdk.status === "otel_realtime" ? (
-                        <span className="text-foreground-tertiary">
-                          OTel real-time
-                        </span>
-                      ) : row.status.sdk.status === "no_data" ? (
-                        <span className="text-foreground-tertiary">
-                          No data detected
-                        </span>
-                      ) : row.status.sdk.status === "checking" ? (
-                        <span className="text-foreground-tertiary">
-                          Checking…
-                        </span>
-                      ) : row.status.sdk.status === "unknown" ? (
-                        <span className="text-foreground-tertiary">
-                          Unknown
-                        </span>
-                      ) : row.status.sdk.status === "otel_header_required" ? (
-                        <span>
-                          {row.status.sdk.delayedOtelIngestionCount} OTel header{" "}
-                          {row.status.sdk.delayedOtelIngestionCount === 1
-                            ? "required"
-                            : "issues"}
-                        </span>
-                      ) : row.status.sdk.status === "error" ? (
-                        <span className="text-foreground-tertiary">
-                          Unavailable
-                        </span>
-                      ) : (
-                        <span>
-                          {row.status.sdk.upgradeRequiredCount} outdated
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <AffectedCell count={row.status.evals} />
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <AffectedCell count={row.status.apis} />
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <AffectedCell count={row.status.exports} />
-                    </TableCell>
-                    <TableCell
-                      density="comfortable"
-                      className="text-muted-foreground truncate"
-                      title={row.lastTraceLabel}
-                    >
-                      {row.lastTraceLabel}
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <span className="text-dark-blue flex items-center justify-end gap-1 whitespace-nowrap opacity-0 transition-opacity group-hover/row:opacity-100">
-                        Review <ArrowRight className="h-3 w-3 shrink-0" />
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <div className="min-w-[60rem]">
+            <Table
+              tableName={`${org.name} migration status`}
+              columns={columns}
+              data={{ status: "success", data: sortedRows }}
+              noResultsMessage={null}
+              topBorder={false}
+              onRowClick={(row) => handleRowClick(row, row.readiness)}
+              getRowLabel={(row) => `Review ${row.name}`}
+            />
+          </div>
         </div>
       </Card>
     </div>
@@ -412,6 +470,8 @@ export default function V4MigrationStatusPage() {
 function V4MigrationStatusPageContent() {
   const session = useSession();
   const handleCopyPrompt = useCopyMigrationPrompt();
+  const hasDeadline = useHasV4MigrationDeadline();
+  const title = useV4MigrationTitle();
 
   const orgs: V4MigrationOrganization[] =
     session.data?.user?.organizations?.map((org) => ({
@@ -425,6 +485,18 @@ function V4MigrationStatusPageContent() {
     organizations: orgs,
     enabled: true,
   });
+  // Start the table's remaining data alongside the migration checks. Keeping
+  // these queries in the page lets one loading boundary wait for the complete
+  // snapshot instead of mounting each organization table with placeholder
+  // values that update after its rows become visible.
+  const lastTraceQueries = api.useQueries((t) =>
+    orgs.map((org) =>
+      t.organizations.lastTraceByProject(
+        { orgId: org.id },
+        { enabled: org.projects.length > 0 },
+      ),
+    ),
+  );
 
   const faqItems: { q: string; a: ReactNode }[] = [
     {
@@ -458,8 +530,13 @@ function V4MigrationStatusPageContent() {
           Yes, eventually. The{" "}
           <FaqLink href={SDK_UPGRADE_URL}>old SDKs</FaqLink>, trace-level evals,
           and APIs are frozen and stop working{" "}
-          <span className="underline">soon</span>. They keep running until then,
-          but we&apos;re no longer fixing bugs in them.
+          <span className="underline">
+            {hasDeadline
+              ? `on ${V4_MIGRATION_DEADLINE}`
+              : "once your administrator disables the legacy mode"}
+          </span>
+          . They keep running until then, but we&apos;re no longer fixing bugs
+          in them.
         </>
       ),
     },
@@ -475,8 +552,8 @@ function V4MigrationStatusPageContent() {
           >
             one prompt
           </button>
-          : the agent updates your SDK, repoints your evals, and migrates your
-          API calls, checking with you before it changes anything.
+          : the agent updates your SDK and evals, and migrates your API calls,
+          checking with you before it changes anything.
         </>
       ),
     },
@@ -484,8 +561,12 @@ function V4MigrationStatusPageContent() {
       q: "What if I do nothing?",
       a: (
         <>
-          <span className="underline">Soon</span>, old SDKs stop sending data,
-          and the{" "}
+          <span className="underline">
+            {hasDeadline
+              ? `On ${V4_MIGRATION_DEADLINE}`
+              : "Once your administrator disables the legacy mode"}
+          </span>
+          , old SDKs stop sending data, and the{" "}
           <FaqLink href={API_REFERENCE_URL}>
             deprecated evals and endpoints
           </FaqLink>{" "}
@@ -505,10 +586,34 @@ function V4MigrationStatusPageContent() {
       return status ? [getProjectMigrationReadiness(status)] : [];
     }),
   );
-  const readyProjects = readiness.filter((state) => state === "ready").length;
-  const isChecking =
+  const actionNeededProjects = readiness.filter(
+    (state) => state === "action-needed",
+  ).length;
+  // Projects whose checks failed are neither clean nor counted as needing
+  // action; surface them instead of silently finalizing the count.
+  const unavailableProjects = readiness.filter(
+    (state) => state === "unavailable",
+  ).length;
+  // Ready projects are hidden from the org tables, so the page needs its own
+  // "nothing left to do" state once every project drops out.
+  const listedProjects = readiness.filter((state) => state !== "ready").length;
+  const isLoading =
     session.status === "loading" ||
-    readiness.some((state) => state === "checking");
+    readiness.some((state) => state === "checking") ||
+    orgs.some(
+      (org, index) =>
+        org.projects.length > 0 &&
+        lastTraceQueries[index]?.data === undefined &&
+        !lastTraceQueries[index]?.isError,
+    );
+
+  if (isLoading) {
+    return (
+      <ContainerPage headerProps={{ title: "Migration status" }}>
+        <V4MigrationLoadingState />
+      </ContainerPage>
+    );
+  }
 
   return (
     <ContainerPage
@@ -517,41 +622,53 @@ function V4MigrationStatusPageContent() {
       }}
     >
       <div className="flex flex-col gap-6 pt-2 pb-24">
-        <Card className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 p-6">
-          <div className="flex min-w-0 flex-col gap-2.5">
-            <p className="text-base font-bold">
-              Langfuse v4 is here. Real-time and up to 165× faster
+        <Card className="flex min-w-0 flex-col gap-2.5 p-6">
+          <p className="text-base font-bold">{title}</p>
+          <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-relaxed">
+            <p>
+              {actionNeededProjects > 0
+                ? "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. Complete the action items on each project below to avoid disruption. "
+                : "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. "}
+              <V4MigrationDocsLink />
             </p>
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              {isChecking ? (
-                <span className="text-muted-foreground text-sm">
-                  Checking project status…
+            {actionNeededProjects > 0 && <V4MigrationDeadlineNote />}
+          </div>
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            {totalProjects === 0 ? (
+              <span className="text-muted-foreground text-sm">
+                No active projects
+              </span>
+            ) : (
+              <>
+                <span className="text-2xl leading-none font-bold tracking-tight">
+                  {actionNeededProjects}
                 </span>
-              ) : totalProjects === 0 ? (
                 <span className="text-muted-foreground text-sm">
-                  No active projects
+                  of {totalProjects} projects{" "}
+                  {actionNeededProjects === 1 ? "needs" : "need"} action
+                  {unavailableProjects > 0 &&
+                    ` · ${unavailableProjects} could not be checked`}
                 </span>
-              ) : (
-                <>
-                  <span className="text-2xl leading-none font-bold tracking-tight">
-                    {readyProjects}
-                  </span>
-                  <span className="text-muted-foreground text-sm">
-                    of {totalProjects} projects migrated
-                  </span>
-                </>
-              )}
-            </div>
+              </>
+            )}
           </div>
         </Card>
 
-        {orgs.map((org) => (
+        {orgs.map((org, index) => (
           <OrgStatusSection
             key={org.id}
             org={org}
             statusByProjectId={statusByProjectId}
+            lastTraceTimes={lastTraceQueries[index]?.data ?? []}
           />
         ))}
+
+        {totalProjects > 0 && listedProjects === 0 && (
+          <p className="text-muted-foreground flex items-center gap-2.5 text-sm">
+            <V4MigrationStatusDot variant="done" />
+            All projects are up to date. Nothing to do here.
+          </p>
+        )}
 
         <div className="mt-6">
           <p className="text-base font-bold">What&apos;s new in v4</p>
@@ -568,7 +685,43 @@ function V4MigrationStatusPageContent() {
             </div>
           </div>
         </div>
+
+        <SwitchBackSection />
       </div>
     </ContainerPage>
+  );
+}
+
+// User-level v3/v4 UI toggle, the same one the migration side panel shows.
+// Hides itself when the session cannot toggle v4 (legacy/events_only write
+// mode, post-rollout auto-enrollment).
+function SwitchBackSection() {
+  const { canToggleV4, isV4 } = useReadPath();
+  const hasDeadline = useHasV4MigrationDeadline();
+
+  if (!canToggleV4) {
+    return null;
+  }
+
+  return (
+    <div className="mt-6">
+      <p className="text-base font-bold">
+        {isV4
+          ? "Need to switch back to the legacy UI (v3)?"
+          : "Switch back to the latest UI (v4)"}
+      </p>
+      <div className="flex flex-col gap-4 pt-4">
+        {isV4 && (
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            The features powering the legacy v3 UI will be sunset{" "}
+            {hasDeadline
+              ? `on ${V4_MIGRATION_DEADLINE}`
+              : "once your administrator disables the legacy mode"}
+            . We strongly recommend switching to the latest UI (v4) before then.
+          </p>
+        )}
+        <V4PreviewToggleRow />
+      </div>
+    </div>
   );
 }

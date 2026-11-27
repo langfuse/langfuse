@@ -5,6 +5,7 @@ import {
   FIELDS,
   SCORE_COLUMNS,
   type FieldDef,
+  withFieldOptions,
 } from "@/src/features/search-bar/lib/fields";
 import {
   buildFilterContextMessage,
@@ -12,6 +13,97 @@ import {
   specForField,
 } from "@/src/features/search-bar/server/buildFilterPrompt";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+import {
+  EVALUATOR_FIELD_REGISTRY,
+  RULE_SAMPLE_FIELD_REGISTRY,
+} from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
+import { parseGeneratedFilters } from "@/src/features/search-bar/server/parseFilterCompletion";
+import { searchBarRouter } from "@/src/features/search-bar/server/router";
+import { MAX_QUERY_LENGTH } from "@/src/features/search-bar/lib/validate";
+import { planCommit } from "@/src/features/search-bar/lib/commit";
+import { aiRefinementBudgetError } from "@/src/features/search-bar/lib/ai-refine-budget";
+import { z } from "zod";
+
+describe("generateFilter input", () => {
+  it("admits mapped dataset labels whose complete ID payload fits the refinement budget", () => {
+    const schema = searchBarRouter.generateFilter._def.inputs[0];
+    if (!(schema instanceof z.ZodObject))
+      throw new Error("Expected the generation input schema");
+    const options = Array.from({ length: 100 }, (_, index) => ({
+      value: `00000000-0000-4000-8000-${index.toString().padStart(12, "0")}`,
+      displayValue: `review-dataset-${index}-${"x".repeat(40)}`,
+    }));
+    const registry = withFieldOptions(
+      EVALUATOR_FIELD_REGISTRY,
+      "datasetName",
+      options,
+    );
+    const currentQuery = `datasetName:(${options.map((option) => option.displayValue).join(" OR ")})`;
+    expect(planCommit(currentQuery, undefined, registry).status).toBe(
+      "committed",
+    );
+    // The unresolved catalog would charge long labels instead of their IDs.
+    expect(
+      aiRefinementBudgetError(currentQuery, EVALUATOR_FIELD_REGISTRY),
+    ).not.toBeNull();
+    expect(aiRefinementBudgetError(currentQuery, registry)).toBeNull();
+    expect(
+      schema.safeParse({
+        projectId: "project",
+        registryId: "evaluatorSamples",
+        prompt: "Only errors",
+        currentQuery,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("bounds transport size and checks the complete refinement response budget", () => {
+    const schema = searchBarRouter.generateFilter._def.inputs[0];
+    if (!(schema instanceof z.ZodObject))
+      throw new Error("Expected the generation input schema");
+    const input = {
+      projectId: "project",
+      prompt: "Refine the existing filters",
+      currentQuery: "name:(checkout OR search) level:ERROR",
+    };
+    expect(schema.safeParse(input).success).toBe(true);
+    expect(aiRefinementBudgetError(input.currentQuery)).toBeNull();
+    for (const query of [
+      Array.from({ length: 20 }, () => "level:ERROR").join(" "),
+      `name:(${Array.from({ length: 25 }, (_, index) => `readable-name-${index}-${"n".repeat(40)}`).join(" OR ")})`,
+    ]) {
+      expect(planCommit(query).status).toBe("committed");
+      expect(aiRefinementBudgetError(query)).toBeNull();
+    }
+    expect(
+      schema.safeParse({
+        ...input,
+        currentQuery: "a".repeat(MAX_QUERY_LENGTH + 1),
+      }).success,
+    ).toBe(false);
+    expect(aiRefinementBudgetError("refund policy level:ERROR")).not.toBeNull();
+    const values = Array.from(
+      { length: 120 },
+      (_, index) =>
+        `00000000-0000-4000-8000-${index.toString().padStart(12, "0")}`,
+    );
+    const currentQuery = `id:(${values.join(" OR ")})`;
+    expect(currentQuery.length).toBeLessThan(MAX_QUERY_LENGTH);
+    expect(planCommit(currentQuery).status).toBe("committed");
+    expect(aiRefinementBudgetError(currentQuery)).not.toBeNull();
+    for (const query of [
+      // Serialized filter objects cost more than their compact query spelling.
+      Array.from({ length: 80 }, () => "level:ERROR").join(" "),
+      // UTF-8 and JSON escaping must be charged, not UTF-16 string length.
+      `name:="${"🙃".repeat(1200)}"`,
+      // A partial lowering cannot hide the unsupported condition's payload.
+      `name:checkout unknown:(${values.join(" OR ")})`,
+    ]) {
+      expect(aiRefinementBudgetError(query)).not.toBeNull();
+    }
+  });
+});
 
 // A representative `singleFilter` for the FilterState `type` the prompt tells
 // the model to emit for this field. Used to assert the prompt's per-field
@@ -93,12 +185,95 @@ describe("buildFilterSystemPrompt", () => {
     expect(prompt).not.toContain("## Current filters");
     expect(prompt).not.toContain("## Observed project data");
   });
+});
 
-  it("no longer accepts currentQuery/dataContext — single-datetime signature", () => {
-    // Regression guard for the detangle: the skeleton takes only the anchor
-    // datetime now, so passing extra args would be a silent no-op if the
-    // signature ever regained them without a type error surfacing here.
-    expect(buildFilterSystemPrompt.length).toBe(1);
+describe("evaluation rule AI registry", () => {
+  it("advertises and accepts only the rule filter contract", () => {
+    const prompt = buildFilterSystemPrompt(
+      "Monday, 2026-06-15T00:00:00.000Z",
+      RULE_FIELD_REGISTRY,
+    );
+    expect(prompt).toContain("- tags [aliases:");
+    expect(prompt).not.toContain("- latency:");
+    expect(prompt).toContain("Never emit full-text search, score filters");
+
+    const result = parseGeneratedFilters(
+      JSON.stringify([
+        {
+          type: "arrayOptions",
+          column: "tags",
+          operator: "any of",
+          value: ["billing"],
+        },
+        { type: "number", column: "latency", operator: ">", value: 2 },
+      ]),
+      undefined,
+      RULE_FIELD_REGISTRY,
+    );
+    expect(result.filters).toEqual([
+      {
+        type: "arrayOptions",
+        column: "tags",
+        operator: "any of",
+        value: ["billing"],
+      },
+    ]);
+    expect(result.droppedCount).toBe(1);
+  });
+});
+
+describe("sample-filter AI registries", () => {
+  const options = [{ value: "dataset-id", displayValue: "Filter QA Dataset" }];
+
+  it("uses rule-specific prompt semantics for rule samples", () => {
+    const prompt = buildFilterSystemPrompt(
+      "Monday, 2026-06-15T00:00:00.000Z",
+      RULE_SAMPLE_FIELD_REGISTRY,
+    );
+
+    expect(prompt).toContain(
+      "observation filters for a Langfuse evaluation rule",
+    );
+    expect(prompt).toContain("- datasetName");
+    expect(prompt).not.toContain("observability (v4 events) table");
+  });
+
+  it("projects known names to IDs and drops unknown AI values", () => {
+    const registry = withFieldOptions(
+      EVALUATOR_FIELD_REGISTRY,
+      "datasetName",
+      options,
+    );
+    const completion = (value: string) =>
+      JSON.stringify([
+        {
+          type: "stringOptions",
+          column: "datasetName",
+          operator: "any of",
+          value: [value],
+        },
+      ]);
+
+    expect(
+      parseGeneratedFilters(
+        completion("Filter QA Dataset"),
+        undefined,
+        registry,
+      ),
+    ).toMatchObject({
+      filters: [
+        {
+          type: "stringOptions",
+          column: "experimentDatasetId",
+          operator: "any of",
+          value: ["dataset-id"],
+        },
+      ],
+      droppedCount: 0,
+    });
+    expect(
+      parseGeneratedFilters(completion("Missing dataset"), undefined, registry),
+    ).toMatchObject({ filters: [], droppedCount: 1 });
   });
 });
 

@@ -1,8 +1,8 @@
 import { useMemo } from "react";
-import { Download } from "lucide-react";
+import { Download } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { LARGE_STRING_PREVIEW_CHARS } from "@/src/components/ui/largeStringGate";
+import { LARGE_STRING_PREVIEW_CHARS } from "@/src/components/ui/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 
@@ -56,7 +56,7 @@ export function LargeStringFallback({
   };
 
   return (
-    <div className="io-message-content">
+    <div className="io-message-content ph-no-capture">
       <div className="my-2 flex flex-col gap-2 rounded-sm border border-dashed p-3">
         <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
           {title ? (
@@ -72,7 +72,7 @@ export function LargeStringFallback({
         </pre>
         <div>
           <Button variant="outline" size="sm" onClick={onDownload}>
-            <Download className="mr-1 h-3.5 w-3.5" />
+            <Download size="base" color="default" __rawClassName="mr-1" />
             Download full value
           </Button>
         </div>

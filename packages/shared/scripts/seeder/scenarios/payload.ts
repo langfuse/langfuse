@@ -28,9 +28,17 @@ export const GEN_OUTPUT_PRICE = 6e-6;
  * the call site — the createObservation factory would otherwise fill
  * non-empty defaults.
  */
+/**
+ * Usage and cost for one generation. The price pair is optional: a scenario that
+ * models specific models passes its own, everything else takes the house rate.
+ */
 export const generationUsageCost = (
   usageInput: number,
   usageOutput: number,
+  prices: { input: number; output: number } = {
+    input: GEN_INPUT_PRICE,
+    output: GEN_OUTPUT_PRICE,
+  },
 ) => ({
   provided_usage_details: {
     input: usageInput,
@@ -43,15 +51,15 @@ export const generationUsageCost = (
     total: usageInput + usageOutput,
   },
   provided_cost_details: {
-    input: usageInput * GEN_INPUT_PRICE,
-    output: usageOutput * GEN_OUTPUT_PRICE,
+    input: usageInput * prices.input,
+    output: usageOutput * prices.output,
   },
   cost_details: {
-    input: usageInput * GEN_INPUT_PRICE,
-    output: usageOutput * GEN_OUTPUT_PRICE,
-    total: usageInput * GEN_INPUT_PRICE + usageOutput * GEN_OUTPUT_PRICE,
+    input: usageInput * prices.input,
+    output: usageOutput * prices.output,
+    total: usageInput * prices.input + usageOutput * prices.output,
   },
-  total_cost: usageInput * GEN_INPUT_PRICE + usageOutput * GEN_OUTPUT_PRICE,
+  total_cost: usageInput * prices.input + usageOutput * prices.output,
 });
 
 const WORDS = [

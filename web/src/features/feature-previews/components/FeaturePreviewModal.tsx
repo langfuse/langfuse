@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import Image from "next/image";
 import { useState } from "react";
 
@@ -12,18 +14,19 @@ import {
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
+import {
+  featurePreviewLabels,
+  isInternalFeaturePreviewFlag,
+  type PersonalFeaturePreviewFlag,
+} from "@/src/features/feature-flags/available-flags";
 
-import filterSearchBarDarkIllustration from "../assets/filter-search-bar-dark.svg";
-import filterSearchBarLightIllustration from "../assets/filter-search-bar-light.svg";
 import modernSessionDarkIllustration from "../assets/modern-session-dark.svg";
 import modernSessionLightIllustration from "../assets/modern-session-light.svg";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 /** Flags the Feature Preview modal can toggle. Keep in sync with the
- *  userAccount.setFeaturePreviewEnabled allowlist and available-flags.ts.
- *  `searchBar` is retired and no longer renders a tile — see
- *  ControlledFeaturePreviewModal. It remains as rollback plumbing.
- *  TODO(remove ~2026-06-19): drop "searchBar" once GA is confirmed. */
-export type PreviewFlag = "modernSession" | "searchBar" | "v4UpgradeUi";
+ *  userAccount.setFeaturePreviewEnabled allowlist and available-flags.ts. */
+export type PreviewFlag = PersonalFeaturePreviewFlag;
 
 type PreviewIllustration = {
   light: React.ComponentProps<typeof Image>["src"];
@@ -35,12 +38,10 @@ type PreviewIllustration = {
 
 type PreviewRegistryItem = {
   flag: PreviewFlag;
-  title: string;
-  sidebarLabel: string;
   description: string;
   details: string;
-  feedbackUrl: string;
-  illustration: PreviewIllustration;
+  feedbackUrl?: string;
+  illustration?: PreviewIllustration;
 };
 
 /** Per-preview dynamic state, supplied by ControlledFeaturePreviewModal (which
@@ -53,63 +54,39 @@ export type PreviewState = {
   isToggling?: boolean;
 };
 
-// Static registry — one entry per preview. Order = sidebar order; each
-// preview ships separate light/dark illustrations.
+// Static registry — one entry per preview, in sidebar order.
+// Previews may include separate light/dark illustrations.
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   {
-    flag: "modernSession",
-    title: "Compact Session View",
-    sidebarLabel: "Compact Session View",
+    flag: "traceTranscriptEvals",
+    description:
+      "Evaluate a whole trace from its conversation transcript instead of a single observation.",
+    details:
+      "Set an evaluation rule to trace scope, map evaluator variables to the trace's messages, and test it on sample traces. Rules run once a trace has been idle.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+  },
+  {
+    flag: "sessionViewV2",
     description:
       "Navigate every trace in a session from one continuous conversation feed, with tools and structured data available on demand.",
     details:
-      "Compact Session View replaces separate trace cards with a compact minimap and a virtualized feed. Jump between traces, keep the active trace in view, or temporarily show inline tool calls and system prompts.",
-    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+      "Redesigned Session View replaces separate trace cards with a compact minimap and a virtualized feed. Jump between traces, keep the active trace in view, or temporarily show inline tool calls and system prompts.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions/18687",
     illustration: {
       light: modernSessionLightIllustration,
       dark: modernSessionDarkIllustration,
-      alt: "Compact Session View showing a trace minimap beside a continuous session conversation feed.",
+      alt: "Redesigned Session View with a continuous session conversation feed.",
     },
   },
   {
-    flag: "v4UpgradeUi",
-    title: "V4 Migration",
-    sidebarLabel: "V4 Migration",
-    description:
-      "Review each project's readiness for Langfuse v4 and get guided steps for anything that still needs an update.",
+    flag: "unifiedTraceSessionView",
+    description: "Explore traces and their full session in one unified view.",
     details:
-      "The V4 Migration experience adds a migration status page, project-level readiness indicators, and contextual upgrade guidance for SDKs, evaluators, deprecated APIs, and integrations.",
-    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
-    illustration: {
-      light: "/assets/v4-beta-intro.jpg",
-      dark: "/assets/v4-beta-intro.jpg",
-      alt: "Langfuse v4 performance improvements across common observability workflows.",
-      width: 1024,
-      height: 598,
-    },
-  },
-  // TODO(remove ~2026-06-19): dead registry entry — "searchBar" is GA on the v4
-  // events tables and no longer surfaced in the dialog (no state entry in
-  // ControlledFeaturePreviewModal), so this is filtered out and never renders.
-  // Kept for a safe rollback; delete with the rest of the searchBar plumbing.
-  {
-    flag: "searchBar",
-    title: "Filter Search Bar",
-    sidebarLabel: "Filter Search Bar",
-    description:
-      "A keyboard-driven query bar on the Observations and Traces tables — type filters like level:ERROR -env:dev latency:>2 with inline suggestions, alongside the existing filter sidebar.",
-    details:
-      "The search bar lets you build and edit filters by typing a compact query language with autocomplete, instead of clicking through the sidebar. It stays in sync with the sidebar (both read and write the same filter state) and supports field filters, comparisons, any-of groups, negation, metadata/score paths, and full-text search across input/output. It is available on the new (v4) Observations and Traces tables.",
-    feedbackUrl: "https://github.com/orgs/langfuse/discussions/14196",
-    illustration: {
-      light: filterSearchBarLightIllustration,
-      dark: filterSearchBarDarkIllustration,
-      alt: "The filter search bar turns typed queries like level:ERROR -env:dev into Observations and Traces table filters with inline suggestions.",
-    },
+      "Switch between Trace and Session scope without leaving the trace UI. Requires the events-backed read path and a trace belonging to a session.",
   },
 ];
 
-const FEATURE_PREVIEW_MODAL_TITLE = "Feature Preview";
+const FEATURE_PREVIEW_MODAL_TITLE = "Feature preview";
 const FEATURE_PREVIEW_MODAL_SUBTITLE =
   "Try upcoming and experimental product experiences before they become generally available.";
 
@@ -150,7 +127,7 @@ export function FeaturePreviewModal({
           </DialogDescription>
         </DialogHeader>
 
-        <DialogBody className="grid min-h-0 gap-0 overflow-hidden p-0 md:grid-cols-[220px_1fr]">
+        <DialogBody className="grid min-h-0 gap-0 overflow-hidden p-0 md:grid-cols-[220px_minmax(0,1fr)]">
           <aside className="border-border bg-muted/20 border-b p-3 md:border-r md:border-b-0">
             <div className="flex gap-2 overflow-x-auto md:flex-col md:overflow-x-visible">
               {items.map((item) => {
@@ -169,15 +146,14 @@ export function FeaturePreviewModal({
                     )}
                   >
                     <span className="min-w-0">
-                      <span className="block text-sm font-bold">
-                        {item.sidebarLabel}
+                      <span
+                        className="block truncate text-sm font-bold"
+                        title={featurePreviewLabels[item.flag]}
+                      >
+                        {featurePreviewLabels[item.flag]}
                       </span>
                       <span className="text-muted-foreground mt-1 line-clamp-2 block text-xs">
-                        {state[item.flag]?.disabled
-                          ? "Unavailable"
-                          : state[item.flag]?.enabled
-                            ? "Enabled"
-                            : "Available"}
+                        {getPreviewStatusLabel(state[item.flag])}
                       </span>
                     </span>
                   </button>
@@ -190,28 +166,40 @@ export function FeaturePreviewModal({
             {selected && selectedState ? (
               <>
                 {selectedState.warningReason ? (
-                  <div className="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-800 dark:text-yellow-200">
-                    {selectedState.warningReason}
+                  <div className="mb-4">
+                    <Banner variant="warning">
+                      {selectedState.warningReason}
+                    </Banner>
                   </div>
                 ) : null}
 
                 <div className="flex items-start justify-between gap-6">
-                  <div>
-                    <h2 className="text-foreground text-xl font-bold">
-                      {selected.title}
+                  <div className="min-w-0">
+                    <h2 className="text-foreground flex items-center gap-2 text-xl font-bold whitespace-nowrap">
+                      <span
+                        className="truncate"
+                        title={featurePreviewLabels[selected.flag]}
+                      >
+                        {featurePreviewLabels[selected.flag]}
+                      </span>
+                      {isInternalFeaturePreviewFlag(selected.flag) && (
+                        <FeatureReleaseStatus status="internal" />
+                      )}
                     </h2>
-                    <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-5">
+                    <p className="text-muted-foreground mt-2 max-w-2xl text-sm">
                       {selected.description}
                     </p>
-                    <Button asChild className="mt-4">
-                      <a
-                        href={selected.feedbackUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Give feedback
-                      </a>
-                    </Button>
+                    {selected.feedbackUrl && (
+                      <Button asChild className="mt-4">
+                        <a
+                          href={selected.feedbackUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Give feedback
+                        </a>
+                      </Button>
+                    )}
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-2">
                     <Switch
@@ -221,14 +209,45 @@ export function FeaturePreviewModal({
                         selectedState.isToggling === true
                       }
                       onCheckedChange={selectedState.onToggle}
-                      aria-label={`Toggle ${selected.title}`}
+                      aria-label={`Toggle ${featurePreviewLabels[selected.flag]}`}
                     />
                   </div>
                 </div>
 
-                <PreviewMockupPanel illustration={selected.illustration} />
+                {selected.flag === "sessionViewV2" &&
+                state.sessionViewV2Timeline ? (
+                  <div className="border-border mt-5 flex items-start justify-between gap-6 border-t pt-5">
+                    <div>
+                      <h3 className="text-foreground text-sm font-bold">
+                        {featurePreviewLabels.sessionViewV2Timeline}
+                      </h3>
+                      <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
+                        Use the redesigned timeline to navigate session events
+                        in chronological order.
+                      </p>
+                      {state.sessionViewV2Timeline.warningReason ? (
+                        <p className="mt-2 text-xs text-yellow-800 dark:text-yellow-200">
+                          {state.sessionViewV2Timeline.warningReason}
+                        </p>
+                      ) : null}
+                    </div>
+                    <Switch
+                      checked={state.sessionViewV2Timeline.enabled}
+                      disabled={
+                        state.sessionViewV2Timeline.disabled === true ||
+                        state.sessionViewV2Timeline.isToggling === true
+                      }
+                      onCheckedChange={state.sessionViewV2Timeline.onToggle}
+                      aria-label={`Toggle ${featurePreviewLabels.sessionViewV2Timeline}`}
+                    />
+                  </div>
+                ) : null}
 
-                <p className="text-muted-foreground mt-5 text-sm leading-5">
+                {selected.illustration && (
+                  <PreviewMockupPanel illustration={selected.illustration} />
+                )}
+
+                <p className="text-muted-foreground mt-5 text-sm">
                   {selected.details}
                 </p>
               </>
@@ -238,6 +257,12 @@ export function FeaturePreviewModal({
       </DialogContent>
     </Dialog>
   );
+}
+
+function getPreviewStatusLabel(state: PreviewState | undefined) {
+  if (state?.enabled) return "Enabled";
+  if (state?.disabled) return "Unavailable";
+  return "Available";
 }
 
 function PreviewMockupPanel({

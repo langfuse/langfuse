@@ -1,5 +1,9 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  logger,
+  getSelfHostedInstancePlanServerSide,
+} from "@langfuse/shared/src/server";
+import { isBaseError, hasEntitlementBasedOnPlan } from "@langfuse/shared";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import {
   validateQueryAndExtractId,
@@ -7,8 +11,6 @@ import {
   handleCreateApiKey,
 } from "@/src/ee/features/admin-api/server/organizations/apiKeys";
 import { prisma } from "@langfuse/shared/src/db";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";
 
 export default async function handler(
   req: NextApiRequest,
@@ -61,6 +63,9 @@ export default async function handler(
         return;
     }
   } catch (e) {
+    if (isBaseError(e) && e.isUserError()) {
+      return res.status(e.httpCode).json({ error: e.message });
+    }
     logger.error("Failed to process organization API key request", e);
     res.status(500).json({ error: "Internal server error" });
   }

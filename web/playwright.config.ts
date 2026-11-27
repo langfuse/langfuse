@@ -1,6 +1,9 @@
 import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
+  testDir: "./src/__e2e__",
+  // Takes the server's cold start off whichever test happens to run first.
+  globalSetup: "./src/__e2e__/utils/warm-up.ts",
   timeout: 180000, // test timeout 180s (3 minutes)
   expect: {
     timeout: 60000, // assertion timeout 60s (increased for CI)

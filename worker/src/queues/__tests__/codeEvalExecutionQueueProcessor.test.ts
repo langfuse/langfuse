@@ -9,7 +9,10 @@ import {
 } from "vitest";
 import { Job } from "bullmq";
 import { EvalTemplateType } from "@prisma/client";
-import { UnrecoverableError } from "../../errors/UnrecoverableError";
+import {
+  UnrecoverableError,
+  isUnrecoverableError,
+} from "../../errors/UnrecoverableError";
 
 const QueueName = {
   CodeEvalExecution: "code-eval-execution-queue",
@@ -27,13 +30,19 @@ vi.mock("@langfuse/shared/src/db", () => ({
   },
 }));
 
-vi.mock("../../features/evaluation/observationEval", () => ({
-  processObservationEval: vi.fn(),
-}));
+vi.mock(
+  "../../features/evaluation/observationEval/observationEvalProcessor",
+  () => ({
+    processEval: vi.fn(),
+  }),
+);
 
-vi.mock("../../features/evaluation/codeBased", () => ({
-  executeCodeBasedEvaluation: vi.fn(),
-}));
+vi.mock(
+  "../../features/evaluation/codeBased/executeCodeBasedEvaluation",
+  () => ({
+    executeCodeBasedEvaluation: vi.fn(),
+  }),
+);
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual =
@@ -54,11 +63,13 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     QueueName: {
       CodeEvalExecution: "code-eval-execution-queue",
     },
+    recordDistribution: vi.fn(),
+    recordIncrement: vi.fn(),
     traceException: vi.fn(),
   };
 });
 
-vi.mock("../../features/utils", () => ({
+vi.mock("../../features/utils/utilities", () => ({
   createW3CTraceId: vi.fn().mockReturnValue("test-trace-id"),
 }));
 
@@ -71,11 +82,14 @@ vi.mock("../../errors/UnrecoverableError", async () => {
 });
 
 import { prisma } from "@langfuse/shared/src/db";
-import { processObservationEval } from "../../features/evaluation/observationEval";
-import { traceException } from "@langfuse/shared/src/server";
+import { processEval } from "../../features/evaluation/observationEval/observationEvalProcessor";
+import {
+  recordDistribution,
+  recordIncrement,
+  traceException,
+} from "@langfuse/shared/src/server";
 import { CodeEvalDispatcherErrorCodes } from "../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
 import { CodeEvalExecutionError } from "../../../../packages/shared/src/server/evals/codeEvalExecution";
-import { isUnrecoverableError } from "../../errors/UnrecoverableError";
 
 describe("codeEvalExecutionQueueProcessor", () => {
   const projectId = "test-project-123";
@@ -88,7 +102,9 @@ describe("codeEvalExecutionQueueProcessor", () => {
     overrides: {
       data?: Record<string, unknown>;
       attemptsMade?: number;
+      attemptsStarted?: number;
       opts?: { attempts?: number };
+      timestamp?: number;
     } = {},
   ): Job<any> =>
     ({
@@ -104,7 +120,9 @@ describe("codeEvalExecutionQueueProcessor", () => {
         retryBaggage: { attempt: 0 },
         ...overrides.data,
       },
+      timestamp: overrides.timestamp ?? Date.now(),
       attemptsMade: overrides.attemptsMade ?? 0,
+      attemptsStarted: overrides.attemptsStarted ?? 1,
       opts: overrides.opts ?? { attempts: 10 },
     }) as Job<any>;
 
@@ -118,15 +136,14 @@ describe("codeEvalExecutionQueueProcessor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (isUnrecoverableError as unknown as Mock).mockReturnValue(false);
+    (processEval as Mock).mockResolvedValue("completed");
   });
 
   it("should process code observation evals through the code template gate", async () => {
-    (processObservationEval as Mock).mockResolvedValue(undefined);
-
     const result = await codeEvalExecutionQueueProcessor(createMockJob());
 
     expect(result).toBe(true);
-    expect(processObservationEval).toHaveBeenCalledWith({
+    expect(processEval).toHaveBeenCalledWith({
       event: {
         projectId,
         jobExecutionId,
@@ -136,11 +153,72 @@ describe("codeEvalExecutionQueueProcessor", () => {
     });
   });
 
+  it("records schedule-to-first-attempt latency only for the initial attempt", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(10_000);
+
+    await codeEvalExecutionQueueProcessor(createMockJob({ timestamp: 8_500 }));
+
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.evaluation.execution.time_to_first_attempt_ms",
+      1_500,
+      {
+        evaluator_type: "code_as_judge",
+        unit: "milliseconds",
+      },
+    );
+
+    vi.mocked(recordDistribution).mockClear();
+    await codeEvalExecutionQueueProcessor(
+      createMockJob({ attemptsMade: 0, attemptsStarted: 2, timestamp: 8_000 }),
+    );
+    expect(recordDistribution).not.toHaveBeenCalled();
+
+    now.mockRestore();
+  });
+
+  it("records completed and cancelled terminal outcomes", async () => {
+    await codeEvalExecutionQueueProcessor(createMockJob());
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.evaluation.execution.terminal",
+      1,
+      { evaluator_type: "code_as_judge", outcome: "success" },
+    );
+
+    vi.mocked(recordIncrement).mockClear();
+    (processEval as Mock).mockResolvedValue("cancelled");
+    await codeEvalExecutionQueueProcessor(createMockJob());
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.evaluation.execution.terminal",
+      1,
+      { evaluator_type: "code_as_judge", outcome: "cancelled" },
+    );
+  });
+
+  it("classifies non-retryable user-code failures as customer errors", async () => {
+    const error = new CodeEvalExecutionError({
+      code: CodeEvalDispatcherErrorCodes.USER_CODE_ERROR,
+      message: "user code failed",
+      retryable: false,
+    });
+    (processEval as Mock).mockRejectedValue(error);
+
+    await expect(
+      codeEvalExecutionQueueProcessor(createMockJob()),
+    ).resolves.toBeUndefined();
+
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.evaluation.execution.terminal",
+      1,
+      { evaluator_type: "code_as_judge", outcome: "customer_error" },
+    );
+    expect(traceException).not.toHaveBeenCalled();
+  });
+
   it("should treat unrecoverable code eval errors as terminal", async () => {
     const error = new UnrecoverableError(
       "The evaluator returned an invalid result.",
     );
-    (processObservationEval as Mock).mockRejectedValue(error);
+    (processEval as Mock).mockRejectedValue(error);
     (isUnrecoverableError as unknown as Mock).mockReturnValue(true);
 
     const result = await codeEvalExecutionQueueProcessor(createMockJob());
@@ -156,11 +234,16 @@ describe("codeEvalExecutionQueueProcessor", () => {
       },
     });
     expect(traceException).not.toHaveBeenCalled();
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.evaluation.execution.terminal",
+      1,
+      { evaluator_type: "code_as_judge", outcome: "platform_error" },
+    );
   });
 
   it("should persist already-masked internal code eval errors", async () => {
     const error = new UnrecoverableError("An internal error occurred");
-    (processObservationEval as Mock).mockRejectedValue(error);
+    (processEval as Mock).mockRejectedValue(error);
     (isUnrecoverableError as unknown as Mock).mockReturnValue(true);
 
     const result = await codeEvalExecutionQueueProcessor(createMockJob());
@@ -181,7 +264,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
     const error = new UnrecoverableError(
       "Code-based eval execution is not implemented yet",
     );
-    (processObservationEval as Mock).mockRejectedValue(error);
+    (processEval as Mock).mockRejectedValue(error);
     (isUnrecoverableError as unknown as Mock).mockReturnValue(true);
 
     const result = await codeEvalExecutionQueueProcessor(createMockJob());
@@ -204,7 +287,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
 
   it("should rethrow retryable errors without writing ERROR while retries remain", async () => {
     const error = new Error("temporary dispatcher failure");
-    (processObservationEval as Mock).mockRejectedValue(error);
+    (processEval as Mock).mockRejectedValue(error);
 
     await expect(
       codeEvalExecutionQueueProcessor(createMockJob()),
@@ -212,11 +295,16 @@ describe("codeEvalExecutionQueueProcessor", () => {
 
     expect(prisma.jobExecution.update).not.toHaveBeenCalled();
     expect(traceException).toHaveBeenCalledWith(error);
+    expect(recordIncrement).not.toHaveBeenCalledWith(
+      "langfuse.evaluation.execution.terminal",
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it("should mark the job as ERROR with a masked message on the final retry attempt", async () => {
     const error = new Error("temporary dispatcher failure");
-    (processObservationEval as Mock).mockRejectedValue(error);
+    (processEval as Mock).mockRejectedValue(error);
 
     await expect(
       codeEvalExecutionQueueProcessor(
@@ -237,23 +325,26 @@ describe("codeEvalExecutionQueueProcessor", () => {
       },
     });
     expect(traceException).toHaveBeenCalledWith(error);
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.evaluation.execution.terminal",
+      1,
+      { evaluator_type: "code_as_judge", outcome: "platform_error" },
+    );
   });
 
-  it("should preserve retryable code eval timeout messages on the final retry attempt", async () => {
+  it("should treat code eval timeouts as terminal without retrying", async () => {
     const timeoutMessage =
       "Evaluator timed out. Code-based evaluators must complete within the configured runtime limit. Long executions can be caused by network calls, which are forbidden and may never complete. Remove network calls, optimize your evaluator code, and try again. See https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators for details.";
     const error = new CodeEvalExecutionError({
       code: CodeEvalDispatcherErrorCodes.TIMEOUT,
       message: timeoutMessage,
-      retryable: true,
+      retryable: false,
     });
-    (processObservationEval as Mock).mockRejectedValue(error);
+    (processEval as Mock).mockRejectedValue(error);
 
     await expect(
-      codeEvalExecutionQueueProcessor(
-        createMockJob({ attemptsMade: 9, opts: { attempts: 10 } }),
-      ),
-    ).rejects.toThrow(error);
+      codeEvalExecutionQueueProcessor(createMockJob()),
+    ).resolves.toBeUndefined();
 
     expect(prisma.jobExecution.update).toHaveBeenCalledWith({
       where: {
@@ -267,6 +358,11 @@ describe("codeEvalExecutionQueueProcessor", () => {
         executionTraceId: "test-trace-id",
       },
     });
-    expect(traceException).toHaveBeenCalledWith(error);
+    expect(traceException).not.toHaveBeenCalled();
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.evaluation.execution.terminal",
+      1,
+      { evaluator_type: "code_as_judge", outcome: "customer_error" },
+    );
   });
 });

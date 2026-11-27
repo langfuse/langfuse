@@ -22,7 +22,7 @@ export class BatchExportQueue {
             ...queueOptionsWithRedis,
             defaultJobOptions: {
               removeOnComplete: true,
-              removeOnFail: 10_000,
+              removeOnFail: { age: 7 * 24 * 3600, count: 1000 },
               attempts: 8,
               backoff: {
                 type: "exponential",

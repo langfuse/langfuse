@@ -6,9 +6,11 @@ import {
 import {
   filterInterface,
   sqlInterface,
+  type DatabaseRow,
 } from "@/src/server/api/services/sqlInterface";
 import { createHistogramData } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { TRPCError } from "@trpc/server";
+import { env } from "@/src/env.mjs";
 import {
   getScoreAggregate,
   getNumericScoreHistogram,
@@ -18,8 +20,8 @@ import {
   getObservationUsageByTypeByTime,
   DashboardService,
   DashboardDefinitionSchema,
+  escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
-import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
   query as customQuery,
@@ -33,7 +35,7 @@ import {
   orderBy,
   StringNoHTML,
   InvalidRequestError,
-  singleFilter,
+  singleFilterList,
   LANGFUSE_HOME_DASHBOARD_ID,
   type FilterState,
 } from "@langfuse/shared";
@@ -46,7 +48,12 @@ const ListDashboardsInput = z.object({
   // The Home-dashboard picker and clone detection fetch the whole list in one
   // page, so allow a higher ceiling than the default table pagination.
   limit: z.coerce.number().int().positive().lte(500).default(50),
-  orderBy: orderBy,
+  orderBy: orderBy.refine(
+    (value) =>
+      value === null ||
+      ["name", "createdAt", "updatedAt"].includes(value.column),
+    { message: "Invalid dashboard sort column", path: ["column"] },
+  ),
 });
 
 // Get dashboard by ID input schema
@@ -99,7 +106,7 @@ const SetHomeDashboardInput = z.object({
 const UpdateDashboardFiltersInput = z.object({
   projectId: z.string(),
   dashboardId: z.string(),
-  filters: z.array(singleFilter),
+  filters: singleFilterList,
 });
 
 /**
@@ -129,9 +136,8 @@ const LEGACY_CAMEL_CASE_MAP: Record<string, string> = {
  */
 function prepareScoresNumericV2Params(filter: FilterState) {
   const [from, to] = extractFromAndToTimestampsFromFilter(filter);
-  // Fallback to 2000-01-01 instead of epoch 0 — ClickHouse DateTimeFilter
-  // passes new Date(value).getTime() as the parameter, and the value 0
-  // (epoch) is rejected by ClickHouse's DateTime64(3) parameter parser.
+  // Preserve the existing default range. DateTimeFilter now accepts epoch as a
+  // lower bound, but widening dashboard queries is a separate behavior change.
   const fromIso = from?.value
     ? new Date(from.value as Date).toISOString()
     : new Date("2000-01-01T00:00:00.000Z").toISOString();
@@ -155,7 +161,7 @@ function prepareScoresNumericV2Params(filter: FilterState) {
 
 /**
  * Converts ClickHouse histogram(N)(...) output to the { chartData, chartLabels }
- * shape returned by createHistogramData (used by the NumericScoreHistogram component).
+ * shape returned by createHistogramData (used by the NumericScoreHistogramCard component).
  *
  * ClickHouse histogram() returns an Array(Tuple(Float64, Float64, Float64))
  * where each tuple is (lower_bound, upper_bound, count).
@@ -448,10 +454,27 @@ export const dashboardRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         query: customQuery,
-        version: viewVersions.optional().default("v1"),
+        // Required on purpose: a client must decide the read path explicitly.
+        // An implicit v1 default let unresolved-session clients silently fire
+        // legacy-table queries for v4 users.
+        version: viewVersions,
       }),
     )
     .query(async ({ input }) => {
+      // Deployment-level guard, not a per-user one: v2 reads the events
+      // views, which exist whenever the deployment writes them. Monitors
+      // previews and shared v2-widgets legitimately query v2 for users whose
+      // own read path is still v3; only a legacy deployment has nothing for
+      // v2 to read. v1 stays open (saved v1 widgets render for v4 users).
+      if (
+        input.version === "v2" &&
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
+      ) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "v2 queries are not available on this deployment",
+        });
+      }
       try {
         const validation = validateQuery(input.query, input.version);
         if (!validation.valid) {
@@ -607,7 +630,9 @@ export const dashboardRouter = createTRPCRouter({
       const existingClones = await ctx.prisma.dashboard.findMany({
         where: {
           projectId: input.projectId,
-          name: { startsWith: `${sourceDashboard.name} (Clone` },
+          name: {
+            startsWith: `${escapeSqlLikePattern(sourceDashboard.name)} (Clone`,
+          },
         },
         select: { name: true },
       });

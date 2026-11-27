@@ -1,13 +1,15 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { ClickHouseClientManager, logger } from "@langfuse/shared/src/server";
-import { redis } from "@langfuse/shared/src/server";
+import { disconnectAllRedisInstances } from "@langfuse/shared/src/server";
 
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { setSigtermReceived } from "../features/health";
 import { server } from "../index";
-import { freeAllTokenizers } from "../features/tokenisation/usage";
-import { getTokenCountWorkerManager } from "../features/tokenisation/async-usage";
 import { WorkerManager } from "../queues/workerManager";
-import { logInFlightBlobExportsOnShutdown } from "../features/blobstorage/inFlightExports";
+import {
+  abortBlobExportsForShutdown,
+  logInFlightBlobExportsOnShutdown,
+} from "../features/blobstorage/inFlightExports";
 import { abortActiveInAppAgentRuns } from "../features/in-app-agent/executeInAppAgentRun";
 import { prisma } from "@langfuse/shared/src/db";
 import { BackgroundMigrationManager } from "../backgroundMigrations/backgroundMigrationManager";
@@ -15,22 +17,56 @@ import {
   batchProjectCleaners,
   batchDataRetentionCleaners,
   mediaRetentionCleaner,
+  inAppAgentRetentionCleaner,
   batchProjectMediaCleaner,
   batchProjectBlobCleaner,
+  eventsDispatchTranscriptCleaner,
   batchTraceDeletionCleaner,
   traceDeleteBatchActionRunner,
+  inAppAgentIntegrityRunner,
   deletedMaskCleaner,
+  auditLogRelay,
   queueMetricsRunner,
   monitorRunners,
+  inAppAgentDlqRetryRunner,
+  traceDispatcher,
+  traceDispatchMetricsRunner,
+  topicsNightlyRefitRunner,
 } from "../app";
+
+// Blob exports are aborted and re-queued only when a signal starts the drain.
+// A fatal-error drain never re-queues, even if a signal follows (its closed
+// health server makes the orchestrator send SIGTERM): an export that crashes
+// the worker would otherwise loop across the fleet without ever failing.
+let drainStartedBySignal = false;
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info(`Received ${signal}, closing server...`);
+  if (!drainPromise) drainStartedBySignal = true;
+  await drainAndClose();
+};
+
+let drainPromise: Promise<void> | null = null;
+
+// Flip readiness to unhealthy, stop accepting new work, drain in-flight jobs
+// and flush pending writes, then close connections. Shared by the
+// SIGTERM/SIGINT path and the fatal-error path; memoized so concurrent
+// triggers reuse one drain instead of closing workers/connections twice.
+export const drainAndClose = (): Promise<void> => {
+  if (!drainPromise) {
+    drainPromise = runDrainAndClose();
+  }
+  return drainPromise;
+};
+
+const runDrainAndClose = async () => {
   setSigtermReceived();
 
-  // Stop accepting new connections
   server?.close();
   logger.info("Server has been closed.");
+
+  // Give in-flight dispatch up to five seconds before continuing shutdown.
+  await traceDispatcher?.drain();
 
   // Stop batch project cleaners
   for (const cleaner of batchProjectCleaners) {
@@ -44,6 +80,7 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
 
   // Stop media retention cleaner
   mediaRetentionCleaner?.stop();
+  inAppAgentRetentionCleaner?.stop();
 
   // Stop batch project media cleaner
   batchProjectMediaCleaner?.stop();
@@ -51,25 +88,39 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   // Stop batch project blob cleaner
   batchProjectBlobCleaner?.stop();
 
+  // Stop events-dispatch transcript cleaner
+  eventsDispatchTranscriptCleaner?.stop();
+
   // Stop batch trace deletion cleaner
   batchTraceDeletionCleaner?.stop();
 
   // Stop durable trace-delete batch action runner
   traceDeleteBatchActionRunner?.stop();
 
+  inAppAgentIntegrityRunner?.stop();
+
   // Stop deleted-mask cleaner
   deletedMaskCleaner?.stop();
 
+  auditLogRelay?.stop();
+
   // Stop queue metrics runner
   queueMetricsRunner?.stop();
+  traceDispatchMetricsRunner?.stop();
 
   // Stop monitor runners
   for (const runner of monitorRunners) {
     runner.stop();
   }
 
+  inAppAgentDlqRetryRunner?.stop();
+  topicsNightlyRefitRunner?.stop();
+
   // Before closeWorkers(), while the registry is still populated (LFE-10388).
   logInFlightBlobExportsOnShutdown();
+  // Abort running exports so closeWorkers() can re-queue their jobs instead
+  // of waiting until ECS kills the task.
+  if (drainStartedBySignal) abortBlobExportsForShutdown();
 
   // Abort in-flight agent loops at their next step boundary so closeWorkers()
   // does not wait out a full agent turn; each run finishes FAILED
@@ -83,28 +134,27 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   await BackgroundMigrationManager.close();
 
   // Flush all pending writes to Clickhouse AFTER closing ingestion queue worker that is writing to it
-  await ClickhouseWriter.getInstance().shutdown();
+  await ClickhouseWriter.shutdownAll();
   logger.info("Clickhouse writer has been shut down.");
 
-  redis?.disconnect();
-  logger.info("Redis connection has been closed.");
+  await Promise.all([
+    inAppAgentRetentionCleaner?.drain(5_000),
+    inAppAgentIntegrityRunner?.drain(5_000),
+  ]);
+
+  // Closes the shared client and every per-queue client in one pass. Each
+  // queue holds its own client; without this they stay connected, retry
+  // forever, and keep the event loop alive so the process never exits.
+  const closedRedisConnections = disconnectAllRedisInstances();
+  logger.info(
+    `Redis connections have been closed (${closedRedisConnections} clients).`,
+  );
 
   await prisma.$disconnect();
   logger.info("Prisma connection has been closed.");
 
   // Shutdown clickhouse connections
   await ClickHouseClientManager.getInstance().closeAllConnections();
-
-  // Shutdown tokenization worker threads
-  try {
-    await getTokenCountWorkerManager().terminate();
-    logger.info("Token count worker threads have been terminated.");
-  } catch (error) {
-    logger.error("Error terminating token count worker threads", error);
-  }
-
-  freeAllTokenizers();
-  logger.info("All tokenizers are cleaned up from memory.");
 
   logger.info("Shutdown complete, exiting process...");
 };

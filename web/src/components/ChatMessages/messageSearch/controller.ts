@@ -11,9 +11,9 @@ import {
   applyCodeMirrorSearchQuery,
   unsetActiveSearchMarkCodeMirrorRange,
   setActiveSearchMarkCodeMirrorRange,
-} from "@/src/components/editor";
+} from "@/src/components/editor/CodeMirrorEditor";
 
-export type MessageSearchMatch = {
+type MessageSearchMatch = {
   key: string;
   pageId: string;
   messageId: string;
@@ -24,7 +24,7 @@ export type MessageSearchMatch = {
   text: string;
 };
 
-export type MessageSearchSnapshot = {
+type MessageSearchSnapshot = {
   isOpen: boolean;
   openRequestCount: number;
   queryInput: string;

@@ -3,7 +3,7 @@ import {
   CategoricalData,
   NumericData,
   ScoreSchemaExclReferencesAndDates,
-} from "../../../../../domain";
+} from "../../../../../domain/scores";
 import z from "zod";
 
 // Response-only schemas without input validation constraints (e.g. length limits).
@@ -44,5 +44,3 @@ export const APIScoreSchemaV2 = z.discriminatedUnion("dataType", [
   // a numeric value does not make sense for TEXT scores, so we omit the property
   ScoreFoundationSchemaV2.omit({ value: true }).extend(TextData.shape),
 ]);
-
-export type APIScoreV2 = z.infer<typeof APIScoreSchemaV2>;

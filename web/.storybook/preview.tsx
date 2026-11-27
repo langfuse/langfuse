@@ -11,16 +11,25 @@ import {
   type ComponentProps,
   type ReactNode,
 } from "react";
+import { SessionProvider } from "next-auth/react";
 import { TooltipProvider } from "../src/components/ui/tooltip";
+import { LayerProvider } from "../src/context/LayerContext/LayerContext";
 import { ThemeProvider } from "../src/features/theming/ThemeProvider";
-import { MarkdownContextProvider } from "../src/features/theming/useMarkdownContext";
-import { LAYER_ORDER } from "../src/components/ui/layer";
-import "../src/styles/globals.css";
+import { plexMono } from "../src/styles/fonts";
+import { cn } from "../src/utils/tailwind";
+import "./storybook.css";
 import "./docs.css";
 // Mirror the global CSS that _app.tsx imports so vendored components
 // (react18-json-view, streamdown markdown) render identically to the app.
 import "react18-json-view/src/style.css";
 import "streamdown/styles.css";
+
+declare global {
+  interface ImportMetaEnv {
+    /** Set by @storybook/addon-vitest: "false" in a standalone Vitest run, "true" when the Storybook UI starts it. */
+    readonly VITEST_STORYBOOK?: "true" | "false";
+  }
+}
 
 function StorybookThemeProvider({
   children,
@@ -37,30 +46,6 @@ function StorybookThemeProvider({
   fullHeight: boolean;
   theme: "light" | "dark";
 }) {
-  // Overlay layer containers, declared exactly like _document.tsx: a
-  // <div data-overlay-root> holding one <div data-layer={name}/> per
-  // LAYER_ORDER. This is what the layer system (components/ui/layer.tsx)
-  // portals toasts / tooltips / peek into; without it those overlays are
-  // absent in Storybook. Positioning/isolation comes from globals.css.
-  //
-  // Mounted imperatively ON <body>, ONCE — not rendered per decorator:
-  // the docs view runs this decorator for every story block on the page, and
-  // Storybook's preview block carries a CSS transform, which would make it the
-  // containing block for the layers' `position: fixed` — a portaled chart
-  // tooltip would paint relative to the first story block instead of the
-  // viewport (i.e. offscreen). On <body> it behaves exactly like the app.
-  useEffect(() => {
-    if (document.querySelector("[data-overlay-root]")) return;
-    const root = document.createElement("div");
-    root.setAttribute("data-overlay-root", "");
-    for (const name of LAYER_ORDER) {
-      const layer = document.createElement("div");
-      layer.setAttribute("data-layer", name);
-      root.appendChild(layer);
-    }
-    document.body.appendChild(root);
-  }, []);
-
   // Reproduce the app's DOM scaffold so the layout rules in globals.css that are
   // scoped to `div#__next` / `div#__next > div` (height: 100%) and
   // `div#__next { isolation: isolate }` actually apply — the app's tables live
@@ -77,7 +62,7 @@ function StorybookThemeProvider({
     >
       <div
         id="__next"
-        className="bg-background text-foreground"
+        className={cn(plexMono.variable, "bg-background text-foreground")}
         style={{ height: fullHeight ? "100vh" : "auto" }}
       >
         <div>{children}</div>
@@ -120,9 +105,14 @@ function ThemedDocsContainer({
   }, []);
 
   return (
-    <DocsContainer context={context} theme={dark ? themes.dark : themes.light}>
-      {children}
-    </DocsContainer>
+    <LayerProvider>
+      <DocsContainer
+        context={context}
+        theme={dark ? themes.dark : themes.light}
+      >
+        {children}
+      </DocsContainer>
+    </LayerProvider>
   );
 }
 
@@ -149,33 +139,75 @@ export default definePreview({
     theme: "light",
   },
   decorators: [
-    (Story, context) => (
-      <StorybookThemeProvider
-        fullHeight={context.viewMode !== "docs"}
-        theme={context.globals.theme === "dark" ? "dark" : "light"}
-      >
-        {/* MarkdownContextProvider mirrors the app: pages render inside it so
-              the JSON/IO viewers (CodeJsonViewer's JSONView calls
-              useMarkdownContext) work identically to production. Without it,
-              multi-line IOTableCell renders (rowHeight m/l) throw. */}
-        <MarkdownContextProvider>
-          <TooltipProvider>
-            <Story />
-          </TooltipProvider>
-        </MarkdownContextProvider>
-      </StorybookThemeProvider>
-    ),
+    (Story, context) => {
+      const story = (
+        <StorybookThemeProvider
+          fullHeight={context.viewMode !== "docs"}
+          theme={context.globals.theme === "dark" ? "dark" : "light"}
+        >
+          {/* SessionProvider mirrors _app.tsx: components reading feature
+              flags call useSession, which throws without a provider. A null
+              session resolves every flag to false (regular-user behavior). */}
+          <SessionProvider session={null}>
+            <TooltipProvider>
+              <Story />
+            </TooltipProvider>
+          </SessionProvider>
+        </StorybookThemeProvider>
+      );
+
+      return context.viewMode === "docs" ? (
+        story
+      ) : (
+        <LayerProvider>{story}</LayerProvider>
+      );
+    },
   ],
   parameters: {
     a11y: {
-      test: "todo",
+      // `todo` violations surface only in the Storybook UI. A standalone
+      // Vitest run (CI, `pnpm test-storybook`) attaches them to task metadata
+      // that nothing prints, so skip that axe pass there. Stories that set
+      // `test: "error"` keep running it everywhere.
+      test: import.meta.env.VITEST_STORYBOOK === "false" ? "off" : "todo",
+      config: {
+        rules: [{ id: "color-contrast", enabled: false }],
+      },
     },
     docs: {
       container: ThemedDocsContainer,
     },
     options: {
-      storySort: {
-        order: ["Design", "Playground"],
+      storySort: (a, b) => {
+        const sectionOrder = ["Design", "Playground"];
+        const designDocOrder = [
+          "Design/Overview",
+          "Design/Writing Good Stories",
+        ];
+        const aSectionIndex = sectionOrder.indexOf(a.title.split("/")[0] ?? "");
+        const bSectionIndex = sectionOrder.indexOf(b.title.split("/")[0] ?? "");
+        const sectionDifference =
+          (aSectionIndex === -1 ? sectionOrder.length : aSectionIndex) -
+          (bSectionIndex === -1 ? sectionOrder.length : bSectionIndex);
+        if (sectionDifference !== 0) return sectionDifference;
+
+        const aDesignDocIndex = designDocOrder.indexOf(a.title);
+        const bDesignDocIndex = designDocOrder.indexOf(b.title);
+        if (aDesignDocIndex !== bDesignDocIndex) {
+          if (aDesignDocIndex === -1) return 1;
+          if (bDesignDocIndex === -1) return -1;
+          return aDesignDocIndex - bDesignDocIndex;
+        }
+
+        // Returning 0 preserves Storybook's existing stable order. Only
+        // partition test stories when both entries belong to the same component.
+        if (a.title !== b.title) return 0;
+
+        const aIsTest = a.name.startsWith("(Test)");
+        const bIsTest = b.name.startsWith("(Test)");
+        if (aIsTest !== bIsTest) return aIsTest ? 1 : -1;
+
+        return 0;
       },
     },
   },

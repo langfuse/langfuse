@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   applyPick,
   flattenOptions,
@@ -15,6 +17,12 @@ import {
   toObservedOptions,
   type ObservedOptions,
 } from "@/src/features/search-bar/lib/observed-options";
+import {
+  createFieldRegistry,
+  EVENTS_FIELD_REGISTRY,
+  fieldRegistryFromColumns,
+} from "./fields";
+import { validateQuery } from "./validate";
 
 const OBSERVED: ObservedOptions = {
   level: [
@@ -44,13 +52,235 @@ function plan(
   });
 }
 
+describe("experiment target completions", () => {
+  const registry = createFieldRegistry({
+    ...EVENTS_FIELD_REGISTRY,
+    targeting: {
+      defaultTarget: "all",
+      supports: () => true,
+      targets: [
+        {
+          id: "all",
+          label: "All experiments",
+          displayLabel: "All experiments",
+          keyword: true,
+        },
+        {
+          id: "baseline",
+          label: "baseline",
+          displayLabel: "Baseline",
+          keyword: true,
+        },
+        { id: "run-a", label: "Run A" },
+      ],
+    },
+  });
+  const targetedPlan = (input: string, caret = input.length) =>
+    planInputCompletions(
+      {
+        input,
+        caret,
+        observed: OBSERVED,
+        recents: [],
+        currentQueryText: input,
+      },
+      registry,
+    );
+
+  it("changes scope on one condition and preserves another condition", () => {
+    const input = "baseline.level:ERROR scores.accuracy:>0.8";
+    const p = targetedPlan(input, 18)!;
+    const option = flattenOptions(p).find(
+      (option) => option.id === "target:run-a",
+    )!;
+    if (option.kind !== "pattern")
+      throw new Error("Expected experiment option");
+    expect(applyPick(option, input, p).next).toBe(
+      '"Run A".level:ERROR scores.accuracy:>0.8',
+    );
+    const all = flattenOptions(p).find((option) => option.id === "target:all")!;
+    if (all.kind !== "pattern") throw new Error("Expected experiment option");
+    expect(applyPick(all, input, p).next).toBe(
+      '"All experiments".level:ERROR scores.accuracy:>0.8',
+    );
+  });
+});
+
 describe("planInputCompletions", () => {
+  it("offers only declared scope rewrites and keeps compatibility in: out of suggestions", () => {
+    const registry = createFieldRegistry({
+      ...EVENTS_FIELD_REGISTRY,
+      fields: [],
+      defaultSearchType: ["id"],
+      freeTextScopeLabel: "prompt names and tags",
+      searchScopes: {
+        content: {
+          searchType: ["content"],
+          label: "Content",
+          description: "search prompt content",
+        },
+      },
+    });
+    const optionsFor = (input: string) =>
+      flattenOptions(
+        planInputCompletions(
+          {
+            input,
+            caret: input.length,
+            currentQueryText: input,
+            observed: {},
+            recents: [],
+          },
+          registry,
+        ),
+      );
+    const fields = optionsFor("").filter((option) => option.kind === "field");
+    expect(fields.some((option) => option.label === "content")).toBe(true);
+    expect(fields.some((option) => option.label === "in")).toBe(false);
+    const rewrites = optionsFor("refund policy").filter(
+      (option) => option.kind === "pattern" && option.id.startsWith("scope:"),
+    );
+    expect(rewrites.map((option) => option.label)).toEqual([
+      '"refund policy"',
+      'content:"refund policy"',
+    ]);
+    for (const option of rewrites)
+      expect(validateQuery(option.label, undefined, registry).valid).toBe(true);
+    expect(
+      optionsFor('content:"refund policy"').some(
+        (option) => option.kind === "pattern" && option.id === "scope:default",
+      ),
+    ).toBe(true);
+  });
+
   it("plans the empty stage with fields and recents", () => {
     const p = plan("", 0, { recents: ["level:ERROR"] });
     expect(p?.stage).toBe("empty");
     const titles = p?.sections.map((s) => s.title);
     expect(titles).toContain(SECTION_FIELDS);
     expect(titles).toContain(SECTION_RECENT);
+  });
+
+  it("always includes injected query presets at a blank top-level term", () => {
+    const presetSections = [
+      {
+        title: "Reuse rule filters",
+        options: [
+          {
+            id: "rule-filter:popular",
+            label: "environment:production",
+            detail: "Used by 8 evaluators",
+            query: "environment:production",
+          },
+        ],
+      },
+    ];
+
+    const empty = plan("", 0, { presetSections });
+    const afterExistingFilters = plan("level:ERROR ", 12, {
+      presetSections,
+    });
+
+    for (const result of [empty, afterExistingFilters]) {
+      expect(result?.sections[0]).toMatchObject({
+        title: "Reuse rule filters",
+        options: [
+          {
+            kind: "preset",
+            id: "rule-filter:popular",
+            query: "environment:production",
+          },
+        ],
+      });
+      expect(result?.autoHighlight).not.toBe(true);
+    }
+  });
+
+  it("caps all preset sections at ten and hides the current query", () => {
+    const presetSections = [
+      {
+        title: "Primary presets",
+        options: Array.from({ length: 6 }, (_, index) => ({
+          id: `rule-filter:${index}`,
+          label: `environment:env-${index}`,
+          query: `environment:env-${index}`,
+        })),
+      },
+      {
+        title: "Secondary presets",
+        options: Array.from({ length: 7 }, (_, index) => ({
+          id: `rule-filter:${index + 6}`,
+          label: `environment:env-${index + 6}`,
+          query: `environment:env-${index + 6}`,
+        })),
+      },
+    ];
+    const currentQuery = "environment:env-2";
+    const result = plan(`${currentQuery} `, currentQuery.length + 1, {
+      presetSections,
+    });
+    const presets =
+      result?.sections.filter((section) => section.title.endsWith("presets")) ??
+      [];
+    const presetIds = presets.flatMap((section) =>
+      section.options.map((option) => option.id),
+    );
+
+    expect(presets.map((section) => section.options.length)).toEqual([5, 5]);
+    expect(presetIds).not.toContain("rule-filter:2");
+    expect(presetIds).toEqual([
+      "rule-filter:0",
+      "rule-filter:1",
+      "rule-filter:3",
+      "rule-filter:4",
+      "rule-filter:5",
+      "rule-filter:6",
+      "rule-filter:7",
+      "rule-filter:8",
+      "rule-filter:9",
+      "rule-filter:10",
+    ]);
+  });
+
+  it("keeps only the first host preset when ids are duplicated", () => {
+    const result = plan("", 0, {
+      presetSections: [
+        {
+          title: "Reuse rule filters",
+          options: [
+            {
+              id: "rule-filter:duplicate",
+              label: "environment:first",
+              query: "environment:first",
+            },
+            {
+              id: "rule-filter:duplicate",
+              label: "environment:second",
+              query: "environment:second",
+            },
+            {
+              id: "rule-filter:unique",
+              label: "environment:third",
+              query: "environment:third",
+            },
+          ],
+        },
+      ],
+    });
+    const presets = result?.sections.find(
+      (section) => section.title === "Reuse rule filters",
+    );
+
+    expect(presets?.options).toMatchObject([
+      {
+        id: "rule-filter:duplicate",
+        query: "environment:first",
+      },
+      {
+        id: "rule-filter:unique",
+        query: "environment:third",
+      },
+    ]);
   });
 
   it("ranks fields against the typed key prefix but does NOT arm Enter (free-text-first)", () => {
@@ -367,8 +597,15 @@ describe("planInputCompletions", () => {
     const labels = opts.map((o) => o.label);
     expect(labels).toContain("input:refund");
     expect(labels).toContain("output:refund");
-    // content: was removed — the default already searches input + output.
-    expect(labels).not.toContain("content:refund");
+    // Explicit content excludes IDs/names; all preserves the complete scope.
+    expect(labels).toContain("content:refund");
+    expect(labels).not.toContain("all:refund");
+    expect(
+      flattenOptions(plan("", 0)).some(
+        (option) => option.kind === "field" && option.fieldId === "all",
+      ),
+    ).toBe(false);
+    expect(validateQuery("all:refund").valid).toBe(true);
   });
 
   it("scopes the WHOLE coalesced free-text run, not just the caret word", () => {
@@ -453,7 +690,7 @@ describe("planInputCompletions", () => {
     );
     expect(ids).not.toContain("scope:input");
     // content: was removed — never offered as a switch target.
-    expect(ids).not.toContain("scope:content");
+    expect(ids).toContain("scope:content");
     const toOutput = opts.find((o) => o.id === "scope:output");
     expect(toOutput && "insert" in toOutput && toOutput.insert).toBe(
       "output:abc",
@@ -615,7 +852,7 @@ describe("planInputCompletions", () => {
       expect.arrayContaining(["scope:input", "scope:default"]),
     );
     expect(ids).not.toContain("scope:output");
-    expect(ids).not.toContain("scope:content");
+    expect(ids).toContain("scope:content");
   });
 
   it("treats leading ~/^/$ as literal value chars, not suppressing prefixes", () => {
@@ -872,7 +1109,7 @@ describe("planInputCompletions", () => {
       const opt = flattenOptions(p).find((o) => o.id === "match:toolNames:mcp");
       expect(opt).toBeDefined();
       const r = applyPick(
-        opt as Exclude<CompletionOption, { kind: "recent" }>,
+        opt as Exclude<CompletionOption, { kind: "recent" | "preset" }>,
         "mcp",
         p!,
       );
@@ -880,13 +1117,160 @@ describe("planInputCompletions", () => {
       expect(r.caret).toBe("toolNames:mcp ".length);
       expect(r.keepOpen).toBe(true);
     });
+
+    it("suggests closed enum values from typed text before options load", () => {
+      // Observation type and level are closed enums, so `generation` must
+      // offer type:GENERATION even when the facet has not loaded (or the
+      // project has no generations yet). Plural and prefix forms count.
+      for (const typed of ["generation", "gen", "generations"]) {
+        const p = plan(typed, typed.length, { observed: undefined });
+        const labels =
+          p?.sections
+            .find((section) => section.title === SECTION_MATCHING_FILTERS)
+            ?.options.map((option) => option.label) ?? [];
+        expect(labels, typed).toContain("type:GENERATION");
+        expect(p?.loading, typed).toBe(false);
+      }
+
+      const errors = plan("errors", 6, { observed: undefined });
+      expect(flattenOptions(errors).map((option) => option.label)).toContain(
+        "level:ERROR",
+      );
+
+      const picked = plan("generation", 10, { observed: undefined });
+      const option = flattenOptions(picked).find(
+        (candidate) => candidate.label === "type:GENERATION",
+      );
+      expect(option).toBeDefined();
+      const applied = applyPick(
+        option as Exclude<CompletionOption, { kind: "recent" | "preset" }>,
+        "generation",
+        picked!,
+      );
+      expect(applied.next).toBe("type:GENERATION ");
+
+      // A value that is not a closed enum stays a loading row until the
+      // facet arrives, rather than an empty "no suggestions" popover.
+      const pending = plan("production", 10, { observed: undefined });
+      expect(pending?.loading).toBe(true);
+      expect(
+        pending?.sections.find(
+          (section) => section.title === SECTION_MATCHING_FILTERS,
+        ),
+      ).toBeUndefined();
+      const loaded = plan("productions", 11);
+      expect(
+        loaded?.sections
+          .find((section) => section.title === SECTION_MATCHING_FILTERS)
+          ?.options.map((option) => option.label),
+      ).toContain("environment:production");
+
+      // The same catalog is copied from a view's static column options, so
+      // a filter bar with no free-text lane (evaluator rule filters) offers
+      // the value too.
+      const registry = fieldRegistryFromColumns(
+        [
+          {
+            name: "Type",
+            id: "type",
+            type: "stringOptions",
+            internal: "type",
+            options: [{ value: "GENERATION" }, { value: "SPAN" }],
+          },
+          {
+            name: "Environment",
+            id: "environment",
+            type: "stringOptions",
+            internal: "environment",
+            options: [],
+          },
+        ],
+        { id: "evaluationRules", allowFreeText: false },
+      );
+      const fromColumns = planInputCompletions(
+        {
+          input: "generations",
+          caret: "generations".length,
+          observed: undefined,
+          recents: [],
+          currentQueryText: "generations",
+        },
+        registry,
+      );
+      expect(
+        flattenOptions(fromColumns).map((option) => option.label),
+      ).toContain("type:GENERATION");
+      expect(fromColumns?.loading).toBe(false);
+    });
+
+    it("ranks an observed value ahead of an unseen closed-enum value", () => {
+      // `type:G` prefix-matches both the rows that exist (GENERATION) and
+      // closed-enum values that do not (GUARDRAIL). Enter highlights the
+      // first value, so the observed one has to lead.
+      const p = plan("type:G", "type:G".length, {
+        observed: { type: [{ value: "GENERATION", count: 4 }] },
+      });
+      expect(p?.autoHighlight).toBe(true);
+      expect(flattenOptions(p)[0]).toMatchObject({
+        kind: "value",
+        value: "GENERATION",
+      });
+    });
+
+    it("settles a failed facet load instead of leaving a loading row", () => {
+      // A query that is no longer pending and returned no payload is settled
+      // empty, not still loading. A bare word must not spin forever.
+      expect(toObservedOptions(undefined, true)).toBeUndefined();
+      const settled = toObservedOptions(undefined, false);
+      expect(settled).toEqual({});
+      const p = plan("production", "production".length, { observed: settled });
+      expect(p?.loading).toBe(false);
+    });
   });
 });
 
 describe("applyPick", () => {
-  // Narrowing helper: the popover only picks non-recent options here.
-  const nonRecent = (o: CompletionOption | undefined) =>
-    o as Exclude<CompletionOption, { kind: "recent" }>;
+  // Narrowing helper: applyPick only handles span-local options here.
+  const spanLocal = (o: CompletionOption | undefined) =>
+    o as Exclude<CompletionOption, { kind: "recent" | "preset" }>;
+
+  it("replaces only the active value in a large incomplete group", () => {
+    const values = Array.from(
+      { length: 600 },
+      (_, index) => `value-${String(index).padStart(3, "0")}`,
+    );
+    const query = `name:(${values.join(" OR ")}`;
+    const activeValue = values[300]!;
+    const from = query.indexOf(activeValue);
+    const to = from + activeValue.length;
+    const replacement = `${activeValue}-replacement`;
+    const completion = plan(query, to, {
+      observed: { name: [{ value: replacement }] },
+    });
+    expect(completion).toMatchObject({ from, to, keepOpenOnPick: true });
+    const option = flattenOptions(completion).find(
+      (candidate) =>
+        candidate.kind === "value" && candidate.value === replacement,
+    );
+    expect(option).toBeDefined();
+    const result = applyPick(spanLocal(option), query, completion!);
+    expect(result.next).toBe(
+      query.slice(0, from) + replacement + query.slice(to),
+    );
+  });
+
+  it("preserves values and companions while completing a replacement key prefix", () => {
+    const query = ':("first value" OR second OR third) level:ERROR';
+    const completion = plan(query, 0);
+    const prefix = flattenOptions(completion).find(
+      (option) => option.kind === "field" && option.fieldId === "metadata.",
+    );
+    expect(prefix).toBeDefined();
+    const result = applyPick(spanLocal(prefix), query, completion!);
+    expect(result.next).toBe(`metadata.${query}`);
+    expect(result.caret).toBe("metadata.".length);
+    expect(result.keepOpen).toBe(true);
+  });
 
   it("keeps the caret INSIDE the block after picking a numeric operator", () => {
     // LFE-10501 BUG A. Picking `>` for a numeric field must not append a
@@ -898,7 +1282,7 @@ describe("applyPick", () => {
       (o) => o.kind === "operator" && o.label === ">",
     );
     expect(gt).toBeDefined();
-    const result = applyPick(nonRecent(gt), "latency:", p!);
+    const result = applyPick(spanLocal(gt), "latency:", p!);
     expect(result.next).toBe("latency:>"); // no trailing space appended
     expect(result.caret).toBe(9); // caret sits right after `>`, inside the block
   });
@@ -909,7 +1293,7 @@ describe("applyPick", () => {
       (o) => o.kind === "operator" && o.label === ">=",
     );
     expect(gte).toBeDefined();
-    const result = applyPick(nonRecent(gte), "startTime:", p!);
+    const result = applyPick(spanLocal(gte), "startTime:", p!);
     expect(result.next).toBe("startTime:>=");
     expect(result.caret).toBe(12);
   });
@@ -921,7 +1305,7 @@ describe("applyPick", () => {
       (o) => o.kind === "operator" && o.label === "<",
     );
     expect(lt).toBeDefined();
-    const result = applyPick(nonRecent(lt), q, p!);
+    const result = applyPick(spanLocal(lt), q, p!);
     expect(result.next).toBe(`${q}<`);
     expect(result.caret).toBe(q.length + 1);
   });
@@ -935,7 +1319,7 @@ describe("applyPick", () => {
       (o) => o.kind === "value" && o.value === "ERROR",
     );
     expect(err).toBeDefined();
-    const result = applyPick(nonRecent(err), "level:", p!);
+    const result = applyPick(spanLocal(err), "level:", p!);
     expect(result.next).toBe("level:ERROR ");
     expect(result.caret).toBe(12);
     expect(result.keepOpen).toBe(true);
@@ -949,7 +1333,7 @@ describe("applyPick", () => {
       (o) => o.kind === "operator" && o.label === "NOT",
     );
     expect(not).toBeDefined();
-    const result = applyPick(nonRecent(not), "level:ERROR N", p!);
+    const result = applyPick(spanLocal(not), "level:ERROR N", p!);
     expect(result.next).toBe("level:ERROR NOT ");
     expect(result.caret).toBe("level:ERROR NOT ".length);
   });

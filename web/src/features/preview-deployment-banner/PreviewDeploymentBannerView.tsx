@@ -1,5 +1,3 @@
-import { type Ref } from "react";
-
 export type PreviewDeploymentBannerViewProps = {
   /** Link back to the pull request this preview deployment belongs to. */
   prUrl: string;
@@ -12,9 +10,6 @@ export type PreviewDeploymentBannerViewProps = {
   /** Absolute timestamp shown on hover — the relative text is computed at render
    * time and goes stale in a long-lived tab. */
   updatedTitle?: string;
-  /** Vertical offset when stacked below other top banners. */
-  topOffset?: number;
-  ref?: Ref<HTMLDivElement>;
 };
 
 export function PreviewDeploymentBannerView({
@@ -23,15 +18,9 @@ export function PreviewDeploymentBannerView({
   author,
   updatedText,
   updatedTitle,
-  topOffset = 0,
-  ref,
 }: PreviewDeploymentBannerViewProps) {
   return (
-    <div
-      ref={ref}
-      className="border-preview-banner-border bg-preview-banner text-preview-banner-foreground fixed z-51 flex w-full items-center justify-center border-b px-4 py-1"
-      style={{ top: topOffset }}
-    >
+    <div className="border-preview-banner-border bg-preview-banner text-preview-banner-foreground flex w-full items-center justify-center border-b px-4 py-1">
       <span className="text-sm">
         Preview deployment of{" "}
         <a

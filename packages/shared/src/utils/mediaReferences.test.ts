@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { isMediaReferencePart } from "./IORepresentation/chatML/types";
 import { findMediaReferences } from "./mediaReferences";
 
 const imageRef =
@@ -79,5 +80,17 @@ describe("findMediaReferences", () => {
 
   it("finds a reference at the root string", () => {
     expect(findMediaReferences(imageRef)).toMatchObject([{ jsonPath: "$" }]);
+  });
+});
+
+describe("isMediaReferencePart", () => {
+  it("accepts one whole reference and rejects concatenated or padded ones", () => {
+    expect(isMediaReferencePart(imageRef)).toBe(true);
+    // The parser's magic-string regex is greedy, so two tags in one string
+    // would otherwise parse as one — mixing tag 1's type with tag 2's id.
+    expect(isMediaReferencePart(`${imageRef} ${audioRef}`)).toBe(false);
+    expect(isMediaReferencePart(`${imageRef}${audioRef}`)).toBe(false);
+    expect(isMediaReferencePart(`${imageRef} trailing text`)).toBe(false);
+    expect(isMediaReferencePart("not a reference")).toBe(false);
   });
 });

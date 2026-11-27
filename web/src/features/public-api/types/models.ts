@@ -4,15 +4,13 @@ import {
   type Model as PrismaModel,
   jsonSchema,
   publicApiPaginationZod,
-} from "@langfuse/shared";
-import { z } from "zod";
-import { type Decimal } from "decimal.js";
-import {
   validatePricingTiers,
   PricingTierConditionSchema,
   PricingTierInputSchema,
   type PricingTierCondition,
 } from "@langfuse/shared";
+import { z } from "zod";
+import { type Decimal } from "decimal.js";
 
 /**
  * Objects
@@ -51,6 +49,8 @@ const APIModelDefinition = z
     unit: APIModelUsageUnit.nullish(),
     tokenizerId: z.string().nullable(),
     tokenizerConfig: z.any(), // Assuming Prisma.JsonValue is any type
+    scope: z.enum(["PROJECT", "ORGANIZATION", "LANGFUSE"]),
+    /** Deprecated: true when the model cannot be changed through the project, use `scope`. */
     isLangfuseManaged: z.boolean(),
     createdAt: z.coerce.date(),
     prices: z.record(z.string(), z.object({ price: z.number() })),
@@ -63,7 +63,9 @@ const APIModelDefinition = z
  */
 
 export function prismaToApiModelDefinition({
+  scope,
   projectId,
+  organizationId,
   inputPrice,
   outputPrice,
   totalPrice,
@@ -107,7 +109,8 @@ export function prismaToApiModelDefinition({
     outputPrice: flatPrices.output?.price ?? outputPrice?.toNumber() ?? null,
     totalPrice: flatPrices.total?.price ?? totalPrice?.toNumber() ?? null,
     prices: flatPrices,
-    isLangfuseManaged: !Boolean(projectId),
+    scope,
+    isLangfuseManaged: scope !== "PROJECT",
     pricingTiers:
       pricingTiers?.map((tier) => ({
         id: tier.id,
@@ -183,7 +186,10 @@ export const PostModelsV1Body = z
 
     // Validation 2: If using flat prices, validate totalPrice constraint
     if (hasFlatPrices) {
-      if ((data.inputPrice || data.outputPrice) && data.totalPrice) {
+      if (
+        (data.inputPrice != null || data.outputPrice != null) &&
+        data.totalPrice != null
+      ) {
         ctx.addIssue({
           code: "custom",
           path: ["totalPrice"],
@@ -212,6 +218,9 @@ export const GetModelV1Query = z.object({
   modelId: z.string(),
 });
 export const GetModelV1Response = APIModelDefinition.strict();
+
+// PUT /models/{modelId}
+export const PutModelV1Response = APIModelDefinition.strict();
 
 // DELETE /models/{modelId}
 export const DeleteModelV1Query = z.object({

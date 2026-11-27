@@ -19,7 +19,6 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
       projectId={projectId}
       objectId={objectId}
       objectType={objectType}
-      className="border-transparent p-2"
       cardView
       onDraftChange={onDraftChange}
     />

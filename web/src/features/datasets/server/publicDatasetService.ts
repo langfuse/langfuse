@@ -1,53 +1,16 @@
 import type { NextApiResponse } from "next";
 import { createHash } from "node:crypto";
 import { v4 } from "uuid";
+import { omit } from "lodash";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
-import { createOrFetchDatasetRun } from "@/src/features/public-api/server/dataset-runs";
 import {
-  generateDatasetRunItemsForPublicApi,
-  getDatasetRunItemsCountForPublicApi,
-} from "@/src/features/public-api/server/dataset-run-items";
-import type {
-  APIDatasetRunItem,
-  GetDatasetsV1Query,
-  GetDatasetV1Query,
-  GetDatasetItemV1Query,
-  GetDatasetItemsV1Query,
-  GetDatasetRunV1Query,
-  GetDatasetRunsV1Query,
-  GetDatasetsV2Query,
-  GetDatasetV2Query,
-  PostDatasetRunItemsV1Body,
-  PostDatasetsV1Body,
-  PostDatasetsV2Body,
-  PostDatasetItemsV1Body,
-} from "@/src/features/public-api/types/datasets";
-import {
-  PostDatasetRunItemsV1Response,
-  transformDbDatasetItemDomainToAPIDatasetItem,
-  transformDbDatasetRunToAPIDatasetRun,
-  transformDbDatasetToAPIDataset,
-} from "@/src/features/public-api/types/datasets";
-import {
-  ApiError,
-  type JSONValue,
-  LangfuseConflictError,
-  LangfuseNotFoundError,
-  Prisma,
-  UnauthorizedError,
-} from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import {
-  datasetItemMediaReferenceKey,
-  resolveDatasetItemMediaReferences,
-} from "@/src/features/media/server/datasetItemMediaReferences";
-import { upsertDataset } from "./actions/createDataset";
-import {
+  createOrFetchDatasetRun,
   addToDeleteDatasetQueue,
   createDatasetItemFilterState,
   createUnknownSdkIngestionAttribution,
   deleteDatasetItem,
+  escapeSqlLikePattern,
   eventTypes,
   getDatasetItemById,
   getDatasetItems,
@@ -58,6 +21,45 @@ import {
   type AuthHeaderValidVerificationResultIngestion,
   upsertDatasetItem,
 } from "@langfuse/shared/src/server";
+import {
+  generateDatasetRunItemsForPublicApi,
+  getDatasetRunItemsCountForPublicApi,
+} from "@/src/features/public-api/server/dataset-run-items";
+import {
+  type APIDatasetRunItem,
+  type GetDatasetsV1Query,
+  type GetDatasetV1Query,
+  type GetDatasetItemV1Query,
+  type GetDatasetItemsV1Query,
+  type GetDatasetRunV1Query,
+  type GetDatasetRunsV1Query,
+  type GetDatasetsV2Query,
+  type PostDatasetRunItemsV1Body,
+  type PostDatasetsV1Body,
+  type PostDatasetsV2Body,
+  type PostDatasetItemsV1Body,
+  PostDatasetRunItemsV1Response,
+  transformDbDatasetItemDomainToAPIDatasetItem,
+  transformDbDatasetRunToAPIDatasetRun,
+  transformDbDatasetToAPIDataset,
+} from "@/src/features/public-api/types/datasets";
+
+import {
+  ApiError,
+  type JSONValue,
+  LangfuseConflictError,
+  LangfuseNotFoundError,
+  Prisma,
+  UnauthorizedError,
+} from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import { env } from "@/src/env.mjs";
+import {
+  datasetItemMediaReferenceKey,
+  resolveDatasetItemMediaReferences,
+} from "@/src/features/media/server/datasetItemMediaReferences";
+import { upsertDataset } from "./actions/createDataset";
+
 import type { z } from "zod";
 
 type DatasetAuditScope = {
@@ -72,10 +74,6 @@ type ListDatasetsInput = z.infer<typeof GetDatasetsV2Query> & {
 };
 
 type ListDatasetsV1Input = z.infer<typeof GetDatasetsV1Query> & {
-  projectId: string;
-};
-
-type GetDatasetInput = z.infer<typeof GetDatasetV2Query> & {
   projectId: string;
 };
 
@@ -151,6 +149,10 @@ type DeleteDatasetRunByIdInput = DatasetAuditScope & {
 
 type DeleteDatasetItemInput = DatasetAuditScope &
   z.infer<typeof GetDatasetItemV1Query>;
+
+// This deprecated endpoint embeds items without pagination. Keep its response
+// bounded while giving existing users room to migrate to GET /dataset-items.
+const LEGACY_DATASET_ITEM_LIMIT = 1_000;
 
 const resolveMetadata = (metadata: JSONValue): Record<string, unknown> => {
   if (Array.isArray(metadata)) {
@@ -334,7 +336,9 @@ export const listDatasetsForApi = async ({
 }: ListDatasetsInput) => {
   const where: Prisma.DatasetWhereInput = {
     projectId,
-    ...(name ? { name: { contains: name, mode: "insensitive" } } : {}),
+    ...(name
+      ? { name: { contains: escapeSqlLikePattern(name), mode: "insensitive" } }
+      : {}),
   };
 
   const [datasets, totalItems] = await Promise.all([
@@ -369,14 +373,6 @@ export const listDatasetsForApi = async ({
   };
 };
 
-export const getDatasetForApi = async ({
-  projectId,
-  datasetName,
-}: GetDatasetInput) => {
-  const dataset = await getDatasetByNameOrThrow({ projectId, datasetName });
-  return transformDbDatasetToAPIDataset(dataset);
-};
-
 export const getDatasetByIdForApi = async ({
   projectId,
   datasetId,
@@ -393,6 +389,8 @@ export const listDatasetsByProjectForApi = async ({
   page,
   limit,
 }: ListDatasetsV1Input) => {
+  const shouldReadLegacyDatasetRuns =
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only";
   const datasets = await prisma.dataset.findMany({
     select: {
       name: true,
@@ -404,12 +402,16 @@ export const listDatasetsByProjectForApi = async ({
       createdAt: true,
       updatedAt: true,
       id: true,
-      datasetRuns: {
-        select: {
-          name: true,
-        },
-        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-      },
+      ...(shouldReadLegacyDatasetRuns
+        ? {
+            datasetRuns: {
+              select: {
+                name: true,
+              },
+              orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+            },
+          }
+        : {}),
     },
     where: { projectId },
     orderBy: [{ createdAt: "desc" }, { id: "asc" }],
@@ -440,7 +442,7 @@ export const listDatasetsByProjectForApi = async ({
   });
 
   return {
-    data: datasets.map(({ datasetRuns, ...rest }) => ({
+    data: datasets.map(({ datasetRuns = [], ...rest }) => ({
       ...rest,
       items: datasetItemIdsMap.get(rest.id) || [],
       runs: datasetRuns.map(({ name }) => name),
@@ -458,17 +460,23 @@ export const getDatasetByNameForApi = async ({
   projectId,
   name,
 }: GetDatasetV1Input) => {
+  const shouldReadLegacyDatasetRuns =
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only";
   const dataset = await prisma.dataset.findFirst({
     where: {
       name,
       projectId,
     },
     include: {
-      datasetRuns: {
-        select: {
-          name: true,
-        },
-      },
+      ...(shouldReadLegacyDatasetRuns
+        ? {
+            datasetRuns: {
+              select: {
+                name: true,
+              },
+            },
+          }
+        : {}),
     },
   });
 
@@ -483,23 +491,16 @@ export const getDatasetByNameForApi = async ({
       status: "ACTIVE",
     }),
     includeDatasetName: true,
+    limit: LEGACY_DATASET_ITEM_LIMIT,
+    page: 0,
   });
 
-  const { datasetRuns, ...params } = dataset;
-
-  const mediaReferences = await resolveDatasetItemMediaReferences({
-    projectId,
-    items: datasetItems,
-  });
+  const { datasetRuns = [], ...params } = dataset;
 
   return {
     ...transformDbDatasetToAPIDataset(params),
-    items: datasetItems.map((item) => ({
-      ...transformDbDatasetItemDomainToAPIDatasetItem(item),
-      mediaReferences:
-        mediaReferences.get(datasetItemMediaReferenceKey(item)) ?? [],
-    })),
-    runs: datasetRuns.map((run) => run.name),
+    items: datasetItems.map(transformDbDatasetItemDomainToAPIDatasetItem),
+    runs: datasetRuns.map(({ name }) => name),
   };
 };
 
@@ -652,8 +653,10 @@ export const createDatasetItemForApi = async ({
         projectId,
         orgId: auditScope.orgId,
         apiKeyId: auditScope.apiKeyId,
-        before: existingDatasetItem ?? undefined,
-        after: datasetItem,
+        before: existingDatasetItem
+          ? omit(existingDatasetItem, ["input", "expectedOutput", "metadata"])
+          : undefined,
+        after: omit(datasetItem, ["input", "expectedOutput", "metadata"]),
       });
     }
 
@@ -721,7 +724,7 @@ export const deleteDatasetItemForApi = async ({
     projectId,
     orgId,
     apiKeyId,
-    before: result.deletedItem,
+    before: omit(result.deletedItem, ["input", "expectedOutput", "metadata"]),
   });
 
   return {
@@ -742,6 +745,7 @@ export const deleteDatasetItemForApi = async ({
  *
  * We take the first 8 bytes of a sha256 digest (16 hex chars), matching the
  * shape of the SDK's own seeded id helper (`sha256(seed).digest()[:8].hex()`).
+ * @internal
  */
 export const createStableExperimentId = ({
   projectId,

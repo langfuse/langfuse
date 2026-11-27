@@ -7,8 +7,8 @@ import {
 } from "@prisma/client";
 import { z } from "zod";
 
-import { InvalidRequestError } from "../../errors";
-import { singleFilter } from "../../interfaces/filters";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { singleFilterList } from "../../interfaces/filters";
 import { granularities, metric as MetricSchema, viewsV2 } from "../query/types";
 
 import { isValidQuery } from "./isValidQuery";
@@ -29,10 +29,13 @@ export const ErrorAtLeastOneTrigger = "At least one automation is required";
 
 /**
  * MonitorFiltersSchema is the array of filters applied to a Monitor's
- * underlying query — a thin alias over `singleFilter[]` so all Monitor
- * schemas reference one source of truth.
+ * underlying query. It routes through `singleFilterList` so the scheduler's
+ * raw-SQL read path (which bypasses `monitorFromPrisma`) still coerces legacy
+ * empty-substring metadata filters to `is set` before the queue event is
+ * validated in the worker — otherwise a single legacy filter throws on parse
+ * and takes down the whole shared scheduler batch.
  */
-export const MonitorFiltersSchema = z.array(singleFilter);
+export const MonitorFiltersSchema = singleFilterList;
 export type MonitorFilters = z.infer<typeof MonitorFiltersSchema>;
 
 /** MonitorSeveritySchema is the wire form of Prisma's `MonitorSeverity` enum. */
@@ -160,6 +163,7 @@ export type MonitorRenotify = z.infer<typeof MonitorRenotifySchema>;
 /** MonitorNoDataModeSchema enumerates how a null metric value resolves to a severity. */
 export const MonitorNoDataModeSchema = z.enum([
   "SUBSTITUTE_ZERO",
+  "SUBSTITUTE_OK",
   "LAST_SEVERITY",
   "SHOW_NO_DATA",
   "NOTIFY_NO_DATA",
@@ -169,6 +173,7 @@ export type MonitorNoDataMode = z.infer<typeof MonitorNoDataModeSchema>;
 /** MonitorNoDataSchema describes how a null metric value resolves to a severity. */
 export const MonitorNoDataSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal(MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO) }),
+  z.object({ mode: z.literal(MonitorNoDataModeSchema.enum.SUBSTITUTE_OK) }),
   z.object({ mode: z.literal(MonitorNoDataModeSchema.enum.LAST_SEVERITY) }),
   z.object({ mode: z.literal(MonitorNoDataModeSchema.enum.SHOW_NO_DATA) }),
   z.object({
@@ -309,5 +314,12 @@ export const MonitorAlertSchema = z.object({
   view: MonitorViewSchema,
   filters: MonitorFiltersSchema,
   window: MonitorWindowSchema,
+  monitorName: z.string().optional(),
+  metric: MetricSchema.optional(),
+  metricValue: z.number().nullable().optional(),
+  thresholdOperator: MonitorThresholdOperatorSchema.optional(),
+  alertThreshold: z.number().optional(),
+  warningThreshold: z.number().nullable().optional(),
+  alertedAt: z.coerce.date().optional(),
 });
 export type MonitorAlert = z.infer<typeof MonitorAlertSchema>;

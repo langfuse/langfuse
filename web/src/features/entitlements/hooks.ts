@@ -3,8 +3,8 @@ import {
   type EntitlementLimits,
   type Entitlement,
   type EntitlementLimit,
-} from "@/src/features/entitlements/constants/entitlements";
-import { type Plan } from "@langfuse/shared";
+  type Plan,
+} from "@langfuse/shared";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
@@ -56,8 +56,6 @@ export const useEntitlements = (): Entitlement[] => {
  */
 export const useOptionalEntitlement = (entitlement?: Entitlement): boolean => {
   const entitlements = useEntitlements();
-  const session = useSession();
-  if (session.data?.user?.admin) return true;
   if (!entitlement) return true;
   return entitlements.includes(entitlement);
 };
@@ -67,8 +65,6 @@ export const useOptionalEntitlement = (entitlement?: Entitlement): boolean => {
  */
 export const useHasEntitlement = (entitlement: Entitlement): boolean => {
   const entitlements = useEntitlements();
-  const session = useSession();
-  if (session.data?.user?.admin) return true;
   return entitlements.includes(entitlement);
 };
 
@@ -76,7 +72,7 @@ export const useHasEntitlement = (entitlement: Entitlement): boolean => {
  * Hook to get the entitlement limits of the current organization or self-hosted instance.
  * @returns the entitlement limits of the current organization or self-hosted instance, including values of limits and false if unlimited.
  */
-export const useEntitlementLimits = (): EntitlementLimits => {
+const useEntitlementLimits = (): EntitlementLimits => {
   const plan = usePlan();
   return entitlementAccess[plan ?? "oss"].entitlementLimits;
 };
@@ -89,9 +85,5 @@ export const useEntitlementLimit = (
   limit: EntitlementLimit,
 ): number | false => {
   const limits = useEntitlementLimits();
-
-  const session = useSession();
-  if (session.data?.user?.admin) return false;
-
   return limits[limit];
 };

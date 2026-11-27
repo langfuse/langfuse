@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { useGlobalDateRangeStore } from "@/src/features/global-time-range/globalDateRangeStore";

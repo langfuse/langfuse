@@ -6,13 +6,17 @@
 //   scores_avg / trace_scores_avg   → numeric score NAMES
 //   score_categories[.<name>]       → categorical score names / their values
 //   (metadata key paths are not enumerated by the API — they are merged in
-//   client-side from the observed-metadata store; see lib/metadata-paths.ts
-//   withMetadataPathOptions, which fills the `metadata` key)
+//   client-side from the observed-metadata store by withMetadataPathOptions
+//   below; see fns/observedMetadata/metadataPaths.ts)
 
 import type { ScoreTypeContext } from "./adapter";
 import { SCORE_COLUMNS } from "./fields";
+import {
+  observedMetadataOptions,
+  type StoredKeyInfo,
+} from "../../../fns/observedMetadata/metadataPaths";
 
-export type ObservedValue = {
+type ObservedValue = {
   value: string;
   count?: number;
   /** Display-only type hint (observed metadata paths: "number", "string", …). */
@@ -73,14 +77,17 @@ function normalizeScoreTypes(out: ObservedOptions): void {
 
 /**
  * Flatten the sidebar filter-options shape into observed-value lists keyed
- * the way the completion planner looks them up. Returns undefined while the
- * source is still loading so value stages can show a loading row.
+ * the way the completion planner looks them up. Returns undefined only while
+ * the source is still loading, so value stages can show a loading row. A
+ * settled source with no payload (the request errored) is an empty map: a
+ * bare word must not keep spinning after the request has ended.
  */
 export function toObservedOptions(
   raw: RawFilterOptions | undefined,
   loading: boolean,
 ): ObservedOptions | undefined {
-  if (loading || raw === undefined) return undefined;
+  if (loading) return undefined;
+  if (raw === undefined) return {};
 
   const out: ObservedOptions = {};
   for (const [column, options] of Object.entries(raw)) {
@@ -99,6 +106,23 @@ export function toObservedOptions(
   }
   normalizeScoreTypes(out);
   return out;
+}
+
+/**
+ * Merge the observed-metadata suggestions into the map the completion planner
+ * reads (see fns/observedMetadata/metadataPaths.ts). `undefined` observed
+ * (filter options still loading) stays `undefined` so the planner's loading
+ * semantics are untouched.
+ */
+export function withMetadataPathOptions(
+  observed: ObservedOptions | undefined,
+  paths: Record<string, StoredKeyInfo> | undefined,
+): ObservedOptions | undefined {
+  if (observed === undefined) return observed;
+  const suggestions = observedMetadataOptions(paths);
+  return Object.keys(suggestions).length === 0
+    ? observed
+    : { ...observed, ...suggestions };
 }
 
 /**

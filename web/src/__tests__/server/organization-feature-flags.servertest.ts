@@ -1,0 +1,619 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
+import { randomUUID } from "node:crypto";
+
+import { Role, type Plan } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
+import { env } from "@/src/env.mjs";
+import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
+import { appRouter } from "@/src/server/api/root";
+import { createInnerTRPCContext } from "@/src/server/api/trpc";
+
+describe("organization feature preview defaults", () => {
+  it("enables a default without mutating current members", async () => {
+    const { actor, caller, org } = await prepare();
+    await prisma.user.update({
+      where: { id: actor.id },
+      data: { featureFlags: ["sessionViewV2"] },
+    });
+    const member = await createUser();
+    await createOrgMembership(prisma, {
+      orgId: org.id,
+      userId: member.id,
+      role: Role.MEMBER,
+    });
+
+    await caller.organizations.setFeatureFlagOrgDefault({
+      orgId: org.id,
+      flag: "sessionViewV2",
+      enabled: true,
+    });
+
+    const [updatedOrg, updatedActor, updatedMember] = await Promise.all([
+      prisma.organization.findUniqueOrThrow({
+        where: { id: org.id },
+        select: { featureFlagOrgDefaults: true },
+      }),
+      prisma.user.findUniqueOrThrow({
+        where: { id: actor.id },
+        select: { featureFlags: true },
+      }),
+      prisma.user.findUniqueOrThrow({
+        where: { id: member.id },
+        select: { featureFlags: true },
+      }),
+    ]);
+
+    expect(updatedOrg.featureFlagOrgDefaults).toEqual(["sessionViewV2"]);
+    expect(updatedActor.featureFlags).toEqual(["sessionViewV2"]);
+    expect(updatedMember.featureFlags).toEqual([]);
+    const auditEntry = await prisma.auditLog.findFirstOrThrow({
+      where: {
+        orgId: org.id,
+        resourceType: "organization",
+        resourceId: org.id,
+        action: "updateFeatureFlagDefault",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(JSON.parse(auditEntry.before!)).toEqual({
+      featureFlagOrgDefaults: [],
+    });
+    expect(JSON.parse(auditEntry.after!)).toEqual({
+      featureFlagOrgDefaults: ["sessionViewV2"],
+    });
+  });
+
+  it("enables the Compact Session default with the Session Timeline default", async () => {
+    const { actor, caller, org } = await prepare();
+    await prisma.user.update({
+      where: { id: actor.id },
+      data: { featureFlags: ["sessionViewV2", "sessionViewV2Timeline"] },
+    });
+
+    await caller.organizations.setFeatureFlagOrgDefault({
+      orgId: org.id,
+      flag: "sessionViewV2Timeline",
+      enabled: true,
+    });
+
+    await expect(
+      prisma.organization.findUniqueOrThrow({
+        where: { id: org.id },
+        select: { featureFlagOrgDefaults: true },
+      }),
+    ).resolves.toEqual({
+      featureFlagOrgDefaults: ["sessionViewV2Timeline", "sessionViewV2"],
+    });
+  });
+
+  it("allows tested administrators and rejects ordinary organization members", async () => {
+    const admin = await prepare("cloud:core", Role.ADMIN);
+    await prisma.user.update({
+      where: { id: admin.actor.id },
+      data: { featureFlags: ["sessionViewV2"] },
+    });
+    await expect(
+      admin.caller.organizations.setFeatureFlagOrgDefault({
+        orgId: admin.org.id,
+        flag: "sessionViewV2",
+        enabled: true,
+      }),
+    ).resolves.toMatchObject({ enabled: true });
+
+    const member = await prepare("cloud:core", Role.MEMBER);
+    await expect(
+      member.caller.organizations.setFeatureFlagOrgDefault({
+        orgId: member.org.id,
+        flag: "sessionViewV2",
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      member.caller.organizations.getFeatureFlagOrgDefaults({
+        orgId: member.org.id,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const members = await member.caller.members.allFromOrg({
+      orgId: member.org.id,
+      page: 0,
+      limit: 10,
+    });
+    expect(members.memberships[0]?.featurePreviews).toBeNull();
+    expect(members.memberships[0]?.featurePreviewManagement).toBeNull();
+  });
+
+  it("rejects enabling a default when the administrator has opted out of the preview", async () => {
+    const { actor, caller, org } = await prepare();
+    await prisma.user.update({
+      where: { id: actor.id },
+      data: {
+        featureFlags: [getFeaturePreviewOptOutFlag("sessionViewV2")],
+      },
+    });
+
+    await expect(
+      caller.organizations.setFeatureFlagOrgDefault({
+        orgId: org.id,
+        flag: "sessionViewV2",
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
+  it("rejects internal flags at the input boundary", async () => {
+    const { caller, org } = await prepare();
+
+    await expect(
+      caller.organizations.setFeatureFlagOrgDefault({
+        orgId: org.id,
+        flag: "templateFlag" as never,
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("is idempotent and preserves unknown organization defaults", async () => {
+    const { actor, caller, org } = await prepare();
+    await Promise.all([
+      prisma.user.update({
+        where: { id: actor.id },
+        data: { featureFlags: ["sessionViewV2"] },
+      }),
+      prisma.organization.update({
+        where: { id: org.id },
+        data: { featureFlagOrgDefaults: ["futurePreview"] },
+      }),
+    ]);
+
+    for (const enabled of [true, true]) {
+      await caller.organizations.setFeatureFlagOrgDefault({
+        orgId: org.id,
+        flag: "sessionViewV2",
+        enabled,
+      });
+    }
+    await expect(
+      prisma.organization.findUniqueOrThrow({
+        where: { id: org.id },
+        select: { featureFlagOrgDefaults: true },
+      }),
+    ).resolves.toEqual({
+      featureFlagOrgDefaults: ["futurePreview", "sessionViewV2"],
+    });
+
+    for (const enabled of [false, false]) {
+      await caller.organizations.setFeatureFlagOrgDefault({
+        orgId: org.id,
+        flag: "sessionViewV2",
+        enabled,
+      });
+    }
+    await expect(
+      prisma.organization.findUniqueOrThrow({
+        where: { id: org.id },
+        select: { featureFlagOrgDefaults: true },
+      }),
+    ).resolves.toEqual({
+      featureFlagOrgDefaults: [
+        "futurePreview",
+        getFeaturePreviewOptOutFlag("sessionViewV2"),
+        getFeaturePreviewOptOutFlag("sessionViewV2Timeline"),
+      ],
+    });
+    await expect(
+      caller.organizations.getFeatureFlagOrgDefaults({ orgId: org.id }),
+    ).resolves.toMatchObject({ defaults: [] });
+
+    await prisma.user.update({
+      where: { id: actor.id },
+      data: { featureFlags: ["sessionViewV2", "sessionViewV2Timeline"] },
+    });
+    await caller.organizations.setFeatureFlagOrgDefault({
+      orgId: org.id,
+      flag: "sessionViewV2Timeline",
+      enabled: true,
+    });
+    await expect(
+      caller.organizations.getFeatureFlagOrgDefaults({ orgId: org.id }),
+    ).resolves.toMatchObject({
+      defaults: ["sessionViewV2", "sessionViewV2Timeline"],
+    });
+  });
+
+  it("applies defaults to a new member context without copying them to the user", async () => {
+    const { caller, org } = await prepare();
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: {
+        featureFlagOrgDefaults: ["sessionViewV2", "futurePreview"],
+      },
+    });
+    const member = await createUser({
+      featureFlags: [
+        "templateFlag",
+        getFeaturePreviewOptOutFlag("sessionViewV2"),
+      ],
+    });
+
+    await caller.members.create({
+      orgId: org.id,
+      email: member.email!,
+      orgRole: Role.MEMBER,
+    });
+
+    const [updated, members] = await Promise.all([
+      prisma.user.findUniqueOrThrow({
+        where: { id: member.id },
+        select: { featureFlags: true },
+      }),
+      caller.members.allFromOrg({ orgId: org.id, page: 0, limit: 10 }),
+    ]);
+    expect(updated.featureFlags).toEqual([
+      "templateFlag",
+      getFeaturePreviewOptOutFlag("sessionViewV2"),
+    ]);
+    expect(
+      members.memberships.find((membership) => membership.userId === member.id)
+        ?.featurePreviews,
+    ).toEqual({
+      // The member's opt-out beats the organization default, and neither
+      // default was copied onto the user (asserted above). `futurePreview` is
+      // not a registered preview, so it is filtered out rather than surfacing
+      // here. Asserting that two REGISTERED defaults resolve differently needs
+      // a second preview; add that half back with the next one.
+      sessionViewV2: false,
+      sessionViewV2Timeline: false,
+      unifiedTraceSessionView: false,
+    });
+  });
+
+  it("rejects default changes for the demo organization", async () => {
+    const originalDemoOrgId = env.NEXT_PUBLIC_DEMO_ORG_ID;
+    const { caller, org } = await prepare();
+    (env as { NEXT_PUBLIC_DEMO_ORG_ID?: string }).NEXT_PUBLIC_DEMO_ORG_ID =
+      org.id;
+
+    try {
+      await expect(
+        caller.organizations.setFeatureFlagOrgDefault({
+          orgId: org.id,
+          flag: "sessionViewV2",
+          enabled: true,
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      const members = await caller.members.allFromOrg({
+        orgId: org.id,
+        page: 0,
+        limit: 10,
+      });
+      expect(members.memberships[0]?.featurePreviews).toBeNull();
+      expect(members.memberships[0]?.featurePreviewManagement).toBeNull();
+    } finally {
+      (env as { NEXT_PUBLIC_DEMO_ORG_ID?: string }).NEXT_PUBLIC_DEMO_ORG_ID =
+        originalDemoOrgId;
+    }
+  });
+});
+
+describe("organization member feature preview overrides", () => {
+  it("enables Compact Session when enabling Session Timeline for a member", async () => {
+    const { caller, org } = await prepare();
+    const target = await createUser();
+    await createOrgMembership(prisma, {
+      orgId: org.id,
+      userId: target.id,
+      role: Role.MEMBER,
+    });
+
+    await caller.members.setUserFeaturePreviewEnabled({
+      orgId: org.id,
+      userId: target.id,
+      flag: "sessionViewV2Timeline",
+      enabled: true,
+    });
+
+    await expect(
+      prisma.user.findUniqueOrThrow({
+        where: { id: target.id },
+        select: { featureFlags: true },
+      }),
+    ).resolves.toEqual({
+      featureFlags: ["sessionViewV2Timeline", "sessionViewV2"],
+    });
+  });
+
+  it("persists an administrator's disable as a global user opt-out", async () => {
+    const { caller, org } = await prepare();
+    const target = await createUser({ featureFlags: ["sessionViewV2"] });
+    await createOrgMembership(prisma, {
+      orgId: org.id,
+      userId: target.id,
+      role: Role.MEMBER,
+    });
+
+    await caller.members.setUserFeaturePreviewEnabled({
+      orgId: org.id,
+      userId: target.id,
+      flag: "sessionViewV2",
+      enabled: false,
+    });
+
+    await expect(
+      prisma.user.findUniqueOrThrow({
+        where: { id: target.id },
+        select: { featureFlags: true },
+      }),
+    ).resolves.toEqual({
+      featureFlags: [
+        getFeaturePreviewOptOutFlag("sessionViewV2"),
+        getFeaturePreviewOptOutFlag("sessionViewV2Timeline"),
+      ],
+    });
+  });
+
+  it("audits disabling an inherited organization default as a global override", async () => {
+    const { caller, org } = await prepare();
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: { featureFlagOrgDefaults: ["sessionViewV2"] },
+    });
+    const target = await createUser();
+    const membership = await createOrgMembership(prisma, {
+      orgId: org.id,
+      userId: target.id,
+      role: Role.MEMBER,
+    });
+
+    await caller.members.setUserFeaturePreviewEnabled({
+      orgId: org.id,
+      userId: target.id,
+      flag: "sessionViewV2",
+      enabled: false,
+    });
+
+    const auditEntry = await prisma.auditLog.findFirstOrThrow({
+      where: {
+        orgId: org.id,
+        resourceType: "orgMembership",
+        resourceId: membership.id,
+        action: "updateUserFeatureFlag",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(JSON.parse(auditEntry.before!)).toEqual({
+      flag: "sessionViewV2",
+      override: "inherit",
+      scope: "global",
+    });
+    expect(JSON.parse(auditEntry.after!)).toEqual({
+      flag: "sessionViewV2",
+      override: "disabled",
+      scope: "global",
+    });
+  });
+
+  it("denies a targeted change unless the actor administers every real target organization", async () => {
+    const { actor, caller, org } = await prepare();
+    const target = await createUser();
+    await createOrgMembership(prisma, {
+      orgId: org.id,
+      userId: target.id,
+      role: Role.MEMBER,
+    });
+    const otherOrg = await createOrganization();
+    await createOrgMembership(prisma, {
+      orgId: otherOrg.id,
+      userId: target.id,
+      role: Role.VIEWER,
+    });
+
+    const members = await caller.members.allFromOrg({
+      orgId: org.id,
+      page: 0,
+      limit: 10,
+    });
+    const targetRow = members.memberships.find(
+      (membership) => membership.userId === target.id,
+    );
+    expect(targetRow?.featurePreviewManagement).toEqual({ allowed: false });
+
+    await expect(
+      caller.members.setUserFeaturePreviewEnabled({
+        orgId: org.id,
+        userId: target.id,
+        flag: "sessionViewV2",
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    await createOrgMembership(prisma, {
+      orgId: otherOrg.id,
+      userId: actor.id,
+      role: Role.ADMIN,
+    });
+    await expect(
+      caller.members.setUserFeaturePreviewEnabled({
+        orgId: org.id,
+        userId: target.id,
+        flag: "sessionViewV2",
+        enabled: true,
+      }),
+    ).resolves.toMatchObject({
+      userId: target.id,
+      flag: "sessionViewV2",
+      enabled: true,
+    });
+  });
+
+  it("ignores demo membership in the all-organizations check", async () => {
+    const originalDemoOrgId = env.NEXT_PUBLIC_DEMO_ORG_ID;
+    const { caller, org } = await prepare();
+    const target = await createUser();
+    await createOrgMembership(prisma, {
+      orgId: org.id,
+      userId: target.id,
+      role: Role.MEMBER,
+    });
+    const demoOrg = await createOrganization();
+    await createOrgMembership(prisma, {
+      orgId: demoOrg.id,
+      userId: target.id,
+      role: Role.VIEWER,
+    });
+    (env as { NEXT_PUBLIC_DEMO_ORG_ID?: string }).NEXT_PUBLIC_DEMO_ORG_ID =
+      demoOrg.id;
+
+    try {
+      await expect(
+        caller.members.setUserFeaturePreviewEnabled({
+          orgId: org.id,
+          userId: target.id,
+          flag: "sessionViewV2",
+          enabled: true,
+        }),
+      ).resolves.toMatchObject({ enabled: true });
+    } finally {
+      (env as { NEXT_PUBLIC_DEMO_ORG_ID?: string }).NEXT_PUBLIC_DEMO_ORG_ID =
+        originalDemoOrgId;
+    }
+  });
+
+  it("does not expose raw or foreign-organization feature flag data", async () => {
+    const { caller, org } = await prepare();
+    const target = await createUser({
+      featureFlags: ["templateFlag", "sessionViewV2"],
+    });
+    await createOrgMembership(prisma, {
+      orgId: org.id,
+      userId: target.id,
+      role: Role.MEMBER,
+    });
+
+    const result = await caller.members.allFromOrg({
+      orgId: org.id,
+      page: 0,
+      limit: 10,
+    });
+    const row = result.memberships.find(
+      (membership) => membership.userId === target.id,
+    );
+
+    // The state map surfaces every preview; the raw `featureFlags` array stays
+    // hidden, which is what this guards.
+    expect(row?.featurePreviews).toEqual({
+      sessionViewV2: true,
+      sessionViewV2Timeline: false,
+      unifiedTraceSessionView: false,
+    });
+    expect(row?.user).not.toHaveProperty("featureFlags");
+    expect(row).not.toHaveProperty("organizationIds");
+  });
+
+  it("rejects a target that is not a member of the input organization", async () => {
+    const { caller, org } = await prepare();
+    const target = await createUser();
+
+    await expect(
+      caller.members.setUserFeaturePreviewEnabled({
+        orgId: org.id,
+        userId: target.id,
+        flag: "sessionViewV2",
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+async function createUser({
+  email,
+  featureFlags = [],
+}: {
+  email?: string;
+  featureFlags?: string[];
+} = {}) {
+  const id = randomUUID();
+  return prisma.user.create({
+    data: {
+      id,
+      email: email ?? `${id}@example.com`,
+      name: `Feature Flag User ${id}`,
+      featureFlags,
+    },
+  });
+}
+
+async function createOrganization({
+  featureFlagOrgDefaults = [],
+}: {
+  featureFlagOrgDefaults?: string[];
+} = {}) {
+  const id = randomUUID();
+  return prisma.organization.create({
+    data: {
+      id: `org-${id}`,
+      name: `Feature Flag Org ${id}`,
+      featureFlagOrgDefaults,
+    },
+  });
+}
+
+async function prepare(
+  plan: Plan = "cloud:core",
+  actorRole: Role = Role.OWNER,
+) {
+  const id = randomUUID();
+  const org = await createOrganization();
+  const project = await prisma.project.create({
+    data: {
+      id: `project-${id}`,
+      orgId: org.id,
+      name: `Feature Flag Project ${id}`,
+    },
+  });
+  const actor = await createUser();
+  await createOrgMembership(prisma, {
+    orgId: org.id,
+    userId: actor.id,
+    role: actorRole,
+  });
+
+  const session = createSession({
+    user: {
+      id: actor.id,
+      email: actor.email,
+      name: actor.name,
+      featureFlags: testFeatureFlags({ templateFlag: false }),
+    },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role: actorRole,
+        plan,
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: project.id,
+            name: project.name,
+            role: Role.OWNER,
+            retentionDays: null,
+          },
+        ],
+      },
+    ],
+    environment: {
+      selfHostedInstancePlan: plan,
+    },
+  });
+
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+  return {
+    actor,
+    caller: appRouter.createCaller({ ...ctx, prisma }),
+    org,
+    project,
+    session,
+  };
+}

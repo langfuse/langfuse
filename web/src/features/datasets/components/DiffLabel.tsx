@@ -1,11 +1,11 @@
-import { Badge } from "@/src/components/ui/badge";
+import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import {
   type CategoricalDiff,
   type NumericDiff,
 } from "@/src/features/datasets/lib/calculateBaselineDiff";
-import { cn } from "@/src/utils/tailwind";
 
-const getVariant = (direction: "+" | "-", preferNegativeDirection: boolean) => {
+const getColor = (direction: "+" | "-", preferNegativeDirection: boolean) => {
   if (preferNegativeDirection) {
     return direction === "-" ? "success" : "error";
   }
@@ -19,30 +19,49 @@ const getVariant = (direction: "+" | "-", preferNegativeDirection: boolean) => {
 export function DiffLabel({
   diff,
   formatValue,
-  className,
   preferNegativeDiff = false,
+  title,
+  plain = false,
 }: {
   diff: NumericDiff | CategoricalDiff;
   formatValue: (value: number) => string;
-  className?: string;
   preferNegativeDiff?: boolean;
+  /**
+   * What the chip means, on hover. `+0.07` and `a → b` do not say which side
+   * is which; a caller that knows the two sides should say it
+   * (`describeRunComparison`). Falls back to the chip's own text.
+   */
+  title?: string;
+  /** Borderless and uncoloured, for dense tables that mark the direction elsewhere. */
+  plain?: boolean;
 }) {
   if (diff.type === "NUMERIC") {
+    const value = `${diff.direction}${formatValue(diff.absoluteDifference)}`;
+    // A number never truncates or wraps, so it carries no native tooltip
+    // unless the caller names what the chip means.
+    if (plain) {
+      return (
+        <Metric title={title}>
+          <span className="whitespace-nowrap">{value}</span>
+        </Metric>
+      );
+    }
     return (
-      <Badge
-        size="sm"
-        variant={getVariant(diff.direction, preferNegativeDiff)}
-        className={cn("font-bold", className)}
+      <BadgeShell
+        color={getColor(diff.direction, preferNegativeDiff)}
+        title={title}
       >
-        {diff.direction}
-        {formatValue(diff.absoluteDifference)}
-      </Badge>
+        <span className="whitespace-nowrap">{value}</span>
+      </BadgeShell>
     );
   }
-  if (diff.isDifferent)
-    return (
-      <Badge size="sm" variant="warning" className="font-bold">
-        Varies
-      </Badge>
-    );
+  if (diff.isDifferent) {
+    /* Name the move when both sides are a single value: a categorical
+       score going pass → fail is a diff, just not a number. */
+    const move = diff.from && diff.to ? `${diff.from} → ${diff.to}` : "Varies";
+    // A named move can be longer than the cell it sits in; the badge
+    // truncates it and keeps the full move on hover.
+    if (plain) return <Metric value={move} title={title ?? move} />;
+    return <Badge color="warning" text={move} title={title ?? move} />;
+  }
 }

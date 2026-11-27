@@ -1,41 +1,42 @@
 import React, { useCallback, useState } from "react";
 import { useRouter } from "next/router";
-import { LayoutDashboard } from "lucide-react";
-import { type FilterState } from "@langfuse/shared";
+import { LayoutDashboard } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { SelectDashboardDialog } from "@/src/features/dashboard/components/SelectDashboardDialog";
-import { type ChartViewConfig } from "../types";
-import { chartConfigToWidgetInput } from "../lib/chartConfigToWidget";
+import { type ChartWidgetInput } from "../lib/chartConfigToWidget";
 
 /**
- * "Add to dashboard" — turns the in-view chart into a real dashboard widget by
- * REUSING the existing add-widget machinery, not duplicating it: map the chart
- * config to the `dashboardWidgets.create` input, pick a dashboard via the
- * existing `SelectDashboardDialog`, then hand off to the dashboard's own
- * `?addWidgetId=…` placement flow (same as the widget builder's save path).
- * Gated on `dashboards:CUD`, matching the server scope, so it never dead-ends.
+ * "Add to dashboard" — turns an in-view chart into a real dashboard widget by
+ * REUSING the existing add-widget machinery, not duplicating it: hand the
+ * already-built `dashboardWidgets.create` input to the mutation, pick a
+ * dashboard via the existing `SelectDashboardDialog`, then hand off to the
+ * dashboard's own `?addWidgetId=…` placement flow (same as the widget
+ * builder's save path). Gated on `dashboards:CUD`, matching the server scope,
+ * so it never dead-ends.
+ *
+ * Shared between the observations chart view (`EventsChartView`) and the
+ * scores chart view (`@/src/features/scores-chart-view`) — building
+ * `widgetInput` is the only domain-specific step (`chartConfigToWidgetInput`
+ * vs `scoreChartConfigToWidgetInput`); everything after that is identical.
  */
 export const AddToDashboardButton = React.memo(function AddToDashboardButton({
   projectId,
-  config,
-  filters,
+  widgetInput,
 }: {
   projectId: string;
-  config: ChartViewConfig;
-  filters: FilterState;
+  widgetInput: ChartWidgetInput;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
   const createWidget = api.dashboardWidgets.create.useMutation();
 
   const onSelectDashboard = useCallback(
     (dashboardId: string) => {
       createWidget.mutate(
-        { projectId, ...chartConfigToWidgetInput({ config, filters }) },
+        { projectId, ...widgetInput },
         {
           onSuccess: async (data) => {
             setOpen(false);
@@ -48,14 +49,16 @@ export const AddToDashboardButton = React.memo(function AddToDashboardButton({
           // Surface failures instead of leaving the dialog open with no feedback;
           // keep it open so the user can retry or pick another dashboard.
           onError: (error) =>
-            showErrorToast("Failed to add chart to dashboard", error.message),
+            showErrorToast(
+              "Failed to add chart to dashboard",
+              error.message,
+              classifyTrpcToastError(error, "dashboard_chart.add"),
+            ),
         },
       );
     },
-    [createWidget, projectId, config, filters, router],
+    [createWidget, projectId, widgetInput, router],
   );
-
-  if (!hasAccess) return null;
 
   return (
     <>
@@ -66,7 +69,7 @@ export const AddToDashboardButton = React.memo(function AddToDashboardButton({
         onClick={() => setOpen(true)}
         disabled={createWidget.isPending}
       >
-        <LayoutDashboard className="h-3.5 w-3.5" />
+        <LayoutDashboard size="base" color="default" />
         Add to dashboard
       </Button>
       <SelectDashboardDialog

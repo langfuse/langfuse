@@ -1,17 +1,27 @@
+/* oxlint-disable eqeqeq -- tRPC error code guard matches existing APIError typing */
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRouter } from "next/router";
 import { useState } from "react";
 
-import { ErrorPage } from "@/src/components/error-page";
-import Page from "@/src/components/layouts/page";
+import { ErrorPage } from "@/src/components/ErrorPage";
+import Page from "@/src/components/layouts/Page";
+import { Trash2 } from "@langfuse/icons";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { DeleteMonitorDialogController } from "@/src/features/monitors/components/DeleteMonitorDialogController/DeleteMonitorDialogController";
 import { MonitorForm } from "@/src/features/monitors/components/MonitorForm";
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
+import { invalidateMonitorQueriesAfterDelete } from "@/src/features/monitors/fns/invalidateMonitorQueriesAfterDelete";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, type APIError } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { type Monitor } from "@langfuse/shared/monitors";
 
 /** EditMonitorPage gates the edit-monitor route and defers all data fetching to EditMonitorPageContent so blocked users never trigger the monitor query. */
 export default function EditMonitorPage() {
   return (
-    <MonitorPagePermissions scope="monitors:read">
+    <MonitorPagePermissions scope="alerts:read">
       <EditMonitorPageRouter />
     </MonitorPagePermissions>
   );
@@ -41,14 +51,67 @@ function EditMonitorPageRouter() {
 
 /** EditMonitorFormPage renders the edit monitors form */
 const EditMonitorFormPage = ({ monitor }: { monitor: Monitor }) => {
+  const router = useRouter();
+  const utils = api.useUtils();
   const [liveName, setLiveName] = useState(monitor.name);
+  const canDelete = useHasProjectAccess({
+    projectId: monitor.projectId,
+    scope: "alerts:CUD",
+  });
+  const deleteMonitor = api.monitors.delete.useMutation({
+    onSuccess: async () => {
+      await invalidateMonitorQueriesAfterDelete(utils.monitors);
+      showSuccessToast({
+        operation: "monitor.delete",
+        title: "Alert deleted",
+        description: `"${monitor.name}" has been deleted.`,
+      });
+      await router.replace(`/project/${monitor.projectId}/alerts`);
+    },
+    onError: (error) =>
+      showErrorToast(
+        "Failed to delete alert",
+        error.message,
+        classifyTrpcToastError(error, "monitor.delete"),
+      ),
+  });
 
   return (
-    <Page withPadding headerProps={getHeaderProps(monitor.projectId, liveName)}>
+    <Page
+      withPadding
+      headerProps={{
+        ...getHeaderProps(monitor.projectId, liveName),
+        hideTitleRow: true,
+      }}
+    >
       <MonitorForm
         projectId={monitor.projectId}
         monitor={monitor}
         onNameChange={setLiveName}
+        secondaryAction={
+          canDelete && (
+            <DeleteMonitorDialogController
+              monitorName={monitor.name}
+              deleting={deleteMonitor.isPending}
+              onDelete={async () => {
+                await deleteMonitor.mutateAsync({
+                  projectId: monitor.projectId,
+                  id: monitor.id,
+                });
+              }}
+            >
+              {({ openDialog }) => (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  icon={Trash2}
+                  text="Delete alert"
+                  onClick={openDialog}
+                />
+              )}
+            </DeleteMonitorDialogController>
+          )
+        }
       />
     </Page>
   );
@@ -59,26 +122,24 @@ const GetMonitorErrorPage = ({ error }: { error: APIError }) => {
   if (error?.data?.code == "NOT_FOUND") {
     return (
       <ErrorPage
-        title="Monitor not found"
-        message="This monitor doesn't exist or has been deleted."
+        title="Alert not found"
+        message="This alert doesn't exist or has been deleted."
       />
     );
   }
 
   return (
-    <ErrorPage title="Monitor could not be edited" message={error.message} />
+    <ErrorPage title="Alert could not be edited" message={error.message} />
   );
 };
 
 /** EditMonitorLoadingPage renders a loading page while the monitor is loading */
 const EditMonitorLoadingPage = ({ projectId }: { projectId: string }) => (
-  <Page withPadding headerProps={getHeaderProps(projectId)}>
-    <></>
-  </Page>
+  <Page withPadding headerProps={getHeaderProps(projectId)} />
 );
 
 /** getHeaderProps returns the page header properties for the EditMonitors page */
 const getHeaderProps = (projectId: string, monitorName?: string) => ({
-  title: `Edit Monitor${monitorName ? " - " + monitorName : ""}`,
-  breadcrumb: [{ name: "Monitors", href: `/project/${projectId}/monitors` }],
+  title: `Edit Alert${monitorName ? " - " + monitorName : ""}`,
+  breadcrumb: [{ name: "Alerts", href: `/project/${projectId}/alerts` }],
 });

@@ -1,5 +1,10 @@
 # Provider Sources and Price Keys
 
+This file holds current, durable facts for pricing work. When a fact changes,
+edit or delete its bullet in place. Do not add dated per-audit entries, restate
+prices that are already in `default-model-prices.json`, or record that a page
+was re-fetched and nothing changed.
+
 ## Official Pricing Sources
 
 Always fetch pricing from the provider's official docs before editing.
@@ -12,148 +17,299 @@ Always fetch pricing from the provider's official docs before editing.
 | Google Gemini (Vertex AI) | `https://cloud.google.com/vertex-ai/generative-ai/pricing#gemini-models`         |
 | AWS Bedrock               | `https://aws.amazon.com/bedrock/pricing/`                                        |
 | Azure OpenAI              | `https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/` |
+| TypeSafe (Jev)            | `https://docs.typesafe.ai/models`                                                |
 
-### Known source quirks (as of 2026-06)
+Per-model pages add detail the aggregate tables miss:
+`https://developers.openai.com/api/docs/models/<model-id>`,
+`https://developers.openai.com/api/docs/models/all`,
+`https://platform.claude.com/docs/en/models/overview`,
+`https://ai.google.dev/gemini-api/docs/pricing`, and
+`https://ai.google.dev/gemini-api/docs/models`.
 
-- **OpenAI** — `openai.com/api/pricing/` often returns HTTP 403 to automated fetchers.
-  Use `https://developers.openai.com/api/docs/pricing` instead as that is often permitted.
-  Use `https://developers.openai.com/api/docs/models/all` to discover model-by-model info and pricing.
-  If this page fails, leave OpenAI prices unchanged and report the 403 as an unresolved finding.
-- **OpenAI matchPattern prefix** — All OpenAI model entries must include `(openai\/)?`
-  as an optional prefix in their matchPattern (e.g., `(?i)^(openai\/)?(gpt-4o)$`).
-  Entries missing this prefix will not match model IDs sent with the `openai/` prefix.
-  The `o4-mini` and `o4-mini-2025-04-16` entries were found missing this prefix in
-  June 2026 and corrected. Verify any new OpenAI entries include it.
-- **Google Gemini** — The AI Studio page (`ai.google.dev/pricing`) and the Vertex AI
-  page (`cloud.google.com/vertex-ai/generative-ai/pricing`) can show different prices
-  for the same model (e.g. Gemini 2.0 Flash: AI Studio $0.10/MTok vs Vertex $0.15/MTok
-  as of June 2026). When they differ, prefer the AI Studio page for AI Studio–specific
-  models and Vertex for Vertex-specific ones; leave the file unchanged and report the
-  discrepancy when uncertain which applies.
-- **Gemini 1.5 models** — `gemini-1.5-pro`, `gemini-1.5-flash`, and `gemini-1.5-flash-8b`
-  are no longer listed on either official Gemini pricing page as of June 2026. They
-  appear to be retired/deprecated. Do not add or modify their pricing without a concrete
-  official source.
-- **Gemini experimental / preview model IDs** — Models such as
-  `gemini-2.0-flash-exp`, `gemini-2.0-pro-exp-02-05`, `gemini-2.0-flash-thinking-exp-01-21`,
-  `gemini-2.5-flash-preview-09-2025`, and `gemini-2.5-flash-lite-preview-09-2025` are
-  in the selectable model lists but have no standalone pricing entry on official pages.
-  Do not add pricing for them without explicit official evidence.
-- **Gemini 2.0 Flash** — `gemini-2.0-flash` and `gemini-2.0-flash-001` are in the
-  selectable model lists and have pricing entries in the file, but as of June 2026
-  these models are no longer listed on the official AI Studio pricing page. Treat the
-  existing prices as the last known values; do not update without a concrete official
+## Official Model Lifecycle Sources
+
+Use these to decide whether a selectable model is still served. See "Selectable
+Model Availability" in `automated-audit.md` for the removal criteria.
+
+- Anthropic Claude: `https://platform.claude.com/docs/en/about-claude/model-deprecations`
+- OpenAI: `https://developers.openai.com/api/docs/deprecations`
+- Google Gemini (AI Studio): `https://ai.google.dev/gemini-api/docs/models`
+  (shut-down models are labeled "Shut down") and
+  `https://ai.google.dev/gemini-api/docs/deprecations`
+- Google Gemini (Vertex AI):
+  `https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions`.
+  It redirects to
+  `docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions`,
+  which is outside the allowed WebFetch domains. Report Vertex lifecycle checks
+  as unresolved and do not remove or add Vertex AI entries without other
+  official evidence.
+
+## Fetching Official Pages Reliably
+
+- **OpenAI** — `openai.com/api/pricing/` returns HTTP 403 to automated fetchers;
+  use `developers.openai.com`. In CI the harness can also block WebFetch. If the
+  OpenAI pricing page cannot be fetched, leave OpenAI prices unchanged and
+  report it.
+- **Ask for verbatim rows, not summaries.** WebFetch summaries collapse columns
+  and pick the wrong table. Ask for the literal row for one model ID and name
+  the columns you expect.
+- **OpenAI aggregate pricing table** — Rows sometimes come back in jumbled order
+  or with extra values. Reconcile each number against the model's own page and
+  the family multipliers before keeping it. Never average, round, or guess.
+- **OpenAI Fast-mode "Specialized models" section** — Codex-family Fast-mode
+  prices (for example `gpt-5.3-codex`) appear only in this section of the
+  aggregate table, not on the model's own page.
+- **`gpt-5-chat-latest`** — Absent from the aggregate table; confirm it on its
+  own model page.
+- **OpenAI Standard vs. Fine-tuning tables** — Base models with a legacy
+  fine-tuning tier (`gpt-3.5-turbo`, `davinci-002`, `babbage-002`, and the
+  fine-tunable `gpt-4.1*`, `gpt-4o*`, `o4-mini` snapshots) appear in both
+  tables at different rates. Bare entries use the Standard table; `ft:` entries
+  use the Fine-tuning table.
+- **Gemini Free vs. Paid columns** — `ai.google.dev` pricing tables have a Free
+  and a Paid column per row, and summaries regularly report the Free column
+  ("Not available", "Free of charge") as the price. Langfuse prices the Paid
+  tier. Ask for both columns explicitly and cross-check
+  `ai.google.dev/pricing` against `ai.google.dev/gemini-api/docs/pricing` when
+  results disagree.
+- **`ai.google.dev` now 301-redirects to `aistudio.google.com`** — every
+  `ai.google.dev` pricing, models, and deprecations URL in this file redirects
+  to the equivalent `aistudio.google.com` path. `aistudio.google.com` is in the
+  workflow's allowed WebFetch domains; follow the redirect and fetch it
+  directly. A first prose-summary fetch tends to merge tiers, dates, and
+  per-modality rows into ranges (for example "$0.75–$1.50") — re-fetch asking
+  for the literal Markdown table for one model section verbatim when that
+  happens. `aistudio.google.com/gemini-api/docs/models` redirects to a Google
+  sign-in wall and cannot be fetched; use `aistudio.google.com/docs/models`
+  instead.
+- **Deprecation dates** — Summaries misjudge whether a date is past or future.
+  Compare the literal shutdown date with `date -u +%Y-%m-%dT00:00:00.000Z`
+  yourself. Ask for the complete list of batch headings on the deprecations
+  page, not only the batches you already know, so new batches are not missed.
+  The OpenAI model catalog's "Deprecated" badge is not removal evidence; only
+  a dated row on the deprecations page is.
+- **AWS Bedrock** — WebFetch cannot extract per-model numeric rows from the
+  Bedrock pricing page. A Bedrock claim without a quoted number is unconfirmed;
+  a qualitative footnote can only corroborate a price from another official
   source.
-- **Gemini 3 Pro Preview** — `gemini-3-pro-preview` is in the selectable model lists
-  and the pricing file but is NOT listed on the official AI Studio pricing page as of
-  June 2026. Its prices ($2.00/≤200k, $4.00/>200k input; $12.00/$18.00 output) were
-  set when the model was first added; do not update without explicit official evidence.
-- **Gemini cache-read ratio** — Google Gemini models consistently price cached input at
-  10% of the base input price (e.g. Gemini 2.5 Flash: $0.30/MTok input → $0.03/MTok
-  cached). If a cache-read price in the file diverges from this ratio, treat it as
-  suspicious and verify against the official page before correcting.
-- **`ai.google.dev/pricing` has separate Free-tier and Paid-tier columns — do not confuse
-  them (resolved July 31 2026)** — The official Gemini pricing table has both a "Free of
-  charge" column and a "Paid tier" column per row. A model row can legitimately read
-  "Context caching price: Not available | $0.025/MTok (paid)" — the "Not available" only
-  describes the free tier. Prior audits (July 23, 25, 27 2026) saw contradictory
-  "available" vs "not available" summaries for `gemini-3.1-flash-lite` context caching
-  because WebFetch's summarizer sometimes collapsed the two columns into one answer. A
-  July 31 2026 fetch that explicitly asked to quote the row verbatim confirmed: Free tier
-  = "Not available", Paid tier = "$0.025/MTok (text/image/video), $0.05/MTok (audio)",
-  plus a **storage price** of $1.00 per 1M tokens per hour for the paid tier (a
-  time-based holding cost with no equivalent usage key in Langfuse's pricing schema —
-  do not attempt to represent it). Langfuse prices the paid/API tier, so
-  `gemini-3.1-flash-lite`'s existing cache pricing ($0.025/MTok text/image/video,
-  $0.05/MTok audio = 2.5e-8 / 5e-8 per token) is CONFIRMED CORRECT; no change was made.
-  This resolves unresolved finding #5 from the July 27 2026 audit memory. Lesson: when a
-  provider pricing page has multiple tiers/columns per model, ask WebFetch to quote the
-  exact row verbatim (not "does caching exist") to avoid column-collapse artifacts.
-- **Anthropic flat large-context models** — The Anthropic pricing page lists models with
-  "full 1M token context window at standard pricing" in a dedicated "Long context pricing"
-  section. As of July 2026 this list includes: Claude Fable 5, Claude Mythos 5, Claude
-  Mythos Preview, Claude Opus 4.8, Opus 4.7, Opus 4.6, Sonnet 5, and Sonnet 4.6. These
-  models must NOT have a Large Context tier in the pricing file. Models not on this list
-  (e.g. Sonnet 4.5, Haiku 4.5) may retain a Large Context tier if it was previously set.
-  The Sonnet 4.6 Large Context tier was found and removed during the June 2026 audit.
-- **Claude Sonnet 5 introductory pricing** — The API model ID is `claude-sonnet-5` (no
-  date suffix; pinned snapshot, not an alias). Introductory pricing of $2/$10 per
-  input/output MTok is in effect through August 31, 2026; standard pricing of $3/$15 will
-  apply from September 1, 2026. Cache write 5m = $2.50/MTok, 1h = $4/MTok, read =
-  $0.20/MTok during introductory period. Since the pricing schema cannot express
-  time-based tiers, the file holds the current introductory prices; update to $3/$15 and
-  cache equivalents ($3.75/$6/$0.30) after August 31, 2026. AWS Bedrock ID:
-  `anthropic.claude-sonnet-5`. The model is in the flat long-context list (no Large
-  Context tier). Added to pricing file and `anthropicModels` in July 2026 audit.
-- **Claude Mythos Preview** — Listed in the Anthropic long-context pricing section and on
-  the models page (access is invitation-only via Project Glasswing) but has NO separate
-  pricing row in the main model pricing table and NO selectable-model entry in types.ts.
-  Do not add a pricing entry without an explicit official price.
-- **OpenAI WebFetch permissions** — In CI or restricted harness runs the WebFetch tool may
-  be blocked by the harness permissions layer (error: "Claude requested permissions to use
-  WebFetch, but you haven't granted it yet"), not a website-level HTTP 403. If the
-  `developers.openai.com/api/docs/pricing` fetch fails for either reason, leave OpenAI
-  prices unchanged and report it as an unresolved finding.
-- **GPT-5.6 model family (added July 2026)** — OpenAI introduced a three-variant naming
-  scheme for GPT-5.6: `gpt-5.6-sol` (flagship, $5/$0.50/$30 per MTok input/cached/output),
-  `gpt-5.6-terra` (balanced, $2.50/$0.25/$15), and `gpt-5.6-luna` (cost-efficient,
-  $1.00/$0.10/$6.00). All three are reasoning models; no date-stamped snapshot versions were
-  present at launch. If dated versions appear (e.g. `gpt-5.6-sol-2026-07-xx`), add them
-  as separate pricing entries following the gpt-5.4 / gpt-5.5 precedent.
-  **Long context pricing** applies when input tokens exceed **272,000**: prices are 2× input
-  and 1.5× output for the full request (cached input also doubles). Individual model page
-  URLs: `https://developers.openai.com/api/docs/models/gpt-5.6-sol` (and -terra, -luna).
-  Long context prices: sol $10/$1.00/$45, terra $5/$0.50/$22.50, luna $2/$0.20/$9
-  per MTok input/cached/output. Added Large Context (>272K) tiers to the pricing file in
-  July 2026. The threshold of 272K is unique to this family; most other models use 200K.
-- **Gemini 3.6 Flash (added July 2026)** — `gemini-3.6-flash` appeared on the official AI Studio
-  pricing page in July 2026 at $1.50/MTok input, $7.50/MTok output, cache read $0.15/MTok
-  (10% cache-read ratio). No large-context tier. Added to pricing file and selectable model lists
-  (`vertexAIModels`, `googleAIStudioModels`) in the July 22 2026 audit. Note: despite the higher
-  version number, output price ($7.50) is lower than gemini-3.5-flash ($9.00); this is correct
-  per the official page (improved efficiency at same input price).
-- **Gemini 3.5 Flash-Lite (added July 2026)** — `gemini-3.5-flash-lite` appeared on the official
-  AI Studio pricing page in July 2026 at $0.30/MTok input, $2.50/MTok output. No large-context
-  tier. **Context caching is NOT available** for this model (explicitly listed as "Not available"
-  on the official AI Studio pricing page for all tiers — Standard, Batch, Flex, Priority).
-  The entry was initially added on July 22 2026 with cache pricing; the cache keys were
-  removed on July 23 2026 after official confirmation. Do NOT add cache pricing for this model
-  unless the official page explicitly adds it. Follows the same selectable-model pattern as
-  gemini-3.1-flash-lite.
-- **Claude Opus 5 (added July 2026)** — `claude-opus-5` appeared on the official Anthropic pricing and models pages in July 2026. API ID: `claude-opus-5` (no date suffix, pinned snapshot). Bedrock ID: `anthropic.claude-opus-5`. Google Cloud ID: `claude-opus-5`. Pricing: $5/$25 MTok input/output, 5m cache $6.25/MTok, 1h cache $10/MTok, cache read $0.50/MTok — same as Opus 4.8/4.7/4.6. The model is in the flat long-context list (1M token context at standard pricing; no Large Context tier). Fast mode is available at $10/$50 MTok (shared price point with Opus 4.8). Added to pricing file and `anthropicModels` in the July 25 2026 audit. matchPattern: `(?i)^((anthropic\/)?claude-opus-5|(eu\.|us\.|apac\.|global\.)?anthropic\.claude-opus-5(-v1(:0)?)?)$`.
-- **gpt-5-chat-latest confirmed pricing** — This alias has confirmed pricing at $1.25/MTok
-  input, $0.125/MTok cached input, $10.00/MTok output, verified via its specific model page
-  `https://developers.openai.com/api/docs/models/gpt-5-chat-latest` (July 2026 audit).
-  A prior audit WebFetch of the overview pricing page returned an artifact suggesting
-  "$5/$30", which was confusion with gpt-5.6-sol pricing. When a pricing summary for a
-  model alias appears inconsistent with what the file holds, always fetch the specific
-  model page (`https://developers.openai.com/api/docs/models/<model-id>`) to confirm.
-- **gpt-5.3-codex (added July 2026)** — `gpt-5.3-codex` appeared on the OpenAI pricing
-  page and model page in July 2026, described as "the most capable agentic coding model".
-  Pricing: $1.75/MTok input, $0.175/MTok cached input, $14.00/MTok output. Context window:
-  400k tokens; max output 128k tokens. No large-context tier. No date-stamped snapshot at
-  launch. Standard OpenAI matchPattern: `(?i)^(openai\/)?(gpt-5.3-codex)$`. Added to pricing
-  file and `openAIModels` in July 27 2026 audit. Official sources:
-  `https://developers.openai.com/api/docs/pricing` and
-  `https://developers.openai.com/api/docs/models/gpt-5.3-codex`.
-- **GPT-5.6 Terra / Luna price cut (found July 31 2026)** — OpenAI lowered pricing for
-  `gpt-5.6-terra` and `gpt-5.6-luna` sometime between the July 27 and July 31 2026 audits;
-  `gpt-5.6-sol` was unchanged. Confirmed via 4 independent WebFetch calls (the overview
-  pricing page fetched twice plus each model's dedicated page): `gpt-5.6-terra` is now
-  $2.00/MTok input, $0.20/MTok cached input, $12.00/MTok output (previously
-  $2.50/$0.25/$15.00); `gpt-5.6-luna` is now $0.20/MTok input, $0.02/MTok cached input,
-  $1.20/MTok output (previously $1.00/$0.10/$6.00). The >272K Large Context tier still
-  applies at 2x input / 1.5x output, with cached input also doubling (preserving the 10%
-  cache-to-input ratio): terra large-context $4.00/$0.40/$18.00, luna large-context
-  $0.40/$0.04/$1.80. `gpt-5.6-sol` remains $5.00/$0.50/$30.00 standard,
-  $10.00/$1.00/$45.00 large-context — unchanged. Updated in the pricing file during the
-  July 31 2026 audit. Official sources: `https://developers.openai.com/api/docs/pricing`,
-  `https://developers.openai.com/api/docs/models/gpt-5.6-terra`,
-  `https://developers.openai.com/api/docs/models/gpt-5.6-luna`. Lesson: do not assume a
-  model family's siblings keep moving in lockstep — verify each model ID's own page even
-  when the whole family was fully priced in a recent prior audit.
+- **Vertex AI pricing page** — Often returns a truncated page without a usable
+  table. Vertex Gemini prices are otherwise assumed to match AI Studio. When an
+  official source shows they differ, use the platform-specific price, or leave
+  the file unchanged and report it if it is unclear which applies.
 
-Capture:
+## Provider Rules
+
+### Anthropic
+
+- **Context tiers** — Claude 4.6 and later models, except Haiku 5.5, include
+  the full 1M-token context at standard pricing and must not have a Large
+  Context tier. Sonnet 4.5 and Haiku 4.5 have a hard 200K context window, where
+  longer requests fail instead of billing at a premium, so they have no Large
+  Context tier either.
+- **Claude Haiku 5.5** — Priced by prompt length: prompts over 100,000 tokens
+  pay 5x on every rate. Modeled as a usage-detail `gt 100000` tier.
+- **Cache multipliers** — The default is 0.1x base input for cache reads, 1.25x
+  for 5-minute writes, and 2x for 1-hour writes. The pricing page's cache-hits
+  footnote lists the exceptions: Claude Fable 5.2, Mythos 5.2, Fable 5.1, and
+  Mythos 5.1 read at 0.025x, and Claude Opus 5.5 and Sonnet 5.5 read at 0.05x.
+  Re-read the footnote whenever a Claude model is added or changed.
+- **Fast mode** — The request field is `speed: "fast"`, matched as
+  `modelParameters.speed in ["fast"]` (Anthropic's `service_tier` controls
+  capacity, not Fast mode). Opus 5.5, Opus 5, Opus 4.8, Fable 5.2, and
+  Mythos 5.2 have Fast mode; Fable 5.2 and Mythos 5.2 share one $16/$80 rate
+  distinct from the Opus family's. Opus 4.7 rejects it and Opus 4.6 bills it at
+  standard rates, so neither gets a tier. Earlier Fable/Mythos generations
+  (5.1, 5) have no Fast mode. Fast-mode cache prices come from applying the
+  cache multipliers to the Fast-mode base input price.
+- **Batch** — Not represented for any Anthropic model; it is a separate
+  endpoint that ordinary ingestion does not identify.
+- **Claude Sonnet 5** — $2/$10 is the standard price; the previously announced
+  September 2026 increase was cancelled.
+- **Claude Mythos Preview** — Has no published price row; do not add an entry.
+- **Model IDs** — Current Claude IDs are dateless (`claude-opus-5-5`). Bedrock
+  IDs are `anthropic.<id>` with optional region prefixes and `-v1(:0)?`.
+  Anchor every pattern with `^...$` so `claude-opus-5` does not match
+  `claude-opus-5-5`.
+- **Two Bedrock endpoints** — `bedrock-mantle` (the Messages API) serves the
+  bare `anthropic.<id>` form with no region prefix or `-v1:0` suffix; this is
+  how Fable 5.1, Fable 5, Opus 5.5, Opus 5, Opus 4.8, Opus 4.7, Sonnet 5.5,
+  Sonnet 5, Mythos 5, Mythos 5.1, and Haiku 5.5 are reachable on Bedrock.
+  `bedrock-runtime` (`InvokeModel`/`Converse`) serves the older
+  region-prefixed, `-v1(:0)?`-suffixed form, and is the only endpoint that
+  serves Fable 5.2 and Mythos 5.2. Every current Claude `matchPattern` should
+  accept both forms (bare `anthropic.<id>` and optional
+  `(eu\.|us\.|apac\.|au\.|jp\.|global\.)?anthropic\.<id>(-v1(:0)?)?`) unless a
+  model is confirmed absent from one endpoint.
+
+### OpenAI
+
+- **`(openai\/)?` prefix** — Every OpenAI `matchPattern` must accept the
+  optional `openai/` prefix, for example `(?i)^(openai\/)?(gpt-4o)$`.
+- **Large Context** — `gpt-6*`, `gpt-5.6*`, `gpt-5.5`, `gpt-5.5-pro`, `gpt-5.4`,
+  and `gpt-5.4-pro` (and their dated snapshots) switch to Large Context pricing
+  above 272,000 input tokens: 2x input and cached input, 1.5x output. The
+  `gpt-5.4-mini` and `gpt-5.4-nano` models have no Large Context tier.
+- **Cache writes** — A distinct column priced at 1.25x input. Only the
+  `gpt-5.6` and `gpt-6` families populate it today; check the column for every
+  newly added model. The pricing page actually splits this into two TTL
+  columns, "30m write" (1.25x input, the `prompt_cache_options.ttl` default)
+  and "12h write" (2x-2.5x input); the Responses API usage object reports the
+  split under `cache_write_tokens_details.ttl_30m_tokens` /
+  `ttl_12h_tokens`, but Langfuse ingestion (`OtelIngestionProcessor.ts`) has no
+  normalization for those keys yet, only a single `cache_write_tokens` total.
+  Every `gpt-5.6`/`gpt-6`/`gpt-6.1`/`gpt-6.2` entry therefore prices the single
+  `input_cache_creation`/`cache_write_tokens`/`input_cache_write_tokens`
+  bucket at the 30m (default) rate; the 12h premium cannot be billed
+  separately until ingestion adds TTL-specific keys.
+- **Service tiers** — Fast mode is `service_tier in ["fast","priority"]`, at 2x
+  the applicable tier for the `gpt-6` and `gpt-5.6` families. Flex is
+  `["flex"]` at 0.5x. Ultrafast is `["ultrafast"]` at 6x and is priced for
+  `gpt-6-astra` and `gpt-6.1-sol`; `gpt-5.6-sol` has preview Ultrafast access
+  with no published price. `gpt-6.2-astra` and `gpt-6.2-sol` have Ultrafast at
+  a promotional 3x through February 28, 2027, stepping to 6x on March 1, 2027,
+  and have no Flex tier at all. Combined service-tier plus large-context tiers
+  are evaluated before single-condition tiers. When the page does not publish
+  a Flex Large Context row, apply 0.5x to the Large Context tier.
+- **GPT-6 family key set** — New `gpt-6*` and `gpt-6.1*` entries mirror the
+  six-tier sibling shape: Standard, Fast mode · Large context, Flex · Large
+  context, Fast mode, Flex, and Large Context. `gpt-6-astra` and `gpt-6.1-sol`
+  additionally have the two Ultrafast tiers (eight tiers total); check each
+  new `gpt-6*`/`gpt-6.1*` model's own page for an "Ultrafast mode prices are
+  6x Standard" statement rather than assuming the six-tier shape. `gpt-6.2*`
+  models (`gpt-6.2-astra`, `gpt-6.2-sol`) have no Flex tier at all, so they use
+  a six-tier shape of Standard, Ultrafast · Large context, Fast mode · Large
+  context, Ultrafast, Fast mode, and Large Context; check each new `gpt-6.2*`
+  model's own page to confirm Flex is still absent before assuming this shape.
+- **Batch** — Not represented; it is a separate asynchronous endpoint.
+- **Floating aliases** — Do not add entries for `-latest` style aliases such as
+  `gpt-daybreak-*-latest`. `gpt-5-chat-latest` is an existing exception.
+- **Cyber models** — `gpt-6-cyber` and `gpt-5.6-cyber` have public model pages
+  and prices, so they are priced (Standard and Large Context only; neither page
+  lists Fast or Flex). `gpt-6-cyber` publishes no Large Context cache-write
+  rate, so that tier writes at its input rate.
+- **Out of scope** — The deprecated `gpt-5.5-cyber-preview` and
+  `gpt-5.4-cyber`, GPT-Rosalind (`gpt-rosalind-research`,
+  `gpt-rosalind-discovery`, `gpt-6-rosalind`), and the open-weight `gpt-oss-*`
+  models. Revisit only if OpenAI publishes a public model page and price.
+
+### Google Gemini
+
+- **Cache reads** — Standard tiers price cache reads at 10% of input. Priority
+  tables can round differently (3.5 Flash-Lite lists $0.05 on $0.54); use the
+  published rate. A cache read price off the 10% ratio in a Standard tier is
+  suspicious and needs re-verification.
+- **Context-cache storage** — The per-hour storage price has no usage key; do
+  not represent it.
+- **Grounding** — Gemini 3.x and newer charge $14 per 1,000 grounded requests
+  (`grounding_queries` / `web_search_queries` at `14e-3`). The 2.5 family
+  charges $35 per 1,000 and has no grounding keys in the file.
+- **Priority** — Documented `service_tier: "priority"` on the Developer API and
+  the OpenAI-compatible API
+  ([guide](https://ai.google.dev/gemini-api/docs/priority-inference)), matched
+  as `modelParameters.service_tier in ["priority"]` without OpenAI's `fast`
+  alias. Requests can be downgraded and billed at Standard; the actual tier is
+  in the `x-gemini-service-tier` response header and must be recorded in
+  `modelParameters.service_tier`. Missing tier data falls back to Standard. For
+  Pro models, evaluate Priority + >200K, then Priority, then Large Context.
+  Priority is about 1.8x Standard, but use each published rate rather than a
+  multiplier. These are Developer API rates; do not infer Vertex reserved or
+  regional pricing from them.
+- **Flex (Vertex AI Flex PayGo)** — Enabled by the `X-Vertex-AI-LLM-Shared-Request-Type: flex` header; responses report `trafficType: ON_DEMAND_FLEX`, recorded unchanged as `service_tier`. Flex tiers match `modelParameters.service_tier in ["flex", "ON_DEMAND_FLEX"]` (the Gemini API reports `serviceTier: "flex"`), and every Gemini Priority tier lists `["priority", "ON_DEMAND_PRIORITY"]`, because a Vertex `trafficType` overrides `gen_ai.request.service_tier`. When the two pricing pages list different Flex prices, split the tier: `Flex` matches `["flex"]` at the Gemini API price and `Flex (Vertex AI)` matches `["ON_DEMAND_FLEX"]` at the Vertex price (gemini-3.5-flash-lite cached input: $0.02 vs $0.015). Usually 0.5x every Standard token rate (global endpoint only); grounding fees are unchanged. Copy each published Flex value instead of halving: where the Gemini API page says cached input is "Same as Standard" (gemini-3.1-pro-preview, gemini-3-flash-preview), use the Standard cached rate. Only models on the [Flex PayGo page](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/flex-paygo) get a tier: not Gemini 4 or 2.5. For Pro models, Flex + >200K and Flex evaluate after the Priority tiers and before Large Context.
+- **Gemini 4 family** — `gemini-4-argon`, `gemini-4-carbon`, `gemini-4-neon`,
+  and `gemini-4-hydrogen` are GA text-generation models with a Standard and a
+  Priority tier (Priority at 1.8x Standard on every price). Implicit caching
+  only (no cache-write keys); the published "context caching price" is the
+  cache-read rate, not always 10% of input (Argon/Carbon price it at 5%).
+  Thinking is billed at the output rate; pricing is flat across the full 1M
+  context (no Large Context tier). All four are in `googleAIStudioModels`
+  only, pending Vertex AI lifecycle confirmation. Argon and Carbon share one
+  introductory-pricing schedule (see Scheduled Changes); Neon and Hydrogen
+  have no announced step.
+- **Auto-routed IDs** — The deprecations page lists `gemini-3.5-flash` and
+  `gemini-3.7-flash` with shutdown date `N/A`; requests auto-route to
+  `gemini-3.6-flash` and `gemini-3.8-flash`, and neither ID has its own pricing
+  row anymore. This meets no removal criterion and stays unresolved for a human
+  decision, especially because `gemini-3.5-flash` is the first (default)
+  `vertexAIModels` entry.
+- **Gemini 2.5 access notice** — The pricing and deprecations pages limit 2.5
+  model access to existing users. This is not a shutdown.
+- **Unlisted legacy IDs** — `gemini-2.0-flash-thinking-exp-01-21`,
+  `gemini-1.5-pro`, `gemini-1.5-flash`, and `gemini-1.5-flash-8b` remain in
+  `googleAIStudioModels` but appear on neither the models catalog nor the
+  deprecations page. That is ambiguous, not a confirmed shutdown.
+- **Out of scope** — Live, TTS, transcription, translation, image, video,
+  music, embedding, robotics, computer-use, and agent-product models (for
+  example `gemini-omni-*`, `veo-*`, `lyria-*`, `gemini-*-live*`,
+  `gemini-*-image`, `deep-research-*`, `antigravity-*`), and Gemma, which has no
+  paid API price.
+
+### AWS Bedrock
+
+- **Claude 3.5 Sonnet Public Extended Access** — A real SKU billed at 2x the
+  standard rate in some regions, but it uses the same model ID as standard
+  billing, so Langfuse cannot represent it. Do not add a second entry.
+- **Amazon Nova** — Not covered. Adding it needs its own model IDs, match
+  patterns, and Bedrock usage-key research; report it rather than adding it in
+  an audit.
+
+### TypeSafe Jev
+
+- `jev` is TypeSafe's decision model. Its official price is on
+  `https://docs.typesafe.ai/models`: $42 per billion input tokens, output free.
+  That is `4.2e-8` for `input` and `0` for `output`, in a single Standard tier.
+  Jev's usage object has only `input_tokens` and `output_tokens`.
+- Verify against TypeSafe's own docs only; gateway resale prices (Vercel AI
+  Gateway, OpenRouter) are not official evidence.
+- The `matchPattern` already covers versioned IDs (`jev-1.13.0`, `jev-1.14.0`)
+  and the `jev-latest` / `jev-preview` aliases. `typeSafeModels` in `types.ts`
+  is not an audit-editable array; report a new Jev version that should become
+  selectable as unresolved.
+
+## Known Gaps
+
+- **Legacy usage-key aliases** — Running `validate-pricing-file.mjs` with
+  `--usage-key-model` for every model reports missing aliases on old Anthropic,
+  Gemini, and OpenAI entries. Backfill them in a dedicated change, not as a
+  side effect of a price audit.
+- **Selectable IDs without pricing** — `gemini-1.5-pro`, `gemini-1.5-flash`,
+  `gemini-1.5-flash-8b`, and `gemini-2.0-flash-thinking-exp-01-21` have no
+  official price and no matching pricing entry. Do not add one without official
+  evidence.
+- **Bedrock cache-read divergence (unconfirmed)** — The AWS Bedrock pricing
+  page carries a footnote that Claude Sonnet 5.5 cache-read pricing on Bedrock
+  dropped 50% from the prior rate starting October 7, 2026, but the page
+  never renders a numeric table WebFetch can extract, so the new rate is
+  unconfirmed. Langfuse's `claude-sonnet-5-5` entry prices cache reads once
+  for both the Claude API and Bedrock; if Bedrock's rate has actually
+  diverged from the Claude API rate, that one shared price may now
+  misprice Bedrock traffic. Needs a numeric source (or a different
+  extraction method) before any change.
+
+## Scheduled Changes
+
+Act on a row only after re-confirming it on the official page on or after its
+date, then delete the row. Add rows only for announced, dated changes that will
+need action.
+
+| Date       | Change                                                                                                                                                                                                                                                                           |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-21 | `gpt-5.6-sol` promotional pricing is guaranteed only through this date. Re-check its price.                                                                                                                                                                                      |
+| 2026-11-30 | `claude-sonnet-4-5-20250929` retires. Remove it from `anthropicModels`.                                                                                                                                                                                                          |
+| 2026-12-01 | `gemini-4-argon` and `gemini-4-carbon` introductory pricing ($2/$10/$0.10 Standard, $3.60/$18/$0.18 Priority) step up to $4/$20/$0.20 Standard, $7.20/$36/$0.36 Priority.                                                                                                        |
+| 2026-12-11 | OpenAI "GPT-5 and o3" batch shuts down. Remove `gpt-5`, `gpt-5-2025-08-07`, `gpt-5-mini`, `gpt-5-mini-2025-08-07`, `gpt-5-nano`, `gpt-5-nano-2025-08-07`, `o3`, and `o3-2025-04-16` from `openAIModels`.                                                                         |
+| 2027-01-01 | `gemini-3.6-flash`, `gemini-3.7-flash`, and `gemini-3.8-flash` introductory pricing ($0.75/$3.75/$0.075) steps up to $1.50/$7.50/$0.15. Re-check their Priority and Flex rates too.                                                                                              |
+| 2027-01-14 | OpenAI "GPT-4 series" batch shuts down (`gpt-4o-2024-08-06`, `gpt-4o-2024-11-20`, `gpt-4o-mini-2024-07-18`, `gpt-4.1-2025-04-14`, `gpt-4.1-mini-2025-04-14`). Remove those snapshots and their aliases (`gpt-4o`, `gpt-4o-mini`, `gpt-4.1`, `gpt-4.1-mini`) from `openAIModels`. |
+| 2027-04-01 | OpenAI batch shuts down `gpt-5.3-codex`, `gpt-5.4-nano`, `gpt-5.4-nano-2026-03-17`, `gpt-5.1`, and `gpt-5.1-2025-11-13`. Remove them from `openAIModels`.                                                                                                                        |
+| 2027-03-01 | `gpt-6.2-astra` and `gpt-6.2-sol` Ultrafast promotional pricing (3x Standard) steps up to 6x Standard. Re-check and update their Ultrafast and Ultrafast · Large context tier prices.                                                                                            |
+| 2027-05-07 | `gemini-3.1-flash-lite` shuts down on the Gemini API (replacement `gemini-3.5-flash-lite`). Remove it from `googleAIStudioModels`; check Vertex AI separately.                                                                                                                   |
+
+`claude-haiku-4-5-20251001` lists only a "not sooner than October 15, 2026"
+retirement floor and is still Active. A floor is not a retirement date. The bare
+`gpt-3.5-turbo-16k` entry in `openAIModels` is absent from the OpenAI
+deprecations page and model catalog, which is ambiguous, not a confirmed
+shutdown.
+
+## Capture
 
 1. Base input token price per million tokens
 2. Output token price per million tokens
@@ -166,60 +322,34 @@ Capture:
 
 Values in `default-model-prices.json` are per token, not per million tokens.
 
-| Provider Price | JSON Value |
-| -------------- | ---------- |
-| `$5 / MTok`    | `5e-6`     |
-| `$25 / MTok`   | `25e-6`    |
-| `$0.50 / MTok` | `0.5e-6`   |
-| `$6.25 / MTok` | `6.25e-6`  |
+Always write per-token prices as `<USD per MTok>e-6`, so the mantissa reads
+directly as the provider's per-million-token price. Keep the `e-6` exponent even
+for sub-dollar and sub-cent prices; never normalize to `1e-7`, `5e-8`, `1.5e-5`,
+or plain decimals like `0.000001`. `0` is fine for free usage types. The only
+exception is non-token usage (Gemini `grounding_queries` / `web_search_queries`
+per-query prices, written as `14e-3` for $14 per 1K queries). The validator
+enforces this on changed and selected entries; older entries may still use other
+notation and are rewritten only when that entry changes for another reason.
+
+| Provider Price | JSON Value | Not          |
+| -------------- | ---------- | ------------ |
+| `$5 / MTok`    | `5e-6`     |              |
+| `$25 / MTok`   | `25e-6`    | `2.5e-5`     |
+| `$0.50 / MTok` | `0.5e-6`   | `5e-7`       |
+| `$0.10 / MTok` | `0.1e-6`   | `1e-7`       |
+| `$0.05 / MTok` | `0.05e-6`  | `5e-8`       |
+| `$6.25 / MTok` | `6.25e-6`  | `0.00000625` |
 
 Formula:
 
 ```text
 price_per_token = price_per_mtok / 1_000_000
+json_literal    = "<price_per_mtok>e-6"
 ```
 
-## Common Price Keys by Provider
+## Provider Usage Keys
 
-### Anthropic Claude
-
-```json
-{
-  "input": "<base_input_price>",
-  "input_tokens": "<base_input_price>",
-  "output": "<output_price>",
-  "output_tokens": "<output_price>",
-  "cache_creation_input_tokens": "<cache_write_price>",
-  "input_cache_creation": "<cache_write_price>",
-  "cache_read_input_tokens": "<cache_read_price>",
-  "input_cache_read": "<cache_read_price>"
-}
-```
-
-### OpenAI
-
-```json
-{
-  "input": "<input_price>",
-  "input_cached_tokens": "<cached_input_price>",
-  "input_cache_read": "<cached_input_price>",
-  "output": "<output_price>"
-}
-```
-
-### Google Gemini
-
-```json
-{
-  "input": "<input_price>",
-  "input_modality_1": "<input_price>",
-  "prompt_token_count": "<input_price>",
-  "promptTokenCount": "<input_price>",
-  "input_cached_tokens": "<cached_price>",
-  "cached_content_token_count": "<cached_price>",
-  "output": "<output_price>",
-  "output_modality_1": "<output_price>",
-  "candidates_token_count": "<output_price>",
-  "candidatesTokenCount": "<output_price>"
-}
-```
+Use [provider-usage-key-matrix.md](provider-usage-key-matrix.md) as the single
+source of truth for OpenAI, Gemini, Anthropic, and Bedrock usage aliases. Do not
+copy a partial key set from this pricing-source reference or from an older model
+entry.

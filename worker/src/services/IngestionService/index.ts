@@ -1,11 +1,9 @@
+/* eslint-disable no-nested-ternary */
 import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
-import { Decimal } from "decimal.js";
 import {
   InvalidRequestError,
   LangfuseNotFoundError,
-  Model,
-  ObservationLevel,
   PrismaClient,
   Prompt,
   type JsonNested,
@@ -13,6 +11,8 @@ import {
 import {
   ClickhouseClientType,
   convertDateToClickhouseDateTime,
+  toClickhouseDateTime,
+  parseClickhouseUTCDateTimeFormat,
   convertObservationReadToInsert,
   convertScoreReadToInsert,
   convertTraceReadToInsert,
@@ -27,6 +27,7 @@ import {
   ObservationRecordInsertType,
   observationRecordReadSchema,
   PromptService,
+  SkillCacheService,
   QueueJobs,
   recordIncrement,
   ScoreEventType,
@@ -39,30 +40,34 @@ import {
   TraceRecordInsertType,
   traceRecordReadSchema,
   TraceUpsertQueue,
-  UsageCostType,
   findModel,
-  matchPricingTier,
+  calculateModelUsageCosts,
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
   InternalTraceEventInput,
-  traceException,
   flattenJsonToPathArrays,
   getDatasetItemById,
   normalizeToolsForObservation,
   hasNoEvalConfigsCache,
   buildClickHouseLogComment,
+  sanitizeSdkMetricTagValue,
   type IngestionAttribution,
 } from "@langfuse/shared/src/server";
+import { resolveSkillReferences as resolveSkillReferencesShared } from "./skillReferences";
 
-import { tokenCountAsync } from "../../features/tokenisation/async-usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
+import { clickhouseComputesEventBytes } from "../ClickhouseWriter/eventByteAccounting";
 import {
   convertJsonSchemaToRecord,
   convertPostgresJsonToMetadataRecord,
   convertRecordValuesToString,
   overwriteObject,
 } from "./utils";
+import {
+  isAiGatewayCalculatedCost,
+  resolveAiGatewayAttribution,
+} from "./aiGatewayAttribution";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
@@ -72,14 +77,32 @@ import { applyObservationFieldOverflow } from "../../features/observation-field-
  * Parse a value to a UInt16-compatible number (0–65535).
  * Returns undefined if the value is nullish or not a valid UInt16 integer.
  */
-function parseUInt16(value: string | null | undefined): number | undefined {
+function parseUInt16(
+  value: string | number | null | undefined,
+): number | undefined {
   if (value == null) return undefined;
-  const num = parseInt(value, 10);
+  // parseInt stringifies a number first, and 1e21 and above stringify in
+  // exponent notation, so parseInt(1e21) is 1.
+  const num = typeof value === "number" ? value : parseInt(value, 10);
   if (!Number.isInteger(num) || num < 0 || num > 65535) return undefined;
   return num;
 }
 
 export type EventInput = InternalTraceEventInput;
+
+function parseEventModelParameters(
+  value: EventInput["modelParameters"],
+): string | object | number | boolean | null {
+  if (!value) return {};
+  if (typeof value !== "string") return value;
+
+  try {
+    return JSON.parse(value) as string | object | number | boolean | null;
+  } catch {
+    return value;
+  }
+}
+
 type InsertRecord =
   | TraceRecordInsertType
   | ScoreRecordInsertType
@@ -95,21 +118,10 @@ type MergeAndWriteParams = {
   attribution: IngestionAttribution;
 };
 
-/**
- * Returns a new event record whose `event_bytes` value is the UTF-8 size of
- * the final JSONEachRow payload, excluding the self-referential accounting
- * field. The supplied record is not mutated.
- */
-function withSerializedEventByteLength(
-  eventRecord: EventRecordInsertType,
-): EventRecordInsertType {
-  const { event_bytes: _eventBytes, ...eventWithoutSize } = eventRecord;
-
-  return {
-    ...eventWithoutSize,
-    event_bytes: Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
-  };
-}
+type PricingTierMatchAttributeValues = {
+  modelParameters?: unknown;
+  metadata?: unknown;
+};
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
@@ -164,6 +176,7 @@ const immutableEntityKeys: {
 
 export class IngestionService {
   private promptService: PromptService;
+  private skillCacheService: SkillCacheService;
 
   constructor(
     private redis: Redis | Cluster,
@@ -172,6 +185,7 @@ export class IngestionService {
     private clickhouseClient: ClickhouseClientType,
   ) {
     this.promptService = new PromptService(prisma, redis);
+    this.skillCacheService = new SkillCacheService(prisma, redis);
   }
 
   public async mergeAndWrite(params: MergeAndWriteParams): Promise<void> {
@@ -232,7 +246,7 @@ export class IngestionService {
    * Creates an EventRecordInsertType from EventInput.
    * Performs all necessary enrichments:
    * - Prompt lookup (by name + version)
-   * - Model/usage enrichment (tokenization, cost calculation)
+   * - Model/usage enrichment (provided usage, cost calculation)
    * - Metadata flattening
    * - Timestamp normalization
    *
@@ -256,6 +270,17 @@ export class IngestionService {
     // fields as strings, so stringify at this schema boundary.
     const input = this.stringify(eventData.input);
     const output = this.stringify(eventData.output);
+    const modelParameters = parseEventModelParameters(
+      eventData.modelParameters,
+    );
+    const metadata = eventData.metadata ?? {};
+    const spanAttribution = resolveAiGatewayAttribution({
+      ingestionApiKey: eventData.ingestionApiKey,
+      metadata,
+      serviceName: eventData.serviceName,
+      serviceVersion: eventData.serviceVersion,
+      scopeVersion: eventData.scopeVersion,
+    });
 
     // Runs outside the modelName gate below so model-less events with provided
     // usage are still checked.
@@ -265,8 +290,13 @@ export class IngestionService {
       "events",
     );
 
-    // Perform lookups for prompt and model/usage enrichment
-    const [prompt, generationUsage] = await Promise.all([
+    const shouldEnrichUsageAndCost =
+      Boolean(eventData.modelName) ||
+      Object.keys(eventData.providedUsageDetails ?? {}).length > 0 ||
+      Object.keys(eventData.providedCostDetails ?? {}).length > 0;
+
+    // Enrich prompt, usage and skill references concurrently.
+    const [prompt, generationUsage, skillReferences] = await Promise.all([
       // Lookup prompt by name and version
       eventData.promptName && eventData.promptVersion
         ? this.promptService.getPrompt({
@@ -279,10 +309,14 @@ export class IngestionService {
             label: undefined,
           })
         : null,
-      // Lookup model and enrich usage/cost details (includes tokenization if needed)
-      eventData.modelName
+      // Promote provided usage/cost and enrich from the model when available.
+      shouldEnrichUsageAndCost
         ? this.getGenerationUsage({
             projectId: eventData.projectId,
+            pricingMatchAttributeValues: {
+              modelParameters,
+              metadata,
+            },
             observationRecord: {
               id: eventData.spanId,
               project_id: eventData.projectId,
@@ -290,24 +324,26 @@ export class IngestionService {
               provided_model_name: eventData.modelName,
               provided_usage_details: eventData.providedUsageDetails ?? {},
               provided_cost_details: eventData.providedCostDetails ?? {},
-              input,
-              output,
             },
           })
         : null,
+      resolveSkillReferencesShared({
+        projectId: eventData.projectId,
+        type: eventData.type ?? "SPAN",
+        service: this.skillCacheService,
+        available: eventData.skillsAvailable,
+        loaded: eventData.skillsResourceLoaded,
+      }),
     ]);
 
-    const now = this.getMicrosecondTimestamp();
+    const now = toClickhouseDateTime();
 
     // Flatten raw metadata first (before stringification destroys nested structure)
-    const flattened = eventData.metadata
-      ? flattenJsonToPathArrays(eventData.metadata)
-      : { names: [], values: [] };
+    const flattened = flattenJsonToPathArrays(metadata);
     const metadataNames = flattened.names;
     // Defensive: coerce null/undefined to empty string for Array(String) ClickHouse column.
     // Should not be required as convertValueToPlainJavascript() never returns null.
     const metadataValues = flattened.values.map((v) => v ?? "");
-
     const eventRecord: EventRecordInsertType = {
       // Required identifiers
       id: eventData.spanId,
@@ -340,31 +376,38 @@ export class IngestionService {
       status_message: eventData.statusMessage,
 
       // Timestamps
-      start_time: this.getMicrosecondTimestamp(eventData.startTimeISO),
-      end_time: this.getMicrosecondTimestamp(eventData.endTimeISO),
+      start_time: toClickhouseDateTime(eventData.startTimeISO),
+      end_time: toClickhouseDateTime(eventData.endTimeISO),
       completion_start_time: eventData.completionStartTime
-        ? this.getMicrosecondTimestamp(eventData.completionStartTime)
+        ? toClickhouseDateTime(eventData.completionStartTime)
         : null,
 
       // Prompt
       prompt_id: prompt?.id || "",
       prompt_name: eventData.promptName,
       prompt_version: parseUInt16(eventData.promptVersion),
+      skills_available: skillReferences.skills_available,
+      skills_resource_loaded: skillReferences.skills_resource_loaded,
 
       // Model
       model_id: generationUsage?.internal_model_id || "",
       provided_model_name: eventData.modelName,
-      model_parameters: eventData.modelParameters
-        ? typeof eventData.modelParameters === "string"
-          ? JSON.parse(eventData.modelParameters)
-          : eventData.modelParameters
-        : {},
+      // Evaluation scheduling consumes this enriched record before it is
+      // written and expects parsed model parameters. The established runtime
+      // contract is therefore wider than the ClickHouse insert type declares.
+      model_parameters:
+        modelParameters as EventRecordInsertType["model_parameters"],
 
       // Usage & Cost
       provided_usage_details: eventData.providedUsageDetails ?? {},
       usage_details:
         generationUsage?.usage_details ?? eventData.usageDetails ?? {},
-      provided_cost_details: eventData.providedCostDetails ?? {},
+      provided_cost_details: isAiGatewayCalculatedCost({
+        ingestionApiKey: eventData.ingestionApiKey,
+        metadata,
+      })
+        ? {}
+        : (eventData.providedCostDetails ?? {}),
       cost_details:
         generationUsage?.cost_details ?? eventData.costDetails ?? {},
 
@@ -383,14 +426,18 @@ export class IngestionService {
       // Metadata
       metadata_names: metadataNames,
       metadata_values: metadataValues,
+      evaluator_id: eventData.evaluationContext?.evaluatorId,
+      evaluation_rule_id: eventData.evaluationContext?.evaluationRuleId,
+      evaluator_execution_is_test:
+        eventData.evaluationContext?.evaluatorExecutionIsTest,
 
       // Source/instrumentation metadata
       source: eventData.source,
-      ingestion_api_key: eventData.ingestionApiKey ?? "",
+      ingestion_api_key: spanAttribution.ingestionApiKey,
       ingestion_sdk_name: eventData.ingestionSdkName ?? "",
       ingestion_sdk_version: eventData.ingestionSdkVersion ?? "",
-      service_name: eventData.serviceName,
-      service_version: eventData.serviceVersion,
+      service_name: spanAttribution.serviceName,
+      service_version: spanAttribution.serviceVersion,
       scope_name: eventData.scopeName,
       scope_version: eventData.scopeVersion,
       telemetry_sdk_language: eventData.telemetrySdkLanguage,
@@ -434,21 +481,31 @@ export class IngestionService {
    * not use field overflow.
    * Use createEventRecord() first to get the record, then call this to write.
    *
-   * Enqueues a new record whose `event_bytes` describes the final normalized
-   * event rather than the raw OTEL span measured before media processing. The
-   * supplied record is not mutated.
+   * Use ClickHouse's sizing DEFAULT when detected, otherwise retain the legacy
+   * JSON byte estimate. The supplied record is not mutated, and its raw OTEL
+   * size is not sent to ClickHouse. Legacy estimates are returned with the row
+   * for reuse by trace dispatch.
    *
    * @param eventRecord - The event record to write
+   * @returns The accepted post-overflow row, for trace dispatch capacity estimates
    */
   public async writeEventRecord(
     eventRecord: EventRecordInsertType,
-  ): Promise<void> {
-    const persistedRecord = await applyObservationFieldOverflow(eventRecord);
+  ): Promise<EventRecordInsertType> {
+    const { event_bytes: _eventBytes, ...persistedRecord } =
+      await applyObservationFieldOverflow(eventRecord);
 
-    this.clickHouseWriter.addToQueue(
-      TableName.EventsFull,
-      withSerializedEventByteLength(persistedRecord),
-    );
+    const recordToInsert = clickhouseComputesEventBytes()
+      ? persistedRecord
+      : {
+          ...persistedRecord,
+          event_bytes: Buffer.byteLength(
+            JSON.stringify(persistedRecord),
+            "utf8",
+          ),
+        };
+    this.clickHouseWriter.addToQueue(TableName.EventsFull, recordToInsert);
+    return recordToInsert;
   }
 
   private async processDatasetRunItemEventList(params: {
@@ -493,12 +550,10 @@ export class IngestionService {
 
             if (!runData || !itemData) return [];
 
-            const timestamp = event.body.createdAt
-              ? new Date(event.body.createdAt).getTime()
-              : new Date().getTime();
+            const timestamp = toClickhouseDateTime(event.body.createdAt);
 
             const datasetItemVersion = itemData.validFrom
-              ? itemData.validFrom.getTime()
+              ? toClickhouseDateTime(itemData.validFrom)
               : null;
 
             return [
@@ -521,7 +576,7 @@ export class IngestionService {
                 dataset_run_metadata: runData.metadata
                   ? convertPostgresJsonToMetadataRecord(runData.metadata)
                   : {},
-                dataset_run_created_at: runData.createdAt.getTime(),
+                dataset_run_created_at: toClickhouseDateTime(runData.createdAt),
                 // enriched with item data
                 dataset_item_version: datasetItemVersion,
                 dataset_item_input: JSON.stringify(itemData.input),
@@ -561,8 +616,15 @@ export class IngestionService {
     } = params;
     if (scoreEventList.length === 0) return;
 
-    const timeSortedEvents =
-      IngestionService.toTimeSortedEventList(scoreEventList);
+    // Re-sending a score with the same id and timestamp is the documented way
+    // to overwrite it, so ties must keep arrival order for the later one to
+    // win. Score events are all creates, so no create-first rule is needed.
+    const timeSortedEvents = scoreEventList
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      );
 
     const minTimestamp = Math.min(
       ...timeSortedEvents.flatMap((e) =>
@@ -595,12 +657,19 @@ export class IngestionService {
               scoreId: entityId,
               projectId,
             });
-
+            const rawMetadata = scoreEvent.body.metadata
+              ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
+              : {};
+            const evaluationFields =
+              scoreEvent.body as ScoreEventType["body"] & {
+                evaluatorId?: string;
+                evaluationRuleId?: string;
+              };
             return {
               id: entityId,
               project_id: projectId,
               environment: validatedScore.environment,
-              timestamp: this.getMillisecondTimestamp(scoreEvent.timestamp),
+              timestamp: toClickhouseDateTime(scoreEvent.timestamp),
               name: validatedScore.name,
               value: validatedScore.value,
               source: validatedScore.source,
@@ -611,9 +680,9 @@ export class IngestionService {
               observation_id: validatedScore.observationId,
               config_id: validatedScore.configId,
               comment: validatedScore.comment,
-              metadata: scoreEvent.body.metadata
-                ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
-                : {},
+              metadata: convertRecordValuesToString(rawMetadata),
+              evaluator_id: evaluationFields.evaluatorId,
+              evaluation_rule_id: evaluationFields.evaluationRuleId,
               string_value: validatedScore.stringValue,
               long_string_value: validatedScore.longStringValue,
               execution_trace_id: validatedScore.executionTraceId,
@@ -621,9 +690,9 @@ export class IngestionService {
               ingestion_api_key: attribution.ingestionApiKey,
               ingestion_sdk_name: attribution.ingestionSdkName,
               ingestion_sdk_version: attribution.ingestionSdkVersion,
-              created_at: Date.now(),
-              updated_at: Date.now(),
-              event_ts: new Date(scoreEvent.timestamp).getTime(),
+              created_at: toClickhouseDateTime(),
+              updated_at: toClickhouseDateTime(),
+              event_ts: toClickhouseDateTime(scoreEvent.timestamp),
               is_deleted: 0,
             };
             // Gracefully handle any score schema validation errors, skip the score insert and reject silently.
@@ -672,6 +741,9 @@ export class IngestionService {
         reason: "score_validation_dropped",
         source: "api",
         domain: "score",
+        projectId,
+        sdkName: sanitizeSdkMetricTagValue(attribution.ingestionSdkName),
+        sdkVersion: sanitizeSdkMetricTagValue(attribution.ingestionSdkVersion),
       });
     }
 
@@ -699,7 +771,8 @@ export class IngestionService {
         scoreRecords,
       });
     finalScoreRecord.created_at =
-      clickhouseScoreRecord?.created_at ?? createdAtTimestamp.getTime();
+      clickhouseScoreRecord?.created_at ??
+      toClickhouseDateTime(createdAtTimestamp);
 
     this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord);
   }
@@ -776,7 +849,8 @@ export class IngestionService {
       traceRecords,
     });
     finalTraceRecord.created_at =
-      clickhouseTraceRecord?.created_at ?? createdAtTimestamp.getTime();
+      clickhouseTraceRecord?.created_at ??
+      toClickhouseDateTime(createdAtTimestamp);
 
     finalTraceRecord.input = finalIO.input ?? clickhouseTraceRecord?.input;
     finalTraceRecord.output = finalIO.output ?? clickhouseTraceRecord?.output;
@@ -843,7 +917,9 @@ export class IngestionService {
       payload: {
         projectId,
         traceId: entityId,
-        exactTimestamp: new Date(finalTraceRecord.timestamp),
+        exactTimestamp: parseClickhouseUTCDateTimeFormat(
+          finalTraceRecord.timestamp,
+        ),
         traceEnvironment: finalTraceRecord.environment,
       },
       id: randomUUID(),
@@ -920,7 +996,8 @@ export class IngestionService {
       clickhouseObservationRecord,
     });
     mergedObservationRecord.created_at =
-      clickhouseObservationRecord?.created_at ?? createdAtTimestamp.getTime();
+      clickhouseObservationRecord?.created_at ??
+      toClickhouseDateTime(createdAtTimestamp);
     mergedObservationRecord.level = mergedObservationRecord.level ?? "DEFAULT";
 
     // Search for the first non-null input and output in the observation events and set them on the merged result.
@@ -932,6 +1009,21 @@ export class IngestionService {
     const rawOutput =
       reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
       clickhouseObservationRecord?.output;
+    const pricingEventIndex = observationRecords.findLastIndex(
+      (record) => Object.keys(record.provided_usage_details ?? {}).length > 0,
+    );
+    const pricingEvent = timeSortedEvents[pricingEventIndex];
+    const pricingMatchAttributeValues:
+      | PricingTierMatchAttributeValues
+      | undefined = pricingEvent
+      ? {
+          modelParameters:
+            "modelParameters" in pricingEvent.body
+              ? pricingEvent.body.modelParameters
+              : undefined,
+          metadata: pricingEvent.body.metadata,
+        }
+      : undefined;
     const normalizedTools = normalizeToolsForObservation(
       rawInput,
       rawOutput,
@@ -976,6 +1068,7 @@ export class IngestionService {
 
     const generationUsage = await this.getGenerationUsage({
       projectId,
+      pricingMatchAttributeValues,
       observationRecord: mergedObservationRecord,
     });
     const finalObservationRecord = {
@@ -990,13 +1083,13 @@ export class IngestionService {
         timestamp: finalObservationRecord.start_time,
         project_id: projectId,
         environment: finalObservationRecord.environment,
-        created_at: Date.now(),
-        updated_at: Date.now(),
+        created_at: toClickhouseDateTime(),
+        updated_at: toClickhouseDateTime(),
         metadata: {},
         tags: [],
         bookmarked: false,
         public: false,
-        event_ts: Date.now(),
+        event_ts: toClickhouseDateTime(),
         is_deleted: 0,
       };
 
@@ -1135,24 +1228,42 @@ export class IngestionService {
       result = overwriteObject(result, record, immutableEntityKeys);
     }
 
-    result.event_ts = new Date().getTime();
+    result.event_ts = toClickhouseDateTime();
 
     return result;
   }
 
   private static toTimeSortedEventList<
-    T extends TraceEventType | ScoreEventType | ObservationEvent,
+    T extends TraceEventType | ObservationEvent,
   >(eventList: T[]): T[] {
-    return eventList.slice().sort((a, b) => {
-      const aTimestamp = new Date(a.timestamp).getTime();
-      const bTimestamp = new Date(b.timestamp).getTime();
+    // The merge folds this list left to right with a last-wins overwrite, so
+    // the winner for any group is whichever event sorts last. Events arrive in
+    // upload order (the queue processor lists files by upload time), captured
+    // here as the arrival index and used as the tie-break so the ordering is a
+    // total order rather than relying on the sort engine's handling of ties.
+    return eventList
+      .map((event, index) => ({ event, index }))
+      .sort((a, b) => {
+        const aTimestamp = new Date(a.event.timestamp).getTime();
+        const bTimestamp = new Date(b.event.timestamp).getTime();
+        if (aTimestamp !== bTimestamp) return aTimestamp - bTimestamp;
 
-      if (aTimestamp === bTimestamp) {
-        return a.type.includes("create") ? -1 : 1; // create events should come first
-      }
+        const aIsCreate = a.event.type.includes("create");
+        const bIsCreate = b.event.type.includes("create");
+        // Creates sort before updates, so an update at the same timestamp wins.
+        if (aIsCreate !== bIsCreate) return aIsCreate ? -1 : 1;
 
-      return aTimestamp - bTimestamp;
-    });
+        // Tied creates: the first-arriving one wins. OTel emits a root span's
+        // trace-create and a child span's trace-create carrying explicit
+        // update_current_trace() values at the same span start time; the child
+        // arrives first and its explicit fields must beat the root's derived
+        // ones. Placing the earlier arrival last makes it win the merge.
+        if (aIsCreate) return b.index - a.index;
+
+        // Tied updates: the last-arriving one wins.
+        return a.index - b.index;
+      })
+      .map(({ event }) => event);
   }
 
   private async getPrompt(
@@ -1192,6 +1303,7 @@ export class IngestionService {
 
   private async getGenerationUsage(params: {
     projectId: string;
+    pricingMatchAttributeValues?: PricingTierMatchAttributeValues;
     observationRecord: Pick<
       ObservationRecordInsertType,
       | "project_id"
@@ -1200,9 +1312,6 @@ export class IngestionService {
       | "provided_model_name"
       | "provided_usage_details"
       | "provided_cost_details"
-      | "level"
-      | "input"
-      | "output"
     >;
   }): Promise<
     Pick<
@@ -1215,7 +1324,8 @@ export class IngestionService {
       | "usage_pricing_tier_name"
     >
   > {
-    const { projectId, observationRecord } = params;
+    const { projectId, observationRecord, pricingMatchAttributeValues } =
+      params;
     const { model: internalModel, pricingTiers } =
       observationRecord.provided_model_name
         ? await findModel({
@@ -1224,206 +1334,46 @@ export class IngestionService {
           })
         : { model: null, pricingTiers: [] };
 
-    const final_usage_details = await this.getUsageUnits(
-      observationRecord,
-      internalModel,
-    );
+    const final_usage_details = this.getUsageUnits(observationRecord);
 
-    // Match pricing tier based on usage_details. Skip when usage is empty
-    // (e.g. tokenization skipped because costs were provided, or ERROR-level
-    // generations): matching {} would stamp a tier chosen against a fabricated
-    // all-zero usage vector instead of leaving the tier unset.
-    let modelPrices: Array<{ usageType: string; price: Decimal }> = [];
-    let usage_pricing_tier_id: string | null = null;
-    let usage_pricing_tier_name: string | null = null;
-
-    if (
-      pricingTiers.length > 0 &&
-      Object.keys(final_usage_details.usage_details ?? {}).length > 0
-    ) {
-      const matchedTier = matchPricingTier(
-        pricingTiers,
-        final_usage_details.usage_details,
-      );
-
-      if (matchedTier) {
-        usage_pricing_tier_id = matchedTier.pricingTierId;
-        usage_pricing_tier_name = matchedTier.pricingTierName;
-
-        // Convert matched tier prices to simple format for calculateUsageCosts
-        modelPrices = Object.entries(matchedTier.prices).map(
-          ([usageType, price]) => ({
-            usageType,
-            price,
-          }),
-        );
-      }
-    }
-
-    const final_cost_details = IngestionService.calculateUsageCosts(
-      modelPrices,
-      observationRecord,
-      final_usage_details.usage_details ?? {},
-    );
+    const final_cost_details = calculateModelUsageCosts({
+      model: { model: internalModel, pricingTiers },
+      usageDetails: final_usage_details.usage_details ?? {},
+      providedCostDetails: observationRecord.provided_cost_details,
+      attributes: pricingMatchAttributeValues,
+    });
 
     logger.debug(
       `Calculated costs and usage for observation ${observationRecord.id} with model ${internalModel?.id}`,
       {
         cost: final_cost_details.cost_details,
         usage: final_usage_details.usage_details,
-        pricingTier: usage_pricing_tier_name,
+        pricingTier: final_cost_details.usage_pricing_tier_name,
       },
     );
 
     return {
       ...final_usage_details,
-      ...final_cost_details,
-      internal_model_id: internalModel?.id,
-      usage_pricing_tier_id,
-      usage_pricing_tier_name,
+      cost_details: final_cost_details.cost_details,
+      total_cost: final_cost_details.total_cost,
+      internal_model_id: final_cost_details.internal_model_id,
+      usage_pricing_tier_id: final_cost_details.usage_pricing_tier_id,
+      usage_pricing_tier_name: final_cost_details.usage_pricing_tier_name,
     };
   }
 
-  private async getUsageUnits(
+  private getUsageUnits(
     observationRecord: Pick<
       ObservationRecordInsertType,
-      | "project_id"
-      | "provided_usage_details"
-      | "provided_cost_details"
-      | "level"
-      | "input"
-      | "output"
-      | "id"
+      "provided_usage_details"
     >,
-    model: Model | null | undefined,
-  ): Promise<
-    Pick<
-      ObservationRecordInsertType,
-      "usage_details" | "provided_usage_details"
-    >
+  ): Pick<
+    ObservationRecordInsertType,
+    "usage_details" | "provided_usage_details"
   > {
     const providedUsageDetails = IngestionService.normalizeProvidedUsageDetails(
       observationRecord.provided_usage_details,
     );
-
-    // Provided costs are authoritative: calculateUsageCosts ignores computed
-    // usage once any cost point is provided, so tokenised counts could never
-    // affect costs — leave usage_details blank instead of paying for
-    // tokenisation.
-    const hasProvidedCostDetails = Object.values(
-      observationRecord.provided_cost_details ?? {},
-    ).some((value) => value != null);
-
-    if (
-      // Manual tokenisation when no user provided usage or cost and generation has not status ERROR
-      model &&
-      Object.keys(providedUsageDetails).length === 0 &&
-      !hasProvidedCostDetails &&
-      observationRecord.level !== ObservationLevel.ERROR
-    ) {
-      try {
-        let newInputCount: number | undefined;
-        let newOutputCount: number | undefined;
-        await instrumentAsync(
-          {
-            name: "token-count",
-          },
-          async (span) => {
-            try {
-              [newInputCount, newOutputCount] = await Promise.all([
-                tokenCountAsync({
-                  text: observationRecord.input,
-                  model,
-                }),
-                tokenCountAsync({
-                  text: observationRecord.output,
-                  model,
-                }),
-              ]);
-            } catch (error) {
-              // No synchronous fallback: payloads that make the worker thread
-              // exceed its timeout would block the event loop for minutes if
-              // re-tokenized on the main thread. Absent counts are
-              // detectable by users, unlike a 0 or a bytes-based estimate.
-              logger.warn(
-                `Async tokenization failed for observation ${observationRecord.id} in project ${observationRecord.project_id}. Skipping token counts.`,
-                {
-                  projectId: observationRecord.project_id,
-                  observationId: observationRecord.id,
-                  modelId: model.id,
-                  tokenizerId: model.tokenizerId,
-                  inputBytes:
-                    typeof observationRecord.input === "string"
-                      ? observationRecord.input.length
-                      : undefined,
-                  outputBytes:
-                    typeof observationRecord.output === "string"
-                      ? observationRecord.output.length
-                      : undefined,
-                  error,
-                },
-              );
-              span.setAttribute("langfuse.tokenization.skipped", true);
-              recordIncrement("langfuse.tokenisation.skipped", 1);
-            }
-
-            // Tracing
-            newInputCount
-              ? span.setAttribute(
-                  "langfuse.tokenization.input-count",
-                  newInputCount,
-                )
-              : undefined;
-            newOutputCount
-              ? span.setAttribute(
-                  "langfuse.tokenization.output-count",
-                  newOutputCount,
-                )
-              : undefined;
-            newInputCount || newOutputCount
-              ? span.setAttribute(
-                  "langfuse.tokenization.tokenizer",
-                  model.tokenizerId || "unknown",
-                )
-              : undefined;
-            newInputCount
-              ? recordIncrement("langfuse.tokenisedTokens", newInputCount)
-              : undefined;
-            newOutputCount
-              ? recordIncrement("langfuse.tokenisedTokens", newOutputCount)
-              : undefined;
-          },
-        );
-
-        logger.debug(
-          `Tokenized observation ${observationRecord.id} with model ${model.id}, input: ${newInputCount}, output: ${newOutputCount}`,
-        );
-
-        const newTotalCount =
-          newInputCount || newOutputCount
-            ? (newInputCount ?? 0) + (newOutputCount ?? 0)
-            : undefined;
-
-        const usage_details: Record<string, number> = {};
-
-        if (newInputCount != null) usage_details.input = newInputCount;
-        if (newOutputCount != null) usage_details.output = newOutputCount;
-        if (newTotalCount != null) usage_details.total = newTotalCount;
-
-        return { usage_details, provided_usage_details: providedUsageDetails };
-      } catch (error) {
-        traceException(error);
-        logger.error(
-          `Tokenization failed for observation ${observationRecord.id} with model ${model.id}. Continuing without token counts.`,
-          error,
-        );
-        // Continue without token counts - return empty usage_details
-        return {
-          usage_details: {},
-          provided_usage_details: providedUsageDetails,
-        };
-      }
-    }
 
     const usageDetails = { ...providedUsageDetails };
     if (Object.keys(usageDetails).length > 0 && !("total" in usageDetails)) {
@@ -1503,7 +1453,10 @@ export class IngestionService {
       return;
     }
     IngestionService.lastUsageTotalMismatchLogAt = now;
-    logger.warn(
+    // The `langfuse.ingestion.usage_details.total_mismatch` metric above carries
+    // the aggregate signal; keep the detailed line at debug to avoid drowning
+    // warn-level log volume with a per-event customer-data condition.
+    logger.debug(
       "Sum of provided non-total usage_details buckets exceeds provided total; the instrumentor may be sending an inclusive input alongside cache buckets",
       {
         projectId: observationRecord.project_id,
@@ -1514,80 +1467,6 @@ export class IngestionService {
         writePath,
       },
     );
-  }
-
-  static calculateUsageCosts(
-    modelPrices:
-      | Array<{ usageType: string; price: Decimal }>
-      | null
-      | undefined,
-    observationRecord: Pick<
-      ObservationRecordInsertType,
-      "provided_cost_details"
-    >,
-    usageUnits: UsageCostType,
-  ): Pick<ObservationRecordInsertType, "cost_details" | "total_cost"> {
-    const { provided_cost_details } = observationRecord;
-
-    const providedCostKeys = Object.entries(provided_cost_details ?? {})
-      .filter(([_, value]) => value != null)
-      .map(([key]) => key);
-
-    // If user has provided any cost point, do not calculate any other cost points
-    if (providedCostKeys.length) {
-      const cost_details = { ...provided_cost_details };
-      const finalTotalCost =
-        (provided_cost_details ?? {})["total"] ??
-        // Use provided input and output cost if available, but only if no other cost points are provided
-        (providedCostKeys.every((key) => ["input", "output"].includes(key))
-          ? ((provided_cost_details ?? {})["input"] ?? 0) +
-            ((provided_cost_details ?? {})["output"] ?? 0)
-          : undefined);
-
-      if (
-        !Object.prototype.hasOwnProperty.call(cost_details, "total") &&
-        finalTotalCost != null
-      ) {
-        cost_details.total = finalTotalCost;
-      }
-
-      return {
-        cost_details,
-        total_cost: finalTotalCost,
-      };
-    }
-
-    const finalCostEntries: [string, number][] = [];
-
-    for (const [key, units] of Object.entries(usageUnits)) {
-      const price = modelPrices?.find((price) => price.usageType === key);
-
-      if (units != null && price) {
-        finalCostEntries.push([key, price.price.mul(units).toNumber()]);
-      }
-    }
-
-    const finalCostDetails = Object.fromEntries(finalCostEntries);
-
-    let finalTotalCost;
-    if (
-      Object.prototype.hasOwnProperty.call(finalCostDetails, "total") &&
-      finalCostDetails.total != null
-    ) {
-      finalTotalCost = finalCostDetails.total;
-    } else if (finalCostEntries.length > 0) {
-      finalTotalCost = finalCostEntries.reduce(
-        (acc, [_, cost]) => acc + cost,
-        0,
-      );
-
-      finalCostDetails.total = finalTotalCost;
-    }
-
-    return {
-      cost_details: finalCostDetails,
-      total_cost: finalTotalCost,
-    };
   }
 
   private async getClickhouseRecord(params: {
@@ -1731,7 +1610,7 @@ export class IngestionService {
     return traceEventList.map((trace) => {
       const traceRecord: TraceRecordInsertType = {
         id: entityId,
-        timestamp: this.getMillisecondTimestamp(
+        timestamp: toClickhouseDateTime(
           trace.body.timestamp ?? trace.timestamp,
         ),
         // timestamp: ("timestamp" in trace.body && trace.body.timestamp
@@ -1754,9 +1633,9 @@ export class IngestionService {
         // input: this.stringify(trace.body.input),
         // output: this.stringify(trace.body.output), // convert even json to string
         session_id: trace.body.sessionId,
-        created_at: Date.now(),
-        updated_at: Date.now(),
-        event_ts: new Date(trace.timestamp).getTime(),
+        created_at: toClickhouseDateTime(),
+        updated_at: toClickhouseDateTime(),
+        event_ts: toClickhouseDateTime(trace.timestamp),
         is_deleted: 0,
       };
 
@@ -1879,19 +1758,17 @@ export class IngestionService {
         name: obs.body.name,
         environment:
           "environment" in obs.body ? obs.body.environment : "default",
-        start_time: this.getMillisecondTimestamp(
-          obs.body.startTime ?? obs.timestamp,
-        ),
+        start_time: toClickhouseDateTime(obs.body.startTime ?? obs.timestamp),
         // start_time: ("startTime" in obs.body && obs.body.startTime
         //   ? this.getMillisecondTimestamp(obs.body.startTime)
         //   : undefined) as number, // Casting here is dirty, but our requirement is to have a start_time _after_ the merge
         end_time:
           "endTime" in obs.body && obs.body.endTime
-            ? this.getMillisecondTimestamp(obs.body.endTime)
+            ? toClickhouseDateTime(obs.body.endTime)
             : undefined,
         completion_start_time:
           "completionStartTime" in obs.body && obs.body.completionStartTime
-            ? this.getMillisecondTimestamp(obs.body.completionStartTime)
+            ? toClickhouseDateTime(obs.body.completionStartTime)
             : undefined,
         metadata: obs.body.metadata
           ? convertJsonSchemaToRecord(obs.body.metadata)
@@ -1919,9 +1796,9 @@ export class IngestionService {
         prompt_id: prompt?.id,
         prompt_name: prompt?.name,
         prompt_version: prompt?.version,
-        created_at: Date.now(),
-        updated_at: Date.now(),
-        event_ts: new Date(obs.timestamp).getTime(),
+        created_at: toClickhouseDateTime(),
+        updated_at: toClickhouseDateTime(),
+        event_ts: toClickhouseDateTime(obs.timestamp),
         is_deleted: 0,
       };
 
@@ -1937,14 +1814,6 @@ export class IngestionService {
     return typeof obj === "string" ? obj : JSON.stringify(obj);
   }
 
-  private getMicrosecondTimestamp(timestamp?: string | null): number {
-    return timestamp ? new Date(timestamp).getTime() * 1000 : Date.now() * 1000;
-  }
-
-  private getMillisecondTimestamp(timestamp?: string | null): number {
-    return timestamp ? new Date(timestamp).getTime() : Date.now();
-  }
-
   /**
    * Returns a partition-aware timestamp for staging table writes.
    * If the createdAtTimestamp is within the last 2 minutes, returns it as-is.
@@ -1958,7 +1827,7 @@ export class IngestionService {
    * that data is processed correctly. Worst case is slightly more duplication in the events table
    * which should resolve automatically using the ReplacingMergeTree.
    */
-  private getPartitionAwareTimestamp(createdAtTimestamp: Date): number {
+  private getPartitionAwareTimestamp(createdAtTimestamp: Date): string {
     const now = Date.now();
     const createdAt = createdAtTimestamp.getTime();
     const ageInMs = now - createdAt;
@@ -1966,7 +1835,7 @@ export class IngestionService {
 
     // If the createdAtTimestamp is within the last 2 minutes, use it
     // Otherwise, use the current timestamp to avoid updating old partitions
-    return ageInMs < twoMinutesInMs ? createdAt : now;
+    return toClickhouseDateTime(ageInMs < twoMinutesInMs ? createdAt : now);
   }
 }
 

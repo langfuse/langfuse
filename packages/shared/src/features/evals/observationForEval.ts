@@ -1,13 +1,13 @@
 import { z } from "zod";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../../server/ingestion/types";
 import { type EventRecordBaseType } from "../../server/repositories/definitions";
-import { ObservationLevel, ObservationType } from "../../domain";
+import { ObservationLevel } from "../../domain/observations";
 import { metadataArraysToRecord } from "../../server/utils/metadata_conversion";
-import { SingleValueOption } from "../../tableDefinitions";
-import { ColumnDefinition } from "../../tableDefinitions";
-import { formatColumnOptions } from "../../tableDefinitions/typeHelpers";
 import { parseJsonIfString } from "../../utils/json";
-import { isRootObservation } from "../../eventsTable";
+import {
+  evalFilterFields,
+  type ObservationEvalFilterColumnInternal,
+} from "./filterFields";
 
 const flexibleUsageCostSchema = z.record(
   z.string(),
@@ -78,6 +78,36 @@ export const observationForEvalSchema = z.object({
 export type ObservationForEval = z.infer<typeof observationForEvalSchema>;
 
 /**
+ * Fields that evaluation rule filters and job identifiers read: every field a
+ * filter definition names, plus the identifiers. Payloads are excluded, so
+ * rules can be matched before an observation is loaded in full.
+ */
+const observationEvalFilterFieldKeys = Object.fromEntries(
+  [
+    "span_id",
+    "trace_id",
+    "project_id",
+    ...Object.values(evalFilterFields).map((field) => field.internal),
+  ].map((field) => [field, true]),
+) as Record<
+  ObservationEvalFilterColumnInternal | "span_id" | "trace_id" | "project_id",
+  true
+>;
+
+export const observationEvalFilterFieldsSchema = observationForEvalSchema.pick(
+  observationEvalFilterFieldKeys,
+);
+
+export type ObservationEvalFilterFields = z.infer<
+  typeof observationEvalFilterFieldsSchema
+>;
+
+/** The fields of an observation that its filter fields do not carry. */
+const observationEvalRemainingFieldsSchema = observationForEvalSchema.omit(
+  observationEvalFilterFieldKeys,
+);
+
+/**
  * Self-contained tool call shape handed to evaluators. Rebuilt from the
  * ClickHouse storage layout, which keeps names in a parallel array
  * (`tool_call_names`) so ClickHouse can filter without JSON parsing.
@@ -139,6 +169,25 @@ export function zipObservationToolCalls(
   });
 }
 
+/**
+ * Zips parallel name/value arrays into a plain object, first occurrence wins.
+ * Collects into a `Map` so that keys shared with `Object.prototype` (`toString`,
+ * `constructor`, `__proto__`, ...) are treated as ordinary metadata keys.
+ */
+function zipFirstOccurrenceWins<T>(
+  names: string[],
+  values: T[],
+): Record<string, T> {
+  const entries = new Map<string, T>();
+  names.forEach((name, i) => {
+    if (!entries.has(name)) {
+      entries.set(name, values[i]);
+    }
+  });
+
+  return Object.fromEntries(entries);
+}
+
 export function convertEventRecordToObservationForEval(
   record: EventRecordBaseType,
 ): ObservationForEval {
@@ -146,47 +195,82 @@ export function convertEventRecordToObservationForEval(
     record.metadata_names,
     record.metadata_values,
   );
-  const experimentItemMetadata =
-    record.experiment_item_metadata_names.length > 0
-      ? record.experiment_item_metadata_names.reduce<
-          Record<string, string | null | undefined>
-        >((acc, name, i) => {
-          if (!(name in acc)) {
-            acc[name] = record.experiment_item_metadata_values[i];
-          }
-          return acc;
-        }, {})
-      : undefined;
-
   const toolCallNames = record.tool_call_names ?? [];
   return observationForEvalSchema.parse({
     ...record,
     metadata,
-    experiment_item_metadata: experimentItemMetadata,
+    experiment_item_metadata: experimentItemMetadataOf(record),
     tool_call_count: toolCallNames.length,
   });
 }
 
-export type ObservationEvalFilterColumnInternal =
-  /** Column identifier (must match an ObservationForEval field name) */
-  keyof Pick<
-    ObservationForEval,
-    | "type"
-    | "name"
-    | "environment"
-    | "level"
-    | "version"
-    | "trace_name"
-    | "user_id"
-    | "session_id"
-    | "tags"
-    | "experiment_dataset_id"
-    | "metadata"
-    | "parent_span_id"
-    | "is_app_root"
-    | "tool_call_names"
-    | "tool_call_count"
-  >;
+function experimentItemMetadataOf(
+  record: Pick<
+    EventRecordBaseType,
+    "experiment_item_metadata_names" | "experiment_item_metadata_values"
+  >,
+) {
+  return record.experiment_item_metadata_names.length > 0
+    ? zipFirstOccurrenceWins(
+        record.experiment_item_metadata_names,
+        record.experiment_item_metadata_values,
+      )
+    : undefined;
+}
+
+/** Event record columns that a filter field is built from, where the names differ. */
+const recordColumnsOfFilterField: Partial<Record<string, string[]>> = {
+  metadata: ["metadata_names", "metadata_values"],
+  tool_call_count: ["tool_call_names"],
+};
+
+/**
+ * Event record columns that hold the filter fields. The native OTEL path
+ * returns these columns for every event and the rest of a row on demand.
+ */
+export const observationEvalFilterRecordColumns: string[] = [
+  ...new Set(
+    Object.keys(observationEvalFilterFieldKeys).flatMap(
+      (field) => recordColumnsOfFilterField[field] ?? [field],
+    ),
+  ),
+];
+
+export function convertEventRecordToObservationEvalFilterFields(
+  record: Pick<
+    EventRecordBaseType,
+    "metadata_names" | "metadata_values" | "tool_call_names"
+  >,
+): ObservationEvalFilterFields {
+  return observationEvalFilterFieldsSchema.parse({
+    ...record,
+    metadata: metadataArraysToRecord(
+      record.metadata_names,
+      record.metadata_values,
+    ),
+    tool_call_count: (record.tool_call_names ?? []).length,
+  });
+}
+
+/**
+ * Complete validated filter fields into a full observation from the rest of the
+ * event record, so the filter fields are not validated a second time.
+ */
+export function completeObservationForEval(
+  filterFields: ObservationEvalFilterFields,
+  record: Pick<
+    EventRecordBaseType,
+    "experiment_item_metadata_names" | "experiment_item_metadata_values"
+  >,
+): ObservationForEval {
+  return {
+    ...filterFields,
+    ...observationEvalRemainingFieldsSchema.parse({
+      ...record,
+      experiment_item_metadata: experimentItemMetadataOf(record),
+    }),
+  };
+}
 
 export type ObservationEvalMappingColumnInternal = keyof Pick<
   ObservationForEval,
@@ -229,6 +313,14 @@ export const CODE_EVAL_TEMPLATE_VARIABLES = [
 
 export type CodeEvalTemplateVariable =
   (typeof CODE_EVAL_TEMPLATE_VARIABLES)[number];
+
+export function getCodeEvalVariableMapping() {
+  return CODE_EVAL_TEMPLATE_VARIABLES.map((variable) => ({
+    templateVariable: variable,
+    selectedColumnId: variable,
+    jsonSelector: null,
+  }));
+}
 
 export const eventTargetEvalVariableColumns: (ObservationEvalVariableColumn & {
   id: CodeEvalTemplateVariable;
@@ -291,205 +383,19 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
   ...experimentTargetEvalVariableColumns,
 ];
 
-type ObservationEvalColumnDef = ColumnDefinition & {
-  internal: ObservationEvalFilterColumnInternal;
-};
-
-/**
- * Columns available for filtering in observation-based evals.
- *
- * These columns can be used in filter conditions to determine
- * which observations should be evaluated.
- */
-export const observationEvalFilterColumns: ObservationEvalColumnDef[] = [
-  {
-    name: "Type",
-    id: "type",
-    type: "stringOptions",
-    internal: "type",
-    options: Object.values(ObservationType).map((key) => ({ value: key })),
-  },
-  {
-    name: "Name",
-    id: "name",
-    type: "stringOptions",
-    internal: "name",
-    options: [], // to be filled at runtime
-  },
-  {
-    name: "Environment",
-    id: "environment",
-    type: "stringOptions",
-    internal: "environment",
-    options: [], // to be filled at runtime
-  },
-  {
-    name: "Level",
-    id: "level",
-    type: "stringOptions",
-    internal: "level",
-    options: Object.values(ObservationLevel).map((key) => ({ value: key })),
-  },
-  {
-    name: "Version",
-    id: "version",
-    type: "string",
-    internal: "version",
-    nullable: true,
-  },
-  {
-    name: "Trace Name",
-    id: "traceName",
-    type: "stringOptions",
-    internal: "trace_name",
-    options: [], // to be filled at runtime
-    nullable: true,
-  },
-  {
-    name: "User ID",
-    id: "userId",
-    type: "string",
-    internal: "user_id",
-    nullable: true,
-  },
-  {
-    name: "Session ID",
-    id: "sessionId",
-    type: "string",
-    internal: "session_id",
-    nullable: true,
-  },
-  {
-    name: "Tags",
-    id: "tags",
-    type: "arrayOptions",
-    internal: "tags",
-    options: [], // to be filled at runtime
-  },
-  {
-    name: "Metadata",
-    id: "metadata",
-    type: "stringObject",
-    internal: "metadata",
-  },
-  {
-    name: "Is Root Observation",
-    id: "isRootObservation",
-    type: "boolean",
-    internal: "is_app_root",
-  },
-  {
-    name: "Parent Observation",
-    id: "parentObservationId",
-    type: "null",
-    internal: "parent_span_id",
-    nullable: true,
-  },
-  {
-    name: "Called Tool Names",
-    id: "calledToolNames",
-    type: "arrayOptions",
-    internal: "tool_call_names",
-    options: [], // to be filled at runtime
-  },
-  {
-    name: "Tool Call Count",
-    id: "toolCalls",
-    type: "number",
-    internal: "tool_call_count",
-    step: 1,
-    min: 0,
-  },
-];
-
-export const experimentEvalFilterColumns: ObservationEvalColumnDef[] = [
-  {
-    name: "Dataset",
-    id: "experimentDatasetId",
-    type: "stringOptions",
-    internal: "experiment_dataset_id",
-    options: [], // to be filled at runtime
-  },
-];
-
-export const eventsEvalFilterColumns: ObservationEvalColumnDef[] = [
-  ...observationEvalFilterColumns,
-  ...experimentEvalFilterColumns,
-];
-
-// Options type for observation eval filters
-export type ObservationEvalOptions = {
-  environment?: Array<SingleValueOption>;
-  tags?: Array<SingleValueOption>;
-  traceName?: Array<SingleValueOption>;
-  name?: Array<SingleValueOption>;
-  calledToolNames?: Array<SingleValueOption>;
-};
-
-export type ExperimentEvalOptions = {
-  experimentDatasetId?: Array<SingleValueOption>;
-};
-
-export function observationEvalFilterColsWithOptions(
-  options?: ObservationEvalOptions,
-  cols: ColumnDefinition[] = observationEvalFilterColumns,
-): ColumnDefinition[] {
-  return cols.map((col) => {
-    if (col.id === "environment") {
-      return formatColumnOptions(col, options?.environment ?? []);
-    }
-    if (col.id === "tags") {
-      return formatColumnOptions(col, options?.tags ?? []);
-    }
-    if (col.id === "traceName") {
-      return formatColumnOptions(col, options?.traceName ?? []);
-    }
-    if (col.id === "name") {
-      return formatColumnOptions(col, options?.name ?? []);
-    }
-    if (col.id === "calledToolNames") {
-      return formatColumnOptions(col, options?.calledToolNames ?? []);
-    }
-    return col;
-  });
-}
-
-export function experimentEvalFilterColsWithOptions(
-  options?: ExperimentEvalOptions,
-  cols: ColumnDefinition[] = experimentEvalFilterColumns,
-): ColumnDefinition[] {
-  return cols.map((col) => {
-    if (col.id === "experimentDatasetId") {
-      return formatColumnOptions(col, options?.experimentDatasetId ?? []);
-    }
-    return col;
-  });
-}
-
-/**
- * Field mapper for observation eval filters.
- * Maps camelCase filter column IDs to snake_case observation fields.
- * Based on events table column definitions.
- *
- * @param observation - The observation data object
- * @param column - The camelCase column ID from filter definitions
- * @returns The value from the observation object
- */
-export function mapEventEvalFilterColumnIdToField(
-  observation: ObservationForEval,
-  column: string,
-) {
-  const columnMapping = eventsEvalFilterColumns.find((c) => c.id === column);
-  if (!columnMapping) {
-    return undefined;
-  }
-
-  if (columnMapping.id === "isRootObservation") {
-    return isRootObservation({
-      parentObservationId: observation.parent_span_id,
-      isAppRoot: observation.is_app_root,
-    });
-  }
-
-  return observation[columnMapping.internal];
-}
+export {
+  mapEventEvalFilterColumnIdToField,
+  evalFilterEmptyEqualsNullColumns,
+  type ObservationEvalFilterColumnInternal,
+} from "./filterFields";
+export {
+  observationEvalFilterColumns,
+  eventsEvalFilterColumns,
+  observationEvalFilterColsWithOptions,
+  type ObservationEvalOptions,
+} from "./spanFilters";
+export {
+  experimentEvalFilterColumns,
+  experimentEvalFilterColsWithOptions,
+  type ExperimentEvalOptions,
+} from "./experimentFilters";

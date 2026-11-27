@@ -5,6 +5,7 @@ import { env } from "@/src/env.mjs";
 import { backgroundMigrationsRouter } from "@/src/features/background-migrations/server/background-migrations-router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { type BackgroundMigration } from "@langfuse/shared";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 // Real gate declared in the worker env (worker/src/env.ts); the status endpoint
 // mirrors the worker's gate discovery, which only considers env vars with the
@@ -12,28 +13,13 @@ import { type BackgroundMigration } from "@langfuse/shared";
 const GATE = "LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES";
 const UNPREFIXED_GATE = "SOME_UNRELATED_FLAG";
 
-const session: Session = {
-  expires: "1",
+const session: Session = createSession({
   user: {
     id: `background-migrations-user-${randomUUID()}`,
-    canCreateOrganizations: true,
     name: "Background Migrations Test User",
-    organizations: [],
-    featureFlags: {
-      searchBar: false,
-      excludeClickhouseRead: false,
-      templateFlag: true,
-      v4BetaToggleVisible: false,
-      observationEvals: false,
-      experimentsV4Enabled: false,
-    },
-    admin: false,
   },
-  environment: {
-    enableExperimentalFeatures: false,
-    selfHostedInstancePlan: "oss",
-  },
-};
+  environment: { selfHostedInstancePlan: "oss" },
+});
 
 const migrationRow = (
   overrides: Partial<BackgroundMigration>,
@@ -63,29 +49,29 @@ const createCaller = (migrations: BackgroundMigration[]) => {
   });
 };
 
+const envRecord = env as unknown as Record<string, string | undefined>;
+const originalCloudRegion = envRecord.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+const originalGate = envRecord[GATE];
+const originalUnprefixedGate = envRecord[UNPREFIXED_GATE];
+
+beforeEach(() => {
+  // The endpoints are self-host only; the local dev .env marks the test
+  // process as cloud ("DEV"), which would trip the cloud guard.
+  envRecord.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+  envRecord[GATE] = "false";
+});
+
+afterEach(() => {
+  envRecord.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+  envRecord[GATE] = originalGate;
+  if (originalUnprefixedGate === undefined) {
+    delete envRecord[UNPREFIXED_GATE];
+  } else {
+    envRecord[UNPREFIXED_GATE] = originalUnprefixedGate;
+  }
+});
+
 describe("backgroundMigrations.status", () => {
-  const envRecord = env as unknown as Record<string, string | undefined>;
-  const originalCloudRegion = envRecord.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-  const originalGate = envRecord[GATE];
-  const originalUnprefixedGate = envRecord[UNPREFIXED_GATE];
-
-  beforeEach(() => {
-    // The endpoint is self-host only; the local dev .env marks the test
-    // process as cloud ("DEV"), which would trip the cloud guard.
-    envRecord.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-    envRecord[GATE] = "false";
-  });
-
-  afterEach(() => {
-    envRecord.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
-    envRecord[GATE] = originalGate;
-    if (originalUnprefixedGate === undefined) {
-      delete envRecord[UNPREFIXED_GATE];
-    } else {
-      envRecord[UNPREFIXED_GATE] = originalUnprefixedGate;
-    }
-  });
-
   it("reports FINISHED when the only pending migrations are dormant behind inactive env gates", async () => {
     const caller = createCaller([
       migrationRow({ args: { envGate: GATE } }),
@@ -143,5 +129,51 @@ describe("backgroundMigrations.status", () => {
     const caller = createCaller([migrationRow({ finishedAt: new Date() })]);
 
     await expect(caller.status()).resolves.toEqual({ status: "FINISHED" });
+  });
+});
+
+describe("backgroundMigrations.all", () => {
+  it("marks only pending rows waiting on an inactive env gate as dormant", async () => {
+    const caller = createCaller([
+      migrationRow({ name: "dormant", args: { envGate: GATE } }),
+      migrationRow({
+        name: "claimed",
+        args: { envGate: GATE },
+        workerId: randomUUID(),
+      }),
+      migrationRow({ name: "ungated" }),
+      migrationRow({
+        name: "finished",
+        args: { envGate: GATE },
+        finishedAt: new Date(),
+      }),
+      migrationRow({
+        name: "failed",
+        args: { envGate: GATE },
+        failedAt: new Date(),
+        failedReason: "boom",
+      }),
+    ]);
+
+    const { migrations } = await caller.all();
+
+    expect(
+      Object.fromEntries(migrations.map((m) => [m.name, m.isDormant])),
+    ).toEqual({
+      dormant: true,
+      claimed: false,
+      ungated: false,
+      finished: false,
+      failed: false,
+    });
+  });
+
+  it("does not mark a gated row dormant once its env gate is set to true", async () => {
+    envRecord[GATE] = "true";
+    const caller = createCaller([migrationRow({ args: { envGate: GATE } })]);
+
+    const { migrations } = await caller.all();
+
+    expect(migrations.map((m) => m.isDormant)).toEqual([false]);
   });
 });

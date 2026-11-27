@@ -1,8 +1,6 @@
 import {
   createObservation,
   createObservationsCh,
-} from "@langfuse/shared/src/server";
-import {
   getObservationById,
   getObservationsForTrace,
 } from "@langfuse/shared/src/server";

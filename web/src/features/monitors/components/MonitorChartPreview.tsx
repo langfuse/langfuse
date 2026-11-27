@@ -3,9 +3,14 @@ import { type z } from "zod";
 
 import { api } from "@/src/utils/api";
 import { Card, CardContent } from "@/src/components/ui/card";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import { useLineChartTimeSeries } from "@/src/features/widgets/chart-library/useLineChartTimeSeries";
+import { VisualizationFrame } from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
+import {
+  useLargeDatasetGuard,
+  LARGE_DATASET_CONFIRMATION,
+} from "@/src/features/widgets/chart-library/useLargeDatasetGuard";
+import { isChartDataEmpty } from "@/src/features/widgets/chart-library/isChartDataEmpty";
+import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { getWidgetMetricPresentation } from "@/src/features/widgets/utils";
 import {
   type FilterState,
@@ -79,7 +84,7 @@ export const MonitorChartPreview = ({
     },
     {
       trpc: { context: { skipBatch: true } },
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       refetchOnWindowFocus: false,
     },
   );
@@ -103,7 +108,7 @@ export const MonitorChartPreview = ({
     },
     {
       trpc: { context: { skipBatch: true } },
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       refetchOnWindowFocus: false,
     },
   );
@@ -153,6 +158,15 @@ export const MonitorChartPreview = ({
     [measure, aggregation, view],
   );
 
+  const { shouldWarn, proceed } = useLargeDatasetGuard(data.length, false);
+  const isLoading = queryResult.isPending || scalarResult.isPending;
+  const prepared = useLineChartTimeSeries({
+    data: !shouldWarn ? data : [],
+    thresholds,
+    metricFormatter,
+    compactYAxis: true,
+  });
+
   return (
     <Card className="h-full">
       <CardContent className="flex h-full flex-col pt-4">
@@ -169,27 +183,35 @@ export const MonitorChartPreview = ({
           </div>
         </div>
         <div className="relative min-h-0 flex-1">
-          <Chart
-            chartType="LINE_TIME_SERIES"
-            data={data}
-            rowLimit={1000}
-            thresholds={thresholds}
-            metricFormatter={metricFormatter}
-            // Both queries feed `data`; while either is still pending it can
-            // be spuriously `[]`, which would otherwise flash "No data"
-            // before the real result (or the leading point) arrives.
-            isLoading={queryResult.isPending || scalarResult.isPending}
-          />
-          <ChartLoadingState
-            isLoading={queryResult.isError}
-            showSpinner={false}
-            showHintImmediately
-            layout="compact"
-            hintText={
-              queryResult.error?.message ?? RESOURCE_LIMIT_ERROR_MESSAGE
-            }
-            className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-          />
+          {shouldWarn && (
+            <VisualizationFrame
+              content={{
+                ...LARGE_DATASET_CONFIRMATION,
+                onConfirm: proceed,
+              }}
+            />
+          )}
+          {!shouldWarn && !isLoading && isChartDataEmpty(data) && (
+            <VisualizationFrame content={{ type: "empty" }} />
+          )}
+          {!shouldWarn && (isLoading || !isChartDataEmpty(data)) && (
+            <VisualizationFrame
+              {...prepared}
+              content={prepared.visualization}
+            />
+          )}
+          {queryResult.isError && (
+            <div className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs">
+              <VisualizationFrame
+                content={{
+                  type: "error",
+                  layout: "compact",
+                  message:
+                    queryResult.error?.message ?? RESOURCE_LIMIT_ERROR_MESSAGE,
+                }}
+              />
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -197,11 +219,11 @@ export const MonitorChartPreview = ({
 };
 
 /** toChartPoints reshapes executeQuery rows into LINE_TIME_SERIES points, coercing string-typed metric values into numbers. */
-const toChartPoints = (
+function toChartPoints(
   rows: Array<Record<string, unknown>>,
   measure: string,
   aggregation: z.infer<typeof metricAggregations>,
-): DataPoint[] => {
+): DataPoint[] {
   const metricField = `${aggregation}_${measure}`;
   return rows.map((row) => {
     const metric = row[metricField];
@@ -211,13 +233,13 @@ const toChartPoints = (
       metric: Array.isArray(metric) ? metric : Number(metric || 0),
     } satisfies DataPoint;
   });
-};
+}
 
 /** leadingWindowRange returns the [now−offset−windowMs, now−offset] range for the scalar leading-point query. */
-const leadingWindowRange = (
+function leadingWindowRange(
   window: MonitorWindow,
   now: number,
-): { fromTimestamp: string; toTimestamp: string } => {
+): { fromTimestamp: string; toTimestamp: string } {
   const windowMs = Number(windowToMs(window));
   const to = now - monitorEvaluationOffsetMs;
   const from = to - windowMs;
@@ -225,15 +247,15 @@ const leadingWindowRange = (
     toTimestamp: new Date(to).toISOString(),
     fromTimestamp: new Date(from).toISOString(),
   };
-};
+}
 
 /** toLeadingPoint converts a scalar executeQuery row into a DataPoint pinned to toTimestamp. */
-const toLeadingPoint = (
+function toLeadingPoint(
   row: Record<string, unknown>,
   toTimestamp: string,
   measure: string,
   aggregation: z.infer<typeof metricAggregations>,
-): DataPoint => {
+): DataPoint {
   const metricField = `${aggregation}_${measure}`;
   const metric = row[metricField];
   return {
@@ -241,6 +263,7 @@ const toLeadingPoint = (
     dimension: "metric",
     metric: Array.isArray(metric) ? metric : Number(metric || 0),
   } satisfies DataPoint;
-};
+}
 
+/** @internal */
 export const __test = { leadingWindowRange, toLeadingPoint };

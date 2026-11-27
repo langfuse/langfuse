@@ -1,11 +1,15 @@
+/* eslint-disable no-nested-ternary */
 import {
   asRecord,
   convertEventRecordToObservationForEval,
   DatasetItemDomain,
   Prisma,
+  validateDatasetItem,
+  normalizeDatasetItemInput,
 } from "@langfuse/shared";
 import {
   ChatMessage,
+  compileLangfuseMediaMessages,
   convertDateToClickhouseDateTime,
   createLLMOutput,
   createLLMToolSet,
@@ -34,12 +38,9 @@ import {
   validateAndSetupExperiment,
   type PromptExperimentConfig,
 } from "./utils";
-import {
-  validateDatasetItem,
-  normalizeDatasetItemInput,
-} from "@langfuse/shared";
+
 import { randomUUID } from "crypto";
-import { createW3CTraceId } from "../utils";
+import { createW3CTraceId } from "../utils/utilities";
 import { scheduleExperimentObservationEvals } from "./scheduleExperimentEvals";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 
@@ -219,9 +220,17 @@ async function processLLMCall(
       ...config.model_params,
     },
   });
+  const { providerMessages, traceMessages } =
+    await compileLangfuseMediaMessages({
+      projectId: config.projectId,
+      messages,
+      adapter: config.validatedApiKey.adapter,
+    });
 
   await generateLLMText({
     ...llmParams,
+    messages: providerMessages,
+    traceInput: traceMessages,
     maxRetries: 1,
     // Setup rejects the unsupported tools + structured-output combination.
     ...(config.structuredOutputSchema

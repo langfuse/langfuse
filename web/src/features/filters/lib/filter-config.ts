@@ -17,6 +17,10 @@ interface CategoricalFacet extends BaseFacet {
   type: "categorical";
   /** Optional function to render an icon next to filter option labels */
   renderIcon?: (value: string) => React.ReactNode;
+  /** Optional content rendered after a filter option label */
+  renderOptionSuffix?: (value: string) => React.ReactNode;
+  /** Optional browser hover title for a filter option. */
+  getOptionTitle?: (value: string, displayLabel: string) => string;
   /** When true, the sidebar hides the contains/does-not-contain text filter mode for this facet. */
   disableTextFilter?: boolean;
 }
@@ -58,6 +62,12 @@ interface BooleanKeyValueFacet extends BaseFacet {
 interface StringKeyValueFacet extends BaseFacet {
   type: "stringKeyValue";
   keyOptions?: string[];
+  /**
+   * Also offers numeric comparisons (`numberObject` filters on the column).
+   * Only for views whose server compiles filters through the events predicate
+   * source; legacy filter paths reject `numberObject` on metadata.
+   */
+  numericValues?: boolean;
 }
 
 export type Facet =
@@ -72,6 +82,17 @@ export type Facet =
 
 export type FilterStateMigration = (filters: FilterState) => FilterState;
 
+/**
+ * Drops numeric metadata comparisons (`numberObject` on `metadata`), for views
+ * whose server rejects them. The events table writes them into the same URL
+ * `filter` param, so a shared link would otherwise fail the whole table.
+ */
+export const dropNumericMetadataFilters: FilterStateMigration = (filters) =>
+  filters.filter(
+    (filter) =>
+      !(filter.column === "metadata" && filter.type === "numberObject"),
+  );
+
 export interface FilterConfig {
   tableName: string;
   columnDefinitions: ColumnDefinition[];
@@ -80,6 +101,13 @@ export interface FilterConfig {
   facets: Facet[];
   /** Runs after display-name normalization and before filter validation. */
   migrateFilterState?: FilterStateMigration;
+  /**
+   * Columns this surface offers no facet for because the page already bounds
+   * them (a user-detail traces table). Filters on them are never applied: a
+   * constraint the sidebar cannot show must not silently narrow the rows
+   * (LFE-14824). Set by `omitFilterFacets`.
+   */
+  omittedFilterColumns?: string[];
 }
 
 export function omitFilterFacets(
@@ -99,6 +127,9 @@ export function omitFilterFacets(
     ),
     facets: config.facets.filter(
       (facet) => !omittedColumnSet.has(facet.column),
+    ),
+    omittedFilterColumns: Array.from(
+      new Set([...(config.omittedFilterColumns ?? []), ...omittedColumns]),
     ),
   };
 }

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 // @vitest-environment jsdom
 
 import { describe, it, expect } from "vitest";

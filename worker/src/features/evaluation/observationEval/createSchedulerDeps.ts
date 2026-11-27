@@ -72,11 +72,22 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
     enqueueEvalJob: async (params) => {
       const shardingKey = `${params.projectId}-${params.jobExecutionId}`;
       const payload = {
+        type: "observation" as const,
         projectId: params.projectId,
         jobExecutionId: params.jobExecutionId,
         observationS3Path: params.observationS3Path,
         ...(params.executionMode
           ? { executionMode: params.executionMode }
+          : {}),
+        ...(params.evaluatorId ? { evaluatorId: params.evaluatorId } : {}),
+        ...(params.evaluationRuleId
+          ? { evaluationRuleId: params.evaluationRuleId }
+          : {}),
+        ...(params.variableMapping != null
+          ? { variableMapping: params.variableMapping }
+          : {}),
+        ...(params.batchActionId
+          ? { batchActionId: params.batchActionId }
           : {}),
       };
 
@@ -97,6 +108,13 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
           { delay: params.delay },
         );
         return;
+      }
+
+      if (
+        params.evalTemplateType !== EvalTemplateType.LLM_AS_JUDGE &&
+        params.evalTemplateType !== EvalTemplateType.DECISION_MODEL
+      ) {
+        throw new Error("Evaluator type cannot use observation eval queues");
       }
 
       const queue = LLMAsJudgeExecutionQueue.getInstance({ shardingKey });

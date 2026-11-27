@@ -6,22 +6,21 @@ import {
 import {
   buildInternalTraceEventInputs,
   materializeInternalTrace,
-  prepareInternalTraceEvents,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import type { ObservationForEval } from "../../evaluation/observationEval";
+import type { ObservationForEval } from "../../evaluation/observationEval/types";
 import { IngestionService } from "../../../services/IngestionService";
 import * as clickhouseWriterExports from "../../../services/ClickhouseWriter";
 import { scheduleExperimentObservationEvals } from "../scheduleExperimentEvals";
 
 const {
   mockAddToClickhouseWriter,
-  mockFetchObservationEvalConfigs,
+  mockFetchEvalRules,
   mockCreateObservationEvalSchedulerDeps,
   mockScheduleObservationEvals,
 } = vi.hoisted(() => ({
   mockAddToClickhouseWriter: vi.fn(),
-  mockFetchObservationEvalConfigs: vi.fn(),
+  mockFetchEvalRules: vi.fn(),
   mockCreateObservationEvalSchedulerDeps: vi.fn(),
   mockScheduleObservationEvals: vi.fn(),
 }));
@@ -38,15 +37,31 @@ vi.mock("../../../services/ClickhouseWriter", async (importOriginal) => {
   };
 });
 
-vi.mock("../../evaluation/observationEval", async (importOriginal) => {
-  const original = (await importOriginal()) as object;
-  return {
-    ...original,
-    fetchObservationEvalConfigs: mockFetchObservationEvalConfigs,
-    createObservationEvalSchedulerDeps: mockCreateObservationEvalSchedulerDeps,
-    scheduleObservationEvals: mockScheduleObservationEvals,
-  };
-});
+vi.mock(
+  "../../evaluation/observationEval/createSchedulerDeps",
+  async (importOriginal) => {
+    const original = (await importOriginal()) as object;
+    return {
+      ...original,
+      createObservationEvalSchedulerDeps:
+        mockCreateObservationEvalSchedulerDeps,
+    };
+  },
+);
+vi.mock(
+  "../../evaluation/observationEval/scheduleObservationEvals",
+  async (importOriginal) => {
+    const original = (await importOriginal()) as object;
+    return {
+      ...original,
+      scheduleObservationEvals: mockScheduleObservationEvals,
+    };
+  },
+);
+
+vi.mock("../../evaluation/fetchEvalRules", () => ({
+  fetchEvalRules: mockFetchEvalRules,
+}));
 
 const mockClickhouseClient = {
   query: async () => ({
@@ -356,11 +371,18 @@ const realExperimentEvents = [
 ];
 
 function getProcessedExperimentEvents() {
-  return prepareInternalTraceEvents({
-    events: realExperimentEvents as any,
-    environment: "langfuse-prompt-experiment",
-    prompt,
-  });
+  return realExperimentEvents
+    .filter((event) => event.body.id !== blockedParserSpanId)
+    .map((event) => ({
+      ...event,
+      body: {
+        ...event.body,
+        environment: LangfuseInternalTraceEnvironment.PromptExperiments,
+        ...(event.type === "generation-create"
+          ? { promptName: prompt.name, promptVersion: prompt.version }
+          : {}),
+      },
+    }));
 }
 
 function getExperimentContext() {
@@ -385,16 +407,13 @@ describe("prompt experiment direct-write materialization", () => {
     vi.clearAllMocks();
   });
 
-  it("should filter parser spans and use the trace root as the experiment root", () => {
+  it("should use the trace root as the experiment root", () => {
     const processedEvents = getProcessedExperimentEvents();
     const { rootSpanId, snapshots } = materializeInternalTrace({
       processedEvents,
       traceId,
     });
 
-    expect(processedEvents.map((event) => event.body.id)).not.toContain(
-      blockedParserSpanId,
-    );
     expect(rootSpanId).toBe(traceId);
     expect(snapshots).toHaveLength(2);
 
@@ -529,7 +548,10 @@ describe("prompt experiment direct-write materialization", () => {
 describe("scheduleExperimentObservationEvals", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFetchObservationEvalConfigs.mockResolvedValue([{ id: "config-1" }]);
+    mockFetchEvalRules.mockResolvedValue({
+      observationRules: [{ id: "config-1" }],
+      traceTranscriptRules: [],
+    });
     mockCreateObservationEvalSchedulerDeps.mockReturnValue({
       uploadObservationToS3: vi.fn(),
       upsertJobExecution: vi.fn(),
@@ -556,9 +578,10 @@ describe("scheduleExperimentObservationEvals", () => {
 
     await scheduleExperimentObservationEvals({ observation });
 
-    expect(mockFetchObservationEvalConfigs).toHaveBeenCalledWith("project-123");
+    expect(mockFetchEvalRules).toHaveBeenCalledWith("project-123");
     expect(mockScheduleObservationEvals).toHaveBeenCalledWith({
       observation,
+      loadSnapshot: expect.any(Function),
       configs: [{ id: "config-1" }],
       schedulerDeps: expect.any(Object),
     });
@@ -567,7 +590,10 @@ describe("scheduleExperimentObservationEvals", () => {
   });
 
   it("should skip scheduling when no configs exist", async () => {
-    mockFetchObservationEvalConfigs.mockResolvedValue([]);
+    mockFetchEvalRules.mockResolvedValue({
+      observationRules: [],
+      traceTranscriptRules: [],
+    });
 
     const observation = {
       span_id: traceId,

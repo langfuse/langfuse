@@ -1,6 +1,6 @@
 import { env } from "@/src/env.mjs";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { getSelfHostedInstancePlanServerSide } from "@langfuse/shared/src/server";
+import { hasEntitlementBasedOnPlan } from "@langfuse/shared";
 
 export function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();

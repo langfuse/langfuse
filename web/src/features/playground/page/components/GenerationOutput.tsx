@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { usePlaygroundContext } from "../context";
+import { usePlaygroundContext } from "../context/PlaygroundProvider";
 import { ChatMessageRole, ChatMessageType } from "@langfuse/shared";
-import { BracesIcon, Check, Copy, Plus } from "lucide-react";
+import { BracesIcon, Check, Copy, Plus } from "@langfuse/icons";
 import { ToolCallCard } from "@/src/components/ChatMessages/ToolCallCard";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { ThinkingBlock } from "@/src/components/trace/components/IOPreview/components/ThinkingBlock";
+import { ThinkingBlock } from "@/src/features/traces/components/ThinkingBlock";
 
 export const GenerationOutput = () => {
   const [isCopied, setIsCopied] = useState(false);
@@ -59,9 +59,9 @@ export const GenerationOutput = () => {
     }
   }, [output]);
 
-  const checkIcon = <Check className="h-2 w-2" />;
-  const copyIcon = <Copy className="h-2 w-2" />;
-  const plusIcon = <Plus className="h-2 w-2" />;
+  const checkIcon = <Check size="sm" />;
+  const copyIcon = <Copy size="sm" />;
+  const plusIcon = <Plus size="sm" />;
 
   const copyButton =
     output || outputToolCalls.length ? (
@@ -74,7 +74,7 @@ export const GenerationOutput = () => {
           }}
           title="Toggle Input/Output JSON"
         >
-          <BracesIcon size={15} />
+          <BracesIcon size="base" />
         </Button>
 
         <Button
@@ -117,7 +117,7 @@ export const GenerationOutput = () => {
               <ThinkingBlock content={outputReasoning} />
             </div>
           )}
-          <pre className="text-xs wrap-break-word whitespace-break-spaces">
+          <pre className="ph-no-capture text-xs wrap-break-word whitespace-break-spaces">
             {isJson ? outputJson : output}
           </pre>
           {outputToolCalls.length > 0

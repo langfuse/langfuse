@@ -7,6 +7,8 @@ import { CloudFreeTierUsageThresholdQueue } from "./cloudFreeTierUsageThresholdQ
 import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
 import { TraceDeleteQueue } from "./traceDelete";
+import { TopicsSetupQueue, TopicsUpdateQueue } from "../topics/queue";
+import { EventsDispatchQueue } from "./eventsDispatchQueue";
 import { ProjectDeleteQueue } from "./projectDelete";
 import { PostHogIntegrationQueue } from "./postHogIntegrationQueue";
 import { PostHogIntegrationProcessingQueue } from "./postHogIntegrationProcessingQueue";
@@ -29,6 +31,7 @@ import { EventPropagationQueue } from "./eventPropagationQueue";
 import { NotificationQueue } from "./notificationQueue";
 import { MonitorQueue } from "./monitorQueue";
 import { InAppAgentRunQueue } from "./inAppAgentRunQueue";
+import { V4LegacyApiUsageQueue } from "./v4LegacyApiUsageQueue";
 
 // Sharded queues require a sharding key.
 // Use the queue class directly, for example IngestionQueue.getInstance({ shardingKey }).
@@ -40,6 +43,7 @@ export function getQueue(
     | QueueName.EvaluationExecution
     | QueueName.EvaluationExecutionSecondaryQueue
     | QueueName.LLMAsJudgeExecution
+    | QueueName.TopicsTrace
     | QueueName.CodeEvalExecution
     | QueueName.TraceUpsert
     | QueueName.OtelIngestionQueue
@@ -47,6 +51,12 @@ export function getQueue(
   >,
 ): Queue | null {
   switch (queueName) {
+    case QueueName.TopicsUpdate:
+      return TopicsUpdateQueue.getInstance();
+    case QueueName.TopicsSetup:
+      return TopicsSetupQueue.getInstance();
+    case QueueName.EventsDispatch:
+      return EventsDispatchQueue.getInstance();
     case QueueName.BatchExport:
       return BatchExportQueue.getInstance();
     case QueueName.CloudUsageMeteringQueue:
@@ -105,6 +115,8 @@ export function getQueue(
       return MonitorQueue.getInstance();
     case QueueName.InAppAgentRunQueue:
       return InAppAgentRunQueue.getInstance();
+    case QueueName.V4LegacyApiUsageQueue:
+      return V4LegacyApiUsageQueue.getInstance();
     default: {
       const _exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);

@@ -21,7 +21,7 @@ export type OutlierStripSettings = z.infer<typeof outlierStripSettingsSchema>;
 
 const OUTLIER_STRIP_SETTINGS_VERSION = 1;
 
-export const parseOutlierStripSettings = (raw: unknown) => {
+const parseOutlierStripSettings = (raw: unknown) => {
   const settings = outlierStripSettingsSchema.parse(raw ?? {});
   const isCurrentVersion = z
     .object({ version: z.literal(OUTLIER_STRIP_SETTINGS_VERSION) })

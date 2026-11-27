@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Card } from "@/src/components/ui/card";
 import { BlobStorageExportMode } from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";
@@ -23,20 +23,17 @@ export const BlobStorageStatusSection = ({
     <>
       <Header title="Status" />
       {config.lastError && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertTitle>Last export failed</AlertTitle>
-          <AlertDescription>
+        <div className="mb-4">
+          <Banner variant="error" title="Last export failed">
             {config.lastError}
             {config.lastErrorAt && (
               <>
                 <br />
-                <span className="text-xs opacity-70">
-                  {new Date(config.lastErrorAt).toLocaleString()}
-                </span>
+                {new Date(config.lastErrorAt).toLocaleString()}
               </>
             )}
-          </AlertDescription>
-        </Alert>
+          </Banner>
+        </div>
       )}
       <Card className="p-3">
         <div className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1 text-sm">

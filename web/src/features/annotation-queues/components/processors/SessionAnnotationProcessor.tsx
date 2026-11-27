@@ -1,25 +1,40 @@
 import {
   type AnnotationQueueItem,
   type ScoreConfigDomain,
+  type SessionViewConfig,
 } from "@langfuse/shared";
+import type { AnnotationCommentFlush } from "@/src/features/scores/types";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
-import { SessionIO } from "@/src/components/session";
-import { LazyTraceEventsRow } from "@/src/components/session/TraceEventsRow";
-import { asCommentCounts } from "@/src/components/session/sessionDetailPageTypes";
+import { SessionIO } from "@/src/features/sessions/SessionPages";
+import { LazyTraceEventsRow } from "@/src/features/sessions/TraceEventsRow";
+import {
+  asCommentCounts,
+  type EventSessionTrace,
+} from "@/src/features/sessions/sessionDetailPageTypes";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
+import { Button as DsButton } from "@/src/components/design-system/Button/Button";
+import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { CopyIdsPopover } from "@/src/components/trace/components/_shared/CopyIdsPopover";
-import { Badge } from "@/src/components/ui/badge";
+import { CopyIdsPopover } from "@/src/features/traces/components/CopyIdsPopover";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Separator } from "@/src/components/ui/separator";
 import Link from "next/link";
 import { Card } from "@/src/components/ui/card";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { api } from "@/src/utils/api";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { getNumberFromMap } from "@/src/utils/map-utils";
+import { MessageSquare, MessageSquareOff } from "@langfuse/icons";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { ConnectedSessionOutputCorrectionsDialog } from "./components/ConnectedSessionOutputCorrectionsDialog/ConnectedSessionOutputCorrectionsDialog";
+import { ConnectedSessionListBody } from "@/src/features/sessions/ConnectedSessionListBody";
+import { SessionDetailStoreProvider } from "@/src/features/sessions/SessionDetailStoreProvider";
+import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailStore";
 
 type SessionAnnotationQueueItem = AnnotationQueueItem & {
   parentTraceId?: string | null;
@@ -31,6 +46,8 @@ interface SessionAnnotationProcessorProps {
   data: any; // // Session data with scores
   configs: ScoreConfigDomain[];
   projectId: string;
+  commentFlushRef?: React.Ref<AnnotationCommentFlush>;
+  sessionViewConfig?: SessionViewConfig | null;
 }
 
 // some projects have thousands of traces in a session, paginate to avoid rendering all at once
@@ -41,24 +58,51 @@ const EMPTY_FILTER_STATE: [] = [];
 
 export const SessionAnnotationProcessor: React.FC<
   SessionAnnotationProcessorProps
-> = ({ item, data, configs, projectId }) => {
+> = ({
+  item,
+  data,
+  configs,
+  projectId,
+  commentFlushRef,
+  sessionViewConfig,
+}) => {
+  const [sessionDetailStore] = useState(() =>
+    createSessionDetailStore({
+      initialSessionId: item.objectId,
+      initialShowCorrections: true,
+    }),
+  );
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
-  const { isBetaEnabled } = useV4Beta();
+  const handleLoadMoreTraces = () => {
+    setVisibleTraces((prev) => prev + PAGE_SIZE);
+  };
+  const { isV4 } = useReadPath();
+  const isSessionTimelineEnabled = useIsFeatureEnabled(
+    "sessionViewV2Timeline",
+    {
+      projectId,
+    },
+  );
+  const sessionFilters = sessionViewConfig?.filters ?? EMPTY_FILTER_STATE;
+  const traceListFilters =
+    isV4 && isSessionTimelineEnabled
+      ? sessionFilters.filter((filter) => {
+          if (filter.column === "traceName") return true;
+          return sessionViewConfig?.unmatchedTraces === "hide";
+        })
+      : EMPTY_FILTER_STATE;
 
   // Fetch traces separately when v4 beta is enabled (events table path)
   // The byIdWithScoresFromEvents endpoint doesn't include traces array
   const tracesFromEventsQuery = api.sessions.tracesFromEvents.useQuery(
-    { projectId, sessionId: item.objectId },
     {
-      enabled: isBetaEnabled,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      projectId,
+      sessionId: item.objectId,
+      filter: traceListFilters.length > 0 ? traceListFilters : undefined,
+    },
+    {
+      enabled: isV4,
+      retry: shouldRetryResourceQuery,
     },
   );
 
@@ -68,7 +112,7 @@ export const SessionAnnotationProcessor: React.FC<
         projectId,
         sessionId: item.objectId,
       },
-      { enabled: isBetaEnabled },
+      { enabled: isV4 },
     );
 
   const sessionCommentCounts = api.comments.getCountByObjectId.useQuery({
@@ -81,24 +125,24 @@ export const SessionAnnotationProcessor: React.FC<
   // - v4 beta OFF: traces come from data.traces (byIdWithScores endpoint)
   // - v4 beta ON: traces come from separate tracesFromEvents query
   const traces = useMemo(() => {
-    if (isBetaEnabled) {
+    if (isV4) {
       return tracesFromEventsQuery.data ?? [];
     }
     return data?.traces ?? [];
-  }, [isBetaEnabled, tracesFromEventsQuery.data, data?.traces]);
+  }, [isV4, tracesFromEventsQuery.data, data?.traces]);
 
   // For the "Total traces" badge, show countTraces from session metadata when available (v4),
   // or fall back to loaded traces length
   const totalTracesForBadge = useMemo(() => {
-    if (isBetaEnabled) {
+    if (isV4) {
       return data?.countTraces ?? traces.length;
     }
     return traces.length;
-  }, [isBetaEnabled, data?.countTraces, traces.length]);
+  }, [isV4, data?.countTraces, traces.length]);
 
   // Stable callback to avoid creating new function reference on every render (defeats React.memo)
   const openPeek = useCallback(
-    (traceId: string, row?: { observationId?: string }) => {
+    (traceId: string, row?: { id?: string; observationId?: string }) => {
       // observationId: a truncated observation's "Open in trace view" deep-links
       // to that observation (LFE-10958).
       const observationParam = row?.observationId
@@ -132,23 +176,62 @@ export const SessionAnnotationProcessor: React.FC<
               idItems={[{ id: item.objectId, name: "Session ID" }]}
             />
           </div>
-          <CommentDrawerButton
+          <CommentDrawerController
             projectId={projectId}
-            variant="outline"
-            objectId={item.objectId}
-            objectType="SESSION"
             count={getNumberFromMap(sessionCommentCounts.data, item.objectId)}
-          />
+          >
+            {({ disabled, openDrawer }) => (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={disabled}
+                onClick={() =>
+                  openDrawer({
+                    type: "comments",
+                    objectId: item.objectId,
+                    objectType: "SESSION",
+                  })
+                }
+                className="gap-1"
+              >
+                {disabled ? (
+                  <MessageSquareOff size="base" color="muted" />
+                ) : (
+                  <>
+                    <MessageSquare size="base" color="default" />
+                    <span>Add comment</span>
+                    {getNumberFromMap(
+                      sessionCommentCounts.data,
+                      item.objectId,
+                    ) ? (
+                      <ActionButtonCountBadge
+                        count={
+                          getNumberFromMap(
+                            sessionCommentCounts.data,
+                            item.objectId,
+                          ) ?? 0
+                        }
+                      />
+                    ) : null}
+                  </>
+                )}
+              </Button>
+            )}
+          </CommentDrawerController>
         </div>
         <div className="mt-2 mb-4 grid w-full min-w-0 items-center justify-between px-4">
           <div className="flex max-w-full min-w-0 shrink flex-col">
             <div className="flex max-w-full min-w-0 flex-wrap items-center gap-1">
               {data?.environment && (
-                <Badge variant="tertiary">Env: {data.environment}</Badge>
+                <Badge color="filled" text={`Env: ${data.environment}`} />
               )}
-              <Badge variant="outline">
-                Total traces: {totalTracesForBadge}
-              </Badge>
+              <Badge
+                color="outline"
+                text={`Total traces: ${totalTracesForBadge}`}
+              />
+              {isV4 && isSessionTimelineEnabled && sessionViewConfig && (
+                <Badge color="outline" text="Custom session view" />
+              )}
             </div>
           </div>
         </div>
@@ -156,96 +239,181 @@ export const SessionAnnotationProcessor: React.FC<
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-4">
-          {/* Loading state for v4 beta traces */}
-          {isBetaEnabled && tracesFromEventsQuery.isLoading && (
-            <div className="space-y-4">
-              {Array.from({ length: 3 }).map((_, i) => (
+      {isV4 && isSessionTimelineEnabled && !tracesFromEventsQuery.isError ? (
+        <DialogController<EventSessionTrace>
+          key={`${projectId}:${item.objectId}`}
+          renderDialog={({ state, isOpen }) => (
+            <ConnectedSessionOutputCorrectionsDialog
+              projectId={projectId}
+              sessionId={item.objectId}
+              trace={state}
+              isOpen={isOpen}
+            />
+          )}
+        >
+          {({ openDialog }) => (
+            <CommentDrawerController
+              projectId={projectId}
+              count={Array.from(traceCommentCounts.data?.values() ?? []).reduce(
+                (sum, count) => sum + count,
+                0,
+              )}
+            >
+              {({ disabled, openDrawer }) =>
+                sessionViewConfig?.viewMode === "list" ? (
+                  <SessionDetailStoreProvider store={sessionDetailStore}>
+                    <ConnectedSessionListBody
+                      key={`${projectId}:${item.objectId}`}
+                      projectId={projectId}
+                      sessionId={item.objectId}
+                      sessionMinTimestamp={data.minTimestamp}
+                      sessionMaxTimestamp={data.maxTimestamp}
+                      tracesState={
+                        tracesFromEventsQuery.isSuccess
+                          ? {
+                              type: "loaded",
+                              traces: tracesFromEventsQuery.data,
+                            }
+                          : { type: "loading" }
+                      }
+                      openPeek={openPeek}
+                      traceCommentCounts={traceCommentCounts.data}
+                      filterState={sessionFilters.filter(
+                        (filter) => filter.column !== "traceName",
+                      )}
+                      filterMeasurementKey={JSON.stringify(sessionFilters)}
+                      viewLabel={null}
+                      onCustomizeView={null}
+                      showInlineToolCalls
+                      showSystemPrompt
+                      activeFilterCount={sessionFilters.length}
+                    />
+                  </SessionDetailStoreProvider>
+                ) : (
+                  <ConnectedModernSessionBodyTimeline
+                    sidebarMode="collapsible"
+                    filterState={sessionFilters}
+                    key={`${projectId}:${item.objectId}`}
+                    projectId={projectId}
+                    sessionId={item.objectId}
+                    tracesState={
+                      tracesFromEventsQuery.isSuccess
+                        ? { type: "loaded", traces: tracesFromEventsQuery.data }
+                        : { type: "loading" }
+                    }
+                    openPeek={openPeek}
+                    annotationActions={{
+                      commentCounts: asCommentCounts(traceCommentCounts.data),
+                      commentsDisabled: disabled,
+                      onOpenComments: (traceId) =>
+                        openDrawer({
+                          type: "comments",
+                          objectId: traceId,
+                          objectType: "TRACE",
+                        }),
+                      onOpenCorrections: openDialog,
+                    }}
+                  />
+                )
+              }
+            </CommentDrawerController>
+          )}
+        </DialogController>
+      ) : (
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-4">
+            {/* Loading state for v4 beta traces */}
+            {isV4 && tracesFromEventsQuery.isLoading && (
+              <div className="space-y-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Card
+                    key={i}
+                    className="border-border mb-2 grid gap-2 p-2 shadow-none"
+                  >
+                    <JsonSkeleton
+                      className="h-full w-full overflow-hidden"
+                      numRows={4}
+                    />
+                  </Card>
+                ))}
+              </div>
+            )}
+            {/* Error state for v4 beta traces */}
+            {isV4 && tracesFromEventsQuery.isError && (
+              <div className="text-destructive p-2 text-sm">
+                Failed to load traces for this session.
+              </div>
+            )}
+            {/* Trace list - v4 path uses LazyTraceEventsRow for deferred loading */}
+            {isV4 &&
+              tracesFromEventsQuery.isSuccess &&
+              traces
+                .slice(0, visibleTraces)
+                .map((trace: any, index: number) => (
+                  <LazyTraceEventsRow
+                    key={trace.id}
+                    trace={trace}
+                    projectId={projectId}
+                    sessionId={item.objectId}
+                    openPeek={openPeek}
+                    traceCommentCounts={asCommentCounts(
+                      traceCommentCounts.data,
+                    )}
+                    showCorrections
+                    filterState={EMPTY_FILTER_STATE}
+                    viewLabel={null}
+                    hideTracePanel
+                    index={index}
+                  />
+                ))}
+            {/* Trace list - v3 path uses SessionIO */}
+            {!isV4 &&
+              traces.slice(0, visibleTraces).map((trace: any) => (
                 <Card
-                  key={i}
-                  className="border-border mb-2 grid gap-2 p-2 shadow-none"
+                  className="border-border hover:border-ring group mb-2 grid gap-2 p-2 shadow-none"
+                  key={trace.id}
                 >
-                  <JsonSkeleton
-                    className="h-full w-full overflow-hidden"
-                    numRows={4}
+                  <div className="-mt-1 p-1 pt-0 opacity-50 transition-opacity group-hover:opacity-100">
+                    <Link
+                      href={`/project/${projectId}/traces/${trace.id}`}
+                      className="text-xs hover:underline"
+                    >
+                      Trace: {trace.name} ({trace.id})&nbsp;↗
+                    </Link>
+                    <div className="text-muted-foreground text-xs">
+                      {trace.timestamp.toLocaleString()}
+                    </div>
+                  </div>
+                  <SessionIO
+                    traceId={trace.id}
+                    projectId={projectId}
+                    timestamp={trace.timestamp}
+                    environment={trace.environment}
+                    showCorrections
                   />
                 </Card>
               ))}
-            </div>
-          )}
-          {/* Error state for v4 beta traces */}
-          {isBetaEnabled && tracesFromEventsQuery.isError && (
-            <div className="text-destructive p-2 text-sm">
-              Failed to load traces for this session.
-            </div>
-          )}
-          {/* Trace list - v4 path uses LazyTraceEventsRow for deferred loading */}
-          {isBetaEnabled &&
-            tracesFromEventsQuery.isSuccess &&
-            traces
-              .slice(0, visibleTraces)
-              .map((trace: any, index: number) => (
-                <LazyTraceEventsRow
-                  key={trace.id}
-                  trace={trace}
-                  projectId={projectId}
-                  sessionId={item.objectId}
-                  openPeek={openPeek}
-                  traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
-                  showCorrections
-                  filterState={EMPTY_FILTER_STATE}
-                  viewLabel={null}
-                  hideTracePanel
-                  index={index}
-                />
-              ))}
-          {/* Trace list - v3 path uses SessionIO */}
-          {!isBetaEnabled &&
-            traces.slice(0, visibleTraces).map((trace: any) => (
-              <Card
-                className="border-border hover:border-ring group mb-2 grid gap-2 p-2 shadow-none"
-                key={trace.id}
-              >
-                <div className="-mt-1 p-1 pt-0 opacity-50 transition-opacity group-hover:opacity-100">
-                  <Link
-                    href={`/project/${projectId}/traces/${trace.id}`}
-                    className="text-xs hover:underline"
-                  >
-                    Trace: {trace.name} ({trace.id})&nbsp;↗
-                  </Link>
-                  <div className="text-muted-foreground text-xs">
-                    {trace.timestamp.toLocaleString()}
-                  </div>
+            {(!isV4 || tracesFromEventsQuery.isSuccess) &&
+              traces.length > visibleTraces && (
+                <div className="flex justify-center py-4">
+                  <DsButton
+                    variant="text"
+                    size="sm"
+                    text={`Load ${Math.min(traces.length - visibleTraces, PAGE_SIZE)} More`}
+                    onClick={handleLoadMoreTraces}
+                  />
                 </div>
-                <SessionIO
-                  traceId={trace.id}
-                  projectId={projectId}
-                  timestamp={trace.timestamp}
-                  environment={trace.environment}
-                  showCorrections
-                />
-              </Card>
-            ))}
-          {(!isBetaEnabled || tracesFromEventsQuery.isSuccess) &&
-            traces.length > visibleTraces && (
-              <div className="flex justify-center py-4">
-                <Button
-                  onClick={() => setVisibleTraces((prev) => prev + PAGE_SIZE)}
-                  variant="ghost"
-                >
-                  {`Load ${Math.min(traces.length - visibleTraces, PAGE_SIZE)} More`}
-                </Button>
-              </div>
-            )}
+              )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 
   const rightPanel = (
     <AnnotationDrawerSection
       item={item}
+      isV4={isV4}
       scoreTarget={{
         type: "session",
         sessionId: item.objectId,
@@ -253,6 +421,7 @@ export const SessionAnnotationProcessor: React.FC<
       scores={data?.scores ?? []}
       configs={configs}
       environment={data?.environment}
+      commentFlushRef={commentFlushRef}
     />
   );
 

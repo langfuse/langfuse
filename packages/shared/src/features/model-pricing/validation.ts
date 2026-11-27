@@ -38,32 +38,47 @@ export function validateRegexPattern(pattern: string): void {
   }
 }
 
-/**
- * Pricing tier condition schema (shared across API and tRPC)
- */
-export const PricingTierConditionSchema = z.object({
-  usageDetailPattern: z
-    .string()
-    .min(1, "Pattern cannot be empty")
-    .max(200, "Pattern exceeds maximum length of 200 characters")
-    .refine(
-      (pattern) => {
-        try {
-          validateRegexPattern(pattern);
-          return true;
-        } catch {
-          return false;
-        }
-      },
-      {
-        message:
-          "Invalid regex pattern: must be valid regex and not cause catastrophic backtracking",
-      },
-    ),
+const UsageDetailPatternSchema = z
+  .string()
+  .min(1, "Pattern cannot be empty")
+  .max(200, "Pattern exceeds maximum length of 200 characters")
+  .refine(
+    (pattern) => {
+      try {
+        validateRegexPattern(pattern);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    {
+      message:
+        "Invalid regex pattern: must be valid regex and not cause catastrophic backtracking",
+    },
+  );
+
+export const PricingTierUsageConditionSchema = z.object({
+  usageDetailPattern: UsageDetailPatternSchema,
   operator: z.enum(["gt", "gte", "lt", "lte", "eq", "neq"]),
   value: z.number().nonnegative(),
   caseSensitive: z.boolean().default(false),
 });
+
+export const PricingTierAttributeConditionSchema = z.object({
+  source: z.enum(["model_parameters", "metadata"]),
+  key: z.string().min(1, "Key cannot be empty").max(200),
+  operator: z.literal("in"),
+  values: z.array(z.string().min(1, "Value cannot be empty")).min(1),
+});
+
+/**
+ * Pricing-specific condition union. Usage conditions preserve their established
+ * persisted shape; observation attributes use an explicit exact-match shape.
+ */
+export const PricingTierConditionSchema = z.union([
+  PricingTierUsageConditionSchema,
+  PricingTierAttributeConditionSchema,
+]);
 
 export type PricingTierCondition = z.infer<typeof PricingTierConditionSchema>;
 
@@ -72,8 +87,11 @@ export type PricingTierCondition = z.infer<typeof PricingTierConditionSchema>;
  * Used when creating new tiers via API or tRPC
  */
 export const PricingTierInputSchema = z.object({
+  // Trimmed before every later check, so a name differing only by whitespace
+  // cannot pass uniqueness and then render as an identical label.
   name: z
     .string()
+    .trim()
     .min(1, "Name cannot be empty")
     .max(100, "Name exceeds maximum length of 100 characters"),
   isDefault: z.boolean().default(false),
@@ -90,6 +108,35 @@ export const PricingTierInputSchema = z.object({
 });
 
 export type PricingTierInput = z.infer<typeof PricingTierInputSchema>;
+
+/**
+ * Indexes of entries whose name repeats an earlier one, with that name. The
+ * first occurrence is not reported — it is the later one that is the duplicate.
+ *
+ * Shared with the model form so a duplicate means the same thing in the UI and
+ * at the API boundary; the form needs the index to anchor a field error, the
+ * API only needs to know that one exists.
+ */
+export function duplicateNameIndexes(
+  entries: { name: string }[],
+): [number, string][] {
+  const seen = new Set<string>();
+  const duplicates: [number, string][] = [];
+  entries.forEach((entry, index) => {
+    if (seen.has(entry.name)) duplicates.push([index, entry.name]);
+    seen.add(entry.name);
+  });
+  return duplicates;
+}
+
+/** Indexes of non-default tiers with no condition, which can never match. */
+export function tiersMissingConditions(
+  tiers: { isDefault?: boolean; conditions: unknown[] }[],
+): number[] {
+  return tiers.flatMap((tier, index) =>
+    !tier.isDefault && tier.conditions.length === 0 ? [index] : [],
+  );
+}
 
 /**
  * Validates an array of pricing tiers
@@ -139,13 +186,12 @@ export function validatePricingTiers(
   }
 
   // Validate non-default tiers have at least 1 condition
-  for (const tier of tiers) {
-    if (!tier.isDefault && tier.conditions.length === 0) {
-      return {
-        valid: false,
-        error: `Non-default pricing tier "${tier.name}" must have at least one condition`,
-      };
-    }
+  const missingConditions = tiersMissingConditions(tiers);
+  if (missingConditions.length > 0) {
+    return {
+      valid: false,
+      error: `Non-default pricing tier "${tiers[missingConditions[0]].name}" must have at least one condition`,
+    };
   }
 
   // Check for unique priorities
@@ -159,17 +205,19 @@ export function validatePricingTiers(
   }
 
   // Check for unique names
-  const names = tiers.map((t) => t.name);
-  const uniqueNames = new Set(names);
-  if (names.length !== uniqueNames.size) {
+  if (duplicateNameIndexes(tiers).length > 0) {
     return { valid: false, error: "Pricing tier names must be unique" };
   }
 
-  // Validate all conditions have valid regex patterns
+  // Validate all usage-detail conditions have valid regex patterns
   for (const tier of tiers) {
     for (const condition of tier.conditions) {
+      const pattern =
+        "usageDetailPattern" in condition ? condition.usageDetailPattern : null;
+      if (pattern === null) continue;
+
       try {
-        validateRegexPattern(condition.usageDetailPattern);
+        validateRegexPattern(pattern);
       } catch (error) {
         return {
           valid: false,

@@ -1,15 +1,24 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
-import type {
-  DeleteModelV1Query,
-  GetModelV1Query,
-  GetModelsV1Query,
-  PostModelsV1Body,
+import {
+  type DeleteModelV1Query,
+  type GetModelV1Query,
+  type GetModelsV1Query,
+  type PostModelsV1Body,
+  prismaToApiModelDefinition,
 } from "@/src/features/public-api/types/models";
-import { prismaToApiModelDefinition } from "@/src/features/public-api/types/models";
-import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
+
+import {
+  ForbiddenError,
+  InvalidRequestError,
+  LangfuseNotFoundError,
+  ModelScope,
+} from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
-import { clearModelCacheForProject } from "@langfuse/shared/src/server";
+import {
+  clearModelCacheForProject,
+  visibleModelsWhere,
+} from "@langfuse/shared/src/server";
 import type { z } from "zod";
 
 const modelPricingInclude = {
@@ -51,11 +60,115 @@ type CreateModelInput = {
   auditScope: ModelAuditScope;
 };
 
+type UpsertModelInput = z.infer<typeof GetModelV1Query> & {
+  projectId: string;
+  input: z.infer<typeof PostModelsV1Body>;
+  auditScope: ModelAuditScope;
+};
+
 type DeleteModelInput = z.infer<typeof DeleteModelV1Query> & ModelAuditScope;
 
-const visibleModelsWhere = (projectId: string) => ({
-  OR: [{ projectId }, { projectId: null }],
-});
+const ORGANIZATION_MODEL_READ_ONLY_MESSAGE =
+  "This model is defined by the organization and cannot be changed through a project. Change it with the organization models API, or create a project model with the same modelName to override it.";
+
+const assertNotOwnOrganizationModel = async ({
+  tx,
+  projectId,
+  modelId,
+}: {
+  tx: Prisma.TransactionClient;
+  projectId: string;
+  modelId: string;
+}) => {
+  const organizationModel = await tx.model.findFirst({
+    where: {
+      AND: [
+        { id: modelId, scope: ModelScope.ORGANIZATION },
+        visibleModelsWhere(projectId),
+      ],
+    },
+    select: { id: true },
+  });
+
+  if (organizationModel) {
+    throw new ForbiddenError(ORGANIZATION_MODEL_READ_ONLY_MESSAGE);
+  }
+};
+
+const createModelPricing = async ({
+  tx,
+  model,
+  input,
+}: {
+  tx: Prisma.TransactionClient;
+  model: { id: string; projectId: string | null };
+  input: z.infer<typeof PostModelsV1Body>;
+}) => {
+  const tierData = input.pricingTiers;
+
+  if (tierData && tierData.length > 0) {
+    for (const tier of tierData) {
+      const createdTier = await tx.pricingTier.create({
+        data: {
+          modelId: model.id,
+          name: tier.name,
+          isDefault: tier.isDefault,
+          priority: tier.priority,
+          conditions: tier.conditions,
+        },
+      });
+
+      await Promise.all(
+        Object.entries(tier.prices).map(([usageType, price]) =>
+          tx.price.create({
+            data: {
+              modelId: model.id,
+              projectId: model.projectId,
+              pricingTierId: createdTier.id,
+              usageType,
+              price: new Prisma.Decimal(price),
+            },
+          }),
+        ),
+      );
+    }
+
+    return;
+  }
+
+  const defaultTier = await tx.pricingTier.create({
+    data: {
+      id: `${model.id}_tier_default`,
+      modelId: model.id,
+      name: "Standard",
+      isDefault: true,
+      priority: 0,
+      conditions: [],
+    },
+  });
+
+  const prices = [
+    { usageType: "input", price: input.inputPrice },
+    { usageType: "output", price: input.outputPrice },
+    { usageType: "total", price: input.totalPrice },
+  ];
+
+  await Promise.all(
+    prices.map(async ({ usageType, price }) => {
+      if (price == null) return;
+
+      await tx.price.create({
+        data: {
+          modelId: model.id,
+          projectId: model.projectId,
+          pricingTierId: defaultTier.id,
+          usageType,
+          price: new Prisma.Decimal(price),
+        },
+      });
+    }),
+  );
+};
 
 export const listModelsForApi = async ({
   projectId,
@@ -122,7 +235,7 @@ export const createModelForApi = async ({
     );
   }
 
-  const { tokenizerConfig, pricingTiers: tierData, ...rest } = input;
+  const { tokenizerConfig, pricingTiers: _pricingTiers, ...rest } = input;
 
   const model = await prisma.$transaction(async (tx) => {
     const existingModelName = await tx.model.findFirst({
@@ -143,76 +256,12 @@ export const createModelForApi = async ({
       data: {
         ...rest,
         tokenizerConfig: tokenizerConfig ?? undefined,
+        scope: ModelScope.PROJECT,
         projectId,
       },
     });
 
-    // 2. Handle pricing: flat prices OR pricing tiers
-    if (tierData && tierData.length > 0) {
-      // NEW: Create pricing tiers
-      for (const tier of tierData) {
-        // Create tier (Prisma generates CUID)
-        const createdTier = await tx.pricingTier.create({
-          data: {
-            modelId: createdModel.id,
-            name: tier.name,
-            isDefault: tier.isDefault,
-            priority: tier.priority,
-            conditions: tier.conditions,
-          },
-        });
-
-        // Create prices for this tier
-        await Promise.all(
-          Object.entries(tier.prices).map(([usageType, price]) =>
-            tx.price.create({
-              data: {
-                modelId: createdModel.id,
-                projectId: createdModel.projectId,
-                pricingTierId: createdTier.id,
-                usageType,
-                price: new Prisma.Decimal(price),
-              },
-            }),
-          ),
-        );
-      }
-    } else {
-      // BACKWARD COMPATIBLE: Create default tier from flat prices
-      const defaultTierId = `${createdModel.id}_tier_default`;
-      const defaultTier = await tx.pricingTier.create({
-        data: {
-          id: defaultTierId,
-          modelId: createdModel.id,
-          name: "Standard",
-          isDefault: true,
-          priority: 0,
-          conditions: [],
-        },
-      });
-
-      const prices = [
-        { usageType: "input", price: input.inputPrice },
-        { usageType: "output", price: input.outputPrice },
-        { usageType: "total", price: input.totalPrice },
-      ];
-
-      await Promise.all(
-        prices
-          .filter(({ price }) => price != null)
-          .map(({ usageType, price }) =>
-            tx.price.create({
-              data: {
-                modelId: createdModel.id,
-                projectId: createdModel.projectId,
-                pricingTierId: defaultTier.id,
-                usageType,
-                price: new Prisma.Decimal(price as number), // type guard checked in array filter
-              },
-            }),
-          ),
-      );
-    }
+    await createModelPricing({ tx, model: createdModel, input });
 
     await auditLog({
       action: "create",
@@ -243,6 +292,100 @@ export const createModelForApi = async ({
   return prismaToApiModelDefinition(modelWithTiers);
 };
 
+export const upsertModelForApi = async ({
+  projectId,
+  modelId,
+  input,
+  auditScope,
+}: UpsertModelInput) => {
+  const validRegex = await isValidPostgresRegex(input.matchPattern, prisma);
+  if (!validRegex) {
+    throw new InvalidRequestError(
+      "matchPattern is not a valid regex pattern (Postgres)",
+    );
+  }
+
+  const modelWithTiers = await prisma.$transaction(async (tx) => {
+    const existingModel = await tx.model.findUnique({
+      where: { id: modelId },
+      include: modelPricingInclude,
+    });
+
+    if (existingModel && existingModel.projectId !== projectId) {
+      await assertNotOwnOrganizationModel({ tx, projectId, modelId });
+      throw new LangfuseNotFoundError("No model with this id found.");
+    }
+
+    const duplicateModelName = await tx.model.findFirst({
+      where: {
+        projectId,
+        modelName: input.modelName,
+        NOT: { id: modelId },
+      },
+    });
+
+    if (duplicateModelName) {
+      throw new InvalidRequestError(
+        `Model name '${input.modelName}' already exists in project`,
+      );
+    }
+
+    const modelData = {
+      modelName: input.modelName,
+      matchPattern: input.matchPattern,
+      startDate: input.startDate ?? null,
+      inputPrice: input.inputPrice ?? null,
+      outputPrice: input.outputPrice ?? null,
+      totalPrice: input.totalPrice ?? null,
+      unit: input.unit,
+      tokenizerId: input.tokenizerId ?? null,
+      tokenizerConfig: input.tokenizerConfig ?? Prisma.DbNull,
+    };
+
+    const upsertedModel = await tx.model.upsert({
+      where: { id: modelId },
+      create: {
+        id: modelId,
+        scope: ModelScope.PROJECT,
+        projectId,
+        ...modelData,
+      },
+      update: modelData,
+    });
+
+    await tx.pricingTier.deleteMany({
+      where: { modelId: upsertedModel.id },
+    });
+    await createModelPricing({ tx, model: upsertedModel, input });
+
+    const upsertedModelWithTiers = await tx.model.findUnique({
+      where: { id: upsertedModel.id, projectId },
+      include: modelPricingInclude,
+    });
+
+    if (!upsertedModelWithTiers) {
+      throw new InvalidRequestError("Failed to fetch upserted model");
+    }
+
+    await auditLog({
+      action: existingModel ? "update" : "create",
+      resourceType: "model",
+      resourceId: upsertedModel.id,
+      projectId: auditScope.projectId,
+      orgId: auditScope.orgId,
+      apiKeyId: auditScope.apiKeyId,
+      before: existingModel ?? undefined,
+      after: upsertedModelWithTiers,
+    });
+
+    return upsertedModelWithTiers;
+  });
+
+  await clearModelCacheForProject(projectId);
+
+  return prismaToApiModelDefinition(modelWithTiers);
+};
+
 export const deleteModelForApi = async ({
   projectId,
   orgId,
@@ -257,6 +400,7 @@ export const deleteModelForApi = async ({
   });
 
   if (!model) {
+    await assertNotOwnOrganizationModel({ tx: prisma, projectId, modelId });
     throw new LangfuseNotFoundError(
       "No model with this id found. Note: You cannot delete built-in models, override them with a model with the same name.",
     );

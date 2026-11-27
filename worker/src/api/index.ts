@@ -1,18 +1,24 @@
 import express from "express";
 import { traceException } from "@langfuse/shared/src/server";
 
+import { hello } from "@langfuse/native";
 import { checkContainerHealth } from "../features/health";
 import { logger } from "@langfuse/shared/src/server";
 const router = express.Router();
 
 router.get<{}, { status: string }>("/health", async (req, res) => {
   try {
+    // Exercise the Rust addon on every probe so a worker whose native module
+    // stopped working is reported unhealthy, and its metric keeps a heartbeat.
+    hello("health");
     await checkContainerHealth(res, {
       failOnSigterm: false,
       failIfEventPropagationStuck:
         req.query.failIfEventPropagationStuck === "true",
       failIfQueueConsumptionStuck:
         req.query.failIfQueueConsumptionStuck === "true",
+      skipPostgresCheck: req.query.skipPostgresCheck === "true",
+      skipRedisCheck: req.query.skipRedisCheck === "true",
     });
   } catch (e) {
     traceException(e);

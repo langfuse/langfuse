@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import {
+  compactNumberFormatter,
   latencyFormatter,
   numberFormatter,
   usdFormatter,
@@ -54,7 +55,7 @@ export const OUTLIER_STRIP_STEP_LADDER_SECONDS = [
  * excluded on purpose. Finer sub-minute steps need a backend addition —
  * tracked as a follow-up to LFE-14451.
  */
-export const OUTLIER_STRIP_GRANULARITIES = [
+const OUTLIER_STRIP_GRANULARITIES = [
   { granularity: "minute", stepSeconds: 60 },
   { granularity: "5m", stepSeconds: 300 },
   { granularity: "10m", stepSeconds: 600 },
@@ -78,6 +79,12 @@ const MAX_STRIP_BUCKETS = 2000;
 const MAX_DENSE_BINS = 4000;
 /** Minimum horizontal pixels between gridline ticks / labels. */
 const TICK_MIN_SPACING_PX = 110;
+/** 9px sans, generous per-glyph width so we end-anchor before the svg clips. */
+const TICK_LABEL_PX_PER_CHAR = 6;
+/** Left inset for a start-anchored tick (matches the visualiser). */
+const TICK_LABEL_START_INSET_PX = 3;
+/** Right inset for an end-anchored tick so the last glyph isn't flush-clipped. */
+const TICK_LABEL_END_INSET_PX = 4;
 
 /**
  * Picks the finest granularity preset that fits the range into the available
@@ -109,8 +116,8 @@ export function pickChartGranularity(params: {
 // ---------------------------------------------------------------------------
 
 export type OutlierStripMetricKey = "count" | "cost" | "latency";
-export type OutlierStripLatencyAgg = "p95" | "p50";
-export type OutlierStripCostAgg = "sum";
+type OutlierStripLatencyAgg = "p95" | "p50";
+type OutlierStripCostAgg = "sum";
 export type OutlierStripAggKey =
   | "count"
   | OutlierStripLatencyAgg
@@ -132,6 +139,8 @@ export type OutlierStripMetricDef = {
   /** Raw result value → plotted unit (e.g. latency ms → s). */
   fromRaw: (raw: number) => number;
   format: (value: number) => string;
+  /** Y-axis tick label; defaults to `format`. */
+  formatTick?: (value: number) => string;
   /** Ascending "nice" y-tick values in the plotted unit. Metrics without a
    * ladder (plain numbers like cost) tick on 1-2-5 decades; durations need
    * time-native steps so ticks read "1m", not "1m 40s" (100). */
@@ -152,6 +161,16 @@ const COMPOUND_DURATION_UNITS = [
   { label: "s", ms: 1_000 },
 ] as const;
 
+/** Adaptive USD fraction digits for outlier-strip cost labels and tooltips. */
+const usdMaxFractionDigits = (value: number): number => {
+  if (value < 1e-9) return 12;
+  if (value < 1e-6) return 9;
+  if (value < 0.001) return 6;
+  if (value < 0.1) return 4;
+  return 2;
+};
+
+/** @internal */
 export const formatCompoundDuration = (ms: number): string => {
   // Threshold on the SECOND-ROUNDED value: 59,998ms must take the compound
   // path ("1m") — the single-unit formatter's own rounding would print
@@ -191,6 +210,7 @@ export const OUTLIER_STRIP_METRICS: Record<
     aggregations: [{ key: "count", queryAggregation: "count" }],
     fromRaw: (raw) => raw,
     format: (value) => numberFormatter(value, 0),
+    formatTick: (value) => compactNumberFormatter(value, 1),
   },
   cost: {
     shortLabel: "Cost",
@@ -202,20 +222,7 @@ export const OUTLIER_STRIP_METRICS: Record<
     // values the precision they need ("$0.0042"). Deeper tiers keep
     // micro-dollar Y TICKS honest — a 6-digit cap would label a 2e-7
     // gridline "$0".
-    format: (value) =>
-      usdFormatter(
-        value,
-        0,
-        value < 1e-9
-          ? 12
-          : value < 1e-6
-            ? 9
-            : value < 0.001
-              ? 6
-              : value < 0.1
-                ? 4
-                : 2,
-      ),
+    format: (value) => usdFormatter(value, 0, usdMaxFractionDigits(value)),
   },
   latency: {
     shortLabel: "Latency",
@@ -254,7 +261,7 @@ export const outlierStripQueryMetrics = (): {
   );
 
 /** Resolves an aggregation option, falling back to the metric's default. */
-export const resolveAggregation = (
+const resolveAggregation = (
   metric: OutlierStripMetricKey,
   aggregation: string | undefined,
 ): AggregationDef => {
@@ -328,7 +335,31 @@ export type OutlierStripDenseBin = {
 };
 
 /** A prepared gridline tick: dense-bin index + presentation-ready label. */
-export type OutlierStripTick = { index: number; label: string };
+export type OutlierStripTick = {
+  index: number;
+  label: string;
+  /** SVG x of the label (already inset / end-flipped so it stays on-canvas). */
+  x: number;
+  /** `end` when a start-anchored label would overflow the plot's right edge. */
+  textAnchor: "start" | "end";
+};
+
+function layoutOutlierStripTick(params: {
+  index: number;
+  label: string;
+  slotPx: number;
+  widthPx: number;
+}): Pick<OutlierStripTick, "x" | "textAnchor"> {
+  const startX = params.index * params.slotPx + TICK_LABEL_START_INSET_PX;
+  const estimatedWidth = params.label.length * TICK_LABEL_PX_PER_CHAR;
+  if (startX + estimatedWidth > params.widthPx) {
+    return {
+      x: params.widthPx - TICK_LABEL_END_INSET_PX,
+      textAnchor: "end",
+    };
+  }
+  return { x: startX, textAnchor: "start" };
+}
 
 /** A bucket's tooltip time range, day-scale buckets without the time part. */
 export const formatBucketRange = (fromMs: number, stepMs: number): string => {
@@ -428,12 +459,19 @@ export function prepareOutlierSeries(params: {
     const tickStepMs = pickTickStepMs(stepMs, slotPx, TICK_MIN_SPACING_PX);
     for (let i = 1; i < dense.length; i++) {
       if ((dense[i].bucketStartMs - phase) % tickStepMs === 0) {
+        const label = format(
+          new Date(dense[i].bucketStartMs),
+          tickStepMs >= 86_400_000 ? "MMM d" : "HH:mm",
+        );
         ticks.push({
           index: i,
-          label: format(
-            new Date(dense[i].bucketStartMs),
-            tickStepMs >= 86_400_000 ? "MMM d" : "HH:mm",
-          ),
+          label,
+          ...layoutOutlierStripTick({
+            index: i,
+            label,
+            slotPx,
+            widthPx: params.widthPx,
+          }),
         });
       }
     }
@@ -529,7 +567,11 @@ export function prepareOutlierYTicks(params: {
     const offsetPx = toOffsetPx(value);
     if (offsetPx < Y_TICK_MIN_OFFSET_PX) break;
     if (lastOffsetPx - offsetPx < Y_TICK_MIN_SPACING_PX) continue;
-    ticks.push({ value, label: def.format(value), offsetPx });
+    ticks.push({
+      value,
+      label: (def.formatTick ?? def.format)(value),
+      offsetPx,
+    });
     if (ticks.length >= Y_TICK_MAX_COUNT) break;
     lastOffsetPx = offsetPx;
   }

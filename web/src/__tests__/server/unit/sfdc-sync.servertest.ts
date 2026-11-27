@@ -34,21 +34,27 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
           async (): Promise<{ sfdcOrgId: string | null } | null> => null,
         ),
         update: vi.fn(async () => ({})),
-        create: vi.fn(
-          async (): Promise<unknown> => ({
-            id: "org-new",
-            name: "New Org",
-            createdAt: new Date("2026-06-01T08:30:00.900Z"),
-          }),
-        ),
+        create: vi.fn(async (): Promise<unknown> => ({
+          id: "org-new",
+          name: "New Org",
+          createdAt: new Date("2026-06-01T08:30:00.900Z"),
+        })),
       },
       organizationMembership: {
         findFirst: vi.fn(async (): Promise<unknown> => null),
+        findUnique: vi.fn(async (): Promise<unknown> => null),
         findMany: vi.fn(async (): Promise<unknown[]> => []),
         count: vi.fn(async () => 1),
-        create: vi.fn(async (): Promise<unknown> => ({})),
+        create: vi.fn(async (args: { data: unknown }) => args.data),
         update: vi.fn(async (): Promise<unknown> => ({})),
         upsert: vi.fn(async (): Promise<unknown> => ({})),
+      },
+      sessionView: {
+        findMany: vi.fn(async (): Promise<unknown[]> => []),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
+      projectMembership: {
+        create: vi.fn(async (args: { data: unknown }) => args.data),
       },
       membershipInvitation: {
         findFirst: vi.fn(async (): Promise<unknown> => null),
@@ -57,10 +63,20 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
       },
       project: {
         findUnique: vi.fn(async (): Promise<unknown> => null),
+        findFirst: vi.fn(async (): Promise<unknown> => null),
         create: vi.fn(async (): Promise<unknown> => ({ id: "proj-new" })),
       },
       auditLog: {
         create: vi.fn(async () => ({})),
+      },
+      roleAssignment: {
+        create: vi.fn(async (args: { data: unknown }) => args.data),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
+      apiKey: {
+        findUnique: vi.fn(async (): Promise<unknown> => null),
+        findMany: vi.fn(async (): Promise<unknown[]> => []),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
       },
       // Starter-org provisioning serializes on SELECT ... FOR UPDATE.
       $queryRaw: vi.fn(async (): Promise<unknown> => []),
@@ -119,16 +135,20 @@ import {
   getSfdcService,
   resetSfdcServiceCacheForTests,
   toSfdcPlan,
-  syncOrgPlanChangeToSfdc,
-} from "@/src/ee/features/sfdc-sync/server";
+} from "@/src/ee/features/sfdc-sync/server/sfdcService";
+import { syncOrgPlanChangeToSfdc } from "@/src/ee/features/sfdc-sync/server/planChangeSync";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { handleUpdateMembership } from "@/src/ee/features/admin-api/server/memberships";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { CloudConfigSchema, Role } from "@langfuse/shared";
+import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
 import { type PrismaClient } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import type { Session } from "next-auth";
 import { type NextApiRequest, type NextApiResponse } from "next";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 // ---- Helpers ----
 
@@ -538,18 +558,16 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
   const PRO_PRODUCT = "prod_QhK7UMhrkVeF6R";
   const TEAM_PRODUCT = "prod_QhK9qKGH25BTcS";
 
-  // getOrganizationPlanServerSide reads process.env directly (not env.mjs),
-  // so the region must be stubbed on the real process env.
-  const originalRegion = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  // getOrganizationPlanServerSide reads the region from shared's env, not
+  // env.mjs.
+  const originalRegion = sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   beforeEach(() => {
-    process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
+    Object.assign(sharedEnv, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING" });
   });
   afterEach(() => {
-    if (originalRegion === undefined) {
-      delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    } else {
-      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
-    }
+    Object.assign(sharedEnv, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalRegion,
+    });
   });
 
   const orgBefore = (cloudConfig: unknown) => ({
@@ -617,6 +635,27 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
     expect(body).not.toHaveProperty("convertedToPaidAt");
   });
 
+  it("pushes Hobby when a paid org cancels during its enterprise trial — SFDC has no trial tier", async () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const enterpriseTrial = {
+      startedAt: new Date(Date.now() - DAY_MS).toISOString(),
+      endsAt: new Date(Date.now() + DAY_MS).toISOString(),
+    };
+    fetchMock.mockResolvedValueOnce(emptyOkResponse());
+    await syncOrgPlanChangeToSfdc({
+      orgBeforeUpdate: orgBefore({
+        ...stripeConfig(PRO_PRODUCT),
+        enterpriseTrial,
+      }),
+      updatedCloudConfig: { stripe: { customerId: "cus_1" }, enterpriseTrial },
+      billingCycleAnchor: null,
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.plan).toBe("Hobby");
+    expect(body).not.toHaveProperty("convertedToPaidAt");
+  });
+
   it("does NOT push when the resolved plan is unchanged (monthly invoice cycling)", async () => {
     await syncOrgPlanChangeToSfdc({
       orgBeforeUpdate: orgBefore(stripeConfig(PRO_PRODUCT)),
@@ -650,6 +689,158 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(loggerMock.error).toHaveBeenCalled();
   });
+
+  describe("member re-link for orgs that predate the live sync", () => {
+    const PRE_SYNC_SIGNUP_AT = new Date("2026-05-02T10:00:00.000Z");
+    const sentBodies = () =>
+      fetchMock.mock.calls.map(
+        ([, init]) =>
+          JSON.parse(init.body as string) as Record<string, unknown>,
+      );
+
+    beforeEach(() => {
+      fetchMock.mockImplementation(async () => emptyOkResponse());
+    });
+    afterEach(() => {
+      fetchMock.mockReset();
+    });
+
+    // The re-link runs in the background; its summary line marks the end.
+    const relinkFinished = (summary: Record<string, unknown>) =>
+      vi.waitFor(() =>
+        expect(loggerMock.info).toHaveBeenCalledWith(
+          "[SFDC] linked existing members after plan change",
+          expect.objectContaining(summary),
+        ),
+      );
+    const preSyncOwner = {
+      userId: "owner-old",
+      role: "OWNER",
+      user: {
+        email: "owner@old.test",
+        name: "Old Owner",
+        createdAt: PRE_SYNC_SIGNUP_AT,
+      },
+    };
+
+    it("links every member on the Hobby→paid upgrade, upserting Leads only for pre-sync signups", async () => {
+      prismaMock.organizationMembership.findMany.mockResolvedValueOnce([
+        preSyncOwner,
+        {
+          userId: "member-new",
+          role: "MEMBER",
+          user: {
+            email: "member@new.test",
+            name: "New Member",
+            createdAt: SIGNUP_AT,
+          },
+        },
+      ]);
+      // Lead-source heuristic: the owner's earliest membership was as OWNER.
+      prismaMock.organizationMembership.findFirst.mockResolvedValueOnce({
+        role: "OWNER",
+      });
+
+      await syncOrgPlanChangeToSfdc({
+        orgBeforeUpdate: orgBefore(null),
+        updatedCloudConfig: stripeConfig(PRO_PRODUCT),
+        billingCycleAnchor: CONVERTED_AT,
+      });
+
+      await relinkFinished({ orgId: "org-1", members: 2, linked: 2 });
+
+      // Account first, then each member's Lead before its bridge. The
+      // post-sync member got its Lead at signup — only the bridge is sent.
+      expect(sentBodies()).toEqual([
+        expect.objectContaining({ type: "updateOrg", plan: "Pro" }),
+        expect.objectContaining({
+          userId: "owner-old",
+          email: "owner@old.test",
+          leadSource: "Langfuse Cloud Signup",
+        }),
+        expect.objectContaining({
+          type: "setUserRole",
+          orgId: "org-1",
+          userId: "owner-old",
+          role: "ADMIN",
+        }),
+        expect.objectContaining({
+          type: "setUserRole",
+          orgId: "org-1",
+          userId: "member-new",
+          role: "DEVELOPER",
+        }),
+      ]);
+    });
+
+    it("sends no bridge for a member whose Lead was not delivered", async () => {
+      fetchMock.mockImplementation(async (url: string) =>
+        url === "https://mulesoft.test/manage-user"
+          ? nonOkResponse(500)
+          : emptyOkResponse(),
+      );
+      prismaMock.organizationMembership.findMany.mockResolvedValueOnce([
+        preSyncOwner,
+      ]);
+
+      await syncOrgPlanChangeToSfdc({
+        orgBeforeUpdate: orgBefore(null),
+        updatedCloudConfig: stripeConfig(PRO_PRODUCT),
+        billingCycleAnchor: CONVERTED_AT,
+      });
+      await relinkFinished({ members: 1, linked: 0 });
+
+      expect(sentBodies().map((body) => body.type ?? "upsertUser")).toEqual([
+        "updateOrg",
+        "upsertUser",
+      ]);
+    });
+
+    it("keeps a member query failure inside the re-link", async () => {
+      prismaMock.organizationMembership.findMany.mockRejectedValueOnce(
+        new Error("db down"),
+      );
+
+      await expect(
+        syncOrgPlanChangeToSfdc({
+          orgBeforeUpdate: orgBefore(null),
+          updatedCloudConfig: stripeConfig(PRO_PRODUCT),
+          billingCycleAnchor: CONVERTED_AT,
+        }),
+      ).resolves.toBeUndefined();
+      await vi.waitFor(() =>
+        expect(loggerMock.error).toHaveBeenCalledWith(
+          "[SFDC] failed to link existing members after plan change",
+          { orgId: "org-1", error: "db down" },
+        ),
+      );
+      expect(fetchMock).toHaveBeenCalledOnce();
+    });
+
+    it("does not re-link members of orgs created after the live sync started", async () => {
+      await syncOrgPlanChangeToSfdc({
+        orgBeforeUpdate: {
+          ...orgBefore(null),
+          createdAt: new Date("2026-08-01T00:00:00.000Z"),
+        },
+        updatedCloudConfig: stripeConfig(PRO_PRODUCT),
+        billingCycleAnchor: CONVERTED_AT,
+      });
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(prismaMock.organizationMembership.findMany).not.toHaveBeenCalled();
+    });
+
+    it("does not link members when the account push fails", async () => {
+      fetchMock.mockImplementation(async () => nonOkResponse(500));
+      await syncOrgPlanChangeToSfdc({
+        orgBeforeUpdate: orgBefore(null),
+        updatedCloudConfig: stripeConfig(PRO_PRODUCT),
+        billingCycleAnchor: CONVERTED_AT,
+      });
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(prismaMock.organizationMembership.findMany).not.toHaveBeenCalled();
+    });
+  });
 });
 
 // ---- Call sites ----
@@ -660,41 +851,19 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
 // Exercised end-to-end: call site → real SfdcService → mocked fetch.
 
 function buildOwnerSession(orgId: string): Session {
-  return {
-    expires: "1",
-    user: {
-      id: "owner-user",
-      email: "owner@test.com",
-      name: "Owner",
-      canCreateOrganizations: true,
-      organizations: [
-        {
-          id: orgId,
-          name: "Test Org",
-          role: Role.OWNER,
-          plan: "cloud:team",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
-      featureFlags: {
-        searchBar: false,
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
+  return createSession({
+    user: { id: "owner-user", email: "owner@test.com", name: "Owner" },
+    organizations: [
+      {
+        id: orgId,
+        role: Role.OWNER,
+        name: "Test Org",
+        plan: "cloud:team",
+        aiTelemetryEnabled: true,
       },
-      admin: false,
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:team",
-    },
-  };
+    ],
+    environment: { selfHostedInstancePlan: "cloud:team" },
+  });
 }
 
 function createOwnerCaller(orgId: string) {
@@ -790,6 +959,41 @@ describe("call site: tRPC members.updateOrgMembership", () => {
 
 describe("call site: admin API handleUpdateMembership", () => {
   const member = { id: "member-1", email: "member@test.com", name: "Member" };
+  const context: AuthorizationContext = {
+    principal: {
+      kind: "apiKey",
+      apiKeyId: "key-1",
+      userId: null,
+      isInAppAgentKey: false,
+      publicKey: "pk-lf-test",
+      scope: "ORGANIZATION",
+      presentation: "privateKey",
+      organizations: [
+        {
+          orgId: "org-1",
+          organizationCreatedAt: ORG_CREATED_AT.toISOString(),
+          plan: "cloud:team",
+          rateLimitOverrides: [],
+          projectIds: [],
+          isIngestionSuspended: false,
+          accessAuditLogEnabled: false,
+        },
+      ],
+      boundResource: { orgId: "org-1" },
+    },
+    policies: [
+      [
+        {
+          id: "membership-admin",
+          roleId: SystemRoleId("ADMIN"),
+          tenantId: OrganizationId("org-1"),
+          effect: "ALLOW",
+          actions: ["organizationMembers:CUD"],
+          resources: [OrganizationId("org-1")],
+        },
+      ],
+    ],
+  };
 
   it("syncs a downgrade to NONE as removeUser", async () => {
     prismaMock.user.findUnique.mockResolvedValueOnce(member);
@@ -804,7 +1008,7 @@ describe("call site: admin API handleUpdateMembership", () => {
       body: { userId: "member-1", role: "NONE" },
     } as NextApiRequest;
     const res = createMockRes();
-    await handleUpdateMembership(req, res, "org-1");
+    await handleUpdateMembership(req, res, "org-1", "key-1", context);
 
     expect(res.statusCode).toBe(200);
     expect(fetchMock).toHaveBeenCalledOnce();
@@ -831,7 +1035,7 @@ describe("call site: admin API handleUpdateMembership", () => {
       body: { userId: "member-1", role: "MEMBER" },
     } as NextApiRequest;
     const res = createMockRes();
-    await handleUpdateMembership(req, res, "org-1");
+    await handleUpdateMembership(req, res, "org-1", "key-1", context);
 
     expect(res.statusCode).toBe(200);
     expect(fetchMock).toHaveBeenCalledOnce();
@@ -860,7 +1064,10 @@ describe("call site: tRPC organizations.create", () => {
       .mockResolvedValueOnce(emptyOkResponse())
       .mockResolvedValueOnce(emptyOkResponse());
 
-    await createOwnerCaller("org-1").organizations.create({ name: "New Org" });
+    await createOwnerCaller("org-1").organizations.create({
+      name: "New Org",
+      aiFeaturesEnabled: true,
+    });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
@@ -980,6 +1187,11 @@ describe("call site: createProjectMembershipsOnSignup", () => {
         email: "invitee@test.com",
       },
     ]);
+    prismaMock.project.findFirst.mockResolvedValueOnce({ id: "proj-9" });
+    prismaMock.$queryRaw
+      .mockResolvedValueOnce([{ id: "proj-9" }])
+      .mockResolvedValueOnce([{ id: "org-membership-9" }])
+      .mockResolvedValueOnce([{ id: "proj-9" }]);
 
     await createProjectMembershipsOnSignup(
       { id: "user-invited", email: "invitee@test.com", name: "Invitee" },

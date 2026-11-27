@@ -1,0 +1,8 @@
+{
+  "name": "@langfuse/design-system",
+  "version": "0.0.0",
+  "private": true,
+  "description": "design-sync shim package: points the converter at the source barrel of web/src/components/design-system",
+  "module": "index.ts",
+  "types": "index.ts"
+}

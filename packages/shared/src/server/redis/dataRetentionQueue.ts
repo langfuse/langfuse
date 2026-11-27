@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
+import { scheduleRecurringJob } from "./scheduleRecurringJob";
 import { logger } from "../logger";
 
 export class DataRetentionQueue {
@@ -35,17 +36,10 @@ export class DataRetentionQueue {
 
     if (DataRetentionQueue.instance) {
       logger.debug("Scheduling jobs for DataRetentionQueue");
-      DataRetentionQueue.instance
-        .add(
-          QueueJobs.DataRetentionJob,
-          {},
-          {
-            repeat: { pattern: "15 3 * * *" }, // every day at 3:15am
-          },
-        )
-        .catch((err) => {
-          logger.error("Error adding DataRetentionQueue schedule", err);
-        });
+      scheduleRecurringJob(DataRetentionQueue.instance, {
+        jobName: QueueJobs.DataRetentionJob,
+        pattern: "15 3 * * *", // every day at 3:15am
+      });
     }
 
     return DataRetentionQueue.instance;

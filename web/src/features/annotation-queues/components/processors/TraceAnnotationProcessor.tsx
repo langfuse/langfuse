@@ -1,11 +1,10 @@
-import { Trace } from "@/src/components/trace/Trace";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { Trace } from "@/src/features/traces/components/Trace";
 import {
   type AnnotationQueueItem,
-  AnnotationQueueObjectType,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
-import { useEffect } from "react";
-import { StringParam, useQueryParam } from "use-query-params";
+import type { AnnotationCommentFlush } from "@/src/features/scores/types";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
 
@@ -17,23 +16,14 @@ interface TraceAnnotationProcessorProps {
   data: any; // Trace data with observations and scores
   configs: ScoreConfigDomain[];
   projectId: string;
+  commentFlushRef?: React.Ref<AnnotationCommentFlush>;
 }
 
 export const TraceAnnotationProcessor: React.FC<
   TraceAnnotationProcessorProps
-> = ({ item, data, configs, projectId }) => {
+> = ({ item, data, configs, projectId, commentFlushRef }) => {
+  const { isV4 } = useReadPath();
   const traceId = item.parentTraceId ?? item.objectId;
-
-  const [, setCurrentObservationId] = useQueryParam("observation", StringParam);
-
-  // If annotating an observation, set it as selected so the tree highlights it
-  useEffect(() => {
-    if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
-      setCurrentObservationId(item.objectId);
-    } else {
-      setCurrentObservationId(undefined);
-    }
-  }, [item, setCurrentObservationId]);
 
   if (!data) return <div className="p-3">Loading...</div>;
 
@@ -46,12 +36,17 @@ export const TraceAnnotationProcessor: React.FC<
       projectId={data.projectId}
       observations={data.observations}
       context="annotation"
+      header={{
+        variant: "page",
+        headerProps: { title: traceId, itemType: "TRACE" },
+      }}
     />
   );
 
   const rightPanel = (
     <AnnotationDrawerSection
       item={item}
+      isV4={isV4}
       scoreTarget={{
         type: "trace",
         traceId: traceId,
@@ -60,6 +55,7 @@ export const TraceAnnotationProcessor: React.FC<
       scores={data?.scores ?? []}
       configs={configs}
       environment={data?.environment}
+      commentFlushRef={commentFlushRef}
     />
   );
 

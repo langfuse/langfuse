@@ -29,7 +29,7 @@ export const OUTPUT_MAPPING = [
   "completion",
 ];
 
-export const INTERNAL_ENVIRONMENTS = [
+const INTERNAL_ENVIRONMENTS = [
   LangfuseInternalTraceEnvironment.LLMJudge,
   LangfuseInternalTraceEnvironment.CodeEval,
   LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
@@ -73,5 +73,16 @@ export const DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING = [
     operator: "=" as const,
     value: true,
     type: "boolean" as const,
+  },
+];
+
+// v3 SDKs do not set the app-root marker. Their top-level observations are
+// identified by having no parent observation.
+export const DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING_V3 = [
+  {
+    column: "parentObservationId",
+    operator: "is null" as const,
+    value: "" as const,
+    type: "null" as const,
   },
 ];

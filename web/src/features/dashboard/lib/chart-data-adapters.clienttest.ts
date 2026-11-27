@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from "vitest";
 
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";

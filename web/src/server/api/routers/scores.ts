@@ -1,8 +1,17 @@
 import { z } from "zod";
 
+import {
+  auditedQuery,
+  scoreRefs,
+  ref,
+} from "@/src/features/audit-logs/server/auditedQuery";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import {
+  isNumericDataType,
+  isTraceScore,
+} from "@/src/features/scores/lib/helpers";
 import {
   getDateFromOption,
   SelectedTimeOptionSchema,
@@ -15,7 +24,7 @@ import {
   orderBy,
   paginationZod,
   normalizeOrderByForTable,
-  singleFilter,
+  singleFilterList,
   timeFilter,
   UpdateAnnotationScoreData,
   validateDbScore,
@@ -45,9 +54,7 @@ import {
   getTracesGroupedByTags,
   getTracesGroupedByName,
   getTracesGroupedByUsers,
-  getEventsGroupedByTraceName,
-  getEventsGroupedByTraceTags,
-  getEventsGroupedByUserId,
+  getEventsExactFilterOptionsForColumns,
   tracesTableUiColumnDefinitions,
   upsertScore,
   logger,
@@ -62,21 +69,18 @@ import {
   deleteScores,
   getTracesIdentifierForSession,
   validateConfigAgainstBody,
+  shouldSkipScoresDedup,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
-import {
-  isNumericDataType,
-  isTraceScore,
-} from "@/src/features/scores/lib/helpers";
 import { toDomainWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-  filter: z.array(singleFilter),
+  filter: singleFilterList,
   orderBy: orderBy,
 });
 
@@ -95,6 +99,7 @@ type AllScoresReturnType = Omit<ScoreDomain, "metadata"> & {
 
 type AllScoresFromEventsReturnType = Omit<ScoreDomain, "metadata"> & {
   jobConfigurationId: string | null;
+  evaluatorId: string | null;
   authorUserImage: string | null;
   authorUserName: string | null;
   hasMetadata: boolean;
@@ -106,9 +111,10 @@ export const scoresRouter = createTRPCRouter({
   /**
    * Get all scores for a project, meant for internal use and *excludes metadata of scores*
    */
-  all: protectedProjectProcedure
-    .input(ScoreAllOptions)
-    .query(async ({ input, ctx }) => {
+  all: auditedQuery(
+    protectedProjectProcedure.input(ScoreAllOptions),
+    { resourceType: "score", action: "list" },
+    async ({ input, ctx, audit }) => {
       const normalizedOrderBy = normalizeOrderByForTable({
         orderBy: input.orderBy,
         expectedTimeColumn: "timestamp",
@@ -121,6 +127,7 @@ export const scoresRouter = createTRPCRouter({
         offset: input.page * input.limit,
         excludeMetadata: true,
         includeHasMetadataFlag: true,
+        preferredClickhouseService: "ReadOnly",
       });
 
       const [jobExecutions, users] = await Promise.all([
@@ -153,6 +160,8 @@ export const scoresRouter = createTRPCRouter({
         }),
       ]);
 
+      audit.refs(scoreRefs(clickhouseScoreData));
+      audit.count(clickhouseScoreData.length);
       return {
         scores: clickhouseScoreData.map<AllScoresReturnType>((score) => {
           const jobExecution = jobExecutions.find(
@@ -167,18 +176,21 @@ export const scoresRouter = createTRPCRouter({
           };
         }),
       };
-    }),
-  byId: protectedProjectProcedure
-    .input(
+    },
+  ),
+  byId: auditedQuery(
+    protectedProjectProcedure.input(
       z.object({
         scoreId: z.string(), // used for matching
         projectId: z.string(), // used for security check
       }),
-    )
-    .query(async ({ input }) => {
+    ),
+    { resourceType: "score", action: "read", idKey: "scoreId" },
+    async ({ input, audit }) => {
       const score = await getScoreById({
         projectId: input.projectId,
         scoreId: input.scoreId,
+        preferredClickhouseService: "ReadOnly",
       });
       if (!score) {
         throw new TRPCError({
@@ -186,8 +198,10 @@ export const scoresRouter = createTRPCRouter({
           message: `No score with id ${input.scoreId} in project ${input.projectId} in Clickhouse`,
         });
       }
+      audit.refs(scoreRefs([score]));
       return toDomainWithStringifiedMetadata(score);
-    }),
+    },
+  ),
   countAll: protectedProjectProcedure
     .input(ScoreFilterOptions)
     .query(async ({ input }) => {
@@ -210,9 +224,10 @@ export const scoresRouter = createTRPCRouter({
   /**
    * v4: Get all scores without traces JOIN. Trace metadata loaded via metricsFromEvents.
    */
-  allFromEvents: protectedProjectProcedure
-    .input(ScoreAllOptions)
-    .query(async ({ input, ctx }) => {
+  allFromEvents: auditedQuery(
+    protectedProjectProcedure.input(ScoreAllOptions),
+    { resourceType: "score", action: "list" },
+    async ({ input, ctx, audit }) => {
       const normalizedOrderBy = normalizeOrderByForTable({
         orderBy: input.orderBy,
         expectedTimeColumn: "timestamp",
@@ -254,24 +269,66 @@ export const scoresRouter = createTRPCRouter({
           },
         }),
       ]);
+      const jobExecutionByScoreId = new Map(
+        jobExecutions.map((execution) => [
+          execution.jobOutputScoreId,
+          execution,
+        ]),
+      );
+      // Legacy evals referenced job configurations which would be the equivalent of `rules`.
+      // In evals v2, the better reference for a score is however the evaluator that created the
+      // score and not the `rule` that triggered the evaluation.
+      const fallbackRuleIds = [
+        ...new Set(
+          jobExecutions.map((execution) => execution.jobConfigurationId),
+        ),
+      ];
+      const fallbackAssignments =
+        fallbackRuleIds.length > 0
+          ? await ctx.prisma.evaluationRuleEvaluatorAssignment.findMany({
+              where: {
+                projectId: input.projectId,
+                evaluationRuleId: { in: fallbackRuleIds },
+              },
+              select: {
+                evaluationRuleId: true,
+                evaluatorId: true,
+                evaluator: { select: { name: true } },
+              },
+            })
+          : [];
+      const fallbackEvaluatorIdByRuleAndScoreName = new Map(
+        fallbackAssignments.map((assignment) => [
+          `${assignment.evaluationRuleId}\0${assignment.evaluator.name}`,
+          assignment.evaluatorId,
+        ]),
+      );
 
+      audit.refs(scoreRefs(clickhouseScoreData));
+      audit.count(clickhouseScoreData.length);
       return {
         scores: clickhouseScoreData.map<AllScoresFromEventsReturnType>(
           (score) => {
-            const jobExecution = jobExecutions.find(
-              (je) => je.jobOutputScoreId === score.id,
-            );
+            const jobExecution = jobExecutionByScoreId.get(score.id);
             const user = users.find((u) => u.id === score.authorUserId);
             return {
               ...score,
               jobConfigurationId: jobExecution?.jobConfigurationId ?? null,
+              evaluatorId:
+                score.evaluatorId ??
+                (jobExecution
+                  ? (fallbackEvaluatorIdByRuleAndScoreName.get(
+                      `${jobExecution.jobConfigurationId}\0${score.name}`,
+                    ) ?? null)
+                  : null),
               authorUserImage: user?.image ?? null,
               authorUserName: user?.name ?? null,
             };
           },
         ),
       };
-    }),
+    },
+  ),
   /**
    * v4: Count scores without traces JOIN.
    */
@@ -298,26 +355,30 @@ export const scoresRouter = createTRPCRouter({
    * v4: Load trace metadata (name, userId, tags) via eventsTracesAggregation
    * builder for a page of scores.
    */
-  metricsFromEvents: protectedProjectProcedure
-    .input(
+  metricsFromEvents: auditedQuery(
+    protectedProjectProcedure.input(
       z.object({
         projectId: z.string(),
         traceIds: z.array(z.string()),
       }),
-    )
-    .query(async ({ input }) => {
+    ),
+    { resourceType: "trace", action: "list" },
+    async ({ input, audit }) => {
       if (input.traceIds.length === 0) return [];
       const rows = await getTraceMetadataByIdsFromEvents({
         projectId: input.projectId,
         traceIds: input.traceIds,
       });
+      audit.refs(rows.map((row) => ref("trace", row.id)));
+      audit.count(rows.length);
       return rows.map((row) => ({
         traceId: row.id,
         traceName: row.name || null,
         userId: row.user_id || null,
         tags: row.tags && row.tags.length > 0 ? row.tags : null,
       }));
-    }),
+    },
+  ),
   /**
    * v4: Filter options via events-backed aggregations instead of traces table.
    */
@@ -341,32 +402,79 @@ export const scoresRouter = createTRPCRouter({
         );
       }
 
-      const [names, tags, traceNames, userIds, stringValues] =
-        await Promise.all([
-          getScoreNames(input.projectId, timestampFilter ?? []),
-          getEventsGroupedByTraceTags(input.projectId, eventsFilter, {
-            scope: "scoredTraces",
-          }),
-          getEventsGroupedByTraceName(input.projectId, eventsFilter, {
-            scope: "scoredTraces",
-          }),
-          getEventsGroupedByUserId(input.projectId, eventsFilter, {
-            scope: "scoredTraces",
-          }),
-          getScoreStringValues(input.projectId, timestampFilter ?? []),
-        ]);
+      // Bound the scored-traces semi-join by the same window the scores list
+      // view applies on scores.timestamp, so the offered options match what the
+      // windowed view can actually display. Preserve the caller's operator (not
+      // just the instant) so a score exactly on a strict boundary is offered iff
+      // the view would show it. Take the tightest bound on each side; on a tie
+      // the strict operator wins because it excludes the boundary instant.
+      const timestamps = timestampFilter ?? [];
+      const lowerBound = timestamps
+        .filter((tf) => tf.operator === ">=" || tf.operator === ">")
+        .reduce<{ operator: ">=" | ">"; value: Date } | undefined>(
+          (tightest, tf) => {
+            const candidate = {
+              operator: tf.operator as ">=" | ">",
+              value: tf.value,
+            };
+            if (!tightest) return candidate;
+            const diff = candidate.value.getTime() - tightest.value.getTime();
+            if (diff > 0) return candidate;
+            if (diff === 0 && candidate.operator === ">") return candidate;
+            return tightest;
+          },
+          undefined,
+        );
+      const upperBound = timestamps
+        .filter((tf) => tf.operator === "<=" || tf.operator === "<")
+        .reduce<{ operator: "<=" | "<"; value: Date } | undefined>(
+          (tightest, tf) => {
+            const candidate = {
+              operator: tf.operator as "<=" | "<",
+              value: tf.value,
+            };
+            if (!tightest) return candidate;
+            const diff = candidate.value.getTime() - tightest.value.getTime();
+            if (diff < 0) return candidate;
+            if (diff === 0 && candidate.operator === "<") return candidate;
+            return tightest;
+          },
+          undefined,
+        );
+      const scope = {
+        type: "scoredTraces" as const,
+        fromTime: lowerBound,
+        toTime: upperBound,
+      };
+
+      const [names, eventFacets, stringValues] = await Promise.all([
+        getScoreNames(input.projectId, timestampFilter ?? []),
+        getEventsExactFilterOptionsForColumns({
+          projectId: input.projectId,
+          filter: eventsFilter,
+          columns: ["traceTags", "traceName", "userId"],
+          scope,
+        }),
+        getScoreStringValues(input.projectId, timestampFilter ?? []),
+      ]);
 
       return {
         name: names.map((i) => ({ value: i.name, count: i.count })),
-        tags: tags.map((t) => ({ value: t.tag })),
-        traceName: traceNames.map((tn) => ({
-          value: tn.traceName,
-          count: Number(tn.count),
-        })),
-        userId: userIds.map((u) => ({
-          value: u.userId,
-          count: Number(u.count),
-        })),
+        tags: eventFacets
+          .filter((row) => row.column === "traceTags")
+          .map((row) => ({ value: row.value })),
+        traceName: eventFacets
+          .filter((row) => row.column === "traceName")
+          .map((row) => ({
+            value: row.value,
+            count: Number(row.count),
+          })),
+        userId: eventFacets
+          .filter((row) => row.column === "userId")
+          .map((row) => ({
+            value: row.value,
+            count: Number(row.count),
+          })),
         stringValue: stringValues,
         booleanValue: BOOLEAN_SCORE_VALUE_OPTIONS,
       };
@@ -492,7 +600,7 @@ export const scoresRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "scores:CUD",
+        scope: "scores:save",
       });
 
       const inflatedParams = isTraceScore(input.scoreTarget)
@@ -548,6 +656,7 @@ export const scoresRouter = createTRPCRouter({
         input.configId,
         input.dataType,
       );
+      if (clickhouseScore) throwIfScoreEditsDisabled(input.projectId);
 
       const timestamp = input.timestamp ?? new Date();
 
@@ -561,6 +670,7 @@ export const scoresRouter = createTRPCRouter({
             authorUserId: ctx.session.user.id,
             queueId: input.queueId ?? null,
             timestamp,
+            updatedAt: new Date(),
           }
         : {
             id: input.id ?? v4(),
@@ -623,8 +733,10 @@ export const scoresRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "scores:CUD",
+        scope: "scores:save",
       });
+
+      throwIfScoreEditsDisabled(input.projectId);
 
       let updatedScore: ScoreDomain | null | undefined = null;
 
@@ -813,6 +925,8 @@ export const scoresRouter = createTRPCRouter({
           }
         }
 
+        const updatedAt = new Date();
+
         await upsertScore({
           id: input.id,
           project_id: input.projectId,
@@ -831,12 +945,13 @@ export const scoresRouter = createTRPCRouter({
           session_id: score.sessionId,
           environment: score.environment,
           created_at: convertDateToClickhouseDateTime(score.createdAt),
-          updated_at: convertDateToClickhouseDateTime(score.updatedAt),
+          updated_at: convertDateToClickhouseDateTime(updatedAt),
           metadata: score.metadata as Record<string, string>,
         });
 
         const baseScore = {
           ...score,
+          updatedAt,
           value: input.value,
           comment: input.comment ?? null,
           authorUserId: ctx.session.user.id,
@@ -885,15 +1000,19 @@ export const scoresRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "scores:CUD",
+        scope: "scores:delete",
       });
 
-      // Fetch the current score from Clickhouse
-      const clickhouseScore = await getScoreById({
+      // Corrections can be ingested via the API and are still deletable in the UI
+      const fetchedScore = await getScoreById({
         projectId: input.projectId,
         scoreId: input.id,
-        source: ScoreSourceEnum.ANNOTATION,
       });
+      const clickhouseScore =
+        fetchedScore?.source === ScoreSourceEnum.ANNOTATION ||
+        fetchedScore?.dataType === ScoreDataTypeEnum.CORRECTION
+          ? fetchedScore
+          : undefined;
       if (!clickhouseScore) {
         logger.warn(
           `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
@@ -932,7 +1051,7 @@ export const scoresRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "scores:CUD",
+        scope: "scores:save",
       });
 
       // eslint-disable-next-line @typescript-eslint/no-deprecated
@@ -959,6 +1078,7 @@ export const scoresRouter = createTRPCRouter({
         undefined,
         ScoreDataTypeEnum.CORRECTION,
       );
+      if (clickhouseScore) throwIfScoreEditsDisabled(input.projectId);
 
       const timestamp = input.timestamp;
 
@@ -972,6 +1092,7 @@ export const scoresRouter = createTRPCRouter({
             authorUserId: ctx.session.user.id,
             queueId: input.queueId ?? null,
             longStringValue: input.value,
+            updatedAt: new Date(),
           }
         : {
             id: input.id,
@@ -1060,7 +1181,7 @@ export const scoresRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        filter: z.array(singleFilter).optional(),
+        filter: singleFilterList.optional(),
         fromTimestamp: z.date().optional(),
         toTimestamp: z.date().optional(),
       }),
@@ -1091,11 +1212,26 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      return await hasAnyScore(input.projectId);
+      return await hasAnyScore(input.projectId, "ReadOnly");
     }),
-  getScoreMetadataById: protectedProjectProcedure
-    .input(z.object({ projectId: z.string(), id: z.string() }))
-    .query(async ({ input }) => {
+  getScoreMetadataById: auditedQuery(
+    protectedProjectProcedure.input(
+      z.object({ projectId: z.string(), id: z.string() }),
+    ),
+    { resourceType: "score", action: "read", idKey: "id" },
+    async ({ input }) => {
       return (await getScoreMetadataById(input.projectId, input.id)) ?? null;
-    }),
+    },
+  ),
 });
+
+// Projects that read scores without dedup must not rewrite an existing score
+// id: every rewrite is a new row and would surface as a duplicate.
+function throwIfScoreEditsDisabled(projectId: string) {
+  if (shouldSkipScoresDedup(projectId)) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "Existing scores cannot be edited in this project.",
+    });
+  }
+}

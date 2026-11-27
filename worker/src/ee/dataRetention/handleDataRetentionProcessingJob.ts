@@ -10,8 +10,10 @@ import {
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
   getCurrentSpan,
 } from "@langfuse/shared/src/server";
+import { deleteTopicResultsOlderThan } from "@langfuse/shared/topics/server";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
+import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { env, v4WritesToEventsTable } from "../../env";
 
 export const handleDataRetentionProcessingJob = async (job: Job) => {
@@ -21,6 +23,14 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
   if (span) {
     span.setAttribute("messaging.bullmq.job.input.jobId", job.data.id);
     span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
+  }
+
+  // Data retention is an enterprise feature, and the license is read from the
+  // environment at startup. Jobs enqueued while licensed survive in Redis
+  // across the restart that removes the key, so the license has to be checked
+  // here as well as at scheduling time.
+  if (!isEnterpriseLicenseAvailable()) {
+    return;
   }
 
   // CRITICAL FIX: Re-fetch current retention setting from database
@@ -94,6 +104,7 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     deleteTracesOlderThanDays(projectId, cutoffDate),
     deleteObservationsOlderThanDays(projectId, cutoffDate),
     deleteScoresOlderThanDays(projectId, cutoffDate),
+    deleteTopicResultsOlderThan(projectId, cutoffDate),
     v4WritesToEventsTable(env)
       ? deleteEventsOlderThanDays(projectId, cutoffDate)
       : Promise.resolve(),

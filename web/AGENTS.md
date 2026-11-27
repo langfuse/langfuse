@@ -16,11 +16,13 @@
 
 - App shell/providers: `src/pages/_app.tsx`
 - tRPC context/procedures: `src/server/api/trpc.ts`
+- tRPC HTTP handler: `src/pages/api/trpc/[trpc].ts` sets `x-build-id`, `x-request-id`, and `x-dd-trace-id` on every response (one HTTP call, batched or single). The client copies the safe ids onto tRPC Sentry events.
 - tRPC router registry: `src/server/api/root.ts`
 - tRPC routers: `src/server/api/routers/*`, `src/features/*/server/*`
 - Public REST API routes: `src/pages/api/public/*`
-- Unstable public eval APIs: `src/pages/api/public/unstable/{evaluators,evaluation-rules}/*`
+- Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
+- Topics: read [`src/features/topics/README.md`](src/features/topics/README.md) before changing access, result queries, run controls, or map interactions.
 - Reusable UI components: `src/components/*`
 - Tests:
   - Server integration tests: `src/__tests__/server/*.servertest.ts`
@@ -40,11 +42,12 @@
 - Use narrower subpaths such as `@langfuse/shared/src/env` or
   `@langfuse/shared/encryption` only when that focused surface is the clearest
   dependency.
-- The in-app-agent runtime lives in shared:
-  `@langfuse/shared/in-app-agent` is the client-safe contracts entry;
-  `@langfuse/shared/in-app-agent/server` (and per-module subpaths) is
-  server-only. Web keeps only the thin adapters in
-  `src/features/in-app-agent/` (handler, router, UI).
+- The in-app-agent execution runtime lives in the worker. Shared exposes its
+  durable browser-safe contracts plus explicit server-only persistence,
+  lifecycle, policy, tool-result, compaction, and prompt subpaths. Web owns the
+  UI, IDs, feedback/source/rate-limit schemas, conversation access, tRPC run
+  adapters, snapshot construction, watch framing/service, and the authenticated
+  watch route in `src/app/api/in-app-agent/watch/`.
 - See `../packages/shared/AGENTS.md` for the full shared export map and what
   each entrypoint contains.
 - For the higher-level platform topology across web, worker, Postgres,
@@ -90,11 +93,13 @@ Sentry instrumentation skill first and decide whether it should capture at all
 
 ## Web Conventions
 
-- **Before adding or modifying a chart, dashboard, or chart formatter, read
-  `src/features/widgets/chart-library/ARCHITECTURE.md` first** — the charts
-  manifesto. It owns the data → preparer → visualiser contract: presentation
-  decisions (formatting, colors, axis scale, overload) live in the preparer,
-  not the chart components.
+- UI headings, navigation labels, and titles use sentence case: capitalize only the first word and proper nouns ("Prompt management", "Human annotation", "Upgrade plan"). Single-word labels stay as they are.
+- Before creating a new component or reusing one from elsewhere in
+  `src/components`, first check `src/components/design-system` for an existing
+  component that satisfies the use case. Prefer the design-system component
+  and extend it when appropriate; use another component only when the design
+  system has no suitable option.
+- **Before adding or modifying a chart, dashboard, or chart formatter, read `src/features/widgets/components/usePreparedWidgetChart.ts` and `src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame.tsx` first.** They define the data → preparer → visualiser contract: presentation decisions (formatting, colors, axis scale, overload) live in the preparer, not the chart components.
 - **When working on the search bar or any filtering UI/grammar, read
   `src/features/search-bar/README.md` first.** It owns the grammar ↔
   `FilterState` contract, the validate/lower parity invariants, and the
@@ -108,16 +113,18 @@ Sentry instrumentation skill first and decide whether it should capture at all
   components under `src/components/*`.
 - We use tRPC for full-stack web features; register routers in
   `src/server/api/root.ts`.
-- RBAC lives in `src/features/rbac`: role definitions in
-  `src/features/rbac/constants`, access checks in
-  `src/features/rbac/utils/checkProjectAccess.ts` and
+- RBAC lives in `src/features/rbac`: the role catalog (definitions, policies,
+  tags, access-right tables, and helpers) lives in `@langfuse/shared/rbac`;
+  assignment reads and writes live in `@langfuse/shared/rbac/server`;
+  web owns policy resolution/evaluation (`getRolesForPrincipal`, `authorize`)
+  and the access checks in `src/features/rbac/utils/checkProjectAccess.ts` and
   `src/features/rbac/utils/checkOrganizationAccess.ts`.
 - Entitlements guidance lives in `src/features/entitlements/README.md`.
 - Prefer Shadcn/ui primitives from `src/components/ui`; if a missing component
   must be installed, ask the user before doing so.
 - When you surface a score in the UI, always show its level
   (trace/observation/session/experiment) with the `<ScoreTag>` component
-  (`src/components/score-tag.tsx`) and its global color coding (see the
+    (`src/components/ScoreTag.tsx`) and its global color coding (see the
   ScoreTag Storybook story).
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.
@@ -133,6 +140,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   available. Do not evade this rule with `useLayoutEffect`, a custom wrapper
   hook, an ESLint suppression, or disabled dependency checks. Use
   `../.agents/skills/refactor-react-effects/SKILL.md` for effect work.
+- When a fix needs another effect, ref, or guard to keep application state in step, restructure the code it touches instead: give that state one owner (a store action, a value derived in render, or an extracted pure function) and delete the syncing code. That restructure is part of the fix, not an unrelated refactor. Follow `../.agents/skills/frontend-large-feature-architecture/SKILL.md`.
 - In flex layouts, prefer `gap-*` over margin-based `space-x-*`/`space-y-*`.
 - Treat `!` Tailwind classes as a smell. Step back and fix the owning layout,
   variant, or primitive before overriding with higher specificity.
@@ -170,7 +178,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   in `_document.tsx`, ordered by that array (later = on top), carrying NO z-index.
   `panel` is for docked side surfaces like Sheet, Drawer, and the table peek;
   `modal` is for true blocking Dialog and AlertDialog surfaces.
-  **THE RULE (see `src/components/ui/layer.tsx` JSDoc — source of truth): every
+  **THE RULE (see `src/context/LayerContext/LayerContext.tsx` JSDoc — source of truth): every
   overlay portals through a layer container; never let a Radix/Vaul `*.Portal`
   fall back to `<body>`.** Radix/Vaul primitives route via their `*.Portal`'s
   `container` (the `ui/*` wrappers do this with `useLayerContainer`); bespoke
@@ -188,18 +196,44 @@ Sentry instrumentation skill first and decide whether it should capture at all
   production-only `ReferenceError`; caught by the CI client-bundle scan,
   LFE-10645). Format TypeScript with `parser: "babel-ts"` +
   `prettier/plugins/babel` instead, as the eval-template editor does
-  (`src/features/evals/components/code-eval-template-form-body.tsx`).
-- Public API routes should use
-  `src/features/public-api/server/withMiddlewares.ts`, define strict request and
-  response types in `src/features/public-api/types/*`, add server tests, and
-  update Fern sources when the contract changes.
+  (`src/features/evals/components/CodeEvalTemplateFormBody.tsx`).
+- Public API routes should use `src/features/public-api/server/withMiddlewares.ts`, define strict request and response types in `src/features/public-api/types/*`, and update Fern sources when the contract changes. Whether to add a server test follows root [`AGENTS.md`](../AGENTS.md).
+- Observations v2 pages can be short or empty while `meta.cursor` exists because
+  the endpoint bounds scan work. End pagination only when the cursor is absent;
+  never derive completion from the number of returned rows.
 - Public eval endpoints should keep the split between reusable `evaluators`
   and ingestion-scoped `evaluation-rules`; do not leak `EvalTemplate` or
   `JobConfiguration` naming into the public contract.
 - Keep tests independent; in `src/__tests__/server/**`, prefer scoped cleanup or
   unique test data over global reset helpers.
+- Test teardown closes existing `globalThis.redis` and imports ClickHouse through
+  `@langfuse/shared/src/server/clickhouse`, not the full server barrel or relative
+  shared source paths. Suites own their private Redis clients; shared-context
+  workers skip per-file teardown.
+- Shared-context files must restore their state in `afterAll`: real timers, environment/global stubs, spies, listeners, pending work, and module caches they mutate. Delete only the file's own database rows and Redis keys; keep shared clients open. Module mocks or singletons without a reset contract need file isolation; a source-text classification alone is not leak proof.
+- Before widening shared-context membership, run the affected files together with one worker and at least two recorded shuffle seeds (`--sequence.shuffle.files --sequence.seed=<seed>`). Fix order-dependent failures; preserve the first failure without retries or wider timeouts.
 - Put pure server unit tests that do not need Postgres bootstrap under
   `src/__tests__/server/unit/**` so they skip the shared DB setup hook.
+- Server tests that drive the public REST API over HTTP need a web server on
+  port 3000 **serving the test database**. `web/vitest.config.mts` loads
+  `../.env.test`, which points `DATABASE_URL` at its own database, while
+  `pnpm run dev:web` loads only `.env` — so that server talks to a different
+  database, finds none of the API keys the tests just created, and every
+  authenticated call comes back 401 `Invalid credentials`. Start it with
+  `pnpm exec dotenv -e .env.test -e .env -- pnpm --filter web run dev`.
+- Preserve the server-test project split in `vitest.config.mts`. Most tests
+  consume the built `@langfuse/shared` package; only tests importing
+  `@langfuse/shared/in-app-agent`, `@langfuse/shared/topics`, or
+  `@langfuse/shared/src/env` use the
+  `server-shared-source*` projects. Do not move `sharedSourceResolve` back to
+  the root config: applying those aliases globally increased server-test
+  transforms/imports and made Vitest about 27–30% slower. The integration and
+  unit source projects stay separate because only integration tests run the
+  database `globalSetup`.
+- Keep CI web server tests at eight workers on an eight-vCPU runner unless a
+  new benchmark supports changing both together. With the current 4,237-test
+  suite, median Vitest duration was 82s at 8 workers/8 vCPUs, 115s at
+  4 workers/8 vCPUs, and 145s at 8 workers/4 vCPUs (measured 2026-08-06).
 - For small utility functions, prefer Vitest in-source tests when colocated
   coverage is the simplest option, especially when the test needs access to
   private implementation details without widening the module API.
@@ -217,8 +251,14 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - In-source tests: `pnpm --filter web run test:in-source <args>`
 - Client tests: `pnpm --filter web run test-client <args>`
 - E2E tests: `pnpm --filter web run test:e2e`
+- AI Gateway E2E tests against the local configured stack (also run in CI for AI Gateway changes): `pnpm --filter web run test:e2e:ai-gateway`. Vitest starts the built `ai-gateway` binary (`pnpm --filter ai-gateway build`, or `LANGFUSE_AI_GATEWAY_BIN`) and sends the client traffic through it. Each provider suite in `src/__e2e__/ai-gateway/` is skipped locally without its credentials; run one with `pnpm --filter web run test:e2e:ai-gateway src/__e2e__/ai-gateway/<provider>.gatewaye2e.ts`.
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
+- Structure-RFC violation counts: `pnpm --filter web run structure:stats`
+- Move files/folders with every importer rewritten:
+  `pnpm --filter web run structure:move <from...> <to-dir>` — never hand-edit
+  import specifiers for a move, and never `mv` a source file without it
+  (see `web/scripts/structure/README.md`)
 
 ## Playbooks
 
@@ -228,13 +268,13 @@ Sentry instrumentation skill first and decide whether it should capture at all
    `src/features/<feature>/server/*`.
 2. Register in `src/server/api/root.ts`.
 3. Reuse auth/error patterns from `src/server/api/trpc.ts`.
-4. Add/adjust server tests under `src/__tests__/server/*`.
+4. Whether to add a test follows root [`AGENTS.md`](../AGENTS.md). Place a warranted server test under `src/__tests__/server/*`.
 
 ### Add/Change public API endpoint
 
 1. Add route in `src/pages/api/public/*`.
 2. Define/update contract types in `src/features/public-api/types/*`.
-3. Add/adjust server tests in `src/__tests__/server/*`.
+3. Whether to add a test follows root [`AGENTS.md`](../AGENTS.md). Place a warranted server test in `src/__tests__/server/*`.
 4. If API contract changed, update Fern source (`../fern/apis/**`) and regenerate
    outputs (do not hand-edit `../generated/**`).
 
@@ -243,6 +283,25 @@ Sentry instrumentation skill first and decide whether it should capture at all
 1. Throw `BaseError` subclasses (eg `LangfuseNotFoundError`) from handlers and services.
 2. Let `BaseError`s bubble up to the tRPC and REST middlewares (eg. don't `try/catch` and rethrow in to `TRPCError` the handler)
 3. Extend the `BaseError` or its subclasses in [`packages/shared/src/errors/`](../packages/shared/src/errors/) as needed.
+
+### Toasts
+
+- Use the typed helpers exported by `src/features/notifications`; importing the
+  Sonner `toast` API outside their implementation is lint-prohibited.
+- Every toast requires a static `operation` from `toastOperations.ts` or a typed
+  tRPC procedure path. Register a new semantic intent when needed; never use
+  resource identifiers, names, messages, URLs, or form values.
+- Errors and warnings additionally require `errorOrigin` and `errorCategory`.
+  For tRPC catches, use `classifyTrpcToastError(error, operation)` to retain
+  classification, request path, response code/status, and error ID. Local
+  validation, clipboard, and product-state branches must classify explicitly.
+- `showToast` preserves native Sonner presentation; `showErrorToast` and
+  `showSuccessToast` render the custom cards. Analytics captures metadata only,
+  never the title, description, or exception payload.
+- Direct TanStack queries or mutations that can show global error toasts must include a
+  registered `meta.toastOperation`. Unattributed global failures use explicit
+  gap markers (`query.execute` / `mutation.execute`, `isOperationFallback=true`),
+  not an inferred intent from customer-controlled query keys.
 
 ### Add frontend feature
 
@@ -266,6 +325,8 @@ Sentry instrumentation skill first and decide whether it should capture at all
 
 ## Package-Specific Rules
 
+- Internal-only UI features use `useInternalFeaturesEnabled()` and the shared orange `InternalFeatureBadge`; do not add per-feature internal flags. Eligibility and opt-out rules are documented in `src/features/feature-flags/README.md`; internal access does not grant admin permissions.
+
 - Router style is Pages Router-centric; follow existing routing patterns.
 - In `src/pages`, do not keep both `foo.ts(x)` and a `foo/` folder. If the
   folder exists, put the route implementation in `foo/index.ts(x)` instead.
@@ -273,11 +334,21 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - Confirm the target `*.clienttest.*` or `*.servertest.*` file exists before passing a pattern to `vitest run`; source files do not always have a matching colocated test file.
 - When passing a Vitest file or pattern through `pnpm --filter web ...`, make it
   relative to `web/` because the script runs with `web` as the working
-  directory. Example: use `src/features/widgets/chart-library/BigNumber.tsx`,
-  not `web/src/features/widgets/chart-library/BigNumber.tsx`.
+  directory. Example: use `src/features/widgets/chart-library/utils.clienttest.ts`,
+  not `web/src/features/widgets/chart-library/utils.clienttest.ts`.
 - Prefer separate test files for components, integration coverage, and broader
   behaviors; use Vitest in-source tests mainly for small-scoped utilities.
 - Run Vitest in-source utility coverage with `pnpm --filter web run test:in-source`;
   do not try to target these through `test-client` or by assuming a separate
   `*.clienttest.*`/`*.servertest.*` file exists.
-- Do not hand-edit build artifacts: `.next/*`, `.next-check/*`, `dist/*`.
+- Do not hand-edit build artifacts: `.next/*`, `dist/*`.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

@@ -1,1 +1,1 @@
-export { default as default } from "@/src/features/evals/pages/new-evaluator";
+export { default } from "@/src/features/evals/v2/pages/NewEvaluatorPage";

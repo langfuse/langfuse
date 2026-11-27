@@ -1,11 +1,15 @@
-import { reportParserWorkerError } from "@/src/hooks/parserWorkerError";
-import { captureException } from "@sentry/nextjs";
+// @vitest-environment node
 
-vi.mock("@sentry/nextjs", () => ({
-  captureException: vi.fn(),
+import { reportParserWorkerError } from "@/src/hooks/parserWorkerError";
+
+const { mockCaptureException } = vi.hoisted(() => ({
+  mockCaptureException: vi.fn(),
 }));
 
-const mockCaptureException = vi.mocked(captureException);
+vi.mock("@sentry/nextjs", () => ({
+  captureException: mockCaptureException,
+  addBreadcrumb: vi.fn(),
+}));
 
 /**
  * Observability contract for the JSON-parser Web Worker `onerror` path
@@ -28,16 +32,39 @@ describe("reportParserWorkerError", () => {
       lineno: 1,
       colno: 42,
       error: undefined,
+      preventDefault: vi.fn(),
       ...overrides,
     } as ErrorEvent;
   }
+
+  it("cancels the event so the browser does not report it again on window", () => {
+    // A dedicated worker's uncaught error fires at the Worker object and, if it
+    // is not canceled there, is reported a second time on the owning document —
+    // where Sentry's global handler captures it unhandled, without any of the
+    // context above. That echo was ~half of this error family's volume.
+    const event = makeErrorEvent();
+    reportParserWorkerError("useParsedTrace", event);
+
+    expect(event.preventDefault).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps caller context alongside the hook name", () => {
+    reportParserWorkerError("jsonParserWorker", makeErrorEvent(), {
+      waiting: ["useParsedTrace"],
+    });
+
+    const [, opts] = mockCaptureException.mock.calls[0]!;
+    expect(opts).toMatchObject({
+      extra: { workerHook: "jsonParserWorker", waiting: ["useParsedTrace"] },
+    });
+  });
 
   it("captures a synthesized, legible Error with structured context when event.error is absent", () => {
     const event = makeErrorEvent();
     reportParserWorkerError("useParsedTrace", event);
 
     expect(mockCaptureException).toHaveBeenCalledTimes(1);
-    const [err, opts] = mockCaptureException.mock.calls[0];
+    const [err, opts] = mockCaptureException.mock.calls[0]!;
     expect(err).toBeInstanceOf(Error);
     expect((err as Error).message).toContain(
       "[useParsedTrace] worker failed to load",
@@ -65,24 +92,46 @@ describe("reportParserWorkerError", () => {
     );
 
     expect(mockCaptureException).toHaveBeenCalledTimes(1);
-    expect(mockCaptureException.mock.calls[0][0]).toBe(real);
+    expect(mockCaptureException.mock.calls[0]![0]).toBe(real);
   });
 
   it("logs a readable string via console.warn, not console.error (no double-capture)", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    reportParserWorkerError("useParsedTrace", makeErrorEvent());
+    const event = makeErrorEvent();
+    reportParserWorkerError("useParsedTrace", event);
 
     // console.error would be re-captured by captureConsoleIntegration.
     expect(error).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledTimes(1);
-    const logged = String(warn.mock.calls[0][0]);
-    expect(logged).toContain("[useParsedTrace] Worker failed to load");
+    const logged = String(warn.mock.calls[0]![0]);
+    // hookName + location details appear exactly once, prefixed by the area.
+    expect(logged).toContain(
+      "[io-parse-worker] useParsedTrace worker failed to load",
+    );
+    expect(logged).toContain(event.filename);
+    expect(logged).not.toContain("[useParsedTrace]"); // no double-bracketed hook
     expect(logged).not.toContain("[object ErrorEvent]");
 
     warn.mockRestore();
     error.mockRestore();
+  });
+
+  it("keeps hookName + details on the console line when a real event.error passes through", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const event = makeErrorEvent({ error: new Error("worker init threw") });
+    reportParserWorkerError("useParsedObservation", event);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    const logged = String(warn.mock.calls[0]![0]);
+    expect(logged).toContain(
+      "[io-parse-worker] useParsedObservation worker failed to load",
+    );
+    expect(logged).toContain(event.filename);
+
+    warn.mockRestore();
   });
 
   it("degrades gracefully when ErrorEvent fields are empty", () => {
@@ -91,7 +140,7 @@ describe("reportParserWorkerError", () => {
       makeErrorEvent({ message: "", filename: "" }),
     );
 
-    const [err] = mockCaptureException.mock.calls[0];
+    const [err] = mockCaptureException.mock.calls[0]!;
     expect((err as Error).message).toContain("unknown");
     expect((err as Error).message).toContain("?");
   });

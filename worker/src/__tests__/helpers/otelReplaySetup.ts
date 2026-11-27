@@ -1,0 +1,174 @@
+import { vi } from "vitest";
+import { env } from "../../env";
+
+const otelReplayMocks = vi.hoisted(() => ({
+  findModel: vi.fn(),
+  getS3EventStorageClient: vi.fn(),
+  linkMediaToTraceOrObservation: vi.fn(),
+  uploadMediaForTrace: vi.fn(),
+  getPrompt: vi.fn(),
+  fetchEvalRules: vi.fn(),
+  hasNoEvalConfigsCache: vi.fn(),
+  createEvalSchedulerDeps: vi.fn(),
+  scheduleObservationEvals: vi.fn(),
+}));
+
+export { otelReplayMocks };
+
+vi.mock("../../env", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../env")>();
+  return {
+    ...actual,
+    env: {
+      ...actual.env,
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+      LANGFUSE_EVENTS_DISPATCH_ENABLED: "false",
+      LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: "false",
+      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED: "false",
+      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS: [],
+      LANGFUSE_OTEL_DIRECT_IMPLEMENTATION: "ts",
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "otel-replay-test",
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: "otel-replay/",
+      LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: "false",
+      LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES: 2 * 1024 * 1024,
+    },
+  };
+});
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
+  findModel: otelReplayMocks.findModel,
+  hasNoEvalConfigsCache: otelReplayMocks.hasNoEvalConfigsCache,
+  getS3EventStorageClient: otelReplayMocks.getS3EventStorageClient,
+  linkMediaToTraceOrObservation: otelReplayMocks.linkMediaToTraceOrObservation,
+  PromptService: class {
+    getPrompt(...args: unknown[]) {
+      return otelReplayMocks.getPrompt(...args);
+    }
+  },
+  uploadMediaForTrace: otelReplayMocks.uploadMediaForTrace,
+}));
+
+vi.mock("../../features/evaluation/fetchEvalRules", () => ({
+  fetchEvalRules: otelReplayMocks.fetchEvalRules,
+}));
+
+vi.mock("../../features/evaluation/scheduleEvals", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../../features/evaluation/scheduleEvals")
+  >()),
+  createEvalSchedulerDeps: otelReplayMocks.createEvalSchedulerDeps,
+}));
+
+vi.mock(
+  "../../features/evaluation/observationEval/scheduleObservationEvals",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../features/evaluation/observationEval/scheduleObservationEvals")
+    >()),
+    scheduleObservationEvals: otelReplayMocks.scheduleObservationEvals,
+  }),
+);
+
+export function configureDefaultOtelReplayMocks(): void {
+  for (const mock of Object.values(otelReplayMocks)) {
+    mock.mockReset();
+  }
+
+  otelReplayMocks.findModel.mockResolvedValue({
+    model: null,
+    pricingTiers: [],
+  });
+  otelReplayMocks.linkMediaToTraceOrObservation.mockResolvedValue(undefined);
+  otelReplayMocks.uploadMediaForTrace.mockResolvedValue({
+    mediaId: "otel-replay-media",
+    outcome: "uploaded",
+  });
+  otelReplayMocks.getPrompt.mockResolvedValue(null);
+  otelReplayMocks.fetchEvalRules.mockResolvedValue({
+    // Exercise the production evaluation parser on corpus and property replays.
+    observationRules: [{}],
+    traceTranscriptRules: [],
+  });
+  otelReplayMocks.hasNoEvalConfigsCache.mockResolvedValue(true);
+  otelReplayMocks.createEvalSchedulerDeps.mockImplementation(() => ({
+    collectTraceActivity: vi.fn(),
+    flushTraceActivity: vi.fn().mockResolvedValue(undefined),
+    traceTranscriptRules: Promise.resolve([]),
+  }));
+  otelReplayMocks.scheduleObservationEvals.mockResolvedValue(undefined);
+}
+
+type ReplayEnvironmentOptions = {
+  mediaUploadEnabled?: boolean;
+  earlyMediaExtractionEnabled?: boolean;
+  overflowEnabled?: boolean;
+  overflowSizeLimitBytes?: number;
+  writeMode?: "events_only" | "dual";
+  directImplementation?: "ts" | "rust";
+  v4NativeOtelBehaviour?: "dual_write" | "direct";
+};
+
+/**
+ * Disable unrelated production side effects while an isolated replay runs.
+ * The returned function restores the worker environment object exactly.
+ */
+export function configureOtelReplayEnvironment(
+  options: ReplayEnvironmentOptions = {},
+): () => void {
+  const original = {
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    LANGFUSE_EVENTS_DISPATCH_ENABLED: env.LANGFUSE_EVENTS_DISPATCH_ENABLED,
+    LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS:
+      env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS,
+    LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED,
+    LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED:
+      env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED,
+    LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS:
+      env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS,
+    LANGFUSE_OTEL_DIRECT_IMPLEMENTATION:
+      env.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION,
+    LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+    LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
+    LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG:
+      env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG,
+    LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED:
+      env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED,
+    LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES:
+      env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES,
+    LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR:
+      env.LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR,
+  };
+
+  Object.assign(env, {
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    LANGFUSE_EVENTS_DISPATCH_ENABLED: "false",
+    LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS: 3,
+    LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: options.mediaUploadEnabled
+      ? "true"
+      : "false",
+    LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED:
+      options.earlyMediaExtractionEnabled ? "true" : "false",
+    LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS:
+      options.earlyMediaExtractionEnabled ? ["*"] : [],
+    LANGFUSE_OTEL_DIRECT_IMPLEMENTATION: options.directImplementation ?? "ts",
+    LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "otel-replay-test",
+    LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: "otel-replay/",
+    LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: "false",
+    LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: options.overflowEnabled
+      ? "true"
+      : "false",
+    LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES:
+      options.overflowSizeLimitBytes ?? 2 * 1024 * 1024,
+    LANGFUSE_MIGRATION_V4_WRITE_MODE: options.writeMode ?? "events_only",
+    // Default to direct events-table writes. Routing tests select dual_write
+    // to check that ingestionVersion=4 opts a payload into direct processing.
+    LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR:
+      options.v4NativeOtelBehaviour ?? "direct",
+  });
+
+  return () => Object.assign(env, original);
+}
+
+configureDefaultOtelReplayMocks();

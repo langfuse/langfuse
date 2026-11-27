@@ -1,12 +1,269 @@
-import { astToFilterState } from "@/src/features/search-bar/lib/adapter";
+import { astToFilterState as lowerAst } from "@/src/features/search-bar/lib/adapter";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { parse } from "@/src/features/search-bar/lib/langQ";
 import { validateQuery } from "@/src/features/search-bar/lib/validate";
 import type { FilterState } from "@langfuse/shared";
+import { createFieldRegistry, EVENTS_FIELD_REGISTRY } from "./fields";
+import { predicateMirrorIssue } from "../__tests__/searchBarInvariants";
+import { planCommit } from "./commit";
+import {
+  applyCheckboxSelection,
+  hasEmptyCheckboxSelection,
+  type SidebarFilterActionContext,
+} from "@/src/features/filters/lib/sidebar-filter-actions";
+import {
+  USERS_FIELD_REGISTRY,
+  LEGACY_USERS_FIELD_REGISTRY,
+} from "@/src/features/filters/config/usersSearchRegistry";
+
+// Every lowering in this suite also checks that its predicate writes back to
+// the same FilterState and search phrase (`predicateMirrorIssue`).
+const astToFilterState: typeof lowerAst = (ast, scoreTypes, registry) => {
+  const result = lowerAst(ast, scoreTypes, registry);
+  expect(
+    predicateMirrorIssue(result, registry ?? EVENTS_FIELD_REGISTRY),
+  ).toBeNull();
+  return result;
+};
+
+const scopedRegistry = createFieldRegistry({
+  ...EVENTS_FIELD_REGISTRY,
+  defaultSearchType: ["id"],
+  fields: EVENTS_FIELD_REGISTRY.fields.filter(
+    (field) => field.id !== "input" && field.id !== "output",
+  ),
+  searchScopes: {
+    content: {
+      searchType: ["content"],
+      label: "Content",
+      description: "Input and output",
+    },
+    all: {
+      searchType: ["id", "content"],
+      label: "All fields",
+      description: "IDs, names, input and output",
+    },
+    input: {
+      searchType: ["input"],
+      label: "Input",
+      description: "Input payload",
+    },
+    output: {
+      searchType: ["output"],
+      label: "Output",
+      description: "Output payload",
+    },
+  },
+});
+
+describe("declared search scopes", () => {
+  it("does not interpret inherited object properties as search scopes", () => {
+    for (const name of ["constructor", "toString", "__proto__"]) {
+      expect(scopedRegistry.resolveField(name)).toBeNull();
+    }
+  });
+  it.each([USERS_FIELD_REGISTRY, LEGACY_USERS_FIELD_REGISTRY])(
+    "does not expose scopes on fixed-lane Users registries",
+    (registry) => {
+      expect(registry.resolveField("in")).toBeNull();
+      expect(planCommit("in:content refund", undefined, registry).status).toBe(
+        "invalid",
+      );
+    },
+  );
+  it.each([
+    ["refund policy", "refund policy", ["id"]],
+    ['content:"refund policy" env:prod', "refund policy", ["content"]],
+    ["all:refund", "refund", ["id", "content"]],
+    ["input:refund", "refund", ["input"]],
+    ['in:(id OR input) "refund policy"', "refund policy", ["id", "input"]],
+    ['IN:(id OR input) "refund policy"', "refund policy", ["id", "input"]],
+  ])("lowers %s to one backend search lane", (text, query, type) => {
+    expect(planCommit(text as string, undefined, scopedRegistry)).toMatchObject(
+      {
+        status: "committed",
+        searchQuery: query,
+        searchType: type,
+      },
+    );
+  });
+
+  it.each([
+    "content:refund output:policy",
+    "content:refund refund",
+    "content:(refund OR policy)",
+    "-content:refund",
+    "content:=refund",
+    "content:refund*",
+    "in:(id AND input) refund",
+    "in:unsupported refund",
+    "in:input content:refund",
+    "in:input in:output refund",
+  ])("rejects unsupported scope composition: %s", (text) => {
+    const parsed = parse(text, scopedRegistry);
+    const lowered = astToFilterState(parsed.ast, undefined, scopedRegistry);
+    expect(lowered.errors.length).toBeGreaterThan(0);
+    expect(validateQuery(text, undefined, scopedRegistry).valid).toBe(false);
+    expect(planCommit(text, undefined, scopedRegistry).status).toBe("invalid");
+  });
+
+  it("reports only the phrase conflict when a scoped phrase has a compatibility scope", () => {
+    const { ast } = parse("content:refund in:id", scopedRegistry);
+    expect(astToFilterState(ast, undefined, scopedRegistry).errors).toEqual([
+      "Only one search phrase is supported — use either bare text or one scoped search",
+    ]);
+    const { ast: missingPhrase } = parse("in:id", scopedRegistry);
+    expect(
+      astToFilterState(missingPhrase, undefined, scopedRegistry).errors,
+    ).toEqual(["Add search text after in:"]);
+  });
+
+  it.each([
+    ["id"],
+    ["content"],
+    ["input"],
+    ["output"],
+    ["id", "content"],
+    ["id", "input"],
+    ["id", "output"],
+    ["input", "output"],
+  ] as const)("round-trips the existing search scope %j", (...searchType) => {
+    const text = filterStateToQueryText(
+      [],
+      {
+        searchQuery: "refund policy",
+        searchType: [...searchType],
+      },
+      scopedRegistry,
+    ).text;
+    expect(planCommit(text, undefined, scopedRegistry)).toMatchObject({
+      status: "committed",
+      searchQuery: "refund policy",
+      searchType,
+    });
+  });
+
+  it("keeps Events input/output as independent column filters", () => {
+    expect(planCommit("input:refund output:policy")).toMatchObject({
+      status: "committed",
+      searchQuery: null,
+      filters: [
+        { column: "input", operator: "contains", value: "refund" },
+        { column: "output", operator: "contains", value: "policy" },
+      ],
+    });
+  });
+
+  it.each(['content:""', 'content:" "'])(
+    "rejects an empty scoped phrase: %s",
+    (text) => {
+      expect(validateQuery(text, undefined, scopedRegistry).valid).toBe(false);
+      expect(planCommit(text, undefined, scopedRegistry).status).toBe(
+        "invalid",
+      );
+    },
+  );
+
+  it("preserves spaces inside an explicit scoped phrase on projection", () => {
+    const committed = planCommit(
+      'content:" refund policy "',
+      undefined,
+      scopedRegistry,
+    );
+    expect(committed.status).toBe("committed");
+    if (committed.status !== "committed") return;
+    const projected = filterStateToQueryText(
+      [],
+      committed,
+      scopedRegistry,
+    ).text;
+    expect(planCommit(projected, undefined, scopedRegistry)).toMatchObject({
+      searchQuery: " refund policy ",
+      searchType: ["content"],
+    });
+  });
+});
 
 function lower(text: string) {
   return astToFilterState(parse(text).ast);
 }
+
+describe("astToFilterState predicate", () => {
+  it("is a flat and over the events source plus the default-scope search", () => {
+    expect(lower("refund level:ERROR latency:>2").predicate).toEqual({
+      status: "ok",
+      value: {
+        predicate: {
+          kind: "and",
+          children: [
+            {
+              kind: "condition",
+              type: "stringOptions",
+              field: { id: "level" },
+              op: "any of",
+              value: ["ERROR"],
+            },
+            {
+              kind: "condition",
+              type: "number",
+              field: { id: "latency" },
+              op: ">",
+              value: 2,
+            },
+          ],
+        },
+        search: { text: "refund", scopes: ["id", "content"] },
+      },
+    });
+  });
+
+  it("reads metadata contains an empty string as is set, like the server", () => {
+    const result = lower('metadata.region:*""*');
+    expect(result.filters[0]?.operator).toBe("contains");
+    expect(result.predicate).toMatchObject({
+      status: "ok",
+      value: {
+        predicate: {
+          kind: "and",
+          children: [expect.objectContaining({ op: "is set" })],
+        },
+      },
+    });
+  });
+
+  // Calls `lowerAst` directly: the suite-wide `predicateMirrorIssue` check
+  // reports an unsupported column on the events registry as a failure.
+  it("reports a filter column outside the source as unsupported", () => {
+    // The events registry plus one field that is not in its predicate source.
+    const registry = createFieldRegistry({
+      ...EVENTS_FIELD_REGISTRY,
+      fields: [
+        ...EVENTS_FIELD_REGISTRY.fields,
+        {
+          id: "notAnEventsField",
+          aliases: [],
+          kind: "text",
+          syncMode: "exactOption",
+          label: "notAnEventsField",
+          description: "notAnEventsField",
+        },
+      ],
+    });
+    const result = lowerAst(
+      parse("notAnEventsField:x", registry).ast,
+      undefined,
+      registry,
+    );
+    expect(result.filters).toHaveLength(1);
+    expect(result.predicate).toEqual({
+      status: "unsupported-column",
+      columns: ["notAnEventsField"],
+    });
+    expect(predicateMirrorIssue(result, registry)).toContain(
+      "notAnEventsField",
+    );
+  });
+});
 
 describe("astToFilterState", () => {
   it("lowers a flat AND chain of facets plus free text", () => {
@@ -205,8 +462,55 @@ describe("astToFilterState", () => {
         value: "eu",
       },
     ]);
-    expect(lower("metadata.region:>5").errors.length).toBeGreaterThan(0);
     expect(lower("-metadata.region:eu").errors.length).toBeGreaterThan(0);
+  });
+
+  it("lowers metadata comparisons to numberObject filters where the view compiles them", () => {
+    expect(lower("metadata.attempt:>=2.5").filters).toEqual([
+      {
+        type: "numberObject",
+        column: "metadata",
+        key: "attempt",
+        operator: ">=",
+        value: 2.5,
+      },
+    ]);
+    expect(lower("metadata.attempt:>abc").errors).toEqual([
+      '"metadata.attempt" expects a number, got "abc"',
+    ]);
+    expect(lower("-metadata.attempt:>2").errors).toEqual([
+      "negated comparisons on metadata are not representable — use the opposite comparison (e.g. metadata.attempt:<=n)",
+    ]);
+    const textOnly = createFieldRegistry({
+      ...EVENTS_FIELD_REGISTRY,
+      numericMetadata: false,
+    });
+    expect(
+      astToFilterState(parse("metadata.attempt:>2").ast, undefined, textOnly)
+        .errors,
+    ).toEqual([
+      "metadata filters match text — > comparisons are not supported",
+    ]);
+    // A numeric `=` has no bar form (`metadata.k:v` is a text match).
+    const numericFilters: FilterState = [
+      {
+        type: "numberObject",
+        column: "metadata",
+        key: "attempt",
+        operator: ">",
+        value: 2,
+      },
+      {
+        type: "numberObject",
+        column: "metadata",
+        key: "attempt",
+        operator: "=",
+        value: 3,
+      },
+    ];
+    const { text, skippedFilters } = filterStateToQueryText(numericFilters);
+    expect(text).toBe("metadata.attempt:>2");
+    expect(skippedFilters).toEqual([numericFilters[1]]);
   });
 
   it("lowers score paths to numeric or categorical columns", () => {
@@ -522,7 +826,12 @@ describe("astToFilterState", () => {
     }
     // `key:=value` is the explicit exact match.
     expect(lower("name:=checkout").filters).toEqual([
-      { type: "string", column: "name", operator: "=", value: "checkout" },
+      {
+        type: "stringOptions",
+        column: "name",
+        operator: "any of",
+        value: ["checkout"],
+      },
     ]);
     // Negation is does-not-contain (flat-representable).
     expect(lower("-id:abc").filters).toEqual([
@@ -538,7 +847,7 @@ describe("astToFilterState", () => {
   it("lowers negated exact on id/name to stringOptions none-of (exact inequality)", () => {
     // `-name:=abc` is exact-inequality — the faithful flat form is
     // stringOptions none-of (there is no `string !=`). It is the inverse of the
-    // positive `name:=abc` (`string =`) and the shape the facet emits when one
+    // positive `name:=abc` and the shape the facet emits when one
     // value is unchecked, so it must lower cleanly rather than error.
     for (const column of ["id", "name"]) {
       const r = lower(`-${column}:=abc`);
@@ -549,6 +858,102 @@ describe("astToFilterState", () => {
     }
     // The commit gate accepts it (no longer a "not representable" error).
     expect(validateQuery("-name:=abc").valid).toBe(true);
+  });
+
+  it.each([
+    {
+      column: "ingestionApiKey",
+      value: "pk-lf-1234567890",
+      text: "-ingestionApiKey:pk-lf-1234567890",
+    },
+    { column: "name", value: "checkout", text: "-name:=checkout" },
+    { column: "traceTags", value: "prod", text: "-traceTags:prod" },
+  ])(
+    "shows only an exclusion when the sole $column option is unchecked",
+    ({ column, value, text }) => {
+      const ctx: SidebarFilterActionContext = {
+        facets: [{ type: "categorical", column, label: column }],
+        columnDefinitions: [
+          {
+            id: column,
+            name: column,
+            type: column === "traceTags" ? "arrayOptions" : "stringOptions",
+            options: [],
+            internal: column,
+          },
+        ],
+        options: { [column]: [value] },
+      };
+      const empty = applyCheckboxSelection(ctx, [], column, []);
+      expect(empty).toEqual([
+        {
+          column,
+          type: column === "traceTags" ? "arrayOptions" : "stringOptions",
+          operator: "none of",
+          value: [value],
+        },
+      ]);
+      expect(filterStateToQueryText(empty).text).toBe(text);
+      const commit = planCommit(`${text} env:prod`);
+      expect(commit.status).toBe("committed");
+      if (commit.status !== "committed") return;
+      expect(
+        commit.filters.filter((filter) => filter.column === column),
+      ).toEqual(empty);
+      expect(
+        applyCheckboxSelection(ctx, commit.filters, column, [value]),
+      ).toEqual(commit.filters.filter((filter) => filter.column !== column));
+    },
+  );
+
+  it("preserves a legacy empty Name pair through a search-bar edit", () => {
+    const ctx: SidebarFilterActionContext = {
+      facets: [{ type: "categorical", column: "name", label: "Name" }],
+      columnDefinitions: [
+        {
+          id: "name",
+          name: "Name",
+          type: "stringOptions",
+          options: [],
+          internal: "name",
+        },
+      ],
+      options: { name: ["checkout", "chat"] },
+    };
+    const empty: FilterState = [
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["checkout"],
+      },
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["checkout"],
+      },
+    ];
+    const { text, skippedFilters } = filterStateToQueryText(empty);
+    expect(text).toBe("name:=checkout -name:=checkout");
+    expect(skippedFilters).toEqual([]);
+
+    const commit = planCommit(`${text} env:prod`);
+    expect(commit.status).toBe("committed");
+    if (commit.status !== "committed") return;
+
+    expect(commit.filters.filter((filter) => filter.column === "name")).toEqual(
+      empty,
+    );
+    expect(hasEmptyCheckboxSelection(commit.filters, "name")).toBe(true);
+    expect(
+      applyCheckboxSelection(ctx, commit.filters, "name", ["chat"]),
+    ).toContainEqual({
+      column: "name",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["chat"],
+    });
   });
 
   it("lowers input:/output: to real column filters (not searchType)", () => {
@@ -666,6 +1071,33 @@ describe("validateQuery / adapter parity", () => {
 });
 
 describe("filterStateToQueryText", () => {
+  it("renders the experiment and evaluation exclusions as explicit filters", () => {
+    expect(
+      filterStateToQueryText([
+        {
+          column: "environment",
+          type: "string",
+          operator: "does not contain",
+          value: "langfuse-",
+        },
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["sdk-experiment"],
+        },
+        {
+          column: "experimentId",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ]).text,
+    ).toBe(
+      "-environment:*langfuse-* -environment:sdk-experiment -has:experimentId",
+    );
+  });
+
   it("round-trips legacy filter state through the grammar", () => {
     const filters: FilterState = [
       {
@@ -939,14 +1371,13 @@ describe("filterStateToQueryText", () => {
     ).toBe("-input:refund");
   });
 
-  it("rejects content: as an unknown field (the pseudo-field was removed)", () => {
-    // `content:` is no longer a field, so a value form errors as "Unknown field".
-    const r = lower('content:"refund"');
-    expect(r.errors).toEqual(['Unknown field "content"']);
-    expect(r.searchQuery).toBeNull();
-    expect(r.searchType).toBeNull();
-    // Bare `content:` (no value) is left to the parser — the adapter stays silent
-    // (empty-value FilterNode returns before resolveField), so no double.
+  it("lowers content to the payload-only search lane", () => {
+    expect(lower('content:"refund"')).toMatchObject({
+      errors: [],
+      searchQuery: "refund",
+      searchType: ["content"],
+      filters: [],
+    });
     expect(lower("content:").errors).toEqual([]);
   });
 
@@ -977,45 +1408,39 @@ describe("filterStateToQueryText", () => {
     }
   });
 
-  it("normalizes a residual input scope to an input: column filter", () => {
-    // A residual input/output searchType (legacy URL or the legacy toolbar)
-    // renders as the scoped token, which reparses to a real column filter — the
-    // deliberate canonicalization (searchType → column filter on next commit).
+  it("keeps a residual input search in its backend lane", () => {
     const { text } = filterStateToQueryText([], {
       searchQuery: "refund policy",
       searchType: ["input"],
     });
-    const r = astToFilterState(validateQuery(text).ast);
-    expect(r.errors).toEqual([]);
-    expect(r.filters).toEqual([
-      {
-        type: "string",
-        column: "input",
-        operator: "contains",
-        value: "refund policy",
-      },
-    ]);
-    expect(r.searchQuery).toBeNull();
-    expect(r.searchType).toBeNull();
+    expect(text).toBe('in:input "refund policy"');
+    expect(planCommit(text)).toMatchObject({
+      status: "committed",
+      filters: [],
+      searchQuery: "refund policy",
+      searchType: ["input"],
+    });
   });
 
-  it("renders the default scope (ids+names+input+output) as bare free text", () => {
-    // Any subset of {id, content} is the default scope — no scope token, so it
-    // round-trips to bare free text (and the caller re-applies the default).
-    for (const searchType of [
-      ["id"],
-      ["id", "content"],
-      ["content"],
-    ] as const) {
-      const { text } = filterStateToQueryText([], {
+  it("only renders the exact default scope as bare text", () => {
+    expect(
+      filterStateToQueryText([], {
         searchQuery: "hello",
-        searchType: [...searchType],
-      });
-      expect(text, `${searchType}`).toBe("hello");
-      const r = astToFilterState(validateQuery(text).ast);
-      expect(r.searchType).toBeNull();
-      expect(r.searchQuery).toBe("hello");
-    }
+        searchType: ["id", "content"],
+      }).text,
+    ).toBe("hello");
+    expect(
+      filterStateToQueryText([], {
+        searchQuery: "hello",
+        searchType: ["content"],
+      }).text,
+    ).toBe("content:hello");
+    expect(
+      filterStateToQueryText([], {
+        searchQuery: "hello",
+        searchType: ["id"],
+      }).text,
+    ).toBe("in:id hello");
   });
 
   it("preserves EXACT semantics for a single-value stringOptions any-of on id/name", () => {
@@ -1030,10 +1455,12 @@ describe("filterStateToQueryText", () => {
       expect(skipped).toEqual([]);
       expect(text).toBe(`${column}:=abc`); // explicit exact, not bare `id:abc`
       const r = astToFilterState(validateQuery(text).ast);
-      // Stabilizes to {string,=} — same semantics (exact equality), never contains.
-      expect(r.filters).toEqual([
-        { type: "string", column, operator: "=", value: "abc" },
-      ]);
+      // Name retains its categorical facet shape; ID uses string equality.
+      const expected =
+        column === "name"
+          ? filters
+          : [{ type: "string", column, operator: "=", value: "abc" }];
+      expect(r.filters).toEqual(expected);
       // And the stabilized form is a fixpoint (no further drift).
       const echo = filterStateToQueryText(r.filters);
       expect(echo.text).toBe(`${column}:=abc`);
@@ -1149,5 +1576,38 @@ describe("filterStateToQueryText", () => {
     const v = validateQuery(text);
     expect(v.valid, text).toBe(true);
     expect(astToFilterState(v.ast).filters).toEqual(filters);
+  });
+});
+
+describe("topic filters", () => {
+  it("round-trips the sidebar's topic filters through topics.<facet> text", () => {
+    const filters: FilterState = [
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["Flight cancellation and refund", "Order Exchange Requests"],
+      },
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Issues",
+        operator: "none of",
+        value: ["Missing requested final results"],
+      },
+    ];
+    // The tracing table adds `topics.` only for projects that can view Topics.
+    const registry = createFieldRegistry({
+      ...EVENTS_FIELD_REGISTRY,
+      keyedOptionNamespaces: { topics: "topics" },
+    });
+    const { text, skipped } = filterStateToQueryText(filters, {}, registry);
+    expect(skipped).toEqual([]);
+    const v = validateQuery(text, undefined, registry);
+    expect(v.valid, text).toBe(true);
+    expect(astToFilterState(v.ast, undefined, registry).filters).toEqual(
+      filters,
+    );
   });
 });

@@ -1,0 +1,124 @@
+import { z } from "zod";
+import {
+  eventsPredicateSource,
+  eventsTableCols,
+  filterOperators,
+  FTS_MATCH_OPERATOR,
+  OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS,
+} from "@langfuse/shared";
+import { defineTool } from "../../../core/define-tool";
+import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
+const EmptyInputSchema = z.object({});
+
+const OBSERVATION_MCP_FILTER_COLUMNS = eventsTableCols
+  .filter((column) => {
+    for (const allowedColumn of OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS) {
+      if (allowedColumn === column.id) return true;
+    }
+    return false;
+  })
+  .map((column) =>
+    // eventsTableCols uses traceTags for the table/filter id, while the MCP
+    // observation shape exposes the field as tags.
+    column.id === "traceTags" ? "tags" : column.id,
+  );
+
+const OBSERVATION_MCP_FILTER_CONFIG_COLUMN_OVERRIDES: Record<string, string> = {
+  tags: "traceTags",
+};
+
+export const OBSERVATION_MCP_FTS_COLUMNS = new Set([
+  "input",
+  "output",
+  "metadata",
+]);
+
+export const OBSERVATION_MCP_INDEXED_IO_COLUMNS = new Set(["input", "output"]);
+
+/**
+ * Columns that also take numeric comparisons on a key (`numberObject`), with
+ * those operators, as the events predicate source declares them.
+ */
+export const OBSERVATION_MCP_NUMERIC_KEY_COLUMNS: ReadonlyMap<
+  string,
+  readonly string[]
+> = new Map(
+  OBSERVATION_MCP_FILTER_COLUMNS.flatMap((publicColumn) => {
+    const id =
+      OBSERVATION_MCP_FILTER_CONFIG_COLUMN_OVERRIDES[publicColumn] ??
+      publicColumn;
+    const field = eventsPredicateSource.fields.find((f) => f.id === id);
+    // A field typed `numberObject` already lists it as its own type; only a
+    // second, numeric-key type on another field type needs an entry here.
+    if (!field || field.type === "numberObject") return [];
+    const operators = field.operators.numberObject;
+    return operators ? [[publicColumn, operators] as const] : [];
+  }),
+);
+
+export const [
+  getObservationFilterSchemaTool,
+  handleGetObservationFilterSchema,
+] = defineTool({
+  name: "getObservationFilterSchema",
+  description:
+    "Show which observation fields can be used in listObservations filters. Each field lists its filter types with the operators of each; when a filter omits type, the first listed type applies, so pass type explicitly to use another one.",
+  action: "traces:read",
+  baseSchema: EmptyInputSchema,
+  inputSchema: EmptyInputSchema,
+  handler: async () => {
+    const publicFilterColumnsByConfigColumn = Object.fromEntries(
+      OBSERVATION_MCP_FILTER_COLUMNS.map((publicColumn) => [
+        OBSERVATION_MCP_FILTER_CONFIG_COLUMN_OVERRIDES[publicColumn] ??
+          publicColumn,
+        publicColumn,
+      ]),
+    );
+
+    const columns = Object.fromEntries(
+      observationEventsFilterConfig.columnDefinitions
+        .filter((column) => column.id in publicFilterColumnsByConfigColumn)
+        .map((column) => {
+          const publicColumn = publicFilterColumnsByConfigColumn[column.id];
+          const numericKeyOperators =
+            OBSERVATION_MCP_NUMERIC_KEY_COLUMNS.get(publicColumn);
+          const operators = OBSERVATION_MCP_INDEXED_IO_COLUMNS.has(publicColumn)
+            ? ["=", FTS_MATCH_OPERATOR]
+            : [
+                ...filterOperators[column.type],
+                ...(OBSERVATION_MCP_FTS_COLUMNS.has(publicColumn)
+                  ? [FTS_MATCH_OPERATOR]
+                  : []),
+              ];
+
+          return [
+            publicColumn,
+            {
+              types: [
+                { type: column.type, operators },
+                ...(numericKeyOperators
+                  ? [
+                      {
+                        type: "numberObject",
+                        operators: [...numericKeyOperators],
+                      },
+                    ]
+                  : []),
+              ],
+              nullable: Boolean(column.nullable),
+              requiresKey:
+                column.type === "stringObject" ||
+                column.type === "numberObject" ||
+                column.type === "booleanObject",
+            },
+          ];
+        }),
+    );
+
+    return {
+      resource: "observation",
+      columns,
+    };
+  },
+  annotations: { readOnlyHint: true },
+});

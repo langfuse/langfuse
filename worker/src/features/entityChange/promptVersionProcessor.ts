@@ -24,7 +24,7 @@ import { v4 } from "uuid";
  * Process prompt change events with in-memory filtering
  */
 export const promptVersionProcessor = async (
-  event: EntityChangeEventType,
+  event: Extract<EntityChangeEventType, { entityType: "prompt-version" }>,
 ): Promise<void> => {
   try {
     if (logger.isLevelEnabled("debug")) {
@@ -51,7 +51,12 @@ export const promptVersionProcessor = async (
     for (const trigger of triggers) {
       try {
         const eventMatches = matchesTriggerFilter(
-          { Name: event.prompt.name, action: event.action },
+          {
+            Name: event.prompt.name,
+            Labels: event.prompt.labels,
+            Tags: event.prompt.tags,
+            action: event.action,
+          },
           trigger,
         );
 
@@ -184,6 +189,7 @@ async function enqueueAutomationAction({
       projectId,
       automationId: automations[0].id,
       executionId,
+      actionType: automations[0].action.type,
       payload: {
         action: action as TriggerEventAction,
         type: "prompt-version",

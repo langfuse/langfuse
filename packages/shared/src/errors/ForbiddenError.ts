@@ -1,7 +1,10 @@
 import { BaseError } from "./BaseError";
 
 export class ForbiddenError extends BaseError {
-  constructor(description = "Forbidden") {
-    super("ForbiddenError", 403, description, true);
+  constructor(
+    description = "Access denied. You do not have permission to access this resource.",
+    options?: ErrorOptions,
+  ) {
+    super("ForbiddenError", 403, description, true, options);
   }
 }

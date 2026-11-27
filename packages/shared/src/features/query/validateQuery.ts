@@ -5,15 +5,38 @@ import { getViewDeclaration } from "./dataModel";
  * Result of query validation.
  * Either valid (query is safe to run) or invalid with a reason.
  */
+export type HighCardinalityValidationCode =
+  | "entity_dimension_unbounded"
+  | "time_dimension"
+  | "additional_entity_dimension"
+  | "missing_top_n"
+  | "invalid_order_by";
+
+export type HighCardinalityValidationError = {
+  code: HighCardinalityValidationCode;
+  /** Schema-owned dimension field names, never dimension values. */
+  dimensions: string[];
+};
+
 export type QueryValidationResult =
   | { valid: true }
-  | { valid: false; reason: string };
+  | {
+      valid: false;
+      reason: string;
+      highCardinality?: HighCardinalityValidationError;
+    };
 
 const MAX_ENTITY_DIMENSION_BOUND_VALUES = 50;
+/**
+ * A time series may break down by a high cardinality dimension when a filter
+ * on that dimension bounds it to at most this many values, one series each.
+ */
+export const MAX_TIME_SERIES_BREAKDOWN_VALUES = 10;
 
-function hasSameFieldEntityDimensionBound(
+function hasSameFieldBound(
   filters: QueryType["filters"],
   field: string,
+  maxValues: number,
 ): boolean {
   return filters.some((filter) => {
     if (filter.column !== field) {
@@ -28,7 +51,7 @@ function hasSameFieldEntityDimensionBound(
       return (
         filter.operator === "any of" &&
         filter.value.length > 0 &&
-        filter.value.length <= MAX_ENTITY_DIMENSION_BOUND_VALUES &&
+        filter.value.length <= maxValues &&
         filter.value.every((value) => value.length > 0)
       );
     }
@@ -93,7 +116,9 @@ function validateEntityDimension(
   const view = getViewDeclaration(query.view, version);
 
   const field = query.entityDimension!.field;
-  const dimension = view.dimensions[field];
+  const dimension = Object.hasOwn(view.dimensions, field)
+    ? view.dimensions[field]
+    : undefined;
 
   if (
     !dimension ||
@@ -108,11 +133,15 @@ function validateEntityDimension(
 
   if (
     dimension.highCardinality &&
-    !hasSameFieldEntityDimensionBound(query.filters, field)
+    !hasSameFieldBound(query.filters, field, MAX_ENTITY_DIMENSION_BOUND_VALUES)
   ) {
     return {
       valid: false,
       reason: `High cardinality dimension '${field}' must be filtered with a finite positive filter.`,
+      highCardinality: {
+        code: "entity_dimension_unbounded",
+        dimensions: [field],
+      },
     };
   }
 
@@ -124,7 +153,8 @@ function validateEntityDimension(
  * Performs sanity checks for high cardinality dimension validation.
  *
  * High cardinality dimensions (id, traceId, userId, sessionId, etc.) are only allowed when:
- * 1. timeDimension is NOT set (timeseries with high cardinality produces unbounded results)
+ * 1. timeDimension is NOT set (timeseries with high cardinality produces unbounded results),
+ *    unless a same-field filter bounds each to MAX_TIME_SERIES_BREAKDOWN_VALUES values
  * 2. config.row_limit (or chartConfig.row_limit) is explicitly specified (LIMIT)
  * 3. orderBy with direction 'desc' on a measure field is specified (for top-N queries)
  *
@@ -173,11 +203,24 @@ export function validateQuery(
 
   // 2. Reject high cardinality dimensions in timeseries queries
   // A timeseries grouped by e.g. traceId produces unbounded rows (one per ID per time bucket)
-  // and cannot be meaningfully limited with row_limit.
+  // and cannot be meaningfully limited with row_limit, unless a same-field filter bounds it.
   if (query.timeDimension) {
+    const unbounded = highCardDims.filter(
+      (field) =>
+        !hasSameFieldBound(
+          query.filters,
+          field,
+          MAX_TIME_SERIES_BREAKDOWN_VALUES,
+        ),
+    );
+    if (unbounded.length === 0) return { valid: true };
     return {
       valid: false,
-      reason: `High cardinality dimension(s) '${highCardDims.join(", ")}' cannot be used with timeDimension. Time series queries with high cardinality dimensions produce unbounded result sets.`,
+      reason: `High cardinality dimension(s) '${unbounded.join(", ")}' cannot be used with timeDimension unless an 'any of' filter on the same field bounds each to at most ${MAX_TIME_SERIES_BREAKDOWN_VALUES} values. Time series queries with high cardinality dimensions produce unbounded result sets.`,
+      highCardinality: {
+        code: "time_dimension",
+        dimensions: unbounded,
+      },
     };
   }
 
@@ -186,6 +229,10 @@ export function validateQuery(
     return {
       valid: false,
       reason: `High cardinality dimension(s) '${highCardDims.join(", ")}' cannot be used with entityDimension. Entity-dimension queries with additional high cardinality dimensions produce unbounded result sets.`,
+      highCardinality: {
+        code: "additional_entity_dimension",
+        dimensions: highCardDims,
+      },
     };
   }
 
@@ -204,6 +251,10 @@ export function validateQuery(
     return {
       valid: false,
       reason: `High cardinality dimension(s) '${highCardDims.join(", ")}' require both 'config.row_limit' and 'orderBy' with direction 'desc' on a measure field.`,
+      highCardinality: {
+        code: "missing_top_n",
+        dimensions: highCardDims,
+      },
     };
   }
 
@@ -227,6 +278,10 @@ export function validateQuery(
       reason:
         `High cardinality dimension(s) '${highCardDims.join(", ")}' require 'orderBy' with direction 'desc' on a measure field. ` +
         `'${invalidOrderByFields.join(", ")}' ${invalidOrderByFields.length === 1 ? "is" : "are"} not a measure in this query.`,
+      highCardinality: {
+        code: "invalid_order_by",
+        dimensions: highCardDims,
+      },
     };
   }
 

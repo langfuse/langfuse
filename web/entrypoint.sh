@@ -1,5 +1,20 @@
 #!/bin/sh
 
+# Fail closed when FIPS mode is required but the OpenSSL FIPS provider is not
+# active for Node (e.g. a host without FIPS mode, or an image rebuilt on a
+# non-FIPS base). This runs before the migrations below open database
+# connections. The app additionally requires an enterprise license for FIPS
+# mode at startup (packages/shared/src/server/ee/fips).
+if [ "$LANGFUSE_REQUIRE_FIPS" = "true" ]; then
+    # Opt into the FIPS crypto policy for OpenSSL (see the Dockerfile). An
+    # OPENSSL_CONF set by the deployment takes precedence.
+    export OPENSSL_CONF="${OPENSSL_CONF:-/etc/pki/tls/openssl-fips.cnf}"
+    if ! node -e 'process.exit(require("node:crypto").getFips() === 1 ? 0 : 1)'; then
+        echo "Error: LANGFUSE_REQUIRE_FIPS=true but Node's OpenSSL FIPS provider is not active (crypto.getFips() != 1). Exiting..."
+        exit 1
+    fi
+fi
+
 # Check whether a database URL's credentials contain characters that typically
 # need percent-encoding for Prisma (@ : / % # ?).  Best-effort heuristic —
 # strips the scheme, extracts the authority (user:pass@host) before the first
@@ -36,11 +51,13 @@ check_unencoded_credentials() {
     esac
 }
 
-# Check whether CLICKHOUSE_PASSWORD contains characters that would break the
-# query-string interpolation used in the migration script (& = # ? % + @ space).
-# Strips %XX sequences first so partially-encoded values are caught.
+# Check whether the ClickHouse migration password contains characters that
+# would break the query-string interpolation used in the migration script
+# (& = # ? % + @ space). Strips %XX sequences first so partially-encoded values
+# are caught. The second argument names the variable in the hint.
 check_clickhouse_password() {
     _pass="$1"
+    _name="$2"
     if [ -z "$_pass" ]; then
         return
     fi
@@ -49,7 +66,7 @@ check_clickhouse_password() {
     _stripped=$(printf '%s' "$_pass" | sed 's/%[0-9A-Fa-f][0-9A-Fa-f]//g')
     case "$_stripped" in
         *'&'*|*'='*|*'#'*|*'?'*|*'%'*|*'+'*|*'@'*|*' '*)
-            echo "HINT: Your CLICKHOUSE_PASSWORD contains special characters (&, =, #, ?, %, +, @, space) that may break the migration URL."
+            echo "HINT: Your ${_name} contains special characters (&, =, #, ?, %, +, @, space) that may break the migration URL."
             echo "  These characters need to be percent-encoded when passed as query parameters."
             echo "  Example: p@ss&word → p%40ss%26word"
             ;;
@@ -61,8 +78,25 @@ check_clickhouse_password() {
 if [ -z "$DATABASE_URL" ]; then
     # Check if all required variables are provided
     if [ -n "$DATABASE_HOST" ] && [ -n "$DATABASE_USERNAME" ] && [ -n "$DATABASE_PASSWORD" ]  && [ -n "$DATABASE_NAME" ]; then
+        # Append DATABASE_PORT only when it is explicitly set, so existing
+        # deployments that embed the port in DATABASE_HOST keep working.
+        db_host_with_port="${DATABASE_HOST}"
+        if [ -n "$DATABASE_PORT" ]; then
+            case "$DATABASE_PORT" in
+                *[!0-9]*)
+                    # e.g. Kubernetes service links can inject DATABASE_PORT=tcp://ip:port
+                    echo "Warning: ignoring non-numeric DATABASE_PORT '${DATABASE_PORT}'"
+                    ;;
+                *)
+                    case "${DATABASE_HOST##*\]}" in
+                        *:*) echo "Info: DATABASE_HOST already contains a port; ignoring DATABASE_PORT." ;;
+                        *)   db_host_with_port="${DATABASE_HOST}:${DATABASE_PORT}" ;;
+                    esac
+                    ;;
+            esac
+        fi
         # Construct DATABASE_URL from the provided variables
-        DATABASE_URL="postgresql://${DATABASE_USERNAME}:${DATABASE_PASSWORD}@${DATABASE_HOST}/${DATABASE_NAME}"
+        DATABASE_URL="postgresql://${DATABASE_USERNAME}:${DATABASE_PASSWORD}@${db_host_with_port}/${DATABASE_NAME}"
         export DATABASE_URL
     else
         echo "Error: Required database environment variables are not set. Provide a postgres url for DATABASE_URL."
@@ -118,8 +152,16 @@ fi
 if [ $status -ne 0 ]; then
     echo "Applying clickhouse migrations failed. Common causes:"
     echo "  1. The database is unavailable or unreachable."
-    echo "  2. CLICKHOUSE_PASSWORD contains special characters that are not URL-encoded."
-    check_clickhouse_password "$CLICKHOUSE_PASSWORD"
+    if [ "$CLICKHOUSE_AUTH_MODE" = "jwt" ] && [ -z "$CLICKHOUSE_MIGRATION_USER" ]; then
+        echo "  2. ClickHouse rejected the access token, or the CLICKHOUSE_JWT_* token source is misconfigured."
+        echo "  3. The server certificate is not trusted. For a private CA, point SSL_CERT_FILE at its bundle."
+    elif [ -n "$CLICKHOUSE_MIGRATION_USER" ]; then
+        echo "  2. CLICKHOUSE_MIGRATION_PASSWORD contains special characters that are not URL-encoded."
+        check_clickhouse_password "$CLICKHOUSE_MIGRATION_PASSWORD" "CLICKHOUSE_MIGRATION_PASSWORD"
+    else
+        echo "  2. CLICKHOUSE_PASSWORD contains special characters that are not URL-encoded."
+        check_clickhouse_password "$CLICKHOUSE_PASSWORD" "CLICKHOUSE_PASSWORD"
+    fi
     echo "Exiting..."
     exit $status
 fi

@@ -5,55 +5,26 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const orgIds: string[] = [];
 
-const prepare = async () => {
+const prepare = async (projectRole: "ADMIN" | "MEMBER" = "ADMIN") => {
   const setup = await createOrgProjectAndApiKey();
   orgIds.push(setup.orgId);
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      name: "Demo User",
-      canCreateOrganizations: true,
-      organizations: [
-        {
-          id: setup.orgId,
-          name: "Test Organization",
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: setup.projectId,
-              role: "ADMIN",
-              name: "Test Project",
-              deletedAt: null,
-              retentionDays: null,
-              hasTraces: false,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: {
-        searchBar: false,
-        templateFlag: true,
-        excludeClickhouseRead: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
+  const session: Session = createSession({
+    organizations: [
+      {
+        id: setup.orgId,
+        role: "OWNER",
+        aiTelemetryEnabled: true,
+        projects: [
+          { id: setup.projectId, role: projectRole, retentionDays: null },
+        ],
       },
-      admin: true,
-    },
-    environment: {} as any,
-  };
+    ],
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
@@ -157,6 +128,7 @@ describe("remote experiment auth headers and signing secret", () => {
     prisma.dataset.findUniqueOrThrow({
       where: { id_projectId: { id: datasetId, projectId } },
       select: {
+        remoteExperimentUrl: true,
         remoteExperimentSecretKey: true,
         remoteExperimentDisplaySecretKey: true,
         remoteExperimentRequestHeaders: true,
@@ -270,16 +242,116 @@ describe("remote experiment auth headers and signing secret", () => {
     // The plaintext secret must not appear anywhere in the safe read
     expect(JSON.stringify(config)).not.toContain("token-123");
 
-    // URL-only update (no requestHeaders) preserves the headers
+    // Same-URL update (no requestHeaders) preserves the headers
     await caller.datasets.upsertRemoteExperiment({
       projectId,
       datasetId,
-      url: "https://example.com/hook-updated",
+      url: "https://example.com/hook",
       defaultPayload: "{}",
       enabled: true,
     });
     const preserved = await selectSecretColumns(datasetId, projectId);
     expect(preserved.remoteExperimentRequestHeaders).toEqual(storedHeaders);
+  });
+
+  it.each([
+    {
+      name: "omitted headers",
+      requestHeaders: undefined,
+    },
+    {
+      name: "an empty masked value",
+      requestHeaders: {
+        authorization: { secret: true, value: "" },
+      },
+    },
+  ])(
+    "rejects reusing secret headers across a URL change with $name",
+    async ({ requestHeaders }) => {
+      const { caller, projectId } = await prepare("MEMBER");
+      const datasetId = await createDataset(projectId);
+
+      await caller.datasets.upsertRemoteExperiment({
+        projectId,
+        datasetId,
+        url: "https://example.com/hook",
+        defaultPayload: "{}",
+        enabled: true,
+        requestHeaders: {
+          authorization: { secret: true, value: "Bearer token-123" },
+        },
+      });
+
+      await expect(
+        caller.datasets.upsertRemoteExperiment({
+          projectId,
+          datasetId,
+          url: "https://example.com/collect",
+          defaultPayload: "{}",
+          enabled: true,
+          requestHeaders,
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining(
+          "Secret headers must be re-entered when changing the remote experiment URL",
+        ),
+      });
+
+      const stored = await selectSecretColumns(datasetId, projectId);
+      expect(stored.remoteExperimentUrl).toBe("https://example.com/hook");
+      expect(stored.remoteExperimentRequestHeaders).toBeDefined();
+      expect(
+        decrypt(
+          (
+            stored.remoteExperimentRequestHeaders as Record<
+              string,
+              { secret: boolean; value: string }
+            >
+          ).authorization.value,
+        ),
+      ).toBe("Bearer token-123");
+    },
+  );
+
+  it("allows a URL change when secret headers are replaced", async () => {
+    const { caller, projectId } = await prepare("MEMBER");
+    const datasetId = await createDataset(projectId);
+
+    await caller.datasets.upsertRemoteExperiment({
+      projectId,
+      datasetId,
+      url: "https://example.com/hook",
+      defaultPayload: "{}",
+      enabled: true,
+      requestHeaders: {
+        authorization: { secret: true, value: "Bearer token-123" },
+      },
+    });
+
+    await caller.datasets.upsertRemoteExperiment({
+      projectId,
+      datasetId,
+      url: "https://example.com/replacement",
+      defaultPayload: "{}",
+      enabled: true,
+      requestHeaders: {
+        authorization: { secret: true, value: "Bearer replacement-token" },
+      },
+    });
+
+    const stored = await selectSecretColumns(datasetId, projectId);
+    expect(stored.remoteExperimentUrl).toBe("https://example.com/replacement");
+    expect(
+      decrypt(
+        (
+          stored.remoteExperimentRequestHeaders as Record<
+            string,
+            { secret: boolean; value: string }
+          >
+        ).authorization.value,
+      ),
+    ).toBe("Bearer replacement-token");
   });
 
   it("excludes secret columns from generic dataset reads via the global Prisma omit", async () => {

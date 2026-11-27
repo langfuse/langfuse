@@ -1,36 +1,15 @@
 import { z } from "zod";
+import {
+  auditedQuery,
+  observationRefs,
+  scoreRefs,
+  refsIf,
+} from "@/src/features/audit-logs/server/auditedQuery";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { applyCommentFilters } from "@langfuse/shared/src/server";
 import {
-  createTRPCRouter,
-  protectedGetTraceProcedure,
-  protectedProjectProcedure,
-} from "@/src/server/api/trpc";
-import {
-  BatchActionQuerySchema,
-  BatchTableNames,
-  BatchExportTableName,
-  BatchActionType,
-  ActionId,
-  filterAndValidateDbScoreList,
-  normalizeOrderByForTable,
-  orderBy,
-  paginationZod,
-  singleFilter,
-  timeFilter,
-  type Observation,
-  hasValidTracingSearchTypes,
-  TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
-  TracingSearchType,
-  type ScoreDomain,
-  ScoreDataTypeArray,
-  ScoreDataTypeEnum,
-  LISTABLE_SCORE_TYPES,
-} from "@langfuse/shared";
-import {
-  traceException,
+  applyCommentFilters,
   getTracesTable,
   getTracesTableCount,
   getScoresForTraces,
@@ -55,28 +34,58 @@ import {
   updateEvents,
   getScoresAndCorrectionsForTraces,
 } from "@langfuse/shared/src/server";
+import {
+  createTRPCRouter,
+  protectedGetTraceProcedure,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
+import {
+  isoDateTime,
+  BatchActionQuerySchema,
+  BatchTableNames,
+  BatchExportTableName,
+  BatchActionType,
+  ActionId,
+  filterAndValidateDbScoreList,
+  normalizeOrderByForTable,
+  orderBy,
+  paginationZod,
+  singleFilterList,
+  timeFilter,
+  type Observation,
+  hasValidTracingSearchTypes,
+  TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
+  TracingSearchType,
+  type ScoreDomain,
+  ScoreDataTypeArray,
+  ScoreDataTypeEnum,
+  LISTABLE_SCORE_TYPES,
+  AUDIT_LOG_RESOURCE_REFS_MAX,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server/legacyIoSearch";
-import {
-  type AgentGraphDataResponse,
-  AgentGraphDataSchema,
-} from "@/src/features/trace-graph-view/types";
+import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
+import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/fns/mapAgentGraphRecord";
+
 import { env } from "@/src/env.mjs";
 import {
   toDomainWithStringifiedMetadata,
   toDomainArrayWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { throwIfPublicSharingDisabled } from "@/src/ee/features/public-sharing/server/publicSharing";
 import partition from "lodash/partition";
+import chunk from "lodash/chunk";
 
 const TraceCountOptions = z
   .object({
     projectId: z.string(), // Required for protectedProjectProcedure
     searchQuery: z.string().nullable(),
     searchType: z.array(TracingSearchType),
-    filter: z.array(singleFilter).nullable(),
+    filter: singleFilterList.nullable(),
     orderBy: orderBy,
   })
   .refine(hasValidTracingSearchTypes, {
@@ -99,6 +108,7 @@ export type ObservationReturnTypeWithMetadata = Omit<
   // optional, because in v4 an observation can have those properties
   userId?: string | null;
   sessionId?: string | null;
+  release?: string | null;
 };
 
 export type ObservationReturnType = Omit<
@@ -206,7 +216,7 @@ export const traceRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         traceIds: z.array(z.string()),
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -263,8 +273,6 @@ export const traceRouter = createTRPCRouter({
       const traceScores = await getScoresForTraces({
         projectId: ctx.session.projectId,
         traceIds: res.map((r) => r.id),
-        limit: 1000,
-        offset: 0,
         excludeMetadata: true,
         includeHasMetadata: true,
       });
@@ -273,7 +281,8 @@ export const traceRouter = createTRPCRouter({
         scores: traceScores,
         dataTypes: LISTABLE_SCORE_TYPES,
         includeHasMetadata: true,
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       return res.map((row) => ({
@@ -356,8 +365,8 @@ export const traceRouter = createTRPCRouter({
         })),
       };
     }),
-  byId: protectedGetTraceProcedure
-    .input(
+  byId: auditedQuery(
+    protectedGetTraceProcedure.input(
       z.object({
         traceId: z.string(), // used for security check
         projectId: z.string(), // used for security check
@@ -365,14 +374,16 @@ export const traceRouter = createTRPCRouter({
         fromTimestamp: z.date().nullish(), // min timestamp of the trace. Used to query CH more efficiently
         verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
       }),
-    )
-    .query(async ({ ctx }) => {
+    ),
+    { resourceType: "trace", action: "read", idKey: "traceId" },
+    async ({ ctx, audit }) => {
       if (!ctx.trace) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Trace not found",
         });
       }
+      audit.refs(refsIf("session", ctx.trace.sessionId));
       return {
         ...ctx.trace,
         input: ctx.trace.input as string,
@@ -381,17 +392,19 @@ export const traceRouter = createTRPCRouter({
           ? JSON.stringify(ctx.trace.metadata)
           : undefined,
       };
-    }),
-  byIdWithObservationsAndScores: protectedGetTraceProcedure
-    .input(
+    },
+  ),
+  byIdWithObservationsAndScores: auditedQuery(
+    protectedGetTraceProcedure.input(
       z.object({
         traceId: z.string(), // used for security check
         timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
         fromTimestamp: z.date().nullish(), // min timestamp of the trace. Used to query CH more efficiently
         projectId: z.string(), // used for security check
       }),
-    )
-    .query(async ({ input, ctx }) => {
+    ),
+    { resourceType: "trace", action: "read", idKey: "traceId" },
+    async ({ input, ctx, audit }) => {
       if (!ctx.trace) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -416,7 +429,8 @@ export const traceRouter = createTRPCRouter({
       const validatedScores = filterAndValidateDbScoreList({
         scores: traceScores,
         dataTypes: [...ScoreDataTypeArray],
-        onParseError: traceException,
+        onParseError: (error) =>
+          logger.warn("Invalid score omitted from response", { error }),
       });
 
       const [corrections, scores] = partition(
@@ -431,20 +445,34 @@ export const traceRouter = createTRPCRouter({
         .map((o) => o.endTime)
         .filter((t) => t)
         .sort((a, b) => (a as Date).getTime() - (b as Date).getTime());
-      const latencyMs =
-        obsStartTimes.length > 0
-          ? obsEndTimes.length > 0
-            ? (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
+      const latencyMs = (() => {
+        if (obsStartTimes.length > 0) {
+          if (obsEndTimes.length > 0) {
+            return (
+              (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
               obsStartTimes[0]!.getTime()
-            : obsStartTimes.length > 1
-              ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
-                obsStartTimes[0]!.getTime()
-              : undefined
-          : undefined;
+            );
+          }
+          if (obsStartTimes.length > 1) {
+            return (
+              obsStartTimes[obsStartTimes.length - 1]!.getTime() -
+              obsStartTimes[0]!.getTime()
+            );
+          }
+          return undefined;
+        }
+        return undefined;
+      })();
 
       const scoresDomain =
         toDomainArrayWithStringifiedMetadata<ScoreDomain>(scores);
 
+      audit.refs([
+        ...refsIf("session", ctx.trace.sessionId),
+        ...observationRefs(observations),
+        ...scoreRefs(validatedScores),
+      ]);
+      audit.count(observations.length);
       return {
         ...toDomainWithStringifiedMetadata(ctx.trace),
         input: ctx.trace.input ? JSON.stringify(ctx.trace.input) : null,
@@ -458,15 +486,28 @@ export const traceRouter = createTRPCRouter({
           input: undefined, // this is not queried above.
         })) as ObservationReturnTypeWithMetadata[],
       };
-    }),
+    },
+  ),
   deleteMany: protectedProjectProcedure
     .input(
-      z.object({
-        traceIds: z.array(z.string()).min(1, "Minimum 1 traceId is required."),
-        projectId: z.string(),
-        query: BatchActionQuerySchema.optional(),
-        isBatchAction: z.boolean().default(false),
-      }),
+      z
+        .object({
+          traceIds: z.array(z.string()),
+          projectId: z.string(),
+          query: BatchActionQuerySchema.optional(),
+          isBatchAction: z.boolean().default(false),
+        })
+        // Batch actions delete by query and ignore traceIds, so an empty list
+        // is valid there (paging/refetch can drain the visible selection while
+        // select-all is armed); only id-based deletes need at least one id.
+        .refine((input) => input.isBatchAction || input.traceIds.length > 0, {
+          message: "Minimum 1 traceId is required.",
+          path: ["traceIds"],
+        })
+        .refine((input) => !input.isBatchAction || input.query !== undefined, {
+          message: "Batch actions require a query.",
+          path: ["query"],
+        }),
     )
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
@@ -519,7 +560,7 @@ export const traceRouter = createTRPCRouter({
           }
         }
 
-        await createBatchActionJob({
+        const { cutoffCreatedAt } = await createBatchActionJob({
           projectId: input.projectId,
           actionId: ActionId.TraceDelete,
           actionType: BatchActionType.Delete,
@@ -528,20 +569,26 @@ export const traceRouter = createTRPCRouter({
           query: input.query,
           useEventsTableOverride: declaresEventsTable ? true : undefined,
         });
-      } else {
-        await Promise.all(
-          input.traceIds.map((traceId) =>
-            auditLog({
-              resourceType: "trace",
-              resourceId: traceId,
-              action: "delete",
-              session: ctx.session,
-            }),
-          ),
-        );
-
-        await traceDeletionProcessor(input.projectId, input.traceIds);
+        return { cutoffCreatedAt: cutoffCreatedAt?.toISOString() ?? null };
       }
+
+      for (const traceIds of chunk(
+        input.traceIds,
+        AUDIT_LOG_RESOURCE_REFS_MAX,
+      )) {
+        await auditLog({
+          resourceType: "project",
+          resourceId: input.projectId,
+          action: "deleteTraces",
+          before: { traceIds },
+          session: ctx.session,
+        });
+      }
+
+      await traceDeletionProcessor(input.projectId, input.traceIds, {
+        actor: { type: "USER", userId: ctx.session.user.id },
+      });
+      return { cutoffCreatedAt: null };
     }),
   bookmark: protectedProjectProcedure
     .input(
@@ -617,64 +664,57 @@ export const traceRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "objects:publish",
       });
-      try {
-        await auditLog({
-          session: ctx.session,
-          resourceType: "trace",
-          resourceId: input.traceId,
-          action: "publish",
-          after: input.public,
-        });
-
-        // eslint-disable-next-line @typescript-eslint/no-deprecated
-        const clickhouseTrace = await getTraceById({
-          traceId: input.traceId,
+      if (input.public) {
+        await throwIfPublicSharingDisabled({
+          prisma: ctx.prisma,
           projectId: input.projectId,
         });
-        if (!clickhouseTrace) {
-          logger.error(
-            `Trace not found in Clickhouse: ${input.traceId}. Skipping publishing.`,
-          );
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Trace not found",
-          });
-        }
-        clickhouseTrace.public = input.public;
-        const promises = [
-          upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
-        ];
-        if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy") {
-          promises.push(
-            updateEvents(
-              input.projectId,
-              { traceIds: [clickhouseTrace.id] },
-              { public: input.public },
-            ),
-          );
-        }
-        await Promise.all(promises);
-        return clickhouseTrace;
-      } catch (error) {
-        logger.error("Failed to call traces.publish", error);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-        });
       }
+      await auditLog({
+        session: ctx.session,
+        resourceType: "trace",
+        resourceId: input.traceId,
+        action: "publish",
+        after: input.public,
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      const clickhouseTrace = await getTraceById({
+        traceId: input.traceId,
+        projectId: input.projectId,
+      });
+      if (!clickhouseTrace) {
+        throw new LangfuseNotFoundError("Trace not found");
+      }
+      clickhouseTrace.public = input.public;
+      const promises = [
+        upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
+      ];
+      if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy") {
+        promises.push(
+          updateEvents(
+            input.projectId,
+            { traceIds: [clickhouseTrace.id] },
+            { public: input.public },
+          ),
+        );
+      }
+      await Promise.all(promises);
+      return clickhouseTrace;
     }),
   getAgentGraphData: protectedGetTraceProcedure
     .input(
       z.object({
         projectId: z.string(),
         traceId: z.string(),
-        minStartTime: z.string(),
-        maxStartTime: z.string(),
+        minStartTime: isoDateTime({ offset: true }),
+        maxStartTime: isoDateTime({ offset: true }),
         // Optional fields for enforceTraceAccess middleware (supports public traces)
         timestamp: z.date().nullish(),
         fromTimestamp: z.date().nullish(),
       }),
     )
-    .query(async ({ input }): Promise<Required<AgentGraphDataResponse>[]> => {
+    .query(async ({ input }): Promise<AgentGraphDataResponse[]> => {
       const { traceId, projectId, minStartTime, maxStartTime } = input;
 
       const chMinStartTime = convertDateToClickhouseDateTime(
@@ -691,45 +731,11 @@ export const traceRouter = createTRPCRouter({
         chMaxStartTime,
       });
 
-      const result = records
-        .map((r) => {
-          const parsed = AgentGraphDataSchema.safeParse(r);
-          if (!parsed.success) {
-            return null;
-          }
-
-          const data = parsed.data;
-          const hasLangGraphData = data.step != null && data.node != null;
-          const hasAgentData = data.type !== "EVENT"; // Include all types except EVENT
-
-          if (hasLangGraphData) {
-            return {
-              id: data.id,
-              node: data.node,
-              step: data.step,
-              parentObservationId: data.parent_observation_id || null,
-              name: data.name,
-              startTime: data.start_time,
-              endTime: data.end_time || undefined,
-              observationType: data.type,
-            };
-          } else if (hasAgentData) {
-            return {
-              id: data.id,
-              node: data.name,
-              step: 0,
-              parentObservationId: data.parent_observation_id || null,
-              name: data.name,
-              startTime: data.start_time,
-              endTime: data.end_time || undefined,
-              observationType: data.type,
-            };
-          }
-
-          return null;
-        })
-        .filter((r) => Boolean(r)) as Required<AgentGraphDataResponse>[];
-
-      return result;
+      return records.flatMap((record) => {
+        const mapped = mapAgentGraphRecord(record);
+        if (!mapped) return [];
+        const { traceId: _traceId, ...graphData } = mapped;
+        return [graphData];
+      });
     }),
 });

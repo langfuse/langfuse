@@ -1,25 +1,64 @@
+/* eslint-disable @repo/no-null-render */
 import { Button, type ButtonProps } from "@/src/components/ui/button";
-import { InputCommandShortcut } from "@/src/components/ui/input-command";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { HeaderActionButton } from "@/src/components/HeaderActionButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   type ListEntry,
   useDetailPageLists,
-} from "@/src/features/navigate-detail-pages/context";
+} from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { cn } from "@/src/utils/tailwind";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const SHORTCUT_PULSE_MS = 160;
 
 type ShortcutPulse = "previous" | "next" | null;
+
+function isEarlierOrClosedPeek(dialog: Element, owningPeek: Element | null) {
+  if (!dialog.hasAttribute("data-peek-content")) return false;
+  if (dialog.getAttribute("data-state") === "closed") return true;
+  return (
+    owningPeek?.compareDocumentPosition(dialog) ===
+    Node.DOCUMENT_POSITION_PRECEDING
+  );
+}
+
+/** A dialog above this nav. Stacked peeks are portaled in opening order. */
+function dialogOutsideNav(root: HTMLElement | null): boolean {
+  if (typeof document === "undefined") return false;
+  const owningPeek = root?.closest("[data-peek-content]") ?? null;
+  const dialogs = document.querySelectorAll(
+    '[role="dialog"]:not([aria-hidden="true"])',
+  );
+  for (const dialog of dialogs) {
+    if (root && dialog.contains(root)) continue;
+    if (isEarlierOrClosedPeek(dialog, owningPeek)) continue;
+    return true;
+  }
+  return false;
+}
+
+type NavOrientation = "vertical" | "horizontal";
+
+function useNavOrientation(orientation: NavOrientation) {
+  if (orientation === "horizontal") {
+    return {
+      PreviousIcon: ChevronLeft,
+      NextIcon: ChevronRight,
+      previousLabel: "Previous sample",
+      nextLabel: "Next sample",
+    };
+  }
+  return {
+    PreviousIcon: ArrowUp,
+    NextIcon: ArrowDown,
+    previousLabel: "Navigate up",
+    nextLabel: "Navigate down",
+  };
+}
 
 export const DetailPageNav = (props: {
   currentId: string;
@@ -28,23 +67,35 @@ export const DetailPageNav = (props: {
   onNavigate?: (entry: ListEntry) => void;
   /** Button size; defaults to the cva default. Pass "sm" to match icon-xs rows. */
   size?: ButtonProps["size"];
+  /** Sample panels step left and right. Detail pages step up and down. */
+  orientation?: NavOrientation;
   /**
-   * Compact mode for dense toolbars (e.g. the peek header): icon-only ghost
-   * arrows with the K/J hint moved to the tooltip, so the buttons match a row
-   * of icon-xs controls instead of standing out. Shortcuts still work.
+   * Compact mode for header action rows: icon-only ghost arrows with the K/J
+   * hint moved to the tooltip. Shortcuts still work.
    */
   compact?: boolean;
 }) => {
-  const { currentId, path, listKey, onNavigate, size, compact } = props;
+  const {
+    currentId,
+    path,
+    listKey,
+    onNavigate,
+    size,
+    compact,
+    orientation = "vertical",
+  } = props;
+  const { PreviousIcon, NextIcon, previousLabel, nextLabel } =
+    useNavOrientation(orientation);
   const { detailPagelists } = useDetailPageLists();
   const entries = detailPagelists[listKey] ?? [];
   const [shortcutPulse, setShortcutPulse] = useState<ShortcutPulse>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const shortcutPulseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
 
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled: isV4 } = useV4Beta();
+  const { isV4 } = useReadPath();
   const router = useRouter();
   const currentIndex = entries.findIndex((entry) => entry.id === currentId);
   const previousPageEntry =
@@ -123,6 +174,9 @@ export const DetailPageNav = (props: {
       if (event.metaKey || event.ctrlKey) {
         return;
       }
+      // A dialog outside this nav owns the keyboard. The dialog that contains
+      // the nav, such as a table peek, does not.
+      if (dialogOutsideNav(rootRef.current)) return;
 
       if (event.key === "k" && previousPageEntry) {
         pulseShortcut("previous");
@@ -137,20 +191,51 @@ export const DetailPageNav = (props: {
   }, [previousPageEntry, nextPageEntry, navigateToEntry, pulseShortcut]);
 
   if (entries.length > 1) {
+    if (compact) {
+      return (
+        <div ref={rootRef} className="flex flex-row gap-1">
+          <HeaderActionButton
+            label={previousLabel}
+            shortcut="K"
+            icon={<PreviousIcon size="base" />}
+            active={shortcutPulse === "previous"}
+            disabled={!previousPageEntry}
+            onClick={() => {
+              if (previousPageEntry) {
+                navigateToEntry(previousPageEntry, "previous", "button");
+              }
+            }}
+          />
+          <HeaderActionButton
+            label={nextLabel}
+            shortcut="J"
+            icon={<NextIcon size="base" />}
+            active={shortcutPulse === "next"}
+            disabled={!nextPageEntry}
+            onClick={() => {
+              if (nextPageEntry) {
+                navigateToEntry(nextPageEntry, "next", "button");
+              }
+            }}
+          />
+        </div>
+      );
+    }
     const buttonClassName = (active: boolean) =>
       cn(
-        "transition-[background-color,border-color,box-shadow,color] duration-150",
-        !compact && "gap-1.5 px-2",
+        "px-2 transition-[background-color,border-color,box-shadow,color] duration-150",
         active && "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
       );
     return (
-      <div className="flex flex-row gap-1">
-        <Tooltip>
-          <TooltipTrigger asChild>
+      <div ref={rootRef} className="flex flex-row gap-1">
+        <Tooltip label={previousLabel} shortcut={{ keys: ["K"] }}>
+          {({ getTriggerProps }) => (
             <Button
-              variant={compact ? "ghost" : "outline"}
+              {...getTriggerProps()}
+              aria-label={previousLabel}
+              variant="outline"
               type="button"
-              size={compact ? "icon-xs" : size}
+              size={size}
               className={buttonClassName(shortcutPulse === "previous")}
               disabled={!previousPageEntry}
               onClick={() => {
@@ -159,22 +244,19 @@ export const DetailPageNav = (props: {
                 }
               }}
             >
-              <ArrowUp className="h-4 w-4" />
-              {!compact && <KeyboardShortcut>K</KeyboardShortcut>}
+              <PreviousIcon size="base" color="default" />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <span>Navigate up</span>
-            <InputCommandShortcut className="ml-2">K</InputCommandShortcut>
-          </TooltipContent>
+          )}
         </Tooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip label={nextLabel} shortcut={{ keys: ["J"] }}>
+          {({ getTriggerProps }) => (
             <Button
-              variant={compact ? "ghost" : "outline"}
+              {...getTriggerProps()}
+              aria-label={nextLabel}
+              variant="outline"
               type="button"
-              size={compact ? "icon-xs" : size}
+              size={size}
               className={buttonClassName(shortcutPulse === "next")}
               disabled={!nextPageEntry}
               onClick={() => {
@@ -183,14 +265,9 @@ export const DetailPageNav = (props: {
                 }
               }}
             >
-              <ArrowDown className="h-4 w-4" />
-              {!compact && <KeyboardShortcut>J</KeyboardShortcut>}
+              <NextIcon size="base" color="default" />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <span>Navigate down</span>
-            <InputCommandShortcut className="ml-2">J</InputCommandShortcut>
-          </TooltipContent>
+          )}
         </Tooltip>
       </div>
     );

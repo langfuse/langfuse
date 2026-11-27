@@ -1,1 +1,1 @@
-export { default } from "@/src/features/automations/components/automations";
+export { default } from "@/src/features/automations/components/AutomationsPage";

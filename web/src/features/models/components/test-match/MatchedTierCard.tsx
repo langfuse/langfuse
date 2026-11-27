@@ -4,11 +4,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { useMemo } from "react";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
 import Decimal from "decimal.js";
-import { getMaxDecimals } from "@/src/features/models/utils";
+import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
 
 type MatchedTierCardProps = {
   tier: {
@@ -45,11 +45,7 @@ export function MatchedTierCard({ tier }: MatchedTierCardProps) {
       <CardContent className="space-y-4">
         <div className="flex items-center gap-2">
           <span className="text-base font-bold">{tier.name}</span>
-          {tier.isDefault && (
-            <Badge variant="secondary" className="text-xs">
-              Default
-            </Badge>
-          )}
+          {tier.isDefault && <Badge color="filled" text="Default" />}
           <span className="text-muted-foreground text-xs">
             Priority: {tier.priority}
           </span>

@@ -2,13 +2,11 @@ import { type Session } from "next-auth";
 
 import {
   BaseError,
-  CloudConfigSchema,
   ForbiddenError,
   type RateLimitResult,
 } from "@langfuse/shared";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
 
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 type SessionUser = NonNullable<Session["user"]>;
@@ -16,41 +14,23 @@ type SessionUser = NonNullable<Session["user"]>;
 /**
  * Build the org-scoped rate-limit scope for an in-app agent request.
  *
- * Shared by the foreground route and the background `startRun` mutation so a
- * user cannot bypass the cap by submitting through the other path.
+ * Used by `startRun` to build the same org-scoped API access shape as other
+ * authenticated project requests. The scope only keys the rate limit and never
+ * authorizes a read, so it leaves the access-audit opt-in unresolved.
  *
- * TODO: this is org-scoped only; there is no per-user cap yet.
+ * TODO: this bucket is org-scoped only; a per-user submission cap needs the
+ * rate-limit service to support non-org keys. Concurrency is capped per user by
+ * `assertInAppAgentRunCapacity`.
  */
 export function getInAppAgentApiAccessScope(
   user: SessionUser,
   projectId: string,
-  projectOrganization: {
-    id: string;
-    cloudConfig: unknown;
-  },
 ): ApiAccessScope {
   const organization = user.organizations.find((org) =>
     org.projects.some((project) => project.id === projectId),
   );
 
   if (!organization) {
-    if (user.admin === true) {
-      const cloudConfig = projectOrganization.cloudConfig
-        ? CloudConfigSchema.parse(projectOrganization.cloudConfig)
-        : undefined;
-
-      return {
-        orgId: projectOrganization.id,
-        plan: getOrganizationPlanServerSide(cloudConfig),
-        projectId,
-        accessLevel: "project",
-        rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
-        apiKeyId: "in-app-agent-session",
-        publicKey: "in-app-agent-session",
-        isIngestionSuspended: false,
-      };
-    }
-
     throw new ForbiddenError("User is not a member of this project");
   }
 
@@ -63,10 +43,11 @@ export function getInAppAgentApiAccessScope(
     apiKeyId: "in-app-agent-session",
     publicKey: "in-app-agent-session",
     isIngestionSuspended: false,
+    accessAuditLogEnabled: null,
   };
 }
 
-export async function checkInAppAgentRateLimit(
+async function checkInAppAgentRateLimit(
   scope: ApiAccessScope,
   resource: Parameters<RateLimitService["rateLimitRequest"]>[1],
 ): Promise<RateLimitResult | undefined> {
@@ -92,7 +73,7 @@ export async function assertInAppAgentRateLimit(
   throw new BaseError(
     "TooManyRequestsError",
     429,
-    `Too many assistant requests. Please retry in ${Math.ceil(
+    `Too many Halo requests. Please retry in ${Math.ceil(
       rateLimitRes.msBeforeNext / 1_000,
     )} seconds.`,
     true,

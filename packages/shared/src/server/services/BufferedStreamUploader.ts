@@ -89,16 +89,30 @@ export class BufferedStreamUploader {
   private currentBuffer: Buffer[] = [];
   private currentBufferSize = 0;
   private isCompleted = false;
+  private sourceFailed = false;
   private inFlightUploads: Map<symbol, Promise<void>> = new Map();
   private readonly errors = new ErrorSink();
   private readonly stats: UploadPartStats;
 
   constructor(params: BufferedStreamUploaderParams) {
-    this.params = params;
+    // Buffer.concat rejects a non-integer length. Callers can pass
+    // MiB * 1024 * 1024 from a fractional env value (e.g. 5.1).
+    this.params = {
+      ...params,
+      partSizeBytes: Math.floor(params.partSizeBytes),
+    };
     this.stats = params.stats ?? emptyUploadPartStats();
   }
 
   async upload(stream: Readable): Promise<UploadPartStats> {
+    // A failed source (e.g. a shutdown abort) dooms the upload, so in-flight
+    // parts stop retrying and no new part is scheduled. Listened for directly:
+    // while the reader waits for a free part slot it does not pull, so the
+    // loop below would only see the error later.
+    const onSourceError = () => {
+      this.sourceFailed = true;
+    };
+    stream.once("error", onSourceError);
     try {
       await this.params.strategy.initialize();
 
@@ -118,15 +132,20 @@ export class BufferedStreamUploader {
         this.currentBuffer.push(buf);
         this.currentBufferSize += buf.byteLength;
 
-        if (this.currentBufferSize >= this.params.partSizeBytes) {
-          await this.flushBuffer();
-          if (this.errors.hasError()) break;
+        // Slice exact partSizeBytes parts and carry the remainder. Some
+        // S3-compatible endpoints reject complete-multipart when non-trailing
+        // parts differ in length.
+        while (
+          this.currentBufferSize >= this.params.partSizeBytes &&
+          !this.errors.hasError()
+        ) {
+          await this.flushExactPart();
         }
       }
 
-      // Flush remaining data
+      // Final part is the only one allowed to be smaller than partSizeBytes.
       if (this.currentBufferSize > 0 && !this.errors.hasError()) {
-        await this.flushBuffer();
+        await this.flushRemainder();
       }
 
       // Wait for all in-flight uploads to complete
@@ -159,6 +178,7 @@ export class BufferedStreamUploader {
       await this.params.strategy.complete(sortedParts);
       this.isCompleted = true;
     } finally {
+      stream.off("error", onSourceError);
       if (!this.isCompleted) {
         await Promise.all(this.inFlightUploads.values());
         await this.params.strategy.abort("upload failed or incomplete");
@@ -168,21 +188,72 @@ export class BufferedStreamUploader {
     return this.stats;
   }
 
-  private async flushBuffer(): Promise<void> {
-    const partData = Buffer.concat(this.currentBuffer);
-    this.currentBuffer = [];
-    this.currentBufferSize = 0;
+  private async flushExactPart(): Promise<void> {
+    await this.enqueuePart(this.takeBytes(this.params.partSizeBytes));
+  }
+
+  private async flushRemainder(): Promise<void> {
+    await this.enqueuePart(this.takeBytes(this.currentBufferSize));
+  }
+
+  // Splits off the first `byteLength` bytes of currentBuffer as the part to
+  // upload and keeps the leftover as the new buffer. Coalesces in a single
+  // Buffer.concat pass so cost stays linear in the byte count regardless of
+  // how many row chunks accumulated; a part can hold hundreds of thousands of
+  // per-row chunks and this runs on the worker's shared event loop.
+  // Caller must pass byteLength <= currentBufferSize.
+  private takeBytes(byteLength: number): Buffer {
+    // Single backing buffer: this is the loop that slices one oversized stream
+    // chunk into k = chunkSize / partSizeBytes parts. Re-concatenating and
+    // re-copying the shrinking leftover on each of those k calls would be
+    // O(chunkSize^2 / partSizeBytes) — the same synchronous event-loop stall
+    // this class avoids for many small chunks. Instead slice by view: copy
+    // only the emitted part (so the large source frees once this synchronous
+    // loop ends, rather than being pinned for the upload's retry lifetime) and
+    // carry the leftover as a zero-copy view. Cost stays O(chunkSize).
+    if (this.currentBuffer.length === 1) {
+      const buf = this.currentBuffer[0];
+      this.currentBufferSize -= byteLength;
+      if (byteLength === buf.byteLength) {
+        this.currentBuffer = [];
+        return buf;
+      }
+      this.currentBuffer = [buf.subarray(byteLength)];
+      return Buffer.from(buf.subarray(0, byteLength));
+    }
+
+    const combined = Buffer.concat(this.currentBuffer);
+    const remainderLength = combined.byteLength - byteLength;
+    // Non-final parts are normally returned as a view into `combined`: no copy
+    // on the hot path, where `combined` is one part plus at most a trailing
+    // row. But a single oversized stream chunk makes `combined` several parts
+    // large, and a view would pin that whole buffer for the part upload's
+    // lifetime (including retry backoff). When at least one more part is left
+    // over, copy the slice so `combined` is freed as soon as this returns.
+    const partData =
+      remainderLength >= byteLength
+        ? Buffer.from(combined.subarray(0, byteLength))
+        : combined.subarray(0, byteLength);
+    // Copy the leftover into its own allocation for the same reason.
+    this.currentBuffer =
+      remainderLength > 0 ? [Buffer.from(combined.subarray(byteLength))] : [];
+    this.currentBufferSize -= byteLength;
+    return partData;
+  }
+
+  private async enqueuePart(partData: Buffer): Promise<void> {
     this.partNumber++;
 
     // Wait for a slot if all concurrent slots are full
     while (
       this.inFlightUploads.size >= this.params.maxConcurrentParts &&
-      !this.errors.hasError()
+      !this.errors.hasError() &&
+      !this.sourceFailed
     ) {
       await Promise.race(this.inFlightUploads.values());
     }
 
-    if (this.errors.hasError()) return;
+    if (this.errors.hasError() || this.sourceFailed) return;
 
     this.scheduleUpload(partData, this.partNumber);
   }
@@ -218,7 +289,7 @@ export class BufferedStreamUploader {
       timeMultiple: 2,
       maxDelay: 10_000,
       retry: (error: Error, attemptNumber: number) => {
-        if (!isTransientError(error)) {
+        if (this.sourceFailed || !isTransientError(error)) {
           return false;
         }
         // backoff also invokes this on the final failing attempt; skip counting

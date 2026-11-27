@@ -1,7 +1,8 @@
-import { PlusIcon } from "lucide-react";
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+import { PlusIcon } from "@langfuse/icons";
 
 import { ActionButton } from "@/src/components/ActionButton";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { DataTableControlsProvider } from "@/src/components/table/data-table-controls";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
@@ -16,10 +17,10 @@ import { api } from "@/src/utils/api";
 
 /** headerProps are shared by all of the ListMonitorPage headers */
 const headerProps = {
-  title: "Monitors",
+  title: "Alerts",
   help: {
     description:
-      "Monitors notify your team and automated workflows of sudden cost spikes, quality drops, latency changes, and other important changes on the system.",
+      "Alerts notify your team and automated workflows of sudden cost spikes, quality drops, latency changes, and other important changes on the system.",
   },
 };
 
@@ -37,7 +38,7 @@ export default function ListMonitorsPage() {
   );
 
   return (
-    <MonitorPagePermissions scope="monitors:read">
+    <MonitorPagePermissions scope="alerts:read">
       {!projectId || isLoading ? (
         <EmptyPage />
       ) : isSuccess && hasMonitors ? (
@@ -57,7 +58,7 @@ const OnboardingPage = ({ projectId }: { projectId: string }) => {
   /** hasCUDAccess is true if the user has permission to create monitors */
   const hasCUDAccess = useHasProjectAccess({
     projectId,
-    scope: "monitors:CUD",
+    scope: "alerts:CUD",
   });
 
   return (
@@ -72,7 +73,7 @@ const MainPage = ({ projectId }: { projectId: string }) => {
   /** hasCUDAccess is true if the user has permission to create monitors */
   const hasCUDAccess = useHasProjectAccess({
     projectId,
-    scope: "monitors:CUD",
+    scope: "alerts:CUD",
   });
 
   /** monitorEntitlementLimit is the limit of the number of monitors that can be created for this org  */
@@ -100,7 +101,9 @@ const MainPage = ({ projectId }: { projectId: string }) => {
               <FilterToggleButton className="md:hidden" />
               <AutomationButton projectId={projectId} />
               <ActionButton
-                icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+                icon={
+                  <PlusIcon size="base" color="default" aria-hidden="true" />
+                }
                 hasAccess={hasCUDAccess}
                 usageLimit={
                   typeof monitorEntitlementLimit === "number"
@@ -110,10 +113,10 @@ const MainPage = ({ projectId }: { projectId: string }) => {
                       }
                     : undefined
                 }
-                href={`/project/${projectId}/monitors/new`}
+                href={`/project/${projectId}/alerts/new`}
                 variant="default"
               >
-                New Monitor
+                New Alert
               </ActionButton>
             </>
           ),

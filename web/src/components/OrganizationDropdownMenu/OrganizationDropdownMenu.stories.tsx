@@ -1,9 +1,6 @@
 import type { ComponentProps } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
 import { OrganizationDropdownMenu } from "./OrganizationDropdownMenu";
 
 type Organization = Extract<
@@ -14,7 +11,6 @@ type Organization = Extract<
 const createOrganization = (id: string, name: string): Organization => ({
   id,
   name,
-  role: "OWNER",
   cloudConfig: undefined,
   plan: "cloud:hobby",
   metadata: {},
@@ -36,14 +32,18 @@ const organizations = [
 const meta = preview.meta({
   component: OrganizationDropdownMenu,
   args: {
+    children: () => null,
     canCreateOrganizations: true,
     getOrgPath: (organizationId) => `/organization/${organizationId}`,
   },
   render: (args) => (
-    <DropdownMenu defaultOpen>
-      <DropdownMenuTrigger>Trigger</DropdownMenuTrigger>
-      <OrganizationDropdownMenu {...args} />
-    </DropdownMenu>
+    <OrganizationDropdownMenu {...args}>
+      {({ getTriggerProps }) => (
+        <button type="button" {...getTriggerProps()}>
+          Trigger
+        </button>
+      )}
+    </OrganizationDropdownMenu>
   ),
 });
 
@@ -74,5 +74,44 @@ export const WithoutCreation = meta.story({
 export const Loading = meta.story({
   args: {
     state: "loading",
+  },
+});
+
+export const TestSearch = meta.story({
+  name: "(Test) Search organizations",
+  args: {
+    state: "loaded",
+    organizations,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "Trigger" }));
+
+    const menu = within(body.getByRole("menu", { name: "Organizations" }));
+    const search = await menu.findByRole("searchbox", {
+      name: "Search organizations...",
+    });
+    await expect(search).toHaveFocus();
+    await userEvent.type(search, "globex");
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(
+        menu.getByRole("link", { name: /Globex Corporation/ }),
+      ).toBeVisible(),
+    );
+    await expect(
+      menu.getByRole("menuitem", { name: "New organization" }),
+    ).toBeVisible();
+    await userEvent.click(menu.getByRole("button", { name: "Clear search" }));
+    await expect(search).toHaveValue("");
+    await expect(search).toHaveFocus();
+    await userEvent.keyboard("{ArrowDown}");
+    await expect(menu.getAllByRole("menuitem")[0]).toHaveFocus();
+    await userEvent.click(search);
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(body.queryByRole("menu", { name: "Organizations" })).toBeNull(),
+    );
   },
 });

@@ -1,1 +1,0 @@
-ALTER TABLE observations ON CLUSTER default DROP INDEX IF EXISTS idx_project_id;

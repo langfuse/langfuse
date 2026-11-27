@@ -230,7 +230,7 @@ maybeDescribe(
     // dual-write data. Both cases fail on the eventsTracesAggregation field
     // expressions (no root-name fallback; latest-write-only tags).
 
-    it("falls back to the root span's own name when no explicit trace name exists", async () => {
+    it("falls back to the app root's own name when no explicit trace name exists", async () => {
       const projectId = randomUUID();
       const traceId = randomUUID();
       const now = Date.now();
@@ -239,7 +239,8 @@ maybeDescribe(
         createEvent({
           project_id: projectId,
           trace_id: traceId,
-          parent_span_id: "",
+          parent_span_id: "external-parent",
+          is_app_root: true,
           type: "SPAN",
           name: "root-span-name",
           trace_name: null,
@@ -272,8 +273,8 @@ maybeDescribe(
       );
 
       expect(rows).toHaveLength(1);
-      // Legacy parity: the traces upsert derives the trace name from the root
-      // span when no explicit trace name was set; absent attributes stay null.
+      // The trace name falls back to the semantic root when no explicit trace
+      // name was set; absent attributes stay null.
       expect(rows[0].langfuse_trace_name).toBe("root-span-name");
       expect(rows[0].langfuse_user_id).toBe("user-1");
       expect(rows[0].langfuse_release).toBeNull();
@@ -332,3 +333,53 @@ maybeDescribe(
     });
   },
 );
+
+describe("getScoresForAnalyticsIntegrations free-form field caps", () => {
+  it("cuts comment, string_value and each metadata value to 32,768 characters", async () => {
+    const projectId = randomUUID();
+    const now = Date.now();
+    // Repetitive multi-byte text, like the lint findings that pushed a score
+    // past PostHog's event size limit.
+    const oversized = "⟦u⟧ ".repeat(50_000);
+    // Compare length and prefix so a failure does not print 200k characters.
+    const shape = (value: unknown) =>
+      typeof value === "string"
+        ? { length: value.length, isPrefix: oversized.startsWith(value) }
+        : value;
+    const capped = { length: 32_768, isPrefix: true };
+
+    await createScoresCh([
+      createTraceScore({
+        project_id: projectId,
+        timestamp: now,
+        data_type: "CATEGORICAL",
+        string_value: oversized,
+        comment: oversized,
+        metadata: { instances: oversized, kept: "short" },
+      }),
+    ]);
+
+    const rows = await collect(
+      getScoresForAnalyticsIntegrations(
+        projectId,
+        "Test Project",
+        new Date(now - HOUR_MS),
+        new Date(now + HOUR_MS),
+      ),
+    );
+
+    expect(rows).toHaveLength(1);
+    const metadata = rows[0].langfuse_score_metadata as Record<string, string>;
+    expect({
+      comment: shape(rows[0].langfuse_score_comment),
+      stringValue: shape(rows[0].langfuse_score_string_value),
+      instances: shape(metadata.instances),
+      kept: metadata.kept,
+    }).toEqual({
+      comment: capped,
+      stringValue: capped,
+      instances: capped,
+      kept: "short",
+    });
+  });
+});

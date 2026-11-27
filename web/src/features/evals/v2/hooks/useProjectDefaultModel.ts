@@ -1,0 +1,135 @@
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+
+import { env } from "@/src/env.mjs";
+import { getJudgeModelProviderAdapters } from "@/src/features/evals/v2/judgeModel";
+import { getConnectionAvailableModels } from "@/src/features/llm-api-key/availableModels";
+import type { ProjectDefaultModelConfig } from "@/src/features/evals/v2/types/ProjectDefaultModelConfig";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { api } from "@/src/utils/api";
+import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+
+function isSameJudgeModel(
+  first: Pick<ProjectDefaultModelConfig, "provider" | "model"> | null,
+  second: Pick<ProjectDefaultModelConfig, "provider" | "model"> | null,
+) {
+  return first?.provider === second?.provider && first?.model === second?.model;
+}
+
+export function useProjectDefaultModel({
+  projectId,
+  source,
+}: {
+  projectId: string;
+  source: "editor" | "overview";
+}) {
+  const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
+  const canRead = useHasProjectAccess({
+    projectId,
+    scope: "evalDefaultModel:read",
+  });
+  const canUpdate = useHasProjectAccess({
+    projectId,
+    scope: "evalDefaultModel:CUD",
+  });
+  const defaultModelQuery = api.defaultLlmModel.fetchDefaultModel.useQuery(
+    { projectId },
+    { enabled: Boolean(projectId) && canRead },
+  );
+  const canReadConnections = useHasProjectAccess({
+    projectId,
+    scope: "llmApiKeys:read",
+  });
+  const connectionsQuery = api.llmApiKey.effective.useQuery(
+    { projectId },
+    // Gated on the scope the router enforces, so a viewer does not fire a
+    // request that can only come back 403.
+    { enabled: Boolean(projectId) && canReadConnections },
+  );
+  const defaultModel = defaultModelQuery.data ?? null;
+  const connections = connectionsQuery.data?.data ?? [];
+  const upsertDefaultModel = api.defaultLlmModel.upsertDefaultModel.useMutation(
+    {
+      onError: (error) =>
+        trpcErrorToast(error, "default_evaluation_model.update"),
+    },
+  );
+
+  const updateDefaultModel = async (
+    model: ProjectDefaultModelConfig,
+    isReplacement: boolean,
+  ) => {
+    await upsertDefaultModel.mutateAsync(
+      { projectId, ...model },
+      {
+        onSuccess: async () => {
+          await Promise.all([
+            utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId }),
+            utils.evalsV2.list.invalidate({ projectId }),
+            utils.evalsV2.options.invalidate({ projectId }),
+            utils.evalsV2.filterOptions.invalidate({ projectId }),
+          ]);
+          capture("evaluators:default_model_update", {
+            source,
+            isReplacement,
+          });
+          showSuccessToast({
+            operation: "project_default_model.update",
+            title: "Project default model updated",
+            description: `${model.provider} / ${model.model} is now the project default.`,
+          });
+        },
+      },
+    );
+  };
+
+  const requestUpdate = (
+    model: ProjectDefaultModelConfig,
+    openConfirmation: (model: ProjectDefaultModelConfig) => void,
+  ) => {
+    if (isSameJudgeModel(defaultModel, model)) return;
+
+    if (defaultModel) {
+      openConfirmation(model);
+      return;
+    }
+
+    updateDefaultModel(model, false).catch(() => {
+      // The mutation reports the error.
+    });
+  };
+
+  return {
+    defaultModel,
+    connections,
+    connectionsPending: connectionsQuery.isPending,
+    providerGroups: connections.map<[string, string[]]>((connection) => [
+      connection.provider,
+      getConnectionAvailableModels(connection),
+    ]),
+    providerAdapters: getJudgeModelProviderAdapters(connections),
+    canRead,
+    canUpdate,
+    update: {
+      isPending: upsertDefaultModel.isPending,
+      requestUpdate,
+      updateConfiguration: (model: ProjectDefaultModelConfig) =>
+        updateDefaultModel(model, defaultModel !== null).catch(() => {
+          // The mutation reports the error.
+        }),
+      confirmUpdate: (model: ProjectDefaultModelConfig) =>
+        updateDefaultModel(model, true),
+    },
+    openProviderSettings: () => {
+      window.open(
+        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/settings/llm-connections`,
+        "_blank",
+        "noopener,noreferrer",
+      );
+      window.addEventListener("focus", () => connectionsQuery.refetch(), {
+        once: true,
+      });
+    },
+  };
+}

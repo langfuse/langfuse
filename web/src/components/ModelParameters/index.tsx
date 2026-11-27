@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @repo/no-null-render */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -9,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { Slider } from "@/src/components/ui/slider";
+import { Slider } from "@/src/components/ui/Slider";
 import { CreateLLMApiKeyDialog } from "@/src/features/public-api/components/CreateLLMApiKeyDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -21,22 +23,17 @@ import {
   type supportedModels,
   type UIModelParams,
 } from "@langfuse/shared";
-import { InfoIcon, PlusIcon, Settings2 } from "lucide-react";
+import { InfoIcon, PlusIcon, Settings2 } from "@langfuse/icons";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-
-import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { FormDescription } from "@/src/components/ui/form";
-import { CodeMirrorEditor } from "../editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
 
 export type ModelParamsContext = {
   modelParams: UIModelParams;
@@ -98,7 +95,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
 
   if (availableProviders.length === 0) {
     return (
-      <div className="flex flex-col space-y-4 pr-1">
+      <div className="flex flex-col pr-1">
         {customHeader ? (
           customHeader
         ) : (
@@ -106,7 +103,6 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
             <p className="font-bold">Model</p>
           </div>
         )}
-        <p className="text-xs">No LLM API key set in project. </p>
         <CreateLLMApiKeyDialog
           open={createLlmApiKeyDialogOpen}
           setOpen={setCreateLlmApiKeyDialogOpen}
@@ -125,7 +121,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           className="relative h-7 w-7"
           disabled={formDisabled}
         >
-          <Settings2 size={14} />
+          <Settings2 size="base" color="default" />
           {modelSettingsUsed && (
             <div className="bg-primary absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full" />
           )}
@@ -142,71 +138,13 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
             Configure advanced parameters for your model.
           </p>
         </div>
-        <div className="space-y-4">
-          <ModelParamsSlider
-            title="Temperature"
-            modelParamsKey="temperature"
-            formDisabled={formDisabled}
-            enabled={modelParams.temperature.enabled}
-            setModelParamEnabled={setModelParamEnabled}
-            value={modelParams.temperature.value}
-            min={0}
-            max={modelParams.maxTemperature.value}
-            step={0.01}
-            tooltip="The sampling temperature. Higher values will make the output more random, while lower values will make it more focused and deterministic."
-            updateModelParam={updateModelParamValue}
-          />
-          <ModelParamsSlider
-            title="Output token limit"
-            modelParamsKey="max_tokens"
-            formDisabled={formDisabled}
-            enabled={modelParams.max_tokens.enabled}
-            setModelParamEnabled={setModelParamEnabled}
-            value={modelParams.max_tokens.value}
-            min={1}
-            max={16384}
-            step={1}
-            tooltip="The maximum number of tokens that can be generated in the chat completion."
-            updateModelParam={updateModelParamValue}
-          />
-          <ModelParamsSlider
-            title="Top P"
-            modelParamsKey="top_p"
-            formDisabled={formDisabled}
-            enabled={modelParams.top_p.enabled}
-            setModelParamEnabled={setModelParamEnabled}
-            value={modelParams.top_p.value}
-            min={0}
-            max={1}
-            step={0.01}
-            tooltip="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both."
-            updateModelParam={updateModelParamValue}
-          />
-          {modelParams.adapter.value === LLMAdapter.VertexAI &&
-            modelParams.maxReasoningTokens && (
-              <ModelParamsSlider
-                title="Max. Reasoning Tokens"
-                modelParamsKey="maxReasoningTokens"
-                formDisabled={formDisabled}
-                enabled={modelParams.maxReasoningTokens.enabled}
-                setModelParamEnabled={setModelParamEnabled}
-                value={modelParams.maxReasoningTokens.value}
-                min={-1}
-                max={24576}
-                step={1}
-                tooltip="Maximum tokens for model thinking/reasoning. Set to -1 for default (auto) thinking, 0 to disable. Only supported on Gemini 2.5+ models."
-                updateModelParam={updateModelParamValue}
-              />
-            )}
-          <ProviderOptionsInput
-            value={modelParams.providerOptions.value}
-            formDisabled={formDisabled}
-            enabled={modelParams.providerOptions.enabled}
-            setModelParamEnabled={setModelParamEnabled}
-            updateModelParam={updateModelParamValue}
-          />
-          <LLMApiKeyComponent {...{ projectId, modelParams }} />
-        </div>
+        <ModelParameterSettings
+          projectId={projectId}
+          modelParams={modelParams}
+          updateModelParamValue={updateModelParamValue}
+          setModelParamEnabled={setModelParamEnabled}
+          formDisabled={formDisabled}
+        />
       </PopoverContent>
     </Popover>
   );
@@ -337,6 +275,86 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
     </div>
   );
 };
+
+export const ModelParameterSettings = ({
+  projectId,
+  modelParams,
+  updateModelParamValue,
+  setModelParamEnabled,
+  formDisabled = false,
+}: Pick<
+  ModelParamsContext,
+  | "modelParams"
+  | "updateModelParamValue"
+  | "setModelParamEnabled"
+  | "formDisabled"
+> & { projectId: string }) => (
+  <div className="space-y-4">
+    <ModelParamsSlider
+      title="Temperature"
+      modelParamsKey="temperature"
+      formDisabled={formDisabled}
+      enabled={modelParams.temperature.enabled}
+      setModelParamEnabled={setModelParamEnabled}
+      value={modelParams.temperature.value}
+      min={0}
+      max={modelParams.maxTemperature.value}
+      step={0.01}
+      tooltip="The sampling temperature. Higher values will make the output more random, while lower values will make it more focused and deterministic."
+      updateModelParam={updateModelParamValue}
+    />
+    <ModelParamsSlider
+      title="Output token limit"
+      modelParamsKey="max_tokens"
+      formDisabled={formDisabled}
+      enabled={modelParams.max_tokens.enabled}
+      setModelParamEnabled={setModelParamEnabled}
+      value={modelParams.max_tokens.value}
+      min={1}
+      max={65535}
+      step={1}
+      tooltip="The maximum number of tokens that can be generated in the chat completion."
+      updateModelParam={updateModelParamValue}
+    />
+    <ModelParamsSlider
+      title="Top P"
+      modelParamsKey="top_p"
+      formDisabled={formDisabled}
+      enabled={modelParams.top_p.enabled}
+      setModelParamEnabled={setModelParamEnabled}
+      value={modelParams.top_p.value}
+      min={0}
+      max={1}
+      step={0.01}
+      tooltip="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both."
+      updateModelParam={updateModelParamValue}
+    />
+    {modelParams.adapter.value === LLMAdapter.VertexAI &&
+      modelParams.maxReasoningTokens && (
+        <ModelParamsSlider
+          title="Max. Reasoning Tokens"
+          modelParamsKey="maxReasoningTokens"
+          formDisabled={formDisabled}
+          enabled={modelParams.maxReasoningTokens.enabled}
+          setModelParamEnabled={setModelParamEnabled}
+          value={modelParams.maxReasoningTokens.value}
+          min={-1}
+          max={24576}
+          step={1}
+          tooltip="Maximum tokens for model thinking/reasoning. Set to -1 for default (auto) thinking, 0 to disable. Only supported on Gemini 2.5+ models."
+          updateModelParam={updateModelParamValue}
+        />
+      )}
+    <ProviderOptionsInput
+      value={modelParams.providerOptions.value}
+      formDisabled={formDisabled}
+      enabled={modelParams.providerOptions.enabled}
+      setModelParamEnabled={setModelParamEnabled}
+      updateModelParam={updateModelParamValue}
+    />
+    <LLMApiKeyComponent projectId={projectId} modelParams={modelParams} />
+  </div>
+);
 
 type ModelParamsSelectProps = {
   title: string;
@@ -570,14 +588,12 @@ const ProviderOptionsInput = ({
           >
             Additional options
           </span>
-          <Tooltip>
-            <TooltipTrigger>
-              <InfoIcon className="text-muted-foreground size-3" />
-            </TooltipTrigger>
-            <TooltipContent className="max-w-[200px] p-2">
-              Additional options to pass to the invocation. Please check your
-              provider&apos;s API reference for supported values.
-            </TooltipContent>
+          <Tooltip label="Additional options to pass to the invocation. Please check your provider's API reference for supported values.">
+            {({ getTriggerProps }) => (
+              <button type="button" {...getTriggerProps()}>
+                <InfoIcon size="sm" color="muted" />
+              </button>
+            )}
           </Tooltip>
         </div>
         <div className="flex flex-row space-x-3">
@@ -692,7 +708,11 @@ function AddLlmConnectionSelectAction({ onOpen }: { onOpen: () => void }) {
     <>
       <SelectSeparator />
       <Button type="button" variant="secondary" onClick={onOpen}>
-        <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+        <PlusIcon
+          size="base"
+          __rawClassName="mr-1.5 -ml-0.5"
+          aria-hidden="true"
+        />
         Add LLM Connection
       </Button>
     </>

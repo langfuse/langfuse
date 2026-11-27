@@ -3,11 +3,12 @@ import { parseArgs } from "node:util";
 import { hash } from "bcryptjs";
 import { v4 } from "uuid";
 import { encrypt } from "../../src/encryption";
-import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "../../src/in-app-agent/server/prompts/in-app-agent-system-prompt";
+import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "../../src/in-app-agent/server/systemPrompt";
 import {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
   type JobConfiguration,
+  JobConfigState,
   JobExecutionStatus,
   PrismaClient,
   type Project,
@@ -15,9 +16,20 @@ import {
   ScoreDataTypeEnum,
   type ScoreDataTypeType,
 } from "../../src/index";
-import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
+import { createApiKey, getDisplaySecretKey, logger } from "../../src/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "../../src/features/rbac/types";
+import {
+  findOrCreateOrgMembership,
+  findOrCreateProjectMembership,
+} from "../../src/features/memberships";
 import { redis } from "../../src/server/redis/redis";
 import {
+  DEFAULT_SEED_API_KEY,
   EVAL_TRACE_COUNT,
   FAILED_EVAL_TRACE_INTERVAL,
   SEED_CHAT_ML_PROMPTS,
@@ -54,12 +66,15 @@ async function main() {
   const seedUserId1 = "user-1"; // Owner of org
   const seedUserId2 = "user-2"; // Member of org, admin of project
 
+  // Seeded identities skip Cloud signup auto-enable; pin v4 on so local dx
+  // and PR previews land on the events traces view.
   const user = await prisma.user.upsert({
     where: { id: seedUserId1 },
     update: {
       name: "Demo User",
       email: "demo@langfuse.com",
       password: await hash("password", 12),
+      v4BetaEnabled: true,
     },
     create: {
       id: seedUserId1,
@@ -67,6 +82,7 @@ async function main() {
       email: "demo@langfuse.com",
       password: await hash("password", 12),
       image: "https://static.langfuse.com/langfuse-dev%2Fexample-avatar.png",
+      v4BetaEnabled: true,
     },
   });
   const user2 = await prisma.user.upsert({
@@ -75,12 +91,14 @@ async function main() {
       name: "Demo User 2",
       email: "member@langfuse.com",
       password: await hash("password", 12),
+      v4BetaEnabled: true,
     },
     create: {
       id: seedUserId2,
       name: "Demo User 2",
       email: "member@langfuse.com",
       password: await hash("password", 12),
+      v4BetaEnabled: true,
     },
   });
 
@@ -122,52 +140,31 @@ async function main() {
   // Realistic support chat scenario
   await createSupportChatSession(project1);
 
-  await prisma.organizationMembership.upsert({
-    where: {
-      orgId_userId: {
-        userId: user.id,
-        orgId: seedOrgId,
-      },
-    },
-    create: {
-      userId: user.id,
-      orgId: seedOrgId,
-      role: "OWNER",
-    },
-    update: {},
+  // API keys bound to a user are authorized by the user's role assignments, not the membership row alone.
+  const orgMembership = await findOrCreateOrgMembership(prisma, {
+    orgId: seedOrgId,
+    userId: user.id,
+    role: "OWNER",
   });
 
-  const orgMembership2 = await prisma.organizationMembership.upsert({
-    where: {
-      orgId_userId: {
-        userId: user2.id,
-        orgId: seedOrgId,
-      },
-    },
-    create: {
-      userId: user2.id,
-      orgId: seedOrgId,
-      role: "MEMBER",
-    },
-    update: {},
+  const orgMembership2 = await findOrCreateOrgMembership(prisma, {
+    orgId: seedOrgId,
+    userId: user2.id,
+    role: "MEMBER",
   });
 
-  await prisma.projectMembership.upsert({
-    where: {
-      projectId_userId: {
-        projectId: project1.id,
-        userId: user2.id,
-      },
-    },
-    create: {
-      userId: user2.id,
-      projectId: project1.id,
-      role: "ADMIN",
-      orgMembershipId: orgMembership2.id,
-    },
-    update: {
-      orgMembershipId: orgMembership2.id,
-    },
+  await findOrCreateProjectMembership(prisma, {
+    orgId: seedOrgId,
+    userId: user2.id,
+    projectId: project1.id,
+    role: "ADMIN",
+    orgMembershipId: orgMembership2.id,
+  });
+
+  await seedAiGateway({
+    organizationId: seedOrgId,
+    userId: user.id,
+    orgMembershipId: orgMembership.id,
   });
 
   const summaryPrompt = await prisma.prompt.upsert({
@@ -197,26 +194,24 @@ async function main() {
   });
 
   const seedApiKey = {
-    id: "seed-api-key",
-    secret: process.env.SEED_SECRET_KEY ?? "sk-lf-1234567890", // eslint-disable-line turbo/no-undeclared-env-vars
-    public: "pk-lf-1234567890",
-    note: "seeded key",
+    ...DEFAULT_SEED_API_KEY,
+    secret: process.env.SEED_SECRET_KEY ?? DEFAULT_SEED_API_KEY.secret, // eslint-disable-line turbo/no-undeclared-env-vars
   };
 
-  if (!(await prisma.apiKey.findUnique({ where: { id: seedApiKey.id } }))) {
-    await prisma.apiKey.create({
-      data: {
-        note: seedApiKey.note,
-        id: seedApiKey.id,
+  if (
+    !(await prisma.apiKey.findUnique({
+      where: { publicKey: seedApiKey.public },
+    }))
+  ) {
+    await createApiKey(prisma, {
+      tenant: OrganizationId(seedOrgId),
+      scope: ProjectId(project1.id),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(user.id),
+      name: seedApiKey.note,
+      predefinedKeys: {
         publicKey: seedApiKey.public,
-        hashedSecretKey: await hashSecretKey(seedApiKey.secret),
-        displaySecretKey: getDisplaySecretKey(seedApiKey.secret),
-        scope: "PROJECT",
-        project: {
-          connect: {
-            id: project1.id,
-          },
-        },
+        secretKey: seedApiKey.secret,
       },
     });
   }
@@ -244,42 +239,32 @@ async function main() {
       },
       update: { orgId: seedOrgIdOrg2 },
     });
-    await prisma.organizationMembership.upsert({
-      where: {
-        orgId_userId: {
-          userId: user.id,
-          orgId: seedOrgIdOrg2,
-        },
-      },
-      create: {
-        userId: user.id,
-        orgId: seedOrgIdOrg2,
-        role: "VIEWER",
-      },
-      update: {},
+    await findOrCreateOrgMembership(prisma, {
+      orgId: seedOrgIdOrg2,
+      userId: user.id,
+      role: "VIEWER",
     });
     await upsertInAppAgentSystemPrompt(project2.id);
 
     const secondKey = {
-      id: "seed-api-key-2",
       secret: process.env.SEED_SECRET_KEY ?? "sk-lf-asdfghjkl", // eslint-disable-line turbo/no-undeclared-env-vars
       public: "pk-lf-asdfghjkl",
       note: "seeded key 2",
     };
-    if (!(await prisma.apiKey.findUnique({ where: { id: secondKey.id } }))) {
-      await prisma.apiKey.create({
-        data: {
-          note: secondKey.note,
-          id: secondKey.id,
+    if (
+      !(await prisma.apiKey.findUnique({
+        where: { publicKey: secondKey.public },
+      }))
+    ) {
+      await createApiKey(prisma, {
+        tenant: OrganizationId(seedOrgIdOrg2),
+        scope: ProjectId(project2.id),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(user.id),
+        name: secondKey.note,
+        predefinedKeys: {
           publicKey: secondKey.public,
-          hashedSecretKey: await hashSecretKey(secondKey.secret),
-          displaySecretKey: getDisplaySecretKey(secondKey.secret),
-          scope: "PROJECT",
-          project: {
-            connect: {
-              id: project2.id,
-            },
-          },
+          secretKey: secondKey.secret,
         },
       });
     }
@@ -357,13 +342,79 @@ async function main() {
           evalTemplateId: evalConfig.evalTemplateId,
           projectId: project1.id,
           jobType: evalConfig.jobType as any,
-          status: evalConfig.status as any,
+          status: evalConfig.status as JobConfigState,
           scoreName: evalConfig.scoreName,
           filter: evalConfig.filter,
           variableMapping: evalConfig.variableMapping,
           targetObject: evalConfig.targetObject,
           sampling: evalConfig.sampling,
           delay: evalConfig.delay,
+        },
+        update: {},
+      });
+
+      const evalTemplate = SEED_EVALUATOR_TEMPLATES.find(
+        (template) => template.id === evalConfig.evalTemplateId,
+      );
+      if (!evalTemplate) {
+        throw new Error(
+          `Missing evaluator template ${evalConfig.evalTemplateId}`,
+        );
+      }
+
+      await prisma.evaluator.upsert({
+        where: { id: evalConfig.id },
+        create: {
+          id: evalConfig.id,
+          projectId: project1.id,
+          name: evalConfig.scoreName,
+          type: evalTemplate.type as EvalTemplateType,
+        },
+        update: {},
+      });
+      await prisma.evaluatorVersion.upsert({
+        where: { id: `${evalConfig.id}:${evalTemplate.id}` },
+        create: {
+          id: `${evalConfig.id}:${evalTemplate.id}`,
+          evaluatorId: evalConfig.id,
+          version: evalTemplate.version,
+          prompt: evalTemplate.prompt ?? null,
+          model: evalTemplate.model ?? null,
+          provider: evalTemplate.provider ?? null,
+          modelParams: evalTemplate.modelParams ?? undefined,
+          vars: evalTemplate.vars,
+          variableMapping: evalConfig.variableMapping,
+          outputDefinition: evalTemplate.outputDefinition ?? undefined,
+          sourceCode: evalTemplate.sourceCode ?? null,
+          sourceCodeLanguage:
+            (evalTemplate.sourceCodeLanguage as
+              | EvalTemplateSourceCodeLanguage
+              | undefined) ?? null,
+        },
+        update: {},
+      });
+      await prisma.evaluationRule.upsert({
+        where: { id: evalConfig.id },
+        create: {
+          id: evalConfig.id,
+          projectId: project1.id,
+          name: evalConfig.scoreName,
+          status: evalConfig.status as any,
+          filter: evalConfig.filter,
+          targetObject: evalConfig.targetObject,
+          sampling: evalConfig.sampling,
+          delay: evalConfig.delay,
+        },
+        update: {},
+      });
+      await prisma.evaluationRuleEvaluatorAssignment.upsert({
+        where: { id: `legacy:${evalConfig.id}` },
+        create: {
+          id: `legacy:${evalConfig.id}`,
+          projectId: project1.id,
+          evaluationRuleId: evalConfig.id,
+          evaluatorId: evalConfig.id,
+          variableMapping: evalConfig.variableMapping,
         },
         update: {},
       });
@@ -432,6 +483,105 @@ main()
     logger.info("Disconnected from postgres and redis");
     process.exit(1);
   });
+
+async function seedAiGateway(params: {
+  organizationId: string;
+  userId: string;
+  orgMembershipId: string;
+}) {
+  // The gateway gets its own project rather than the shared seed project.
+  // Organization members do not inherit access to the ingestion project (see
+  // resolveProjectRole), so pointing the config at the seed project would take
+  // that project away from every seeded user.
+  const ingestionProjectId = "c2ba9dcb-1f39-4f2f-a4e6-1f0b6a8f5c11";
+  await prisma.project.upsert({
+    where: { id: ingestionProjectId },
+    create: {
+      id: ingestionProjectId,
+      name: "AI Gateway Ingestion",
+      orgId: params.organizationId,
+    },
+    update: { orgId: params.organizationId },
+  });
+  // Mirrors what the control plane writes when it creates the project: the
+  // creator keeps an explicit role so the project stays reachable in the UI.
+  await findOrCreateProjectMembership(prisma, {
+    orgId: params.organizationId,
+    projectId: ingestionProjectId,
+    userId: params.userId,
+    orgMembershipId: params.orgMembershipId,
+    role: "OWNER",
+  });
+  await prisma.gatewayConfig.upsert({
+    where: { organizationId: params.organizationId },
+    create: {
+      organizationId: params.organizationId,
+      defaultIngestionProjectId: ingestionProjectId,
+      ingestionMode: "FULL",
+    },
+    update: {
+      defaultIngestionProjectId: ingestionProjectId,
+    },
+  });
+
+  if (
+    (await prisma.gatewayAiConnection.count({
+      where: { organizationId: params.organizationId },
+    })) === 0
+  ) {
+    await prisma.gatewayAiConnection.createMany({
+      data: [
+        {
+          id: "seed-gateway-openai",
+          organizationId: params.organizationId,
+          name: "OpenAI production",
+          provider: "OPENAI",
+          encryptedCredential: encrypt("sk-seed-openai-not-valid"),
+          displaySecret: getDisplaySecretKey("sk-seed-openai-not-valid"),
+          createdById: params.userId,
+          status: "ENABLED",
+        },
+        {
+          id: "seed-gateway-anthropic",
+          organizationId: params.organizationId,
+          name: "Anthropic production",
+          provider: "ANTHROPIC",
+          encryptedCredential: encrypt("sk-ant-seed-not-valid"),
+          displaySecret: getDisplaySecretKey("sk-ant-seed-not-valid"),
+          createdById: params.userId,
+          status: "ENABLED",
+        },
+      ],
+    });
+  }
+
+  const publicKey = "pk-lf-gateway-seed";
+  const existingKey = await prisma.apiKey.findUnique({
+    where: { publicKey },
+    select: { id: true },
+  });
+  const key =
+    existingKey ??
+    (await createApiKey(prisma, {
+      tenant: OrganizationId(params.organizationId),
+      scope: UserId(params.userId),
+      role: SystemRoleId("AI_GATEWAY_INFERENCE"),
+      createdBy: UserId(params.userId),
+      name: "Seeded gateway key",
+      predefinedKeys: {
+        publicKey,
+        secretKey: "sk-lf-gateway-seed",
+      },
+    }));
+  await prisma.gatewayApiKeyAssociation.upsert({
+    where: { apiKeyId: key.id },
+    create: {
+      apiKeyId: key.id,
+      metadata: { environment: "development", team: "platform" },
+    },
+    update: {},
+  });
+}
 
 async function createDashboardsAndWidgets(projects: Project[]) {
   logger.info("Creating dashboards and widgets");

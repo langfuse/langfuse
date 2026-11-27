@@ -1,5 +1,8 @@
+import type { AuditRequestContext } from "@langfuse/shared";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
-import type { McpToolName } from "./server/bootstrap";
+
+import type { AuthorizationContext } from "@/src/features/auth/policy/types";
+import type { McpToolName } from "./server/tools";
 
 /**
  * MCP (Model Context Protocol) Server Types
@@ -58,23 +61,28 @@ export interface ServerContext {
   /** Org-level rate limit overrides from the cloud config */
   rateLimitOverrides: ApiAccessScope["rateLimitOverrides"];
 
+  /** The org's opt-in for read-access audit events */
+  accessAuditLogEnabled: ApiAccessScope["accessAuditLogEnabled"];
+
   /** User agent from the MCP client's HTTP request */
   userAgent?: string;
 
+  /** Client IP, User-Agent and request id stored on access audit events */
+  auditRequest?: AuditRequestContext;
+
   /** In-app-agent-specific MCP authorization state. */
   inAppAgent?: InAppAgentContext;
+
+  /** Resolved policy-core context, present only once the new authz path resolves the connection (enforce). */
+  auth?: AuthorizationContext;
 }
 
-/**
- * In-app-agent MCP access is explicit: `read` allows only tools annotated with `readOnlyHint`.
- * To allow mutating operations, `single-tool-override` can include a specific MCP registry tool name that the in-app agent is allowed to invoke.
- * Human approval is enforced earlier in the in-app agent runtime before any override is minted.
- */
-export type InAppAgentContext =
+/** In-app agent MCP access is read-only unless a prior approval mints a mutating-tool allowlist. */
+type InAppAgentContext =
   | {
       permissions: "read";
     }
   | {
-      permissions: "single-tool-override";
-      allowedToolName: McpToolName;
+      permissions: "tool-allowlist";
+      allowedToolNames: McpToolName[];
     };

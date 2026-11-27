@@ -1,21 +1,16 @@
+import { DefaultEvalModelService } from "@langfuse/shared/src/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { z } from "zod";
-import { findDefaultModelEvalTemplateIds } from "./evaluatorRepository";
+
+import { ZodModelConfig } from "@langfuse/shared";
 import {
-  EvaluatorBlockReason,
-  ZodModelConfig,
-  getEvaluatorBlockMetadata,
-} from "@langfuse/shared";
-import {
-  DefaultEvalModelService,
-  blockEvaluatorConfigsInTx,
-  EvaluatorBlockSource,
-  finalizeBlockedEvaluatorConfigBlocks,
-} from "@langfuse/shared/src/server";
+  deleteDefaultEvalModel,
+  upsertDefaultEvalModel,
+} from "@/src/features/evals/server/defaultEvalModelService";
 
 export const defaultEvalModelRouter = createTRPCRouter({
   fetchDefaultModel: protectedProjectProcedure
@@ -46,7 +41,13 @@ export const defaultEvalModelRouter = createTRPCRouter({
         scope: "evalDefaultModel:CUD",
       });
 
-      return DefaultEvalModelService.upsertDefaultModel(input);
+      return upsertDefaultEvalModel({
+        projectId: input.projectId,
+        provider: input.provider,
+        model: input.model,
+        modelParams: input.modelParams,
+        actor: { session: ctx.session },
+      });
     }),
   deleteDefaultModel: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
@@ -57,46 +58,9 @@ export const defaultEvalModelRouter = createTRPCRouter({
         scope: "evalDefaultModel:CUD",
       });
 
-      const result = await ctx.prisma.$transaction(async (tx) => {
-        const evalTemplateIds = await findDefaultModelEvalTemplateIds({
-          tx,
-          projectId: input.projectId,
-        });
-
-        const blockResult = await blockEvaluatorConfigsInTx({
-          tx,
-          projectId: input.projectId,
-          where: {
-            evalTemplateId: {
-              in: evalTemplateIds,
-            },
-          },
-          blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
-          blockMessage: getEvaluatorBlockMetadata(
-            EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
-          ).message,
-        });
-
-        // Delete the default model within the transaction
-        await tx.defaultLlmModel.delete({
-          // unique constraint on projectId
-          where: {
-            projectId: input.projectId,
-          },
-        });
-
-        return blockResult;
-      });
-
-      await finalizeBlockedEvaluatorConfigBlocks({
+      return deleteDefaultEvalModel({
         projectId: input.projectId,
-        source: EvaluatorBlockSource.DEFAULT_EVAL_MODEL_DELETION,
-        blockedByReason: {
-          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
-            result.blockedJobConfigIds,
-        },
+        actor: { session: ctx.session },
       });
-
-      return { success: true };
     }),
 });

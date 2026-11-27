@@ -1,8 +1,9 @@
-// Run-completion manifest for blob storage exports (LFE-10843): written as the
+// Run-completion manifest for blob storage exports: written as the
 // last object of a successful run (the run's commit point), listing every file
 // written, the export window, and per-file format.
 
 /** Bump on breaking payload changes; additive fields do not require a bump. */
+/** @internal */
 export const BLOB_EXPORT_MANIFEST_VERSION = 1;
 
 export type BlobExportManifestFile = {
@@ -23,10 +24,7 @@ export type BlobExportManifest = {
   version: number;
   projectId: string;
   exportSource: string;
-  /**
-   * Export window, both bounds inclusive — a row at exactly maxTimestamp also
-   * falls into the next run's window.
-   */
+  /** Half-open `[minTimestamp, maxTimestamp)`. */
   window: { minTimestamp: string; maxTimestamp: string };
   /** Equals window.maxTimestamp; also the manifest key stem. */
   maxTimestamp: string;

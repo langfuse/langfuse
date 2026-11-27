@@ -18,10 +18,11 @@ import {
  * envelope. A dashboard file inlines each referenced widget's portable
  * configuration (widgets are recreated on import — DB widget ids do not
  * travel across projects/instances).
+ * @internal
  */
 export const DASHBOARD_FILE_FORMAT_VERSION = 1;
 
-export function isLangfuseDashboardPayload(parsed: unknown): boolean {
+function isLangfuseDashboardPayload(parsed: unknown): boolean {
   return (
     typeof parsed === "object" &&
     parsed !== null &&
@@ -34,6 +35,7 @@ export function isLangfuseDashboardPayload(parsed: unknown): boolean {
  * Preset cards (curated Home components) have no widget configuration — the
  * portable payload is just the preset id in its own envelope, so copy-paste
  * works uniformly across every tile on a dashboard.
+ * @internal
  */
 export const PRESET_FILE_FORMAT_VERSION = 1;
 
@@ -100,7 +102,7 @@ export function parsePastedPreset(text: string): PastedPresetParseResult {
  */
 export function isPasteablePlacementPayload(
   text: string,
-  params: { isBetaEnabled: boolean },
+  params: { isV4: boolean },
 ): boolean {
   if (parsePastedWidget(text, params).status === "widget") return true;
   return parsePastedPreset(text).status === "preset";
@@ -149,7 +151,7 @@ const dashboardImportSchema = z
   })
   .loose();
 
-export type DashboardExportPlacement =
+type DashboardExportPlacement =
   | ({ type: "widget"; widgetId: string } & PlacementPosition)
   | ({ type: "preset"; presetId: string } & PlacementPosition);
 
@@ -160,6 +162,7 @@ export type DashboardExportPlacement =
  * export covers sharing; Clone covers same-project duplication) — this
  * builder documents the format and backs the import round-trip tests.
  * Placements whose widget cannot be resolved are skipped and counted.
+ * @internal
  */
 export function buildDashboardExport(params: {
   name: string;
@@ -211,7 +214,7 @@ export function buildDashboardExport(params: {
   };
 }
 
-export type ParsedDashboardImportPlacement =
+type ParsedDashboardImportPlacement =
   | ({ type: "widget"; widget: WidgetImport } & PlacementPosition)
   | ({ type: "preset"; presetId: HomeDashboardPresetId } & PlacementPosition);
 
@@ -237,7 +240,7 @@ export type DashboardImportParseResult =
  */
 export function parseDashboardImport(
   text: string,
-  params: { isBetaEnabled: boolean },
+  params: { isV4: boolean },
 ): DashboardImportParseResult {
   let parsedJson: unknown;
   try {
@@ -301,7 +304,7 @@ export function parseDashboardImport(
     try {
       const result = parseImportedWidgetJson({
         parsedJson: placement.widget,
-        isBetaEnabled: params.isBetaEnabled,
+        isV4: params.isV4,
       });
       removedFilters = removedFilters || result.removedFilters;
       placements.push({ type: "widget", widget: result.widget, ...position });

@@ -4,11 +4,13 @@ import {
   type DatasetSchema,
 } from "../utils/datasetItemUtils";
 import { DatasetItemFields } from "@/src/features/datasets/components/DatasetItemFields";
+import { type DatasetItemRenderMode } from "@/src/features/datasets/components/DatasetItemField";
 
 type DatasetItemViewModeContentProps = {
   item: DatasetItemDomain | null;
   isLoading: boolean;
   dataset: DatasetSchema | null;
+  renderMode: DatasetItemRenderMode;
 };
 
 /**
@@ -19,6 +21,7 @@ export const DatasetItemViewModeContent = ({
   item,
   isLoading,
   dataset,
+  renderMode,
 }: DatasetItemViewModeContentProps) => {
   if (isLoading) {
     return <div className="text-muted-foreground text-sm">Loading...</div>;
@@ -46,6 +49,7 @@ export const DatasetItemViewModeContent = ({
       }}
       dataset={dataset}
       editable={false}
+      renderMode={renderMode}
       projectId={item.projectId}
       datasetItemId={item.id}
     />

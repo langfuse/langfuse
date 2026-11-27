@@ -6,7 +6,7 @@ import {
 } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { InfoIcon, X } from "lucide-react";
+import { InfoIcon, X } from "@langfuse/icons";
 import {
   type CsvColumnPreview,
   type FieldMapping,
@@ -14,11 +14,7 @@ import {
 import { isSchemaField } from "@/src/features/datasets/lib/csv/helpers";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Label } from "@/src/components/ui/label";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 function SchemaKeyDropZone({
   schemaKey,
@@ -140,7 +136,7 @@ function MappedColumnBadge({
         }}
         className="hover:bg-accent-dark-blue/80 flex items-center rounded-sm"
       >
-        <X className="h-3.5 w-3.5" />
+        <X size="base" />
       </button>
     </div>
   );
@@ -205,15 +201,17 @@ export function MappingCard({
                 >
                   Direct Mapping
                 </Label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <InfoIcon className="text-muted-foreground h-3 w-3" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-[250px]" side="left">
-                    {useDirectMappingForInput
+                <Tooltip
+                  placement="left"
+                  label={
+                    useDirectMappingForInput
                       ? "Map entire CSV columns directly to the input field."
-                      : "Map CSV columns to individual schema fields."}
-                  </TooltipContent>
+                      : "Map CSV columns to individual schema fields."
+                  }
+                >
+                  {({ getTriggerProps }) => (
+                    <InfoIcon size="sm" color="muted" {...getTriggerProps()} />
+                  )}
                 </Tooltip>
               </div>
             )}
@@ -264,15 +262,21 @@ export function MappingCard({
                   >
                     Direct mapping
                   </Label>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <InfoIcon className="text-muted-foreground h-3 w-3" />
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-[250px]" side="left">
-                      {useDirectMappingForExpectedOutput
+                  <Tooltip
+                    placement="left"
+                    label={
+                      useDirectMappingForExpectedOutput
                         ? "Map entire CSV columns directly to the expected output field."
-                        : "Map CSV columns to individual schema fields."}
-                    </TooltipContent>
+                        : "Map CSV columns to individual schema fields."
+                    }
+                  >
+                    {({ getTriggerProps }) => (
+                      <InfoIcon
+                        size="sm"
+                        color="muted"
+                        {...getTriggerProps()}
+                      />
+                    )}
                   </Tooltip>
                 </div>
               )}

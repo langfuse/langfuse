@@ -1,35 +1,23 @@
-import { useCallback, useMemo, useState } from "react";
-import {
-  ClipboardPasteIcon,
-  CopyIcon,
-  CopyPlusIcon,
-  GripVerticalIcon,
-  MoreVerticalIcon,
-  TrashIcon,
-} from "lucide-react";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useEffect, useMemo, useRef } from "react";
+import { CopyIcon, CopyPlusIcon, TrashIcon } from "@langfuse/icons";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import {
   getHomePreset,
   type PresetWidgetContext,
 } from "@/src/features/dashboard/components/home-preset-registry";
-import {
-  buildPresetExport,
-  isPasteablePlacementPayload,
-} from "@/src/features/dashboard/utils/dashboard-import-export";
+import { buildPresetExport } from "@/src/features/dashboard/utils/dashboard-import-export";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+  DataCard,
+  type DataCardActions,
+} from "@/src/components/design-system/DataCard/DataCard";
 
 /**
  * A "preset" dashboard placement: renders a registered curated component by
@@ -49,6 +37,8 @@ export interface PresetPlacement {
 export function PresetDashboardWidget({
   projectId,
   dashboardId,
+  chartSync,
+  readPath,
   placement,
   dateRange,
   filterState,
@@ -57,11 +47,17 @@ export function PresetDashboardWidget({
   schedulerId,
   onLockedEditAttempt,
   readOnly,
-  onPasteWidget,
   onDuplicatePreset,
+  heightBehavior,
 }: {
   projectId: string;
   dashboardId: string;
+  chartSync: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
+  /** Resolved by the page controller — the card must not guess the version. */
+  readPath: ResolvedReadPath;
   placement: PresetPlacement;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
@@ -77,18 +73,18 @@ export function PresetDashboardWidget({
   /** Pure viewing surface (e.g. Home): render no edit affordances. */
   readOnly?: boolean;
   /**
-   * Pastes the clipboard widget/card next to this tile. Passed only on
-   * editable (non-locked) dashboards.
-   */
-  onPasteWidget?: (anchor: PresetPlacement) => void;
-  /**
-   * Adds another placement of this preset card next to this tile. Passed
-   * only on editable (non-locked) dashboards.
+   * Adds another placement of this preset card next to this tile (clone).
+   * Passed only on editable (non-locked) dashboards.
    */
   onDuplicatePreset?: (anchor: PresetPlacement) => void;
+  heightBehavior:
+    | { mode: "fixed" }
+    | {
+        mode: "content";
+        onHeightChange: (placementId: string, height: number) => void;
+      };
 }) {
-  const { isBetaEnabled } = useV4Beta();
-  const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+  const metricsVersion: ViewVersion = readPath === "v4" ? "v2" : "v1";
 
   // Presets on project-owned dashboards (e.g. a clone of the curated Home)
   // can be moved/removed, but their content stays fixed until extended into a
@@ -105,6 +101,35 @@ export function PresetDashboardWidget({
     Boolean(onLockedEditAttempt);
 
   const renderPreset = getHomePreset(placement.presetId);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const onHeightChange =
+    heightBehavior.mode === "content"
+      ? heightBehavior.onHeightChange
+      : undefined;
+
+  useEffect(() => {
+    if (!onHeightChange) return;
+
+    const element = contentRef.current;
+    if (!element) return;
+
+    const reportHeight = () => {
+      onHeightChange(
+        placement.id,
+        Math.max(element.offsetHeight, element.scrollHeight),
+      );
+    };
+    const resizeObserver = new ResizeObserver(reportHeight);
+    const mutationObserver = new MutationObserver(reportHeight);
+    resizeObserver.observe(element);
+    mutationObserver.observe(element, { childList: true, subtree: true });
+    reportHeight();
+
+    return () => {
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+    };
+  }, [onHeightChange, placement.id]);
 
   const ctx: PresetWidgetContext = useMemo(() => {
     const fromTimestamp = dateRange
@@ -141,15 +166,17 @@ export function PresetDashboardWidget({
       metricsVersion,
       schedulerId,
       syncId: dashboardId,
-      // Stretch to the tile; when the card's intrinsic content is taller
-      // (fixed chart min-heights, expanded tables) the wrapper scrolls
-      // instead of clipping.
-      className: "min-h-full",
+      sync: chartSync,
+      // Fixed presets need a definite height so their flex children can grow.
+      // Score Analytics is measured because each selected score adds a row.
+      className: heightBehavior.mode === "content" ? "min-h-full" : "h-full",
     };
   }, [
     dashboardId,
+    chartSync,
     dateRange,
     filterState,
+    heightBehavior.mode,
     metricsVersion,
     projectId,
     schedulerId,
@@ -167,18 +194,6 @@ export function PresetDashboardWidget({
   };
 
   const capture = usePostHogClientCapture();
-  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
-  // Gate "Paste to the right" on the clipboard actually holding a pasteable
-  // payload, where the browser lets us check silently.
-  const isPasteablePayload = useCallback(
-    (text: string) => isPasteablePlacementPayload(text, { isBetaEnabled }),
-    [isBetaEnabled],
-  );
-  const clipboardProbe = useClipboardWidgetProbe(
-    isActionsMenuOpen && Boolean(onPasteWidget),
-    isPasteablePayload,
-  );
-
   const handleCopyToClipboard = async () => {
     try {
       await copyTextToClipboard(
@@ -190,73 +205,82 @@ export function PresetDashboardWidget({
         preset_id: placement.presetId,
         dashboard_id: dashboardId,
       });
+      showSuccessToast({
+        operation: "dashboard_card.copy",
+        title: "Card copied",
+        description: "Paste it on any dashboard with Cmd/Ctrl+V.",
+      });
     } catch {
-      showErrorToast("Copy failed", "Could not write to the clipboard.");
+      showErrorToast("Copy failed", "Could not write to the clipboard.", {
+        operation: "dashboard_card.copy",
+        errorOrigin: "frontend",
+        errorCategory: "permission",
+      });
     }
   };
 
   if (!renderPreset) {
     return (
-      <div className="bg-background flex h-full items-center justify-center rounded-lg border p-4">
-        <div className="text-muted-foreground">
-          Unknown preset: {placement.presetId}
-        </div>
-      </div>
+      <DataCard
+        title="Unknown preset"
+        content={{
+          type: "error",
+          message: `Unknown preset: ${placement.presetId}`,
+        }}
+      />
     );
   }
 
+  const actions: DataCardActions = {
+    draggable: !readOnly && (hasCUDAccess || isLockedEditable),
+    menu: [
+      {
+        type: "item",
+        id: "copy",
+        title: "Copy card",
+        icon: CopyIcon,
+        onClick: handleCopyToClipboard,
+      },
+      ...(onDuplicatePreset
+        ? [
+            {
+              type: "item" as const,
+              id: "clone",
+              title: "Clone",
+              icon: CopyPlusIcon,
+              onClick: () => onDuplicatePreset(placement),
+            },
+          ]
+        : []),
+      ...(!readOnly && (hasCUDAccess || isLockedEditable)
+        ? [
+            { id: "delete-separator", type: "separator" as const },
+            {
+              type: "item" as const,
+              id: "delete",
+              title: "Delete",
+              icon: TrashIcon,
+              variant: "destructive" as const,
+              onClick: handleDelete,
+            },
+          ]
+        : []),
+    ],
+  };
+
   return (
-    <div className="group relative h-full w-full">
-      <div className="h-full w-full overflow-y-auto">{renderPreset(ctx)}</div>
-      {/* The menu (copy) stays available on read-only surfaces like Home —
-          only the edit affordances (drag, delete) are gated. */}
-      <div className="bg-background/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-data-[state=open]:flex">
-        {!readOnly && (hasCUDAccess || isLockedEditable) && (
-          <>
-            <GripVerticalIcon
-              size={16}
-              className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:block"
-            />
-            <button
-              onClick={handleDelete}
-              className="text-muted-foreground hover:text-destructive"
-              aria-label="Delete widget"
-            >
-              <TrashIcon size={16} />
-            </button>
-          </>
-        )}
-        <DropdownMenu onOpenChange={setIsActionsMenuOpen}>
-          <DropdownMenuTrigger asChild>
-            <button
-              className="text-muted-foreground hover:text-foreground"
-              aria-label="Widget actions"
-            >
-              <MoreVerticalIcon size={16} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={handleCopyToClipboard}>
-              <CopyIcon className="mr-2 h-4 w-4" />
-              Copy to clipboard
-            </DropdownMenuItem>
-            {onPasteWidget && (
-              <DropdownMenuItem
-                disabled={clipboardProbe === "no-widget"}
-                onClick={() => onPasteWidget(placement)}
-              >
-                <ClipboardPasteIcon className="mr-2 h-4 w-4" />
-                Paste to the right
-              </DropdownMenuItem>
-            )}
-            {onDuplicatePreset && (
-              <DropdownMenuItem onClick={() => onDuplicatePreset(placement)}>
-                <CopyPlusIcon className="mr-2 h-4 w-4" />
-                Duplicate
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+    <div
+      className={`group relative w-full ${heightBehavior.mode === "content" ? "" : "h-full"}`}
+    >
+      <div
+        ref={contentRef}
+        className={
+          heightBehavior.mode === "content"
+            ? "w-full"
+            : "h-full w-full overflow-y-auto"
+        }
+      >
+        {renderPreset({ ...ctx, actions })}
       </div>
     </div>
   );

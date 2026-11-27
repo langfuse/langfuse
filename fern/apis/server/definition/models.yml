@@ -12,6 +12,14 @@ service:
       path: /models
       request: CreateModelRequest
       response: commons.Model
+    upsert:
+      method: PUT
+      docs: Create or replace a project-owned model using its id. Organization and built-in models cannot be modified; targeting an organization model returns 403.
+      path: /models/{id}
+      path-parameters:
+        id: string
+      request: CreateModelRequest
+      response: commons.Model
     list:
       method: GET
       docs: Get all models
@@ -35,12 +43,18 @@ service:
       response: commons.Model
     delete:
       method: DELETE
-      docs: Delete a model. Cannot delete models managed by Langfuse. You can create your own definition with the same modelName to override the definition though.
+      docs: Delete a project-owned model. Cannot delete organization models (returns 403) or models managed by Langfuse. You can create your own definition with the same modelName to override the definition though.
       path: /models/{id}
       path-parameters:
         id: string
 
 types:
+  ModelTokenizerId:
+    docs: Legacy tokenizer identifier retained for API compatibility. Ingestion no longer uses it to infer observation usage.
+    enum:
+      - openai
+      - claude
+
   PaginatedModels:
     properties:
       data: list<commons.Model>
@@ -55,19 +69,19 @@ types:
         type: string
       startDate:
         docs: Apply only to generations which are newer than this ISO date.
-        type: optional<datetime>
+        type: optional<nullable<datetime>>
       unit:
         docs: Unit used by this model.
-        type: optional<commons.ModelUsageUnit>
+        type: commons.ModelUsageUnit
       inputPrice:
         docs: Deprecated. Use 'pricingTiers' instead. Price (USD) per input unit. Creates a default tier if pricingTiers not provided.
-        type: optional<double>
+        type: optional<nullable<double>>
       outputPrice:
         docs: Deprecated. Use 'pricingTiers' instead. Price (USD) per output unit. Creates a default tier if pricingTiers not provided.
-        type: optional<double>
+        type: optional<nullable<double>>
       totalPrice:
         docs: Deprecated. Use 'pricingTiers' instead. Price (USD) per total units. Cannot be set if input or output price is set. Creates a default tier if pricingTiers not provided.
-        type: optional<double>
+        type: optional<nullable<double>>
       pricingTiers:
         docs: |
           Optional. Array of pricing tiers for this model.
@@ -88,10 +102,10 @@ types:
 
           If omitted, you must provide flat prices instead (inputPrice/outputPrice/totalPrice),
           which will automatically create a single default tier named "Standard".
-        type: optional<list<commons.PricingTierInput>>
+        type: optional<nullable<list<commons.PricingTierInput>>>
       tokenizerId:
-        docs: Optional. Tokenizer to be applied to observations which match to this model. See docs for more details.
-        type: optional<string>
+        docs: Legacy tokenizer identifier retained for API compatibility. Ingestion no longer uses it to infer observation usage.
+        type: optional<nullable<ModelTokenizerId>>
       tokenizerConfig:
-        docs: Optional. Configuration for the selected tokenizer. Needs to be JSON. See docs for more details.
-        type: optional<unknown>
+        docs: Legacy tokenizer configuration retained for API compatibility. Ingestion no longer uses it to infer observation usage.
+        type: optional<nullable<unknown>>

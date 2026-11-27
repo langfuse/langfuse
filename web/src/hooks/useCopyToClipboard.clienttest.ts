@@ -55,6 +55,96 @@ describe("useCopyToClipboard", () => {
     expect(result.current.isCopied).toBe(true);
   });
 
+  it("does not report success when the clipboard write is rejected", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockRejectedValue(new Error("permission denied")),
+      },
+    });
+    const { result } = renderHook(() => useCopyToClipboard());
+
+    await act(async () => {
+      await expect(result.current.copy("sk-lf-secret")).rejects.toThrow(
+        "permission denied",
+      );
+    });
+
+    expect(result.current.isCopied).toBe(false);
+  });
+
+  it("tracks consecutive successes and clears success on a failed retry", async () => {
+    const { result } = renderHook(() => useCopyToClipboard());
+
+    await act(async () => {
+      await result.current.copy("project-example");
+    });
+    expect(result.current.copyStatus).toEqual({
+      kind: "copied",
+      consecutiveSuccesses: 1,
+    });
+
+    await act(async () => {
+      await result.current.copy("project-example");
+    });
+    expect(result.current.copyStatus).toEqual({
+      kind: "copied",
+      consecutiveSuccesses: 2,
+    });
+
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(
+      new Error("permission denied"),
+    );
+    await act(async () => {
+      await expect(result.current.copy("project-example")).rejects.toThrow(
+        "permission denied",
+      );
+    });
+    expect(result.current.isCopied).toBe(false);
+    expect(result.current.copyStatus.kind).toBe("failed");
+
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(result.current.copyStatus.kind).toBe("failed");
+
+    await act(async () => {
+      await result.current.copy("project-example");
+    });
+    expect(result.current.copyStatus).toEqual({
+      kind: "copied",
+      consecutiveSuccesses: 1,
+    });
+  });
+
+  it("falls back to plain text when the browser rejects a rich clipboard write", async () => {
+    const write = vi.fn().mockRejectedValue(new Error("unsupported type"));
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { write, writeText },
+    });
+    vi.stubGlobal("ClipboardItem", class ClipboardItemStub {});
+
+    const { result } = renderHook(() =>
+      useCopyToClipboard({ successDuration: 500 }),
+    );
+
+    await act(async () => {
+      await result.current.copyRich({
+        text: "The reranker is the bottleneck.",
+        html: "<p>The reranker is the bottleneck.</p>",
+      });
+    });
+
+    // The success state is only honest because the plain-text write landed.
+    expect(write).toHaveBeenCalledOnce();
+    expect(writeText).toHaveBeenCalledWith("The reranker is the bottleneck.");
+    expect(result.current.isCopied).toBe(true);
+
+    vi.unstubAllGlobals();
+  });
+
   it("keeps the active copied state across rerenders and preserves the original timeout", async () => {
     const { result, rerender } = renderHook(
       ({ successDuration }) => useCopyToClipboard({ successDuration }),

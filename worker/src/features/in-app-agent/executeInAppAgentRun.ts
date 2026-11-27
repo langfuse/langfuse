@@ -1,58 +1,83 @@
+import { hasProjectAccessByRole, type Role } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import {
+  getLangfuseAIAwsProfile,
+  getLangfuseAITraceSinkParams,
+  logger,
+  recordIncrement,
+  redis,
+  traceException,
+} from "@langfuse/shared/src/server";
+import {
+  createApiKey,
+  deleteInAppAgentMcpApiKeyFromDb,
+} from "@langfuse/shared/src/server/auth/apiKeys";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunRequestSchema,
   InAppAgentRunStatus,
-  Role,
-  type InAppAgentRunRequest,
-} from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
-import {
-  getLangfuseAITraceSinkParams,
-  logger,
-  redis,
-} from "@langfuse/shared/src/server";
-import {
-  createAndAddApiKeysToDb,
-  deleteApiKeyFromDb,
-} from "@langfuse/shared/src/server/auth/apiKeys";
-import {
   getInAppAgentInstrumentationTraceId,
+  parseInAppAgentInterruptEvent,
   type AgUiEvent,
-  type AgUiRunAgentInput,
+  type InAppAgentRunRequest,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
 import {
-  claimQueuedRun,
-  clearRunMcpApiKeyPointer,
-  createAgUiStream,
-  createInAppAgentMcpRunOverride,
-  createInAppAgentSandbox,
-  finishClaimedRun,
+  createSandboxToolCallFileAccumulator,
   flushPendingRunEvents,
   getConversationEvents,
   getConversationMessagesForReplay,
-  getInAppAgentPromptClient,
-  getSandboxToolCallFiles,
-  heartbeatClaimedRun,
-  IN_APP_AGENT_HEARTBEAT_INTERVAL_MS,
-  isInAppAgentConversationWriteLocked,
-  isMcpToolName,
-  maybeInferAndPersistConversationTitle,
-  parseInAppAgentInterruptEvent,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
-  type InAppAgentUserAccess,
   type PersistedConversationEvent,
-} from "@langfuse/shared/in-app-agent/server";
+} from "@langfuse/shared/in-app-agent/server/persistence";
+import {
+  getInAppAgentModelConfig,
+  isInAppAgentInstanceEnabled,
+  LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
+} from "@langfuse/shared/in-app-agent/server/modelProvider";
+import {
+  claimQueuedRun,
+  cleanupTerminalRunMcpApiKeys,
+  clearRunMcpApiKeyPointer,
+  finishClaimedRun,
+  heartbeatClaimedRun,
+  isMissingInAppAgentMcpApiKeyError,
+  reconcileConversationRuns,
+} from "@langfuse/shared/in-app-agent/server/runLifecycle";
+import {
+  buildInAppAgentToolApprovalSidecar,
+  createInAppAgentMcpRunOverride,
+  createInAppAgentToolPolicy,
+  getInAppAgentMcpAllowedToolNames,
+  getInAppAgentRegistryToolName,
+  type InAppAgentUserAccess,
+} from "@langfuse/shared/in-app-agent/server/mcpPolicy";
+import {
+  IN_APP_AGENT_HEARTBEAT_INTERVAL_MS,
+  IN_APP_AGENT_RUN_MAX_DURATION_MS,
+} from "@langfuse/shared/in-app-agent/server/tunables";
 import {
   createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
-} from "@langfuse/shared/in-app-agent/server/sandbox/config";
+} from "./runtime/sandbox/config";
+import { createInAppAgentSandbox } from "./runtime/sandbox/service";
+import { createAgUiStream } from "./runtime/agent";
+import { getInAppAgentPromptClient } from "./runtime/promptClient";
+import { InAppAgentSkillSource } from "./runtime/skill-source";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { resolveLangfuseMcpUrl } from "./resolveLangfuseMcpUrl";
+import type { AgUiRunAgentInput } from "./runtime/types";
 
 import { env } from "../../env";
 
-const IN_APP_AGENT_API_KEY_NOTE = "In-app agent MCP session";
+const inAppAgentApiKeyName = "In-app agent MCP session";
 
 type AbortReason = "cancelled" | "fenced" | "worker_shutdown";
 
@@ -69,14 +94,35 @@ export function abortActiveInAppAgentRuns(): void {
 /** Thrown for claim-time revalidation failures; maps to FAILED (init_failed). */
 class InAppAgentRunInitError extends Error {}
 
+async function deleteInAppAgentMcpApiKey(params: {
+  projectId: string;
+  apiKeyId: string;
+}): Promise<void> {
+  try {
+    await deleteInAppAgentMcpApiKeyFromDb({
+      prisma,
+      id: params.apiKeyId,
+      projectId: params.projectId,
+      redis,
+    });
+  } catch (error) {
+    // Concurrent cleanup or a prior delete already removed the row. Treat
+    // that as success so the mcpApiKeyId pointer can still be cleared.
+    if (!isMissingInAppAgentMcpApiKeyError(error)) {
+      throw error;
+    }
+  }
+}
+
 export async function executeInAppAgentRun(params: {
   projectId: string;
   runId: string;
 }): Promise<void> {
   const { projectId, runId } = params;
+  const awsProfile = getLangfuseAIAwsProfile();
 
   // Claim CAS: zero rows means duplicate delivery or a run reconciled away
-  // while queued — ack and exit, Postgres owns correctness.
+  // while queued. Reconcile then ack — Postgres owns correctness.
   const run = await claimQueuedRun({ prisma, projectId, runId });
 
   if (!run) {
@@ -84,6 +130,27 @@ export async function executeInAppAgentRun(params: {
       projectId,
       runId,
     });
+
+    const existing = await prisma.inAppAgentRun.findUnique({
+      where: { id_projectId: { id: runId, projectId } },
+      select: { conversationId: true },
+    });
+
+    if (existing) {
+      await reconcileConversationRuns({
+        prisma,
+        projectId,
+        conversationId: existing.conversationId,
+      });
+      await cleanupTerminalRunMcpApiKeys({
+        prisma,
+        projectId,
+        conversationId: existing.conversationId,
+        deleteApiKey: (apiKeyId) =>
+          deleteInAppAgentMcpApiKey({ projectId, apiKeyId }),
+      });
+    }
+
     return;
   }
 
@@ -104,7 +171,7 @@ export async function executeInAppAgentRun(params: {
   // The uncovered durability window: an approved mutation may have started
   // but its result never persisted. Never generically retried. Hoisted to
   // function scope because both the loop callbacks and the outer catch can
-  // record the terminal state (failStream races the drain rejection).
+  // record the terminal state.
   const failureCode = () =>
     isApprovedContinuation && !approvedToolResultPersisted
       ? {
@@ -114,28 +181,22 @@ export async function executeInAppAgentRun(params: {
         }
       : undefined;
 
-  // Single-flight (same shape as web's withInAppAgentMcpApiKeyCleanup): the
-  // loop's onFinish and the outer catch can invoke this concurrently because
-  // failStream errors the stream without awaiting its onError/onFinish chain.
+  // Single-flight (same shape as web's withInAppAgentMcpApiKeyCleanup):
+  // onFinish cleans up before the stream errors, then the outer catch
+  // runs after drainStream rejects and may call this again.
   const cleanupMcpApiKey = (): Promise<void> => {
     if (!mcpApiKey) return Promise.resolve();
     const keyId = mcpApiKey.id;
-    mcpApiKeyCleanup ??= (async () => {
-      await deleteApiKeyFromDb({
-        prisma,
-        id: keyId,
-        entityId: projectId,
-        scope: "PROJECT",
-        redis,
+    if (mcpApiKeyCleanup === undefined) {
+      mcpApiKeyCleanup = (async () => {
+        await deleteInAppAgentMcpApiKey({ projectId, apiKeyId: keyId });
+        // Pointer is nulled after delete succeeds or the key is already gone.
+        await clearRunMcpApiKeyPointer({ prisma, projectId, runId });
+      })().catch((error: unknown) => {
+        mcpApiKeyCleanup = undefined;
+        throw error;
       });
-      // Pointer is nulled only after the delete is confirmed; if the delete
-      // failed above, the terminal run keeps the pointer so reconciliation
-      // retries the cleanup.
-      await clearRunMcpApiKeyPointer({ prisma, projectId, runId });
-    })().catch((error: unknown) => {
-      mcpApiKeyCleanup = undefined;
-      throw error;
-    });
+    }
     return mcpApiKeyCleanup;
   };
 
@@ -150,19 +211,20 @@ export async function executeInAppAgentRun(params: {
 
   try {
     // ---- Revalidate at claim; nothing from enqueue time is trusted. ----
-    if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    if (!isInAppAgentInstanceEnabled()) {
       throw new InAppAgentRunInitError(
-        "In-app agent is only available on Langfuse Cloud",
+        "In-app agent is not enabled on this instance",
       );
     }
 
-    const bedrockModelId = run.model ?? sharedEnv.LANGFUSE_AWS_BEDROCK_MODEL;
+    const modelConfig = getInAppAgentModelConfig({ modelId: run.model });
 
-    if (!bedrockModelId || !sharedEnv.LANGFUSE_AWS_BEDROCK_REGION) {
-      throw new InAppAgentRunInitError(
-        "Assistant Bedrock model is not configured",
-      );
+    if (!modelConfig) {
+      throw new InAppAgentRunInitError(LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE);
     }
+
+    const useBundledPrompt =
+      env.NODE_ENV === "development" || !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
     const conversation = await prisma.inAppAgentConversation.findFirst({
       where: { id: run.conversationId, projectId, deletedAt: null },
@@ -196,9 +258,10 @@ export async function executeInAppAgentRun(params: {
       // implicitly mean "trusted system".
       throw new InAppAgentRunInitError("Run has no triggering user");
     }
+    const triggeredByUserId = run.triggeredByUserId;
 
     const access = await resolveUserProjectAccess({
-      userId: run.triggeredByUserId,
+      userId: triggeredByUserId,
       projectId,
       orgId: project.orgId,
     });
@@ -214,17 +277,6 @@ export async function executeInAppAgentRun(params: {
       projectId,
       conversationId: conversation.id,
     });
-
-    if (
-      isInAppAgentConversationWriteLocked({
-        conversation,
-        events: conversationEvents,
-      })
-    ) {
-      throw new InAppAgentRunInitError(
-        "Conversation is write-locked (sandbox session expired)",
-      );
-    }
 
     // ---- Build the agent input from the run request + persisted history. ----
     const parsedRequest = InAppAgentRunRequestSchema.safeParse(run.request);
@@ -260,14 +312,28 @@ export async function executeInAppAgentRun(params: {
       state: null,
       messages: [...replayMessages],
       tools: [],
-      context: request.kind === "userMessage" ? request.context : [],
+      context: request.context,
       forwardedProps:
         request.kind === "approvalDecision" && approvalRequest
           ? {
               command: {
                 resume: {
                   approved: request.approved,
+                  continuationNumber: request.continuationNumber ?? 1,
+                  ...(request.rootRunId
+                    ? { rootRunId: request.rootRunId }
+                    : {}),
+                  ...(request.traceStartedAt
+                    ? { traceStartedAt: request.traceStartedAt }
+                    : {}),
+                  ...(request.approvalRequestedAt
+                    ? { approvalRequestedAt: request.approvalRequestedAt }
+                    : {}),
+                  approvalDecidedAt: run.createdAt.toISOString(),
                   approvalRequest,
+                  ...(request.toolInputs
+                    ? { toolInputs: request.toolInputs }
+                    : {}),
                 },
               },
             }
@@ -277,18 +343,33 @@ export async function executeInAppAgentRun(params: {
     isApprovedContinuation =
       request.kind === "approvalDecision" && request.approved;
     const approvedRegistryToolName = isApprovedContinuation
-      ? getRegistryToolName(approvalRequest?.toolName)
+      ? getInAppAgentRegistryToolName(approvalRequest?.toolName)
       : undefined;
-    const runOverride = approvedRegistryToolName
-      ? await createInAppAgentMcpRunOverride({
-          toolName: approvedRegistryToolName,
-        })
-      : undefined;
+
+    const userAccess: InAppAgentUserAccess = {
+      projectRole: access.projectRole,
+      topicsAvailable: request.topicsAvailable === true,
+    };
+
+    // Rebuild each run so grants invalidated by role changes drop out.
+    const toolPolicy = createInAppAgentToolPolicy({
+      userAccess,
+      alwaysAllowedTools: conversation.alwaysAllowedTools,
+    });
+
+    const allowedToolNames = getInAppAgentMcpAllowedToolNames(
+      toolPolicy,
+      approvedRegistryToolName,
+    );
+    const runOverride =
+      allowedToolNames.length > 0
+        ? await createInAppAgentMcpRunOverride({ toolNames: allowedToolNames })
+        : undefined;
 
     // ---- Sandbox (session created/resumed lazily per tool call). ----
     const sandboxProviderType = getDefaultInAppAgentSandboxProviderType();
     const sandboxProvider =
-      sandboxProviderType === null || env.NODE_ENV === "test"
+      sandboxProviderType === null
         ? undefined
         : await createInAppAgentSandboxProvider(sandboxProviderType);
 
@@ -298,14 +379,15 @@ export async function executeInAppAgentRun(params: {
       );
     }
 
+    const sandboxToolCallFiles =
+      createSandboxToolCallFileAccumulator(conversationEvents);
     const sandboxState = sandboxProvider
       ? await createInAppAgentSandbox({
           conversationId: conversation.id,
           projectId,
           providerSessionId: conversation.providerSessionId,
           provider: sandboxProvider,
-          getToolCallFiles: async () =>
-            getSandboxToolCallFiles(conversationEvents),
+          getToolCallFiles: async () => sandboxToolCallFiles.getFiles(),
           saveState: async (state) => {
             await prisma.inAppAgentConversation.update({
               where: { id_projectId: { id: conversation.id, projectId } },
@@ -315,16 +397,19 @@ export async function executeInAppAgentRun(params: {
         })
       : undefined;
 
-    // ---- Temp MCP key: mint + link to the run in one transaction, so no
-    // crash window can leave a key that is not discoverable from its run. ----
+    // Link the key atomically to prevent orphan credentials.
     mcpApiKey = await prisma.$transaction(async (tx) => {
-      const key = await createAndAddApiKeysToDb({
-        prisma: tx,
-        entityId: projectId,
-        scope: "PROJECT",
-        note: IN_APP_AGENT_API_KEY_NOTE,
+      const key = await createApiKey(tx, {
+        tenant: OrganizationId(project.orgId),
+        scope: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(triggeredByUserId),
+        name: inAppAgentApiKeyName,
+        expiresAt: new Date(
+          (run.claimedAt ?? run.createdAt).getTime() +
+            IN_APP_AGENT_RUN_MAX_DURATION_MS,
+        ),
         isInAppAgentKey: true,
-        createdByUserId: run.triggeredByUserId ?? undefined,
       });
 
       await tx.inAppAgentRun.updateMany({
@@ -376,11 +461,6 @@ export async function executeInAppAgentRun(params: {
 
     let interruptRequest: InAppAgentToolApprovalRequest | undefined;
 
-    const userAccess: InAppAgentUserAccess = {
-      projectRole: access.projectRole,
-      isAdmin: access.isAdmin,
-    };
-
     const stream = await createAgUiStream({
       input: agentInput,
       signal: abortController.signal,
@@ -418,30 +498,61 @@ export async function executeInAppAgentRun(params: {
 
           pendingPersistedEvents.push(persistedEvent);
 
+          if (persistedEvent.type === "TOOL_CALL_START") {
+            const toolCallId =
+              typeof persistedEvent.toolCallId === "string"
+                ? persistedEvent.toolCallId
+                : undefined;
+            const toolName =
+              typeof persistedEvent.toolCallName === "string"
+                ? persistedEvent.toolCallName
+                : undefined;
+            const sidecar =
+              toolCallId && toolName
+                ? buildInAppAgentToolApprovalSidecar({
+                    toolCallId,
+                    toolName,
+                    policy: toolPolicy,
+                    humanApprovedToolCallId: isApprovedContinuation
+                      ? approvalRequest?.toolCallId
+                      : undefined,
+                  })
+                : undefined;
+
+            if (sidecar) {
+              pendingPersistedEvents.push(sidecar);
+            }
+          }
+
+          sandboxToolCallFiles.processEvent({
+            event: persistedEvent,
+            runId,
+            createdAt: new Date(),
+          });
+
           if (!shouldFlushPersistedEvent(persistedEvent)) {
             return;
           }
 
           return flushPersistedRunEvents();
         },
-        onComplete: async () => {
+        onMcpToolCallCompleted: sandboxToolCallFiles.processToolCall,
+        onComplete: async (outcome) => {
+          // Truncation lands on run.completed via the error code below, but that
+          // only counts turns wrap-up failed to rescue. Counting every turn that
+          // reached the cap is what shows the cap becoming binding before users
+          // see a cut-off answer.
+          if (outcome?.reachedStepLimit) {
+            recordIncrement("langfuse.in_app_agent.step_limit_reached", 1);
+          }
+          if (outcome?.truncatedByOutputLimit) {
+            recordIncrement("langfuse.in_app_agent.output_limit_reached", 1);
+          }
+
           await flushPersistedRunEvents(
             interruptRequest
               ? { status: InAppAgentRunStatus.AWAITING_APPROVAL }
-              : { status: InAppAgentRunStatus.SUCCEEDED },
-          );
-          await maybeInferAndPersistConversationTitle({
-            prisma,
-            projectId,
-            conversationId: conversation.id,
-            userId: run.triggeredByUserId!,
-            aiTelemetryEnabled: project.organization.aiTelemetryEnabled,
-          }).catch((error) =>
-            logger.error("Failed to infer in-app agent conversation title", {
-              error,
-              projectId,
-              runId,
-            }),
+              : resolveCompletedRunFinish(outcome),
           );
         },
         onAbort: async () => {
@@ -480,6 +591,10 @@ export async function executeInAppAgentRun(params: {
           });
         },
         onError: async (error) => {
+          // The loop may close the stream after this callback instead of
+          // erroring it. Mark the job span now so Datadog APM status:error
+          // still has @error.message after we ACK the BullMQ job.
+          traceException(error);
           await flushPersistedRunEvents({
             status: InAppAgentRunStatus.FAILED,
             ...(failureCode() ?? {
@@ -493,39 +608,45 @@ export async function executeInAppAgentRun(params: {
           await cleanupMcpApiKeyLogged();
           await sandboxState?.onTurnEnded();
         },
-        awsBedrock: {
-          region: sharedEnv.LANGFUSE_AWS_BEDROCK_REGION,
-          modelId: bedrockModelId,
-          ...(sharedEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE
-            ? { profile: sharedEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE }
-            : {}),
-        },
+        model: modelConfig,
+        ...(awsProfile ? { awsProfile } : {}),
         langfuseMcp: {
           url: getLangfuseMcpUrl(),
           publicKey: mcpApiKey.publicKey,
           secretKey: mcpApiKey.secretKey,
-          userAccess,
+          toolPolicy,
           runOverride,
         },
         redirectAction: {
           projectId,
           isV4Enabled: access.v4BetaEnabled,
         },
-        langfuseClient: getInAppAgentPromptClient(),
-        useLocalPrompt: env.NODE_ENV === "development",
+        useLocalPrompt: useBundledPrompt,
+        skillSource: new InAppAgentSkillSource({
+          tag: env.LANGFUSE_IN_APP_AGENT_SKILLS_TAG,
+          baseUrl: sharedEnv.LANGFUSE_AI_FEATURES_HOST,
+          publicKey: sharedEnv.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+          secretKey: sharedEnv.LANGFUSE_AI_FEATURES_SECRET_KEY,
+          signal: abortController.signal,
+        }),
+        ...(useBundledPrompt
+          ? {}
+          : { langfuseClient: getInAppAgentPromptClient() }),
         langfuseTracing: buildTracingConfig({
           aiTelemetryEnabled: project.organization.aiTelemetryEnabled,
           projectId,
           conversationId: conversation.id,
           runId,
+          runStartedAt: run.claimedAt ?? run.createdAt,
           user: {
             id: run.triggeredByUserId,
             email: access.email,
             projectRole: userAccess.projectRole,
-            isAdmin: userAccess.isAdmin,
           },
         }),
         sandbox: sandboxState?.sandbox,
+        // History still shows this agent's own earlier writes, so it needs telling.
+        sandboxWorkspaceWasReset: sandboxState?.workspaceWasReset,
       },
     });
 
@@ -533,12 +654,12 @@ export async function executeInAppAgentRun(params: {
     await drainStream(stream);
   } catch (error) {
     // Two classes land here: pre-loop failures (revalidation, input build,
-    // key minting) and loop failures surfaced through the errored stream —
-    // failStream fires the loop's onError without awaiting it and errors the
-    // stream synchronously, so this catch can RACE that onError and win the
-    // terminal CAS. Both writers therefore classify identically: the
-    // durability check first, then agent_error for loop-phase failures and
-    // init_failed only before the loop existed.
+    // key minting) and loop failures surfaced through the errored stream
+    // after tracing flush, onError, and onFinish. finishClaimedRun is
+    // idempotent, so a second write is a no-op if onError already recorded
+    // FAILED. Both writers classify identically: the durability check first,
+    // then agent_error for loop-phase failures and init_failed only before
+    // the loop existed.
     await finishClaimedRun({
       prisma,
       projectId,
@@ -555,9 +676,12 @@ export async function executeInAppAgentRun(params: {
       }),
     });
     await cleanupMcpApiKeyLogged();
-
+    // Terminal persist succeeded; ACK so the job does not sit in the DLQ.
+    // Loop failures used to rethrow. Record the APM error without failing
+    // the BullMQ job. Init failures were already ACK'd and stay off
+    // Error Tracking.
     if (!(error instanceof InAppAgentRunInitError)) {
-      throw error;
+      traceException(error);
     }
   } finally {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
@@ -571,24 +695,15 @@ async function resolveUserProjectAccess(params: {
   orgId: string;
 }): Promise<{
   projectRole?: Role;
-  isAdmin: boolean;
   email: string | null;
   v4BetaEnabled: boolean;
 } | null> {
   const user = await prisma.user.findUnique({
     where: { id: params.userId },
-    select: { id: true, email: true, admin: true, v4BetaEnabled: true },
+    select: { id: true, email: true, v4BetaEnabled: true },
   });
 
   if (!user) return null;
-
-  if (user.admin) {
-    return {
-      isAdmin: true,
-      email: user.email,
-      v4BetaEnabled: user.v4BetaEnabled,
-    };
-  }
 
   const orgMembership = await prisma.organizationMembership.findFirst({
     where: { userId: params.userId, orgId: params.orgId },
@@ -606,14 +721,36 @@ async function resolveUserProjectAccess(params: {
 
   const projectRole = projectMembership?.role ?? orgMembership.role;
 
-  if (projectRole === Role.NONE) return null;
+  if (!hasProjectAccessByRole({ role: projectRole, scope: "project:read" }))
+    return null;
 
   return {
     projectRole,
-    isAdmin: false,
     email: user.email,
     v4BetaEnabled: user.v4BetaEnabled,
   };
+}
+
+function resolveCompletedRunFinish(outcome?: {
+  truncatedByStepLimit: boolean;
+  truncatedByOutputLimit: boolean;
+}): NonNullable<Parameters<typeof flushPendingRunEvents>[0]["finish"]> {
+  if (outcome?.truncatedByOutputLimit) {
+    return {
+      status: InAppAgentRunStatus.SUCCEEDED,
+      errorCode: InAppAgentRunErrorCode.OUTPUT_LIMIT,
+      errorMessage:
+        "The response hit the model's output-token limit before a final answer",
+    };
+  }
+  if (outcome?.truncatedByStepLimit) {
+    return {
+      status: InAppAgentRunStatus.SUCCEEDED,
+      errorCode: InAppAgentRunErrorCode.STEP_LIMIT,
+      errorMessage: "The run reached the step limit before a final answer",
+    };
+  }
+  return { status: InAppAgentRunStatus.SUCCEEDED };
 }
 
 function findPersistedApprovalRequest(
@@ -635,31 +772,19 @@ function findPersistedApprovalRequest(
   return undefined;
 }
 
-function getRegistryToolName(toolName: string | undefined) {
-  if (!toolName?.startsWith("langfuse_")) {
-    return undefined;
-  }
-
-  const registryToolName = toolName.slice("langfuse_".length);
-
-  return isMcpToolName(registryToolName) ? registryToolName : undefined;
-}
-
 function getLangfuseMcpUrl(): string {
-  if (!env.NEXTAUTH_URL) {
+  const url = resolveLangfuseMcpUrl({
+    mcpBaseUrl: env.LANGFUSE_MCP_BASE_URL,
+    nextAuthUrl: env.NEXTAUTH_URL,
+  });
+
+  if (!url) {
     throw new InAppAgentRunInitError(
-      "NEXTAUTH_URL must be configured to derive the MCP endpoint",
+      "LANGFUSE_MCP_BASE_URL or NEXTAUTH_URL must be configured to derive the MCP endpoint",
     );
   }
 
-  const rawUrl = env.NEXTAUTH_URL.replace(/\/api\/auth\/?$/, "");
-  const baseUrl = new URL(rawUrl);
-
-  baseUrl.pathname = `${baseUrl.pathname.replace(/\/$/, "")}/api/public/mcp`;
-  baseUrl.search = "";
-  baseUrl.hash = "";
-
-  return baseUrl.toString();
+  return url;
 }
 
 function buildTracingConfig(params: {
@@ -667,11 +792,11 @@ function buildTracingConfig(params: {
   projectId: string;
   conversationId: string;
   runId: string;
+  runStartedAt: Date;
   user: {
     id: string;
     email: string | null;
     projectRole?: Role;
-    isAdmin: boolean;
   };
 }) {
   if (!params.aiTelemetryEnabled) {
@@ -679,7 +804,6 @@ function buildTracingConfig(params: {
   }
 
   const traceSinkParams = getLangfuseAITraceSinkParams({
-    environment: "langfuse-in-app-agent",
     feature: "in-app-agent",
     projectId: params.projectId,
     traceId: getInAppAgentInstrumentationTraceId(params.runId),
@@ -701,11 +825,11 @@ function buildTracingConfig(params: {
         targetProjectId: traceSinkParams.targetProjectId,
         environment: traceSinkParams.environment,
         runId: params.runId,
+        runStartedAt: params.runStartedAt,
         user: {
           id: params.user.id,
           email: params.user.email,
           projectRole: params.user.projectRole,
-          isAdmin: params.user.isAdmin,
         },
         metadata: traceSinkParams.metadata ?? {},
       }

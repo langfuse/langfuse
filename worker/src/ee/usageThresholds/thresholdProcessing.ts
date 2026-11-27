@@ -1,6 +1,11 @@
 import type { Organization } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
-import { type ParsedOrganization, Role } from "@langfuse/shared";
+import {
+  hasPaidBillingState,
+  isEnterpriseTrialActive,
+  type ParsedOrganization,
+  Role,
+} from "@langfuse/shared";
 import {
   sendUsageThresholdWarningEmail,
   sendUsageThresholdSuspensionEmail,
@@ -10,10 +15,9 @@ import {
   getBillingCycleEnd,
 } from "@langfuse/shared/src/server";
 import {
-  NOTIFICATION_THRESHOLDS,
-  BLOCKING_THRESHOLD,
-  type NotificationThreshold,
-  MAX_EVENTS_FREE_PLAN,
+  ENTERPRISE_TRIAL_USAGE_POLICY,
+  FREE_TIER_USAGE_POLICY,
+  type UsageThresholdPolicy,
 } from "./constants";
 import { env } from "../../env";
 
@@ -40,16 +44,16 @@ async function getOrgAdminEmails(orgId: string): Promise<string[]> {
 
 /**
  *
- * Sends usage notification to all OWNER/ADMIN users when 50k or 100k threshold is crossed
+ * Sends usage notification to all OWNER/ADMIN users when a notification threshold is crossed
  *
  * @param org - Organization that crossed threshold
- * @param threshold - The notification threshold that was breached
+ * @param policy - Threshold policy of the org's plan
  * @param cumulativeUsage - Current cumulative usage for the billing cycle
  * @returns Object with emailSent and emailFailed flags
  */
 async function sendThresholdNotificationEmail(
   org: Organization | ParsedOrganization,
-  threshold: NotificationThreshold,
+  policy: UsageThresholdPolicy,
   cumulativeUsage: number,
   resetDate: Date,
 ): Promise<{ emailSent: boolean; emailFailed: boolean }> {
@@ -88,10 +92,11 @@ async function sendThresholdNotificationEmail(
           env,
           organizationName: org.name,
           currentUsage: cumulativeUsage,
-          limit: MAX_EVENTS_FREE_PLAN,
+          limit: policy.limit,
           billingUrl,
           receiverEmail: email,
           resetDate: resetDate.toISOString(),
+          plan: policy.plan,
         });
 
         logger.info(
@@ -148,14 +153,16 @@ async function sendThresholdNotificationEmail(
 
 /**
  *
- * Sends ingestion suspended email to all OWNER/ADMIN users when 200k threshold is crossed
+ * Sends ingestion suspended email to all OWNER/ADMIN users when the blocking threshold is crossed
  *
  * @param org - Organization that was blocked
+ * @param policy - Threshold policy of the org's plan
  * @param cumulativeUsage - Current cumulative usage for the billing cycle
  * @returns Object with emailSent and emailFailed flags
  */
 async function sendBlockingNotificationEmail(
   org: Organization | ParsedOrganization,
+  policy: UsageThresholdPolicy,
   cumulativeUsage: number,
   resetDate: Date,
 ): Promise<{ emailSent: boolean; emailFailed: boolean }> {
@@ -194,10 +201,11 @@ async function sendBlockingNotificationEmail(
           env,
           organizationName: org.name,
           currentUsage: cumulativeUsage,
-          limit: MAX_EVENTS_FREE_PLAN,
+          limit: policy.limit,
           billingUrl,
           receiverEmail: email,
           resetDate: resetDate.toISOString(),
+          plan: policy.plan,
         });
 
         logger.info(
@@ -285,6 +293,8 @@ export type ThresholdProcessingResult = {
  * Detects threshold crossings since last check and triggers appropriate actions.
  *
  * Key Rules:
+ * - Orgs on an active enterprise trial use the trial's thresholds, all other
+ *   unpaid orgs the free-tier ones
  * - Only ONE email per org per job run
  * - Blocking email takes precedence over notification emails
  * - If blocking threshold crossed: send blocking email AND block org
@@ -300,8 +310,8 @@ export async function processThresholds(
   cumulativeUsage: number,
 ): Promise<ThresholdProcessingResult> {
   // 1. Skip notifications if org is on a paid plan (check this first, regardless of enforcement flag)
-  // This includes both Stripe subscriptions and manual plan overrides
-  if (org.cloudConfig?.stripe?.activeSubscriptionId || org.cloudConfig?.plan) {
+  // This includes Stripe subscriptions, manual plan overrides, and CHB bundles
+  if (hasPaidBillingState(org)) {
     // Build update data
     const updateData: OrgUpdateData = {
       orgId: org.id,
@@ -345,16 +355,19 @@ export async function processThresholds(
     };
   }
 
-  // 3. Get previous state
+  // 3. Get previous state and the thresholds of the org's plan
   const previousState = org.cloudFreeTierUsageThresholdState;
+  const policy = isEnterpriseTrialActive(org.cloudConfig)
+    ? ENTERPRISE_TRIAL_USAGE_POLICY
+    : FREE_TIER_USAGE_POLICY;
 
   // 4. Determine current state based on cumulative usage (state-based, not transition-based)
   // This makes the system idempotent and self-healing
   let currentState: string | null = null;
 
-  if (cumulativeUsage >= BLOCKING_THRESHOLD) {
+  if (cumulativeUsage >= policy.blockingThreshold) {
     currentState = "BLOCKED";
-  } else if (cumulativeUsage >= NOTIFICATION_THRESHOLDS[0]) {
+  } else if (cumulativeUsage >= policy.notificationThresholds[0]) {
     // Above any notification threshold
     currentState = "WARNING";
   } else {
@@ -382,6 +395,7 @@ export async function processThresholds(
     );
     const emailResult = await sendBlockingNotificationEmail(
       org,
+      policy,
       cumulativeUsage,
       resetDate,
     );
@@ -396,13 +410,9 @@ export async function processThresholds(
         unit: "organizations",
       },
     );
-    // Determine which threshold was crossed
-    const highestCrossedThreshold = Math.max(
-      ...NOTIFICATION_THRESHOLDS.filter((t) => cumulativeUsage >= t),
-    );
     const emailResult = await sendThresholdNotificationEmail(
       org,
-      highestCrossedThreshold,
+      policy,
       cumulativeUsage,
       resetDate,
     );
@@ -431,12 +441,15 @@ export async function processThresholds(
   };
 
   // 8. Return result for metrics tracking
-  const actionTaken =
-    currentState === "BLOCKED"
-      ? "BLOCKED"
-      : currentState === "WARNING"
-        ? "WARNING"
-        : "NONE";
+  const actionTaken = (() => {
+    if (currentState === "BLOCKED") {
+      return "BLOCKED";
+    }
+    if (currentState === "WARNING") {
+      return "WARNING";
+    }
+    return "NONE";
+  })();
   return {
     actionTaken,
     emailSent,

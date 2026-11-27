@@ -7,7 +7,7 @@ import {
 } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { scheduleObservationEvals } from "../scheduleObservationEvals";
-import { processObservationEval } from "../observationEvalProcessor";
+import { processEval } from "../observationEvalProcessor";
 import { type ObservationEvalSchedulerDeps } from "../types";
 import {
   createTestObservation,
@@ -26,18 +26,27 @@ const mocks = vi.hoisted(() => ({
   writeInternalTrace: vi.fn(),
 }));
 
-// Mock prisma for processObservationEval
-vi.mock("@langfuse/shared/src/db", () => ({
-  prisma: {
-    jobExecution: {
-      findFirst: vi.fn(),
-      update: vi.fn(),
+// Mock prisma for processEval
+vi.mock("@langfuse/shared/src/db", async () => {
+  const actual = await vi.importActual("@langfuse/shared/src/db");
+
+  return {
+    ...actual,
+    prisma: {
+      jobExecution: {
+        findFirst: vi.fn(),
+        update: vi.fn(),
+      },
+      evaluationRuleEvaluatorAssignment: {
+        findFirst: vi.fn(),
+      },
+      evaluator: {
+        findFirst: vi.fn(),
+        updateMany: vi.fn(),
+      },
     },
-    jobConfiguration: {
-      findFirst: vi.fn(),
-    },
-  },
-}));
+  };
+});
 
 // Mock runLLMAsJudgeEvaluation
 vi.mock("../../evalService", () => ({
@@ -79,13 +88,74 @@ const mockEvalExecutionResult = {
   ],
   executionTraceId: "trace-123",
   metadata: {},
+  evaluationContext: {
+    evaluatorExecutionIsTest: false,
+  },
 };
 
 describe("Observation Eval E2E Pipeline", () => {
   const projectId = "test-project-123";
 
+  const mockMigratedAssignment = (
+    config: ReturnType<typeof createMockJobConfiguration>,
+  ) => {
+    const template = config.evalTemplate;
+    if (!template) throw new Error("Test evaluator template is required");
+
+    (
+      prisma.evaluationRuleEvaluatorAssignment.findFirst as Mock
+    ).mockResolvedValue({
+      id: `legacy:${config.id}`,
+      variableMapping: config.variableMapping,
+      evaluationRule: {
+        id: config.id,
+        createdAt: config.createdAt,
+        updatedAt: config.updatedAt,
+        projectId: config.projectId,
+        name: config.scoreName,
+        status: config.status,
+        targetObject: config.targetObject,
+        filter: config.filter,
+        sampling: config.sampling,
+        delay: config.delay,
+        timeScope: config.timeScope,
+      },
+      evaluator: {
+        id: `evaluator-${config.id}`,
+        createdAt: config.createdAt,
+        updatedAt: config.updatedAt,
+        projectId: config.projectId,
+        name: config.scoreName,
+        type: template.type,
+        blockedAt: config.blockedAt,
+        project: { orgId: "test-org-123" },
+        versions: [
+          {
+            id: template.id,
+            createdAt: template.createdAt,
+            version: template.version,
+            prompt: template.prompt,
+            partner: null,
+            model: template.model,
+            provider: template.provider,
+            modelParams: template.modelParams,
+            vars: template.vars,
+            variableMapping: config.variableMapping,
+            outputDefinition: template.outputDefinition,
+            sourceCode: template.sourceCode,
+            sourceCodeLanguage: template.sourceCodeLanguage,
+          },
+        ],
+      },
+    });
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
+    (
+      prisma.evaluationRuleEvaluatorAssignment.findFirst as Mock
+    ).mockResolvedValue(null);
+    (prisma.evaluator.findFirst as Mock).mockResolvedValue(null);
     (runLLMAsJudgeEvaluation as Mock).mockResolvedValue(
       mockEvalExecutionResult,
     );
@@ -143,6 +213,7 @@ describe("Observation Eval E2E Pipeline", () => {
       // ACT: Schedule the observation eval
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps: pipeline.schedulerDeps,
       });
@@ -213,30 +284,22 @@ describe("Observation Eval E2E Pipeline", () => {
         updatedAt: new Date(),
       };
 
-      const mockConfig = {
+      const mockConfig = createMockJobConfiguration({
         id: config.id,
         projectId,
-        jobType: "EVAL",
         evalTemplateId: config.evalTemplateId,
         scoreName: config.scoreName,
         targetObject: EvalTargetObject.EVENT,
         filter: config.filter,
         variableMapping: config.variableMapping,
-        sampling: "1.0",
-        delay: 0,
-        status: "ACTIVE",
-        timeScope: ["NEW"],
-        createdAt: new Date(),
-        updatedAt: new Date(),
         evalTemplate: mockTemplate,
-        project: { orgId: "test-org-123" },
-      };
+      });
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
-      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(mockConfig);
+      mockMigratedAssignment(mockConfig);
 
       // ACT: Process the observation eval job
-      await processObservationEval({
+      await processEval({
         event: {
           projectId,
           jobExecutionId: capturedJobExecutionId!,
@@ -262,6 +325,98 @@ describe("Observation Eval E2E Pipeline", () => {
             }),
           ]),
           environment: "production",
+        }),
+      );
+    });
+
+    it("records the batch action in the execution metadata of a manual batch run", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        output: '{"response": "ok"}',
+      });
+      const config = createTestEvalConfig({
+        id: `config-${randomUUID()}`,
+        projectId,
+        variableMapping: [
+          { templateVariable: "output", selectedColumnId: "output" },
+        ],
+      });
+      const pipeline = createFullyMockedEvalPipeline({
+        observation,
+        llmResponse: { score: 1, reasoning: "ok" },
+      });
+      const batchActionId = `batch-${randomUUID()}`;
+
+      await scheduleObservationEvals({
+        observation,
+        loadSnapshot: () => observation,
+        configs: [config],
+        schedulerDeps: pipeline.schedulerDeps,
+        executionMode: "MANUAL",
+        executionScopeId: batchActionId,
+        batchActionId,
+      });
+
+      const [enqueued] = (pipeline.schedulerDeps.enqueueEvalJob as Mock).mock
+        .calls[0] as Parameters<ObservationEvalSchedulerDeps["enqueueEvalJob"]>;
+      expect(enqueued.batchActionId).toBe(batchActionId);
+
+      const mockConfig = createMockJobConfiguration({
+        id: config.id,
+        projectId,
+        evalTemplateId: config.evalTemplateId,
+        scoreName: config.scoreName,
+        targetObject: EvalTargetObject.EVENT,
+        filter: config.filter,
+        variableMapping: config.variableMapping,
+        evalTemplate: {
+          id: config.evalTemplateId,
+          projectId,
+          name: "Accuracy Evaluator",
+          version: 1,
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          prompt: "Evaluate: {{output}}",
+          model: "gpt-4",
+          provider: "openai",
+          modelParams: {},
+          outputDefinition: { score: "0 to 1", reasoning: "Explanation" },
+          sourceCode: null,
+          sourceCodeLanguage: null,
+          vars: ["output"],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue({
+        id: enqueued.jobExecutionId,
+        projectId,
+        status: JobExecutionStatus.PENDING,
+        jobConfigurationId: config.id,
+        jobInputTraceId: observation.trace_id,
+        jobInputObservationId: observation.span_id,
+        jobInputDatasetItemId: null,
+        jobTemplateId: null,
+        createdAt: new Date(),
+      });
+      mockMigratedAssignment(mockConfig);
+
+      await processEval({
+        event: {
+          projectId,
+          jobExecutionId: enqueued.jobExecutionId,
+          observationS3Path: enqueued.observationS3Path,
+          executionMode: enqueued.executionMode,
+          batchActionId: enqueued.batchActionId,
+        },
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
+        deps: pipeline.processorDeps,
+      });
+
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          executionMetadata: expect.objectContaining({
+            batch_action_id: batchActionId,
+          }),
         }),
       );
     });
@@ -351,9 +506,9 @@ describe("Observation Eval E2E Pipeline", () => {
       });
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
-      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(mockConfig);
+      mockMigratedAssignment(mockConfig);
 
-      await processObservationEval({
+      await processEval({
         event: {
           projectId,
           jobExecutionId: job.id,
@@ -432,6 +587,7 @@ describe("Observation Eval E2E Pipeline", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps: pipeline.schedulerDeps,
       });
@@ -457,6 +613,7 @@ describe("Observation Eval E2E Pipeline", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps: pipeline.schedulerDeps,
       });
@@ -516,6 +673,7 @@ describe("Observation Eval E2E Pipeline", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config1, config2, config3],
         schedulerDeps: pipeline.schedulerDeps,
       });
@@ -589,29 +747,21 @@ describe("Observation Eval E2E Pipeline", () => {
         updatedAt: new Date(),
       };
 
-      const mockConfig = {
+      const mockConfig = createMockJobConfiguration({
         id: config.id,
         projectId,
-        jobType: "EVAL",
         evalTemplateId: config.evalTemplateId,
         scoreName: config.scoreName,
         targetObject: EvalTargetObject.EVENT,
         filter: [],
         variableMapping: config.variableMapping,
-        sampling: "1.0",
-        delay: 0,
-        status: "ACTIVE",
-        timeScope: ["NEW"],
-        createdAt: new Date(),
-        updatedAt: new Date(),
         evalTemplate: mockTemplate,
-        project: { orgId: "test-org-123" },
-      };
+      });
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
-      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(mockConfig);
+      mockMigratedAssignment(mockConfig);
 
-      await processObservationEval({
+      await processEval({
         event: {
           projectId,
           jobExecutionId: "job-123",
@@ -694,29 +844,21 @@ describe("Observation Eval E2E Pipeline", () => {
         updatedAt: new Date(),
       };
 
-      const mockConfig = {
+      const mockConfig = createMockJobConfiguration({
         id: config.id,
         projectId,
-        jobType: "EVAL",
         evalTemplateId: config.evalTemplateId,
         scoreName: config.scoreName,
         targetObject: EvalTargetObject.EVENT,
         filter: [],
         variableMapping: config.variableMapping,
-        sampling: "1.0",
-        delay: 0,
-        status: "ACTIVE",
-        timeScope: ["NEW"],
-        createdAt: new Date(),
-        updatedAt: new Date(),
         evalTemplate: mockTemplate,
-        project: { orgId: "test-org-123" },
-      };
+      });
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
-      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(mockConfig);
+      mockMigratedAssignment(mockConfig);
 
-      await processObservationEval({
+      await processEval({
         event: {
           projectId,
           jobExecutionId: "job-123",
@@ -772,12 +914,14 @@ describe("Observation Eval E2E Pipeline", () => {
 
       await scheduleObservationEvals({
         observation: prodObservation,
+        loadSnapshot: () => prodObservation,
         configs: [config],
         schedulerDeps: pipeline1.schedulerDeps,
       });
 
       await scheduleObservationEvals({
         observation: stagingObservation,
+        loadSnapshot: () => stagingObservation,
         configs: [config],
         schedulerDeps: pipeline2.schedulerDeps,
       });
@@ -820,12 +964,14 @@ describe("Observation Eval E2E Pipeline", () => {
 
       await scheduleObservationEvals({
         observation: taggedObservation,
+        loadSnapshot: () => taggedObservation,
         configs: [config],
         schedulerDeps: pipeline1.schedulerDeps,
       });
 
       await scheduleObservationEvals({
         observation: untaggedObservation,
+        loadSnapshot: () => untaggedObservation,
         configs: [config],
         schedulerDeps: pipeline2.schedulerDeps,
       });

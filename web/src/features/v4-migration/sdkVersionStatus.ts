@@ -1,10 +1,9 @@
+/* eslint-disable no-nested-ternary */
 import { type RouterOutputs } from "@/src/utils/api";
-import {
-  getSdkVersionCapabilityMinimum,
-  type SdkVersionInfo,
-} from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
+import type { SdkVersionInfo } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
+import { LANGFUSE_SDK_LATEST_MAJOR } from "@langfuse/shared";
 
-export type V4MigrationSdkStatus =
+type V4MigrationSdkStatus =
   | "checking"
   | "error"
   | "no_data"
@@ -14,8 +13,7 @@ export type V4MigrationSdkStatus =
   | "legacy"
   | "latest";
 
-type SdkUsageSummary =
-  RouterOutputs["v4Transition"]["sdkUsageSummaryByProject"][number];
+type SdkUsageSummary = RouterOutputs["v4Transition"]["sdkUsageSummary"];
 
 export type V4MigrationSdkUsageSeries =
   SdkUsageSummary["sdkUsageSeries"][number];
@@ -30,20 +28,71 @@ export type V4MigrationSdkState = {
 const requiresOtelIngestionHeader = (
   series: V4MigrationSdkUsageSeries,
 ): boolean =>
-  series.hasDelayedOtelEvents === true && series.canonicalSdkName === null;
+  series.remediationType === "update_otel_instrumentation" &&
+  series.actionLevel === "required";
+
+// SQL owns remediation classification; the client only groups rows for display.
+const isCustomInstrumentationSeries = (
+  series: V4MigrationSdkUsageSeries,
+): boolean => series.remediationType === "upgrade_instrumentation";
 
 const sortSdkUsageSeries = (
   rows: V4MigrationSdkUsageSeries[],
 ): V4MigrationSdkUsageSeries[] =>
-  [...rows].sort(
-    (left, right) =>
-      Number(right.v4MigrationStatus === "upgrade_required") -
-        Number(left.v4MigrationStatus === "upgrade_required") ||
-      Number(requiresOtelIngestionHeader(right)) -
-        Number(requiresOtelIngestionHeader(left)) ||
-      Number(right.v4MigrationStatus === "unknown") -
-        Number(left.v4MigrationStatus === "unknown") ||
-      left.lastSeen.localeCompare(right.lastSeen),
+  [...rows].sort((left, right) => right.lastSeen.localeCompare(left.lastSeen));
+
+const usageSeriesKey = (series: V4MigrationSdkUsageSeries): string =>
+  `${series.source}:${series.sdkName}:${series.sdkVersion}:${series.publicKey}`;
+
+export type MigratedKeySeries = {
+  /** Legacy row that still sits inside the lookback window. */
+  required: V4MigrationSdkUsageSeries;
+  /** Later clean row for the same non-empty public key. */
+  successor: V4MigrationSdkUsageSeries;
+};
+
+// A required row is already migrated when the same API key has a later row
+// that needs no action. Empty keys stay in the action sections: they cannot
+// be matched to a successor.
+export const getMigratedKeySeries = (
+  sdk: V4MigrationSdkState,
+): MigratedKeySeries[] => {
+  const successorByKey = new Map<string, V4MigrationSdkUsageSeries>();
+  for (const series of sdk.sdkUsageSeries) {
+    if (series.actionLevel !== "none" || series.publicKey.length === 0) {
+      continue;
+    }
+    const current = successorByKey.get(series.publicKey);
+    if (!current || series.lastSeen.localeCompare(current.lastSeen) > 0) {
+      successorByKey.set(series.publicKey, series);
+    }
+  }
+
+  return sdk.sdkUsageSeries.flatMap((series) => {
+    if (series.actionLevel !== "required" || series.publicKey.length === 0) {
+      return [];
+    }
+    const successor = successorByKey.get(series.publicKey);
+    if (!successor || successor.lastSeen.localeCompare(series.lastSeen) <= 0) {
+      return [];
+    }
+    return [{ required: series, successor }];
+  });
+};
+
+const migratedRequiredKeys = (sdk: V4MigrationSdkState): Set<string> =>
+  new Set(
+    getMigratedKeySeries(sdk).map((series) => usageSeriesKey(series.required)),
+  );
+
+export const getMigratedSeriesByKey = (
+  sdk: V4MigrationSdkState,
+): Map<string, MigratedKeySeries> =>
+  new Map(
+    getMigratedKeySeries(sdk).map((series) => [
+      usageSeriesKey(series.required),
+      series,
+    ]),
   );
 
 export const getV4MigrationSdkState = (params: {
@@ -67,23 +116,31 @@ export const getV4MigrationSdkState = (params: {
   const sdkUsageSeries = sortSdkUsageSeries(params.summary.sdkUsageSeries);
   const upgradeRequiredCount = sdkUsageSeries.filter(
     (series) =>
-      series.v4MigrationStatus === "upgrade_required" &&
-      !series.upgradeCompleted,
+      series.remediationType === "update_sdk" &&
+      series.actionLevel === "required",
   ).length;
   const delayedOtelIngestionCount = sdkUsageSeries.filter(
     requiresOtelIngestionHeader,
   ).length;
   const hasUnknownRecognizedSdk = sdkUsageSeries.some(
     (series) =>
-      series.canonicalSdkName !== null &&
+      series.remediationType === "update_sdk" &&
       series.v4MigrationStatus === "unknown",
   );
   const hasCompatibleSdk = sdkUsageSeries.some(
-    (series) => series.v4MigrationStatus === "compatible",
+    (series) =>
+      series.remediationType === "update_sdk" && series.actionLevel === "none",
   );
   const hasRealtimeOtelIngestion = sdkUsageSeries.some(
     (series) =>
-      series.canonicalSdkName === null && series.hasDelayedOtelEvents === false,
+      series.remediationType === "update_otel_instrumentation" &&
+      series.actionLevel === "none",
+  );
+  // Custom-instrumentation traffic is always an action item in the panel, so
+  // the combined status must not report the project as fully migrated while
+  // the Upgrade Instrumentation section is telling the user to act.
+  const hasCustomInstrumentation = sdkUsageSeries.some(
+    isCustomInstrumentationSeries,
   );
 
   return {
@@ -94,7 +151,7 @@ export const getV4MigrationSdkState = (params: {
           ? "legacy"
           : delayedOtelIngestionCount > 0
             ? "otel_header_required"
-            : hasUnknownRecognizedSdk
+            : hasUnknownRecognizedSdk || hasCustomInstrumentation
               ? "unknown"
               : hasCompatibleSdk
                 ? "latest"
@@ -107,27 +164,161 @@ export const getV4MigrationSdkState = (params: {
   };
 };
 
+// Recognized Langfuse SDK traffic stays in the SDK bucket even when it uses
+// OTLP; raw/third-party OTel is classified separately by SQL.
+const isOtelExporterSeries = (series: V4MigrationSdkUsageSeries): boolean =>
+  series.remediationType === "update_otel_instrumentation";
+
+// Action sections contain only SQL-classified required rows. Successful rows
+// are shown separately in the detected-instrumentation section.
+
+export const isActionableSdkSeries = (
+  series: V4MigrationSdkUsageSeries,
+): boolean =>
+  series.remediationType === "update_sdk" && series.actionLevel === "required";
+
+export type V4MigrationSdkSectionState = {
+  /** "latest" and "no_data" mean no relevant rows; the section hides itself.
+   * Unrecognized SDKs are not mixed in here: they belong to the custom
+   * instrumentation section. */
+  status: "checking" | "error" | "legacy" | "latest" | "no_data";
+  /** Recognized-SDK series requiring action, most recently seen first. */
+  series: V4MigrationSdkUsageSeries[];
+  /** Series needing action: pending upgrades plus unrecognized versions.
+   * Drives both the section badge and the body copy so they always agree. */
+  actionableCount: number;
+};
+
+export const getSdkSectionState = (
+  sdk: V4MigrationSdkState,
+): V4MigrationSdkSectionState => {
+  const migrated = migratedRequiredKeys(sdk);
+  const series = sdk.sdkUsageSeries.filter(
+    (usage) =>
+      usage.remediationType === "update_sdk" &&
+      usage.actionLevel === "required",
+  );
+  const actionableCount = series.filter(
+    (usage) => !migrated.has(usageSeriesKey(usage)),
+  ).length;
+
+  return {
+    status:
+      sdk.status === "checking" || sdk.status === "error"
+        ? sdk.status
+        : series.length === 0
+          ? "no_data"
+          : actionableCount > 0
+            ? "legacy"
+            : "latest",
+    series,
+    actionableCount,
+  };
+};
+
+export type V4MigrationCustomInstrumentationSectionState = {
+  /** Required custom-instrumentation rows, including ones that later migrated. */
+  series: V4MigrationSdkUsageSeries[];
+  /** Rows that still need an instrumentation change. */
+  actionableCount: number;
+};
+
+export const getCustomInstrumentationSectionState = (
+  sdk: V4MigrationSdkState,
+): V4MigrationCustomInstrumentationSectionState => {
+  const migrated = migratedRequiredKeys(sdk);
+  const series = sdk.sdkUsageSeries.filter(isCustomInstrumentationSeries);
+  return {
+    series,
+    actionableCount: series.filter(
+      (usage) => !migrated.has(usageSeriesKey(usage)),
+    ).length,
+  };
+};
+
+export type V4MigrationOtelSectionState = {
+  /** Delayed OTel exporter series requiring action, most recently seen first. */
+  series: V4MigrationSdkUsageSeries[];
+  /** Every required delayed row in the lookback, including keys that later
+   * sent a clean event. The data-delay badge uses this: the old events are
+   * still inside the window. */
+  delayedCount: number;
+  /** Required rows whose key has not sent a later clean event. The panel
+   * section uses this for its count and green state. */
+  pendingCount: number;
+};
+
+export const getOtelSectionState = (
+  sdk: V4MigrationSdkState,
+): V4MigrationOtelSectionState => {
+  const migrated = migratedRequiredKeys(sdk);
+  const series = sdk.sdkUsageSeries.filter(
+    (usage) => isOtelExporterSeries(usage) && usage.actionLevel === "required",
+  );
+  return {
+    series,
+    delayedCount: series.length,
+    pendingCount: series.filter((usage) => !migrated.has(usageSeriesKey(usage)))
+      .length,
+  };
+};
+
+export const getDetectedInstrumentationSeries = (
+  sdk: V4MigrationSdkState,
+): V4MigrationSdkUsageSeries[] =>
+  sdk.sdkUsageSeries.filter((usage) => usage.actionLevel === "none");
+
 export const formatSdkVersion = (sdkVersion: SdkVersionInfo | undefined) => {
   if (!sdkVersion?.language || !sdkVersion.version) return null;
 
-  const language =
-    sdkVersion.language === "javascript"
-      ? "JavaScript"
-      : sdkVersion.language === "python"
-        ? "Python"
-        : sdkVersion.language;
+  const language = (() => {
+    if (sdkVersion.language === "javascript") {
+      return "JavaScript";
+    }
+    if (sdkVersion.language === "python") {
+      return "Python";
+    }
+    return sdkVersion.language;
+  })();
   return `${language} ${sdkVersion.version}`;
 };
 
-export const formatSdkUpgradeRequirement = (
-  sdkName: V4MigrationSdkUsageSeries["canonicalSdkName"],
-) => {
-  const minimumVersion = getSdkVersionCapabilityMinimum(
-    sdkName,
-    "appRootObservations",
-  );
+const SDK_MAJOR_UPGRADE_GUIDE_URLS = {
+  python:
+    "https://langfuse.com/docs/observability/sdk/upgrade-path/python-v4-to-v5",
+  javascript:
+    "https://langfuse.com/docs/observability/sdk/upgrade-path/js-v5-to-v6",
+} as const satisfies Record<keyof typeof LANGFUSE_SDK_LATEST_MAJOR, string>;
 
-  return minimumVersion
-    ? `upgrade required to >= ${minimumVersion}`
-    : "upgrade required";
+/** A newer SDK major for V4-compatible traffic still on the previous major. */
+export const getAvailableSdkMajorUpgrade = (
+  series: V4MigrationSdkUsageSeries,
+): { label: string; upgradeGuideUrl: string } | null => {
+  if (
+    series.remediationType !== "update_sdk" ||
+    !series.canonicalSdkName ||
+    series.sdkVersionMajor === null
+  ) {
+    return null;
+  }
+  const latestMajor = LANGFUSE_SDK_LATEST_MAJOR[series.canonicalSdkName];
+  if (series.sdkVersionMajor >= latestMajor) return null;
+  return {
+    label: `${series.canonicalSdkName === "python" ? "Python" : "JS"} SDK v${latestMajor}`,
+    upgradeGuideUrl: SDK_MAJOR_UPGRADE_GUIDE_URLS[series.canonicalSdkName],
+  };
+};
+
+/** `latestSdkMajor` is the minimum V4-compatible major from the SQL check. */
+export const formatSdkUpgradeRequirement = (
+  series: Pick<
+    V4MigrationSdkUsageSeries,
+    "canonicalSdkName" | "latestSdkMajor"
+  >,
+) => {
+  if (!series.latestSdkMajor) return "upgrade required";
+  if (!series.canonicalSdkName) {
+    return `upgrade required to >= ${series.latestSdkMajor}.0.0`;
+  }
+  return `upgrade required to v${LANGFUSE_SDK_LATEST_MAJOR[series.canonicalSdkName]} (>= ${series.latestSdkMajor}.0.0 also works)`;
 };

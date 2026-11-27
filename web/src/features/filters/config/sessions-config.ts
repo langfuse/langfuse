@@ -1,9 +1,9 @@
-import { omitFilterFacets } from "@/src/features/filters/lib/filter-config";
-import { sessionsEventsViewCols, sessionsViewCols } from "@langfuse/shared";
-import type {
-  Facet,
-  FilterConfig,
+import {
+  omitFilterFacets,
+  type Facet,
+  type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
+import { sessionsEventsViewCols, sessionsViewCols } from "@langfuse/shared";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 
 export type SessionOmittableFilterColumn = "userIds";
@@ -16,12 +16,17 @@ export const SESSION_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
   tags: "traceTags",
 };
 
+/** @internal */
 export const sessionFilterConfig: FilterConfig = {
   tableName: "sessions",
 
-  columnDefinitions: sessionsViewCols,
+  // Bookmarking is gone from the UI, so the sidebar no longer knows the
+  // column: a `bookmarked` filter left in a saved view or an old deep link is
+  // dropped rather than silently narrowing the rows nobody can widen again.
+  // The shared definition stays for the public API.
+  columnDefinitions: sessionsViewCols.filter((col) => col.id !== "bookmarked"),
 
-  defaultExpanded: ["environment", "bookmarked"],
+  defaultExpanded: ["environment"],
 
   facets: [
     {
@@ -43,13 +48,6 @@ export const sessionFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "tags",
       label: "Trace Tags",
-    },
-    {
-      type: "boolean" as const,
-      column: "bookmarked",
-      label: "Bookmarked",
-      trueLabel: "Bookmarked",
-      falseLabel: "Not bookmarked",
     },
     {
       type: "numeric" as const,
@@ -149,9 +147,33 @@ const sessionMetadataFacet: Facet = {
 
 export const sessionEventsFilterConfig: FilterConfig = {
   ...sessionFilterConfig,
-  columnDefinitions: sessionsEventsViewCols,
+  columnDefinitions: sessionsEventsViewCols.filter(
+    (col) => col.id !== "bookmarked",
+  ),
   facets: sessionFilterConfig.facets.flatMap((facet) =>
-    facet.column === "tags" ? [facet, sessionMetadataFacet] : [facet],
+    facet.column === "tags"
+      ? [
+          facet,
+          sessionMetadataFacet,
+          {
+            type: "categorical" as const,
+            column: "toolNames",
+            label: "Tool Names (Available)",
+          },
+          {
+            type: "categorical" as const,
+            column: "calledToolNames",
+            label: "Tool Names (Called)",
+          },
+          {
+            type: "numeric" as const,
+            column: "toolCalls",
+            label: "Tool Calls",
+            min: 0,
+            max: 25,
+          },
+        ]
+      : [facet],
   ),
 };
 

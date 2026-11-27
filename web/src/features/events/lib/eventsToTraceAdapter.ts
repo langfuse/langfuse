@@ -6,7 +6,7 @@ import {
   type WithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
 
-export type SyntheticTrace = WithStringifiedMetadata<
+type SyntheticTrace = WithStringifiedMetadata<
   Omit<TraceDomain, "input" | "output">
 > & {
   input: string | null;

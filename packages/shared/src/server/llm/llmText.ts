@@ -1,15 +1,19 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ZodType } from "zod";
 
 import {
   Output,
+  embedMany,
   generateText,
   jsonSchema,
   streamText,
   tool,
   type GenerateTextAbortEvent,
+  type GenerateTextInclude,
   type GenerateTextOnAbortCallback,
   type GenerateTextOnEndCallback,
   type GenerateTextResult,
+  type EmbedManyResult,
   type Experimental_DownloadFunction,
   type JSONValue,
   type LanguageModelCallOptions,
@@ -24,16 +28,17 @@ import { decrypt } from "../../encryption";
 import { env } from "../../env";
 import type { LLMConnectionConfig } from "../../interfaces/customLLMProviderConfigSchemas";
 import { LLMValidationError } from "./errors";
+import { resolveEvaluatorMediaTransport } from "./mediaMessages";
 import { mapChatMessagesToModelMessages } from "./ai-sdk/messages";
-import { buildAiSdkModel } from "./ai-sdk/providers";
+import { buildAiSdkEmbeddingModel, buildAiSdkModel } from "./ai-sdk/providers";
 import { translateAnthropicProviderOptions } from "./ai-sdk/providers/anthropic";
 import { translateBedrockProviderOptions } from "./ai-sdk/providers/bedrock";
 import { translateGoogleProviderOptions } from "./ai-sdk/providers/google";
 import {
   isOpenAICompatibleEndpoint,
-  isOpenRouterEndpoint,
   translateOpenAIProviderOptions,
 } from "./ai-sdk/providers/openai";
+import { wrapFetchWithOpenRouterInternalTraceProvenance } from "./ai-sdk/openRouterProvenance";
 import type {
   LLMCredentialSource,
   TranslatedProviderOptions,
@@ -55,7 +60,7 @@ import type {
   ModelParams,
   TraceSinkParams,
 } from "./types";
-import { LLMAdapter } from "./types";
+import { LangfuseInternalTraceEnvironment, LLMAdapter } from "./types";
 import { decryptAndParseExtraHeaders } from "./utils";
 
 type RuntimeContext = Record<string, unknown>;
@@ -76,8 +81,14 @@ export type LLMModelRef = {
 };
 
 export type LLMConnection = {
+  /** Project from the stored credential's DB row, never from a raw credential request. */
+  projectId?: string;
+  /** Set instead of projectId when testing an organization connection. */
+  organizationId?: string;
   /** Encrypted credential. It is decrypted only inside the execution boundary. */
   secretKey: string;
+  /** Encrypted external ID of a Bedrock connection with IAM role auth, from its DB row. */
+  externalId?: string | null;
   /** Encrypted JSON object of additional headers. */
   extraHeaders?: string | null;
   baseURL?: string | null;
@@ -99,6 +110,8 @@ export type StreamLLMTextOnAbortCallback<TOOLS extends ToolSet = ToolSet> =
 type BaseLLMTextOptions<TOOLS extends ToolSet, OUTPUT extends Output.Output> = {
   model: LLMModelRef;
   connection: LLMConnection;
+  /** Per-call OpenAI Chat provider selection; omitted preserves connection routing. */
+  openAIChatProvider?: "native";
   messages: ModelMessage[];
   /**
    * Tool definitions only. Supplying an `execute` function is rejected so a
@@ -116,6 +129,18 @@ type BaseLLMTextOptions<TOOLS extends ToolSet, OUTPUT extends Output.Output> = {
   timeout?: TimeoutConfiguration<TOOLS>;
   abortSignal?: AbortSignal;
   trace?: TraceSinkParams;
+  /**
+   * Internal Langfuse trace environment stamped onto outbound provider
+   * provenance (such as OpenRouter Broadcast) even when Langfuse does not emit
+   * an internal trace for this call. Defaults to `trace?.environment`.
+   */
+  internalEnvironment?: LangfuseInternalTraceEnvironment;
+  /**
+   * Input recorded on traced root and generation spans. Defaults to messages.
+   * Use this when provider messages contain ephemeral credentials such as
+   * signed media URLs.
+   */
+  traceInput?: unknown;
   credentialSource?: LLMCredentialSource;
   onEnd?: GenerateTextOnEndCallback<TOOLS, RuntimeContext>;
 };
@@ -123,7 +148,9 @@ type BaseLLMTextOptions<TOOLS extends ToolSet, OUTPUT extends Output.Output> = {
 export type GenerateLLMTextOptions<
   TOOLS extends ToolSet = {},
   OUTPUT extends Output.Output = Output.Output<string, string, never>,
-> = BaseLLMTextOptions<TOOLS, OUTPUT>;
+> = BaseLLMTextOptions<TOOLS, OUTPUT> & {
+  include?: GenerateTextInclude;
+};
 
 export type StreamLLMTextOptions<
   TOOLS extends ToolSet = {},
@@ -180,6 +207,7 @@ export async function generateLLMText<
         model: prepared.languageModel,
         ...prepared.callOptions,
         output: options.output,
+        include: options.include,
         onEnd: options.onEnd,
       }),
     );
@@ -290,40 +318,22 @@ async function prepareLLMTextCall<
   });
   recordAiSdkExecution({ model: options.model, modelConfig });
 
-  const providerOptions = addOpenRouterInternalTraceProvenance({
-    model: options.model,
-    baseURL: options.connection.baseURL,
-    apiMode: modelConfig.openAIApiMode,
-    providerOptions: options.providerOptions,
-    trace: options.trace,
-  });
-
-  const apiKey = decrypt(options.connection.secretKey);
-  const extraHeaders = decryptAndParseExtraHeaders(
-    options.connection.extraHeaders,
+  const { apiKey, extraHeaders, createFetch } = openLLMConnection(
+    options.connection,
+    options.internalEnvironment ?? options.trace?.environment,
   );
-
-  const createFetch = (
-    logContext: string,
-    additionalSensitiveHeaders?: string[],
-  ) =>
-    createSecureLlmFetch({
-      logContext,
-      // Connection-specific headers are encrypted at rest and can contain
-      // gateway credentials. Keep them on same-origin redirects, but strip
-      // them alongside provider auth headers when the origin changes.
-      additionalSensitiveHeaders: (additionalSensitiveHeaders ?? []).concat(
-        Object.keys(extraHeaders ?? {}),
-      ),
-    });
 
   const languageModel = await buildAiSdkModel({
     model: options.model,
     modelConfig,
+    openAIChatProvider: options.openAIChatProvider,
     apiKey,
     baseURL: options.connection.baseURL,
     extraHeaders,
     config: options.connection.config,
+    projectId: options.connection.projectId,
+    organizationId: options.connection.organizationId,
+    externalId: options.connection.externalId,
     credentialSource,
     createFetch,
   });
@@ -331,7 +341,8 @@ async function prepareLLMTextCall<
   const capture = options.trace
     ? createAiSdkTelemetryCapture({
         traceSinkParams: options.trace,
-        rootInput: options.messages,
+        rootInput: options.traceInput ?? options.messages,
+        generationInput: options.traceInput,
       })
     : undefined;
 
@@ -348,57 +359,100 @@ async function prepareLLMTextCall<
       temperature: options.temperature,
       topP: options.topP,
       reasoning: options.reasoning,
-      providerOptions,
+      providerOptions: options.providerOptions,
       maxRetries: options.maxRetries,
       timeout,
       abortSignal: options.abortSignal,
-      // Do not let AI SDK download remote media on the Langfuse server.
-      // Callers must use provider-supported URLs or inline data.
-      experimental_download: rejectRemoteMediaDownloads,
+      // URL transport preserves provider-supported media URLs without downloading
+      // them. Inline and disabled modes continue to block remote downloads.
+      experimental_download: createEvaluatorMediaUrlPolicy(options.messages),
       ...(capture ? { telemetry: capture.telemetry } : {}),
     },
   };
 }
 
-function addOpenRouterInternalTraceProvenance(params: {
-  model: LLMModelRef;
-  baseURL?: string | null;
-  apiMode?: "responses" | "chat-completions";
-  providerOptions?: ProviderOptions;
-  trace?: TraceSinkParams;
-}): ProviderOptions | undefined {
-  if (
-    params.model.adapter !== LLMAdapter.OpenAI ||
-    params.apiMode !== "chat-completions" ||
-    !params.trace ||
-    !isOpenRouterEndpoint(params.baseURL)
-  ) {
-    return params.providerOptions;
-  }
-
-  const openAIOptions = params.providerOptions?.openai ?? {};
-  const existingTrace = isJsonObject(openAIOptions.trace)
-    ? openAIOptions.trace
-    : {};
-
-  return {
-    ...params.providerOptions,
-    openai: {
-      ...openAIOptions,
-      trace: {
-        ...existingTrace,
-        // This marker controls evaluator recursion prevention and must remain
-        // system-owned even when the caller supplies other Broadcast metadata.
-        environment: params.trace.environment,
-      },
-    },
-  };
+function openLLMConnection(
+  connection: LLMConnection,
+  internalEnvironment?: string,
+) {
+  const apiKey = decrypt(connection.secretKey);
+  const extraHeaders = decryptAndParseExtraHeaders(connection.extraHeaders);
+  const createFetch = (
+    logContext: string,
+    additionalSensitiveHeaders?: string[],
+  ) =>
+    wrapFetchWithOpenRouterInternalTraceProvenance({
+      fetchImpl: createSecureLlmFetch({
+        logContext,
+        // Connection-specific headers are encrypted at rest and can contain
+        // gateway credentials. Keep them on same-origin redirects, but strip
+        // them alongside provider auth headers when the origin changes.
+        additionalSensitiveHeaders: (additionalSensitiveHeaders ?? []).concat(
+          Object.keys(extraHeaders ?? {}),
+        ),
+      }),
+      baseURL: connection.baseURL,
+      internalEnvironment,
+    });
+  return { apiKey, extraHeaders, createFetch };
 }
 
-function isJsonObject(
-  value: JSONValue | undefined,
-): value is Record<string, JSONValue> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+/** Embeds values with a persisted connection, batched per provider limit; calls are not traced. */
+export async function embedLLMText(options: {
+  model: LLMModelRef;
+  connection: LLMConnection;
+  values: string[];
+  dimensions?: number;
+  providerOptions?: ProviderOptions;
+  internalEnvironment?: LangfuseInternalTraceEnvironment;
+  maxRetries?: number;
+  maxParallelCalls?: number;
+  abortSignal?: AbortSignal;
+}): Promise<EmbedManyResult> {
+  resolveAiSdkModelConfig({
+    model: options.model,
+    connectionConfig: options.connection.config,
+    baseURL: options.connection.baseURL,
+    credentialSource: "user",
+  });
+  const { apiKey, extraHeaders, createFetch } = openLLMConnection(
+    options.connection,
+    options.internalEnvironment,
+  );
+  const embeddingModel = await buildAiSdkEmbeddingModel({
+    model: options.model,
+    projectId: options.connection.projectId,
+    organizationId: options.connection.organizationId,
+    externalId: options.connection.externalId,
+    apiKey,
+    baseURL: options.connection.baseURL,
+    extraHeaders,
+    config: options.connection.config,
+    credentialSource: "user",
+    createFetch,
+  });
+  return embedMany({
+    model: embeddingModel,
+    values: options.values,
+    dimensions: options.dimensions,
+    providerOptions: options.providerOptions,
+    maxRetries: options.maxRetries,
+    maxParallelCalls: options.maxParallelCalls,
+    abortSignal: options.abortSignal,
+  });
+}
+
+export function createEvaluatorMediaUrlPolicy(
+  messages: ModelMessage[],
+): Experimental_DownloadFunction {
+  const transport = resolveEvaluatorMediaTransport({
+    configured: env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT,
+    cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+  });
+
+  return transport === "url"
+    ? createProviderSupportedMediaUrlPolicy(messages)
+    : rejectRemoteMediaDownloads;
 }
 
 const rejectRemoteMediaDownloads: Experimental_DownloadFunction = async (
@@ -413,6 +467,63 @@ const rejectRemoteMediaDownloads: Experimental_DownloadFunction = async (
   }
   return [];
 };
+
+function createProviderSupportedMediaUrlPolicy(
+  messages: ModelMessage[],
+): Experimental_DownloadFunction {
+  // Keep the media type beside each URL so validation errors can explain which
+  // input the selected model rejected.
+  const mediaTypesByUrl = new Map<string, string>();
+  for (const message of messages) {
+    if (!Array.isArray(message.content)) continue;
+    for (const part of message.content) {
+      if (part.type === "file" && part.data instanceof URL) {
+        mediaTypesByUrl.set(part.data.href, part.mediaType);
+      }
+    }
+  }
+
+  return (downloads) =>
+    enforceProviderSupportedMediaUrls(downloads, mediaTypesByUrl);
+}
+
+// The AI SDK asks about every URL. Preserve URLs supported by the provider and
+// reject the rest instead of letting the SDK download them on this server.
+async function enforceProviderSupportedMediaUrls(
+  downloads: Parameters<Experimental_DownloadFunction>[0],
+  mediaTypesByUrl: Map<string, string>,
+) {
+  const unsupportedDownloads = downloads.filter(
+    ({ isUrlSupportedByModel }) => !isUrlSupportedByModel,
+  );
+  if (unsupportedDownloads.length > 0) {
+    const mediaTypes = [
+      ...new Set(
+        unsupportedDownloads
+          .map(({ url }) => mediaTypesByUrl.get(url.href))
+          .filter((mediaType): mediaType is string => Boolean(mediaType)),
+      ),
+    ];
+    const mediaTypeList = mediaTypes.join(", ");
+    const mediaDescription = mediaTypeList
+      ? `media with type ${mediaTypeList}`
+      : "media";
+    const modelSupportDescription = mediaTypeList
+      ? `this media type. To continue, narrow the variable mapping so it does not include this media, or select a model that supports ${mediaTypeList}.`
+      : "one or more media types. To continue, narrow the variable mapping so it does not include this media, or select a model that supports it.";
+
+    throw new LLMValidationError({
+      code: "invalid-request",
+      message: `The interpolated prompt contains ${mediaDescription}, but the selected model does not support ${modelSupportDescription}`,
+    });
+  }
+  // null instructs AI SDK to preserve each provider-supported URL as-is.
+  return downloads.map(() => null);
+}
+
+export const providerSupportedMediaUrlPolicy: Experimental_DownloadFunction = (
+  downloads,
+) => enforceProviderSupportedMediaUrls(downloads, new Map());
 
 function assertDefinitionOnlyTools(tools: ToolSet | undefined): void {
   if (!tools) return;
@@ -528,6 +639,8 @@ export function mapLegacyLLMCompletionParams(params: {
     topP: modelParams.top_p,
     reasoning:
       modelParams.adapter === LLMAdapter.OpenAI &&
+      (params.connection.config?.useResponsesApi === true ||
+        !isOpenAICompatibleEndpoint(params.connection.baseURL)) &&
       isOpenAIDefaultNonReasoningModel(modelParams.model)
         ? "none"
         : undefined,
@@ -595,6 +708,12 @@ function translateLegacyProviderOptions(params: {
           });
       break;
     }
+    case LLMAdapter.TypeSafe:
+      throw new LLMValidationError({
+        code: "invalid-request",
+        message:
+          "TypeSafe decision models cannot generate text; use a decision-model evaluator",
+      });
     default: {
       const _exhaustiveCheck: never = modelParams.adapter;
       throw new LLMValidationError({

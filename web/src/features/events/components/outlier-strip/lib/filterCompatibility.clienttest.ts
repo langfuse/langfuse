@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { type FilterState } from "@langfuse/shared";
 import { canApplyOutlierStripFilters } from "./filterCompatibility";
 
@@ -16,17 +18,23 @@ describe("canApplyOutlierStripFilters", () => {
     expect(canApplyOutlierStripFilters(filters, false)).toBe(true);
   });
 
+  it("stays available under a keyed metadata filter", () => {
+    const filters: FilterState = [
+      {
+        column: "metadata",
+        type: "stringObject",
+        key: "langfuse_user_email",
+        operator: "does not contain",
+        value: "@langfuse.com",
+      },
+    ];
+
+    expect(canApplyOutlierStripFilters(filters, false)).toBe(true);
+  });
+
   it("rejects filters the aggregate query cannot represent", () => {
     const unsupportedFilters: FilterState[] = [
       [{ column: "latency", type: "number", operator: ">", value: 2 }],
-      [
-        {
-          column: "isRootObservation",
-          type: "boolean",
-          operator: "=",
-          value: true,
-        },
-      ],
       [
         {
           column: "name",

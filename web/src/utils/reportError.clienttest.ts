@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { reportError } from "@/src/utils/reportError";
 
 const { captureExceptionMock, addBreadcrumbMock } = vi.hoisted(() => ({
@@ -105,6 +107,82 @@ describe("reportError", () => {
       const [, options] = captureExceptionMock.mock.calls[0]!;
       expect(options.tags.area).toBe("io.parse");
       expect(options.extra).toBeUndefined();
+    });
+
+    it("merges caller tags alongside the area tag", () => {
+      reportError(new Error("boom"), {
+        area: "trpc",
+        tags: {
+          "trpc.code": "INTERNAL_SERVER_ERROR",
+          "trpc.path": "traces.all",
+        },
+      });
+
+      const [, options] = captureExceptionMock.mock.calls[0]!;
+      expect(options.tags).toEqual({
+        "trpc.code": "INTERNAL_SERVER_ERROR",
+        "trpc.path": "traces.all",
+        area: "trpc",
+      });
+    });
+
+    it("passes a caller fingerprint through to captureException", () => {
+      reportError(new Error("boom"), {
+        area: "trpc",
+        fingerprint: [
+          "trpc-client-error",
+          "INTERNAL_SERVER_ERROR",
+          "traces.all",
+        ],
+      });
+
+      const [, options] = captureExceptionMock.mock.calls[0]!;
+      expect(options.fingerprint).toEqual([
+        "trpc-client-error",
+        "INTERNAL_SERVER_ERROR",
+        "traces.all",
+      ]);
+    });
+
+    it("omits the fingerprint key entirely when not provided (Sentry default grouping)", () => {
+      reportError(new Error("boom"), { area: "io.parse" });
+
+      const [, options] = captureExceptionMock.mock.calls[0]!;
+      expect("fingerprint" in options).toBe(false);
+    });
+
+    it("the seam's area tag wins over a conflicting caller tag", () => {
+      reportError(new Error("boom"), {
+        area: "trpc",
+        tags: { area: "spoofed" },
+      });
+
+      const [, options] = captureExceptionMock.mock.calls[0]!;
+      expect(options.tags.area).toBe("trpc");
+    });
+
+    it("warnMessage overrides the console line body, prefixed with the area", () => {
+      reportError(new Error("boom"), {
+        area: "io-parse-worker",
+        warnMessage: "useParsedTrace worker failed to load: details",
+      });
+
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0]![0]).toBe(
+        "[io-parse-worker] useParsedTrace worker failed to load: details",
+      );
+    });
+
+    it("warnMessage never affects what is captured", () => {
+      const original = new Error("boom");
+      reportError(original, {
+        area: "io-parse-worker",
+        warnMessage: "console-only text",
+      });
+
+      const [err] = captureExceptionMock.mock.calls[0]!;
+      expect(err).toBe(original);
+      expect(err.message).toBe("boom");
     });
   });
 });

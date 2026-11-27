@@ -1,6 +1,6 @@
 import preview from "../../../../.storybook/preview";
 import { useArgs } from "storybook/preview-api";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import {
   FeaturePreviewModal,
@@ -56,8 +56,9 @@ const meta = preview.meta({
     open: true,
     onOpenChange: fn(),
     state: {
-      modernSession: { enabled: false, onToggle: fn(), isToggling: false },
-      v4UpgradeUi: { enabled: false, onToggle: fn(), isToggling: false },
+      sessionViewV2: { enabled: false, onToggle: fn(), isToggling: false },
+      sessionViewV2Timeline: { enabled: false, disabled: true, onToggle: fn() },
+      unifiedTraceSessionView: { enabled: false, onToggle: fn() },
     },
   },
   render: StatefulFeaturePreviewModal,
@@ -68,7 +69,7 @@ export const Default = meta.story({});
 export const Warning = meta.story({
   args: {
     state: {
-      modernSession: {
+      sessionViewV2: {
         enabled: false,
         warningReason:
           "This preview is enabled globally, so a per-user opt-out does not disable it.",
@@ -81,7 +82,43 @@ export const Warning = meta.story({
 export const Loading = meta.story({
   args: {
     state: {
-      modernSession: { enabled: false, onToggle: fn(), isToggling: true },
+      sessionViewV2: { enabled: false, onToggle: fn(), isToggling: true },
     },
+  },
+});
+
+export const SessionTimelineToggle = meta.story({
+  name: "(Test) Session timeline toggle",
+  render: FeaturePreviewModal,
+  args: {
+    open: true,
+    onOpenChange: fn(),
+    state: {
+      sessionViewV2: { enabled: true, onToggle: fn() },
+      sessionViewV2Timeline: { enabled: false, onToggle: fn() },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const onTimelineToggle = args.state.sessionViewV2Timeline?.onToggle;
+    if (!onTimelineToggle) {
+      throw new Error("Expected sessionViewV2Timeline onToggle");
+    }
+
+    const timelineToggle = body.getByRole("switch", {
+      name: "Toggle Session Timeline",
+    });
+    await expect(
+      body.getByRole("link", { name: "Give feedback" }),
+    ).toHaveAttribute(
+      "href",
+      "https://github.com/orgs/langfuse/discussions/18687",
+    );
+    await userEvent.click(timelineToggle);
+
+    await expect(onTimelineToggle).toHaveBeenCalledWith(true);
+    await expect(
+      body.queryByRole("button", { name: /Session Timeline/ }),
+    ).not.toBeInTheDocument();
   },
 });

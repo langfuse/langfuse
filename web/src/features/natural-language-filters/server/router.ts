@@ -6,13 +6,16 @@ import { TRPCError } from "@trpc/server";
 import {
   type ChatMessage,
   ChatMessageType,
-  LangfuseInternalTraceEnvironment,
   logger,
   generateLangfuseAIText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
   getLangfuseAITraceSinkParams,
   isLangfuseAITracingConfigured,
 } from "@langfuse/shared/src/server";
+import {
+  getInAppAgentModelConfig,
+  LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
+} from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { env } from "@/src/env.mjs";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
 import { parseFiltersFromCompletion, getLangfuseClient } from "./utils";
@@ -23,12 +26,18 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
     .input(CreateNaturalLanguageFilterCompletion)
     .mutation(async ({ input, ctx }) => {
       try {
+        // Generating a filter reads nothing a project member cannot already
+        // read by hand, so membership is the right bar; whether the org uses
+        // AI at all is governed by `aiFeaturesEnabled` below.
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "prompts:CUD",
+          scope: "project:read",
         });
 
+        // Leftover table-wand path: still Cloud-only. It needs the managed
+        // `get-filter-conditions-from-query` prompt and has no bundled fallback.
+        // v4 Ask AI (`searchBar.generateFilter`) is the self-hosted path.
         if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
@@ -67,11 +76,10 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           });
         }
 
-        if (!env.LANGFUSE_AWS_BEDROCK_MODEL) {
+        if (!getInAppAgentModelConfig()) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
-            message:
-              "Bedrock environment variables not configured. Please set LANGFUSE_AWS_BEDROCK_* variables.",
+            message: LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
           });
         }
 
@@ -90,23 +98,19 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
           env.LANGFUSE_AI_FEATURES_SECRET_KEY,
           env.LANGFUSE_AI_FEATURES_HOST,
-          false,
         );
 
-        const promptResponse = await client.getPrompt(
+        const promptResponse = await client.prompt.get(
           "get-filter-conditions-from-query",
-          undefined,
           { type: "chat" },
         );
 
-        const aiTelemetryEnabled = project.organization.aiTelemetryEnabled;
-
-        if (aiTelemetryEnabled && !isLangfuseAITracingConfigured()) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Langfuse AI Features not configured.",
-          });
-        }
+        // Tracing is optional: skip it when the AI-features project is not
+        // configured (the default self-hosted case) rather than failing the
+        // generation. Self-hosted cannot toggle `aiTelemetryEnabled` off.
+        const aiTelemetryEnabled =
+          project.organization.aiTelemetryEnabled &&
+          isLangfuseAITracingConfigured();
 
         // Get current datetime in ISO format with day of week for AI context
         const now = new Date();
@@ -126,8 +130,6 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
           traceSinkParams: aiTelemetryEnabled
             ? getLangfuseAITraceSinkParams({
-                environment:
-                  LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
                 feature: "natural-language-filter",
                 projectId: ctx.session.projectId,
                 traceName: "natural-language-filter",
@@ -137,7 +139,6 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
                   ...(ctx.session.user.email
                     ? { langfuse_user_email: ctx.session.user.email }
                     : {}),
-                  langfuse_user_project_role: ctx.session.projectRole,
                   langfuse_cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
                 },
                 prompt: promptResponse,

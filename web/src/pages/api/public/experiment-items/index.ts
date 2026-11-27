@@ -7,14 +7,30 @@ import {
   GetExperimentItemsV1Query,
   GetExperimentItemsV1Response,
 } from "@/src/features/public-api/types/experiments";
-import { listExperimentItemsForPublicApi } from "@/src/features/experiments/server/public";
-
+import { listExperimentItemsForPublicApi } from "@/src/features/experiments/server/public/service";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import {
+  observationRefs,
+  scoreV3Refs,
+} from "@/src/features/audit-logs/server/auditedQuery";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Experiment Items",
+    action: "experiments:read",
     querySchema: GetExperimentItemsV1Query,
     responseSchema: GetExperimentItemsV1Response,
     allowInAppAgentKey: true,
+    audit: {
+      route: "GET /api/public/experiment-items",
+      resourceType: "experiment",
+      action: "list",
+      // Each item is the root observation of one experiment run.
+      refs: (response) => [
+        ...observationRefs(response.data),
+        ...scoreV3Refs(response.data.flatMap((item) => item.scores ?? [])),
+      ],
+      resultCount: (response) => response.data.length,
+    },
     fn: async ({ query, auth }) => {
       if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
         throw new LangfuseNotFoundError(
@@ -22,9 +38,19 @@ export default withMiddlewares({
         );
       }
 
+      const dataAccessWindow = clampToDataAccessDays({
+        plan: auth.scope.plan,
+        fromTimestamp: query.fromStartTime,
+      });
+
       return listExperimentItemsForPublicApi({
         projectId: auth.scope.projectId,
-        query,
+        query: {
+          ...query,
+          fromStartTime:
+            dataAccessWindow.effectiveFromTimestamp?.toISOString() ??
+            query.fromStartTime,
+        },
       });
     },
   }),

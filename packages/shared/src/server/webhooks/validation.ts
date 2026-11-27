@@ -1,10 +1,11 @@
 import { env } from "../../env";
 import {
-  type OutboundUrlValidationWhitelist,
+  OutboundUrlValidationError,
   parseOutboundUrl,
   resolveHost,
   validateOutboundUrlHost,
-} from "../outbound-url";
+  type OutboundUrlValidationWhitelist,
+} from "../outbound-url/validation";
 
 export type WebhookValidationWhitelist = OutboundUrlValidationWhitelist;
 export { resolveHost };
@@ -24,6 +25,14 @@ export function whitelistFromEnv(): WebhookValidationWhitelist {
   };
 }
 
+/** webhookWhitelistFromEnv adds the webhook-only positive host list to the shared exemption list. */
+export function webhookWhitelistFromEnv(): WebhookValidationWhitelist {
+  return {
+    ...whitelistFromEnv(),
+    allowedHosts: env.LANGFUSE_WEBHOOK_ALLOWED_HOSTS,
+  };
+}
+
 /**
  * Validates a webhook URL to prevent SSRF attacks by blocking internal/private IP addresses
  * Should be called when saving webhook URLs and before sending webhooks
@@ -39,13 +48,24 @@ export async function validateWebhookURL(
 ): Promise<void> {
   const url = parseOutboundUrl(urlString);
 
+  // Coded, not bare Error: callers classify rejections off the `code` rather
+  // than the message. validateBlobStorageEndpoint already does this for the
+  // protocol check; these two were the only outbound-URL rejections in the repo
+  // that reached callers uncoded, which silently excluded them from
+  // customer-fault classification. Messages are unchanged.
   if (!["https:", "http:"].includes(url.protocol)) {
-    throw new Error("Only HTTP and HTTPS protocols are allowed");
+    throw new OutboundUrlValidationError(
+      "protocol-not-allowed",
+      "Only HTTP and HTTPS protocols are allowed",
+    );
   }
 
   const allowedPorts = options.allowedPorts ?? DEFAULT_WEBHOOK_ALLOWED_PORTS;
   if (url.port && allowedPorts !== "any" && !allowedPorts.includes(url.port)) {
-    throw new Error("Only ports 80 and 443 are allowed");
+    throw new OutboundUrlValidationError(
+      "port-not-allowed",
+      "Only ports 80 and 443 are allowed",
+    );
   }
 
   await validateOutboundUrlHost({

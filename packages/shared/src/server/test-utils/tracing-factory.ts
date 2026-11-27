@@ -1,4 +1,5 @@
 import { v4 } from "uuid";
+import { toClickhouseDateTime } from "../clickhouse/client";
 import {
   TraceRecordInsertType,
   ObservationRecordInsertType,
@@ -8,14 +9,33 @@ import {
 } from "../repositories/definitions";
 import { UNKNOWN_INGESTION_SDK_VALUE } from "../ingestion/ingestionAttribution";
 
+type DateTimeInput = Date | number | string;
+
+type WithDateTimeInputs<T, K extends keyof T> = Omit<Partial<T>, K> & {
+  [P in K]?: DateTimeInput | null;
+};
+
+// Test fixtures historically passed events_full ticks as microseconds.
+// Numbers above 1e14 cannot be unix milliseconds in the DateTime64 range.
+const toEventClickhouseDateTime = (value?: DateTimeInput | null): string => {
+  if (typeof value === "number" && Math.abs(value) > 1e14) {
+    return toClickhouseDateTime(Math.trunc(value / 1000));
+  }
+  return toClickhouseDateTime(value);
+};
+
 export const createTrace = (
-  trace: Partial<TraceRecordInsertType>,
+  trace: WithDateTimeInputs<
+    TraceRecordInsertType,
+    "timestamp" | "created_at" | "updated_at" | "event_ts"
+  >,
 ): TraceRecordInsertType => {
+  const { timestamp, created_at, updated_at, event_ts, ...rest } = trace;
   return {
     id: v4(),
     project_id: v4(),
     session_id: v4(),
-    timestamp: Date.now(),
+    timestamp: toClickhouseDateTime(timestamp),
     environment: "default",
     metadata: {
       source: "API",
@@ -28,17 +48,32 @@ export const createTrace = (
     release: "1.0.0",
     version: "2",
     user_id: v4(),
-    created_at: Date.now(),
-    updated_at: Date.now(),
-    event_ts: Date.now(),
+    created_at: toClickhouseDateTime(created_at),
+    updated_at: toClickhouseDateTime(updated_at),
+    event_ts: toClickhouseDateTime(event_ts),
     is_deleted: 0,
-    ...trace,
+    ...rest,
   };
 };
 
 export const createDatasetRunItem = (
-  datasetRunItem: Partial<DatasetRunItemRecordInsertType>,
+  datasetRunItem: WithDateTimeInputs<
+    DatasetRunItemRecordInsertType,
+    | "created_at"
+    | "updated_at"
+    | "event_ts"
+    | "dataset_run_created_at"
+    | "dataset_item_version"
+  >,
 ): DatasetRunItemRecordInsertType => {
+  const {
+    created_at,
+    updated_at,
+    event_ts,
+    dataset_run_created_at,
+    dataset_item_version,
+    ...rest
+  } = datasetRunItem;
   return {
     id: v4(),
     project_id: v4(),
@@ -52,19 +87,39 @@ export const createDatasetRunItem = (
     dataset_item_input: "{}",
     dataset_item_expected_output: "{}",
     dataset_item_metadata: { key: "value" },
-    dataset_run_created_at: Date.now(),
-    created_at: Date.now(),
-    updated_at: Date.now(),
-    event_ts: Date.now(),
+    dataset_run_created_at: toClickhouseDateTime(dataset_run_created_at),
+    created_at: toClickhouseDateTime(created_at),
+    updated_at: toClickhouseDateTime(updated_at),
+    event_ts: toClickhouseDateTime(event_ts),
+    dataset_item_version: dataset_item_version
+      ? toClickhouseDateTime(dataset_item_version)
+      : undefined,
     is_deleted: 0,
     error: datasetRunItem.error ?? null,
-    ...datasetRunItem,
+    ...rest,
   };
 };
 
 export const createObservation = (
-  observation: Partial<ObservationRecordInsertType>,
+  observation: WithDateTimeInputs<
+    ObservationRecordInsertType,
+    | "created_at"
+    | "updated_at"
+    | "start_time"
+    | "end_time"
+    | "completion_start_time"
+    | "event_ts"
+  >,
 ): ObservationRecordInsertType => {
+  const {
+    created_at,
+    updated_at,
+    start_time,
+    end_time,
+    completion_start_time,
+    event_ts,
+    ...rest
+  } = observation;
   return {
     id: v4(),
     trace_id: v4(),
@@ -80,10 +135,10 @@ export const createObservation = (
     usage_details: { input: 1234, output: 5678, total: 6912 },
     cost_details: { input: 100, output: 200, total: 300 },
     is_deleted: 0,
-    created_at: Date.now(),
-    updated_at: Date.now(),
-    start_time: Date.now(),
-    event_ts: Date.now(),
+    created_at: toClickhouseDateTime(created_at),
+    updated_at: toClickhouseDateTime(updated_at),
+    start_time: toClickhouseDateTime(start_time),
+    event_ts: toClickhouseDateTime(event_ts),
     name: "sample_name" + v4(),
     level: "DEFAULT",
     status_message: "status",
@@ -97,18 +152,25 @@ export const createObservation = (
     prompt_id: v4(),
     prompt_name: "generation-prompt",
     prompt_version: 1,
-    end_time: Date.now(),
-    completion_start_time: Date.now(),
+    end_time: end_time === null ? null : toClickhouseDateTime(end_time),
+    completion_start_time:
+      completion_start_time === null
+        ? null
+        : toClickhouseDateTime(completion_start_time),
     tool_definitions: {},
     tool_calls: [],
     tool_call_names: [],
-    ...observation,
+    ...rest,
   };
 };
 
 export const createTraceScore = (
-  score: Partial<ScoreRecordInsertType>,
+  score: WithDateTimeInputs<
+    ScoreRecordInsertType,
+    "timestamp" | "created_at" | "updated_at" | "event_ts"
+  >,
 ): ScoreRecordInsertType => {
+  const { timestamp, created_at, updated_at, event_ts, ...rest } = score;
   return {
     id: v4(),
     project_id: v4(),
@@ -116,7 +178,7 @@ export const createTraceScore = (
     observation_id: null, // Trace-level scores must have observation_id as null by default
     environment: "default",
     name: "test-score" + v4(),
-    timestamp: Date.now(),
+    timestamp: toClickhouseDateTime(timestamp),
     value: 100.5,
     string_value: null,
     long_string_value: "",
@@ -124,43 +186,47 @@ export const createTraceScore = (
     comment: "comment",
     metadata: { "test-key": "test-value" },
     data_type: "NUMERIC" as const,
-    created_at: Date.now(),
-    updated_at: Date.now(),
-    event_ts: Date.now(),
+    created_at: toClickhouseDateTime(created_at),
+    updated_at: toClickhouseDateTime(updated_at),
+    event_ts: toClickhouseDateTime(event_ts),
     ingestion_api_key: "",
     ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
     ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
     is_deleted: 0,
-    ...score,
+    ...rest,
     session_id: null,
     dataset_run_id: null,
   };
 };
 
 export const createSessionScore = (
-  score: Partial<ScoreRecordInsertType>,
+  score: WithDateTimeInputs<
+    ScoreRecordInsertType,
+    "timestamp" | "created_at" | "updated_at" | "event_ts"
+  >,
 ): ScoreRecordInsertType => {
+  const { timestamp, created_at, updated_at, event_ts, ...rest } = score;
   return {
     id: v4(),
     project_id: v4(),
     session_id: v4(),
     environment: "default",
     name: "test-session-score" + v4(),
-    timestamp: Date.now(),
+    timestamp: toClickhouseDateTime(timestamp),
     value: 100.5,
     long_string_value: "",
     source: "API",
     comment: "comment",
     metadata: { "test-key": "test-value" },
     data_type: "NUMERIC" as const,
-    created_at: Date.now(),
-    updated_at: Date.now(),
-    event_ts: Date.now(),
+    created_at: toClickhouseDateTime(created_at),
+    updated_at: toClickhouseDateTime(updated_at),
+    event_ts: toClickhouseDateTime(event_ts),
     ingestion_api_key: "",
     ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
     ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
     is_deleted: 0,
-    ...score,
+    ...rest,
     observation_id: null,
     trace_id: null,
     dataset_run_id: null,
@@ -168,29 +234,33 @@ export const createSessionScore = (
 };
 
 export const createDatasetRunScore = (
-  score: Partial<ScoreRecordInsertType>,
+  score: WithDateTimeInputs<
+    ScoreRecordInsertType,
+    "timestamp" | "created_at" | "updated_at" | "event_ts"
+  >,
 ): ScoreRecordInsertType => {
+  const { timestamp, created_at, updated_at, event_ts, ...rest } = score;
   return {
     id: v4(),
     project_id: v4(),
     dataset_run_id: v4(),
     environment: "default",
     name: "test-run-score" + v4(),
-    timestamp: Date.now(),
+    timestamp: toClickhouseDateTime(timestamp),
     value: 100.5,
     long_string_value: "",
     source: "API",
     comment: "comment",
     metadata: { "test-key": "test-value" },
     data_type: "NUMERIC" as const,
-    created_at: Date.now(),
-    updated_at: Date.now(),
-    event_ts: Date.now(),
+    created_at: toClickhouseDateTime(created_at),
+    updated_at: toClickhouseDateTime(updated_at),
+    event_ts: toClickhouseDateTime(event_ts),
     ingestion_api_key: "",
     ingestion_sdk_name: UNKNOWN_INGESTION_SDK_VALUE,
     ingestion_sdk_version: UNKNOWN_INGESTION_SDK_VALUE,
     is_deleted: 0,
-    ...score,
+    ...rest,
     observation_id: null,
     trace_id: null,
     session_id: null,
@@ -198,17 +268,30 @@ export const createDatasetRunScore = (
 };
 
 export const createEvent = (
-  event: Partial<EventRecordInsertType> & {
+  event: WithDateTimeInputs<
+    EventRecordInsertType,
+    | "start_time"
+    | "end_time"
+    | "completion_start_time"
+    | "created_at"
+    | "updated_at"
+    | "event_ts"
+  > & {
     metadata_values?: (string | null | undefined)[];
   },
 ): EventRecordInsertType => {
   const spanId = v4();
-  const now = Date.now() * 1000; // Convert to micro
 
   // Extract metadata array overrides before spreading to prevent undefined from clobbering defaults
   const {
     metadata_values: metadataValuesAlias,
     metadata_names: metadataNamesOverride,
+    start_time,
+    end_time,
+    completion_start_time,
+    created_at,
+    updated_at,
+    event_ts,
     ...eventOverrides
   } = event;
 
@@ -308,13 +391,16 @@ export const createEvent = (
     event_bytes: 2,
     is_deleted: 0,
 
-    // Timestamps
-    start_time: now,
-    end_time: now,
-    completion_start_time: null,
-    created_at: now,
-    updated_at: now,
-    event_ts: now,
+    // Timestamps (ClickHouse DateTime64 strings)
+    start_time: toEventClickhouseDateTime(start_time),
+    end_time: end_time === null ? null : toEventClickhouseDateTime(end_time),
+    completion_start_time:
+      completion_start_time == null
+        ? null
+        : toEventClickhouseDateTime(completion_start_time),
+    created_at: toEventClickhouseDateTime(created_at),
+    updated_at: toEventClickhouseDateTime(updated_at),
+    event_ts: toEventClickhouseDateTime(event_ts),
 
     ...eventOverrides,
   };

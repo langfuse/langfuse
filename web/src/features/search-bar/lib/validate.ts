@@ -12,10 +12,13 @@
 
 import type { ASTNode, Span, TextNode } from "./ast";
 import { astToFilterState, type ScoreTypeContext } from "./adapter";
-import { nullableFields, resolveField } from "./fields";
+import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "./fields";
 import { parse, type Diagnostic, type ParseResult } from "./langQ";
 
-export const MAX_QUERY_LENGTH = 2048;
+export const MAX_QUERY_LENGTH = 64 * 1024;
+/** @internal */
+export const MAX_QUERY_DIAGNOSTICS = 100;
+const MAX_SEARCH_QUERY_LENGTH = 2048;
 
 function nodeSpan(node: ASTNode, textLength: number): Span {
   if (node.kind === "and" || node.kind === "or") {
@@ -33,8 +36,6 @@ function nodeSpan(node: ASTNode, textLength: number): Span {
   return node.parenSpan ?? node.span ?? { from: 0, to: textLength };
 }
 
-const NULLABLE_FIELD_IDS = new Set(nullableFields().map((f) => f.id));
-
 /**
  * `has:` on a column that always has a value matches everything — and its
  * negation (`-has:` / `NOT has:`) lowers to `IS NULL`, which is vacuously
@@ -46,17 +47,18 @@ function hasFilterWarnings(
   textLength: number,
   out: Diagnostic[],
   negated = false,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): void {
   switch (node.kind) {
     case "filter": {
-      const ref = resolveField(node.key);
+      const ref = registry.resolveField(node.key);
       if (ref === null || ref.type !== "pseudo" || ref.id !== "has") return;
       for (const v of node.values) {
-        const target = resolveField(v);
+        const target = registry.resolveField(v);
         if (
           target !== null &&
           target.type === "field" &&
-          !NULLABLE_FIELD_IDS.has(target.field.id)
+          !registry.nullableFieldIds.has(target.field.id)
         ) {
           const span = nodeSpan(node, textLength);
           out.push({
@@ -74,12 +76,12 @@ function hasFilterWarnings(
     case "text":
       return;
     case "not":
-      hasFilterWarnings(node.child, textLength, out, !negated);
+      hasFilterWarnings(node.child, textLength, out, !negated, registry);
       return;
     case "and":
     case "or":
       for (const c of node.children)
-        hasFilterWarnings(c, textLength, out, negated);
+        hasFilterWarnings(c, textLength, out, negated, registry);
       return;
   }
 }
@@ -144,12 +146,13 @@ function collectStandaloneTextNodes(node: ASTNode, out: TextNode[]): void {
 function incompleteFieldTokenDiagnostics(
   ast: ASTNode,
   out: Diagnostic[],
+  registry: FieldRegistry,
 ): void {
   const texts: TextNode[] = [];
   collectStandaloneTextNodes(ast, texts);
   for (const node of texts) {
     if (node.quoted || node.span === undefined) continue;
-    if (resolveField(node.value) === null) continue;
+    if (registry.resolveField(node.value) === null) continue;
     out.push({
       from: node.span.from,
       to: node.span.to,
@@ -159,10 +162,48 @@ function incompleteFieldTokenDiagnostics(
   }
 }
 
+function labeledOptionValueDiagnostics(
+  node: ASTNode,
+  textLength: number,
+  out: Diagnostic[],
+  registry: FieldRegistry,
+): void {
+  if (node.kind === "not") {
+    labeledOptionValueDiagnostics(node.child, textLength, out, registry);
+    return;
+  }
+  if (node.kind === "and" || node.kind === "or") {
+    for (const child of node.children) {
+      labeledOptionValueDiagnostics(child, textLength, out, registry);
+    }
+    return;
+  }
+  if (node.kind !== "filter") return;
+
+  const ref = registry.resolveField(node.key);
+  if (
+    ref?.type !== "field" ||
+    ref.field.filterValueByDisplayValue === undefined
+  )
+    return;
+
+  for (const value of node.values) {
+    if (ref.field.filterValueByDisplayValue.has(value)) continue;
+    const span = nodeSpan(node, textLength);
+    out.push({
+      from: span.from,
+      to: span.to,
+      severity: "error",
+      message: `"${value}" is not a valid ${ref.field.label.toLowerCase()}`,
+    });
+  }
+}
+
 export function semanticDiagnostics(
   ast: ASTNode | null,
   textLength: number,
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): Diagnostic[] {
   const out: Diagnostic[] = [];
   if (ast === null) return out;
@@ -170,20 +211,84 @@ export function semanticDiagnostics(
   // A standalone bare field-name word (no operator/value) is an incomplete
   // filter, not free text — checked over the WHOLE tree (not per top-level
   // node) so the adjacency scoping can see each text node's siblings.
-  incompleteFieldTokenDiagnostics(ast, out);
+  incompleteFieldTokenDiagnostics(ast, out, registry);
+  labeledOptionValueDiagnostics(ast, textLength, out, registry);
 
   // Lower each top-level node independently so error spans point at the
   // offending node instead of the whole query. The lowering must see the same
   // scoreTypes the commit-time lowering does, or the two disagree on score
   // routing and a clean validation hides an error the commit then drops.
   const topLevel: ASTNode[] = ast.kind === "and" ? ast.children : [ast];
+  const termRegistry = registry.filterStateErrors
+    ? { ...registry, filterStateErrors: undefined }
+    : registry;
+  const {
+    errors: wholeQueryErrors,
+    errorCodes: wholeQueryErrorCodes,
+    searchQuery,
+  } = astToFilterState(ast, scoreTypes, registry);
+  let firstCompatibilityScope: ASTNode | undefined;
   for (const node of topLevel) {
-    const { errors } = astToFilterState(node, scoreTypes);
+    const ref = node.kind === "filter" ? registry.resolveField(node.key) : null;
+    const isCompatibilityScope = ref?.type === "pseudo" && ref.id === "in";
+    // Include the first accepted scope so duplicate selections are diagnosed
+    // at the later token, using the same adapter rule as whole-query lowering.
+    const term: ASTNode =
+      isCompatibilityScope && firstCompatibilityScope
+        ? { kind: "and", children: [firstCompatibilityScope, node] }
+        : node;
+    const { errors, errorCodes, searchType } = astToFilterState(
+      term,
+      scoreTypes,
+      termRegistry,
+    );
+    if (isCompatibilityScope && searchType !== null) {
+      if (firstCompatibilityScope === undefined) {
+        firstCompatibilityScope = node;
+      }
+    }
     const span = nodeSpan(node, textLength);
     for (const message of errors) {
-      out.push({ from: span.from, to: span.to, severity: "error", message });
+      // A compatibility scope uses a phrase elsewhere in the query. Keep its
+      // precise error span only when the complete query confirms the error.
+      if (isCompatibilityScope && !wholeQueryErrors.includes(message)) continue;
+      const code = errorCodes?.get(message);
+      out.push({
+        from: span.from,
+        to: span.to,
+        severity: "error",
+        message,
+        ...(code ? { code } : {}),
+      });
     }
-    hasFilterWarnings(node, textLength, out);
+    hasFilterWarnings(node, textLength, out, false, registry);
+  }
+
+  // Some view contracts constrain the complete filter set (for example, one
+  // filter per column). Check the complete lowering as well as each term so
+  // draft validation and commit validation share the same backend boundary.
+  {
+    const span = nodeSpan(ast, textLength);
+    // Search text is stored directly in the URL, independently of the
+    // structured filters' long-value storage fallback.
+    if (searchQuery !== null && searchQuery.length > MAX_SEARCH_QUERY_LENGTH) {
+      out.push({
+        ...span,
+        severity: "error",
+        message: `Search text is too long (${searchQuery.length} chars, max ${MAX_SEARCH_QUERY_LENGTH})`,
+      });
+    }
+    for (const message of wholeQueryErrors) {
+      if (!out.some((diagnostic) => diagnostic.message === message)) {
+        const code = wholeQueryErrorCodes?.get(message);
+        out.push({
+          ...span,
+          severity: "error",
+          message,
+          ...(code ? { code } : {}),
+        });
+      }
+    }
   }
 
   return out;
@@ -203,7 +308,8 @@ export function semanticDiagnostics(
  */
 function dedupeMergedDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
   const kept: Diagnostic[] = [];
-  for (const d of diagnostics) {
+  for (let index = 0; index < diagnostics.length; index++) {
+    const d = diagnostics[index]!;
     const dup = kept.some(
       (k) =>
         k.severity === d.severity &&
@@ -211,7 +317,30 @@ function dedupeMergedDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
         k.from < d.to &&
         d.from < k.to,
     );
-    if (!dup) kept.push(d);
+    if (dup) continue;
+    // Bound overlap comparisons and UI output without hiding a later error
+    // behind an initial run of warnings.
+    if (kept.length === MAX_QUERY_DIAGNOSTICS) {
+      let { from, to, severity } = d;
+      for (
+        let hiddenIndex = index + 1;
+        hiddenIndex < diagnostics.length;
+        hiddenIndex++
+      ) {
+        const hidden = diagnostics[hiddenIndex]!;
+        from = Math.min(from, hidden.from);
+        to = Math.max(to, hidden.to);
+        if (hidden.severity === "error") severity = "error";
+      }
+      kept.push({
+        from,
+        to,
+        severity,
+        message: `Only the first ${MAX_QUERY_DIAGNOSTICS} query diagnostics are shown.`,
+      });
+      break;
+    }
+    kept.push(d);
   }
   return kept;
 }
@@ -224,20 +353,21 @@ function dedupeMergedDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
 export function validateQuery(
   text: string,
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): ParseResult {
-  const res = parse(text);
-  const diagnostics = dedupeMergedDiagnostics([
-    ...res.diagnostics,
-    ...semanticDiagnostics(res.ast, text.length, scoreTypes),
-  ]);
+  const res = parse(text, registry);
+  const unmergedDiagnostics = res.diagnostics.concat(
+    semanticDiagnostics(res.ast, text.length, scoreTypes, registry),
+  );
   if (text.length > MAX_QUERY_LENGTH) {
-    diagnostics.push({
+    unmergedDiagnostics.push({
       from: 0,
       to: text.length,
       severity: "error",
       message: `Query is too long (${text.length} chars, max ${MAX_QUERY_LENGTH})`,
     });
   }
+  const diagnostics = dedupeMergedDiagnostics(unmergedDiagnostics);
   return {
     ast: res.ast,
     diagnostics,

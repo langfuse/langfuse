@@ -76,11 +76,17 @@ export const useEvaluatorTargetState = () => {
       isEventTarget(targetObject) || isExperimentTarget(targetObject);
 
     // Get valid column IDs for the target
-    const validColumnIds = isEventTarget(targetObject)
-      ? new Set<string>(eventTargetEvalVariableColumns.map((c) => c.id))
-      : isExperimentTarget(targetObject)
-        ? new Set<string>(experimentTargetEvalVariableColumns.map((c) => c.id))
-        : null;
+    const validColumnIds = ((): Set<string> | null => {
+      if (isEventTarget(targetObject)) {
+        return new Set<string>(eventTargetEvalVariableColumns.map((c) => c.id));
+      }
+      if (isExperimentTarget(targetObject)) {
+        return new Set<string>(
+          experimentTargetEvalVariableColumns.map((c) => c.id),
+        );
+      }
+      return null;
+    })();
 
     return currentMapping.map((field) => {
       // Reset selectedColumnId if invalid for the new target

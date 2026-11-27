@@ -22,51 +22,18 @@ import {
 import { v4 } from "uuid";
 import { env } from "@/src/env.mjs";
 import { MediaContentType } from "@/src/features/media/validation";
-
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
-const session: Session = {
-  expires: "1",
-  user: {
-    id: "user-1",
-    canCreateOrganizations: true,
-    name: "Demo User",
-    organizations: [
-      {
-        id: "seed-org-id",
-        name: "Test Organization",
-        role: "OWNER",
-        plan: "cloud:hobby",
-        cloudConfig: undefined,
-        metadata: {},
-        aiFeaturesEnabled: false,
-        aiTelemetryEnabled: false,
-        projects: [
-          {
-            id: projectId,
-            role: "ADMIN",
-            retentionDays: 30,
-            deletedAt: null,
-            hasTraces: false,
-            name: "Test Project",
-            metadata: {},
-            createdAt: new Date().toISOString(),
-          },
-        ],
-      },
-    ],
-    featureFlags: {
-      searchBar: false,
-      excludeClickhouseRead: false,
-      templateFlag: true,
-      v4BetaToggleVisible: false,
-      observationEvals: false,
-      experimentsV4Enabled: false,
+const session: Session = createSession({
+  organizations: [
+    {
+      id: "seed-org-id",
+      role: "OWNER",
+      projects: [{ id: projectId, role: "ADMIN" }],
     },
-    admin: true,
-  },
-  environment: {} as never,
-};
+  ],
+});
 const caller = appRouter.createCaller({
   ...createInnerTRPCContext({ session, headers: {} }),
   prisma,
@@ -181,7 +148,7 @@ describe("Dataset item media references (public API read path)", () => {
     ]);
   });
 
-  it("resolves media references on embedded items in the dataset endpoint", async () => {
+  it("does not resolve media references on embedded items in the legacy dataset endpoint", async () => {
     const media = await createMediaRow();
     const { datasetName } = await createDatasetWithItem({
       image: media.referenceString,
@@ -194,13 +161,27 @@ describe("Dataset item media references (public API read path)", () => {
     const parsed = GetDatasetV1Response.parse(response);
 
     expect(parsed.items).toHaveLength(1);
-    expect(parsed.items[0].mediaReferences).toEqual([
-      expect.objectContaining({
-        field: "input",
-        jsonPath: "$['image']",
-        media: expect.objectContaining({ mediaId: media.mediaId }),
-      }),
-    ]);
+    expect(parsed.items[0]).not.toHaveProperty("mediaReferences");
+  });
+
+  it("limits embedded items in the legacy dataset endpoint", async () => {
+    const dataset = await createDataset();
+    const result = await createManyDatasetItems({
+      projectId,
+      items: Array.from({ length: 1_001 }, (_, index) => ({
+        datasetId: dataset.id,
+        id: v4(),
+        input: { index },
+      })),
+    });
+    expect(result.success).toBe(true);
+
+    const response = await getDatasetByNameForApi({
+      projectId,
+      name: dataset.name,
+    });
+
+    expect(response.items).toHaveLength(1_000);
   });
 
   it("returns empty mediaReferences for items without media", async () => {
@@ -379,9 +360,12 @@ describe("Dataset item media tRPC procedures", () => {
     },
   );
 
-  it("rejects an upload for a dataset in another project", async () => {
+  it("returns not found for a dataset outside the project", async () => {
     // datasetId is not a dataset in this project
-    await expect(requestUploadUrl({ datasetId: v4() })).rejects.toThrow();
+    await expect(requestUploadUrl({ datasetId: v4() })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: expect.stringContaining("not found in project"),
+    });
   });
 
   it("rejects uploads above the media size limit", async () => {

@@ -1,10 +1,11 @@
 import { slackifyMarkdown } from "slackify-markdown";
 
 import { escapeSlackMrkdwn, type SlackMessage } from "./SlackService";
+import { buildSlackLinkSection } from "./buildSlackLinkSection";
 
 /**
  * buildColoredAttachmentSlackMessage renders a color-barred Slack Block Kit
- * message (title, markdown body, timestamp, optional deep-link button). Shared
+ * message (title, markdown body, timestamp, optional deep links). Shared
  * layout for monitor alerts and project notifications so both look identical;
  * callers own their severity→color mapping.
  */
@@ -17,12 +18,12 @@ export function buildColoredAttachmentSlackMessage(args: {
   /** contextText is an optional extra context element rendered next to the timestamp. */
   contextText?: string;
   /**
-   * secondaryUrl, when set alongside `url`, renders a second action button
-   * after "View in Langfuse" (e.g. a monitor alert's link to the breaching
-   * data). Absent by default so project notifications stay single-button.
+   * secondaryUrl, when set alongside `url`, renders a second link after
+   * "View in Langfuse" (e.g. a monitor alert's link to the breaching data).
+   * Absent by default so project notifications stay single-link.
    */
   secondaryUrl?: string;
-  /** secondaryLabel is the second button's label; defaults to "View data". */
+  /** secondaryLabel is the second link's label; defaults to "View data". */
   secondaryLabel?: string;
 }): SlackMessage {
   const { color } = args;
@@ -56,33 +57,17 @@ export function buildColoredAttachmentSlackMessage(args: {
     },
     ...(args.url
       ? [
-          {
-            type: "actions",
-            elements: [
-              {
-                type: "button",
-                text: {
-                  type: "plain_text",
-                  text: "View in Langfuse",
-                  emoji: true,
-                },
-                url: args.url,
-              },
-              ...(args.secondaryUrl
-                ? [
-                    {
-                      type: "button",
-                      text: {
-                        type: "plain_text",
-                        text: args.secondaryLabel ?? "View data",
-                        emoji: true,
-                      },
-                      url: args.secondaryUrl,
-                    },
-                  ]
-                : []),
-            ],
-          },
+          buildSlackLinkSection([
+            { label: "View in Langfuse", url: args.url },
+            ...(args.secondaryUrl
+              ? [
+                  {
+                    label: args.secondaryLabel ?? "View data",
+                    url: args.secondaryUrl,
+                  },
+                ]
+              : []),
+          ]),
         ]
       : []),
   ];

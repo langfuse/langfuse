@@ -1,4 +1,4 @@
-import { type ChartConfig } from "@/src/components/ui/chart";
+import type { ComponentType, ReactNode } from "react";
 import type tailwindColors from "tailwindcss/colors";
 
 export interface DataPoint {
@@ -56,7 +56,7 @@ export type LegendPosition = "auto" | "below" | "none";
  * because additivity is a property of the metric's aggregation, decided upstream
  * of the chart. (LFE-10498, LFE-10549)
  */
-export type LegendSummaryMode = "sum" | "none";
+type LegendSummaryMode = "sum" | "none";
 
 /**
  * How clicking a legend entry behaves on a multi-series time chart:
@@ -66,7 +66,7 @@ export type LegendSummaryMode = "sum" | "none";
  *   the plot and greyed in the legend. Pairs with `maxVisibleSeries` to tame
  *   overloaded charts by hiding the long tail by default. (LFE-10549)
  */
-export type LegendInteraction = "highlight" | "toggle";
+type LegendInteraction = "highlight" | "toggle";
 
 export interface FormattedMetric {
   negative?: boolean;
@@ -75,10 +75,17 @@ export interface FormattedMetric {
   suffix?: string;
 }
 
+export type MetricUnit = "USD" | "milliseconds" | "tokens" | "traces";
+
 export type FormatMetricOptions = {
-  unit?: string;
+  unit?: MetricUnit;
   style: "full" | "compact";
   maxCharacters?: number;
+  /**
+   * `"cents"` rounds USD to two decimals and shows non-zero values below one
+   * cent as `<$0.01`. By default values under $5 keep up to six decimals.
+   */
+  usdPrecision?: "cents";
 };
 
 export type MetricFormatterFunction = (
@@ -87,10 +94,10 @@ export type MetricFormatterFunction = (
 ) => FormattedMetric;
 
 /** ChartThresholdOperator picks the violation region a chart tints around a threshold. */
-export type ChartThresholdOperator = "GT" | "GTE" | "LT" | "LTE" | "EQ" | "NEQ";
+type ChartThresholdOperator = "GT" | "GTE" | "LT" | "LTE" | "EQ" | "NEQ";
 
 /** ChartThresholdColor is one of Tailwind's palette family names. */
-export type ChartThresholdColor = {
+type ChartThresholdColor = {
   [K in keyof typeof tailwindColors]: (typeof tailwindColors)[K] extends Record<
     string,
     string
@@ -110,7 +117,15 @@ export interface ChartThreshold {
 
 export interface ChartProps {
   data: DataPoint[];
-  config?: ChartConfig;
+  config?: {
+    [key: string]: {
+      label?: ReactNode;
+      icon?: ComponentType;
+    } & (
+      | { color?: string; theme?: never }
+      | { color?: never; theme: Record<"light" | "dark", string> }
+    );
+  };
   accessibilityLayer?: boolean;
   metricFormatter?: MetricFormatterFunction;
   legendPosition?: LegendPosition;
@@ -124,14 +139,16 @@ export interface ChartProps {
    */
   maxVisibleSeries?: number;
   /**
-   * Shared sync group: charts on the same dashboard timeline that pass the same
-   * `syncId` show a synced hover crosshair + tooltip — hovering one moves the
-   * vertical time marker on all of them. (LFE-10549)
+   * Recharts sync group for chart types that still use Recharts. Design-system
+   * charts use `sync` to share their active key instead. (LFE-10549)
    */
   syncId?: string;
+  sync?: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
   showValueLabels?: boolean;
   showDataPointDots?: boolean;
-  subtleFill?: boolean;
   thresholds?: ChartThreshold[];
   /** See {@link MissingBucketValue}. Defaults to `"gap"`. */
   missingValue?: MissingBucketValue;
@@ -150,4 +167,26 @@ export interface ChartProps {
    * affects a categorical axis — a temporal axis keeps its timestamp labels.
    */
   hideXAxisLabels?: boolean;
+  /** compactYAxis shrinks the y-axis gutter to fit short tick labels. Consumed by LINE_TIME_SERIES. */
+  compactYAxis?: boolean;
+  /**
+   * Give each bar of a categorical (entity) axis its own palette colour, plus a
+   * legend below the plot that names it. Off by default: a dashboard bar chart
+   * shows its categories on the axis and needs neither. Opt in where the axis
+   * bars are entities rather than buckets — the experiments strip, one bar
+   * per run. Colours and the optional legend both come from
+   * `prepareCategoryBars`, which also decides when there are too many bars for
+   * the bounded palette to identify any of them.
+   */
+  colorBarsByCategory?: boolean;
+  /**
+   * Measure the bars from zero instead of from a fitted domain. A bar
+   * encodes its value as a length, so this is what makes two bars comparable at
+   * all — on a fitted domain 0.80/0.87/1.00 draw as short/medium/full.
+   *
+   * Off by default only because it is a visible change to the bar charts that
+   * already ship without it (the score-analytics dashboard widget), which are
+   * out of scope here. Every vertical bar chart ought to have it.
+   */
+  zeroBaseline?: boolean;
 }

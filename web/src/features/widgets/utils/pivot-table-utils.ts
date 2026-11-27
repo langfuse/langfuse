@@ -18,6 +18,7 @@
  */
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { type OrderByState } from "@langfuse/shared";
+import { type FormatMetricOptions } from "../chart-library/chart-props";
 
 /**
  * Default dimension limit for pivot table data rows
@@ -81,7 +82,7 @@ export interface PivotTableConfig {
   metrics: string[];
 
   /** Per-metric units, ordered to match `metrics`. Effects label formatting */
-  units?: (string | undefined)[];
+  units?: FormatMetricOptions["unit"][];
 
   /** Maximum number of data rows to display (before totals) */
   rowLimit?: number;
@@ -103,6 +104,7 @@ export interface DatabaseRow {
  *
  * @param config - Pivot table configuration to validate
  * @throws Error if configuration is invalid
+ * @internal
  */
 export function validatePivotTableConfig(config: PivotTableConfig): void {
   if (config.dimensions.length > MAX_PIVOT_TABLE_DIMENSIONS) {
@@ -136,6 +138,7 @@ export function validatePivotTableConfig(config: PivotTableConfig): void {
  * @param type - Type of row (data, subtotal, total)
  * @param level - Indentation level for the row
  * @returns Unique string identifier for the row
+ * @internal
  */
 export function generateRowId(
   dimensionValues: Record<string, string>,
@@ -156,6 +159,7 @@ export function generateRowId(
  *
  * @param metrics - Array of metric field names
  * @returns Object with all metrics initialized to 0
+ * @internal
  */
 export function createEmptyMetricValues(
   metrics: string[],
@@ -392,6 +396,7 @@ export function extractMetricValues(
  *
  * @param row - Pivot table row to check
  * @returns True if the row contains actual data, false for summary rows
+ * @internal
  */
 export function isDataRow(row: PivotTableRow): boolean {
   return row.type === "data";
@@ -402,6 +407,7 @@ export function isDataRow(row: PivotTableRow): boolean {
  *
  * @param row - Pivot table row to check
  * @returns True if the row is a subtotal, false otherwise
+ * @internal
  */
 export function isSubtotalRow(row: PivotTableRow): boolean {
   return row.type === "subtotal" || row.isSubtotal === true;
@@ -412,6 +418,7 @@ export function isSubtotalRow(row: PivotTableRow): boolean {
  *
  * @param row - Pivot table row to check
  * @returns True if the row is the grand total, false otherwise
+ * @internal
  */
 export function isTotalRow(row: PivotTableRow): boolean {
   return row.type === "total" || row.isTotal === true;
@@ -424,6 +431,7 @@ export function isTotalRow(row: PivotTableRow): boolean {
  * @param data - Array of database rows to group
  * @param dimensionField - Field name to group by
  * @returns Object with dimension values as keys and arrays of rows as values
+ * @internal
  */
 export function groupDataByDimension(
   data: DatabaseRow[],
@@ -507,8 +515,9 @@ function applyAggregation(values: number[], aggregationType: string): number {
       return Math.max(...values);
 
     case "percentile":
-      // For percentiles in subtotals/totals, we'll use the average of the percentile values
-      // This is a reasonable approximation since we can't recalculate the true percentile
+      // Percentiles cannot be recalculated exactly from per-group percentiles;
+      // this unweighted mean is only the fallback used when no count/weight
+      // metric is available (see calculateSubtotals for the weighted path).
       return values.reduce((sum, val) => sum + val, 0) / values.length;
 
     default:
@@ -518,12 +527,53 @@ function applyAggregation(values: number[], aggregationType: string): number {
 }
 
 /**
+ * Picks the column to weight `metric` by when aggregating per-row averages:
+ * its own `count_<measure>`, else the row count (`count_count` or `count`),
+ * else the only count column. With several unrelated count columns there is no
+ * safe choice, so this returns null rather than letting metric order decide.
+ */
+function findWeightMetric(metric: string, metrics: string[]): string | null {
+  const counts = metrics.filter(
+    (m) =>
+      m !== metric &&
+      (detectAggregationType(m) === "count" ||
+        m.toLowerCase().startsWith("count")),
+  );
+  const measure = metric.slice(metric.indexOf("_") + 1);
+
+  return (
+    counts.find((m) => m === `count_${measure}`) ??
+    counts.find((m) => m === "count_count" || m === "count") ??
+    (counts.length === 1 ? counts[0] : null)
+  );
+}
+
+/**
+ * Weighted mean of (value, weight) pairs, or null when the total weight is 0
+ * (so callers can fall back to an unweighted aggregation).
+ */
+function weightedMean(
+  pairs: Array<{ value: number; weight: number }>,
+): number | null {
+  let weightedSum = 0;
+  let totalWeight = 0;
+  for (const { value, weight } of pairs) {
+    if (weight > 0) {
+      weightedSum += value * weight;
+      totalWeight += weight;
+    }
+  }
+  return totalWeight > 0 ? weightedSum / totalWeight : null;
+}
+
+/**
  * Calculates subtotals for a group of data rows
  * Aggregates metric values across all rows in the group using the correct aggregation function
  *
  * @param data - Array of database rows to calculate subtotals for
  * @param metrics - Array of metric field names to aggregate
  * @returns Object with metric names as keys and calculated totals as values
+ * @internal
  */
 export function calculateSubtotals(
   data: DatabaseRow[],
@@ -532,14 +582,38 @@ export function calculateSubtotals(
   const subtotals: Record<string, number> = {};
 
   for (const metric of metrics) {
-    // Extract all values for this metric using the utility function
-    const values = data
-      .map((row) => extractMetricValues(row, [metric])[metric])
-      .filter(isNotNullOrUndefined);
-
-    // Detect aggregation type and apply correct function
     const aggregationType = detectAggregationType(metric);
-    const result = applyAggregation(values, aggregationType);
+    const weightMetric =
+      aggregationType === "avg" || aggregationType === "percentile"
+        ? findWeightMetric(metric, metrics)
+        : null;
+
+    let result: number;
+    if (weightMetric) {
+      // Weight each row's value by its count so the group aggregate equals the
+      // true overall average (rather than an average of averages). Missing
+      // fields coerce to 0 via extractMetricValues, as elsewhere in this file;
+      // a row with no count carries weight 0 and drops out of the weighted mean.
+      const pairs = data.map((row) => {
+        const extracted = extractMetricValues(row, [metric, weightMetric]);
+        return { value: extracted[metric], weight: extracted[weightMetric] };
+      });
+
+      const weighted = weightedMean(pairs);
+      result =
+        weighted ??
+        // No usable weights (e.g. no count column populated) → best-effort
+        // unweighted aggregation, matching prior behavior.
+        applyAggregation(
+          pairs.map((p) => p.value),
+          aggregationType,
+        );
+    } else {
+      const values = data
+        .map((row) => extractMetricValues(row, [metric])[metric])
+        .filter(isNotNullOrUndefined);
+      result = applyAggregation(values, aggregationType);
+    }
 
     // Round to 10 decimal places to avoid floating-point precision issues
     subtotals[metric] = Math.round(result * 1e10) / 1e10;
@@ -555,6 +629,7 @@ export function calculateSubtotals(
  * @param data - Array of database rows to calculate grand totals for
  * @param metrics - Array of metric field names to aggregate
  * @returns Object with metric names as keys and calculated grand totals as values
+ * @internal
  */
 export function calculateGrandTotals(
   data: DatabaseRow[],
@@ -571,6 +646,7 @@ export function calculateGrandTotals(
  * @param subtotalValues - Calculated subtotal values for metrics
  * @param level - Indentation level for the row
  * @returns Formatted pivot table subtotal row
+ * @internal
  */
 export function createSubtotalRow(
   dimensionValue: string,
@@ -597,6 +673,7 @@ export function createSubtotalRow(
  * @param metrics - Array of metric field names
  * @param grandTotalValues - Calculated grand total values for metrics
  * @returns Formatted pivot table grand total row
+ * @internal
  */
 export function createGrandTotalRow(
   metrics: string[],

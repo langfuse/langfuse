@@ -15,10 +15,12 @@ import {
 } from "./queues/evalQueue";
 import { codeEvalExecutionQueueProcessorBuilder } from "./queues/codeEvalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
-import { onShutdown } from "./utils/shutdown";
+import { drainAndClose, onShutdown } from "./utils/shutdown";
+import { installProcessErrorHandlers } from "@langfuse/shared/src/server";
 import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
 import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
+import { isChbConfigured } from "./ee/cloudSpendAlerts/chbApiClient";
 import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
 import { monitorQueueProcessor } from "./queues/monitorQueue";
 import { inAppAgentRunQueueProcessor } from "./queues/inAppAgentRunQueue";
@@ -39,27 +41,40 @@ import {
   SecondaryOtelIngestionQueue,
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
+  CloudSpendAlertQueue,
   CloudUsageMeteringQueue,
+  V4LegacyApiUsageQueue,
   EventPropagationQueue,
   EvalExecutionQueue,
   SecondaryEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
   CodeEvalExecutionQueue,
+  TopicsTraceQueue,
 } from "@langfuse/shared/src/server";
-import { monitorProcessorTtl } from "@langfuse/shared/monitors/server";
-import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server";
+import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
+import {
+  monitorProcessorTtl,
+  monitorQueueMetricTags,
+} from "@langfuse/shared/monitors/server";
+import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { env, v4WritesToEventsTable } from "./env";
+import { isInAppAgentWorkerSurfaceEnabled } from "./features/in-app-agent/enablement";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
 import { BackgroundMigrationManager } from "./backgroundMigrations/backgroundMigrationManager";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseReadSkipCache } from "./utils/clickhouseReadSkipCache";
 import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
+import { topicsTraceQueueProcessorBuilder } from "./queues/topicsTraceQueue";
+import { eventsDispatchQueueProcessor } from "./queues/eventsDispatchQueue";
+import { TraceDispatcher } from "./features/traceDispatch/traceDispatcher";
+import { TraceDispatchMetricsRunner } from "./features/traceDispatch/TraceDispatchMetricsRunner";
 import { projectDeleteProcessor } from "./queues/projectDelete";
 import {
   postHogIntegrationProcessingProcessor,
   postHogIntegrationProcessor,
 } from "./queues/postHogIntegrationQueue";
+import { v4LegacyApiUsageProcessor } from "./queues/v4LegacyApiUsageQueue";
 import {
   mixpanelIntegrationProcessingProcessor,
   mixpanelIntegrationProcessor,
@@ -78,7 +93,7 @@ import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
 import { DlqRetryService } from "./services/dlq/dlqRetryService";
 import { entityChangeQueueProcessor } from "./queues/entityChangeQueue";
-import { webhookProcessor } from "./queues/webhooks";
+import { webhookProcessor, webhookQueueMetricTags } from "./queues/webhooks";
 import { datasetDeleteProcessor } from "./queues/datasetDelete";
 import { otelIngestionQueueProcessorBuilder } from "./queues/otelIngestionQueue";
 import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
@@ -92,13 +107,25 @@ import {
   BATCH_DATA_RETENTION_TABLES,
 } from "./features/batch-data-retention-cleaner";
 import { MediaRetentionCleaner } from "./features/media-retention-cleaner";
+import { InAppAgentRetentionCleaner } from "./features/in-app-agent-retention-cleaner";
 import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-cleaner";
 import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
+import { EventsDispatchTranscriptCleaner } from "./features/eventsDispatch/transcriptCleaner";
 import { QueueMetricsRunner } from "./features/queue-metrics-runner";
 import { MonitorRunner } from "./features/monitor-runner";
 import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
+import { AuditLogRelay } from "./features/audit-log-relay";
 import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-action-runner";
+import { InAppAgentIntegrityRunner } from "./features/in-app-agent-integrity-runner";
+import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
+import { topicsUpdateQueueProcessor } from "./queues/topicsQueue";
+import { topicsSetupQueueProcessor } from "./queues/topicsSetupQueue";
+import { TopicsNightlyRefitRunner } from "./features/topics/nightlyRefit";
+import {
+  isEventsDispatchEnabled,
+  eventsDispatchConfig,
+} from "./features/eventsDispatch/config";
 
 const app = express();
 
@@ -130,12 +157,38 @@ ClickhouseReadSkipCache.getInstance(prisma)
     logger.error("Error initializing ClickhouseReadSkipCache", err);
   });
 
+// The events-dispatch consumer host (worker-cpu) also runs the dispatcher that feeds it.
+const eventsDispatchConsumerEnabled =
+  isEventsDispatchEnabled() &&
+  env.QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED === "true";
+
+export let traceDispatcher: TraceDispatcher | null = null;
+if (eventsDispatchConsumerEnabled) {
+  traceDispatcher = new TraceDispatcher();
+  traceDispatcher.start();
+}
+
+// Consumed only on worker-cpu; Topics jobs it enqueues run on the main worker.
+if (eventsDispatchConsumerEnabled) {
+  WorkerManager.register(
+    QueueName.EventsDispatch,
+    eventsDispatchQueueProcessor,
+    { concurrency: eventsDispatchConfig.consumerConcurrency },
+  );
+}
+
+export let traceDispatchMetricsRunner: TraceDispatchMetricsRunner | null = null;
+if (eventsDispatchConsumerEnabled) {
+  traceDispatchMetricsRunner = new TraceDispatchMetricsRunner();
+  traceDispatchMetricsRunner.start();
+}
+
 if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
   // Register workers for all trace upsert queue shards
   const traceUpsertShardNames = TraceUpsertQueue.getShardNames();
   traceUpsertShardNames.forEach((shardName) => {
     WorkerManager.register(
-      shardName as QueueName,
+      shardName as QueueName.TraceUpsert,
       evalJobTraceCreatorQueueProcessor,
       {
         concurrency: env.LANGFUSE_TRACE_UPSERT_WORKER_CONCURRENCY,
@@ -294,6 +347,21 @@ if (env.QUEUE_CONSUMER_CODE_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
   });
 }
 
+if (env.QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED === "true") {
+  TopicsTraceQueue.getShardNames().forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      topicsTraceQueueProcessorBuilder(shardName),
+      {
+        concurrency: env.LANGFUSE_TOPICS_TRACE_QUEUE_PROCESSING_CONCURRENCY,
+        lockDuration: 60000,
+        stalledInterval: 120000,
+        maxStalledCount: 3,
+      },
+    );
+  });
+}
+
 if (env.QUEUE_CONSUMER_EVAL_EXECUTION_SECONDARY_QUEUE_IS_ENABLED === "true") {
   const shardNames = SecondaryEvalExecutionQueue.getShardNames();
   shardNames.forEach((shardName) => {
@@ -420,10 +488,30 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
     // recovery so the unified TTL pacing is uncontested.
     lockDuration: monitorProcessorTtl + 60_000,
     maxStalledCount: 0,
+    metricTags: monitorQueueMetricTags,
   });
 }
 
-if (env.QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED === "true") {
+export let inAppAgentDlqRetryRunner: InAppAgentDlqRetryRunner | null = null;
+export let topicsNightlyRefitRunner: TopicsNightlyRefitRunner | null = null;
+
+if (env.QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.TopicsUpdate, topicsUpdateQueueProcessor, {
+    concurrency: 1,
+  });
+  // Setup ticks get their own queue so they never wait behind a fit.
+  WorkerManager.register(QueueName.TopicsSetup, topicsSetupQueueProcessor, {
+    concurrency: 5,
+  });
+  topicsNightlyRefitRunner = new TopicsNightlyRefitRunner();
+  topicsNightlyRefitRunner.start();
+}
+
+if (
+  isInAppAgentWorkerSurfaceEnabled(
+    env.QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED,
+  )
+) {
   WorkerManager.register(
     QueueName.InAppAgentRunQueue,
     inAppAgentRunQueueProcessor,
@@ -436,13 +524,24 @@ if (env.QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED === "true") {
       maxStalledCount: 0,
     },
   );
+
+  inAppAgentDlqRetryRunner = new InAppAgentDlqRetryRunner();
+  inAppAgentDlqRetryRunner.start();
 }
 
-// Cloud Spend Alert Queue: Only enable in cloud environment with Stripe
+// Cloud Spend Alert Queue: cloud only, and only where at least one billing
+// provider can be reached — Stripe for legacy orgs, ClickHouse Billing for
+// orgs billed through CHB.
 if (
   env.QUEUE_CONSUMER_CLOUD_SPEND_ALERT_QUEUE_IS_ENABLED === "true" &&
-  env.STRIPE_SECRET_KEY
+  (env.STRIPE_SECRET_KEY || isChbConfigured())
 ) {
+  // Instantiate the queue to trigger scheduled jobs — this is what installs
+  // the hourly CHB fan-out. Without it the schedule only ever appeared as a
+  // side effect of the Stripe metering job touching the same queue, so a
+  // CHB-only deployment produced no fan-out at all.
+  CloudSpendAlertQueue.getInstance();
+
   WorkerManager.register(
     QueueName.CloudSpendAlertQueue,
     cloudSpendAlertQueueProcessor,
@@ -516,9 +615,31 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
       stalledInterval: 120000, // 120 seconds
       maxStalledCount: 3,
       limiter: {
-        // Process at most one PostHog job globally per 10s.
+        // Start at most one PostHog job globally per 5s (720 per hour). The
+        // scheduler enqueues every enabled integration each hour, so this has
+        // to stay above the integration count or the overflow slips to an
+        // every-other-hour cadence.
         max: 1,
-        duration: 10_000,
+        duration: 5_000,
+      },
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_V4_LEGACY_API_USAGE_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  V4LegacyApiUsageQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.V4LegacyApiUsageQueue,
+    v4LegacyApiUsageProcessor,
+    {
+      concurrency: 1,
+      limiter: {
+        // The job scans system.query_log across all ClickHouse services;
+        // never run it more than once per minute even if jobs pile up.
+        max: 1,
+        duration: 60_000,
       },
     },
   );
@@ -624,6 +745,7 @@ if (env.QUEUE_CONSUMER_DEAD_LETTER_RETRY_QUEUE_IS_ENABLED === "true") {
 if (env.QUEUE_CONSUMER_WEBHOOK_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.WebhookQueue, webhookProcessor, {
     concurrency: env.LANGFUSE_WEBHOOK_QUEUE_PROCESSING_CONCURRENCY,
+    metricTags: webhookQueueMetricTags,
   });
 }
 
@@ -699,6 +821,14 @@ if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
   }
 }
 
+// Assistant retention runs independently of ingestion retention mode and
+// assistant enablement. Conversations with unfinished runs still need reconciliation.
+export let inAppAgentRetentionCleaner: InAppAgentRetentionCleaner | null = null;
+if (env.LANGFUSE_IN_APP_AGENT_RETENTION_CLEANER_ENABLED === "true") {
+  inAppAgentRetentionCleaner = new InAppAgentRetentionCleaner();
+  inAppAgentRetentionCleaner.start();
+}
+
 // Media retention cleaner for media files and blob storage
 export let mediaRetentionCleaner: MediaRetentionCleaner | null = null;
 
@@ -729,6 +859,16 @@ if (
   batchProjectBlobCleaner.start();
 }
 
+// Stored transcripts are not blob references, so project deletion does not
+// remove them.
+export let eventsDispatchTranscriptCleaner: EventsDispatchTranscriptCleaner | null =
+  null;
+
+if (env.LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED === "true") {
+  eventsDispatchTranscriptCleaner = new EventsDispatchTranscriptCleaner();
+  eventsDispatchTranscriptCleaner.start();
+}
+
 // Batch trace deletion cleaner for supplementary trace deletion
 export let batchTraceDeletionCleaner: BatchTraceDeletionCleaner | null = null;
 
@@ -746,12 +886,35 @@ if (env.LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_ENABLED === "true") {
   traceDeleteBatchActionRunner.start();
 }
 
+// Reconciles stale in-app agent runs that nobody reopened, then reports remainders.
+export let inAppAgentIntegrityRunner: InAppAgentIntegrityRunner | null = null;
+
+// Reconciliation must continue after assistant opt-out so unfinished runs
+// cannot prevent retention forever. This runner never executes agent work.
+if (env.LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED !== "false") {
+  inAppAgentIntegrityRunner = new InAppAgentIntegrityRunner();
+  inAppAgentIntegrityRunner.start();
+}
+
 // ClickHouse deleted-mask cleaner for physically applying lightweight delete masks
 export let deletedMaskCleaner: DeletedMaskCleaner | null = null;
 
 if (env.LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_ENABLED === "true") {
   deletedMaskCleaner = new DeletedMaskCleaner();
   deletedMaskCleaner.start();
+}
+
+// Moves staged audit events from Postgres into ClickHouse audit_logs
+export let auditLogRelay: AuditLogRelay | null = null;
+
+// Web stages audit events only where audit logs are licensed: Langfuse Cloud,
+// and self-hosted instances with an enterprise or government license.
+if (
+  isEnterpriseLicenseAvailable() &&
+  env.LANGFUSE_AUDIT_LOG_RELAY_ENABLED === "true"
+) {
+  auditLogRelay = new AuditLogRelay();
+  auditLogRelay.start();
 }
 
 // Queue metrics background reporter
@@ -775,5 +938,14 @@ if (env.LANGFUSE_MONITOR_SCHEDULER_ENABLED === "true") {
 
 process.on("SIGINT", () => onShutdown("SIGINT"));
 process.on("SIGTERM", () => onShutdown("SIGTERM"));
+
+// On a fatal error (uncaught exception / unhandled rejection), drain in-flight
+// jobs and flush pending writes before exiting instead of dying abruptly. A
+// repeated fatal mid-drain forces an immediate exit.
+installProcessErrorHandlers({
+  onFatal: async () => {
+    await drainAndClose();
+  },
+});
 
 export default app;

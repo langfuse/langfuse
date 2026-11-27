@@ -1,13 +1,15 @@
 import { createHash, randomUUID } from "crypto";
 import { Readable } from "stream";
 
+import type { MediaAssociationOrigin } from "@prisma/client";
+
 import { Prisma, prisma } from "../../db";
 import {
   getFileExtensionFromContentType,
   type MediaContentType,
   type MediaField,
 } from "../../domain/media";
-import { InternalServerError } from "../../errors";
+import { InternalServerError } from "../../errors/InternalServerError";
 import { recordHistogram, recordIncrement } from "../instrumentation";
 import { getS3MediaStorageClient } from "../s3";
 import { summarizeS3Error } from "../services/s3SigningDiagnostics";
@@ -112,8 +114,9 @@ export async function linkMediaToTraceOrObservation(params: {
   observationId?: string | null;
   mediaId: string;
   field: string;
+  origin: MediaAssociationOrigin;
 }): Promise<void> {
-  const { projectId, traceId, observationId, mediaId, field } = params;
+  const { projectId, traceId, observationId, mediaId, field, origin } = params;
 
   if (observationId) {
     await prisma.$queryRaw`
@@ -123,7 +126,8 @@ export async function linkMediaToTraceOrObservation(params: {
         "trace_id",
         "observation_id",
         "media_id",
-        "field"
+        "field",
+        "origin"
       )
       VALUES (
         ${randomUUID()},
@@ -131,7 +135,8 @@ export async function linkMediaToTraceOrObservation(params: {
         ${traceId},
         ${observationId},
         ${mediaId},
-        ${field}
+        ${field},
+        ${origin}::"MediaAssociationOrigin"
       )
       ON CONFLICT DO NOTHING
     `;
@@ -144,14 +149,16 @@ export async function linkMediaToTraceOrObservation(params: {
       "project_id",
       "trace_id",
       "media_id",
-      "field"
+      "field",
+      "origin"
     )
     VALUES (
       ${randomUUID()},
       ${projectId},
       ${traceId},
       ${mediaId},
-      ${field}
+      ${field},
+      ${origin}::"MediaAssociationOrigin"
     )
     ON CONFLICT DO NOTHING
   `;
@@ -180,8 +187,14 @@ export async function uploadMediaForTrace(params: {
   field: MediaField;
   contentType: MediaContentType;
   contentBytes: Buffer;
+  /**
+   * Base64 SHA-256 of contentBytes, precomputed during native extraction to avoid
+   * hashing twice. TypeScript uploads omit it; this function computes their hash.
+   */
+  sha256Hash?: string;
   mediaBucket: string;
   mediaPrefix: string;
+  origin: MediaAssociationOrigin;
 }): Promise<UploadMediaForTraceResult> {
   const {
     projectId,
@@ -192,8 +205,11 @@ export async function uploadMediaForTrace(params: {
     contentBytes,
     mediaBucket,
     mediaPrefix,
+    origin,
   } = params;
-  const sha256Hash = createHash("sha256").update(contentBytes).digest("base64");
+  const sha256Hash =
+    params.sha256Hash ??
+    createHash("sha256").update(contentBytes).digest("base64");
   const mediaId = getMediaId(sha256Hash);
   const existingMedia = await prisma.media.findUnique({
     where: {
@@ -216,6 +232,7 @@ export async function uploadMediaForTrace(params: {
       observationId,
       mediaId: existingMedia.id,
       field,
+      origin,
     });
     return { mediaId: existingMedia.id, outcome: "reused" };
   }
@@ -290,6 +307,7 @@ export async function uploadMediaForTrace(params: {
     observationId,
     mediaId,
     field,
+    origin,
   });
 
   recordIncrement("langfuse.media.upload_http_status", 1, {

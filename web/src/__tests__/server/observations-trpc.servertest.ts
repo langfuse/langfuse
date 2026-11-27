@@ -11,57 +11,40 @@ import {
   createScoresCh,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 describe("traces trpc", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: "seed-org-id",
-          name: "Test Organization",
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: projectId,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: "Test Project",
-              metadata: {},
-              hasTraces: true,
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
+  const session: Session = createSession({
+    organizations: [
+      {
+        id: "seed-org-id",
+        role: "OWNER",
+        aiTelemetryEnabled: true,
+        projects: [{ id: projectId, role: "ADMIN", hasTraces: true }],
       },
-      admin: true,
-    },
-    environment: {} as any,
-  };
+    ],
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   describe("generations.all", () => {
+    it("accepts leaked tracing time-column orderBy aliases", async () => {
+      await expect(
+        caller.generations.all({
+          projectId,
+          page: 0,
+          limit: 10,
+          filter: [],
+          searchQuery: null,
+          searchType: ["id"],
+          orderBy: { column: "timestamp", order: "DESC" },
+        }),
+      ).resolves.toBeDefined();
+    });
+
     it("should get all generations with full text search and trace + scores filter", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();

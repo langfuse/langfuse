@@ -14,6 +14,8 @@ import {
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get model definitions",
+    action: "models:read",
+    isAdminApiKeyAuthAllowed: true,
     querySchema: GetModelsV1Query,
     responseSchema: GetModelsV1Response,
     fn: async ({ query, auth }) => {
@@ -27,6 +29,8 @@ export default withMiddlewares({
 
   POST: createAuthedProjectAPIRoute({
     name: "Create custom model definition",
+    action: "models:CUD",
+    isAdminApiKeyAuthAllowed: true,
     bodySchema: PostModelsV1Body,
     responseSchema: PostModelsV1Response,
     fn: async ({ body, auth }) => {

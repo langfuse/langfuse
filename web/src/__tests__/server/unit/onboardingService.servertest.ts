@@ -1,29 +1,49 @@
-const { auditLogMock } = vi.hoisted(() => ({
+const { auditLogMock, createDefaultScoreConfigsMock } = vi.hoisted(() => ({
   auditLogMock: vi.fn(),
+  createDefaultScoreConfigsMock: vi.fn(),
 }));
 
 vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: auditLogMock,
 }));
 
+vi.mock("@/src/features/projects/server/defaultScoreConfigs", () => ({
+  createDefaultScoreConfigs: createDefaultScoreConfigsMock,
+}));
+
 import { type Prisma, Role, SurveyName } from "@langfuse/shared/src/db";
+import { env } from "@/src/env.mjs";
 import {
-  completeCloudSignupOnboarding,
-  getCloudSignupOnboardingStatus,
+  completeSignupOnboarding,
+  getSignupOnboardingStatus,
   provisionStarterOrganizationForNewUser,
   resolveOnboardingRedirectTarget,
   type RealOrganizationMembership,
 } from "@/src/features/onboarding/server/onboardingService";
 
 type CompletionPrisma = Parameters<
-  typeof completeCloudSignupOnboarding
+  typeof completeSignupOnboarding
 >[0]["prisma"];
 type RedirectPrisma = Parameters<
   typeof resolveOnboardingRedirectTarget
 >[0]["prisma"];
-type StatusPrisma = Parameters<
-  typeof getCloudSignupOnboardingStatus
->[0]["prisma"];
+type StatusPrisma = Parameters<typeof getSignupOnboardingStatus>[0]["prisma"];
+
+const originalEnv = {
+  NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+  LANGFUSE_DISABLE_SIGNUP_ONBOARDING: env.LANGFUSE_DISABLE_SIGNUP_ONBOARDING,
+};
+
+beforeEach(() => {
+  Object.assign(env, {
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "US",
+    LANGFUSE_DISABLE_SIGNUP_ONBOARDING: undefined,
+  });
+});
+
+afterEach(() => {
+  Object.assign(env, originalEnv);
+});
 
 const makeMembership = ({
   orgId,
@@ -75,6 +95,9 @@ const makeCompletionPrisma = ({
     organizationMembership: {
       findMany: vi.fn().mockResolvedValue(memberships),
     },
+    organization: {
+      update: vi.fn().mockResolvedValue({ id: "org-1" }),
+    },
   };
 
   return {
@@ -124,14 +147,33 @@ describe("resolveOnboardingRedirectTarget", () => {
       redirectTo: "/project/project-1",
     });
   });
+
+  it("lands AI Gateway members on the overview when no org has a usable project", async () => {
+    const result = await resolveOnboardingRedirectTarget({
+      prisma: makePrisma([
+        makeMembership({ orgId: "none-org", role: Role.NONE, projects: [] }),
+        makeMembership({
+          orgId: "gateway-org",
+          role: Role.AI_GATEWAY,
+          projects: [{ id: "project-1" }],
+        }),
+      ]),
+      userId: "user-1",
+    });
+
+    expect(result).toEqual({
+      redirectTo: "/",
+      orgId: "gateway-org",
+    });
+  });
 });
 
-describe("getCloudSignupOnboardingStatus", () => {
-  const getStatus = (prisma: StatusPrisma) =>
-    getCloudSignupOnboardingStatus({
+describe("getSignupOnboardingStatus", () => {
+  const getStatus = (prisma: StatusPrisma, canCreateOrganizations = true) =>
+    getSignupOnboardingStatus({
       prisma,
       userId: "user-1",
-      canCreateOrganizations: true,
+      canCreateOrganizations,
     });
 
   it("uses the onboarding survey as the completion marker", async () => {
@@ -140,6 +182,7 @@ describe("getCloudSignupOnboardingStatus", () => {
       getStatus(incomplete.tx as unknown as StatusPrisma),
     ).resolves.toEqual({
       completed: false,
+      canConfigureAiFeatures: false,
     });
 
     const completed = makeCompletionPrisma({
@@ -159,9 +202,101 @@ describe("getCloudSignupOnboardingStatus", () => {
       redirectTo: "/project/project-1",
     });
   });
+
+  it("allows owners to configure AI features for a starter organization", async () => {
+    const incomplete = makeCompletionPrisma({
+      memberships: [
+        makeMembership({
+          orgId: "org-1",
+          orgMetadata: {
+            langfuseOnboarding: {
+              starterOrganization: true,
+            },
+          },
+          projects: [{ id: "project-1" }],
+        }),
+      ],
+    });
+
+    await expect(
+      getStatus(incomplete.tx as unknown as StatusPrisma),
+    ).resolves.toEqual({
+      completed: false,
+      canConfigureAiFeatures: true,
+    });
+  });
+
+  it.each([
+    {
+      audience: "an installer",
+      role: undefined,
+      canCreateOrganizations: true,
+      lists: ["product", "oss"],
+    },
+    {
+      audience: "a user without a membership who can't create organizations",
+      role: undefined,
+      canCreateOrganizations: false,
+      lists: ["product"],
+    },
+    {
+      audience: "an organization admin",
+      role: Role.ADMIN,
+      canCreateOrganizations: true,
+      lists: ["product", "oss"],
+    },
+    {
+      audience: "an invited viewer",
+      role: Role.VIEWER,
+      canCreateOrganizations: true,
+      lists: ["product"],
+    },
+  ])(
+    "offers $audience the $lists newsletters on self-hosted",
+    async ({ role, canCreateOrganizations, lists }) => {
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
+      const { tx } = makeCompletionPrisma({
+        memberships: role
+          ? [makeMembership({ orgId: "org-1", role, projects: [] })]
+          : [],
+      });
+
+      await expect(
+        getStatus(tx as unknown as StatusPrisma, canCreateOrganizations),
+      ).resolves.toMatchObject({ completed: false, newsletterLists: lists });
+    },
+  );
+
+  it("reports a disabled step as completed on self-hosted without reading the survey", async () => {
+    Object.assign(env, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+      LANGFUSE_DISABLE_SIGNUP_ONBOARDING: "true",
+    });
+    const { tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await expect(getStatus(tx as unknown as StatusPrisma)).resolves.toEqual({
+      completed: true,
+      redirectTo: "/project/project-1",
+    });
+    expect(tx.survey.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("ignores the off switch on Cloud", async () => {
+    Object.assign(env, { LANGFUSE_DISABLE_SIGNUP_ONBOARDING: "true" });
+    const { tx } = makeCompletionPrisma();
+
+    await expect(getStatus(tx as unknown as StatusPrisma)).resolves.toEqual({
+      completed: false,
+      canConfigureAiFeatures: false,
+    });
+  });
 });
 
-describe("completeCloudSignupOnboarding", () => {
+describe("completeSignupOnboarding", () => {
   it("locks the user row and writes one trimmed onboarding survey once", async () => {
     const { prisma, tx } = makeCompletionPrisma({
       memberships: [
@@ -178,15 +313,17 @@ describe("completeCloudSignupOnboarding", () => {
     });
 
     await expect(
-      completeCloudSignupOnboarding({
+      completeSignupOnboarding({
         prisma,
         userId: "user-1",
         userEmail: "user@example.com",
         canCreateOrganizations: true,
         referralSource: "  Reddit  ",
+        aiFeaturesEnabled: true,
       }),
     ).resolves.toEqual({
       redirectTo: "/project/project-1/traces",
+      surveyCreated: true,
     });
 
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
@@ -213,18 +350,137 @@ describe("completeCloudSignupOnboarding", () => {
         orgId: "org-1",
       },
     });
+    expect(tx.organization.update).toHaveBeenCalledWith({
+      where: { id: "org-1" },
+      data: { aiFeaturesEnabled: true },
+    });
 
     tx.survey.findFirst.mockResolvedValue({ id: "survey-1" });
 
-    await completeCloudSignupOnboarding({
+    const repeatResult = await completeSignupOnboarding({
       prisma,
       userId: "user-1",
       userEmail: "user@example.com",
       canCreateOrganizations: true,
       referralSource: "Hacker News",
+      aiFeaturesEnabled: false,
     });
 
+    expect(repeatResult.surveyCreated).toBe(false);
+
     expect(tx.survey.create).toHaveBeenCalledTimes(1);
+    expect(tx.organization.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("stores each pick with the position it was shown at", async () => {
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await completeSignupOnboarding({
+      prisma,
+      userId: "user-1",
+      userEmail: "user@example.com",
+      canCreateOrganizations: true,
+      referralSource: "Reddit",
+      buildIntents: ["rag", "other"],
+      buildIntentPositions: [2, 6],
+      buildIntentOther: "eval pipeline",
+    });
+
+    expect(tx.survey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          response: {
+            referralSource: "Reddit",
+            buildIntents: ["rag", "other"],
+            buildIntentPositions: [2, 6],
+            buildIntentOther: "eval pipeline",
+          },
+        }),
+      }),
+    );
+  });
+
+  it("writes nothing when the step is disabled on self-hosted", async () => {
+    Object.assign(env, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+      LANGFUSE_DISABLE_SIGNUP_ONBOARDING: "true",
+    });
+    const prisma = {
+      $transaction: vi.fn(),
+      organizationMembership: { findMany: vi.fn().mockResolvedValue([]) },
+    };
+
+    await expect(
+      completeSignupOnboarding({
+        prisma: prisma as unknown as CompletionPrisma,
+        userId: "user-1",
+        canCreateOrganizations: true,
+        newsletter: { outcome: "declined" },
+      }),
+    ).resolves.toEqual({ redirectTo: "/setup", surveyCreated: false });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("still stores the survey on Cloud when the off switch is set", async () => {
+    Object.assign(env, { LANGFUSE_DISABLE_SIGNUP_ONBOARDING: "true" });
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await completeSignupOnboarding({
+      prisma,
+      userId: "user-1",
+      canCreateOrganizations: true,
+    });
+
+    expect(tx.survey.create).toHaveBeenCalled();
+  });
+
+  it("stores an empty response when the survey is skipped", async () => {
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await completeSignupOnboarding({
+      prisma,
+      userId: "user-1",
+      canCreateOrganizations: true,
+    });
+
+    expect(tx.survey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ response: {} }),
+      }),
+    );
+  });
+
+  it("does not update AI features for an existing organization", async () => {
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({
+          orgId: "org-1",
+          projects: [{ id: "project-1" }],
+        }),
+      ],
+    });
+
+    await completeSignupOnboarding({
+      prisma,
+      userId: "user-1",
+      userEmail: "user@example.com",
+      canCreateOrganizations: true,
+      aiFeaturesEnabled: true,
+    });
+
+    expect(tx.organization.update).not.toHaveBeenCalled();
   });
 });
 
@@ -232,6 +488,8 @@ describe("provisionStarterOrganizationForNewUser", () => {
   beforeEach(() => {
     auditLogMock.mockReset();
     auditLogMock.mockResolvedValue(undefined);
+    createDefaultScoreConfigsMock.mockReset();
+    createDefaultScoreConfigsMock.mockResolvedValue(undefined);
   });
 
   it("locks the user row before checking for existing real organizations", async () => {
@@ -239,6 +497,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
       organizationMembership: {
+        create: vi.fn(async (args: { data: unknown }) => args.data),
         findMany: vi.fn().mockResolvedValue(existingMemberships),
       },
       organization: {
@@ -253,6 +512,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
           name: "My Project",
         }),
       },
+      roleAssignment: { deleteMany: vi.fn(), create: vi.fn() },
     };
     const prisma = {
       $transaction: vi.fn(async (callback) => callback(tx)),
@@ -266,6 +526,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
       userName: "Taylor",
     });
 
+    expect(createDefaultScoreConfigsMock).toHaveBeenCalledWith("project-1");
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
     expect(tx.organizationMembership.findMany).toHaveBeenCalledWith({
       where: expect.objectContaining({
@@ -296,6 +557,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
       organizationMembership: {
+        create: vi.fn(async (args: { data: unknown }) => args.data),
         findMany: vi.fn().mockResolvedValue([
           makeMembership({
             orgId: "org-1",
@@ -325,6 +587,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
     expect(result).toBeNull();
     expect(tx.organization.create).not.toHaveBeenCalled();
     expect(tx.project.create).not.toHaveBeenCalled();
+    expect(createDefaultScoreConfigsMock).not.toHaveBeenCalled();
     expect(auditLogMock).not.toHaveBeenCalled();
   });
 
@@ -332,6 +595,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
       organizationMembership: {
+        create: vi.fn(async (args: { data: unknown }) => args.data),
         findMany: vi.fn().mockResolvedValue([
           makeMembership({
             orgId: "org-1",
@@ -352,6 +616,7 @@ describe("provisionStarterOrganizationForNewUser", () => {
           name: "My Project",
         }),
       },
+      roleAssignment: { deleteMany: vi.fn(), create: vi.fn() },
     };
     const prisma = {
       $transaction: vi.fn(async (callback) => callback(tx)),

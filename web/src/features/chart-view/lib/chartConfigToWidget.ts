@@ -55,13 +55,6 @@ export function chartConfigToWidgetInput({
       : { type: config.chartType }
   ) as ChartWidgetInput["chartConfig"];
 
-  // Pin v2. The chart-view always queries the v2 events read path
-  // (`EventsChartView` runs `dashboard.executeQuery` with version "v2"), so the
-  // saved widget must read the same source — otherwise a non-beta viewer's
-  // dashboard would fall back to the legacy observations table and show
-  // different numbers than the chart the user just saved. "Save what I see."
-  const minVersion = 2;
-
   return {
     name: describeConfig(config),
     description: "",
@@ -71,6 +64,5 @@ export function chartConfigToWidgetInput({
     filters,
     chartType: config.chartType,
     chartConfig,
-    minVersion,
   };
 }

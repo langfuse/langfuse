@@ -1,7 +1,14 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-style-props */
 import React, { useCallback, useState } from "react";
-import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import {
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+} from "@langfuse/icons";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -10,7 +17,7 @@ import {
   type DimensionKey,
   type MetricKey,
 } from "../types";
-import { describeConfig } from "../vocab";
+import { describeConfig, getMetric } from "../vocab";
 import { ChartCanvas } from "./ChartCanvas";
 import {
   AggregationSelect,
@@ -53,6 +60,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
   className?: string;
 }) {
   const [open, setOpen] = useState(true);
+  const metric = getMetric(config.metric);
 
   const onMetric = useCallback(
     (metric: MetricKey) => onConfigChange({ metric }),
@@ -89,18 +97,24 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
         <div className="min-h-0 flex-1">
           {error ? (
             <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
-              <AlertCircle className="h-10 w-10 opacity-40" />
+              <AlertCircle __rawClassName="h-10 w-10 opacity-40" />
               <p className="max-w-md text-sm">{error}</p>
             </div>
           ) : isLoading ? (
             <div className="text-muted-foreground flex h-full items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin" />
+              <Loader2 size="lg" __rawClassName="animate-spin" />
             </div>
           ) : (
             <ChartCanvas
               data={data}
-              config={config}
-              emptyMessage={emptyMessage}
+              chartType={config.chartType}
+              breakdown={config.breakdown}
+              aggregation={config.aggregation}
+              metricLabel={metric.label}
+              metricUnit={metric.unit}
+              emptyMessage={
+                emptyMessage ?? "No events match the current filters."
+              }
             />
           )}
         </div>
@@ -117,14 +131,14 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
               aria-label="Collapse panel"
               onClick={() => setOpen(false)}
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight size="sm" color="default" />
             </Button>
           </div>
           <PanelField label="Chart type">
             <ChartTypePicker
               value={config.chartType}
               onChange={onChartType}
-              showLabels
+              layout="full"
             />
           </PanelField>
           <PanelField label="Metric">
@@ -152,7 +166,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
             aria-label="Expand panel"
             onClick={() => setOpen(true)}
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft size="sm" color="default" />
           </Button>
         </div>
       )}

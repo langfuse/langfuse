@@ -14,7 +14,7 @@ import { Readable } from "stream";
 
 import { prisma } from "../../src/db";
 import { env } from "../../src/env";
-import { logger, StorageServiceFactory } from "../../src/server";
+import { logger, StorageServiceFactory, storageKeys } from "../../src/server";
 
 // Test file paths (relative to monorepo root)
 const TEST_FILES_DIR = path.join(
@@ -134,20 +134,65 @@ function getBucketPath(
 }
 
 /**
- * Upload a media file to storage and create database records
+ * Uploads a fixture and creates its `media` row, idempotently. Returns the
+ * fixture so callers can embed `referenceString` in a payload — that alone is
+ * enough for the UI to resolve the asset (`media.getById`); a trace/observation
+ * link only adds the separate "Media" strip.
+ */
+export async function ensureSeedMediaUploaded(
+  projectId: string,
+  mediaKey: SeedMediaKey,
+): Promise<SeedMediaFixture | null> {
+  const fixture = getSeedMediaFixture(mediaKey);
+  if (!fixture) return null;
+
+  const mediaId = await uploadAndCreateMediaRecord(
+    projectId,
+    MEDIA_FILES[mediaKey],
+  );
+
+  return mediaId ? fixture : null;
+}
+
+/**
+ * Links an already-uploaded fixture to one observation's field, mirroring what
+ * ingestion writes. Drives the "Media" strip on observation surfaces.
+ */
+export async function linkSeedMediaToObservation({
+  projectId,
+  traceId,
+  observationId,
+  mediaId,
+  field,
+}: {
+  projectId: string;
+  traceId: string;
+  observationId: string;
+  mediaId: string;
+  field: "input" | "output" | "metadata";
+}): Promise<void> {
+  await prisma.$queryRaw`
+    INSERT INTO "observation_media" ("id", "project_id", "trace_id", "observation_id", "media_id", "field")
+    VALUES (${crypto.randomUUID()}, ${projectId}, ${traceId}, ${observationId}, ${mediaId}, ${field})
+    ON CONFLICT DO NOTHING;
+  `;
+}
+
+/**
+ * Upload a media file to storage and create its `media` row. Returns the
+ * media id it derived, so callers link rows without re-hashing the file, or
+ * null when storage or the fixture file is unavailable.
  */
 async function uploadAndCreateMediaRecord(
   projectId: string,
-  traceId: string,
-  field: "input" | "output" | "metadata",
   mediaFile: MediaFile,
-): Promise<void> {
+): Promise<string | null> {
   // Check if bucket is configured
   if (!env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
     logger.warn(
       "[seed-media] LANGFUSE_S3_MEDIA_UPLOAD_BUCKET not configured, skipping media seeding",
     );
-    return;
+    return null;
   }
 
   // Check if file exists
@@ -155,7 +200,7 @@ async function uploadAndCreateMediaRecord(
     logger.warn(
       `[seed-media] Test file not found: ${mediaFile.filePath}, skipping`,
     );
-    return;
+    return null;
   }
 
   const fileBytes = fs.readFileSync(mediaFile.filePath);
@@ -178,24 +223,19 @@ async function uploadAndCreateMediaRecord(
 
   if (existingMedia && existingMedia.uploadHttpStatus === 200) {
     logger.debug(
-      `[seed-media] Media already exists for ${mediaFile.name}, creating TraceMedia link only`,
+      `[seed-media] Media already exists for ${mediaFile.name}, reusing it`,
     );
-
-    // Just create the TraceMedia link
-    await prisma.$queryRaw`
-      INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")
-      VALUES (${crypto.randomUUID()}, ${projectId}, ${traceId}, ${existingMedia.id}, ${field})
-      ON CONFLICT DO NOTHING;
-    `;
-    return;
+    return mediaId;
   }
 
   // Upload to storage
   try {
     const storageClient = StorageServiceFactory.getInstance({
       bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-      accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
+      credentials: storageKeys(
+        env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
+        env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
+      ),
       endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
@@ -212,7 +252,7 @@ async function uploadAndCreateMediaRecord(
     logger.debug(`[seed-media] Uploaded ${mediaFile.name} to ${bucketPath}`);
   } catch (error) {
     logger.error(`[seed-media] Failed to upload ${mediaFile.name}:`, error);
-    return;
+    return null;
   }
 
   // Create Media record
@@ -249,16 +289,25 @@ async function uploadAndCreateMediaRecord(
       "upload_http_status" = ${200}
   `;
 
-  // Create TraceMedia link
+  logger.info(`[seed-media] Created media record for ${mediaFile.name}`);
+  return mediaId;
+}
+
+/** Links an uploaded fixture to a trace's field (the `dx` seed path). */
+async function linkSeedMediaToTrace(
+  projectId: string,
+  traceId: string,
+  field: "input" | "output" | "metadata",
+  mediaFile: MediaFile,
+): Promise<void> {
+  const mediaId = await uploadAndCreateMediaRecord(projectId, mediaFile);
+  if (!mediaId) return;
+
   await prisma.$queryRaw`
     INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")
     VALUES (${crypto.randomUUID()}, ${projectId}, ${traceId}, ${mediaId}, ${field})
     ON CONFLICT DO NOTHING;
   `;
-
-  logger.info(
-    `[seed-media] Created media record for ${mediaFile.name} -> ${field}`,
-  );
 }
 
 /**
@@ -281,28 +330,13 @@ export async function seedMediaTraces(projectId: string): Promise<void> {
 
   // Trace 1: Image only (input)
   const trace1Id = MEDIA_TEST_TRACE_IDS.imageOnly;
-  await uploadAndCreateMediaRecord(
-    projectId,
-    trace1Id,
-    "input",
-    MEDIA_FILES.image,
-  );
+  await linkSeedMediaToTrace(projectId, trace1Id, "input", MEDIA_FILES.image);
 
   // Trace 2: All media types
   const trace2Id = MEDIA_TEST_TRACE_IDS.allTypes;
-  await uploadAndCreateMediaRecord(
-    projectId,
-    trace2Id,
-    "input",
-    MEDIA_FILES.image,
-  );
-  await uploadAndCreateMediaRecord(
-    projectId,
-    trace2Id,
-    "output",
-    MEDIA_FILES.pdf,
-  );
-  await uploadAndCreateMediaRecord(
+  await linkSeedMediaToTrace(projectId, trace2Id, "input", MEDIA_FILES.image);
+  await linkSeedMediaToTrace(projectId, trace2Id, "output", MEDIA_FILES.pdf);
+  await linkSeedMediaToTrace(
     projectId,
     trace2Id,
     "metadata",
@@ -311,19 +345,9 @@ export async function seedMediaTraces(projectId: string): Promise<void> {
 
   // Trace 3: All media types with ChatML format (pretty-rendered)
   const trace3Id = MEDIA_TEST_TRACE_IDS.allTypesChatML;
-  await uploadAndCreateMediaRecord(
-    projectId,
-    trace3Id,
-    "input",
-    MEDIA_FILES.image,
-  );
-  await uploadAndCreateMediaRecord(
-    projectId,
-    trace3Id,
-    "output",
-    MEDIA_FILES.pdf,
-  );
-  await uploadAndCreateMediaRecord(
+  await linkSeedMediaToTrace(projectId, trace3Id, "input", MEDIA_FILES.image);
+  await linkSeedMediaToTrace(projectId, trace3Id, "output", MEDIA_FILES.pdf);
+  await linkSeedMediaToTrace(
     projectId,
     trace3Id,
     "metadata",

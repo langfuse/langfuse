@@ -1,16 +1,16 @@
 import { z } from "zod";
 import {
   hasValidTracingSearchTypes,
-  singleFilter,
+  singleFilterList,
   TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
   TracingSearchType,
+  orderBy,
 } from "@langfuse/shared";
-import { orderBy } from "@langfuse/shared";
 
 export const GenerationTableOptions = z
   .object({
     projectId: z.string(), // Required for protectedProjectProcedure
-    filter: z.array(singleFilter),
+    filter: singleFilterList,
     searchQuery: z.string().nullable(),
     searchType: z.array(TracingSearchType),
     orderBy: orderBy,

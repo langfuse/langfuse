@@ -1,0 +1,706 @@
+import type {
+  UseFieldArrayInsert,
+  UseFieldArrayUpdate,
+  UseFormReturn,
+} from "react-hook-form";
+import { v4 as uuid } from "uuid";
+import {
+  isPresent,
+  type CreateAnnotationScoreData,
+  type UpdateAnnotationScoreData,
+} from "@langfuse/shared";
+import type { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import type {
+  AnnotateFormSchemaType,
+  AnnotationScoreFormData,
+  FailedAnnotationScoreWrite,
+  PreparedAnnotationTarget,
+} from "@/src/features/scores/types";
+import { scoreWriteErrorDescription } from "@/src/utils/trpcValidationError";
+import { shouldUseCombobox } from "@/src/features/scores/components/CategoricalScoreInput";
+import {
+  createAnnotationAnalytics,
+  getAnnotationTargetType,
+} from "@/src/features/scores/lib/annotationAnalytics";
+import { annotationFieldKey } from "@/src/features/scores/lib/annotationConfigSelection";
+import {
+  enrichCategoryOptionsWithStaleScoreValue,
+  resolveCategoricalNumericValue,
+  validateNumericScore,
+} from "@/src/features/scores/lib/annotationFormHelpers";
+import {
+  isNumericDataType,
+  isTextDataType,
+} from "@/src/features/scores/lib/helpers";
+import {
+  createAnnotationSaveStore,
+  hasChangedAnnotationValue,
+} from "@/src/features/scores/state/annotationSaveStore";
+
+type Dependencies = {
+  form: UseFormReturn<AnnotateFormSchemaType>;
+  replaceField: UseFieldArrayUpdate<AnnotateFormSchemaType, "scoreData">;
+  insertField: UseFieldArrayInsert<AnnotateFormSchemaType, "scoreData">;
+  initialTargets: PreparedAnnotationTarget[];
+  capture: ReturnType<typeof usePostHogClientCapture>;
+  createScore: (data: CreateAnnotationScoreData) => Promise<unknown>;
+  updateScore: (data: UpdateAnnotationScoreData) => Promise<unknown>;
+  deleteScore: (data: { id: string; projectId: string }) => Promise<unknown>;
+  /** Saved scores are immutable: value and comment changes to them are ignored. */
+  editsDisabled?: boolean;
+};
+
+const SAVED_STATUS_VISIBLE_MS = 3_000;
+
+// One owner per mounted form. Actions read drafts at invocation and resolve rows
+// by target + config again when asynchronous operations finish.
+export function createAnnotationFormActions({
+  form,
+  replaceField,
+  insertField,
+  initialTargets,
+  capture,
+  createScore,
+  updateScore,
+  deleteScore,
+  editsDisabled = false,
+}: Dependencies) {
+  const fields = (): AnnotationScoreFormData[] =>
+    form
+      .getValues("scoreData")
+      .map((field) => ({ ...field, id: field.id ?? null }));
+  const indexOf = (key: string) =>
+    fields().findIndex((field) => annotationFieldKey(field) === key);
+  const find = (key: string) =>
+    fields().find((field) => annotationFieldKey(field) === key);
+  const saveStore = createAnnotationSaveStore(fields());
+  const analytics = new Map(
+    initialTargets.map((target) => [
+      target.key,
+      createAnnotationAnalytics(
+        capture,
+        {
+          ...target.analyticsData,
+          targetType: getAnnotationTargetType(target.scoreTarget),
+        },
+        target.initialFormData,
+      ),
+    ]),
+  );
+  let sequence = 0;
+  const latestSaves = new Map<string, number>();
+  const pendingFields = new Map<string, number>();
+  // Settles once every write started so far for a field has settled.
+  const fieldWrites = new Map<string, Promise<void>>();
+  // Last value, text, and id actually sent for a field. A deferred comment
+  // merges into this. Keystrokes stay in the form until a save validates them.
+  const dispatchedScores = new Map<string, AnnotationScoreFormData>(
+    fields().map((field) => [annotationFieldKey(field), { ...field }]),
+  );
+  const rememberDispatched = (key: string, score: AnnotationScoreFormData) => {
+    const previous = dispatchedScores.get(key);
+    const saved = { ...score };
+    dispatchedScores.set(key, saved);
+    return () => {
+      if (dispatchedScores.get(key) !== saved) return;
+      if (previous) dispatchedScores.set(key, previous);
+      else dispatchedScores.delete(key);
+    };
+  };
+  const failedFields = new Set<string>();
+  const failureDetails = new Map<string, FailedAnnotationScoreWrite>();
+  // The field a failed write tried to save. Completion rolls the form back,
+  // so the next flush sends this again instead of completing without it.
+  const failedAttempts = new Map<string, AnnotationScoreFormData>();
+  const serverFields = new Map(
+    fields().map((field) => [annotationFieldKey(field), { ...field }]),
+  );
+  let savedStatusTimer: ReturnType<typeof setTimeout> | undefined;
+  let isClosed = true;
+  // Text the reviewer typed in the comment popover and has not saved or
+  // discarded. The popover keeps this across close so it can be reopened;
+  // the form that completion uses writes it before the row unmounts.
+  const commentDrafts = new Map<string, string>();
+  const scheduleSavedStatusClear = () => {
+    if (savedStatusTimer) clearTimeout(savedStatusTimer);
+    if (isClosed) return;
+    savedStatusTimer = setTimeout(() => {
+      saveStore.setState({ saved: false });
+      savedStatusTimer = undefined;
+    }, SAVED_STATUS_VISIBLE_MS);
+  };
+  const sameScore = (
+    left: AnnotationScoreFormData,
+    right: AnnotationScoreFormData | undefined,
+  ) =>
+    (left.id ?? null) === (right?.id ?? null) &&
+    !hasChangedAnnotationValue(left, right);
+  const finishPendingField = (key: string) => {
+    const remaining = (pendingFields.get(key) ?? 1) - 1;
+    if (remaining) pendingFields.set(key, remaining);
+    else pendingFields.delete(key);
+  };
+
+  const beginSave = (
+    kind: Parameters<
+      ReturnType<typeof createAnnotationAnalytics>["beginSave"]
+    >[0],
+    next: AnnotationScoreFormData,
+    control?: Parameters<
+      ReturnType<typeof createAnnotationAnalytics>["beginSave"]
+    >[3],
+  ) =>
+    analytics.get(next.targetKey!)!.beginSave(
+      kind,
+      next,
+      fields()
+        .filter((field) => field.targetKey === next.targetKey)
+        .map((field) =>
+          annotationFieldKey(field) === annotationFieldKey(next) ? next : field,
+        ),
+      control,
+    );
+
+  const trackSave = (
+    operation: Promise<unknown>,
+    tracked: ReturnType<typeof beginSave>,
+    field: AnnotationScoreFormData,
+    onFailure: () => void,
+  ) => {
+    const operationSequence = ++sequence;
+    const key = annotationFieldKey(field);
+    const confirmed = saveStore.getState().confirmedFields.get(key)?.field;
+    const changed =
+      (field.id ?? null) !== (confirmed?.id ?? null) ||
+      hasChangedAnnotationValue(field, confirmed);
+    latestSaves.set(key, operationSequence);
+    pendingFields.set(key, (pendingFields.get(key) ?? 0) + 1);
+    // Resolves to undefined, so a chain of saves does not retain each
+    // response. Drop the entry once it has settled and is still the latest.
+    const settled = Promise.allSettled([fieldWrites.get(key), operation]).then(
+      () => undefined,
+    );
+    fieldWrites.set(key, settled);
+    settled.then(() => {
+      if (fieldWrites.get(key) === settled) fieldWrites.delete(key);
+    });
+    failedFields.delete(key);
+    failureDetails.delete(key);
+    failedAttempts.delete(key);
+    saveStore.setState((state) => ({
+      pending: state.pending + 1,
+      failed: failedFields.size > 0,
+    }));
+    // Promise-owned completion survives overlapping mutation observers.
+    operation.then(
+      () => {
+        finishPendingField(key);
+        saveStore.setState((state) => {
+          const confirmedFields = new Map(state.confirmedFields);
+          if ((confirmedFields.get(key)?.sequence ?? 0) <= operationSequence)
+            confirmedFields.set(key, {
+              field: { ...field },
+              sequence: operationSequence,
+            });
+          return {
+            confirmedFields,
+            pending: state.pending - 1,
+            saved: state.saved || changed,
+          };
+        });
+        if (changed) scheduleSavedStatusClear();
+        tracked?.success();
+      },
+      (error) => {
+        finishPendingField(key);
+        const isLatest = latestSaves.get(key) === operationSequence;
+        if (isLatest) {
+          failedFields.add(key);
+          failureDetails.set(key, {
+            name: field.name,
+            message: scoreWriteErrorDescription(error),
+          });
+          failedAttempts.set(key, { ...field });
+          onFailure();
+        }
+        tracked?.failure();
+        saveStore.setState((state) => ({
+          pending: state.pending - 1,
+          failed: failedFields.size > 0,
+        }));
+      },
+    );
+    return operationSequence;
+  };
+
+  const reportFailure = (field: AnnotationScoreFormData, message: string) => {
+    const index = indexOf(annotationFieldKey(field));
+    if (index < 0) return;
+    form.setError(
+      `scoreData.${index}.${isNumericDataType(field.dataType) ? "value" : "stringValue"}`,
+      { type: "server", message },
+    );
+  };
+
+  const clear = (key: string, target: PreparedAnnotationTarget) => {
+    commentDrafts.delete(key);
+    const field = find(key);
+    if (!field) return;
+    const cleared = {
+      ...field,
+      id: null,
+      value: null,
+      stringValue: null,
+      comment: null,
+      timestamp: null,
+    };
+    const tracked = field.id ? beginSave("delete", cleared) : undefined;
+    const index = indexOf(key);
+    form.clearErrors(`scoreData.${index}`);
+    replaceField(index, cleared);
+    const scoreId = field.id;
+    if (scoreId) {
+      const revertDispatched = rememberDispatched(key, cleared);
+      trackSave(
+        deleteScore({
+          id: scoreId,
+          projectId: target.scoreMetadata.projectId,
+        }),
+        tracked,
+        cleared,
+        () => {
+          revertDispatched();
+          const currentIndex = indexOf(key);
+          if (currentIndex < 0) return;
+          replaceField(currentIndex, field);
+          reportFailure(field, "Failed to clear score");
+        },
+      );
+    }
+  };
+
+  const upsert = (
+    key: string,
+    target: PreparedAnnotationTarget,
+    value: number | null,
+    stringValue: string | null,
+  ) => {
+    const field = find(key);
+    if (!field || (editsDisabled && field.id)) return;
+    const config = target.configControl.configs.find(
+      (config) => config.id === field.configId,
+    );
+    const next = {
+      ...field,
+      value,
+      stringValue,
+      id: field.id ?? uuid(),
+      timestamp: field.timestamp ?? new Date(),
+    };
+    const categories = enrichCategoryOptionsWithStaleScoreValue(
+      config?.categories ?? [],
+      field.stringValue,
+    );
+    let control: "text" | "number" | "select" | "segmented" = "segmented";
+    if (isTextDataType(field.dataType)) control = "text";
+    else if (isNumericDataType(field.dataType)) control = "number";
+    else if (shouldUseCombobox(categories)) control = "select";
+    const tracked = beginSave(field.id ? "update" : "create", next, {
+      control,
+      optionCount: config?.categories?.length ?? 0,
+    });
+    const index = indexOf(key);
+    form.clearErrors([
+      `scoreData.${index}.value`,
+      `scoreData.${index}.stringValue`,
+    ]);
+    form.setValue(`scoreData.${index}.value`, value);
+    form.setValue(`scoreData.${index}.stringValue`, stringValue);
+    const { id, timestamp, targetKey: _targetKey, ...score } = field;
+    const data = {
+      ...score,
+      ...target.scoreMetadata,
+      value,
+      stringValue,
+      scoreTarget: target.scoreTarget,
+    };
+    if (!id) {
+      form.setValue(`scoreData.${index}.id`, next.id);
+      form.setValue(`scoreData.${index}.timestamp`, next.timestamp);
+    }
+    const revertDispatched = rememberDispatched(key, next);
+    trackSave(
+      id
+        ? updateScore({
+            ...data,
+            id,
+            timestamp: timestamp ?? undefined,
+          } as UpdateAnnotationScoreData)
+        : createScore({
+            ...data,
+            id: next.id,
+            timestamp: next.timestamp,
+          } as CreateAnnotationScoreData),
+      tracked,
+      next,
+      () => {
+        revertDispatched();
+        const currentIndex = indexOf(key);
+        if (currentIndex < 0) return;
+        form.setValue(`scoreData.${currentIndex}.value`, field.value);
+        form.setValue(
+          `scoreData.${currentIndex}.stringValue`,
+          field.stringValue,
+        );
+        if (!id) {
+          form.setValue(`scoreData.${currentIndex}.id`, field.id);
+          form.setValue(`scoreData.${currentIndex}.timestamp`, field.timestamp);
+        }
+        reportFailure(
+          field,
+          id ? "Failed to update score" : "Failed to create score",
+        );
+      },
+    );
+  };
+
+  const validateNumericInput = (
+    key: string,
+    target: PreparedAnnotationTarget,
+    input: HTMLInputElement,
+  ) => {
+    const field = find(key);
+    const config = target.configControl.configs.find(
+      (config) => config.id === field?.configId,
+    );
+    if (!field || !config) return undefined;
+    const value = input.value === "" ? null : input.valueAsNumber;
+    const error = validateNumericScore({
+      value,
+      badInput: input.validity.badInput,
+      minValue: config.minValue,
+      maxValue: config.maxValue,
+    });
+    const index = indexOf(key);
+    const name = `scoreData.${index}.value` as const;
+    const currentError = form.getFieldState(name).error;
+    if (error) {
+      if (currentError?.message !== error)
+        form.setError(name, { type: "validate", message: error });
+      return undefined;
+    }
+    if (currentError) form.clearErrors(name);
+    return value;
+  };
+
+  function saveComment(
+    key: string,
+    target: PreparedAnnotationTarget,
+    comment: string | null,
+  ) {
+    const field = find(key);
+    const saved = field ? dispatchedScores.get(key) : undefined;
+    if (!field?.id || editsDisabled || !saved?.id || saved.id !== field.id)
+      return;
+    const scoreId = field.id;
+    // Bookkeeping follows the last dispatched score. The form keeps whatever
+    // the reviewer has typed until that input is validated and saved.
+    const recorded = { ...saved, comment };
+    const tracked = beginSave(
+      comment ? "update_comment" : "delete_comment",
+      recorded,
+    );
+    replaceField(indexOf(key), { ...field, comment });
+    const send = () => {
+      const current = dispatchedScores.get(key);
+      // A later edit of this same score wins. A clear or a replacement score
+      // has a different id, and this comment belonged to the one captured above.
+      if (!current?.id || current.id !== scoreId) return Promise.resolve();
+      const { targetKey: _targetKey, ...score } = current;
+      return updateScore({
+        ...score,
+        ...target.scoreMetadata,
+        scoreTarget: target.scoreTarget,
+        comment,
+      } as UpdateAnnotationScoreData);
+    };
+    // Wait for writes already in flight. The payload is the last value sent
+    // for this score, not the live form, so an unsaved keystroke is not stored.
+    const inFlight = pendingFields.has(key) ? fieldWrites.get(key) : undefined;
+    trackSave(
+      inFlight ? inFlight.then(send) : send(),
+      tracked,
+      recorded,
+      () => {
+        const index = indexOf(key);
+        if (index < 0) return;
+        replaceField(index, field);
+        form.setError(`scoreData.${index}.comment`, {
+          type: "server",
+          message:
+            failureDetails.get(key)?.message ?? "Failed to update comment",
+        });
+      },
+    );
+  }
+
+  // Match Save Changes: trim, drop a no-op, and delete the comment when the
+  // trimmed draft is empty. An optimistic field update makes a second flush
+  // a no-op; a failed save rolls the field back and leaves the draft to retry.
+  async function flushPendingComments(): Promise<FailedAnnotationScoreWrite[]> {
+    for (const [key, attempted] of [...failedAttempts]) {
+      if (pendingFields.has(key)) continue;
+      const field = find(key);
+      const target = field
+        ? initialTargets.find((item) => item.key === field.targetKey)
+        : undefined;
+      if (!field || !target || (editsDisabled && field.id)) continue;
+      const valueUnsaved =
+        field.value !== attempted.value ||
+        (field.stringValue ?? null) !== (attempted.stringValue ?? null);
+      if (!valueUnsaved) continue;
+      upsert(
+        key,
+        target,
+        attempted.value ?? null,
+        attempted.stringValue ?? null,
+      );
+    }
+    for (const [key, draft] of commentDrafts) {
+      const field = find(key);
+      if (!field?.id || editsDisabled) continue;
+      const trimmed = draft.trim();
+      if (trimmed === (field.comment || "")) continue;
+      const target = initialTargets.find(
+        (item) => item.key === field.targetKey,
+      );
+      if (!target) continue;
+      saveComment(key, target, trimmed || null);
+    }
+    const watched = new Set<string>();
+    const seen = new Set<Promise<unknown>>();
+    for (;;) {
+      for (const key of pendingFields.keys()) watched.add(key);
+      const pending: Promise<unknown>[] = [];
+      for (const field of fields()) {
+        const write = fieldWrites.get(annotationFieldKey(field));
+        if (write && !seen.has(write)) pending.push(write);
+      }
+      if (pending.length === 0) break;
+      for (const write of pending) seen.add(write);
+      await Promise.all(pending);
+    }
+    const failed: FailedAnnotationScoreWrite[] = [];
+    for (const field of fields()) {
+      const key = annotationFieldKey(field);
+      if (!watched.has(key) || !failedFields.has(key)) continue;
+      failed.push(
+        failureDetails.get(key) ?? {
+          name: field.name,
+          message: "Could not save this score",
+        },
+      );
+    }
+    return failed;
+  }
+
+  return {
+    saveStore,
+    indexOf,
+    isSaving: (key: string) => pendingFields.has(key),
+    clear,
+    validateNumericInput,
+    reconcileServerFields(incoming: AnnotationScoreFormData[]) {
+      const confirmedFields = new Map(saveStore.getState().confirmedFields);
+      let changed = false;
+      for (const next of incoming) {
+        const key = annotationFieldKey(next);
+        if (pendingFields.has(key) || failedFields.has(key)) continue;
+        const current = find(key);
+        const confirmed = confirmedFields.get(key);
+        // A repeated pre-save snapshot is not an external edit, including
+        // after a cleared row is removed. Once the server acknowledges the
+        // local value, later changes can replace it.
+        const previousServer = serverFields.get(key);
+        if (
+          confirmed &&
+          confirmed.sequence > 0 &&
+          !sameScore(confirmed.field, previousServer) &&
+          sameScore(next, previousServer) &&
+          !sameScore(next, confirmed.field)
+        )
+          continue;
+        if (current) {
+          const index = indexOf(key);
+          if (
+            !sameScore(current, confirmed?.field) ||
+            form.getFieldState(`scoreData.${index}.value`).invalid ||
+            form.getFieldState(`scoreData.${index}.stringValue`).invalid ||
+            form.getFieldState(`scoreData.${index}.comment`).invalid
+          )
+            continue;
+          const properties = [
+            "id",
+            "name",
+            "dataType",
+            "value",
+            "stringValue",
+            "comment",
+            "timestamp",
+          ] as const;
+          for (const property of properties) {
+            const value = next[property];
+            const previous = current[property];
+            const equal =
+              property === "timestamp"
+                ? next.timestamp?.getTime() === current.timestamp?.getTime()
+                : value === previous;
+            if (equal) continue;
+            form.setValue(`scoreData.${index}.${property}`, value);
+            changed = true;
+          }
+        } else {
+          // Empty selections belong to the local form. Only saved server
+          // scores can introduce rows during a refresh.
+          if (!next.id) continue;
+          const currentFields = fields();
+          const before = currentFields.findIndex(
+            (field) => field.name.localeCompare(next.name) > 0,
+          );
+          insertField(before < 0 ? currentFields.length : before, next, {
+            shouldFocus: false,
+          });
+          changed = true;
+        }
+        serverFields.set(key, { ...next });
+        dispatchedScores.set(key, { ...next });
+        confirmedFields.set(key, {
+          field: { ...next },
+          sequence: confirmed?.sequence ?? 0,
+        });
+      }
+      if (changed) saveStore.setState({ confirmedFields });
+    },
+    addDraftTarget(key: string, destination: PreparedAnnotationTarget) {
+      const field = find(key);
+      const config = destination.configControl.configs.find(
+        (config) => config.id === field?.configId,
+      );
+      if (
+        !field ||
+        !destination.configControl.allowManualSelection ||
+        !config ||
+        config.isArchived
+      )
+        return undefined;
+      const next = {
+        ...field,
+        targetKey: destination.key,
+        id: null,
+        timestamp: null,
+        value: null,
+        stringValue: null,
+        comment: null,
+      };
+      const nextKey = annotationFieldKey(next);
+      if (find(nextKey)) return nextKey;
+      insertField(indexOf(key) + 1, next, { shouldFocus: false });
+      capture("score:level_added", {
+        ...destination.analyticsData,
+        targetType: getAnnotationTargetType(destination.scoreTarget),
+        dataType: field.dataType,
+      });
+      return nextKey;
+    },
+    changeDraftTarget(key: string, destination: PreparedAnnotationTarget) {
+      const field = find(key);
+      if (!field || field.id || saveStore.getState().pending) return undefined;
+      const source = initialTargets.find(
+        (target) => target.key === field.targetKey,
+      );
+      const config = destination.configControl.configs.find(
+        (config) => config.id === field.configId,
+      );
+      const next = { ...field, targetKey: destination.key };
+      const index = indexOf(key);
+      if (
+        !source?.configControl.allowManualSelection ||
+        !destination.configControl.allowManualSelection ||
+        !config ||
+        config.isArchived ||
+        find(annotationFieldKey(next)) ||
+        form.getFieldState(`scoreData.${index}.value`).invalid ||
+        form.getFieldState(`scoreData.${index}.stringValue`).invalid
+      )
+        return undefined;
+      replaceField(index, next);
+      capture("score:level_changed", {
+        ...source.analyticsData,
+        targetType: getAnnotationTargetType(destination.scoreTarget),
+        previousTargetType: getAnnotationTargetType(source.scoreTarget),
+        dataType: field.dataType,
+      });
+      return annotationFieldKey(next);
+    },
+    open() {
+      isClosed = false;
+      analytics.forEach((tracker) => tracker.open());
+    },
+    close() {
+      isClosed = true;
+      if (savedStatusTimer) clearTimeout(savedStatusTimer);
+      savedStatusTimer = undefined;
+      analytics.forEach((tracker, key) =>
+        tracker.close(fields().filter((field) => field.targetKey === key)),
+      );
+    },
+    setCommentDraft(key: string, draft: string | null) {
+      if (draft === null) commentDrafts.delete(key);
+      else commentDrafts.set(key, draft);
+    },
+    getCommentDraft(key: string) {
+      return commentDrafts.get(key) ?? null;
+    },
+    flushPendingComments,
+    saveNumeric(
+      key: string,
+      target: PreparedAnnotationTarget,
+      input: HTMLInputElement,
+    ) {
+      const value = validateNumericInput(key, target, input);
+      if (value === undefined) return;
+      if (value === null) {
+        if (find(key)?.id) clear(key, target);
+      } else upsert(key, target, value, null);
+    },
+    saveText(key: string, target: PreparedAnnotationTarget) {
+      const field = find(key);
+      if (!field) return;
+      if (field.stringValue) upsert(key, target, 0, field.stringValue);
+      else if (field.id) clear(key, target);
+    },
+    saveCategory(
+      key: string,
+      target: PreparedAnnotationTarget,
+      stringValue: string,
+      numericValue?: number,
+    ) {
+      const field = find(key);
+      const config = target.configControl.configs.find(
+        (config) => config.id === field?.configId,
+      );
+      if (!config) return;
+      const value = resolveCategoricalNumericValue({
+        categories: config.categories,
+        stringValue,
+        numericValue,
+      });
+      if (isPresent(value)) upsert(key, target, value, stringValue);
+    },
+    saveComment,
+  };
+}
+
+export type AnnotationFormActions = ReturnType<
+  typeof createAnnotationFormActions
+>;

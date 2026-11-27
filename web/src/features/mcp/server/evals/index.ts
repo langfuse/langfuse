@@ -1,0 +1,146 @@
+import { env } from "@/src/env.mjs";
+import type { McpFeatureModule } from "../tools";
+import {
+  listEvaluatorsTool,
+  handleListEvaluators,
+} from "./tools/listEvaluators";
+import { getEvaluatorTool, handleGetEvaluator } from "./tools/getEvaluator";
+import {
+  createEvaluatorTool,
+  handleCreateEvaluator,
+} from "./tools/createEvaluator";
+import {
+  updateEvaluatorTool,
+  handleUpdateEvaluator,
+} from "./tools/updateEvaluator";
+import {
+  deleteEvaluatorTool,
+  handleDeleteEvaluator,
+} from "./tools/deleteEvaluator";
+import {
+  listEvaluationRulesTool,
+  handleListEvaluationRules,
+} from "./tools/listEvaluationRules";
+import {
+  getEvaluationRuleTool,
+  handleGetEvaluationRule,
+} from "./tools/getEvaluationRule";
+import {
+  createEvaluationRuleTool,
+  handleCreateEvaluationRule,
+} from "./tools/createEvaluationRule";
+import {
+  updateEvaluationRuleTool,
+  handleUpdateEvaluationRule,
+} from "./tools/updateEvaluationRule";
+import {
+  deleteEvaluationRuleTool,
+  handleDeleteEvaluationRule,
+} from "./tools/deleteEvaluationRule";
+import {
+  handleListManagedEvaluatorTemplates,
+  listManagedEvaluatorTemplatesTool,
+} from "./tools/listManagedEvaluatorTemplates";
+import {
+  attachEvaluatorToEvaluationRuleTool,
+  detachEvaluatorFromEvaluationRuleTool,
+  handleAttachEvaluatorToEvaluationRule,
+  handleDetachEvaluatorFromEvaluationRule,
+} from "./tools/manageEvaluationRuleEvaluators";
+import { handleTestEvaluator, testEvaluatorTool } from "./tools/testEvaluator";
+import {
+  deleteDefaultEvaluationModelTool,
+  getDefaultEvaluationModelTool,
+  handleDeleteDefaultEvaluationModel,
+  handleGetDefaultEvaluationModel,
+  handleSetDefaultEvaluationModel,
+  setDefaultEvaluationModelTool,
+} from "./tools/defaultEvaluationModel";
+import {
+  handleRunBatchEvaluation,
+  runBatchEvaluationTool,
+} from "./tools/runBatchEvaluation";
+
+export const evalsFeature = {
+  name: "evals",
+  description:
+    "Manage evaluators, evaluation rules, and the default evaluation model in the current Langfuse project",
+  tools: [
+    {
+      definition: listManagedEvaluatorTemplatesTool,
+      handler: handleListManagedEvaluatorTemplates,
+    },
+    {
+      definition: listEvaluatorsTool,
+      handler: handleListEvaluators,
+    },
+    {
+      definition: getEvaluatorTool,
+      handler: handleGetEvaluator,
+    },
+    {
+      definition: testEvaluatorTool,
+      handler: handleTestEvaluator,
+    },
+    { definition: createEvaluatorTool, handler: handleCreateEvaluator },
+    { definition: updateEvaluatorTool, handler: handleUpdateEvaluator },
+    {
+      definition: deleteEvaluatorTool,
+      handler: handleDeleteEvaluator,
+    },
+    {
+      definition: listEvaluationRulesTool,
+      handler: handleListEvaluationRules,
+    },
+    {
+      definition: getEvaluationRuleTool,
+      handler: handleGetEvaluationRule,
+    },
+    {
+      definition: createEvaluationRuleTool,
+      handler: handleCreateEvaluationRule,
+    },
+    {
+      definition: updateEvaluationRuleTool,
+      handler: handleUpdateEvaluationRule,
+    },
+    {
+      definition: attachEvaluatorToEvaluationRuleTool,
+      handler: handleAttachEvaluatorToEvaluationRule,
+    },
+    {
+      definition: detachEvaluatorFromEvaluationRuleTool,
+      handler: handleDetachEvaluatorFromEvaluationRule,
+    },
+    {
+      definition: deleteEvaluationRuleTool,
+      handler: handleDeleteEvaluationRule,
+    },
+    {
+      definition: getDefaultEvaluationModelTool,
+      handler: handleGetDefaultEvaluationModel,
+    },
+    {
+      definition: setDefaultEvaluationModelTool,
+      handler: handleSetDefaultEvaluationModel,
+    },
+    {
+      definition: deleteDefaultEvaluationModelTool,
+      handler: handleDeleteDefaultEvaluationModel,
+    },
+  ],
+} as const satisfies McpFeatureModule;
+
+export const batchEvaluationsFeature = {
+  name: "batchEvaluations",
+  description:
+    "Run evaluators over existing observations in the current Langfuse project",
+  tools: [
+    {
+      definition: runBatchEvaluationTool,
+      handler: handleRunBatchEvaluation,
+    },
+  ],
+  isEnabled: async () =>
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
+} as const satisfies McpFeatureModule;

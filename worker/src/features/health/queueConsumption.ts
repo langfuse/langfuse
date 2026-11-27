@@ -44,7 +44,10 @@ export const markQueueJobActivity = (): void => {
   lastActivityMs = Date.now();
 };
 
-/** Test-only: module state is global, so tests must reset between cases. */
+/**
+ * Test-only: module state is global, so tests must reset between cases.
+ * @internal
+ */
 export const resetQueueConsumptionStateForTest = (): void => {
   registeredWorkerCount = 0;
   trackingSinceMs = null;
@@ -56,7 +59,7 @@ export const resetQueueConsumptionStateForTest = (): void => {
  * a fresh boot gets a full threshold of grace before the probe may fail, and a
  * container without any registered consumers (API-only) is never stuck.
  */
-export const evaluateQueueConsumptionStuck = (input: {
+const evaluateQueueConsumptionStuck = (input: {
   nowMs: number;
   registeredWorkerCount: number;
   trackingSinceMs: number | null;

@@ -370,10 +370,27 @@ paths:
             schema:
               type: object
               properties:
+                name:
+                  type: string
+                  nullable: true
+                  description: >-
+                    Optional name for the API key. Cannot be provided together
+                    with note, even if either value is an empty string.
                 note:
                   type: string
                   nullable: true
-                  description: Optional note for the API key
+                  description: >-
+                    Deprecated alias for name. Cannot be provided together with
+                    name, even if either value is an empty string.
+                  deprecated: true
+                expiresAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                  description: >-
+                    Optional expiration timestamp in ISO 8601 format. Must be in
+                    the future. Omit or set to null for a key that does not
+                    expire.
   /api/admin/organizations/{organizationId}/apiKeys/{apiKeyId}:
     delete:
       description: Delete an API key for an organization
@@ -423,6 +440,71 @@ paths:
               schema:
                 type: string
       security: *ref_0
+  /api/admin/projects/{projectId}/transfer:
+    post:
+      description: >-
+        Transfer a project to another organization. The project keeps its data
+        and its project-scoped API keys. Its project memberships and
+        project-level user roles are removed, so members of the target
+        organization get access through their organization role, and
+        organization-scoped API keys of the source organization lose access.
+
+
+        Transferring a project to the organization it already belongs to is a
+        no-op.
+      operationId: organizations_transferProject
+      tags:
+        - Organizations
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferProjectResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                targetOrganizationId:
+                  type: string
+                  description: ID of the organization to move the project into
+              required:
+                - targetOrganizationId
 components:
   schemas:
     Organizations:
@@ -496,6 +578,19 @@ components:
           type: boolean
       required:
         - success
+    TransferProjectResponse:
+      title: TransferProjectResponse
+      type: object
+      description: Response for a project transfer
+      properties:
+        projectId:
+          type: string
+        organizationId:
+          type: string
+          description: ID of the organization the project belongs to after the transfer
+      required:
+        - projectId
+        - organizationId
     ApiKeyList:
       title: ApiKeyList
       type: object
@@ -521,13 +616,22 @@ components:
           type: string
           format: date-time
           nullable: true
+          description: Expiration timestamp. Null if the key does not expire.
         lastUsedAt:
           type: string
           format: date-time
           nullable: true
+        name:
+          type: string
+          nullable: true
+          description: >-
+            Name of the API key. Contains the same value as note; null if no
+            name was provided.
         note:
           type: string
           nullable: true
+          description: Deprecated alias for name. Contains the same value as name.
+          deprecated: true
         publicKey:
           type: string
         displaySecretKey:
@@ -547,15 +651,28 @@ components:
         createdAt:
           type: string
           format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Expiration timestamp. Null if the key does not expire.
         publicKey:
           type: string
         secretKey:
           type: string
         displaySecretKey:
           type: string
+        name:
+          type: string
+          nullable: true
+          description: >-
+            Name of the API key. Contains the same value as note; null if no
+            name was provided.
         note:
           type: string
           nullable: true
+          description: Deprecated alias for name. Contains the same value as name.
+          deprecated: true
       required:
         - id
         - createdAt

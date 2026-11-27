@@ -36,10 +36,27 @@ Pushing updates it; closing the PR tears it down.
   pinned at the top of the PR description (removed again on teardown), and a
   deployment in the shared GitHub `PR Preview` environment gives the PR a
   **View deployment** button. No manual step, no label to add.
-- **Log in** — use the credentials in the **bot's PR comment** (the source of
-  truth). The demo project's shared seed identity is `demo@langfuse.com` /
-  `password`, with API keys `pk-lf-1234567890` / `sk-lf-1234567890` — shared and
-  synthetic, so never treat a preview as private.
+- **Log in** — previews sign you in automatically as the shared demo user; just
+  open the URL. To use the regular sign-in flow instead (e.g. to test auth
+  changes), open `/auth/sign-in?autoSignIn=false` and use the credentials in
+  the **bot's PR comment** (the source of truth); signing out via the UI also
+  lands on that opted-out form, so you stay signed out until you next open a
+  protected page. The demo project's
+  shared seed identity is `demo@langfuse.com` / `password`, with API keys
+  `pk-lf-1234567890` / `sk-lf-1234567890` — shared and synthetic, so never
+  treat a preview as private.
+- **Open it from Linear** — on any Linear issue linked to the PR, the preview
+  sits behind the issue's **Preview** shortcut. Linear builds that shortcut by
+  parsing the PR description and bot comments for markdown links whose label
+  ends in "preview", so both preview surfaces label their link that way
+  (`pr-<N> app preview`, `pr-<N> storybook preview`) — keep that suffix when
+  editing either comment, or the shortcut disappears. A bare URL is not
+  matched.
+- **Read captured email** — each preview has an in-namespace Mailpit SMTP
+  sink (invites, password reset, batch-export, spend alerts, mentions). It
+  does not send real mail. The UI is not public; port-forward it:
+  `kubectl -n langfuse-pr-<N> port-forward svc/preview-mailpit 8025:8025`
+  then open `http://localhost:8025`.
 - **Know where you are** — every preview page shows a top strip linking back
   to the PR, with the author and when the preview content last changed.
 - **Update** — push to the PR; it rebuilds and rolls to the new image (~5 min,
@@ -61,11 +78,15 @@ Pushing updates it; closing the PR tears it down.
 - **Disposable data.** Closing a PR destroys its database; reopening gives a
   **fresh** environment, not the old one.
 - **Forks can't preview.** External / fork PRs never build or deploy.
+- **AI gateway.** Changes under `web/src/features/ai-gateway/`,
+  `web/src/pages/api/internal/ai-gateway/`, or `ai-gateway/` auto-apply
+  `ai-gateway-preview`. That label is what deploys the gateway into the preview.
 
 ## Add or improve data in a preview
 
-Previews start pre-seeded with the demo project and some synthetic traces. To
-add the specific shape you're testing — a very deep trace, a huge session, bulk
+Previews start pre-seeded with the demo project and some synthetic traces, seeded once on first deploy with the newest trace at that moment; on a preview older than a day, widen the time filter to see them.
+
+To add the specific shape you're testing — a very deep trace, a huge session, bulk
 traces for list performance, v4 events, malformed payloads — run the
 deterministic **seed CLI from your local checkout**, pointed at the preview's
 datastores over a `port-forward`. The CLI has no LLM/agent loop; you (or your
@@ -92,7 +113,7 @@ CHPW=$(kubectl -n $NS get secret langfuse-secrets -o jsonpath='{.data.clickhouse
 #    NEXTAUTH_URL makes the CLI's printed deep links point at the preview UI
 cd packages/shared
 DATABASE_URL="postgresql://postgres:$PGPW@localhost:5432/postgres_langfuse" \
-CLICKHOUSE_URL="http://localhost:8123" CLICKHOUSE_PASSWORD="$CHPW" \
+CLICKHOUSE_URL="http://localhost:8123" CLICKHOUSE_USER=default CLICKHOUSE_PASSWORD="$CHPW" \
 NEXTAUTH_URL="https://pr-<N>.preview.langfuse.com" \
 pnpm run seed:scenario -- deep-chain --v4
 ```
@@ -100,6 +121,10 @@ pnpm run seed:scenario -- deep-chain --v4
 - `pnpm run seed:scenario -- list` shows every scenario and flag; add
   `--dry-run` to predict counts and write nothing. Full catalog: the
   `seed-test-data` skill.
+- **`CLICKHOUSE_USER=default` is not optional.** Previews run ClickHouse as
+  `default`, while local `docker-compose.dev.yml` uses `clickhouse` — so without
+  the override your local `.env` wins and the seed fails with
+  `Code: 516 ... AUTHENTICATION_FAILED`. Postgres needs no equivalent override.
 - The last stdout line is a JSON summary with `verified` and clickable `links`
   straight into the preview UI.
 - Run from a checkout whose **migrations match the PR** — scenario code and the
@@ -176,8 +201,8 @@ kubectl annotate ns $NS downscaler/force-uptime-                   # undo later 
   your labeled PRs deploy — no admin needed.
 - **Cluster access — available to all Langfuse engineers** (only needed to
   debug with `kubectl`, not to *use* a preview). Set up local access using the
-  `~/.aws/config` profile block from the internal Langfuse doc:
-  https://linear.app/langfuse/document/connect-to-aws-instances-aurora-redis-from-local-machine-896fe46ff797
+  `~/.aws/config` profile block from the internal Langfuse tracker document
+  *"Connect to AWS instances (Aurora, Redis) from local machine"*.
   1. Open `~/.aws/config` and add the `[sso-session langfuse]` + `[profile preview]`
      blocks from that doc (keep any `[sso-session langfuse]` you already have).
   2. `aws sso login --profile preview`

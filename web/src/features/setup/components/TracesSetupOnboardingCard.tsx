@@ -1,23 +1,32 @@
 import { ActionButton } from "@/src/components/ActionButton";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
-import { SplashScreen } from "@/src/components/ui/splash-screen";
+import { SplashScreen } from "@/src/components/ui/SplashScreen";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import {
+  onboardingApiKeyCreateInput,
+  onboardingApiKeyHint,
+} from "@/src/features/apiKey/fns/onboardingApiKey";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Check, Copy, LockIcon, Sparkles } from "lucide-react";
+import { legacyApiKeyRoleForScope } from "@langfuse/shared/rbac";
+import { Check, Copy, LockIcon, Sparkles } from "@langfuse/icons";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useState } from "react";
-import { toast } from "sonner";
+import { showToast } from "@/src/features/notifications/showToast";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 const SKILLS_INSTALL_COMMAND =
   "Install the Langfuse AI skill from github.com/langfuse/skills and use it to add tracing to this application with Langfuse following best practices.";
 const MANUAL_TRACING_DOCS_URL =
   "https://langfuse.com/docs/observability/get-started";
+const CREATE_API_KEYS_DESCRIPTION =
+  "Your application needs API keys to send traces to Langfuse.";
 
 function CopyableSnippet({
   value,
@@ -35,7 +44,15 @@ function CopyableSnippet({
       setCopied(true);
       setTimeout(() => setCopied(false), 1000);
     } catch {
-      toast.error("Failed to copy to clipboard");
+      showToast({
+        type: "ERROR",
+        title: "Failed to copy to clipboard",
+        analytics: {
+          operation: "onboarding_prompt.copy",
+          errorOrigin: "frontend",
+          errorCategory: "internal",
+        },
+      });
     }
   };
 
@@ -50,7 +67,11 @@ function CopyableSnippet({
         className="shrink-0 gap-2"
         onClick={() => handleCopy()}
       >
-        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+        {copied ? (
+          <Check size="base" color="default" />
+        ) : (
+          <Copy size="base" color="default" />
+        )}
         {copied ? "Copied" : "Copy prompt"}
       </Button>
     </div>
@@ -68,6 +89,10 @@ export function TracesSetupOnboardingCard({
     projectId,
     scope: "apiKeys:CUD",
   });
+  const { data: session } = useSession();
+  const roleSelectionEnabled =
+    session?.environment?.apiKeyProjectRoleSelectionEnabled ?? false;
+  const keyHint = onboardingApiKeyHint(roleSelectionEnabled);
   const [apiKeys, setApiKeys] = useState<
     RouterOutput["projectApiKeys"]["create"] | null
   >(null);
@@ -80,13 +105,20 @@ export function TracesSetupOnboardingCard({
   });
 
   const createApiKey = async () => {
-    capture("onboarding:tracing_api_key_create_clicked");
+    const input = onboardingApiKeyCreateInput(projectId, roleSelectionEnabled);
+    capture("onboarding:tracing_api_key_create_clicked", {
+      role: input.role ?? legacyApiKeyRoleForScope("project"),
+    });
 
     try {
-      await mutCreateApiKey.mutateAsync({ projectId });
+      await mutCreateApiKey.mutateAsync(input);
     } catch (error) {
-      console.error("Error creating API key:", error);
-      toast.error("Failed to create API key");
+      reportNonTrpcError(error, "setup");
+      showToast({
+        type: "ERROR",
+        title: "Failed to create API key",
+        analytics: classifyTrpcToastError(error, "project_api_key.create"),
+      });
     }
   };
 
@@ -95,13 +127,13 @@ export function TracesSetupOnboardingCard({
       waitingFor="Waiting for first trace"
       title="Time to log your first trace, it only takes a minute"
       description="Get your API keys first, then ask your coding agent to add observability with Langfuse to your application."
-      videoSrc="https://static.langfuse.com/prod-assets/onboarding/traces-overview-v1.mp4"
-      videoPosition="bottom"
       steps={[
         {
           title: "Create API keys",
-          description:
-            "Your application needs API keys to send traces to Langfuse.",
+          description: hasApiKeyCreateAccess
+            ? `${CREATE_API_KEYS_DESCRIPTION} ${keyHint.sentence}`
+            : CREATE_API_KEYS_DESCRIPTION,
+          descriptionInfo: hasApiKeyCreateAccess ? keyHint.tooltip : undefined,
           content: apiKeys ? (
             <ApiKeyDetailContent
               scope="project"
@@ -124,7 +156,8 @@ export function TracesSetupOnboardingCard({
               ) : (
                 <Button disabled className="self-start">
                   <LockIcon
-                    className="mr-2 -ml-0.5 h-4 w-4"
+                    size="base"
+                    __rawClassName="mr-2 -ml-0.5"
                     aria-hidden="true"
                   />
                   Create new API key
@@ -142,10 +175,7 @@ export function TracesSetupOnboardingCard({
         {
           title: "Add tracing with your coding agent",
           badge: (
-            <Badge variant="tertiary" className="gap-1">
-              <Sparkles className="h-3 w-3" />
-              Recommended
-            </Badge>
+            <Badge color="filled" leadingIcon={Sparkles} text="Recommended" />
           ),
           description:
             "Paste this prompt into Claude, Cursor, Copilot, or another coding agent.",

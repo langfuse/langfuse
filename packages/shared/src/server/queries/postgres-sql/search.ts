@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { TracingSearchType } from "../../../interfaces/search";
+import { escapeSqlLikePattern } from "../../utils/sqlLike";
 
 /**
  * Builds PostgreSQL search condition for full-text search using ILIKE.
@@ -44,6 +45,7 @@ export function postgresSearchCondition(params: {
   }
 
   const prefix = tablePrefix ? `${tablePrefix}.` : "";
+  const pattern = `%${escapeSqlLikePattern(searchQuery)}%`;
   const types = searchType ?? ["id"];
   const searchConditions: Prisma.Sql[] = [];
 
@@ -51,7 +53,7 @@ export function postgresSearchCondition(params: {
   if (types.includes("id")) {
     for (const column of metadataColumns) {
       searchConditions.push(
-        Prisma.sql`${Prisma.raw(`${prefix}${column}`)} ILIKE ${`%${searchQuery}%`}`,
+        Prisma.sql`${Prisma.raw(`${prefix}${column}`)} ILIKE ${pattern}`,
       );
     }
   }
@@ -64,7 +66,7 @@ export function postgresSearchCondition(params: {
   ) {
     for (const column of contentColumns.content) {
       searchConditions.push(
-        Prisma.sql`${Prisma.raw(`${prefix}${column}`)}::text ILIKE ${`%${searchQuery}%`}`,
+        Prisma.sql`${Prisma.raw(`${prefix}${column}`)}::text ILIKE ${pattern}`,
       );
     }
   }
@@ -72,14 +74,14 @@ export function postgresSearchCondition(params: {
   // Search input only (only if column is defined)
   if (types.includes("input") && contentColumns.input) {
     searchConditions.push(
-      Prisma.sql`${Prisma.raw(`${prefix}${contentColumns.input}`)}::text ILIKE ${`%${searchQuery}%`}`,
+      Prisma.sql`${Prisma.raw(`${prefix}${contentColumns.input}`)}::text ILIKE ${pattern}`,
     );
   }
 
   // Search output only (only if column is defined)
   if (types.includes("output") && contentColumns.output) {
     searchConditions.push(
-      Prisma.sql`${Prisma.raw(`${prefix}${contentColumns.output}`)}::text ILIKE ${`%${searchQuery}%`}`,
+      Prisma.sql`${Prisma.raw(`${prefix}${contentColumns.output}`)}::text ILIKE ${pattern}`,
     );
   }
 

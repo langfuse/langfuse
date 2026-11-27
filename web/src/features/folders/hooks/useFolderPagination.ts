@@ -88,5 +88,3 @@ export const useFolderPagination = () => {
     resetPaginationAndFolder,
   };
 };
-
-export type UseFolderPaginationReturn = ReturnType<typeof useFolderPagination>;

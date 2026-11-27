@@ -1,12 +1,14 @@
+// @vitest-environment node
+
 import {
   mergeScoresWithCache,
   mergeAggregatesWithCache,
   mergeAnnotationScoresWithCache,
 } from "@/src/features/scores/lib/mergeScoresWithCache";
+import type { CachedScore } from "@/src/features/scores/contexts/ScoreCacheProvider";
+import type { AnnotationScore } from "@/src/features/scores/types";
 import { type ScoreDomain, type ScoreAggregate } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { type CachedScore } from "@/src/features/scores/contexts/ScoreCacheContext";
-import { type AnnotationScore } from "@/src/features/scores/types";
 
 describe("mergeScoresWithCache", () => {
   it("should return server scores when cache is empty", () => {

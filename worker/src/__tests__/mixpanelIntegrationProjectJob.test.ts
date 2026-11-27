@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 /**
  * Regression tests for the Mixpanel analytics export throttling fix (issue #12786).
@@ -42,6 +42,9 @@ const h = vi.hoisted(() => {
   }
 
   const mixpanelIntegrationUpdate = vi.fn();
+  const mixpanelIntegrationUpdateMany = vi.fn(async () => ({ count: 1 }));
+
+  const flushError: { value: Error | undefined } = { value: undefined };
 
   const defaultIntegration = () => ({
     projectId: "project-1",
@@ -50,7 +53,7 @@ const h = vi.hoisted(() => {
     mixpanelRegion: "api",
     encryptedMixpanelProjectToken: "enc",
     lastSyncAt: new Date("2024-01-01"),
-    project: { name: "Test Project" },
+    project: { name: "Test Project", createdAt: new Date("2023-06-15") },
   });
 
   // Mutable row returned by the prisma findFirst mock so individual tests can
@@ -63,8 +66,10 @@ const h = vi.hoisted(() => {
     state,
     fakeStream,
     mixpanelIntegrationUpdate,
+    mixpanelIntegrationUpdateMany,
     defaultIntegration,
     db,
+    flushError,
   };
 });
 
@@ -72,6 +77,11 @@ vi.mock("../features/mixpanel/mixpanelClient", () => ({
   MixpanelClient: class {
     addEvent = vi.fn();
     flush = vi.fn().mockImplementation(async () => {
+      if (h.flushError.value) {
+        const err = h.flushError.value;
+        h.flushError.value = undefined; // reject once, then behave
+        throw err;
+      }
       h.timeline.push("flush");
     });
     getBatchSize = vi.fn().mockReturnValue(0);
@@ -112,6 +122,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
     mixpanelIntegration: {
       findFirst: vi.fn(async () => h.db.integration),
       update: h.mixpanelIntegrationUpdate,
+      updateMany: h.mixpanelIntegrationUpdateMany,
     },
   },
 }));
@@ -130,14 +141,23 @@ vi.mock("@langfuse/shared/src/server", () => ({
 }));
 
 // Import after mocks are registered.
-import { handleMixpanelIntegrationProjectJob } from "../features/mixpanel/handleMixpanelIntegrationProjectJob";
-import { getScoresForAnalyticsIntegrations } from "@langfuse/shared/src/server";
+import {
+  handleMixpanelIntegrationProjectJob,
+  MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC,
+} from "../features/mixpanel/handleMixpanelIntegrationProjectJob";
+import {
+  getEventsForAnalyticsIntegrations,
+  getScoresForAnalyticsIntegrations,
+  recordIncrement,
+} from "@langfuse/shared/src/server";
 import { env } from "../env";
 
-function makeJob() {
+// Mirrors the real queue's defaultJobOptions (mixpanelIntegrationProcessingQueue.ts).
+function makeJob(attemptsMade = 0) {
   return {
     data: { id: "job-1", payload: { projectId: "project-1" } },
-    attemptsMade: 0,
+    attemptsMade,
+    opts: { attempts: 5 },
   } as unknown as Parameters<typeof handleMixpanelIntegrationProjectJob>[0];
 }
 
@@ -265,5 +285,185 @@ describe("handleMixpanelIntegrationProjectJob legacy-mode enriched guard (LFE-11
     await handleMixpanelIntegrationProjectJob(makeJob());
 
     expect(h.mixpanelIntegrationUpdate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("handleMixpanelIntegrationProjectJob customer-fault auto-disable", () => {
+  beforeEach(() => {
+    h.timeline.length = 0;
+    h.mixpanelIntegrationUpdate.mockClear();
+    h.mixpanelIntegrationUpdateMany.mockClear();
+    h.mixpanelIntegrationUpdateMany.mockResolvedValue({ count: 1 });
+    h.db.integration = h.defaultIntegration();
+    h.flushError.value = undefined;
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+  });
+
+  it("disables the integration on a rejected token and resolves without advancing lastSyncAt", async () => {
+    const unauthorized = new Error("Mixpanel API error: 401 Unauthorized");
+    Object.assign(unauthorized, { statusCode: 401 });
+    h.flushError.value = unauthorized;
+
+    await expect(
+      handleMixpanelIntegrationProjectJob(makeJob()),
+    ).resolves.toBeUndefined();
+
+    expect(h.mixpanelIntegrationUpdateMany).toHaveBeenCalledWith({
+      where: {
+        projectId: "project-1",
+        enabled: true,
+        encryptedMixpanelProjectToken: "enc",
+        mixpanelRegion: "api",
+      },
+      data: { enabled: false },
+    });
+    expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
+  });
+
+  it("skips the disable and resolves when the config changed mid-run", async () => {
+    const unauthorized = new Error("Mixpanel API error: 401 Unauthorized");
+    Object.assign(unauthorized, { statusCode: 401 });
+    h.flushError.value = unauthorized;
+    h.mixpanelIntegrationUpdateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(
+      handleMixpanelIntegrationProjectJob(makeJob()),
+    ).resolves.toBeUndefined();
+
+    expect(h.mixpanelIntegrationUpdateMany).toHaveBeenCalledTimes(1);
+    expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rethrows the disable-write error when persisting the disable fails, so BullMQ retries", async () => {
+    const unauthorized = new Error("Mixpanel API error: 401 Unauthorized");
+    Object.assign(unauthorized, { statusCode: 401 });
+    h.flushError.value = unauthorized;
+    const dbDown = new Error("db unavailable");
+    h.mixpanelIntegrationUpdateMany.mockRejectedValueOnce(dbDown);
+
+    await expect(handleMixpanelIntegrationProjectJob(makeJob())).rejects.toBe(
+      dbDown,
+    );
+  });
+});
+
+describe("handleMixpanelIntegrationProjectJob customer-fault observability", () => {
+  beforeEach(() => {
+    h.timeline.length = 0;
+    h.mixpanelIntegrationUpdate.mockClear();
+    h.mixpanelIntegrationUpdateMany.mockClear();
+    h.db.integration = h.defaultIntegration();
+    h.flushError.value = undefined;
+    vi.mocked(recordIncrement).mockClear();
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+  });
+
+  it("records the customer-fault metric with reason and attempt", async () => {
+    const unauthorized = new Error("Mixpanel API error: 401 Unauthorized");
+    Object.assign(unauthorized, { statusCode: 401 });
+    h.flushError.value = unauthorized;
+
+    await handleMixpanelIntegrationProjectJob(makeJob(2));
+
+    expect(recordIncrement).toHaveBeenCalledWith(
+      MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC,
+      1,
+      { reason: "credentials", attempt: 2 },
+    );
+  });
+
+  it("does not record the customer-fault metric for an unclassified error", async () => {
+    const infraError = new Error("connection reset");
+    Object.assign(infraError, { code: "ECONNRESET" });
+    h.flushError.value = infraError;
+
+    await expect(handleMixpanelIntegrationProjectJob(makeJob())).rejects.toBe(
+      infraError,
+    );
+
+    expect(recordIncrement).not.toHaveBeenCalled();
+    expect(h.mixpanelIntegrationUpdateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("handleMixpanelIntegrationProjectJob sync window", () => {
+  const now = new Date("2026-10-06T12:00:00Z");
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    h.mixpanelIntegrationUpdate.mockClear();
+    vi.mocked(getEventsForAnalyticsIntegrations).mockClear();
+    h.db.integration = h.defaultIntegration();
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("caps a lagging sync at the next UTC day boundary", async () => {
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      lastSyncAt: new Date("2026-10-01T15:30:00Z"),
+    };
+
+    await handleMixpanelIntegrationProjectJob(makeJob());
+
+    const dayBoundary = new Date("2026-10-02T00:00:00Z");
+    expect(vi.mocked(getEventsForAnalyticsIntegrations)).toHaveBeenCalledWith(
+      "project-1",
+      "Test Project",
+      new Date("2026-10-01T15:30:00Z"),
+      dayBoundary,
+    );
+    expect(h.mixpanelIntegrationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { lastSyncAt: dayBoundary },
+      }),
+    );
+  });
+
+  it("advances a caught-up sync to 30 minutes ago", async () => {
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      lastSyncAt: new Date("2026-10-06T10:00:00Z"),
+    };
+
+    await handleMixpanelIntegrationProjectJob(makeJob());
+
+    expect(h.mixpanelIntegrationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          lastSyncAt: new Date("2026-10-06T11:30:00Z"),
+          backfill: false,
+        },
+      }),
+    );
+  });
+
+  it("starts the first sync at the project's creation date", async () => {
+    h.db.integration = { ...h.defaultIntegration(), lastSyncAt: null };
+
+    await handleMixpanelIntegrationProjectJob(makeJob());
+
+    expect(vi.mocked(getEventsForAnalyticsIntegrations)).toHaveBeenCalledWith(
+      "project-1",
+      "Test Project",
+      new Date("2023-06-15T00:00:00Z"),
+      new Date("2023-06-16T00:00:00Z"),
+    );
+  });
+
+  it("skips the run without exporting when the window is empty", async () => {
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      lastSyncAt: new Date("2026-10-06T11:45:00Z"),
+    };
+
+    await handleMixpanelIntegrationProjectJob(makeJob());
+
+    expect(vi.mocked(getEventsForAnalyticsIntegrations)).not.toHaveBeenCalled();
+    expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
   });
 });

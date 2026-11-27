@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
-  paginationZod,
+  publicApiPaginationZod,
+  isDecisionModelAdapter,
   LLMAdapter,
   type JSONValue,
   BedrockConfigSchema,
@@ -31,7 +32,7 @@ export const LlmConnectionResponse = z
 // GET /api/public/llm-connections query parameters
 export const GetLlmConnectionsV1Query = z
   .object({
-    ...paginationZod,
+    ...publicApiPaginationZod,
   })
   .strict();
 
@@ -48,10 +49,15 @@ export const GetLlmConnectionsV1Response = z
   })
   .strict();
 
+// Decision-model adapters are not part of the public contract.
+const PUBLIC_LLM_ADAPTERS = Object.values(LLMAdapter).filter(
+  (adapter) => !isDecisionModelAdapter(adapter),
+) as [LLMAdapter, ...LLMAdapter[]];
+
 // Base request schema (before adapter-specific validation)
 const PutLlmConnectionV1BodyBase = z.object({
   provider: z.string().min(1),
-  adapter: z.enum(LLMAdapter),
+  adapter: z.enum(PUBLIC_LLM_ADAPTERS),
   secretKey: z.string().min(1),
   baseURL: z.url().nullable().optional(),
   customModels: z.array(z.string().min(1)).optional(),
@@ -71,7 +77,7 @@ export const PutLlmConnectionV1Body = PutLlmConnectionV1BodyBase.superRefine(
         ctx.addIssue({
           code: "custom",
           message:
-            "Config is required for Bedrock adapter. Expected: { region: string }",
+            "Config is required for Bedrock adapter. Expected: { region: string, customModelConfig?: Record<string, { modelFamily: 'anthropic' }> }",
           path: ["config"],
         });
         return;
@@ -80,7 +86,7 @@ export const PutLlmConnectionV1Body = PutLlmConnectionV1BodyBase.superRefine(
       if (!configResult.success) {
         ctx.addIssue({
           code: "custom",
-          message: `Invalid Bedrock config: ${configResult.error.issues.map((e) => e.message).join(", ")}. Expected: { region: string }`,
+          message: `Invalid Bedrock config: ${configResult.error.issues.map((e) => e.message).join(", ")}. Expected: { region: string, customModelConfig?: Record<string, { modelFamily: 'anthropic' }> }`,
           path: ["config"],
         });
       }

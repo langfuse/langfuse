@@ -35,15 +35,21 @@ export const testModelCall = async ({
       score: z.string(),
       reasoning: z.string(),
     });
+  const promptSchema =
+    schema instanceof Object && "~standard" in schema
+      ? z.toJSONSchema(schema as ZodType)
+      : schema;
 
-  await generateLLMText({
+  const result = await generateLLMText({
     ...mapLegacyLLMCompletionParams({
       connection: apiKey,
       messages: [
         {
           role: ChatMessageRole.User,
-          content:
-            'Extract a score (1-5) and reasoning from this text: "This is a test. It worked perfectly because it matched all passing criteria."',
+          content: `Generate one example response that conforms to this JSON schema. Respect the type, description, allowed values, and bounds of every field. Keep any reasoning brief.
+
+JSON schema:
+${JSON.stringify(promptSchema)}`,
           type: ChatMessageType.User,
         },
       ],
@@ -57,4 +63,7 @@ export const testModelCall = async ({
     output: createLLMOutput(schema),
     timeout,
   });
+
+  // Accessing output makes the AI SDK validate that structured output exists.
+  const { output: _output } = result;
 };

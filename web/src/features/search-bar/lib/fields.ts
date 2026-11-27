@@ -1,9 +1,10 @@
+/* eslint-disable no-nested-ternary */
 // Field registry — the single source of truth for autocomplete, validation,
 // operator choice, and lowering into the flat Langfuse `FilterState`.
 //
-// Field ids/kinds mirror the v4 events table column definitions
-// (packages/shared/src/eventsTable.ts) and the observations-events filter
-// config (web/src/features/events/config/filter-config.ts). The registry only
+// Events field ids and kinds come from the shared events predicate source
+// (`eventsPredicateSource`, packages/shared/src/query-ast/sources.ts); each
+// row here adds only the bar's grammar on top. The registry only
 // expresses what the existing events tRPC contract accepts today — the
 // adapter never emits a filter shape the sidebar could not produce.
 //
@@ -16,19 +17,41 @@
 // AUTOCOMPLETE picker independently — `id`/`name` are textSearch (so `id:abc`
 // is a substring search) yet keep their observed-value picker.
 
+import {
+  eventsPredicateSource,
+  eventsTableCols,
+  ObservationLevel,
+  ObservationType,
+  type ColumnDefinition,
+  type FilterState,
+  type PredicateSource,
+  type SingleValueOption,
+  type TracingSearchType,
+} from "@langfuse/shared";
+
 import type { CompareOp } from "./ast";
 import { quoteIfNeeded, unquote } from "./quoting";
 
-export type FieldKind = "text" | "number" | "datetime" | "boolean";
-export type SyncMode = "exactOption" | "arrayOption" | "textSearch";
+type FieldKind = "text" | "number" | "datetime" | "boolean";
+type SyncMode = "exactOption" | "arrayOption" | "textSearch";
 
 export type FieldDef = {
-  /** Canonical field id; also the filter `column` sent to the API. */
+  /** Canonical query field id; defaults to the FilterState column unless
+   * `filterColumn` maps a display-oriented field to canonical storage. */
   id: string;
   /** Lowercase aliases accepted by the grammar (canonical id always works too). */
   aliases: string[];
   kind: FieldKind;
   syncMode: SyncMode;
+  /** Human name, used as the subject of a token's explanation ("Total cost is
+   *  above $0.5") — the canonical id is camelCase and does not read as prose.
+   *  On a `boolean` field this is the whole affirmative phrase instead ("Is
+   *  root observation"), since such a token is a yes/no statement, not a
+   *  subject with a value. */
+  label: string;
+  /** Boolean fields only: the phrase for the false case ("Is not root
+   *  observation") — English negates these irregularly (is not / has no). */
+  negatedLabel?: string;
   description: string;
   /** Display unit for numeric suggestion labels (filter-config units). */
   unit?: string;
@@ -41,72 +64,491 @@ export type FieldDef = {
    * `exactOption`; only set this on `textSearch` fields that should suggest.
    */
   suggestObservedValues?: boolean;
+  /** Preserve exact selections in the owning categorical facet's filter shape. */
+  exactMatchUsesOptions?: boolean;
+  /** Canonical FilterState column emitted for this display-oriented field. */
+  filterColumn?: string;
+  /** Display/query value → canonical FilterState value for labeled options. */
+  filterValueByDisplayValue?: ReadonlyMap<string, string>;
+  /** Canonical FilterState value → display/query value for labeled options. */
+  displayValueByFilterValue?: ReadonlyMap<string, string>;
+  /** Nullable-only columns participate in `has:` but are not direct filters. */
+  directFilter?: boolean;
+  operators?: readonly CompareOp[];
+  negatedOperators?: readonly CompareOp[];
+  /** Insert an explicit exact match when selecting a suggested value. */
+  exactSuggestions?: boolean;
+  /**
+   * Closed enum for this field. Bare text that matches one of these values
+   * suggests `field:value` even when the value is absent from loaded facets.
+   * Only small static lists belong here — observed values cover everything
+   * that varies per project.
+   */
+  knownValues?: readonly string[];
 };
 
-// prettier-ignore
-export const FIELDS: FieldDef[] = [
-  { id: "id", aliases: ["spanid", "span_id", "observationid", "observation_id"], kind: "text", syncMode: "textSearch", suggestObservedValues: true, description: "Observation/span identifier" },
-  { id: "traceId", aliases: ["traceid", "trace_id"], kind: "text", syncMode: "textSearch", description: "Trace identifier" },
-  { id: "name", aliases: [], kind: "text", syncMode: "textSearch", suggestObservedValues: true, description: "Observation name", nullable: true },
-  { id: "traceName", aliases: ["tracename", "trace_name"], kind: "text", syncMode: "exactOption", description: "Trace name", nullable: true },
-  { id: "type", aliases: [], kind: "text", syncMode: "exactOption", description: "Observation type" },
-  { id: "environment", aliases: ["env"], kind: "text", syncMode: "exactOption", description: "Environment", nullable: true },
-  { id: "ingestionApiKey", aliases: ["ingestionapikey", "ingestion_api_key", "apikey", "api_key", "publickey", "public_key"], kind: "text", syncMode: "exactOption", description: "Public ingestion API key" },
-  { id: "userId", aliases: ["userid", "user_id", "user"], kind: "text", syncMode: "exactOption", description: "Trace user id", nullable: true },
-  { id: "sessionId", aliases: ["sessionid", "session_id", "session"], kind: "text", syncMode: "exactOption", description: "Trace session id", nullable: true },
-  { id: "level", aliases: [], kind: "text", syncMode: "exactOption", description: "Observation level" },
-  { id: "statusMessage", aliases: ["statusmessage", "status_message", "status"], kind: "text", syncMode: "textSearch", description: "Status message", nullable: true },
-  { id: "modelId", aliases: ["modelid", "model_id"], kind: "text", syncMode: "exactOption", description: "Internal model id", nullable: true },
-  { id: "providedModelName", aliases: ["providedmodelname", "provided_model_name", "model"], kind: "text", syncMode: "exactOption", description: "Provided model name", nullable: true },
-  { id: "promptName", aliases: ["promptname", "prompt_name", "prompt"], kind: "text", syncMode: "exactOption", description: "Prompt name", nullable: true },
-  { id: "promptVersion", aliases: ["promptversion", "prompt_version"], kind: "number", syncMode: "textSearch", description: "Prompt version", nullable: true },
-  { id: "startTime", aliases: ["starttime", "start_time"], kind: "datetime", syncMode: "textSearch", description: "Observation start time" },
-  { id: "endTime", aliases: ["endtime", "end_time"], kind: "datetime", syncMode: "textSearch", description: "Observation end time", nullable: true },
-  { id: "latency", aliases: [], kind: "number", syncMode: "textSearch", description: "Observation latency in seconds", unit: "s", nullable: true },
-  { id: "timeToFirstToken", aliases: ["timetofirsttoken", "time_to_first_token", "ttft"], kind: "number", syncMode: "textSearch", description: "Time to first token in seconds", unit: "s", nullable: true },
-  { id: "tokensPerSecond", aliases: ["tokenspersecond", "tokens_per_second", "tps"], kind: "number", syncMode: "textSearch", description: "Output tokens per second", unit: "tok/s", nullable: true },
-  { id: "inputTokens", aliases: ["inputtokens", "input_tokens"], kind: "number", syncMode: "textSearch", description: "Input token count", nullable: true },
-  { id: "outputTokens", aliases: ["outputtokens", "output_tokens"], kind: "number", syncMode: "textSearch", description: "Output token count", nullable: true },
-  { id: "totalTokens", aliases: ["totaltokens", "total_tokens", "tokens"], kind: "number", syncMode: "textSearch", description: "Total token count", nullable: true },
-  { id: "inputCost", aliases: ["inputcost", "input_cost"], kind: "number", syncMode: "textSearch", description: "Input cost in USD", unit: "$", nullable: true },
-  { id: "outputCost", aliases: ["outputcost", "output_cost"], kind: "number", syncMode: "textSearch", description: "Output cost in USD", unit: "$", nullable: true },
-  { id: "totalCost", aliases: ["totalcost", "total_cost", "cost"], kind: "number", syncMode: "textSearch", description: "Total cost in USD", unit: "$", nullable: true },
-  { id: "version", aliases: [], kind: "text", syncMode: "exactOption", description: "Version tag", nullable: true },
-  { id: "traceTags", aliases: ["tracetags", "trace_tags", "tags", "tag"], kind: "text", syncMode: "arrayOption", description: "Trace tags" },
-  { id: "isRootObservation", aliases: ["isrootobservation", "is_root_observation", "root"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation is a trace root" },
-  { id: "hasParentObservation", aliases: ["hasparentobservation", "has_parent_observation"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation has a parent (inverse of root)" },
-  { id: "hasInput", aliases: ["hasinput", "has_input"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation has input" },
-  { id: "hasOutput", aliases: ["hasoutput", "has_output"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation has output" },
-  { id: "toolNames", aliases: ["toolnames", "tool_names"], kind: "text", syncMode: "arrayOption", description: "Available tool names", nullable: true },
-  { id: "calledToolNames", aliases: ["calledtoolnames", "called_tool_names", "calledtools", "called_tools"], kind: "text", syncMode: "arrayOption", description: "Called tool names", nullable: true },
-  { id: "toolDefinitions", aliases: ["tooldefinitions", "tool_definitions"], kind: "number", syncMode: "textSearch", description: "Available tool count", nullable: true },
-  { id: "toolCalls", aliases: ["toolcalls", "tool_calls"], kind: "number", syncMode: "textSearch", description: "Tool call count", nullable: true },
-  { id: "commentCount", aliases: ["commentcount", "comment_count"], kind: "number", syncMode: "textSearch", description: "Comment count" },
-  { id: "commentContent", aliases: ["commentcontent", "comment_content", "comment"], kind: "text", syncMode: "textSearch", description: "Comment text", nullable: true },
-  { id: "experimentDatasetId", aliases: ["experimentdatasetid", "experiment_dataset_id", "dataset"], kind: "text", syncMode: "exactOption", description: "Experiment dataset identifier", nullable: true },
-  { id: "experimentId", aliases: ["experimentid", "experiment_id"], kind: "text", syncMode: "exactOption", description: "Experiment identifier", nullable: true },
-  { id: "experimentName", aliases: ["experimentname", "experiment_name", "experiment"], kind: "text", syncMode: "exactOption", description: "Experiment name", nullable: true },
-  { id: "input", aliases: [], kind: "text", syncMode: "textSearch", description: "Observation input", nullable: true },
-  { id: "output", aliases: [], kind: "text", syncMode: "textSearch", description: "Observation output", nullable: true },
-];
+export type SearchScope = {
+  searchType: readonly TracingSearchType[];
+  label: string;
+  description: string;
+};
 
-const byName = new Map<string, FieldDef>();
-for (const f of FIELDS) {
-  byName.set(f.id.toLowerCase(), f);
-  for (const a of f.aliases) byName.set(a, f);
+export type FilterTargeting = {
+  defaultTarget: string;
+  /** Meaning of targetless persisted filters, before target-aware editing. */
+  legacyDefaultTarget?: string;
+  targets: readonly {
+    id: string;
+    label: string;
+    displayLabel?: string;
+    keyword?: boolean;
+    textClassName?: string;
+  }[];
+  supports: (field: FieldRef) => boolean;
+  scoreTypesError?: string;
+};
+
+export type FieldRegistry = {
+  id:
+    | "events"
+    | "evaluationRules"
+    | "evaluatorSamples"
+    | "ruleSamples"
+    | "sessions"
+    | "sessionTraces"
+    | "scores"
+    | "experiments"
+    | "users"
+    | "traces"
+    | "observations"
+    | "evaluatorsList"
+    | "evaluationRulesList"
+    | "legacyEvaluators"
+    | "evalLogs"
+    | "prompts"
+    | "skills"
+    | "topics"
+    | "monitors"
+    | "gatewayModels"
+    | "experimentItems"
+    | "datasetItems";
+  defaultSearchType: readonly TracingSearchType[];
+  searchScopes: Readonly<Record<string, SearchScope>>;
+  fields: readonly FieldDef[];
+  columns: readonly ColumnDefinition[];
+  /** The shared predicate source the lowered filters are read against; null
+   *  on views without one, whose lowerings carry no predicate. */
+  predicateSource: PredicateSource | null;
+  allowFreeText: boolean;
+  allowPresence?: boolean;
+  targeting?: FilterTargeting;
+  /** View-specific backend constraints beyond individual column operators. */
+  filterStateErrors?: (filters: FilterState) => readonly string[];
+  /** Whether this view exposes metadata.<key> filters. */
+  metadata: boolean;
+  /**
+   * Whether `metadata.<key>:>n` (and `<`, `>=`, `<=`) lower to numeric
+   * `numberObject` filters. Only for views whose server compiles filters
+   * through the events predicate source; legacy filter paths reject
+   * `numberObject` on metadata. Applies to the `metadata.` root only, not to
+   * `metadataNamespaces`.
+   */
+  numericMetadata: boolean;
+  /** Additional metadata roots mapped to their backend FilterState columns. */
+  metadataNamespaces?: Readonly<Record<string, string>>;
+  /** Keyed option roots (`topics.<facet>:<value>`) mapped to categoryOptions columns. */
+  keyedOptionNamespaces?: Readonly<Record<string, string>>;
+  scores: boolean;
+  /** Trace-level `traceScores.<name>` paths. Views whose backend has no
+   *  trace-score columns (sessions) keep observation scores without them. */
+  traceScores: boolean;
+  /** Field a bare word searches on a view with no full-text lane. Sessions has
+   *  no searchQuery, but `id contains` is its most-applied filter by far, so a
+   *  bare word means that instead of being rejected. Null = reject. */
+  defaultTextField: string | null;
+  /**
+   * What a bare word matches, phrased for the hint and the scope list
+   * ("ids, names, input & output"). Written per view because the registry
+   * cannot see it: `searchQuery` lowers to a column list the BACKEND picks,
+   * and the users query narrows that list to `user_id` while keeping the same
+   * field catalog. Null drops the clause rather than guessing — vague beats
+   * naming columns a view does not search.
+   */
+  freeTextScopeLabel: string | null;
+  /** Placeholder examples. Written per view, never derived from field ids: the
+   *  events examples advertise `latency:`/`level:` on a view that has neither. */
+  searchExamples: readonly string[];
+  searchPlaceholder?: string;
+  /**
+   * Field id used in the `has:` hint. Written per view like `searchExamples`:
+   * deriving it (e.g. "first nullable field") silently rewrites the hint
+   * whenever the field order changes. Null falls back to the first nullable.
+   */
+  hasExample: string | null;
+  /**
+   * Offer the project's recent searches on the empty bar. Off by default: the
+   * store is per PROJECT, not per view, so a view opts in and only the recents
+   * that are valid against its own registry are offered.
+   */
+  recentSearches: boolean;
+  /**
+   * Whether this view has its OWN branch in `buildFilterSystemPrompt`. False
+   * hides Ask AI: the fallback prompt is the events one — events prose, events
+   * worked examples — so a view without its own branch would be handed a
+   * correct field catalog wrapped in instructions steering the model at columns
+   * it does not have. Write the branch, then flip this.
+   */
+  aiFilterPrompt: boolean;
+  aiContextFields: readonly AIContextField[];
+  resolveField: (name: string) => FieldRef | null;
+  nullableFields: () => readonly FieldDef[];
+  /** Ids of `nullableFields`, precomputed for per-keystroke validation. */
+  nullableFieldIds: ReadonlySet<string>;
+  isDanglingDotPrefix: (value: string) => boolean;
+  columnIdOf: (column: string) => string | null;
+};
+
+export type AIContextField = {
+  /** Key in the observed filter-options payload. */
+  observedOptionsKey: string;
+  /** Human-readable field description rendered into the AI prompt context. */
+  promptLabel: string;
+};
+
+export type FieldOverlay = Partial<
+  Omit<
+    FieldDef,
+    "id" | "kind" | "label" | "description" | "exactMatchUsesOptions"
+  >
+> & {
+  label?: string;
+  description?: string;
+};
+
+/**
+ * Static option lists longer than this are not a closed enum. Copying them
+ * onto the field would scan a high-cardinality catalog on every keystroke.
+ */
+const MAX_KNOWN_VALUES = 24;
+
+/**
+ * A column's static options, when they are a small closed enum (the value is
+ * what the user types). Empty lists are filled at runtime from facet data, and
+ * a distinct display label is an id/name pair, not an enum the bar can insert
+ * as-is.
+ */
+function knownValuesFromColumn(
+  column: ColumnDefinition,
+): readonly string[] | undefined {
+  if (column.type !== "stringOptions" && column.type !== "arrayOptions") {
+    return undefined;
+  }
+  if (column.options.length === 0 || column.options.length > MAX_KNOWN_VALUES) {
+    return undefined;
+  }
+  const values: string[] = [];
+  for (const option of column.options) {
+    if (option.value.length === 0) return undefined;
+    if (
+      option.displayValue !== undefined &&
+      option.displayValue !== option.value
+    ) {
+      return undefined;
+    }
+    values.push(option.value);
+  }
+  return values;
 }
 
-export const METADATA_PREFIX = "metadata.";
+/** `number`, `datetime` and `boolean` columns keep their type as kind; every other column is `text`. */
+function fieldKindOf(type: ColumnDefinition["type"]): FieldKind {
+  return type === "number" || type === "datetime" || type === "boolean"
+    ? type
+    : "text";
+}
+
+export function fieldRegistryFromColumns(
+  columns: readonly ColumnDefinition[],
+  overlay: {
+    id: FieldRegistry["id"];
+    fields?: Readonly<Record<string, FieldOverlay>>;
+    metadata?: boolean;
+    metadataNamespaces?: Readonly<Record<string, string>>;
+    scores?: boolean;
+    /** Defaults to `scores`. */
+    traceScores?: boolean;
+    allowFreeText?: boolean;
+    allowPresence?: boolean;
+    defaultSearchType?: readonly TracingSearchType[];
+    searchScopes?: Readonly<Record<string, SearchScope>>;
+    filterStateErrors?: (filters: FilterState) => readonly string[];
+    defaultTextField?: string;
+    freeTextScopeLabel?: string;
+    searchExamples?: readonly string[];
+    searchPlaceholder?: string;
+    hasExample?: string;
+    recentSearches?: boolean;
+    aiFilterPrompt?: boolean;
+    aiContextFields?: readonly AIContextField[];
+  },
+): FieldRegistry {
+  const scores = overlay.scores ?? false;
+  const fields = columns
+    // `*Object` columns and the categorical score column are keyed dot-paths
+    // (`metadata.<key>`, `scores.<name>`), never plain fields — a derived
+    // `score_categories` field would lower to a keyless categoryOptions filter
+    // the backend cannot answer. That holds whether or not this view exposes
+    // the `scores.` namespace: a view whose sidebar owns score filters still
+    // has the column in its facets, and it is sidebar-only, not a bare field.
+    // They stay in `columns` so the reverse adapter still resolves them.
+    .filter(
+      (column) =>
+        !column.type.endsWith("Object") && !isKeyedScoreColumn(column.id),
+    )
+    .map((column): FieldDef => {
+      const fieldOverlay = overlay.fields?.[column.id];
+      const kind = fieldKindOf(column.type);
+      const syncMode: SyncMode =
+        column.type === "stringOptions" || column.type === "categoryOptions"
+          ? "exactOption"
+          : column.type === "arrayOptions"
+            ? "arrayOption"
+            : "textSearch";
+      return {
+        id: column.id,
+        aliases: fieldOverlay?.aliases ?? column.aliases ?? [],
+        kind,
+        syncMode: fieldOverlay?.syncMode ?? syncMode,
+        exactMatchUsesOptions: column.type === "stringOptions",
+        label: fieldOverlay?.label ?? column.name,
+        description: fieldOverlay?.description ?? column.name,
+        nullable: column.nullable,
+        directFilter: column.type !== "null",
+        suggestObservedValues: fieldOverlay?.suggestObservedValues,
+        filterColumn: fieldOverlay?.filterColumn,
+        filterValueByDisplayValue: fieldOverlay?.filterValueByDisplayValue,
+        displayValueByFilterValue: fieldOverlay?.displayValueByFilterValue,
+        unit: fieldOverlay?.unit,
+        negatedLabel: fieldOverlay?.negatedLabel,
+        operators: fieldOverlay?.operators,
+        negatedOperators: fieldOverlay?.negatedOperators,
+        exactSuggestions: fieldOverlay?.exactSuggestions,
+        knownValues: fieldOverlay?.knownValues ?? knownValuesFromColumn(column),
+      };
+    });
+
+  return createFieldRegistry({
+    id: overlay.id,
+    fields,
+    columns,
+    metadata: overlay.metadata ?? false,
+    metadataNamespaces: overlay.metadataNamespaces,
+    scores,
+    traceScores: overlay.traceScores ?? scores,
+    allowFreeText: overlay.allowFreeText ?? true,
+    allowPresence: overlay.allowPresence,
+    defaultSearchType: overlay.defaultSearchType,
+    searchScopes: overlay.searchScopes,
+    filterStateErrors: overlay.filterStateErrors,
+    defaultTextField: overlay.defaultTextField ?? null,
+    freeTextScopeLabel: overlay.freeTextScopeLabel ?? null,
+    searchExamples: overlay.searchExamples ?? [],
+    searchPlaceholder: overlay.searchPlaceholder,
+    hasExample: overlay.hasExample ?? null,
+    recentSearches: overlay.recentSearches ?? false,
+    aiFilterPrompt: overlay.aiFilterPrompt ?? false,
+    aiContextFields: overlay.aiContextFields ?? [],
+  });
+}
+
+/**
+ * `registry` plus fields for `columns`, for a view built on another view's
+ * grammar. `numericMetadata` is not inherited: the extended view's server
+ * (evaluator filters) may still reject numeric metadata filters.
+ */
+export function extendFieldRegistryWithColumns(
+  registry: FieldRegistry,
+  columns: readonly ColumnDefinition[],
+  fieldOverlays?: Readonly<Record<string, FieldOverlay>>,
+): FieldRegistry {
+  const addedFields = fieldRegistryFromColumns(columns, {
+    id: registry.id,
+    fields: fieldOverlays,
+  }).fields;
+
+  return createFieldRegistry({
+    id: registry.id,
+    fields: [...registry.fields, ...addedFields],
+    columns: [...registry.columns, ...columns],
+    predicateSource: registry.predicateSource,
+    metadata: registry.metadata,
+    metadataNamespaces: registry.metadataNamespaces,
+    keyedOptionNamespaces: registry.keyedOptionNamespaces,
+    scores: registry.scores,
+    traceScores: registry.traceScores,
+    allowFreeText: registry.allowFreeText,
+    allowPresence: registry.allowPresence,
+    defaultSearchType: registry.defaultSearchType,
+    searchScopes: registry.searchScopes,
+    filterStateErrors: registry.filterStateErrors,
+    targeting: registry.targeting,
+    defaultTextField: registry.defaultTextField,
+    freeTextScopeLabel: registry.freeTextScopeLabel,
+    searchExamples: registry.searchExamples,
+    searchPlaceholder: registry.searchPlaceholder,
+    hasExample: registry.hasExample,
+    recentSearches: registry.recentSearches,
+    aiFilterPrompt: registry.aiFilterPrompt,
+    aiContextFields: registry.aiContextFields,
+  });
+}
+
+/** `registry` with labeled options on `fieldId`; same view, same grammar. */
+export function withFieldOptions(
+  registry: FieldRegistry,
+  fieldId: string,
+  options: readonly SingleValueOption[],
+): FieldRegistry {
+  const filterValueByDisplayValue = new Map(
+    options.map((option) => [
+      option.displayValue ?? option.value,
+      option.value,
+    ]),
+  );
+  const displayValueByFilterValue = new Map(
+    options.map((option) => [
+      option.value,
+      option.displayValue ?? option.value,
+    ]),
+  );
+  return createFieldRegistry({
+    id: registry.id,
+    fields: registry.fields.map((field) =>
+      field.id === fieldId
+        ? {
+            ...field,
+            filterValueByDisplayValue,
+            displayValueByFilterValue,
+          }
+        : field,
+    ),
+    columns: registry.columns,
+    predicateSource: registry.predicateSource,
+    metadata: registry.metadata,
+    numericMetadata: registry.numericMetadata,
+    metadataNamespaces: registry.metadataNamespaces,
+    keyedOptionNamespaces: registry.keyedOptionNamespaces,
+    scores: registry.scores,
+    traceScores: registry.traceScores,
+    allowFreeText: registry.allowFreeText,
+    allowPresence: registry.allowPresence,
+    defaultSearchType: registry.defaultSearchType,
+    searchScopes: registry.searchScopes,
+    filterStateErrors: registry.filterStateErrors,
+    targeting: registry.targeting,
+    defaultTextField: registry.defaultTextField,
+    freeTextScopeLabel: registry.freeTextScopeLabel,
+    searchExamples: registry.searchExamples,
+    searchPlaceholder: registry.searchPlaceholder,
+    hasExample: registry.hasExample,
+    recentSearches: registry.recentSearches,
+    aiFilterPrompt: registry.aiFilterPrompt,
+    aiContextFields: registry.aiContextFields,
+  });
+}
+
+// The bar's grammar per events field it exposes, keyed by the field's id in
+// `eventsPredicateSource`, in suggestion order. The source supplies `kind`.
+// prettier-ignore
+const EVENTS_FIELD_ROWS: Record<string, Omit<FieldDef, "id" | "kind">> = {
+  id: { aliases: ["spanid", "span_id", "observationid", "observation_id"], syncMode: "textSearch", suggestObservedValues: true, label: "Observation ID", description: "Observation/span identifier" },
+  traceId: { aliases: ["traceid", "trace_id"], syncMode: "textSearch", label: "Trace ID", description: "Trace identifier" },
+  name: { aliases: [], syncMode: "textSearch", suggestObservedValues: true, exactMatchUsesOptions: true, label: "Name", description: "Observation name", nullable: true },
+  traceName: { aliases: ["tracename", "trace_name"], syncMode: "exactOption", label: "Trace name", description: "Trace name", nullable: true },
+  type: { aliases: [], syncMode: "exactOption", label: "Type", description: "Observation type", knownValues: Object.values(ObservationType) },
+  environment: { aliases: ["env"], syncMode: "exactOption", label: "Environment", description: "Environment", nullable: true },
+  ingestionApiKey: { aliases: ["ingestionapikey", "ingestion_api_key", "apikey", "api_key", "publickey", "public_key"], syncMode: "exactOption", label: "Ingestion API key", description: "Public ingestion API key" },
+  ingestionSdkName: { aliases: ["ingestionsdkname", "ingestion_sdk_name", "sdkname", "sdk_name"], syncMode: "exactOption", label: "Ingestion SDK name", description: "Ingestion SDK name" },
+  ingestionSdkVersion: { aliases: ["ingestionsdkversion", "ingestion_sdk_version", "sdkversion", "sdk_version"], syncMode: "exactOption", label: "Ingestion SDK version", description: "Ingestion SDK version" },
+  ingestionSource: { aliases: ["ingestionsource", "ingestion_source", "source"], syncMode: "exactOption", label: "Ingestion source", description: "Ingestion source (API or OTel path)" },
+  userId: { aliases: ["userid", "user_id", "user"], syncMode: "exactOption", label: "User ID", description: "Trace user id", nullable: true },
+  sessionId: { aliases: ["sessionid", "session_id", "session"], syncMode: "exactOption", label: "Session ID", description: "Trace session id", nullable: true },
+  level: { aliases: [], syncMode: "exactOption", label: "Status", description: "Observation status", knownValues: Object.values(ObservationLevel) },
+  statusMessage: { aliases: ["statusmessage", "status_message", "status"], syncMode: "textSearch", label: "Status message", description: "Status message", nullable: true },
+  modelId: { aliases: ["modelid", "model_id"], syncMode: "exactOption", label: "Model ID", description: "Internal model id", nullable: true },
+  providedModelName: { aliases: ["providedmodelname", "provided_model_name", "model"], syncMode: "exactOption", label: "Model name", description: "Provided model name", nullable: true },
+  promptName: { aliases: ["promptname", "prompt_name", "prompt"], syncMode: "exactOption", label: "Prompt name", description: "Prompt name", nullable: true },
+  promptVersion: { aliases: ["promptversion", "prompt_version"], syncMode: "textSearch", label: "Prompt version", description: "Prompt version", nullable: true },
+  startTime: { aliases: ["starttime", "start_time"], syncMode: "textSearch", label: "Start time", description: "Observation start time" },
+  endTime: { aliases: ["endtime", "end_time"], syncMode: "textSearch", label: "End time", description: "Observation end time", nullable: true },
+  latency: { aliases: [], syncMode: "textSearch", label: "Latency", description: "Observation latency in seconds", unit: "s", nullable: true },
+  timeToFirstToken: { aliases: ["timetofirsttoken", "time_to_first_token", "ttft"], syncMode: "textSearch", label: "Time to first token", description: "Time to first token in seconds", unit: "s", nullable: true },
+  tokensPerSecond: { aliases: ["tokenspersecond", "tokens_per_second", "tps"], syncMode: "textSearch", label: "Tokens per second", description: "Output tokens per second", unit: "tok/s", nullable: true },
+  inputTokens: { aliases: ["inputtokens", "input_tokens"], syncMode: "textSearch", label: "Input token count", description: "Input token count", nullable: true },
+  cachedInputTokens: { aliases: ["cachedinputtokens", "cached_input_tokens", "cachedtokens", "cached_tokens"], syncMode: "textSearch", label: "Cached input token count", description: "Cache-read input token count", nullable: true },
+  outputTokens: { aliases: ["outputtokens", "output_tokens"], syncMode: "textSearch", label: "Output token count", description: "Output token count", nullable: true },
+  totalTokens: { aliases: ["totaltokens", "total_tokens", "tokens"], syncMode: "textSearch", label: "Total token count", description: "Total token count", nullable: true },
+  inputCost: { aliases: ["inputcost", "input_cost"], syncMode: "textSearch", label: "Input cost", description: "Input cost in USD", unit: "$", nullable: true },
+  cachedInputCost: { aliases: ["cachedinputcost", "cached_input_cost", "cachedcost", "cached_cost"], syncMode: "textSearch", label: "Cached input cost", description: "Cache-read input cost in USD", unit: "$", nullable: true },
+  outputCost: { aliases: ["outputcost", "output_cost"], syncMode: "textSearch", label: "Output cost", description: "Output cost in USD", unit: "$", nullable: true },
+  totalCost: { aliases: ["totalcost", "total_cost", "cost"], syncMode: "textSearch", label: "Total cost", description: "Total cost in USD", unit: "$", nullable: true },
+  version: { aliases: [], syncMode: "exactOption", label: "Version", description: "Version tag", nullable: true },
+  release: { aliases: [], syncMode: "exactOption", label: "Release", description: "Release tag", nullable: true },
+  traceTags: { aliases: ["tracetags", "trace_tags", "tags", "tag"], syncMode: "arrayOption", label: "Trace tags", description: "Trace tags" },
+  isRootObservation: { aliases: ["isrootobservation", "is_root_observation", "root"], syncMode: "textSearch", label: "Is root observation", negatedLabel: "Is not root observation", description: "Whether the observation is a trace root" },
+  hasParentObservation: { aliases: ["hasparentobservation", "has_parent_observation"], syncMode: "textSearch", label: "Has a parent observation", negatedLabel: "Has no parent observation", description: "Whether the observation has a parent (inverse of root)" },
+  hasInput: { aliases: ["hasinput", "has_input"], syncMode: "textSearch", label: "Has input", negatedLabel: "Has no input", description: "Whether the observation has input" },
+  hasOutput: { aliases: ["hasoutput", "has_output"], syncMode: "textSearch", label: "Has output", negatedLabel: "Has no output", description: "Whether the observation has output" },
+  toolNames: { aliases: ["toolnames", "tool_names"], syncMode: "arrayOption", label: "Available tools", description: "Available tool names", nullable: true },
+  calledToolNames: { aliases: ["calledtoolnames", "called_tool_names", "calledtools", "called_tools"], syncMode: "arrayOption", label: "Called tools", description: "Called tool names", nullable: true },
+  skillNamesAvailable: { aliases: ["availableSkills", "available_skills"], syncMode: "arrayOption", label: "Available skills", description: "Available skill names" },
+  skillsNamesLoaded: { aliases: ["loadedSkills", "loaded_skills"], syncMode: "arrayOption", label: "Loaded skills", description: "Loaded skill names" },
+  toolDefinitions: { aliases: ["tooldefinitions", "tool_definitions"], syncMode: "textSearch", label: "Available tool count", description: "Available tool count", nullable: true },
+  toolCalls: { aliases: ["toolcalls", "tool_calls"], syncMode: "textSearch", label: "Tool call count", description: "Tool call count", nullable: true },
+  commentCount: { aliases: ["commentcount", "comment_count"], syncMode: "textSearch", label: "Comment count", description: "Comment count" },
+  commentContent: { aliases: ["commentcontent", "comment_content", "comment"], syncMode: "textSearch", label: "Comment text", description: "Comment text", nullable: true },
+  experimentDatasetId: { aliases: ["experimentdatasetid", "experiment_dataset_id", "dataset"], syncMode: "exactOption", label: "Experiment dataset ID", description: "Experiment dataset identifier", nullable: true },
+  experimentId: { aliases: ["experimentid", "experiment_id"], syncMode: "exactOption", label: "Experiment ID", description: "Experiment identifier", nullable: true },
+  isExperimentItemRootSpan: { aliases: ["isexperimentitemrootspan", "is_experiment_item_root_span", "experimentroot"], syncMode: "textSearch", label: "Is experiment item root span", negatedLabel: "Is not experiment item root span", description: "Whether the observation is the root span for an experiment item" },
+  experimentName: { aliases: ["experimentname", "experiment_name", "experiment"], syncMode: "exactOption", label: "Experiment name", description: "Experiment name", nullable: true },
+  input: { aliases: [], syncMode: "textSearch", label: "Input", description: "Observation input", nullable: true },
+  output: { aliases: [], syncMode: "textSearch", label: "Output", description: "Observation output", nullable: true },
+};
+
+/**
+ * The `eventsPredicateSource` field with this id. Throws at load when there is
+ * none, so every events field the bar lowers is a predicate field.
+ */
+function eventsSourceField(id: string) {
+  const field = eventsPredicateSource.fields.find((f) => f.id === id);
+  if (!field) {
+    throw new Error(
+      `Search-bar field "${id}" is not an events predicate field`,
+    );
+  }
+  return field;
+}
+
+/** The bar's events fields: each row joined with its `eventsPredicateSource` field. */
+/** @internal */
+export const FIELDS: FieldDef[] = Object.entries(EVENTS_FIELD_ROWS).map(
+  ([id, row]) => ({
+    id,
+    kind: fieldKindOf(eventsSourceField(id).type),
+    ...row,
+  }),
+);
+
+const METADATA_PREFIX = "metadata.";
 
 // Score dot-paths. Lowercased prefixes accepted by the grammar; the
 // canonical spellings are `scores.<name>` and `traceScores.<name>`.
 const SCORE_PREFIXES = ["scores.", "score."];
 const TRACE_SCORE_PREFIXES = ["tracescores.", "trace_scores.", "tracescore."];
 
-// Pseudo-fields: not columns — `has:<field>` lowers to a null filter. (The
-// former `content:` pseudo-field has been removed: a bare query now searches
-// input + output by default, and `input:`/`output:` narrow to one column.)
-export const HAS_KEY = "has";
+// Presence checks lower to null filters. Compatibility `in:` and declared
+// search scopes select the backend search lane without adding column filters.
+const HAS_KEY = "has";
 
 /** Langfuse score filter columns (filter by score NAME via key-value ops). */
 export const SCORE_COLUMNS = {
@@ -122,43 +564,320 @@ export const SCORE_COLUMNS = {
   },
 } as const;
 
+const KEYED_SCORE_COLUMNS: ReadonlySet<string> = new Set([
+  ...Object.values(SCORE_COLUMNS.observation),
+  ...Object.values(SCORE_COLUMNS.trace),
+]);
+
+function isKeyedScoreColumn(column: string): boolean {
+  return KEYED_SCORE_COLUMNS.has(column);
+}
+
 export type FieldRef =
   | { type: "field"; field: FieldDef }
-  | { type: "metadata"; key: string }
+  | { type: "searchScope"; id: string; scope: SearchScope }
+  | {
+      type: "metadata";
+      key: string;
+      namespace?: string;
+      column?: string;
+      /** The registry's `numericMetadata`, on the `metadata.` root. */
+      numeric?: boolean;
+    }
   | { type: "scores"; key: string; level: "observation" | "trace" }
-  | { type: "pseudo"; id: typeof HAS_KEY };
+  | { type: "keyedOptions"; key: string; namespace: string; column: string }
+  | { type: "pseudo"; id: typeof HAS_KEY | "in" };
+
+/**
+ * Assembles a registry from field defs that already exist. `fieldRegistryFromColumns`
+ * derives its defs from `ColumnDefinition.type`, which is right for a view with no
+ * grammar of its own — but a view that narrows ANOTHER view's grammar must reuse that
+ * view's defs verbatim. Deriving them again would silently re-decide `syncMode` from
+ * the column type and give the same field a different meaning on the two bars
+ * (`name:checkout` an exact match on one, a substring on the other).
+ */
+export function createFieldRegistry({
+  id,
+  fields,
+  columns,
+  predicateSource = null,
+  metadata,
+  numericMetadata = false,
+  metadataNamespaces,
+  keyedOptionNamespaces,
+  scores,
+  traceScores,
+  allowFreeText,
+  allowPresence,
+  defaultSearchType = ["id", "content"],
+  searchScopes = {},
+  filterStateErrors,
+  targeting,
+  defaultTextField,
+  freeTextScopeLabel,
+  searchExamples,
+  searchPlaceholder,
+  hasExample,
+  recentSearches,
+  aiFilterPrompt,
+  aiContextFields,
+}: {
+  id: FieldRegistry["id"];
+  fields: readonly FieldDef[];
+  columns: readonly ColumnDefinition[];
+  predicateSource?: PredicateSource | null;
+  metadata: boolean;
+  numericMetadata?: boolean;
+  metadataNamespaces?: Readonly<Record<string, string>>;
+  keyedOptionNamespaces?: Readonly<Record<string, string>>;
+  scores: boolean;
+  traceScores: boolean;
+  allowFreeText: boolean;
+  allowPresence?: boolean;
+  defaultSearchType?: readonly TracingSearchType[];
+  searchScopes?: Readonly<Record<string, SearchScope>>;
+  targeting?: FilterTargeting;
+  /** View-specific backend constraints beyond individual column operators. */
+  filterStateErrors?: (filters: FilterState) => readonly string[];
+  defaultTextField: string | null;
+  freeTextScopeLabel: string | null;
+  searchExamples: readonly string[];
+  searchPlaceholder?: string;
+  hasExample: string | null;
+  recentSearches: boolean;
+  aiFilterPrompt: boolean;
+  aiContextFields: readonly AIContextField[];
+}): FieldRegistry {
+  const byName = new Map<string, FieldDef>();
+  for (const field of fields) {
+    byName.set(field.id.toLowerCase(), field);
+    for (const alias of field.aliases) byName.set(alias.toLowerCase(), field);
+  }
+  const nullable = fields.filter((field) => field.nullable === true);
+  const columnIds = new Map<string, string>();
+  for (const column of columns) {
+    columnIds.set(column.id.toLowerCase(), column.id);
+    columnIds.set(column.name.toLowerCase(), column.id);
+    for (const alias of column.aliases ?? []) {
+      columnIds.set(alias.toLowerCase(), column.id);
+    }
+  }
+  for (const field of fields) {
+    if (field.filterColumn) {
+      columnIds.set(field.filterColumn.toLowerCase(), field.id);
+    }
+  }
+
+  const registry: FieldRegistry = {
+    id,
+    fields,
+    columns,
+    predicateSource,
+    allowFreeText,
+    allowPresence,
+    defaultSearchType,
+    searchScopes,
+    filterStateErrors,
+    targeting,
+    metadata,
+    numericMetadata,
+    metadataNamespaces,
+    keyedOptionNamespaces,
+    scores,
+    traceScores,
+    defaultTextField,
+    freeTextScopeLabel,
+    searchExamples,
+    searchPlaceholder,
+    hasExample,
+    recentSearches,
+    aiFilterPrompt,
+    aiContextFields,
+    resolveField: (name) => resolveFromRegistry(name, registry, byName),
+    nullableFields: () => nullable,
+    nullableFieldIds: new Set(nullable.map((field) => field.id)),
+    isDanglingDotPrefix: (value) => {
+      const lower = value.toLowerCase();
+      return (
+        (metadata && lower === METADATA_PREFIX) ||
+        Object.keys({ ...metadataNamespaces, ...keyedOptionNamespaces }).some(
+          (name) => lower === `${name.toLowerCase()}.`,
+        ) ||
+        (scores && SCORE_PREFIXES.includes(lower)) ||
+        (traceScores && TRACE_SCORE_PREFIXES.includes(lower))
+      );
+    },
+    columnIdOf: (column) => columnIds.get(column.toLowerCase()) ?? null,
+  };
+  return registry;
+}
+
+export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
+  id: "events",
+  fields: FIELDS,
+  columns: eventsTableCols,
+  predicateSource: eventsPredicateSource,
+  metadata: true,
+  numericMetadata: true,
+  scores: true,
+  traceScores: true,
+  allowFreeText: true,
+  searchScopes: {
+    content: {
+      searchType: ["content"],
+      label: "Content",
+      description: "search only input and output",
+    },
+    all: {
+      searchType: ["id", "content"],
+      label: "All fields",
+      description: "search IDs, names, input and output",
+    },
+  },
+  defaultTextField: null,
+  freeTextScopeLabel: "ids, names, input & output",
+  searchExamples: [
+    "level:ERROR",
+    "-env:dev",
+    "latency:>2",
+    "scores.accuracy:>0.8",
+  ],
+  hasExample: "endTime",
+  recentSearches: true,
+  aiFilterPrompt: true,
+  aiContextFields: [
+    { observedOptionsKey: "type", promptLabel: "type" },
+    { observedOptionsKey: "level", promptLabel: "level" },
+    { observedOptionsKey: "environment", promptLabel: "environment" },
+    { observedOptionsKey: "traceName", promptLabel: "traceName" },
+    { observedOptionsKey: "name", promptLabel: "name" },
+    { observedOptionsKey: "traceTags", promptLabel: "traceTags (tags)" },
+    {
+      observedOptionsKey: "providedModelName",
+      promptLabel: "providedModelName (model)",
+    },
+    { observedOptionsKey: "promptName", promptLabel: "promptName" },
+    {
+      observedOptionsKey: SCORE_COLUMNS.observation.numeric,
+      promptLabel: "scores.<name> (numeric)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.observation.categorical,
+      promptLabel: "scores.<name> (categorical)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.observation.boolean,
+      promptLabel: "scores.<name> (boolean)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.trace.numeric,
+      promptLabel: "traceScores.<name> (numeric)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.trace.categorical,
+      promptLabel: "traceScores.<name> (categorical)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.trace.boolean,
+      promptLabel: "traceScores.<name> (boolean)",
+    },
+  ],
+});
+
+/** The selected search scopes, or the registry's default ones when none is selected. */
+export function effectiveSearchType(
+  searchType: readonly TracingSearchType[] | null,
+  registry: FieldRegistry,
+): TracingSearchType[] {
+  return [...(searchType ?? registry.defaultSearchType)];
+}
+
+/**
+ * `name` as a field reference, tried in order: a metadata namespace, a keyed
+ * option namespace, `metadata.<key>` (numeric with `numericMetadata`), a
+ * score path, `has` / `in`, a search scope, then a field id or alias. Null
+ * for an unknown name or a dot path without a key.
+ */
+function resolveFromRegistry(
+  name: string,
+  registry: FieldRegistry,
+  byName: ReadonlyMap<string, FieldDef>,
+): FieldRef | null {
+  const lower = name.toLowerCase();
+  for (const [namespace, column] of Object.entries(
+    registry.metadataNamespaces ?? {},
+  )) {
+    const prefix = `${namespace}.`;
+    if (lower.startsWith(prefix.toLowerCase())) {
+      const key = unquote(name.slice(prefix.length)).value;
+      return key.length > 0
+        ? { type: "metadata", key, namespace, column }
+        : null;
+    }
+  }
+  for (const [namespace, column] of Object.entries(
+    registry.keyedOptionNamespaces ?? {},
+  )) {
+    const prefix = `${namespace}.`;
+    if (lower.startsWith(prefix.toLowerCase())) {
+      const key = unquote(name.slice(prefix.length)).value;
+      return key.length > 0
+        ? { type: "keyedOptions", key, namespace, column }
+        : null;
+    }
+  }
+  if (registry.metadata && lower.startsWith(METADATA_PREFIX)) {
+    const key = unquote(name.slice(METADATA_PREFIX.length)).value;
+    if (key.length === 0) return null;
+    return registry.numericMetadata
+      ? { type: "metadata", key, numeric: true }
+      : { type: "metadata", key };
+  }
+  if (registry.traceScores) {
+    for (const prefix of TRACE_SCORE_PREFIXES) {
+      if (lower.startsWith(prefix)) {
+        const key = unquote(name.slice(prefix.length)).value;
+        return key.length > 0 ? { type: "scores", key, level: "trace" } : null;
+      }
+    }
+  }
+  if (registry.scores) {
+    for (const prefix of SCORE_PREFIXES) {
+      if (lower.startsWith(prefix)) {
+        const key = unquote(name.slice(prefix.length)).value;
+        return key.length > 0
+          ? { type: "scores", key, level: "observation" }
+          : null;
+      }
+    }
+  }
+  if (lower === HAS_KEY && registry.allowPresence !== false)
+    return { type: "pseudo", id: lower };
+  if (
+    registry.allowFreeText &&
+    Object.keys(registry.searchScopes).length > 0 &&
+    lower === "in"
+  )
+    return { type: "pseudo", id: "in" };
+  const scope = Object.hasOwn(registry.searchScopes, lower)
+    ? registry.searchScopes[lower]
+    : undefined;
+  if (registry.allowFreeText && scope)
+    return { type: "searchScope", id: lower, scope };
+  const field = byName.get(lower);
+  return field ? { type: "field", field } : null;
+}
 
 /**
  * Resolve a user-typed key (case-insensitive, alias-aware) to a field, a
  * metadata/score dot path (the key keeps its case), or a pseudo-field.
  * Null = unknown key.
  */
-export function resolveField(name: string): FieldRef | null {
-  const lower = name.toLowerCase();
-  // The segment after a dot-path prefix may be quoted to carry spaces/grammar
-  // chars (`scores."Rouge Score"`, `metadata."my key"`); unquote it to the real
-  // key. refName re-quotes it on the way back out.
-  if (lower.startsWith(METADATA_PREFIX)) {
-    const key = unquote(name.slice(METADATA_PREFIX.length)).value;
-    return key.length > 0 ? { type: "metadata", key } : null;
-  }
-  for (const prefix of TRACE_SCORE_PREFIXES) {
-    if (lower.startsWith(prefix)) {
-      const key = unquote(name.slice(prefix.length)).value;
-      return key.length > 0 ? { type: "scores", key, level: "trace" } : null;
-    }
-  }
-  for (const prefix of SCORE_PREFIXES) {
-    if (lower.startsWith(prefix)) {
-      const key = unquote(name.slice(prefix.length)).value;
-      return key.length > 0
-        ? { type: "scores", key, level: "observation" }
-        : null;
-    }
-  }
-  if (lower === HAS_KEY) return { type: "pseudo", id: lower };
-  const field = byName.get(lower);
-  return field ? { type: "field", field } : null;
+export function resolveField(
+  name: string,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): FieldRef | null {
+  return registry.resolveField(name);
 }
 
 /**
@@ -167,18 +886,11 @@ export function resolveField(name: string): FieldRef | null {
  * (no colon), so without this guard committing one would silently set the
  * full-text searchQuery to the bare prefix.
  */
-export function isDanglingDotPrefix(value: string): boolean {
-  const lower = value.toLowerCase();
-  return (
-    lower === METADATA_PREFIX ||
-    SCORE_PREFIXES.includes(lower) ||
-    TRACE_SCORE_PREFIXES.includes(lower)
-  );
-}
-
-/** Fields that can be unset — the value domain of `has:` / `-has:`. */
-export function nullableFields(): FieldDef[] {
-  return FIELDS.filter((f) => f.nullable === true);
+export function isDanglingDotPrefix(
+  value: string,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): boolean {
+  return registry.isDanglingDotPrefix(value);
 }
 
 // ---- operator validity ----
@@ -213,6 +925,12 @@ export function operatorIssue(
   op: CompareOp,
   valueOp: "or" | "and" = "or",
 ): string | null {
+  if (
+    ref.type === "field" &&
+    ref.field.operators &&
+    !ref.field.operators.includes(op)
+  )
+    return `"${ref.field.id}" does not support ${label(op)}`;
   if (valueOp === "and") {
     const isArray =
       ref.type === "field" && ref.field.syncMode === "arrayOption";
@@ -225,17 +943,25 @@ export function operatorIssue(
   }
 
   switch (ref.type) {
+    case "searchScope":
+      return op === "="
+        ? null
+        : `${ref.id}: searches one phrase — ${label(op)} is not supported`;
     case "pseudo":
-      // `has` is the only pseudo-field.
       if (op !== "=") {
-        return `has: lists fields that have a value — it does not support ${label(op)}`;
+        return `${ref.id}: lists ${ref.id === "has" ? "fields that have a value" : "search scopes"} — it does not support ${label(op)}`;
       }
       return null;
     case "metadata":
-      // stringObject filters support string ops only; there is no numeric
-      // metadata filter in the current contract.
-      if (COMPARISONS.has(op)) {
+      // Comparisons lower to numberObject filters, which only views with
+      // `numericMetadata` accept; everywhere else metadata matches text.
+      if (COMPARISONS.has(op) && ref.numeric !== true) {
         return `metadata filters match text — ${op} comparisons are not supported`;
+      }
+      return null;
+    case "keyedOptions":
+      if (op !== "=" && op !== "exact") {
+        return `${refName(ref)} matches listed values (${refName(ref)}:a or ${refName(ref)}:(a OR b)) — ${label(op)} is not supported`;
       }
       return null;
     case "scores":
@@ -245,6 +971,12 @@ export function operatorIssue(
       return null;
     case "field": {
       const f = ref.field;
+      if (f.directFilter === false) {
+        return `"${f.id}" only supports presence checks (has:${f.id} or -has:${f.id})`;
+      }
+      if (f.filterColumn && (op === "~" || op === "^" || op === "$")) {
+        return `"${f.id}" maps labeled options to exact stored values and does not support ${label(op)}`;
+      }
       if (f.kind === "number") {
         if (op === "~" || op === "^" || op === "$") {
           return `"${f.id}" is a number field and does not support ${label(op)}`;
@@ -287,15 +1019,34 @@ export function negationIssue(
   op: CompareOp,
   valueOp: "or" | "and" = "or",
 ): string | null {
+  const issue = operatorIssue(ref, op, valueOp);
+  if (issue) return issue;
+  if (
+    ref.type === "field" &&
+    ref.field.negatedOperators &&
+    !ref.field.negatedOperators.includes(op)
+  )
+    return `"${ref.field.id}" does not support negated ${label(op)}`;
+  if (
+    ref.type === "searchScope" ||
+    (ref.type === "pseudo" && ref.id === "in")
+  ) {
+    return `Search scopes cannot be negated — search text is global`;
+  }
   if (valueOp === "and") {
     // NOT(all of) would mean "missing at least one" — no such array operator.
     return `negated all-of groups on "${refName(ref)}" are not representable — negate single values instead`;
   }
   if (ref.type === "pseudo") {
-    return null; // `has` is the only pseudo; -has: is valid (missing value)
+    return null; // -has: is valid (missing value); in: was rejected above.
   }
   if (op === "^" || op === "$") {
     return `negation of ${label(op)} is not representable in the Langfuse filter contract`;
+  }
+  if (ref.type === "metadata" && COMPARISONS.has(op)) {
+    // An inverted comparison would drop rows whose value is missing or not a
+    // number, which the negation keeps.
+    return `negated comparisons on metadata are not representable — use the opposite comparison (e.g. ${refName(ref)}:<=n)`;
   }
   if (op === "exact" || op === "=") {
     if (ref.type === "metadata") {
@@ -324,17 +1075,20 @@ export function negationIssue(
   return null;
 }
 
-export function refName(ref: FieldRef): string {
+function refName(ref: FieldRef): string {
   switch (ref.type) {
     case "field":
       return ref.field.id;
     case "metadata":
-      return `metadata.${quoteIfNeeded(ref.key)}`;
+      return `${ref.namespace ?? "metadata"}.${quoteIfNeeded(ref.key)}`;
+    case "keyedOptions":
+      return `${ref.namespace}.${quoteIfNeeded(ref.key)}`;
     case "scores":
       return ref.level === "trace"
         ? `traceScores.${quoteIfNeeded(ref.key)}`
         : `scores.${quoteIfNeeded(ref.key)}`;
     case "pseudo":
+    case "searchScope":
       return ref.id;
   }
 }

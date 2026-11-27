@@ -3,6 +3,22 @@ export type PersistedSidebarFilterQueryState = {
   query: string;
 };
 
+/**
+ * The page-level entity an embedded table is scoped to. Such a table bounds its
+ * rows with a hidden filter (a user's traces, a session's events), so it
+ * persists its sidebar filters separately from the project-wide table: an
+ * inherited User ID would AND with the page's own and return nothing
+ * (LFE-14824).
+ */
+export type EmbeddedFilterScope = "user" | "session" | "prompt" | "model";
+
+export function buildSidebarFilterSessionContextId(
+  projectId: string,
+  embeddedScope?: EmbeddedFilterScope,
+): string {
+  return embeddedScope ? `${projectId}:${embeddedScope}` : projectId;
+}
+
 export function buildSidebarFilterQueryStorageKey(params: {
   tableName: string;
   contextId?: string | null;
@@ -19,7 +35,7 @@ export function createPersistedSidebarFilterQueryState(
   return { contextId, query };
 }
 
-export function parsePersistedSidebarFilterQueryState(
+function parsePersistedSidebarFilterQueryState(
   rawState: string | null,
 ): PersistedSidebarFilterQueryState | null {
   if (!rawState) return null;
@@ -29,12 +45,15 @@ export function parsePersistedSidebarFilterQueryState(
 
     if (!parsed || typeof parsed !== "object") return null;
 
-    const contextId =
-      "contextId" in parsed && typeof parsed.contextId === "string"
-        ? parsed.contextId
-        : "contextId" in parsed && parsed.contextId === null
-          ? null
-          : undefined;
+    const contextId = (() => {
+      if ("contextId" in parsed && typeof parsed.contextId === "string") {
+        return parsed.contextId;
+      }
+      if ("contextId" in parsed && parsed.contextId === null) {
+        return null;
+      }
+      return undefined;
+    })();
     const query =
       "query" in parsed && typeof parsed.query === "string"
         ? parsed.query
@@ -64,12 +83,63 @@ export function readPersistedSidebarFilterQuery(params: {
   const { storageKey, contextId } = params;
   if (typeof window === "undefined") return "";
 
-  const persistedState = parsePersistedSidebarFilterQueryState(
-    sessionStorage.getItem(storageKey),
-  );
+  try {
+    const persistedState = parsePersistedSidebarFilterQueryState(
+      sessionStorage.getItem(storageKey),
+    );
 
-  return getPersistedSidebarFilterQueryForContext({
-    state: persistedState,
-    contextId,
+    return getPersistedSidebarFilterQueryForContext({
+      state: persistedState,
+      contextId,
+    });
+  } catch (error) {
+    console.warn("Error reading from session storage", error);
+    return "";
+  }
+}
+
+export function writePersistedSidebarFilterQuery(params: {
+  storageKey: string;
+  contextId: string | null;
+  query: string;
+}): void {
+  if (typeof window === "undefined") return;
+  const { storageKey, contextId, query } = params;
+  try {
+    sessionStorage.setItem(
+      storageKey,
+      JSON.stringify(createPersistedSidebarFilterQueryState(contextId, query)),
+    );
+  } catch (error) {
+    console.warn("Error writing to session storage", error);
+  }
+}
+
+/** Carry committed filters only for an explicit in-page context change. */
+export function carryPersistedSidebarFilterQuery(params: {
+  tableName: string;
+  fromContextId: string;
+  toContextId: string;
+  urlQuery: string | null | undefined;
+}): void {
+  const { tableName, fromContextId, toContextId, urlQuery } = params;
+  if (fromContextId === toContextId) return;
+  const query =
+    typeof urlQuery === "string"
+      ? urlQuery
+      : readPersistedSidebarFilterQuery({
+          storageKey: buildSidebarFilterQueryStorageKey({
+            tableName,
+            contextId: fromContextId,
+          }),
+          contextId: fromContextId,
+        });
+  writePersistedSidebarFilterQuery({
+    storageKey: buildSidebarFilterQueryStorageKey({
+      tableName,
+      contextId: toContextId,
+    }),
+    contextId: toContextId,
+    query,
   });
 }

@@ -1,5 +1,5 @@
 import { type Decimal } from "decimal.js";
-import { PricingTierCondition } from "../../features/model-pricing";
+import { PricingTierCondition } from "../../features/model-pricing/validation";
 
 /**
  * Shared types for pricing tier functionality
@@ -13,6 +13,11 @@ export type PricingTierMatchResult = {
   pricingTierId: string;
   pricingTierName: string;
   prices: Record<string, Decimal>; // usageType -> price
+};
+
+export type PricingTierMatchAttributes = {
+  modelParameters?: Record<string, string>;
+  metadata?: Record<string, string>;
 };
 
 /**

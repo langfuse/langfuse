@@ -1,7 +1,14 @@
-import { Button } from "@/src/components/ui/button";
-import { Combobox } from "@/src/components/ui/combobox";
-import { X } from "lucide-react";
+import { type ComponentProps, useMemo } from "react";
+import { ExperimentBaselineSelect } from "./ExperimentBaselineSelect";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
+import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";
+import {
+  NO_DATASET_KEY,
+  NO_DATASET_LABEL,
+  UNNAMED_DATASET_LABEL,
+} from "@/src/features/experiments/constants/comparison";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { baselineChangedProps } from "@/src/features/experiments/lib/analytics";
 
 type ExperimentBaselineControlsProps = {
   projectId: string;
@@ -9,7 +16,6 @@ type ExperimentBaselineControlsProps = {
   baselineName?: string;
   onBaselineChange: (id: string) => void;
   onBaselineClear: () => void;
-  canClearBaseline?: boolean;
 };
 
 export function ExperimentBaselineControls({
@@ -18,42 +24,78 @@ export function ExperimentBaselineControls({
   baselineName,
   onBaselineChange,
   onBaselineClear,
-  canClearBaseline = true,
 }: ExperimentBaselineControlsProps) {
   const { experimentNames, isLoading } = useExperimentNames({
     projectId,
   });
-  const baselineOptions = experimentNames.map((exp) => ({
-    value: exp.experimentId,
-    label: exp.experimentName,
-  }));
+  const capture = usePostHogClientCapture();
+
+  // `baseline_changed` fires from the two paths through this control — picking a
+  // run and clearing it. Arriving on the page with a baseline already set (a row
+  // click on the list, a shared link) is navigation rather than use of this
+  // control, and is deliberately not counted; the results pageview is that
+  // denominator.
+
+  // Grouped by dataset and dated, so two runs sharing a name are two readable
+  // options rather than the same label twice.
+  const baselineOptionGroups = useMemo(() => {
+    const byDataset = new Map<
+      string,
+      Extract<
+        ComponentProps<typeof ExperimentBaselineSelect>["options"][number],
+        { type: "group" }
+      >
+    >();
+
+    for (const experiment of experimentNames) {
+      const datasetKey = experiment.datasetId ?? NO_DATASET_KEY;
+      const group = byDataset.get(datasetKey) ?? {
+        type: "group" as const,
+        id: datasetKey,
+        label:
+          experiment.datasetId === null
+            ? NO_DATASET_LABEL
+            : (experiment.datasetName ?? UNNAMED_DATASET_LABEL),
+        options: [],
+      };
+      group.options.push({
+        value: experiment.experimentId,
+        label: experiment.experimentName,
+        secondaryLabel: formatRunRecency(experiment.startTime),
+      });
+      byDataset.set(datasetKey, group);
+    }
+
+    return [...byDataset.values()];
+  }, [experimentNames]);
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="w-full">
-        <Combobox
-          options={baselineOptions}
-          value={baselineId}
-          onValueChange={onBaselineChange}
-          placeholder={baselineName ?? baselineId ?? "Select baseline..."}
-          emptyText="No experiments found"
-          searchPlaceholder="Search experiments..."
-          disabled={isLoading}
-          className="h-9"
-        />
-      </div>
-
-      {baselineId && canClearBaseline && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onBaselineClear}
-          disabled={isLoading}
-          title="Clear baseline"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      )}
-    </div>
+    <ExperimentBaselineSelect
+      options={baselineOptionGroups}
+      baselineId={baselineId}
+      baselineName={baselineName}
+      isLoading={isLoading}
+      onBaselineChange={(id) => {
+        if (id === baselineId) return;
+        capture(
+          "experiment:baseline_changed",
+          baselineChangedProps({
+            tableName: "experiment-items",
+            source: "picker",
+          }),
+        );
+        onBaselineChange(id);
+      }}
+      onBaselineClear={() => {
+        capture(
+          "experiment:baseline_changed",
+          baselineChangedProps({
+            tableName: "experiment-items",
+            source: "clear",
+          }),
+        );
+        onBaselineClear();
+      }}
+    />
   );
 }

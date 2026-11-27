@@ -1,7 +1,6 @@
 import { useState } from "react";
 
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   TriggerEventSource,
   type AutomationDomain,
@@ -14,20 +13,15 @@ export type ProjectNotificationChannelsMode = "list" | "create" | "edit";
 /**
  * useProjectNotificationChannels owns the data + navigation state for the
  * project-notification channels settings section. The create/edit form itself
- * is the reused <AutomationForm>, which owns its own mutations; this hook only
+ * is the reused <ConnectedAutomationForm>, which owns its own mutations; this hook only
  * lists channels, deletes them, and tracks which view is shown plus the
  * one-time webhook secret reveal.
  */
 export function useProjectNotificationChannels(projectId: string) {
   const utils = api.useUtils();
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "automations:CUD",
-  });
 
   const { data: channels, isLoading } = api.automations.getAutomations.useQuery(
     { projectId, eventSource: TriggerEventSource.ProjectNotification },
-    { enabled: Boolean(projectId) && hasAccess },
   );
 
   const [mode, setMode] = useState<ProjectNotificationChannelsMode>("list");
@@ -73,7 +67,6 @@ export function useProjectNotificationChannels(projectId: string) {
   };
 
   return {
-    hasAccess,
     channels,
     isLoading,
     mode,

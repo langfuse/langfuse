@@ -1,12 +1,56 @@
 import {
   commaSeparatedEnumArray,
   isJsonNumberLiteral,
+  isoDateTime,
   optionalCommaSeparatedStringArray,
   paginationZod,
   parseJsonPrioritised,
   publicApiPaginationLimitZod,
+  sanitizeEmailSubject,
+  StringNoHTML,
+  stringDateTime,
 } from "@langfuse/shared";
+import { stringDateTime as ingestionDateTime } from "@langfuse/shared/src/server";
 import { ZodError } from "zod";
+
+describe("ISO datetime compatibility", () => {
+  it("keeps UTC-only validation unless offsets are enabled", () => {
+    const schema = isoDateTime();
+    expect(schema.parse("2024-02-29T06:15Z")).toBe("2024-02-29T06:15Z");
+    expect(schema.parse("2024-02-29T06:15:00.123Z")).toBe(
+      "2024-02-29T06:15:00.123Z",
+    );
+    expect(schema.safeParse("2024-02-29T06:15+02:30").success).toBe(false);
+    expect(schema.safeParse("2024-02-29T06:15:00+02:30").success).toBe(false);
+  });
+
+  it.each([
+    ["2024-02-29T06:15Z", true],
+    ["2024-02-29T06:15+02:30", true],
+    ["2024-02-29T06:15-02:30", true],
+    ["2024-02-29T06:15:00Z", true],
+    ["2024-02-29T06:15:00.123456+02:30", true],
+    ["2023-02-29T06:15Z", false],
+    ["2024-02-30T06:15Z", false],
+    ["2024-02-29T24:00Z", false],
+    ["2024-02-29T06:60Z", false],
+    ["2024-02-29T06:15:60Z", false],
+    ["2024-02-29T06:15+24:00", false],
+    ["2024-02-29T06:15+02:60", false],
+    ["2024-02-29T06:15", false],
+    ["2024-02-29", false],
+    ["prefix2024-02-29T06:15Z", false],
+    ["2024-02-29T06:15Zsuffix", false],
+    [null, true],
+    [undefined, true],
+  ])("validates %s without changing the input", (input, valid) => {
+    for (const schema of [stringDateTime, ingestionDateTime]) {
+      const result = schema.safeParse(input);
+      expect(result.success).toBe(valid);
+      if (result.success) expect(result.data).toBe(input);
+    }
+  });
+});
 
 // Create test cases
 describe("Pagination Zod Schema", () => {
@@ -127,5 +171,27 @@ describe("isJsonNumberLiteral", () => {
     expect(isJsonNumberLiteral("-1.23e+4")).toBe(true);
     expect(isJsonNumberLiteral("plain107505301260286111")).toBe(false);
     expect(isJsonNumberLiteral("01")).toBe(false);
+  });
+});
+
+describe("StringNoHTML", () => {
+  it("rejects HTML consistently across validation calls", () => {
+    expect(StringNoHTML.safeParse("<b>").success).toBe(false);
+    expect(StringNoHTML.safeParse("<i>").success).toBe(false);
+  });
+
+  it("handles long unterminated tags without excessive backtracking", () => {
+    const input = "<".repeat(50_000);
+    const startedAt = performance.now();
+
+    expect(StringNoHTML.safeParse(input).success).toBe(true);
+    expect(performance.now() - startedAt).toBeLessThan(100);
+  });
+
+  it("removes every HTML tag from email subjects", () => {
+    expect(sanitizeEmailSubject("Project <b>one</b> <i>two</i>")).toBe(
+      "Project one two",
+    );
+    expect(sanitizeEmailSubject("Project <script<script>>")).toBe("Project >");
   });
 });

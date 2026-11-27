@@ -43,17 +43,19 @@ import {
   ChatMessageType,
   logger,
 } from "@langfuse/shared/src/server";
-import type { ChatPromptClient } from "langfuse";
+import type { ChatPromptClient } from "@langfuse/client";
 import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
 import {
   buildFieldCatalog,
   buildFilterSystemPrompt,
   nullableFieldIds,
 } from "./buildFilterPrompt";
+import { type FieldRegistry, EVENTS_FIELD_REGISTRY } from "../lib/fields";
 
 /** Name of the managed chat prompt in the AI-features Langfuse project. Kept
  *  in sync with the repo seed file (`./prompts/search-bar-filter.prompt.json`)
  *  and the sync script (`scripts/ask-ai/sync-search-bar-filter-prompt.sh`). */
+/** @internal */
 export const SEARCH_BAR_FILTER_PROMPT_NAME = "search-bar-filter";
 
 export type ResolvedFilterSystemPrompt = {
@@ -67,12 +69,13 @@ export type ResolvedFilterSystemPrompt = {
 
 function buildFallbackPrompt(
   currentDatetime: string,
+  registry: FieldRegistry,
 ): ResolvedFilterSystemPrompt {
   return {
     messages: [
       {
         role: ChatMessageRole.System,
-        content: buildFilterSystemPrompt(currentDatetime),
+        content: buildFilterSystemPrompt(currentDatetime, registry),
         type: ChatMessageType.PublicAPICreated,
       },
     ],
@@ -107,8 +110,14 @@ export async function resolveFilterSystemPrompt(params: {
   aiFeaturesPublicKey: string | undefined;
   aiFeaturesSecretKey: string | undefined;
   aiFeaturesHost: string | undefined;
+  registry?: FieldRegistry;
 }): Promise<ResolvedFilterSystemPrompt> {
-  const fallback = buildFallbackPrompt(params.currentDatetime);
+  const registry = params.registry ?? EVENTS_FIELD_REGISTRY;
+  const fallback = buildFallbackPrompt(params.currentDatetime, registry);
+
+  // The managed prompt is authored for the events registry. Other views use
+  // their registry-derived local prompt until they have their own managed one.
+  if (registry.id !== "events") return fallback;
 
   // Self-hosted (no keys) is an expected, ordinary state — the AI-features
   // project is never contacted, so there is nothing to fetch and nothing to
@@ -125,22 +134,20 @@ export async function resolveFilterSystemPrompt(params: {
       params.aiFeaturesPublicKey!,
       params.aiFeaturesSecretKey!,
       params.aiFeaturesHost,
-      false,
     );
-    const promptResponse = await client.getPrompt(
+    const promptResponse = await client.prompt.get(
       SEARCH_BAR_FILTER_PROMPT_NAME,
-      undefined,
       // A slow or erroring AI-features project must never stall the user's
       // request — a fast local fallback exists, so there is no reason to
       // inherit the SDK's default retry/timeout budget (~15s worst case).
       { type: "chat", fetchTimeoutMs: 2000, maxRetries: 0 },
     );
     const compiled = promptResponse.compile({
-      catalog: buildFieldCatalog(),
-      nullable_ids: nullableFieldIds(),
+      catalog: buildFieldCatalog(registry),
+      nullable_ids: nullableFieldIds(registry),
       current_datetime: params.currentDatetime,
     });
-    // `getPrompt` is typed to return chat messages for `{ type: "chat" }`, but
+    // `prompt.get` is typed to return chat messages for `{ type: "chat" }`, but
     // that only holds if the live prompt is actually a well-formed chat prompt.
     // A bad edit can compile to: a STRING (if stored as a text prompt), an
     // EMPTY array, or an array with a MALFORMED message (unsupported role /

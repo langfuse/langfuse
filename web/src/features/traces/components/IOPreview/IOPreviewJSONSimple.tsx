@@ -1,0 +1,364 @@
+import { JsonViewController } from "@/src/components/ui/JsonViewController";
+import { useMemo, useState } from "react";
+import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
+import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
+import { type MediaReturnType } from "@/src/features/media/validation";
+import { useCorrectOutputAction } from "./components/CorrectedOutputField";
+import {
+  CorrectedOutputSection,
+  shouldShowCorrectedOutputSection,
+} from "./components/CorrectedOutputSection";
+import { useCorrectionData } from "./hooks/useCorrectionData";
+import { IOSection } from "@/src/components/ui/IOSection";
+import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
+import {
+  JSON_VIEW_RENDER_CHAR_LIMIT,
+  probeJsonField,
+} from "./fns/jsonViewSizeGate";
+import { type ObservationStatusMessage } from "./components/statusMessagePresentation";
+import { useStatusMessage } from "./hooks/useStatusMessage";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
+
+export interface IOPreviewJSONSimpleProps {
+  input?: Prisma.JsonValue;
+  output?: Prisma.JsonValue;
+  status?: ObservationStatusMessage;
+  metadata?: Prisma.JsonValue;
+  outputCorrection?: ScoreDomain;
+  traceOutputCorrection?: ScoreDomain;
+  // Pre-parsed data (optional, from useParsedObservation hook for performance)
+  parsedInput?: unknown;
+  parsedOutput?: unknown;
+  parsedMetadata?: unknown;
+  isLoading?: boolean;
+  isParsing?: boolean;
+  hideIfNull?: boolean;
+  media?: MediaReturnType[];
+  hideOutput?: boolean;
+  hideInput?: boolean;
+  hideMetadata?: boolean;
+  observationId?: string;
+  projectId: string;
+  traceId: string;
+  environment?: string;
+  // Simple boolean expansion state (true = expanded, false = collapsed)
+  inputExpanded?: boolean;
+  outputExpanded?: boolean;
+  metadataExpanded?: boolean;
+  onInputExpandedChange?: (expanded: boolean) => void;
+  onOutputExpandedChange?: (expanded: boolean) => void;
+  onMetadataExpandedChange?: (expanded: boolean) => void;
+  showCorrections?: boolean;
+}
+
+/**
+ * IOPreviewJSONSimple - Renders input/output in legacy JSON view mode.
+ *
+ * Uses PrettyJsonView with currentView="json" which internally uses
+ * the react18-json-view library (JSONView component).
+ *
+ * This is the "stable" JSON view that was used before the AdvancedJsonViewer
+ * was introduced.
+ *
+ * LIMITATION: The react18-json-view library does NOT expose callbacks for
+ * individual node expansion. Only global collapse/expand state (via the
+ * fold/unfold button in the header) can be persisted. Per-node expansion
+ * state is NOT saved when navigating between traces/observations.
+ * Use Pretty view for full per-node expansion persistence.
+ */
+export function IOPreviewJSONSimple({
+  input,
+  output,
+  status,
+  metadata,
+  outputCorrection,
+  traceOutputCorrection,
+  parsedInput,
+  parsedOutput,
+  parsedMetadata,
+  isLoading = false,
+  isParsing = false,
+  hideIfNull = false,
+  hideOutput = false,
+  hideInput = false,
+  hideMetadata = false,
+  media,
+  inputExpanded,
+  outputExpanded,
+  metadataExpanded,
+  onInputExpandedChange,
+  onOutputExpandedChange,
+  onMetadataExpandedChange,
+  observationId,
+  projectId,
+  traceId,
+  environment = "default",
+  showCorrections = true,
+}: IOPreviewJSONSimpleProps) {
+  const { statusPresentation, parsedStatusMessage } = useStatusMessage(status);
+  // Size-gate each field: the JSON view renders through react18-json-view,
+  // which is not virtualized, so multi-MB payloads freeze and crash the tab
+  // (LFE-10989). Probe the raw prop — it drives both the main-thread parse
+  // below and the tree the viewer would build — and above the limit render a
+  // bounded preview + download instead. The probe serializes an object field
+  // exactly once (memoized) and the resulting string is reused for the size
+  // check, the preview, and the download, so we never re-serialize the payload.
+  const inputProbe = useMemo(() => probeJsonField(input), [input]);
+  const outputProbe = useMemo(() => probeJsonField(output), [output]);
+  const metadataProbe = useMemo(() => probeJsonField(metadata), [metadata]);
+
+  const inputTooLarge = inputProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
+  const outputTooLarge = outputProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
+  const metadataTooLarge = metadataProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
+
+  // Parse data if not pre-parsed
+  // IMPORTANT: Don't parse while isParsing=true to avoid double-parsing with different object references
+  // Skip parsing entirely for over-limit fields: parsing a ~20 MB string in
+  // deepParseJson (parsePreservingPrecision) blocks the main thread for seconds.
+  const effectiveInput = useMemo(() => {
+    if (isParsing) return undefined; // Wait for Web Worker to finish
+    if (inputTooLarge) return undefined;
+    return parsedInput ?? deepParseJson(input);
+  }, [parsedInput, input, isParsing, inputTooLarge]);
+
+  const effectiveOutput = useMemo(() => {
+    if (isParsing) return undefined;
+    if (outputTooLarge) return undefined;
+    return parsedOutput ?? deepParseJson(output);
+  }, [parsedOutput, output, isParsing, outputTooLarge]);
+
+  const effectiveMetadata = useMemo(() => {
+    if (isParsing) return undefined;
+    if (metadataTooLarge) return undefined;
+    return parsedMetadata ?? deepParseJson(metadata);
+  }, [parsedMetadata, metadata, isParsing, metadataTooLarge]);
+
+  // An over-limit field parses to `undefined` above, but it is not empty — it
+  // is too big. Treat it as present so `hideIfNull` callers still show the
+  // fallback instead of silently dropping the field.
+  const showInput =
+    !hideInput && (inputTooLarge || !(hideIfNull && !effectiveInput));
+  const showOutput =
+    !hideOutput && (outputTooLarge || !(hideIfNull && !effectiveOutput));
+  const showMetadata =
+    !hideMetadata && (metadataTooLarge || !(hideIfNull && !effectiveMetadata));
+
+  const downloadName = observationId ?? traceId;
+
+  // The "Correct output" pencil lives in the Output header; the field below
+  // opens into its editor from there.
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const correctOutputAction = useCorrectOutputAction({
+    projectId,
+    onOpen: () => setCorrectionOpen(true),
+  });
+  const { effectiveCorrection: effectiveObsCorrection } = useCorrectionData(
+    outputCorrection,
+    observationId,
+    traceId,
+  );
+  const { effectiveCorrection: effectiveTraceCorrection } = useCorrectionData(
+    traceOutputCorrection,
+    undefined,
+    traceId,
+  );
+  const isTraceScopedView = !observationId;
+  const effectivePrimaryCorrection = isTraceScopedView
+    ? effectiveTraceCorrection
+    : effectiveObsCorrection;
+  const correctionTrigger = showOutput ? "header" : "inline";
+  const showCorrectionField =
+    showCorrections &&
+    shouldShowCorrectedOutputSection({
+      observationId,
+      outputCorrection: effectiveObsCorrection ?? outputCorrection,
+      traceOutputCorrection: effectiveTraceCorrection ?? traceOutputCorrection,
+      obsEditorOpen: correctionOpen && Boolean(observationId),
+      traceEditorOpen: correctionOpen && isTraceScopedView,
+      startEditing: correctionOpen && !effectivePrimaryCorrection,
+      trigger: correctionTrigger,
+    });
+  const outputActions =
+    showCorrections &&
+    (Boolean(observationId) || isTraceScopedView) &&
+    showOutput &&
+    !correctionOpen &&
+    !effectivePrimaryCorrection
+      ? [correctOutputAction]
+      : undefined;
+
+  return (
+    <div className="space-y-2 pt-3">
+      {status && statusPresentation && (
+        <JsonViewController
+          json={status.message}
+          parsedJson={
+            // Do not retry parsing text rejected by the status parser's size limit.
+            parsedStatusMessage ?? null
+          }
+          currentView="json"
+        >
+          {(state) => (
+            <IOSection
+              title={statusPresentation.title}
+              onCopy={
+                parsedStatusMessage !== undefined
+                  ? state.copy
+                  : () => copyTextToClipboard(status.message)
+              }
+              variant="text"
+              tone={statusPresentation.tone}
+            >
+              {parsedStatusMessage !== undefined ? (
+                <PrettyJsonViewContent
+                  state={state}
+                  title={statusPresentation.title}
+                  borderless
+                />
+              ) : (
+                status.message
+              )}
+            </IOSection>
+          )}
+        </JsonViewController>
+      )}
+      {showInput &&
+        (inputTooLarge ? (
+          <IOSection title="Input">
+            <LargeJsonFieldFallback
+              title="Input"
+              hideTitle
+              serialized={inputProbe.serialized}
+              isString={inputProbe.isString}
+              charCount={inputProbe.size}
+              downloadFileBase={`input-${downloadName}`}
+            />
+          </IOSection>
+        ) : (
+          <JsonViewController
+            json={input}
+            parsedJson={effectiveInput}
+            isLoading={isLoading}
+            isParsing={isParsing}
+            media={media?.filter((m) => m.field === "input") ?? []}
+            currentView="json"
+            externalExpansionState={inputExpanded}
+            // The controller supports per-row expansion; this view persists only a boolean.
+            onExternalExpansionChange={
+              onInputExpandedChange as (
+                expansion: boolean | Record<string, boolean>,
+              ) => void
+            }
+          >
+            {(state) => (
+              <IOSection title="Input" onCopy={state.copy}>
+                <PrettyJsonViewContent state={state} title="Input" borderless />
+              </IOSection>
+            )}
+          </JsonViewController>
+        ))}
+      {showOutput &&
+        (outputTooLarge ? (
+          <IOSection title="Output" actions={outputActions}>
+            <LargeJsonFieldFallback
+              title="Output"
+              hideTitle
+              serialized={outputProbe.serialized}
+              isString={outputProbe.isString}
+              charCount={outputProbe.size}
+              downloadFileBase={`output-${downloadName}`}
+            />
+          </IOSection>
+        ) : (
+          <JsonViewController
+            json={output}
+            parsedJson={effectiveOutput}
+            isLoading={isLoading}
+            isParsing={isParsing}
+            media={media?.filter((m) => m.field === "output") ?? []}
+            currentView="json"
+            externalExpansionState={outputExpanded}
+            onExternalExpansionChange={
+              onOutputExpandedChange as (
+                expansion: boolean | Record<string, boolean>,
+              ) => void
+            }
+          >
+            {(state) => (
+              <IOSection
+                title="Output"
+                onCopy={state.copy}
+                actions={outputActions}
+              >
+                <PrettyJsonViewContent
+                  state={state}
+                  title="Output"
+                  borderless
+                />
+              </IOSection>
+            )}
+          </JsonViewController>
+        ))}
+      {/* When the output is over-limit, effectiveOutput is undefined, so the
+          correction editor opens without a baseline actual-output to diff
+          against — an acceptable degradation for payloads too large to render.
+          We flag it as too-large so the diff dialog says so, rather than
+          reporting "no original output". */}
+      {showCorrectionField && (
+        <CorrectedOutputSection
+          actualOutput={effectiveOutput}
+          actualOutputTooLarge={outputTooLarge}
+          outputCorrection={outputCorrection}
+          traceOutputCorrection={traceOutputCorrection}
+          observationId={observationId}
+          projectId={projectId}
+          traceId={traceId}
+          environment={environment}
+          trigger={correctionTrigger}
+          startEditing={correctionOpen && !effectivePrimaryCorrection}
+          onClosed={() => setCorrectionOpen(false)}
+          obsEditorOpen={correctionOpen && Boolean(observationId)}
+          traceEditorOpen={correctionOpen && isTraceScopedView}
+        />
+      )}
+      {showMetadata &&
+        (metadataTooLarge ? (
+          <IOSection title="Metadata">
+            <LargeJsonFieldFallback
+              title="Metadata"
+              hideTitle
+              serialized={metadataProbe.serialized}
+              isString={metadataProbe.isString}
+              charCount={metadataProbe.size}
+              downloadFileBase={`metadata-${downloadName}`}
+            />
+          </IOSection>
+        ) : (
+          <JsonViewController
+            json={metadata}
+            parsedJson={effectiveMetadata}
+            isLoading={isLoading}
+            isParsing={isParsing}
+            media={media?.filter((m) => m.field === "metadata") ?? []}
+            currentView="json"
+            externalExpansionState={metadataExpanded}
+            onExternalExpansionChange={
+              onMetadataExpandedChange as (
+                expansion: boolean | Record<string, boolean>,
+              ) => void
+            }
+          >
+            {(state) => (
+              <IOSection title="Metadata" onCopy={state.copy}>
+                <PrettyJsonViewContent
+                  state={state}
+                  title="Metadata"
+                  borderless
+                />
+              </IOSection>
+            )}
+          </JsonViewController>
+        ))}
+    </div>
+  );
+}

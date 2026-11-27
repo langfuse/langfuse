@@ -1,49 +1,59 @@
-import { createTRPCRouter } from "@/src/server/api/trpc";
-import { protectedProjectProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
 import { z } from "zod";
 import {
   ActionCreateSchema,
   ActionType,
   JobConfigState,
-  singleFilter,
-  isSafeWebhookActionConfig,
-  isWebhookAction,
-  convertToSafeWebhookConfig,
-  isGitHubDispatchAction,
-  convertToSafeGitHubDispatchConfig,
+  singleFilterList,
+  isWebhookActionConfig,
   TriggerEventSource,
   TriggerEventSourceSchema,
   ProjectNotificationEventTypeSchema,
 } from "@langfuse/shared";
+import {
+  PagerDutyRegionSchema,
+  PagerDutyRoutingKeySchema,
+  PagerDutyTestEventStepSchema,
+} from "@langfuse/shared/pagerduty";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
 import {
-  getActionById,
+  convertActionToDomain,
   getAutomations,
   getAutomationById,
   getConsecutiveAutomationFailures,
+  getViewablePrivateSlackChannelIds,
+  maskPrivateSlackChannel,
   logger,
 } from "@langfuse/shared/src/server";
 import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
 import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
+import {
+  processPagerDutyActionConfig,
+  sendPagerDutyTestEvent,
+} from "@/src/features/pagerduty/server/pagerdutyHelpers";
+import { maskActionForViewer, processSlackActionConfig } from "./slackHelpers";
 import { updateTriggerEventActions } from "./automationService";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
-export const CreateAutomationInputSchema = z.object({
+const CreateAutomationInputSchema = z.object({
   projectId: z.string(),
   name: z.string().min(1, "Name is required"),
   eventSource: z.string(),
   eventAction: z.array(z.string()),
-  filter: z.array(singleFilter).nullable(),
+  filter: singleFilterList.nullable(),
   status: z.enum(JobConfigState).default(JobConfigState.ACTIVE),
   // Action fields
   actionType: z.enum(ActionType),
   actionConfig: ActionCreateSchema,
 });
 
-export const UpdateAutomationInputSchema = CreateAutomationInputSchema.extend({
+const UpdateAutomationInputSchema = CreateAutomationInputSchema.extend({
   automationId: z.string(),
 });
 
@@ -88,9 +98,11 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:CUD",
       });
 
-      const existingAction = await getActionById({
-        projectId: input.projectId,
-        actionId: input.actionId,
+      // Read the raw row rather than going through getActionById: that returns
+      // the sanitized config (no `headers`/`requestHeaders`), and writing it
+      // back would silently drop the automation's custom request headers.
+      const existingAction = await ctx.prisma.action.findFirst({
+        where: { id: input.actionId, projectId: input.projectId },
       });
 
       if (!existingAction || existingAction.type !== "WEBHOOK") {
@@ -100,12 +112,14 @@ export const automationsRouter = createTRPCRouter({
         });
       }
 
-      if (!isSafeWebhookActionConfig(existingAction.config)) {
+      if (!isWebhookActionConfig(existingAction.config)) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: `Invalid webhook configuration for action ${input.actionId}`,
         });
       }
+
+      const existingConfig = existingAction.config;
 
       // Generate new webhook secret
       const { secretKey: newSecretKey, displaySecretKey: newDisplaySecretKey } =
@@ -117,16 +131,17 @@ export const automationsRouter = createTRPCRouter({
         resourceId: input.actionId,
         action: "update",
         before: {
-          displaySecretKey: existingAction.config.displaySecretKey,
+          displaySecretKey: existingConfig.displaySecretKey,
         },
         after: {
           displaySecretKey: newDisplaySecretKey,
         },
       });
 
-      // Update action config with new secret
+      // Keep the rest of the stored config (custom headers included) and only
+      // rotate the signing secret. Header values stay encrypted as stored.
       const updatedConfig = {
-        ...existingAction.config,
+        ...existingConfig,
         secretKey: encrypt(newSecretKey),
         displaySecretKey: newDisplaySecretKey,
       };
@@ -157,10 +172,24 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:read",
       });
 
-      const automations = await getAutomations({
+      const allAutomations = await getAutomations({
         projectId: input.projectId,
         eventSource: input.eventSource,
       });
+      const viewablePrivateChannelIds = await getViewablePrivateSlackChannelIds(
+        {
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
+          actions: allAutomations.map((automation) => automation.action),
+        },
+      );
+      const automations = allAutomations.map((automation) => ({
+        ...automation,
+        action: maskPrivateSlackChannel(
+          automation.action,
+          viewablePrivateChannelIds,
+        ),
+      }));
 
       // Project-notification channels are managed from project settings, not
       // the general Automations UI. When no eventSource is requested (the
@@ -203,7 +232,14 @@ export const automationsRouter = createTRPCRouter({
         });
       }
 
-      return automation;
+      return {
+        ...automation,
+        action: await maskActionForViewer({
+          action: automation.action,
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
+        }),
+      };
     }),
 
   // Get execution history for an automation
@@ -290,18 +326,11 @@ export const automationsRouter = createTRPCRouter({
         finalActionConfig = webhookResult.finalActionConfig;
         newUnencryptedWebhookSecret = webhookResult.newUnencryptedWebhookSecret;
       } else if (input.actionType === "SLACK") {
-        // Validate that Slack integration exists for this project
-        const slackIntegration = await ctx.prisma.slackIntegration.findUnique({
-          where: { projectId: input.projectId },
+        finalActionConfig = await processSlackActionConfig({
+          actionConfig: input.actionConfig,
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
         });
-
-        if (!slackIntegration) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message:
-              "Slack integration not found. Please connect your Slack workspace first.",
-          });
-        }
       } else if (input.actionType === "GITHUB_DISPATCH") {
         const githubResult = await processGitHubDispatchActionConfig({
           actionConfig: input.actionConfig,
@@ -309,6 +338,11 @@ export const automationsRouter = createTRPCRouter({
         });
         finalActionConfig = githubResult.finalActionConfig;
         newUnencryptedWebhookSecret = githubResult.githubToken;
+      } else if (input.actionType === "PAGERDUTY") {
+        finalActionConfig = await processPagerDutyActionConfig({
+          actionConfig: input.actionConfig,
+          projectId: input.projectId,
+        });
       }
 
       const [trigger, action, automation] = await ctx.prisma.$transaction(
@@ -364,14 +398,11 @@ export const automationsRouter = createTRPCRouter({
       logger.info(`Created automation ${trigger.id} for action ${action.id}`);
 
       return {
-        action: {
-          ...action,
-          config: isWebhookAction(action)
-            ? convertToSafeWebhookConfig(action.config)
-            : isGitHubDispatchAction(action)
-              ? convertToSafeGitHubDispatchConfig(action.config)
-              : action.config,
-        },
+        action: await maskActionForViewer({
+          action: convertActionToDomain(action),
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
+        }),
         trigger,
         automation,
         webhookSecret: newUnencryptedWebhookSecret, // Return webhook secret at top level for one-time display
@@ -410,18 +441,12 @@ export const automationsRouter = createTRPCRouter({
         });
         finalActionConfig = webhookResult.finalActionConfig;
       } else if (input.actionType === "SLACK") {
-        // Validate that Slack integration exists for this project
-        const slackIntegration = await ctx.prisma.slackIntegration.findUnique({
-          where: { projectId: input.projectId },
+        finalActionConfig = await processSlackActionConfig({
+          actionConfig: input.actionConfig,
+          existingActionConfig: existingAutomation.action.config,
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
         });
-
-        if (!slackIntegration) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message:
-              "Slack integration not found. Please connect your Slack workspace first.",
-          });
-        }
       } else if (input.actionType === "GITHUB_DISPATCH") {
         const githubResult = await processGitHubDispatchActionConfig({
           actionConfig: input.actionConfig,
@@ -429,6 +454,12 @@ export const automationsRouter = createTRPCRouter({
           projectId: input.projectId,
         });
         finalActionConfig = githubResult.finalActionConfig;
+      } else if (input.actionType === "PAGERDUTY") {
+        finalActionConfig = await processPagerDutyActionConfig({
+          actionConfig: input.actionConfig,
+          actionId: existingAutomation.action.id,
+          projectId: input.projectId,
+        });
       }
 
       const [action, trigger, automation] = await ctx.prisma.$transaction(
@@ -499,14 +530,11 @@ export const automationsRouter = createTRPCRouter({
       });
 
       return {
-        action: {
-          ...action,
-          config: isWebhookAction(action)
-            ? convertToSafeWebhookConfig(action.config)
-            : isGitHubDispatchAction(action)
-              ? convertToSafeGitHubDispatchConfig(action.config)
-              : action.config,
-        },
+        action: await maskActionForViewer({
+          action: convertActionToDomain(action),
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
+        }),
         trigger,
         automation,
       };
@@ -641,5 +669,36 @@ export const automationsRouter = createTRPCRouter({
       });
 
       return count;
+    }),
+
+  sendPagerDutyTestEvent: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        region: PagerDutyRegionSchema,
+        routingKey: PagerDutyRoutingKeySchema.optional(),
+        actionId: z.string().optional(),
+        step: PagerDutyTestEventStepSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
+      await sendPagerDutyTestEvent(input);
+
+      if (input.actionId) {
+        await auditLog({
+          session: ctx.session,
+          resourceType: "action",
+          resourceId: input.actionId,
+          action: "create",
+          after: { action: "test_event_sent", region: input.region },
+        });
+      }
+      return { success: true };
     }),
 });

@@ -3,10 +3,11 @@ import { type FilterState } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { type ChartViewConfig } from "./types";
 import { buildChartQuery, rowsToDataPoints } from "./lib/buildChartQuery";
+import { chartConfigToWidgetInput } from "./lib/chartConfigToWidget";
 import { toChartFilters } from "./lib/chartFilterCompatibility";
 import { ChartViewPanel } from "./components/ChartViewPanel";
 import { AddToDashboardButton } from "./components/AddToDashboardButton";
-
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 /**
  * Production chart view for the v4 events table. Builds the observations
  * aggregate query from the same filters + time window the table is showing,
@@ -29,6 +30,10 @@ export function EventsChartView({
   config: ChartViewConfig;
   onConfigChange: (patch: Partial<ChartViewConfig>) => void;
 }) {
+  const canManageDashboards = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
   const filters = useMemo(() => toChartFilters(filterState), [filterState]);
 
   const query = useMemo(
@@ -45,7 +50,7 @@ export function EventsChartView({
     { projectId, query, version: "v2" },
     {
       enabled: validRange,
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       trpc: { context: { skipBatch: true } },
     },
   );
@@ -55,12 +60,23 @@ export function EventsChartView({
     [queryResult.data, config],
   );
 
-  const error = !validRange
-    ? "Pick a wider time range to chart."
-    : queryResult.isError
-      ? (queryResult.error?.message ??
-        "Couldn't build a chart for the current view.")
-      : null;
+  const error = (() => {
+    if (!validRange) {
+      return "Pick a wider time range to chart.";
+    }
+    if (queryResult.isError) {
+      return (
+        queryResult.error?.message ??
+        "Couldn't build a chart for the current view."
+      );
+    }
+    return null;
+  })();
+
+  const widgetInput = useMemo(
+    () => chartConfigToWidgetInput({ config, filters }),
+    [config, filters],
+  );
 
   return (
     <ChartViewPanel
@@ -70,11 +86,12 @@ export function EventsChartView({
       isLoading={validRange && queryResult.isPending && !queryResult.isError}
       error={error}
       chartActions={
-        <AddToDashboardButton
-          projectId={projectId}
-          config={config}
-          filters={filters}
-        />
+        canManageDashboards && (
+          <AddToDashboardButton
+            projectId={projectId}
+            widgetInput={widgetInput}
+          />
+        )
       }
     />
   );

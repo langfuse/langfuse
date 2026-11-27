@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useResizeObserver } from "@/src/hooks/useResizeObserver";
 
 export type ElementSize = {
   width: number;
@@ -9,29 +10,18 @@ export function useElementSize<TElement extends HTMLElement>() {
   const ref = useRef<TElement>(null);
   const [size, setSize] = useState<ElementSize>();
 
-  useEffect(() => {
+  const updateSize = useCallback(() => {
     const element = ref.current;
 
     if (!element) {
       return;
     }
 
-    const updateSize = () => {
-      const { width, height } = element.getBoundingClientRect();
-      setSize({ width, height });
-    };
-
-    updateSize();
-
-    if (typeof ResizeObserver === "undefined") {
-      return;
-    }
-
-    const resizeObserver = new ResizeObserver(updateSize);
-    resizeObserver.observe(element);
-
-    return () => resizeObserver.disconnect();
+    const { width, height } = element.getBoundingClientRect();
+    setSize({ width, height });
   }, []);
+
+  useResizeObserver(ref, updateSize);
 
   return [ref, size] as const;
 }

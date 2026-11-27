@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import React, { useState } from "react";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -43,7 +44,7 @@ export function TagPromptDetailsPopover({
       return { prev };
     },
     onError: (err, _newTags, context) => {
-      trpcErrorToast(err);
+      trpcErrorToast(err, "prompt_tags.update");
       // Rollback to the previous value if mutation fails
       utils.prompts.allVersions.setData(allVersionsInput, context?.prev);
     },

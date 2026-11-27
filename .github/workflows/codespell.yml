@@ -15,10 +15,15 @@ on:
 permissions:
   contents: read
 
+# Cancel superseded PR runs; keep other events independent with a unique group per run.
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'pull_request_target' }}
+
 jobs:
   codespell:
     name: Check for spelling errors
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
 
     steps:
       - name: Checkout
@@ -27,3 +32,8 @@ jobs:
           persist-credentials: false
       - name: Codespell
         uses: codespell-project/actions-codespell@8f01853be192eb0f849a5c7d721450e7a467c579 # v2.2
+        with:
+          # patches/ holds pnpm-patch diffs of vendored (often minified)
+          # package code, whose identifiers are not prose. The guardrail-rules
+          # pkg/ is generated bindings with the wasm module embedded as base64.
+          skip: "./.git,./patches,./packages/ai-gateway-guardrail-rules/pkg"

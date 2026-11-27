@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
+import { scheduleRecurringJob } from "./scheduleRecurringJob";
 import { logger } from "../logger";
 
 export const POSTHOG_SYNC_CRON_PATTERN = "30 * * * *"; // every hour at :30
@@ -37,17 +38,10 @@ export class PostHogIntegrationQueue {
 
     if (PostHogIntegrationQueue.instance) {
       logger.debug("Scheduling jobs for PostHogIntegrationQueue");
-      PostHogIntegrationQueue.instance
-        .add(
-          QueueJobs.PostHogIntegrationJob,
-          {},
-          {
-            repeat: { pattern: POSTHOG_SYNC_CRON_PATTERN },
-          },
-        )
-        .catch((err) => {
-          logger.error("Error adding PostHogIntegrationJob schedule", err);
-        });
+      scheduleRecurringJob(PostHogIntegrationQueue.instance, {
+        jobName: QueueJobs.PostHogIntegrationJob,
+        pattern: POSTHOG_SYNC_CRON_PATTERN,
+      });
     }
 
     return PostHogIntegrationQueue.instance;

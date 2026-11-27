@@ -1,28 +1,61 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { renderHook } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 import { vi } from "vitest";
 
 import { useV4UpgradeUiEnabled } from "./useV4UpgradeUiEnabled";
-import { parseFlags } from "@/src/features/feature-flags/utils";
+import { useForceV3Experience } from "./useForceV3Experience";
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
 }));
 
+vi.mock("./useForceV3Experience", () => ({
+  useForceV3Experience: vi.fn(),
+}));
+
 const mockUseSession = vi.mocked(useSession);
+const mockUseForceV3Experience = vi.mocked(useForceV3Experience);
+
+const mockSessionAvailability = (v4UpgradeUiAvailable: boolean) => {
+  mockUseSession.mockReturnValue({
+    data: {
+      user: {
+        featureFlags: testFeatureFlags({ templateFlag: false }),
+        v4UpgradeUiAvailable,
+      },
+      environment: { enableExperimentalFeatures: false },
+    },
+  } as never);
+};
 
 describe("useV4UpgradeUiEnabled", () => {
-  it("maps the database flag into the session flag shape", () => {
-    expect(parseFlags(["v4UpgradeUi"]).v4UpgradeUi).toBe(true);
-    expect(parseFlags([]).v4UpgradeUi).toBe(false);
+  beforeEach(() => {
+    mockUseForceV3Experience.mockReturnValue(false);
   });
 
-  it("does not enable the UI for admins or experimental deployments", () => {
+  it("enables the UI when the deployment can act on the migration", () => {
+    mockSessionAvailability(true);
+
+    const { result } = renderHook(() => useV4UpgradeUiEnabled());
+
+    expect(result.current).toBe(true);
+  });
+
+  it("stays disabled when the deployment cannot act on the migration", () => {
+    mockSessionAvailability(false);
+
+    const { result } = renderHook(() => useV4UpgradeUiEnabled());
+
+    expect(result.current).toBe(false);
+  });
+
+  it("does not enable the UI for experimental deployments", () => {
     mockUseSession.mockReturnValue({
       data: {
         user: {
-          admin: true,
-          featureFlags: { v4UpgradeUi: false },
+          featureFlags: testFeatureFlags({ templateFlag: false }),
+          v4UpgradeUiAvailable: false,
         },
         environment: { enableExperimentalFeatures: true },
       },
@@ -33,12 +66,13 @@ describe("useV4UpgradeUiEnabled", () => {
     expect(result.current).toBe(false);
   });
 
-  it("enables the UI only when the user flag is set", () => {
+  it("treats a session without the field as unavailable", () => {
+    // Older sessions and test fixtures predate the field; default to off rather
+    // than showing migration surfaces a deployment may not support.
     mockUseSession.mockReturnValue({
       data: {
         user: {
-          admin: false,
-          featureFlags: { v4UpgradeUi: true },
+          featureFlags: testFeatureFlags({ templateFlag: false }),
         },
         environment: { enableExperimentalFeatures: false },
       },
@@ -46,6 +80,15 @@ describe("useV4UpgradeUiEnabled", () => {
 
     const { result } = renderHook(() => useV4UpgradeUiEnabled());
 
-    expect(result.current).toBe(true);
+    expect(result.current).toBe(false);
+  });
+
+  it("suppresses the UI for projects forced onto the v3 experience", () => {
+    mockSessionAvailability(true);
+    mockUseForceV3Experience.mockReturnValue(true);
+
+    const { result } = renderHook(() => useV4UpgradeUiEnabled());
+
+    expect(result.current).toBe(false);
   });
 });

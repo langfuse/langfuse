@@ -125,15 +125,15 @@ import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
 import { env } from "@/src/env.mjs";
+import { deriveLeadSourceFromMemberships } from "@/src/ee/features/sfdc-sync/server/leadSource";
 import {
   getSfdcService,
   toSfdcPlan,
-  type SfdcLeadSource,
-} from "@/src/ee/features/sfdc-sync/server";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+} from "@/src/ee/features/sfdc-sync/server/sfdcService";
+import { getSfdcResolvedPlan } from "@/src/ee/features/sfdc-sync/server/getSfdcResolvedPlan";
+import { logger } from "@langfuse/shared/src/server";
 import { parseDbOrg } from "@langfuse/shared";
 import { prisma, Role } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
 
 type Cli = {
   execute: boolean;
@@ -330,22 +330,8 @@ async function main() {
   // Lead source from the user's global membership history — must not depend
   // on which org unit triggers the send, or multi-org users would get
   // order-dependent values.
-  const resolveLeadSource = async (userId: string): Promise<SfdcLeadSource> => {
-    const firstMembership = await prisma.organizationMembership.findFirst({
-      where: {
-        userId,
-        role: { not: Role.NONE },
-        ...nonExcludedOrgFilter,
-      },
-      orderBy: { createdAt: "asc" },
-      select: { role: true },
-    });
-    if (firstMembership)
-      return firstMembership.role === Role.OWNER
-        ? "Langfuse Cloud Signup"
-        : "Langfuse Cloud Invite";
-    return "Langfuse Cloud Signup";
-  };
+  const resolveLeadSource = (userId: string) =>
+    deriveLeadSourceFromMemberships(userId, [...cli.excludeOrgIds]);
 
   // One Lead send per user per run; multi-org users keep their first outcome
   // (identical payload either way, and a failed lead marks every org that
@@ -418,7 +404,7 @@ async function main() {
       return;
     }
     const parsedOrg = parseDbOrg(org);
-    const resolvedPlan = getOrganizationPlanServerSide(
+    const resolvedPlan = getSfdcResolvedPlan(
       parsedOrg.cloudConfig ?? undefined,
     );
     const plan = toSfdcPlan(resolvedPlan);

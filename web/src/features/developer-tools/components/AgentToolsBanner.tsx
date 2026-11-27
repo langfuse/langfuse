@@ -1,7 +1,6 @@
-import { Callout } from "@/src/components/ui/callout";
-import { Button } from "@/src/components/ui/button";
-import Link from "next/link";
-import { Bot } from "lucide-react";
+import { Callout } from "@/src/components/design-system/Callout/Callout";
+import { DismissController } from "@/src/components/DismissController";
+import { Bot } from "@langfuse/icons";
 
 const DOCS_HREF =
   "https://langfuse.com/docs/api-and-data-platform/features/agent-skill";
@@ -13,29 +12,26 @@ const DOCS_HREF =
  */
 export function AgentToolsBanner() {
   return (
-    <Callout
-      className="mb-4"
-      id="agent-tools-banner:v1"
-      variant="info"
-      align="middle"
-      actions={() => (
-        <Button asChild size="sm" variant="secondary">
-          <Link href={DOCS_HREF} target="_blank">
-            Learn more
-          </Link>
-        </Button>
+    <DismissController id="agent-tools-banner:v1" family="callouts">
+      {({ onDismiss }) => (
+        <div className="mb-4">
+          <Callout
+            variant="info"
+            align="middle"
+            icon={Bot}
+            actions={[{ type: "link", label: "Learn more", href: DOCS_HREF }]}
+            onDismiss={onDismiss}
+          >
+            <span>
+              <span className="font-bold">
+                Langfuse works great with your AI coding agents.
+              </span>{" "}
+              Connect Claude Code, Codex, and other agents to your data with the
+              Langfuse Agent Skill, MCP server, and CLI.
+            </span>
+          </Callout>
+        </div>
       )}
-    >
-      <div className="flex items-center gap-2">
-        <Bot className="h-4 w-4 shrink-0" />
-        <span>
-          <span className="font-bold">
-            Langfuse works great with your AI coding agents.
-          </span>{" "}
-          Connect Claude Code, Codex, and other agents to your data with the
-          Langfuse Agent Skill, MCP server, and CLI.
-        </span>
-      </div>
-    </Callout>
+    </DismissController>
   );
 }

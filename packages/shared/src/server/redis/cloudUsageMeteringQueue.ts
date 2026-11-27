@@ -2,6 +2,7 @@ import { Queue } from "bullmq";
 import { env } from "../../env";
 import { QueueName, QueueJobs } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
+import { scheduleRecurringJob } from "./scheduleRecurringJob";
 import { logger } from "../logger";
 
 export class CloudUsageMeteringQueue {
@@ -41,24 +42,13 @@ export class CloudUsageMeteringQueue {
     if (CloudUsageMeteringQueue.instance) {
       logger.info("[CloudUsageMeteringQueue] Scheduling recurring job", {
         pattern: "5 * * * *",
-        jobId: "cloud-usage-metering-recurring",
         timestamp: new Date().toISOString(),
       });
-      CloudUsageMeteringQueue.instance
-        .add(
-          QueueJobs.CloudUsageMeteringJob,
-          {},
-          {
-            // Run at minute 5 of every hour (e.g. 1:05, 2:05, 3:05, etc)
-            repeat: { pattern: "5 * * * *" },
-          },
-        )
-        .catch((err) => {
-          logger.error(
-            "[CloudUsageMeteringQueue] Failed to schedule recurring job",
-            err,
-          );
-        });
+      // Run at minute 5 of every hour (e.g. 1:05, 2:05, 3:05, etc)
+      scheduleRecurringJob(CloudUsageMeteringQueue.instance, {
+        jobName: QueueJobs.CloudUsageMeteringJob,
+        pattern: "5 * * * *",
+      });
 
       logger.info("[CloudUsageMeteringQueue] Scheduling bootstrap job", {
         jobId: "cloud-usage-metering-bootstrap",

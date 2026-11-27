@@ -8,6 +8,8 @@ import {
   getScoresByIds,
   StorageService,
   StorageServiceFactory,
+  storageKeys,
+  toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { env } from "../env";
@@ -18,8 +20,10 @@ describe("score deletion", () => {
 
   beforeAll(() => {
     eventStorageService = StorageServiceFactory.getInstance({
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+      credentials: storageKeys(
+        env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+        env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+      ),
       bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
@@ -74,8 +78,8 @@ describe("score deletion", () => {
           event_id: randomUUID(),
           bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
           bucket_path: `${projectId}/score/${scoreId}-score.json`,
-          created_at: new Date().getTime(),
-          updated_at: new Date().getTime(),
+          created_at: toClickhouseDateTime(),
+          updated_at: toClickhouseDateTime(),
         },
       ],
     });

@@ -1,13 +1,26 @@
-import { useState } from "react";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-  HoverCardPortal,
-} from "@/src/components/ui/hover-card";
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
+import { useState, type ComponentProps } from "react";
+import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
-import { ExternalLink, Info } from "lucide-react";
+import { SquareArrowOutUpRight, Info } from "@langfuse/icons";
+
+export function DocPopupTrigger({
+  triggerProps,
+}: {
+  triggerProps: ComponentProps<"button">;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label="More information"
+      className="text-muted-foreground inline-flex cursor-help items-center px-1 whitespace-nowrap"
+      {...triggerProps}
+    >
+      <Info size="sm" />
+    </button>
+  );
+}
 
 export type DocPopupProps = {
   description: React.ReactNode;
@@ -19,13 +32,15 @@ export default function DocPopup({
   description,
   href,
   className,
-}: DocPopupProps) {
+  children,
+}: DocPopupProps &
+  Pick<ComponentProps<typeof ControlledHoverCard>, "children">) {
   const capture = usePostHogClientCapture();
   // Controlled so a CLICK/TAP on the icon also opens the card: HoverCard
   // never opens on touch by itself, and the old click-to-navigate behavior
   // is gone — docs open only via the explicit link inside the card.
   const [open, setOpen] = useState(false);
-  // Single open-change path: Radix only calls onOpenChange from its own
+  // Single open-change path: Floating UI only calls onOpenChange from its own
   // hover/focus handling, so the click handler must route through here too
   // or tap-opens (the only way in on touch) would never be captured.
   const handleOpenChange = (nextOpen: boolean) => {
@@ -39,24 +54,12 @@ export default function DocPopup({
   };
 
   return (
-    <HoverCard openDelay={200} open={open} onOpenChange={handleOpenChange}>
-      {/* The ⓘ itself never navigates; a click toggles the card (touch
-          support) and must not bubble into whatever the icon sits on —
-          e.g. a filter facet's accordion trigger. */}
-      <HoverCardTrigger className="mx-1 cursor-help" asChild>
-        <div
-          className="text-muted-foreground inline-block whitespace-nowrap sm:pl-0"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            handleOpenChange(!open);
-          }}
-        >
-          <Info className="h-3 w-3" />
-        </div>
-      </HoverCardTrigger>
-      <HoverCardPortal>
-        <HoverCardContent>
+    <ControlledHoverCard
+      openDelay={200}
+      open={open}
+      onOpenChange={handleOpenChange}
+      content={
+        <div className="w-64 p-3">
           <div
             className={cn(
               "text-primary text-xs font-normal whitespace-break-spaces sm:pl-0",
@@ -80,31 +83,28 @@ export default function DocPopup({
               className="text-muted-foreground hover:text-primary mt-2 inline-flex items-center gap-1 text-xs underline underline-offset-2"
             >
               Read docs
-              <ExternalLink className="h-3 w-3" />
+              <SquareArrowOutUpRight size="sm" />
             </a>
           )}
-        </HoverCardContent>
-      </HoverCardPortal>
-    </HoverCard>
-  );
-}
-
-export type PopupProps = {
-  triggerContent: React.ReactNode;
-  description: React.ReactNode;
-};
-
-export function Popup({ triggerContent, description }: PopupProps) {
-  return (
-    <HoverCard openDelay={200}>
-      <HoverCardTrigger className="mx-1 cursor-pointer" asChild>
-        <div>{triggerContent}</div>
-      </HoverCardTrigger>
-      <HoverCardContent>
-        <div className="text-primary text-xs font-normal whitespace-break-spaces sm:pl-0">
-          {description}
         </div>
-      </HoverCardContent>
-    </HoverCard>
+      }
+    >
+      {({ getTriggerProps, ...triggerContext }) =>
+        children({
+          ...triggerContext,
+          getTriggerProps: (props) =>
+            getTriggerProps({
+              ...props,
+              onClick: (e) => {
+                props?.onClick?.(e);
+                if (e.defaultPrevented) return;
+                e.preventDefault();
+                e.stopPropagation();
+                handleOpenChange(!open);
+              },
+            }),
+        })
+      }
+    </ControlledHoverCard>
   );
 }

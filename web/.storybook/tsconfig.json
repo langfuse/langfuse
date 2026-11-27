@@ -1,4 +1,3 @@
 {
-  "extends": "@repo/typescript-config/base.json",
-  "include": ["**/*.ts"]
+  "extends": "../tsconfig.json"
 }

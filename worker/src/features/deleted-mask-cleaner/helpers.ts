@@ -1,9 +1,19 @@
+import {
+  assertClickhouseIdentifier,
+  qualifiedClickhouseTableName,
+  quoteClickhouseIdentifier,
+  quoteClickhouseString,
+} from "@langfuse/shared/src/server/clickhouse/clickhouseIdentifiers";
+
 export const DELETED_MASK_CLEANER_TABLES = [
   "events_core",
   "events_full",
   "traces",
   "observations",
   "scores",
+  "topic_facet_summaries",
+  "topic_assignments",
+  "topic_assignments_by_trace",
 ] as const;
 
 const DELETED_MASK_CLEANER_TABLE_SET = new Set<string>(
@@ -55,13 +65,7 @@ export const DELETED_MASK_CLEANER_WORK_QUERY = `
   LIMIT 1 BY table
 `;
 
-function assertClickHouseName(value: string, label: string): void {
-  if (value.length === 0 || value.includes("\0")) {
-    throw new Error(`Invalid ClickHouse ${label}: ${value}`);
-  }
-}
-
-export function isDeletedMaskCleanerTable(table: string): boolean {
+function isDeletedMaskCleanerTable(table: string): boolean {
   return DELETED_MASK_CLEANER_TABLE_SET.has(table);
 }
 
@@ -77,21 +81,12 @@ function assertMonthPartition(partition: string): void {
   }
 }
 
-function quoteClickhouseString(value: string): string {
-  return `'${value.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
-}
-
-function quoteClickhouseIdentifier(value: string, label: string): string {
-  assertClickHouseName(value, label);
-  return `\`${value.replace(/\\/g, "\\\\").replace(/`/g, "\\`")}\``;
-}
-
 function buildMutationSource(
   useClusterAllReplicas: boolean,
   clusterName: string,
 ): string {
   if (useClusterAllReplicas) {
-    assertClickHouseName(clusterName, "cluster");
+    assertClickhouseIdentifier(clusterName, "cluster");
   }
 
   return useClusterAllReplicas
@@ -161,9 +156,11 @@ export function buildApplyDeletedMaskQuery(
   candidate: WorkCandidateRow,
   config: ClickHouseDdlConfig,
 ): string {
-  const database = quoteClickhouseIdentifier(config.database, "database");
   assertTargetTable(candidate.table);
-  const table = quoteClickhouseIdentifier(candidate.table, "table");
+  const qualifiedTable = qualifiedClickhouseTableName(
+    config.database,
+    candidate.table,
+  );
   assertMonthPartition(candidate.partition_to_clean);
 
   const clusterClause = config.clusterEnabled
@@ -177,7 +174,7 @@ export function buildApplyDeletedMaskQuery(
       })()
     : "";
 
-  return `ALTER TABLE ${database}.${table}${clusterClause} APPLY DELETED MASK IN PARTITION '${candidate.partition_to_clean}'`;
+  return `ALTER TABLE ${qualifiedTable}${clusterClause} APPLY DELETED MASK IN PARTITION '${candidate.partition_to_clean}'`;
 }
 
 export function buildMutationCountQuery(

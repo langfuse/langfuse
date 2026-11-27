@@ -6,8 +6,8 @@ import {
   Hash,
   LineChart,
   PieChart,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+} from "@langfuse/icons";
 import {
   type AggregationFn,
   type ChartViewConfig,
@@ -32,7 +32,7 @@ export interface MetricDef {
   /** The observations-view measure name this metric aggregates over. */
   measure: string;
   /** Passed through to `formatMetric` so axes/tooltips render units. */
-  unit?: "millisecond" | "USD";
+  unit?: "milliseconds" | "USD";
   /** Aggregations that make sense for this metric. */
   aggregations: AggregationFn[];
 }
@@ -48,7 +48,7 @@ export const METRICS: MetricDef[] = [
     key: "latency",
     label: "Latency",
     measure: "latency",
-    unit: "millisecond",
+    unit: "milliseconds",
     aggregations: METRIC_AGGREGATIONS.latency,
   },
   {
@@ -77,7 +77,7 @@ export const DIMENSIONS: DimensionDef[] = [
   { key: "none", label: "Total (no breakdown)", field: null },
   { key: "model", label: "Model", field: "providedModelName" },
   { key: "name", label: "Name", field: "name" },
-  { key: "level", label: "Level", field: "level" },
+  { key: "level", label: "Status", field: "level" },
   { key: "type", label: "Type", field: "type" },
   { key: "environment", label: "Environment", field: "environment" },
 ];
@@ -96,7 +96,7 @@ export const AGGREGATION_LABELS: Record<AggregationFn, string> = {
 export interface ChartTypeOption {
   value: DashboardWidgetChartType;
   label: string;
-  icon: LucideIcon;
+  icon: IconComponent;
   isTimeSeries: boolean;
 }
 
@@ -141,9 +141,7 @@ export const getMetric = (key: MetricKey): MetricDef =>
 export const getDimension = (key: DimensionKey): DimensionDef =>
   DIMENSIONS.find((d) => d.key === key) ?? DIMENSIONS[0];
 
-export const getChartType = (
-  value: DashboardWidgetChartType,
-): ChartTypeOption =>
+const getChartType = (value: DashboardWidgetChartType): ChartTypeOption =>
   CHART_TYPES.find((c) => c.value === value) ?? CHART_TYPES[0];
 
 export const isTimeSeriesChartType = (

@@ -1,0 +1,24 @@
+import { LangfuseClient } from "@langfuse/client";
+
+import { env } from "@langfuse/shared/src/env";
+import { getProductBaseUrl } from "@langfuse/shared/src/server";
+
+let client: LangfuseClient | null = null;
+
+/**
+ * Client for fetching the agent system prompt from the Langfuse AI-features
+ * project. Prompt fetching only — tracing is disabled because the agent has
+ * its own instrumentation sink. Without LANGFUSE_AI_FEATURES_HOST the client
+ * targets this deployment itself (e.g. PR previews), never cloud.langfuse.com.
+ */
+export function getInAppAgentPromptClient(): LangfuseClient {
+  if (!client) {
+    client = new LangfuseClient({
+      publicKey: env.LANGFUSE_AI_FEATURES_PUBLIC_KEY ?? "",
+      secretKey: env.LANGFUSE_AI_FEATURES_SECRET_KEY ?? "",
+      baseUrl: env.LANGFUSE_AI_FEATURES_HOST ?? getProductBaseUrl().toString(),
+    });
+  }
+
+  return client;
+}

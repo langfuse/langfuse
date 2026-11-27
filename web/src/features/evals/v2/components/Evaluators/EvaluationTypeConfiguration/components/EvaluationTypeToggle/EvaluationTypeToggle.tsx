@@ -1,0 +1,98 @@
+import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
+
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import { getEvaluatorMethodIcon } from "@/src/features/evals/v2/fns/templateGallery/evaluatorMethodPresentation";
+
+const evaluationTypes = [
+  {
+    value: EvalTemplateTypeEnum.LLM_AS_JUDGE,
+    label: "LLM-as-a-judge",
+    icon: getEvaluatorMethodIcon(EvalTemplateTypeEnum.LLM_AS_JUDGE),
+  },
+  {
+    value: EvalTemplateTypeEnum.CODE,
+    label: "Code evaluator",
+    icon: getEvaluatorMethodIcon(EvalTemplateTypeEnum.CODE),
+  },
+  {
+    value: EvalTemplateTypeEnum.DECISION_MODEL,
+    label: "Decision model",
+    icon: getEvaluatorMethodIcon(EvalTemplateTypeEnum.DECISION_MODEL),
+  },
+] as const;
+
+/** Selects the evaluator implementation. */
+export function EvaluationTypeToggle({
+  value,
+  onValueChange,
+  disabled = false,
+}: {
+  value: EvalTemplateType;
+  onValueChange: (value: EvalTemplateType) => void;
+  disabled?: boolean;
+}) {
+  const selectedType =
+    evaluationTypes.find((type) => type.value === value) ?? evaluationTypes[0];
+  const visibleTypes = disabled
+    ? evaluationTypes.filter((type) => type.value === value)
+    : evaluationTypes;
+  const SelectedIcon = selectedType.icon;
+
+  return (
+    <>
+      <div className="min-w-52 flex-1 md:hidden">
+        <Select
+          value={value}
+          onValueChange={(mode) => onValueChange(mode as EvalTemplateType)}
+          disabled={disabled}
+        >
+          <SelectTrigger aria-label="Evaluation type">
+            <SelectValue>
+              <span className="flex min-w-0 items-center gap-2">
+                <SelectedIcon size="base" />
+                <span className="truncate" title={selectedType.label}>
+                  {selectedType.label}
+                </span>
+              </span>
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {visibleTypes.map(({ value: typeValue, label, icon: Icon }) => (
+              <SelectItem key={typeValue} value={typeValue}>
+                <span className="flex items-center gap-2">
+                  <Icon size="base" />
+                  {label}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="hidden md:block">
+        <Tabs
+          value={value}
+          onValueChange={(mode) => onValueChange(mode as EvalTemplateType)}
+        >
+          <Tabs.List variant="inset" size="md">
+            {visibleTypes.map(({ value: typeValue, label, icon }) => (
+              <Tabs.Trigger
+                key={typeValue}
+                value={typeValue}
+                disabled={disabled}
+                icon={icon}
+                label={label}
+              />
+            ))}
+          </Tabs.List>
+        </Tabs>
+      </div>
+    </>
+  );
+}

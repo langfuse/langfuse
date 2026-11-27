@@ -1,7 +1,3 @@
-import {
-  type IntervalConfig,
-  type TimeRange,
-} from "@/src/utils/date-range-utils";
 import { ScoreTimeSeriesNumericChart } from "./ScoreTimeSeriesNumericChart";
 import { ScoreTimeSeriesBooleanChart } from "./ScoreTimeSeriesBooleanChart";
 import { ScoreTimeSeriesCategoricalChart } from "./ScoreTimeSeriesCategoricalChart";
@@ -26,8 +22,6 @@ export interface ScoreTimeSeriesChartProps {
   dataType: "NUMERIC" | "CATEGORICAL" | "BOOLEAN";
   score1Name: string;
   score2Name?: string;
-  interval: IntervalConfig;
-  timeRange: TimeRange;
   colors: Record<string, string> | { score1: string; score2?: string };
 }
 
@@ -43,8 +37,6 @@ export function ScoreTimeSeriesChart({
   dataType,
   score1Name,
   score2Name,
-  interval,
-  timeRange,
   colors,
 }: ScoreTimeSeriesChartProps) {
   switch (dataType) {
@@ -54,8 +46,6 @@ export function ScoreTimeSeriesChart({
           data={data as NumericTimeSeriesData}
           score1Name={score1Name}
           score2Name={score2Name}
-          interval={interval}
-          timeRange={timeRange}
           colors={colors as { score1: string; score2?: string }}
         />
       );
@@ -65,8 +55,6 @@ export function ScoreTimeSeriesChart({
           data={data as CategoricalTimeSeriesData}
           score1Name={score1Name}
           score2Name={score2Name}
-          interval={interval}
-          timeRange={timeRange}
           colors={colors as Record<string, string>}
         />
       );
@@ -76,8 +64,6 @@ export function ScoreTimeSeriesChart({
           data={data as CategoricalTimeSeriesData}
           score1Name={score1Name}
           score2Name={score2Name}
-          interval={interval}
-          timeRange={timeRange}
           colors={colors as Record<string, string>}
         />
       );

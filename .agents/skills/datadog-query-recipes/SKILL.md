@@ -41,6 +41,8 @@ data domain you need: traces, logs, metrics, and visualizations.
      [`references/public-api-tenant-usage.md`](references/public-api-tenant-usage.md)
    - Queue inventory, queue consumers, and queue metrics:
      [`references/queue-consumers.md`](references/queue-consumers.md)
+   - Scheduled-export staleness (blob / PostHog / Mixpanel):
+     [`references/export-staleness.md`](references/export-staleness.md)
 3. Start with aggregate queries, grouped by environment, service, route,
    queue, project, org, status, or error facets as appropriate.
 4. Fetch raw spans, logs, or traces only after aggregation identifies the
@@ -58,10 +60,7 @@ data domain you need: traces, logs, metrics, and visualizations.
 - Use [`weekly-production-review`](../weekly-production-review/SKILL.md) when
   the user asks for a weekly engineering overview of production bugs, pages,
   and incidents.
-- Use [`incident-alert-tickets`](../incident-alert-tickets/SKILL.md) when the
-  research is anchored to a named production alert or monitor: look up
-  documented causes before measuring, and record new ones only after human
-  approval.
+- When the research is anchored to a named production alert or monitor, read the monitor's runbook in the infrastructure repo (`runbooks/<slug>.md`) before measuring.
 - Use [`linear-bug-triage`](../linear-bug-triage/SKILL.md) only after a human
   approves sharing measured findings in Linear.
 

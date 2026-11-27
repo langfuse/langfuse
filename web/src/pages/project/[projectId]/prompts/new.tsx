@@ -1,3 +1,3 @@
-import { NewPrompt } from "@/src/features/prompts/components/prompt-new";
+import { NewPrompt } from "@/src/features/prompts/components/NewPrompt";
 
 export default NewPrompt;

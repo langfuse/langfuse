@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   createTrace,
   createObservation,
@@ -9,7 +10,7 @@ import {
   ObservationRecordInsertType,
   ScoreRecordInsertType,
 } from "../../../src/server";
-import { ObservationType } from "../../../src/domain";
+import { ObservationType } from "../../../src/domain/observations";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import {
   buildPayload,
@@ -100,12 +101,15 @@ const buildTreeShape = (
   // jitter() not rng for kinds: observation `type` is the 2nd v3 ORDER BY
   // column, and stream-position randomness would re-key rows when flags
   // that shift rng consumption change between same-prefix re-runs.
-  const kindAt = (index: number): ObservationType =>
-    index < kinds.length
-      ? kinds[index]
-      : jitter(seed, index * 5 + 3, 9) < 4
-        ? "GENERATION"
-        : kinds[jitter(seed, index * 5 + 4, kinds.length - 1)];
+  const kindAt = (index: number): ObservationType => {
+    if (index < kinds.length) {
+      return kinds[index];
+    }
+    if (jitter(seed, index * 5 + 3, 9) < 4) {
+      return "GENERATION";
+    }
+    return kinds[jitter(seed, index * 5 + 4, kinds.length - 1)];
+  };
 
   for (let i = 0; i < count; i++) {
     if (i === 0) {
@@ -149,6 +153,7 @@ const run = async (
   // validator below enforces the >= 2 lower bound on the requested value)
   const depth = Math.min(requestedDepth, observationCount);
   const payloadBytes = params["payload-bytes"] as number;
+  const strideMs = params["stride-ms"] as number;
   const payloadStyle = params["payload-style"] as PayloadStyle;
   const withV4 = params["v4"] as boolean;
   const asyncParents = params["async-parents"] as boolean;
@@ -160,6 +165,12 @@ const run = async (
   // "lots of scores" shape from LFE-10591 that overflows fixed/virtualized tree
   // rows — many distinct score names wrap into several badge lines per node.
   const scoresPerNode = params["scores-per-node"] as number;
+  // Extra trace tags on top of the scenario's own. Default "" keeps the
+  // historic tag list, so unflagged output stays byte-identical.
+  const extraTags = (params["tags"] as string)
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0);
 
   if (!PAYLOAD_STYLES.includes(payloadStyle)) {
     throw new SeedError(
@@ -189,6 +200,12 @@ const run = async (
     throw new SeedError(
       `--payload-bytes must be between 0 and 50000000 (50 MB), got ${payloadBytes}`,
       "larger payloads exceed V8 string limits during generation",
+    );
+  }
+  if (strideMs < 0 || strideMs > 60_000) {
+    throw new SeedError(
+      `--stride-ms must be between 0 and 60000, got ${strideMs}`,
+      "pass e.g. --stride-ms 10 to spread starts one per 10ms",
     );
   }
   if (scoresPerNode < 0 || scoresPerNode > 100) {
@@ -257,7 +274,7 @@ const run = async (
     session_id: null,
     release: "seed-1.0.0",
     version: "seed-v2",
-    tags: ["seed", "trace-tree", payloadStyle],
+    tags: ["seed", "trace-tree", payloadStyle, ...extraTags],
     public: false,
     bookmarked: false,
     metadata: {
@@ -288,6 +305,18 @@ const run = async (
           10 +
           jitter(ctx.seed, node.index, 80);
   }
+  // --stride-ms: flat strictly-increasing starts (start = index × stride) instead
+  // of the nested timing. Default nesting puts thousands of rows on the same
+  // millisecond, so which of them fall past a startTime-ordered row cap
+  // (MAX_OBSERVATIONS_PER_TRACE) is arbitrary; a stride makes chronological order
+  // equal index order, so the boundary is exact and reproducible.
+  // parentIndex < index keeps "child starts after its parent" intact.
+  if (strideMs > 0) {
+    for (const node of shape) {
+      startOffsets[node.index] = node.index * strideMs;
+    }
+  }
+
   const endOffsets = new Array<number>(shape.length).fill(0);
   for (let i = shape.length - 1; i >= 0; i--) {
     const node = shape[i];
@@ -335,11 +364,15 @@ const run = async (
 
     const longName = node.index % 37 === 11;
     const baseName = rng.pick(NAME_BY_KIND[node.kind]);
-    const name = longName
-      ? `${baseName}-with-an-extremely-long-name-${"x".repeat(140)}`
-      : isFailedToolRetryPair
-        ? `${baseName}-retry`
-        : baseName;
+    const name = (() => {
+      if (longName) {
+        return `${baseName}-with-an-extremely-long-name-${"x".repeat(140)}`;
+      }
+      if (isFailedToolRetryPair) {
+        return `${baseName}-retry`;
+      }
+      return baseName;
+    })();
 
     const payloadForNode = (): string | null => {
       if (node.index === 0) return rootInput;
@@ -349,16 +382,22 @@ const run = async (
       if (isGeneration) {
         // Mostly long system prompts (collapse behavior), some name-bearing
         // (title shows the name, not the role), a few short (no collapse).
-        const systemMessage =
-          node.index % 5 === 0
-            ? { role: "system", content: "You are a helpful support agent." }
-            : node.index % 3 === 1
-              ? {
-                  role: "system",
-                  name: "support-agent-instructions",
-                  content: LONG_SYSTEM_PROMPT,
-                }
-              : { role: "system", content: LONG_SYSTEM_PROMPT };
+        const systemMessage = (() => {
+          if (node.index % 5 === 0) {
+            return {
+              role: "system",
+              content: "You are a helpful support agent.",
+            };
+          }
+          if (node.index % 3 === 1) {
+            return {
+              role: "system",
+              name: "support-agent-instructions",
+              content: LONG_SYSTEM_PROMPT,
+            };
+          }
+          return { role: "system", content: LONG_SYSTEM_PROMPT };
+        })();
         return JSON.stringify({
           messages: [
             systemMessage,
@@ -699,6 +738,13 @@ export const traceTreeScenario: ScenarioDefinition = {
       description: "approx bytes for the root input payload (max 50 MB)",
     },
     {
+      flag: "stride-ms",
+      type: "number",
+      default: 0,
+      description:
+        "start each observation index × N ms after the trace start (unique, strictly increasing start times — makes a startTime-ordered observation cap boundary exact); 0 keeps the nested timing",
+    },
+    {
       flag: "payload-style",
       type: "string",
       default: "json",
@@ -730,6 +776,13 @@ export const traceTreeScenario: ScenarioDefinition = {
       default: 0,
       description:
         "attach N distinct scores to every observation (the LFE-10591 'lots of scores' shape; try 12), 0-100",
+    },
+    {
+      flag: "tags",
+      type: "string",
+      default: "",
+      description:
+        'comma-separated extra trace tags, e.g. "Zebra,apple,Ärger" — mixed case/accents exercise alphabetical tag filter ordering (LFE-14382)',
     },
   ],
   run,

@@ -8,6 +8,7 @@ import {
   LangfuseNotFoundError,
   MethodNotAllowedError,
   UnauthorizedError,
+  type ApiDeprecationInfo,
 } from "@langfuse/shared";
 import {
   logger,
@@ -17,22 +18,25 @@ import {
 } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 import {
-  sendUnstablePublicApiErrorResponse,
-  toUnstablePublicApiError,
-  unstablePublicEvalsErrorContract,
+  sendStructuredPublicApiErrorResponse,
+  structuredPublicApiErrorContract,
+  toStructuredPublicApiError,
   type PublicApiErrorContract,
-} from "@/src/features/public-api/server/unstable-public-api-error-contract";
+} from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
+import { setRetryAfterHeader } from "@/src/features/public-api/server/writeError";
+import { withDeprecationResponse } from "@/src/features/public-api/server/deprecations";
+import { env } from "@/src/env.mjs";
 
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
-export const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
+const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
 export type HttpMethod = (typeof httpMethods)[number];
+/** RouteHandler is a method handler; `deprecation` marks it as a deprecated route. */
+export type RouteHandler = ((
+  req: NextApiRequest,
+  res: NextApiResponse,
+) => Promise<void>) & { deprecation?: ApiDeprecationInfo };
 type Handlers = {
-  [Method in HttpMethod]?: (
-    req: NextApiRequest,
-    res: NextApiResponse,
-  ) => Promise<void>;
+  [Method in HttpMethod]?: RouteHandler;
 };
 
 const defaultHandler = () => {
@@ -85,7 +89,14 @@ export function withMiddlewares(
   handlers: Handlers,
   options?: MiddlewareOptions,
 ) {
-  return async (req: NextApiRequest, res: NextApiResponse) => {
+  return async (req: NextApiRequest, nextRes: NextApiResponse) => {
+    const deprecation = deprecationForRequest(
+      handlers,
+      req.method as HttpMethod,
+    );
+    const res = deprecation
+      ? withDeprecationResponse(nextRes, deprecation)
+      : nextRes;
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
       clickhouse: {
@@ -114,10 +125,14 @@ export function withMiddlewares(
 
         return await finalHandlers[method](req, res);
       } catch (error) {
+        setRetryAfterHeader(res, error);
+
         if (error instanceof ClickHouseResourceError) {
           const errorMessage =
-            options?.clickHouseResourceErrorMessage ??
-            DEFAULT_CLICKHOUSE_RESOURCE_ERROR_MESSAGE;
+            error.errorType === "RESULT_SIZE"
+              ? error.adviceMessage
+              : (options?.clickHouseResourceErrorMessage ??
+                DEFAULT_CLICKHOUSE_RESOURCE_ERROR_MESSAGE);
 
           logger.warn("ClickHouse resource limit exceeded", {
             errorType: error.errorType,
@@ -126,20 +141,23 @@ export function withMiddlewares(
             tags: error.tags,
           });
 
-          if (options?.errorContract === unstablePublicEvalsErrorContract) {
-            return sendUnstablePublicApiErrorResponse(
+          if (options?.errorContract === structuredPublicApiErrorContract) {
+            return sendStructuredPublicApiErrorResponse(
               res,
-              toUnstablePublicApiError(error),
+              toStructuredPublicApiError(error),
             );
           }
 
           return res.status(422).json({
             message: errorMessage,
-            error: "Request timed out",
+            error:
+              error.errorType === "RESULT_SIZE"
+                ? "Query result too large"
+                : "Request timed out",
           });
         }
 
-        if (options?.errorContract === unstablePublicEvalsErrorContract) {
+        if (options?.errorContract === structuredPublicApiErrorContract) {
           if (isBaseError(error)) {
             logBaseError(error);
           } else if (isZodError(error)) {
@@ -156,9 +174,9 @@ export function withMiddlewares(
             traceException(error);
           }
 
-          return sendUnstablePublicApiErrorResponse(
+          return sendStructuredPublicApiErrorResponse(
             res,
-            toUnstablePublicApiError(error),
+            toStructuredPublicApiError(error),
           );
         }
 
@@ -203,6 +221,22 @@ export function withMiddlewares(
       }
     });
   };
+}
+
+/** deprecationForRequest returns the requested handler's deprecation on Cloud; for a method the route lacks, it returns one only when every handler is deprecated. */
+function deprecationForRequest(
+  handlers: Handlers,
+  method: HttpMethod,
+): ApiDeprecationInfo | undefined {
+  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return undefined;
+  const handler = handlers[method];
+  if (handler) return handler.deprecation;
+  const defined = Object.values(handlers).filter(
+    (h): h is RouteHandler => h !== undefined,
+  );
+  return defined.every((h) => h.deprecation)
+    ? defined[0]?.deprecation
+    : undefined;
 }
 
 export function isZodError(error: any): error is ZodError {

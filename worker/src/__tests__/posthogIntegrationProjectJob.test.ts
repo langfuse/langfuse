@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 /**
  * Unit tests for the PostHog integration project job:
@@ -51,11 +51,74 @@ const h = vi.hoisted(() => {
     })();
   }
 
-  const posthogIntegrationUpdate = vi.fn();
+  // How many rows the atomic disable claim matches. 0 simulates a lost claim:
+  // either a concurrent run already flipped enabled, or the customer corrected
+  // the hostname mid-run so the run's `where` predicate no longer matches.
+  const disableClaim = { matchedRows: 1 };
+
+  // Observable completion of the terminal notification. `settled` flips only
+  // after a macrotask, so a caller that fires the dispatch without awaiting it
+  // returns while `settled` is still false — that gap is what distinguishes an
+  // awaited dispatch from a fire-and-forget one.
+  const notification = { settled: false, rejects: false };
+
+  // Stand-in for the Prisma namespace class. The record-not-found predicate is
+  // instanceof-based, so a duck-typed `{ code: "P2025" }` would not satisfy it
+  // — tests must throw a real instance of this class.
+  class PrismaClientKnownRequestError extends Error {
+    code: string;
+    constructor(message: string, { code }: { code: string }) {
+      super(message);
+      this.name = "PrismaClientKnownRequestError";
+      this.code = code;
+    }
+  }
+
+  // Lets a test fail the disable + lastError write without disturbing the tests
+  // that need it to resolve.
+  const persist = { failWith: undefined as unknown };
+
+  const posthogIntegrationUpdate = vi.fn(async () => {});
+  // The atomic disable (enabled true->false, plus lastError) uses updateMany.
+  // Only the disable write is claim- and failure-controlled; any other
+  // updateMany keeps matching.
+  const posthogIntegrationUpdateMany = vi.fn(
+    async (args?: { data?: Record<string, unknown> }) => {
+      if (args?.data?.enabled !== false) return { count: 1 };
+      if (persist.failWith !== undefined) throw persist.failWith;
+      return { count: disableClaim.matchedRows };
+    },
+  );
+  // Hostname preflight (throws OutboundUrlValidationError on a bad
+  // hostname) and the customer notification, both controllable per test.
+  const validateWebhookURL = vi.fn(async () => {});
+  const recordIncrement = vi.fn();
+  const recordDistribution = vi.fn();
+  const dispatchProjectNotification = vi.fn(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    try {
+      if (notification.rejects) throw new Error("notification dispatch failed");
+    } finally {
+      notification.settled = true;
+    }
+  });
   const getTraces = vi.fn(() => fakeStream("traces"));
   const getGenerations = vi.fn(() => fakeStream("generations"));
   const getScores = vi.fn(() => fakeStream("scores"));
   const getEvents = vi.fn(() => fakeStream("events"));
+  const processingQueue = { add: vi.fn(async () => {}) };
+
+  // Minimal stand-in for the shared class. The classifier duck-types on
+  // `.name === "OutboundUrlValidationError"` + `.code` (it does not use
+  // instanceof), so this shape is sufficient for the mocked server barrel.
+  class OutboundUrlValidationError extends Error {
+    code: string;
+    constructor(code: string, message: string) {
+      super(message);
+      this.name = "OutboundUrlValidationError";
+      this.code = code;
+    }
+  }
 
   const defaultIntegration = () => ({
     projectId: "project-1",
@@ -64,6 +127,7 @@ const h = vi.hoisted(() => {
     posthogHostName: "https://us.posthog.com",
     encryptedPosthogApiKey: "enc",
     lastSyncAt: new Date("2024-01-01"),
+    backfill: false,
     project: { name: "Test Project", createdAt: new Date("2023-01-01") },
   });
 
@@ -76,10 +140,21 @@ const h = vi.hoisted(() => {
     constructed,
     state,
     posthogIntegrationUpdate,
+    posthogIntegrationUpdateMany,
+    PrismaClientKnownRequestError,
+    persist,
+    disableClaim,
+    notification,
+    validateWebhookURL,
+    recordIncrement,
+    recordDistribution,
+    dispatchProjectNotification,
+    OutboundUrlValidationError,
     getTraces,
     getGenerations,
     getScores,
     getEvents,
+    processingQueue,
     defaultIntegration,
     db,
   };
@@ -90,16 +165,32 @@ vi.mock("@langfuse/shared/src/db", () => ({
     posthogIntegration: {
       findFirst: vi.fn(async () => h.db.integration),
       update: h.posthogIntegrationUpdate,
+      updateMany: h.posthogIntegrationUpdateMany,
     },
+  },
+  // The record-not-found predicate lives in its own module but imports Prisma
+  // from this specifier, so this factory intercepts it too. Without this
+  // export the predicate throws a TypeError instead of returning a boolean.
+  Prisma: {
+    PrismaClientKnownRequestError: h.PrismaClientKnownRequestError,
   },
 }));
 
 vi.mock("@langfuse/shared/src/server", () => ({
   QueueName: { PostHogIntegrationProcessingQueue: "posthog" },
+  QueueJobs: {
+    PostHogIntegrationProcessingJob: "posthog-integration-processing-job",
+  },
+  PostHogIntegrationProcessingQueue: {
+    getInstance: vi.fn(() => h.processingQueue),
+  },
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-  recordIncrement: vi.fn(),
+  recordIncrement: h.recordIncrement,
+  recordDistribution: h.recordDistribution,
   getCurrentSpan: vi.fn(() => undefined),
-  validateWebhookURL: vi.fn(async () => {}),
+  validateWebhookURL: h.validateWebhookURL,
+  dispatchProjectNotification: h.dispatchProjectNotification,
+  OutboundUrlValidationError: h.OutboundUrlValidationError,
   getTracesForAnalyticsIntegrations: h.getTraces,
   getGenerationsForAnalyticsIntegrations: h.getGenerations,
   getScoresForAnalyticsIntegrations: h.getScores,
@@ -191,10 +282,24 @@ function resetSharedState() {
   h.state.rowCounts.generations = 2;
   h.state.rowCounts.events = 2;
   h.posthogIntegrationUpdate.mockClear();
+  h.persist.failWith = undefined;
+  // mockClear, not mockReset: the implementations above are claim/notification
+  // aware and must survive between tests; only the recorded calls reset.
+  h.posthogIntegrationUpdateMany.mockClear();
+  h.disableClaim.matchedRows = 1;
+  h.notification.settled = false;
+  h.notification.rejects = false;
+  h.recordIncrement.mockClear();
+  h.recordDistribution.mockClear();
+  h.validateWebhookURL.mockReset();
+  h.validateWebhookURL.mockImplementation(async () => {});
+  h.dispatchProjectNotification.mockClear();
   h.getTraces.mockClear();
   h.getGenerations.mockClear();
   h.getScores.mockClear();
   h.getEvents.mockClear();
+  h.processingQueue.add.mockReset();
+  h.processingQueue.add.mockImplementation(async () => {});
   h.db.integration = h.defaultIntegration();
   (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
   (env as any).LANGFUSE_POSTHOG_FLUSH_DELAY_MS = 0;
@@ -423,5 +528,351 @@ describe("handlePostHogIntegrationProjectJob delivery controls (issue #12786)", 
     );
 
     expect(h.posthogIntegrationUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// A deterministic customer-config fault (bad/malicious hostname
+// rejected by validateWebhookURL) must be classified as the customer's problem
+// — the job RESOLVES (not thrown, so the type:failed counter never increments
+// and the Failures monitor stays quiet), the integration is auto-disabled,
+// lastError/lastErrorAt are persisted, and the customer is notified once with
+// disabled=true. Transient/infra faults still throw, retry, and trip the
+// monitor unchanged.
+describe("handlePostHogIntegrationProjectJob customer-fault auto-disable", () => {
+  beforeEach(() => {
+    resetSharedState();
+    // A known-good source + write-mode combo so the pre-export write-mode
+    // guards pass and the handler reaches the hostname preflight.
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      exportSource: "TRACES_OBSERVATIONS",
+    };
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+  });
+
+  // Every `data` payload written across update + updateMany, so assertions
+  // don't over-constrain which Prisma method carries which column.
+  const writeData = (): Array<Record<string, unknown>> =>
+    [
+      ...h.posthogIntegrationUpdate.mock.calls,
+      ...h.posthogIntegrationUpdateMany.mock.calls,
+    ].map(
+      (call) =>
+        (call[0] as { data?: Record<string, unknown> } | undefined)?.data ?? {},
+    );
+
+  const disableNotifications = (): number =>
+    h.dispatchProjectNotification.mock.calls.filter((call) => {
+      const arg = call[0] as { event?: { disabled?: unknown } } | undefined;
+      return arg?.event?.disabled === true;
+    }).length;
+
+  // The atomic disable writes: updateMany calls carrying `enabled: false`.
+  const disableWrites = (): Array<{
+    where?: Record<string, unknown>;
+    data?: Record<string, unknown>;
+  }> =>
+    h.posthogIntegrationUpdateMany.mock.calls
+      .map((call) => call[0] as { where?: any; data?: any } | undefined)
+      .filter((arg): arg is { where?: any; data?: any } => Boolean(arg))
+      .filter((arg) => arg.data?.enabled === false);
+
+  // Counter emitted when an integration is auto-disabled. Matched on the
+  // metric-name fragment rather than the full string so the assertion tracks
+  // the behavior, not the namespace. The winning-claim test below asserts this
+  // filter yields exactly one call, which keeps the "not recorded" assertions
+  // from passing vacuously if the metric were ever renamed away.
+  const disableMetrics = (): unknown[][] =>
+    h.recordIncrement.mock.calls.filter(
+      ([name]) =>
+        typeof name === "string" && name.includes("integration_disabled"),
+    );
+
+  const badHostnameFault = () =>
+    new h.OutboundUrlValidationError(
+      "blocked-hostname",
+      "Blocked hostname detected",
+    );
+
+  // Load-bearing: the core journey. A blocked-hostname fault must resolve (no
+  // throw) AND flip enabled to false AND persist the error AND notify once.
+  it("resolves and auto-disables on a blocked-hostname validation fault", async () => {
+    h.validateWebhookURL.mockRejectedValueOnce(
+      new h.OutboundUrlValidationError(
+        "blocked-hostname",
+        "Blocked hostname detected",
+      ),
+    );
+
+    // Must not throw — a throw would increment type:failed and fire the monitor.
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(writeData().some((data) => data.enabled === false)).toBe(true);
+    expect(
+      writeData().some(
+        (data) =>
+          typeof data.lastError === "string" &&
+          (data.lastError as string).length > 0,
+      ),
+    ).toBe(true);
+    expect(writeData().some((data) => data.lastErrorAt instanceof Date)).toBe(
+      true,
+    );
+    expect(disableNotifications()).toBe(1);
+  });
+
+  // Load-bearing: the throw site rewraps into `new Error(msg, { cause })`, so
+  // the handler must classify off the cause chain — a wrapped validation error
+  // still disables.
+  it("classifies through a wrapped cause chain and still disables", async () => {
+    h.validateWebhookURL.mockRejectedValueOnce(
+      new Error("posthog export failed", {
+        cause: new h.OutboundUrlValidationError(
+          "blocked-hostname",
+          "Blocked hostname detected",
+        ),
+      }),
+    );
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(writeData().some((data) => data.enabled === false)).toBe(true);
+    expect(disableNotifications()).toBe(1);
+  });
+
+  // A disallowed protocol or port is as deterministic as a blocked hostname —
+  // no retry can fix `ftp://` or `:8080`. These reach the handler as coded
+  // errors only because validateWebhookURL raises OutboundUrlValidationError
+  // for them; while it threw a bare Error, they were unclassifiable and
+  // retried forever. Real coded-vs-uncoded coverage lives in
+  // webhook-validation.test.ts, since this suite mocks the validator.
+  it.each([
+    ["protocol-not-allowed", "Only HTTP and HTTPS protocols are allowed"],
+    ["port-not-allowed", "Only ports 80 and 443 are allowed"],
+  ] as const)("resolves and auto-disables on %s", async (code, message) => {
+    h.validateWebhookURL.mockRejectedValueOnce(
+      new h.OutboundUrlValidationError(code, message),
+    );
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(writeData().some((data) => data.enabled === false)).toBe(true);
+    expect(disableNotifications()).toBe(1);
+  });
+
+  // Load-bearing negative controls: transient/infra faults are NOT customer
+  // faults — the handler must rethrow (so BullMQ retries and the monitor
+  // fires), leave enabled unchanged, and never notify.
+  it.each([
+    [
+      "a dns-lookup-failed validation fault",
+      () =>
+        new h.OutboundUrlValidationError(
+          "dns-lookup-failed",
+          "DNS lookup failed for host.example",
+        ),
+    ],
+    [
+      "a generic ClickHouse-style error",
+      () => new Error("ClickHouse read failed"),
+    ],
+  ] as const)(
+    "rethrows on %s, leaves enabled unchanged, and does not notify",
+    async (_label, makeError) => {
+      h.validateWebhookURL.mockRejectedValueOnce(makeError());
+
+      await expect(
+        handlePostHogIntegrationProjectJob(makeJob()),
+      ).rejects.toThrow();
+
+      expect(writeData().some((data) => data.enabled === false)).toBe(false);
+      expect(h.dispatchProjectNotification).not.toHaveBeenCalled();
+    },
+  );
+
+  // Cheap addition (Semantics table success row): a healthy run clears any
+  // prior error state so a fixed + re-enabled integration reads as healthy.
+  it("clears lastError/lastErrorAt on a successful run", async () => {
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(h.posthogIntegrationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ lastError: null, lastErrorAt: null }),
+      }),
+    );
+  });
+
+  // Load-bearing: the disable predicate must pin the hostname and API key this
+  // run used. Without them, a run carrying stale config would disable a host or
+  // key the customer already corrected mid-run. Asserted on the real argument,
+  // so a predicate that silently drops either guard goes red.
+  it("scopes the atomic disable to the hostname and API key this run used", async () => {
+    h.validateWebhookURL.mockRejectedValueOnce(badHostnameFault());
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(disableWrites()).toHaveLength(1);
+    expect(disableWrites()[0].where).toEqual({
+      projectId: "project-1",
+      enabled: true,
+      posthogHostName: "https://us.posthog.com",
+      encryptedPosthogApiKey: "enc",
+    });
+  });
+
+  // Positive control for the two "not recorded / not notified" assertions
+  // below: proves the disable-metric filter and the notification counter both
+  // observe something real on the winning path.
+  it("records the disable metric and notifies once when the claim is won", async () => {
+    h.validateWebhookURL.mockRejectedValueOnce(badHostnameFault());
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(disableMetrics()).toHaveLength(1);
+    expect(disableNotifications()).toBe(1);
+  });
+
+  // Load-bearing: the notify-once guarantee under a lost claim. count === 0
+  // means a concurrent run already flipped enabled, the customer corrected the
+  // host or API key mid-run, or the integration was deleted. In every case this
+  // run must stay silent and leave no stale lastError on a working integration.
+  it("stays silent when the disable claim matches no row", async () => {
+    h.disableClaim.matchedRows = 0;
+    h.validateWebhookURL.mockRejectedValueOnce(badHostnameFault());
+
+    // Still a deliberate resolve: a lost claim is not a job failure.
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(disableWrites()).toHaveLength(1);
+    expect(h.posthogIntegrationUpdate).not.toHaveBeenCalled();
+    expect(h.dispatchProjectNotification).not.toHaveBeenCalled();
+    expect(disableMetrics()).toHaveLength(0);
+  });
+
+  // Load-bearing: fail-fast resolves the job and the scheduler only enqueues
+  // enabled integrations, so a dispatch left in flight has no retry path and
+  // would leave the customer silently disabled. The notification mock settles
+  // one macrotask late, so this flag is still false if the dispatch is fired
+  // without being awaited.
+  it("completes the disable notification before the handler resolves", async () => {
+    h.validateWebhookURL.mockRejectedValueOnce(badHostnameFault());
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(h.notification.settled).toBe(true);
+  });
+
+  // Load-bearing: awaiting the dispatch must not turn the deliberate resolve
+  // into a job failure — the notify helper swallows its own errors, and the
+  // disable stands regardless of whether the customer could be reached.
+  it("resolves and keeps the integration disabled when the notification rejects", async () => {
+    h.notification.rejects = true;
+    h.validateWebhookURL.mockRejectedValueOnce(badHostnameFault());
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(disableWrites()).toHaveLength(1);
+    expect(h.notification.settled).toBe(true);
+  });
+
+  // Load-bearing: if the disable write fails we do NOT know the fault was
+  // recorded, so the run must not claim it as handled — rethrow and let BullMQ
+  // retry and reclassify. Without this, a swallowed DB outage would silently
+  // drop the customer fault.
+  it("rethrows when persisting the disable fails", async () => {
+    h.validateWebhookURL.mockRejectedValueOnce(badHostnameFault());
+    h.persist.failWith = new Error("database unavailable");
+
+    await expect(
+      handlePostHogIntegrationProjectJob(makeJob()),
+    ).rejects.toThrow();
+
+    expect(disableMetrics()).toHaveLength(0);
+    expect(h.dispatchProjectNotification).not.toHaveBeenCalled();
+  });
+});
+
+// The day cap bounds per-run work, but an export whose window crosses UTC
+// midnight would otherwise stop at 00:00 and wait a full scheduler tick for the
+// rest, leaving it over two hours behind.
+describe("handlePostHogIntegrationProjectJob follow-up after the day cap", () => {
+  const now = new Date("2026-11-04T01:30:00.000Z");
+
+  beforeEach(() => {
+    resetSharedState();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const syncedTo = () =>
+    (
+      h.posthogIntegrationUpdate.mock.calls[0] as unknown as [
+        { data: { lastSyncAt: Date } },
+      ]
+    )[0].data.lastSyncAt;
+
+  it("queues the next window right away when the cap cut the run short", async () => {
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      lastSyncAt: new Date("2026-11-03T23:00:00.000Z"),
+    };
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(syncedTo()).toEqual(new Date("2026-11-04T00:00:00.000Z"));
+    expect(h.processingQueue.add).toHaveBeenCalledTimes(1);
+    expect(h.processingQueue.add).toHaveBeenCalledWith(
+      "posthog-integration-processing-job",
+      expect.objectContaining({ payload: { projectId: "project-1" } }),
+      // Same key the scheduler derives from the new lastSyncAt, so its next
+      // tick deduplicates against the follow-up instead of queuing it twice.
+      expect.objectContaining({
+        jobId: "project-1-2026-11-04T00:00:00.000Z",
+        removeOnFail: true,
+      }),
+    );
+  });
+
+  it("does not queue a follow-up when the run reached the live tail", async () => {
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      lastSyncAt: new Date("2026-11-04T00:00:00.000Z"),
+    };
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(syncedTo()).toEqual(new Date("2026-11-04T01:00:00.000Z"));
+    expect(h.processingQueue.add).not.toHaveBeenCalled();
+  });
+
+  it("keeps a backfill at one day per scheduler tick", async () => {
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      lastSyncAt: new Date("2026-10-01T00:00:00.000Z"),
+      backfill: true,
+    };
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(syncedTo()).toEqual(new Date("2026-10-02T00:00:00.000Z"));
+    expect(h.processingQueue.add).not.toHaveBeenCalled();
+  });
+
+  it("still succeeds when the follow-up cannot be queued", async () => {
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      lastSyncAt: new Date("2026-11-03T23:00:00.000Z"),
+    };
+    h.processingQueue.add.mockRejectedValueOnce(new Error("redis down"));
+
+    await expect(
+      handlePostHogIntegrationProjectJob(makeJob()),
+    ).resolves.toBeUndefined();
+
+    expect(syncedTo()).toEqual(new Date("2026-11-04T00:00:00.000Z"));
   });
 });

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import {
   TraceRecordInsertType,
   ObservationRecordInsertType,
@@ -39,6 +40,49 @@ export class ClickHouseQueryBuilder {
           'routing.priority', arrayElement(['low', 'normal', 'high'], 1 + (${rowExpression} % 3)),
           'flags.beta', if(${rowExpression} % 2 = 0, 'true', 'false')
         )`;
+  }
+
+  /**
+   * SQL for the epoch-seconds timestamp of the bulk trace at `traceIndexSql`.
+   *
+   * Without `endSeconds`, traces spread back from `anchorSeconds` (a
+   * midnight) over `spreadSeconds`. With it, the window ends one day after
+   * the anchor instead and the traces of the anchor day are compressed into
+   * [anchorSeconds, endSeconds]: the newest trace sits at `endSeconds`, yet
+   * every row keeps its date on any same-day re-run, so the toDate(...)
+   * sorting keys stay stable and ReplacingMergeTree overwrites. That holds
+   * only when `anchorSeconds` is midnight in the ClickHouse server timezone,
+   * which merges use to evaluate toDate(...).
+   */
+  private bulkTraceTimestampSql(
+    traceIndexSql: string,
+    tracesCount: number,
+    spreadSeconds: number,
+    anchorSeconds: number,
+    endSeconds?: number,
+  ): string {
+    const step = `intDiv(${traceIndexSql} * ${spreadSeconds}, ${Math.max(tracesCount, 1)})`;
+    if (endSeconds === undefined) {
+      return `(${anchorSeconds} - ${step})`;
+    }
+    const todaySeconds = Math.min(
+      Math.max(Math.floor(endSeconds) - anchorSeconds, 0),
+      86_399,
+    );
+    const base = `(${anchorSeconds + 86_400} - ${step})`;
+    return `if(${base} >= ${anchorSeconds}, ${anchorSeconds} + intDiv((${base} - ${anchorSeconds}) * ${todaySeconds}, 86400), ${base})`;
+  }
+
+  /**
+   * Caps a child row's epoch-seconds timestamp at `nowSeconds`. Children
+   * offset forward from their trace; right after the anchor midnight the
+   * compressed traces sit at midnight with no room for those offsets. The
+   * cap never moves a child before its trace, so its date stays put.
+   */
+  private notAfterSql(secondsSql: string, nowSeconds?: number): string {
+    return nowSeconds === undefined
+      ? secondsSql
+      : `least(${secondsSql}, ${Math.floor(nowSeconds)})`;
   }
 
   /**
@@ -94,6 +138,8 @@ export class ClickHouseQueryBuilder {
       numberOfDays: number;
       idPrefix?: string;
       anchorSeconds?: number;
+      /** see bulkTraceTimestampSql */
+      endSeconds?: number;
       seed?: number;
     } = { numberOfDays: 1 },
   ): string {
@@ -117,6 +163,13 @@ export class ClickHouseQueryBuilder {
     const anchorSeconds =
       opts.anchorSeconds ?? Math.floor(Date.now() / 86_400_000) * 86_400;
     const seedSalt = (opts.seed ?? 0) >>> 0;
+    const traceTimestamp = this.bulkTraceTimestampSql(
+      "number",
+      count,
+      spreadSeconds,
+      anchorSeconds,
+      opts.endSeconds,
+    );
 
     // Timestamps derive from `number` and anchor to midnight UTC (computed
     // in TS, independent of the ClickHouse server timezone) so same-day
@@ -128,7 +181,7 @@ export class ClickHouseQueryBuilder {
       INSERT INTO traces
       SELECT
         concat('${idPrefix}trace-bulk-', toString(number), '-${idSuffix}') AS id,
-        toDateTime(${anchorSeconds} - intDiv(number * ${spreadSeconds}, ${Math.max(count, 1)})) AS timestamp,
+        toDateTime(${traceTimestamp}) AS timestamp,
         arrayElement(['chat-completion','summarize-document','extract-entities','embed-documents','classify-intent','generate-title','translate-text','moderate-content','rerank-results','answer-question'], 1 + (number % 10)) AS name,
         if(h1 % 10 < 3, concat('${idPrefix}user_', toString(h1 % 1000)), NULL) AS user_id,
         ${this.buildNestedMetadataMapSql(["'generated'", "'bulk'"])} AS metadata,
@@ -176,6 +229,10 @@ export class ClickHouseQueryBuilder {
       numberOfDays: number;
       idPrefix?: string;
       anchorSeconds?: number;
+      /** see bulkTraceTimestampSql */
+      endSeconds?: number;
+      /** see notAfterSql */
+      nowSeconds?: number;
       seed?: number;
       /** real Postgres prompt rows to link ~10% of generations to; omitted
        * -> prompt columns stay NULL (fabricated ids break the PromptBadge) */
@@ -194,6 +251,13 @@ export class ClickHouseQueryBuilder {
       opts.anchorSeconds ?? Math.floor(Date.now() / 86_400_000) * 86_400;
     const seedSalt = (opts.seed ?? 0) >>> 0;
     const prompts = opts.prompts ?? [];
+    const traceTimestamp = this.bulkTraceTimestampSql(
+      `(number % ${Math.max(tracesCount, 1)})`,
+      tracesCount,
+      spreadSeconds,
+      anchorSeconds,
+      opts.endSeconds,
+    );
 
     // Escape file content if provided
     const escapedHeavyMarkdown = fileContent
@@ -218,9 +282,9 @@ export class ClickHouseQueryBuilder {
         '${escapedEnvironment}' AS environment,
         multiIf(h1 % 100 < 47, 'GENERATION', h1 % 100 < 94, 'SPAN', 'EVENT') AS type,
         if(number < ${tracesCount}, NULL, concat('${idPrefix}obs-bulk-', toString(number - ${tracesCount}), '-${idSuffix}')) AS parent_observation_id,
-        toDateTime(${anchorSeconds} - intDiv((number % ${Math.max(tracesCount, 1)}) * ${spreadSeconds}, ${Math.max(tracesCount, 1)}) + intDiv(number, ${Math.max(tracesCount, 1)}) * 60) AS start_time,
+        toDateTime(${this.notAfterSql(`${traceTimestamp} + intDiv(number, ${Math.max(tracesCount, 1)}) * 60`, opts.nowSeconds)}) AS start_time,
         addMilliseconds(
-          toDateTime(${anchorSeconds} - intDiv((number % ${Math.max(tracesCount, 1)}) * ${spreadSeconds}, ${Math.max(tracesCount, 1)}) + ${Math.max(observationsPerTrace - 1, 0)} * 60),
+          toDateTime(${this.notAfterSql(`${traceTimestamp} + ${Math.max(observationsPerTrace - 1, 0)} * 60`, opts.nowSeconds)}),
           (${Math.max(observationsPerTrace - 1, 0)} - intDiv(number, ${Math.max(tracesCount, 1)})) * 4000 +
           case
             when type = 'GENERATION' then 600 + h2 % 3400
@@ -231,11 +295,23 @@ export class ClickHouseQueryBuilder {
           when type = 'GENERATION' then concat('generation-', toString(number % 10))
           when type = 'SPAN' then concat('span-', toString(number % 10))
           else concat('event-', toString(number % 10))
-        end AS name,
-        ${this.buildNestedMetadataMapSql(["'key'", "'value'"])} AS metadata,
-        multiIf(h3 % 1000 < 850, 'DEFAULT', h3 % 1000 < 955, 'DEBUG', h3 % 1000 < 969, 'ERROR', 'WARNING') AS level,
-        NULL AS status_message,
-        NULL AS version,
+          end AS name,
+          ${this.buildNestedMetadataMapSql(["'key'", "'value'"])} AS metadata,
+          multiIf(h3 % 1000 < 850, 'DEFAULT', h3 % 1000 < 955, 'DEBUG', h3 % 1000 < 969, 'ERROR', 'WARNING') AS level,
+          multiIf(
+            level = 'ERROR' AND h2 % 2 = 0,
+              '{"error":{"code":"upstream_timeout","message":"The upstream model did not respond in time.","retryable":true},"requestId":"seed-request-42"}',
+            level = 'ERROR',
+              'Upstream model request timed out after 30 seconds.',
+            level = 'WARNING',
+              'The response completed after one automatic retry.',
+            level = 'DEBUG',
+              'Prompt cache lookup completed without a matching entry.',
+            level = 'DEFAULT' AND h2 % 10 = 0,
+              'The response completed with additional status details.',
+            NULL
+          ) AS status_message,
+          NULL AS version,
         if(type = 'GENERATION',
           if(h2 % 10 < 4, '${escapedHeavyMarkdown}', '${escapedChatMl}'),
           NULL) AS input,
@@ -312,6 +388,10 @@ export class ClickHouseQueryBuilder {
       idPrefix?: string;
       observationsPerTrace?: number;
       anchorSeconds?: number;
+      /** see bulkTraceTimestampSql */
+      endSeconds?: number;
+      /** see notAfterSql */
+      nowSeconds?: number;
       seed?: number;
     } = { numberOfDays: 1 },
   ): string {
@@ -327,12 +407,19 @@ export class ClickHouseQueryBuilder {
     const anchorSeconds =
       opts.anchorSeconds ?? Math.floor(Date.now() / 86_400_000) * 86_400;
     const seedSalt = (opts.seed ?? 0) >>> 0;
+    const traceTimestamp = this.bulkTraceTimestampSql(
+      `(number % ${Math.max(tracesCount, 1)})`,
+      tracesCount,
+      spreadSeconds,
+      anchorSeconds,
+      opts.endSeconds,
+    );
 
     return `
       INSERT INTO scores
       SELECT
         concat('${idPrefix}score-bulk-', toString(number), '-${idSuffix}') AS id,
-        toDateTime(${anchorSeconds} - intDiv((number % ${Math.max(tracesCount, 1)}) * ${spreadSeconds}, ${Math.max(tracesCount, 1)}) + intDiv(number, ${Math.max(tracesCount, 1)}) * 90) AS timestamp,
+        toDateTime(${this.notAfterSql(`${traceTimestamp} + intDiv(number, ${Math.max(tracesCount, 1)}) * 90`, opts.nowSeconds)}) AS timestamp,
         '${escapedProjectId}' AS project_id,
         '${escapedEnvironment}' AS environment,
         concat('${idPrefix}trace-bulk-', toString(number % ${tracesCount}), '-${idSuffix}') AS trace_id,
@@ -352,6 +439,8 @@ export class ClickHouseQueryBuilder {
         'API' AS source,
         'Generated synthetic score' AS comment,
         map() AS metadata,
+        '' AS evaluator_id,
+        '' AS evaluation_rule_id,
         NULL AS author_user_id,
         NULL AS config_id,
         case 

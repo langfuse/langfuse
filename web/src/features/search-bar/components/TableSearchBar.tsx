@@ -1,0 +1,89 @@
+import type { FilterState, TracingSearchType } from "@langfuse/shared";
+import { EventsSearchBarRow } from "./EventsSearchBarRow";
+import { useEventsSearchBar } from "../hooks/useEventsSearchBar";
+import { DEFAULT_SEARCH_TYPE } from "../lib/commit";
+import type { ComponentProps } from "react";
+import type { FieldRegistry } from "../lib/fields";
+import type { ObservedOptions } from "../lib/observed-options";
+import type { ManagedEnvironmentPolicyConfig } from "@/src/features/filters/lib/managedEnvironmentPolicy";
+
+const noSearchLane = () => {};
+
+export function TableSearchBar({
+  projectId,
+  tableName,
+  registry,
+  filterState,
+  setFilterState,
+  observed,
+  managedEnvironmentPolicy,
+  isV4,
+  search,
+  onRequestColumns,
+  erroredColumns,
+  inset = false,
+  size = "default",
+  spacing,
+}: {
+  projectId?: string;
+  tableName: string;
+  registry: FieldRegistry;
+  filterState: FilterState;
+  setFilterState: (filters: FilterState) => void;
+  observed: ObservedOptions | undefined;
+  managedEnvironmentPolicy?: ManagedEnvironmentPolicyConfig;
+  isV4: boolean;
+  search?: {
+    query: string | null;
+    type?: TracingSearchType[];
+    setQuery: (query: string | null) => void;
+    setType?: (type: TracingSearchType[]) => void;
+  };
+  onRequestColumns?: (columns: readonly string[]) => void;
+  erroredColumns?: ReadonlySet<string>;
+  inset?: boolean;
+  /** `large` on full-page lists; embedded toolbars keep the default. */
+  size?: ComponentProps<typeof EventsSearchBarRow>["size"];
+  /** `page` on full-page lists, matching Tracing's 12px inset. */
+  spacing?: ComponentProps<typeof EventsSearchBarRow>["spacing"];
+}) {
+  // The host owns the applied query and scope; the bar edits both together.
+  const { store, commit, applyFilters } = useEventsSearchBar({
+    projectId,
+    tableName,
+    registry,
+    enabled: true,
+    isV4,
+    filterState,
+    setFilterState,
+    observed,
+    searchQuery: search?.query ?? null,
+    setSearchQuery: search?.setQuery ?? noSearchLane,
+    searchType: search?.type ?? DEFAULT_SEARCH_TYPE,
+    analyticsSearchType: search?.setType ? undefined : (search?.type ?? []),
+    setSearchType: search?.setType ?? noSearchLane,
+  });
+
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <div className="min-w-0 flex-1">
+        <EventsSearchBarRow
+          className={inset ? "p-0" : undefined}
+          spacing={spacing}
+          projectId={projectId}
+          tableName={tableName}
+          registry={registry}
+          isV4={isV4}
+          store={store}
+          commit={commit}
+          observed={observed}
+          managedEnvironmentPolicy={managedEnvironmentPolicy}
+          onApplyFilters={applyFilters}
+          onRequestColumns={onRequestColumns}
+          erroredColumns={erroredColumns}
+          size={size}
+        />
+      </div>
+    </div>
+  );
+}

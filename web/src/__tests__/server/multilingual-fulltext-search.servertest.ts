@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 /**
  * Tests for GitHub issue #11538 — "Full-text search fails for non-English text".
  *
@@ -40,6 +41,7 @@ import { type TracingSearchType } from "@langfuse/shared";
 import { makeAPICall } from "@/src/__tests__/test-utils";
 import waitForExpect from "wait-for-expect";
 import { randomUUID } from "crypto";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -81,48 +83,16 @@ describe("multilingual full-text search (issue #11538)", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
   const suiteStartMs = Date.now();
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: "seed-org-id",
-          name: "Test Organization",
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: projectId,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: "Test Project",
-              metadata: {},
-              hasTraces: true,
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-        searchBar: false,
+  const session: Session = createSession({
+    organizations: [
+      {
+        id: "seed-org-id",
+        role: "OWNER",
+        aiTelemetryEnabled: true,
+        projects: [{ id: projectId, role: "ADMIN", hasTraces: true }],
       },
-      admin: true,
-    },
-    environment: {} as any,
-  };
+    ],
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
@@ -493,7 +463,7 @@ describe("multilingual full-text search (issue #11538)", () => {
       const values = Object.values(result.params as Record<string, string>);
       // the raw form is already bound today; the JSON-\u-escaped form is what's missing
       expect(values).toContain("%你好%");
-      expect(values).toContain("%\\u4f60\\u597d%"); // 你 = U+4F60, 好 = U+597D
+      expect(values).toContain("%\\\\u4f60\\\\u597d%"); // 你 = U+4F60, 好 = U+597D
       // ... and the generated WHERE clause must apply that escaped parameter to input AND output
       expect(result.query).toMatch(
         /t\.input ILIKE \{[^}]+: String\}.*t\.output ILIKE/s,
@@ -506,13 +476,13 @@ describe("multilingual full-text search (issue #11538)", () => {
     it("binds the \\u-escaped form of an Arabic query (input search)", () => {
       // مرحبا = U+0645 U+0631 U+062D U+0628 U+0627
       expect(paramValues("مرحبا", ["input"])).toContain(
-        "%\\u0645\\u0631\\u062d\\u0628\\u0627%",
+        "%\\\\u0645\\\\u0631\\\\u062d\\\\u0628\\\\u0627%",
       );
     });
 
     it("encodes an astral-plane (emoji) query as a UTF-16 surrogate pair, like a JSON serializer would", () => {
       // 🚀 = U+1F680 -> UTF-16 surrogate pair D83D DE80
-      expect(paramValues("🚀", ["content"])).toContain("%\\ud83d\\ude80%");
+      expect(paramValues("🚀", ["content"])).toContain("%\\\\ud83d\\\\ude80%");
     });
   });
 });

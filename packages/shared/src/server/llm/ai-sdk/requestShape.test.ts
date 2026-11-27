@@ -1,16 +1,24 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { encrypt } from "../../../encryption";
+import { env } from "../../../env";
+import {
+  BEDROCK_USE_DEFAULT_CREDENTIALS,
+  VERTEXAI_USE_DEFAULT_CREDENTIALS,
+} from "../../../interfaces/customLLMProviderConfigSchemas";
 import {
   type ChatMessage,
   ChatMessageRole,
   ChatMessageType,
+  LangfuseInternalTraceEnvironment,
   LLMAdapter,
   type ModelParams,
   type TraceSinkParams,
 } from "../types";
+import { generateLangfuseAIText } from "../langfuseAiCompletion";
 import {
   createLLMOutput,
+  embedLLMText,
   generateLLMText,
   mapLegacyLLMCompletionParams,
 } from "../llmText";
@@ -176,6 +184,8 @@ async function runCompletion(params: {
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
   llmConnectionConfig?: Record<string, string | boolean>;
+  openAIChatProvider?: "native";
+  internalEnvironment?: LangfuseInternalTraceEnvironment;
   output?: ReturnType<typeof createLLMOutput>;
   response: unknown;
   trace?: TraceSinkParams;
@@ -195,6 +205,8 @@ async function runCompletion(params: {
         config: params.llmConnectionConfig,
       },
     }),
+    openAIChatProvider: params.openAIChatProvider,
+    internalEnvironment: params.internalEnvironment,
     timeout: 10_000,
     output: params.output,
     trace: params.trace,
@@ -253,12 +265,79 @@ describe("AI SDK request shapes", () => {
       },
       apiKey: "sk-test",
       llmConnectionConfig: { useResponsesApi: true },
+      openAIChatProvider: "native",
       response: OPENAI_RESPONSES_RESPONSE,
     });
 
     expect(request.url).toBe("https://api.openai.com/v1/responses");
     expect(request.headers.get("authorization")).toBe("Bearer sk-test");
     expect(request.body.model).toBe("gpt-4o");
+  });
+
+  it.each(["eu.api.openai.com", "api.openai.com."])(
+    "preserves saved evaluator options on %s",
+    async (host) => {
+      const { request } = await runCompletion({
+        modelParams: {
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          model: "gpt-4o",
+          max_tokens: 128,
+          temperature: 0.2,
+          providerOptions: {
+            seed: 42,
+            response_format: { type: "json_object" },
+          },
+        },
+        apiKey: "sk-test",
+        baseURL: `https://${host}/v1`,
+        response: OPENAI_CHAT_RESPONSE,
+      });
+      expect(request.url).toBe(`https://${host}/v1/chat/completions`);
+      expect(request.body).toMatchObject({
+        max_tokens: 128,
+        temperature: 0.2,
+        seed: 42,
+        response_format: { type: "json_object" },
+      });
+    },
+  );
+
+  it("Langfuse AI first-party OpenAI credentials hit /v1/responses", async () => {
+    const original = {
+      LANGFUSE_AI_PROVIDER: env.LANGFUSE_AI_PROVIDER,
+      LANGFUSE_AI_MODEL: env.LANGFUSE_AI_MODEL,
+      LANGFUSE_AI_SMALL_MODEL: env.LANGFUSE_AI_SMALL_MODEL,
+      LANGFUSE_AI_API_KEY: env.LANGFUSE_AI_API_KEY,
+      LANGFUSE_AI_BASE_URL: env.LANGFUSE_AI_BASE_URL,
+      LANGFUSE_AI_USE_RESPONSES_API: env.LANGFUSE_AI_USE_RESPONSES_API,
+    };
+    Object.assign(env, {
+      LANGFUSE_AI_PROVIDER: "openai",
+      LANGFUSE_AI_MODEL: "gpt-5.6-sol",
+      LANGFUSE_AI_SMALL_MODEL: "gpt-5.6-luna",
+      LANGFUSE_AI_API_KEY: "sk-test",
+      LANGFUSE_AI_BASE_URL: undefined,
+      LANGFUSE_AI_USE_RESPONSES_API: undefined,
+    });
+
+    try {
+      const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
+      vi.stubGlobal("fetch", fetch);
+
+      const text = await generateLangfuseAIText({
+        messages,
+        timeout: 10_000,
+      });
+
+      expect(text).toBe("ok");
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.url).toBe("https://api.openai.com/v1/responses");
+      expect(calls[0]?.headers.get("authorization")).toBe("Bearer sk-test");
+      expect(calls[0]?.body.model).toBe("gpt-5.6-sol");
+    } finally {
+      Object.assign(env, original);
+    }
   });
 
   it("OpenAI-compatible chat completions: preserves custom provider options on the wire", async () => {
@@ -341,8 +420,80 @@ describe("AI SDK request shapes", () => {
       });
 
       expect(request.body.trace).toEqual(expectedTrace);
+      expect(request.headers.get("x-openrouter-trace-environment")).toBe(
+        internalTrace.environment,
+      );
     },
   );
+
+  it("OpenRouter: stamps header and body trace.environment for native chat, responses, and embeddings without trace sink", async () => {
+    const nativeChat = await runCompletion({
+      modelParams: {
+        provider: "openrouter",
+        adapter: LLMAdapter.OpenAI,
+        model: "openai/gpt-4o-mini",
+      },
+      apiKey: "openrouter-key",
+      baseURL: "https://openrouter.ai/api/v1",
+      openAIChatProvider: "native",
+      internalEnvironment: LangfuseInternalTraceEnvironment.Topics,
+      response: OPENAI_CHAT_RESPONSE,
+    });
+    expect(
+      nativeChat.request.headers.get("x-openrouter-trace-environment"),
+    ).toBe("langfuse-topics-internal");
+    expect(nativeChat.request.body.trace).toEqual({
+      environment: "langfuse-topics-internal",
+    });
+
+    const responses = await runCompletion({
+      modelParams: {
+        provider: "openrouter",
+        adapter: LLMAdapter.OpenAI,
+        model: "openai/gpt-4o-mini",
+      },
+      apiKey: "openrouter-key",
+      baseURL: "https://openrouter.ai/api/v1",
+      llmConnectionConfig: { useResponsesApi: true },
+      internalEnvironment: LangfuseInternalTraceEnvironment.Topics,
+      response: OPENAI_RESPONSES_RESPONSE,
+    });
+    expect(
+      responses.request.headers.get("x-openrouter-trace-environment"),
+    ).toBe("langfuse-topics-internal");
+    expect(responses.request.body.trace).toEqual({
+      environment: "langfuse-topics-internal",
+    });
+
+    const { calls, fetch } = createCaptureFetch({
+      object: "list",
+      data: [{ object: "embedding", index: 0, embedding: [0.1, 0.2] }],
+      model: "openai/text-embedding-3-small",
+      usage: { prompt_tokens: 2, total_tokens: 2 },
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    await embedLLMText({
+      model: {
+        adapter: LLMAdapter.OpenAI,
+        id: "openai/text-embedding-3-small",
+      },
+      connection: {
+        secretKey: encrypt("openrouter-key"),
+        baseURL: "https://openrouter.ai/api/v1",
+      },
+      values: ["summary text"],
+      internalEnvironment: LangfuseInternalTraceEnvironment.Topics,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.headers.get("x-openrouter-trace-environment")).toBe(
+      "langfuse-topics-internal",
+    );
+    expect(calls[0]?.body.trace).toEqual({
+      environment: "langfuse-topics-internal",
+    });
+  });
 
   it("other OpenAI-compatible endpoints keep customer trace metadata unchanged", async () => {
     const { request } = await runCompletion({
@@ -363,6 +514,7 @@ describe("AI SDK request shapes", () => {
       response: OPENAI_CHAT_RESPONSE,
     });
 
+    expect(request.headers.get("x-openrouter-trace-environment")).toBeNull();
     expect(request.body.trace).toEqual({
       environment: "customer-environment",
       feature: "support-agent",
@@ -496,6 +648,7 @@ describe("AI SDK request shapes", () => {
     expect(request.body.max_tokens).toBe(64);
     expect(request.body.temperature).toBe(0.2);
     expect(request.body.top_p).toBe(0.9);
+    expect(request.body.reasoning_effort).toBeUndefined();
     expect(request.body.forceReasoning).toBeUndefined();
   });
 
@@ -573,7 +726,7 @@ describe("AI SDK request shapes", () => {
     });
   });
 
-  it("Vertex Gemini: regional host, SA-key project, OAuth bearer, maxReasoningTokens", async () => {
+  it("Vertex Gemini: regional host, SA-key project, OAuth bearer, extra headers, maxReasoningTokens", async () => {
     const { request } = await runCompletion({
       modelParams: {
         provider: "vertex",
@@ -583,6 +736,7 @@ describe("AI SDK request shapes", () => {
       },
       apiKey: FAKE_GCP_SERVICE_ACCOUNT_KEY,
       llmConnectionConfig: { location: "us-east5" },
+      extraHeaders: { "X-Vertex-AI-Labels": "eyJ0ZWFtIjoiYSJ9" },
       response: GOOGLE_RESPONSE,
     });
 
@@ -591,6 +745,7 @@ describe("AI SDK request shapes", () => {
       "https://us-east5-aiplatform.googleapis.com/v1beta1/projects/sa-project-123/locations/us-east5/publishers/google/models/gemini-2.5-flash:generateContent",
     );
     expect(request.headers.get("authorization")).toBe("Bearer fake-gcp-token");
+    expect(request.headers.get("x-vertex-ai-labels")).toBe("eyJ0ZWFtIjoiYSJ9");
     const generationConfig = request.body.generationConfig as Record<
       string,
       unknown
@@ -624,12 +779,99 @@ describe("AI SDK request shapes", () => {
     expect(request.body.max_tokens).toBe(128);
   });
 
+  // Vertex reaches application default credentials through two independent
+  // gates: the ADC sentinel in place of a key, and a credential source that is
+  // allowed to spend the server's own identity. The pair below pins both
+  // directions of that gate, because widening it hands a tenant connection the
+  // Langfuse deployment's GCP identity and narrowing it silently disables
+  // instance-wide Vertex wherever the Cloud region is set.
+  it("Langfuse AI Vertex resolves the project from ADC, Cloud region notwithstanding", async () => {
+    const original = {
+      LANGFUSE_AI_PROVIDER: env.LANGFUSE_AI_PROVIDER,
+      LANGFUSE_AI_MODEL: env.LANGFUSE_AI_MODEL,
+      LANGFUSE_AI_SMALL_MODEL: env.LANGFUSE_AI_SMALL_MODEL,
+      LANGFUSE_AI_VERTEX_LOCATION: env.LANGFUSE_AI_VERTEX_LOCATION,
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    };
+    Object.assign(env, {
+      LANGFUSE_AI_PROVIDER: "vertex",
+      LANGFUSE_AI_MODEL: "claude-sonnet-4-5@20250929",
+      LANGFUSE_AI_SMALL_MODEL: undefined,
+      LANGFUSE_AI_VERTEX_LOCATION: "us-east5",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "eu",
+    });
+
+    try {
+      const { calls, fetch } = createCaptureFetch(ANTHROPIC_RESPONSE);
+      vi.stubGlobal("fetch", fetch);
+
+      const text = await generateLangfuseAIText({
+        messages,
+        maxTokens: 128,
+        timeout: 10_000,
+      });
+
+      expect(text).toBe("ok");
+      expect(calls).toHaveLength(1);
+      // The project comes from the credential chain, never from configuration,
+      // and the location comes from the instance env rather than a connection.
+      expect(decodeURIComponent(calls[0]?.url ?? "")).toBe(
+        "https://us-east5-aiplatform.googleapis.com/v1/projects/adc-project/locations/us-east5/publishers/anthropic/models/claude-sonnet-4-5@20250929:rawPredict",
+      );
+      expect(calls[0]?.headers.get("authorization")).toBe(
+        "Bearer fake-gcp-token",
+      );
+    } finally {
+      Object.assign(env, original);
+    }
+  });
+
+  it("a tenant Vertex connection cannot spend ADC on Langfuse Cloud", async () => {
+    const original = {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    };
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "eu" });
+
+    try {
+      const { calls, fetch } = createCaptureFetch(GOOGLE_RESPONSE);
+      vi.stubGlobal("fetch", fetch);
+
+      await expect(
+        generateLLMText({
+          ...mapLegacyLLMCompletionParams({
+            messages,
+            modelParams: {
+              provider: "vertex",
+              adapter: LLMAdapter.VertexAI,
+              model: "gemini-2.5-flash",
+            },
+            connection: {
+              secretKey: encrypt(VERTEXAI_USE_DEFAULT_CREDENTIALS),
+              config: { location: "us-east5" },
+            },
+            credentialSource: "user",
+          }),
+          timeout: 10_000,
+        }),
+      ).rejects.toThrow();
+
+      // The sentinel must not fall back to the server's identity: no request
+      // may leave carrying the deployment's ADC project.
+      expect(calls).toHaveLength(0);
+    } finally {
+      Object.assign(env, original);
+    }
+  });
+
   // The Bedrock builder deliberately uses no custom fetch (VPC endpoints),
   // so capture at the global fetch the AI SDK falls back to.
   async function runBedrockCompletion(params?: {
     model?: string;
+    projectId?: string;
+    secretKey?: string;
     output?: ReturnType<typeof createLLMOutput>;
     response?: unknown | ((request: CapturedRequest) => unknown);
+    customModelConfig?: Record<string, { modelFamily: "anthropic" }>;
   }) {
     const modelParams: ModelParams = {
       provider: "bedrock",
@@ -638,7 +880,12 @@ describe("AI SDK request shapes", () => {
       max_tokens: 64,
       providerOptions: { top_k: 10 },
     };
-    const llmConnectionConfig = { region: "us-east-1" };
+    const llmConnectionConfig = {
+      region: "us-east-1",
+      ...(params?.customModelConfig
+        ? { customModelConfig: params.customModelConfig }
+        : {}),
+    };
 
     const { calls, fetch } = createCaptureFetch(
       params?.response ?? BEDROCK_RESPONSE,
@@ -650,11 +897,13 @@ describe("AI SDK request shapes", () => {
         messages,
         modelParams,
         connection: {
+          projectId: params?.projectId,
           secretKey: encrypt(
-            JSON.stringify({
-              accessKeyId: "AKIA123",
-              secretAccessKey: "secret",
-            }),
+            params?.secretKey ??
+              JSON.stringify({
+                accessKeyId: "AKIA123",
+                secretAccessKey: "secret",
+              }),
           ),
           config: llmConnectionConfig,
         },
@@ -691,7 +940,7 @@ describe("AI SDK request shapes", () => {
     );
   });
 
-  it("Bedrock: Sonnet 5 structured output falls back to the JSON tool", async () => {
+  it("Bedrock: Sonnet 5 structured output uses native output_config", async () => {
     const schema = {
       type: "object",
       properties: { answer: { type: "string" } },
@@ -701,52 +950,83 @@ describe("AI SDK request shapes", () => {
     const { result, request } = await runBedrockCompletion({
       model: "us.anthropic.claude-sonnet-5",
       output: createLLMOutput(schema),
-      response: (capturedRequest: CapturedRequest) =>
-        capturedRequest.body.toolConfig
-          ? {
-              output: {
-                message: {
-                  role: "assistant",
-                  content: [
-                    {
-                      toolUse: {
-                        toolUseId: "tool-1",
-                        name: "json",
-                        input: { answer: "ok" },
-                      },
-                    },
-                  ],
-                },
-              },
-              stopReason: "tool_use",
-              usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-              metrics: { latencyMs: 1 },
-            }
-          : {
-              ...BEDROCK_RESPONSE,
-              output: {
-                message: {
-                  role: "assistant",
-                  content: [{ text: '{"answer":"ok"}' }],
-                },
-              },
-            },
+      response: {
+        ...BEDROCK_RESPONSE,
+        output: {
+          message: {
+            role: "assistant",
+            content: [{ text: '{"answer":"ok"}' }],
+          },
+        },
+      },
     });
 
     expect(result.output).toEqual({ answer: "ok" });
-    expect(request.body.additionalModelRequestFields).toEqual({ top_k: 10 });
-    expect(request.body.toolConfig).toEqual({
-      tools: [
-        {
-          toolSpec: {
-            name: "json",
-            description: "Respond with a JSON object.",
-            inputSchema: { json: schema },
+    expect(request.body.additionalModelRequestFields).toEqual({
+      top_k: 10,
+      output_config: { format: { type: "json_schema", schema } },
+    });
+    expect(request.body).not.toHaveProperty("toolConfig");
+  });
+
+  it("Bedrock: an ARN marked as Anthropic uses native output_config, not a forced tool", async () => {
+    const model =
+      "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/profile-id";
+    const schema = {
+      type: "object",
+      properties: { answer: { type: "string" } },
+      required: ["answer"],
+      additionalProperties: false,
+    } as const;
+    const { result, request } = await runBedrockCompletion({
+      model,
+      customModelConfig: { [model]: { modelFamily: "anthropic" } },
+      output: createLLMOutput(schema),
+      response: {
+        ...BEDROCK_RESPONSE,
+        output: {
+          message: {
+            role: "assistant",
+            content: [{ text: '{"answer":"ok"}' }],
           },
         },
-      ],
-      toolChoice: { any: {} },
+      },
     });
+
+    expect(result.output).toEqual({ answer: "ok" });
+    expect(request.body.additionalModelRequestFields).toEqual({
+      top_k: 10,
+      output_config: { format: { type: "json_schema", schema } },
+    });
+    expect(request.body).not.toHaveProperty("toolConfig");
+  });
+
+  it("Bedrock: models rejecting forced tools use JSON instructions", async () => {
+    const schema = {
+      type: "object",
+      properties: { answer: { type: "string" } },
+      required: ["answer"],
+      additionalProperties: false,
+    } as const;
+    const { result, request } = await runBedrockCompletion({
+      model: "us.anthropic.claude-fable-5-1",
+      output: createLLMOutput(schema),
+      response: {
+        ...BEDROCK_RESPONSE,
+        output: {
+          message: {
+            role: "assistant",
+            content: [{ text: '{"answer":"ok"}' }],
+          },
+        },
+      },
+    });
+
+    expect(result.output).toEqual({ answer: "ok" });
+    expect(request.body.toolConfig).toBeUndefined();
+    expect(JSON.stringify(request.body)).toContain(
+      "You MUST answer with only a JSON object",
+    );
   });
 
   it("Bedrock: tenant credentials suppress server-level env auth fallbacks", async () => {
@@ -764,5 +1044,44 @@ describe("AI SDK request shapes", () => {
     expect(request.headers.get("authorization")).toContain("AKIA123");
     // No merged server session token (would surface as this SigV4 header).
     expect(request.headers.get("x-amz-security-token")).toBeNull();
+  });
+
+  it("Bedrock: project allowlisting adds Cloud access without restricting self-hosted", async () => {
+    const originalEnv = { ...env };
+    Object.assign(env, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "eu",
+      LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS: [
+        "allowed",
+      ],
+    });
+    vi.stubEnv("AWS_PROFILE", undefined);
+    vi.stubEnv("AWS_ACCESS_KEY_ID", "AKIARUNTIME");
+    vi.stubEnv("AWS_SECRET_ACCESS_KEY", "runtime-secret");
+    const call = (projectId?: string) =>
+      runBedrockCompletion({
+        projectId,
+        secretKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
+      });
+
+    try {
+      const { request } = await call("allowed");
+      expect(request.headers.get("authorization")).toContain(
+        "Credential=AKIARUNTIME/",
+      );
+      for (const projectId of ["other", "allow", undefined]) {
+        await expect(call(projectId)).rejects.toThrow(
+          "Invalid Bedrock credentials",
+        );
+      }
+      env.LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS =
+        [];
+      await expect(call("allowed")).rejects.toThrow(
+        "Invalid Bedrock credentials",
+      );
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      await call();
+    } finally {
+      Object.assign(env, originalEnv);
+    }
   });
 });

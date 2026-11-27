@@ -1,25 +1,20 @@
 import React, { useState } from "react";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { Edit } from "lucide-react";
-import { AutomationForm } from "./automationForm";
+import { Edit } from "@langfuse/icons";
+import { ConnectedAutomationForm } from "./ConnectedAutomationForm";
 import { AutomationExecutionsTable } from "./AutomationExecutionsTable";
 import { AutomationFailureBanner } from "./AutomationFailureBanner";
 import {
   type AutomationDomain,
   JobConfigState,
   TriggerEventSource,
+  type FilterState,
 } from "@langfuse/shared";
-import {
-  TabsBar,
-  TabsBarContent,
-  TabsBarList,
-  TabsBarTrigger,
-} from "@/src/components/ui/tabs-bar";
-import { type FilterState } from "@langfuse/shared";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import Header from "@/src/components/layouts/header";
-import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
-import { DeleteAutomationButton } from "./DeleteAutomationButton";
+import { TableCardContainer } from "@/src/components/layouts/TableCardContainer";
+import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 
 interface AutomationDetailsProps {
@@ -38,6 +33,8 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
   onDelete,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [isFailureBannerDismissed, setIsFailureBannerDismissed] =
+    useState(false);
   const [activeTab, setActiveTab] = useQueryParam(
     "tab",
     withDefault(StringParam, "executions"),
@@ -54,6 +51,17 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
         // Suppress 404 toast: after deletion the invalidation can refetch this
         // query before the component unmounts, producing a spurious error toast.
         meta: { silentHttpCodes: [404] },
+      },
+    );
+
+  const { data: failureData } =
+    api.automations.getCountOfConsecutiveFailures.useQuery(
+      {
+        projectId,
+        automationId,
+      },
+      {
+        enabled: Boolean(automation),
       },
     );
 
@@ -103,7 +111,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
   return (
     <div className="flex flex-col gap-6">
       {isEditing ? (
-        <AutomationForm
+        <ConnectedAutomationForm
           projectId={projectId}
           onSuccess={handleSaveEdit}
           onCancel={handleCancelEdit}
@@ -122,62 +130,73 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
             actionButtons={
               <div className="flex gap-2">
                 <Button variant="outline" onClick={handleEdit}>
-                  <Edit className="mr-2 h-4 w-4" />
+                  <Edit size="base" color="default" __rawClassName="mr-2" />
                   Edit
                 </Button>
-                <DeleteAutomationButton
+                <DeleteAutomationDialogController
                   projectId={projectId}
                   automationId={automationId}
-                  variant="button"
                   onSuccess={onDelete}
-                />
+                >
+                  {({ disabled, openDialog }) => (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-dark-red/30 flex items-center"
+                      disabled={disabled !== undefined}
+                      onClick={openDialog}
+                    >
+                      <span className="text-dark-red">Delete</span>
+                    </Button>
+                  )}
+                </DeleteAutomationDialogController>
               </div>
             }
           />
 
-          <AutomationFailureBanner
-            projectId={projectId}
-            automationId={automationId}
-          />
+          {!isFailureBannerDismissed &&
+            failureData &&
+            failureData.count >= 5 && (
+              <AutomationFailureBanner
+                failureCount={failureData.count}
+                onDismiss={() => setIsFailureBannerDismissed(true)}
+              />
+            )}
 
           {automation.trigger.eventSource === TriggerEventSource.Monitor ? (
-            <AutomationForm
+            <ConnectedAutomationForm
               projectId={projectId}
               automation={automationForForm}
               isEditing={false}
             />
           ) : (
-            <TabsBar
-              value={activeTab}
-              onValueChange={setActiveTab}
-              className="w-full"
-            >
-              <TabsBarList>
-                <TabsBarTrigger value="executions">
-                  Execution History
-                </TabsBarTrigger>
-                <TabsBarTrigger value="configuration">
-                  Configuration
-                </TabsBarTrigger>
-              </TabsBarList>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <Tabs.List variant="underline">
+                <Tabs.Trigger value="executions" label="Execution History" />
+                <Tabs.Trigger value="configuration" label="Configuration" />
+              </Tabs.List>
 
-              <TabsBarContent value="executions" className="mt-6">
-                <SettingsTableCard>
-                  <AutomationExecutionsTable
+              <Tabs.Content value="executions">
+                <div className="mt-6 mb-4">
+                  <TableCardContainer>
+                    <AutomationExecutionsTable
+                      projectId={projectId}
+                      automationId={automationId}
+                    />
+                  </TableCardContainer>
+                </div>
+              </Tabs.Content>
+
+              <Tabs.Content value="configuration">
+                <div className="mt-6">
+                  <ConnectedAutomationForm
                     projectId={projectId}
-                    automationId={automationId}
+                    automation={automationForForm}
+                    isEditing={false}
                   />
-                </SettingsTableCard>
-              </TabsBarContent>
-
-              <TabsBarContent value="configuration" className="mt-6">
-                <AutomationForm
-                  projectId={projectId}
-                  automation={automationForForm}
-                  isEditing={false}
-                />
-              </TabsBarContent>
-            </TabsBar>
+                </div>
+              </Tabs.Content>
+            </Tabs>
           )}
         </>
       )}

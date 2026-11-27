@@ -1,4 +1,10 @@
-import { getFacetSummary, rankFacetOptions } from "./facet-display";
+// @vitest-environment node
+
+import {
+  getFacetSummary,
+  rankFacetOptions,
+  rankFacetsByName,
+} from "./facet-display";
 import type {
   CategoricalUIFilter,
   NumericUIFilter,
@@ -158,7 +164,7 @@ describe("getFacetSummary", () => {
     ).toBe("not legacy");
   });
 
-  it("reads an explicit keep-everything filter as an active 'All' (managed env override)", () => {
+  it("counts a finite positive selection even when every loaded option is checked", () => {
     expect(
       getFacetSummary(
         categorical({
@@ -168,7 +174,7 @@ describe("getFacetSummary", () => {
           value: ["default", "dev"],
         }),
       ),
-    ).toBe("All");
+    ).toBe("2 selected");
   });
 
   it("says 'filtered' for a live none-of whose exclusions fell out of the option list", () => {
@@ -212,6 +218,11 @@ describe("getFacetSummary", () => {
       type: "numeric",
       isActive: true,
       value: [0.5, 30],
+      conditions: [
+        { column: "col", type: "number", operator: ">=", value: 0.5 },
+        { column: "col", type: "number", operator: "<=", value: 30 },
+      ],
+      onRemoveCondition: () => {},
       min: 0,
       max: 60,
       unit: "s",
@@ -273,5 +284,32 @@ describe("rankFacetOptions", () => {
 
   it("returns everything unchanged for an empty query", () => {
     expect(rankFacetOptions(["b", "a"], "")).toEqual(["b", "a"]);
+  });
+});
+
+describe("rankFacetsByName", () => {
+  const facets = [
+    { column: "userId", label: "User ID" },
+    { column: "sessionId", label: "Session ID" },
+    { column: "totalTokens", label: "Total Tokens" },
+  ];
+
+  it("matches the column key as well as the label", () => {
+    // The label's space defeats a label-only match on "userid".
+    expect(rankFacetsByName(facets, "userid")).toEqual([facets[0]]);
+    expect(rankFacetsByName(facets, "tokens")).toEqual([facets[2]]);
+  });
+
+  it("ranks prefix matches before substring matches", () => {
+    // "name" is the Trace Name facet's own key (prefix) and only part of the
+    // Prompt Name one (substring) — the traces sidebar's real shape.
+    const named = [
+      { column: "promptName", label: "Prompt Name" },
+      { column: "name", label: "Trace Name" },
+    ];
+    expect(rankFacetsByName(named, "name").map((f) => f.column)).toEqual([
+      "name",
+      "promptName",
+    ]);
   });
 });

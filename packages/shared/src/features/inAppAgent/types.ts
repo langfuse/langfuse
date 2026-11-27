@@ -1,5 +1,6 @@
 import z from "zod";
 import { AgUiContextSchema } from "../../in-app-agent/schema";
+import { InAppAgentToolInputsSchema } from "../../in-app-agent/toolInputs";
 
 /**
  * Lifecycle states of an in-app agent run (`in_app_agent_runs.status`).
@@ -20,6 +21,36 @@ export enum InAppAgentRunStatus {
 
 export const InAppAgentRunStatusSchema = z.enum(InAppAgentRunStatus);
 
+/** Runs that are not yet in a terminal state, including parked approvals. */
+export const IN_APP_AGENT_UNSETTLED_RUN_STATUSES = [
+  InAppAgentRunStatus.QUEUED,
+  InAppAgentRunStatus.RUNNING,
+  InAppAgentRunStatus.AWAITING_APPROVAL,
+] as const;
+
+export type UnsettledInAppAgentRunStatus =
+  (typeof IN_APP_AGENT_UNSETTLED_RUN_STATUSES)[number];
+
+/** Complement of `IN_APP_AGENT_UNSETTLED_RUN_STATUSES`. */
+export type SettledInAppAgentRunStatus = Exclude<
+  InAppAgentRunStatus,
+  UnsettledInAppAgentRunStatus
+>;
+
+export function isUnsettledInAppAgentRunStatus(
+  status: InAppAgentRunStatus,
+): status is UnsettledInAppAgentRunStatus {
+  return (
+    IN_APP_AGENT_UNSETTLED_RUN_STATUSES as readonly InAppAgentRunStatus[]
+  ).includes(status);
+}
+
+export function isSettledInAppAgentRunStatus(
+  status: InAppAgentRunStatus,
+): status is SettledInAppAgentRunStatus {
+  return !isUnsettledInAppAgentRunStatus(status);
+}
+
 /**
  * Terminal error codes of an in-app agent run (`in_app_agent_runs.error_code`).
  *
@@ -28,7 +59,7 @@ export const InAppAgentRunStatusSchema = z.enum(InAppAgentRunStatus);
  * tolerate unknown strings rather than parse against this enum.
  */
 export enum InAppAgentRunErrorCode {
-  /** Unfinished run lazily closed because its foreground stream died. */
+  /** Retained so persisted run errors remain readable. */
   STALE = "stale",
   /** Client aborted the request. */
   CANCELLED = "cancelled",
@@ -61,6 +92,16 @@ export enum InAppAgentRunErrorCode {
   APPROVAL_SUPERSEDED = "approval_superseded",
   /** Pending approval cancelled by the user (recorded on CANCELLED). */
   APPROVAL_CANCELLED = "approval_cancelled",
+  /**
+   * Loop hit maxSteps without a `stop` finish — the run completed the
+   * configured wall but did not produce a final answer.
+   */
+  STEP_LIMIT = "step_limit",
+  /**
+   * The last model step ended with a `length` finish: the response hit the
+   * provider's output-token limit before a final answer.
+   */
+  OUTPUT_LIMIT = "output_limit",
 }
 
 /**
@@ -76,14 +117,45 @@ export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
     kind: z.literal("userMessage"),
     /** Sanitized AG-UI context items (current page, resolved view filters). */
     context: z.array(AgUiContextSchema),
+    /**
+     * Whether the submitting user can view Topics, evaluated by web at
+     * submission; absent means no.
+     */
+    topicsAvailable: z.boolean().optional(),
   }),
   z.object({
     kind: z.literal("approvalDecision"),
-    /** Provenance for debugging only; no code path queries lineage. */
+    /** Immediate parent run used to derive durable approval-chain lineage. */
     parentRunId: z.string(),
+    /** Original user-message run whose trace owns the complete approval chain. */
+    rootRunId: z.string().optional(),
+    /** Stable root trace timestamp propagated across durable continuations. */
+    traceStartedAt: z.iso.datetime({ offset: true }).optional(),
+    /** Time at which the parent run parked and began waiting for approval. */
+    approvalRequestedAt: z.iso.datetime({ offset: true }).optional(),
+    /** One-based position in the current user turn's approval continuation chain. */
+    continuationNumber: z.number().int().positive().optional(),
     toolCallId: z.string(),
     approved: z.boolean(),
+    /** User input for the approved tool, keyed by tool name. */
+    toolInputs: InAppAgentToolInputsSchema.optional(),
+    /** Inherited sanitized context; defaults for legacy continuation rows. */
+    context: z.array(AgUiContextSchema).default([]),
+    /** Inherited from the parent run. */
+    topicsAvailable: z.boolean().optional(),
   }),
 ]);
 
 export type InAppAgentRunRequest = z.infer<typeof InAppAgentRunRequestSchema>;
+
+// Approval continuations inherit the root run's trace ids, so telemetry keyed
+// off a run must resolve the root first.
+export const resolveInAppAgentRootRunId = (
+  request: unknown,
+  runId: string,
+): string => {
+  const parsed = InAppAgentRunRequestSchema.safeParse(request);
+  return parsed.success && parsed.data.kind === "approvalDecision"
+    ? (parsed.data.rootRunId ?? parsed.data.parentRunId)
+    : runId;
+};

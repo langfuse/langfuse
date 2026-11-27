@@ -46,21 +46,24 @@ describe("inMemoryFilterRequiresMetadata", () => {
     expect(inMemoryFilterRequiresMetadata(filter)).toBe(true);
   });
 
-  it("returns false when the filter requires a database lookup", () => {
-    // A Level condition cannot be evaluated in memory, so the whole filter
-    // goes to the database and the cached trace's metadata is never read.
-    const filter: FilterState = [
-      {
-        type: "stringObject",
-        column: "metadata",
-        key: "tier",
-        operator: "=",
-        value: "premium",
-      },
-      { type: "string", column: "Level", operator: "=", value: "ERROR" },
-    ];
-    expect(inMemoryFilterRequiresMetadata(filter)).toBe(false);
-  });
+  it.each(["Level", "Status", "level"] as const)(
+    "returns false when the filter requires a database lookup (%s)",
+    (column) => {
+      // Observation status cannot be evaluated in memory, so the whole filter
+      // goes to the database and the cached trace's metadata is never read.
+      const filter: FilterState = [
+        {
+          type: "stringObject",
+          column: "metadata",
+          key: "tier",
+          operator: "=",
+          value: "premium",
+        },
+        { type: "string", column, operator: "=", value: "ERROR" },
+      ];
+      expect(inMemoryFilterRequiresMetadata(filter)).toBe(false);
+    },
+  );
 
   it("returns true for unknown columns", () => {
     const filter: FilterState = [

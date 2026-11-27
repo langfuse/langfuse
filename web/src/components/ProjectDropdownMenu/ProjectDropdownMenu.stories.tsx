@@ -1,10 +1,6 @@
 import type { ComponentProps } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
 import { ProjectDropdownMenu } from "./ProjectDropdownMenu";
 
 type Project = Extract<
@@ -15,7 +11,6 @@ type Project = Extract<
 const createProject = (id: string, name: string): Project => ({
   id,
   name,
-  role: "ADMIN",
   deletedAt: null,
   retentionDays: null,
   hasTraces: false,
@@ -36,15 +31,19 @@ const projects = [
 const meta = preview.meta({
   component: ProjectDropdownMenu,
   args: {
+    children: () => null,
     organizationId: "org-acme",
     canCreateProjects: true,
     getProjectPath: (projectId) => `/project/${projectId}`,
   },
   render: (args) => (
-    <DropdownMenu defaultOpen>
-      <DropdownMenuTrigger>Trigger</DropdownMenuTrigger>
-      <ProjectDropdownMenu {...args} />
-    </DropdownMenu>
+    <ProjectDropdownMenu {...args}>
+      {({ getTriggerProps }) => (
+        <button type="button" {...getTriggerProps()}>
+          Trigger
+        </button>
+      )}
+    </ProjectDropdownMenu>
   ),
 });
 
@@ -78,94 +77,88 @@ export const Loading = meta.story({
   },
 });
 
-// TODO: Move these regression tests to a generic dropdown component story once one exists.
-const getAnalyticsActions = async (canvasElement: HTMLElement) => {
-  const body = within(canvasElement.ownerDocument.body);
-  const primaryAction = await body.findByRole("link", { name: "Analytics" });
-  const secondaryAction = body.getByRole("link", {
-    name: "Go to settings for Analytics",
-  });
-  const menuItem = primaryAction.closest('[role="menuitem"]');
-
-  // Every primary action must be owned by a Radix menu item for keyboard navigation.
-  await expect(menuItem).not.toBeNull();
-  if (!(menuItem instanceof HTMLElement)) {
-    throw new Error("Expected Analytics to be rendered inside a menu item");
-  }
-
-  return { menuItem, primaryAction, secondaryAction };
-};
-
-export const TestSecondaryActionLayout = meta.story({
-  name: "(Test) Secondary action layout",
+export const TestSearch = meta.story({
+  name: "(Test) Search projects",
   args: {
     state: "loaded",
     projects,
   },
   play: async ({ canvasElement }) => {
-    const { menuItem, secondaryAction } =
-      await getAnalyticsActions(canvasElement);
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const trigger = canvas.getByRole("button", { name: "Trigger" });
+    await userEvent.click(trigger);
 
-    // Both actions must share one menu item so its highlight spans the full row.
-    await expect(menuItem).toContainElement(secondaryAction);
+    const menu = within(body.getByRole("menu", { name: "Projects" }));
+    const search = menu.getByRole("searchbox", { name: "Search projects..." });
+    await expect(search).toHaveFocus();
+    await userEvent.type(search, "PROD");
 
-    const menuItemRect = menuItem.getBoundingClientRect();
-    const secondaryActionRect = secondaryAction.getBoundingClientRect();
-    const centerDifference = Math.abs(
-      menuItemRect.top +
-        menuItemRect.height / 2 -
-        (secondaryActionRect.top + secondaryActionRect.height / 2),
+    await expect(menu.getAllByRole("menuitem")).toHaveLength(2);
+    await expect(
+      menu.getByRole("link", { name: "Production" }),
+    ).toHaveAttribute("href", "/project/project-production");
+    await expect(
+      menu.getByRole("menuitem", { name: "New project" }),
+    ).toBeVisible();
+
+    await userEvent.clear(search);
+    await userEvent.type(search, "project-production");
+    await expect(menu.getByText("No project found.")).toBeVisible();
+    await expect(menu.getAllByRole("menuitem")).toHaveLength(1);
+    await expect(
+      menu.getByRole("menuitem", { name: "New project" }),
+    ).toBeVisible();
+
+    await userEvent.keyboard("{Escape}");
+    await expect(body.queryByRole("menu", { name: "Projects" })).toBeNull();
+    await userEvent.click(trigger);
+    await expect(
+      body.getByRole("searchbox", { name: "Search projects..." }),
+    ).toHaveValue("");
+    await waitFor(() =>
+      expect(body.getByRole("link", { name: "Analytics" })).toBeVisible(),
     );
-    // The secondary action must remain vertically centered in the row.
-    await expect(centerDifference).toBeLessThanOrEqual(1);
-
-    await userEvent.hover(secondaryAction);
-
-    // Hovering the secondary action must highlight the shared menu item.
-    await waitFor(() => expect(menuItem).toHaveAttribute("data-highlighted"));
   },
 });
 
-export const TestActionsRemainIndependent = meta.story({
-  name: "(Test) Actions remain independent",
+export const TestActionsStayInView = meta.story({
+  name: "(Test) Actions stay in view with many projects",
   args: {
     state: "loaded",
-    projects,
+    projects: Array.from({ length: 40 }, (_, index) =>
+      createProject(`project-${index + 1}`, `Project ${index + 1}`),
+    ),
+    currentProjectId: "project-1",
   },
   play: async ({ canvasElement }) => {
-    const { primaryAction, secondaryAction } =
-      await getAnalyticsActions(canvasElement);
-    const onPrimaryClick = fn((event: MouseEvent) => event.preventDefault());
-    const onSecondaryClick = fn((event: MouseEvent) => event.preventDefault());
-    primaryAction.addEventListener("click", onPrimaryClick);
-    secondaryAction.addEventListener("click", onSecondaryClick);
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "Trigger" }));
 
-    await userEvent.click(secondaryAction);
+    const menuElement = body.getByRole("menu", { name: "Projects" });
+    const menu = within(menuElement);
+    const menuBottom = menuElement.getBoundingClientRect().bottom;
+    for (const name of ["Project settings", "New project"]) {
+      const action = menu.getByRole("menuitem", { name });
+      await expect(action.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        menuBottom,
+      );
+    }
+    await expect(
+      menu.getByRole("link", { name: "Project 40" }).getBoundingClientRect()
+        .top,
+    ).toBeGreaterThan(menuBottom);
 
-    // The secondary action handles the click itself without triggering the primary link.
-    await expect(onSecondaryClick).toHaveBeenCalledOnce();
-    await expect(onPrimaryClick).not.toHaveBeenCalled();
-  },
-});
-
-export const TestKeyboardActivation = meta.story({
-  name: "(Test) Keyboard activation",
-  args: {
-    state: "loaded",
-    projects,
-  },
-  play: async ({ canvasElement }) => {
-    const { menuItem, primaryAction } =
-      await getAnalyticsActions(canvasElement);
-    const onPrimaryClick = fn((event: MouseEvent) => event.preventDefault());
-    primaryAction.addEventListener("click", onPrimaryClick);
-
-    menuItem.focus();
-    await userEvent.keyboard("{Enter}");
-    menuItem.focus();
-    await userEvent.keyboard(" ");
-
-    // Radix forwards both supported activation keys to the primary action exactly once.
-    await expect(onPrimaryClick).toHaveBeenCalledTimes(2);
+    for (let step = 0; step < 15; step++) {
+      await userEvent.keyboard("{ArrowDown}");
+    }
+    const focused = canvasElement.ownerDocument.activeElement;
+    await expect(focused).toHaveAccessibleName("Project 15");
+    await expect(focused?.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      menu
+        .getByRole("menuitem", { name: "Project settings" })
+        .getBoundingClientRect().top,
+    );
   },
 });

@@ -1,8 +1,25 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { prisma } from "@langfuse/shared/src/db";
-import { Role } from "@langfuse/shared";
 import { z } from "zod";
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
+import {
+  deleteUserBoundApiKeys,
+  evictRevokedApiKeys,
+  evictUserGatewayResolveCache,
+} from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { deleteSessionViewsWithoutProjectAccess } from "@/src/features/sessions/server/fns/deleteSessionViewsWithoutProjectAccess";
+import {
+  deleteOrgMembership,
+  saveOrgMembership,
+} from "@langfuse/shared/memberships";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import { authorize } from "@/src/features/rbac/authorize";
+import { assertValidOrgOwnershipChange } from "@/src/features/rbac/server/ownershipChange";
+import { Role } from "@langfuse/shared";
+import { OrganizationId } from "@langfuse/shared/rbac";
+import { prisma } from "@langfuse/shared/src/db";
 
 // Schema for request body validation
 const MembershipSchema = z.object({
@@ -46,11 +63,13 @@ export async function handleGetMemberships(
   });
 }
 
-// PUT - Update or create an organization membership
+/** handleUpdateMembership upserts and audits an authorized organization membership. */
 export async function handleUpdateMembership(
   req: NextApiRequest,
   res: NextApiResponse,
   orgId: string,
+  apiKeyId: string,
+  context: AuthorizationContext,
 ) {
   const validatedBody = MembershipSchema.safeParse(req.body);
   if (!validatedBody.success) {
@@ -73,22 +92,47 @@ export async function handleUpdateMembership(
     });
   }
 
-  // Upsert the membership
-  const membership = await prisma.organizationMembership.upsert({
-    where: {
-      orgId_userId: {
-        orgId,
-        userId: validatedBody.data.userId,
-      },
-    },
-    update: {
-      role: validatedBody.data.role,
-    },
-    create: {
+  const membership = await prisma.$transaction(async (tx) => {
+    const before = await tx.organizationMembership.findUnique({
+      where: { orgId_userId: { orgId, userId: validatedBody.data.userId } },
+    });
+    assertAuthorizeMembershipChange(context, orgId);
+    await assertValidOrgOwnershipChange({
+      tx,
+      context,
+      orgId,
+      from: before?.role,
+      to: validatedBody.data.role,
+    });
+    if (before?.role !== validatedBody.data.role) {
+      requireGatewayEnabledForRole(orgId, validatedBody.data.role);
+    }
+    const after = await saveOrgMembership(tx, {
       orgId,
       userId: validatedBody.data.userId,
       role: validatedBody.data.role,
-    },
+    });
+    await auditLog(
+      {
+        orgId,
+        apiKeyId,
+        resourceType: "orgMembership",
+        resourceId: after.id,
+        action: before ? "update" : "create",
+        before: before ?? undefined,
+        after,
+      },
+      tx,
+    );
+    await deleteSessionViewsWithoutProjectAccess(tx, {
+      userId: validatedBody.data.userId,
+      orgId,
+    });
+    return after;
+  });
+  await evictUserGatewayResolveCache(prisma, {
+    orgId,
+    userId: membership.userId,
   });
 
   await getSfdcService()?.setUserRole({
@@ -106,11 +150,13 @@ export async function handleUpdateMembership(
   });
 }
 
-// DELETE - Remove an organization membership
+/** handleDeleteMembership removes and audits an authorized organization membership. */
 export async function handleDeleteMembership(
   req: NextApiRequest,
   res: NextApiResponse,
   orgId: string,
+  apiKeyId: string,
+  context: AuthorizationContext,
 ) {
   const validatedBody = DeleteMembershipSchema.safeParse(req.body);
   if (!validatedBody.success) {
@@ -120,16 +166,43 @@ export async function handleDeleteMembership(
     });
   }
 
-  // Delete the membership (using deleteMany to avoid errors on not found)
-  const { count } = await prisma.organizationMembership.deleteMany({
-    where: {
+  const { deleted, revokedKeys } = await prisma.$transaction(async (tx) => {
+    const before = await tx.organizationMembership.findUnique({
+      where: { orgId_userId: { orgId, userId: validatedBody.data.userId } },
+    });
+    assertAuthorizeMembershipChange(context, orgId);
+    if (!before) return { deleted: false, revokedKeys: [] };
+    await assertValidOrgOwnershipChange({
+      tx,
+      context,
       orgId,
+      from: before.role,
+    });
+    await deleteOrgMembership(tx, { orgId, userId: before.userId });
+    await auditLog(
+      {
+        orgId,
+        apiKeyId,
+        resourceType: "orgMembership",
+        resourceId: before.id,
+        action: "delete",
+        before,
+      },
+      tx,
+    );
+    const revokedKeys = await deleteUserBoundApiKeys(tx, {
       userId: validatedBody.data.userId,
-    },
+      orgId,
+    });
+    await deleteSessionViewsWithoutProjectAccess(tx, {
+      userId: validatedBody.data.userId,
+      orgId,
+    });
+    return { deleted: true, revokedKeys };
   });
+  await evictRevokedApiKeys(revokedKeys, { apiKeyId });
 
-  // SFDC: remove the org-member bridge if a membership actually existed
-  if (count > 0) {
+  if (deleted) {
     const user = await prisma.user.findUnique({
       where: { id: validatedBody.data.userId },
       select: { email: true },
@@ -145,4 +218,18 @@ export async function handleDeleteMembership(
     message: "Membership deleted successfully",
     userId: validatedBody.data.userId,
   });
+}
+
+function assertAuthorizeMembershipChange(
+  context: AuthorizationContext,
+  orgId: string,
+) {
+  const organization = OrganizationId(orgId);
+  const membershipAccess = authorize(
+    context,
+    organization,
+    "organizationMembers:CUD",
+    organization,
+  );
+  if (!membershipAccess.success) throw membershipAccess.error;
 }

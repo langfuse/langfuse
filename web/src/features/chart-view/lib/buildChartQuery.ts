@@ -1,5 +1,8 @@
+// Builds the observations query for a chart view config and maps result rows
+// to chart data points.
+
 import { type FilterState, type QueryType } from "@langfuse/shared";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { getWidgetMissingBucketValue } from "@/src/features/widgets/utils";
 import { type ChartViewConfig } from "../types";
 import { getDimension, getMetric, isTimeSeriesChartType } from "../vocab";
@@ -14,6 +17,7 @@ const VIEW = "observations" as const;
 // `toChartFilters` before handing it here.
 
 /** The executeQuery column name for a metric, e.g. `p95_latency`, `count_count`. */
+/** @internal */
 export const metricField = (config: ChartViewConfig): string =>
   `${config.aggregation}_${getMetric(config.metric).measure}`;
 
@@ -115,19 +119,27 @@ export function rowsToDataPoints(
       }
     }
 
-    const dim = hasBreakdown
-      ? dimensionValue(row[dimension.field as string])
-      : isNumber
-        ? undefined
-        : metric.label;
+    const dim = (() => {
+      if (hasBreakdown) {
+        return dimensionValue(row[dimension.field as string]);
+      }
+      if (isNumber) {
+        return undefined;
+      }
+      return metric.label;
+    })();
     // Preserve an explicit null on a time series as a GAP — never coerce it to
     // 0 (the DataPoint contract, chart-props.ts: "null means measured nothing").
     // Categorical/number charts still floor a missing value.
-    const metricValue = Array.isArray(value)
-      ? value
-      : isTimeSeries && value == null
-        ? null
-        : Number(value ?? 0);
+    const metricValue = (() => {
+      if (Array.isArray(value)) {
+        return value;
+      }
+      if (isTimeSeries && value == null) {
+        return null;
+      }
+      return Number(value ?? 0);
+    })();
     return { time_dimension, dimension: dim, metric: metricValue };
   });
 }

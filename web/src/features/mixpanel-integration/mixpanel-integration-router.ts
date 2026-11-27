@@ -1,7 +1,12 @@
 import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { assertExportSourceAllowed } from "@/src/features/analytics-integrations/server/assertExportSourceAllowed";
+import {
+  assertPersistedExportSourceAllowed,
+  resolveExportSource,
+} from "@/src/features/analytics-integrations/server/exportSource";
+import { isPrismaRecordNotFoundError } from "@langfuse/shared/src/server";
+import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -11,12 +16,10 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { mixpanelIntegrationFormSchema } from "@/src/features/mixpanel-integration/types";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
-import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import {
   AnalyticsIntegrationExportSource,
-  areLegacyWritesActive,
-  InvalidRequestError,
-  validateExportSource,
+  LangfuseNotFoundError,
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 
 export const mixpanelIntegrationRouter = createTRPCRouter({
@@ -28,10 +31,7 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "integrations:CRUD",
       });
-      // Data capability for legacy sources (see export-source-policy.ts).
-      const legacyWritesActive = areLegacyWritesActive(
-        env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-      );
+      const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
       try {
         const dbConfig = await ctx.prisma.mixpanelIntegration.findFirst({
           where: {
@@ -40,13 +40,13 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         });
 
         if (!dbConfig) {
-          return { config: null, legacyWritesActive };
+          return { config: null, writeMode };
         }
 
         const { encryptedMixpanelProjectToken, exportSource, ...config } =
           dbConfig;
 
-        // Write-only credential: never return the plaintext token (LFE-14384).
+        // Write-only credential: never return the plaintext token (write-only credential).
         return {
           config: {
             ...config,
@@ -55,7 +55,7 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
               decrypt(encryptedMixpanelProjectToken),
             ),
           },
-          legacyWritesActive,
+          writeMode,
         };
       } catch (e) {
         console.error("mixpanel integration get", e);
@@ -95,25 +95,19 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         }
       }
 
-      // EVENTS is always accepted by this router, hence enrichedAvailable:
-      // true. An omitted source preserves the persisted row; on CREATE it
-      // falls back to a default that is validated like an explicit choice
-      // (LFE-9688 / LFE-10148). See export-source-policy.ts.
-      const legacyWritesActive = areLegacyWritesActive(
-        env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-      );
       const existingIntegration =
         await ctx.prisma.mixpanelIntegration.findUnique({
           where: { projectId: input.projectId },
           select: {
             exportSource: true,
             createdAt: true,
+            enabled: true,
             encryptedMixpanelProjectToken: true,
           },
         });
 
       // Write-only credential: blank/omitted keeps the persisted encrypted
-      // value (LFE-14384).
+      // value (write-only credential).
       const encryptedMixpanelProjectToken = input.mixpanelProjectToken
         ? encrypt(input.mixpanelProjectToken)
         : existingIntegration?.encryptedMixpanelProjectToken;
@@ -123,31 +117,12 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
           message: "Mixpanel Project Token is required",
         });
       }
-      const createDefaultExportSource = legacyWritesActive
-        ? AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
-        : AnalyticsIntegrationExportSource.EVENTS;
-      const nextExportSource =
-        input.exportSource ??
-        (existingIntegration ? undefined : createDefaultExportSource);
-      // The Cloud cutoffs need the project only for explicitly chosen (or
-      // create-defaulted) sources.
-      const projectCreatedAt = nextExportSource
-        ? (
-            await ctx.prisma.project.findUniqueOrThrow({
-              where: { id: input.projectId },
-              select: { createdAt: true },
-            })
-          ).createdAt
-        : undefined;
-      assertExportSourceAllowed({
-        nextExportSource,
-        persistedExportSource: existingIntegration?.exportSource,
-        ctx: {
-          isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-          enrichedAvailable: true,
-          legacyWritesActive,
-          projectCreatedAt,
-        },
+      const createExportSource = await resolveExportSource({
+        db: ctx.prisma,
+        projectId: input.projectId,
+        requestedExportSource: input.exportSource,
+        existingIntegration,
+        exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
       });
 
       await auditLog({
@@ -168,68 +143,58 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
             mixpanelRegion: config.mixpanelRegion,
             encryptedMixpanelProjectToken,
             enabled: config.enabled,
-            exportSource: config.exportSource ?? createDefaultExportSource,
+            exportSource: createExportSource,
           },
           update: {
             encryptedMixpanelProjectToken,
             mixpanelRegion: config.mixpanelRegion,
             enabled: config.enabled,
             // undefined → Prisma omits the column → preserves the persisted
-            // value on partial updates (LFE-10296).
+            // value on partial updates.
             exportSource: config.exportSource,
+            // A re-enabled integration resumes from its old lastSyncAt; the
+            // worker clears the flag once it reaches the live tail. CREATE gets
+            // it from the column default.
+            ...(config.enabled && !existingIntegration?.enabled
+              ? { backfill: true }
+              : {}),
           },
         });
 
-        // Race backstop (mirrors blob storage's service.ts): a concurrent
-        // delete between the pre-flight read and this upsert can flip the
-        // expected UPDATE into a CREATE carrying the unvalidated legacy
-        // default. Detectable as a createdAt change; re-validate the persisted
-        // row as an explicit choice and roll back on failure.
-        if (
-          input.exportSource === undefined &&
-          existingIntegration &&
-          result.createdAt.getTime() !== existingIntegration.createdAt.getTime()
-        ) {
-          const project = await tx.project.findUniqueOrThrow({
-            where: { id: input.projectId },
-            select: { createdAt: true },
-          });
-          const validation = validateExportSource(result.exportSource, {
-            isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-            enrichedAvailable: true,
-            legacyWritesActive,
-            projectCreatedAt: project.createdAt,
-          });
-          if (!validation.ok) throw new InvalidRequestError(validation.message);
-        }
+        assertPersistedExportSourceAllowed({
+          existingIntegration,
+          result,
+          exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+        });
       });
     }),
   delete: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "integrations:CRUD",
-        });
-        await auditLog({
-          session: ctx.session,
-          action: "delete",
-          resourceType: "mixpanelIntegration",
-          resourceId: input.projectId,
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "integrations:CRUD",
+      });
+      await auditLog({
+        session: ctx.session,
+        action: "delete",
+        resourceType: "mixpanelIntegration",
+        resourceId: input.projectId,
+      });
 
+      try {
         await ctx.prisma.mixpanelIntegration.delete({
           where: {
             projectId: input.projectId,
           },
         });
-      } catch (e) {
-        console.log("mixpanel integration delete", e);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-        });
+      } catch (error) {
+        if (isPrismaRecordNotFoundError(error)) {
+          throw new LangfuseNotFoundError("Mixpanel integration not found");
+        }
+
+        throw error;
       }
     }),
 });

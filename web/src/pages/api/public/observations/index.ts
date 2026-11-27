@@ -2,6 +2,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
+  visibleModelsWhere,
 } from "@langfuse/shared/src/server";
 
 import {
@@ -21,11 +22,12 @@ import {
 } from "@/src/features/public-api/server/observations";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { OBSERVATIONS_V1_DEPRECATION } from "@/src/features/public-api/server/deprecations";
-
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
       name: "Get Observations",
+      action: "traces:read",
       allowInAppAgentKey: true,
       rateLimitResource: "public-api-legacy",
       querySchema: GetObservationsV1Query,
@@ -35,6 +37,32 @@ export default withMiddlewares(
       rejectInEventsOnlyMode: true,
       deprecation: OBSERVATIONS_V1_DEPRECATION,
       fn: async ({ query, auth }) => {
+        const dataAccessWindow = clampToDataAccessDays({
+          plan: auth.scope.plan,
+          fromTimestamp: query.fromStartTime ?? undefined,
+        });
+        const advancedFilters = dataAccessWindow.accessFloor
+          ? [
+              ...(query.filter ?? []),
+              {
+                column: "startTime",
+                operator: ">=" as const,
+                value: dataAccessWindow.effectiveFromTimestamp!,
+                type: "datetime" as const,
+              },
+              ...(query.toStartTime
+                ? [
+                    {
+                      column: "startTime",
+                      operator: "<" as const,
+                      value: new Date(query.toStartTime),
+                      type: "datetime" as const,
+                    },
+                  ]
+                : []),
+            ]
+          : query.filter;
+
         const filterProps = {
           projectId: auth.scope.projectId,
           page: query.page,
@@ -46,10 +74,10 @@ export default withMiddlewares(
           type: query.type ?? undefined,
           environment: query.environment ?? undefined,
           parentObservationId: query.parentObservationId ?? undefined,
-          fromStartTime: query.fromStartTime ?? undefined,
+          fromStartTime: dataAccessWindow.effectiveFromTimestamp?.toISOString(),
           toStartTime: query.toStartTime ?? undefined,
           version: query.version ?? undefined,
-          advancedFilters: query.filter,
+          advancedFilters,
         };
 
         if (query.useEventsTable) {
@@ -89,13 +117,12 @@ export default withMiddlewares(
                   id: {
                     in: uniqueModels,
                   },
-                  OR: [
-                    { projectId: auth.scope.projectId },
-                    { projectId: null },
-                  ],
+                  ...visibleModelsWhere(auth.scope.projectId),
                 },
                 include: {
-                  Price: true,
+                  Price: {
+                    where: { pricingTier: { isDefault: true } },
+                  },
                 },
               })
             : [];

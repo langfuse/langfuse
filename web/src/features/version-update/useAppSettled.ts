@@ -17,6 +17,7 @@ import { useSyncExternalStore } from "react";
  *     torn down and recreated, replaying its entrance animation (a visible
  *     "jump"). A minute comfortably clears that window, so it mounts once,
  *     cleanly.
+ * @internal
  */
 export const APP_SETTLE_DELAY_MS = 60 * 1000;
 
@@ -32,6 +33,7 @@ export const APP_SETTLE_DELAY_MS = 60 * 1000;
  * later mounts see `true` immediately.
  *
  * Exposed as a factory for deterministic testing; the app uses the singleton.
+ * @internal
  */
 export function createAppSettledGate(delayMs = APP_SETTLE_DELAY_MS) {
   let settled = false;

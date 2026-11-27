@@ -4,8 +4,8 @@ import type {
   CodeEvalTemplateVariable,
   ToolCallForEval,
 } from "../../features/evals/observationForEval";
-
-export const CODE_EVAL_SOURCE_MAX_BYTES = 256 * 1024;
+export { CODE_EVAL_SOURCE_MAX_BYTES } from "../../features/evals/codeEvalConstants";
+import { CODE_EVAL_SOURCE_MAX_BYTES } from "../../features/evals/codeEvalConstants";
 export const CODE_EVAL_DISPATCH_PAYLOAD_MAX_BYTES = 5.5 * 1024 * 1024;
 export const CODE_EVAL_DISPATCH_RESULT_MAX_BYTES = 256 * 1024;
 export const CODE_EVAL_DOCS_URL =
@@ -129,7 +129,8 @@ const CodeEvalScoreSchema = z.union([
 ]);
 
 const CodeEvalDispatchResultSchema = z.object({
-  scores: z.array(CodeEvalScoreSchema).min(1),
+  // Empty is valid: evaluators may skip scoring an observation on purpose.
+  scores: z.array(CodeEvalScoreSchema),
 });
 
 export type CodeEvalScore = z.infer<typeof CodeEvalScoreSchema>;
@@ -148,11 +149,14 @@ export const CodeEvalDispatcherErrorCode = z.enum([
   "RESULT_TOO_LARGE",
   "SOURCE_TOO_LARGE",
   "TIMEOUT",
+  "OUT_OF_MEMORY",
   "UNSUPPORTED_RUNTIME",
   "USER_CODE_ERROR",
   "LAMBDA_CONCURRENCY_LIMIT",
   "LAMBDA_CONFIGURATION_ERROR",
   "LAMBDA_INVOCATION_ERROR",
+  "EXTERNAL_CONFIGURATION_ERROR",
+  "EXTERNAL_INVOCATION_ERROR",
 ]);
 export type CodeEvalDispatcherErrorCode = z.infer<
   typeof CodeEvalDispatcherErrorCode
@@ -181,7 +185,47 @@ export class CodeEvalDispatcherError extends Error {
   }
 }
 
-export type CodeEvalDispatcherName = "insecure-local" | "aws-lambda";
+export type CodeEvalDispatcherName =
+  | "insecure-local"
+  | "aws-lambda"
+  | "external";
+
+// Skipped from warn-level logging so routine user failures don't drown out
+// infrastructure issues in Datadog.
+export const CODE_EVAL_USER_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
+  CodeEvalDispatcherErrorCodes.INVALID_RESULT,
+  CodeEvalDispatcherErrorCodes.INVALID_SOURCE,
+  CodeEvalDispatcherErrorCodes.PAYLOAD_TOO_LARGE,
+  CodeEvalDispatcherErrorCodes.RESULT_TOO_LARGE,
+  CodeEvalDispatcherErrorCodes.SOURCE_TOO_LARGE,
+  CodeEvalDispatcherErrorCodes.OUT_OF_MEMORY,
+  CodeEvalDispatcherErrorCodes.USER_CODE_ERROR,
+]);
+
+// `.strict()` ensures a runner that returns a valid dispatch result alongside
+// an `error` field (e.g. `{ scores: [...], error: { code, message } }`) cannot
+// match here — defense in depth for the user-code envelope.
+const UserCodeErrorFieldsSchema = z
+  .object({
+    code: CodeEvalDispatcherErrorCode,
+    message: z.string(),
+  })
+  .strict();
+
+const UserCodeErrorSchema = z.union([
+  z
+    .object({ error: UserCodeErrorFieldsSchema })
+    .strict()
+    .transform(({ error }) => error),
+  UserCodeErrorFieldsSchema,
+]);
+
+export type CodeEvalUserCodeError = z.infer<typeof UserCodeErrorSchema>;
+
+/** Parses the `{ error: { code, message } }` envelope runners emit on user-code failures. */
+export function parseCodeEvalUserCodeError(payload: unknown) {
+  return UserCodeErrorSchema.safeParse(payload).data ?? null;
+}
 
 export function assertDispatchInputWithinLimits(input: DispatchInput): string {
   const sourceBytes = Buffer.byteLength(input.code.source, "utf8");

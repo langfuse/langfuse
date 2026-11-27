@@ -9,6 +9,7 @@
 
 import {
   FilterCondition,
+  normalizeEventsTraceName,
   type ScoreDataTypeType,
   TracingSearchType,
 } from "@langfuse/shared";
@@ -75,11 +76,13 @@ export const getEventsStream = async (props: {
   const { query, params: queryParams } = queryBuilder.buildWithParams();
 
   // Get distinct score names for empty columns
+  // Same service as the values read below: a missing name is silently dropped.
   const distinctScoreNames = await getDistinctScoreNames({
     projectId,
     cutoffCreatedAt,
     startTimeFrom,
     clickhouseConfigs,
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   const emptyScoreColumns = distinctScoreNames.reduce(
@@ -192,7 +195,7 @@ export const getEventsStream = async (props: {
     const eventRow: BatchExportEventsRow = {
       id: bufferedRow.id,
       traceId: bufferedRow.trace_id,
-      traceName: bufferedRow.trace_name,
+      traceName: normalizeEventsTraceName(bufferedRow.trace_name),
       type: bufferedRow.type,
       name: bufferedRow.name ?? "",
       startTime: bufferedRow.start_time,

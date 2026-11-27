@@ -1,9 +1,9 @@
 import Decimal from "decimal.js";
-import {
-  type Observation,
-  type EventsObservation,
-  type ObservationCoreFields,
-} from "../../domain";
+import type {
+  Observation,
+  EventsObservation,
+  ObservationCoreFields,
+} from "../../domain/observations";
 
 export type ObservationPriceFields = {
   inputPrice: Decimal | null;
@@ -21,7 +21,7 @@ type AdditionalObservationFields = {
   toolCallsCount: number | null;
 } & ObservationPriceFields;
 
-export type FullObservation = AdditionalObservationFields & Observation;
+type FullObservation = AdditionalObservationFields & Observation;
 
 export type FullObservations = Array<FullObservation>;
 

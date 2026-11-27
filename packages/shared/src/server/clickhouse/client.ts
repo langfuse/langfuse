@@ -5,7 +5,12 @@ import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/confi
 import { getCurrentSpan } from "../instrumentation";
 import { propagation, context } from "@opentelemetry/api";
 import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
-import { getClickHouseCompatibilitySettings } from "./compatibility";
+import {
+  getClickHouseCompatibilitySettings,
+  getClickHouseJsonBadUnicodeEscapeMode,
+} from "./compatibility";
+import { stringifyJsonWithSanitizedSurrogates } from "./json";
+import { getClickhouseAuth } from "./auth";
 
 export { EXCEPTION_TAG_HEADER_NAME } from "@clickhouse/client";
 
@@ -15,6 +20,24 @@ export type PreferredClickhouseService =
   | "ReadWrite"
   | "ReadOnly"
   | "EventsReadOnly";
+
+/** Node a query actually lands on once unset replica URLs fall back. */
+export type ClickhouseService = "main" | "read_replica" | "events_read_replica";
+
+export function resolveClickhouseService(
+  preferredClickhouseService: PreferredClickhouseService = "ReadWrite",
+): ClickhouseService {
+  switch (preferredClickhouseService) {
+    case "ReadWrite":
+      return "main";
+    case "EventsReadOnly":
+      if (env.CLICKHOUSE_EVENTS_READ_ONLY_URL) return "events_read_replica";
+      return env.CLICKHOUSE_READ_ONLY_URL ? "read_replica" : "main";
+    case "ReadOnly":
+    default:
+      return env.CLICKHOUSE_READ_ONLY_URL ? "read_replica" : "main";
+  }
+}
 
 type ServiceClickhouseSettings = ClickHouseSettings & {
   enable_full_text_index?: 1;
@@ -27,17 +50,17 @@ type RequestTimeoutClickHouseSettings = ClickHouseSettings & {
 
 const CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS = 5;
-
 /**
- * Remove these once we remove corresponding variables
+ * Shutdown closes a client replaced after a credential change for this long
+ * past its request timeout. Later only a streamed response can still use it.
  */
-const EVENTS_TABLE_READ_PATH_ENV_KEYS = [
-  "LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS",
-  "LANGFUSE_ENABLE_EVENTS_TABLE_UI",
-  "LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS",
-  "LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS",
-  "LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN",
-] as const;
+const REPLACED_CLIENT_SHUTDOWN_MARGIN_MS = 5 * 60_000;
+
+type CachedClient = {
+  client: ClickhouseClientType;
+  authFingerprint: string;
+  requestTimeoutMs: number;
+};
 
 /**
  * ClickHouseClientManager provides a singleton pattern for managing ClickHouse clients.
@@ -46,7 +69,9 @@ const EVENTS_TABLE_READ_PATH_ENV_KEYS = [
  */
 export class ClickHouseClientManager {
   private static instance: ClickHouseClientManager;
-  private clientMap: Map<string, ClickhouseClientType> = new Map();
+  private clientMap: Map<string, CachedClient> = new Map();
+  /** Clients replaced after a credential change that shutdown still closes. */
+  private replacedClients: Set<ClickhouseClientType> = new Set();
 
   /**
    * Private constructor to enforce singleton pattern
@@ -75,15 +100,31 @@ export class ClickHouseClientManager {
     settings: NodeClickHouseClientConfigOptions;
     serviceClickhouseSettings: ServiceClickhouseSettings;
   } {
-    const serviceClickhouseSettings = this.getServiceClickhouseSettings(
-      preferredClickhouseService,
-    );
+    const jsonBadUnicodeEscapeMode = getClickHouseJsonBadUnicodeEscapeMode();
+    const jsonBadUnicodeEscapeClickhouseSettings: ServiceClickhouseSettings =
+      jsonBadUnicodeEscapeMode === "no_throw"
+        ? { input_format_json_throw_on_bad_escape_sequence: 0 }
+        : {};
+    const jsonBadUnicodeEscapeClientSettings =
+      jsonBadUnicodeEscapeMode === "sanitize"
+        ? {
+            json: {
+              ...opts.json,
+              stringify: stringifyJsonWithSanitizedSurrogates,
+            },
+          }
+        : {};
+    const serviceClickhouseSettings: ServiceClickhouseSettings = {
+      ...this.getServiceClickhouseSettings(preferredClickhouseService),
+      ...jsonBadUnicodeEscapeClickhouseSettings,
+    };
+    // Credentials are not part of these settings: they would end up in the
+    // client cache key. getClient adds them when it creates the client.
     const keyParams = {
       url: this.getClickhouseUrl(preferredClickhouseService),
-      username: env.CLICKHOUSE_USER,
-      password: env.CLICKHOUSE_PASSWORD,
       database: env.CLICKHOUSE_DB,
       http_headers: opts?.http_headers ?? {},
+      ...jsonBadUnicodeEscapeClientSettings,
       settings: {
         ...serviceClickhouseSettings,
         ...opts?.clickhouse_settings,
@@ -91,6 +132,7 @@ export class ClickHouseClientManager {
       ...(opts.request_timeout
         ? { request_timeout: opts.request_timeout }
         : {}),
+      ...(opts.compression ? { compression: opts.compression } : {}),
 
       // Include any other relevant config options
     };
@@ -104,21 +146,23 @@ export class ClickHouseClientManager {
     preferredClickhouseService: PreferredClickhouseService,
   ): ServiceClickhouseSettings {
     const eventROSettings: ServiceClickhouseSettings =
-      preferredClickhouseService === "EventsReadOnly" &&
-      this.isEventsTableReadPathEnabled()
-        ? { enable_full_text_index: 1 }
+      preferredClickhouseService === "EventsReadOnly"
+        ? {
+            enable_full_text_index: 1,
+            // Text index caches, all default off on ClickHouse 25.12 (the
+            // Langfuse v4 minimum). use_text_index_header_cache defaults on
+            // from 26.7, and use_text_index_dictionary_cache is accepted but
+            // ignored from 26.3.
+            use_text_index_dictionary_cache: 1,
+            use_text_index_header_cache: 1,
+            use_text_index_postings_cache: 1,
+          }
         : {};
 
     return {
       ...getClickHouseCompatibilitySettings(),
       ...eventROSettings,
     };
-  }
-
-  private isEventsTableReadPathEnabled(): boolean {
-    return EVENTS_TABLE_READ_PATH_ENV_KEYS.some(
-      (key) => process.env[key] === "true",
-    );
   }
 
   private getRequestTimeoutClickHouseSettings(
@@ -134,27 +178,16 @@ export class ClickHouseClientManager {
     };
   }
 
-  private generateClientSettingsKey(
-    settings: NodeClickHouseClientConfigOptions,
-  ): string {
-    return JSON.stringify(settings);
-  }
-
   private getClickhouseUrl = (
     preferredClickhouseService: PreferredClickhouseService,
   ) => {
-    switch (preferredClickhouseService) {
-      case "ReadWrite":
+    switch (resolveClickhouseService(preferredClickhouseService)) {
+      case "events_read_replica":
+        return env.CLICKHOUSE_EVENTS_READ_ONLY_URL;
+      case "read_replica":
+        return env.CLICKHOUSE_READ_ONLY_URL;
+      case "main":
         return env.CLICKHOUSE_URL;
-      case "EventsReadOnly":
-        return (
-          env.CLICKHOUSE_EVENTS_READ_ONLY_URL ||
-          env.CLICKHOUSE_READ_ONLY_URL ||
-          env.CLICKHOUSE_URL
-        );
-      case "ReadOnly":
-      default:
-        return env.CLICKHOUSE_READ_ONLY_URL || env.CLICKHOUSE_URL;
     }
   };
 
@@ -171,20 +204,17 @@ export class ClickHouseClientManager {
       opts,
       preferredClickhouseService,
     );
-    const key = this.generateClientSettingsKey(settings);
+    const key = JSON.stringify(settings);
+    const auth = getClickhouseAuth();
+    const cached = this.clientMap.get(key);
+    if (cached && cached.authFingerprint !== auth.fingerprint) {
+      this.clientMap.delete(key);
+      this.retireClient(cached);
+    }
     if (!this.clientMap.has(key)) {
       const activeSpan = getCurrentSpan();
       if (activeSpan) {
         propagation.inject(context.active(), settings.http_headers);
-      }
-
-      const cloudOptions: Record<string, unknown> = {};
-      if (
-        ["STAGING", "EU", "US", "HIPAA", "JP"].includes(
-          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? "",
-        )
-      ) {
-        cloudOptions.input_format_json_throw_on_bad_escape_sequence = 0;
       }
 
       const clickHouseRequestTimeout =
@@ -196,7 +226,10 @@ export class ClickHouseClientManager {
       const client = createClient({
         ...opts,
         ...settings,
+        ...auth.config,
         application: `langfuse/${VERSION.replace("v", "")}`,
+        use_multipart_params:
+          env.LANGFUSE_CLICKHOUSE_MULTIPART_QUERY_PARAMS === "true",
         keep_alive: {
           idle_socket_ttl: env.CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL,
         },
@@ -231,7 +264,6 @@ export class ClickHouseClientManager {
                 update_parallel_mode: env.CLICKHOUSE_UPDATE_PARALLEL_MODE,
               }
             : {}),
-          ...cloudOptions,
           ...serviceClickhouseSettings,
           ...this.getRequestTimeoutClickHouseSettings(clickHouseRequestTimeout),
           ...opts.clickhouse_settings,
@@ -246,21 +278,42 @@ export class ClickHouseClientManager {
         },
       });
 
-      this.clientMap.set(key, client);
+      this.clientMap.set(key, {
+        client,
+        authFingerprint: auth.fingerprint,
+        requestTimeoutMs: clickHouseRequestTimeout,
+      });
     }
 
-    return this.clientMap.get(key)!;
+    return this.clientMap.get(key)!.client;
+  }
+
+  /**
+   * A replaced client is not closed while the process runs. Closing ends all
+   * its connections, also one that still carries a streamed response, and the
+   * request timeout does not bound a response: it is an idle timeout. The
+   * client's idle connections end on their own through keep-alive.
+   */
+  private retireClient(replaced: CachedClient): void {
+    this.replacedClients.add(replaced.client);
+    const timer = setTimeout(
+      () => this.replacedClients.delete(replaced.client),
+      replaced.requestTimeoutMs + REPLACED_CLIENT_SHUTDOWN_MARGIN_MS,
+    );
+    timer.unref();
   }
 
   /**
    * Close all client connections - useful for application shutdown
    */
   public closeAllConnections(): Promise<void[]> {
-    const closePromises = Array.from(this.clientMap.values()).map((client) =>
-      client.close(),
-    );
+    const clients = [
+      ...Array.from(this.clientMap.values(), (cached) => cached.client),
+      ...this.replacedClients,
+    ];
     this.clientMap.clear();
-    return Promise.all(closePromises);
+    this.replacedClients.clear();
+    return Promise.all(clients.map((client) => client.close()));
   }
 }
 
@@ -275,9 +328,34 @@ export const clickhouseClient = (
 };
 
 /**
- * Accepts a JavaScript date and returns the DateTime in format YYYY-MM-DD HH:MM:SS
+ * Accepts a JavaScript date and returns its UTC calendar time in ClickHouse's
+ * YYYY-MM-DD HH:MM:SS.sss format.
  */
 export const convertDateToClickhouseDateTime = (date: Date): string => {
-  // 2024-11-06T20:37:00.123Z -> 2024-11-06 21:37:00.123
+  // 2024-11-06T20:37:00.123Z -> 2024-11-06 20:37:00.123
   return date.toISOString().replace("T", " ").replace("Z", "");
+};
+
+const CLICKHOUSE_DATETIME_STRING = /^\d{4}-\d{2}-\d{2} /;
+
+/**
+ * Convert a Date, unix-millisecond timestamp, ISO string, or already-quoted
+ * ClickHouse datetime string to YYYY-MM-DD HH:MM:SS.sss for JSONEachRow inserts.
+ */
+export const toClickhouseDateTime = (
+  value?: Date | number | string | null,
+): string => {
+  if (value == null) {
+    return convertDateToClickhouseDateTime(new Date());
+  }
+  if (value instanceof Date) {
+    return convertDateToClickhouseDateTime(value);
+  }
+  if (typeof value === "number") {
+    return convertDateToClickhouseDateTime(new Date(value));
+  }
+  if (CLICKHOUSE_DATETIME_STRING.test(value)) {
+    return value;
+  }
+  return convertDateToClickhouseDateTime(new Date(value));
 };

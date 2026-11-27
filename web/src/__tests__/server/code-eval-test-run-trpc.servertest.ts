@@ -20,10 +20,7 @@ vi.mock("@langfuse/shared/src/env", async (importOriginal) => {
 });
 
 import type { Session } from "next-auth";
-import {
-  EvalTemplateSourceCodeLanguage,
-  EvalTemplateType,
-} from "@prisma/client";
+import { EvaluatorSourceCodeLanguage, EvalTemplateType } from "@prisma/client";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -39,6 +36,7 @@ import {
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { EvalTargetObject } from "@langfuse/shared";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const orgIds: string[] = [];
 
@@ -50,51 +48,26 @@ const maybe =
 async function prepare() {
   const { project, org } = await createOrgProjectAndApiKey();
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: true,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: project.id,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: project.name,
-              hasTraces: false,
-              metadata: {},
-              createdAt: project.createdAt.toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
+  const session: Session = createSession({
+    organizations: [
+      {
+        id: org.id,
+        role: "OWNER",
+        name: org.name,
+        aiFeaturesEnabled: true,
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: project.id,
+            role: "ADMIN",
+            name: project.name,
+            createdAt: project.createdAt.toISOString(),
+          },
+        ],
       },
-      admin: true,
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
-    },
-  };
+    ],
+    environment: { selfHostedInstancePlan: "cloud:hobby" },
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
@@ -129,18 +102,7 @@ maybe("evals.testRunCodeEval", () => {
       }
     `;
 
-    const template = await prisma.evalTemplate.create({
-      data: {
-        projectId: project.id,
-        name: "Saved code evaluator",
-        version: 1,
-        type: EvalTemplateType.CODE,
-        prompt: null,
-        outputDefinition: undefined,
-        sourceCode: savedSource,
-        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
-      },
-    });
+    const template = await createCodeTemplate(project.id, savedSource);
 
     await createEventsCh([
       createEvent({
@@ -357,6 +319,33 @@ maybe("evals.testRunCodeEval", () => {
       executionTraceId: expect.stringMatching(/^[0-9a-f]{32}$/),
       executionTraceFromTimestamp: expect.any(Date),
     });
+
+    const findRootObservation = async () => {
+      const rows = await queryClickhouse<{
+        level: string;
+        statusMessage: string;
+      }>({
+        query: `SELECT level, status_message as statusMessage FROM events_full WHERE project_id = {projectId: String} AND trace_id = {traceId: String} AND parent_span_id = '' ORDER BY event_ts DESC LIMIT 1`,
+        params: {
+          projectId: project.id,
+          traceId: response.executionTraceId,
+        },
+        tags: { projectId: project.id },
+      });
+      return rows[0];
+    };
+
+    let rootObservation = await findRootObservation();
+    const deadline = Date.now() + 5_000;
+    while (!rootObservation && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      rootObservation = await findRootObservation();
+    }
+
+    expect(rootObservation).toEqual({
+      level: "ERROR",
+      statusMessage: "Code eval execution failed: User code raised ValueError",
+    });
   });
 
   it("returns invalid evaluator results for test-run debugging", async () => {
@@ -525,8 +514,9 @@ maybe("evals.testRunCodeEval", () => {
       const rows = await queryClickhouse<{
         environment: string;
         sourceCode: string;
+        evaluatorTest: string;
       }>({
-        query: `SELECT environment, metadata['code_eval_source_code'] as sourceCode FROM traces WHERE project_id = {projectId: String} AND id = {traceId: String} LIMIT 1`,
+        query: `SELECT environment, metadata['code_eval_source_code'] as sourceCode, metadata['evaluator_test'] as evaluatorTest FROM traces WHERE project_id = {projectId: String} AND id = {traceId: String} LIMIT 1`,
         params: { projectId: project.id, traceId: executionTraceId },
         tags: { projectId: project.id },
       });
@@ -543,6 +533,7 @@ maybe("evals.testRunCodeEval", () => {
     expect(trace).toBeDefined();
     expect(trace?.environment).toBe("langfuse-code-eval");
     expect(trace?.sourceCode).toBe(template.sourceCode);
+    expect(trace?.evaluatorTest).toBe("true");
   });
 
   it("does not return observations from other projects", async () => {
@@ -619,7 +610,7 @@ maybe("evals.testRunCodeEval", () => {
     const template = await createCodeTemplate(
       project.id,
       'def evaluate(ctx):\n    return { "scores": [{ "name": "python-score", "value": 1 }] }',
-      EvalTemplateSourceCodeLanguage.PYTHON,
+      EvaluatorSourceCodeLanguage.PYTHON,
     );
 
     await createEventsCh([
@@ -652,20 +643,25 @@ maybe("evals.testRunCodeEval", () => {
 async function createCodeTemplate(
   projectId: string,
   sourceCode?: string,
-  sourceCodeLanguage: EvalTemplateSourceCodeLanguage = EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+  sourceCodeLanguage: EvaluatorSourceCodeLanguage = EvaluatorSourceCodeLanguage.TYPESCRIPT,
 ) {
-  return prisma.evalTemplate.create({
+  const evaluator = await prisma.evaluator.create({
     data: {
       projectId,
       name: `Saved code evaluator ${randomUUID()}`,
-      version: 1,
       type: EvalTemplateType.CODE,
-      prompt: null,
-      outputDefinition: undefined,
-      sourceCode:
-        sourceCode ??
-        'function evaluate() { return { scores: [{ name: "test-score", value: 1 }] }; }',
-      sourceCodeLanguage,
+      versions: {
+        create: {
+          version: 1,
+          sourceCode:
+            sourceCode ??
+            'function evaluate() { return { scores: [{ name: "test-score", value: 1 }] }; }',
+          sourceCodeLanguage,
+        },
+      },
     },
+    include: { versions: true },
   });
+
+  return evaluator.versions[0]!;
 }

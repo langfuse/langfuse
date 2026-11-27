@@ -1,0 +1,86 @@
+import { type ComponentProps } from "react";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+
+import preview from "../../../../.storybook/preview";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+
+import { TransferProjectDialog } from "./TransferProjectDialog";
+
+const defaultArgs = {
+  projectName: "Support assistant",
+  organizationName: "Acme",
+  organizations: [{ id: "organization-2", name: "Example" }],
+  isPending: false,
+  onConfirm: fn(),
+} satisfies ComponentProps<typeof TransferProjectDialog>;
+
+const meta = preview.meta({
+  component: TransferProjectDialog,
+  parameters: {
+    layout: "fullscreen",
+  },
+  decorators: [
+    (Story) => (
+      <DialogController
+        initialState={() => true}
+        renderDialog={() => <Story />}
+      >
+        {() => null}
+      </DialogController>
+    ),
+  ],
+});
+
+export default meta;
+
+export const Default = meta.story({
+  args: defaultArgs,
+});
+
+export const Loading = meta.story({
+  args: {
+    ...defaultArgs,
+    isPending: true,
+  },
+});
+
+export const Empty = meta.story({
+  name: "(Test) Empty",
+  args: {
+    ...defaultArgs,
+    organizations: [],
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+
+    await expect(
+      body.getByRole("button", { name: "Transfer project" }),
+    ).toBeDisabled();
+    await userEvent.click(body.getByRole("combobox"));
+    await waitFor(() =>
+      expect(
+        body.getByText(/No eligible organizations available/),
+      ).toBeVisible(),
+    );
+  },
+});
+
+export const ConfirmsTransfer = meta.story({
+  name: "(Test) Confirms transfer",
+  args: defaultArgs,
+  play: async ({ args, canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(body.getByRole("combobox"));
+    await userEvent.keyboard("{ArrowDown}{Enter}");
+    await userEvent.type(
+      body.getByRole("textbox", { name: "Confirm" }),
+      "acme/support-assistant",
+    );
+    await userEvent.click(
+      body.getByRole("button", { name: "Transfer project" }),
+    );
+
+    await expect(args.onConfirm).toHaveBeenCalledWith("organization-2");
+  },
+});

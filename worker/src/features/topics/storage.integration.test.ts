@@ -1,0 +1,1287 @@
+import { randomUUID } from "node:crypto";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type {
+  TopicAssignment,
+  TopicDefinition,
+  TopicSummary,
+  TopicExecutionInput,
+} from "@langfuse/shared/topics";
+import {
+  getTopicDefinitions,
+  writeTopicDefinitions,
+  writeTopicSummaries,
+  writeTopicAssignments,
+  getLatestFacetSummaries,
+  getTopicClusteringSummaries,
+  getTopicSummaryCounts,
+  getTopicExecutionCosts,
+  getTopicRuleProcessingCosts,
+  getTopicExecutionNamingCosts,
+  getTopicRuleMapCosts,
+  getTopicTraceUnitTimeRange,
+  createTopicFacet,
+  createTopicFacetVersion,
+  ensureDefaultTopicFacets,
+  getTopicFacetVersion,
+  listTopicFacets,
+  getTopicRule,
+  listTopicRules,
+  saveTopicRule,
+  saveTopicRuleAndModels,
+  createTopicExecution,
+  readTopicExecutionSummary,
+  writeTopicExecution,
+  createTopicRun,
+  getPublishedTopicRun,
+  getTopicRun,
+  saveTopicRun,
+  readCurrentTraceTopics,
+  currentTopicTraceIdsCondition,
+} from "@langfuse/shared/topics/server";
+import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
+import { getTopicFacetSummaryCountsByProjectInCreationInterval } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
+
+function exampleSummary(projectId: string): TopicSummary {
+  return {
+    projectId,
+    facetId: "facet",
+    facetVersion: 1,
+    traceId: randomUUID(),
+    sessionId: null,
+    triggerType: "rule",
+    ruleIds: [],
+    executionId: null,
+    environment: "default",
+    traceName: "trace",
+    unitStartTime: "2026-08-31T23:59:59.999Z",
+    state: "complete",
+    summary: "old",
+    embedding: [1, ...Array<number>(255).fill(0)],
+    transcriptId: "poc",
+    transcriptVersion: "poc",
+    transcriptBytes: 0,
+    summaryModel: "test",
+    embeddingModel: "eu.cohere.embed-v4:0",
+    providedUsageDetails: {},
+    usageDetails: {},
+    providedCostDetails: {},
+    costDetails: {},
+    createdAt: "2026-09-01T00:00:00.000Z",
+    metadata: {},
+  };
+}
+
+describe("Topics eval-backed configuration", () => {
+  const orgId = randomUUID();
+  const projectId = randomUUID();
+  const otherProjectId = randomUUID();
+  const ruleProjectId = randomUUID();
+  const rollbackProjectId = randomUUID();
+  const auditProjectId = randomUUID();
+  const userIds = [randomUUID(), randomUUID()];
+
+  beforeAll(async () => {
+    await prisma.organization.create({
+      data: {
+        id: orgId,
+        name: "Topics storage test",
+        projects: {
+          create: [
+            { id: projectId, name: "Topics" },
+            { id: otherProjectId, name: "Other project" },
+            { id: ruleProjectId, name: "Topics rule" },
+            { id: rollbackProjectId, name: "Topics rollback" },
+            { id: auditProjectId, name: "Topics audit" },
+          ],
+        },
+      },
+    });
+    await prisma.user.createMany({
+      data: userIds.map((id) => ({ id, email: `${id}@example.com` })),
+    });
+  });
+
+  afterAll(async () => {
+    for (const table of ["topics", "topic_facet_summaries"]) {
+      await clickhouseClient().command({
+        query: `DELETE FROM ${table} WHERE project_id = {projectId:String}`,
+        query_params: { projectId },
+        clickhouse_settings: { mutations_sync: "1" },
+      });
+    }
+    await prisma.organization.deleteMany({ where: { id: orgId } });
+    await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+  });
+
+  it("initializes built-in FACET evaluators once under concurrent requests", async () => {
+    await createTopicFacet({
+      projectId,
+      name: "Intent",
+      description: "Custom facet",
+      prompt: "Summarize a custom aspect of the request.",
+    });
+    const results = await Promise.all(
+      Array.from({ length: 3 }, () => ensureDefaultTopicFacets(projectId)),
+    );
+    const defaults = await prisma.evaluator.findMany({
+      where: { projectId, type: "FACET", isBuiltIn: true },
+      include: { versions: true },
+    });
+    expect(defaults).toHaveLength(4);
+    for (const result of results)
+      expect(
+        result
+          .filter((facet) => facet.isBuiltIn)
+          .map((facet) => facet.id)
+          .sort(),
+      ).toEqual(defaults.map((facet) => facet.id).sort());
+    const facet = defaults[0]!;
+    expect(facet.versions).toHaveLength(1);
+    await expect(
+      createTopicFacetVersion({
+        projectId,
+        facetId: facet.id,
+        prompt: "Replace the built-in instructions.",
+      }),
+    ).rejects.toThrow(/built-in/i);
+  });
+
+  it("keeps at most five Topics rules per project when creates race", async () => {
+    const facets = await ensureDefaultTopicFacets(ruleProjectId);
+    const facetIds = facets.slice(0, 2).map((facet) => facet.id);
+    const saved = await Promise.allSettled(
+      [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7].map((sampling) =>
+        saveTopicRule({
+          projectId: ruleProjectId,
+          filter: [],
+          facetIds,
+          sampling,
+        }),
+      ),
+    );
+
+    expect(
+      saved.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(5);
+    for (const result of saved.filter((r) => r.status === "rejected"))
+      expect(String(result.reason)).toMatch(/at most 5 Topics rules/);
+    const rules = await listTopicRules(ruleProjectId);
+    expect(rules).toHaveLength(5);
+    for (const rule of rules)
+      expect(rule.facetIds.sort()).toEqual([...facetIds].sort());
+  });
+
+  it("leaves no rule behind when the model settings cannot be written", async () => {
+    const facets = await ensureDefaultTopicFacets(rollbackProjectId);
+    await expect(
+      saveTopicRuleAndModels(
+        {
+          projectId: rollbackProjectId,
+          filter: [],
+          facetIds: [facets[0].id],
+        },
+        {
+          // No such connection: the foreign key rejects the model write.
+          summaryLlmApiKeyId: "missing-connection",
+          summaryModel: "gpt-6-luna",
+          embeddingLlmApiKeyId: null,
+          embeddingModel: null,
+          embeddingDimensions: 1024,
+          clusteringLlmApiKeyId: null,
+          clusteringModel: null,
+        },
+        120_000,
+      ),
+    ).rejects.toThrow();
+
+    expect(await listTopicRules(rollbackProjectId)).toEqual([]);
+    expect(
+      await prisma.topicConfig.findUnique({
+        where: { projectId: rollbackProjectId },
+      }),
+    ).toBeNull();
+  });
+
+  it("records who created and last updated the Topics configuration", async () => {
+    const facets = await ensureDefaultTopicFacets(auditProjectId);
+    const models = {
+      summaryLlmApiKeyId: null,
+      summaryModel: null,
+      embeddingLlmApiKeyId: null,
+      embeddingModel: null,
+      embeddingDimensions: 1024,
+      clusteringLlmApiKeyId: null,
+      clusteringModel: null,
+    };
+    const rule = await saveTopicRuleAndModels(
+      {
+        projectId: auditProjectId,
+        filter: [],
+        facetIds: [facets[0].id],
+        userId: userIds[0],
+      },
+      models,
+      120_000,
+    );
+    await saveTopicRuleAndModels(
+      {
+        id: rule.id,
+        projectId: auditProjectId,
+        filter: [],
+        facetIds: [facets[0].id],
+        userId: userIds[1],
+      },
+      models,
+      180_000,
+    );
+
+    expect(
+      await prisma.topicConfig.findUnique({
+        where: { projectId: auditProjectId },
+      }),
+    ).toMatchObject({ createdBy: userIds[0], updatedBy: userIds[1] });
+    expect(
+      await prisma.tracingReadinessSettings.findUnique({
+        where: { projectId: auditProjectId },
+      }),
+    ).toMatchObject({
+      traceIdleMs: 180_000,
+      createdBy: userIds[0],
+      updatedBy: userIds[1],
+    });
+    expect(
+      await prisma.evaluationRule.findUnique({ where: { id: rule.id } }),
+    ).toMatchObject({ createdByUserId: userIds[0] });
+  });
+
+  it.each(["trace_transcript"])(
+    "reads and saves %s Topics rules while keeping FACET assignments project-scoped",
+    async (targetObject) => {
+      const { id: projectId } = await prisma.project.create({
+        data: { orgId, name: `Topics ${targetObject}` },
+      });
+      const facet = await createTopicFacet({
+        projectId,
+        name: "Intent",
+        description: "Custom facet with a built-in name",
+        prompt: "Describe the original request.",
+      });
+      const next = {
+        projectId,
+        facetId: facet.id,
+        prompt: " Describe the result. ",
+      };
+      const versions = await Promise.all([
+        createTopicFacetVersion(next),
+        createTopicFacetVersion(next),
+      ]);
+      expect(versions.map((version) => version.version)).toEqual([2, 2]);
+      expect(await getTopicFacetVersion(projectId, facet.id, 1)).toMatchObject({
+        prompt: "Describe the original request.",
+      });
+      const foreign = await createTopicFacet({
+        projectId: otherProjectId,
+        name: "Foreign facet",
+        description: "",
+        prompt: "Describe another project's request.",
+      });
+      const evaluator = await prisma.evaluator.create({
+        data: {
+          projectId,
+          name: "Ordinary evaluator",
+          type: "LLM_AS_JUDGE",
+          versions: { create: { version: 1, prompt: "Grade the answer." } },
+        },
+      });
+      for (const id of [foreign.id, evaluator.id]) {
+        expect(await getTopicFacetVersion(projectId, id, 1)).toBeNull();
+        await expect(
+          createTopicFacetVersion({ ...next, facetId: id }),
+        ).rejects.toThrow(/project/);
+        await expect(
+          saveTopicRule({
+            projectId,
+            name: "Invalid",
+            filter: [],
+            facetIds: [id],
+          }),
+        ).rejects.toThrow(/project/);
+      }
+      const visible = await listTopicFacets(projectId);
+      expect(visible.find((value) => value.id === facet.id)).toMatchObject({
+        isBuiltIn: false,
+      });
+      expect(visible.map((value) => value.id)).not.toContain(evaluator.id);
+      const rule = await saveTopicRule({
+        projectId,
+        name: "Saved selection",
+        filter: [],
+        facetIds: [facet.id, facet.id],
+      });
+      expect(rule.facetIds).toEqual([facet.id]);
+      await prisma.evaluationRule.update({
+        where: { id: rule.id, projectId },
+        data: { targetObject },
+      });
+      expect(await getTopicRule(projectId, rule.id)).toMatchObject({
+        id: rule.id,
+        facetIds: [facet.id],
+      });
+      expect(
+        (await listTopicRules(projectId)).map((value) => value.id),
+      ).toEqual([rule.id]);
+      const second = { projectId, filter: [], facetIds: [facet.id] };
+      const created = await saveTopicRule({ ...second, name: "Another rule" });
+      expect(created.id).not.toBe(rule.id);
+      await prisma.evaluationRule.delete({ where: { id: created.id } });
+      expect(
+        await saveTopicRule({
+          ...second,
+          id: rule.id,
+          name: "Second selection",
+        }),
+      ).toMatchObject({ id: rule.id, name: "Second selection" });
+      expect(
+        await prisma.evaluationRule.findUnique({ where: { id: rule.id } }),
+      ).toMatchObject({
+        targetObject: "trace_transcript",
+        delay: 0,
+        timeScope: ["NEW"],
+        status: "ACTIVE",
+      });
+      expect(await getTopicRule(otherProjectId, rule.id)).toBeNull();
+      for (const assignments of [
+        [{ projectId, evaluatorId: evaluator.id }],
+        [
+          { projectId, evaluatorId: facet.id },
+          { projectId, evaluatorId: evaluator.id },
+        ],
+        [],
+        [{ projectId, evaluatorId: foreign.id }],
+        [{ projectId: otherProjectId, evaluatorId: facet.id }],
+      ]) {
+        const excludedRule = await prisma.evaluationRule.create({
+          data: {
+            projectId,
+            name: "Not a Topics rule",
+            filter: [],
+            sampling: 1,
+            delay: 0,
+            targetObject,
+            assignments: { create: assignments },
+          },
+        });
+        expect(await getTopicRule(projectId, excludedRule.id)).toBeNull();
+        await expect(
+          saveTopicRule({ ...rule, id: excludedRule.id }),
+        ).rejects.toThrow(/not found/);
+      }
+      expect(
+        (await listTopicRules(projectId)).map((value) => value.id),
+      ).toEqual([rule.id]);
+    },
+  );
+
+  it("rejects foreign run versions and atomically creates one journal and run on replay", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Publication",
+      description: "",
+      prompt: "Describe publication behavior.",
+    });
+    const input: TopicExecutionInput = {
+      projectId,
+      requestId: randomUUID(),
+      operation: "update",
+      facets: [{ facetId: facet.id, version: 1 }],
+      timeRange: { from: new Date("2026-09-01"), to: new Date("2026-10-01") },
+      embeddingConfig: {
+        embeddingModel: "eu.cohere.embed-v4:0",
+        embeddingDimensions: 256,
+      },
+      exploratory: false,
+    };
+    await expect(
+      createTopicRun({
+        projectId: otherProjectId,
+        facetId: facet.id,
+        facetVersion: 1,
+        config: {},
+      }),
+    ).rejects.toThrow(/project/);
+    await expect(
+      createTopicExecution(
+        { ...input, projectId: otherProjectId },
+        undefined,
+        "test-user",
+      ),
+    ).rejects.toThrow(/project/);
+    expect(
+      await prisma.batchAction.count({ where: { projectId: otherProjectId } }),
+    ).toBe(0);
+    const [first, replay] = await Promise.all([
+      createTopicExecution(input, undefined, "test-user"),
+      createTopicExecution(input, undefined, "test-user"),
+    ]);
+    expect(replay.id).toBe(first.id);
+    expect(replay.facets[0]?.runId).toBe(first.facets[0]?.runId);
+    const progress = (await readTopicExecutionSummary(projectId, first.id))!;
+    await writeTopicExecution({
+      ...progress,
+      status: "running",
+      phase: "clustering",
+    });
+    expect(await readTopicExecutionSummary(projectId, first.id)).toMatchObject({
+      input,
+      status: "running",
+      phase: "clustering",
+    });
+    expect(
+      await prisma.topicClusteringRun.count({
+        where: { projectId, facetId: facet.id },
+      }),
+    ).toBe(1);
+    const run = (await getTopicRun(projectId, first.facets[0]!.runId!))!;
+    const completed = await saveTopicRun({
+      ...run,
+      status: "completed",
+      finishedAt: new Date().toISOString(),
+    });
+    expect(
+      await saveTopicRun({ ...run, status: "failed", error: "Late retry" }),
+    ).toEqual(completed);
+  });
+
+  it("attributes each stored topic version's naming cost only to the run that created it", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Naming costs",
+      description: "",
+      prompt: "Summarize.",
+    });
+    const rule = await saveTopicRule({
+      projectId,
+      facetIds: [facet.id],
+      filter: [],
+    });
+    const unpriced = await saveTopicRule({
+      projectId,
+      name: "Map without model calls",
+      facetIds: [facet.id],
+      filter: [],
+    });
+    const run = { projectId, facetId: facet.id, facetVersion: 1, config: {} };
+    const original = await createTopicRun({ ...run, ruleId: rule.id });
+    const snapshot = await createTopicRun({
+      ...run,
+      batchActionId: "snapshot",
+    });
+    const rename = await createTopicRun({ ...run, batchActionId: "snapshot" });
+    const free = await createTopicRun({ ...run, batchActionId: "free" });
+
+    const topic: TopicDefinition = {
+      projectId,
+      topicId: randomUUID(),
+      topicVersionId: randomUUID(),
+      createdByRunId: original.id,
+      createdAt: original.createdAt,
+      name: "Billing",
+      description: "",
+      labels: [],
+      centroid: [1, 0],
+      radius: 0.2,
+      representativeSummaries: [],
+      metadata: {},
+      costDetails: { naming_input: 0.02, naming_output: 0.01, total: 0.05 },
+    };
+    const published = await saveTopicRun({
+      ...original,
+      topics: [topic],
+      status: "completed",
+    });
+    await saveTopicRun({
+      ...snapshot,
+      topics: published.topics,
+      status: "completed",
+    });
+    expect(await getTopicExecutionNamingCosts(projectId, ["snapshot"])).toEqual(
+      {},
+    );
+
+    const renamed = {
+      ...topic,
+      topicVersionId: randomUUID(),
+      name: "Invoices",
+      createdByRunId: rename.id,
+      createdAt: rename.createdAt,
+      costDetails: { total: 0.1 + 0.2 },
+    };
+    await saveTopicRun({ ...rename, topics: [renamed], status: "completed" });
+    await saveTopicRun({
+      ...free,
+      status: "completed",
+      topics: [
+        {
+          ...topic,
+          topicVersionId: randomUUID(),
+          createdByRunId: free.id,
+          createdAt: free.createdAt,
+          costDetails: { total: 0 },
+        },
+      ],
+    });
+    await writeTopicSummaries([
+      {
+        ...exampleSummary(projectId),
+        facetId: facet.id,
+        ruleIds: [rule.id],
+        costDetails: { total: 0.04 },
+      },
+    ]);
+
+    expect(await getTopicRuleMapCosts(projectId)).toMatchObject({
+      [rule.id]: 0.09,
+      [unpriced.id]: null,
+    });
+    expect(
+      await getTopicExecutionNamingCosts(projectId, [
+        "snapshot",
+        "free",
+        "absent",
+      ]),
+    ).toEqual({ snapshot: 0.3, free: 0 });
+    expect(await getTopicRuleMapCosts(otherProjectId)).toEqual({});
+    expect(
+      await getTopicExecutionNamingCosts(otherProjectId, ["snapshot"]),
+    ).toEqual({});
+  });
+
+  it("never serves an analysis, even as the facet's newest snapshot", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Analysis serving",
+      description: "",
+      prompt: "Describe analysis serving.",
+    });
+    const update: TopicExecutionInput = {
+      projectId,
+      requestId: randomUUID(),
+      operation: "update",
+      facets: [{ facetId: facet.id, version: 1 }],
+      timeRange: { from: new Date("2026-09-01"), to: new Date("2026-10-01") },
+      embeddingConfig: {
+        embeddingModel: "eu.cohere.embed-v4:0",
+        embeddingDimensions: 256,
+      },
+      exploratory: false,
+    };
+    const complete = async (input: TopicExecutionInput) => {
+      const execution = await createTopicExecution(input, undefined, "user");
+      const run = (await getTopicRun(projectId, execution.facets[0]!.runId!))!;
+      await saveTopicRun({
+        ...run,
+        status: "completed",
+        finishedAt: new Date().toISOString(),
+      });
+      return run.id;
+    };
+    const snapshot = await complete(update);
+    await complete({
+      ...update,
+      requestId: randomUUID(),
+      analysis: { label: "Checkout", filter: [], seed: "seed" },
+    });
+    expect((await getPublishedTopicRun(projectId, facet.id))?.id).toBe(
+      snapshot,
+    );
+  });
+});
+
+describe("Topics definition persistence", () => {
+  const projectId = randomUUID();
+  const otherProjectId = randomUUID();
+  const telemetryProjectId = randomUUID();
+
+  const summary = exampleSummary(projectId);
+
+  afterAll(async () => {
+    for (const table of [
+      "topics",
+      "topic_facet_summaries",
+      "topic_assignments",
+    ])
+      await clickhouseClient().command({
+        query: `DELETE FROM ${table} WHERE project_id IN {projectIds:Array(String)}`,
+        query_params: {
+          projectIds: [projectId, otherProjectId, telemetryProjectId],
+        },
+        clickhouse_settings: { mutations_sync: "1" },
+      });
+  });
+
+  it("keeps a session and a trace with the same id apart after a merge", async () => {
+    // Its own month, so the forced merge stays small.
+    const unitStartTime = "2025-02-10T10:15:00.000Z";
+    const sharedId = randomUUID();
+    await writeTopicSummaries([
+      {
+        ...summary,
+        traceId: sharedId,
+        sessionId: "parent-session",
+        unitStartTime,
+      },
+      {
+        ...summary,
+        traceId: null,
+        sessionId: sharedId,
+        traceName: "",
+        unitStartTime,
+      },
+    ]);
+    await clickhouseClient().command({
+      query: "OPTIMIZE TABLE topic_facet_summaries PARTITION 202502 FINAL",
+      clickhouse_settings: { mutations_sync: "1" },
+    });
+    const rows = await clickhouseClient().query({
+      query: `SELECT unit_type FROM topic_facet_summaries
+        WHERE project_id = {projectId:String} AND unit_hash = cityHash64({sharedId:String})`,
+      query_params: { projectId, sharedId },
+      format: "JSONEachRow",
+    });
+    expect(
+      (await rows.json<{ unit_type: string }>())
+        .map((row) => row.unit_type)
+        .sort(),
+    ).toEqual(["session", "trace"]);
+  });
+
+  it("counts billable summaries processed in the telemetry interval", async () => {
+    const start = new Date("2026-09-01T00:00:00.000Z");
+    const end = new Date("2026-09-02T00:00:00.000Z");
+    const row = (createdAt: string, state: TopicSummary["state"]) => ({
+      ...summary,
+      projectId: telemetryProjectId,
+      traceId: randomUUID(),
+      state,
+      createdAt,
+    });
+    await writeTopicSummaries([
+      row(start.toISOString(), "complete"),
+      row("2026-09-01T12:00:00.000Z", "complete"),
+      row("2026-09-01T12:00:00.000Z", "not_applicable"),
+      row("2026-09-01T12:00:00.000Z", "insufficient_input"),
+      row("2026-09-01T12:00:00.000Z", "empty_input"),
+      row("2026-09-01T12:00:00.000Z", "input_too_large"),
+      row(end.toISOString(), "complete"),
+    ]);
+
+    const counts = await getTopicFacetSummaryCountsByProjectInCreationInterval({
+      start,
+      end,
+    });
+    expect(
+      counts.find((count) => count.projectId === telemetryProjectId)?.count,
+    ).toBe(4);
+  });
+
+  it("partitions by source time while preserving replacement and published map identities", async () => {
+    const latest = {
+      ...summary,
+      summary: "latest",
+      sessionId: "parent-session",
+      createdAt: "2026-10-01T00:00:00.000Z",
+    };
+    await writeTopicSummaries([summary, latest]);
+    const assignment: TopicAssignment = {
+      projectId,
+      facetId: summary.facetId,
+      facetVersion: 1,
+      traceId: summary.traceId,
+      sessionId: null,
+      environment: "default",
+      traceName: "trace",
+      unitStartTime: summary.unitStartTime,
+      summaryProcessedAt: summary.createdAt,
+      runId: "published",
+      topicId: null,
+      topicVersionId: null,
+      distance: null,
+      runnerUpDistance: null,
+      origin: "initial",
+      coordinates: [1, 2],
+      createdAt: "2026-09-01T00:00:00.000Z",
+    };
+    await writeTopicAssignments([
+      assignment,
+      {
+        ...assignment,
+        sessionId: "parent-session",
+        createdAt: "2026-10-01T00:00:00.000Z",
+      },
+      {
+        ...assignment,
+        origin: "online",
+        coordinates: null,
+        createdAt: "2026-10-02T00:00:00.000Z",
+      },
+      {
+        ...assignment,
+        runId: "unpublished",
+        createdAt: "2026-10-03T00:00:00.000Z",
+      },
+    ]);
+    const summaries = await clickhouseClient().query({
+      query: `SELECT _partition_id AS partition, summary, session_id FROM topic_facet_summaries FINAL
+        WHERE project_id = {projectId:String} AND unit_start_time >= '2026-08-01' AND unit_start_time < '2026-09-01'`,
+      query_params: { projectId },
+      format: "JSONEachRow",
+    });
+    expect(await summaries.json()).toEqual([
+      { partition: "202608", summary: "latest", session_id: "parent-session" },
+    ]);
+    const assignments = await clickhouseClient().query({
+      query: `SELECT _partition_id AS partition, clustering_run_id AS run, origin, coordinates FROM topic_assignments FINAL
+        WHERE project_id = {projectId:String} AND unit_start_time >= '2026-08-01' AND unit_start_time < '2026-09-01'
+        ORDER BY run, origin`,
+      query_params: { projectId },
+      format: "JSONEachRow",
+    });
+    expect(await assignments.json()).toEqual([
+      {
+        partition: "202608",
+        run: "published",
+        origin: "initial",
+        coordinates: [1, 2],
+      },
+      {
+        partition: "202608",
+        run: "published",
+        origin: "online",
+        coordinates: [],
+      },
+      {
+        partition: "202608",
+        run: "unpublished",
+        origin: "initial",
+        coordinates: [1, 2],
+      },
+    ]);
+    const traceIds = [summary.traceId!];
+    expect(
+      (
+        await getLatestFacetSummaries(
+          projectId,
+          summary.facetId,
+          1,
+          {
+            from: new Date(summary.unitStartTime),
+            to: new Date(Date.parse(summary.unitStartTime) + 1),
+          },
+          traceIds,
+        )
+      ).map(({ summary }) => summary),
+    ).toEqual(["latest"]);
+    expect(
+      await getLatestFacetSummaries(
+        projectId,
+        summary.facetId,
+        1,
+        {
+          from: new Date("2026-08-01T00:00:00.000Z"),
+          to: new Date(summary.unitStartTime),
+        },
+        traceIds,
+      ),
+    ).toEqual([]);
+
+    const oldRange = {
+      from: new Date("2026-08-01T00:00:00.000Z"),
+      to: new Date("2026-09-01T00:00:00.000Z"),
+    };
+    const newRange = {
+      from: oldRange.to,
+      to: new Date("2026-10-01T00:00:00.000Z"),
+    };
+    await writeTopicSummaries([
+      {
+        ...latest,
+        projectId: otherProjectId,
+        createdAt: "2026-10-04T00:00:00.000Z",
+      },
+      { ...latest, facetId: "other-facet", facetVersion: 2 },
+    ]);
+    const displaySummary = {
+      projectId: summary.projectId,
+      facetId: summary.facetId,
+      facetVersion: summary.facetVersion,
+      traceId: summary.traceId,
+      sessionId: summary.sessionId,
+      state: summary.state,
+      summary: summary.summary,
+      unitStartTime: summary.unitStartTime,
+      createdAt: summary.createdAt,
+    };
+    for (const version of [1, undefined])
+      expect(
+        await getLatestFacetSummaries(projectId, "facet", version, oldRange),
+      ).toEqual([
+        {
+          ...displaySummary,
+          summary: latest.summary,
+          sessionId: latest.sessionId,
+          createdAt: latest.createdAt,
+        },
+      ]);
+
+    const moved: TopicSummary = {
+      ...summary,
+      unitStartTime: "2026-09-01T00:00:00.000Z",
+      createdAt: "2026-10-02T00:00:00.000Z",
+      state: "not_applicable",
+      summary: "",
+      embedding: [],
+    };
+    await writeTopicSummaries([moved, summary]);
+    const embedding = {
+      embeddingModel: "eu.cohere.embed-v4:0" as const,
+      embeddingDimensions: 256 as const,
+    };
+    const limits = { maxRows: 2, maxBytes: 1024 * 1024 };
+    expect(
+      await Promise.all([
+        getLatestFacetSummaries(projectId, "facet", undefined, oldRange),
+        getTopicClusteringSummaries(
+          projectId,
+          "facet",
+          1,
+          embedding,
+          oldRange,
+          limits,
+        ),
+        getTopicSummaryCounts(
+          projectId,
+          [{ facetId: "facet", version: 1 }],
+          embedding,
+          oldRange,
+        ),
+      ]),
+    ).toEqual([[], [], [{ facetId: "facet", facetVersion: 1, count: 0 }]]);
+
+    const newerVersion = {
+      ...summary,
+      facetVersion: 2,
+      createdAt: "2026-09-30T00:00:00.000Z",
+    };
+    await writeTopicSummaries([newerVersion]);
+    expect(
+      await getLatestFacetSummaries(projectId, "facet", undefined, oldRange),
+    ).toEqual([
+      {
+        ...displaySummary,
+        facetVersion: newerVersion.facetVersion,
+        createdAt: newerVersion.createdAt,
+      },
+    ]);
+    expect(
+      await Promise.all(
+        [[summary.traceId], ["other-trace"]].map((traceIds) =>
+          getLatestFacetSummaries(
+            projectId,
+            "facet",
+            undefined,
+            oldRange,
+            traceIds,
+          ),
+        ),
+      ),
+    ).toEqual([
+      [
+        {
+          ...displaySummary,
+          facetVersion: newerVersion.facetVersion,
+          createdAt: newerVersion.createdAt,
+        },
+      ],
+      [],
+    ]);
+    expect(
+      await Promise.all(
+        [summary.traceId!, "other-trace"].map((traceId) =>
+          getTopicTraceUnitTimeRange(projectId, [traceId], oldRange),
+        ),
+      ),
+    ).toEqual([
+      {
+        from: new Date(summary.unitStartTime),
+        to: new Date(Date.parse(summary.unitStartTime) + 1),
+      },
+      null,
+    ]);
+    expect(
+      await getLatestFacetSummaries(projectId, "facet", undefined, newRange),
+    ).toEqual([]);
+    expect(
+      await getLatestFacetSummaries(projectId, "facet", 1, newRange),
+    ).toEqual([
+      {
+        ...displaySummary,
+        unitStartTime: moved.unitStartTime,
+        createdAt: moved.createdAt,
+        state: moved.state,
+        summary: moved.summary,
+      },
+    ]);
+
+    const internalFacet = "internal-environments";
+    const allowedTraceIds = ["allowed-a", "allowed-b"];
+    const internalTraces = [
+      "langfuse-topics",
+      "llm-as-a-judge",
+      "langfuse",
+    ].map((environment) => ({ traceId: randomUUID(), environment }));
+    await writeTopicSummaries([
+      ...internalTraces.flatMap(({ traceId, environment }) => {
+        return [
+          { ...summary, facetId: internalFacet, traceId },
+          {
+            ...latest,
+            facetId: internalFacet,
+            traceId,
+            environment,
+          },
+        ];
+      }),
+      ...allowedTraceIds.toReversed().map((traceId) => ({
+        ...summary,
+        facetId: internalFacet,
+        traceId,
+        metadata: { large: "x".repeat(10_000) },
+      })),
+    ]);
+    const [eligible, counts, latestDisplayed] = await Promise.all([
+      getTopicClusteringSummaries(
+        projectId,
+        internalFacet,
+        1,
+        embedding,
+        oldRange,
+        limits,
+      ),
+      getTopicSummaryCounts(
+        projectId,
+        [{ facetId: internalFacet, version: 1 }],
+        embedding,
+        oldRange,
+      ),
+      getLatestFacetSummaries(projectId, internalFacet, undefined, oldRange),
+    ]);
+    expect(eligible.map(({ traceId }) => traceId)).toEqual(allowedTraceIds);
+    expect(latestDisplayed.map(({ traceId }) => traceId).sort()).toEqual(
+      allowedTraceIds,
+    );
+    expect(counts).toEqual([
+      {
+        facetId: internalFacet,
+        facetVersion: 1,
+        count: allowedTraceIds.length,
+      },
+    ]);
+  });
+
+  it("sums stored facet costs for their snapshot or distinct live maps", async () => {
+    const priced: TopicSummary = {
+      ...summary,
+      facetId: randomUUID(),
+      costDetails: {
+        summary_input: 0.05,
+        summary_output: 0.1,
+        embedding_input: 0.05,
+        total: 0.2,
+      },
+      executionId: "priced",
+      ruleIds: ["map-a"],
+    };
+    const live = {
+      ...priced,
+      traceId: "shared",
+      executionId: null,
+      ruleIds: ["map-a", "map-b", "map-a"],
+      costDetails: { total: 0.12 },
+    };
+    await writeTopicSummaries([
+      priced,
+      { ...priced, facetVersion: 2, executionId: "edited-facet" },
+      { ...priced, projectId: otherProjectId },
+      { ...priced, traceId: "other-run", executionId: "other" },
+      { ...priced, facetId: randomUUID() },
+      live,
+      // Trace and session IDs can share a hash while remaining independent sources.
+      {
+        ...live,
+        traceId: null,
+        sessionId: live.traceId,
+        ruleIds: ["free-map"],
+        costDetails: { total: 0 },
+      },
+      { ...live, projectId: otherProjectId, costDetails: { total: 10 } },
+      // These source times land in different partitions, so both owners retain their rows.
+      {
+        ...live,
+        executionId: "priced",
+        createdAt: "2026-08-01T00:00:00.000Z",
+        unitStartTime: "2026-07-01T00:00:00.000Z",
+      },
+      // Editing the facet causes a separate model call; both versions retain their owner.
+      { ...live, traceId: "new-version", ruleIds: ["map-c"] },
+      {
+        ...live,
+        traceId: "new-version",
+        facetVersion: 2,
+        ruleIds: ["previous-map"],
+        unitStartTime: "2026-07-01T00:00:00.000Z",
+        createdAt: "2026-08-01T00:00:00.000Z",
+      },
+      {
+        ...live,
+        traceId: "new-version",
+        facetVersion: 2,
+        ruleIds: ["map-a"],
+        costDetails: {},
+      },
+      {
+        ...priced,
+        traceId: "provider-total",
+        providedCostDetails: { total: 0.07 },
+        costDetails: { total: 0.07 },
+      },
+      {
+        ...priced,
+        traceId: "unpriced",
+        costDetails: { summary_input: 0.1 },
+        executionId: "unpriced",
+      },
+      {
+        ...priced,
+        traceId: "zero",
+        costDetails: { total: 0 },
+        executionId: "zero",
+      },
+    ]);
+    const requested = ["priced", "edited-facet", "unpriced", "zero", "missing"];
+    expect(await getTopicExecutionCosts(projectId, requested)).toEqual({
+      priced: 0.59,
+      "edited-facet": 0.2,
+      zero: 0,
+    });
+    expect(
+      await getTopicRuleProcessingCosts(projectId, [
+        "map-a",
+        "map-b",
+        "map-c",
+        "free-map",
+        "previous-map",
+      ]),
+    ).toEqual({
+      "map-a": 0.06,
+      "map-b": 0.06,
+      "map-c": 0.12,
+      "free-map": 0,
+      "previous-map": 0.12,
+    });
+  });
+
+  it("round-trips every definition field, Float64 geometry and normalized source references through ClickHouse", async () => {
+    const topic: TopicDefinition = {
+      projectId,
+      topicVersionId: randomUUID(),
+      topicId: randomUUID(),
+      createdByRunId: randomUUID(),
+      createdAt: "2026-09-24T21:21:07.329Z",
+      name: "Rechnungen — 請求書 💶",
+      description: "Résumé and invoice requests. ".repeat(10),
+      // This value loses a Float64 bit in ClickHouse's JSON number parser.
+      centroid: Array.from({ length: 1024 }, (_, i) =>
+        i === 847 ? -0.003662027125082599 : Math.sin(i) / 32,
+      ),
+      radius: 0.003662027125082599,
+      labels: ["billing", "請求書"],
+      representativeSummaries: [
+        {
+          facetId: "facet-a",
+          facetVersion: 257,
+          traceId: "source/請求書",
+          sessionId: null,
+        },
+        {
+          facetId: "facet-a",
+          facetVersion: 257,
+          traceId: null,
+          sessionId: "source/請求書",
+        },
+      ],
+      // An undefined metadata value reads back as an absent key.
+      metadata: {
+        effectiveMemberCount: 15,
+        lineage: [],
+        source: "請求書",
+        namingSampled: undefined,
+      },
+      costDetails: {
+        input: 0.000123456789,
+        output: 0.5,
+        total: 0.500123456789,
+      },
+    };
+    const other: TopicDefinition = {
+      ...topic,
+      topicVersionId: randomUUID(),
+      topicId: randomUUID(),
+      createdAt: "2026-09-24T21:21:07.330Z",
+      centroid: [1, 0, -1],
+      radius: 0,
+      labels: [],
+      representativeSummaries: [],
+      metadata: {},
+      costDetails: undefined,
+    };
+
+    await writeTopicDefinitions([
+      {
+        ...topic,
+        representativeSummaries: topic.representativeSummaries.map(
+          (source) => ({
+            ...source,
+            sessionId: source.traceId ? "parent-session" : source.sessionId,
+          }),
+        ),
+      },
+      other,
+    ]);
+    const ids = [topic.topicVersionId, other.topicVersionId];
+    const timeRange = {
+      from: new Date(topic.createdAt),
+      to: new Date(Date.parse(other.createdAt) + 1),
+    };
+    expect(await getTopicDefinitions(projectId, ids, timeRange)).toEqual([
+      other,
+      topic,
+    ]);
+    expect(await getTopicDefinitions(randomUUID(), ids, timeRange)).toEqual([]);
+    expect(
+      await getTopicDefinitions(projectId, ids, {
+        from: timeRange.to,
+        to: new Date("2026-10-01T00:00:00.000Z"),
+      }),
+    ).toEqual([]);
+  });
+
+  it("resolves the column's latest topic per rule and the tracing filter's from each rule's published map", async () => {
+    const [current, reassigned, retired, earlier] = [
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+    ];
+    await writeTopicSummaries(
+      [current, reassigned, retired, earlier].map((traceId) => ({
+        ...summary,
+        projectId: otherProjectId,
+        traceId,
+      })),
+    );
+    const assign = (
+      traceId: string,
+      topicId: string,
+      overrides: Partial<TopicAssignment> = {},
+    ): TopicAssignment => ({
+      projectId: otherProjectId,
+      facetId: summary.facetId,
+      facetVersion: 1,
+      traceId,
+      sessionId: null,
+      environment: "default",
+      traceName: "trace",
+      unitStartTime: summary.unitStartTime,
+      summaryProcessedAt: summary.createdAt,
+      runId: "serving",
+      ruleId: "rule",
+      topicId,
+      topicVersionId: `${topicId}-v1`,
+      distance: null,
+      runnerUpDistance: null,
+      origin: "online",
+      coordinates: null,
+      createdAt: "2026-09-01T00:00:00.000Z",
+      ...overrides,
+    });
+    await writeTopicAssignments([
+      assign(current, "match"),
+      assign(reassigned, "match"),
+      assign(reassigned, "other", { createdAt: "2026-09-03T00:00:00.000Z" }),
+      // An analysis's assignment never serves.
+      assign(retired, "match", { runId: "analysis", ruleId: null }),
+      // The column keeps a placement from the rule's earlier map; the filter does not.
+      assign(earlier, "match", { runId: "previous" }),
+      // Another rule's map keeps its own current topic for the same trace.
+      assign(reassigned, "match", { runId: "other-rule", ruleId: "other" }),
+      // A refit that wrote a batch and never completed does not replace the shown topic.
+      assign(current, "", {
+        runId: "unfinished",
+        topicVersionId: "",
+        createdAt: "2026-09-05T00:00:00.000Z",
+      }),
+    ]);
+    const timeRange = {
+      from: new Date("2026-08-31T00:00:00.000Z"),
+      to: new Date("2026-09-01T00:00:00.000Z"),
+    };
+    // Rows can start well after the trace's first observation (here 30 hours).
+    const rowStart = new Date(
+      Date.parse(summary.unitStartTime) + 30 * 3_600_000,
+    );
+
+    // Column: one read across facets for a page of traces.
+    const topics = await readCurrentTraceTopics(otherProjectId, {
+      traces: [current, reassigned, retired, earlier].map((traceId) => ({
+        traceId,
+        timestamp: rowStart,
+      })),
+      facetIds: [summary.facetId],
+      // The completed runs of the rules; "unfinished" is not one of them.
+      runIds: ["serving", "previous", "other-rule"],
+      includeOutliers: true,
+    });
+    expect(
+      topics.map(({ traceId, topicId }) => [traceId, topicId]).sort(),
+    ).toEqual(
+      [
+        [current, "match"],
+        [reassigned, "other"],
+        [reassigned, "match"],
+        [earlier, "match"],
+      ].sort(),
+    );
+
+    // Filter: the same membership as a prefixed subquery inside another query.
+    const condition = currentTopicTraceIdsCondition("topicFilter0", {
+      projectId: otherProjectId,
+      facetId: summary.facetId,
+      topicIds: ["match"],
+      publishedRunIds: ["serving", "other-rule"],
+      timeRange,
+      negated: false,
+    });
+    const matched = await clickhouseClient().query({
+      query: `SELECT DISTINCT e.trace_id AS traceId FROM topic_facet_summaries AS e
+        WHERE e.project_id = {projectId:String} AND ${condition.query}`,
+      query_params: { projectId: otherProjectId, ...condition.params },
+      format: "JSONEachRow",
+    });
+    expect(
+      ((await matched.json()) as { traceId: string }[])
+        .map(({ traceId }) => traceId)
+        .sort(),
+    ).toEqual([current, reassigned].sort());
+  });
+});

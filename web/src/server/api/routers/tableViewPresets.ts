@@ -4,7 +4,10 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  hasProjectAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   TableViewService,
   CreateTableViewPresetsInput,
@@ -117,23 +120,10 @@ export const TableViewPresetsRouter = createTRPCRouter({
         return;
       }
 
-      // Keep deletion idempotent so stale clients can safely repeat it.
-      await ctx.prisma.$transaction(async (tx) => {
-        await tx.tableViewPreset.deleteMany({
-          where: {
-            id: input.tableViewPresetsId,
-            projectId: input.projectId,
-          },
-        });
-
-        // Cleanup any default view references
-        await tx.defaultView.deleteMany({
-          where: {
-            viewId: input.tableViewPresetsId,
-            projectId: input.projectId,
-          },
-        });
-      });
+      await TableViewService.deleteTableViewPresets(
+        input.tableViewPresetsId,
+        input.projectId,
+      );
     }),
 
   getByTableName: protectedProjectProcedure
@@ -151,9 +141,29 @@ export const TableViewPresetsRouter = createTRPCRouter({
         scope: "TableViewPresets:read",
       });
 
-      return await TableViewService.getTableViewPresetsByTableName(
+      const presets = await TableViewService.getTableViewPresetsByTableName(
         input.tableName,
         input.projectId,
+      );
+
+      // Creator email follows projectMembers:read, the same scope as the members list.
+      if (
+        hasProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "projectMembers:read",
+        })
+      ) {
+        return presets;
+      }
+
+      return presets.map((preset) =>
+        preset.createdByUser
+          ? {
+              ...preset,
+              createdByUser: { ...preset.createdByUser, email: null },
+            }
+          : preset,
       );
     }),
 

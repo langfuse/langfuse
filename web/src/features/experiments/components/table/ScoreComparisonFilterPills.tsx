@@ -1,0 +1,68 @@
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { Button } from "@/src/components/ui/button";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { GitCompareArrows, X } from "@langfuse/icons";
+import {
+  describeScoreComparisonFilter,
+  type ScoreComparisonFilter,
+} from "@/src/features/experiments/fns/scoreComparisonFilter";
+
+export type ScoreComparisonPill = {
+  filter: ScoreComparisonFilter;
+  scoreName: string;
+  comparisonName: string;
+};
+
+/**
+ * The active score comparisons, in plain English ("Worse groundedness than
+ * judge-haiku-baseline") and removable — the same affordance the score filters
+ * get, for the one predicate that is evaluated in the client.
+ */
+export const ScoreComparisonFilterPills = ({
+  pills,
+  onRemove,
+}: {
+  pills: ScoreComparisonPill[];
+  onRemove: (filter: ScoreComparisonFilter) => void;
+}) => {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 border-b px-2 py-2">
+      {pills.map(({ filter, scoreName, comparisonName }) => {
+        const label = describeScoreComparisonFilter({
+          operator: filter.operator,
+          scoreName,
+          comparisonName,
+        });
+        return (
+          <BadgeShell key={`${filter.level}-${filter.scoreKey}`} color="filled">
+            <GitCompareArrows size="sm" />
+            <span className="truncate" title={label}>
+              {label}
+            </span>
+            <Tooltip label="Comparing one experiment's score against another's is not something the items query can express, so this narrows the items loaded on the current page. Page through to check the rest of the run.">
+              {({ getTriggerProps }) => (
+                <span
+                  {...getTriggerProps()}
+                  className="text-muted-foreground shrink-0 cursor-default underline decoration-dotted"
+                >
+                  this page
+                </span>
+              )}
+            </Tooltip>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-4 w-4 shrink-0 p-0 hover:bg-transparent"
+              onClick={(event) => {
+                event.stopPropagation();
+                onRemove(filter);
+              }}
+            >
+              <X size="base" color="default" />
+            </Button>
+          </BadgeShell>
+        );
+      })}
+    </div>
+  );
+};

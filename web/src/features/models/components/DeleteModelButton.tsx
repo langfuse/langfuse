@@ -1,76 +1,61 @@
-import { useState } from "react";
-
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { type GetModelResult } from "@/src/features/models/validation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api } from "@/src/utils/api";
+import { reportTrpcErrorWithoutToast } from "@/src/utils/api";
+import { useDeleteModelDefinition } from "@/src/features/models/hooks/useModelDefinitionApi";
+import {
+  type ModelOwner,
+  useCanEditModels,
+} from "@/src/features/models/modelOwner";
 
 export const DeleteModelButton = ({
   modelData,
-  projectId,
+  owner,
   onSuccess,
 }: {
   modelData: GetModelResult;
-  projectId: string;
+  owner: ModelOwner;
   onSuccess?: () => void;
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const mut = api.models.delete.useMutation({
-    onSuccess: () => {
-      utils.models.invalidate();
-      onSuccess?.();
-    },
-  });
-
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "models:CUD",
-  });
+  const { remove, isPending, error, reset } = useDeleteModelDefinition(owner);
+  const hasAccess = useCanEditModels(owner);
 
   return (
-    <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
-      <PopoverTrigger asChild>
+    <ConfirmationDialogController
+      title="Delete model?"
+      text="This action permanently deletes this model definition."
+      confirmLabel="Delete model"
+      variant="destructive"
+      error={error}
+      loading={isPending}
+      onConfirm={async () => {
+        capture("models:delete_button_click");
+        try {
+          await remove(modelData.id);
+        } catch (error) {
+          reportTrpcErrorWithoutToast(error, "models");
+          throw error;
+        }
+        onSuccess?.();
+      }}
+    >
+      {({ openDialog }) => (
         <Button
           variant="outline"
           title="Delete model"
           disabled={!hasAccess}
-          className="border-light-red flex items-center"
+          className="border-dark-red/30 flex items-center"
+          onClick={() => {
+            reset();
+            openDialog();
+          }}
         >
           <span className="text-dark-red">Delete</span>
         </Button>
-      </PopoverTrigger>
-      <PopoverContent>
-        <h2 className="mb-3 font-bold">Please confirm</h2>
-        <p className="mb-3 text-sm">
-          This action permanently deletes this model definition.
-        </p>
-        <div className="flex justify-end space-x-4">
-          <Button
-            type="button"
-            variant="destructive"
-            loading={mut.isPending}
-            onClick={() => {
-              capture("models:delete_button_click");
-              mut.mutateAsync({
-                projectId,
-                modelId: modelData.id,
-              });
-
-              setIsOpen(false);
-            }}
-          >
-            Delete Model
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
+      )}
+    </ConfirmationDialogController>
   );
 };

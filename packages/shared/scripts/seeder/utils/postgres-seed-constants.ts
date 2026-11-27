@@ -1,3 +1,9 @@
+export const DEFAULT_SEED_API_KEY = {
+  public: "pk-lf-1234567890",
+  secret: "sk-lf-1234567890",
+  note: "seeded key",
+} as const;
+
 // Datasets
 const SEED_DATASET_ITEMS_COUNTRIES = [
   { input: { country: "France" }, output: "Paris" },

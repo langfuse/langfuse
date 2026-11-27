@@ -1,9 +1,13 @@
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { GetScoresQueryV3, GetScoresResponseV3 } from "@langfuse/shared";
-import { listScoresV3ForPublicApi } from "@/src/features/public-api/server/scores-api-v3";
-import { EncodedScoresCursorV3 } from "@/src/features/public-api/types/scores";
+import {
+  listScoresV3ForPublicApi,
+  EncodedScoresCursorV3,
+} from "@langfuse/shared/src/server";
 
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { scoreV3Refs } from "@/src/features/audit-logs/server/auditedQuery";
 const GetScoresV3Query = GetScoresQueryV3.extend({
   cursor: EncodedScoresCursorV3.optional(),
 }).superRefine((data, ctx) => {
@@ -99,9 +103,22 @@ const GetScoresV3Query = GetScoresQueryV3.extend({
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Scores V3",
+    action: "scores:read",
     querySchema: GetScoresV3Query,
     responseSchema: GetScoresResponseV3,
+    audit: {
+      route: "GET /api/public/v3/scores",
+      resourceType: "score",
+      action: "list",
+      refs: (response) => scoreV3Refs(response.data),
+      resultCount: (response) => response.data.length,
+    },
     fn: async ({ query, auth }) => {
+      const dataAccessWindow = clampToDataAccessDays({
+        plan: auth.scope.plan,
+        fromTimestamp: query.fromTimestamp,
+      });
+
       const result = await listScoresV3ForPublicApi({
         projectId: auth.scope.projectId,
         limit: query.limit,
@@ -122,7 +139,7 @@ export default withMiddlewares({
         sessionId: query.sessionId,
         observationId: query.observationId,
         experimentId: query.experimentId,
-        fromTimestamp: query.fromTimestamp,
+        fromTimestamp: dataAccessWindow.effectiveFromTimestamp,
         toTimestamp: query.toTimestamp,
       });
 

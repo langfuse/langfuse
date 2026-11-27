@@ -3,8 +3,10 @@ import type { Session } from "next-auth";
 import { describe, expect, it } from "vitest";
 
 import { prisma } from "@langfuse/shared/src/db";
+import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 describe("in-app agent router", () => {
   it("soft-deletes an owned conversation", async () => {
@@ -91,6 +93,66 @@ describe("in-app agent router", () => {
       conversationId: conversation.id,
     });
   });
+
+  it("exposes the telemetry project to internal users while AI telemetry is recorded", async () => {
+    const fixture = await createProjectFixture();
+    const telemetryFixture = await createProjectFixture();
+    const staffCaller = createCallerForFixture(fixture, fixture.ownerUserId, {
+      email: "member@clickhouse.com",
+    });
+    const externalCaller = createCallerForFixture(fixture, fixture.ownerUserId);
+    const originalAiFeaturesProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
+    const originalExperimentalFeatures =
+      env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
+
+    try {
+      Object.assign(env, { LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false" });
+      (
+        env as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
+      ).LANGFUSE_AI_FEATURES_PROJECT_ID = telemetryFixture.projectId;
+
+      await expect(
+        externalCaller.inAppAgent.telemetryProject({
+          projectId: fixture.projectId,
+        }),
+      ).rejects.toThrow("internal surface");
+      await expect(
+        staffCaller.inAppAgent.telemetryProject({
+          projectId: fixture.projectId,
+        }),
+      ).resolves.toEqual({ projectId: telemetryFixture.projectId });
+
+      await prisma.organization.update({
+        where: { id: fixture.orgId },
+        data: { aiTelemetryEnabled: false },
+      });
+      await expect(
+        staffCaller.inAppAgent.telemetryProject({
+          projectId: fixture.projectId,
+        }),
+      ).resolves.toEqual({ projectId: null });
+
+      await prisma.organization.update({
+        where: { id: fixture.orgId },
+        data: { aiTelemetryEnabled: true },
+      });
+      (
+        env as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
+      ).LANGFUSE_AI_FEATURES_PROJECT_ID = undefined;
+      await expect(
+        staffCaller.inAppAgent.telemetryProject({
+          projectId: fixture.projectId,
+        }),
+      ).resolves.toEqual({ projectId: null });
+    } finally {
+      Object.assign(env, {
+        LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: originalExperimentalFeatures,
+      });
+      (
+        env as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
+      ).LANGFUSE_AI_FEATURES_PROJECT_ID = originalAiFeaturesProjectId;
+    }
+  });
 });
 
 async function createCaller() {
@@ -153,53 +215,29 @@ async function createProjectFixture() {
 function createCallerForFixture(
   fixture: Awaited<ReturnType<typeof createProjectFixture>>,
   userId: string,
+  { email = `${userId}@example.com` }: { email?: string } = {},
 ) {
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: userId,
-      email: `${userId}@example.com`,
-      name: "In-app Agent Router Test User",
-      canCreateOrganizations: true,
-      organizations: [
-        {
-          id: fixture.orgId,
-          name: fixture.orgName,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: true,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: fixture.projectId,
-              name: fixture.projectName,
-              role: "ADMIN",
-              deletedAt: null,
-              retentionDays: null,
-              hasTraces: false,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: {
-        searchBar: false,
-        templateFlag: true,
-        excludeClickhouseRead: false,
-        observationEvals: false,
-        v4BetaToggleVisible: false,
-        experimentsV4Enabled: false,
+  const session: Session = createSession({
+    user: { id: userId, email, name: "In-app Agent Router Test User" },
+    organizations: [
+      {
+        id: fixture.orgId,
+        role: "OWNER",
+        name: fixture.orgName,
+        aiFeaturesEnabled: true,
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: fixture.projectId,
+            role: "ADMIN",
+            name: fixture.projectName,
+            retentionDays: null,
+          },
+        ],
       },
-      admin: false,
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:enterprise",
-    },
-  };
+    ],
+    environment: { selfHostedInstancePlan: "cloud:enterprise" },
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
 
   return appRouter.createCaller({ ...ctx, prisma });

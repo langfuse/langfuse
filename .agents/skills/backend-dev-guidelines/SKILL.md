@@ -16,6 +16,7 @@ Use this skill for backend and API work across `web/`, `worker/`, and
 - Building or refactoring backend services and repositories
 - Working on backend auth, middleware, validation, or observability
 - Updating Prisma or ClickHouse access patterns
+- Adding a field, option, flag, or enum member to shared backend code
 - Adding or fixing backend tests
 
 ## How to Read This Skill
@@ -29,7 +30,16 @@ Use this skill for backend and API work across `web/`, `worker/`, and
   shared [`security-review`](../security-review/SKILL.md) skill before
   designing or implementing the change.
 
+## Before Adding a New Concept
+
+Before adding a field to a shared schema or payload, an option or flag on a
+shared signature, an enum member, an env toggle, or a branch that exists for one
+caller — or before concluding that no change is needed — read
+[`references/new-concepts.md`](references/new-concepts.md).
+
 ## Quick Start Checklists
+
+Whether to add a test follows root [`AGENTS.md`](../../../AGENTS.md). Place a warranted test as described in [references/testing-guide.md](references/testing-guide.md).
 
 ### UI: New tRPC Feature
 
@@ -40,7 +50,6 @@ Use this skill for backend and API work across `web/`, `worker/`, and
 - Validate input with Zod v4.
 - Put business logic in a service file.
 - Use `traceException` for error handling where relevant.
-- Add unit or integration tests in `__tests__/`.
 - Access config via `env.mjs`.
 
 ### Existing Endpoint: Additive Field or Filter
@@ -58,7 +67,6 @@ For an additive field/filter:
 - Do not create API-version-specific field sets, casts, or "must be selected"
   runtime assertions unless compatibility requires them.
 - Extend examples and contracts; do not replace an existing filter example.
-- Write one test per unique boundary, not one test per file touched.
 
 ### SDKs: New Public API Endpoint
 
@@ -69,7 +77,6 @@ For an additive field/filter:
 - Validate query, body, and response with Zod schemas.
 - Include API versioning in paths and schemas.
 - Update Fern API definitions to match TypeScript types.
-- Add end-to-end tests in `__tests__/async/`.
 
 ### Worker: New Queue Processor
 
@@ -78,7 +85,6 @@ For an additive field/filter:
 - Place business logic in `features/` or `worker/src/features/`.
 - Distinguish failed jobs from jobs that should succeed with a recorded error.
 - Register the queue in `WorkerManager` in `app.ts`.
-- Add worker vitest coverage.
 
 ## Core Principles
 
@@ -88,6 +94,8 @@ For an additive field/filter:
   outside env setup.
 - Validate all external input with Zod v4.
 - Use Prisma directly for simple CRUD and repositories for complex query access.
+- Express new requirements in the vocabulary shared code already has; adding a
+  concept to a shared abstraction is the last resort, not the first.
 - Use OpenTelemetry and DataDog for backend observability.
 - Always filter project-scoped database queries by `projectId`.
 - Keep Fern API definitions in sync with public TypeScript API contracts.
@@ -129,5 +137,6 @@ For an additive field/filter:
 | Middleware and auth                 | You are changing request auth, permissions, or middleware composition    | [references/middleware-guide.md](references/middleware-guide.md)                   |
 | Services and repositories           | You are placing business logic, repository code, or DI patterns          | [references/services-and-repositories.md](references/services-and-repositories.md) |
 | Database access                     | You are touching Prisma, ClickHouse, tenant filters, or query patterns   | [references/database-patterns.md](references/database-patterns.md)                 |
+| New concepts in shared code         | You are adding a field, option, flag, or enum member to a shared abstraction | [references/new-concepts.md](references/new-concepts.md)                            |
 | Configuration                       | You are adding env vars, startup config, or runtime toggles              | [references/configuration.md](references/configuration.md)                         |
 | Testing                             | You are adding or updating backend tests                                 | [references/testing-guide.md](references/testing-guide.md)                         |

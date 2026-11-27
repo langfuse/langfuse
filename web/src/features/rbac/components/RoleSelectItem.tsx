@@ -1,119 +1,72 @@
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-  HoverCardPortal,
-} from "@/src/components/ui/hover-card";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
+import { type SystemRole } from "@langfuse/shared/src/db";
+
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { SelectItem } from "@/src/components/ui/select";
 import {
-  Role,
-  projectNoneRoleComment,
-  projectRoleAccessRights,
-} from "@langfuse/shared";
-import {
-  organizationRoleAccessRights,
-  orgNoneRoleComment,
-} from "@/src/features/rbac/constants/organizationAccessRights";
-import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
+  roleDisplay,
+  type RoleDisplay,
+} from "@/src/features/rbac/components/roleDisplay";
 
+/** RoleSelectItem adds a permission preview to a role option. */
 export const RoleSelectItem = ({
   role,
+  display = roleDisplay,
   isProjectRole,
+  disabledReason,
+  onViewPermissions,
 }: {
-  role: Role;
+  role: SystemRole;
+  /** display overrides how the role is presented. */
+  display?: (role: SystemRole) => RoleDisplay;
   isProjectRole?: boolean;
+  /** disabledReason makes the option unselectable and explains why. */
+  disabledReason?: string;
+  onViewPermissions: (role: SystemRole) => void;
 }) => {
-  const isProjectNoneRole = role === Role.NONE && isProjectRole;
-  const isOrgNoneRole = role === Role.NONE && !isProjectRole;
-  const orgScopes = reduceScopesToListItems(organizationRoleAccessRights, role);
-  const projectScopes = reduceScopesToListItems(projectRoleAccessRights, role);
+  const { name: label, description, Icon } = display(role);
+  const keepDefaultNote = role === "NONE" && isProjectRole;
 
   return (
-    <HoverCard openDelay={0} closeDelay={0}>
-      <HoverCardTrigger asChild>
-        <SelectItem value={role} className="max-w-56">
-          <span>
-            {formatRole(role)}
-            {isProjectNoneRole ? " (keep default role)" : ""}
+    <SelectItem
+      value={role}
+      disabled={disabledReason !== undefined}
+      className="group pl-2 [&>span:not([data-checkmark])]:flex-1 [&>span[data-checkmark]]:hidden"
+    >
+      <div className="flex w-full items-start gap-2 text-left">
+        <Icon size="base" __rawClassName="mt-1" />
+        <div className="flex flex-col">
+          <span className="font-bold">
+            {label}
+            {keepDefaultNote ? " (keep default role)" : ""}
           </span>
-        </SelectItem>
-      </HoverCardTrigger>
-      <HoverCardPortal>
-        <HoverCardContent hideWhenDetached={true} align="center" side="right">
-          {isProjectNoneRole ? (
-            <div className="text-xs">{projectNoneRoleComment}</div>
-          ) : isOrgNoneRole ? (
-            <div className="text-xs">{orgNoneRoleComment}</div>
-          ) : (
-            <>
-              <div className="font-bold">Role: {formatRole(role)}</div>
-              <p className="mt-2 text-xs font-bold">Organization Scopes</p>
-              <ul className="list-inside list-disc text-xs">{orgScopes}</ul>
-              <p className="mt-2 text-xs font-bold">Project Scopes</p>
-              <ul className="list-inside list-disc text-xs">{projectScopes}</ul>
-              <p className="mt-2 border-t pt-2 text-xs">
-                Note:{" "}
-                <span className="text-muted-foreground">Muted scopes</span> are
-                inherited from lower role.
-              </p>
-            </>
+          <span className="text-muted-foreground text-xs">{description}</span>
+          {disabledReason !== undefined && (
+            <span className="text-muted-foreground text-xs italic">
+              {disabledReason}
+            </span>
           )}
-        </HoverCardContent>
-      </HoverCardPortal>
-    </HoverCard>
+        </div>
+        <Tooltip label="View permissions" hoverableContent={false} delay={0}>
+          {({ getTriggerProps }) => (
+            <button
+              type="button"
+              {...getTriggerProps()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onViewPermissions(role);
+              }}
+              aria-label={`View ${label} permissions`}
+              className="text-muted-foreground hover:bg-background hover:text-foreground pointer-events-auto ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full opacity-0 group-hover:opacity-100 group-data-disabled:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100"
+            >
+              <SquareArrowOutUpRight size="base" />
+            </button>
+          )}
+        </Tooltip>
+      </div>
+    </SelectItem>
   );
 };
-
-const reduceScopesToListItems = (
-  accessRights: Record<string, string[]>,
-  role: Role,
-) => {
-  const currentRoleLevel = orderedRoles[role];
-  const lowerRole = Object.entries(orderedRoles).find(
-    ([_role, level]) => level === currentRoleLevel - 1,
-  )?.[0] as Role | undefined;
-  const inheritedScopes = lowerRole ? accessRights[lowerRole] : [];
-
-  return accessRights[role].length > 0 ? (
-    <>
-      {Object.entries(
-        accessRights[role].reduce(
-          (acc, scope) => {
-            const [resource, action] = scope.split(":");
-            if (!acc[resource]) {
-              acc[resource] = [];
-            }
-            acc[resource].push(action);
-            return acc;
-          },
-          {} as Record<string, string[]>,
-        ),
-      ).map(([resource, actions]) => {
-        const inheritedActions = actions.filter((action) =>
-          inheritedScopes.includes(`${resource}:${action}`),
-        );
-        const newActions = actions.filter(
-          (action) => !inheritedScopes.includes(`${resource}:${action}`),
-        );
-
-        return (
-          <li key={resource}>
-            <span>{resource}: </span>
-            <span className="text-muted-foreground">
-              {inheritedActions.length > 0 ? inheritedActions.join(", ") : ""}
-              {newActions.length > 0 && inheritedActions.length > 0 ? ", " : ""}
-            </span>
-            <span className="font-bold">
-              {newActions.length > 0 ? newActions.join(", ") : ""}
-            </span>
-          </li>
-        );
-      })}
-    </>
-  ) : (
-    <li>None</li>
-  );
-};
-
-const formatRole = (role: Role) =>
-  role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();

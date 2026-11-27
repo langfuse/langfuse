@@ -19,13 +19,21 @@ const statusBadgeVariants = cva(
 
 const statusCategories = {
   active: ["production", "live", "active", "public"],
-  pending: ["pending", "waiting", "queued", "running"],
+  pending: ["pending", "waiting", "queued", "running", "processing"],
   delayed: ["delayed"],
-  inactive: ["disabled", "inactive"],
+  inactive: [
+    "disabled",
+    "inactive",
+    "archived",
+    "cancelled",
+    "debug",
+    "dormant",
+  ],
+  notConfigured: ["not_configured"],
   paused: ["paused"],
   completed: ["completed", "done", "finished"],
-  error: ["error", "failed"],
-  partial: ["partial"],
+  error: ["error", "failed", "triggered"],
+  partial: ["partial", "warning"],
 } as const;
 
 export type Status =
@@ -68,6 +76,12 @@ const categoryStyles: Record<
     text: "text-primary",
     dotOuter: "bg-muted-foreground",
     dotInner: "bg-muted-foreground",
+  },
+  notConfigured: {
+    background: "bg-muted-gray/50",
+    text: "text-muted-foreground",
+    dotOuter: "bg-muted-foreground/50",
+    dotInner: "bg-muted-foreground/50",
   },
   paused: {
     background: "bg-light-yellow",
@@ -158,7 +172,9 @@ export const StatusBadge = ({
       )}
       {showText && type && (
         <span>
-          {preserveCase ? type : type[0].toUpperCase() + type.slice(1)}
+          {preserveCase
+            ? type
+            : type[0].toUpperCase() + type.slice(1).replaceAll("_", " ")}
         </span>
       )}
       {children}

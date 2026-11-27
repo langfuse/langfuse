@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import {
   DialogContent,
   DialogHeader,
@@ -5,7 +6,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
 
-export type CreateDatasetTarget =
+type CreateDatasetTarget =
   | { type: "root" }
   | { type: "folder"; prefix: string };
 

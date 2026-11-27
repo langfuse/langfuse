@@ -1,9 +1,7 @@
-import { getServerSession } from "next-auth";
-
-import { getAuthOptions } from "@/src/server/auth";
-import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
+import { getServerAuthSessionForRequest } from "@/src/server/auth";
+import { isProjectMember } from "@/src/server/utils/checkProjectMembership";
 import { ForbiddenError, UnauthorizedError } from "@langfuse/shared";
-import { hasProjectAccess } from "../../rbac/utils/checkProjectAccess";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export type AuthorizeRequestResult = {
   userId: string;
@@ -11,12 +9,12 @@ export type AuthorizeRequestResult = {
 
 export const authorizeRequestOrThrow = async (
   projectId: string,
+  request: Request,
 ): Promise<AuthorizeRequestResult> => {
-  const authOptions = await getAuthOptions();
-  const session = await getServerSession(authOptions);
+  const session = await getServerAuthSessionForRequest(request);
   if (!session?.user) throw new UnauthorizedError("Unauthenticated");
 
-  if (!isProjectMemberOrAdmin(session.user, projectId))
+  if (!isProjectMember(session.user, projectId))
     throw new ForbiddenError("User is not a member of this project");
 
   if (!hasProjectAccess({ session, projectId, scope: "playground:execute" }))

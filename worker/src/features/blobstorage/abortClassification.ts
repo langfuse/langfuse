@@ -18,7 +18,7 @@ export type BlobExportAbortStage =
   | "shutdown"
   | "unknown";
 
-export type BlobExportAbortReason =
+type BlobExportAbortReason =
   | "ch-error"
   | "upload-error"
   | "stall"

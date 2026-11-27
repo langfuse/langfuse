@@ -22,6 +22,8 @@ import {
   createDatasetRunItem,
   createDatasetRunItemsCh,
   createDatasetRunScore,
+  createEvent,
+  createEventsCh,
   createSessionScore,
   createOrgProjectAndApiKey,
   getScoreStringValues,
@@ -406,6 +408,64 @@ describe("Clickhouse Scores Repository Test", () => {
         source: "EVAL",
         dataType: "CATEGORICAL",
       });
+    });
+
+    it("should return every score name on an experiment trace when filtering by experiment ids", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+      const experimentId = `exp-${v4()}`;
+      const traceIds = [v4(), v4()];
+
+      await createEventsCh(
+        traceIds.map((traceId) =>
+          createEvent({
+            project_id: isolatedProjectId,
+            trace_id: traceId,
+            experiment_id: experimentId,
+          }),
+        ),
+      );
+
+      // Multiple scores per experiment trace: the shape a composite evaluator
+      // produces (github.com/langfuse/langfuse/issues/14454).
+      const scoreNames = ["metric-one", "metric-two", "metric-three"];
+      await createScoresCh([
+        ...traceIds.flatMap((traceId) =>
+          scoreNames.map((name) =>
+            createTraceScore({
+              project_id: isolatedProjectId,
+              trace_id: traceId,
+              observation_id: v4(),
+              name,
+              source: "EVAL",
+              data_type: "NUMERIC",
+            }),
+          ),
+        ),
+        createTraceScore({
+          project_id: isolatedProjectId,
+          trace_id: v4(),
+          name: "unrelated-score",
+          source: "EVAL",
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const result = await getScoresGroupedByNameSourceType({
+        projectId: isolatedProjectId,
+        filter: [
+          {
+            column: "experimentIds",
+            operator: "any of",
+            value: [experimentId],
+            type: "stringOptions",
+          },
+        ],
+      });
+
+      expect(result.map((score) => score.name).sort()).toEqual(
+        [...scoreNames].sort(),
+      );
     });
   });
 

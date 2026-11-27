@@ -1,18 +1,18 @@
+import { ForbiddenError, hasEntitlementBasedOnPlan } from "@langfuse/shared";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import { ProjectService } from "@/src/features/projects/server/projectService";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   logger,
   redis,
-  QueueJobs,
-  ProjectDeleteQueue,
   type ApiAccessScope,
 } from "@langfuse/shared/src/server";
-import { randomUUID } from "crypto";
-import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
+import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
+import { writeProjectError } from "@/src/features/public-api/server/writeError";
 
 export async function handleUpdateProject(
   req: NextApiRequest,
@@ -117,60 +117,20 @@ export async function handleDeleteProject(
   res: NextApiResponse,
   projectId: string,
   scope: ApiAccessScope,
+  ctx?: AuthorizationContext,
 ) {
   try {
-    // API keys need to be deleted from cache. Otherwise, they will still be valid.
-    await new ApiAuthService(prisma, redis).invalidateCachedProjectApiKeys(
+    const gatewayManageDecision = shadowAuthorize({
+      ctx,
+      action: "gateway:manage",
+      resource: { orgId: scope.orgId },
+      legacyDecision: { success: true, scope },
+    });
+    await new ProjectService(prisma, new ApiAuthService(prisma, redis)).delete({
+      organizationId: scope.orgId,
       projectId,
-    );
-
-    // Delete API keys from DB
-    await prisma.apiKey.deleteMany({
-      where: {
-        projectId: projectId,
-        scope: "PROJECT",
-      },
-    });
-
-    // Mark project as deleted
-    const project = await prisma.project.update({
-      where: {
-        id: projectId,
-        orgId: scope.orgId,
-      },
-      data: {
-        deletedAt: new Date(),
-      },
-    });
-
-    // Create audit log entry
-    await auditLog({
-      apiKeyId: scope.apiKeyId,
-      orgId: scope.orgId,
-      projectId,
-      resourceType: "project",
-      resourceId: projectId,
-      before: project,
-      action: "delete",
-    });
-
-    // Queue project deletion job
-    const projectDeleteQueue = ProjectDeleteQueue.getInstance();
-    if (!projectDeleteQueue) {
-      logger.error("ProjectDeleteQueue is not available");
-      return res.status(500).json({
-        message: "Internal server error",
-      });
-    }
-
-    await projectDeleteQueue.add(QueueJobs.ProjectDelete, {
-      timestamp: new Date(),
-      id: randomUUID(),
-      payload: {
-        projectId: projectId,
-        orgId: scope.orgId,
-      },
-      name: QueueJobs.ProjectDelete,
+      actor: { apiKeyId: scope.apiKeyId, orgId: scope.orgId, projectId },
+      canManageGateway: gatewayManageDecision.success,
     });
 
     return res.status(202).json({
@@ -179,6 +139,9 @@ export async function handleDeleteProject(
         "Project deletion has been initiated and is being processed asynchronously",
     });
   } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return writeProjectError(res, error);
+    }
     logger.error("Failed to delete project", error);
     return res.status(500).json({ message: "Internal server error" });
   }

@@ -1,31 +1,36 @@
 import Header from "@/src/components/layouts/header";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { AuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
+import { ConnectedAuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable/ConnectedAuditLogsTable";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export function AuditLogsSettingsPage(props: { projectId: string }) {
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
-    scope: "auditLogs:read",
+    scope: "projectAuditLogs:read",
   });
   const hasEntitlement = useHasEntitlement("audit-logs");
 
-  const body = !hasEntitlement ? (
-    <p className="text-muted-foreground text-sm">
-      Audit logs are an Enterprise feature. Upgrade your plan to track all
-      changes made to your project.
-    </p>
-  ) : !hasAccess ? (
-    <Alert>
-      <AlertTitle>Access Denied</AlertTitle>
-      <AlertDescription>
-        Contact your project administrator to request access.
-      </AlertDescription>
-    </Alert>
-  ) : (
-    <AuditLogsTable scope="project" projectId={props.projectId} />
-  );
+  const body = (() => {
+    if (!hasEntitlement) {
+      return (
+        <p className="text-muted-foreground text-sm">
+          Audit logs are an Enterprise feature. Upgrade your plan to track all
+          changes made to your project.
+        </p>
+      );
+    }
+    if (!hasAccess) {
+      return (
+        <Banner title="Access denied">
+          Contact your project administrator to request access.
+        </Banner>
+      );
+    }
+    return (
+      <ConnectedAuditLogsTable scope="project" projectId={props.projectId} />
+    );
+  })();
 
   return (
     <>

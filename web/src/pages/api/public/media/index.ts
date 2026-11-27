@@ -12,6 +12,7 @@ import { instrumentAsync } from "@langfuse/shared/src/server";
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Get Media Upload URL",
+    action: "media:create",
     bodySchema: GetMediaUploadUrlQuerySchema,
     responseSchema: GetMediaUploadUrlResponseSchema,
     successStatusCode: 201,

@@ -1,10 +1,8 @@
-// Deprecation notice written into the export destination for projects still on
-// a legacy export source (LFE-10896): a plain-text file warning that the
-// "Traces and observations (legacy)" sources are deprecated in favour of the
-// enriched observations source. Written on every successful run for legacy
-// projects; new / enriched-only (EVENTS) projects never receive it.
+// Plain-text deprecation notice written to the bucket on every successful run
+// of a legacy-source export; enriched-only (EVENTS) exports never get it.
 
 /** Fixed file name, overwritten each run so the notice is always current. */
+/** @internal */
 export const BLOB_EXPORT_DEPRECATION_NOTICE_FILENAME = "DEPRECATION_NOTICE.txt";
 
 /** `{prefix}{projectId}/DEPRECATION_NOTICE.txt` — fixed key, overwritten each run. */

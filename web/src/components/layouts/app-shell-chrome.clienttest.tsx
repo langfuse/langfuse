@@ -1,0 +1,185 @@
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
+
+import { APP_SHELL_CHROME_ROW_TEST_ID } from "@/src/components/layouts/app-shell-chrome";
+import { MobilePageTitle } from "@/src/components/layouts/MobilePageTitle";
+import PageHeader from "@/src/components/layouts/page-header";
+
+vi.mock("next/router", () => ({
+  useRouter: () => ({
+    asPath: "/project/p1/traces",
+    pathname: "/project/[projectId]/traces",
+    push: vi.fn(),
+    query: { projectId: "p1" },
+    events: { on: vi.fn(), off: vi.fn() },
+  }),
+}));
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: {
+        email: "ada@langfuse.com",
+        organizations: [],
+      },
+    },
+    status: "authenticated",
+  }),
+}));
+
+vi.mock("@/src/features/organizations/hooks", () => ({
+  useLangfuseCloudRegion: () => ({ isLangfuseCloud: true, region: "EU" }),
+}));
+
+vi.mock("@/src/features/projects/hooks", () => ({
+  useQueryProjectOrOrganization: () => ({
+    organization: null,
+    project: null,
+  }),
+  useOrgProjectSwitchPaths: () => ({
+    getProjectPath: vi.fn(),
+    getOrgPath: vi.fn(),
+  }),
+}));
+
+vi.mock("@/src/components/nav/InAppAiAgentButton", () => ({
+  InAppAiAgentButton: () => null,
+}));
+
+vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
+  useIsInAppAgentLauncherVisible: () => true,
+}));
+
+vi.mock("@/src/components/nav/TopbarBrand", () => ({
+  TopbarBrand: () => null,
+}));
+
+describe("app shell chrome row", () => {
+  it("sizes the page-header row to a full chrome line", () => {
+    const { container } = render(<PageHeader title="Tracing" />);
+
+    const pageHeaderRow = container.querySelector(
+      `#page-header [data-testid="${APP_SHELL_CHROME_ROW_TEST_ID}"]`,
+    );
+    expect(pageHeaderRow?.className).toContain("min-h-11");
+
+    const rowContent = pageHeaderRow?.firstElementChild;
+    expect(rowContent?.className).toContain("gap-y-px");
+    expect(rowContent?.firstElementChild?.className).toContain("min-h-[43px]");
+    expect(rowContent?.lastElementChild?.className).toContain("min-h-[43px]");
+  });
+
+  it("keeps the page-header chrome divider full-width on container pages", () => {
+    render(<PageHeader title="Settings" container />);
+
+    const row = screen.getByTestId(APP_SHELL_CHROME_ROW_TEST_ID);
+    expect(row.className).toContain("border-b");
+    expect(row.className).not.toContain("lg:mx-auto");
+    expect(row.className).not.toContain("max-w-screen");
+
+    const inner = row.firstElementChild;
+    expect(inner).toBeInstanceOf(HTMLElement);
+    expect((inner as HTMLElement).className).toContain("lg:mx-auto");
+  });
+});
+
+describe("mobile page action focus handoff", () => {
+  it("keeps breadcrumbs without a duplicate entity title or actions", () => {
+    render(
+      <MobilePageTitle
+        headerProps={{
+          title: "Session ID",
+          hideTitleRow: true,
+          breadcrumb: [{ name: "Sessions", href: "/project/p1/sessions" }],
+          actionButtonsRight: <button>Annotate</button>,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Sessions", { selector: "a" })).toHaveAttribute(
+      "href",
+      "/project/p1/sessions",
+    );
+    expect(
+      screen.queryByRole("heading", { name: "Session ID" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "More actions" }),
+    ).not.toBeInTheDocument();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  it("keeps an explicit mobile primary action out of the overflow menu", () => {
+    render(
+      <MobilePageTitle
+        headerProps={{
+          title: "Evaluators",
+          mobileActionButtons: <button>New evaluator</button>,
+          actionButtonsRight: <button>Desktop evaluator actions</button>,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "New evaluator" })).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "More actions" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("closes before panel focus and restores the trigger only on ordinary dismissals", async () => {
+    vi.useFakeTimers();
+    const openReview = vi.fn();
+    render(
+      <>
+        <MobilePageTitle
+          headerProps={{
+            title: "Session",
+            actionButtonsMenu: ({
+              closeMenu,
+            }: {
+              closeMenu: (options?: { handoffFocus?: boolean }) => void;
+            }) => (
+              <>
+                <button
+                  onClick={() => {
+                    closeMenu({ handoffFocus: true });
+                    openReview(document.activeElement);
+                  }}
+                >
+                  Open review
+                </button>
+                <button onClick={() => closeMenu()}>Close menu</button>
+              </>
+            ),
+          }}
+        />
+        <input aria-label="Review field" />
+      </>,
+    );
+    const trigger = screen.getByRole("button", { name: "More actions" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("button", { name: "Open review" }));
+    expect(openReview).toHaveBeenCalledWith(trigger);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    const field = screen.getByRole("textbox", { name: "Review field" });
+    field.focus();
+    await act(async () => vi.runOnlyPendingTimersAsync());
+    expect(field).toHaveFocus();
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("button", { name: "Close menu" }));
+    await act(async () => vi.runOnlyPendingTimersAsync());
+    expect(trigger).toHaveFocus();
+  });
+});

@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX gateway_ai_connections_organization_id_name_key
+ON gateway_ai_connections(organization_id, name);

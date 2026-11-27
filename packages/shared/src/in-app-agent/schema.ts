@@ -5,13 +5,12 @@
 // browser-only, server-only, database, or Mastra imports.
 
 import type { EventType } from "@ag-ui/core";
+import { ContextSchema } from "@ag-ui/core/schemas";
 import { z } from "zod";
 
-// @ag-ui/core@0.0.52 publishes Zod v3-shaped declarations, but this package
-// uses Zod v4, causing its exported z.infer-based types to resolve as unknown.
-// Duplicate the relevant schemas locally until
-// https://github.com/ag-ui-protocol/ag-ui/pull/1637 is merged, then remove
-// these definitions and use @ag-ui/core directly again.
+// The durable transcript keeps its established message shape: string tool
+// outputs, assistant run IDs, and legacy binary parts in historical rows.
+// Keep parsing compatible; the browser adapts this shape at its AG-UI boundary.
 
 const AgUiBaseMessageSchema = z.object({
   id: z.string(),
@@ -29,24 +28,6 @@ const AgUiToolCallSchema = z.object({
   encryptedValue: z.string().optional(),
 });
 
-export const InAppAgentMessageFeedbackValueSchema = z.enum([
-  "thumbs_up",
-  "thumbs_down",
-]);
-
-export type InAppAgentMessageFeedbackValue = z.infer<
-  typeof InAppAgentMessageFeedbackValueSchema
->;
-
-export const InAppAgentMessageFeedbackSchema = z.object({
-  value: InAppAgentMessageFeedbackValueSchema,
-  comment: z.string().nullable(),
-});
-
-export type InAppAgentMessageFeedback = z.infer<
-  typeof InAppAgentMessageFeedbackSchema
->;
-
 export const InAppAgentRateLimitErrorResponseSchema = z.object({
   code: z.literal("rate_limited"),
   details: z.object({
@@ -60,6 +41,70 @@ export const InAppAgentRedirectActionToolResultSchema = z.object({
   label: z.string().min(1).max(80),
   href: z.string().min(1),
 });
+
+export const InAppAgentSandboxToolNameSchema = z.enum([
+  "read",
+  "write",
+  "edit",
+  "bash",
+]);
+
+export const InAppAgentSandboxReadArgsSchema = z.object({
+  path: z.string().min(1),
+});
+
+export const InAppAgentSandboxWriteArgsSchema = z.object({
+  path: z.string().min(1),
+  content: z.string(),
+});
+
+export const InAppAgentSandboxEditArgsSchema = z.object({
+  path: z.string().min(1),
+  oldText: z.string(),
+  newText: z.string(),
+});
+
+export const InAppAgentSandboxBashArgsSchema = z.object({
+  command: z.string().min(1),
+  timeoutMs: z.number().int().positive().max(120_000).default(120_000),
+});
+
+export const InAppAgentSandboxReadResultSchema = z.object({
+  path: z.string(),
+  content: z.string().nullable(),
+});
+
+export const InAppAgentSandboxWriteResultSchema = z.object({
+  path: z.string(),
+  bytesWritten: z.number().int().nonnegative(),
+});
+
+export const InAppAgentSandboxEditResultSchema = z.object({
+  path: z.string(),
+  replaced: z.boolean(),
+});
+
+export const InAppAgentSandboxBashResultSchema = z.object({
+  stdout: z.string(),
+  stderr: z.string(),
+  exitCode: z.number().int(),
+  startedAt: z.string().optional(),
+  completedAt: z.string().optional(),
+});
+
+export const InAppAgentSandboxToolArgsSchemas = {
+  read: InAppAgentSandboxReadArgsSchema,
+  write: InAppAgentSandboxWriteArgsSchema,
+  edit: InAppAgentSandboxEditArgsSchema,
+  bash: InAppAgentSandboxBashArgsSchema,
+} as const;
+
+export const InAppAgentSandboxToolResultSchemas = {
+  read: InAppAgentSandboxReadResultSchema,
+  write: InAppAgentSandboxWriteResultSchema,
+  edit: InAppAgentSandboxEditResultSchema,
+  bash: InAppAgentSandboxBashResultSchema,
+} as const;
 
 const AgUiInputContentSourceSchema = z.discriminatedUnion("type", [
   z.object({
@@ -122,7 +167,6 @@ export const AgUiMessageSchema = z.discriminatedUnion("role", [
     role: z.literal("assistant"),
     content: z.string().optional(),
     toolCalls: z.array(AgUiToolCallSchema).optional(),
-    feedback: InAppAgentMessageFeedbackSchema.optional(),
     runId: z.string().optional(),
   }),
   AgUiBaseMessageSchema.extend({
@@ -153,64 +197,9 @@ export const AgUiMessageSchema = z.discriminatedUnion("role", [
 
 export type AgUiMessage = z.infer<typeof AgUiMessageSchema>;
 
-const AbsoluteHttpUrlSchema = z.string().transform((value, ctx) => {
-  let parsedUrl: URL;
+export const AgUiContextSchema = ContextSchema.strip();
 
-  try {
-    parsedUrl = new URL(value);
-  } catch {
-    ctx.addIssue({
-      code: "custom",
-      message: "URL must be absolute",
-    });
-    return z.NEVER;
-  }
-
-  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-    ctx.addIssue({
-      code: "custom",
-      message: "URL protocol must be http or https",
-    });
-    return z.NEVER;
-  }
-
-  return parsedUrl.href;
-});
-
-export const InAppAgentMessageSourceSchema = z.object({
-  title: z.string(),
-  url: AbsoluteHttpUrlSchema,
-  faviconUrl: AbsoluteHttpUrlSchema,
-});
-
-export type InAppAgentMessageSource = z.infer<
-  typeof InAppAgentMessageSourceSchema
->;
-
-const AgUiToolSchema = z.object({
-  name: z.string(),
-  description: z.string(),
-  parameters: z.unknown().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-});
-
-export const AgUiContextSchema = z.object({
-  description: z.string(),
-  value: z.string(),
-});
-
-export const AgUiRunAgentInputSchema = z.object({
-  threadId: z.string(),
-  runId: z.string(),
-  parentRunId: z.string().optional(),
-  state: z.unknown().optional(),
-  messages: z.array(AgUiMessageSchema),
-  tools: z.array(AgUiToolSchema),
-  context: z.array(AgUiContextSchema),
-  forwardedProps: z.unknown().optional(),
-});
-
-export type AgUiRunAgentInput = z.infer<typeof AgUiRunAgentInputSchema>;
+export type AgUiContext = Array<z.infer<typeof AgUiContextSchema>>;
 
 export type AgUiEvent = {
   type: EventType;
@@ -235,31 +224,4 @@ export const InAppAgentToolApprovalRequestSchema = z.object({
 
 export type InAppAgentToolApprovalRequest = z.infer<
   typeof InAppAgentToolApprovalRequestSchema
->;
-
-export const ResumeForwardedPropsSchema = z.object({
-  command: z.object({
-    resume: z.object({
-      approved: z.boolean(),
-      approvalRequest: InAppAgentToolApprovalRequestSchema,
-    }),
-  }),
-});
-
-export type ResumeForwardedProps = z.infer<typeof ResumeForwardedPropsSchema>;
-
-export const InAppAgentRuntimeStateSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("newConversation"),
-    projectId: z.string(),
-  }),
-  z.object({
-    type: z.literal("existingConversation"),
-    projectId: z.string(),
-    conversationId: z.string(),
-  }),
-]);
-
-export type InAppAgentRuntimeState = z.infer<
-  typeof InAppAgentRuntimeStateSchema
 >;

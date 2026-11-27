@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import {
   CloudWatchClient,
   PutMetricDataCommand,
@@ -5,35 +6,9 @@ import {
 import * as opentelemetry from "@opentelemetry/api";
 import * as dd from "dd-trace";
 import { env } from "../../env";
-import { API_KEY_CACHE_KEY_PREFIX } from "../auth/apiKeyCache";
 import { logger } from "../logger";
-
-// type CallbackFn<T> = () => T;
-
-/**
- * IORedis request hook that records the full Redis command as a span attribute.
- * Redacts credentials from AUTH/HELLO and values from API key cache operations.
- */
-export function ioredisRequestHook(
-  span: opentelemetry.Span,
-  { cmdName, cmdArgs }: { cmdName: string; cmdArgs: unknown[] },
-): void {
-  if (!Array.isArray(cmdArgs) || cmdArgs.length === 0) return;
-  const cmd = cmdName.toUpperCase();
-  // AUTH and HELLO carry raw credentials — redact all args
-  if (cmd === "AUTH" || cmd === "HELLO") {
-    span.setAttribute("redis.full_command", `${cmdName} [REDACTED]`);
-    return;
-  }
-  const args = [...cmdArgs].map(String);
-  // Redact API key cache values.
-  if (args[0]?.includes(API_KEY_CACHE_KEY_PREFIX)) {
-    for (let i = 1; i < args.length; i++) {
-      args[i] = "[REDACTED]";
-    }
-  }
-  span.setAttribute("redis.full_command", `${cmdName} ${args.join(" ")}`);
-}
+import { getProjectSize } from "../projectSize";
+import { CLICKHOUSE_ROUTE_CONTEXT_KEY } from "../clickhouse/queryTags";
 
 export type TCarrier = {
   traceparent?: string;
@@ -57,12 +32,7 @@ export async function instrumentAsync<T>(
   callback: AsyncCallbackFn<T>,
 ): Promise<T> {
   const activeContext = ctx.startNewTrace
-    ? // Sever the parent trace but carry baggage onto the new root.
-      opentelemetry.propagation.setBaggage(
-        opentelemetry.ROOT_CONTEXT,
-        opentelemetry.propagation.getBaggage(opentelemetry.context.active()) ??
-          opentelemetry.propagation.createBaggage(),
-      )
+    ? newTraceRootContext()
     : ctx.traceContext
       ? opentelemetry.propagation.extract(
           opentelemetry.context.active(),
@@ -99,6 +69,23 @@ export async function instrumentAsync<T>(
   );
 }
 
+/**
+ * Severs the parent trace but carries baggage and the ClickHouse route onto the
+ * new root, so queries in the new trace keep their attribution.
+ */
+const newTraceRootContext = () => {
+  const active = opentelemetry.context.active();
+  const root = opentelemetry.propagation.setBaggage(
+    opentelemetry.ROOT_CONTEXT,
+    opentelemetry.propagation.getBaggage(active) ??
+      opentelemetry.propagation.createBaggage(),
+  );
+  const route = active.getValue(CLICKHOUSE_ROUTE_CONTEXT_KEY);
+  return route === undefined
+    ? root
+    : root.setValue(CLICKHOUSE_ROUTE_CONTEXT_KEY, route);
+};
+
 type SyncCallbackFn<T> = (span: opentelemetry.Span) => T;
 
 /** instrumentSync runs a callback inside a fresh OTel span. */
@@ -107,12 +94,7 @@ export function instrumentSync<T>(
   callback: SyncCallbackFn<T>,
 ): T {
   const activeContext = ctx.startNewTrace
-    ? // Sever the parent trace but carry baggage onto the new root.
-      opentelemetry.propagation.setBaggage(
-        opentelemetry.ROOT_CONTEXT,
-        opentelemetry.propagation.getBaggage(opentelemetry.context.active()) ??
-          opentelemetry.propagation.createBaggage(),
-      )
+    ? newTraceRootContext()
     : ctx.traceContext
       ? opentelemetry.propagation.extract(
           opentelemetry.context.active(),
@@ -150,6 +132,22 @@ export function instrumentSync<T>(
 }
 
 export const getCurrentSpan = () => opentelemetry.trace.getActiveSpan();
+
+/** withoutBaggage runs fn with the active context's baggage removed. */
+export function withoutBaggage<T>(fn: () => T): T {
+  return opentelemetry.context.with(
+    opentelemetry.propagation.deleteBaggage(opentelemetry.context.active()),
+    fn,
+  );
+}
+
+export const getActiveTraceId = () => {
+  const span = opentelemetry.trace.getActiveSpan();
+  // Only return a trace id for sampled/recording spans. An unsampled span still
+  // carries a valid traceId in its context but is never exported, so that id
+  // would resolve to nothing in the tracing backend.
+  return span?.isRecording() ? span.spanContext().traceId : undefined;
+};
 
 export const addTagsToCurrentSpan = (
   attributes: Parameters<opentelemetry.Span["setAttributes"]>[0],
@@ -210,7 +208,6 @@ export const addUserToSpan = (
   attributes: {
     userId?: string;
     projectId?: string;
-    email?: string;
     orgId?: string;
     plan?: string;
     apiKeyId?: string;
@@ -218,11 +215,19 @@ export const addUserToSpan = (
   },
   span?: opentelemetry.Span,
 ) => {
-  const activeSpan = span ?? getCurrentSpan();
+  const currentSpan = getCurrentSpan();
+  const activeSpan = span ?? currentSpan;
 
   if (!activeSpan) {
     return;
   }
+
+  const setSpanAttribute = (key: string, value: string) => {
+    activeSpan.setAttribute(key, value);
+    if (currentSpan && currentSpan !== activeSpan) {
+      currentSpan.setAttribute(key, value);
+    }
+  };
 
   const ctx = opentelemetry.context.active();
   let baggage =
@@ -233,46 +238,40 @@ export const addUserToSpan = (
     baggage = baggage.setEntry("user.id", {
       value: attributes.userId,
     });
-    activeSpan.setAttribute("user.id", attributes.userId);
-  }
-  if (attributes.email) {
-    baggage = baggage.setEntry("user.email", {
-      value: attributes.email,
-    });
-    activeSpan.setAttribute("user.email", attributes.email);
+    setSpanAttribute("user.id", attributes.userId);
   }
   if (attributes.projectId) {
     baggage = baggage.setEntry("langfuse.project.id", {
       value: attributes.projectId,
     });
-    activeSpan.setAttribute("langfuse.project.id", attributes.projectId);
+    setSpanAttribute("langfuse.project.id", attributes.projectId);
+    const projectSize = getProjectSize(attributes.projectId);
+    baggage = baggage.setEntry("langfuse.project.size", { value: projectSize });
+    setSpanAttribute("langfuse.project.size", projectSize);
   }
   if (attributes.orgId) {
     baggage = baggage.setEntry("langfuse.org.id", {
       value: attributes.orgId,
     });
-    activeSpan.setAttribute("langfuse.org.id", attributes.orgId);
+    setSpanAttribute("langfuse.org.id", attributes.orgId);
   }
   if (attributes.plan) {
     baggage = baggage.setEntry("langfuse.org.plan", {
       value: attributes.plan,
     });
-    activeSpan.setAttribute("langfuse.org.plan", attributes.plan);
+    setSpanAttribute("langfuse.org.plan", attributes.plan);
   }
   if (attributes.apiKeyId) {
     baggage = baggage.setEntry("langfuse.api_key.id", {
       value: attributes.apiKeyId,
     });
-    activeSpan.setAttribute("langfuse.api_key.id", attributes.apiKeyId);
+    setSpanAttribute("langfuse.api_key.id", attributes.apiKeyId);
   }
   if (attributes.publicKey) {
     baggage = baggage.setEntry("langfuse.api_key.public_key", {
       value: attributes.publicKey,
     });
-    activeSpan.setAttribute(
-      "langfuse.api_key.public_key",
-      attributes.publicKey,
-    );
+    setSpanAttribute("langfuse.api_key.public_key", attributes.publicKey);
   }
 
   return opentelemetry.propagation.setBaggage(ctx, baggage);
@@ -299,7 +298,7 @@ const sendCloudWatchMetric = (key: string, value: number, replace: boolean) => {
 };
 
 // Flush all cached metrics in a single API call
-const flushMetricsToCloudWatch = () => {
+export const flushMetricsToCloudWatch = () => {
   if (Object.keys(metricCache).length === 0) return;
 
   lastFlushTime = Date.now();
@@ -325,8 +324,12 @@ const flushMetricsToCloudWatch = () => {
 };
 
 // Metrics ending with these suffixes have their tags flattened into the
-// CloudWatch metric name (excluding "unit"). Other metrics are unaffected.
+// CloudWatch metric name (excluding CW_UNFLATTENED_TAGS). Other metrics are
+// unaffected.
 const CW_TAG_FLATTENED_SUFFIXES = [".depth", ".rate", ".dlq_oldest_age"];
+// "reason" and "attempt" are Datadog-only breakdowns; flattening them would
+// rename existing CloudWatch series.
+const CW_UNFLATTENED_TAGS = new Set(["unit", "reason", "attempt"]);
 
 function buildCloudWatchKey(
   stat: string,
@@ -336,7 +339,7 @@ function buildCloudWatchKey(
     return stat;
   }
   const suffix = Object.entries(tags)
-    .filter(([k]) => k !== "unit")
+    .filter(([k]) => !CW_UNFLATTENED_TAGS.has(k))
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}_${v}`)
     .join(".");

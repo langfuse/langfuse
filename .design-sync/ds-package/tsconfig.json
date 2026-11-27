@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "fs": [
+        "./node-stubs/empty.js"
+      ],
+      "stream": [
+        "./node-stubs/empty.js"
+      ],
+      "zlib": [
+        "./node-stubs/empty.js"
+      ],
+      "next/router": [
+        "./next-router.ts"
+      ]
+    },
+    "jsx": "react-jsx"
+  }
+}

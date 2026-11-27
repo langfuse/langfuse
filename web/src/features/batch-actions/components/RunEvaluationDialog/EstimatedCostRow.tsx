@@ -1,13 +1,8 @@
-import { InfoIcon } from "lucide-react";
+import { InfoIcon } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 
 type EstimatedCostRowProps = {
   projectId: string;
@@ -70,12 +65,9 @@ export function EstimatedCostRow(props: EstimatedCostRowProps) {
       <span className="flex items-center gap-1 font-bold">
         {formatCostEstimate(totalEstimate)}
         {isPartial ? "*" : ""}
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <InfoIcon className="text-muted-foreground h-3 w-3" />
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs space-y-2 p-3">
+        <CustomTooltip
+          content={
+            <div className="space-y-2">
               <p className="text-xs">
                 Expected cost on your linked API key (not Langfuse). Estimated
                 from average evaluator execution cost over the last 7 days.
@@ -105,9 +97,13 @@ export function EstimatedCostRow(props: EstimatedCostRowProps) {
                   *Partial estimate. Some evaluators have no execution history.
                 </p>
               ) : null}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+            </div>
+          }
+        >
+          {({ getTriggerProps }) => (
+            <InfoIcon {...getTriggerProps()} size="sm" color="muted" />
+          )}
+        </CustomTooltip>
       </span>
     </div>
   );

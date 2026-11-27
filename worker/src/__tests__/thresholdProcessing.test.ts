@@ -608,4 +608,61 @@ describe("processThresholds", () => {
       expect(result.emailSent).toBe(false);
     });
   });
+
+  describe("CHB-billed orgs", () => {
+    it("skips enforcement for orgs with a CHB attached plan (paid gate covers clickhouse.attachedPlanId)", async () => {
+      const org = createMockOrg({
+        cloudCurrentCycleUsage: 0,
+        cloudConfig: {
+          clickhouse: {
+            organizationId: "0d5e6f7a-1b2c-4d3e-8f9a-0b1c2d3e4f5a",
+            attachedPlanId: "ap_123",
+            planCode: "core",
+          },
+        },
+      });
+
+      const result = await processThresholds(org, 250_000);
+
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 250_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: null,
+        shouldInvalidateCache: false,
+      });
+
+      expect(result.actionTaken).toBe("PAID_PLAN");
+      expect(result.emailSent).toBe(false);
+    });
+  });
+
+  describe("enterprise trial", () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const trialOrg = (endsInDays: number) =>
+      createMockOrg({
+        cloudConfig: {
+          enterpriseTrial: {
+            startedAt: new Date(Date.now() - DAY_MS).toISOString(),
+            endsAt: new Date(Date.now() + endsInDays * DAY_MS).toISOString(),
+          },
+        },
+      });
+
+    it.each([
+      // Free-tier thresholds already give WARNING and BLOCKED at 200k and
+      // 250k, so only usage below 200k tells the two policies apart.
+      ["active trial just below its warning threshold", 1, 199_999, null],
+      ["expired trial at the same usage", -1, 199_999, "WARNING"],
+    ])(
+      "enforces the trial's own cap: %s",
+      async (_case, endsInDays, usage, expectedState) => {
+        const result = await processThresholds(trialOrg(endsInDays), usage);
+
+        expect(result.updateData.cloudFreeTierUsageThresholdState).toBe(
+          expectedState,
+        );
+      },
+    );
+  });
 });

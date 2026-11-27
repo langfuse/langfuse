@@ -193,7 +193,7 @@ describe("LocalCodeEvalDispatcher", () => {
       }),
     ).rejects.toMatchObject({
       code: "TIMEOUT",
-      retryable: true,
+      retryable: false,
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
@@ -221,7 +221,7 @@ describe("LocalCodeEvalDispatcher", () => {
     expect(result).toBeInstanceOf(CodeEvalDispatcherError);
     expect(result).toMatchObject({
       code: "TIMEOUT",
-      retryable: true,
+      retryable: false,
     } satisfies Partial<CodeEvalDispatcherError>);
   });
 
@@ -267,6 +267,18 @@ describe("LocalCodeEvalDispatcher", () => {
         },
       ],
     });
+  });
+
+  it("accepts an evaluator that returns no scores", async () => {
+    const dispatcher = new LocalCodeEvalDispatcher();
+
+    await expect(
+      dispatcher.dispatch({
+        ...baseInput,
+        runtime: { language: "TYPESCRIPT" },
+        code: { source: "function evaluate() { return { scores: [] }; }" },
+      }),
+    ).resolves.toEqual({ scores: [] });
   });
 
   it("rejects TEXT scores that exceed the public ingestion length cap", async () => {

@@ -1,26 +1,22 @@
 import { compactEvents } from "@ag-ui/client";
 import { EventType } from "@ag-ui/core";
 
+import { LangfuseNotFoundError } from "../../index";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
-  LangfuseConflictError,
-  LangfuseNotFoundError,
-} from "../../index";
-import {
-  ChatMessageRole,
-  ChatMessageType,
-  LangfuseInternalTraceEnvironment,
-  logger,
-} from "../../server";
+} from "../../features/inAppAgent/types";
+import { ChatMessageRole, ChatMessageType, logger } from "../../server";
+import { isSettledInAppAgentRunStatus } from "../../features/inAppAgent/types";
+import { recordRunTerminalOutcome } from "./runMetrics";
 import { Prisma } from "../../db";
 import type { InAppAgentConversation, PrismaClient } from "../../db";
 
-import { env } from "../../env";
 import {
   generateLangfuseAIText,
   getLangfuseAITraceSinkParams,
 } from "../../server/llm/langfuseAiCompletion";
+import { getInAppAgentModelConfig } from "./modelProvider";
 import { getProductBaseUrl } from "../../server/utils/baseUrl";
 import { truncate } from "../../utils/stringChecks";
 import { assertUnreachable } from "../../utils/typeChecks";
@@ -30,27 +26,43 @@ import {
   type AgUiEvent,
   type AgUiMessage,
 } from "../schema";
-import { assertConversationAccess } from "./access";
+import {
+  dropEmptyAssistantMessages,
+  dropUnpairedAssistantToolCalls,
+} from "../messages";
 import { compactPersistedEventDeltas } from "./eventCompaction";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import { safeJsonParse } from "../../utils/json";
-import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "./tools";
+import {
+  type CompletedInAppAgentMcpToolCall,
+  getInAppAgentSilentMcpOutputFilePath,
+  getPublicInAppAgentMcpToolResultContent,
+  getSandboxInAppAgentMcpToolResultContent,
+} from "./toolResults";
+import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "./mcpPolicy";
+import { getToolFailureMessage } from "./toolErrors";
 
-// Keep this close to the route maxDuration (120s) so a killed foreground stream
-// does not block the conversation long after the route can no longer respond.
-export const FOREGROUND_RUN_STALE_AFTER_MS = 150 * 1000;
 export const ACTIVE_RUN_CONFLICT_MESSAGE =
-  "Assistant is already responding in this conversation";
-export const FOREGROUND_RUN_STALE_ERROR_MESSAGE =
-  "Run was marked stale before starting a new run";
-const SANDBOX_CONVERSATION_WRITE_WINDOW_MS = 8 * 60 * 60 * 1000;
+  "Halo is already responding in this conversation";
+
+/** Owner-only authorization with a non-enumerating failure. */
+export function assertOwnedConversation(params: {
+  conversation: Pick<InAppAgentConversation, "createdByUserId" | "deletedAt">;
+  userId: string;
+}): void {
+  if (
+    params.conversation.deletedAt ||
+    params.conversation.createdByUserId !== params.userId
+  ) {
+    throw new LangfuseNotFoundError("Agent conversation not found");
+  }
+}
 
 export type SerializedInAppAgentConversation = {
   id: string;
   title: string | null;
   createdAt: Date;
   updatedAt: Date;
-  isWriteLocked: boolean;
 };
 
 export type PersistedConversationEvent = {
@@ -71,41 +83,13 @@ export function serializeConversation(
     InAppAgentConversation,
     "id" | "title" | "createdAt" | "updatedAt"
   >,
-  options?: { isWriteLocked?: boolean },
 ): SerializedInAppAgentConversation {
   return {
     id: conversation.id,
     title: conversation.title,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
-    isWriteLocked: options?.isWriteLocked ?? false,
   };
-}
-
-export function isInAppAgentConversationWriteLocked(params: {
-  conversation: Pick<InAppAgentConversation, "createdAt">;
-  events: readonly Pick<PersistedConversationEvent, "event">[];
-  now?: Date;
-}) {
-  const now = params.now ?? new Date();
-  const ageMs = now.getTime() - params.conversation.createdAt.getTime();
-
-  if (ageMs <= SANDBOX_CONVERSATION_WRITE_WINDOW_MS) {
-    return false;
-  }
-
-  return params.events.some(({ event }) => {
-    if (event.type !== EventType.TOOL_CALL_START) {
-      return false;
-    }
-
-    const toolName = getString(event, "toolCallName");
-    if (!toolName) {
-      return false;
-    }
-
-    return IN_APP_AGENT_SANDBOX_TOOL_NAMES.has(toolName);
-  });
 }
 
 export async function getOwnedConversationOrThrow(params: {
@@ -125,7 +109,7 @@ export async function getOwnedConversationOrThrow(params: {
     throw new LangfuseNotFoundError("Agent conversation not found");
   }
 
-  assertConversationAccess({
+  assertOwnedConversation({
     conversation,
     userId: params.userId,
   });
@@ -149,7 +133,7 @@ export async function ensureOwnedConversation(params: {
   });
 
   if (existing) {
-    assertConversationAccess({
+    assertOwnedConversation({
       conversation: existing,
       userId: params.userId,
     });
@@ -165,130 +149,6 @@ export async function ensureOwnedConversation(params: {
       title: getDefaultConversationTitle(new Date()),
     },
   });
-}
-
-export async function createRun(params: {
-  prisma: PrismaClient;
-  runId: string;
-  projectId: string;
-  conversationId: string;
-  triggeredByUserId: string;
-  model?: string;
-  mcpApiKeyId?: string;
-}) {
-  const now = new Date();
-  const staleBefore = new Date(now.getTime() - FOREGROUND_RUN_STALE_AFTER_MS);
-
-  return params.prisma.$transaction(async (tx) => {
-    await lockConversation(tx, params.projectId, params.conversationId);
-
-    // If a foreground stream dies before finishRun runs, lazily mark the old
-    // run stale so it does not block the conversation forever.
-    //
-    // `claimedAt`/`heartbeatAt` must stay NULL here: only the background
-    // worker sets them, and a background run legitimately runs for up to
-    // RUN_MAX_DURATION. Without this guard a foreground submit (flag off)
-    // would stale-close a healthy background run at 150s and fence its
-    // worker — execution mode is not sticky per conversation, so that mix is
-    // a normal state. An unclaimed QUEUED run stays sweepable, which is what
-    // we want: it unblocks the conversation and reconcile-on-read agrees.
-    await tx.inAppAgentRun.updateMany({
-      where: {
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        finishedAt: null,
-        createdAt: { lt: staleBefore },
-        claimedAt: null,
-        heartbeatAt: null,
-      },
-      data: {
-        status: InAppAgentRunStatus.FAILED,
-        finishedAt: now,
-        errorCode: InAppAgentRunErrorCode.STALE,
-        errorMessage: FOREGROUND_RUN_STALE_ERROR_MESSAGE,
-      },
-    });
-
-    const activeRun = await tx.inAppAgentRun.findFirst({
-      where: {
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        finishedAt: null,
-      },
-      select: { id: true },
-    });
-
-    if (activeRun) {
-      throw new LangfuseConflictError(ACTIVE_RUN_CONFLICT_MESSAGE);
-    }
-
-    try {
-      return await tx.inAppAgentRun.create({
-        data: {
-          id: params.runId,
-          projectId: params.projectId,
-          conversationId: params.conversationId,
-          triggeredByUserId: params.triggeredByUserId,
-          model: params.model,
-          mcpApiKeyId: params.mcpApiKeyId,
-          // The foreground path has no queue/claim step; runs start executing.
-          status: InAppAgentRunStatus.RUNNING,
-        },
-      });
-    } catch (error) {
-      // Backstop: the partial unique index on active runs. The conversation
-      // lock above should make this unreachable; surface it as the same
-      // conflict as the primary check instead of a 500. The insert can also
-      // violate the (id, project_id) primary key (a replayed runId), so only
-      // map the active-run index — Prisma reports it via its column names.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002" &&
-        Array.isArray(error.meta?.target) &&
-        error.meta.target.includes("conversation_id")
-      ) {
-        throw new LangfuseConflictError(ACTIVE_RUN_CONFLICT_MESSAGE);
-      }
-      throw error;
-    }
-  });
-}
-
-export async function finishRun(params: {
-  prisma: PrismaClient;
-  runId: string;
-  projectId: string;
-  errorCode?: InAppAgentRunErrorCode | null;
-  errorMessage?: string | null;
-}) {
-  const errorCode = params.errorCode ?? null;
-  const status =
-    errorCode == null
-      ? InAppAgentRunStatus.SUCCEEDED
-      : errorCode === InAppAgentRunErrorCode.CANCELLED
-        ? InAppAgentRunStatus.CANCELLED
-        : InAppAgentRunStatus.FAILED;
-  await params.prisma.inAppAgentRun
-    .updateMany({
-      where: {
-        id: params.runId,
-        projectId: params.projectId,
-        finishedAt: null,
-      },
-      data: {
-        status,
-        finishedAt: new Date(),
-        errorCode,
-        errorMessage: params.errorMessage ?? null,
-      },
-    })
-    .catch((error: unknown) =>
-      logger.error("Failed to finish in-app agent run", {
-        error,
-        runId: params.runId,
-        projectId: params.projectId,
-      }),
-    );
 }
 
 export async function appendRunEvents(params: {
@@ -307,8 +167,8 @@ export async function appendRunEvents(params: {
     errorMessage?: string;
   };
 }): Promise<boolean> {
-  return params.prisma.$transaction(async (tx) => {
-    await lockConversation(tx, params.projectId, params.conversationId);
+  const appended = await params.prisma.$transaction(async (tx) => {
+    await lockConversationRow(tx, params.projectId, params.conversationId);
 
     if (params.finish) {
       const finished = await tx.inAppAgentRun.updateMany({
@@ -384,10 +244,26 @@ export async function appendRunEvents(params: {
 
     return true;
   });
+
+  // Emitted after the transaction commits so a rolled-back flush cannot inflate
+  // the outcome count. The fenced path returns false and is deliberately silent:
+  // whichever writer won the CAS already recorded that run's outcome.
+  if (
+    appended &&
+    params.finish &&
+    isSettledInAppAgentRunStatus(params.finish.status)
+  ) {
+    recordRunTerminalOutcome({
+      status: params.finish.status,
+      errorCode: params.finish.errorCode ?? null,
+    });
+  }
+
+  return appended;
 }
 
 export async function getConversationEvents(params: {
-  prisma: PrismaClient;
+  prisma: PrismaClient | Prisma.TransactionClient;
   projectId: string;
   conversationId: string;
 }): Promise<PersistedConversationEvent[]> {
@@ -413,11 +289,8 @@ export async function getConversationEvents(params: {
   }));
 }
 
-/**
- * Returns `tool_calls` file payloads reconstructed from prior non-sandbox tool
- * calls so each sandbox session can mount the same context.
- */
-export function getSandboxToolCallFiles(
+/** Builds sandbox `tool_calls` files from persisted and live MCP calls. */
+export function createSandboxToolCallFileAccumulator(
   events: readonly Omit<PersistedConversationEvent, "sequenceNumber">[],
 ) {
   const drafts = new Map<
@@ -429,14 +302,54 @@ export function getSandboxToolCallFiles(
     }
   >();
   const files: Array<{ path: string; content: string }> = [];
+  const completedToolCallIds = new Set<string>();
 
-  for (const { event, createdAt } of events) {
+  const processToolCall = (toolCall: CompletedInAppAgentMcpToolCall) => {
+    if (completedToolCallIds.has(toolCall.toolCallId)) {
+      return;
+    }
+
+    const draft = drafts.get(toolCall.toolCallId);
+    drafts.delete(toolCall.toolCallId);
+    completedToolCallIds.add(toolCall.toolCallId);
+
+    // The MCP wrapper already classified the failure onto `error`, so failures
+    // never become sandbox tool_calls files. Marking the id completed above
+    // keeps a later replayed event from writing one either.
+    if (toolCall.error !== null) {
+      return;
+    }
+
+    files.push({
+      path: getInAppAgentSilentMcpOutputFilePath(
+        draft?.toolName ?? toolCall.toolName,
+        toolCall.toolCallId,
+      ),
+      content: JSON.stringify(
+        {
+          request: draft
+            ? parseSandboxToolCallValue(draft.request)
+            : toolCall.request,
+          response: toolCall.response,
+          error: toolCall.error,
+        },
+        null,
+        2,
+      ),
+    });
+  };
+
+  const processEvent = ({
+    event,
+    createdAt,
+  }: Omit<PersistedConversationEvent, "sequenceNumber">) => {
     if (event.type === EventType.TOOL_CALL_START) {
       const toolCallId = getString(event, "toolCallId");
       const toolName = getString(event, "toolCallName");
 
       if (
         toolCallId &&
+        !completedToolCallIds.has(toolCallId) &&
         toolName &&
         !IN_APP_AGENT_SANDBOX_TOOL_NAMES.has(toolName)
       ) {
@@ -446,7 +359,7 @@ export function getSandboxToolCallFiles(
           request: "",
         });
       }
-      continue;
+      return;
     }
 
     if (event.type === EventType.TOOL_CALL_ARGS) {
@@ -456,36 +369,58 @@ export function getSandboxToolCallFiles(
       if (draft) {
         draft.request += getString(event, "delta") ?? "";
       }
-      continue;
+      return;
     }
 
     if (event.type !== EventType.TOOL_CALL_RESULT) {
-      continue;
+      return;
     }
 
     const toolCallId = getString(event, "toolCallId");
     const draft = toolCallId ? drafts.get(toolCallId) : undefined;
 
-    if (!toolCallId || !draft) {
-      continue;
+    if (!toolCallId || completedToolCallIds.has(toolCallId) || !draft) {
+      return;
     }
 
+    const error = getString(event, "error") ?? null;
+    // Unwrap once and classify the result we would archive, rather than parsing
+    // the raw content here and again on the way into the file.
+    const response = parseSandboxToolCallValue(
+      getString(event, "content"),
+      getSandboxInAppAgentMcpToolResultContent,
+    );
+
     drafts.delete(toolCallId);
+    completedToolCallIds.add(toolCallId);
+
+    if (getToolFailureMessage(error, response)) {
+      return;
+    }
+
     files.push({
-      path: `tool_calls/${formatSandboxToolCallTimestamp(draft.createdAt)}_${draft.toolName}_${toolCallId}.json`,
+      path: getInAppAgentSilentMcpOutputFilePath(draft.toolName, toolCallId),
       content: JSON.stringify(
         {
           request: parseSandboxToolCallValue(draft.request),
-          response: parseSandboxToolCallValue(getString(event, "content")),
-          error: getString(event, "error") ?? null,
+          response,
+          error,
         },
         null,
         2,
       ),
     });
+  };
+
+  for (const event of events) {
+    processEvent(event);
   }
 
-  return files;
+  return {
+    processEvent,
+    processToolCall,
+    getFiles: () => files,
+  };
 }
 
 export async function getConversationMessages(params: {
@@ -494,23 +429,6 @@ export async function getConversationMessages(params: {
   conversationId: string;
 }) {
   return getMessagesFromPersistedEvents(await getConversationEvents(params));
-}
-
-export async function getConversationMessagesForDisplay(params: {
-  prisma: PrismaClient;
-  projectId: string;
-  conversationId: string;
-}) {
-  return getConversationMessagesForDisplayFromEvents(
-    await getConversationEvents(params),
-  );
-}
-
-export function getConversationMessagesForDisplayFromEvents(
-  events: readonly PersistedConversationEvent[],
-) {
-  const messages = getMessagesFromPersistedEvents(events);
-  return dropEmptyAssistantMessages(dropUnpairedAssistantToolCalls(messages));
 }
 
 export async function getConversationMessagesForReplay(params: {
@@ -530,10 +448,9 @@ export async function maybeInferAndPersistConversationTitle(params: {
   userId: string;
   aiTelemetryEnabled: boolean;
 }) {
-  const model =
-    env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL ?? env.LANGFUSE_AWS_BEDROCK_MODEL;
+  const modelConfig = getInAppAgentModelConfig();
 
-  if (!model) {
+  if (!modelConfig) {
     return;
   }
 
@@ -553,6 +470,10 @@ export async function maybeInferAndPersistConversationTitle(params: {
     }
 
     if (conversation.renamedByUserAt) {
+      return;
+    }
+
+    if (!isUnsetConversationTitle(conversation.title)) {
       return;
     }
 
@@ -622,11 +543,10 @@ ${JSON.stringify(transcript, null, 2)}
   `.trim(),
         },
       ],
-      model,
+      model: modelConfig.titleModelId,
       maxTokens: 1000,
       traceSinkParams: params.aiTelemetryEnabled
         ? getLangfuseAITraceSinkParams({
-            environment: LangfuseInternalTraceEnvironment.InAppAgent,
             feature: "in-app-agent-conversation-title",
             projectId: params.projectId,
             traceName: "in-app-agent-conversation-title",
@@ -671,16 +591,6 @@ ${JSON.stringify(transcript, null, 2)}
   }
 }
 
-export function getMessagesFromEvents(events: readonly AgUiEvent[]) {
-  const accumulator = createConversationMessageAccumulator([]);
-
-  for (const event of events) {
-    accumulator.processEvent(event);
-  }
-
-  return accumulator.getMessages();
-}
-
 function getMessagesFromPersistedEvents(
   events: readonly PersistedConversationEvent[],
 ) {
@@ -690,7 +600,7 @@ function getMessagesFromPersistedEvents(
     accumulator.processEvent(event, runId);
   }
 
-  return accumulator.getMessages();
+  return redactSilentToolMessages(accumulator.getMessages());
 }
 
 function sanitizeConversationMessagesForReplay(
@@ -710,6 +620,25 @@ function sanitizeConversationMessagesForReplay(
   );
 }
 
+export function redactSilentToolMessages(messages: readonly AgUiMessage[]) {
+  let changed = false;
+  const sanitizedMessages = messages.map((message): AgUiMessage => {
+    if (message.role !== "tool") {
+      return message;
+    }
+
+    const content = getPublicInAppAgentMcpToolResultContent(message.content);
+    if (content === message.content) {
+      return message;
+    }
+
+    changed = true;
+    return { ...message, content };
+  });
+
+  return changed ? sanitizedMessages : messages;
+}
+
 export function shouldFlushPersistedEvent(event: AgUiEvent) {
   return (
     event.type === EventType.TEXT_MESSAGE_END ||
@@ -722,7 +651,7 @@ export function shouldFlushPersistedEvent(event: AgUiEvent) {
   );
 }
 
-function partitionPendingRunEvents(events: readonly AgUiEvent[]): {
+export function partitionPendingRunEvents(events: readonly AgUiEvent[]): {
   eventsToAppend: AgUiEvent[];
   retainedEvents: AgUiEvent[];
 } {
@@ -810,6 +739,10 @@ export async function flushPendingRunEvents(params: {
 }
 
 export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
+  if (!isKnownEventType(event.type)) {
+    return null;
+  }
+
   if (event.type === EventType.RUN_STARTED) {
     const input = isRecord(event.input)
       ? {
@@ -924,6 +857,7 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
   if (event.type === EventType.REASONING_START) {
     return compactObject({
       type: event.type,
+      messageId: getString(event, "messageId"),
     });
   }
 
@@ -956,6 +890,7 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
   if (event.type === EventType.REASONING_END) {
     return compactObject({
       type: event.type,
+      messageId: getString(event, "messageId"),
     });
   }
 
@@ -987,16 +922,9 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
     event.type === EventType.STEP_FINISHED ||
     event.type === EventType.TOOL_CALL_CHUNK ||
     event.type === EventType.REASONING_ENCRYPTED_VALUE ||
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    event.type === EventType.THINKING_START ||
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    event.type === EventType.THINKING_END ||
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    event.type === EventType.THINKING_TEXT_MESSAGE_START ||
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    event.type === EventType.THINKING_TEXT_MESSAGE_CONTENT ||
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    event.type === EventType.THINKING_TEXT_MESSAGE_END
+    event.type === EventType.SUBAGENT_STARTED ||
+    event.type === EventType.SUBAGENT_FINISHED ||
+    event.type === EventType.SUBAGENT_ERROR
   ) {
     return null;
   }
@@ -1092,7 +1020,9 @@ export function createConversationMessageAccumulator(
       };
 
       draft.content += getString(event, "delta") ?? "";
-      draft.runId ??= runId;
+      if (draft.runId === undefined) {
+        draft.runId = runId;
+      }
       textDrafts.set(messageId, draft);
 
       return upsertMessage({
@@ -1119,7 +1049,15 @@ export function createConversationMessageAccumulator(
 
       if (draft) {
         draft.content += delta;
-        draft.runId ??= runId;
+        if (draft.runId === undefined) {
+          draft.runId = runId;
+        }
+        return upsertMessage({
+          id: draft.id,
+          role: "assistant",
+          content: draft.content,
+          ...(draft.runId ? { runId: draft.runId } : {}),
+        });
       }
       return false;
     }
@@ -1300,16 +1238,9 @@ export function createConversationMessageAccumulator(
       event.type === EventType.REASONING_START ||
       event.type === EventType.REASONING_END ||
       event.type === EventType.REASONING_ENCRYPTED_VALUE ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_START ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_END ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_TEXT_MESSAGE_START ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_TEXT_MESSAGE_CONTENT ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_TEXT_MESSAGE_END
+      event.type === EventType.SUBAGENT_STARTED ||
+      event.type === EventType.SUBAGENT_FINISHED ||
+      event.type === EventType.SUBAGENT_ERROR
     ) {
       return false;
     }
@@ -1343,23 +1274,38 @@ function stripAssistantRunIds(messages: readonly AgUiMessage[]) {
 
 export type InAppAgentTx = Prisma.TransactionClient;
 
-/**
- * Serializes every run-creating and approval-consuming mutation on one row.
- * The partial unique index on active runs is only the backstop; this lock is
- * what turns a race into a clean conflict error instead of a 500.
- */
+/** Serialize run mutations and reject conversations deleted while waiting. */
 export async function lockConversation(
   tx: InAppAgentTx,
   projectId: string,
   conversationId: string,
 ) {
-  await tx.$queryRaw`
-    SELECT 1
+  const conversation = await lockConversationRow(tx, projectId, conversationId);
+
+  if (conversation.deletedAt) {
+    throw new LangfuseNotFoundError("Agent conversation not found");
+  }
+}
+
+async function lockConversationRow(
+  tx: InAppAgentTx,
+  projectId: string,
+  conversationId: string,
+) {
+  const conversations = await tx.$queryRaw<Array<{ deletedAt: Date | null }>>`
+    SELECT "deleted_at" AS "deletedAt"
     FROM "in_app_agent_conversations"
     WHERE "id" = ${conversationId}
       AND "project_id" = ${projectId}
     FOR UPDATE
   `;
+
+  const conversation = conversations[0];
+  if (!conversation) {
+    throw new LangfuseNotFoundError("Agent conversation not found");
+  }
+
+  return conversation;
 }
 
 function parseMessages(messages: unknown[]): AgUiMessage[] {
@@ -1447,41 +1393,6 @@ function dropRedirectToolCallEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
   });
 }
 
-function dropUnpairedAssistantToolCalls(messages: readonly AgUiMessage[]) {
-  const toolResultIds = new Set(
-    messages.flatMap((message) =>
-      message.role === "tool" ? [message.toolCallId] : [],
-    ),
-  );
-  let changed = false;
-
-  const sanitizedMessages = messages.map((message): AgUiMessage => {
-    if (message.role !== "assistant" || !message.toolCalls?.length) {
-      return message;
-    }
-
-    const pairedToolCalls = message.toolCalls.filter((toolCall) =>
-      toolResultIds.has(toolCall.id),
-    );
-
-    if (pairedToolCalls.length === message.toolCalls.length) {
-      return message;
-    }
-
-    changed = true;
-
-    if (pairedToolCalls.length === 0) {
-      const sanitizedMessage = { ...message };
-      delete sanitizedMessage.toolCalls;
-      return sanitizedMessage;
-    }
-
-    return { ...message, toolCalls: pairedToolCalls };
-  });
-
-  return changed ? sanitizedMessages : messages;
-}
-
 function dropRedirectActionToolResults(messages: readonly AgUiMessage[]) {
   let changed = false;
   const sanitizedMessages = messages.filter((message) => {
@@ -1490,26 +1401,6 @@ function dropRedirectActionToolResults(messages: readonly AgUiMessage[]) {
 
     changed = changed || !keep;
     return keep;
-  });
-
-  return changed ? sanitizedMessages : messages;
-}
-
-function dropEmptyAssistantMessages(messages: readonly AgUiMessage[]) {
-  let changed = false;
-  const sanitizedMessages = messages.filter((message) => {
-    if (message.role !== "assistant") {
-      return true;
-    }
-
-    const hasContent =
-      typeof message.content === "string" && message.content.length > 0;
-    const hasToolCalls =
-      message.toolCalls !== undefined && message.toolCalls.length > 0;
-    const keepMessage = hasContent || hasToolCalls;
-
-    changed = changed || !keepMessage;
-    return keepMessage;
   });
 
   return changed ? sanitizedMessages : messages;
@@ -1579,17 +1470,24 @@ function compactObject<T extends Record<string, unknown>>(value: T): T {
   ) as T;
 }
 
-function parseSandboxToolCallValue(value: string | undefined) {
+function parseSandboxToolCallValue(
+  value: string | undefined,
+  transform?: (value: string) => unknown,
+) {
   if (!value) {
     return null;
   }
 
+  if (transform) {
+    try {
+      return transform(value);
+    } catch {
+      return value;
+    }
+  }
+
   const parsed = safeJsonParse(value);
   return parsed === undefined ? value : parsed;
-}
-
-function formatSandboxToolCallTimestamp(date: Date) {
-  return date.toISOString().replaceAll(":", "-");
 }
 
 function getDefaultConversationTitle(date: Date) {
@@ -1598,6 +1496,14 @@ function getDefaultConversationTitle(date: Date) {
   const minutes = String(date.getMinutes()).padStart(2, "0");
 
   return `Chat on ${weekday} at ${hours}:${minutes}`;
+}
+
+function isUnsetConversationTitle(title: string | null) {
+  if (!title) {
+    return true;
+  }
+
+  return /^Chat on [A-Za-z]+ at \d{2}:\d{2}$/.test(title);
 }
 
 export function buildConversationTitleTranscript(

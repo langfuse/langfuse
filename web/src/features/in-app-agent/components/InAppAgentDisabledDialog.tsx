@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -25,8 +26,13 @@ export function InAppAgentDisabledDialog({
           <DialogTitle>AI features are disabled</DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <AIFeaturesDisabledNotice organizationId={organizationId}>
-            The Langfuse Assistant requires AI features to be enabled for this
+          <AIFeaturesDisabledNotice
+            organizationId={organizationId}
+            onSettingsOpened={() => {
+              onOpenChange(false);
+            }}
+          >
+            Langfuse Halo requires AI features to be enabled for this
             organization.
           </AIFeaturesDisabledNotice>
         </DialogBody>

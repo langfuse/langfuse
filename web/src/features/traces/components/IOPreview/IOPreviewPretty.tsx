@@ -1,0 +1,1446 @@
+/* eslint-disable no-nested-ternary */
+import { JsonViewController } from "@/src/components/ui/JsonViewController";
+import { MarkdownViewController } from "@/src/components/ui/MarkdownViewController";
+import { MarkdownViewContent } from "@/src/components/ui/MarkdownViewContent";
+import { useTheme } from "next-themes";
+import { assertUnreachable } from "@/src/utils/types";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ObservationType,
+  type Prisma,
+  type ScoreDomain,
+  type SkillsAvailable,
+  type SkillsResourceLoaded,
+  deepParseJson,
+} from "@langfuse/shared";
+import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
+import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
+import {
+  FoldVertical,
+  UnfoldVertical,
+  ChevronDown,
+  ChevronRight,
+  FileCode2,
+  FileText,
+} from "@langfuse/icons";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/src/components/ui/collapsible";
+import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
+import type { MediaReturnType } from "@/src/features/media/validation";
+import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
+import {
+  hasRenderableChatMessages,
+  useIOPreviewParser,
+} from "../../hooks/useIOPreviewParser";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { ChatMessageController } from "./components/ChatMessageController";
+import { ChatMessageContent } from "./components/ChatMessageContent";
+import { SystemPromptCollapseController } from "./components/SystemPromptCollapseController";
+import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
+import { canRenderContentAsMarkdown } from "@/src/components/ui/MarkdownJsonView";
+import {
+  filterAlreadyRenderedMedia,
+  getRenderedInlineMediaIds,
+} from "@/src/components/ui/markdown-media.utils";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import {
+  ToolCallDefinitionCard,
+  type ToolDefinition,
+} from "./components/ToolCallDefinitionCard";
+import {
+  type ExpansionStateProps,
+  type IOPreviewContentMode,
+} from "./IOPreview";
+import { useCorrectOutputAction } from "./components/CorrectedOutputField";
+import {
+  CorrectedOutputSection,
+  shouldShowCorrectedOutputSection,
+} from "./components/CorrectedOutputSection";
+import { useCorrectionData } from "./hooks/useCorrectionData";
+import {
+  getMessageTitle,
+  shouldRenderMessageForContentMode,
+} from "@/src/features/traces/fns/chatMessageUtils";
+import { type ObservationStatusMessage } from "./components/statusMessagePresentation";
+import { useStatusMessage } from "./hooks/useStatusMessage";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { getSkillLoadRequests } from "../../fns/getSkillLoadRequests";
+
+const TOOLS_COLLAPSE_THRESHOLD = 5;
+// The user's collapse choice lasts the session, across observations.
+const TOOLS_COLLAPSED_KEY = "toolsSectionCollapsed";
+const EXPANDED_TAIL_LENGTH = 3;
+const FOLD_ABOVE_MESSAGES = 6;
+
+interface JsonInputOutputViewProps {
+  parsedInput: unknown;
+  parsedOutput: unknown;
+  isLoading: boolean;
+  isParsing?: boolean;
+  media?: MediaReturnType[];
+  hideIfNull: boolean;
+  hideInput: boolean;
+  hideOutput: boolean;
+  inputExpansionState?: Record<string, boolean> | boolean;
+  outputExpansionState?: Record<string, boolean> | boolean;
+  onInputExpansionChange?: (
+    expansion: Record<string, boolean> | boolean,
+  ) => void;
+  onOutputExpansionChange?: (
+    expansion: Record<string, boolean> | boolean,
+  ) => void;
+  /** Extra header controls on the Output section. */
+  outputActions?: IOSectionAction[];
+}
+
+function JsonInputOutputView({
+  parsedInput,
+  parsedOutput,
+  isLoading,
+  isParsing,
+  media,
+  hideIfNull,
+  hideInput,
+  hideOutput,
+  inputExpansionState,
+  outputExpansionState,
+  onInputExpansionChange,
+  onOutputExpansionChange,
+  outputActions,
+}: JsonInputOutputViewProps) {
+  const showInput = !hideInput && !(hideIfNull && !parsedInput);
+  const showOutput = !hideOutput && !(hideIfNull && !parsedOutput);
+
+  return (
+    <div className="space-y-2">
+      {showInput && (
+        <JsonViewController
+          json={parsedInput}
+          isLoading={isLoading}
+          isParsing={isParsing}
+          media={media?.filter((m) => m.field === "input") ?? []}
+          currentView="pretty"
+          externalExpansionState={inputExpansionState}
+          onExternalExpansionChange={onInputExpansionChange}
+        >
+          {(state) => (
+            <IOSection
+              title="Input"
+              onCopy={state.copy}
+              actions={
+                state.contentKind === "table" && state.hasExpandableRows
+                  ? [
+                      {
+                        icon: state.allRowsExpanded
+                          ? FoldVertical
+                          : UnfoldVertical,
+                        label: state.allRowsExpanded
+                          ? "Collapse all rows"
+                          : "Expand all rows",
+                        onClick: state.toggleAllRows,
+                      },
+                    ]
+                  : undefined
+              }
+              variant={state.contentKind === "table" ? "table" : "text"}
+            >
+              <PrettyJsonViewContent state={state} title="Input" borderless />
+            </IOSection>
+          )}
+        </JsonViewController>
+      )}
+      {showOutput && (
+        <JsonViewController
+          json={parsedOutput}
+          isLoading={isLoading}
+          isParsing={isParsing}
+          media={media?.filter((m) => m.field === "output") ?? []}
+          currentView="pretty"
+          externalExpansionState={outputExpansionState}
+          onExternalExpansionChange={onOutputExpansionChange}
+        >
+          {(state) => (
+            <IOSection
+              title="Output"
+              onCopy={state.copy}
+              actions={
+                state.contentKind === "table" && state.hasExpandableRows
+                  ? [
+                      {
+                        icon: state.allRowsExpanded
+                          ? FoldVertical
+                          : UnfoldVertical,
+                        label: state.allRowsExpanded
+                          ? "Collapse all rows"
+                          : "Expand all rows",
+                        onClick: state.toggleAllRows,
+                      },
+                      ...(outputActions ?? []),
+                    ]
+                  : outputActions
+              }
+              variant={state.contentKind === "table" ? "table" : "text"}
+            >
+              <PrettyJsonViewContent state={state} title="Output" borderless />
+            </IOSection>
+          )}
+        </JsonViewController>
+      )}
+    </div>
+  );
+}
+
+function hasDeclaredRole(value: unknown): boolean {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as { role?: unknown }).role === "string"
+  );
+}
+
+/**
+ * Chat I/O: a message array, bare or under `messages`, or a single message,
+ * with at least one declared string `role`. Anything else is non-chat I/O
+ * that the preview wraps into messages itself.
+ */
+function isChatIO(value: unknown): boolean {
+  const messages =
+    value !== null && typeof value === "object" && !Array.isArray(value)
+      ? (value as { messages?: unknown }).messages
+      : value;
+  if (Array.isArray(messages)) return messages.some(hasDeclaredRole);
+  return hasDeclaredRole(value);
+}
+
+const SIDE_TITLES = { input: "Input", output: "Output" } as const;
+
+export interface IOPreviewPrettyProps extends ExpansionStateProps {
+  skills?:
+    | { kind: "available"; items: SkillsAvailable }
+    | { kind: "loaded"; items: SkillsResourceLoaded };
+  input?: Prisma.JsonValue;
+  output?: Prisma.JsonValue;
+  status?: ObservationStatusMessage;
+  metadata?: Prisma.JsonValue;
+  outputCorrection?: ScoreDomain;
+  traceOutputCorrection?: ScoreDomain;
+  // Pre-parsed data (optional, from useParsedObservation hook for performance)
+  parsedInput?: unknown;
+  parsedOutput?: unknown;
+  parsedMetadata?: unknown;
+  chatMLParserResult?: ChatMLParserResult;
+  isLoading?: boolean;
+  isParsing?: boolean;
+  hideIfNull?: boolean;
+  media?: MediaReturnType[];
+  hideOutput?: boolean;
+  hideInput?: boolean;
+  observationId?: string;
+  observationType?: ObservationType;
+  projectId: string;
+  traceId: string;
+  environment?: string;
+  showCorrections?: boolean;
+  contentMode?: IOPreviewContentMode;
+  showSystemPrompt?: boolean;
+}
+
+/**
+ * IOPreviewPretty - Renders input/output in pretty view mode.
+ *
+ * Features:
+ * - ChatML message format detection and rendering
+ * - Tool definitions and invocations display
+ * - Large content safety (markdown rendering limit)
+ * - Accepts pre-parsed data to avoid duplicate parsing
+ *
+ * This component selects and renders the pretty-view parser output. For JSON
+ * view, use IOPreviewJSON instead.
+ */
+export function IOPreviewPretty({
+  skills,
+  input,
+  output,
+  status,
+  metadata,
+  outputCorrection,
+  traceOutputCorrection,
+  parsedInput: preParsedInput,
+  parsedOutput: preParsedOutput,
+  parsedMetadata: preParsedMetadata,
+  chatMLParserResult,
+  isLoading = false,
+  isParsing = false,
+  hideIfNull = false,
+  hideOutput = false,
+  hideInput = false,
+  media,
+  inputExpansionState,
+  outputExpansionState,
+  onInputExpansionChange,
+  onOutputExpansionChange,
+  observationId,
+  observationType,
+  projectId,
+  traceId,
+  environment = "default",
+  showCorrections = true,
+  contentMode = "all",
+  showSystemPrompt,
+}: IOPreviewPrettyProps) {
+  const { forcedTheme, resolvedTheme } = useTheme();
+  const { statusPresentation, parsedStatusMessage } = useStatusMessage(status);
+  const [isSkillsExpanded, setSkillsExpanded] = useState(false);
+  const [expandedSkillKey, setExpandedSkillKey] = useState("");
+  const [activeSkillTab, setActiveSkillTab] = useState("requested");
+  const [othersOpen, setOthersOpen] = useState(false);
+  const [activeToolTab, setActiveToolTab] = useState<"called" | "not-called">(
+    "called",
+  );
+  const [storedToolsCollapsed, setStoredToolsCollapsed] = useSessionStorage<
+    boolean | null
+  >(TOOLS_COLLAPSED_KEY, null);
+  const skillGroups = new Map<
+    string,
+    {
+      key: string;
+      skill: SkillsAvailable[number];
+      files: Set<string>;
+    }
+  >();
+  const skillItems =
+    skills?.kind === "loaded"
+      ? skills.items.map((skill) => ({ skill, filePath: skill.filePath }))
+      : (skills?.items ?? []).map((skill) => ({ skill, filePath: undefined }));
+  for (const { skill, filePath } of skillItems) {
+    const key = JSON.stringify([
+      skill.langfuseSkillId ?? null,
+      skill.skillName,
+      skill.skillVersion ?? null,
+    ]);
+    const group = skillGroups.get(key) ?? {
+      key,
+      skill,
+      files: new Set<string>(),
+    };
+    skillGroups.set(key, group);
+    if (filePath !== undefined) group.files.add(filePath);
+  }
+
+  // Use pre-parsed data if available (from useParsedObservation hook),
+  // otherwise parse with size/depth limits to prevent UI freeze
+  // IMPORTANT: Don't parse while isParsing=true to avoid double-parsing with different object references
+  const parsedInput = isParsing
+    ? undefined // Wait for Web Worker to finish
+    : (preParsedInput ??
+      deepParseJson(input, { maxSize: 300_000, maxDepth: 2 }));
+  const parsedOutput = isParsing
+    ? undefined
+    : (preParsedOutput ??
+      deepParseJson(output, { maxSize: 300_000, maxDepth: 2 }));
+  const parsedMetadata = isParsing
+    ? undefined
+    : (preParsedMetadata ??
+      deepParseJson(metadata, { maxSize: 100_000, maxDepth: 2 }));
+
+  // Parse into the shared preview contract.
+  const parserResult = useIOPreviewParser(
+    input,
+    output,
+    metadata,
+    parsedInput,
+    parsedOutput,
+    parsedMetadata,
+    chatMLParserResult,
+  );
+
+  const shouldRenderMessages = hasRenderableChatMessages(parserResult);
+
+  useIOParserComparisonCapture({
+    input,
+    output,
+    chatMLParserResult,
+    isLoading,
+    isParsing,
+    observationId,
+    traceId,
+    shouldRenderMessages,
+  });
+
+  const {
+    allMessages,
+    additionalInput,
+    allTools,
+    toolCallCounts,
+    toolCallsByName,
+    messageToToolCallNumbers,
+    inputMessageCount,
+  } = parserResult;
+
+  const skillLoadRequests = getSkillLoadRequests(
+    skills?.kind === "available"
+      ? Array.from(skillGroups.values(), ({ skill }) => skill)
+      : [],
+    toolCallsByName,
+    parsedMetadata,
+  );
+  const requestedSkillGroups = Array.from(skillGroups.values()).filter(
+    ({ skill }) => skillLoadRequests.has(skill),
+  );
+  const notRequestedSkillGroups = Array.from(skillGroups.values()).filter(
+    ({ skill }) => !skillLoadRequests.has(skill),
+  );
+  const hasSkillTabs =
+    requestedSkillGroups.length > 0 && notRequestedSkillGroups.length > 0;
+  const visibleSkillGroups = (() => {
+    if (!hasSkillTabs) return Array.from(skillGroups.values());
+    return activeSkillTab === "requested"
+      ? requestedSkillGroups
+      : notRequestedSkillGroups;
+  })();
+
+  const { calledTools, notCalledTools } = useMemo(
+    () =>
+      allTools.reduce(
+        (groups, tool) => {
+          if ((toolCallCounts.get(tool.name) ?? 0) > 0) {
+            groups.calledTools.push(tool);
+          } else {
+            groups.notCalledTools.push(tool);
+          }
+          return groups;
+        },
+        {
+          calledTools: [] as ToolDefinition[],
+          notCalledTools: [] as ToolDefinition[],
+        },
+      ),
+    [allTools, toolCallCounts],
+  );
+  const hasToolTabs = calledTools.length > 0 && notCalledTools.length > 0;
+  const tabTools = activeToolTab === "called" ? calledTools : notCalledTools;
+  const visibleTools = hasToolTabs ? tabTools : allTools;
+
+  const characterLimit = useMarkdownRenderCharacterLimit();
+
+  // Determine if markdown is safe to render (content size check)
+  const shouldRenderMarkdown = useMemo(() => {
+    // Fast byte estimation without expensive JSON.stringify
+    // Estimate: count string lengths + rough object overhead
+    const estimateSize = (obj: unknown): number => {
+      if (obj === null || obj === undefined) return 4; // "null" or "undefined"
+      if (typeof obj === "string") return obj.length;
+      if (typeof obj === "number") return obj.toString().length;
+      if (typeof obj === "boolean") return obj ? 4 : 5; // "true" or "false"
+
+      if (Array.isArray(obj)) {
+        // Rough estimate: sum of elements + commas + brackets
+        return obj.reduce((sum, item) => sum + estimateSize(item) + 1, 2);
+      }
+
+      if (typeof obj === "object") {
+        // Rough estimate: keys + values + colons + commas + braces
+        return Object.entries(obj).reduce(
+          (sum, [key, value]) => sum + key.length + estimateSize(value) + 3, // 3 for ":", "," and quotes
+          2, // 2 for opening and closing braces
+        );
+      }
+
+      return 0;
+    };
+
+    const inputSize = estimateSize(parsedInput);
+    const outputSize = estimateSize(parsedOutput);
+    const messagesSize = estimateSize(allMessages);
+    const totalSize = inputSize + outputSize + messagesSize;
+
+    const shouldRender = totalSize <= characterLimit;
+
+    return shouldRender;
+  }, [parsedInput, parsedOutput, allMessages, characterLimit]);
+
+  const messagesToRender = useMemo(
+    () =>
+      allMessages
+        .map((message, originalIndex) => ({ message, originalIndex }))
+        .filter(({ message }) =>
+          shouldRenderMessageForContentMode(
+            message,
+            contentMode,
+            showSystemPrompt,
+          ),
+        ),
+    [allMessages, contentMode, showSystemPrompt],
+  );
+  const foldsMiddle = messagesToRender.length > FOLD_ABOVE_MESSAGES;
+  const foldEnd = messagesToRender.length - EXPANDED_TAIL_LENGTH;
+  const otherMessagesCount = foldEnd - 1;
+  const otherMessagesLabel = `${otherMessagesCount} other ${otherMessagesCount === 1 ? "message" : "messages"}`;
+  const HistoryCaret = othersOpen ? ChevronDown : ChevronRight;
+  const lastOutputIndex = messagesToRender.reduce(
+    (last, { originalIndex }, index) =>
+      originalIndex >= (inputMessageCount ?? 0) ? index : last,
+    -1,
+  );
+  const remainingMedia = useMemo(() => {
+    if (!shouldRenderMarkdown) return media ?? [];
+    const renderedMediaIds = new Set<string>();
+    messagesToRender.forEach(({ message }) => {
+      const content = message.content || "";
+      // JSON fallbacks do not render media inline and still need the media section.
+      if (canRenderContentAsMarkdown(content, characterLimit)) {
+        getRenderedInlineMediaIds({
+          markdown: content,
+          audio: message.audio,
+        }).forEach((mediaId) => renderedMediaIds.add(mediaId));
+      }
+    });
+    return filterAlreadyRenderedMedia(media, renderedMediaIds);
+  }, [media, shouldRenderMarkdown, messagesToRender, characterLimit]);
+
+  // Prepare additional input (only if non-empty)
+  const additionalInputToShow = useMemo(() => {
+    if (!additionalInput || Object.keys(additionalInput).length === 0) {
+      return undefined;
+    }
+    return additionalInput;
+  }, [additionalInput]);
+
+  // Shared props for JsonInputOutputView
+  const jsonViewProps = {
+    parsedInput,
+    parsedOutput,
+    isLoading,
+    isParsing,
+    media,
+    hideIfNull,
+    hideInput,
+    hideOutput,
+    inputExpansionState,
+    outputExpansionState,
+    onInputExpansionChange,
+    onOutputExpansionChange,
+  };
+
+  const showData = contentMode !== "conversation";
+  // The "Correct output" pencil lives in the Output header; the field below
+  // opens into its editor from there. Without an Output header (no output
+  // message rendered) the field keeps its own inline trigger.
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const correctOutputAction = useCorrectOutputAction({
+    projectId,
+    onOpen: () => setCorrectionOpen(true),
+  });
+  const { effectiveCorrection: effectiveObsCorrection } = useCorrectionData(
+    outputCorrection,
+    observationId,
+    traceId,
+  );
+  const { effectiveCorrection: effectiveTraceCorrection } = useCorrectionData(
+    traceOutputCorrection,
+    undefined,
+    traceId,
+  );
+  // TraceDetailView has no observationId — pen creates a trace-scoped CORRECTION.
+  // Observation views keep the pen obs-scoped.
+  const isTraceScopedView = !observationId;
+  const effectivePrimaryCorrection = isTraceScopedView
+    ? effectiveTraceCorrection
+    : effectiveObsCorrection;
+  const hasOutputHeader = shouldRenderMessages
+    ? allMessages.some(
+        (message, index) =>
+          index >= (inputMessageCount ?? 0) &&
+          shouldRenderMessageForContentMode(
+            message,
+            contentMode,
+            showSystemPrompt,
+          ),
+      )
+    : !hideOutput && !(hideIfNull && !parsedOutput);
+  const correctionTrigger = hasOutputHeader ? "header" : "inline";
+  const outputActions =
+    showCorrections &&
+    (Boolean(observationId) || isTraceScopedView) &&
+    hasOutputHeader &&
+    !correctionOpen &&
+    !effectivePrimaryCorrection
+      ? [correctOutputAction]
+      : undefined;
+  const showCorrectionField =
+    showCorrections &&
+    shouldShowCorrectedOutputSection({
+      observationId,
+      outputCorrection: effectiveObsCorrection ?? outputCorrection,
+      traceOutputCorrection: effectiveTraceCorrection ?? traceOutputCorrection,
+      obsEditorOpen: correctionOpen && Boolean(observationId),
+      traceEditorOpen: correctionOpen && isTraceScopedView,
+      startEditing: correctionOpen && !effectivePrimaryCorrection,
+      trigger: correctionTrigger,
+    });
+  const correctedOutputField = showCorrectionField ? (
+    <CorrectedOutputSection
+      actualOutput={parsedOutput}
+      outputCorrection={outputCorrection}
+      traceOutputCorrection={traceOutputCorrection}
+      observationId={observationId}
+      projectId={projectId}
+      traceId={traceId}
+      environment={environment}
+      trigger={correctionTrigger}
+      startEditing={correctionOpen && !effectivePrimaryCorrection}
+      onClosed={() => setCorrectionOpen(false)}
+      obsEditorOpen={correctionOpen && Boolean(observationId)}
+      traceEditorOpen={correctionOpen && isTraceScopedView}
+    />
+  ) : null;
+  // Non-generation I/O that is not chat (plain strings, loose records) is
+  // titled Input / Output; declared chat roles keep their role titles on
+  // every observation type. Generations always title by role.
+  const canTitleBySide =
+    observationType !== undefined && observationType !== "GENERATION";
+  const titleBySide = {
+    input: canTitleBySide && !isChatIO(parsedInput),
+    output: canTitleBySide && !isChatIO(parsedOutput),
+  };
+
+  return (
+    <div className="space-y-2 pt-3">
+      {showData && status && statusPresentation && (
+        <JsonViewController
+          json={status.message}
+          parsedJson={
+            // Do not retry parsing text rejected by the status parser's size limit.
+            parsedStatusMessage ?? null
+          }
+          currentView="pretty"
+        >
+          {(state) => (
+            <IOSection
+              title={statusPresentation.title}
+              onCopy={
+                parsedStatusMessage !== undefined
+                  ? state.copy
+                  : () => copyTextToClipboard(status.message)
+              }
+              actions={
+                parsedStatusMessage !== undefined &&
+                state.contentKind === "table" &&
+                state.hasExpandableRows
+                  ? [
+                      {
+                        icon: state.allRowsExpanded
+                          ? FoldVertical
+                          : UnfoldVertical,
+                        label: state.allRowsExpanded
+                          ? "Collapse all rows"
+                          : "Expand all rows",
+                        onClick: state.toggleAllRows,
+                      },
+                    ]
+                  : undefined
+              }
+              variant={
+                parsedStatusMessage !== undefined &&
+                state.contentKind === "table"
+                  ? "table"
+                  : "text"
+              }
+              tone={statusPresentation.tone}
+            >
+              {parsedStatusMessage !== undefined ? (
+                <PrettyJsonViewContent
+                  state={state}
+                  title={statusPresentation.title}
+                  borderless
+                />
+              ) : (
+                status.message
+              )}
+            </IOSection>
+          )}
+        </JsonViewController>
+      )}
+
+      {showData && allTools.length > 0 ? (
+        <IOSection
+          title="Tools"
+          variant="table"
+          collapsed={
+            storedToolsCollapsed ?? allTools.length > TOOLS_COLLAPSE_THRESHOLD
+          }
+          onCollapsedChange={setStoredToolsCollapsed}
+          tabs={
+            hasToolTabs
+              ? {
+                  value: activeToolTab,
+                  onValueChange: (value) => {
+                    if (value === "called" || value === "not-called")
+                      setActiveToolTab(value);
+                  },
+                  items: [
+                    {
+                      value: "called",
+                      label: "Called",
+                      count: calledTools.length,
+                    },
+                    {
+                      value: "not-called",
+                      label: "Not called",
+                      count: notCalledTools.length,
+                    },
+                  ],
+                }
+              : undefined
+          }
+        >
+          <ToolCallDefinitionCard
+            key={activeToolTab}
+            tools={visibleTools}
+            toolCallsByName={toolCallsByName}
+          />
+        </IOSection>
+      ) : null}
+
+      {showData && skills && skills.items.length > 0 ? (
+        <IOSection
+          title="Skills"
+          count={hasSkillTabs ? undefined : skillGroups.size}
+          tabs={
+            hasSkillTabs
+              ? {
+                  value: activeSkillTab,
+                  onValueChange: (value) => {
+                    setActiveSkillTab(value);
+                    setExpandedSkillKey("");
+                  },
+                  items: [
+                    {
+                      value: "requested",
+                      label: "Requested",
+                      count: requestedSkillGroups.length,
+                    },
+                    {
+                      value: "not-requested",
+                      label: "Not requested",
+                      count: notRequestedSkillGroups.length,
+                    },
+                  ],
+                }
+              : undefined
+          }
+          info={
+            skillLoadRequests.size > 0
+              ? {
+                  label: "About skill load requests",
+                  text: `${skillLoadRequests.size} of ${skillGroups.size} available skills requested by this generation's output tool calls. A request does not confirm that the skill was loaded successfully.`,
+                }
+              : undefined
+          }
+        >
+          <Collapsible
+            open={isSkillsExpanded}
+            onOpenChange={setSkillsExpanded}
+            className="flex flex-col gap-2"
+          >
+            <CollapsibleTrigger className="hover:bg-muted/20 flex w-full items-center justify-between gap-2 rounded-sm border px-3 py-2 text-left text-sm font-bold">
+              <span className="flex min-w-0 flex-1 items-center gap-2">
+                <FileCode2 size="base" color="muted" aria-hidden />
+                <span>
+                  {skillGroups.size}{" "}
+                  {skills.kind === "available" ? "available" : "loaded"}{" "}
+                  {skillGroups.size === 1 ? "skill" : "skills"}
+                </span>
+              </span>
+              <Badge
+                color="filled"
+                size="sm"
+                text={isSkillsExpanded ? "hide" : "show"}
+              />
+              <DropdownIndicator
+                direction={isSkillsExpanded ? "down" : "right"}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent asChild>
+              <ul className="flex flex-col gap-2">
+                {visibleSkillGroups.map(
+                  ({ key, skill, files: loadedFiles }) => {
+                    const files =
+                      skills.kind === "available"
+                        ? (skillLoadRequests.get(skill) ?? new Set<string>())
+                        : loadedFiles;
+                    return (
+                      <Collapsible
+                        key={key}
+                        asChild
+                        open={expandedSkillKey === key}
+                        onOpenChange={(open) =>
+                          setExpandedSkillKey(open ? key : "")
+                        }
+                      >
+                        <li className="min-w-0 overflow-hidden rounded-sm border">
+                          <div className="flex min-w-0 items-center gap-2 px-3 py-1.5">
+                            <FileCode2 size="base" color="muted" aria-hidden />
+                            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                              {skill.langfuseSkillId &&
+                              skill.skillVersion != null ? (
+                                <Metric
+                                  href={`/project/${projectId}/skills/${encodeURIComponent(skill.skillName)}?version=${skill.skillVersion}`}
+                                  value={skill.skillName}
+                                  newTab
+                                  noCapture
+                                />
+                              ) : (
+                                <Metric value={skill.skillName} />
+                              )}
+                              {skill.skillVersion != null ? (
+                                <Badge
+                                  color="filled"
+                                  size="sm"
+                                  text={`v${skill.skillVersion}`}
+                                />
+                              ) : null}
+                            </div>
+                            {files.size > 0 ? (
+                              <CollapsibleTrigger
+                                className="hover:bg-muted/20 flex shrink-0 items-center gap-1.5 rounded-sm px-1 py-0.5"
+                                aria-label={`Files ${skills.kind === "available" ? "requested" : "loaded"} for ${skill.skillName}`}
+                              >
+                                <Badge
+                                  color="green"
+                                  size="sm"
+                                  text={`${files.size} ${files.size === 1 ? "file" : "files"}`}
+                                />
+                                <DropdownIndicator
+                                  direction={
+                                    expandedSkillKey === key ? "down" : "right"
+                                  }
+                                />
+                              </CollapsibleTrigger>
+                            ) : null}
+                          </div>
+                          {files.size > 0 ? (
+                            <CollapsibleContent asChild>
+                              <ul className="bg-muted/30 flex flex-col gap-2 border-t px-3 py-3">
+                                {Array.from(files, (filePath) => (
+                                  <li
+                                    key={filePath}
+                                    className="flex min-w-0 items-start gap-2"
+                                  >
+                                    <FileText
+                                      size="base"
+                                      color="muted"
+                                      __rawClassName="mt-0.5"
+                                      aria-hidden
+                                    />
+                                    <span className="min-w-0 font-mono text-xs leading-relaxed break-all">
+                                      {filePath}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </CollapsibleContent>
+                          ) : null}
+                        </li>
+                      </Collapsible>
+                    );
+                  },
+                )}
+              </ul>
+            </CollapsibleContent>
+          </Collapsible>
+        </IOSection>
+      ) : null}
+
+      {shouldRenderMessages ? (
+        <div>
+          <div className="flex max-h-full min-h-0 flex-col gap-2">
+            <div className="flex max-h-full min-h-0 flex-col gap-2">
+              <div className="flex flex-col gap-2">
+                {messagesToRender.map(
+                  ({ message, originalIndex }, filteredIndex) => {
+                    const isOutputMessage =
+                      originalIndex >= (inputMessageCount ?? 0);
+                    const side = isOutputMessage ? "output" : "input";
+                    const folded =
+                      foldsMiddle &&
+                      filteredIndex > 0 &&
+                      filteredIndex < foldEnd;
+                    // Folded messages do not mount (no parsing) until the row opens.
+                    if (folded && !othersOpen) return null;
+                    const chatMessage = (
+                      <ChatMessageController
+                        key={originalIndex}
+                        message={message}
+                        title={
+                          titleBySide[side]
+                            ? SIDE_TITLES[side]
+                            : getMessageTitle(message)
+                        }
+                        toolCallNumbers={messageToToolCallNumbers.get(
+                          originalIndex,
+                        )}
+                        isOutputMessage={isOutputMessage}
+                        contentMode={contentMode}
+                        defaultCollapsed={
+                          foldsMiddle
+                            ? folded
+                            : message.role !== "system" &&
+                              filteredIndex <
+                                messagesToRender.length - EXPANDED_TAIL_LENGTH
+                        }
+                        actions={
+                          filteredIndex === lastOutputIndex
+                            ? outputActions
+                            : undefined
+                        }
+                      >
+                        {function renderMessage({
+                          title,
+                          data,
+                          body,
+                          actions,
+                          isSystemPrompt,
+                          collapsed,
+                          setCollapsed,
+                          copy,
+                        }): React.ReactNode {
+                          if (
+                            data.kind === "collapsed" ||
+                            data.kind === "tools"
+                          ) {
+                            return (
+                              <div className="transition-colors">
+                                <IOSection
+                                  title={title}
+                                  onCopy={
+                                    data.kind === "tools" ? copy : undefined
+                                  }
+                                  actions={
+                                    actions.length > 0 ? actions : undefined
+                                  }
+                                  collapsed={collapsed}
+                                  onCollapsedChange={setCollapsed}
+                                  variant="text"
+                                >
+                                  {data.kind === "tools" && (
+                                    <ChatMessageContent
+                                      body={body}
+                                      renderToolResponse={(response) => (
+                                        <ChatMessageController
+                                          message={response}
+                                          title={getMessageTitle(response)}
+                                          contentMode={contentMode}
+                                        >
+                                          {renderMessage}
+                                        </ChatMessageController>
+                                      )}
+                                    />
+                                  )}
+                                </IOSection>
+                              </div>
+                            );
+                          }
+                          if (data.kind === "data") {
+                            return (
+                              <JsonViewController
+                                json={data.value}
+                                currentView="pretty"
+                              >
+                                {(state) => {
+                                  const kind = state.contentKind;
+                                  const sectionActions = [
+                                    ...(kind === "table" &&
+                                    state.hasExpandableRows
+                                      ? [
+                                          {
+                                            icon: state.allRowsExpanded
+                                              ? FoldVertical
+                                              : UnfoldVertical,
+                                            label: state.allRowsExpanded
+                                              ? "Collapse all rows"
+                                              : "Expand all rows",
+                                            onClick: state.toggleAllRows,
+                                          },
+                                        ]
+                                      : []),
+                                    ...actions,
+                                  ];
+                                  return (
+                                    <div className="transition-colors">
+                                      <IOSection
+                                        title={title}
+                                        onCopy={state.copy}
+                                        actions={
+                                          sectionActions.length > 0
+                                            ? sectionActions
+                                            : undefined
+                                        }
+                                        collapsed={collapsed}
+                                        onCollapsedChange={setCollapsed}
+                                        variant={
+                                          kind === "table" ? "table" : "text"
+                                        }
+                                      >
+                                        {!collapsed && (
+                                          <ChatMessageContent
+                                            body={body}
+                                            renderToolResponse={(response) => (
+                                              <ChatMessageController
+                                                message={response}
+                                                title={getMessageTitle(
+                                                  response,
+                                                )}
+                                                contentMode={contentMode}
+                                              >
+                                                {renderMessage}
+                                              </ChatMessageController>
+                                            )}
+                                          >
+                                            <PrettyJsonViewContent
+                                              state={state}
+                                              title={title}
+                                              borderless
+                                            />
+                                          </ChatMessageContent>
+                                        )}
+                                      </IOSection>
+                                    </div>
+                                  );
+                                }}
+                              </JsonViewController>
+                            );
+                          }
+                          if (data.kind === "message") {
+                            const markdownContent = canRenderContentAsMarkdown(
+                              data.content,
+                              characterLimit,
+                            ) && {
+                              content: data.content,
+                            };
+                            // Keep both paths mounted to preserve each view's state.
+                            return (
+                              <>
+                                {markdownContent && (
+                                  <MarkdownViewController
+                                    markdown={markdownContent.content}
+                                    audio={data.audio}
+                                  >
+                                    {(state) => (
+                                      <SystemPromptCollapseController
+                                        isSystemPrompt={isSystemPrompt}
+                                        text={state.textContent}
+                                        collapsed={collapsed}
+                                        setCollapsed={setCollapsed}
+                                      >
+                                        {({
+                                          collapsed: sectionCollapsed,
+                                          setCollapsed: setSectionCollapsed,
+                                        }) => (
+                                          <div
+                                            className="transition-colors"
+                                            hidden={!shouldRenderMarkdown}
+                                          >
+                                            <IOSection
+                                              key={forcedTheme ?? resolvedTheme}
+                                              title={title}
+                                              onCopy={state.copy}
+                                              actions={
+                                                actions.length > 0
+                                                  ? actions
+                                                  : undefined
+                                              }
+                                              collapsed={sectionCollapsed}
+                                              onCollapsedChange={
+                                                setSectionCollapsed
+                                              }
+                                              variant="text"
+                                            >
+                                              {!sectionCollapsed && (
+                                                <ChatMessageContent
+                                                  body={body}
+                                                  renderToolResponse={(
+                                                    response,
+                                                  ) => (
+                                                    <ChatMessageController
+                                                      message={response}
+                                                      title={getMessageTitle(
+                                                        response,
+                                                      )}
+                                                      contentMode={contentMode}
+                                                    >
+                                                      {renderMessage}
+                                                    </ChatMessageController>
+                                                  )}
+                                                >
+                                                  <MarkdownViewContent
+                                                    state={state}
+                                                  />
+                                                </ChatMessageContent>
+                                              )}
+                                            </IOSection>
+                                          </div>
+                                        )}
+                                      </SystemPromptCollapseController>
+                                    )}
+                                  </MarkdownViewController>
+                                )}
+                                {!markdownContent && (
+                                  <JsonViewController
+                                    json={
+                                      data.content ??
+                                      (data.audio
+                                        ? { audio: data.audio }
+                                        : null)
+                                    }
+                                    currentView="pretty"
+                                  >
+                                    {(state) => {
+                                      const kind = state.contentKind;
+                                      const sectionActions = [
+                                        ...(kind === "table" &&
+                                        state.hasExpandableRows
+                                          ? [
+                                              {
+                                                icon: state.allRowsExpanded
+                                                  ? FoldVertical
+                                                  : UnfoldVertical,
+                                                label: state.allRowsExpanded
+                                                  ? "Collapse all rows"
+                                                  : "Expand all rows",
+                                                onClick: state.toggleAllRows,
+                                              },
+                                            ]
+                                          : []),
+                                        ...actions,
+                                      ];
+                                      return (
+                                        <SystemPromptCollapseController
+                                          isSystemPrompt={
+                                            isSystemPrompt &&
+                                            kind === "markdown" &&
+                                            state
+                                              .standaloneMediaReferenceStrings
+                                              .length === 0
+                                          }
+                                          text={state.markdownContent ?? ""}
+                                          collapsed={collapsed}
+                                          setCollapsed={setCollapsed}
+                                        >
+                                          {({
+                                            collapsed: sectionCollapsed,
+                                            setCollapsed: setSectionCollapsed,
+                                          }) => (
+                                            <div
+                                              className="transition-colors"
+                                              hidden={!shouldRenderMarkdown}
+                                            >
+                                              <IOSection
+                                                title={title}
+                                                onCopy={state.copy}
+                                                actions={
+                                                  sectionActions.length > 0
+                                                    ? sectionActions
+                                                    : undefined
+                                                }
+                                                collapsed={sectionCollapsed}
+                                                onCollapsedChange={
+                                                  setSectionCollapsed
+                                                }
+                                                variant={
+                                                  kind === "table"
+                                                    ? "table"
+                                                    : "text"
+                                                }
+                                              >
+                                                {!sectionCollapsed && (
+                                                  <ChatMessageContent
+                                                    body={body}
+                                                    renderToolResponse={(
+                                                      response,
+                                                    ) => (
+                                                      <ChatMessageController
+                                                        message={response}
+                                                        title={getMessageTitle(
+                                                          response,
+                                                        )}
+                                                        contentMode={
+                                                          contentMode
+                                                        }
+                                                      >
+                                                        {renderMessage}
+                                                      </ChatMessageController>
+                                                    )}
+                                                  >
+                                                    <PrettyJsonViewContent
+                                                      state={state}
+                                                      title={title}
+                                                      borderless
+                                                    />
+                                                  </ChatMessageContent>
+                                                )}
+                                              </IOSection>
+                                            </div>
+                                          )}
+                                        </SystemPromptCollapseController>
+                                      );
+                                    }}
+                                  </JsonViewController>
+                                )}
+                                <JsonViewController
+                                  json={data.originalContent}
+                                  currentView="pretty"
+                                >
+                                  {(state) => {
+                                    const kind = state.contentKind;
+                                    const sectionActions = [
+                                      ...(kind === "table" &&
+                                      state.hasExpandableRows
+                                        ? [
+                                            {
+                                              icon: state.allRowsExpanded
+                                                ? FoldVertical
+                                                : UnfoldVertical,
+                                              label: state.allRowsExpanded
+                                                ? "Collapse all rows"
+                                                : "Expand all rows",
+                                              onClick: state.toggleAllRows,
+                                            },
+                                          ]
+                                        : []),
+                                      ...actions,
+                                    ];
+                                    return (
+                                      <SystemPromptCollapseController
+                                        isSystemPrompt={
+                                          isSystemPrompt &&
+                                          kind === "markdown" &&
+                                          state.standaloneMediaReferenceStrings
+                                            .length === 0
+                                        }
+                                        text={state.markdownContent ?? ""}
+                                        collapsed={collapsed}
+                                        setCollapsed={setCollapsed}
+                                      >
+                                        {({
+                                          collapsed: sectionCollapsed,
+                                          setCollapsed: setSectionCollapsed,
+                                        }) => (
+                                          <div
+                                            className="transition-colors"
+                                            hidden={shouldRenderMarkdown}
+                                          >
+                                            <IOSection
+                                              title={title}
+                                              onCopy={state.copy}
+                                              actions={
+                                                sectionActions.length > 0
+                                                  ? sectionActions
+                                                  : undefined
+                                              }
+                                              collapsed={sectionCollapsed}
+                                              onCollapsedChange={
+                                                setSectionCollapsed
+                                              }
+                                              variant={
+                                                kind === "table"
+                                                  ? "table"
+                                                  : "text"
+                                              }
+                                            >
+                                              {!sectionCollapsed && (
+                                                <ChatMessageContent
+                                                  body={body}
+                                                  renderToolResponse={(
+                                                    response,
+                                                  ) => (
+                                                    <ChatMessageController
+                                                      message={response}
+                                                      title={getMessageTitle(
+                                                        response,
+                                                      )}
+                                                      contentMode={contentMode}
+                                                    >
+                                                      {renderMessage}
+                                                    </ChatMessageController>
+                                                  )}
+                                                >
+                                                  <PrettyJsonViewContent
+                                                    state={state}
+                                                    title={title}
+                                                    borderless
+                                                  />
+                                                </ChatMessageContent>
+                                              )}
+                                            </IOSection>
+                                          </div>
+                                        )}
+                                      </SystemPromptCollapseController>
+                                    );
+                                  }}
+                                </JsonViewController>
+                              </>
+                            );
+                          }
+                          return assertUnreachable(data);
+                        }}
+                      </ChatMessageController>
+                    );
+                    if (foldsMiddle && filteredIndex === 0) {
+                      return (
+                        <Fragment key={originalIndex}>
+                          {chatMessage}
+                          <button
+                            type="button"
+                            className="io-message-header text-muted-foreground focus-visible:ring-ring flex h-8 w-full cursor-pointer items-center gap-2 rounded-sm text-left text-sm focus-visible:ring-2 focus-visible:outline-hidden"
+                            aria-expanded={othersOpen}
+                            aria-label={otherMessagesLabel}
+                            onClick={() => setOthersOpen((open) => !open)}
+                          >
+                            {otherMessagesLabel}
+                            <span className="-ml-1 flex shrink-0 translate-y-px">
+                              <HistoryCaret
+                                size="base"
+                                color="default"
+                                aria-hidden
+                              />
+                            </span>
+                          </button>
+                        </Fragment>
+                      );
+                    }
+                    return chatMessage;
+                  },
+                )}
+              </div>
+              {correctedOutputField}
+              {showData && additionalInputToShow && (
+                <JsonViewController
+                  json={additionalInputToShow}
+                  currentView={shouldRenderMarkdown ? "pretty" : "json"}
+                >
+                  {(state) => (
+                    <IOSection
+                      title="Additional Input"
+                      onCopy={state.copy}
+                      actions={
+                        state.contentKind === "table" && state.hasExpandableRows
+                          ? [
+                              {
+                                icon: state.allRowsExpanded
+                                  ? FoldVertical
+                                  : UnfoldVertical,
+                                label: state.allRowsExpanded
+                                  ? "Collapse all rows"
+                                  : "Expand all rows",
+                                onClick: state.toggleAllRows,
+                              },
+                            ]
+                          : undefined
+                      }
+                      variant={state.contentKind === "table" ? "table" : "text"}
+                    >
+                      <PrettyJsonViewContent
+                        state={state}
+                        title="Additional Input"
+                        borderless
+                      />
+                    </IOSection>
+                  )}
+                </JsonViewController>
+              )}
+              {remainingMedia.length > 0 && (
+                <IOSection title="Media" variant="media">
+                  <div className="flex flex-wrap gap-2">
+                    {remainingMedia.map((media) => (
+                      <LangfuseMediaView
+                        mediaAPIReturnValue={media}
+                        variant={
+                          media.contentType.startsWith("image")
+                            ? "inline"
+                            : "icon"
+                        }
+                        key={media.mediaId}
+                      />
+                    ))}
+                  </div>
+                </IOSection>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : showData ? (
+        <div>
+          <JsonInputOutputView
+            {...jsonViewProps}
+            outputActions={outputActions}
+          />
+          {correctedOutputField}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Captures the normalization result for each displayed record. */
+function useIOParserComparisonCapture({
+  input,
+  output,
+  chatMLParserResult,
+  isLoading,
+  isParsing,
+  observationId,
+  traceId,
+  shouldRenderMessages,
+}: Pick<
+  IOPreviewPrettyProps,
+  | "input"
+  | "output"
+  | "chatMLParserResult"
+  | "isLoading"
+  | "isParsing"
+  | "observationId"
+  | "traceId"
+> & { shouldRenderMessages: boolean }) {
+  const capture = usePostHogClientCapture();
+  const capturedNormalizationRecord = useRef<string | undefined>(undefined);
+
+  /** Empty payloads are excluded from the normalization success metric. */
+  const hasPayloadToNormalize =
+    (input !== null && input !== undefined) ||
+    (output !== null && output !== undefined);
+
+  useEffect(() => {
+    if (
+      chatMLParserResult !== undefined ||
+      !hasPayloadToNormalize ||
+      isLoading ||
+      isParsing
+    ) {
+      return;
+    }
+
+    const recordKey = `${observationId ? "observation" : "trace"}:${observationId ?? traceId}`;
+    if (capturedNormalizationRecord.current === recordKey) return;
+
+    capturedNormalizationRecord.current = recordKey;
+    capture("trace_detail:io_parser_comparison", {
+      isNormalizedSuccess: shouldRenderMessages,
+    });
+  }, [
+    capture,
+    chatMLParserResult,
+    hasPayloadToNormalize,
+    isLoading,
+    isParsing,
+    observationId,
+    shouldRenderMessages,
+    traceId,
+  ]);
+}

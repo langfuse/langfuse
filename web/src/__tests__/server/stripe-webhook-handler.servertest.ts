@@ -1,9 +1,29 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { v4 } from "uuid";
 import type Stripe from "stripe";
+import type * as SharedServer from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import { handleSubscriptionChanged } from "@/src/ee/features/billing/server/stripeWebhookHandler";
+import { handleSubscriptionChanged } from "@/src/ee/features/billing/server/stripe/stripeWebhookHandler";
 import { env } from "@/src/env.mjs";
+
+const mocks = vi.hoisted(() => ({
+  traceException: vi.fn(),
+  listCheckoutSessions: vi.fn(),
+}));
+
+// traceException is what marks the webhook span as an error in APM, so it is
+// the assertion target for "does this miss deserve a human's attention?".
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof SharedServer>()),
+  traceException: mocks.traceException,
+}));
+
+vi.mock("@/src/ee/features/billing/utils/stripe", () => ({
+  stripeClient: {
+    checkout: { sessions: { list: mocks.listCheckoutSessions } },
+    subscriptions: { update: vi.fn(), retrieve: vi.fn() },
+  },
+}));
 
 const buildSubscription = (args: {
   orgId: string;
@@ -102,4 +122,42 @@ describe("stripeWebhookHandler.handleSubscriptionChanged", () => {
       expect(updated.cloudFreeTierUsageThresholdState).toBe("BLOCKED");
     },
   );
+});
+
+describe("stripeWebhookHandler org lookup miss severity", () => {
+  beforeEach(() => {
+    mocks.traceException.mockClear();
+    // No checkout session, which is the shape a subscription created in the
+    // Stripe dashboard rather than through our pricing page leaves behind.
+    mocks.listCheckoutSessions.mockReset();
+    mocks.listCheckoutSessions.mockResolvedValue({ data: [] });
+  });
+
+  it("does not mark the span as an error when the subscription carries no region marker", async () => {
+    const subscription = buildSubscription({ orgId: v4() });
+    subscription.metadata = {};
+
+    await handleSubscriptionChanged(subscription, "updated");
+
+    expect(mocks.traceException).not.toHaveBeenCalled();
+  });
+
+  it("does not mark the span as an error when the org row is already gone on subscription.deleted", async () => {
+    // Metadata names this region, but the org row is gone: organization
+    // deletion cancels the subscription and then deletes the row, so Stripe
+    // delivers customer.subscription.deleted after the row is already gone.
+    const subscription = buildSubscription({ orgId: v4() });
+
+    await handleSubscriptionChanged(subscription, "deleted");
+
+    expect(mocks.traceException).not.toHaveBeenCalled();
+  });
+
+  it("marks the span as an error once when the owning region cannot resolve the org on subscription.updated", async () => {
+    const subscription = buildSubscription({ orgId: v4() });
+
+    await handleSubscriptionChanged(subscription, "updated");
+
+    expect(mocks.traceException).toHaveBeenCalledTimes(1);
+  });
 });

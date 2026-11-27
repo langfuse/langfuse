@@ -1,0 +1,180 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  queryClickhouse,
+  queryClickhouseStream,
+} from "../repositories/clickhouse";
+import { loadTopicTranscript } from "./trace-input";
+
+vi.mock("../repositories/clickhouse", () => ({
+  queryClickhouse: vi.fn(),
+  queryClickhouseStream: vi.fn(),
+}));
+
+const row = {
+  project_id: "project",
+  trace_id: "trace",
+  session_id: "session",
+  environment: "production",
+  trace_name: "Billing requests",
+  span_id: "span",
+  parent_span_id: null as string | null,
+  is_app_root: false,
+  start_time: "2026-09-15 10:00:00.000",
+  end_time: "2026-09-15 10:00:01.250" as string | null,
+  type: "GENERATION",
+  name: "chat",
+  level: "DEFAULT",
+  status_message: null as string | null,
+  input: JSON.stringify([
+    { role: "user", content: "Please cancel my subscription." },
+  ]),
+  output: JSON.stringify({
+    role: "assistant",
+    content: "Your subscription was cancelled.",
+  }),
+  metadata: {},
+};
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(queryClickhouse).mockResolvedValue([
+    {
+      count: "3",
+      minStart: String(Date.parse("2026-09-15T09:00:00.000Z")),
+      maxStart: String(Date.parse("2026-09-15T10:00:00.000Z")),
+    },
+  ]);
+});
+
+function loadRows(...rows: Partial<typeof row>[]) {
+  vi.mocked(queryClickhouseStream).mockImplementationOnce(async function* () {
+    for (const overrides of rows) yield { ...row, ...overrides };
+  });
+  return loadTopicTranscript({ projectId: "project", traceId: "trace" });
+}
+
+describe("Topics transcript input", () => {
+  it.each(["2026-09-15 10:00:01.250", null])(
+    "loads project-scoped I/O with end time %s",
+    async (endTime) => {
+      const result = await loadRows(
+        {
+          span_id: "wrapper",
+          type: "SPAN",
+          session_id: "",
+          environment: "",
+          trace_name: "",
+        },
+        {
+          span_id: "current",
+          end_time: endTime,
+          parent_span_id: "wrapper",
+          session_id: "current-session",
+          trace_name: "Current trace",
+        },
+        {
+          span_id: "older",
+          type: "SPAN",
+          session_id: "previous-session",
+          environment: "staging",
+          trace_name: "Old trace",
+          start_time: "2026-09-15 09:00:00.000",
+        },
+      );
+      const request = vi.mocked(queryClickhouseStream).mock.calls[0][0];
+      expect(request.query).toContain("events_full");
+      expect(request.query.split("FROM")[0]).toContain("e.end_time");
+      expect(request.query).toContain("LIMIT 1 BY e.span_id, e.project_id");
+      expect(request.query).toContain("e.event_ts DESC");
+      expect(request.query).not.toContain("leftUTF8");
+      expect(request.query).not.toContain("FINAL");
+      expect(request.query).toContain("e.start_time >= {from: DateTime64(3)}");
+      expect(request.query).toContain("e.start_time < {to: DateTime64(3)}");
+      expect(request.params).toMatchObject({
+        projectId: "project",
+        traceId: "trace",
+        from: "2026-09-15 09:00:00.000",
+        to: "2026-09-15 10:00:00.001",
+      });
+      const json = JSON.stringify(result.transcript);
+      expect(json).toContain("Please cancel my subscription.");
+      expect(json).toContain("Your subscription was cancelled.");
+      expect(result.transcript?.threads[0].currentTurn.observations).toEqual([
+        { id: "current", traceId: "trace" },
+      ]);
+      expect(result.transcript?.threads[0].currentTurn.nestingLevel).toBe(1);
+      for (const message of result.transcript!.threads[0].currentTurn
+        .messages) {
+        expect(message.startTime).toEqual(new Date("2026-09-15T10:00:00.000Z"));
+        expect(message.endTime).toEqual(
+          endTime === null ? null : new Date("2026-09-15T10:00:01.250Z"),
+        );
+      }
+    },
+  );
+
+  it("bounds source discovery from an hour before a known trace timestamp", async () => {
+    vi.mocked(queryClickhouseStream).mockImplementationOnce(async function* () {
+      yield row;
+    });
+    await loadTopicTranscript({
+      projectId: "project",
+      traceId: "trace",
+      timestamp: new Date("2026-09-15T10:00:00.000Z"),
+    });
+    const bounds = vi.mocked(queryClickhouse).mock.calls[0][0];
+    expect(bounds.query).toContain(
+      "e.start_time >= {fromTimestamp: DateTime64(3)}",
+    );
+    expect(bounds.params).toMatchObject({
+      fromTimestamp: "2026-09-15 09:00:00.000",
+    });
+  });
+
+  it("returns the execution issues of the loaded observations", async () => {
+    const result = await loadRows(
+      { span_id: "chat" },
+      {
+        span_id: "bash",
+        type: "TOOL",
+        name: "bash",
+        level: "ERROR",
+        status_message: "exit code 1",
+        input: "",
+        output: "",
+      },
+    );
+    expect(result.executionIssues).toMatchObject([
+      { observationId: "bash", level: "ERROR", statusMessage: "exit code 1" },
+    ]);
+  });
+
+  it("rejects foreign, missing, duplicate and oversized source snapshots", async () => {
+    for (const scope of [{ project_id: "other" }, { trace_id: "other" }])
+      await expect(loadRows(scope)).rejects.toThrow("scope mismatch");
+    await expect(loadRows()).rejects.toThrow("Trace not found");
+    await expect(loadRows({}, {})).rejects.toThrow("duplicate observation IDs");
+    await expect(
+      loadRows({ output: "x".repeat(10 * 1024 * 1024) }),
+    ).rejects.toThrow("limit");
+    await expect(
+      loadRows(
+        ...Array.from({ length: 2_001 }, (_, i) => ({ span_id: String(i) })),
+      ),
+    ).rejects.toThrow("limit");
+  });
+
+  it("keeps the full transcript with stable equal-time ordering", async () => {
+    const rows = [0, 1, 2].map((index) => ({
+      span_id: `generation-${index}`,
+      input: JSON.stringify([{ role: "user", content: `Request ${index}` }]),
+      output: "response".repeat(4_000),
+    }));
+    const result = await loadRows(...rows);
+    expect(result.transcript?.truncated).toBeFalsy();
+    expect(JSON.stringify(result.transcript).length).toBeGreaterThan(96_000);
+    expect((await loadRows(...rows.reverse())).transcript).toEqual(
+      result.transcript,
+    );
+  });
+});

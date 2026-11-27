@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MediaAssociationOrigin } from "@langfuse/shared";
 import type { EventRecordInsertType } from "@langfuse/shared/src/server";
 
 const mocks = vi.hoisted(() => {
@@ -118,6 +119,7 @@ describe("applyObservationFieldOverflow", () => {
       expect.objectContaining({
         field: "output",
         contentBytes: Buffer.from(output),
+        origin: MediaAssociationOrigin.INGESTION_FIELD_OVERFLOW,
       }),
     );
     expect(mocks.recordIncrement).toHaveBeenCalledTimes(3);

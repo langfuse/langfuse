@@ -1,5 +1,8 @@
 import { useMemo } from "react";
-import { DatasetItemField } from "./DatasetItemField";
+import {
+  DatasetItemField,
+  type DatasetItemRenderMode,
+} from "./DatasetItemField";
 import {
   DatasetItemFormMediaAttachments,
   DatasetItemSavedMediaAttachments,
@@ -26,6 +29,7 @@ type DatasetItemFieldsProps = {
   values?: DatasetItemFormValues;
   dataset: DatasetSchema | null;
   editable: boolean;
+  renderMode?: DatasetItemRenderMode;
   projectId: string;
   // Present in view mode; selects the saved (table-backed) attachment section.
   datasetItemId?: string;
@@ -48,6 +52,32 @@ type DatasetItemFieldsProps = {
 };
 
 /**
+ * Subscribes to the live field values via `useWatch` so only this attachment
+ * section re-renders as the user types — not the editors above it. Keeping the
+ * subscription here (rather than in the form parent) is what lets the parent
+ * avoid threading watched values through the whole field tree.
+ */
+const FormModeMediaAttachments = ({
+  control,
+  pendingUploads,
+}: {
+  control: Control<DatasetItemFormValues, unknown, DatasetItemFormValues>;
+  pendingUploads?: PendingMediaUpload[];
+}) => {
+  const [input, expectedOutput, metadata] = useWatch({
+    control,
+    name: ["input", "expectedOutput", "metadata"],
+  });
+
+  return (
+    <DatasetItemFormMediaAttachments
+      jsonStrings={[input, expectedOutput, metadata]}
+      pendingUploads={pendingUploads}
+    />
+  );
+};
+
+/**
  * Container component for dataset item fields (Input, Expected Output, Metadata).
  * Handles validation and error display for all fields.
  *
@@ -59,6 +89,7 @@ export const DatasetItemFields = ({
   values,
   dataset,
   editable,
+  renderMode,
   projectId,
   datasetItemId,
   datasetItemValidFrom,
@@ -134,6 +165,7 @@ export const DatasetItemFields = ({
             schema={dataset?.inputSchema}
             schemaType="input"
             editable={false}
+            renderMode={renderMode}
             errors={inputErrors}
             hasSchemas={validation.hasSchemas}
           />
@@ -174,6 +206,7 @@ export const DatasetItemFields = ({
             schema={dataset?.expectedOutputSchema}
             schemaType="expectedOutput"
             editable={false}
+            renderMode={renderMode}
             errors={expectedOutputErrors}
             hasSchemas={validation.hasSchemas}
           />
@@ -208,47 +241,23 @@ export const DatasetItemFields = ({
           label="Metadata"
           value={metadataValue}
           editable={false}
+          renderMode={renderMode}
         />
       )}
 
-      {isFormMode && control ? (
+      {isFormMode && control && (
         <FormModeMediaAttachments
           control={control}
           pendingUploads={pendingUploads}
         />
-      ) : datasetItemId ? (
+      )}
+      {!isFormMode && datasetItemId && (
         <DatasetItemSavedMediaAttachments
           projectId={projectId}
           datasetItemId={datasetItemId}
           datasetItemValidFrom={datasetItemValidFrom}
         />
-      ) : null}
+      )}
     </div>
-  );
-};
-
-/**
- * Subscribes to the live field values via `useWatch` so only this attachment
- * section re-renders as the user types — not the editors above it. Keeping the
- * subscription here (rather than in the form parent) is what lets the parent
- * avoid threading watched values through the whole field tree.
- */
-const FormModeMediaAttachments = ({
-  control,
-  pendingUploads,
-}: {
-  control: Control<DatasetItemFormValues, unknown, DatasetItemFormValues>;
-  pendingUploads?: PendingMediaUpload[];
-}) => {
-  const [input, expectedOutput, metadata] = useWatch({
-    control,
-    name: ["input", "expectedOutput", "metadata"],
-  });
-
-  return (
-    <DatasetItemFormMediaAttachments
-      jsonStrings={[input, expectedOutput, metadata]}
-      pendingUploads={pendingUploads}
-    />
   );
 };

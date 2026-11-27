@@ -1,9 +1,10 @@
 import { createNextApiHandler } from "@trpc/server/adapters/next";
+import { getActiveTraceId, getCurrentSpan } from "@langfuse/shared/src/server";
 import { createTRPCContext } from "@/src/server/api/trpc";
 import { appRouter } from "@/src/server/api/root";
+import { buildTrpcCorrelationHeaders } from "@/src/server/utils/trpcCorrelationHeaders";
 import { env } from "@/src/env.mjs";
-import { logger, traceException } from "@langfuse/shared/src/server";
-import { getTRPCErrorReporting } from "@/src/server/utils/trpc-utils";
+import { reportTRPCError } from "@/src/server/utils/trpc-utils";
 
 export const config = {
   maxDuration: 240,
@@ -18,37 +19,24 @@ export const config = {
 export default createNextApiHandler({
   router: appRouter,
   createContext: createTRPCContext,
-  // Allow queries to be sent as POST. The client only does this for the
-  // `*.batchIO` I/O queries, whose per-row payload would otherwise inflate the
-  // GET URL and trip HTTP 431 (queries opt in via the `sendAsPost` context flag;
-  // see `sendAsPostOption` in src/utils/api.ts). This flag is handler-wide (tRPC
-  // has no per-procedure option), but it only widens the accepted method for
-  // queries (read-only); mutations remain POST-only, so the GET-mutation
-  // protection is unchanged.
+  // Allow queries to be sent as POST. The client does this for `*.batchIO`
+  // I/O queries (opt-in via `sendAsPostOption`) and for any query whose
+  // serialized GET URL would exceed `MAX_TRPC_GET_URL_BYTES` (wide filters,
+  // per-row id lists). This flag is handler-wide (tRPC has no per-procedure
+  // option), but it only widens the accepted method for queries (read-only);
+  // mutations remain POST-only, so the GET-mutation protection is unchanged.
   allowMethodOverride: true,
-  onError: ({ path, error }) => {
-    const { logLevel, shouldTrace } = getTRPCErrorReporting(error);
-    const message = `tRPC route failed on ${path ?? "<no-path>"}: ${error.message}`;
-
-    if (logLevel === "error") {
-      logger.error(message, error);
-    } else if (logLevel === "warn") {
-      logger.warn(message, error);
-    } else {
-      logger.info(message, error);
-    }
-
-    if (shouldTrace) {
-      traceException(error);
-    }
-
-    return error;
-  },
-  responseMeta() {
+  onError: reportTRPCError,
+  // Once per HTTP response, so a batch and a single call share one id pair.
+  // Gateway 502/504 pages never reach this handler and simply omit the headers.
+  responseMeta({ ctx }) {
     return {
-      headers: {
-        "x-build-id": env.NEXT_PUBLIC_BUILD_ID,
-      },
+      headers: buildTrpcCorrelationHeaders({
+        buildId: env.NEXT_PUBLIC_BUILD_ID,
+        incomingRequestId: ctx?.headers?.["x-request-id"],
+        traceId: getActiveTraceId(),
+        span: getCurrentSpan(),
+      }),
     };
   },
   // as `any` workaround for Next.js 15.5+ compatibility with tRPC, probably fixed in Next.js 15.6+

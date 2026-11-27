@@ -1,0 +1,17 @@
+/* IBM Plex Mono, mirroring web/src/styles/fonts.ts (next/font/local). The app
+   exposes it as var(--font-plex-mono); globals.css falls back to the literal
+   "IBM Plex Mono" family, which these faces satisfy outside Next. */
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../../web/public/fonts/IBMPlexMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../../web/public/fonts/IBMPlexMono-Bold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}

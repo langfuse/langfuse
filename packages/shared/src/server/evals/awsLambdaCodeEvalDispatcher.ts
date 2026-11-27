@@ -4,7 +4,6 @@ import {
   type InvokeCommandInput,
 } from "@aws-sdk/client-lambda";
 import { SpanKind, type AttributeValue, type Span } from "@opentelemetry/api";
-import { z } from "zod";
 import {
   instrumentAsync,
   recordDistribution,
@@ -14,10 +13,13 @@ import { logger } from "../logger";
 import {
   assertDispatchInputWithinLimits,
   assertDispatchResultWithinByteLimit,
+  CODE_EVAL_USER_ERROR_CODES,
   CodeEvalDispatcherError,
   CodeEvalDispatcherErrorCode,
   CodeEvalDispatcherErrorCodes,
+  parseCodeEvalUserCodeError,
   parseDispatchResult,
+  type CodeEvalUserCodeError,
   type CodeEvalDispatcher,
   type CodeEvalRuntimeLanguage,
   type DispatchInput,
@@ -41,20 +43,8 @@ type CodeEvalDispatcherErrorClassification = {
 // this is only consulted if a future runner surfaces one of them via the
 // user-code-error envelope.
 const RETRYABLE_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
-  CodeEvalDispatcherErrorCodes.TIMEOUT,
   CodeEvalDispatcherErrorCodes.LAMBDA_CONCURRENCY_LIMIT,
   CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
-]);
-
-// Skipped from warn-level logging so routine user failures don't drown out
-// infrastructure issues in Datadog.
-const USER_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
-  CodeEvalDispatcherErrorCodes.INVALID_RESULT,
-  CodeEvalDispatcherErrorCodes.INVALID_SOURCE,
-  CodeEvalDispatcherErrorCodes.PAYLOAD_TOO_LARGE,
-  CodeEvalDispatcherErrorCodes.RESULT_TOO_LARGE,
-  CodeEvalDispatcherErrorCodes.SOURCE_TOO_LARGE,
-  CodeEvalDispatcherErrorCodes.USER_CODE_ERROR,
 ]);
 
 const AWS_ERROR_CLASSIFICATION_BY_NAME: Record<
@@ -102,26 +92,6 @@ const AWS_ERROR_CLASSIFICATION_BY_CODE: Record<
     retryable: true,
   },
 };
-
-// `.strict()` ensures a runner that returns a valid dispatch result alongside
-// an `error` field (e.g. `{ scores: [...], error: { code, message } }`) cannot
-// match here — defense in depth for the user-code envelope.
-const UserCodeErrorFieldsSchema = z
-  .object({
-    code: CodeEvalDispatcherErrorCode,
-    message: z.string(),
-  })
-  .strict();
-
-const UserCodeErrorSchema = z.union([
-  z
-    .object({ error: UserCodeErrorFieldsSchema })
-    .strict()
-    .transform(({ error }) => error),
-  UserCodeErrorFieldsSchema,
-]);
-
-type UserCodeError = z.infer<typeof UserCodeErrorSchema>;
 
 // Process-singleton client so the AWS SDK's Keep-Alive connection pool is
 // reused across all dispatcher instances. In practice the process sees one
@@ -187,6 +157,7 @@ export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
             "langfuse.code_eval.dispatch_duration",
             Date.now() - startTime,
             {
+              dispatcher: this.name,
               project_id: input.scope.projectId,
               language: input.runtime.language,
               unit: "milliseconds",
@@ -311,7 +282,7 @@ function logDispatcherError(params: {
   functionName: string;
   error: CodeEvalDispatcherError;
 }): void {
-  if (USER_ERROR_CODES.has(params.error.code)) return;
+  if (CODE_EVAL_USER_ERROR_CODES.has(params.error.code)) return;
 
   logger.warn(
     `Code eval Lambda ${params.functionName} dispatcher failed: ${params.error.message}`,
@@ -402,7 +373,7 @@ function classifyLambdaFunctionError(params: {
   const errorPayload = parseLambdaErrorPayload(params.payload);
 
   // Our runners emit `{ error: { code, message } }` on user-code failures.
-  const userCodeError = parseUserCodeError(errorPayload);
+  const userCodeError = parseCodeEvalUserCodeError(errorPayload);
   if (userCodeError) {
     return createCodeEvalDispatcherErrorFromUserCodeError(userCodeError);
   }
@@ -421,15 +392,31 @@ function classifyLambdaFunctionError(params: {
   if (
     errorType === "Function.TimedOut" ||
     errorType === "Sandbox.Timedout" ||
-    (errorMessage && isTimeoutErrorMessage(errorMessage))
+    (errorMessage && isTimeoutErrorMessage(errorMessage)) ||
+    (errorType === "Runtime.ExitError" &&
+      errorMessage !== null &&
+      /runtime exited without providing a reason/i.test(errorMessage))
   ) {
     return new CodeEvalDispatcherError(
       composedMessage || "Lambda task timed out",
-      { code: CodeEvalDispatcherErrorCodes.TIMEOUT, retryable: true },
+      { code: CodeEvalDispatcherErrorCodes.TIMEOUT, retryable: false },
     );
   }
 
-  // Abnormal runtime exit (OOM kill, segfault, process.exit, SIGKILL).
+  const isOutOfMemoryError =
+    errorType === "Runtime.OutOfMemory" ||
+    (errorType === "Runtime.ExitError" &&
+      errorMessage !== null &&
+      /signal:\s*killed/i.test(errorMessage));
+
+  if (isOutOfMemoryError) {
+    return new CodeEvalDispatcherError(
+      composedMessage || "Evaluator exceeded the available memory",
+      { code: CodeEvalDispatcherErrorCodes.OUT_OF_MEMORY, retryable: false },
+    );
+  }
+
+  // Other abnormal runtime exits (segfault, process.exit, SIGKILL).
   // Retrying never recovers from these.
   if (errorType === "Runtime.ExitError") {
     return new CodeEvalDispatcherError(
@@ -462,7 +449,7 @@ function classifyLambdaFunctionError(params: {
 }
 
 function createCodeEvalDispatcherErrorFromUserCodeError(
-  userCodeError: UserCodeError,
+  userCodeError: CodeEvalUserCodeError,
 ): CodeEvalDispatcherError {
   return new CodeEvalDispatcherError(userCodeError.message, {
     code: userCodeError.code,
@@ -516,16 +503,12 @@ function parseLambdaResponsePayload(params: {
   try {
     return parseDispatchResult(parsed);
   } catch (dispatchError) {
-    const userCodeError = parseUserCodeError(parsed);
+    const userCodeError = parseCodeEvalUserCodeError(parsed);
     if (userCodeError) {
       throw createCodeEvalDispatcherErrorFromUserCodeError(userCodeError);
     }
     throw dispatchError;
   }
-}
-
-function parseUserCodeError(payload: unknown): UserCodeError | null {
-  return UserCodeErrorSchema.safeParse(payload).data ?? null;
 }
 
 function parseLambdaErrorPayload(payload: Uint8Array | undefined): unknown {

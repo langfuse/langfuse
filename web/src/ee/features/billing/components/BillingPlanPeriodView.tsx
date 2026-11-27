@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { formatLocalIsoDate } from "@/src/components/LocalIsoDate";
+import { formatLocalIsoDate } from "@/src/utils/dates";
 import { BillingCurrentPlanLabel } from "./BillingCurrentPlanLabel";
 
 export const BillingPlanPeriodView = () => {
@@ -17,11 +17,9 @@ export const BillingPlanPeriodView = () => {
       <BillingCurrentPlanLabel />
       <p>
         Billing period:{" "}
-        {!isLoading && data?.billingPeriod && (
-          <>
-            {`${formatLocalIsoDate(data.billingPeriod.start, false, "day")} - ${formatLocalIsoDate(data.billingPeriod.end, false, "day")}`}
-          </>
-        )}
+        {!isLoading &&
+          data?.billingPeriod &&
+          `${formatLocalIsoDate(data.billingPeriod.start, false, "day")} - ${formatLocalIsoDate(data.billingPeriod.end, false, "day")}`}
       </p>
     </div>
   );

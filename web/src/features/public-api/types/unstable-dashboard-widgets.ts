@@ -4,7 +4,7 @@ import {
   DashboardWidgetChartType,
   DimensionSchema,
   MetricSchema,
-  singleFilter,
+  singleFilterList,
 } from "@langfuse/shared";
 import { metricAggregations } from "@langfuse/shared/query";
 
@@ -15,7 +15,7 @@ export const PostUnstableDashboardWidgetView = z.enum([
   "scores-categorical",
 ]);
 
-export const DashboardWidgetViewOutput = z.enum([
+const DashboardWidgetViewOutput = z.enum([
   "observations",
   "scores-numeric",
   "scores-boolean",
@@ -47,7 +47,7 @@ const UnstableDashboardWidgetBody = z.object({
   view: PostUnstableDashboardWidgetView,
   dimensions: z.array(DashboardWidgetDimensionSchema),
   metrics: z.array(DashboardWidgetMetricSchema).min(1),
-  filters: z.array(singleFilter),
+  filters: singleFilterList,
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: DashboardWidgetChartConfigInput.optional(),
 });
@@ -57,7 +57,7 @@ export const PostUnstableDashboardWidgetBody =
     description: z.string().default(""),
   });
 
-export const PublicDashboardWidget = z
+const PublicDashboardWidget = z
   .object({
     id: z.string(),
     createdAt: z.coerce.date(),
@@ -67,7 +67,7 @@ export const PublicDashboardWidget = z
     view: DashboardWidgetViewOutput,
     dimensions: z.array(DashboardWidgetDimensionSchema),
     metrics: z.array(DashboardWidgetMetricSchema),
-    filters: z.array(singleFilter),
+    filters: singleFilterList,
     chartType: z.enum(DashboardWidgetChartType),
     chartConfig: ChartConfigSchema,
   })

@@ -8,18 +8,25 @@
   },
   "scripts": {
     "build": "tsc",
-    "build:docker-image": "docker build . -t langfuse-in-app-agent-sandbox:latest && touch .local-image-built",
+    "build:test": "tsc",
+    "build:docker-image": "tsc && docker build . -t langfuse-in-app-agent-sandbox:latest && touch .local-image-built",
     "start": "node ./dist/server.js",
-    "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "test": "vitest run src",
+    "test:e2e": "pnpm run build && docker build . -t langfuse-in-app-agent-sandbox:e2e && vitest run tests",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check ."
   },
   "dependencies": {
-    "zod": "^4.3.6"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
+    "@types/dockerode": "^4.0.1",
     "@types/node": "^24.3.0",
-    "prettier": "^3.8.3",
-    "typescript": "^5.7.2"
+    "dockerode": "^5.0.1",
+    "oxfmt": "^0.78.0",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.12"
   }
 }

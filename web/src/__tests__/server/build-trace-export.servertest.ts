@@ -14,7 +14,7 @@ const {
   mockGetScoresAndCorrectionsForTraces,
   mockTraceSessionFindFirst,
   mockProjectFindFirst,
-  mockSendAdminAccessWebhook,
+  mockProjectFindUnique,
 } = vi.hoisted(() => ({
   mockGetTraceByIdFromEventsTable: vi.fn(),
   mockGetObservationsCountFromEventsTable: vi.fn(),
@@ -22,7 +22,7 @@ const {
   mockGetScoresAndCorrectionsForTraces: vi.fn(),
   mockTraceSessionFindFirst: vi.fn(),
   mockProjectFindFirst: vi.fn(),
-  mockSendAdminAccessWebhook: vi.fn(),
+  mockProjectFindUnique: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/src/server", async () => ({
@@ -44,13 +44,9 @@ vi.mock("@langfuse/shared/src/db", () => ({
     },
     project: {
       findFirst: (...args: unknown[]) => mockProjectFindFirst(...args),
+      findUnique: (...args: unknown[]) => mockProjectFindUnique(...args),
     },
   },
-}));
-
-vi.mock("../../server/adminAccessWebhook", () => ({
-  sendAdminAccessWebhook: (...args: unknown[]) =>
-    mockSendAdminAccessWebhook(...args),
 }));
 
 const projectId = "project-1";
@@ -61,14 +57,13 @@ const observationStartTimeFilter = new Date(
 );
 
 const makeSession = (overrides?: {
-  admin?: boolean;
   projects?: Array<{ id: string }>;
 }): TraceExportSession => ({
   user: {
     email: "test@example.com",
-    admin: overrides?.admin ?? false,
     organizations: [
       {
+        id: "org-1",
         projects: overrides?.projects ?? [{ id: projectId }],
       },
     ],
@@ -179,6 +174,9 @@ describe("buildTraceExport", () => {
     mockGetScoresAndCorrectionsForTraces.mockResolvedValue([makeScore()]);
     mockTraceSessionFindFirst.mockResolvedValue(null);
     mockProjectFindFirst.mockResolvedValue({ orgId: "org-1" });
+    mockProjectFindUnique.mockResolvedValue({
+      organization: { publicSharingDisabled: false },
+    });
   });
 
   afterAll(() => {
@@ -413,6 +411,23 @@ describe("buildTraceExport", () => {
     });
   });
 
+  it("denies unauthenticated access to public traces while the org has disabled public sharing", async () => {
+    mockGetTraceByIdFromEventsTable.mockResolvedValue(
+      makeTrace({ public: true }),
+    );
+    mockProjectFindUnique.mockResolvedValue({
+      organization: { publicSharingDisabled: true },
+    });
+
+    await expect(
+      buildTraceExport({
+        traceId,
+        projectId,
+        session: null,
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
   it("allows unauthenticated access to traces in public sessions", async () => {
     mockGetTraceByIdFromEventsTable.mockResolvedValue(
       makeTrace({ public: false, sessionId: "trace-session-1" }),
@@ -447,19 +462,5 @@ describe("buildTraceExport", () => {
         session: null,
       }),
     ).rejects.toBeInstanceOf(UnauthorizedError);
-  });
-
-  it("notifies on admin access", async () => {
-    await buildTraceExport({
-      traceId,
-      projectId,
-      session: makeSession({ admin: true, projects: [] }),
-    });
-
-    expect(mockSendAdminAccessWebhook).toHaveBeenCalledWith({
-      email: "test@example.com",
-      projectId,
-      orgId: "org-1",
-    });
   });
 });

@@ -1,4 +1,7 @@
-import { getObservationsV2FromEventsTableForPublicApi } from "@langfuse/shared/src/server";
+import {
+  getObservationsV2FromEventsTableForPublicApi,
+  getObservationsV2PageFromEventsTableForPublicApi,
+} from "@langfuse/shared/src/server";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
@@ -10,13 +13,22 @@ import {
   GetObservationsV2Response,
   encodeCursor,
 } from "@/src/features/public-api/types/observations";
-
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { observationRefs } from "@/src/features/audit-logs/server/auditedQuery";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Observations V2",
+    action: "traces:read",
     allowInAppAgentKey: true,
     querySchema: GetObservationsV2Query,
     responseSchema: GetObservationsV2Response,
+    audit: {
+      route: "GET /api/public/v2/observations",
+      resourceType: "observation",
+      action: "list",
+      refs: (response) => observationRefs(response.data),
+      resultCount: (response) => response.data.length,
+    },
     fn: async ({ query, auth }) => {
       if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
         throw new LangfuseNotFoundError(
@@ -27,6 +39,31 @@ export default withMiddlewares({
       // Extract field groups and metadata expansion keys
       const fieldGroups = query.fields ?? undefined;
       const expandMetadataKeys = query.expandMetadata ?? undefined;
+      const dataAccessWindow = clampToDataAccessDays({
+        plan: auth.scope.plan,
+        fromTimestamp: query.fromStartTime ?? undefined,
+      });
+      const advancedFilters = dataAccessWindow.accessFloor
+        ? [
+            ...(query.filter ?? []),
+            {
+              column: "startTime",
+              operator: ">=" as const,
+              value: dataAccessWindow.effectiveFromTimestamp!,
+              type: "datetime" as const,
+            },
+            ...(query.toStartTime
+              ? [
+                  {
+                    column: "startTime",
+                    operator: "<" as const,
+                    value: new Date(query.toStartTime),
+                    type: "datetime" as const,
+                  },
+                ]
+              : []),
+          ]
+        : query.filter;
 
       const filterProps = {
         projectId: auth.scope.projectId,
@@ -41,27 +78,21 @@ export default withMiddlewares({
         environment: query.environment ?? undefined,
         parentObservationId: query.parentObservationId ?? undefined,
         isRootObservation: query.isRootObservation,
-        fromStartTime: query.fromStartTime ?? undefined,
+        fromStartTime: dataAccessWindow.effectiveFromTimestamp?.toISOString(),
         toStartTime: query.toStartTime ?? undefined,
         version: query.version ?? undefined,
-        advancedFilters: query.filter,
+        advancedFilters,
         cursor: query.cursor ?? undefined,
         fields: fieldGroups,
         expandMetadataKeys,
       };
 
-      // Fetch observations from events table with field groups applied at query time
-      const items =
-        await getObservationsV2FromEventsTableForPublicApi(filterProps);
-
-      // Determine if there are more results (we fetched limit+1)
-      const hasMore = items.length > query.limit;
-      const dataToReturn = hasMore ? items.slice(0, query.limit) : items;
+      const { items, cursor } = await getObservationsPage(filterProps);
 
       // Normalize for the wire format:
       // - empty parent_observation_id -> null (v1 parity)
       // - Decimal price fields -> string (preserves original v2 wire format; v1 emits numbers via .toNumber())
-      const transformedItems = dataToReturn.map((item) => ({
+      const transformedItems = items.map((item) => ({
         ...item,
         parentObservationId:
           item.parentObservationId === "" ? null : item.parentObservationId,
@@ -71,23 +102,39 @@ export default withMiddlewares({
         totalPrice: item.totalPrice?.toString() ?? null,
       }));
 
-      // Generate cursor if there are more results
-      const lastItemIdx = dataToReturn.length - 1;
-      const meta =
-        hasMore && dataToReturn.length > 0
-          ? {
-              cursor: encodeCursor({
-                lastStartTimeTo: dataToReturn[lastItemIdx].startTime,
-                lastTraceId: dataToReturn[lastItemIdx].traceId ?? "",
-                lastId: dataToReturn[lastItemIdx].id,
-              }),
-            }
-          : {};
-
       return {
         data: transformedItems,
-        meta,
+        meta: cursor
+          ? {
+              cursor: encodeCursor(cursor),
+              ...(transformedItems.length === 0 && {
+                comment:
+                  "This empty page does not indicate completion. Continue requesting pages using meta.cursor.",
+              }),
+            }
+          : {},
       };
     },
   }),
 });
+
+async function getObservationsPage(
+  opts: Parameters<typeof getObservationsV2PageFromEventsTableForPublicApi>[0],
+): ReturnType<typeof getObservationsV2PageFromEventsTableForPublicApi> {
+  if (env.LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED === "true") {
+    return getObservationsV2PageFromEventsTableForPublicApi(opts);
+  }
+
+  const records = await getObservationsV2FromEventsTableForPublicApi(opts);
+  const items = records.slice(0, opts.limit);
+  const last = items.at(-1);
+  const cursor =
+    records.length > opts.limit && last
+      ? {
+          lastStartTimeTo: last.startTime,
+          lastTraceId: last.traceId ?? "",
+          lastId: last.id,
+        }
+      : undefined;
+  return { items, cursor };
+}

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { getEventsTableStatePolicy } from "@/src/features/events/lib/eventsTableStatePolicy";
 
 describe("getEventsTableStatePolicy", () => {
@@ -6,12 +8,13 @@ describe("getEventsTableStatePolicy", () => {
       getEventsTableStatePolicy({
         hideControls: false,
         isolateTableState: true,
+        hasParentScope: true,
       }),
     ).toEqual({
       filterStateLocation: "memory",
       useIsolatedSearch: true,
-      allowGrammarSearch: false,
       disableSavedViews: true,
+      useHostSearchScopes: true,
     });
   });
 
@@ -20,12 +23,13 @@ describe("getEventsTableStatePolicy", () => {
       getEventsTableStatePolicy({
         hideControls: false,
         isolateTableState: false,
+        hasParentScope: false,
       }),
     ).toEqual({
       filterStateLocation: "urlAndSessionStorage",
       useIsolatedSearch: false,
-      allowGrammarSearch: true,
       disableSavedViews: false,
+      useHostSearchScopes: false,
     });
   });
 
@@ -34,12 +38,28 @@ describe("getEventsTableStatePolicy", () => {
       getEventsTableStatePolicy({
         hideControls: true,
         isolateTableState: false,
+        hasParentScope: false,
       }),
     ).toEqual({
       filterStateLocation: "memory",
       useIsolatedSearch: false,
-      allowGrammarSearch: true,
       disableSavedViews: true,
+      useHostSearchScopes: false,
+    });
+  });
+
+  it("preserves parent-page search scopes without changing URL-backed filters", () => {
+    expect(
+      getEventsTableStatePolicy({
+        hideControls: false,
+        isolateTableState: false,
+        hasParentScope: true,
+      }),
+    ).toEqual({
+      filterStateLocation: "urlAndSessionStorage",
+      useIsolatedSearch: false,
+      disableSavedViews: false,
+      useHostSearchScopes: true,
     });
   });
 });

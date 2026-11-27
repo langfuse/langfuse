@@ -27,7 +27,7 @@ export const createRedisTestClient = (
   return client;
 };
 
-export const isRedisConnectionClosedError = (error: unknown): boolean =>
+const isRedisConnectionClosedError = (error: unknown): boolean =>
   error instanceof Error && error.message.includes("Connection is closed");
 
 export const ensureRedisReady = async (
@@ -54,6 +54,7 @@ export const ensureRedisReady = async (
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/only-throw-error -- preserve last connection error for test diagnostics
   throw lastError ?? new Error("Redis client not ready");
 };
 
@@ -64,7 +65,7 @@ export const getRedisKeysByPattern = async (
   return await scanKeys(redisClient, pattern);
 };
 
-export const clearRedisKeysByPattern = async (
+const clearRedisKeysByPattern = async (
   redisClient: RedisTestClient,
   pattern: string,
 ): Promise<void> => {

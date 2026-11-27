@@ -1,1 +1,0 @@
-ALTER TABLE dataset_run_items_rmt ON CLUSTER default DROP INDEX IF EXISTS idx_trace_id;

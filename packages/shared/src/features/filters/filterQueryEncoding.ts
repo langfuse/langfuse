@@ -1,5 +1,8 @@
 import { type FilterState } from "../../types";
-import { singleFilter } from "../../interfaces/filters";
+import {
+  coerceLegacyEmptyMetadataFilters,
+  singleFilter,
+} from "../../interfaces/filters";
 import { type SingleValueOption } from "../../tableDefinitions/types";
 import { normalizeLegacySessionPositionInTraceKey } from "./sessionPositionInTrace";
 
@@ -94,7 +97,7 @@ export const MAX_URL_FILTER_QUERY_LENGTH = 4000;
 
 /**
  * Encodes FilterState to the legacy semicolon-delimited format
- * Format: columnId;type;key;operator;value
+ * Format: columnId;type;key;operator;value[;target]
  * Multiple filters separated by commas
  * Array values joined with |
  */
@@ -110,7 +113,7 @@ export function encodeFiltersGeneric(filters: FilterState): string {
             f.type === "booleanObject" ||
             f.type === "categoryOptions" ||
             f.type === "positionInTrace"
-              ? (f as any).key || ""
+              ? encodeURIComponent((f as any).key || "")
               : "";
 
           // Encode the value
@@ -134,7 +137,7 @@ export function encodeFiltersGeneric(filters: FilterState): string {
             encodedValue = encodeURIComponent(String(f.value));
           }
 
-          return `${f.column};${f.type};${key};${f.operator};${encodedValue}`;
+          return `${f.column};${f.type};${key};${f.operator};${encodedValue}${f.target ? `;${encodeURIComponent(f.target)}` : ""}`;
         })
         .filter((s): s is string => s !== null),
       ",",
@@ -144,7 +147,7 @@ export function encodeFiltersGeneric(filters: FilterState): string {
 
 /**
  * Decodes the legacy semicolon-delimited format to FilterState
- * Format: column;type;key;operator;value
+ * Format: column;type;key;operator;value[;target]
  */
 export function decodeFiltersGeneric(query: string): FilterState {
   if (!query.trim()) return [];
@@ -157,7 +160,8 @@ export function decodeFiltersGeneric(query: string): FilterState {
   for (const filterString of decoded) {
     if (!filterString) continue;
 
-    const [column, type, key, operator, encodedValue] = filterString.split(";");
+    const [column, type, key, operator, encodedValue, target] =
+      filterString.split(";");
 
     if (!column || !type || !operator || encodedValue === undefined) {
       continue;
@@ -185,13 +189,14 @@ export function decodeFiltersGeneric(query: string): FilterState {
       type === "categoryOptions"
     ) {
       // Split on unescaped pipe characters only, then unescape each value
-      parsedValue = decodedValue
-        ? splitOnUnescapedPipe(decodedValue).map(unescapePipeInValue)
-        : type === "arrayOptions"
-          ? [] // Empty array for arrayOptions — empty strings are not valid array values (e.g., tags)
-          : decodedValue === ""
-            ? [""] // allow empty strings for stringOptions (i.e, filter for empty trace name)
-            : [decodedValue];
+      if (decodedValue) {
+        parsedValue =
+          splitOnUnescapedPipe(decodedValue).map(unescapePipeInValue);
+      } else if (type === "arrayOptions") {
+        parsedValue = [];
+      } else {
+        parsedValue = [""];
+      }
     } else if (type === "boolean" || type === "booleanObject") {
       parsedValue = decodedValue === "true";
     } else {
@@ -204,6 +209,7 @@ export function decodeFiltersGeneric(query: string): FilterState {
       type,
       operator: decodedOperator,
       value: parsedValue,
+      ...(target ? { target: decodeURIComponent(target) } : {}),
     };
 
     // Add key field for types that need it
@@ -219,8 +225,11 @@ export function decodeFiltersGeneric(query: string): FilterState {
       }
     }
 
-    // Validate with zod
-    const parsed = singleFilter.safeParse(filter);
+    // Coerce the legacy `contains ""` presence spelling to `is set` so a
+    // bookmarked/shared link carrying it survives instead of being dropped.
+    const [coerced] = coerceLegacyEmptyMetadataFilters([filter]) as unknown[];
+
+    const parsed = singleFilter.safeParse(coerced);
     if (parsed.success) {
       filters.push(parsed.data);
     } else {

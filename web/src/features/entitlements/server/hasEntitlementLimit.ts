@@ -1,8 +1,9 @@
 import {
   entitlementAccess,
   type EntitlementLimit,
-} from "@/src/features/entitlements/constants/entitlements";
-import { type Plan } from "@langfuse/shared";
+  type Plan,
+} from "@langfuse/shared";
+import { organizationMemberLimitMessage } from "@/src/features/entitlements/constants/organizationMemberLimitMessage";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 
@@ -11,6 +12,16 @@ type HasEntitlementLimitParams = {
   sessionUser: NonNullable<Session["user"]>;
 } & ({ projectId: string } | { orgId: string });
 
+const hasEntitlementLimitBasedOnPlan = ({
+  plan,
+  entitlementLimit,
+}: {
+  plan: Plan | null;
+  entitlementLimit: EntitlementLimit;
+}) => {
+  return entitlementAccess[plan ?? "oss"].entitlementLimits[entitlementLimit];
+};
+
 /**
  * Get the limit for a specific entitlement based on the session user (to be used server-side).
  * @returns false if unlimited, or a number representing the limit
@@ -18,8 +29,6 @@ type HasEntitlementLimitParams = {
 export const hasEntitlementLimit = (
   p: HasEntitlementLimitParams,
 ): number | false => {
-  if (p.sessionUser.admin) return false; // Admins have unlimited access
-
   const org =
     "projectId" in p
       ? p.sessionUser.organizations.find((org) =>
@@ -34,21 +43,55 @@ export const hasEntitlementLimit = (
   });
 };
 
-export const hasEntitlementLimitBasedOnPlan = ({
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+
+export const clampToDataAccessDays = ({
   plan,
-  entitlementLimit,
+  fromTimestamp,
+  now = new Date(),
 }: {
   plan: Plan | null;
-  entitlementLimit: EntitlementLimit;
-}) => {
-  return entitlementAccess[plan ?? "oss"].entitlementLimits[entitlementLimit];
+  fromTimestamp?: string | Date;
+  now?: Date;
+}): {
+  accessFloor?: Date;
+  effectiveFromTimestamp?: Date;
+  wasClamped: boolean;
+} => {
+  const limitDays = hasEntitlementLimitBasedOnPlan({
+    plan,
+    entitlementLimit: "data-access-days",
+  });
+  const requestedFromTimestamp = fromTimestamp
+    ? new Date(fromTimestamp)
+    : undefined;
+
+  if (limitDays === false) {
+    return {
+      accessFloor: undefined,
+      effectiveFromTimestamp: requestedFromTimestamp,
+      wasClamped: false,
+    };
+  }
+
+  const accessFloor = new Date(
+    now.getTime() - limitDays * MILLISECONDS_PER_DAY,
+  );
+  const wasClamped =
+    !requestedFromTimestamp || requestedFromTimestamp < accessFloor;
+
+  return {
+    accessFloor,
+    effectiveFromTimestamp: wasClamped ? accessFloor : requestedFromTimestamp,
+    wasClamped,
+  };
 };
 
 /**
  * Check if a specific usage is within the entitlement limit
  * @returns true if usage is allowed, false if it exceeds the limit
  */
-export const isWithinEntitlementLimit = (
+const isWithinEntitlementLimit = (
   p: HasEntitlementLimitParams & { currentUsage: number },
 ): boolean => {
   const limit = hasEntitlementLimit(p);
@@ -66,7 +109,11 @@ export const throwIfExceedsLimit = (
     const limit = hasEntitlementLimit(p);
     throw new TRPCError({
       code: "FORBIDDEN",
-      message: `Usage (${p.currentUsage}) exceeds the limit (${limit}) for entitlement: ${p.entitlementLimit}`,
+      message:
+        p.entitlementLimit === "organization-member-count" &&
+        typeof limit === "number"
+          ? organizationMemberLimitMessage(p.currentUsage, limit)
+          : `Usage (${p.currentUsage}) exceeds the limit (${limit}) for entitlement: ${p.entitlementLimit}`,
     });
   }
 };

@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 
 import { JobConfigState, Prisma, type PrismaClient } from "../../../db";
-import { env } from "../../../env";
 import { TriggerEventSource } from "../../../domain/automations";
 import { matchesTriggerFilter } from "../../../server/automations";
 import {
@@ -30,16 +29,17 @@ import {
   type MonitorAlert,
   type MonitorSeverity,
   type MonitorWindow,
-  type MonitorView,
   type Monitor,
 } from "../types";
+import { buildDataWindowPermalink } from "../helpers/buildDataWindowPermalink";
+import { buildPermalink } from "../helpers/buildPermalink";
 import { applyStateMachine, type MonitorCompletion } from "./applyStateMachine";
 import { computeSeverity } from "./computeSeverity";
-import { renderAlertMessage } from "./renderAlertMessage";
+import { buildAlertMessage } from "./buildAlertMessage";
 
 export { monitorEvaluationOffsetMs } from "../types";
 
-/** ErrorBadQuery sentinels a metric whose shape doesn't resolve against the v2 data model or whose batch query failed to execute. */
+/** ErrorBadQuery sentinels a metric rejected by monitor query validation. */
 export const ErrorBadQuery = Symbol("ErrorBadQuery");
 
 /** MonitorProcessor evaluates queued monitor events and emits MonitorAlerts. */
@@ -162,19 +162,13 @@ export class MonitorProcessor {
       }
       metricMap["count_count"] = parseNumericValue(row["count_count"]);
     } catch (error) {
-      logger.error(
-        "queryMetrics failed; flipping affected monitors to ERROR_BAD_QUERY",
-        {
-          projectId: event.projectId,
-          schedulerBatchId: event.schedulerBatchId.toString(),
-          monitorIds: event.monitors.map((m) => m.monitorId),
-          error,
-        },
-      );
-      for (const metric of validation.accepted) {
-        metricMap[metricKey(metric)] = ErrorBadQuery;
-      }
-      metricMap["count_count"] = ErrorBadQuery;
+      logger.error("monitor processor failed", {
+        error: error,
+        projectId: event.projectId,
+        schedulerBatchId: event.schedulerBatchId.toString(),
+        monitorIds: event.monitors.map((m) => m.monitorId),
+      });
+      throw error;
     }
     return metricMap;
   }
@@ -193,12 +187,16 @@ export class MonitorProcessor {
     completions: MonitorCompletion[];
   }): Promise<void> {
     if (args.completions.length === 0) return;
-    await this.db.$executeRaw(
-      buildCompleteQuery({
-        projectId: args.projectId,
-        completions: args.completions,
-      }),
-    );
+    await this.db.$transaction([
+      // tz-naive columns are read back as UTC by Prisma; pin the session so raw casts store UTC wall-clock
+      this.db.$executeRawUnsafe(`SET LOCAL TIME ZONE 'UTC'`),
+      this.db.$executeRaw(
+        buildCompleteQuery({
+          projectId: args.projectId,
+          completions: args.completions,
+        }),
+      ),
+    ]);
   }
 }
 
@@ -338,7 +336,7 @@ function processMonitor(args: {
   const automations = getAutomations({ monitor, completion, triggers });
   if (automations.length === 0) return [completion, []];
 
-  const alert = buildAlert({ prev: monitor, next: completion, runAt });
+  const alert = buildAlert({ prev: monitor, next: completion, runAt, value });
   return [completion, toMonitorWebhookInputs({ alert, automations, now })];
 }
 
@@ -373,8 +371,9 @@ function buildAlert(args: {
   prev: Monitor;
   next: MonitorCompletion;
   runAt: Date;
+  value: number | null;
 }): MonitorAlert {
-  const { prev, next, runAt } = args;
+  const { prev, next, runAt, value } = args;
   const { fromTimestamp, toTimestamp } = evaluationWindow(prev.window, runAt);
   return {
     monitorId: prev.id,
@@ -388,28 +387,26 @@ function buildAlert(args: {
     // recovery (OK) and lifecycle states (NO_DATA/UNKNOWN/PAUSED) would point at
     // a recovered/empty window, so they carry no data link.
     dataPermalink: isBreaching(next.severity)
-      ? buildDataWindowPermalink(
-          prev.projectId,
-          prev.view,
+      ? buildDataWindowPermalink({
+          projectId: prev.projectId,
+          view: prev.view,
           fromTimestamp,
           toTimestamp,
-        )
+          filters: prev.filters,
+        })
       : undefined,
-    message: renderAlertMessage({ monitor: prev, completion: next }),
+    message: buildAlertMessage({ monitor: prev, completion: next, value }),
     view: prev.view,
     filters: prev.filters,
     window: prev.window,
+    monitorName: prev.name,
+    metric: prev.metric,
+    metricValue: value,
+    thresholdOperator: prev.thresholdOperator,
+    alertThreshold: prev.alertThreshold,
+    warningThreshold: prev.warningThreshold,
+    alertedAt: next.alertedAt ?? undefined,
   };
-}
-
-/** buildPermalink composes the absolute Langfuse URL for a monitor, or undefined when NEXTAUTH_URL is unset. */
-export function buildPermalink(
-  projectId: string,
-  monitorId: string,
-): string | undefined {
-  if (!env.NEXTAUTH_URL) return undefined;
-  const base = env.NEXTAUTH_URL.replace(/\/$/, "");
-  return `${base}/project/${projectId}/monitors/${monitorId}`;
 }
 
 /** isBreaching returns true for the threshold-cross severities (ALERT/WARNING) whose alert should deep-link to the breaching data window; OK (recovery) and the lifecycle states (NO_DATA/UNKNOWN/PAUSED) return false. */
@@ -418,29 +415,6 @@ export function isBreaching(severity: MonitorSeverity): boolean {
     severity === MonitorSeveritySchema.enum.ALERT ||
     severity === MonitorSeveritySchema.enum.WARNING
   );
-}
-
-/**
- * buildDataWindowPermalink composes the absolute Langfuse data-table URL scoped
- * to the breaching evaluation window, or undefined when NEXTAUTH_URL is unset.
- *
- * The window is encoded as the table's custom `?dateRange=<fromMs>-<toMs>`
- * param (absolute epoch-ms range; the client date-range parser accepts custom
- * ranges directly, bypassing the preset gating). An `observations` monitor
- * links to the observations table; every other view (scores-*) links to the
- * traces table, which is the row-level data users expect to inspect.
- */
-export function buildDataWindowPermalink(
-  projectId: string,
-  view: MonitorView,
-  fromTimestamp: Date,
-  toTimestamp: Date,
-): string | undefined {
-  if (!env.NEXTAUTH_URL) return undefined;
-  const base = env.NEXTAUTH_URL.replace(/\/$/, "");
-  const table = view === "observations" ? "observations" : "traces";
-  const dateRange = `${fromTimestamp.getTime()}-${toTimestamp.getTime()}`;
-  return `${base}/project/${projectId}/${table}?dateRange=${dateRange}`;
 }
 
 /** toMonitorWebhookInputs fans an alert out to one webhook input per matched automation. */
@@ -455,6 +429,7 @@ function toMonitorWebhookInputs(args: {
       projectId: args.alert.projectId,
       automationId: automation.id,
       executionId,
+      actionType: automation.actionType,
       payload: {
         id: executionId,
         timestamp: args.now,

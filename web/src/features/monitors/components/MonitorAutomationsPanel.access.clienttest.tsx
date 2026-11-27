@@ -7,6 +7,10 @@ const automationRow = {
   action: { type: "WEBHOOK" },
 };
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: null, status: "unauthenticated" }),
+}));
+
 vi.mock("@/src/utils/api", () => ({
   api: {
     automations: {
@@ -14,11 +18,10 @@ vi.mock("@/src/utils/api", () => ({
         useQuery: () => ({ data: [automationRow], isSuccess: true }),
       },
     },
+    useUtils: () => ({
+      automations: { getAutomations: { fetch: vi.fn(async () => []) } },
+    }),
   },
-}));
-
-vi.mock("next/router", () => ({
-  useRouter: () => ({ asPath: "/", push: vi.fn() }),
 }));
 
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";

@@ -2,9 +2,27 @@ import {
   prisma as _prisma,
   type Role,
   AuditLogRecordType,
+  type Prisma,
 } from "@langfuse/shared/src/db";
+import { type AuditLogActor as StagedAuditLogActor } from "@langfuse/shared";
+import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
+import { type Session } from "next-auth";
+import {
+  deriveAuditLogEventId,
+  formatSubmittedPublicKeyForLog,
+  getSystemAuditLogActorForApiKeyId,
+  getSystemAuditLogActorForUserId,
+  getAuditLogResourceRefs,
+  logger,
+  recordIncrement,
+  stageAuditLogEvents,
+  type StageAuditLogEventInput,
+} from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
+import { isAuditLogEnabled } from "@/src/features/audit-logs/isAuditLogEnabled";
+import { rolesFor } from "@/src/features/rbac/authorize";
 
-export type AuditableResource =
+type AuditableResource =
   | "annotationQueue"
   | "annotationQueueItem"
   | "annotationQueueAssignment"
@@ -23,14 +41,17 @@ export type AuditableResource =
   | "score"
   | "scoreConfig"
   | "model"
+  | "defaultLlmModel"
   | "notificationPreference"
   | "prompt"
   | "promptProtectedLabel"
+  | "skill"
   | "session"
   | "apiKey"
   | "evalTemplate"
   | "job"
   | "blobStorageIntegration"
+  | "externalMediaStorageIntegration"
   | "posthogIntegration"
   | "mixpanelIntegration"
   | "webCalloutEndpoint"
@@ -48,16 +69,16 @@ export type AuditableResource =
   | "cloudSpendAlert"
   | "verifiedDomain"
   | "ssoConfig"
+  | "gatewayConfig"
+  | "gatewayAiConnection"
+  | "gatewaySpendLimit"
+  | "gatewayGuardrail"
+  | "topicConfig"
+  | "supportAccess"
   // legacy resources
   | "membership";
 
-type AuditLog = {
-  resourceType: AuditableResource;
-  resourceId: string;
-  action: string;
-  before?: unknown;
-  after?: unknown;
-} & (
+export type AuditLogActor =
   | {
       userId: string;
       orgId: string;
@@ -66,90 +87,386 @@ type AuditLog = {
       projectRole?: Role;
     }
   | {
-      session: {
-        user: {
-          id: string;
-        };
-        orgId: string;
-        orgRole?: Role;
-        projectId?: string;
-        projectRole?: Role;
-      };
+      session: UserSession & { orgId: string; projectId?: string };
     }
   | {
       apiKeyId: string;
       orgId: string;
       projectId?: string;
-    }
-);
+    };
 
-export async function auditLog(log: AuditLog, prisma?: typeof _prisma) {
+export type AuditLog = {
+  resourceType: AuditableResource;
+  resourceId: string;
+  action: string;
+  before?: unknown;
+  after?: unknown;
+} & AuditLogActor;
+
+const STAGED_RECORD_SELECT = {
+  id: true,
+  createdAt: true,
+} satisfies Prisma.AuditLogSelect;
+
+// Mirrors each audit log record into the application logs so that actors can be
+// correlated with web/worker log lines (e.g. trace deletions) without querying
+// the audit_logs table. Only ids are logged, no emails or names.
+function logAuditEvent(
+  log: AuditLog,
+  actor: {
+    type: AuditLogRecordType;
+    orgId: string;
+    projectId?: string;
+    userId?: string;
+    apiKeyId?: string;
+    publicKey?: string;
+  },
+) {
+  let actorLabel = actor.userId;
+  if (actor.type === AuditLogRecordType.API_KEY) {
+    actorLabel = actor.publicKey
+      ? formatSubmittedPublicKeyForLog(actor.publicKey)
+      : actor.apiKeyId;
+  }
+
+  logger.info(
+    `Audit log: ${log.resourceType}.${log.action} ${log.resourceId} by ${actor.type} ${actorLabel}`,
+    {
+      auditLog: true,
+      resourceType: log.resourceType,
+      resourceId: log.resourceId,
+      action: log.action,
+      actorType: actor.type,
+      userId: actor.userId,
+      apiKeyId: actor.apiKeyId,
+      publicKey: actor.publicKey,
+      orgId: actor.orgId,
+      projectId: actor.projectId,
+    },
+  );
+}
+
+export async function auditLog(
+  log: AuditLog,
+  prisma?: typeof _prisma | Prisma.TransactionClient,
+) {
+  // Audit log records are an enterprise feature, so they are only persisted
+  // when the instance is licensed for them. logAuditEvent below is deliberately
+  // NOT gated: it is operator telemetry rather than the audited record itself
+  // (ids only, no before/after diff), it is the sole actor trail for mutations
+  // that have no parallel logger call of their own, and the actor logging added
+  // alongside it elsewhere — batch actions, trace deletion — is ungated too.
+  const persistRecord = isAuditLogEnabled();
+  // Persisted records are also staged for ClickHouse. The worker relay that
+  // drains the staging table runs under the same license condition.
+  const stageRecord = env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED === "true";
+
   const db = prisma ?? _prisma;
-  const shared = {
+  // Defer JSON.stringify(before/after) until we know the record will be
+  // persisted — a full prompt or observation object is non-trivial to
+  // serialise, and unlicensed self-hosted instances call auditLog() on every
+  // mutation only to discard it at the persistRecord gate below.
+  const makeShared = () => ({
     resourceType: log.resourceType,
     resourceId: log.resourceId,
     action: log.action,
     before: log.before ? JSON.stringify(log.before) : undefined,
     after: log.after ? JSON.stringify(log.after) : undefined,
-  };
+  });
 
   if ("apiKeyId" in log) {
-    await db.$transaction(async (tx) => {
-      const apiKey = await tx.apiKey.findUnique({
-        where: { id: log.apiKeyId },
-        select: {
-          isInAppAgentKey: true,
-          createdByUserId: true,
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          apiKeyId: log.apiKeyId,
-          userId:
-            apiKey?.isInAppAgentKey === true
-              ? (apiKey.createdByUserId ?? undefined)
-              : undefined,
-          orgId: log.orgId,
-          projectId: log.projectId,
-          type: AuditLogRecordType.API_KEY,
-          ...shared,
-        },
-      });
+    // Sequential find + create, not $transaction. Interactive transactions
+    // use a 5s timeout and hold a pooled connection across both awaits, so
+    // an event-loop stall can 500 public API writes that only need an audit log.
+    const apiKey = await db.apiKey.findUnique({
+      where: { id: log.apiKeyId },
+      select: {
+        isInAppAgentKey: true,
+        createdByUserId: true,
+        publicKey: true,
+        // The staged event names the user an in-app agent key acts for.
+        createdByUser: stageRecord
+          ? { select: { name: true, email: true } }
+          : false,
+      },
     });
+
+    const userId =
+      apiKey?.isInAppAgentKey === true
+        ? (apiKey.createdByUserId ?? undefined)
+        : undefined;
+
+    // Actor telemetry is ungated — see top-of-function comment.
+    logAuditEvent(log, {
+      type: AuditLogRecordType.API_KEY,
+      orgId: log.orgId,
+      projectId: log.projectId,
+      userId,
+      apiKeyId: log.apiKeyId,
+      publicKey: apiKey?.publicKey,
+    });
+
+    if (!persistRecord) return;
+
+    const record = await db.auditLog.create({
+      data: {
+        apiKeyId: log.apiKeyId,
+        userId,
+        orgId: log.orgId,
+        projectId: log.projectId,
+        type: AuditLogRecordType.API_KEY,
+        ...makeShared(),
+      },
+      select: STAGED_RECORD_SELECT,
+    });
+
+    if (stageRecord) {
+      await stageChangeEvent(
+        log,
+        record,
+        { orgId: log.orgId, projectId: log.projectId },
+        toApiKeyActor(
+          log.apiKeyId,
+          userId,
+          userId ? apiKey?.createdByUser : undefined,
+        ),
+        db,
+      );
+    }
 
     return;
   }
 
   if ("session" in log) {
-    await db.auditLog.create({
+    const access = sessionAccess(
+      log.session,
+      log.session.orgId,
+      log.session.projectId,
+    );
+    // Actor telemetry is ungated — see top-of-function comment.
+    logAuditEvent(log, {
+      type: AuditLogRecordType.USER,
+      orgId: log.session.orgId,
+      projectId: log.session.projectId,
+      userId: log.session.user.id,
+    });
+
+    if (!persistRecord) return;
+
+    const record = await db.auditLog.create({
       data: {
         userId: log.session.user.id,
         orgId: log.session.orgId,
-        userOrgRole: log.session.orgRole,
+        userOrgRole: access.orgRole,
         projectId: log.session.projectId,
-        userProjectRole: log.session.projectRole,
+        userProjectRole: access.projectRole,
         type: AuditLogRecordType.USER,
-        ...shared,
+        ...makeShared(),
       },
+      select: STAGED_RECORD_SELECT,
     });
+
+    if (stageRecord) {
+      await stageChangeEvent(
+        log,
+        record,
+        { orgId: log.session.orgId, projectId: log.session.projectId },
+        userActor(log.session.user, access),
+        db,
+      );
+    }
 
     return;
   }
 
   if ("userId" in log) {
-    await db.auditLog.create({
+    const orgRole = log.orgRole && SystemRoleId(log.orgRole);
+    const projectRole = log.projectRole && SystemRoleId(log.projectRole);
+    // Actor telemetry is ungated — see top-of-function comment.
+    logAuditEvent(log, {
+      type: AuditLogRecordType.USER,
+      orgId: log.orgId,
+      projectId: log.projectId,
+      userId: log.userId,
+    });
+
+    if (!persistRecord) return;
+
+    const record = await db.auditLog.create({
       data: {
         userId: log.userId,
         orgId: log.orgId,
-        userOrgRole: log.orgRole,
+        userOrgRole: orgRole,
         projectId: log.projectId,
-        userProjectRole: log.projectRole,
+        userProjectRole: projectRole,
         type: AuditLogRecordType.USER,
-        ...shared,
+        ...makeShared(),
       },
+      select: STAGED_RECORD_SELECT,
     });
+
+    if (stageRecord) {
+      await stageChangeEvent(
+        log,
+        record,
+        { orgId: log.orgId, projectId: log.projectId },
+        userActor({ id: log.userId }, { orgRole, projectRole }),
+        db,
+      );
+    }
 
     return;
   }
 }
+
+/** toUserActor names the session's user as actor, with the roles they hold on orgId and projectId. */
+export function toUserActor(
+  session: UserSession,
+  orgId: string,
+  projectId?: string,
+): StagedAuditLogActor {
+  return userActor(session.user, sessionAccess(session, orgId, projectId));
+}
+
+/** sessionAccess lists the session's roles on orgId and projectId, and whether the user reaches orgId through a ConductorOne support access grant. */
+function sessionAccess(
+  session: UserSession,
+  orgId: string,
+  projectId?: string,
+): UserAccess {
+  const tenant = OrganizationId(orgId);
+  return {
+    orgRole: joinRoles(rolesFor(session, tenant, tenant)),
+    projectRole: projectId
+      ? joinRoles(rolesFor(session, tenant, ProjectId(projectId)))
+      : undefined,
+    supportAccess: session.user.organizations.some(
+      (org) => org.id === orgId && org.supportAccess === true,
+    ),
+  };
+}
+
+/** joinRoles records role ids as one sorted, comma-separated value, or none. */
+function joinRoles(roleIds: string[]): string | undefined {
+  return [...roleIds].sort().join(",") || undefined;
+}
+
+/** userActor names user as actor with the given access. */
+function userActor(
+  user: { id: string; name?: string | null; email?: string | null },
+  access: UserAccess,
+): StagedAuditLogActor {
+  const systemActor = getSystemAuditLogActorForUserId(user.id);
+  if (systemActor) return systemActor;
+  return {
+    type: "USER",
+    userId: user.id,
+    name: user.name ?? undefined,
+    email: user.email ?? undefined,
+    orgRole: access.orgRole,
+    projectRole: access.projectRole,
+    supportAccess: access.supportAccess || undefined,
+  };
+}
+
+/** `creator` is the user an in-app agent key acts for. */
+export function toApiKeyActor(
+  apiKeyId: string,
+  userId: string | undefined,
+  creator: { name?: string | null; email?: string | null } | null | undefined,
+): StagedAuditLogActor {
+  const systemActor = getSystemAuditLogActorForApiKeyId(apiKeyId);
+  if (systemActor) return systemActor;
+  return {
+    type: "API_KEY",
+    apiKeyId,
+    userId,
+    name: creator?.name ?? undefined,
+    email: creator?.email ?? undefined,
+  };
+}
+
+/**
+ * Stages the change event of a Postgres `audit_logs` row for the ClickHouse
+ * `audit_logs` table, under the id `deriveAuditLogEventId` gives that row.
+ * The Postgres row stays the source of truth, so a failure here is logged and
+ * counted and never fails the caller. Given a transaction client, it stages
+ * on that transaction.
+ */
+async function stageChangeEvent(
+  log: AuditLog,
+  record: { id: string; createdAt: Date },
+  scope: { orgId: string; projectId?: string },
+  actor: StagedAuditLogActor,
+  db: typeof _prisma | Prisma.TransactionClient,
+) {
+  try {
+    const event: StageAuditLogEventInput = {
+      id: deriveAuditLogEventId(record.id, record.createdAt),
+      timestamp: record.createdAt,
+      kind: "change",
+      orgId: scope.orgId,
+      projectId: scope.projectId,
+      actor,
+      resourceType: log.resourceType,
+      resourceId: log.resourceId,
+      resourceRefs: getAuditLogResourceRefs(log),
+      action: log.action,
+      // Staging serializes these itself. Falsy values are dropped, as in the
+      // Postgres row.
+      before: log.before || undefined,
+      after: log.after || undefined,
+    };
+    // Only the base client has $transaction.
+    if ("$transaction" in db) {
+      await stageAuditLogEvents([event], db);
+    } else {
+      await stageInSavepoint(event, db);
+    }
+  } catch (error) {
+    recordIncrement("langfuse.audit_log.staging_write_failed");
+    logger.error("Failed to stage audit log event", {
+      error,
+      resourceType: log.resourceType,
+      resourceId: log.resourceId,
+      action: log.action,
+      orgId: scope.orgId,
+    });
+  }
+}
+
+/**
+ * Stages the event on the caller's transaction, so it commits or rolls back
+ * with the audited mutation and holds no second connection. A failed insert
+ * aborts a Postgres transaction, so the insert runs behind a savepoint that a
+ * failure rolls back to, which leaves the caller's transaction usable. Calls
+ * on one transaction must not overlap, because they share the savepoint name.
+ */
+async function stageInSavepoint(
+  event: StageAuditLogEventInput,
+  tx: Prisma.TransactionClient,
+) {
+  await tx.$executeRaw`SAVEPOINT audit_log_staging`;
+  try {
+    await stageAuditLogEvents([event], tx);
+  } catch (error) {
+    await tx.$executeRaw`ROLLBACK TO SAVEPOINT audit_log_staging`;
+    throw error;
+  }
+  await tx.$executeRaw`RELEASE SAVEPOINT audit_log_staging`;
+}
+
+/** UserSession is the part of a signed-in session an audit log names its actor from. */
+type UserSession = Pick<Session, "policies"> & {
+  user: Pick<
+    NonNullable<Session["user"]>,
+    "id" | "name" | "email" | "organizations"
+  >;
+};
+
+/** UserAccess is the roles a user holds on an org and project, and whether they act through a support access grant. */
+type UserAccess = {
+  orgRole?: string;
+  projectRole?: string;
+  supportAccess?: boolean;
+};

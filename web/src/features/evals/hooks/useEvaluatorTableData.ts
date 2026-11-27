@@ -1,9 +1,9 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
-import { z } from "zod";
 import {
   type EvaluatorBlockReason,
   type FilterState,
-  singleFilter,
+  singleFilterList,
   type OrderByState,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
@@ -18,8 +18,8 @@ import { RAGAS_TEMPLATE_PREFIX } from "@/src/features/evals/types";
 export type EvaluatorDataRow = {
   id: string;
   status: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
   maintainer: string;
   rawStatus: string;
   template?: {
@@ -109,8 +109,8 @@ export const useEvaluatorTableData = ({
           id: jobConfig.id,
           status,
           rawStatus: jobConfig.status,
-          createdAt: jobConfig.createdAt.toLocaleString(),
-          updatedAt: jobConfig.updatedAt.toLocaleString(),
+          createdAt: jobConfig.createdAt,
+          updatedAt: jobConfig.updatedAt,
           template: jobConfig.evalTemplate
             ? {
                 id: jobConfig.evalTemplate.id,
@@ -122,7 +122,7 @@ export const useEvaluatorTableData = ({
           blockReason: jobConfig.blockReason,
           scoreName: jobConfig.scoreName,
           target: jobConfig.targetObject,
-          filter: z.array(singleFilter).parse(jobConfig.filter),
+          filter: singleFilterList.parse(jobConfig.filter),
           result: generateJobExecutionCounts(executionCounts),
           isCostLoading: !costs.data,
           isResultLoading:

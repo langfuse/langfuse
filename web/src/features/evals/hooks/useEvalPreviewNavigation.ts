@@ -1,11 +1,12 @@
 import {
   detailPageListKeys,
+  useFirstDetailPageListEntry,
   type EventDetailPageListEntry,
   type ListEntry,
   type ObservationDetailPageListEntry,
   type TraceDetailPageListEntry,
-  useFirstDetailPageListEntry,
-} from "@/src/features/navigate-detail-pages/context";
+} from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
+
 import { type NextRouter } from "next/router";
 import {
   EvalTargetObject,
@@ -15,7 +16,7 @@ import {
   isEventTarget,
   isExperimentTarget,
 } from "@/src/features/evals/utils/typeHelpers";
-import { parseTraceTimestampFromQuery } from "@/src/utils/parseTraceTimestampFromQuery";
+import { parseTraceTimestampFromQuery } from "@/src/fns/parseTraceTimestampFromQuery/parseTraceTimestampFromQuery";
 
 export type EvalPreviewPointer = {
   traceId?: string;
@@ -118,7 +119,7 @@ export function buildEvalPreviewNavigationPath({
   return `${basePath}${basePath.includes("?") ? "&" : "?"}${params.toString()}`;
 }
 
-export function useFirstEvalPreviewNavigationEntry({
+function useFirstEvalPreviewNavigationEntry({
   target,
   useEventsTable,
 }: {

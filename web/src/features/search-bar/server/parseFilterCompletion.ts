@@ -4,15 +4,49 @@
 // part with real branching logic — is unit-testable without a live model. This
 // mirrors the search-bar feature's own lib/ (pure) vs I/O split.
 
-import {
-  eventsTableCols,
-  type FilterState,
-  singleFilter,
-} from "@langfuse/shared";
+import { type FilterState, singleFilter } from "@langfuse/shared";
 
-import { SCORE_COLUMNS } from "../lib/fields";
+import {
+  EVENTS_FIELD_REGISTRY,
+  SCORE_COLUMNS,
+  type FieldRegistry,
+} from "../lib/fields";
+import { planCommit } from "../lib/commit";
 import { filterStateToQueryText } from "../lib/filter-state-to-query";
 import type { ObservedScoreNames } from "../lib/observed-options";
+import type { AiFilterResult } from "../lib/ai-filter-result";
+
+// Refinement replaces applied state: never recover an earlier balanced
+// fragment or keep only valid siblings from an incomplete replacement.
+export function parseRefinedFilters(
+  completion: string,
+  scoreNames?: ObservedScoreNames,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+):
+  | (GeneratedFilters & { status: "complete" })
+  | Extract<AiFilterResult, { status: "incomplete" }> {
+  const trimmed = completion.trim();
+  const fenced = /^```[^\r\n`]*\r?\n([\s\S]*?)\r?\n?```$/.exec(trimmed);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fenced?.[1] ?? trimmed);
+  } catch {
+    return { status: "incomplete", unknownScoreNames: [] };
+  }
+  const raw = Array.isArray(parsed)
+    ? parsed
+    : (parsed as { filters?: unknown } | null)?.filters;
+  const complete = singleFilter.array().safeParse(raw);
+  if (!complete.success) return { status: "incomplete", unknownScoreNames: [] };
+  const result = parseGeneratedFilters(
+    JSON.stringify(complete.data),
+    scoreNames,
+    registry,
+  );
+  return result.droppedCount > 0
+    ? { status: "incomplete", unknownScoreNames: result.unknownScoreNames }
+    : { ...result, status: "complete" };
+}
 
 // Mirrors COMPATIBLE_FILTER_TYPES in
 // packages/shared/src/server/queries/clickhouse-sql/filterTypeCompatibility.ts —
@@ -39,10 +73,13 @@ const COMPATIBLE_FILTER_TYPES: Record<string, readonly string[]> = {
  * those. Unknown columns return true here and are dropped by the reverse-adapter
  * round-trip instead.
  */
-function isEventsContractCompatible(f: FilterState[number]): boolean {
+function isRegistryContractCompatible(
+  f: FilterState[number],
+  registry: FieldRegistry,
+): boolean {
   if (f.type === "null" || f.type === "positionInTrace") return true;
   const col = f.column.toLowerCase();
-  const def = eventsTableCols.find(
+  const def = registry.columns.find(
     (c) => c.id.toLowerCase() === col || c.name.toLowerCase() === col,
   );
   if (!def) return true;
@@ -268,12 +305,15 @@ export type GeneratedFilters = {
 export function parseGeneratedFilters(
   completion: string,
   scoreNames?: ObservedScoreNames,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): GeneratedFilters {
   // `rawCount` is what the model emitted; `parsed` already excludes elements
   // that failed `singleFilter`, so the drop count is measured against rawCount.
   const { filters: parsed, rawCount } = parseFilterArray(completion);
   // Guardrail 1: drop filters whose type the events contract would reject.
-  const compatible = parsed.filter(isEventsContractCompatible);
+  const compatible = parsed.filter((filter) =>
+    isRegistryContractCompatible(filter, registry),
+  );
   // Guardrail 2: correct or drop score filters whose key names no real score —
   // the one hallucination the round-trip below cannot catch (any key renders
   // on a score column), yet it applies as a dead filter matching nothing.
@@ -281,11 +321,32 @@ export function parseGeneratedFilters(
     compatible,
     scoreNames,
   );
+  const projected: FilterState = [];
+  for (const filter of scoreChecked) {
+    const id = registry.columnIdOf(filter.column);
+    const ref = id === null ? null : registry.resolveField(id);
+    if (ref?.type !== "field" || ref.field.filterColumn === undefined) {
+      projected.push(filter);
+      continue;
+    }
+
+    const rendered = filterStateToQueryText([filter], {}, registry);
+    const result = planCommit(rendered.text, undefined, registry);
+    if (rendered.skippedFilters.length === 0 && result.status === "committed") {
+      for (const canonicalFilter of result.filters) {
+        projected.push(canonicalFilter);
+      }
+    }
+  }
   // Guardrail 3: drop anything that doesn't round-trip to bar grammar (unknown /
   // non-representable columns land in skippedFilters).
-  const { text, skippedFilters } = filterStateToQueryText(scoreChecked);
+  const { text, skippedFilters } = filterStateToQueryText(
+    projected,
+    {},
+    registry,
+  );
   const skipped = new Set(skippedFilters);
-  const filters = scoreChecked.filter((f) => !skipped.has(f));
+  const filters = projected.filter((f) => !skipped.has(f));
   return {
     filters,
     queryText: text,

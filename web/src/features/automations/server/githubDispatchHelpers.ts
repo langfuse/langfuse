@@ -11,6 +11,7 @@ import {
   validateWebhookURL,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 
 interface GitHubDispatchConfigOptions {
   actionConfig: ActionCreate;
@@ -59,15 +60,6 @@ export async function processGitHubDispatchActionConfig({
     });
   }
 
-  try {
-    await validateWebhookURL(urlToUse);
-  } catch (error) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `Invalid webhook URL: ${error instanceof Error ? error.message : "Unknown error"}`,
-    });
-  }
-
   // Validate GitHub API URL format
   const urlPattern =
     /^https:\/\/api\.github\.com\/repos\/[^\/]+\/[^\/]+\/dispatches$/;
@@ -79,6 +71,32 @@ export async function processGitHubDispatchActionConfig({
       code: "BAD_REQUEST",
       message:
         "URL must be a valid GitHub repository dispatch endpoint (e.g., https://api.github.com/repos/owner/repo/dispatches)",
+    });
+  }
+
+  try {
+    await validateWebhookURL(urlToUse);
+  } catch (error) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Invalid webhook URL: ${error instanceof Error ? error.message : "Unknown error"}`,
+    });
+  }
+
+  const isUrlChanged =
+    existingActionConfig !== undefined &&
+    !areDestinationUrlsEquivalent(urlToUse, existingActionConfig.url);
+  const newGithubToken =
+    typeof gitHubDispatchConfig.githubToken === "string" &&
+    gitHubDispatchConfig.githubToken.trim() !== ""
+      ? gitHubDispatchConfig.githubToken
+      : undefined;
+
+  if (isUrlChanged && !newGithubToken) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "GitHub Personal Access Token is required when changing the dispatch URL",
     });
   }
 
@@ -102,11 +120,8 @@ export async function processGitHubDispatchActionConfig({
   let displayToken: string;
   let returnToken: string | undefined;
 
-  if (
-    gitHubDispatchConfig.githubToken &&
-    gitHubDispatchConfig.githubToken.trim() !== ""
-  ) {
-    tokenToUse = gitHubDispatchConfig.githubToken;
+  if (newGithubToken) {
+    tokenToUse = newGithubToken;
     displayToken = maskGitHubToken(tokenToUse);
     returnToken = tokenToUse;
   } else if (existingActionConfig?.githubToken) {

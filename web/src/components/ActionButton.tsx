@@ -1,16 +1,17 @@
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import React, { useMemo } from "react";
-import { Lock, AlertCircle, Sparkle } from "lucide-react";
-import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-  HoverCardPortal,
-} from "@/src/components/ui/hover-card";
+  Lock,
+  AlertCircle,
+  SquareArrowOutUpRight,
+  Sparkle,
+} from "@langfuse/icons";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
-type ActionButtonProps = Pick<
+export type ActionButtonProps = Pick<
   ButtonProps,
   "disabled" | "onClick" | "size" | "title" | "type" | "variant"
 > & {
@@ -114,15 +115,13 @@ export const ActionButton = React.forwardRef<
 
   if (isDisabled && disabledReason) {
     return (
-      <HoverCard openDelay={200}>
-        <HoverCardTrigger asChild>
-          <span>{btnContent}</span>
-        </HoverCardTrigger>
-        <HoverCardPortal>
-          <HoverCardContent className="w-80 text-sm">
-            {disabledReason}
-          </HoverCardContent>
-        </HoverCardPortal>
+      <HoverCard
+        openDelay={200}
+        content={<div className="w-80 p-3 text-sm">{disabledReason}</div>}
+      >
+        {({ getTriggerProps }) => (
+          <span {...getTriggerProps()}>{btnContent}</span>
+        )}
       </HoverCard>
     );
   }
@@ -164,23 +163,26 @@ const ButtonContent = React.forwardRef<
   },
   ref,
 ) {
+  const renderLink = href && !isDisabled;
+  const isExternal = href && isExternalUrl(href);
+
   const content = (
     <>
       {!hasAccess ? (
-        <Lock className="mr-1 h-4 w-4" />
+        <Lock size="base" __rawClassName="mr-1" />
       ) : !hasEntitlement ? (
-        <AlertCircle className="mr-1 h-4 w-4" />
+        <AlertCircle size="base" __rawClassName="mr-1" />
       ) : hasReachedLimit ? (
-        <Sparkle className="mr-1 h-4 w-4" />
+        <Sparkle size="base" __rawClassName="mr-1" />
       ) : icon ? (
         <div className="mr-1">{icon}</div>
       ) : null}
       {children}
+      {renderLink && isExternal ? (
+        <SquareArrowOutUpRight size="base" aria-hidden __rawClassName="ml-1" />
+      ) : null}
     </>
   );
-
-  const renderLink = href && !isDisabled;
-  const isExternal = href && isExternalUrl(href);
 
   return (
     <Button

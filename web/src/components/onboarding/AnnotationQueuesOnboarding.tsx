@@ -1,40 +1,50 @@
-import React from "react";
 import {
   SplashScreen,
   type ValueProposition,
-} from "@/src/components/ui/splash-screen";
-import { ClipboardCheck, Users, BarChart4, GitMerge } from "lucide-react";
-import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
+} from "@/src/components/ui/SplashScreen";
+import {
+  ClipboardCheck,
+  Users,
+  BarChart4,
+  GitMerge,
+  PlusIcon,
+} from "@langfuse/icons";
+import { type ComponentProps } from "react";
+import { ActionButton } from "@/src/components/ActionButton";
 
 export function AnnotationQueuesOnboarding({
-  projectId,
+  disabled,
+  usageLimit,
+  onClick,
 }: {
-  projectId: string;
+  disabled: { reason: string } | undefined;
+  usageLimit: ComponentProps<typeof ActionButton>["usageLimit"];
+  onClick: () => void;
 }) {
   const valuePropositions: ValueProposition[] = [
     {
       title: "Manage scoring workflows",
       description:
         "Create and manage annotation queues to streamline your scoring workflows",
-      icon: <ClipboardCheck className="h-4 w-4" />,
+      icon: ClipboardCheck,
     },
     {
       title: "Collaborate with annotators",
       description:
         "Invite team members to annotate and evaluate your LLM outputs",
-      icon: <Users className="h-4 w-4" />,
+      icon: Users,
     },
     {
       title: "Track annotation metrics",
       description:
         "Monitor annotation progress and quality metrics across your team",
-      icon: <BarChart4 className="h-4 w-4" />,
+      icon: BarChart4,
     },
     {
       title: "Baseline evaluation efforts",
       description:
         "Use annotation data as a baseline to evaluate your other evaluation metrics",
-      icon: <GitMerge className="h-4 w-4" />,
+      icon: GitMerge,
     },
   ];
 
@@ -46,11 +56,16 @@ export function AnnotationQueuesOnboarding({
       primaryAction={{
         label: "Create Annotation Queue",
         component: (
-          <CreateOrEditAnnotationQueueButton
+          <ActionButton
             variant="default"
-            projectId={projectId}
+            hasAccess={!disabled}
+            usageLimit={usageLimit}
+            onClick={onClick}
+            icon={<PlusIcon size="base" aria-hidden="true" />}
             size="lg"
-          />
+          >
+            <span className="ml-1 text-sm font-normal">New queue</span>
+          </ActionButton>
         ),
       }}
       secondaryAction={{

@@ -2,6 +2,7 @@ import { Queue } from "bullmq";
 import { env } from "../../env";
 import { QueueName, QueueJobs } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
+import { scheduleRecurringJob } from "./scheduleRecurringJob";
 import { logger } from "../logger";
 
 export class CloudFreeTierUsageThresholdQueue {
@@ -45,20 +46,18 @@ export class CloudFreeTierUsageThresholdQueue {
         "[CloudFreeTierUsageThresholdQueue] Scheduling recurring job",
         {
           pattern: "35 * * * *",
-          jobId: "free-tier-usage-threshold-hourly",
           description: "Every hour at minute 35",
           timestamp: new Date().toISOString(),
         },
       );
 
-      CloudFreeTierUsageThresholdQueue.instance.add(
-        QueueJobs.CloudFreeTierUsageThresholdJob,
-        { type: "recurring" },
-        {
-          repeat: { pattern: "35 * * * *" },
-          // jobId: "free-tier-usage-threshold-hourly", // CRITICAL: Unique ID prevents duplicates across containers
-        },
-      );
+      // The legacy schedule carried data { type: "recurring" } to distinguish
+      // it from a bootstrap job that was never enabled; nothing reads it and
+      // job data has no semantics to BullMQ, so the payload is now empty.
+      scheduleRecurringJob(CloudFreeTierUsageThresholdQueue.instance, {
+        jobName: QueueJobs.CloudFreeTierUsageThresholdJob,
+        pattern: "35 * * * *",
+      });
 
       // Optional: Bootstrap job for immediate execution on startup
       // This ensures usage thresholds are processed immediately when service starts

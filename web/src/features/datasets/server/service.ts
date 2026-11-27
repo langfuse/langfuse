@@ -5,7 +5,7 @@ import {
   type FilterState,
   type DatasetItem,
   type TracingSearchType,
-  singleFilter,
+  singleFilterList,
   type DatasetRunItemDomain,
   AGGREGATABLE_SCORE_TYPES,
 } from "@langfuse/shared";
@@ -15,7 +15,7 @@ import {
   getLatencyAndTotalCostForObservationsByTraces,
   getObservationsGroupedByTraceId,
   getScoresForTraces,
-  traceException,
+  logger,
   getDatasetItems,
   getDatasetItemsCount,
 } from "@langfuse/shared/src/server";
@@ -27,7 +27,7 @@ import { calculateRecursiveMetricsForRunItems } from "./utils";
 export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
-  filter: z.array(singleFilter),
+  filter: singleFilterList,
   ...optionalPaginationZod,
 });
 
@@ -35,13 +35,8 @@ export const datasetRunTableMetricsSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
   runIds: z.array(z.string()),
-  filter: z.array(singleFilter),
+  filter: singleFilterList,
 });
-
-export type DatasetRunsTableInput = z.infer<typeof datasetRunsTableSchema>;
-export type DatasetRunTableMetricsInput = z.infer<
-  typeof datasetRunTableMetricsSchema
->;
 
 export type DatasetRunItemsTableInput = {
   projectId: string;
@@ -143,7 +138,8 @@ export const getRunItemsByRunIdOrItemId = async <WithIO extends boolean = true>(
     scores: traceScores,
     dataTypes: AGGREGATABLE_SCORE_TYPES,
     includeHasMetadata: true,
-    onParseError: traceException,
+    onParseError: (error) =>
+      logger.warn("Invalid score omitted from response", { error }),
   });
 
   return runItems.map((ri) => {

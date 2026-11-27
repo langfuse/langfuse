@@ -1,6 +1,9 @@
-import type { InAppAgentLangfuseMcpToolName } from "@langfuse/shared/in-app-agent/server/tools";
+import type { InAppAgentLangfuseMcpToolName } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { safeJsonParse } from "@langfuse/shared";
-import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
 
 import type { api } from "@/src/utils/api";
 import { assertUnreachable } from "@/src/utils/types";
@@ -13,13 +16,17 @@ export type InAppAgentTrpcInvalidationTarget =
   | "dashboard"
   | "dashboardWidgets"
   | "datasets"
+  | "defaultLlmModel"
   | "evals"
+  | "evalsV2"
   | "experiments"
+  | "externalMediaStorage"
   | "models"
   | "prompts"
   | "scoreAnalytics"
   | "scoreConfigs"
-  | "scores";
+  | "scores"
+  | "skills";
 
 type InAppAgentMcpToolName = `langfuse_${InAppAgentLangfuseMcpToolName}`;
 
@@ -30,6 +37,10 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_listAnnotationQueueItems: [],
   langfuse_getAnnotationQueueItem: [],
   langfuse_createAnnotationQueueItem: [
+    "annotationQueues",
+    "annotationQueueItems",
+  ],
+  langfuse_batchCreateAnnotationQueueItems: [
     "annotationQueues",
     "annotationQueueItems",
   ],
@@ -56,6 +67,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_listDatasets: [],
   langfuse_getDataset: [],
   langfuse_upsertDatasetItem: ["datasets"],
+  langfuse_batchUpsertDatasetItems: ["datasets"],
   langfuse_listDatasetItems: [],
   langfuse_getDatasetItem: [],
   langfuse_deleteDatasetItem: ["datasets"],
@@ -65,25 +77,45 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_getDatasetRun: [],
   langfuse_deleteDatasetRun: ["datasets", "experiments"],
   langfuse_listEvaluators: [],
+  langfuse_listManagedEvaluatorTemplates: [],
   langfuse_getEvaluator: [],
-  langfuse_upsertEvaluator: ["evals", "models"],
+  langfuse_testEvaluator: ["evals"],
+  langfuse_createEvaluator: ["evals", "models"],
+  langfuse_updateEvaluator: ["evals", "models"],
   langfuse_deleteEvaluator: ["evals", "models"],
   langfuse_listEvaluationRules: [],
   langfuse_getEvaluationRule: [],
   langfuse_createEvaluationRule: ["evals"],
   langfuse_updateEvaluationRule: ["evals"],
+  langfuse_attachEvaluatorToEvaluationRule: ["evals"],
+  langfuse_detachEvaluatorFromEvaluationRule: ["evals"],
   langfuse_deleteEvaluationRule: ["evals"],
+  langfuse_runBatchEvaluation: ["evals"],
+  langfuse_getDefaultEvaluationModel: [],
+  langfuse_setDefaultEvaluationModel: ["defaultLlmModel", "evals", "evalsV2"],
+  langfuse_deleteDefaultEvaluationModel: [
+    "defaultLlmModel",
+    "evals",
+    "evalsV2",
+  ],
   langfuse_listExperiments: [],
   langfuse_listExperimentItems: [],
   langfuse_submitFeedback: ["scores", "scoreAnalytics"],
   langfuse_getHealth: [],
+  langfuse_getV4MigrationData: [],
   langfuse_getMedia: [],
+  langfuse_getExternalMediaStorage: [],
+  langfuse_configureExternalMediaStorage: ["externalMediaStorage"],
+  langfuse_deleteExternalMediaStorage: ["externalMediaStorage"],
+  langfuse_testExternalMediaStorage: [],
   langfuse_queryMetrics: [],
   langfuse_getMetricsSchema: [],
+  langfuse_renderWidget: [],
   langfuse_listModels: [],
   langfuse_createModel: ["models"],
   langfuse_getModel: [],
   langfuse_deleteModel: ["models"],
+  langfuse_listLlmConnections: [],
   langfuse_listObservations: [],
   langfuse_getObservation: [],
   langfuse_getObservationFieldSchema: [],
@@ -91,15 +123,28 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_getObservationFilterValues: [],
   langfuse_getPrompt: [],
   langfuse_getPromptUnresolved: [],
-  langfuse_listMonitors: [],
-  langfuse_getMonitor: [],
+  langfuse_listAlerts: [],
+  langfuse_getAlert: [],
+  langfuse_listTopicRules: [],
+  langfuse_listTopicFacets: [],
+  langfuse_listTopics: [],
+  langfuse_listTopicSummaries: [],
+  langfuse_listTopicAssignments: [],
   langfuse_listPrompts: [],
   langfuse_createTextPrompt: ["prompts"],
   langfuse_createChatPrompt: ["prompts"],
   langfuse_updatePromptLabels: ["prompts"],
+  langfuse_listSkills: [],
+  langfuse_getSkill: [],
+  langfuse_loadSkill: [],
+  langfuse_loadSkillResource: [],
+  langfuse_createSkillVersion: ["skills"],
+  langfuse_updateSkillLabels: ["skills"],
+  langfuse_updateSkillTags: ["skills"],
   langfuse_listScores: [],
   langfuse_getScore: [],
   langfuse_createScore: ["scores", "scoreAnalytics"],
+  langfuse_batchCreateScores: ["scores", "scoreAnalytics"],
   langfuse_listScoreConfigs: [],
   langfuse_getScoreConfig: [],
   langfuse_createScoreConfig: ["scoreConfigs"],
@@ -123,7 +168,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   readonly InAppAgentTrpcInvalidationTarget[]
 >;
 
-export function getInAppAgentTrpcInvalidationTargets(toolName: string) {
+function getInAppAgentTrpcInvalidationTargets(toolName: string) {
   return (
     IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS[
       toolName as keyof typeof IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS
@@ -131,7 +176,7 @@ export function getInAppAgentTrpcInvalidationTargets(toolName: string) {
   );
 }
 
-export function shouldPerformToolSideEffects(toolError: unknown) {
+function shouldPerformToolSideEffects(toolError: unknown) {
   const parsedError =
     typeof toolError === "string" ? safeJsonParse(toolError) : toolError;
 
@@ -146,7 +191,7 @@ export function shouldPerformToolSideEffects(toolError: unknown) {
   return parsedError.code !== IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE;
 }
 
-export function performTargetInvalidation(
+function performTargetInvalidation(
   target: InAppAgentTrpcInvalidationTarget,
   utils: ReturnType<typeof api.useUtils>,
 ) {
@@ -171,11 +216,20 @@ export function performTargetInvalidation(
   if (target === "datasets") {
     return utils.datasets.invalidate();
   }
+  if (target === "defaultLlmModel") {
+    return utils.defaultLlmModel.invalidate();
+  }
   if (target === "evals") {
     return utils.evals.invalidate();
   }
+  if (target === "evalsV2") {
+    return utils.evalsV2.invalidate();
+  }
   if (target === "experiments") {
     return utils.experiments.invalidate();
+  }
+  if (target === "externalMediaStorage") {
+    return utils.externalMediaStorage.invalidate();
   }
   if (target === "models") {
     return utils.models.invalidate();
@@ -192,20 +246,88 @@ export function performTargetInvalidation(
   if (target === "scores") {
     return utils.scores.invalidate();
   }
+  if (target === "skills") {
+    return utils.skills.invalidate();
+  }
 
   return assertUnreachable(target);
 }
 
-export function performToolSideEffects({
-  toolName,
+export type CompletedToolCall = {
+  toolCallId: string;
+  toolName: string;
+  toolError?: unknown;
+};
+
+/**
+ * Reconstruct completed tool calls from the durable conversation messages.
+ * Background runs can finish while the drawer is detached, so the browser
+ * cannot rely on having observed the live TOOL_CALL_RESULT event.
+ */
+export function getCompletedToolCalls(
+  messages: readonly AgUiMessage[],
+): CompletedToolCall[] {
+  const toolCalls = new Map<string, Omit<CompletedToolCall, "toolError">>();
+  const toolResults = new Map<string, Extract<AgUiMessage, { role: "tool" }>>();
+
+  for (const message of messages) {
+    if (message.role === "assistant") {
+      for (const toolCall of message.toolCalls ?? []) {
+        toolCalls.set(toolCall.id, {
+          toolCallId: toolCall.id,
+          toolName: toolCall.function.name,
+        });
+      }
+      continue;
+    }
+
+    if (message.role === "tool") {
+      toolResults.set(message.toolCallId, message);
+    }
+  }
+
+  return Array.from(toolCalls.values()).flatMap((toolCall) => {
+    const result = toolResults.get(toolCall.toolCallId);
+    // No result message means the call never completed, so nothing was written.
+    return result ? [{ ...toolCall, toolError: result.error }] : [];
+  });
+}
+
+/**
+ * Live TOOL_CALL_RESULT events pass one call while snapshot replay passes every
+ * completed call in the transcript. `handledToolCallIds` makes the two
+ * idempotent against each other, and the targets are unioned so a long
+ * transcript still invalidates each route once.
+ */
+export function performToolSideEffectsForCompletedToolCalls({
+  toolCalls,
+  handledToolCallIds,
   utils,
 }: {
-  toolName: string;
+  toolCalls: readonly CompletedToolCall[];
+  handledToolCallIds: Set<string>;
   utils: ReturnType<typeof api.useUtils>;
 }) {
-  const targets = getInAppAgentTrpcInvalidationTargets(toolName);
+  const targets = new Set<InAppAgentTrpcInvalidationTarget>();
+
+  for (const toolCall of toolCalls) {
+    if (handledToolCallIds.has(toolCall.toolCallId)) {
+      continue;
+    }
+
+    handledToolCallIds.add(toolCall.toolCallId);
+    if (!shouldPerformToolSideEffects(toolCall.toolError)) {
+      continue;
+    }
+
+    for (const target of getInAppAgentTrpcInvalidationTargets(
+      toolCall.toolName,
+    )) {
+      targets.add(target);
+    }
+  }
 
   return Promise.all(
-    targets.map((target) => performTargetInvalidation(target, utils)),
+    Array.from(targets, (target) => performTargetInvalidation(target, utils)),
   );
 }

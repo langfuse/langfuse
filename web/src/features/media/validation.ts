@@ -1,12 +1,8 @@
 import { z } from "zod";
 
-import {
-  datasetItemMediaFields,
-  MediaContentType,
-  MediaFileExtension,
-} from "@langfuse/shared";
+import { datasetItemMediaFields, MediaContentType } from "@langfuse/shared";
 
-export { MediaContentType, MediaFileExtension };
+export { MediaContentType };
 
 export enum MediaEnabledFields {
   Input = "input",
@@ -73,6 +69,7 @@ export const GetMediaUploadUrlResponseSchema = z.object({
   mediaId: z.string(),
 });
 
+/** @internal */
 export type GetMediaUploadUrlResponse = z.infer<
   typeof GetMediaUploadUrlResponseSchema
 >;
@@ -90,8 +87,6 @@ export const GetMediaQuerySchema = z.object({
   mediaId: z.string(),
 });
 
-export type GetMediaQuery = z.infer<typeof GetMediaQuerySchema>;
-
 export const GetMediaResponseSchema = z.object({
   mediaId: z.string(),
   contentType: z.string(),
@@ -101,9 +96,10 @@ export const GetMediaResponseSchema = z.object({
   urlExpiry: z.string(),
 });
 
+/** @internal */
 export type GetMediaResponse = z.infer<typeof GetMediaResponseSchema>;
 
-export const MediaReturnSchema = z.object({
+const MediaReturnSchema = z.object({
   mediaId: z.string(),
   contentType: z.enum(MediaContentType),
   contentLength: z.coerce.number(),

@@ -1,11 +1,12 @@
 import {
   ListableScoreDataType,
-  MetadataDomain,
   ScoreSourceType,
-} from "../../../../domain";
+} from "../../../../domain/scores";
+import { MetadataDomain } from "../../../../domain/traces";
 
 export type BaseAggregate = {
   comment?: string | null;
+  executionTraceId?: string | null;
   id?: string | null;
   hasMetadata?: boolean | null;
   timestamp?: Date | null;
@@ -34,6 +35,7 @@ export type ScoreSimplified = {
   source: ScoreSourceType;
   value?: number | null;
   comment?: string | null;
+  executionTraceId?: string | null;
   metadata?: MetadataDomain | null;
   stringValue?: string | null;
   timestamp: Date;

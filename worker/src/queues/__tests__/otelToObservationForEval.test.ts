@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 /**
  * Test suite to verify that OTEL events coming through the ingestion pipeline
  * correctly conform to the ObservationForEval schema.
@@ -1869,6 +1870,16 @@ describe("OTEL to ObservationForEval Schema Validation", () => {
         cost: { stringValue: "not json" },
         expectedUsage: { input: 100, output: 200 },
         expectedCost: {},
+      },
+      {
+        name: "non-numeric cost entries",
+        usage: null,
+        cost: {
+          stringValue:
+            '{"total":0.01,"input":"0.004","output":-0.002,"currency":"USD"}',
+        },
+        expectedUsage: {},
+        expectedCost: { total: 0.01, input: 0.004, output: -0.002 },
       },
     ])(
       "should handle $name without data corruption",

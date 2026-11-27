@@ -1,4 +1,5 @@
 import type {
+  ClickhouseClientType,
   EventRecordInsertType,
   InternalEventsWriter,
   InternalTraceEventInput,
@@ -10,19 +11,27 @@ import { ClickhouseWriter } from "../../services/ClickhouseWriter";
 import { IngestionService } from "../../services/IngestionService";
 import { env, v4WritesToEventsTable } from "../../env";
 
-let internalTraceIngestionService: IngestionService | undefined;
+let internalTraceIngestionService:
+  | { service: IngestionService; client: ClickhouseClientType }
+  | undefined;
 
+// clickhouseClient() returns a new client when the ClickHouse credentials
+// change, so the cached service is rebuilt around the current client.
 function getInternalTraceIngestionService(): IngestionService {
-  if (!internalTraceIngestionService) {
-    internalTraceIngestionService = new IngestionService(
-      redis as any,
-      prisma,
-      ClickhouseWriter.getInstance(),
-      clickhouseClient(),
-    );
+  const client = clickhouseClient();
+  if (internalTraceIngestionService?.client !== client) {
+    internalTraceIngestionService = {
+      service: new IngestionService(
+        redis as any,
+        prisma,
+        ClickhouseWriter.getInstance(),
+        client,
+      ),
+      client,
+    };
   }
 
-  return internalTraceIngestionService;
+  return internalTraceIngestionService.service;
 }
 
 async function writeInternalEventInputs(params: {

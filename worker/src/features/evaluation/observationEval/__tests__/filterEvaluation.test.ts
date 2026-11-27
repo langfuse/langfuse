@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { type Prisma } from "@langfuse/shared/src/db";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+import { Prisma } from "@langfuse/shared/src/db";
 import { scheduleObservationEvals } from "../scheduleObservationEvals";
 import {
   createTestObservation,
@@ -7,12 +7,22 @@ import {
   createMockSchedulerDeps,
 } from "./fixtures";
 import {
+  type FilterState,
   type ObservationForEval,
   EvalTargetObject,
+  normalizeEvaluationRuleTarget,
   observationForEvalSchema,
+  TopicsTargetObject,
 } from "@langfuse/shared";
 
-// Mock logger to avoid noise in tests
+import {
+  prepareTraceDispatchRules,
+  getMatchingTraceDispatchRuleIds,
+} from "../../../traceDispatch/traceDispatchRules";
+import { isTraceEvalsProcessingActive } from "@langfuse/shared/src/server";
+
+// Mock logger to avoid noise in tests. Judge transcript rules are admitted
+// only when trace-evals processing is active for the project.
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
@@ -23,6 +33,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
       warn: vi.fn(),
       error: vi.fn(),
     },
+    isTraceEvalsProcessingActive: vi.fn().mockResolvedValue(false),
   };
 });
 
@@ -47,6 +58,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
     await scheduleObservationEvals({
       observation,
+      loadSnapshot: () => observation,
       configs: [config],
       schedulerDeps: deps,
     });
@@ -747,6 +759,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps: deps,
       });
@@ -820,17 +833,22 @@ describe("Filter Evaluation for Observation Evals", () => {
       observation: ObservationForEval,
       filter: unknown[] = [],
     ): Promise<boolean> {
+      // Callers hand the scheduler canonical configs, so an experiment target
+      // arrives as `event` plus its root-span filter.
       const config = createTestEvalConfig({
         projectId,
-        filter,
         sampling: { toNumber: () => 1 } as unknown as Prisma.Decimal,
-        targetObject: EvalTargetObject.EXPERIMENT,
+        ...normalizeEvaluationRuleTarget({
+          targetObject: EvalTargetObject.EXPERIMENT,
+          filter: filter as FilterState,
+        }),
       });
 
       const deps = createMockSchedulerDeps();
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps: deps,
       });
@@ -1047,6 +1065,56 @@ describe("Filter Evaluation for Observation Evals", () => {
       expect(matched).toBe(true);
     });
 
+    it("should treat an empty parentObservationId as null", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        parent_span_id: "",
+      });
+
+      const isNullMatch = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ]);
+      const isNotNullMatch = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is not null",
+          value: "",
+        },
+      ]);
+
+      expect(isNullMatch).toBe(true);
+      expect(isNotNullMatch).toBe(false);
+    });
+
+    it("should treat an empty string or empty array column as null, like ClickHouse", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        user_id: "",
+        tool_call_names: [],
+      });
+
+      for (const column of ["userId", "calledToolNames"]) {
+        const isNullMatch = await testFilterMatch(observation, [
+          { column, type: "null", operator: "is null", value: "" },
+        ]);
+        const isNotNullMatch = await testFilterMatch(observation, [
+          { column, type: "null", operator: "is not null", value: "" },
+        ]);
+
+        expect({ column, isNullMatch, isNotNullMatch }).toEqual({
+          column,
+          isNullMatch: true,
+          isNotNullMatch: false,
+        });
+      }
+    });
+
     it("should not match observations where parentObservationId is not null (child observations)", async () => {
       const observation = createTestObservation({
         project_id: projectId,
@@ -1212,5 +1280,94 @@ describe("tool_calls computation", () => {
     });
 
     expect(obs.tool_call_count).toBe(3);
+  });
+});
+
+describe("trace transcript rule matching", () => {
+  const projectId = "test-project-123";
+
+  beforeEach(() => {
+    vi.mocked(isTraceEvalsProcessingActive).mockResolvedValue(true);
+  });
+
+  const makeRules = (sampling: number) =>
+    ["first", "second"].map((id) => ({
+      id,
+      ruleId: id,
+      projectId,
+      targetObject: TopicsTargetObject,
+      status: "ACTIVE" as const,
+      sampling: new Prisma.Decimal(sampling),
+      filter: [
+        {
+          column: "Tags",
+          type: "stringOptions" as const,
+          operator: "any of" as const,
+          value: ["selected"],
+        },
+        {
+          column: "Status Message",
+          type: "string" as const,
+          operator: "contains" as const,
+          value: "retry",
+        },
+      ],
+      assignments: [
+        {
+          id: `${id}-assignment`,
+          evaluatorId: id,
+          variableMapping: null,
+          evaluator: { id, projectId, type: "LLM_AS_JUDGE" as const },
+        },
+      ],
+    }));
+
+  it("normalizes persisted columns and requires every predicate on one observation", async () => {
+    const rules = await prepareTraceDispatchRules(projectId, makeRules(1));
+    const observation = createTestObservation({
+      tags: ["selected"],
+      status_message: "please retry",
+    });
+    expect(getMatchingTraceDispatchRuleIds(observation, rules)).toEqual([
+      "first",
+      "second",
+    ]);
+    expect(
+      getMatchingTraceDispatchRuleIds({ ...observation, tags: [] }, rules),
+    ).toEqual([]);
+    expect(
+      getMatchingTraceDispatchRuleIds(
+        { ...observation, status_message: "ok" },
+        rules,
+      ),
+    ).toEqual([]);
+    expect(
+      getMatchingTraceDispatchRuleIds(
+        { ...observation, project_id: "other" },
+        rules,
+      ),
+    ).toEqual([]);
+  });
+
+  it("shares the sampled trace cohort across spans and rules", async () => {
+    const rules = await prepareTraceDispatchRules(projectId, makeRules(0.1));
+    const selected = Array.from({ length: 100 }, (_, index) => {
+      const observation = createTestObservation({
+        trace_id: `trace-${index}`,
+        tags: ["selected"],
+        status_message: "retry",
+      });
+      const result = getMatchingTraceDispatchRuleIds(observation, rules);
+      expect(result).toEqual(result.length ? ["first", "second"] : []);
+      expect(
+        getMatchingTraceDispatchRuleIds(
+          { ...observation, span_id: "another-span" },
+          rules,
+        ),
+      ).toEqual(result);
+      return result.length > 0;
+    });
+    expect(selected).toContain(true);
+    expect(selected).toContain(false);
   });
 });

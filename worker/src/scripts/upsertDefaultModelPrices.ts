@@ -7,7 +7,7 @@ import {
   validatePricingTiers,
 } from "@langfuse/shared";
 
-export const PricingTierSchema = z.object({
+const PricingTierSchema = z.object({
   id: z.string(),
   name: z.string(),
   isDefault: z.boolean(),
@@ -16,7 +16,7 @@ export const PricingTierSchema = z.object({
   prices: z.record(z.string(), z.number()),
 });
 
-export const DefaultModelPriceSchema = z
+const DefaultModelPriceSchema = z
   .object({
     id: z.string(),
     modelName: z.string(),
@@ -46,7 +46,7 @@ export const DefaultModelPriceSchema = z
   });
 
 export type DefaultModelPrice = z.infer<typeof DefaultModelPriceSchema>;
-export type PricingTier = z.infer<typeof PricingTierSchema>;
+type PricingTier = z.infer<typeof PricingTierSchema>;
 
 const ExistingModelTierSchema = z.object({
   modelId: z.string(),
@@ -101,7 +101,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
         models m
         INNER JOIN pricing_tiers t ON t.model_id = m.id
       WHERE
-        m.project_id IS NULL
+        m.scope = 'LANGFUSE'
     `;
 
     const existingModels =
@@ -217,8 +217,9 @@ export const upsertDefaultModelPrices = async (force = false) => {
 
 /**
  * Upserts a model with its pricing tiers in a transaction
+ * @internal
  */
-async function upsertModelWithTiers(
+export async function upsertModelWithTiers(
   defaultModelPrice: DefaultModelPrice,
   existingModel:
     | {
@@ -236,7 +237,7 @@ async function upsertModelWithTiers(
     // 1. Upsert model
     await tx.model.upsert({
       where: {
-        projectId: null,
+        scope: "LANGFUSE",
         id: defaultModelPrice.id,
       },
       update: {
@@ -247,7 +248,7 @@ async function upsertModelWithTiers(
         tokenizerId: defaultModelPrice.tokenizerId,
       },
       create: {
-        projectId: null,
+        scope: "LANGFUSE",
         id: defaultModelPrice.id,
         modelName: defaultModelPrice.modelName,
         matchPattern: defaultModelPrice.matchPattern,
@@ -279,6 +280,26 @@ async function upsertModelWithTiers(
         logger.debug(
           `Deleted ${tiersToDelete.length} obsolete tiers for model ${defaultModelPrice.modelName}`,
         );
+      }
+
+      // Vacate all persisted priorities before applying the desired layout.
+      // This avoids unique constraint conflicts when an existing tier moves to
+      // a priority that a newly inserted tier should take over.
+      const temporaryPriorityStart =
+        Math.max(
+          ...existingModel.tiers.map((tier) => tier.priority),
+          ...defaultModelPrice.pricingTiers.map((tier) => tier.priority),
+        ) + 1;
+
+      const retainedTiers = existingModel.tiers.filter((tier) =>
+        jsonTierIds.has(tier.id),
+      );
+
+      for (const [index, tier] of retainedTiers.entries()) {
+        await tx.pricingTier.update({
+          where: { id: tier.id },
+          data: { priority: temporaryPriorityStart + index },
+        });
       }
     }
 
