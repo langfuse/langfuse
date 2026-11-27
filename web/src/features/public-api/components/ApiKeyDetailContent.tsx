@@ -76,13 +76,15 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
           <DocsLink href="https://langfuse.com/docs/api-and-data-platform/features/public-api">
             Langfuse API
           </DocsLink>{" "}
-          with the project id as the username and the secret key as the
-          password.
+          with the secret key as a bearer token.
         </>
       ),
-      // Basic auth names the project, which project routes need even for an organization key.
       code: shellCommand(
-        `curl -u "${projectId}:${GATEWAY_KEY_PLACEHOLDER}"`,
+        `curl -H "Authorization: Bearer ${GATEWAY_KEY_PLACEHOLDER}"`,
+        // An organization key names its project per request; a project key is bound to one.
+        ...(scope === "organization"
+          ? [`-H "langfuse-project-id: ${projectId}"`]
+          : []),
         `${baseUrl}/api/public/projects`,
       ),
       secret: secretKey,

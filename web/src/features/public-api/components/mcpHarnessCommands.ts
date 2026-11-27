@@ -18,7 +18,7 @@ export type McpHarnessCommand = {
 
 /** shellCommand joins a command's arguments into one bash command, one argument per line, starting with a space so a key in it stays out of shell history. */
 export function shellCommand(...lines: string[]): string {
-  return ` ${lines.join(" \\\n    ")}`;
+  return ` ${lines.join(" \\\n  ")}`;
 }
 
 /** McpCredential is the Authorization scheme and token a key connects to the MCP server with. */
