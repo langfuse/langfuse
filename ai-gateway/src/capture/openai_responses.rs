@@ -372,8 +372,7 @@ impl GuardrailItem<'_> {
 fn classify_guardrail_item(
     item: &serde_json::value::RawValue,
 ) -> Result<crate::guardrails::text::TurnItem, crate::guardrails::text::Unreadable> {
-    let item: GuardrailItem<'_> =
-        serde_json::from_str(item.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
+    let item: GuardrailItem<'_> = crate::guardrails::text::object_item(item)?;
     Ok(item.turn_item())
 }
 

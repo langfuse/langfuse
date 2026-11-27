@@ -94,7 +94,7 @@ struct RoleMessage<'a> {
 
 /// An `assistant` message is the model's; every other role is a caller message.
 pub(crate) fn classify_role_message(item: &RawValue) -> Result<TurnItem, Unreadable> {
-    let message: RoleMessage<'_> = serde_json::from_str(item.get()).map_err(|_| Unreadable)?;
+    let message = object_item::<RoleMessage<'_>>(item)?;
     Ok(
         if message.role.and_then(string).as_deref() == Some("assistant") {
             TurnItem::Model
@@ -102,6 +102,16 @@ pub(crate) fn classify_role_message(item: &RawValue) -> Result<TurnItem, Unreada
             TurnItem::Message
         },
     )
+}
+
+/// A conversation item, which is an object. Serde would also read an array into
+/// the struct positionally, as text the spec trees never scan, so any other value
+/// is unreadable.
+pub(crate) fn object_item<'a, T: Deserialize<'a>>(item: &'a RawValue) -> Result<T, Unreadable> {
+    if !item.get().starts_with('{') {
+        return Err(Unreadable);
+    }
+    serde_json::from_str(item.get()).map_err(|_| Unreadable)
 }
 
 /// Who produced a conversation item.
