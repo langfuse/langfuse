@@ -28,6 +28,8 @@ import {
   getCategoricalScoresGroupedByName,
   convertDateToClickhouseDateTime,
   getAgentGraphData,
+  getTraceByIdFromEventsTable,
+  getObservationsForTraceFromEventsTable,
   tracesTableUiColumnDefinitions,
   getTracesGroupedByUsers,
   getTracesGroupedBySessionId,
@@ -69,6 +71,7 @@ import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEnti
 import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server/legacyIoSearch";
 import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
 import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/fns/mapAgentGraphRecord";
+import { buildTraceDiff } from "@/src/features/traces/server/traceDiff";
 
 import { env } from "@/src/env.mjs";
 import {
@@ -115,6 +118,54 @@ export type ObservationReturnType = Omit<
   ObservationReturnTypeWithMetadata,
   "metadata"
 >;
+
+async function getTraceForDiff(projectId: string, traceId: string) {
+  const useEventsOnly = env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
+  if (useEventsOnly) {
+    const [trace, result] = await Promise.all([
+      getTraceByIdFromEventsTable({ traceId, projectId }),
+      getObservationsForTraceFromEventsTable({
+        projectId,
+        traceId,
+        selectIOAndMetadata: true,
+        selectMetadata: true,
+        selectToolData: true,
+      }),
+    ]);
+    return {
+      trace,
+      observations: result.observations,
+      truncated: result.totalCount > result.observations.length,
+    };
+  }
+
+  const [trace, observations] = await Promise.all([
+    // Legacy read path is required while installations still write legacy traces.
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    getTraceById({ traceId, projectId }),
+    getObservationsForTrace({ traceId, projectId, includeIO: true }),
+  ]);
+
+  if (!trace && env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "dual") {
+    const [eventsTrace, result] = await Promise.all([
+      getTraceByIdFromEventsTable({ traceId, projectId }),
+      getObservationsForTraceFromEventsTable({
+        projectId,
+        traceId,
+        selectIOAndMetadata: true,
+        selectMetadata: true,
+        selectToolData: true,
+      }),
+    ]);
+    return {
+      trace: eventsTrace,
+      observations: result.observations,
+      truncated: result.totalCount > result.observations.length,
+    };
+  }
+
+  return { trace, observations, truncated: false };
+}
 
 export const traceRouter = createTRPCRouter({
   hasTracingConfigured: protectedProjectProcedure
@@ -488,6 +539,60 @@ export const traceRouter = createTRPCRouter({
       };
     },
   ),
+  diffById: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        leftTraceId: z.string(),
+        rightTraceId: z.string(),
+        maxPreviewCodePoints: z
+          .number()
+          .int()
+          .positive()
+          .max(10_000)
+          .default(2000),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "traces:read",
+      });
+
+      if (input.leftTraceId === input.rightTraceId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Choose two different traces to compare",
+        });
+      }
+
+      const [left, right] = await Promise.all([
+        getTraceForDiff(input.projectId, input.leftTraceId),
+        getTraceForDiff(input.projectId, input.rightTraceId),
+      ]);
+
+      if (!left.trace || !right.trace) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "One or both traces were not found",
+        });
+      }
+
+      if (left.truncated || right.truncated) {
+        throw new TRPCError({
+          code: "PAYLOAD_TOO_LARGE",
+          message:
+            "One or both traces exceed the observation limit for semantic diff",
+        });
+      }
+
+      return buildTraceDiff(
+        { traceId: input.leftTraceId, observations: left.observations },
+        { traceId: input.rightTraceId, observations: right.observations },
+        input.maxPreviewCodePoints,
+      );
+    }),
   deleteMany: protectedProjectProcedure
     .input(
       z
