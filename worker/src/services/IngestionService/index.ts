@@ -657,9 +657,10 @@ export class IngestionService {
               scoreId: entityId,
               projectId,
             });
-            const rawMetadata = scoreEvent.body.metadata
-              ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
-              : {};
+            const rawMetadata =
+              scoreEvent.body.metadata != null
+                ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
+                : {};
             const evaluationFields =
               scoreEvent.body as ScoreEventType["body"] & {
                 evaluatorId?: string;
@@ -1618,9 +1619,10 @@ export class IngestionService {
         //   : undefined) as number, // Casting here is dirty, but our requirement is to have a start_time _after_ the merge
         name: trace.body.name,
         user_id: trace.body.userId,
-        metadata: trace.body.metadata
-          ? convertJsonSchemaToRecord(trace.body.metadata)
-          : {},
+        metadata:
+          trace.body.metadata != null
+            ? convertJsonSchemaToRecord(trace.body.metadata)
+            : {},
         release: trace.body.release,
         version: trace.body.version,
         project_id: projectId,
@@ -1770,9 +1772,10 @@ export class IngestionService {
           "completionStartTime" in obs.body && obs.body.completionStartTime
             ? toClickhouseDateTime(obs.body.completionStartTime)
             : undefined,
-        metadata: obs.body.metadata
-          ? convertJsonSchemaToRecord(obs.body.metadata)
-          : {},
+        metadata:
+          obs.body.metadata != null
+            ? convertJsonSchemaToRecord(obs.body.metadata)
+            : {},
         provided_model_name: "model" in obs.body ? obs.body.model : undefined,
         model_parameters:
           "modelParameters" in obs.body
