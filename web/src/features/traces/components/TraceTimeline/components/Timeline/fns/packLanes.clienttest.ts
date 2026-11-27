@@ -33,7 +33,7 @@ function span(
 }
 
 describe("packLanes", () => {
-  it("puts each type on one row, however its spans nest or overlap", () => {
+  it("puts each type on one row and levels the spans that overlap in it", () => {
     const roots = [
       span("trace-a", 0, 100, [span("a1", 0, 50, [span("a2", 10, 20)])]),
       span("trace-b", 40, 90, [span("b1", 40, 80)]),
@@ -51,10 +51,12 @@ describe("packLanes", () => {
     expect(laneById.get("a1")).toBe(1);
     expect(laneById.get("a2")).toBe(1);
     expect(laneById.get("b1")).toBe(1);
-    // a2 is the only span inside another span.
-    const nestingById = byId(packing.nesting);
-    expect(nestingById.get("a2")).toBe(1);
-    expect(nestingById.get("b1")).toBe(0);
+    // a2 sits inside a1. b1 is on another branch but overlaps a1 in time.
+    const overlapById = byId(packing.overlap);
+    expect(overlapById.get("a1")).toBe(0);
+    expect(overlapById.get("a2")).toBe(1);
+    expect(overlapById.get("b1")).toBe(1);
+    expect(overlapById.get("trace-b")).toBe(1);
 
     const positioned = layout({
       roots,

@@ -151,8 +151,8 @@ export type PackedPacking = {
   laneCount: number;
   /** Per lane: the observation type it holds. */
   types: string[];
-  /** Per row: how many ancestors of its own type it has. */
-  nesting: number[];
+  /** Per row: a level no span overlapping it in its lane shares. */
+  overlap: number[];
 };
 
 export type RowPresentation = "labelled" | "compact" | "hairline";

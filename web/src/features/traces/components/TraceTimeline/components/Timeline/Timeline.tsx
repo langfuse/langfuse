@@ -565,10 +565,10 @@ export function Timeline({
   const packedSavesSpace = prepared.rows.length - lanePacking.laneCount >= 2;
   const packed = rowLayout === "packed" && packedSavesSpace;
   const packing = packed ? lanePacking : null;
-  // Packed spans with an ancestor of their own type share its lane.
-  const nestingById = useMemo(() => {
+  // Packed spans that overlap another span in their lane.
+  const overlapById = useMemo(() => {
     const levels = new Map<string, number>();
-    packing?.nesting.forEach((level, index) => {
+    packing?.overlap.forEach((level, index) => {
       const row = prepared.rows[index];
       if (row && level > 0) levels.set(row.node.id, level);
     });
@@ -677,7 +677,9 @@ export function Timeline({
     if (labelsPinned) {
       return true;
     }
-    if (override === "collapsed") {
+    // Packed has no control that reopens its labels, so a collapse made in
+    // the tree does not close them.
+    if (override === "collapsed" && !packed) {
       return false;
     }
     return asked || gutterMode === "auto";
@@ -1933,9 +1935,9 @@ export function Timeline({
 
             const isSelected = node.id === selectedId;
             const isUnselected = dimsUnselected && !isSelected;
-            // A span inside one of its own type shares that bar's lane, so
-            // every other nesting level is a shade darker.
-            const nesting = nestingById.get(node.id) ?? 0;
+            // Bars that overlap in a packed lane alternate shade, so the
+            // edge between them shows.
+            const overlap = overlapById.get(node.id) ?? 0;
             // A miss under a live query. Not "hidden": the row keeps its place
             // on the clock, its click target and its hover, so the matches read
             // in the context of everything they sit between.
@@ -2025,7 +2027,7 @@ export function Timeline({
                         packed && "pointer-events-auto",
                         onSelect && "cursor-pointer",
                         barClass,
-                        nesting % 2 === 1 && "brightness-75",
+                        overlap % 2 === 1 && "brightness-75",
                         // Inset, so a hairline bar keeps its size.
                         isSelected && [
                           "ring-1 ring-inset",
@@ -2078,12 +2080,12 @@ export function Timeline({
                       on whichever side layout() measured room for, rather than
                       always after the bar, which clipped a full-width bar's
                       label at the lane edge. */}
-                  {/* A packed bar nested in one of its own type sits on its
-                      parent's label, so only the parent is labelled. */}
+                  {/* Bars that overlap in a packed lane would stack their
+                      labels, so only the first of them is labelled. */}
                   {presentation === "labelled" &&
                   !node.offscreen &&
                   (!packed ||
-                    (node.labelPlacement === "inside" && nesting === 0)) ? (
+                    (node.labelPlacement === "inside" && overlap === 0)) ? (
                     <TimelineRowMetrics
                       row={node}
                       laneWidth={laneWidth}

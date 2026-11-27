@@ -1,34 +1,40 @@
 import type { LayoutNode, PackedPacking } from "../types";
+import { endOf } from "./endOf";
+import { startOf } from "./startOf";
 
 /**
  * One row per observation type, in the order the types first appear in the
- * tree. `nesting` says how many ancestors of its own type each span has, since
- * those sit on the same row and the span is drawn inside them.
+ * tree. Spans of one type can overlap in time, nested or not, so `overlap`
+ * gives each span a level that differs from every span it overlaps.
  */
 export function packLanes(
-  rows: readonly { node: LayoutNode; depth: number }[],
+  rows: readonly { node: LayoutNode }[],
 ): PackedPacking {
   const laneOf = new Map<string, number>();
-  /** Open ancestors of the row being placed, and how many there are per type. */
-  const ancestors: { depth: number; type: string }[] = [];
-  const open = new Map<string, number>();
-  const lanes: number[] = [];
-  const nesting: number[] = [];
-
-  for (const row of rows) {
+  const spansByLane: { index: number; start: number; end: number }[][] = [];
+  const lanes = rows.map((row, index) => {
     const type = row.node.type ?? "SPAN";
-    while ((ancestors.at(-1)?.depth ?? -1) >= row.depth) {
-      const closed = ancestors.pop();
-      if (closed) open.set(closed.type, (open.get(closed.type) ?? 1) - 1);
-    }
-    const level = open.get(type) ?? 0;
-    ancestors.push({ depth: row.depth, type });
-    open.set(type, level + 1);
+    const lane = laneOf.get(type) ?? laneOf.size;
+    laneOf.set(type, lane);
+    const start = startOf(row.node);
+    const spans = spansByLane[lane] ?? [];
+    spansByLane[lane] = spans;
+    spans.push({ index, start, end: Math.max(endOf(row.node), start) });
+    return lane;
+  });
 
-    if (!laneOf.has(type)) laneOf.set(type, laneOf.size);
-    lanes.push(laneOf.get(type) ?? 0);
-    nesting.push(level);
+  const overlap = new Array<number>(rows.length).fill(0);
+  for (const spans of spansByLane) {
+    /** Per level: when the span last placed on it ends. */
+    const levelEnds: number[] = [];
+    // The sort is stable, so a parent stays ahead of a child starting with it.
+    for (const span of spans.toSorted((a, b) => a.start - b.start)) {
+      const free = levelEnds.findIndex((end) => end <= span.start);
+      const level = free === -1 ? levelEnds.length : free;
+      levelEnds[level] = span.end;
+      overlap[span.index] = level;
+    }
   }
 
-  return { lanes, laneCount: laneOf.size, types: [...laneOf.keys()], nesting };
+  return { lanes, laneCount: laneOf.size, types: [...laneOf.keys()], overlap };
 }
