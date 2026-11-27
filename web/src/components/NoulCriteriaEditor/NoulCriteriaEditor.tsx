@@ -7,10 +7,12 @@ import { Textarea } from "@/src/components/ui/textarea";
 import { cn } from "@/src/utils/tailwind";
 
 export type NoulCriteriaDraft = { true: string; false: string };
+type NoulCriteriaErrors = Partial<Record<"true" | "false", string>>;
 
 export type NoulCriteriaEditorProps = {
   criteria: NoulCriteriaDraft;
   onChange: (criteria: NoulCriteriaDraft) => void;
+  errors?: NoulCriteriaErrors;
   yesPlaceholder?: string;
   noPlaceholder?: string;
   disabled?: boolean;
@@ -28,13 +30,16 @@ const DEFAULT_NO_PLACEHOLDER =
 export function NoulCriteriaEditor({
   criteria,
   onChange,
+  errors,
   yesPlaceholder = DEFAULT_YES_PLACEHOLDER,
   noPlaceholder = DEFAULT_NO_PLACEHOLDER,
   disabled = false,
 }: NoulCriteriaEditorProps) {
   const id = useId();
   const hasContent = Boolean(criteria.true.trim() || criteria.false.trim());
-  const [open, setOpen] = useState(hasContent);
+  const hasErrors = Boolean(errors?.true || errors?.false);
+  const [open, setOpen] = useState(hasContent || hasErrors);
+  const isOpen = open || hasErrors;
 
   return (
     <div className="@container flex flex-col gap-2">
@@ -43,7 +48,7 @@ export function NoulCriteriaEditor({
         variant="link"
         size="sm"
         className="h-auto min-h-6 w-fit justify-start gap-x-1 pl-0 @max-sm/fields:flex-wrap"
-        aria-expanded={open}
+        aria-expanded={isOpen}
         disabled={disabled}
         onClick={() => setOpen((value) => !value)}
       >
@@ -56,12 +61,12 @@ export function NoulCriteriaEditor({
             color="tertiary"
             __rawClassName={cn(
               "translate-y-px transition-transform",
-              open ? "rotate-180" : "rotate-0",
+              isOpen ? "rotate-180" : "rotate-0",
             )}
           />
         </span>
       </Button>
-      {open ? (
+      {isOpen ? (
         <div className="grid gap-3 @md:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor={`${id}-true`}>Yes means</Label>
@@ -69,12 +74,17 @@ export function NoulCriteriaEditor({
               id={`${id}-true`}
               value={criteria.true}
               disabled={disabled}
+              aria-invalid={Boolean(errors?.true)}
+              className={cn(errors?.true && "border-destructive")}
               onChange={(event) =>
                 onChange({ ...criteria, true: event.target.value })
               }
               placeholder={yesPlaceholder}
               rows={3}
             />
+            {errors?.true ? (
+              <p className="text-destructive text-xs">{errors.true}</p>
+            ) : null}
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor={`${id}-false`}>No means</Label>
@@ -82,12 +92,17 @@ export function NoulCriteriaEditor({
               id={`${id}-false`}
               value={criteria.false}
               disabled={disabled}
+              aria-invalid={Boolean(errors?.false)}
+              className={cn(errors?.false && "border-destructive")}
               onChange={(event) =>
                 onChange({ ...criteria, false: event.target.value })
               }
               placeholder={noPlaceholder}
               rows={3}
             />
+            {errors?.false ? (
+              <p className="text-destructive text-xs">{errors.false}</p>
+            ) : null}
           </div>
         </div>
       ) : null}

@@ -35,6 +35,8 @@ import {
   GATEWAY_GUARDRAIL_UNSUPPORTED_BACKREFERENCE_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_UNSUPPORTED_LOOKAROUND_ERROR_MESSAGE,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import {
   GatewayGuardrailRepository,
@@ -152,6 +154,7 @@ export class GatewayGuardrailService {
           provider: connection.provider as GatewayProviderName,
           baseURL: connection.baseURL,
           config: connection.config,
+          allowedModels: connection.allowedModels,
           encryptedCredential: connection.encryptedCredential,
           extraHeaders: connection.extraHeaders,
         });
@@ -398,12 +401,13 @@ export class GatewayGuardrailService {
   }) {
     const provider = EXTERNAL_GUARDRAIL_PROVIDERS[params.type];
     if (provider.usesGatewayConnection) {
-      const connectionId = provider.getConnectionId(params.config);
+      const parsedConfig = provider.requireConfig(params.config);
       const connection = await this.requireDecisionModelConnection(
         params.organizationId,
-        connectionId,
+        parsedConfig.connectionId,
+        parsedConfig.model,
       );
-      await provider.validateWithConnection(params.config, connection);
+      await provider.validateWithConnection(parsedConfig, connection);
       return { success: true as const };
     }
     const apiKey = params.apiKey || (await this.readStoredApiKey(params));
@@ -487,6 +491,7 @@ export class GatewayGuardrailService {
         const connection = await this.requireDecisionModelConnection(
           params.organizationId,
           parsedConfig.connectionId,
+          parsedConfig.model,
         );
         await provider.validateWithConnection(parsedConfig, connection);
         config = parsedConfig;
@@ -594,6 +599,7 @@ export class GatewayGuardrailService {
         const connection = await this.requireDecisionModelConnection(
           params.organizationId,
           parsedConfig.connectionId,
+          parsedConfig.model,
         );
         if (!provider.isSameConfig(existing.config, parsedConfig)) {
           await provider.validateWithConnection(parsedConfig, connection);
@@ -798,6 +804,7 @@ export class GatewayGuardrailService {
   private async requireDecisionModelConnection(
     organizationId: string,
     connectionId: string | null,
+    model: string,
   ): Promise<ResolvedGuardrailConnection> {
     if (!connectionId) {
       throw new InvalidRequestError("Select a gateway connection");
@@ -821,11 +828,22 @@ export class GatewayGuardrailService {
         "Selected gateway connection does not support decision models",
       );
     }
+    if (
+      !isGatewayModelAllowed(
+        toGatewayAllowedModelsSet(connection.allowedModels),
+        model,
+      )
+    ) {
+      throw new InvalidRequestError(
+        "Selected model is not enabled on this gateway connection",
+      );
+    }
     return {
       id: connection.id,
       provider,
       baseURL: connection.baseURL,
       config: connection.config,
+      allowedModels: connection.allowedModels,
       encryptedCredential: connection.encryptedCredential,
       extraHeaders: connection.extraHeaders,
     };

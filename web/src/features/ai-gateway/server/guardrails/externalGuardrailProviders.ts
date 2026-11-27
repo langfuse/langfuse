@@ -2,6 +2,8 @@ import { decrypt } from "@langfuse/shared/encryption";
 import { decryptAndParseExtraHeaders } from "@langfuse/shared/src/server";
 import type { z } from "zod/v4";
 
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { formatDecisionModelPredicateInstructions } from "@/src/fns/formatDecisionModelPredicateInstructions";
 import { validateBedrockGuardrail } from "@/src/features/ai-gateway/server/guardrails/validateBedrockGuardrail";
 import { validateDecisionModelGuardrail } from "@/src/features/ai-gateway/server/guardrails/validateDecisionModelGuardrail";
@@ -41,6 +43,7 @@ export type ResolvedGuardrailConnection = {
   provider: GatewayProviderName;
   baseURL: string | null;
   config: unknown;
+  allowedModels: string[] | null;
   encryptedCredential: string;
   extraHeaders: string | null;
 };
@@ -86,6 +89,14 @@ export const EXTERNAL_GUARDRAIL_PROVIDERS = {
     getConnectionId: (config) => config.connectionId,
     toCachedFields: (config, connection) => {
       if (!providerSupportsApiFormat(connection.provider, "openai.decisions")) {
+        return null;
+      }
+      if (
+        !isGatewayModelAllowed(
+          toGatewayAllowedModelsSet(connection.allowedModels),
+          config.model,
+        )
+      ) {
         return null;
       }
       const upstream = getGatewayUpstream({

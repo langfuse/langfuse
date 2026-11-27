@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
-import { prisma, Role } from "@langfuse/shared/src/db";
+import { Prisma, prisma, Role } from "@langfuse/shared/src/db";
 import {
   createOrgMembership,
   deleteOrgMembership,
@@ -1949,10 +1949,47 @@ describe("aiGateway guardrails tRPC", () => {
       }),
     ]);
 
-    // Disabling the connection makes resolve fail closed.
+    // Restricting allowedModels so the saved model is disabled makes resolve fail closed and rejects re-saving it.
     await prisma.gatewayAiConnection.update({
       where: { id: vercelConn.id },
-      data: { status: "DISABLED" },
+      data: { allowedModels: ["openai/gpt-6-luna-decisions"] },
+    });
+    const disabledModelResolved = await new GatewayGuardrailService(
+      prisma,
+    ).resolveForKey({
+      organizationId: orgId,
+      apiKeyId: keyId,
+      userId: owner.id,
+    });
+    expect(disabledModelResolved).toEqual([
+      expect.objectContaining({
+        id: created.id,
+        type: "fail_closed",
+        action: "log",
+        scope: "entire_input",
+      }),
+    ]);
+
+    await expect(
+      ownerCaller.aiGateway.guardrails.create({
+        orgId,
+        type: "DECISION_MODEL",
+        name: "Disabled model",
+        action: "BLOCK",
+        config: {
+          connectionId: vercelConn.id,
+          model: "typesafe-ai/jev",
+          question: "Unsafe?",
+          threshold: 0.7,
+        },
+        assignments: [{ scope: "ORGANIZATION" }],
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    // Disabling the connection also makes resolve fail closed.
+    await prisma.gatewayAiConnection.update({
+      where: { id: vercelConn.id },
+      data: { status: "DISABLED", allowedModels: Prisma.DbNull },
     });
     const failedClosed = await new GatewayGuardrailService(
       prisma,

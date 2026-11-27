@@ -62,6 +62,14 @@ export function DecisionModelGuardrailFields<TFieldValues extends FieldValues>({
     control,
     name: "externalConfig.threshold" as Path<TFieldValues>,
   });
+  const { fieldState: criteriaTrueState } = useController({
+    control,
+    name: "externalConfig.criteria.true" as Path<TFieldValues>,
+  });
+  const { fieldState: criteriaFalseState } = useController({
+    control,
+    name: "externalConfig.criteria.false" as Path<TFieldValues>,
+  });
   const [thresholdText, setThresholdText] = useState(() =>
     typeof thresholdField.value === "number" &&
     Number.isFinite(thresholdField.value)
@@ -285,6 +293,10 @@ export function DecisionModelGuardrailFields<TFieldValues extends FieldValues>({
           <NoulCriteriaEditor
             criteria={toCriteriaDraft(field.value)}
             onChange={field.onChange}
+            errors={{
+              true: criteriaTrueState.error?.message,
+              false: criteriaFalseState.error?.message,
+            }}
             yesPlaceholder={YES_CRITERIA_PLACEHOLDER}
             noPlaceholder={NO_CRITERIA_PLACEHOLDER}
           />
