@@ -45,7 +45,17 @@ const savedRow = {
   status: "ACTIVE",
   updatedAt: new Date("2026-10-08T00:00:00Z"),
   createdAt: new Date("2026-10-01T00:00:00Z"),
-  assignments: [{ evaluatorId: "intent" }],
+  assignments: [
+    {
+      evaluatorId: "intent",
+      evaluator: {
+        id: "intent",
+        name: "Intent",
+        isBuiltIn: true,
+        createdAt: new Date("2026-10-01T00:00:00Z"),
+      },
+    },
+  ],
 };
 
 describe("saveTopicRule", () => {
@@ -135,5 +145,52 @@ describe("saveTopicRule", () => {
     ).rejects.toThrow("at most 5 Topics rules");
     expect(mocks.create).not.toHaveBeenCalled();
     expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("returns rule facetIds in canonical facet order", async () => {
+    const sharedCreatedAt = new Date("2026-10-01T00:00:00Z");
+    mocks.facetCount.mockResolvedValue(3);
+    mocks.create.mockResolvedValue({
+      ...savedRow,
+      assignments: [
+        {
+          evaluatorId: "custom-1",
+          evaluator: {
+            id: "custom-1",
+            name: "Intent",
+            isBuiltIn: false,
+            createdAt: new Date("2026-10-02T00:00:00Z"),
+          },
+        },
+        {
+          evaluatorId: "a-issues",
+          evaluator: {
+            id: "a-issues",
+            name: "Issues",
+            isBuiltIn: true,
+            createdAt: sharedCreatedAt,
+          },
+        },
+        {
+          evaluatorId: "z-intent",
+          evaluator: {
+            id: "z-intent",
+            name: "Intent",
+            isBuiltIn: true,
+            createdAt: sharedCreatedAt,
+          },
+        },
+      ],
+    });
+
+    const rule = await saveTopicRule({
+      projectId,
+      name: "Topics",
+      filter: [],
+      facetIds: ["custom-1", "a-issues", "z-intent"],
+      sampling: 0.25,
+    });
+
+    expect(rule.facetIds).toEqual(["z-intent", "a-issues", "custom-1"]);
   });
 });

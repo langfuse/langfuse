@@ -23,7 +23,11 @@ import {
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
-import { TOPICS_MAX_RULES, type TopicFacet } from "@langfuse/shared/topics";
+import {
+  orderByFacetIds,
+  TOPICS_MAX_RULES,
+  type TopicFacet,
+} from "@langfuse/shared/topics";
 import { cn } from "@/src/utils/tailwind";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { TopicsFacetTabs } from "./TopicsFacetTabs";
@@ -402,13 +406,19 @@ function TopicsWorkspaceContent({
   const setupRetry = api.topics.startRuleSetup.useMutation({
     onSuccess: () => utils.topics.ruleSetupStatus.invalidate({ projectId }),
   });
-  const setupFacets =
-    setup?.facets.map((facet) => ({
-      key: facet.facetId,
-      name: facetName(facet.facetId),
-      complete: facet.complete,
-      requested: facet.requested,
-    })) ?? [];
+  const orderedFacetIds = (facets.data ?? []).map((facet) => facet.id);
+  const setupFacets = setup
+    ? orderByFacetIds(
+        setup.facets,
+        (facet) => facet.facetId,
+        orderedFacetIds,
+      ).map((facet) => ({
+        key: facet.facetId,
+        name: facetName(facet.facetId),
+        complete: facet.complete,
+        requested: facet.requested,
+      }))
+    : [];
   const analysisResults = api.topics.analysisResults.useQuery(
     { projectId, executionId: analysisId ?? "" },
     {
@@ -1112,9 +1122,14 @@ function snapshotProgress(
   // Clustering and naming read as one step, as in a map's setup.
   const stage: TopicSetupStage =
     execution.phase === "summarizing" ? "summarizing" : "grouping";
+  const progress = orderByFacetIds(
+    execution.progress,
+    (facet) => facet.facetId,
+    facets.map((facet) => facet.id),
+  );
   return {
     stage,
-    facets: execution.progress.map((facet) => ({
+    facets: progress.map((facet) => ({
       key: facet.facetId,
       name:
         facets.find(({ id }) => id === facet.facetId)?.name ?? facet.facetId,
@@ -1122,9 +1137,8 @@ function snapshotProgress(
       requested: facet.requested,
     })),
     fits: {
-      done: execution.progress.filter((facet) => facet.outcome !== "pending")
-        .length,
-      total: execution.progress.length,
+      done: progress.filter((facet) => facet.outcome !== "pending").length,
+      total: progress.length,
     },
   };
 }

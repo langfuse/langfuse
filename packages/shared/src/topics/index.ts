@@ -6,6 +6,80 @@ import { DEFAULT_TOPIC_FACETS } from "./default-facets";
 
 export { DEFAULT_TOPIC_FACETS };
 
+const BUILT_IN_FACET_ORDER = new Map<string, number>(
+  DEFAULT_TOPIC_FACETS.map((facet, index) => [facet.name, index]),
+);
+
+function compareStrings(a: string, b: string) {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
+function topicFacetTier(facet: { name: string; isBuiltIn: boolean }) {
+  if (!facet.isBuiltIn) return BUILT_IN_FACET_ORDER.size + 1;
+  return BUILT_IN_FACET_ORDER.get(facet.name) ?? BUILT_IN_FACET_ORDER.size;
+}
+
+function createdAtMs(value: Date | string | undefined) {
+  if (value === undefined) return null;
+  const ms = value instanceof Date ? value.getTime() : Date.parse(value);
+  return Number.isNaN(ms) ? null : ms;
+}
+
+/**
+ * Canonical facet order: built-in presets in `DEFAULT_TOPIC_FACETS` order
+ * (`Intent`, `Sentiment`, `Outcome`, `Issues`), then any other built-ins,
+ * then custom facets in creation order (`createdAt ASC, id ASC`, or input
+ * order when `createdAt` is absent).
+ */
+export function sortTopicFacets<
+  T extends {
+    id: string;
+    name: string;
+    isBuiltIn: boolean;
+    createdAt?: Date | string;
+  },
+>(facets: readonly T[]): T[] {
+  return [...facets].sort((a, b) => {
+    const tierDiff = topicFacetTier(a) - topicFacetTier(b);
+    if (tierDiff !== 0) return tierDiff;
+    if (a.isBuiltIn && b.isBuiltIn) {
+      const nameDiff = compareStrings(
+        a.name.toLowerCase(),
+        b.name.toLowerCase(),
+      );
+      if (nameDiff !== 0) return nameDiff;
+      return compareStrings(a.id, b.id);
+    }
+    const aCreated = createdAtMs(a.createdAt);
+    const bCreated = createdAtMs(b.createdAt);
+    if (aCreated !== null && bCreated !== null) {
+      if (aCreated !== bCreated) return aCreated - bCreated;
+      return compareStrings(a.id, b.id);
+    }
+    return 0;
+  });
+}
+
+/**
+ * Orders facet-keyed items to match a canonical `orderedFacetIds` sequence.
+ * Items whose facet ID is not in `orderedFacetIds` stay at the end in their
+ * original relative order.
+ */
+export function orderByFacetIds<T>(
+  items: readonly T[],
+  getFacetId: (item: T) => string,
+  orderedFacetIds: readonly string[],
+): T[] {
+  const rank = new Map(orderedFacetIds.map((id, index) => [id, index]));
+  return [...items].sort((a, b) => {
+    const aRank = rank.get(getFacetId(a)) ?? orderedFacetIds.length;
+    const bRank = rank.get(getFacetId(b)) ?? orderedFacetIds.length;
+    return aRank - bRank;
+  });
+}
+
 /** Tracing filter column: key is the facet name, values are topic names. */
 const TOPIC_FILTER_COLUMN = "topics";
 

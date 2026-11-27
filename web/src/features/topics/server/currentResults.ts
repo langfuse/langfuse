@@ -1,5 +1,6 @@
 import { type FilterState, LangfuseNotFoundError } from "@langfuse/shared";
 import {
+  orderByFacetIds,
   TOPICS_MAX_TIME_RANGE_MS,
   topicTimeRangeSchema,
   type TopicAssignment,
@@ -109,8 +110,13 @@ async function resolveFacetMaps(
 ): Promise<FacetMap[]> {
   if (scope.analysisId) {
     const execution = await requireAnalysis(projectId, scope.analysisId);
+    const orderedFacets = orderByFacetIds(
+      execution.facets,
+      (progress) => progress.facetId,
+      facets.map((facet) => facet.id),
+    );
     return Promise.all(
-      execution.facets.flatMap((progress) => {
+      orderedFacets.flatMap((progress) => {
         const facet = facets.find((item) => item.id === progress.facetId);
         if (!facet) return [];
         return [
@@ -299,10 +305,12 @@ export async function analysisTopicResults(
   executionId: string,
 ) {
   const execution = await requireAnalysis(projectId, executionId);
+  const facets = await listTopicFacets(projectId);
+  const orderedFacetIds = facets.map((facet) => facet.id);
   const maps = await resolveFacetMaps(
     projectId,
     { analysisId: executionId },
-    await listTopicFacets(projectId),
+    facets,
   );
   return {
     execution: {
@@ -313,7 +321,11 @@ export async function analysisTopicResults(
       timeRange: execution.input.timeRange,
       ...execution.input.analysis,
       // Per-facet progress while the snapshot summarizes and groups.
-      progress: execution.facets.map((facet) => ({
+      progress: orderByFacetIds(
+        execution.facets,
+        (facet) => facet.facetId,
+        orderedFacetIds,
+      ).map((facet) => ({
         facetId: facet.facetId,
         outcome: facet.outcome,
         requested: facet.counts.requested,

@@ -1410,4 +1410,70 @@ describe("Topics analyses", () => {
       }),
     );
   });
+
+  it("orders analysis facets and progress by canonical listTopicFacets order", async () => {
+    const base = execution();
+    const baseProgress = base.facets[0]!;
+    mocks.readTopicExecutionSummary.mockResolvedValue({
+      ...base,
+      input: {
+        ...base.input,
+        analysis: { label: "Refund errors", filter: [], seed: "seed" },
+      },
+      facets: [
+        { ...baseProgress, facetId: "issues-id", runId: "run-issues" },
+        { ...baseProgress, facetId: "intent-id", runId: "run-intent" },
+      ],
+    });
+    mocks.listTopicFacets.mockResolvedValue([
+      {
+        id: "intent-id",
+        name: "Intent",
+        isBuiltIn: true,
+        versions: [{ version: facetVersion }],
+      },
+      {
+        id: "issues-id",
+        name: "Issues",
+        isBuiltIn: true,
+        versions: [{ version: facetVersion }],
+      },
+    ]);
+    mocks.getTopicRun.mockImplementation(
+      async (_projectId: string, runId: string) => ({
+        ...run,
+        id: runId,
+        facetId: runId === "run-intent" ? "intent-id" : "issues-id",
+      }),
+    );
+    mocks.getTopicResultCounts.mockImplementation(
+      async ({ facets }: { facets: Array<{ facetId: string }> }) =>
+        facets.map((facet) => ({
+          facetId: facet.facetId,
+          total: 4,
+          usable: 4,
+          awaiting: 0,
+          assigned: 3,
+          outliers: 1,
+          notApplicable: 0,
+          insufficientInput: 0,
+          emptyInput: 0,
+          inputTooLarge: 0,
+          topics: [],
+        })),
+    );
+
+    const result = await caller("VIEWER").analysisResults({
+      projectId,
+      executionId: "execution-a",
+    });
+    expect(result.facets.map((facet) => facet.facetId)).toEqual([
+      "intent-id",
+      "issues-id",
+    ]);
+    expect(result.execution.progress.map((facet) => facet.facetId)).toEqual([
+      "intent-id",
+      "issues-id",
+    ]);
+  });
 });

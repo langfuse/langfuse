@@ -10,12 +10,9 @@ import {
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 
 /** @knipignore Keeps the setup dialog stories in sync with the production question sequence. */
-export const TOPIC_SETUP_QUESTIONS = [
-  { name: "Intent" },
-  { name: "Sentiment" },
-  { name: "Outcome" },
-  { name: "Issues" },
-] as const;
+export const TOPIC_SETUP_QUESTIONS = DEFAULT_TOPIC_FACETS.map(({ name }) => ({
+  name,
+}));
 
 export const TOPIC_SETUP_WAIT_MINUTES = [2, 5, 10] as const;
 const TOPIC_SETUP_DEFAULT_WAIT_MINUTES = 5;

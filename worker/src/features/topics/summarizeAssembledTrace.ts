@@ -1,6 +1,7 @@
 import type { TopicsModels } from "@langfuse/shared/topics/server";
 import {
   DEFAULT_TOPIC_FACETS,
+  sortTopicFacets,
   topicProcessingConfigSchema,
   type TopicFacet,
   type TopicProcessingConfig,
@@ -48,7 +49,7 @@ const NO_USAGE: TopicModelUsage = {
   costDetails: {},
 };
 
-const BUILT_IN_FACETS = new Set(
+const BUILT_IN_FACETS = new Set<string>(
   DEFAULT_TOPIC_FACETS.map((facet) => facet.name),
 );
 
@@ -159,11 +160,8 @@ async function summarizeEnabledTrace(
   const embeddingModel = models.embedding.model;
   const config = topicProcessingConfigSchema.parse({});
   const pending: TraceFacet[] = [];
-  // Built-in facets first, each group in listing order, so the cached prompt prefix stays stable.
-  const ordered = [
-    ...facets.filter((facet) => facet.isBuiltIn),
-    ...facets.filter((facet) => !facet.isBuiltIn),
-  ];
+  // Built-in facets first in canonical order, then custom facets, so the cached prompt prefix stays stable.
+  const ordered = sortTopicFacets(facets);
   for (const facet of ordered) {
     const version = facet.versions[0];
     if (facet.projectId !== input.projectId || !version) continue;
