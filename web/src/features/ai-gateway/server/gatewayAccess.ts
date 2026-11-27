@@ -5,10 +5,7 @@ import {
   throwIfNoOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import type { AuthedSession } from "@/src/server/api/trpc";
-import {
-  requireGatewayEnabledForOrganization,
-  requireGatewayGuardrailsEnabledForOrganization,
-} from "./availability";
+import { requireGatewayEnabledForOrganization } from "./availability";
 import type { GatewayUsageScope } from "./gatewayUsageScope";
 
 export function requireGatewayAdmin(params: {
@@ -23,12 +20,12 @@ export function requireGatewayAdmin(params: {
   });
 }
 
-/** Admits organization OWNER and ADMIN when guardrails are enabled in this environment. */
+/** Admits organization OWNER and ADMIN. */
 export function requireGatewayGuardrailsAdmin(params: {
   session: Session;
   orgId: string;
 }) {
-  requireGatewayGuardrailsEnabledForOrganization(params.orgId);
+  requireGatewayEnabledForOrganization(params.orgId);
   throwIfNoOrganizationAccess({
     session: params.session,
     organizationId: params.orgId,
@@ -36,12 +33,12 @@ export function requireGatewayGuardrailsAdmin(params: {
   });
 }
 
-/** Admits organization members with gateway read access when guardrails are enabled. */
+/** Admits organization members with gateway read access. */
 export function requireGatewayGuardrailsRead(params: {
   session: Session;
   orgId: string;
 }) {
-  requireGatewayGuardrailsEnabledForOrganization(params.orgId);
+  requireGatewayEnabledForOrganization(params.orgId);
   throwIfNoOrganizationAccess({
     session: params.session,
     organizationId: params.orgId,
