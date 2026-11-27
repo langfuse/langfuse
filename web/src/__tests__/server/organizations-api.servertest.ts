@@ -762,10 +762,7 @@ describe("Admin Organizations API", () => {
         label: "wrong-scope legacy role",
         body: { role: "LEGACY_PROJECT_API_KEY" },
       },
-      { label: "admin role", body: { role: "ADMIN" } },
-      { label: "viewer role", body: { role: "VIEWER" } },
       { label: "ingest role", body: { role: "INGEST" } },
-      { label: "scores ingest role", body: { role: "SCORES_INGEST" } },
       { label: "gateway role", body: { role: "AI_GATEWAY" } },
       { label: "role array", body: { role: [] } },
     ])("rejects $label without creating a key", async ({ body }) => {
@@ -782,6 +779,28 @@ describe("Admin Organizations API", () => {
         before,
       );
     });
+
+    it.each(["ADMIN", "VIEWER", "SCORES_INGEST"] as const)(
+      "provisions a key with the %s role under the default env",
+      async (role) => {
+        const response = await makeAPICall<
+          z.infer<typeof ApiKeyResponseSchema>
+        >(
+          "POST",
+          `/api/admin/organizations/${testOrgId}/apiKeys`,
+          { role },
+          `Bearer ${ADMIN_API_KEY}`,
+        );
+        expect(response.status).toBe(201);
+        expect(response.body.role).toBe(role);
+
+        const stored = await prisma.apiKey.findUniqueOrThrow({
+          where: { id: response.body.id },
+          include: { roleAssignments: true },
+        });
+        expect(stored.roleAssignments).toMatchObject([{ systemRole: role }]);
+      },
+    );
 
     it("should create a new API key for an organization with valid admin authentication", async () => {
       const response = await makeZodVerifiedAPICall(
