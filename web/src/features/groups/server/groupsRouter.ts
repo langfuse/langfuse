@@ -28,7 +28,6 @@ import {
   throwIfNoProjectAccess,
 } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
-  hasEntitlement,
   throwIfNoEntitlement,
   throwIfNoEntitlements,
 } from "@/src/features/entitlements/server/hasEntitlement";
@@ -38,7 +37,6 @@ import {
   evictAuthCaches,
   groupMemberUserIds,
   removeGroupMembers,
-  replaceGroupRoles,
   roleOf,
   setGroupRole,
   toGroupRoles,
@@ -446,71 +444,6 @@ export const groupsRouter = createTRPCRouter({
           };
         }),
       }));
-    }),
-
-  setRoleAssignments: protectedOrganizationProcedure
-    .input(
-      z.object({
-        orgId: z.string(),
-        groupId: z.string(),
-        orgRole: OrgGroupRole.nullable(),
-        projectRoles: z
-          .array(z.object({ projectId: z.string(), role: GroupRole }))
-          .refine(
-            (roles) =>
-              new Set(roles.map((r) => r.projectId)).size === roles.length,
-            "Each project can only be listed once",
-          ),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      throwIfNoOrgGroupAccess(ctx.session, input.orgId);
-      if (
-        input.projectRoles.length > 0 &&
-        !hasEntitlement({
-          entitlement: "rbac-project-roles",
-          sessionUser: ctx.session.user,
-          orgId: input.orgId,
-        })
-      ) {
-        throw new ForbiddenError(
-          "Organization does not have the required entitlement to set project roles",
-        );
-      }
-
-      const group = await ctx.prisma.group.findFirst({
-        where: { id: input.groupId, orgId: input.orgId },
-        include: { roleAssignments: groupRoleAssignmentsSelect },
-      });
-      throwIfGroupNotFound(group);
-
-      const after = {
-        orgRole: input.orgRole,
-        projectRoles: input.projectRoles,
-      };
-      await ctx.prisma.$transaction(async (tx) => {
-        await replaceGroupRoles(tx, {
-          orgId: input.orgId,
-          groupId: group.id,
-          ...after,
-        });
-        await auditLog(
-          {
-            session: ctx.session,
-            resourceType: "group",
-            resourceId: group.id,
-            action: "updateRoleAssignments",
-            before: toGroupRoles(group.roleAssignments),
-            after,
-          },
-          tx,
-        );
-      });
-      await evictAuthCaches(ctx.prisma, {
-        orgId: input.orgId,
-        userIds: await groupMemberUserIds(ctx.prisma, group.id),
-      });
-      return after;
     }),
 
   setOrgRole: protectedOrganizationProcedure

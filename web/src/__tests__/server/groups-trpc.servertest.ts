@@ -69,11 +69,22 @@ const storedRoles = (groupId: string) =>
 describe("groups.setOrgRole", () => {
   it("changes only the org-wide role and keeps project roles", async () => {
     const { org, project, group, caller } = await prepare();
-    await caller.groups.setRoleAssignments({
+    await caller.groups.setOrgRole({
       orgId: org.id,
       groupId: group.id,
-      orgRole: Role.VIEWER,
-      projectRoles: [{ projectId: project.id, role: Role.ADMIN }],
+      role: Role.VIEWER,
+    });
+    await assignRole(prisma, {
+      tenantId: OrganizationId(org.id),
+      ownerId: ProjectId(project.id),
+      principalId: GroupId(group.id),
+      roleId: SystemRoleId(Role.ADMIN),
+      tags: [],
+    });
+    const [listed] = await caller.groups.list({ orgId: org.id });
+    expect(listed).toMatchObject({
+      orgRole: "VIEWER",
+      projectRoles: [{ projectId: project.id, role: "ADMIN" }],
     });
 
     await caller.groups.setOrgRole({
@@ -107,97 +118,17 @@ describe("groups.setOrgRole", () => {
       },
     ]);
   });
-});
-
-describe("groups.setRoleAssignments", () => {
-  it("stores an org role and project roles as group role assignments", async () => {
-    const { org, project, group, caller } = await prepare();
-
-    await caller.groups.setRoleAssignments({
-      orgId: org.id,
-      groupId: group.id,
-      orgRole: Role.VIEWER,
-      projectRoles: [{ projectId: project.id, role: Role.ADMIN }],
-    });
-
-    expect(await storedRoles(group.id)).toEqual([
-      {
-        projectId: project.id,
-        systemRole: "ADMIN",
-        principalId: `group/${group.id}`,
-      },
-      {
-        projectId: null,
-        systemRole: "VIEWER",
-        principalId: `group/${group.id}`,
-      },
-    ]);
-    const [listed] = await caller.groups.list({ orgId: org.id });
-    expect(listed).toMatchObject({
-      orgRole: "VIEWER",
-      projectRoles: [{ projectId: project.id, role: "ADMIN" }],
-    });
-  });
-
-  it("replaces previous assignments", async () => {
-    const { org, project, group, caller } = await prepare();
-    const set = (input: {
-      orgRole: "MEMBER" | null;
-      projectRoles: { projectId: string; role: "VIEWER" }[];
-    }) =>
-      caller.groups.setRoleAssignments({
-        orgId: org.id,
-        groupId: group.id,
-        ...input,
-      });
-
-    await set({
-      orgRole: "MEMBER",
-      projectRoles: [{ projectId: project.id, role: "VIEWER" }],
-    });
-    await set({ orgRole: null, projectRoles: [] });
-
-    expect(await storedRoles(group.id)).toEqual([]);
-  });
 
   it("rejects OWNER", async () => {
     const { org, group, caller } = await prepare();
 
     await expect(
-      caller.groups.setRoleAssignments({
+      caller.groups.setOrgRole({
         orgId: org.id,
         groupId: group.id,
-        orgRole: "OWNER" as "ADMIN",
-        projectRoles: [],
+        role: "OWNER" as "ADMIN",
       }),
     ).rejects.toThrow();
-  });
-
-  it("rejects a project of another organization and keeps the old roles", async () => {
-    const { org, otherProject, group, caller } = await prepare();
-    await caller.groups.setRoleAssignments({
-      orgId: org.id,
-      groupId: group.id,
-      orgRole: "MEMBER",
-      projectRoles: [],
-    });
-
-    await expect(
-      caller.groups.setRoleAssignments({
-        orgId: org.id,
-        groupId: group.id,
-        orgRole: "MEMBER",
-        projectRoles: [{ projectId: otherProject.id, role: "ADMIN" }],
-      }),
-    ).rejects.toThrow("Role assignment owner must belong to its tenant");
-
-    expect(await storedRoles(group.id)).toEqual([
-      {
-        projectId: null,
-        systemRole: "MEMBER",
-        principalId: `group/${group.id}`,
-      },
-    ]);
   });
 });
 
@@ -219,11 +150,10 @@ describe("groups CRUD from the UI", () => {
       groupId: created.id,
       displayName: "platform-admins",
     });
-    await caller.groups.setRoleAssignments({
+    await caller.groups.setOrgRole({
       orgId: org.id,
       groupId: created.id,
-      orgRole: Role.MEMBER,
-      projectRoles: [],
+      role: Role.MEMBER,
     });
     const listed = (await caller.groups.list({ orgId: org.id })).find(
       (g) => g.id === created.id,

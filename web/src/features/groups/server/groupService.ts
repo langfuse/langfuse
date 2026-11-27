@@ -175,28 +175,6 @@ export async function setGroupRole(
   });
 }
 
-export async function replaceGroupRoles(
-  tx: Tx,
-  {
-    orgId,
-    groupId,
-    orgRole,
-    projectRoles,
-  }: {
-    orgId: string;
-    groupId: string;
-    orgRole: Role | null;
-    projectRoles: { projectId: string; role: Role }[];
-  },
-) {
-  await lockGroup(tx, groupId);
-  await tx.roleAssignment.deleteMany({ where: { groupId } });
-  await setGroupRole(tx, { orgId, groupId, projectId: null, role: orgRole });
-  for (const { projectId, role } of projectRoles) {
-    await setGroupRole(tx, { orgId, groupId, projectId, role });
-  }
-}
-
 /** Memberships and role assignments go by FK cascade. */
 export async function deleteGroup(
   tx: Tx,
