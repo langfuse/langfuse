@@ -71,25 +71,19 @@ Read [protected branches and PR approval](references/protected-branches.md) befo
 
 ## Release
 
-- `pnpm run release` runs `scripts/release.sh`, which executes local preflight checks (`scripts/release-preflight.sh`: allowed branch `main` or `v3`, synced with `origin`, and interactive confirmation of unpromoted Postgres/ClickHouse migrations on `main`), prompts for the version bump, and dispatches `.github/workflows/cut-release.yml` with the checked-out `expected_sha`.
-- `.github/workflows/cut-release.yml` runs inside the protected `oss-release` GitHub Environment (`main`/`v3` only, required reviewer from `@langfuse/maintainers` with self-review prevented), re-verifies `HEAD` and unpromoted migrations, bumps the six tracked version files via `scripts/bump-release-version.mjs`, and pushes the release commit and `vX.Y.Z` tag atomically using a short-lived `Langfuse platform release` GitHub App token (`RELEASE_APP_CLIENT_ID` / `RELEASE_APP_PRIVATE_KEY`) before creating the GitHub release.
+- `pnpm run release` runs `release.sh`, which executes local preflight checks (`release-preflight.sh`: allowed branch `main` or `v3`, clean working tree, synced with `origin`, and interactive confirmation of unpromoted Postgres/ClickHouse migrations on `main`), prompts for the version bump, and dispatches `cut-release.yml` with the checked-out `expected_sha`.
+- `cut-release.yml` runs inside the protected `oss-release` GitHub Environment (`main`/`v3` only, required reviewer from `@langfuse/maintainers` with self-review prevented), re-verifies `HEAD` and unpromoted migrations, bumps the six tracked version files via `bump-release-version.mjs`, and pushes the release commit and `vX.Y.Z` tag atomically using a short-lived `Langfuse platform release` GitHub App token (`RELEASE_APP_CLIENT_ID` / `RELEASE_APP_PRIVATE_KEY`) before creating the GitHub release.
 - `main` is the current line and the only branch that ships to Langfuse
   Cloud. `v3` is the OSS maintenance line: a release from it produces a tag,
   GitHub release, and Docker images, but never a Cloud deploy.
-- On any `vX.Y.Z` tag push, `.github/workflows/release.yml` promotes `main`
+- On any `vX.Y.Z` tag push, `release.yml` promotes `main`
   to `production` only if the tagged commit is an ancestor of `main`;
   maintenance-branch tags skip promotion. The production migration
   confirmation in the release preflight likewise only runs for `main`.
 - Promote `main` to `production` without a release via
-  `.github/workflows/promote-main-to-production.yml` or
+  `promote-main-to-production.yml` or
   `pnpm run release:cloud` (both main-only).
-- The latest-release markers track the current major line: `pipeline.yml`
-  gates the Docker `latest` tag on `refs/tags/v4`, and `.github/workflows/cut-release.yml`
-  passes `--latest=false` to `gh release create` on non-`main` branches and
-  prereleases so maintenance branches never claim the Docker `latest` tag or
-  the GitHub "Latest release" badge. At the next major GA (v5), move the
-  Docker `latest` gate in `pipeline.yml` to `refs/tags/v5` on `main` and
-  disable it on the `v4` maintenance branch.
+- The latest-release markers track the current major line: `pipeline.yml` gates the Docker `latest` tag on `refs/tags/v4`, and `cut-release.yml` passes `--latest=false` to `gh release create` on non-`main` branches and prereleases so maintenance branches never claim the Docker `latest` tag or the GitHub "Latest release" badge. At the next major GA (v5), move the Docker `latest` gate in `pipeline.yml` to `refs/tags/v5` on `main` and disable it on the `v4` maintenance branch.
 - The ECS deployment workflow includes `ai-gateway` only for staging: pushes
   to `main` and manual staging deployments. Its image builds from `ai-gateway/`
   with `BUILD_ID` set to the commit SHA; production deployments exclude it.

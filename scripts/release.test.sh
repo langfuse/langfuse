@@ -102,4 +102,15 @@ chmod +x "${STUB_BIN}/gh"
   fi
 )
 
+# 3. Uncommitted tracked changes must be rejected so preview matches HEAD
+(
+  cd "$WORK_DIR"
+  printf 'export const VERSION = "v4.99.0";\n' > worker/src/constants/VERSION.ts
+  if PATH="${STUB_BIN}:${PATH}" bash ./scripts/release.sh patch --dry-run >/dev/null 2>&1; then
+    echo "FAIL: expected release.sh to reject uncommitted version edits"
+    exit 1
+  fi
+  git checkout -- worker/src/constants/VERSION.ts
+)
+
 echo "PASS: release-preflight.sh and release.sh checks passed"

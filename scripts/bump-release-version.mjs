@@ -5,7 +5,8 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-const SEMVER_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
+const SEMVER_PATTERN =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?$/;
 const VERSION_TS_PATTERN = /^export const VERSION = "v([^"]+)";\s*$/;
 
 export const JSON_VERSION_FILES = [
@@ -103,10 +104,20 @@ export function computeNextVersion(currentRaw, bump, customVersion = "") {
       );
       break;
     case "minor":
-      next = parseSemver(`${current.major}.${current.minor + 1}.0`);
+      next = parseSemver(
+        current.prerelease.length > 0 && current.patch === 0
+          ? `${current.major}.${current.minor}.0`
+          : `${current.major}.${current.minor + 1}.0`,
+      );
       break;
     case "major":
-      next = parseSemver(`${current.major + 1}.0.0`);
+      next = parseSemver(
+        current.prerelease.length > 0 &&
+          current.minor === 0 &&
+          current.patch === 0
+          ? `${current.major}.0.0`
+          : `${current.major + 1}.0.0`,
+      );
       break;
     case "custom":
       if (!customVersion || !customVersion.trim()) {
@@ -220,6 +231,8 @@ function parseArgs(argv) {
     dryRun: false,
     json: false,
     readOnly: false,
+    field: "",
+    githubOutput: "",
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -243,12 +256,29 @@ function parseArgs(argv) {
       case "--print-current":
         opts.readOnly = true;
         break;
+      case "--field":
+        opts.field = argv[++i] ?? "";
+        break;
+      case "--github-output":
+        opts.githubOutput = argv[++i] ?? "";
+        break;
       default:
         throw new Error(`Unknown argument: ${arg}`);
     }
   }
 
   return opts;
+}
+
+function writeGithubOutput(outputPath, result) {
+  const lines = [
+    `current_version=${result.currentVersion}`,
+    `next_version=${result.nextVersion}`,
+    `tag_name=${result.tagName}`,
+    `is_major_bump=${result.isMajorBump}`,
+    `is_prerelease=${result.isPrerelease}`,
+  ];
+  fs.appendFileSync(outputPath, `${lines.join("\n")}\n`, "utf8");
 }
 
 function main() {
@@ -268,7 +298,15 @@ function main() {
   }
 
   const result = bumpReleaseVersion(opts);
-  if (opts.json) {
+  if (opts.githubOutput) {
+    writeGithubOutput(opts.githubOutput, result);
+  }
+  if (opts.field) {
+    if (!(opts.field in result)) {
+      throw new Error(`Unknown output field "${opts.field}".`);
+    }
+    process.stdout.write(`${String(result[opts.field])}\n`);
+  } else if (opts.json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } else {
     const mode = result.dryRun ? " (dry-run)" : "";

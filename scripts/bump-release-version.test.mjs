@@ -68,6 +68,16 @@ test("computeNextVersion handles patch, minor, major, and custom prereleases", (
     computeNextVersion("4.89.0-rc.1", "patch").nextVersion,
     "4.89.0",
   );
+  assert.equal(
+    computeNextVersion("4.89.0-rc.1", "minor").nextVersion,
+    "4.89.0",
+  );
+  assert.equal(
+    computeNextVersion("4.89.1-rc.1", "minor").nextVersion,
+    "4.90.0",
+  );
+  assert.equal(computeNextVersion("5.0.0-rc.1", "major").nextVersion, "5.0.0");
+  assert.equal(computeNextVersion("5.1.0-rc.1", "major").nextVersion, "6.0.0");
 });
 
 test("computeNextVersion rejects non-increasing and malformed versions", () => {
@@ -82,6 +92,18 @@ test("computeNextVersion rejects non-increasing and malformed versions", () => {
   assert.throws(
     () => computeNextVersion("4.88.0", "custom", "4.88.0-rc.1"),
     /strictly greater/,
+  );
+  assert.throws(
+    () => computeNextVersion("4.88.0", "custom", "4.089.0"),
+    /Invalid semantic/,
+  );
+  assert.throws(
+    () => computeNextVersion("4.88.0", "custom", "4.89.00"),
+    /Invalid semantic/,
+  );
+  assert.throws(
+    () => computeNextVersion("4.88.0", "custom", "04.89.0"),
+    /Invalid semantic/,
   );
   assert.throws(
     () => computeNextVersion("4.88.0", "custom", "not-a-version"),

@@ -130,38 +130,32 @@ jobs:
           args=(
             --bump "${INPUT_VERSION}"
             --custom-version "${INPUT_CUSTOM_VERSION}"
-            --json
+            --github-output "${GITHUB_OUTPUT}"
           )
           if [[ "${INPUT_DRY_RUN}" == "true" ]]; then
             args+=(--dry-run)
           fi
 
-          result="$(node ./scripts/bump-release-version.mjs "${args[@]}")"
-          echo "${result}"
+          node ./scripts/bump-release-version.mjs "${args[@]}"
 
-          current_version="$(node -e 'console.log(JSON.parse(process.argv[1]).currentVersion)' "${result}")"
-          next_version="$(node -e 'console.log(JSON.parse(process.argv[1]).nextVersion)' "${result}")"
-          tag_name="$(node -e 'console.log(JSON.parse(process.argv[1]).tagName)' "${result}")"
-          is_major_bump="$(node -e 'console.log(JSON.parse(process.argv[1]).isMajorBump)' "${result}")"
-          is_prerelease="$(node -e 'console.log(JSON.parse(process.argv[1]).isPrerelease)' "${result}")"
-
-          if [[ "${is_major_bump}" == "true" && "${INPUT_CONFIRM_MAJOR}" != "RELEASE MAJOR" ]]; then
-            echo "::error::Major version bump (${current_version} -> ${next_version}) requires confirm_major='RELEASE MAJOR'."
+      - name: Verify major confirmation and tag availability
+        env:
+          CURRENT_VERSION: ${{ steps.bump.outputs.current_version }}
+          NEXT_VERSION: ${{ steps.bump.outputs.next_version }}
+          TAG_NAME: ${{ steps.bump.outputs.tag_name }}
+          IS_MAJOR_BUMP: ${{ steps.bump.outputs.is_major_bump }}
+          INPUT_CONFIRM_MAJOR: ${{ inputs.confirm_major }}
+        run: |
+          set -euo pipefail
+          if [[ "${IS_MAJOR_BUMP}" == "true" && "${INPUT_CONFIRM_MAJOR}" != "RELEASE MAJOR" ]]; then
+            echo "::error::Major version bump (${CURRENT_VERSION} -> ${NEXT_VERSION}) requires confirm_major='RELEASE MAJOR'."
             exit 1
           fi
 
-          if git rev-parse -q --verify "refs/tags/${tag_name}" >/dev/null; then
-            echo "::error::Tag '${tag_name}' already exists."
+          if git rev-parse -q --verify "refs/tags/${TAG_NAME}" >/dev/null; then
+            echo "::error::Tag '${TAG_NAME}' already exists."
             exit 1
           fi
-
-          {
-            echo "current_version=${current_version}"
-            echo "next_version=${next_version}"
-            echo "tag_name=${tag_name}"
-            echo "is_major_bump=${is_major_bump}"
-            echo "is_prerelease=${is_prerelease}"
-          } >> "${GITHUB_OUTPUT}"
 
       - name: Create local release commit and tag
         if: inputs.dry_run == false
