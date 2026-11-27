@@ -29,26 +29,34 @@ export function CreateApiKeyButton(props: {
   });
 
   const [open, setOpen] = useState(false);
-  const [secretKey, setSecretKey] = useState<string | null>(null);
+  // Kept with the entity it was created for, so a creation that resolves
+  // after switching entities never shows under the new one.
+  const [createdKey, setCreatedKey] = useState<{
+    entityId: string;
+    secretKey: string;
+  } | null>(null);
+  const secretKey =
+    createdKey?.entityId === props.entityId ? createdKey.secretKey : null;
   const baseUrl = useLangfuseBaseUrl();
   const organizationProjects = useOrganizationProjects(props.entityId);
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
-    if (!newOpen) setSecretKey(null);
+    if (!newOpen) setCreatedKey(null);
   };
 
   const createApiKey = (values: ApiKeyCreateValues) => {
+    const entityId = props.entityId;
     if (props.scope === "project") {
       mutCreateProjectApiKey
         .mutateAsync({
-          projectId: props.entityId,
+          projectId: entityId,
           name: values.name || undefined,
           ...(values.role === undefined ? {} : { role: values.role }),
           expiresAt: values.expiresAt,
         })
         .then((created) => {
-          setSecretKey(created.secretKey);
+          setCreatedKey({ entityId, secretKey: created.secretKey });
           capture(`${props.scope}_settings:api_key_create`, {
             role: values.role,
             expiresAt: values.expiresAt?.toISOString() ?? null,
@@ -58,13 +66,13 @@ export function CreateApiKeyButton(props: {
     } else {
       mutCreateOrgApiKey
         .mutateAsync({
-          orgId: props.entityId,
+          orgId: entityId,
           name: values.name || undefined,
           ...(values.role === undefined ? {} : { role: values.role }),
           expiresAt: values.expiresAt,
         })
         .then((created) => {
-          setSecretKey(created.secretKey);
+          setCreatedKey({ entityId, secretKey: created.secretKey });
           capture(`${props.scope}_settings:api_key_create`, {
             role: values.role,
             expiresAt: values.expiresAt?.toISOString() ?? null,
