@@ -63,9 +63,9 @@ export function ScoreLevelsEditor({
             getLabel={(_level, index) => `level ${index}`}
             onReorder={(from, to) => onChange(moveItem(levels, from, to))}
             renderItem={(level, index) => (
-              <div className="group/row grid grid-cols-[2rem_1fr_auto] items-center gap-2">
+              <div className="group/row grid grid-cols-[2rem_1fr_auto] items-baseline gap-2">
                 <span
-                  className="text-foreground flex h-8 w-8 items-center px-1 font-mono text-sm"
+                  className="text-foreground w-8 px-1 font-mono text-sm"
                   aria-hidden="true"
                 >
                   {index}
@@ -83,7 +83,7 @@ export function ScoreLevelsEditor({
                   type="button"
                   variant="ghost"
                   size="icon-xs"
-                  className="hover:text-destructive opacity-100 group-focus-within/row:opacity-100 group-hover/row:opacity-100 [@media(hover:hover)]:opacity-0"
+                  className="hover:text-destructive self-center opacity-100 group-focus-within/row:opacity-100 group-hover/row:opacity-100 [@media(hover:hover)]:opacity-0"
                   disabled={!canRemove}
                   onClick={() => remove(index)}
                   title={
