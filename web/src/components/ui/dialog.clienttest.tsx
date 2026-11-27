@@ -84,8 +84,11 @@ describe("DialogController", () => {
         size="default"
         renderContent={({ state }) => <DialogTitle>{state}</DialogTitle>}
       >
-        {/* oxlint-disable-next-line @repo/no-empty-children-render-prop -- Asserts initialState opens the dialog; there is no trigger. */}
-        {() => null}
+        {({ openDialog }) => (
+          <button type="button" onClick={() => openDialog(initialState ?? "")}>
+            Open
+          </button>
+        )}
       </DialogController>
     );
     const { rerender } = render(renderController("first"), {

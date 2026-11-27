@@ -137,8 +137,11 @@ describe("Drawer", () => {
           </DrawerContent>
         )}
       >
-        {/* oxlint-disable-next-line @repo/no-empty-children-render-prop -- Asserts initialState opens the drawer; there is no trigger. */}
-        {() => null}
+        {({ openDrawer }) => (
+          <button type="button" onClick={() => openDrawer(initialState ?? "")}>
+            Open
+          </button>
+        )}
       </DrawerController>
     );
     const { rerender } = render(renderController("first"), {

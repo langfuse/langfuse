@@ -246,8 +246,11 @@ export const InitialState = meta.story({
       initialState={() => "Initial state"}
       renderDialog={({ state }) => <Dialog title={state} text="Content" />}
     >
-      {/* oxlint-disable-next-line @repo/no-empty-children-render-prop -- Opens from initialState on mount; this story has no trigger. */}
-      {() => null}
+      {({ openDialog }) => (
+        <button type="button" onClick={() => openDialog("Initial state")}>
+          Open
+        </button>
+      )}
     </DialogController>
   ),
   play: async ({ canvasElement }) => {
