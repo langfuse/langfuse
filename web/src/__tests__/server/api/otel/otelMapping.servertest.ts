@@ -9777,6 +9777,102 @@ describe("OTel Resource Span Mapping", () => {
       ).toBeUndefined(); // no double accounting
     });
 
+    it.each([
+      ["AI SDK v5 scope version", "5.0.285", 6778, undefined],
+      ["AI SDK v5 user-agent fallback", undefined, 6778, "ai/5.0.285"],
+      ["AI SDK v6", "6.0.0", 6778 + 23333, undefined],
+    ])(
+      "should account for Anthropic cache tokens (%s)",
+      async (_caseName, scopeVersion, inputTokens, userAgent) => {
+        const vercelAIAnthropicSpan = {
+          resource: { attributes: [] },
+          scopeSpans: [
+            {
+              scope: {
+                name: "ai",
+                ...(scopeVersion ? { version: scopeVersion } : {}),
+              },
+              spans: [
+                {
+                  traceId: Buffer.from(
+                    "abcdef1234567890abcdef1234567893",
+                    "hex",
+                  ),
+                  spanId: Buffer.from("1234567890abcde1", "hex"),
+                  name: "ai.generateText.doGenerate",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1000000,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 2000000,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    ...(userAgent
+                      ? [
+                          {
+                            key: "ai.request.headers.user-agent",
+                            value: { stringValue: userAgent },
+                          },
+                        ]
+                      : []),
+                    {
+                      key: "gen_ai.usage.input_tokens",
+                      value: {
+                        intValue: {
+                          low: inputTokens,
+                          high: 0,
+                          unsigned: false,
+                        },
+                      },
+                    },
+                    {
+                      key: "gen_ai.usage.output_tokens",
+                      value: {
+                        intValue: { low: 100, high: 0, unsigned: false },
+                      },
+                    },
+                    {
+                      key: "ai.response.providerMetadata",
+                      value: {
+                        stringValue: JSON.stringify({
+                          anthropic: {
+                            usage: {
+                              input_tokens: 6778,
+                              cache_read_input_tokens: 23333,
+                              output_tokens: 100,
+                            },
+                          },
+                        }),
+                      },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        };
+
+        const events = await convertOtelSpanToIngestionEvent(
+          vercelAIAnthropicSpan,
+          new Set(),
+        );
+        const observationEvent = events.find(
+          (e) => e.type === "generation-create" || e.type === "span-create",
+        );
+
+        expect(observationEvent?.body.usageDetails.input).toBe(6778);
+        expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(
+          23333,
+        );
+      },
+    );
+
     it("should extract both 5m and 1h cache creation tokens from Anthropic provider metadata", async () => {
       const traceId = "abcdef1234567890abcdef1234567891";
       const spanId = "1234567890abcde0";

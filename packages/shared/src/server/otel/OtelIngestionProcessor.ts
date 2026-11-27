@@ -593,6 +593,7 @@ export class OtelIngestionProcessor {
                         spanAttributes,
                         scopeSpan?.scope?.name ?? "",
                         spanContext,
+                        scopeVersion,
                       ),
                 );
                 if (!usageDetails.success) {
@@ -1398,6 +1399,7 @@ export class OtelIngestionProcessor {
             attributes,
             instrumentationScopeName,
             observationContext,
+            scopeSpan?.scope?.version,
           ),
       costDetails: skipModelUsageAndCost
         ? {}
@@ -3101,6 +3103,7 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>,
     instrumentationScopeName: string,
     context: { spanId: string; traceId: string; source: string },
+    instrumentationScopeVersion?: string,
   ): Record<string, unknown> {
     const fromAttribute = this.parseJsonObjectAttribute(
       attributes,
@@ -3134,6 +3137,12 @@ export class OtelIngestionProcessor {
 
     if (instrumentationScopeName === "ai") {
       try {
+        const aiSdkVersion =
+          instrumentationScopeVersion ||
+          attributes["ai.request.headers.user-agent"]
+            ?.toString()
+            .match(/\bai\/(\d+(?:\.\d+)*)\b/)?.[1];
+        const isAiSdkV5 = /^5(?:\.|$)/.test(aiSdkVersion ?? "");
         const usageDetails: Record<string, number | undefined> = {
           input:
             "gen_ai.usage.prompt_tokens" in attributes // Backward compat, input_tokens used in latest ai SDK versions
@@ -3164,6 +3173,7 @@ export class OtelIngestionProcessor {
         };
 
         const providerMetadata = attributes["ai.response.providerMetadata"];
+        let preserveUncachedInput = false;
 
         // Try reading token details from ai.usage
         if (
@@ -3214,6 +3224,7 @@ export class OtelIngestionProcessor {
 
           // "ai.response.providerMetadata": {"anthropic":{"usage":{"input_tokens":7,"cache_creation_input_tokens":2089,"cache_read_input_tokens":16399,"cache_creation":{"ephemeral_5m_input_tokens":2089,"ephemeral_1h_input_tokens":0},"output_tokens":445,"service_tier":"standard"},"cacheCreationInputTokens":2089,"stopSequence":null,"container":null,"contextManagement":null}}
           if ("anthropic" in parsed && "usage" in parsed["anthropic"]) {
+            preserveUncachedInput = isAiSdkV5;
             const anthropicMetadata = parsed["anthropic"]["usage"] as Record<
               string,
               unknown
@@ -3300,16 +3311,19 @@ export class OtelIngestionProcessor {
           }
         }
 
-        // Subtract cached token count from total input and output
-        usageDetails["input"] = Math.max(
-          (usageDetails["input"] ?? 0) -
-            (usageDetails["input_cached_tokens"] ?? 0) -
-            (usageDetails["input_cache_creation"] ?? 0) -
-            (usageDetails["input_cache_creation_5m"] ?? 0) -
-            (usageDetails["input_cache_creation_1h"] ?? 0) -
-            (usageDetails["input_cache_read"] ?? 0),
-          0,
-        );
+        // AI SDK v5's Anthropic provider reports uncached input tokens in
+        // gen_ai.usage.input_tokens, while v6 reports the inclusive total.
+        if (!preserveUncachedInput) {
+          usageDetails["input"] = Math.max(
+            (usageDetails["input"] ?? 0) -
+              (usageDetails["input_cached_tokens"] ?? 0) -
+              (usageDetails["input_cache_creation"] ?? 0) -
+              (usageDetails["input_cache_creation_5m"] ?? 0) -
+              (usageDetails["input_cache_creation_1h"] ?? 0) -
+              (usageDetails["input_cache_read"] ?? 0),
+            0,
+          );
+        }
 
         usageDetails["output"] = Math.max(
           (usageDetails["output"] ?? 0) -
