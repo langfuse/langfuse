@@ -1,6 +1,5 @@
 import type { z } from "zod";
 import type { PrismaClient } from "../../db";
-import { eventsTableCols } from "../../eventsTable";
 import type {
   TopicFacetRef,
   topicTraceSelectionCriteriaSchema,
@@ -11,8 +10,6 @@ import {
   buildEventsObservationRowSelection,
   withoutPositionInTrace,
 } from "../queries/clickhouse-sql/events-observation-row-selection";
-import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
-import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { queryClickhouse } from "../repositories/clickhouse";
 import type { TopicCohortTraces } from "./clickhouse";
@@ -63,39 +60,21 @@ async function matchingObservationsQuery(
 
   const { queryBuilder } = buildEventsObservationRowSelection({
     projectId: input.projectId,
-    filter: withoutPositionInTrace(filterState)
-      .filter((filter) => filter.column !== "traceName")
-      .concat([
-        {
-          column: "startTime",
-          type: "datetime",
-          operator: ">=",
-          value: input.from,
-        },
-        {
-          column: "startTime",
-          type: "datetime",
-          operator: "<",
-          value: input.to,
-        },
-      ]),
+    filter: withoutPositionInTrace(filterState).concat([
+      {
+        column: "startTime",
+        type: "datetime",
+        operator: ">=",
+        value: input.from,
+      },
+      {
+        column: "startTime",
+        type: "datetime",
+        operator: "<",
+        value: input.to,
+      },
+    ]),
   });
-  queryBuilder.applyFilters(
-    new FilterList(
-      createFilterFromFilterState(
-        filterState.filter((filter) => filter.column === "traceName"),
-        [
-          {
-            uiTableName: "Trace Name",
-            uiTableId: "traceName",
-            clickhouseTableName: "events_proto",
-            clickhouseSelect: "nullIf(e.trace_name, '')",
-          },
-        ],
-        eventsTableCols,
-      ),
-    ),
-  );
   return queryBuilder
     .selectRaw(
       "e.trace_id AS id",

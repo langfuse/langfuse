@@ -59,14 +59,30 @@ describe("Topics setup trace selection", () => {
     ).resolves.toEqual({ finished7d: 2, finished30d: 2 });
   });
 
-  it("suggests only stored trace names, never a root observation name", async () => {
+  it("falls back to the root observation name for an unnamed trace", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     await seedFinishedTrace(projectId, "rag.answer");
-    // No stored trace name: the UI shows the root name "root", rule matching sees none.
+    // No stored trace name: the trace takes its root observation's name, "root".
     await seedFinishedTrace(projectId, "");
+    const now = new Date();
 
+    await expect(getTopicSetupTraceNames({ projectId, now })).resolves.toEqual([
+      { value: "rag.answer", count: 1 },
+      { value: "root", count: 1 },
+    ]);
     await expect(
-      getTopicSetupTraceNames({ projectId, now: new Date() }),
-    ).resolves.toEqual([{ value: "rag.answer", count: 1 }]);
+      countTopicSetupTraces({
+        projectId,
+        filter: [
+          {
+            column: "traceName",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["root"],
+          },
+        ],
+        now,
+      }),
+    ).resolves.toEqual({ finished7d: 1, finished30d: 1 });
   });
 });

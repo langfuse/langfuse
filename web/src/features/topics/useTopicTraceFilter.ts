@@ -61,8 +61,7 @@ export const topicsFilterQueryOnlyColumnIds = topicsFilterRegistry.fields
   .filter((field) => field.directFilter === false)
   .map((field) => field.filterColumn ?? field.id);
 
-// Trace names come from stored names only (see traceNames below): the events
-// options fall back to root observation names, which rule matching does not read.
+// Trace names come from the Topics setup window (see traceNames below), not the events options.
 const hasOptionList = (
   column: ColumnDefinition,
 ): column is Extract<
