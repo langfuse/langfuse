@@ -27,6 +27,10 @@ const baseArgs = {
 const longReasoning =
   "The response identifies the duplicate charge and refunds the second one, which is what the customer asked for. The tone is empathetic and the resolution fields are clear. However, the reply states several details that are not in the input: the customer's name, the claim that both charges hit within five seconds, and a payment retry bug as the root cause. Presenting these as confirmed facts overstates certainty.";
 
+/** Longer than a short note, yet three lines hold it in a wide strip. */
+const reasoningThatFitsWhenWide =
+  "The reply refunds the duplicate charge, which is what the customer asked for. It also names a root cause and a customer name that the input does not contain, so it presents guesses as facts. Tone and structure are fine, and the resolution fields are complete.";
+
 export const Collapsed = meta.story({
   args: { ...baseArgs, open: false, state: { status: "empty" } },
 });
@@ -164,12 +168,15 @@ export const ResizesWithArrowKeys = meta.story({
   },
   render: function Render(args) {
     const [resultSize, setResultSize] = useState<TestResultSize | null>(null);
+    // Narrow enough that the long reasoning needs more than three lines.
     return (
-      <EvaluatorTestStripView
-        {...args}
-        resultSize={resultSize}
-        onResultSizeChange={setResultSize}
-      />
+      <div className="w-160">
+        <EvaluatorTestStripView
+          {...args}
+          resultSize={resultSize}
+          onResultSizeChange={setResultSize}
+        />
+      </div>
     );
   },
   play: async ({ canvasElement }) => {
@@ -191,5 +198,29 @@ export const ResizesWithArrowKeys = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Show more" }),
     ).toBeVisible();
+  },
+});
+
+export const NoShowMoreWhenReasoningFits = meta.story({
+  name: "(Test) No Show more when the reasoning fits",
+  args: {
+    ...baseArgs,
+    state: {
+      status: "llm-success",
+      score: "0.65",
+      reasoning: reasoningThatFitsWhenWide,
+    },
+  },
+  render: (args) => (
+    <div className="w-300">
+      <EvaluatorTestStripView {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText(reasoningThatFitsWhenWide)).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Show more" }),
+    ).not.toBeInTheDocument();
   },
 });
