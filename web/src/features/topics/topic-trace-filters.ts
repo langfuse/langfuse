@@ -1,11 +1,13 @@
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 import { type TopicTraceQuery } from "./facet-topics";
+import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
 import { topicRuleFilterError } from "@langfuse/shared/topics";
 import {
   createFieldRegistry,
   fieldRegistryFromColumns,
   withFieldOptions,
 } from "@/src/features/search-bar/lib/fields";
+import { quoteIfNeeded } from "@/src/features/search-bar/lib/quoting";
 import { topicsFilterRegistry } from "./useTopicTraceFilter";
 
 export const TOPIC_ASSIGNMENT_OPTIONS = [
@@ -16,8 +18,7 @@ export const TOPIC_ASSIGNMENT_OPTIONS = [
 ];
 
 export function createTopicTraceRegistry(
-  topics: readonly { id: string; name: string }[],
-  filters: FilterState = [],
+  facetName?: string,
   {
     traceFields = false,
   }: {
@@ -25,27 +26,21 @@ export function createTopicTraceRegistry(
     traceFields?: boolean;
   } = {},
 ) {
-  const topicOptions = withUnavailableTopicOptions(
-    buildTopicOptions(topics),
-    filters,
-  );
-  const columns: ColumnDefinition[] = [
-    {
-      id: "topicId",
-      name: "Topic",
-      type: "stringOptions",
-      internal: "topicId",
-      options: topicOptions,
-    },
-    {
-      id: "assignment",
-      name: "Assignment state",
-      type: "stringOptions",
-      internal: "assignment",
-      options: TOPIC_ASSIGNMENT_OPTIONS,
-    },
-  ];
-  const topicRegistry = fieldRegistryFromColumns(columns, {
+  const topicsColumn: ColumnDefinition = {
+    id: "topics",
+    name: "Topics",
+    type: "categoryOptions",
+    internal: "topics",
+    options: [],
+  };
+  const assignmentColumn: ColumnDefinition = {
+    id: "assignment",
+    name: "Assignment state",
+    type: "stringOptions",
+    internal: "assignment",
+    options: TOPIC_ASSIGNMENT_OPTIONS,
+  };
+  const topicRegistry = fieldRegistryFromColumns([assignmentColumn], {
     id: "topics",
     fields: {
       assignment: { aliases: ["state", "status"] },
@@ -54,26 +49,19 @@ export function createTopicTraceRegistry(
   const traceRegistry = traceFields ? topicsFilterRegistry : null;
   // A later alias wins in the registry, so trace fields must not claim a topic field's name.
   const topicNames = new Set(
-    ["topic", "topicId"]
+    ["topics"]
       .concat(topicRegistry.fields.flatMap((f) => [f.id, ...f.aliases]))
       .map((name) => name.toLowerCase()),
   );
+  const exampleFacet = facetName ? quoteIfNeeded(facetName) : "Intent";
   // The view reads plain filters, not a predicate.
   const registry = createFieldRegistry({
     ...(traceRegistry ?? topicRegistry),
     id: "topics",
     predicateSource: null,
+    keyedOptionNamespaces: { topics: "topics" },
     fields: [
-      ...topicRegistry.fields.map((field) =>
-        field.id === "topicId"
-          ? {
-              ...field,
-              id: "topic",
-              aliases: ["topicId"],
-              filterColumn: "topicId",
-            }
-          : field,
-      ),
+      ...topicRegistry.fields,
       ...(traceRegistry?.fields ?? []).map((field) => ({
         ...field,
         aliases: field.aliases.filter(
@@ -81,13 +69,17 @@ export function createTopicTraceRegistry(
         ),
       })),
     ],
-    columns: [...topicRegistry.columns, ...(traceRegistry?.columns ?? [])],
+    columns: [
+      topicsColumn,
+      ...topicRegistry.columns,
+      ...(traceRegistry?.columns ?? []),
+    ],
     allowFreeText: true,
     aiFilterPrompt: false,
     defaultSearchType: ["id"],
     freeTextScopeLabel: "topic names and exact trace IDs",
     searchExamples: [
-      'topic:"Billing questions"',
+      `topics.${exampleFacet}:"Billing questions"`,
       'assignment:"Outlier"',
       ...(traceRegistry?.searchExamples ?? []),
     ],
@@ -98,21 +90,30 @@ export function createTopicTraceRegistry(
         : traceFilters.length > 0 &&
           "This view filters by topic and assignment state only.";
       return [
-        ...(topicFilters.some((filter) => filter.type !== "stringOptions")
+        ...(topicFilters.some(
+          (filter) =>
+            (filter.column === "topics" && filter.type !== "categoryOptions") ||
+            (filter.column === "assignment" && filter.type !== "stringOptions"),
+        )
           ? ["Topics and assignment states take exact selections."]
+          : []),
+        ...(facetName &&
+        topicFilters.some(
+          (filter) =>
+            filter.column === "topics" &&
+            filter.type === "categoryOptions" &&
+            filter.key !== facetName,
+        )
+          ? [`This view filters by topics.${quoteIfNeeded(facetName)} only.`]
           : []),
         ...(traceError ? [traceError] : []),
       ];
     },
   });
-  return withFieldOptions(
-    withFieldOptions(registry, "topic", topicOptions),
-    "assignment",
-    TOPIC_ASSIGNMENT_OPTIONS,
-  );
+  return withFieldOptions(registry, "assignment", TOPIC_ASSIGNMENT_OPTIONS);
 }
 
-const TOPIC_COLUMNS = new Set(["topicId", "assignment"]);
+const TOPIC_COLUMNS = new Set(["topics", "assignment"]);
 
 /** Topic and assignment filters run on topic results; the rest are tracing filters on the trace. */
 export function splitTopicTraceFilters(
@@ -124,58 +125,85 @@ export function splitTopicTraceFilters(
   ];
 }
 
-export function selectTopicTraceFilters(
-  filters: FilterState,
-  topicId: string | null,
+/** One topic picked in the list, treemap, or scatter, as a search-bar filter; null picks unassigned traces. */
+export function pickedTopicFilters(
+  facetName: string,
+  topicName: string | null,
 ): FilterState {
-  if (topicId === null) return filters;
-  if (topicId === "outliers")
+  if (topicName === null)
     return [
       {
         column: "assignment",
         type: "stringOptions",
-        operator: "any of",
-        value: ["outlier"],
+        operator: "none of",
+        value: ["assigned"],
       },
     ];
-  const selected = filters[0];
-  if (
-    filters.length === 1 &&
-    selected?.column === "topicId" &&
-    selected.type === "stringOptions" &&
-    selected.operator === "any of" &&
-    selected.value.length === 1 &&
-    selected.value[0] === topicId
-  )
-    return [];
   return [
     {
-      column: "topicId",
-      type: "stringOptions",
+      column: "topics",
+      type: "categoryOptions",
+      key: facetName,
       operator: "any of",
-      value: [topicId],
+      value: [topicName],
     },
   ];
+}
+
+/** The topic the search bar holds when it is exactly one picked topic on this facet. */
+export function pickedTopicId(
+  filters: FilterState,
+  facet: TopicFilterFacet,
+  searchQuery: string | null = null,
+): string | null {
+  if (searchQuery?.trim() || filters.length !== 1) return null;
+  const [filter] = filters;
+  if (
+    filter?.column === "topics" &&
+    filter.type === "categoryOptions" &&
+    filter.key === facet.name &&
+    filter.operator === "any of" &&
+    filter.value.length === 1
+  ) {
+    const matches = facet.topics.filter(
+      (topic) => topic.name === filter.value[0],
+    );
+    return matches.length === 1 ? matches[0]!.id : null;
+  }
+  if (
+    filter?.column === "assignment" &&
+    filter.type === "stringOptions" &&
+    filter.operator === "none of" &&
+    filter.value.length === 1 &&
+    filter.value[0] === "assigned"
+  )
+    return UNASSIGNED_TOPIC_ID;
+  return null;
 }
 
 export function filterTopicTraces<Row extends TopicTraceRow>(
   rows: readonly Row[],
   filters: FilterState,
   searchQuery: string | null,
+  facetName: string,
 ): Row[] {
   const phrase = searchQuery?.trim() ?? "";
   return rows.filter((row) => {
     if (phrase && !matchesSearch(row, phrase)) return false;
     return splitTopicTraceFilters(filters)[0].every((filter) => {
-      if (filter.type !== "stringOptions") return false;
-      if (filter.column !== "topicId" && filter.column !== "assignment")
-        return false;
-      const value =
-        filter.column === "topicId"
-          ? row.topicId
-          : getTopicAssignment(row.outcome);
-      const matches = value !== null && filter.value.includes(value);
-      return filter.operator === "any of" ? matches : !matches;
+      if (filter.column === "topics") {
+        if (filter.type !== "categoryOptions" || filter.key !== facetName)
+          return false;
+        const matches =
+          row.topicName !== null && filter.value.includes(row.topicName);
+        return filter.operator === "any of" ? matches : !matches;
+      }
+      if (filter.column === "assignment") {
+        if (filter.type !== "stringOptions") return false;
+        const matches = filter.value.includes(getTopicAssignment(row.outcome));
+        return filter.operator === "any of" ? matches : !matches;
+      }
+      return false;
     });
   });
 }
@@ -229,17 +257,37 @@ function selection(filters: FilterState, column: string) {
 export function topicTraceQuery(
   filters: FilterState,
   searchQuery: string | null,
-  topics: readonly { id: string; name: string }[],
+  facet: TopicFilterFacet,
   { assignedOnly = false }: { assignedOnly?: boolean } = {},
 ): TopicTraceQuery | null {
   const query: TopicTraceQuery = assignedOnly ? { assigned: true } : {};
-  const traceFilters = splitTopicTraceFilters(filters)[1];
+  const [topicFilters, traceFilters] = splitTopicTraceFilters(filters);
   if (traceFilters.length > 0) query.filter = traceFilters;
-  const topicSelection = selection(filters, "topicId");
-  let include = topicSelection.include;
+
+  const topicIdsByName = new Map<string, string[]>();
+  for (const topic of facet.topics) {
+    const ids = topicIdsByName.get(topic.name) ?? [];
+    ids.push(topic.id);
+    topicIdsByName.set(topic.name, ids);
+  }
+
+  let include: Set<string> | undefined;
+  const exclude = new Set<string>();
+  for (const filter of topicFilters) {
+    if (filter.column !== "topics") continue;
+    if (filter.type !== "categoryOptions" || filter.key !== facet.name)
+      return null;
+    const ids = filter.value.flatMap((name) => topicIdsByName.get(name) ?? []);
+    if (filter.operator === "none of") {
+      ids.forEach((id) => exclude.add(id));
+    } else {
+      include = new Set(ids.filter((id) => !include || include.has(id)));
+    }
+  }
+
   const phrase = searchQuery?.trim() ?? "";
   if (phrase) {
-    const named = topics
+    const named = facet.topics
       .filter((topic) =>
         topic.name.toLowerCase().includes(phrase.toLowerCase()),
       )
@@ -249,16 +297,17 @@ export function topicTraceQuery(
     else query.traceId = phrase;
   }
   if (include) {
-    const values = [...include].filter((id) => !topicSelection.exclude.has(id));
+    const values = [...include].filter((id) => !exclude.has(id));
     if (values.length === 0) return null;
     query.topicIds = { operator: "any of", values };
-  } else if (topicSelection.exclude.size > 0)
+  } else if (exclude.size > 0) {
     query.topicIds = {
       operator: "none of",
-      values: [...topicSelection.exclude],
+      values: [...exclude],
     };
+  }
 
-  const assignment = selection(filters, "assignment");
+  const assignment = selection(topicFilters, "assignment");
   const expand = (values: Iterable<string>) =>
     [...values].flatMap((value): ServerStatus[] =>
       value in STATUSES_BY_ASSIGNMENT
@@ -294,40 +343,10 @@ export function getTopicAssignment(outcome: string) {
   return "no_topic";
 }
 
-function buildTopicOptions(topics: readonly { id: string; name: string }[]) {
-  const nameCounts = new Map<string, number>();
-  for (const topic of topics)
-    nameCounts.set(topic.name, (nameCounts.get(topic.name) ?? 0) + 1);
-  return topics.map((topic) => ({
-    value: topic.id,
-    displayValue:
-      (nameCounts.get(topic.name) ?? 0) > 1
-        ? `${topic.name} (${topic.id})`
-        : topic.name,
-  }));
-}
-
-function withUnavailableTopicOptions(
-  options: readonly { value: string; displayValue: string }[],
-  filters: FilterState,
-) {
-  const topicOptions = [...options];
-  const topicIds = new Set(options.map((option) => option.value));
-  const labels = new Set(options.map((option) => option.displayValue));
-  for (const filter of filters) {
-    if (filter.column !== "topicId" || filter.type !== "stringOptions")
-      continue;
-    for (const id of filter.value) {
-      if (topicIds.has(id)) continue;
-      let displayValue = `Unavailable topic (${id})`;
-      while (labels.has(displayValue)) displayValue += ` (${id})`;
-      topicOptions.push({ value: id, displayValue });
-      topicIds.add(id);
-      labels.add(displayValue);
-    }
-  }
-  return topicOptions;
-}
+type TopicFilterFacet = {
+  name: string;
+  topics: readonly { id: string; name: string }[];
+};
 
 type TopicTraceRow = {
   traceId: string;

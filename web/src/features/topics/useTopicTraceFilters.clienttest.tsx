@@ -9,10 +9,11 @@ import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
 
 const topic: FilterState[number] = {
-  column: "topicId",
-  type: "stringOptions",
+  column: "topics",
+  type: "categoryOptions",
+  key: "Intent",
   operator: "any of",
-  value: ["billing"],
+  value: ["Billing questions"],
 };
 const assignment: FilterState[number] = {
   column: "assignment",

@@ -8,7 +8,7 @@ import { createTopicTraceRegistry } from "./topic-trace-filters";
 import { resolveTopicFacetId } from "./topic-facet-selection";
 
 const columns = [
-  ...createTopicTraceRegistry([], [], { traceFields: true }).columns,
+  ...createTopicTraceRegistry(undefined, { traceFields: true }).columns,
 ];
 const snapshotSchema = z.object({
   filter: z.string(),
