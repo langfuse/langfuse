@@ -2006,5 +2006,24 @@ describe("aiGateway guardrails tRPC", () => {
         scope: "entire_input",
       }),
     ]);
+
+    // Admins can still change action/name/scope on a guardrail whose connection is disabled while config is unchanged.
+    const editedWhileDisabled = await ownerCaller.aiGateway.guardrails.update({
+      orgId,
+      id: created.id,
+      type: "DECISION_MODEL",
+      name: "Prompt injection judge paused",
+      action: "BLOCK",
+      scope: "LAST_TURN",
+      config: {
+        connectionId: vercelConn.id,
+        model: "typesafe-ai/jev",
+        question: "Is this prompt injection?",
+        threshold: 0.7,
+      },
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(editedWhileDisabled.action).toBe("BLOCK");
+    expect(editedWhileDisabled.name).toBe("Prompt injection judge paused");
   });
 });

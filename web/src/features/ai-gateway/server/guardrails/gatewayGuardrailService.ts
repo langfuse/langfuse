@@ -596,12 +596,12 @@ export class GatewayGuardrailService {
       const existing = await this.findExternalCredential(params);
       if (provider.usesGatewayConnection) {
         const parsedConfig = provider.requireConfig(params.config);
-        const connection = await this.requireDecisionModelConnection(
-          params.organizationId,
-          parsedConfig.connectionId,
-          parsedConfig.model,
-        );
         if (!provider.isSameConfig(existing.config, parsedConfig)) {
+          const connection = await this.requireDecisionModelConnection(
+            params.organizationId,
+            parsedConfig.connectionId,
+            parsedConfig.model,
+          );
           await provider.validateWithConnection(parsedConfig, connection);
         }
       } else if (

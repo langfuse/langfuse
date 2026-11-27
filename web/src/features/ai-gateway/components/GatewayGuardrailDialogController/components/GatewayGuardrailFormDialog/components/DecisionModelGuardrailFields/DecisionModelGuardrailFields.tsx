@@ -1,4 +1,4 @@
-import { useId, useMemo, useState, type ChangeEvent } from "react";
+import { useId, useMemo, useState } from "react";
 import {
   Controller,
   useController,
@@ -12,6 +12,7 @@ import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/Cust
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { Textarea } from "@/src/components/ui/textarea";
 import {
   NoulCriteriaEditor,
   type NoulCriteriaDraft,
@@ -264,22 +265,16 @@ export function DecisionModelGuardrailFields<TFieldValues extends FieldValues>({
             registerLabelTooltip={getTriggerProps}
           >
             {({ id, inputDescribedById, error, value, onChange, onBlur }) => (
-              <textarea
+              <Textarea
                 id={id || questionId}
                 rows={3}
                 value={typeof value === "string" ? value : ""}
-                onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-                  onChange(event.target.value)
-                }
+                onChange={(event) => onChange(event.target.value)}
                 onBlur={onBlur}
                 placeholder={QUESTION_PLACEHOLDER}
                 aria-describedby={inputDescribedById}
                 aria-invalid={Boolean(error)}
-                className={cn(
-                  "ph-no-capture bg-background border-input placeholder:text-muted-foreground focus-visible:ring-ring min-h-20 w-full resize-y rounded-md border p-3 text-sm outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2",
-                  error &&
-                    "border-destructive focus-visible:ring-destructive/40 focus-visible:ring-offset-0",
-                )}
+                className={cn("ph-no-capture", error && "border-destructive")}
               />
             )}
           </FormField>

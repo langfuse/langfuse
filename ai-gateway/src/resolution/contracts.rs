@@ -150,11 +150,9 @@ impl Provider {
             Self::Anthropic => ANTHROPIC_BASE_URL,
             Self::OpenRouter => OPENROUTER_BASE_URL,
             Self::Azure => return true,
-            Self::Bedrock
-            | Self::Xai
-            | Self::Vercel
-            | Self::GoogleAiStudio
-            | Self::Vertex => return false,
+            Self::Bedrock | Self::Xai | Self::Vercel | Self::GoogleAiStudio | Self::Vertex => {
+                return false;
+            }
         };
         base_url.trim_end_matches('/') != official
     }

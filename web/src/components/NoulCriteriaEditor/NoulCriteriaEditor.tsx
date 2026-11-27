@@ -47,7 +47,7 @@ export function NoulCriteriaEditor({
         type="button"
         variant="link"
         size="sm"
-        className="h-auto min-h-6 w-fit justify-start gap-x-1 pl-0 @max-sm/fields:flex-wrap"
+        className="h-auto min-h-6 w-fit justify-start gap-x-1 pl-0 @max-sm:flex-wrap"
         aria-expanded={isOpen}
         disabled={disabled}
         onClick={() => setOpen((value) => !value)}
