@@ -3,7 +3,7 @@ import {
   type ColumnDefinition,
   type FilterState,
 } from "@langfuse/shared";
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 
 import preview from "../../../../../../../../../../../.storybook/preview";
 import { ObservationFilterBuilder } from "./ObservationFilterBuilder";
@@ -64,19 +64,30 @@ export const Wide = meta.story({
 });
 
 export const Narrow = meta.story({
+  name: "(Test) Narrow table layout",
   args,
   render: (storyArgs) => (
     <div className="w-[560px] max-w-full">
       <ObservationFilterBuilder {...storyArgs} />
     </div>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("table")).toBeInTheDocument();
+  },
 });
 
 export const Compact = meta.story({
+  name: "(Test) Compact row layout",
   args,
   render: (storyArgs) => (
     <div className="w-[420px] max-w-full">
       <ObservationFilterBuilder {...storyArgs} />
     </div>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("table")).not.toBeInTheDocument();
+    await expect(canvas.getByText("Where")).toBeInTheDocument();
+  },
 });
