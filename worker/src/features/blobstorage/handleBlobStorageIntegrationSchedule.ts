@@ -101,6 +101,39 @@ const disableForMissingEntitlement = async (projectId: string) => {
   });
 };
 
+// Returns the integrations whose plan includes scheduled exports and disables
+// the rest. A failed disable is logged and leaves that integration out.
+const disableUnentitledIntegrations = async <
+  T extends {
+    projectId: string;
+    project: { organization: { cloudConfig: unknown } };
+  },
+>(
+  integrations: T[],
+): Promise<T[]> => {
+  const entitled: T[] = [];
+  for (const integration of integrations) {
+    if (
+      isEntitledToScheduledExports(
+        integration.projectId,
+        integration.project.organization.cloudConfig,
+      )
+    ) {
+      entitled.push(integration);
+      continue;
+    }
+    try {
+      await disableForMissingEntitlement(integration.projectId);
+    } catch (error) {
+      logger.error(
+        `[BLOB INTEGRATION] Failed to disable blob storage integration for project ${integration.projectId} after a plan change`,
+        error,
+      );
+    }
+  }
+  return entitled;
+};
+
 export const handleBlobStorageIntegrationSchedule = async () => {
   const now = new Date();
 
@@ -120,26 +153,9 @@ export const handleBlobStorageIntegrationSchedule = async () => {
     },
   });
 
-  const enabledIntegrations = [];
-  for (const integration of allEnabledIntegrations) {
-    if (
-      isEntitledToScheduledExports(
-        integration.projectId,
-        integration.project.organization.cloudConfig,
-      )
-    ) {
-      enabledIntegrations.push(integration);
-      continue;
-    }
-    try {
-      await disableForMissingEntitlement(integration.projectId);
-    } catch (error) {
-      logger.error(
-        `[BLOB INTEGRATION] Failed to disable blob storage integration for project ${integration.projectId} after a plan change`,
-        error,
-      );
-    }
-  }
+  const enabledIntegrations = await disableUnentitledIntegrations(
+    allEnabledIntegrations,
+  );
 
   recordExportStaleness({
     integration: "blob_storage",
