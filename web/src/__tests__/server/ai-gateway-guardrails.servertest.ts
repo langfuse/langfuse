@@ -1777,7 +1777,7 @@ describe("aiGateway guardrails tRPC", () => {
         name: "Other Org OpenAI",
         provider: "OPENAI",
         encryptedCredential: encrypt("sk-other"),
-        displaySecret: "sk-...ther",
+        displaySecret: "sk-...1234",
         status: "ENABLED",
       },
     });

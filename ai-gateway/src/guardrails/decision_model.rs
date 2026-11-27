@@ -301,15 +301,15 @@ mod tests {
     fn fake_decision_response(model: &str) -> Response<Body> {
         let answer = |body: &'static str| Response::new(Body::from(body));
         match model {
-            "below" => {
-                answer(r#"{"answers":[{"type":"predicate","name":"guardrail","probability":0.69}]}"#)
-            }
+            "below" => answer(
+                r#"{"answers":[{"type":"predicate","name":"guardrail","probability":0.69}]}"#,
+            ),
             "exact" => {
                 answer(r#"{"answers":[{"type":"predicate","name":"guardrail","probability":0.7}]}"#)
             }
-            "above" => {
-                answer(r#"{"answers":[{"type":"predicate","name":"guardrail","probability":0.95}]}"#)
-            }
+            "above" => answer(
+                r#"{"answers":[{"type":"predicate","name":"guardrail","probability":0.95}]}"#,
+            ),
             "refusal" => {
                 answer(r#"{"answers":[{"type":"refusal","name":"guardrail","refusal":"no"}]}"#)
             }
@@ -419,7 +419,10 @@ mod tests {
         ])
         .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&payload).unwrap();
-        assert_eq!(json, serde_json::json!({ "input": "first line\n\nsecond line" }));
+        assert_eq!(
+            json,
+            serde_json::json!({ "input": "first line\n\nsecond line" })
+        );
     }
 
     #[test]
