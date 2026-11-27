@@ -338,6 +338,31 @@ describe("AI SDK request shapes", () => {
     ]);
   });
 
+  it.each([
+    [{ type: "toString" }, /tool type "toString" is not supported/],
+    [
+      { type: "web_search_20250305", constructor: {} },
+      /tool field "constructor" is not supported/,
+    ],
+  ])(
+    "Anthropic: rejects inherited property names in provider option tools",
+    async (tool, message) => {
+      await expect(
+        runCompletion({
+          modelParams: {
+            provider: "anthropic",
+            adapter: LLMAdapter.Anthropic,
+            model: "claude-sonnet-5",
+            max_tokens: 256,
+            providerOptions: { tools: [tool] },
+          },
+          apiKey: "anthropic-key",
+          response: ANTHROPIC_RESPONSE,
+        }),
+      ).rejects.toThrow(message);
+    },
+  );
+
   it.each(["eu.api.openai.com", "api.openai.com."])(
     "preserves saved evaluator options on %s",
     async (host) => {

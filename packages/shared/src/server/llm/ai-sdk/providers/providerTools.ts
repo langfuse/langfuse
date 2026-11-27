@@ -79,7 +79,7 @@ export function translateAnthropicProviderTools(
   value: unknown,
 ): TranslatedProviderTools {
   return translateProviderTools(value, (type, { name, ...args }) => {
-    if (!(type in ANTHROPIC_WEB_SEARCH_FACTORIES)) {
+    if (!Object.hasOwn(ANTHROPIC_WEB_SEARCH_FACTORIES, type)) {
       return {
         ok: false,
         reason: `tool type "${type}" is not supported; supported types: ${Object.keys(ANTHROPIC_WEB_SEARCH_FACTORIES).join(", ")}`,
@@ -131,7 +131,7 @@ function translateProviderTools(
     const { type, ...args } = entry;
     const translated = translate(type, args);
     if (!translated.ok) return translated;
-    if (translated.name in tools) {
+    if (Object.hasOwn(tools, translated.name)) {
       return {
         ok: false,
         reason: `tool "${translated.name}" is defined more than once`,
@@ -153,7 +153,7 @@ function mapFields(
   const mapped: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(args)) {
-    const field = fields[key];
+    const field = Object.hasOwn(fields, key) ? fields[key] : undefined;
     if (field === undefined) {
       return { ok: false, reason: `tool field "${key}" is not supported` };
     }
