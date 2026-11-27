@@ -220,6 +220,8 @@ type DropdownMenuItem = {
         type: "item";
         variant?: "default" | "destructive";
         tooltip?: string;
+        // TODO: typed API
+        // eslint-disable-next-line @repo/no-node-slot-props -- menu badges are still caller-rendered, including info-icon tooltips
         badge?: React.ReactNode;
         icon?: IconComponent;
         description?: string;

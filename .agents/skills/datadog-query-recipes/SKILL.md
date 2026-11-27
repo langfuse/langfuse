@@ -61,8 +61,7 @@ data domain you need: traces, logs, metrics, and visualizations.
   the user asks for a weekly engineering overview of production bugs, pages,
   and incidents.
 - When the research is anchored to a named production alert or monitor, read the monitor's runbook in the infrastructure repo (`runbooks/<slug>.md`) before measuring.
-- Use [`linear-bug-triage`](../linear-bug-triage/SKILL.md) only after a human
-  approves sharing measured findings in Linear.
+- Use [`linear-agent-writes`](../linear-agent-writes/SKILL.md) only when the user requests a tracker action; otherwise return the measured findings in chat.
 
 ## Output Expectations
 

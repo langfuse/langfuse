@@ -100,5 +100,4 @@ Candidates for future references (do not add until a real finding recurs):
 - The shared `backend-dev-guidelines` skill should defer here when adding
   outbound HTTP, integration config, or URL-accepting procedures; see
   [backend-dev-guidelines/SKILL.md](../backend-dev-guidelines/SKILL.md).
-- Confirmed issues with reproduction evidence go through `linear-bug-triage`
-  for Linear handoff.
+- Report confirmed issues and reproduction evidence in chat. Use [`linear-agent-writes`](../linear-agent-writes/SKILL.md) only if the user requests a tracker action.

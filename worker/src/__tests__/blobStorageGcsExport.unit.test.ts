@@ -136,7 +136,7 @@ describe("handleBlobStorageIntegrationProjectJob — GOOGLE_CLOUD_STORAGE", () =
     // rather than retried.
     expect(factoryCalls).toHaveLength(0);
     expect(uploadCalls).toHaveLength(0);
-    expect(prisma.blobStorageIntegration.update).toHaveBeenCalledWith(
+    expect(prisma.blobStorageIntegration.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           lastError: expect.stringContaining(
@@ -180,7 +180,7 @@ describe("handleBlobStorageIntegrationProjectJob — GOOGLE_CLOUD_STORAGE", () =
     // A credential fault: disabled rather than retried.
     expect(factoryCalls).toHaveLength(0);
     expect(uploadCalls).toHaveLength(0);
-    expect(prisma.blobStorageIntegration.update).toHaveBeenCalledWith(
+    expect(prisma.blobStorageIntegration.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           lastError: expect.stringContaining("service account JSON key"),

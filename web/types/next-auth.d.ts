@@ -43,6 +43,8 @@ declare module "next-auth" {
             // Optional so existing session mocks need not set it; the session
             // callback and the admin org fallback always populate it.
             accessAuditLogEnabled?: boolean;
+            // Optional so existing session mocks need not set it.
+            publicSharingDisabled?: boolean;
             featureFlags?: Flags;
             projects: {
               id: PrismaProject["id"];
@@ -94,6 +96,9 @@ declare module "next-auth" {
       // Mirrors LANGFUSE_AUDIT_LOG_ACCESS_EVENTS. Optional so existing session
       // mocks need not set it.
       accessAuditLogMode?: "org" | "enforced" | "disabled";
+      // LANGFUSE_DISABLE_PUBLIC_SHARING, applied only with an enterprise
+      // license. Optional so existing session mocks need not set it.
+      publicSharingDisabledByInstance?: boolean;
     };
   }
 

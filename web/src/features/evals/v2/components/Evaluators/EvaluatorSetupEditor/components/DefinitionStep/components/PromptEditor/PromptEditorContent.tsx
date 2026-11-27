@@ -66,6 +66,8 @@ const ROLES: Array<{ value: EvaluatorPromptMessage["role"]; label: string }> = [
 
 type PreparedPromptEditorState = ReturnType<typeof preparePromptEditorState>;
 
+const PROMPT_MAX_HEIGHT_PX = 320;
+
 /** Presentational prompt editor used by the connected editor and Storybook. */
 export function PromptEditorContent({
   store,
@@ -314,6 +316,7 @@ function SortablePromptMessage({
         preview={prepared.promptPreview}
         renderPreviewText={renderMediaAwareText}
         collapsed={!expanded}
+        maxHeight={PROMPT_MAX_HEIGHT_PX}
         toolbarStart={
           <>
             <Button

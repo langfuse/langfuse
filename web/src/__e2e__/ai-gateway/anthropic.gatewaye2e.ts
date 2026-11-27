@@ -5,7 +5,9 @@ import {
   COMPLETION_TIMEOUT_MS,
   expectGatewayError,
   expectListedAndIngested,
+  expectRedactedStreamingCompletion,
   missingLocalEnv,
+  REDACT_STREAM_PROMPT,
   requiredEnv,
   setUpGatewayE2e,
   withGatewayApiKey,
@@ -38,6 +40,24 @@ describe.skipIf(skip)("AI gateway Anthropic end-to-end", () => {
         },
         headers: ANTHROPIC_HEADERS,
         providerModel: MODEL,
+      });
+    },
+    COMPLETION_TIMEOUT_MS,
+  );
+
+  it(
+    `${API_FORMAT} redacts streaming request and response with internal guardrails`,
+    async () => {
+      await expectRedactedStreamingCompletion({
+        apiFormat: API_FORMAT,
+        path: "/anthropic/v1/messages",
+        body: {
+          model: MODEL,
+          max_tokens: 512,
+          messages: [{ role: "user", content: REDACT_STREAM_PROMPT }],
+          stream: true,
+        },
+        headers: ANTHROPIC_HEADERS,
       });
     },
     COMPLETION_TIMEOUT_MS,

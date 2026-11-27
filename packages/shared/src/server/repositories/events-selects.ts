@@ -229,6 +229,32 @@ export const eventsTraceNameOrEmpty = scopedToEvents((eb) =>
   ifNull(eventsTraceName(eb), literal("")),
 );
 
+/**
+ * A trace's name over its events, grouped by trace: the latest non-empty
+ * `trace_name`, else the latest non-empty name of a root observation, else
+ * NULL. The aggregate counterpart of {@link eventsTraceName}.
+ */
+export const eventsTraceNameAggregate = scopedToEvents((eb) =>
+  eb.fn.coalesce(
+    nullIf(
+      argMaxIf(
+        eb.ref("e.trace_name"),
+        eb.ref("e.event_ts"),
+        eb("e.trace_name", "<>", literal("")),
+      ),
+      literal(""),
+    ),
+    nullIf(
+      argMaxIf(
+        eb.ref("e.name"),
+        eb.ref("e.event_ts"),
+        eb.and([eventsIsRootObservation(eb), eb("e.name", "<>", literal(""))]),
+      ),
+      literal(""),
+    ),
+  ),
+);
+
 const traceNameSelect = (eb: EventsExpressionBuilder) =>
   eventsTraceNameOrEmpty(eb).as("trace_name");
 
@@ -262,29 +288,7 @@ function traceAggregationSelectMap(eb: EventsExpressionBuilder) {
   return {
     id: eb.ref("e.trace_id").as("id"),
     project_id: "e.project_id as project_id",
-    name: eb.fn
-      .coalesce(
-        nullIf(
-          argMaxIf(
-            eb.ref("e.trace_name"),
-            eb.ref("e.event_ts"),
-            eb("e.trace_name", "<>", literal("")),
-          ),
-          literal(""),
-        ),
-        nullIf(
-          argMaxIf(
-            eb.ref("e.name"),
-            eb.ref("e.event_ts"),
-            eb.and([
-              eventsIsRootObservation(eb),
-              eb("e.name", "<>", literal("")),
-            ]),
-          ),
-          literal(""),
-        ),
-      )
-      .as("name"),
+    name: eventsTraceNameAggregate(eb).as("name"),
     timestamp: eb.fn.min("e.start_time").as("timestamp"),
     environment: latestNonEmptyOf(eb, "e.environment").as("environment"),
     version: latestNonEmptyOf(eb, "e.version").as("version"),

@@ -25,6 +25,7 @@ import {
   isMultipartPartLimitError,
   BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE,
 } from "./partLimitError";
+import { setLastError } from "./planDisable";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
 import { isFinalBullmqAttempt } from "../integrations/bullmqAttempts";
 import { WORKER_HOST_ID } from "../../utils/hostId";
@@ -64,6 +65,7 @@ import {
   recordTerminalExportError,
 } from "./terminalExportError";
 import { processBlobStorageExport } from "./exportTable";
+import { getBlobExportShutdownSignal } from "./inFlightExports";
 
 // KMS SSE is not supported for this integration.
 type BlobStorageConnectionConfig = {
@@ -319,8 +321,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
       data: {
         runStartedAt: null,
         nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
-        lastError: null,
-        lastErrorAt: null,
         ...(isExportCaughtUp({
           lastSyncAt: blobStorageIntegration.lastSyncAt,
           runStartTime,
@@ -329,6 +329,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
           : {}),
       },
     });
+    await setLastError(projectId, null);
     return;
   }
 
@@ -564,8 +565,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
         data: {
           lastSyncAt: maxTimestamp,
           nextSyncAt,
-          lastError: null,
-          lastErrorAt: null,
           runStartedAt: null,
           ...(isExportCaughtUp({ lastSyncAt: maxTimestamp, runStartTime })
             ? { backfill: false }
@@ -573,6 +572,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         },
       },
     );
+    await setLastError(projectId, null);
     if (persisted === 0) {
       logger.info(
         `[BLOB INTEGRATION] Blob storage integration for project ${projectId} was deleted mid-run; dropping obsolete job after successful export`,
@@ -605,6 +605,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
       `[BLOB INTEGRATION] Successfully processed blob storage integration for project ${projectId}`,
     );
   } catch (error) {
+    // A shutdown abort is not an export failure: record nothing and notify no
+    // one. The processor re-queues the job; lastSyncAt did not advance, so the
+    // re-run exports the same window.
+    if (getBlobExportShutdownSignal().aborted) {
+      throw error;
+    }
+
     // A part-count-limit exhaustion is terminal, not transient: the window is
     // too large for the configured part size and no retry can shrink it safely.
     // Fail loud and stop before BullMQ burns its remaining attempts re-querying
@@ -620,12 +627,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
       try {
         integration = await prisma.blobStorageIntegration.update({
           where: { projectId },
-          data: {
-            lastError: BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE,
-            lastErrorAt: new Date(),
-            runStartedAt: null,
-          },
+          data: { runStartedAt: null },
         });
+        await setLastError(projectId, BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE);
       } catch (persistError) {
         if (isRecordNotFoundError(persistError)) {
           logger.info(
@@ -646,7 +650,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       // path's stillEnabled check: a user who disabled the integration mid-run
       // must not get an "export failed" alert for a run they already turned off.
       if (integration.enabled) {
-        await notifyBlobStorageExportFailed(projectId, { disabled: false });
+        await notifyBlobStorageExportFailed(projectId);
       }
 
       logger.error(
@@ -677,7 +681,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
       case "disabled-by-us":
         // Awaited: the integration is now off, so the scheduler never revisits
         // it and nothing would carry an interrupted dispatch.
-        await notifyBlobStorageExportFailed(projectId, { disabled: true });
+        await notifyBlobStorageExportFailed(projectId, {
+          disabledMessage: (projectName) =>
+            `The blob storage export for project "${projectName}" has been disabled after a configuration fault. This usually means the destination configuration or credentials are no longer valid. Once you have updated them, simply re-enable the export in the integration settings and it will pick up right where it left off.`,
+        });
         return; // resolving is the point; a throw would light the monitor
       case "lost-disable-race":
         return; // the winner sent the terminal email
@@ -686,7 +693,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         // scheduled export" is no longer true. Not awaited: this path rethrows,
         // so the job is about to fail and be retried regardless.
         if (isFinalAttempt && outcome.stillEnabled) {
-          notifyBlobStorageExportFailed(projectId, { disabled: false });
+          notifyBlobStorageExportFailed(projectId);
         }
         break;
       case "persist-failed":

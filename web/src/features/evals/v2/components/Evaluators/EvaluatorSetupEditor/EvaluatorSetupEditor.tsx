@@ -46,7 +46,7 @@ export function EvaluatorSetupEditor({
   const type = useStore(store, (state) => state.type);
 
   return (
-    <div className="overflow-y-auto p-6">
+    <div className="overflow-y-auto pt-4 pr-5 pb-6 pl-4">
       <DefinitionStepContainer
         projectId={projectId}
         store={store}

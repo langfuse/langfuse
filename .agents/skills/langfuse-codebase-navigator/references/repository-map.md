@@ -21,7 +21,7 @@ Snapshot source: `gh repo list langfuse --limit 1000 --json name,description,isP
 | Public agent skill for using Langfuse | `langfuse/skills` | `skills/langfuse/SKILL.md` and its references |
 | Internal Langfuse team skills | `langfuse/langfuse-internal-skills` | Top-level skill folders in this repo |
 | CLI | `langfuse/langfuse-cli` | `src/**`, `bin/**`, `openapi.yml` |
-| MCP prompt-management server | `langfuse/mcp-server-langfuse` | `src/**` |
+| Legacy MCP prompt server (deprecated, replaced by the Langfuse MCP server in `web/src/features/mcp`) | `langfuse/mcp-server-langfuse` | `src/**` |
 | n8n node | `langfuse/n8n-nodes-langfuse` | Node package source |
 | GitHub Action for experiments | `langfuse/experiment-action` | `action.yml`, `src/**`, `schemas/**` |
 | Examples | `langfuse/langfuse-examples` | Example app directories |
@@ -53,7 +53,7 @@ Snapshot source: `gh repo list langfuse --limit 1000 --json name,description,isP
 | `langfuse-terraform-aws` | Public | HCL | Terraform module for AWS deployment. |
 | `langfuse-terraform-azure` | Public | HCL | Terraform module for Azure deployment. |
 | `langfuse-terraform-gcp` | Public | HCL | Terraform module for GCP deployment. |
-| `mcp-server-langfuse` | Public | TypeScript | MCP server for Langfuse prompt management. |
+| `mcp-server-langfuse` | Public | TypeScript | Deprecated. Legacy MCP prompt server, replaced by the Langfuse MCP server. |
 | `n8n-nodes-langfuse` | Public | JavaScript | n8n node for Langfuse prompt management. |
 | `nofilter` | Private | TypeScript | Hackathon/prototype repo. Use only when named or search evidence points here. |
 | `oss-llmops-stack` | Public | n/a | Modular OSS LLMOps stack combining LiteLLM and Langfuse. |
@@ -93,7 +93,7 @@ Repo-local skills in `langfuse/.agents/skills`:
 - `changelog-writing`: user-facing release notes.
 - `clickhouse-best-practices`: ClickHouse schema/query/migration review.
 - `code-review`: repo-specific correctness/regression review.
-- `cursor-agents-workflow`: Cursor agent Linear branch names, the `cursor` GitHub label, human test steps, proof of work posted on the GitHub PR, Claude/Greptile/Codex review comments, and review-doubt PR notes.
+- `cursor-agents-workflow`: Cursor agent branch names, the `cursor` GitHub label, human test steps, proof of work posted on the GitHub PR, Claude/Greptile/Codex review comments, and review-doubt PR notes.
 - `datadog-query-recipes`: reusable Datadog query shapes for production research.
 - `debug-issue-with-datadog`: production debugging tied to Langfuse code paths.
 - `frontend-browser-review`: user-visible `web/**` changes and browser verification.
@@ -101,7 +101,6 @@ Repo-local skills in `langfuse/.agents/skills`:
 - `git-workflow`: Langfuse repo Git, GitHub, branch, commit, PR, and issue workflow.
 - `housekeeping`: recurring work queue review across Linear, Pylon, and GitHub.
 - `langfuse-codebase-navigator`: org, repository, folder, and skill routing.
-- `linear-bug-triage`: Linear issue deduplication and bug evidence workflows.
 - `pnpm-upgrade-package`: dependency upgrades under pnpm release-age constraints.
 - `security-review`: security review patterns for user-supplied URLs, secrets, tenancy, and auth scopes.
 - `seed-test-data`: local Langfuse seed scenarios for traces, sessions, lists, and event data.
@@ -156,7 +155,7 @@ Other integration repos:
 
 - `langfuse-java`: Java API client.
 - `langfuse-cli`: command-line API access.
-- `mcp-server-langfuse`: MCP prompt-management server.
+- `mcp-server-langfuse`: deprecated legacy MCP prompt server; use the Langfuse MCP server in `web/src/features/mcp`.
 - `n8n-nodes-langfuse`: n8n prompt-management node.
 - `experiment-action`: GitHub Action for experiment workflows.
 - `terraform-provider-langfuse`: Terraform provider.

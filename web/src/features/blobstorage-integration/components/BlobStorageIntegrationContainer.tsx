@@ -1,4 +1,5 @@
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useDeleteBlobStorageIntegration } from "@/src/features/blobstorage-integration/useBlobStorageIntegration";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -95,12 +96,7 @@ export const BlobStorageIntegrationContainer = ({
       );
     },
   });
-  const mutDelete = api.blobStorageIntegration.delete.useMutation({
-    onSuccess: () => {
-      utils.blobStorageIntegration.getExternalId.reset({ projectId });
-      utils.blobStorageIntegration.invalidate();
-    },
-  });
+  const mutDelete = useDeleteBlobStorageIntegration(projectId);
   const mutRunNow = api.blobStorageIntegration.runNow.useMutation({
     onSuccess: () => {
       utils.blobStorageIntegration.invalidate();

@@ -29,6 +29,8 @@ struct Metrics {
     spend_uncharged: Counter<u64>,
     spend: Counter<f64>,
     guardrails: Histogram<f64>,
+    guardrails_local: Histogram<f64>,
+    guardrails_external: Histogram<f64>,
     guardrails_size: Histogram<u64>,
 }
 
@@ -87,13 +89,31 @@ static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
             .f64_counter("gateway.spend.usd")
             .with_unit("USD")
             .build(),
-        // Regex scans take microseconds to milliseconds; external guardrail calls default to 3 s.
+        // Overall guardrail wall-clock latency covers both fast local regex checks
+        // (microseconds to milliseconds) and external provider calls (up to seconds).
         guardrails: meter
             .f64_histogram("gateway.guardrails.duration")
             .with_unit("s")
             .with_boundaries(vec![
                 0.000_01, 0.000_025, 0.000_05, 0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01,
+                0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+            ])
+            .build(),
+        // Local CPU guardrail work (turn extraction, regex matching, and redaction).
+        guardrails_local: meter
+            .f64_histogram("gateway.guardrails.local.duration")
+            .with_unit("s")
+            .with_boundaries(vec![
+                0.000_01, 0.000_025, 0.000_05, 0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01,
                 0.025, 0.05, 0.1, 0.25, 1.0, 2.5, 5.0,
+            ])
+            .build(),
+        // External guardrail provider calls (e.g. Bedrock ApplyGuardrail); defaults to 3 s timeout.
+        guardrails_external: meter
+            .f64_histogram("gateway.guardrails.external.duration")
+            .with_unit("s")
+            .with_boundaries(vec![
+                0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
             ])
             .build(),
     }
@@ -122,12 +142,18 @@ pub(super) fn http_response(duration: Duration, response: &HttpResponse<'_>) {
     );
 }
 
-pub(super) fn overhead(route: &str, provider: &'static str, duration: Duration) {
+pub(super) fn overhead(
+    route: &str,
+    provider: &'static str,
+    has_guardrails: bool,
+    duration: Duration,
+) {
     METRICS.overhead.record(
         duration.as_secs_f64(),
         &[
             KeyValue::new("http.route", route.to_owned()),
             KeyValue::new("gateway.provider", provider),
+            KeyValue::new("gateway.has_guardrails", has_guardrails),
         ],
     );
 }
@@ -291,17 +317,36 @@ pub(crate) fn spend_charged(
     METRICS.spend.add(usd, &attributes);
 }
 
-/// How long a request's guardrail check ran, excluding any wait for the blocking
-/// pool, and how many bytes of its last turn it scanned. Tagged by organization,
-/// like spend, to find the tenants that cost the most.
-pub(crate) fn guardrails_checked(organization_id: &str, duration: Duration, scanned: usize) {
+#[derive(Clone, Copy)]
+pub(crate) struct GuardrailTimings {
+    /// End-to-end wall-clock time of the guardrail check, including blocking-pool
+    /// wait, local scanning/redaction, external calls, and finalization.
+    pub total: Duration,
+    /// CPU time spent on local guardrail work (turn extraction and regex scan),
+    /// excluding time waiting for the blocking pool.
+    pub local: Duration,
+    /// Wall-clock time spent evaluating external guardrails, when any ran.
+    pub external: Option<Duration>,
+}
+
+/// Records overall, local, and external guardrail durations plus scanned bytes.
+/// Tagged by organization, like spend, to find the tenants that cost the most.
+pub(crate) fn guardrails_checked(organization_id: &str, timings: GuardrailTimings, scanned: usize) {
     let attributes = [KeyValue::new(
         "langfuse.organization.id",
         organization_id.to_owned(),
     )];
     METRICS
         .guardrails
-        .record(duration.as_secs_f64(), &attributes);
+        .record(timings.total.as_secs_f64(), &attributes);
+    METRICS
+        .guardrails_local
+        .record(timings.local.as_secs_f64(), &attributes);
+    if let Some(external) = timings.external {
+        METRICS
+            .guardrails_external
+            .record(external.as_secs_f64(), &attributes);
+    }
     METRICS.guardrails_size.record(bytes(scanned), &attributes);
 }
 

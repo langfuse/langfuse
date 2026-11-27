@@ -9,6 +9,7 @@ import {
   TRACING_TABS,
 } from "@/src/features/navigation/utils/tracing-tabs";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { tracingPageView } from "@/src/features/traces/fns/tracingPageView";
 
 export default function EventsPage() {
   const router = useRouter();
@@ -17,7 +18,7 @@ export default function EventsPage() {
 
   // Check if the user has tracing configured
   // Skip polling entirely if the project flag is already set in the session
-  const { data: hasTracingConfigured, isLoading } =
+  const { data: hasTracingConfigured, isPending } =
     api.traces.hasTracingConfigured.useQuery(
       { projectId },
       {
@@ -33,7 +34,7 @@ export default function EventsPage() {
       },
     );
 
-  const showOnboarding = !isLoading && !hasTracingConfigured;
+  const view = tracingPageView({ isPending, hasTracingConfigured });
 
   return (
     <Page
@@ -50,12 +51,10 @@ export default function EventsPage() {
           activeTab: TRACING_TABS.OBSERVATIONS,
         },
       }}
-      scrollable={showOnboarding}
+      scrollable={view !== "table"}
     >
-      {/* Show onboarding screen if user has no traces */}
-      {showOnboarding ? (
-        <TracesOnboarding projectId={projectId} />
-      ) : (
+      {view === "onboarding" && <TracesOnboarding projectId={projectId} />}
+      {view === "table" && (
         <ObservationsEventsTable
           projectId={projectId}
           showControlsInPageHeader

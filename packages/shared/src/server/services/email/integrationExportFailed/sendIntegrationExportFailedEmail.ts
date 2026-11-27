@@ -21,9 +21,9 @@ export type SendIntegrationExportFailedEmailParams = {
   projectName: string;
   settingsUrl: string;
   receiverEmails: string[];
-  // When true, the export was disabled and needs the customer to fix their
-  // config and re-enable it, rather than a transient failure.
-  disabled?: boolean;
+  // Set when the export was disabled rather than failing transiently; becomes
+  // the email body.
+  disabledMessage?: string;
 };
 
 export const sendIntegrationExportFailedEmail = async (
@@ -33,9 +33,10 @@ export const sendIntegrationExportFailedEmail = async (
     projectName,
     settingsUrl,
     receiverEmails,
-    disabled = false,
+    disabledMessage,
   }: SendIntegrationExportFailedEmailParams,
 ) => {
+  const disabled = disabledMessage !== undefined;
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     logger.error(
       `Missing environment variables for sending ${copy.inlineLabel} export failed email.`,
@@ -58,7 +59,7 @@ export const sendIntegrationExportFailedEmail = async (
         copy,
         projectName: safeProjectName,
         settingsUrl,
-        disabled,
+        disabledMessage,
       }),
     );
 

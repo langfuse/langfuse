@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import { type AggregatedScoreData } from "@langfuse/shared";
 
 /** The score's declared type, which decides what an aggregate of it can mean. */

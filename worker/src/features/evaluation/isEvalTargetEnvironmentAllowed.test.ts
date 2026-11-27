@@ -6,6 +6,7 @@ describe("isEvalTargetEnvironmentAllowed", () => {
   it("allows user environments", () => {
     expect(isEvalTargetEnvironmentAllowed("default")).toBe(true);
     expect(isEvalTargetEnvironmentAllowed("production")).toBe(true);
+    expect(isEvalTargetEnvironmentAllowed("topics")).toBe(true);
   });
 
   it("allows missing environments (defaulted downstream)", () => {
@@ -17,6 +18,9 @@ describe("isEvalTargetEnvironmentAllowed", () => {
     for (const environment of [
       "langfuse-llm-as-a-judge",
       "llm-as-a-judge",
+      "langfuse-topics-internal",
+      "langfuse-topics",
+      "topics-internal",
       "langfuse-code-eval",
       "langfuse-natural-language-filter",
       "langfuse-in-app-agent",

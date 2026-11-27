@@ -203,22 +203,18 @@ describe("Blob Storage Integration tRPC Router", () => {
   });
 
   describe("scheduled-blob-exports entitlement", () => {
-    it("blocks an OWNER on cloud:hobby from all blobStorageIntegration procedures", async () => {
+    it("lets an OWNER on cloud:hobby read and delete the integration but nothing else", async () => {
       const { caller, project } = await prepare({
         plan: "cloud:hobby",
       });
       await createIntegration({ projectId: project.id });
 
       await expect(
-        caller.blobStorageIntegration.get({ projectId: project.id }),
+        caller.blobStorageIntegration.getExternalId({ projectId: project.id }),
       ).rejects.toMatchObject({
         code: "FORBIDDEN",
         message: expect.stringContaining("scheduled-blob-exports"),
       });
-
-      await expect(
-        caller.blobStorageIntegration.getExternalId({ projectId: project.id }),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
       await expect(
         caller.blobStorageIntegration.update({
@@ -235,14 +231,16 @@ describe("Blob Storage Integration tRPC Router", () => {
         caller.blobStorageIntegration.validate({ projectId: project.id }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
-      await expect(
-        caller.blobStorageIntegration.delete({ projectId: project.id }),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.config?.projectId).toBe(project.id);
 
-      const stillThere = await prisma.blobStorageIntegration.findUnique({
+      await caller.blobStorageIntegration.delete({ projectId: project.id });
+      const remaining = await prisma.blobStorageIntegration.findUnique({
         where: { projectId: project.id },
       });
-      expect(stillThere).not.toBeNull();
+      expect(remaining).toBeNull();
     });
 
     it("allows an OWNER on cloud:team to read the integration", async () => {
