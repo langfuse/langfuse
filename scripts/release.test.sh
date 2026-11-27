@@ -17,21 +17,15 @@ setup_repo() {
     git config user.name "Test User"
     git config user.email "test@example.com"
 
-    mkdir -p scripts web/src/constants worker/src/constants packages/shared/src/constants
+    mkdir -p scripts
     mkdir -p packages/shared/prisma/migrations/20260101_init
     mkdir -p packages/shared/clickhouse/migrations/unclustered
 
     cp "${REPO_ROOT}/scripts/release-preflight.sh" scripts/release-preflight.sh
     cp "${REPO_ROOT}/scripts/release.sh" scripts/release.sh
-    cp "${REPO_ROOT}/scripts/bump-release-version.mjs" scripts/bump-release-version.mjs
     chmod +x scripts/release-preflight.sh scripts/release.sh
 
-    for pkg in package.json web/package.json worker/package.json; do
-      printf '{\n  "name": "%s",\n  "version": "4.88.0"\n}\n' "$pkg" > "$pkg"
-    done
-    for ts in packages/shared/src/constants/VERSION.ts web/src/constants/VERSION.ts worker/src/constants/VERSION.ts; do
-      printf 'export const VERSION = "v4.88.0";\n' > "$ts"
-    done
+    printf '{\n  "name": "langfuse",\n  "version": "4.88.0"\n}\n' > package.json
     printf '%s\n' '-- init' > packages/shared/prisma/migrations/20260101_init/migration.sql
     printf '%s\n' '-- init' > packages/shared/clickhouse/migrations/unclustered/0001_init.up.sql
 
@@ -58,7 +52,7 @@ printf '%s\n' "\$*" >> "${GH_LOG}"
 EOF
 chmod +x "${STUB_BIN}/gh"
 
-# 1. Clean repo (no unpromoted migrations): release.sh dispatches cut-release.yml with expected_sha and confirm_migrations=none
+# 1. Clean repo (no unpromoted migrations): dispatches cut-release.yml with expected_sha and confirm_migrations=none
 (
   cd "$WORK_DIR"
   head_sha="$(git rev-parse HEAD)"
@@ -73,7 +67,7 @@ chmod +x "${STUB_BIN}/gh"
   fi
 )
 
-# 2. Add an unpromoted Prisma migration on main: non-interactive CI helper must reject empty confirmation and pass 'applied'
+# 2. Unpromoted Prisma migration: non-interactive CI check requires 'applied' and interactive release.sh passes it
 (
   cd "$WORK_DIR"
   mkdir -p packages/shared/prisma/migrations/20261127_new_table
@@ -102,15 +96,15 @@ chmod +x "${STUB_BIN}/gh"
   fi
 )
 
-# 3. Uncommitted tracked changes must be rejected so preview matches HEAD
+# 3. Uncommitted tracked changes must be rejected
 (
   cd "$WORK_DIR"
-  printf 'export const VERSION = "v4.99.0";\n' > worker/src/constants/VERSION.ts
+  printf '{\n  "name": "langfuse",\n  "version": "4.99.0"\n}\n' > package.json
   if PATH="${STUB_BIN}:${PATH}" bash ./scripts/release.sh patch --dry-run >/dev/null 2>&1; then
-    echo "FAIL: expected release.sh to reject uncommitted version edits"
+    echo "FAIL: expected release.sh to reject uncommitted changes"
     exit 1
   fi
-  git checkout -- worker/src/constants/VERSION.ts
+  git checkout -- package.json
 )
 
 echo "PASS: release-preflight.sh and release.sh checks passed"

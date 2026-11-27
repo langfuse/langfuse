@@ -71,8 +71,7 @@ Read [protected branches and PR approval](references/protected-branches.md) befo
 
 ## Release
 
-- `pnpm run release` runs `release.sh`, which executes local preflight checks (`release-preflight.sh`: allowed branch `main` or `v3`, clean working tree, synced with `origin`, and interactive confirmation of unpromoted Postgres/ClickHouse migrations on `main`), prompts for the version bump, and dispatches `cut-release.yml` with the checked-out `expected_sha`.
-- `cut-release.yml` runs inside the protected `oss-release` GitHub Environment (`main`/`v3` only, required reviewer from `@langfuse/maintainers` with self-review prevented), re-verifies `HEAD` and unpromoted migrations, bumps the six tracked version files via `bump-release-version.mjs`, and pushes the release commit and `vX.Y.Z` tag atomically using a short-lived `Langfuse platform release` GitHub App token (`RELEASE_APP_CLIENT_ID` / `RELEASE_APP_PRIVATE_KEY`) before creating the GitHub release.
+- `pnpm run release` runs `release.sh`, which runs local preflight checks (`release-preflight.sh`: allowed branch `main` or `v3`, clean working tree, synced with `origin`, and interactive confirmation of unpromoted Postgres/ClickHouse migrations on `main`) and dispatches `cut-release.yml` to run `release-it` in CI.
 - `main` is the current line and the only branch that ships to Langfuse
   Cloud. `v3` is the OSS maintenance line: a release from it produces a tag,
   GitHub release, and Docker images, but never a Cloud deploy.

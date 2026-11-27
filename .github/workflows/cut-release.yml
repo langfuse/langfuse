@@ -34,7 +34,7 @@ on:
         type: string
         default: ""
       dry_run:
-        description: "Compute version bump and verify App credentials without pushing or creating a release"
+        description: "Run release-it in dry-run mode and verify token minting without pushing"
         required: false
         type: boolean
         default: false
@@ -95,7 +95,7 @@ jobs:
 
           remote_sha="$(git ls-remote origin "refs/heads/${TARGET_BRANCH}" | awk '{print $1}')"
           if [[ -z "${remote_sha}" || "${head_sha}" != "${remote_sha}" ]]; then
-            echo "::error::Branch '${TARGET_BRANCH}' moved on origin (checked out ${head_sha}, remote ${remote_sha:-unknown}) before release executed. Pull '${TARGET_BRANCH}' and re-run 'pnpm run release'."
+            echo "::error::Branch '${TARGET_BRANCH}' moved on origin (checked out ${head_sha}, remote ${remote_sha:-unknown}). Pull '${TARGET_BRANCH}' and re-run 'pnpm run release'."
             exit 1
           fi
 
@@ -110,16 +110,25 @@ jobs:
           fetch_production_branch
           verify_migrations_confirmed_non_interactive "${CONFIRM_MIGRATIONS}"
 
+      - name: Setup pnpm
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+          cache: false
+
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
           package-manager-cache: false
 
-      # Bump tracked version files using only Node built-ins so no third-party
-      # npm dependencies execute inside the protected oss-release environment.
-      - name: Compute and apply version bump
-        id: bump
+      - name: Install release tooling
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter=.
+
+      # release-it runs before the release token is minted so installed packages
+      # never have access to it.
+      - name: Run release-it (bump, commit, tag)
+        id: release
         env:
           INPUT_VERSION: ${{ inputs.version }}
           INPUT_CUSTOM_VERSION: ${{ inputs.custom_version }}
@@ -127,56 +136,55 @@ jobs:
           INPUT_DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          args=(
-            --bump "${INPUT_VERSION}"
-            --custom-version "${INPUT_CUSTOM_VERSION}"
-            --github-output "${GITHUB_OUTPUT}"
+          current_version="$(node -p "require('./package.json').version")"
+          current_major="${current_version%%.*}"
+
+          if [[ "${INPUT_VERSION}" == "custom" ]]; then
+            target="${INPUT_CUSTOM_VERSION#v}"
+            if [[ ! "${target}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "::error::Invalid custom_version '${INPUT_CUSTOM_VERSION}'."
+              exit 1
+            fi
+          else
+            target="${INPUT_VERSION}"
+          fi
+
+          if [[ "${INPUT_VERSION}" == "major" ]]; then
+            if [[ "${INPUT_CONFIRM_MAJOR}" != "RELEASE MAJOR" ]]; then
+              echo "::error::Major version bump requires confirm_major='RELEASE MAJOR'."
+              exit 1
+            fi
+          elif [[ "${INPUT_VERSION}" == "custom" ]]; then
+            target_major="${target%%.*}"
+            if [[ "${target_major}" -gt "${current_major}" && "${INPUT_CONFIRM_MAJOR}" != "RELEASE MAJOR" ]]; then
+              echo "::error::Major version bump (${current_version} -> ${target}) requires confirm_major='RELEASE MAJOR'."
+              exit 1
+            fi
+          fi
+
+          git config user.name "langfuse-bot"
+          git config user.email "langfuse-bot@langfuse.com"
+
+          release_args=(
+            "${target}"
+            --ci
+            --no-git.push
+            --no-git.requireUpstream
+            --no-github.release
           )
           if [[ "${INPUT_DRY_RUN}" == "true" ]]; then
-            args+=(--dry-run)
+            release_args+=(--dry-run)
           fi
 
-          node ./scripts/bump-release-version.mjs "${args[@]}"
+          pnpm exec release-it "${release_args[@]}"
 
-      - name: Verify major confirmation and tag availability
-        env:
-          CURRENT_VERSION: ${{ steps.bump.outputs.current_version }}
-          NEXT_VERSION: ${{ steps.bump.outputs.next_version }}
-          TAG_NAME: ${{ steps.bump.outputs.tag_name }}
-          IS_MAJOR_BUMP: ${{ steps.bump.outputs.is_major_bump }}
-          INPUT_CONFIRM_MAJOR: ${{ inputs.confirm_major }}
-        run: |
-          set -euo pipefail
-          if [[ "${IS_MAJOR_BUMP}" == "true" && "${INPUT_CONFIRM_MAJOR}" != "RELEASE MAJOR" ]]; then
-            echo "::error::Major version bump (${CURRENT_VERSION} -> ${NEXT_VERSION}) requires confirm_major='RELEASE MAJOR'."
-            exit 1
-          fi
+          next_version="$(node -p "require('./package.json').version")"
+          {
+            echo "current_version=${current_version}"
+            echo "next_version=${next_version}"
+            echo "tag_name=v${next_version}"
+          } >> "${GITHUB_OUTPUT}"
 
-          if git rev-parse -q --verify "refs/tags/${TAG_NAME}" >/dev/null; then
-            echo "::error::Tag '${TAG_NAME}' already exists."
-            exit 1
-          fi
-
-      - name: Create local release commit and tag
-        if: inputs.dry_run == false
-        env:
-          TAG_NAME: ${{ steps.bump.outputs.tag_name }}
-        run: |
-          set -euo pipefail
-          git config user.name "langfuse-platform-release[bot]"
-          git config user.email "langfuse-bot@langfuse.com"
-          git add \
-            package.json \
-            web/package.json \
-            worker/package.json \
-            packages/shared/src/constants/VERSION.ts \
-            web/src/constants/VERSION.ts \
-            worker/src/constants/VERSION.ts
-          git commit --no-verify -m "chore: release ${TAG_NAME}"
-          git tag "${TAG_NAME}"
-
-      # Always mint the short-lived GitHub App token (including on dry_run) so
-      # dry-run validates RELEASE_APP_CLIENT_ID and RELEASE_APP_PRIVATE_KEY.
       - name: Create release GitHub App token
         id: release-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
@@ -190,20 +198,19 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.release-token.outputs.token }}
           TARGET_BRANCH: ${{ github.ref_name }}
-          TAG_NAME: ${{ steps.bump.outputs.tag_name }}
+          TAG_NAME: ${{ steps.release.outputs.tag_name }}
         run: |
           set -euo pipefail
           gh auth setup-git
           git push --atomic origin "HEAD:refs/heads/${TARGET_BRANCH}" "refs/tags/${TAG_NAME}"
 
       - name: Create GitHub release
-        id: github-release
         if: inputs.dry_run == false
         env:
           GH_TOKEN: ${{ steps.release-token.outputs.token }}
           TARGET_BRANCH: ${{ github.ref_name }}
-          TAG_NAME: ${{ steps.bump.outputs.tag_name }}
-          IS_PRERELEASE: ${{ steps.bump.outputs.is_prerelease }}
+          TAG_NAME: ${{ steps.release.outputs.tag_name }}
+          NEXT_VERSION: ${{ steps.release.outputs.next_version }}
         run: |
           set -euo pipefail
           release_args=(
@@ -212,38 +219,13 @@ jobs:
             --title "${TAG_NAME}"
             --generate-notes
           )
-          if [[ "${IS_PRERELEASE}" == "true" ]]; then
+          if [[ "${NEXT_VERSION}" == *-* ]]; then
             release_args+=(--prerelease --latest=false)
           elif [[ "${TARGET_BRANCH}" != "main" ]]; then
             release_args+=(--latest=false)
           fi
 
-          release_url="$(gh "${release_args[@]}")"
-          echo "url=${release_url}" >> "${GITHUB_OUTPUT}"
-
-      - name: Write job summary
-        env:
-          TARGET_BRANCH: ${{ github.ref_name }}
-          CURRENT_VERSION: ${{ steps.bump.outputs.current_version }}
-          TAG_NAME: ${{ steps.bump.outputs.tag_name }}
-          DRY_RUN: ${{ inputs.dry_run }}
-          RELEASE_URL: ${{ steps.github-release.outputs.url }}
-        run: |
-          set -euo pipefail
-          {
-            if [[ "${DRY_RUN}" == "true" ]]; then
-              echo "### Dry run succeeded"
-              echo "- **Branch:** \`${TARGET_BRANCH}\`"
-              echo "- **Planned bump:** \`v${CURRENT_VERSION}\` -> \`${TAG_NAME}\`"
-              echo "- **App token:** verified (no commit, tag, or release pushed)"
-            else
-              echo "### Release ${TAG_NAME} published"
-              echo "- **Branch:** \`${TARGET_BRANCH}\`"
-              echo "- **Version bump:** \`v${CURRENT_VERSION}\` -> \`${TAG_NAME}\`"
-              echo "- **Commit:** \`$(git rev-parse HEAD)\`"
-              echo "- **Release:** ${RELEASE_URL}"
-            fi
-          } >> "${GITHUB_STEP_SUMMARY}"
+          gh "${release_args[@]}"
 
   notify-slack-on-failure:
     needs: cut-release

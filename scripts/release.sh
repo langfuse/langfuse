@@ -3,7 +3,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 LOG_PREFIX="release"
 # shellcheck source=scripts/release-preflight.sh
@@ -22,9 +21,7 @@ usage() {
 Usage: pnpm run release [-- <patch|minor|major>] [--version <semver>] [--dry-run]
 
 Runs release preflight checks (branch, clean working tree, origin sync, and unpromoted
-Postgres/ClickHouse migrations on main), selects the next semantic version, and
-dispatches the GitHub Actions release workflow (`cut-release.yml`) in the `oss-release`
-environment.
+Postgres/ClickHouse migrations on main) and dispatches the release GitHub Actions workflow.
 EOF
 }
 
@@ -69,39 +66,23 @@ parse_args() {
 
 ensure_clean_working_tree() {
   if ! git diff --quiet || ! git diff --cached --quiet; then
-    fail "Working tree has uncommitted changes. Commit or stash them so the version preview matches HEAD."
+    fail "Working tree has uncommitted changes. Commit or stash them before releasing."
   fi
-}
-
-preview_field() {
-  local bump="$1"
-  local field="$2"
-  local custom_version="${3:-}"
-  node "${SCRIPT_DIR}/bump-release-version.mjs" \
-    --root "$REPO_ROOT" \
-    --bump "$bump" \
-    --custom-version "$custom_version" \
-    --dry-run \
-    --field "$field"
 }
 
 prompt_version_choice() {
   local current_version="$1"
   local branch="$2"
   local expected_sha="$3"
-  local patch_preview minor_preview major_preview choice
-
-  patch_preview="$(preview_field patch nextVersion)"
-  minor_preview="$(preview_field minor nextVersion)"
-  major_preview="$(preview_field major nextVersion)"
+  local choice
 
   echo
   log "Current version: v${current_version} (branch: ${branch}, HEAD: ${expected_sha:0:10})"
-  echo "Select release version:"
-  echo "  1) patch  -> v${patch_preview}"
-  echo "  2) minor  -> v${minor_preview}"
-  echo "  3) major  -> v${major_preview}"
-  echo "  4) custom -> enter explicit semver"
+  echo "Select version bump:"
+  echo "  1) patch"
+  echo "  2) minor"
+  echo "  3) major"
+  echo "  4) custom (explicit semver)"
   read -r -p "Choice [1-4]: " choice
 
   case "$choice" in
@@ -110,7 +91,7 @@ prompt_version_choice() {
     3 | major) ARG_BUMP="major" ;;
     4 | custom)
       ARG_BUMP="custom"
-      read -r -p "Enter target semver (e.g. ${minor_preview} or ${minor_preview}-rc.1): " ARG_CUSTOM_VERSION
+      read -r -p "Enter target version (e.g. 4.89.0 or 4.89.0-rc.1): " ARG_CUSTOM_VERSION
       ;;
     *)
       fail "Invalid selection '${choice}'. Aborting release."
@@ -118,12 +99,26 @@ prompt_version_choice() {
   esac
 }
 
-confirm_major_bump() {
+is_major_bump() {
   local current_version="$1"
-  local tag_name="$2"
+  if [[ "$ARG_BUMP" == "major" ]]; then
+    return 0
+  fi
+  if [[ "$ARG_BUMP" == "custom" ]]; then
+    local current_major target_major
+    current_major="${current_version%%.*}"
+    target_major="${ARG_CUSTOM_VERSION#v}"
+    target_major="${target_major%%.*}"
+    if [[ "$target_major" =~ ^[0-9]+$ && "$current_major" =~ ^[0-9]+$ && "$target_major" -gt "$current_major" ]]; then
+      return 0
+    fi
+  fi
+  return 1
+}
 
+confirm_major_bump() {
   echo
-  log "Major version bump requested: v${current_version} -> ${tag_name}"
+  log "Major version bump requested."
   read -r -p "Type '${MAJOR_CONFIRMATION_TOKEN}' to confirm: " CONFIRMED_MAJOR
   if [[ "$CONFIRMED_MAJOR" != "$MAJOR_CONFIRMATION_TOKEN" ]]; then
     fail "Major release confirmation failed. Aborting release."
@@ -133,15 +128,6 @@ confirm_major_bump() {
 dispatch_release_workflow() {
   local branch="$1"
   local expected_sha="$2"
-  local current_version="$3"
-  local tag_name="$4"
-
-  echo
-  log "Dispatching '${RELEASE_WORKFLOW_FILE}' on branch '${branch}':"
-  log "  Version:    v${current_version} -> ${tag_name} (${ARG_BUMP})"
-  log "  HEAD SHA:   ${expected_sha}"
-  log "  Migrations: ${PREFLIGHT_MIGRATIONS_CONFIRMED}"
-  log "  Dry run:    ${ARG_DRY_RUN}"
 
   local -a gh_args=(
     workflow run "$RELEASE_WORKFLOW_FILE"
@@ -160,12 +146,9 @@ dispatch_release_workflow() {
     gh_args+=(-f "confirm_major=${CONFIRMED_MAJOR}")
   fi
 
+  log "Triggering workflow '${RELEASE_WORKFLOW_FILE}' on '${branch}' (bump=${ARG_BUMP}, dry_run=${ARG_DRY_RUN})..."
   gh "${gh_args[@]}"
-
-  echo
-  log "Workflow dispatched. Track and approve the 'oss-release' gate at:"
-  log "  https://github.com/langfuse/langfuse/actions/workflows/${RELEASE_WORKFLOW_FILE}"
-  log "Note: another maintainer must approve the 'oss-release' environment before the version commit and tag are pushed."
+  log "Workflow dispatched successfully."
 }
 
 main() {
@@ -181,23 +164,20 @@ main() {
   ensure_clean_working_tree
   run_release_preflight
 
-  local branch expected_sha current_version tag_name is_major_bump
+  local branch expected_sha current_version
   branch="$(current_branch)"
   expected_sha="$(git rev-parse HEAD)"
-  current_version="$(node "${SCRIPT_DIR}/bump-release-version.mjs" --root "$REPO_ROOT" --print-current)"
+  current_version="$(node -p "require('./package.json').version")"
 
   if [[ -z "$ARG_BUMP" ]]; then
     prompt_version_choice "$current_version" "$branch" "$expected_sha"
   fi
 
-  tag_name="$(preview_field "$ARG_BUMP" tagName "$ARG_CUSTOM_VERSION")"
-  is_major_bump="$(preview_field "$ARG_BUMP" isMajorBump "$ARG_CUSTOM_VERSION")"
-
-  if [[ "$is_major_bump" == "true" ]]; then
-    confirm_major_bump "$current_version" "$tag_name"
+  if is_major_bump "$current_version"; then
+    confirm_major_bump
   fi
 
-  dispatch_release_workflow "$branch" "$expected_sha" "$current_version" "$tag_name"
+  dispatch_release_workflow "$branch" "$expected_sha"
 }
 
 main "$@"

@@ -326,9 +326,7 @@ jobs:
       - name: merge gate tests
         run: node --test scripts/ci/merge-gate.test.mjs
       - name: release script tests
-        run: |
-          node --test scripts/bump-release-version.test.mjs
-          bash scripts/release.test.sh
+        run: bash scripts/release.test.sh
       - name: Load default env
         run: |
           cp .env.dev.example .env

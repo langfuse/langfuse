@@ -504,7 +504,7 @@ You can use the staging environment end-to-end with the Langfuse integrations or
 
 ## Production environment
 
-The default-branch PR and approval policy also covers release version commits. `pnpm run release` runs local preflight checks (`scripts/release-preflight.sh`) and dispatches [`.github/workflows/cut-release.yml`](.github/workflows/cut-release.yml), which bumps the version files inside the protected `oss-release` environment (requiring a second maintainer's approval) and pushes the release commit and `vX.Y.Z` tag with a short-lived GitHub App token. The promotion workflows below write `production`, whose rules and approved automation identity must be checked separately; their existence does not grant a default-branch bypass.
+The default-branch PR and approval policy also covers release version commits. `pnpm run release` runs local preflight checks and dispatches [`cut-release.yml`](.github/workflows/cut-release.yml) instead of pushing directly from a local machine. The promotion workflows below write `production`, whose rules and approved automation identity must be checked separately; their existence does not grant a default-branch bypass.
 
 We run two separate release/deployment processes:
 
