@@ -62,6 +62,23 @@ it("lists embedding models first in the embedding picker only", () => {
   );
 });
 
+it("offers no retired gecko models for Google connections", () => {
+  const groups = topicProviderGroups(
+    ["google-ai-studio", "google-vertex-ai"].map((adapter) => ({
+      id: adapter,
+      provider: adapter,
+      adapter,
+      customModels: [],
+      withDefaultModels: true,
+    })),
+    "embedding",
+  );
+  for (const [, models] of groups) {
+    expect(models.some((model) => /gecko/.test(model))).toBe(false);
+    expect(models.some((model) => /embed/.test(model))).toBe(true);
+  }
+});
+
 it("preselects the highest-ranked recommended model across connections", () => {
   expect(
     pickRecommendedTopicModel("summary", [

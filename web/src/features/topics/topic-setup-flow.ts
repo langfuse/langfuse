@@ -94,12 +94,12 @@ const OPENAI_EMBEDDING_MODELS = [
   "text-embedding-3-large",
   "text-embedding-ada-002",
 ];
-// gecko is retired on both Google APIs; gemini-embedding-2 is Gemini API only.
+// gecko is retired. Setup embeds several texts per request, so offer models that batch.
 const GOOGLE_AI_STUDIO_EMBEDDING_MODELS = [
-  "gemini-embedding-2",
   "gemini-embedding-001",
+  "gemini-embedding-2",
 ];
-const VERTEX_AI_EMBEDDING_MODELS = ["gemini-embedding-001"];
+const VERTEX_AI_EMBEDDING_MODELS = ["text-embedding-005"];
 
 export function isRecommendedTopicModel(
   slot: "summary" | "embedding" | "clustering",
