@@ -10,6 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
+import { CancelSubscriptionConfirmStep } from "./CancelSubscriptionDialog/CancelSubscriptionConfirmStep";
 import { useBillingInformation } from "./useBillingInformation";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
@@ -180,16 +181,7 @@ export const StripeCancellationButton = ({
           <DialogTitle className="text-lg">Confirm Cancellation</DialogTitle>
         </DialogHeader>
         <DialogBody className="text-sm">
-          <p>
-            Your subscription will not renew. You will retain access until the
-            end of the current billing period
-          </p>
-          <p>
-            Usage during the remainder of the period is still billed under your
-            current plan. By confirming, you schedule the cancellation for
-            period end. You can reactivate before that date if you change your
-            mind.
-          </p>
+          <CancelSubscriptionConfirmStep />
         </DialogBody>
         <DialogFooter>
           <DialogClose asChild>

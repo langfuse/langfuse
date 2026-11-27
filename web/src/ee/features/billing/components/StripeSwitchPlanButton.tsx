@@ -19,6 +19,16 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { showToast } from "@/src/features/notifications/showToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { nanoid } from "nanoid";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+
+import { formatBillingDate } from "@/src/ee/features/billing/utils/formatBillingDate";
+import { isCloudPlan } from "@/src/ee/features/billing/fns/isCloudPlan";
+import { planLimitChanges } from "@/src/ee/features/billing/fns/planLimitChanges";
+import { planLineChanges } from "@/src/ee/features/billing/fns/planLineChanges";
+import { stripeProducts } from "@/src/ee/features/billing/utils/stripeCatalogue";
+
+import { PlanLossSummary } from "./PlanLossSummary";
+import { useBillingInformation } from "./useBillingInformation";
 
 export const StripeSwitchPlanButton = ({
   orgId,
@@ -40,6 +50,13 @@ export const StripeSwitchPlanButton = ({
   processing: boolean;
 }) => {
   const [_opId, setOpId] = useState<string | null>(null);
+  const capture = usePostHogClientCapture();
+  const { billingPeriod, billingProvider } = useBillingInformation();
+  const targetPlan = stripeProducts.find(
+    (product) => product.stripeProductId === stripeProductId,
+  )?.mappedPlan;
+  const targetLabel =
+    newPlanTitle ?? (targetPlan ? planLabels[targetPlan] : "the new plan");
 
   const mutChangePlan =
     api.cloudBilling.changeStripeSubscriptionProduct.useMutation({
@@ -65,7 +82,17 @@ export const StripeSwitchPlanButton = ({
     });
 
   return (
-    <Dialog>
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open) return;
+        capture("billing_plan_change:confirm_opened", {
+          plan: currentPlan ?? null,
+          targetPlan: targetPlan ?? null,
+          direction: isUpgrade ? "upgrade" : "downgrade",
+          billingProvider,
+        });
+      }}
+    >
       <DialogTrigger asChild>
         <Button className="w-full">Change plan</Button>
       </DialogTrigger>
@@ -114,6 +141,21 @@ export const StripeSwitchPlanButton = ({
             </>
           ) : (
             <>
+              <p>
+                {planLabels[currentPlan ?? "cloud:hobby"]} runs until{" "}
+                {billingPeriod
+                  ? formatBillingDate(billingPeriod.end)
+                  : "the end of this billing period"}
+                . After that this organization moves to {newPlanTitle}.
+              </p>
+              {isCloudPlan(currentPlan) && isCloudPlan(targetPlan) ? (
+                <PlanLossSummary
+                  lost={planLineChanges(currentPlan, targetPlan)}
+                  limits={planLimitChanges(currentPlan, targetPlan)}
+                  markers={{}}
+                  targetLabel={targetLabel}
+                />
+              ) : null}
               <p>
                 No charge is made today. You stay on your current plan until the
                 end of this billing period, then we switch you to the new plan.

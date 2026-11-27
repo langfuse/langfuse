@@ -208,6 +208,20 @@ export const BillingSwitchPlanDialog = ({
                           ),
                         )}
                       </ul>
+                      {product.checkout?.addOn ? (
+                        <>
+                          <div className="text-sm font-bold">
+                            + {product.checkout.addOn.name}
+                          </div>
+                          <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
+                            {product.checkout.addOn.mainFeatures.map(
+                              (feature) => (
+                                <li key={feature}>{feature}</li>
+                              ),
+                            )}
+                          </ul>
+                        </>
+                      ) : null}
                     </div>
                     <p className="text-muted-foreground mt-auto pt-4 text-xs">
                       *price per 100k drops with increasing usage
