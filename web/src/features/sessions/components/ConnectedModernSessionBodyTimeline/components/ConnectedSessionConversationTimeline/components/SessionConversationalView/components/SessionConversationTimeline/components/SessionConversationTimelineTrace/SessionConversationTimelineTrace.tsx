@@ -268,40 +268,7 @@ export function SessionConversationTimelineTrace({
             </div>
           )}
 
-          {state.type === "loading" && (
-            <div
-              role="status"
-              aria-label="Loading messages"
-              className="flex flex-col gap-5 py-2"
-            >
-              <div className="flex items-center gap-2 py-1">
-                <Skeleton className="h-3.5 w-3.5 shrink-0 rounded-full" />
-                <Skeleton className="h-3 w-28" />
-                <Skeleton className="h-3 w-3 shrink-0" />
-              </div>
-              {(["user", "assistant"] as const).map((role) => (
-                <div
-                  key={role}
-                  className={cn(
-                    "flex w-full",
-                    role === "user" ? "justify-end" : "justify-start",
-                  )}
-                >
-                  <Skeleton
-                    className={cn(
-                      "max-w-[min(85%,48rem)] rounded-2xl",
-                      role === "user" ? "h-20 w-3/5" : "h-24 w-4/5",
-                    )}
-                  />
-                </div>
-              ))}
-              <div className="flex items-center gap-2 py-1">
-                <Skeleton className="h-3.5 w-3.5 shrink-0 rounded-full" />
-                <Skeleton className="h-3 w-24" />
-                <Skeleton className="h-3 w-3 shrink-0" />
-              </div>
-            </div>
-          )}
+          {state.type === "loading" && <TranscriptLoading />}
           {state.type === "error" && (
             <div className="border-destructive/40 bg-destructive/5 text-foreground rounded-lg border p-4 text-xs">
               Failed to load messages.
@@ -329,3 +296,43 @@ export function SessionConversationTimelineTrace({
     </div>
   );
 }
+
+/** Placeholder rows in the shape of a short transcript. */
+function TranscriptLoading() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading messages"
+      className="flex flex-col gap-5 py-2"
+    >
+      <div className="flex items-center gap-2 py-1">
+        <Skeleton className="h-3.5 w-3.5 shrink-0 rounded-full" />
+        <Skeleton className="h-3 w-28" />
+        <Skeleton className="h-3 w-3 shrink-0" />
+      </div>
+      {(["user", "assistant"] as const).map((role) => (
+        <div
+          key={role}
+          className={cn(
+            "flex w-full",
+            role === "user" ? "justify-end" : "justify-start",
+          )}
+        >
+          <Skeleton
+            className={cn(
+              "max-w-[min(85%,48rem)] rounded-2xl",
+              role === "user" ? "h-20 w-3/5" : "h-24 w-4/5",
+            )}
+          />
+        </div>
+      ))}
+      <div className="flex items-center gap-2 py-1">
+        <Skeleton className="h-3.5 w-3.5 shrink-0 rounded-full" />
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-3 w-3 shrink-0" />
+      </div>
+    </div>
+  );
+}
+
+SessionConversationTimelineTrace.Loading = TranscriptLoading;
