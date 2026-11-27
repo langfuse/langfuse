@@ -15,6 +15,7 @@ import {
   compileClickhouseCondition,
   compileClickhouseQuery,
   compilerPasses,
+  mergeClickhouseParams,
   renderClickhouseExpression,
   renderClickhouseSelections,
 } from "./compile";
@@ -669,6 +670,28 @@ describe("compiler passes in production", () => {
     } finally {
       for (const spy of spies) spy.mockRestore();
     }
+  });
+});
+
+describe("mergeClickhouseParams", () => {
+  it("merges equal bindings and throws on a name bound to two values", () => {
+    expect(
+      mergeClickhouseParams(
+        { st_1: ["a"], projectId: "proj" },
+        { sti_1: "s", projectId: "proj" },
+        { st_1: ["a"] },
+      ),
+    ).toEqual({ st_1: ["a"], sti_1: "s", projectId: "proj" });
+    expect(() =>
+      mergeClickhouseParams({ p1: "proj", p2: "s" }, { p1: "proj", p2: "t" }),
+    ).toThrow(/Parameter "p2" is bound to two different values/);
+    const proto = (value: string) => JSON.parse(`{"__proto__": "${value}"}`);
+    expect(Object.keys(mergeClickhouseParams(proto("a")))).toEqual([
+      "__proto__",
+    ]);
+    expect(() => mergeClickhouseParams(proto("a"), proto("b"))).toThrow(
+      /Parameter "__proto__" is bound to two different values/,
+    );
   });
 });
 

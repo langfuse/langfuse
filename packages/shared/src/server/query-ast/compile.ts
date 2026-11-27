@@ -1,6 +1,8 @@
 // Query-AST compiler entry points: run every compiler pass over a Kysely query
 // or condition and render ClickHouse SQL with its binds.
 
+import { isDeepStrictEqual } from "node:util";
+
 import {
   AliasNode,
   createQueryId,
@@ -183,6 +185,31 @@ export function compileClickhouseCondition(
       ({ table }) => table?.table.identifier.name === "events_full",
     ),
   };
+}
+
+/**
+ * The params of several compiles (and legacy builders) spliced into one
+ * query, as one map: `({ p1: "proj" }, { sti_1: "proj", projectId: "proj" },
+ * { projectId: "proj" })` → `{ p1: "proj", sti_1: "proj", projectId: "proj" }`.
+ * A name bound to deep-equal values in several maps keeps that value; one
+ * bound to two different values throws `QueryCompileError` naming it: one
+ * of the spliced queries would otherwise read the other's value.
+ */
+export function mergeClickhouseParams(
+  ...maps: ReadonlyArray<Record<string, unknown>>
+): Record<string, unknown> {
+  const merged = new Map<string, unknown>();
+  for (const map of maps) {
+    for (const [name, value] of Object.entries(map)) {
+      if (merged.has(name) && !isDeepStrictEqual(merged.get(name), value)) {
+        throw new QueryCompileError(
+          `Parameter "${name}" is bound to two different values by the queries spliced together; give each compile its own paramPrefix.`,
+        );
+      }
+      merged.set(name, value);
+    }
+  }
+  return Object.fromEntries(merged);
 }
 
 /**

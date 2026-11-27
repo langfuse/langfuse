@@ -73,7 +73,9 @@ must carry the `.golden.test.ts` suffix to run there.
 - **Name each compile's placeholders.** `paramPrefix` is required too
   (`<prefix>1`, `<prefix>2`, …; a plain identifier not ending in a digit), so
   no two compiles share a default. Give each compile spliced into one query
-  its own prefix (`../services/sessions-ui-table-events-service.ts`).
+  its own prefix, and merge their params with `mergeClickhouseParams`, which
+  throws when one name is bound to two values
+  (`../services/sessions-ui-table-events-service.ts`).
 - **Never filter `project_id` yourself.** The compile step injects
   `project_id = {projectId}` into every tenanted relation, so call sites pass
   only `projectId` (see `../repositories/environments.ts`).
