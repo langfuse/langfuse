@@ -8,11 +8,9 @@ import { useRouter } from "next/router";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 
 import { BillingUsageChart } from "./BillingUsageChart";
-import { BillingActionButtons } from "./BillingActionButtons";
+import { BillingPlanCard } from "./BillingPlanCard";
 import { BillingScheduleNotification } from "./BillingScheduleNotification";
 import { ConnectedBillingInvoiceTable } from "./ConnectedBillingInvoiceTable";
-import { BillingDiscountView } from "./BillingDiscountView";
-import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/BillingPlanPeriodView";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { SpendAlertsSection } from "./SpendAlerts/SpendAlertsSection";
 import { useBillingInformation } from "./useBillingInformation";
@@ -88,6 +86,7 @@ export const BillingSettings = () => {
 
       <Header title="Usage & Billing" />
       <div className="space-y-6">
+        <BillingPlanCard showDiscount={showBillingDiscount} />
         {organization?.plan === "cloud:enterprise-trial" &&
           organization.cloudConfig?.enterpriseTrial && (
             <Banner variant="info" title="Enterprise trial">
@@ -113,16 +112,6 @@ export const BillingSettings = () => {
           />
         )}
         {organization && <OrganizationUsageBreakdown orgId={organization.id} />}
-        <BillingPlanPeriodView />
-        {showBillingDiscount && organization && (
-          <BillingDiscountView
-            orgId={organization.id}
-            hasStripeCustomer={Boolean(
-              organization.cloudConfig?.stripe?.customerId,
-            )}
-          />
-        )}
-        <BillingActionButtons />
         {isCloudBillingAvailable &&
           organization &&
           Boolean(

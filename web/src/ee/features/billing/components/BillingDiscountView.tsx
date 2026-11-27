@@ -1,7 +1,8 @@
-import { api } from "@/src/utils/api";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { BillingDiscountCodeButton } from "@/src/ee/features/billing/components/BillingDiscountCodeButton";
+import { formatDiscount } from "@/src/ee/features/billing/utils/formatDiscount";
+import { api } from "@/src/utils/api";
 
+/** The discounts on an organization's Stripe subscription, each on one line, then the way to add a code. */
 export const BillingDiscountView = ({
   orgId,
   hasStripeCustomer,
@@ -13,49 +14,23 @@ export const BillingDiscountView = ({
     { orgId },
     { enabled: hasStripeCustomer },
   );
-
-  const discounts = data?.discounts ?? [];
-
-  const formatAmount = (value: number, currency: string | null) => {
-    const cur = (currency || "USD").toUpperCase();
-    try {
-      return new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency: cur,
-        currencyDisplay: "narrowSymbol",
-      }).format(value / 100);
-    } catch {
-      // Fallback simple formatting
-      return `${(value / 100).toFixed(2)} ${cur}`;
-    }
-  };
-
-  if (!hasStripeCustomer) {
-    return (
-      <div className="flex items-center">
-        <BillingDiscountCodeButton orgId={orgId} />
-      </div>
-    );
-  }
+  const discounts = (data?.discounts ?? []).map((discount) => ({
+    id: discount.id,
+    ...formatDiscount(discount),
+  }));
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
-        <span className="mr-1">Discounts:</span>
-        {discounts.map((d) => {
-          const labelParts: string[] = [];
-          if (d.code) labelParts.push(d.code);
-          else if (d.name) labelParts.push(d.name);
-
-          if (d.kind === "percent") labelParts.push(`${d.value}% off`);
-          else labelParts.push(`${formatAmount(d.value, d.currency)} off`);
-
-          return (
-            <Badge key={d.id} color="filled" text={labelParts.join(" · ")} />
-          );
-        })}
-        <BillingDiscountCodeButton orgId={orgId} />
-      </div>
+    <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-0.5 text-sm">
+      {discounts.map((discount) => (
+        // A promotion code is the customer's own, kept out of session replay.
+        <span key={discount.id} className="ph-no-capture">
+          {discount.label}, {discount.text}
+        </span>
+      ))}
+      <BillingDiscountCodeButton
+        orgId={orgId}
+        label={discounts.length > 0 ? "Add another code" : "Add promotion code"}
+      />
     </div>
   );
 };

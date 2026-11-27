@@ -32,8 +32,13 @@ import { StripeKeepPlanButton } from "./StripeKeepPlanButton";
 
 export const BillingSwitchPlanDialog = ({
   disabled = false,
+  label = "Change plan",
+  variant = "default",
 }: {
   disabled?: boolean;
+  /** The trigger's text; the dialog is the same either way. */
+  label?: string;
+  variant?: "default" | "secondary" | "ghost";
 }) => {
   const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
   const [_opId, setOpId] = useState<string | null>(null);
@@ -76,7 +81,9 @@ export const BillingSwitchPlanDialog = ({
       }}
     >
       <DialogTrigger asChild>
-        <Button disabled={disabled}>Change plan</Button>
+        <Button disabled={disabled} variant={variant}>
+          {label}
+        </Button>
       </DialogTrigger>
       <DialogContent className="max-w-5xl">
         <DialogHeader>

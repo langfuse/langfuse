@@ -511,6 +511,9 @@ const events = {
   app_shell: ["sidebar_pin_toggled", "sidebar_expansion_toggled"],
   spend_alert: ["created", "updated", "deleted"],
   billing_coupon: ["submitted"],
+  // Who asks for help from the billing page. Props are the plan, the billing
+  // provider and which control was used.
+  billing_page: ["contact_support_clicked"],
   // Launch surfaces answer "which entry point and state lead people into
   // gateway setup or key creation?" Props are state enums and counts only.
   ai_gateway_launch: [
