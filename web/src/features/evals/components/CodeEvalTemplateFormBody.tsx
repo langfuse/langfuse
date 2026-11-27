@@ -5,7 +5,6 @@ import CodeMirror, {
   EditorView,
   hoverTooltip,
   MatchDecorator,
-  tooltips,
   ViewPlugin,
   type ViewUpdate,
 } from "@uiw/react-codemirror";
@@ -34,7 +33,6 @@ import { lightTheme } from "@/src/components/editor/light-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
 import { tolerateUnstableViewportPosAtCoords } from "@/src/components/editor/tolerateUnstableViewportPosAtCoords";
 import { codeMirrorSearchPanel } from "@/src/constants/codeMirrorSearchPanel";
-import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
 import {
   getCodeEvalHoverDocs,
@@ -234,7 +232,6 @@ export function CodeEvalTemplateFormBody({
   headerAction,
 }: CodeEvalTemplateFormBodyProps) {
   const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
-  const tooltipLayer = useLayerContainer("popover");
   const { resolvedTheme } = useTheme();
   const [isFormatting, setIsFormatting] = useState(false);
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
@@ -402,8 +399,6 @@ export function CodeEvalTemplateFormBody({
       codeEvalCompletionExtension,
       ctxHoverAffordanceExtension,
       codeEvalHoverExtension,
-      // Tooltips render in the popover layer so surrounding panels cannot cover them.
-      ...(tooltipLayer ? [tooltips({ parent: tooltipLayer })] : []),
       ...(editable
         ? [formatShortcutExtension, autoScrollOnSelectionDrag()]
         : []),
@@ -417,7 +412,6 @@ export function CodeEvalTemplateFormBody({
       editable,
       formatShortcutExtension,
       languageExtension,
-      tooltipLayer,
     ],
   );
   const formatButton = (
