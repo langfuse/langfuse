@@ -96,26 +96,41 @@ chmod +x "${STUB_BIN}/gh"
   fi
 )
 
-# 3. Uncommitted tracked changes must be rejected
+# 3. Uncommitted tracked changes must be rejected before preflight
 (
   cd "$WORK_DIR"
+  git push origin main:refs/heads/production >/dev/null 2>&1
   printf '{\n  "name": "langfuse",\n  "version": "4.99.0"\n}\n' > package.json
-  if PATH="${STUB_BIN}:${PATH}" bash ./scripts/release.sh patch --dry-run >/dev/null 2>&1; then
-    echo "FAIL: expected release.sh to reject uncommitted changes"
+  out="$(PATH="${STUB_BIN}:${PATH}" bash ./scripts/release.sh patch --dry-run 2>&1 || true)"
+  if [[ "$out" != *"Working tree has uncommitted changes"* ]]; then
+    echo "FAIL: expected dirty working tree error, got: $out"
     exit 1
   fi
   git checkout -- package.json
 )
 
-# 4. Non-increasing or malformed custom versions must be rejected
+# 4. Non-increasing or malformed custom versions must be rejected, valid increasing custom versions accepted
 (
   cd "$WORK_DIR"
   for bad in "4.88.0" "4.87.9" "4.88.0-rc.1" "4.089.0"; do
-    if PATH="${STUB_BIN}:${PATH}" bash ./scripts/release.sh --version "$bad" --dry-run >/dev/null 2>&1; then
-      echo "FAIL: expected release.sh to reject custom version '$bad'"
+    out="$(PATH="${STUB_BIN}:${PATH}" bash ./scripts/release.sh --version "$bad" --dry-run 2>&1 || true)"
+    if [[ "$out" != *"Invalid semver"* && "$out" != *"must be strictly greater"* ]]; then
+      echo "FAIL: expected custom version validation error for '$bad', got: $out"
       exit 1
     fi
   done
+
+  : > "$GH_LOG"
+  head_sha="$(git rev-parse HEAD)"
+  PATH="${STUB_BIN}:${PATH}" bash ./scripts/release.sh --version v4.89.0-rc.1 --dry-run >/dev/null
+  recorded="$(cat "$GH_LOG")"
+  expected="workflow run cut-release.yml --ref main -f version=custom -f expected_sha=${head_sha} -f confirm_migrations=none -f dry_run=true -f custom_version=4.89.0-rc.1"
+  if [[ "$recorded" != "$expected" ]]; then
+    echo "FAIL: unexpected gh args for valid custom version:"
+    echo "  got:      $recorded"
+    echo "  expected: $expected"
+    exit 1
+  fi
 )
 
 echo "PASS: release-preflight.sh and release.sh checks passed"
