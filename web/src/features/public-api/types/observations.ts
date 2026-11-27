@@ -318,7 +318,9 @@ export const GetObservationsV2Query = z.object({
   // A list left empty after dropping unknown groups falls back to the default.
   fields: commaSeparatedEnumArray(OBSERVATION_FIELD_GROUPS_PUBLIC_API, null, {
     unknownValues: "filter",
-  }).transform((groups) => (groups?.length ? groups : null)),
+  }).transform((groups) =>
+    groups !== null && groups.length > 0 ? groups : null,
+  ),
   // Metadata expansion keys (optional)
   // Comma-separated list of metadata keys to return non-truncated: expandMetadata=transcript,steps
   expandMetadata: optionalCommaSeparatedStringArray.transform(
