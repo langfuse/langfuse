@@ -1,48 +1,9 @@
-import {
-  Activity,
-  Archive,
-  CalendarClock,
-  FileCheck,
-  Headset,
-  type IconComponent,
-  KeyRound,
-  Layers,
-  LifeBuoy,
-  Lock,
-  Network,
-  ScrollText,
-  Shield,
-  Tag,
-  UserCog,
-  Users,
-} from "@langfuse/icons";
-
 import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
-import {
-  type PlanLine,
-  type PlanLineKind,
-} from "@/src/ee/features/billing/constants/pricingPlans";
+import { planLineIcons } from "@/src/ee/features/billing/constants/planLineIcons";
+import { type PlanLine } from "@/src/ee/features/billing/constants/pricingPlans";
 import { type OverLimitMarkers } from "@/src/ee/features/billing/fns/overLimitMarkers";
 import { type PlanLimitChange } from "@/src/ee/features/billing/fns/planLimitChanges";
 import { type PlanLineChanges } from "@/src/ee/features/billing/fns/planLineChanges";
-
-const kindIcon: Record<PlanLineKind, IconComponent> = {
-  platform: Layers,
-  support: Headset,
-  "data-retention": Archive,
-  compliance: FileCheck,
-  hipaa: Shield,
-  sso: KeyRound,
-  "sso-enforcement": Lock,
-  rbac: Users,
-  "protected-labels": Tag,
-  "blob-export": CalendarClock,
-  "audit-logs": ScrollText,
-  scim: UserCog,
-  "uptime-sla": Activity,
-  "support-sla": LifeBuoy,
-  "private-link": Network,
-};
 
 const planNames = new Intl.ListFormat("en", {
   style: "long",
@@ -53,7 +14,7 @@ function LineGrid({ lines }: { lines: ReadonlyArray<PlanLine> }) {
   return (
     <ul className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
       {lines.map((entry) => {
-        const Icon = kindIcon[entry.kind];
+        const Icon = planLineIcons[entry.kind];
         return (
           <li key={entry.text} className="flex items-start gap-2">
             <Icon size="sm" __rawClassName="mt-0.5 shrink-0" aria-hidden />
