@@ -8,6 +8,10 @@ use axum::http::HeaderMap;
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
 
+use crate::guardrails::response::spec::{
+    JSON_LEAF, LEAF, Node, Object, ResponseSpec, delta, each, json_delta, parts, strict_parts, text,
+};
+
 const SCALAR_PARAMETERS: [&str; 17] = [
     "temperature",
     "top_p",
@@ -498,13 +502,18 @@ impl OpenAiChatCompletionsCapture {
 /// calls: `tool` messages count as caller messages, so an assistant answer after
 /// them ends their turn.
 /// The top-level members guardrails scan.
-pub(super) const GUARDRAIL_MEMBERS: &[&str] = &["messages"];
+/// Where Chat Completions requests carry the conversation guardrails scan.
+pub(super) const REQUEST: crate::guardrails::text::RequestSpec =
+    crate::guardrails::text::RequestSpec {
+        members: &["messages"],
+        last_turn: guardrail_turn,
+    };
 
-pub(super) fn guardrail_turn<'a>(
-    member: impl Fn(&str) -> Option<&'a str>,
+pub(super) fn guardrail_turn(
+    members: &crate::guardrails::text::Members<'_, '_>,
 ) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
     let mut turn = crate::guardrails::text::LastTurn::default();
-    if let Some(messages) = member("messages") {
+    if let Some(messages) = members.get("messages")? {
         turn.push_items(
             "messages",
             messages,
@@ -515,139 +524,59 @@ pub(super) fn guardrail_turn<'a>(
     Ok(turn)
 }
 
-pub(super) fn extract_response_json(
-    value: &Value,
-    blocks: &mut Vec<crate::guardrails::response::ResponseBlock>,
-) -> Result<(), crate::guardrails::text::Unreadable> {
-    use crate::guardrails::response::{collect_text_or_parts, ptr_push, push_json_leaf, push_leaf};
-    use crate::guardrails::text::Unreadable;
+/// Where Chat Completions responses carry model text.
+pub(super) const RESPONSE: ResponseSpec = ResponseSpec {
+    json: Object::new(&[("choices", each(&CHOICE))]).node(),
+    sse: Object::new(&[("choices", each(&CHOICE_DELTA))]).node(),
+};
 
-    let Some(choices) = value.get("choices").filter(|v| !v.is_null()) else {
-        return Ok(());
-    };
-    let choices = choices.as_array().ok_or(Unreadable)?;
-    for (index, choice) in choices.iter().enumerate() {
-        let Some(message) = choice.get("message").filter(|v| !v.is_null()) else {
-            continue;
-        };
-        let msg_ptr = format!("/choices/{index}/message");
-        let map = message.as_object().ok_or(Unreadable)?;
-        for key in ["content", "refusal", "reasoning", "reasoning_content"] {
-            if let Some(field) = map.get(key) {
-                collect_text_or_parts(field, &ptr_push(&msg_ptr, key), 0, blocks)?;
-            }
-        }
-        if let Some(calls) = map.get("tool_calls").filter(|v| !v.is_null()) {
-            for (call_idx, call) in calls.as_array().ok_or(Unreadable)?.iter().enumerate() {
-                if let Some(args) = call.pointer("/function/arguments").and_then(Value::as_str) {
-                    push_json_leaf(
-                        blocks,
-                        args,
-                        format!("{msg_ptr}/tool_calls/{call_idx}/function/arguments"),
-                    );
-                }
-                if let Some(input) = call.pointer("/custom/input").and_then(Value::as_str) {
-                    push_leaf(
-                        blocks,
-                        input,
-                        format!("{msg_ptr}/tool_calls/{call_idx}/custom/input"),
-                        true,
-                    );
-                }
-            }
-        }
-        if let Some(args) = message
-            .pointer("/function_call/arguments")
-            .and_then(Value::as_str)
-        {
-            push_json_leaf(blocks, args, format!("{msg_ptr}/function_call/arguments"));
-        }
-    }
-    Ok(())
-}
+const CHOICE: Node = Object::new(&[("message", MESSAGE)]).node();
+const MESSAGE: Node = Object::new(&[
+    ("content", parts(LEAF)),
+    ("refusal", parts(LEAF)),
+    ("reasoning", parts(LEAF)),
+    ("reasoning_content", parts(LEAF)),
+    ("tool_calls", each(&TOOL_CALL)),
+    ("function_call", ARGUMENTS),
+])
+.strict()
+.node();
+const TOOL_CALL: Node = Object::new(&[
+    ("function", ARGUMENTS),
+    ("custom", Object::new(&[("input", text(LEAF))]).node()),
+])
+.node();
+const ARGUMENTS: Node = Object::new(&[("arguments", text(JSON_LEAF))]).node();
 
-pub(super) fn extract_response_sse(
-    frame_idx: usize,
-    value: &Value,
-    collector: &mut crate::guardrails::response::StreamCollector,
-) -> Result<(), crate::guardrails::text::Unreadable> {
-    use crate::guardrails::response::{StreamKey, ptr_push, visit_text_or_parts};
-    use crate::guardrails::text::Unreadable;
-
-    let Some(choices) = value.get("choices").filter(|v| !v.is_null()) else {
-        return Ok(());
-    };
-    for (pos, choice) in choices.as_array().ok_or(Unreadable)?.iter().enumerate() {
-        let choice_idx = choice.get("index").and_then(Value::as_u64).unwrap_or(0);
-        let Some(delta) = choice.get("delta").filter(|v| !v.is_null()) else {
-            continue;
-        };
-        let delta_ptr = format!("/choices/{pos}/delta");
-        let map = delta.as_object().ok_or(Unreadable)?;
-        for key in ["content", "refusal", "reasoning", "reasoning_content"] {
-            match map.get(key) {
-                None | Some(Value::Null) => {}
-                Some(Value::String(text)) => {
-                    collector.push_delta(
-                        StreamKey::Chat(choice_idx, key),
-                        frame_idx,
-                        ptr_push(&delta_ptr, key),
-                        text,
-                    );
-                }
-                Some(field @ Value::Array(_)) => {
-                    visit_text_or_parts(
-                        field,
-                        &ptr_push(&delta_ptr, key),
-                        0,
-                        &mut |leaf_ptr, text| {
-                            collector.push_delta(
-                                StreamKey::Chat(choice_idx, key),
-                                frame_idx,
-                                leaf_ptr,
-                                text,
-                            );
-                        },
-                    )?;
-                }
-                Some(_) => return Err(Unreadable),
-            }
-        }
-        if let Some(calls) = map.get("tool_calls").filter(|v| !v.is_null()) {
-            for (call_pos, call) in calls.as_array().ok_or(Unreadable)?.iter().enumerate() {
-                let call_idx = call.get("index").and_then(Value::as_u64).unwrap_or(0);
-                if let Some(args) = call.pointer("/function/arguments").and_then(Value::as_str) {
-                    collector.push_delta(
-                        StreamKey::ChatToolArgs(choice_idx, call_idx),
-                        frame_idx,
-                        format!("{delta_ptr}/tool_calls/{call_pos}/function/arguments"),
-                        args,
-                    );
-                }
-                if let Some(input) = call.pointer("/custom/input").and_then(Value::as_str) {
-                    collector.push_delta(
-                        StreamKey::ChatToolCustomInput(choice_idx, call_idx),
-                        frame_idx,
-                        format!("{delta_ptr}/tool_calls/{call_pos}/custom/input"),
-                        input,
-                    );
-                }
-            }
-        }
-        if let Some(args) = delta
-            .pointer("/function_call/arguments")
-            .and_then(Value::as_str)
-        {
-            collector.push_delta(
-                StreamKey::Chat(choice_idx, "function_call"),
-                frame_idx,
-                format!("{delta_ptr}/function_call/arguments"),
-                args,
-            );
-        }
-    }
-    Ok(())
-}
+const CHOICE_DELTA: Node = Object::new(&[("delta", DELTA)]).indexed(&["index"]).node();
+const DELTA: Node = Object::new(&[
+    ("content", strict_parts(delta("content"))),
+    ("refusal", strict_parts(delta("refusal"))),
+    ("reasoning", strict_parts(delta("reasoning"))),
+    (
+        "reasoning_content",
+        strict_parts(delta("reasoning_content")),
+    ),
+    ("tool_calls", each(&TOOL_CALL_DELTA)),
+    (
+        "function_call",
+        Object::new(&[("arguments", text(json_delta("function_call")))]).node(),
+    ),
+])
+.strict()
+.node();
+const TOOL_CALL_DELTA: Node = Object::new(&[
+    (
+        "function",
+        Object::new(&[("arguments", text(json_delta("tool_arguments")))]).node(),
+    ),
+    (
+        "custom",
+        Object::new(&[("input", text(delta("tool_input")))]).node(),
+    ),
+])
+.indexed(&["index"])
+.node();
 
 #[cfg(test)]
 mod tests;

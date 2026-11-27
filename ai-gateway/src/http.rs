@@ -418,7 +418,7 @@ fn parse_request_body(
     api_format: ApiFormat,
 ) -> Result<ParsedRequest, InferenceHttpError> {
     let seed = MembersSeed {
-        scanned: crate::capture::guardrail_members(api_format),
+        scanned: crate::capture::request_spec(api_format).members,
     };
     let mut deserializer = serde_json::Deserializer::from_slice(&bytes);
     let members = serde::de::DeserializeSeed::deserialize(seed, &mut deserializer)
@@ -446,7 +446,7 @@ fn parse_request_body(
         }
         Seen::Duplicated => StreamOptions::Duplicated,
     };
-    let mut scanned = ScannedMembers::default();
+    let mut scanned = ScannedMembers::new(seed.scanned);
     for (name, seen) in seed.scanned.iter().zip(members.scanned) {
         match seen {
             Seen::Absent => {}
