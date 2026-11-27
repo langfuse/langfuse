@@ -171,15 +171,19 @@ export function topicModelsFor(
 export function topicProviderGroups(
   connections: TopicSetupConnection[],
   kind: "chat" | "embedding",
-  savedModel?: string | null,
+  saved?: JudgeModel | null,
 ) {
   return connections
     .map(
       (connection) =>
-        [connection.provider, topicModelsFor(connection, kind, savedModel)] as [
-          string,
-          string[],
-        ],
+        [
+          connection.provider,
+          topicModelsFor(
+            connection,
+            kind,
+            saved?.provider === connection.provider ? saved.model : null,
+          ),
+        ] as [string, string[]],
     )
     .filter(([, models]) => models.length > 0);
 }
@@ -254,17 +258,17 @@ export function initialTopicSetupDraft(input: {
   const summaryGroups = topicProviderGroups(
     input.connections,
     "chat",
-    input.stored.summary?.model,
+    input.stored.summary,
   );
   const embeddingGroups = topicProviderGroups(
     input.connections,
     "embedding",
-    input.stored.embedding?.model,
+    input.stored.embedding,
   );
   const clusteringGroups = topicProviderGroups(
     input.connections,
     "chat",
-    input.stored.clustering?.model,
+    input.stored.clustering,
   );
   return {
     step: "questions",
@@ -396,10 +400,13 @@ function topicQuestionDescription(name: string, stored: string | undefined) {
 }
 
 function embeddingModelsFor({ adapter, baseURL }: TopicSetupConnection) {
-  // Other OpenAI-compatible hosts and Azure deployments use their own model names.
+  // OpenAI and its data-residency hosts; compatible hosts and Azure deployments name models themselves.
   if (adapter === LLMAdapter.OpenAI)
     return !baseURL ||
-      (URL.canParse(baseURL) && new URL(baseURL).hostname === "api.openai.com")
+      (URL.canParse(baseURL) &&
+        /(^|\.)api\.openai\.com$/.test(
+          new URL(baseURL).hostname.replace(/\.$/, ""),
+        ))
       ? OPENAI_EMBEDDING_MODELS
       : [];
   if (adapter === LLMAdapter.GoogleAIStudio)

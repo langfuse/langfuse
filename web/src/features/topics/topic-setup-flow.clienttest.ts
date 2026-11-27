@@ -96,6 +96,8 @@ it("offers embedding models only where the connection can serve them", () => {
         connection("anthropic"),
         connection("openai"),
         connection("openai", "https://api.openai.com/v1"),
+        connection("openai", "https://eu.api.openai.com/v1"),
+        connection("openai", "https://eu.api.openai.com.example.com/v1"),
         connection("openai", "https://api.deepseek.com"),
         connection("azure", "https://example.openai.azure.com"),
         connection("google-ai-studio"),
@@ -113,6 +115,14 @@ it("offers embedding models only where the connection can serve them", () => {
     ],
     [
       "https://api.openai.com/v1",
+      [
+        "text-embedding-3-small",
+        "text-embedding-3-large",
+        "text-embedding-ada-002",
+      ],
+    ],
+    [
+      "https://eu.api.openai.com/v1",
       [
         "text-embedding-3-small",
         "text-embedding-3-large",
