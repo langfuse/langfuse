@@ -150,7 +150,7 @@ export function QuestionTypeSelector({
               aria-label="Question type"
               aria-describedby={`${helpIdPrefix}-${value}`}
             >
-              <SelectValue />
+              <SelectValue>{QUESTION_TYPE_COPY[value].label}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {ORDER.map((type) => (
