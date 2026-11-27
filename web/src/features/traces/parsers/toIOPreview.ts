@@ -121,13 +121,8 @@ type ProjectedMessage = {
   toolResultParts: Extract<NormalizedMessagePart, { type: "tool-result" }>[];
 };
 
-type ContentPart =
-  | { kind: "text"; text: string }
-  | { kind: "image"; part: Record<string, unknown> }
-  | { kind: "data"; value: unknown };
-
 function toChatMessages(message: NormalizedMessage): ProjectedMessage {
-  const contentParts: ContentPart[] = [];
+  const contentParts: Array<string | Record<string, unknown>> = [];
   const thinking: Array<{
     type: "thinking";
     content: string;
@@ -135,17 +130,22 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
   }> = [];
   const redactedThinking: Array<{ type: "redacted_thinking"; data: string }> =
     [];
-  // `inlineable` entries render in `content` instead when the message also
-  // has text or images; otherwise they would hide behind the passthrough view.
-  const jsonParts: Array<{ value: unknown; inlineable?: true }> = [];
+  const jsonParts: unknown[] = [];
   const toolCalls: ReturnType<typeof toToolCallPart>[] = [];
   const toolResults: Extract<NormalizedMessagePart, { type: "tool-result" }>[] =
     [];
+  // Data next to text or images renders inline; otherwise the renderer would
+  // hide it behind the passthrough toggle.
+  const inlineData = message.parts.some(
+    (part) =>
+      part.type === "text" ||
+      (part.type === "file" && part.mediaType?.startsWith("image/")),
+  );
 
   for (const part of message.parts) {
     switch (part.type) {
       case "text":
-        contentParts.push({ kind: "text", text: part.text });
+        contentParts.push(part.text);
         break;
       case "reasoning":
         if (part.content.kind === "text") {
@@ -165,7 +165,7 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
             data: part.content.data,
           });
         } else {
-          jsonParts.push({ value: part.content.value });
+          jsonParts.push(part.content.value);
         }
         break;
       case "tool-call":
@@ -176,60 +176,52 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
         break;
       case "file":
         if (part.mediaType?.startsWith("image/")) {
-          const image = toImageContentPart(part);
-          contentParts.push(
-            typeof image === "string"
-              ? { kind: "text", text: image }
-              : { kind: "image", part: image },
-          );
+          contentParts.push(toImageContentPart(part));
         } else {
           // The existing ChatML renderer has no generic file part. Keep the
           // complete normalized value in the passthrough JSON view instead.
-          jsonParts.push({ value: part });
+          jsonParts.push(part);
         }
         break;
       case "data":
-        contentParts.push({ kind: "data", value: part.value });
-        jsonParts.push({ value: part.value, inlineable: true });
+        if (inlineData) {
+          contentParts.push({
+            type: "text",
+            text: "```json\n" + JSON.stringify(part.value, null, 2) + "\n```",
+          });
+        } else {
+          jsonParts.push(part.value);
+        }
         break;
-      case "custom": {
-        const value = { kind: part.kind, value: part.value };
-        contentParts.push({ kind: "data", value });
-        jsonParts.push({ value, inlineable: true });
+      case "custom":
+        jsonParts.push({ kind: part.kind, value: part.value });
         break;
-      }
     }
   }
 
-  const hasTextOrImages = contentParts.some((part) => part.kind !== "data");
+  const hasStructuredParts = contentParts.some(
+    (part) => typeof part !== "string",
+  );
   const content = (() => {
-    if (!hasTextOrImages) {
-      return undefined;
+    if (hasStructuredParts) {
+      return contentParts.map((part) =>
+        typeof part === "string" ? { type: "text", text: part } : part,
+      );
     }
-    if (contentParts.every((part) => part.kind === "text")) {
-      return contentParts.map((part) => part.text).join("");
+    if (contentParts.length > 0) {
+      return contentParts.join("");
     }
-    return contentParts.map((part) => {
-      if (part.kind === "text") return { type: "text", text: part.text };
-      if (part.kind === "image") return part.part;
-      return {
-        type: "text",
-        text: "```json\n" + JSON.stringify(part.value, null, 2) + "\n```",
-      };
-    });
+    return undefined;
   })();
 
   const json = (() => {
-    const values = jsonParts
-      .filter((part) => !(hasTextOrImages && part.inlineable))
-      .map((part) => part.value);
-    if (values.length === 0) {
+    if (jsonParts.length === 0) {
       return undefined;
     }
-    if (values.length === 1) {
-      return values[0];
+    if (jsonParts.length === 1) {
+      return jsonParts[0];
     }
-    return values;
+    return jsonParts;
   })();
 
   const hasMainMessage =
