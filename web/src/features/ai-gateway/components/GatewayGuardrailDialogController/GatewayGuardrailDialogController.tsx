@@ -138,23 +138,13 @@ export function GatewayGuardrailDialogController({
         };
 
         const handleTestForm = async (values: GatewayGuardrailFormValues) => {
-          const id = state.mode === "edit" ? state.guardrail.id : undefined;
+          const external = toExternalTestInput(values);
+          if (!external) return;
           try {
-            if (values.openAiModeration) {
-              await testMutation.mutateAsync({
-                orgId: organizationId,
-                id,
-                type: "OPENAI_MODERATION",
-                openAiModeration: values.openAiModeration,
-              });
-              return;
-            }
-            if (!values.bedrock) return;
             await testMutation.mutateAsync({
               orgId: organizationId,
-              id,
-              type: "BEDROCK",
-              bedrock: values.bedrock,
+              id: state.mode === "edit" ? state.guardrail.id : undefined,
+              ...external,
             });
           } catch (error) {
             reportNonTrpcError(error, "ai-gateway-guardrails");
@@ -173,7 +163,11 @@ export function GatewayGuardrailDialogController({
                 orgId: organizationId,
                 type: "OPENAI_MODERATION",
                 name: values.name,
-                ...toOpenAiModerationActionInput(values),
+                action: resolveSupportedGuardrailAction(
+                  "OPENAI_MODERATION",
+                  values.action,
+                ),
+                scope: values.scope,
                 openAiModeration: {
                   region: values.openAiModeration.region,
                   apiKey: values.openAiModeration.apiKey ?? "",
@@ -219,7 +213,11 @@ export function GatewayGuardrailDialogController({
                 id,
                 type: "OPENAI_MODERATION",
                 name: values.name,
-                ...toOpenAiModerationActionInput(values),
+                action: resolveSupportedGuardrailAction(
+                  "OPENAI_MODERATION",
+                  values.action,
+                ),
+                scope: values.scope,
                 openAiModeration: values.openAiModeration,
                 assignments,
               });
@@ -539,24 +537,17 @@ function toRegexActionInput(
   };
 }
 
-function toOpenAiModerationActionInput(
-  values: Pick<GatewayGuardrailFormValues, "action" | "scope">,
-) {
-  const action = resolveSupportedGuardrailAction(
-    "OPENAI_MODERATION",
-    values.action,
-  );
-  if (action === "BLOCK") {
-    const scope = resolveSupportedGuardrailScope(
-      "BLOCK",
-      values.scope ?? "LAST_TURN",
-    );
+function toExternalTestInput(values: GatewayGuardrailFormValues) {
+  if (values.openAiModeration) {
     return {
-      action,
-      scope: scope as "LAST_TURN" | "OUTPUT" | "LAST_TURN_AND_OUTPUT",
+      type: "OPENAI_MODERATION" as const,
+      openAiModeration: values.openAiModeration,
     };
   }
-  return { action, scope: values.scope };
+  if (values.bedrock) {
+    return { type: "BEDROCK" as const, bedrock: values.bedrock };
+  }
+  return null;
 }
 
 function ConnectedGuardrailFormContent({

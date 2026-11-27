@@ -358,9 +358,10 @@ export const PRINTABLE_ASCII_NO_WHITESPACE_REGEX = /^[\x21-\x7E]+$/;
 /** Printable ASCII including spaces (0x20-0x7E). */
 export const PRINTABLE_ASCII_TEXT_REGEX = /^[\x20-\x7E]+$/;
 
+const EXTERNAL_GUARDRAIL_API_KEY_MAX_LENGTH = 8192;
+
 // Matches AWS Bedrock ApplyGuardrail URI parameter constraints and GatewayBedrockConfigSchema.
 const BEDROCK_GUARDRAIL_ID_MAX_LENGTH = 2048;
-const BEDROCK_API_KEY_MAX_LENGTH = 8192;
 const BEDROCK_GUARDRAIL_ID_REGEX =
   /^(?:[a-z0-9]+|arn:aws(?:-[a-z0-9-]+)?:bedrock:[a-z0-9-]{1,20}:[0-9]{12}:guardrail\/[a-z0-9]+)$/;
 const BEDROCK_GUARDRAIL_VERSION_REGEX = /^(?:[1-9][0-9]{0,7}|DRAFT)$/;
@@ -398,64 +399,49 @@ export type GatewayBedrockGuardrailConfig = z.infer<
   typeof GatewayBedrockGuardrailConfigSchema
 >;
 
-export const GatewayBedrockGuardrailApiKeySchema = z
+/** API key of an external guardrail provider, sent as a bearer token. */
+export const GatewayExternalGuardrailApiKeySchema = z
   .string()
   .trim()
-  .min(1, "Enter a Bedrock API key")
+  .min(1, "Enter an API key")
   .max(
-    BEDROCK_API_KEY_MAX_LENGTH,
-    `Bedrock API key must be at most ${BEDROCK_API_KEY_MAX_LENGTH} characters`,
+    EXTERNAL_GUARDRAIL_API_KEY_MAX_LENGTH,
+    `API key must be at most ${EXTERNAL_GUARDRAIL_API_KEY_MAX_LENGTH} characters`,
   )
   .refine(
     (value) => PRINTABLE_ASCII_NO_WHITESPACE_REGEX.test(value),
-    "Bedrock API key must be printable ASCII with no whitespace",
+    "API key must be printable ASCII with no whitespace",
   );
 
 export const GatewayBedrockGuardrailCreateInputSchema =
   GatewayBedrockGuardrailConfigSchema.extend({
-    apiKey: GatewayBedrockGuardrailApiKeySchema,
+    apiKey: GatewayExternalGuardrailApiKeySchema,
   });
 
 export const GatewayBedrockGuardrailUpdateInputSchema =
   GatewayBedrockGuardrailConfigSchema.extend({
-    apiKey: GatewayBedrockGuardrailApiKeySchema.optional(),
+    apiKey: GatewayExternalGuardrailApiKeySchema.optional(),
   });
 
 /** OpenAI data-residency regions; the gateway maps each to its API host. */
 export const GATEWAY_OPENAI_MODERATION_REGIONS = ["us", "eu"] as const;
-const OPENAI_API_KEY_MAX_LENGTH = 1024;
 
 export const GatewayOpenAiModerationGuardrailConfigSchema = z.object({
-  region: z.enum(GATEWAY_OPENAI_MODERATION_REGIONS, {
-    error: "Select an OpenAI region",
-  }),
+  region: z.enum(GATEWAY_OPENAI_MODERATION_REGIONS),
 });
 
 export type GatewayOpenAiModerationGuardrailConfig = z.infer<
   typeof GatewayOpenAiModerationGuardrailConfigSchema
 >;
 
-export const GatewayOpenAiModerationGuardrailApiKeySchema = z
-  .string()
-  .trim()
-  .min(1, "Enter an OpenAI API key")
-  .max(
-    OPENAI_API_KEY_MAX_LENGTH,
-    `OpenAI API key must be at most ${OPENAI_API_KEY_MAX_LENGTH} characters`,
-  )
-  .refine(
-    (value) => PRINTABLE_ASCII_NO_WHITESPACE_REGEX.test(value),
-    "OpenAI API key must be printable ASCII with no whitespace",
-  );
-
 export const GatewayOpenAiModerationGuardrailCreateInputSchema =
   GatewayOpenAiModerationGuardrailConfigSchema.extend({
-    apiKey: GatewayOpenAiModerationGuardrailApiKeySchema,
+    apiKey: GatewayExternalGuardrailApiKeySchema,
   });
 
 export const GatewayOpenAiModerationGuardrailUpdateInputSchema =
   GatewayOpenAiModerationGuardrailConfigSchema.extend({
-    apiKey: GatewayOpenAiModerationGuardrailApiKeySchema.optional(),
+    apiKey: GatewayExternalGuardrailApiKeySchema.optional(),
   });
 
 const GatewayGuardrailSecretPrefixSchema = z

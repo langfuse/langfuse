@@ -65,12 +65,11 @@ import {
   GATEWAY_GUARDRAIL_ACTION_SCOPES,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
-  GatewayBedrockGuardrailApiKeySchema,
   GatewayBedrockGuardrailConfigSchema,
   GatewayGuardrailCustomRegexSchema,
   GatewayGuardrailRedactionLabelSchema,
   GATEWAY_OPENAI_MODERATION_REGIONS,
-  GatewayOpenAiModerationGuardrailApiKeySchema,
+  GatewayExternalGuardrailApiKeySchema,
   guardrailScopeChecksOutput,
   parseContainsWordsText,
   resolveSupportedGuardrailScope,
@@ -177,9 +176,8 @@ function createGuardrailFormSchema(
       bedrockGuardrailId: z.string(),
       bedrockGuardrailVersion: z.string(),
       bedrockRegion: z.string(),
-      bedrockApiKey: z.string(),
       openAiModerationRegion: z.enum(GATEWAY_OPENAI_MODERATION_REGIONS),
-      openAiModerationApiKey: z.string(),
+      apiKey: z.string(),
       action: z.enum(capabilities.actions),
       scope: z.enum(GATEWAY_GUARDRAIL_SCOPES),
       redactionLabel: z.string(),
@@ -239,36 +237,18 @@ function createGuardrailFormSchema(
             }
           }
         }
-        const trimmedApiKey = values.bedrockApiKey.trim();
-        if (!hasSavedApiKey || trimmedApiKey.length > 0) {
-          const apiKeyResult = GatewayBedrockGuardrailApiKeySchema.safeParse(
-            values.bedrockApiKey,
+      }
+      if (isExternalTemplate(templateKind)) {
+        if (!hasSavedApiKey || values.apiKey.trim()) {
+          const apiKeyResult = GatewayExternalGuardrailApiKeySchema.safeParse(
+            values.apiKey,
           );
           if (!apiKeyResult.success) {
             ctx.addIssue({
               code: "custom",
-              path: ["bedrockApiKey"],
+              path: ["apiKey"],
               message:
-                apiKeyResult.error.issues[0]?.message ??
-                "Enter a Bedrock API key",
-            });
-          }
-        }
-        return;
-      }
-      if (templateKind === "openai_moderation") {
-        if (!hasSavedApiKey || values.openAiModerationApiKey.trim()) {
-          const apiKeyResult =
-            GatewayOpenAiModerationGuardrailApiKeySchema.safeParse(
-              values.openAiModerationApiKey,
-            );
-          if (!apiKeyResult.success) {
-            ctx.addIssue({
-              code: "custom",
-              path: ["openAiModerationApiKey"],
-              message:
-                apiKeyResult.error.issues[0]?.message ??
-                "Enter an OpenAI API key",
+                apiKeyResult.error.issues[0]?.message ?? "Enter an API key",
             });
           }
         }
@@ -429,9 +409,8 @@ export function GatewayGuardrailFormDialog({
       bedrockGuardrailId: initialValues.bedrock?.guardrailId ?? "",
       bedrockGuardrailVersion: initialValues.bedrock?.guardrailVersion ?? "",
       bedrockRegion: initialValues.bedrock?.region ?? "",
-      bedrockApiKey: "",
       openAiModerationRegion: initialValues.openAiModeration?.region ?? "us",
-      openAiModerationApiKey: "",
+      apiKey: "",
       action: initialValues.action,
       scope: resolveSupportedGuardrailScope(
         initialValues.action,
@@ -452,8 +431,7 @@ export function GatewayGuardrailFormDialog({
   const bedrockGuardrailId = form.watch("bedrockGuardrailId");
   const bedrockGuardrailVersion = form.watch("bedrockGuardrailVersion");
   const bedrockRegion = form.watch("bedrockRegion");
-  const bedrockApiKey = form.watch("bedrockApiKey");
-  const openAiModerationApiKey = form.watch("openAiModerationApiKey");
+  const apiKey = form.watch("apiKey");
   const selectedAction = form.watch("action");
   const selectedScope = form.watch("scope");
   const checksOutput = guardrailScopeChecksOutput(selectedScope);
@@ -473,23 +451,18 @@ export function GatewayGuardrailFormDialog({
   const isExternal = externalTemplate !== null;
   const isTesting = externalTest?.isPending ?? false;
   const isBusy = isSubmitting || isTesting;
+  const isApiKeyReady =
+    (hasSavedApiKey && apiKey.trim().length === 0) ||
+    GatewayExternalGuardrailApiKeySchema.safeParse(apiKey).success;
   const canTestExternal =
-    (templateKind === "openai_moderation" &&
-      ((hasSavedApiKey && openAiModerationApiKey.trim().length === 0) ||
-        GatewayOpenAiModerationGuardrailApiKeySchema.safeParse(
-          openAiModerationApiKey,
-        ).success)) ||
-    (templateKind === "bedrock" &&
+    isExternal &&
+    isApiKeyReady &&
+    (templateKind !== "bedrock" ||
       GatewayBedrockGuardrailConfigSchema.safeParse({
         guardrailId: bedrockGuardrailId,
         guardrailVersion: bedrockGuardrailVersion,
         region: bedrockRegion,
-      }).success &&
-      (hasSavedApiKey
-        ? bedrockApiKey.trim().length === 0 ||
-          GatewayBedrockGuardrailApiKeySchema.safeParse(bedrockApiKey).success
-        : GatewayBedrockGuardrailApiKeySchema.safeParse(bedrockApiKey)
-            .success));
+      }).success);
 
   const isCustomRegex = templateKind === "custom_regex";
   const activeCustomRegexPreview =
@@ -520,8 +493,8 @@ export function GatewayGuardrailFormDialog({
   const toFormValues = (
     values: GuardrailFormSchemaValues,
   ): GatewayGuardrailFormValues => {
+    const apiKey = values.apiKey.trim();
     if (templateKind === "bedrock") {
-      const apiKey = values.bedrockApiKey.trim();
       return {
         name: values.name.trim(),
         presets: [],
@@ -540,7 +513,6 @@ export function GatewayGuardrailFormDialog({
       };
     }
     if (templateKind === "openai_moderation") {
-      const apiKey = values.openAiModerationApiKey.trim();
       return {
         name: values.name.trim(),
         presets: [],
@@ -1113,49 +1085,20 @@ function BedrockGuardrailFields({
         </FormField>
       </div>
 
-      <CustomTooltip
-        content={
-          <span>
-            Use{" "}
-            <TextLink
-              path="https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html"
-              value="Amazon Bedrock API keys"
-              icon={SquareArrowOutUpRight}
-              external
-            />
-            . Needs{" "}
-            <code className="bg-muted rounded-md px-1 py-px font-mono text-xs">
-              bedrock:ApplyGuardrail
-            </code>{" "}
-            permission in the selected region.
-          </span>
-        }
-      >
-        {({ getTriggerProps }) => (
-          <FormField
-            control={control}
-            name="bedrockApiKey"
-            label="API key"
-            registerLabelTooltip={getTriggerProps}
-          >
-            {({ id, inputDescribedById, error, ...field }) => (
-              <PasswordInput
-                {...field}
-                id={id}
-                autoComplete="new-password"
-                aria-describedby={inputDescribedById}
-                aria-invalid={Boolean(error)}
-                error={Boolean(error)}
-                placeholder={
-                  hasSavedApiKey
-                    ? "Leave blank to keep current key"
-                    : "Enter API key"
-                }
-              />
-            )}
-          </FormField>
-        )}
-      </CustomTooltip>
+      <ExternalApiKeyField control={control} hasSavedApiKey={hasSavedApiKey}>
+        Use{" "}
+        <TextLink
+          path="https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html"
+          value="Amazon Bedrock API keys"
+          icon={SquareArrowOutUpRight}
+          external
+        />
+        . Needs{" "}
+        <code className="bg-muted rounded-md px-1 py-px font-mono text-xs">
+          bedrock:ApplyGuardrail
+        </code>{" "}
+        permission in the selected region.
+      </ExternalApiKeyField>
     </>
   );
 }
@@ -1202,46 +1145,59 @@ function OpenAiModerationGuardrailFields({
         )}
       </CustomTooltip>
 
-      <CustomTooltip
-        content={
-          <span>
-            Use an{" "}
-            <TextLink
-              path="https://platform.openai.com/api-keys"
-              value="OpenAI API key"
-              icon={SquareArrowOutUpRight}
-              external
-            />{" "}
-            from the project matching the region.
-          </span>
-        }
-      >
-        {({ getTriggerProps }) => (
-          <FormField
-            control={control}
-            name="openAiModerationApiKey"
-            label="API key"
-            registerLabelTooltip={getTriggerProps}
-          >
-            {({ id, inputDescribedById, error, ...field }) => (
-              <PasswordInput
-                {...field}
-                id={id}
-                autoComplete="new-password"
-                aria-describedby={inputDescribedById}
-                aria-invalid={Boolean(error)}
-                error={Boolean(error)}
-                placeholder={
-                  hasSavedApiKey
-                    ? "Leave blank to keep current key"
-                    : "Enter API key"
-                }
-              />
-            )}
-          </FormField>
-        )}
-      </CustomTooltip>
+      <ExternalApiKeyField control={control} hasSavedApiKey={hasSavedApiKey}>
+        Use an{" "}
+        <TextLink
+          path="https://platform.openai.com/api-keys"
+          value="OpenAI API key"
+          icon={SquareArrowOutUpRight}
+          external
+        />{" "}
+        from the project matching the region.
+      </ExternalApiKeyField>
     </div>
+  );
+}
+
+type ExternalApiKeyFieldProps = {
+  control: Control<GuardrailFormSchemaValues>;
+  hasSavedApiKey: boolean;
+  /** Where to get the key; shown in the label tooltip. */
+  children: React.ReactNode;
+};
+
+function ExternalApiKeyField({
+  control,
+  hasSavedApiKey,
+  children,
+}: ExternalApiKeyFieldProps) {
+  return (
+    <CustomTooltip content={<span>{children}</span>}>
+      {({ getTriggerProps }) => (
+        <FormField
+          control={control}
+          name="apiKey"
+          label="API key"
+          registerLabelTooltip={getTriggerProps}
+        >
+          {({ id, inputDescribedById, error, ...field }) => (
+            <PasswordInput
+              {...field}
+              id={id}
+              autoComplete="new-password"
+              aria-describedby={inputDescribedById}
+              aria-invalid={Boolean(error)}
+              error={Boolean(error)}
+              placeholder={
+                hasSavedApiKey
+                  ? "Leave blank to keep current key"
+                  : "Enter API key"
+              }
+            />
+          )}
+        </FormField>
+      )}
+    </CustomTooltip>
   );
 }
 
@@ -1537,6 +1493,10 @@ function getLimitFeedbackReason(
     default:
       return null;
   }
+}
+
+function isExternalTemplate(templateKind: GatewayGuardrailTemplateKind) {
+  return getGuardrailTypeForTemplate(templateKind) !== "REGEX";
 }
 
 function isExternalGuardrailAlternativeError(

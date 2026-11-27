@@ -103,6 +103,8 @@ const GATEWAY_MEMBER_ROLES = Object.values(Role).filter((role) =>
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DUPLICATE_NAME_MESSAGE = "A guardrail with this name already exists";
 
+type ExternalGuardrailType = Exclude<GatewayGuardrailRecord["type"], "REGEX">;
+
 export type GatewayGuardrailDeleteTarget =
   | { type: "ids"; ids: string[] }
   | { type: "matching"; searchQuery?: string };
@@ -140,6 +142,26 @@ export class GatewayGuardrailService {
             guardrail.scope ?? "LAST_TURN",
           )
         ];
+      const failClosed = () => {
+        logger.error(
+          "External gateway guardrail has invalid config or missing credential; failing closed",
+          {
+            guardrailId: guardrail.id,
+            guardrailType: guardrail.type,
+            organizationId: params.organizationId,
+          },
+        );
+        return [
+          {
+            id: guardrail.id,
+            name: guardrail.name,
+            type: "fail_closed" as const,
+            action,
+            scope,
+            patterns: [] as [],
+          },
+        ];
+      };
       switch (guardrail.type) {
         case "REGEX": {
           const config = GatewayRegexGuardrailConfigSchema.safeParse(
@@ -179,23 +201,7 @@ export class GatewayGuardrailService {
             guardrail.config,
           );
           if (!config.success || !guardrail.encryptedCredential) {
-            logger.error(
-              "Bedrock gateway guardrail has invalid config or missing credential; failing closed",
-              {
-                guardrailId: guardrail.id,
-                organizationId: params.organizationId,
-              },
-            );
-            return [
-              {
-                id: guardrail.id,
-                name: guardrail.name,
-                type: "fail_closed" as const,
-                action,
-                scope,
-                patterns: [] as [],
-              },
-            ];
+            return failClosed();
           }
           return [
             {
@@ -216,23 +222,7 @@ export class GatewayGuardrailService {
             guardrail.config,
           );
           if (!config.success || !guardrail.encryptedCredential) {
-            logger.error(
-              "OpenAI moderation gateway guardrail has invalid config or missing credential; failing closed",
-              {
-                guardrailId: guardrail.id,
-                organizationId: params.organizationId,
-              },
-            );
-            return [
-              {
-                id: guardrail.id,
-                name: guardrail.name,
-                type: "fail_closed" as const,
-                action,
-                scope,
-                patterns: [] as [],
-              },
-            ];
+            return failClosed();
           }
           return [
             {
@@ -375,11 +365,7 @@ export class GatewayGuardrailService {
         region: params.openAiModeration.region,
       });
       const apiKey =
-        params.openAiModeration.apiKey ||
-        (await this.readStoredOpenAiModerationApiKey({
-          organizationId: params.organizationId,
-          id: params.id,
-        }));
+        params.openAiModeration.apiKey || (await this.readStoredApiKey(params));
       await validateOpenAiModerationGuardrail({ ...config, apiKey });
       return { success: true as const };
     }
@@ -388,11 +374,8 @@ export class GatewayGuardrailService {
       guardrailVersion: params.bedrock.guardrailVersion,
       region: params.bedrock.region,
     });
-    const apiKey = await this.resolveBedrockApiKey({
-      organizationId: params.organizationId,
-      id: params.id,
-      apiKey: params.bedrock.apiKey,
-    });
+    const apiKey =
+      params.bedrock.apiKey || (await this.readStoredApiKey(params));
     await validateBedrockGuardrail({ ...config, apiKey });
     return { success: true as const };
   }
@@ -592,16 +575,7 @@ export class GatewayGuardrailService {
       params.type === "REGEX" ? params.redactionLabel : undefined,
     );
     if (params.type === "BEDROCK") {
-      const existingCredential = await this.repository.findCredentialById({
-        organizationId: params.organizationId,
-        id: params.id,
-      });
-      if (!existingCredential) {
-        throw new LangfuseNotFoundError("Guardrail not found");
-      }
-      if (existingCredential.type !== "BEDROCK") {
-        throw new InvalidRequestError("Guardrail type cannot be changed");
-      }
+      const existingCredential = await this.findExternalCredential(params);
       const nextConfig = GatewayBedrockGuardrailConfigSchema.parse({
         guardrailId: params.bedrock.guardrailId,
         guardrailVersion: params.bedrock.guardrailVersion,
@@ -619,7 +593,10 @@ export class GatewayGuardrailService {
       if (isBedrockConfigChanged) {
         const apiKey =
           params.bedrock.apiKey ??
-          decryptStoredBedrockApiKey(existingCredential.encryptedCredential);
+          decryptStoredApiKey(
+            "BEDROCK",
+            existingCredential.encryptedCredential,
+          );
         await validateBedrockGuardrail({ ...nextConfig, apiKey });
       }
     }
@@ -627,14 +604,7 @@ export class GatewayGuardrailService {
       const nextConfig = GatewayOpenAiModerationGuardrailConfigSchema.parse({
         region: params.openAiModeration.region,
       });
-      const existing = await this.repository.findCredentialById({
-        organizationId: params.organizationId,
-        id: params.id,
-      });
-      if (!existing) throw new LangfuseNotFoundError("Guardrail not found");
-      if (existing.type !== "OPENAI_MODERATION") {
-        throw new InvalidRequestError("Guardrail type cannot be changed");
-      }
+      const existing = await this.findExternalCredential(params);
       const existingConfig =
         GatewayOpenAiModerationGuardrailConfigSchema.safeParse(existing.config);
       if (
@@ -646,7 +616,10 @@ export class GatewayGuardrailService {
           ...nextConfig,
           apiKey:
             params.openAiModeration.apiKey ??
-            decryptStoredOpenAiModerationApiKey(existing.encryptedCredential),
+            decryptStoredApiKey(
+              "OPENAI_MODERATION",
+              existing.encryptedCredential,
+            ),
         });
       }
     }
@@ -846,44 +819,33 @@ export class GatewayGuardrailService {
     return { updatedCount };
   }
 
-  private async resolveBedrockApiKey(params: {
+  private async findExternalCredential(params: {
     organizationId: string;
-    id?: string;
-    apiKey?: string;
-  }): Promise<string> {
-    if (params.apiKey) return params.apiKey;
-    if (!params.id) {
-      throw new InvalidRequestError("Enter a Bedrock API key");
-    }
+    id: string;
+    type: ExternalGuardrailType;
+  }) {
     const existing = await this.repository.findCredentialById({
       organizationId: params.organizationId,
       id: params.id,
     });
     if (!existing) throw new LangfuseNotFoundError("Guardrail not found");
-    if (existing.type !== "BEDROCK") {
-      throw new InvalidRequestError("Guardrail is not a Bedrock guardrail");
+    if (existing.type !== params.type) {
+      throw new InvalidRequestError("Guardrail type cannot be changed");
     }
-    return decryptStoredBedrockApiKey(existing.encryptedCredential);
+    return existing;
   }
 
-  private async readStoredOpenAiModerationApiKey(params: {
+  private async readStoredApiKey(params: {
     organizationId: string;
     id?: string;
+    type: ExternalGuardrailType;
   }): Promise<string> {
-    if (!params.id) {
-      throw new InvalidRequestError("Enter an OpenAI API key");
-    }
-    const existing = await this.repository.findCredentialById({
-      organizationId: params.organizationId,
+    if (!params.id) throw new InvalidRequestError("Enter an API key");
+    const existing = await this.findExternalCredential({
+      ...params,
       id: params.id,
     });
-    if (!existing) throw new LangfuseNotFoundError("Guardrail not found");
-    if (existing.type !== "OPENAI_MODERATION") {
-      throw new InvalidRequestError(
-        "Guardrail is not an OpenAI moderation guardrail",
-      );
-    }
-    return decryptStoredOpenAiModerationApiKey(existing.encryptedCredential);
+    return decryptStoredApiKey(params.type, existing.encryptedCredential);
   }
 
   private async resolveBulkTargetIds(
@@ -1006,22 +968,15 @@ export class GatewayGuardrailService {
   }
 }
 
-function decryptStoredBedrockApiKey(
+function decryptStoredApiKey(
+  type: ExternalGuardrailType,
   encryptedCredential: string | null,
 ): string {
   if (!encryptedCredential) {
-    throw new InvalidRequestError("Enter a Bedrock API key");
+    throw new InvalidRequestError("Enter an API key");
   }
-  return decodeBedrockApiKey(decrypt(encryptedCredential));
-}
-
-function decryptStoredOpenAiModerationApiKey(
-  encryptedCredential: string | null,
-): string {
-  if (!encryptedCredential) {
-    throw new InvalidRequestError("Enter an OpenAI API key");
-  }
-  return decrypt(encryptedCredential);
+  const credential = decrypt(encryptedCredential);
+  return type === "BEDROCK" ? decodeBedrockApiKey(credential) : credential;
 }
 
 async function validateBedrockGuardrail(

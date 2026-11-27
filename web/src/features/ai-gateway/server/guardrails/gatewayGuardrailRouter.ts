@@ -106,23 +106,9 @@ const bedrockActionSchema = z.enum(
   GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.actions,
 );
 
-function openAiModerationWriteSchema<T extends z.ZodType>(openAiModeration: T) {
-  return z.discriminatedUnion("action", [
-    z.object({
-      ...commonWriteFields,
-      type: z.literal("OPENAI_MODERATION"),
-      openAiModeration,
-      action: z.literal("BLOCK"),
-      scope: z.enum(GATEWAY_GUARDRAIL_ACTION_SCOPES.BLOCK).optional(),
-    }),
-    z.object({
-      ...commonWriteFields,
-      type: z.literal("OPENAI_MODERATION"),
-      openAiModeration,
-      action: z.literal("LOG"),
-    }),
-  ]);
-}
+const openAiModerationActionSchema = z.enum(
+  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.OPENAI_MODERATION.actions,
+);
 
 const createGuardrailInput = z.union([
   organizationInput.and(regexWriteSchema),
@@ -132,11 +118,12 @@ const createGuardrailInput = z.union([
     action: bedrockActionSchema,
     bedrock: GatewayBedrockGuardrailCreateInputSchema,
   }),
-  organizationInput.and(
-    openAiModerationWriteSchema(
-      GatewayOpenAiModerationGuardrailCreateInputSchema,
-    ),
-  ),
+  organizationInput.extend({
+    ...commonWriteFields,
+    type: z.literal("OPENAI_MODERATION"),
+    action: openAiModerationActionSchema,
+    openAiModeration: GatewayOpenAiModerationGuardrailCreateInputSchema,
+  }),
 ]);
 
 const updateGuardrailInput = z.union([
@@ -147,11 +134,12 @@ const updateGuardrailInput = z.union([
     action: bedrockActionSchema,
     bedrock: GatewayBedrockGuardrailUpdateInputSchema,
   }),
-  guardrailIdInput.and(
-    openAiModerationWriteSchema(
-      GatewayOpenAiModerationGuardrailUpdateInputSchema,
-    ),
-  ),
+  guardrailIdInput.extend({
+    ...commonWriteFields,
+    type: z.literal("OPENAI_MODERATION"),
+    action: openAiModerationActionSchema,
+    openAiModeration: GatewayOpenAiModerationGuardrailUpdateInputSchema,
+  }),
 ]);
 
 const bulkTargetInput = z.discriminatedUnion("type", [
@@ -316,20 +304,11 @@ export const gatewayGuardrailRouter = createTRPCRouter({
         orgId: input.orgId,
       });
       try {
-        const service = new GatewayGuardrailService(ctx.prisma);
-        return await (input.type === "BEDROCK"
-          ? service.test({
-              organizationId: input.orgId,
-              id: input.id,
-              type: input.type,
-              bedrock: input.bedrock,
-            })
-          : service.test({
-              organizationId: input.orgId,
-              id: input.id,
-              type: input.type,
-              openAiModeration: input.openAiModeration,
-            }));
+        const { orgId, ...params } = input;
+        return await new GatewayGuardrailService(ctx.prisma).test({
+          organizationId: orgId,
+          ...params,
+        });
       } catch (error) {
         if (error instanceof ProviderCredentialRejectedError) {
           return {
