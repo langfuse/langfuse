@@ -94,12 +94,8 @@ const OPENAI_EMBEDDING_MODELS = [
   "text-embedding-3-large",
   "text-embedding-ada-002",
 ];
-// gecko is retired. Setup embeds several texts per request, so offer models that batch.
-const GOOGLE_AI_STUDIO_EMBEDDING_MODELS = [
-  "gemini-embedding-001",
-  "gemini-embedding-2",
-];
-const VERTEX_AI_EMBEDDING_MODELS = ["text-embedding-005"];
+// gecko is retired; both batch the several texts setup embeds per request.
+const GOOGLE_EMBEDDING_MODELS = ["gemini-embedding-001", "gemini-embedding-2"];
 
 export function isRecommendedTopicModel(
   slot: "summary" | "embedding" | "clustering",
@@ -386,8 +382,7 @@ function topicQuestionDescription(name: string, stored: string | undefined) {
 function embeddingModelsFor(adapter: string) {
   if (adapter === LLMAdapter.OpenAI || adapter === LLMAdapter.Azure)
     return OPENAI_EMBEDDING_MODELS;
-  if (adapter === LLMAdapter.GoogleAIStudio)
-    return GOOGLE_AI_STUDIO_EMBEDDING_MODELS;
-  if (adapter === LLMAdapter.VertexAI) return VERTEX_AI_EMBEDDING_MODELS;
+  if (adapter === LLMAdapter.GoogleAIStudio || adapter === LLMAdapter.VertexAI)
+    return GOOGLE_EMBEDDING_MODELS;
   return [];
 }
