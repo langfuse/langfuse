@@ -2,9 +2,14 @@ import { useState, type ReactNode } from "react";
 import { cva } from "class-variance-authority";
 import { Check, ChevronDown, Info } from "@langfuse/icons";
 
-import { Button } from "@/src/components/design-system/Button/Button";
+import {
+  RichDescription as RichDescriptionContent,
+  type RichDescription,
+} from "@/src/components/design-system/internal/RichDescription/RichDescription";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
+
+export type { RichDescription };
 
 const markerVariants = cva(
   "flex shrink-0 items-center justify-center font-bold",
@@ -69,9 +74,7 @@ type StepperProps = {
   title: string;
   /** Shown in an info tooltip beside the title, outside the collapse control. */
   tooltipText?: string;
-  description?: string;
-  /** Inline text link after the description. */
-  descriptionLink?: { label: string; href: string };
+  description?: RichDescription;
   /** Keeps the description out of session replay when it contains customer data. */
   descriptionNoCapture?: boolean;
   /**
@@ -116,7 +119,6 @@ export function Stepper({
   title,
   tooltipText,
   description,
-  descriptionLink,
   descriptionNoCapture = false,
   headerEnd,
   variant = "filled",
@@ -132,7 +134,7 @@ export function Stepper({
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const expanded = !isCollapsible || (open ?? internalOpen);
   const hasBody =
-    Boolean(description) || Boolean(descriptionLink) || Boolean(children);
+    Boolean(description) || Boolean(children);
   const titleClassName = cn(
     titleVariants({ size, status }),
     headerEnd ? "min-w-16 shrink-0 text-left" : null,
@@ -215,24 +217,14 @@ export function Stepper({
               isCollapsible ? "gap-4 pl-5" : "gap-2",
             )}
           >
-            {description || descriptionLink ? (
+            {description ? (
               <p
                 className={cn(
                   descriptionVariants({ size }),
                   descriptionNoCapture && "ph-no-capture",
                 )}
               >
-                {description}
-                {descriptionLink ? (
-                  <>
-                    {description ? " " : null}
-                    <Button
-                      variant="text"
-                      text={descriptionLink.label}
-                      href={descriptionLink.href}
-                    />
-                  </>
-                ) : null}
+                <RichDescriptionContent description={description} />
               </p>
             ) : null}
             {children}

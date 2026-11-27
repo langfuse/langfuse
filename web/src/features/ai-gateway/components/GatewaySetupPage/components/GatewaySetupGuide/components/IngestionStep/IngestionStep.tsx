@@ -1,4 +1,7 @@
-import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
+import {
+  Stepper,
+  type RichDescription,
+} from "@/src/components/design-system/Stepper/Stepper";
 import { IngestionStepForm } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/IngestionStep/components/IngestionStepForm";
 import type { getSetupStepStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/fns/getSetupStepStatus";
 import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
@@ -24,11 +27,17 @@ export function IngestionStep({
   isSaving,
   onContinue,
 }: IngestionStepProps) {
-  const description =
-    status === "complete" && config
-      ? describeGatewayIngestion({ config, projects })
-      : "You can change this later.";
   const recorded = status === "complete" && config !== null;
+  const description: RichDescription = recorded
+    ? describeGatewayIngestion({ config, projects })
+    : [
+        { type: "text", text: "You can change this later. " },
+        {
+          type: "link",
+          text: "How ingestion modes work",
+          href: GATEWAY_SETUP.docsUrl,
+        },
+      ];
 
   return (
     <Stepper
@@ -37,14 +46,6 @@ export function IngestionStep({
       status={status}
       isCollapsible={false}
       description={description}
-      descriptionLink={
-        recorded
-          ? undefined
-          : {
-              label: "How ingestion modes work",
-              href: GATEWAY_SETUP.docsUrl,
-            }
-      }
       descriptionNoCapture={recorded}
     >
       {status === "current" ? (

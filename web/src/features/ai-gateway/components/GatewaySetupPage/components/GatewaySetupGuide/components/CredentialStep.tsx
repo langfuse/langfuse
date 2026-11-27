@@ -1,7 +1,10 @@
 import { Plus } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
-import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
+import {
+  Stepper,
+  type RichDescription,
+} from "@/src/components/design-system/Stepper/Stepper";
 import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
 import type { getSetupStepStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/fns/getSetupStepStatus";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
@@ -17,12 +20,21 @@ export type CredentialStepProps = {
 function credentialStepDescription({
   status,
   firstConnection,
-}: Pick<CredentialStepProps, "status" | "firstConnection">) {
+}: Pick<CredentialStepProps, "status" | "firstConnection">): RichDescription {
   if (status === "complete" && firstConnection) {
     return `${providerLabels[firstConnection.provider]} connection added`;
   }
   const providerNames = formatAvailableGatewayProviderNames();
-  return `Connect ${providerNames} with an API key. Available models are loaded from the provider.`;
+  const text = `Connect ${providerNames} with an API key. Available models are loaded from the provider.`;
+  if (status !== "current") return text;
+  return [
+    { type: "text", text: `${text} ` },
+    {
+      type: "link",
+      text: "How provider connections work",
+      href: GATEWAY_SETUP.docsUrl,
+    },
+  ];
 }
 
 export function CredentialStep({
@@ -37,14 +49,6 @@ export function CredentialStep({
       status={status}
       isCollapsible={false}
       description={credentialStepDescription({ status, firstConnection })}
-      descriptionLink={
-        status === "current"
-          ? {
-              label: "How provider connections work",
-              href: GATEWAY_SETUP.docsUrl,
-            }
-          : undefined
-      }
     >
       {status === "current" ? (
         <div className="flex flex-col items-start pt-1">

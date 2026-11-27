@@ -1,4 +1,7 @@
-import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
+import {
+  Stepper,
+  type RichDescription,
+} from "@/src/components/design-system/Stepper/Stepper";
 import {
   TeamInviteForm,
   type TeamInviteFormProps,
@@ -10,6 +13,16 @@ export type TeamInviteStepProps = TeamInviteFormProps & {
   status: ReturnType<typeof getSetupStepStatus>;
 };
 
+function teamInviteDescription(
+  status: TeamInviteStepProps["status"],
+): RichDescription {
+  if (status !== "current") return TEAM_NOTIFY_COPY.description;
+  return [
+    { type: "text", text: `${TEAM_NOTIFY_COPY.description} ` },
+    { type: "link", text: "About roles", href: TEAM_NOTIFY_COPY.rolesDocsUrl },
+  ];
+}
+
 export function TeamInviteStep({ status, ...formProps }: TeamInviteStepProps) {
   return (
     <Stepper
@@ -17,12 +30,7 @@ export function TeamInviteStep({ status, ...formProps }: TeamInviteStepProps) {
       title={TEAM_NOTIFY_COPY.title}
       status={status}
       isCollapsible={false}
-      description={TEAM_NOTIFY_COPY.description}
-      descriptionLink={
-        status === "current"
-          ? { label: "About roles", href: TEAM_NOTIFY_COPY.rolesDocsUrl }
-          : undefined
-      }
+      description={teamInviteDescription(status)}
     >
       {status === "current" ? <TeamInviteForm {...formProps} /> : null}
     </Stepper>

@@ -294,7 +294,10 @@ export default defineConfig({
       rules: {
         "@repo/no-node-slot-props": [
           "error",
-          { allowedPropNames: ["children", "loadingCell"] },
+          {
+            // loadingCell is the per-column placeholder Table shows while that column's data is loading (a Skeleton, or a column-specific loading cell).
+            allowedPropNames: ["children", "loadingCell"],
+          },
         ],
       },
     },
