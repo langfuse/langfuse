@@ -10,7 +10,7 @@ use serde_json::value::RawValue;
 
 use super::{Emit, Node, Object, Shape};
 use crate::guardrails::response::{ParseBudget, ResponseParseError, StreamCollector, StreamKey};
-use crate::guardrails::text::{self, Unreadable};
+use crate::guardrails::text::{self, TextLeaf, Unreadable};
 
 /// Text parts and tool inputs nest at most this deep below a text field.
 const MAX_TEXT_DEPTH: usize = 32;
@@ -31,7 +31,7 @@ pub(in crate::guardrails) fn read(
     Walker {
         payload,
         data,
-        collector,
+        out: Out::Blocks(collector),
         budget,
         index: Vec::new(),
         entries: Vec::new(),
@@ -40,10 +40,40 @@ pub(in crate::guardrails) fn read(
     .read_node(node, json)
 }
 
+/// Reads the text along `node` from the request member `raw` into `sink`. A
+/// field the tree reads that appears twice is unreadable, since the provider
+/// could read either copy; requests are not validated as a whole first.
+pub(in crate::guardrails) fn read_leaves(
+    node: &Node,
+    raw: &str,
+    sink: &mut dyn FnMut(TextLeaf<'_>),
+) -> Result<(), Unreadable> {
+    let mut budget = ParseBudget::new(None).map_err(|_| Unreadable)?;
+    let whole = 0..raw.len();
+    Walker {
+        payload: raw,
+        data: std::slice::from_ref(&whole),
+        out: Out::Leaves(sink),
+        budget: &mut budget,
+        index: Vec::new(),
+        entries: Vec::new(),
+        signed: false,
+    }
+    .read_node(node, raw)
+}
+
+/// Where the text a walk finds goes.
+enum Out<'c> {
+    /// Response blocks, streamed text joined by its stream.
+    Blocks(&'c mut StreamCollector),
+    /// Request text, each leaf with its raw JSON string.
+    Leaves(&'c mut dyn FnMut(TextLeaf<'_>)),
+}
+
 struct Walker<'c, 'a> {
     payload: &'a str,
     data: &'c [Range<usize>],
-    collector: &'c mut StreamCollector,
+    out: Out<'c>,
     budget: &'c mut ParseBudget,
     index: Vec<u64>,
     /// Members of the objects being read, innermost last.
@@ -55,9 +85,11 @@ struct Walker<'c, 'a> {
 impl<'a> Walker<'_, 'a> {
     fn read_node(&mut self, node: &Node, raw: &'a str) -> Result<(), Unreadable> {
         match *node {
-            Node::Object(object) if raw.starts_with('{') => {
-                self.read_object(raw, |walker, start| walker.read_members(&object, start))
-            }
+            Node::Object(object) if raw.starts_with('{') => self.read_object(
+                raw,
+                |key| wants(&object, key),
+                |walker, start| walker.read_members(&object, start),
+            ),
             Node::Object(object) => mismatch(object.strict),
             Node::Items {
                 item,
@@ -78,20 +110,47 @@ impl<'a> Walker<'_, 'a> {
                     read
                 })
             }
+            Node::OneOf(nodes) => {
+                for node in nodes {
+                    self.read_node(node, raw)?;
+                }
+                Ok(())
+            }
+            Node::Values(item) if raw.starts_with('{') => {
+                text::for_each_value(raw, |value| self.read_node(item, value.get()))
+            }
+            Node::Values(_) => Ok(()),
             Node::Text(shape, emit) => self.read_text(shape, emit, raw),
         }
     }
 
     /// Puts the members of the object `raw` on `entries` while `read` reads
-    /// them, from the start it is given.
+    /// them, from the start it is given. A request keeps only the `wanted`
+    /// members and fails on a duplicated one; a response was validated whole.
     fn read_object(
         &mut self,
         raw: &'a str,
+        wanted: impl Fn(&str) -> bool,
         read: impl FnOnce(&mut Self, usize) -> Result<(), Unreadable>,
     ) -> Result<(), Unreadable> {
         let start = self.entries.len();
+        let request = matches!(self.out, Out::Leaves(_));
+        let mut duplicated = false;
         let entries = &mut self.entries;
-        for_each_entry(raw, self.budget, |key, value| entries.push((key, value)))?;
+        for_each_entry(raw, self.budget, |key, value| {
+            if !request {
+                entries.push((key, value));
+            } else if wanted(&key) {
+                duplicated |= entries
+                    .get(start..)
+                    .is_some_and(|kept| kept.iter().any(|(kept, _)| *kept == key));
+                entries.push((key, value));
+            }
+        })?;
+        if duplicated {
+            self.entries.truncate(start);
+            return Err(Unreadable);
+        }
         self.charge((self.entries.len() - start) * size_of::<(Cow<'_, str>, &str)>())?;
         let result = read(self, start);
         self.entries.truncate(start);
@@ -163,7 +222,7 @@ impl<'a> Walker<'_, 'a> {
             self.charge(owned.capacity())?;
         }
         let span = self.span(raw).ok_or(Unreadable)?;
-        self.emit(emit, span, &text);
+        self.emit(emit, raw, span, &text);
         Ok(())
     }
 
@@ -195,14 +254,18 @@ impl<'a> Walker<'_, 'a> {
             if !item.starts_with('{') {
                 return walker.read_string(emit, item);
             }
-            walker.read_object(item, |walker, start| {
-                for name in PART_FIELDS {
-                    if let Some(field) = walker.member(start, name) {
-                        walker.read_parts(emit, field, depth + 1)?;
+            walker.read_object(
+                item,
+                |key| PART_FIELDS.contains(&key),
+                |walker, start| {
+                    for name in PART_FIELDS {
+                        if let Some(field) = walker.member(start, name) {
+                            walker.read_parts(emit, field, depth + 1)?;
+                        }
                     }
-                }
-                Ok(())
-            })
+                    Ok(())
+                },
+            )
         })
     }
 
@@ -216,18 +279,22 @@ impl<'a> Walker<'_, 'a> {
             Some(b'[') => self.read_items(raw, |walker, _, item| {
                 walker.read_strings(emit, item, depth + 1)
             }),
-            Some(b'{') => self.read_object(raw, |walker, start| {
-                if let Some(members) = walker.entries.get_mut(start..) {
-                    members.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
-                }
-                for at in start..walker.entries.len() {
-                    let Some(&(_, value)) = walker.entries.get(at) else {
-                        break;
-                    };
-                    walker.read_strings(emit, value, depth + 1)?;
-                }
-                Ok(())
-            }),
+            Some(b'{') => self.read_object(
+                raw,
+                |_| true,
+                |walker, start| {
+                    if let Some(members) = walker.entries.get_mut(start..) {
+                        members.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
+                    }
+                    for at in start..walker.entries.len() {
+                        let Some(&(_, value)) = walker.entries.get(at) else {
+                            break;
+                        };
+                        walker.read_strings(emit, value, depth + 1)?;
+                    }
+                    Ok(())
+                },
+            ),
             _ => Ok(()),
         }
     }
@@ -245,7 +312,14 @@ impl<'a> Walker<'_, 'a> {
         })
     }
 
-    fn emit(&mut self, emit: Emit, span: Range<usize>, text: &str) {
+    fn emit(&mut self, emit: Emit, raw: &str, span: Range<usize>, text: &str) {
+        let collector = match &mut self.out {
+            Out::Blocks(collector) => collector,
+            Out::Leaves(sink) => {
+                sink(TextLeaf { raw, text });
+                return;
+            }
+        };
         let key = |slot| StreamKey {
             slot,
             index: [
@@ -255,23 +329,20 @@ impl<'a> Walker<'_, 'a> {
         };
         match emit {
             Emit::Delta(stream) => {
-                self.collector
-                    .push_delta(key(stream.slot), stream.json, span, text);
+                collector.push_delta(key(stream.slot), stream.json, span, text);
             }
             Emit::Summary(stream) => {
-                self.collector
-                    .push_summary(key(stream.slot), stream.json, span, text);
+                collector.push_summary(key(stream.slot), stream.json, span, text);
             }
             Emit::Leaf { json, signable } => {
                 let editable = !(signable && self.signed);
-                self.collector.push_leaf(span, text, json, editable);
+                collector.push_leaf(span, text, json, editable);
             }
-            Emit::Copy => self.collector.attach_or_push_leaf(span, text),
+            Emit::Copy => collector.attach_or_push_leaf(span, text),
             Emit::Signature => {
                 if !text.is_empty() {
                     self.signed = true;
-                    self.collector
-                        .mark_signed_thinking(self.index.first().copied().unwrap_or(0));
+                    collector.mark_signed_thinking(self.index.first().copied().unwrap_or(0));
                 }
             }
         }
@@ -280,6 +351,17 @@ impl<'a> Walker<'_, 'a> {
     fn charge(&mut self, bytes: usize) -> Result<(), Unreadable> {
         self.budget.charge(bytes).then_some(()).ok_or(Unreadable)
     }
+}
+
+/// Whether `object` or one of its cases reads member `key`.
+fn wants(object: &Object, key: &str) -> bool {
+    object.fields.iter().any(|(name, _)| *name == key)
+        || object.index.contains(&key)
+        || object.by.is_some_and(|by| {
+            by.tag == key
+                || by.cases.iter().any(|(_, case)| wants(case, key))
+                || by.default.is_some_and(|default| wants(default, key))
+        })
 }
 
 /// A value of the wrong type is skipped, or fails a `strict` read.

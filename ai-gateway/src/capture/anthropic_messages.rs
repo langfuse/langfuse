@@ -485,7 +485,7 @@ pub(super) fn guardrail_turn(
             "messages",
             messages,
             crate::guardrails::text::classify_role_message,
-            crate::guardrails::text::read_role_message,
+            &crate::guardrails::spec::ROLE_MESSAGE,
         )?,
         None => false,
     };

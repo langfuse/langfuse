@@ -8,6 +8,8 @@
 //! (`capture::request_spec`), and `response` extracts provider output blocks.
 pub(crate) mod bedrock;
 pub(crate) mod external;
+#[cfg(test)]
+mod legacy_request;
 pub(crate) mod redact;
 mod regex;
 pub(crate) mod response;

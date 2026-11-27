@@ -10,7 +10,7 @@ use crate::guardrails::text::{LastTurn, Unreadable};
 const MAX_INDEX: usize = 2;
 
 /// One value in a response, and how to read the text below it.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) enum Node {
     Object(Object),
     /// Each array item. A `keyed` item's position is a stream index for the text
@@ -21,12 +21,16 @@ pub(crate) enum Node {
         strict: bool,
     },
     Text(Shape, Emit),
+    /// Every node, each reading the same value.
+    OneOf(&'static [Node]),
+    /// Each member value of an object, in order and duplicates included.
+    Values(&'static Node),
 }
 
 /// An object and the fields that lead to text, read in this order. A null field
 /// is absent; a `strict` object fails the read when the value, such as an array
 /// item, is anything else.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct Object {
     strict: bool,
     index: &'static [&'static str],
@@ -35,7 +39,7 @@ pub(crate) struct Object {
 }
 
 /// More fields of the same object, chosen by the string in its `tag` field.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct Switch {
     tag: &'static str,
     cases: &'static [(&'static str, Object)],
@@ -43,7 +47,7 @@ struct Switch {
 }
 
 /// The JSON a text field may hold.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) enum Shape {
     /// A string; other values hold no text.
     Str,
@@ -55,7 +59,7 @@ pub(crate) enum Shape {
 }
 
 /// What a text is to the guardrails.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) enum Emit {
     /// One piece of a streamed text, joined with earlier pieces of its stream.
     Delta(Stream),
@@ -73,7 +77,7 @@ pub(crate) enum Emit {
 
 /// A streamed text, named by `slot` and the stream indices above it. A `json`
 /// stream holds tool arguments that must stay valid JSON after redaction.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct Stream {
     slot: &'static str,
     json: bool,
@@ -200,6 +204,59 @@ pub(crate) const fn summary(slot: &'static str) -> Emit {
 pub(crate) const fn json_summary(slot: &'static str) -> Emit {
     Emit::Summary(Stream { slot, json: true })
 }
+
+/// A content part: its `text`, the text of a document `source` (plain `data`, or
+/// nested `content` blocks), and nested `content` such as a tool result's.
+macro_rules! part {
+    ($nested:expr) => {
+        Object::new(&[
+            ("text", text(LEAF)),
+            (
+                "source",
+                Object::new(&[])
+                    .by(
+                        "type",
+                        &[
+                            ("text", Object::new(&[("data", text(LEAF))])),
+                            ("content", Object::new(&[("content", $nested)])),
+                        ],
+                        None,
+                    )
+                    .node(),
+            ),
+            ("content", $nested),
+        ])
+        .node()
+    };
+}
+
+/// A string, or an array of strings and content parts.
+macro_rules! content {
+    ($part:expr) => {
+        Node::OneOf(&[
+            text(LEAF),
+            Node::Items {
+                item: &Node::OneOf(&[text(LEAF), $part]),
+                keyed: false,
+                strict: false,
+            },
+        ])
+    };
+}
+
+/// Request text in the shape the formats share: a string, or an array of
+/// strings and parts; images, files and other parts hold none. Tool results nest
+/// content once; deeper part arrays are not a shape any format defines.
+pub(crate) const CONTENT: Node = content!(PART);
+/// One content part.
+pub(crate) const PART: Node = part!(NESTED_CONTENT);
+const NESTED_CONTENT: Node = content!(NESTED_PART);
+const NESTED_PART: Node = part!(INNER_CONTENT);
+const INNER_CONTENT: Node = content!(INNER_PART);
+const INNER_PART: Node = part!(text(LEAF));
+/// A conversation message whose `content` holds its text, as in Chat
+/// Completions and Anthropic Messages.
+pub(crate) const ROLE_MESSAGE: Node = Object::new(&[("content", CONTENT)]).node();
 
 /// Where a request in one API format carries the conversation guardrails scan.
 pub(crate) struct RequestSpec {
