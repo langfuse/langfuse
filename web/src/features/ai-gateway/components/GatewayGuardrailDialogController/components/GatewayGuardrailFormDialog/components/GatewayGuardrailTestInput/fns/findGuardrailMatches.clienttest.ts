@@ -502,13 +502,15 @@ describe("findGuardrailMatches", () => {
 
     // Hidden / invisible Unicode: zero-width, bidi controls, Unicode Tags U+E0000-U+E007F (including black-flag smuggling bypasses)
     const hiddenSample =
-      "he\u200Bllo \u202Ertl\u202C tag:\u{E0041}\u{E0042} smuggle:🏴\u{E0049}\u{E0067} after-flag:🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}\u{E0041} plain";
+      "he\u200Bllo \u202Ertl\u202C tag:\u{E0041}\u{E0042} smuggle:🏴\u{E0049}\u{E0067} one-tag:🏴\u{E0061}\u{E007F} zero-tag:🏴\u{E007F} after-flag:🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}\u{E0041} plain";
     expect(matchedTexts(hiddenSample, "hidden_unicode")).toEqual([
       "\u200B",
       "\u202E",
       "\u202C",
       "\u{E0041}\u{E0042}",
       "\u{E0049}\u{E0067}",
+      "\u{E0061}\u{E007F}",
+      "\u{E007F}",
       "\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}\u{E0041}",
     ]);
     expect(

@@ -309,7 +309,7 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
       // Unicode Tag characters (U+E0000-U+E007F) not preceded by a black flag U+1F3F4.
       String.raw`(?:^|[^\u{1F3F4}\u{E0000}-\u{E007F}])(?<__lf_match>[\u{E0000}-\u{E007F}]+)`,
       // Non-flag Tag runs preceded by U+1F3F4 (leaves valid subdivision flags U+1F3F4 + 2-6 [0-9a-z] tags + U+E007F untouched).
-      String.raw`\u{1F3F4}(?<__lf_match>(?:[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{0,6}(?:[\u{E0000}-\u{E002F}\u{E003A}-\u{E0060}\u{E007B}-\u{E007E}][\u{E0000}-\u{E007F}]*|\u{E007F}[\u{E0000}-\u{E007F}]+)|[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{7,}[\u{E0000}-\u{E007F}]*|[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{1,6}))(?:$|[^\u{E0000}-\u{E007F}])`,
+      String.raw`\u{1F3F4}(?<__lf_match>(?:[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{0,1}\u{E007F}[\u{E0000}-\u{E007F}]*|[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{2,6}\u{E007F}[\u{E0000}-\u{E007F}]+|[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{0,6}[\u{E0000}-\u{E002F}\u{E003A}-\u{E0060}\u{E007B}-\u{E007E}][\u{E0000}-\u{E007F}]*|[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{7,}[\u{E0000}-\u{E007F}]*|[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{1,6}))(?:$|[^\u{E0000}-\u{E007F}])`,
     ],
   },
 } as const satisfies Record<
