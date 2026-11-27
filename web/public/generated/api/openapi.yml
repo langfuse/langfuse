@@ -1,7 +1,7 @@
 openapi: 3.0.1
 info:
-  title: server
-  version: ''
+  title: Langfuse API
+  version: '4'
   description: >-
     ## Real-time data
 
@@ -3879,14 +3879,12 @@ paths:
             - `output` (string) - Observation output. Supports accelerated
             indexed literal search with the `matches` operator.
 
-            - `metadata` (stringObject) - Metadata key-value pairs. Use the
-            `key` parameter to filter on a specific metadata key. Metadata
-            values are stored as strings: a stringObject filter matches numbers
-            and booleans by their string form with `=` (for example `"value":
-            "true"` or `"value": "42"`). A numberObject filter compares the
-            value as a number (for example `"operator": ">", "value": 20`
-            matches `"20.5"` and `"21"`); values that are not numbers never
-            match.
+            - `metadata` (stringObject or numberObject) - Value at the metadata
+            `key`, stored as a string. stringObject compares it as text, so
+            numbers and booleans match by their string form (`"value": "42"`,
+            `"value": "true"`). numberObject compares it as a number
+            (`"operator": ">", "value": 20` matches `"20.5"` and `"21"`);
+            non-numeric values never match.
 
 
             The `matches` operator is only supported for `input`, `output`, and
@@ -17531,3 +17529,14 @@ components:
     BasicAuth:
       type: http
       scheme: basic
+servers:
+  - url: /
+    description: The Langfuse instance that serves this spec
+  - url: https://cloud.langfuse.com
+    description: Langfuse Cloud, EU data region
+  - url: https://us.cloud.langfuse.com
+    description: Langfuse Cloud, US data region
+  - url: https://jp.cloud.langfuse.com
+    description: Langfuse Cloud, Japan data region
+  - url: https://hipaa.cloud.langfuse.com
+    description: Langfuse Cloud, HIPAA data region

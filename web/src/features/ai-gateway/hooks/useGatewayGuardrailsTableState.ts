@@ -15,12 +15,26 @@ export function useGatewayGuardrailsTableState(organizationId: string) {
   const { searchQuery, pagination, selectionStore } = state;
   const trimmedSearch = searchQuery.trim() || undefined;
 
-  const guardrails = api.aiGateway.guardrails.list.useQuery({
-    orgId: organizationId,
-    searchQuery: trimmedSearch,
-    page: pagination.pageIndex,
-    limit: pagination.pageSize,
-  });
+  const guardrails = api.aiGateway.guardrails.list.useQuery(
+    {
+      orgId: organizationId,
+      searchQuery: trimmedSearch,
+      page: pagination.pageIndex,
+      limit: pagination.pageSize,
+    },
+    {
+      // Keep prior rows/counts when paging, searching, or resizing within the
+      // same org so the page never unmounts back to the initial skeleton.
+      placeholderData: (previousData, previousQuery) => {
+        const previousInput = previousQuery?.queryKey[1] as
+          | { input?: { orgId?: string } }
+          | undefined;
+        return previousInput?.input?.orgId === organizationId
+          ? previousData
+          : undefined;
+      },
+    },
+  );
 
   const { clearSelection, toggleRow: setRowSelected } =
     selectionStore.getState().actions;

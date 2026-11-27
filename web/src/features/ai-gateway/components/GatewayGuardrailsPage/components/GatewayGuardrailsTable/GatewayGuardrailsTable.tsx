@@ -1,4 +1,11 @@
-import { Globe, KeyRound, Pencil, Trash2, User } from "@langfuse/icons";
+import {
+  ArrowRight,
+  Globe,
+  KeyRound,
+  Pencil,
+  Trash2,
+  User,
+} from "@langfuse/icons";
 
 import { TableCard } from "@/src/components/TableCard/TableCard";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -236,6 +243,7 @@ function createFlaggedColumn({
             target: tracesTarget,
           }),
           value: formatted,
+          trailingIcon: ArrowRight,
           title: "View flagged traces (last 7 days)",
         },
       };
@@ -268,5 +276,12 @@ function getGuardrailBadge(row: GatewayGuardrailRow) {
       row.presets.every(
         (preset) => GATEWAY_GUARDRAIL_PRESETS[preset].group === "secrets",
       ));
-  return isSecrets ? "***" : "PII";
+  if (isSecrets) return "***";
+  const isPromptInjection =
+    row.presets.length > 0 &&
+    row.presets.every(
+      (preset) =>
+        GATEWAY_GUARDRAIL_PRESETS[preset].group === "prompt_injection",
+    );
+  return isPromptInjection ? "INJ" : "PII";
 }
