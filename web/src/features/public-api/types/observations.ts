@@ -313,10 +313,26 @@ export const encodeCursor = (
 
 // GET /v2/observations
 export const GetObservationsV2Query = z.object({
-  // Field groups parameter (optional - defaults to all groups)
+  // Field groups parameter (optional - defaults to core and basic).
   // Comma-separated list of field groups: fields=basic,metadata,io
-  fields: commaSeparatedEnumArray(OBSERVATION_FIELD_GROUPS_PUBLIC_API, null, {
-    unknownValues: "filter",
+  // `all` is a shorthand for every public API group. Unknown tokens are
+  // dropped; a list that is empty after that is treated as omitted so the
+  // documented default applies instead of a core-only query.
+  fields: commaSeparatedEnumArray(
+    [...OBSERVATION_FIELD_GROUPS_PUBLIC_API, "all"] as const,
+    null,
+    {
+      unknownValues: "filter",
+    },
+  ).transform((fields) => {
+    if (!fields || fields.length === 0) return null;
+    if (fields.includes("all")) {
+      return [...OBSERVATION_FIELD_GROUPS_PUBLIC_API];
+    }
+    return fields.filter(
+      (field): field is (typeof OBSERVATION_FIELD_GROUPS_PUBLIC_API)[number] =>
+        field !== "all",
+    );
   }),
   // Metadata expansion keys (optional)
   // Comma-separated list of metadata keys to return non-truncated: expandMetadata=transcript,steps

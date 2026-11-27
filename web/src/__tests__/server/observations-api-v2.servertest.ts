@@ -1616,6 +1616,41 @@ describe("/api/public/v2/observations API Endpoint", () => {
     }
   });
 
+  maybe("fields=all includes computed timeToFirstToken", () => {
+    it("returns timeToFirstToken when completion_start_time is stored", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const now = new Date();
+      const timeValue = now.getTime() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "fields-all-ttft",
+          type: "GENERATION",
+          start_time: timeValue,
+          end_time: timeValue + 1000 * 1000,
+          completion_start_time: timeValue + 500 * 1000,
+        }),
+      ]);
+
+      const response = await getObservations(
+        `/api/public/v2/observations?fields=all&traceId=${traceId}`,
+      );
+
+      expect(response.status).toBe(200);
+      const observation = response.body.data.find(
+        (candidate: { id: string }) => candidate.id === observationId,
+      );
+      expect(observation).toBeDefined();
+      expect(observation?.timeToFirstToken).toBe(0.5);
+      expect(observation?.completionStartTime).toBeDefined();
+    });
+  });
+
   maybe("trace_context group: unresolvable trace name", () => {
     // The events table ships "no resolvable trace name" as '' on the wire
     // (eventsTableTraceNameSelectSql, LFE-14924). The API contract is null, so
