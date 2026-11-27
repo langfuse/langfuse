@@ -133,8 +133,7 @@ export function Stepper({
 }: StepperProps) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const expanded = !isCollapsible || (open ?? internalOpen);
-  const hasBody =
-    Boolean(description) || Boolean(children);
+  const hasBody = Boolean(description) || Boolean(children);
   const titleClassName = cn(
     titleVariants({ size, status }),
     headerEnd ? "min-w-16 shrink-0 text-left" : null,
