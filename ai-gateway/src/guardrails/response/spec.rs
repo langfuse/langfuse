@@ -233,7 +233,7 @@ pub(super) fn read(
         entries: Vec::new(),
         signed: false,
     }
-    .node(node, json)
+    .read_node(node, json)
 }
 
 struct Walker<'c, 'a> {
@@ -249,10 +249,10 @@ struct Walker<'c, 'a> {
 }
 
 impl<'a> Walker<'_, 'a> {
-    fn node(&mut self, node: &Node, raw: &'a str) -> Result<(), Unreadable> {
+    fn read_node(&mut self, node: &Node, raw: &'a str) -> Result<(), Unreadable> {
         match *node {
             Node::Object(object) if raw.starts_with('{') => {
-                self.object(raw, |walker, start| walker.members(&object, start))
+                self.read_object(raw, |walker, start| walker.read_members(&object, start))
             }
             Node::Object(object) => mismatch(object.strict),
             Node::Items {
@@ -263,24 +263,24 @@ impl<'a> Walker<'_, 'a> {
                 if !raw.starts_with('[') {
                     return mismatch(strict);
                 }
-                self.items(raw, |walker, position, value| {
+                self.read_items(raw, |walker, position, value| {
                     if keyed {
                         walker.index.push(position as u64);
                     }
-                    let read = walker.node(item, value);
+                    let read = walker.read_node(item, value);
                     if keyed {
                         walker.index.pop();
                     }
                     read
                 })
             }
-            Node::Text(shape, emit) => self.text(shape, emit, raw),
+            Node::Text(shape, emit) => self.read_text(shape, emit, raw),
         }
     }
 
     /// Puts the members of the object `raw` on `entries` while `read` reads
     /// them, from the start it is given.
-    fn object(
+    fn read_object(
         &mut self,
         raw: &'a str,
         read: impl FnOnce(&mut Self, usize) -> Result<(), Unreadable>,
@@ -302,7 +302,7 @@ impl<'a> Walker<'_, 'a> {
             .map(|(_, value)| *value)
     }
 
-    fn members(&mut self, object: &Object, start: usize) -> Result<(), Unreadable> {
+    fn read_members(&mut self, object: &Object, start: usize) -> Result<(), Unreadable> {
         let depth = self.index.len();
         for name in object.index {
             let index = self.member(start, name);
@@ -316,7 +316,7 @@ impl<'a> Walker<'_, 'a> {
         let mut read = Ok(());
         for (name, child) in object.fields {
             if let Some(value) = self.member(start, name).filter(|value| *value != "null") {
-                read = self.node(child, value);
+                read = self.read_node(child, value);
                 if read.is_err() {
                     break;
                 }
@@ -333,7 +333,7 @@ impl<'a> Walker<'_, 'a> {
                 .map(|(_, case)| case)
                 .or(by.default);
             if let Some(case) = case {
-                read = self.members(case, start);
+                read = self.read_members(case, start);
             }
         }
         self.signed = signed;
@@ -341,16 +341,16 @@ impl<'a> Walker<'_, 'a> {
         read
     }
 
-    fn text(&mut self, shape: Shape, emit: Emit, raw: &'a str) -> Result<(), Unreadable> {
+    fn read_text(&mut self, shape: Shape, emit: Emit, raw: &'a str) -> Result<(), Unreadable> {
         match shape {
-            Shape::Str => self.string(emit, raw),
+            Shape::Str => self.read_string(emit, raw),
             Shape::Parts { strict } if !raw.starts_with(['"', '[']) => mismatch(strict),
-            Shape::Parts { .. } => self.parts(emit, raw, 0),
-            Shape::Strings => self.strings(emit, raw, 0),
+            Shape::Parts { .. } => self.read_parts(emit, raw, 0),
+            Shape::Strings => self.read_strings(emit, raw, 0),
         }
     }
 
-    fn string(&mut self, emit: Emit, raw: &str) -> Result<(), Unreadable> {
+    fn read_string(&mut self, emit: Emit, raw: &str) -> Result<(), Unreadable> {
         if !raw.starts_with('"') {
             return Ok(());
         }
@@ -380,21 +380,21 @@ impl<'a> Walker<'_, 'a> {
     }
 
     /// A string, or an array of strings and content parts.
-    fn parts(&mut self, emit: Emit, raw: &'a str, depth: usize) -> Result<(), Unreadable> {
+    fn read_parts(&mut self, emit: Emit, raw: &'a str, depth: usize) -> Result<(), Unreadable> {
         if depth > MAX_TEXT_DEPTH {
             return Err(Unreadable);
         }
         if !raw.starts_with('[') {
-            return self.string(emit, raw);
+            return self.read_string(emit, raw);
         }
-        self.items(raw, |walker, _, item| {
+        self.read_items(raw, |walker, _, item| {
             if !item.starts_with('{') {
-                return walker.string(emit, item);
+                return walker.read_string(emit, item);
             }
-            walker.object(item, |walker, start| {
+            walker.read_object(item, |walker, start| {
                 for name in PART_FIELDS {
                     if let Some(field) = walker.member(start, name) {
-                        walker.parts(emit, field, depth + 1)?;
+                        walker.read_parts(emit, field, depth + 1)?;
                     }
                 }
                 Ok(())
@@ -403,14 +403,16 @@ impl<'a> Walker<'_, 'a> {
     }
 
     /// Every string below `raw`, object members in key order.
-    fn strings(&mut self, emit: Emit, raw: &'a str, depth: usize) -> Result<(), Unreadable> {
+    fn read_strings(&mut self, emit: Emit, raw: &'a str, depth: usize) -> Result<(), Unreadable> {
         if depth > MAX_TEXT_DEPTH {
             return Err(Unreadable);
         }
         match raw.as_bytes().first() {
-            Some(b'"') => self.string(emit, raw),
-            Some(b'[') => self.items(raw, |walker, _, item| walker.strings(emit, item, depth + 1)),
-            Some(b'{') => self.object(raw, |walker, start| {
+            Some(b'"') => self.read_string(emit, raw),
+            Some(b'[') => self.read_items(raw, |walker, _, item| {
+                walker.read_strings(emit, item, depth + 1)
+            }),
+            Some(b'{') => self.read_object(raw, |walker, start| {
                 if let Some(members) = walker.entries.get_mut(start..) {
                     members.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
                 }
@@ -418,7 +420,7 @@ impl<'a> Walker<'_, 'a> {
                     let Some(&(_, value)) = walker.entries.get(at) else {
                         break;
                     };
-                    walker.strings(emit, value, depth + 1)?;
+                    walker.read_strings(emit, value, depth + 1)?;
                 }
                 Ok(())
             }),
@@ -426,7 +428,7 @@ impl<'a> Walker<'_, 'a> {
         }
     }
 
-    fn items(
+    fn read_items(
         &mut self,
         raw: &'a str,
         mut visit: impl FnMut(&mut Self, usize, &'a str) -> Result<(), Unreadable>,
