@@ -31,6 +31,7 @@ import { handleMcpRequest } from "@/src/features/mcp/server/transport";
 import { validateMcpRequestSecurity } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type McpConnection } from "@/src/features/mcp/types";
+import { type Principal } from "@/src/features/auth/policy/types";
 import { getAuditRequestContext } from "@/src/features/audit-logs/server/getAuditRequestContext";
 import { addUserToSpan, logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
@@ -84,18 +85,7 @@ export default async function handler(
     }
 
     const auth = authResult.context;
-    const { principal } = auth;
-
-    // MCP requires an API key's secret key; a public key alone only grants
-    // score ingestion.
-    if (
-      principal.kind !== "apiKey" ||
-      principal.presentation !== "privateKey"
-    ) {
-      throw new ForbiddenError(
-        "Access denied: MCP requires an API key's secret key",
-      );
-    }
+    const principal = requireSecretKeyPrincipal(auth.principal);
 
     const { orgId, projectId: boundProjectId } = principal.boundResource;
     const org = principal.organizations.find((o) => o.orgId === orgId);
@@ -188,6 +178,18 @@ export default async function handler(
       });
     }
   }
+}
+
+type ApiKeyPrincipal = Extract<Principal, { kind: "apiKey" }>;
+
+/** requireSecretKeyPrincipal admits an API key presented with its secret key; a public key alone only grants score ingestion. */
+function requireSecretKeyPrincipal(principal: Principal): ApiKeyPrincipal {
+  if (principal.kind === "apiKey" && principal.presentation === "privateKey") {
+    return principal;
+  }
+  throw new ForbiddenError(
+    "Access denied: MCP requires an API key's secret key",
+  );
 }
 
 export function getInAppAgentContext(

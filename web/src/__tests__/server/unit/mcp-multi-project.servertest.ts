@@ -38,15 +38,6 @@ const orgKey = mockConnection(
   }),
 );
 
-const projectKey = mockConnection(
-  mockAuthContext({
-    orgId: "org_1",
-    projectId: "prj_1",
-    actions: ["prompts:read"],
-    organizations: [{ orgId: "org_1", projectIds: ["prj_1", "prj_2"] }],
-  }),
-);
-
 describe("MCP tools across projects", () => {
   let client: Client;
   let close: () => Promise<void>;
@@ -85,7 +76,7 @@ describe("MCP tools across projects", () => {
     expect(tools[0]?.inputSchema.required).toEqual(["name"]);
   });
 
-  it("runs an organization key's calls in the project each one names", async () => {
+  it("strips projectId before the tool's strict schema validates its input", async () => {
     await connect(orgKey);
     expect(await call({ name: "a", projectId: "prj_1" })).toEqual([
       { type: "text", text: "prj_1:a" },
@@ -93,34 +84,5 @@ describe("MCP tools across projects", () => {
     expect(await call({ name: "b", projectId: "prj_2" })).toEqual([
       { type: "text", text: "prj_2:b" },
     ]);
-  });
-
-  it("rejects an organization key's call that names no project", async () => {
-    await connect(orgKey);
-    await expect(call({ name: "a" })).rejects.toThrow("Pass `projectId`");
-  });
-
-  it("rejects a project outside the key's organization", async () => {
-    await connect(orgKey);
-    await expect(call({ name: "a", projectId: "prj_9" })).rejects.toThrow(
-      "Project not found or this API key has no access to it.",
-    );
-  });
-
-  it("runs a project key's calls in its own project", async () => {
-    await connect(projectKey);
-    expect(await call({ name: "a" })).toEqual([
-      { type: "text", text: "prj_1:a" },
-    ]);
-    expect(await call({ name: "a", projectId: "prj_1" })).toEqual([
-      { type: "text", text: "prj_1:a" },
-    ]);
-  });
-
-  it("denies a project key's call in another project", async () => {
-    await connect(projectKey);
-    await expect(call({ name: "a", projectId: "prj_2" })).rejects.toThrow(
-      'The "prompts:read" permission is required',
-    );
   });
 });

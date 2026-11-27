@@ -95,8 +95,7 @@ Resources are served by the SDK: the bundled Langfuse skills through its Skills 
 6. Discard server instance
 ```
 
-The connection is authenticated only; every tool call is authorized against
-its project with the key's policies, whatever `API_AUTH_MIGRATION` is set to.
+The connection is authenticated only; every tool call is authorized against its project with the key's policies, whatever `API_AUTH_MIGRATION` is set to.
 
 **ServerContext** (what a project tool's handler receives):
 
@@ -113,20 +112,12 @@ its project with the key's policies, whatever `API_AUTH_MIGRATION` is set to.
 
 ### Multi-project access (organization keys)
 
-An organization key is not bound to a project, so it connects with its secret
-key alone (`Authorization: Bearer sk-lf-...`). Every project tool takes an
-optional `projectId` argument, added by `defineTool`; tools/call removes it
-before the tool validates its own input.
+An organization key is not bound to a project, so it connects with its secret key alone (`Authorization: Bearer sk-lf-...`). Every project tool takes an optional `projectId` argument, added by `defineTool`; tools/call removes it before the tool validates its own input.
 
 - `listProjects` lists the projects the key may read (`project:read`), as id and name.
 - A project key's calls default to its own project. Naming another project is denied.
-- An organization key's calls must name a project. A project outside the key's
-  organization is denied: the call is authorized in the organization that owns
-  the project, never in the key's bound organization, so the key's `project/*`
-  policy cannot match a project elsewhere.
-- What the key may do in a project is its role's. A legacy organization key
-  holds `project:read` but no data actions, so it can list projects and
-  little else; give the key a role (for example Admin or Viewer) for data access.
+- An organization key's calls must name a project. A project outside the key's organization is denied: the call is authorized in the organization that owns the project, never in the key's bound organization, so the key's `project/*` policy cannot match a project elsewhere.
+- What the key may do in a project is its role's. A legacy organization key holds `project:read` but no data actions, so it can list projects and little else; give the key a role (for example Admin or Viewer) for data access.
 
 ### Tool Annotations
 
