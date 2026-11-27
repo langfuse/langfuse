@@ -78,9 +78,6 @@ import {
   getDatasetItems,
   getDatasetItemsCount,
   createDatasetItemFilterState,
-  executeWithDatasetServiceStrategy,
-  OperationType,
-  Implementation,
   listDatasetVersions,
   getDatasetItemVersionHistory,
   getDatasetItemChangesSinceVersion,
@@ -1628,32 +1625,16 @@ export const datasetRouter = createTRPCRouter({
           items: mediaItems,
         });
 
-        await executeWithDatasetServiceStrategy(OperationType.WRITE, {
-          [Implementation.STATEFUL]: async () => {
-            await ctx.prisma.$transaction(async (tx) => {
-              await tx.datasetItem.createMany({
-                data: preparedItems,
-              });
-              await linkDatasetItemMedia(tx, {
-                projectId: input.projectId,
-                items: mediaItems,
-                replaceExisting: false,
-              });
-            });
-          },
-          [Implementation.VERSIONED]: async () => {
-            // always creates new dataset; hence no need to invalidate old rows
-            await ctx.prisma.$transaction(async (tx) => {
-              await tx.datasetItem.createMany({
-                data: preparedItems,
-              });
-              await linkDatasetItemMedia(tx, {
-                projectId: input.projectId,
-                items: mediaItems,
-                replaceExisting: false,
-              });
-            });
-          },
+        // always creates new dataset; hence no need to invalidate old rows
+        await ctx.prisma.$transaction(async (tx) => {
+          await tx.datasetItem.createMany({
+            data: preparedItems,
+          });
+          await linkDatasetItemMedia(tx, {
+            projectId: input.projectId,
+            items: mediaItems,
+            replaceExisting: false,
+          });
         });
 
         if (itemsBatch.length < DUPLICATE_DATASET_ITEMS_BATCH_SIZE) break; // Last batch

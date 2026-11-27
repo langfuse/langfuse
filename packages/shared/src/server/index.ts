@@ -900,7 +900,6 @@ export { publishInternalOtelSpans } from "./otel/internalTraceOtelWriter";
 export { type InternalOtelSpanInput } from "./otel/internalTraceOtelWriter";
 export { writeInternalTraceViaOtelIngestion } from "./otel/internalTraceOtelWriter";
 export { publishAiFeatureTraceViaOtelIngestion } from "./otel/internalAiFeatureOtelWriter";
-export * from "./datasets/executeWithDatasetServiceStrategy";
 
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./media-deletion";

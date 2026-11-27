@@ -352,8 +352,8 @@ describe("Dataset Item Media Associations", () => {
   });
 
   describe("linkDatasetItemMedia", () => {
-    // Covers the STATEFUL in-place update path, where the item version
-    // (id, validFrom) stays the same and removed references must be unlinked
+    // Covers in-place updates, where the item version (id, validFrom)
+    // stays the same and removed references must be unlinked
     it("replaces rows of the same item version with replaceExisting", async () => {
       const oldMedia = await createMediaRow();
       const keptMedia = await createMediaRow();
