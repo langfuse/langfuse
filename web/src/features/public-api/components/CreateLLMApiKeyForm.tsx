@@ -50,6 +50,10 @@ import {
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TypeSafeUpstreamCards } from "@/src/features/llm-api-key/components/TypeSafeUpstreamCards/TypeSafeUpstreamCards";
+import { FetchedModelsDialog } from "@/src/features/llm-api-key/components/FetchedModelsDialog/FetchedModelsDialog";
+import { useListConnectionModels } from "@/src/features/llm-api-key/hooks/useListConnectionModels";
+import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { AnthropicModelFamilyCheckbox } from "@/src/features/llm-api-key/components/AnthropicModelFamilyCheckbox/AnthropicModelFamilyCheckbox";
 import { BedrockRoleSetupInstructions } from "@/src/features/llm-api-key/components/BedrockRoleSetupInstructions/BedrockRoleSetupInstructions";
 import { useBedrockIamRoleAuth } from "@/src/features/llm-api-key/useBedrockIamRoleAuth";
@@ -440,6 +444,7 @@ export function CreateLLMApiKeyForm({
     api.organizationLlmApiKey.test.useMutation();
   const mutTestUpdateOrganizationLlmApiKey =
     api.organizationLlmApiKey.testUpdate.useMutation();
+  const connectionModels = useListConnectionModels({ owner, mode });
 
   const defaultAdapter: LLMAdapter =
     prefill?.adapter ??
@@ -576,10 +581,11 @@ export function CreateLLMApiKeyForm({
     adapter === LLMAdapter.VertexAI ||
     adapter === LLMAdapter.GoogleAIStudio ||
     adapter === LLMAdapter.TypeSafe;
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: "customModels",
   });
+  const currentBaseURL = form.watch("baseURL");
 
   const {
     fields: headerFields,
@@ -589,6 +595,128 @@ export function CreateLLMApiKeyForm({
     control: form.control,
     name: "extraHeaders",
   });
+
+  function buildConnectionInput(values: z.infer<typeof formSchema>) {
+    let secretKey = values.secretKey;
+    let config: BedrockConfig | OpenAIConfig | VertexAIConfig | undefined;
+
+    if (currentAdapter === LLMAdapter.Bedrock) {
+      const shouldPreserveExistingBedrockCredentials =
+        mode === "update" &&
+        isMatchingBedrockAuthMethod(values.authMethod, existingKey?.authMethod);
+
+      switch (values.authMethod) {
+        case AuthMethod.ApiKey:
+          secretKey =
+            shouldPreserveExistingBedrockCredentials && !values.bedrockApiKey
+              ? undefined
+              : JSON.stringify({
+                  apiKey: values.bedrockApiKey!,
+                } satisfies BedrockApiKey);
+          break;
+        case AuthMethod.AccessKeys:
+          if (!values.awsAccessKeyId && !values.awsSecretAccessKey) {
+            secretKey = shouldPreserveExistingBedrockCredentials
+              ? undefined
+              : BEDROCK_USE_DEFAULT_CREDENTIALS;
+          } else {
+            secretKey = JSON.stringify({
+              accessKeyId: values.awsAccessKeyId!,
+              secretAccessKey: values.awsSecretAccessKey!,
+            } satisfies BedrockAccessKeys);
+          }
+          break;
+        case AuthMethod.IamRole: {
+          const roleArn = values.bedrockRoleArn!.trim();
+          // Resending an unchanged role would re-check the plan on every edit.
+          secretKey =
+            shouldPreserveExistingBedrockCredentials &&
+            roleArn === existingKey?.displaySecretKey
+              ? undefined
+              : JSON.stringify({ roleArn } satisfies BedrockIamRole);
+          break;
+        }
+      }
+
+      const customModelConfig: NonNullable<BedrockConfig["customModelConfig"]> =
+        Object.fromEntries(
+          values.customModels
+            .filter((model) => model.anthropicModelFamily && model.value.trim())
+            .map((model) => [
+              model.value.trim(),
+              { modelFamily: "anthropic" as const },
+            ]),
+        );
+      config = {
+        region: values.awsRegion ?? "",
+        ...(Object.keys(customModelConfig).length > 0
+          ? { customModelConfig }
+          : {}),
+      };
+    } else if (currentAdapter === LLMAdapter.VertexAI) {
+      // Handle Vertex AI credentials
+      // secretKey already contains either JSON key or VERTEXAI_USE_DEFAULT_CREDENTIALS sentinel
+      if (mode === "update") {
+        // In update mode, only update secretKey if a new one is provided
+        if (values.secretKey) {
+          secretKey = values.secretKey;
+        } else {
+          // Keep existing credentials by not setting secretKey
+          secretKey = undefined;
+        }
+      }
+      // In create mode, secretKey is already set from values.secretKey
+
+      // Build config with location only (projectId removed for security - ADC auto-detects)
+      const vertexAIConfig: VertexAIConfig = {};
+      if (values.vertexAILocation?.trim()) {
+        vertexAIConfig.location = values.vertexAILocation.trim();
+      }
+      // If config is empty, set to undefined
+      config =
+        Object.keys(vertexAIConfig).length > 0 ? vertexAIConfig : undefined;
+    } else if (currentAdapter === LLMAdapter.OpenAI) {
+      config =
+        values.openAIUseResponsesApi || mode === "update"
+          ? { useResponsesApi: values.openAIUseResponsesApi }
+          : undefined;
+    }
+
+    let extraHeaders: Record<string, string> | undefined;
+    if (values.extraHeaders.length > 0) {
+      extraHeaders = values.extraHeaders.reduce<Record<string, string>>(
+        (headers, header) => {
+          headers[header.key] = header.value ?? "";
+          return headers;
+        },
+        {},
+      );
+    } else if (mode === "update") {
+      extraHeaders = {};
+    }
+
+    return {
+      id: existingKey?.id ?? "",
+      secretKey: secretKey ?? "",
+      provider: values.provider,
+      adapter: values.adapter,
+      baseURL:
+        values.baseURL ||
+        (mode === "update" &&
+        (currentAdapter === LLMAdapter.TypeSafe ||
+          currentAdapter === LLMAdapter.OpenAI)
+          ? null
+          : undefined),
+      withDefaultModels: isCustomModelsRequired(currentAdapter)
+        ? false
+        : values.withDefaultModels,
+      config,
+      customModels: values.customModels
+        .map((m) => m.value.trim())
+        .filter(Boolean),
+      extraHeaders,
+    };
+  }
 
   const renderCustomModelsField = () => (
     <FormField
@@ -657,6 +785,66 @@ export function CreateLLMApiKeyForm({
             />
             Add custom model name
           </Button>
+          {currentAdapter === LLMAdapter.OpenAI &&
+            !currentBaseURL?.includes("{model}") && (
+              <DialogController<{
+                configuredModels: string[];
+                fetchedModels: string[];
+              }>
+                renderDialog={({ state, closeDialog }) => (
+                  <FetchedModelsDialog
+                    configuredModels={state.configuredModels}
+                    fetchedModels={state.fetchedModels}
+                    onApply={(models) => {
+                      replace(
+                        models.map((value) => ({
+                          value,
+                          anthropicModelFamily: false,
+                        })),
+                      );
+                      closeDialog();
+                    }}
+                  />
+                )}
+              >
+                {({ openDialog }) => (
+                  <div className="grid">
+                    <DesignSystemButton
+                      type="button"
+                      variant="outline"
+                      text="Fetch models from endpoint"
+                      loading={connectionModels.isPending}
+                      onClick={async () => {
+                        // Show base URL and header mistakes on their fields.
+                        if (
+                          !(await form.trigger(["baseURL", "extraHeaders"]))
+                        ) {
+                          return;
+                        }
+                        const fetchedModels = await connectionModels.listModels(
+                          buildConnectionInput(form.getValues()),
+                        );
+                        if (fetchedModels) {
+                          openDialog({
+                            configuredModels: form
+                              .getValues("customModels")
+                              .map((m) => m.value.trim())
+                              .filter(Boolean),
+                            fetchedModels,
+                          });
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+              </DialogController>
+            )}
+          {connectionModels.error && (
+            // The error can echo the customer's endpoint URL.
+            <p className="ph-no-capture text-destructive text-sm">
+              {connectionModels.error}
+            </p>
+          )}
         </FormItem>
       )}
     />
@@ -761,125 +949,7 @@ export function CreateLLMApiKeyForm({
       }
     }
 
-    let secretKey = values.secretKey;
-    let config: BedrockConfig | OpenAIConfig | VertexAIConfig | undefined;
-
-    if (currentAdapter === LLMAdapter.Bedrock) {
-      const shouldPreserveExistingBedrockCredentials =
-        mode === "update" &&
-        isMatchingBedrockAuthMethod(values.authMethod, existingKey?.authMethod);
-
-      switch (values.authMethod) {
-        case AuthMethod.ApiKey:
-          secretKey =
-            shouldPreserveExistingBedrockCredentials && !values.bedrockApiKey
-              ? undefined
-              : JSON.stringify({
-                  apiKey: values.bedrockApiKey!,
-                } satisfies BedrockApiKey);
-          break;
-        case AuthMethod.AccessKeys:
-          if (!values.awsAccessKeyId && !values.awsSecretAccessKey) {
-            secretKey = shouldPreserveExistingBedrockCredentials
-              ? undefined
-              : BEDROCK_USE_DEFAULT_CREDENTIALS;
-          } else {
-            secretKey = JSON.stringify({
-              accessKeyId: values.awsAccessKeyId!,
-              secretAccessKey: values.awsSecretAccessKey!,
-            } satisfies BedrockAccessKeys);
-          }
-          break;
-        case AuthMethod.IamRole: {
-          const roleArn = values.bedrockRoleArn!.trim();
-          // Resending an unchanged role would re-check the plan on every edit.
-          secretKey =
-            shouldPreserveExistingBedrockCredentials &&
-            roleArn === existingKey?.displaySecretKey
-              ? undefined
-              : JSON.stringify({ roleArn } satisfies BedrockIamRole);
-          break;
-        }
-      }
-
-      const customModelConfig: NonNullable<BedrockConfig["customModelConfig"]> =
-        Object.fromEntries(
-          values.customModels
-            .filter((model) => model.anthropicModelFamily && model.value.trim())
-            .map((model) => [
-              model.value.trim(),
-              { modelFamily: "anthropic" as const },
-            ]),
-        );
-      config = {
-        region: values.awsRegion ?? "",
-        ...(Object.keys(customModelConfig).length > 0
-          ? { customModelConfig }
-          : {}),
-      };
-    } else if (currentAdapter === LLMAdapter.VertexAI) {
-      // Handle Vertex AI credentials
-      // secretKey already contains either JSON key or VERTEXAI_USE_DEFAULT_CREDENTIALS sentinel
-      if (mode === "update") {
-        // In update mode, only update secretKey if a new one is provided
-        if (values.secretKey) {
-          secretKey = values.secretKey;
-        } else {
-          // Keep existing credentials by not setting secretKey
-          secretKey = undefined;
-        }
-      }
-      // In create mode, secretKey is already set from values.secretKey
-
-      // Build config with location only (projectId removed for security - ADC auto-detects)
-      const vertexAIConfig: VertexAIConfig = {};
-      if (values.vertexAILocation?.trim()) {
-        vertexAIConfig.location = values.vertexAILocation.trim();
-      }
-      // If config is empty, set to undefined
-      config =
-        Object.keys(vertexAIConfig).length > 0 ? vertexAIConfig : undefined;
-    } else if (currentAdapter === LLMAdapter.OpenAI) {
-      config =
-        values.openAIUseResponsesApi || mode === "update"
-          ? { useResponsesApi: values.openAIUseResponsesApi }
-          : undefined;
-    }
-
-    let extraHeaders: Record<string, string> | undefined;
-    if (values.extraHeaders.length > 0) {
-      extraHeaders = values.extraHeaders.reduce<Record<string, string>>(
-        (headers, header) => {
-          headers[header.key] = header.value ?? "";
-          return headers;
-        },
-        {},
-      );
-    } else if (mode === "update") {
-      extraHeaders = {};
-    }
-
-    const connectionInput = {
-      id: existingKey?.id ?? "",
-      secretKey: secretKey ?? "",
-      provider: values.provider,
-      adapter: values.adapter,
-      baseURL:
-        values.baseURL ||
-        (mode === "update" &&
-        (currentAdapter === LLMAdapter.TypeSafe ||
-          currentAdapter === LLMAdapter.OpenAI)
-          ? null
-          : undefined),
-      withDefaultModels: isCustomModelsRequired(currentAdapter)
-        ? false
-        : values.withDefaultModels,
-      config,
-      customModels: values.customModels
-        .map((m) => m.value.trim())
-        .filter(Boolean),
-      extraHeaders,
-    };
+    const connectionInput = buildConnectionInput(values);
 
     try {
       let testResult;

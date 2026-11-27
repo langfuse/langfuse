@@ -97,6 +97,7 @@ export * from "./utils/productUrl";
 export * from "./llm/compileChatMessages";
 export * from "./llm/testModelCall";
 export * from "./llm/baseUrlValidation";
+export * from "./llm/listOpenAIConnectionModels";
 export { createSecureLlmFetch } from "./llm/secureLlmFetch";
 export { resolveUpdatedExtraHeaders } from "./llm/resolveUpdatedExtraHeaders";
 export * from "./llm/ai-sdk/providers/bedrock";

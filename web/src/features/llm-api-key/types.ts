@@ -54,6 +54,42 @@ export const UpdateOrganizationLlmApiKey = UpdateLlmApiKey.omit({
   orgId: z.string(),
 });
 
+// Listing models only needs the endpoint and its credentials, so a form without
+// a provider name or models yet can fetch them.
+const ListLlmConnectionModelsFields = {
+  adapter: true,
+  baseURL: true,
+  extraHeaders: true,
+} as const;
+
+export const ListLlmConnectionModels = CreateLlmApiKey.pick({
+  ...ListLlmConnectionModelsFields,
+  projectId: true,
+  secretKey: true,
+});
+
+export const ListLlmConnectionModelsUpdate = UpdateLlmApiKey.pick({
+  ...ListLlmConnectionModelsFields,
+  projectId: true,
+  secretKey: true,
+  id: true,
+});
+
+export const ListOrganizationLlmConnectionModels =
+  CreateOrganizationLlmApiKey.pick({
+    ...ListLlmConnectionModelsFields,
+    orgId: true,
+    secretKey: true,
+  });
+
+export const ListOrganizationLlmConnectionModelsUpdate =
+  UpdateOrganizationLlmApiKey.pick({
+    ...ListLlmConnectionModelsFields,
+    orgId: true,
+    secretKey: true,
+    id: true,
+  });
+
 export const AuthMethod = {
   ApiKey: "api-key",
   AccessKeys: "access-keys",

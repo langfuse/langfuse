@@ -6,6 +6,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
     ...actual,
     finalizeEvaluatorBlocks: mockFinalizeEvaluatorBlocks,
     generateLLMText: vi.fn(),
+    listOpenAIConnectionModels: vi.fn(),
   };
 });
 
@@ -46,6 +47,7 @@ import {
   DefaultEvalModelService,
   EvaluatorBlockSource,
   generateLLMText,
+  listOpenAIConnectionModels,
 } from "@langfuse/shared/src/server";
 import {
   createSession,
@@ -53,6 +55,7 @@ import {
 } from "@/src/__tests__/fixtures/session-factory";
 
 const mockGenerateLLMText = vi.mocked(generateLLMText);
+const mockListOpenAIConnectionModels = vi.mocked(listOpenAIConnectionModels);
 
 describe("llmApiKey.all RPC", () => {
   let projectId: string;
@@ -87,6 +90,7 @@ describe("llmApiKey.all RPC", () => {
     orgId = setup.orgId;
     mockFinalizeEvaluatorBlocks.mockReset().mockResolvedValue(undefined);
     mockGenerateLLMText.mockReset().mockResolvedValue({} as never);
+    mockListOpenAIConnectionModels.mockReset();
 
     session = createSession({
       organizations: [
@@ -941,6 +945,185 @@ describe("llmApiKey.all RPC", () => {
         baseURL: "https://attacker.example.com/v1",
       }),
     ).rejects.toThrow("User does not have access to this resource or action");
+  });
+
+  it("should require llmApiKeys:create access for fetching the models of a new llm api key", async () => {
+    const memberCaller = createCallerForProjectRole("MEMBER");
+
+    await expect(
+      memberCaller.llmApiKey.listModels({
+        projectId,
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "sk-test",
+        baseURL: "https://attacker.example.com/v1",
+      }),
+    ).rejects.toThrow("User does not have access to this resource or action");
+    expect(mockListOpenAIConnectionModels).not.toHaveBeenCalled();
+  });
+
+  it("should require llmApiKeys:update access for fetching the models of an existing llm api key", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-test",
+      baseURL: "https://api.openai.com/v1",
+    });
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "openai" },
+    });
+
+    const memberCaller = createCallerForProjectRole("MEMBER");
+
+    await expect(
+      memberCaller.llmApiKey.listModelsUpdate({
+        id: existingKey.id,
+        projectId,
+        adapter: LLMAdapter.OpenAI,
+      }),
+    ).rejects.toThrow("User does not have access to this resource or action");
+    expect(mockListOpenAIConnectionModels).not.toHaveBeenCalled();
+  });
+
+  it("should not fetch the models of another project's connection", async () => {
+    const otherSetup = await createOrgProjectAndApiKey();
+    const otherConnection = await prisma.llmApiKeys.create({
+      data: {
+        projectId: otherSetup.projectId,
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        secretKey: encrypt("other-project-secret"),
+        displaySecretKey: "...cret",
+      },
+    });
+
+    const result = await caller.llmApiKey.listModelsUpdate({
+      id: otherConnection.id,
+      projectId,
+      adapter: LLMAdapter.OpenAI,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: "LLM connection not found",
+    });
+    expect(mockListOpenAIConnectionModels).not.toHaveBeenCalled();
+  });
+
+  it("should fetch the models of an existing connection with its stored secret key and headers", async () => {
+    mockListOpenAIConnectionModels.mockResolvedValueOnce({
+      success: true,
+      models: ["model-a", "model-b"],
+    });
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "gateway",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-stored",
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: { "X-Tenant": "stored-tenant" },
+    });
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "gateway" },
+    });
+
+    const result = await caller.llmApiKey.listModelsUpdate({
+      id: existingKey.id,
+      projectId,
+      adapter: LLMAdapter.OpenAI,
+      extraHeaders: { "X-Tenant": "" },
+    });
+
+    expect(result).toEqual({ success: true, models: ["model-a", "model-b"] });
+    expect(mockListOpenAIConnectionModels).toHaveBeenCalledWith({
+      secretKey: "sk-stored",
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: { "X-Tenant": "stored-tenant" },
+    });
+  });
+
+  it("should fetch the models of a new connection before it has a provider name", async () => {
+    mockListOpenAIConnectionModels.mockResolvedValueOnce({
+      success: true,
+      models: ["model-a"],
+    });
+
+    const result = await caller.llmApiKey.listModels({
+      projectId,
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-test",
+      baseURL: "https://api.openai.com/v1",
+    });
+
+    expect(result).toEqual({ success: true, models: ["model-a"] });
+    expect(mockListOpenAIConnectionModels).toHaveBeenCalledWith({
+      secretKey: "sk-test",
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: undefined,
+    });
+  });
+
+  it("should only fetch models for OpenAI connections", async () => {
+    const result = await caller.llmApiKey.listModels({
+      projectId,
+      adapter: LLMAdapter.Anthropic,
+      secretKey: "sk-ant-test",
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Fetching models is only supported for the OpenAI adapter",
+    });
+    expect(mockListOpenAIConnectionModels).not.toHaveBeenCalled();
+  });
+
+  it("should not send a stored non-OpenAI secret key to OpenAI when listing models", async () => {
+    const anthropicConnection = await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider: "anthropic",
+        adapter: LLMAdapter.Anthropic,
+        secretKey: encrypt("sk-ant-stored"),
+        displaySecretKey: "...ored",
+      },
+    });
+
+    const result = await caller.llmApiKey.listModelsUpdate({
+      id: anthropicConnection.id,
+      projectId,
+      adapter: LLMAdapter.OpenAI,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Adapter cannot be changed",
+    });
+    expect(mockListOpenAIConnectionModels).not.toHaveBeenCalled();
+  });
+
+  it("should not test a stored secret key with another adapter", async () => {
+    const anthropicConnection = await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider: "anthropic",
+        adapter: LLMAdapter.Anthropic,
+        secretKey: encrypt("sk-ant-stored"),
+        displaySecretKey: "...ored",
+      },
+    });
+
+    const result = await caller.llmApiKey.testUpdate({
+      id: anthropicConnection.id,
+      projectId,
+      provider: "anthropic",
+      adapter: LLMAdapter.OpenAI,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Adapter cannot be changed",
+    });
+    expect(mockGenerateLLMText).not.toHaveBeenCalled();
   });
 
   it("should block testUpdate when the base URL changes without a new secret key", async () => {

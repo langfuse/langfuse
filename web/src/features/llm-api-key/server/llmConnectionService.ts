@@ -53,6 +53,7 @@ import {
   generateLLMText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
   isPrismaRecordNotFoundError,
+  listOpenAIConnectionModels,
   logger,
   mapLegacyLLMCompletionParams,
   resolveUpdatedExtraHeaders,
@@ -511,6 +512,59 @@ async function testLlmConnection(
   }
 }
 
+type ListModelsResult =
+  | { success: true; models: string[] }
+  | { success: false; error: string };
+
+type ListModelsInput = Pick<
+  LlmConnectionWriteInput,
+  "adapter" | "secretKey" | "baseURL" | "extraHeaders"
+>;
+
+/** What an edit form sends to reuse the stored secret key and headers. */
+type StoredCredentialsInput = Pick<
+  LlmConnectionUpdateInput,
+  "id" | "adapter" | "secretKey" | "baseURL" | "extraHeaders"
+>;
+
+async function listLlmConnectionModels(
+  params: Pick<
+    TestLlmConnectionParams,
+    | "adapter"
+    | "secretKey"
+    | "baseURL"
+    | "extraHeaders"
+    | "validateBaseUrlBeforeTest"
+    | "validateSecretBeforeTest"
+  >,
+): Promise<ListModelsResult> {
+  try {
+    if (params.adapter !== LLMAdapter.OpenAI) {
+      throw new InvalidRequestError(
+        "Fetching models is only supported for the OpenAI adapter",
+      );
+    }
+    if (params.validateBaseUrlBeforeTest !== false) {
+      await validateBaseUrl(params);
+    }
+    if (params.validateSecretBeforeTest !== false) {
+      validateSecret({ adapter: params.adapter, secretKey: params.secretKey });
+    }
+
+    return await listOpenAIConnectionModels({
+      secretKey: params.secretKey,
+      baseURL: params.baseURL,
+      extraHeaders: params.extraHeaders,
+    });
+  } catch (error) {
+    logger.error(error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
 export class LlmConnectionService {
   constructor(
     private readonly repository = new LlmConnectionRepository(),
@@ -935,51 +989,17 @@ export class LlmConnectionService {
     bedrockIamRole?: BedrockIamRoleAccess;
   }): Promise<{ success: boolean; error?: string }> {
     try {
-      const existingKey = await this.repository.findById({
-        owner: params.owner,
-        id: params.input.id,
-      });
-      if (!existingKey) {
-        throw new LangfuseNotFoundError("LLM connection not found");
-      }
-
-      const hasNewSecretKey = Boolean(params.input.secretKey);
-      const baseURL =
-        params.input.baseURL !== undefined
-          ? params.input.baseURL
-          : existingKey.baseURL;
-      const isBaseURLChanged = baseURL !== existingKey.baseURL;
-      if (isBaseURLChanged && !hasNewSecretKey) {
-        throw new InvalidRequestError(
-          "Secret key is required when changing the base URL",
-        );
-      }
-
-      const extraHeaders = resolveUpdatedExtraHeaders({
-        inputHeaders: params.input.extraHeaders,
-        storedHeaders: existingKey.extraHeaders,
-        isBaseURLChanged,
-      });
-
+      const { existingKey, credentials } =
+        await this.resolveStoredCredentials(params);
       return testLlmConnection({
+        ...credentials,
         adapter: params.input.adapter,
         provider: params.input.provider,
-        secretKey: params.input.secretKey || decrypt(existingKey.secretKey),
-        projectId: hasNewSecretKey
-          ? undefined
-          : (existingKey.projectId ?? undefined),
-        organizationId: hasNewSecretKey
-          ? undefined
-          : (existingKey.organizationId ?? undefined),
-        baseURL,
         customModels: params.input.customModels ?? existingKey.customModels,
-        extraHeaders,
         config:
           params.input.config ??
           LLMConnectionConfigSchema.nullable().parse(existingKey.config) ??
           undefined,
-        validateBaseUrlBeforeTest: isBaseURLChanged,
-        validateSecretBeforeTest: hasNewSecretKey,
         bedrockIamRole: params.bedrockIamRole,
         externalId: existingKey.externalId,
       });
@@ -990,6 +1010,84 @@ export class LlmConnectionService {
         error: error instanceof Error ? error.message : "Unknown error",
       };
     }
+  }
+
+  listModels(input: ListModelsInput): Promise<ListModelsResult> {
+    return listLlmConnectionModels(input);
+  }
+
+  async listModelsForUpdate(params: {
+    owner: LlmConnectionOwner;
+    input: StoredCredentialsInput;
+  }): Promise<ListModelsResult> {
+    try {
+      // Resolving checked that the adapter matches the stored connection.
+      const { credentials } = await this.resolveStoredCredentials(params);
+      return listLlmConnectionModels({
+        ...credentials,
+        adapter: params.input.adapter,
+      });
+    } catch (error) {
+      logger.error(error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /** Resolves an edited connection's credentials, keeping the stored secret key and headers. */
+  private async resolveStoredCredentials(params: {
+    owner: LlmConnectionOwner;
+    input: StoredCredentialsInput;
+  }) {
+    const existingKey = await this.repository.findById({
+      owner: params.owner,
+      id: params.input.id,
+    });
+    if (!existingKey) {
+      throw new LangfuseNotFoundError("LLM connection not found");
+    }
+    // The stored secret belongs to the stored adapter. With another adapter it
+    // would reach that provider's default endpoint, e.g. an Anthropic key sent to OpenAI.
+    if (params.input.adapter !== existingKey.adapter) {
+      throw new InvalidRequestError("Adapter cannot be changed");
+    }
+
+    const hasNewSecretKey = Boolean(params.input.secretKey);
+    const baseURL =
+      params.input.baseURL !== undefined
+        ? params.input.baseURL
+        : existingKey.baseURL;
+    const isBaseURLChanged = baseURL !== existingKey.baseURL;
+    if (isBaseURLChanged && !hasNewSecretKey) {
+      throw new InvalidRequestError(
+        "Secret key is required when changing the base URL",
+      );
+    }
+
+    const extraHeaders = resolveUpdatedExtraHeaders({
+      inputHeaders: params.input.extraHeaders,
+      storedHeaders: existingKey.extraHeaders,
+      isBaseURLChanged,
+    });
+
+    return {
+      existingKey,
+      credentials: {
+        secretKey: params.input.secretKey || decrypt(existingKey.secretKey),
+        projectId: hasNewSecretKey
+          ? undefined
+          : (existingKey.projectId ?? undefined),
+        organizationId: hasNewSecretKey
+          ? undefined
+          : (existingKey.organizationId ?? undefined),
+        baseURL,
+        extraHeaders,
+        validateBaseUrlBeforeTest: isBaseURLChanged,
+        validateSecretBeforeTest: hasNewSecretKey,
+      },
+    };
   }
 
   async delete(params: {

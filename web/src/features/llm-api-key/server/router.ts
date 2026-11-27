@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   CreateLlmApiKey,
+  ListLlmConnectionModels,
+  ListLlmConnectionModelsUpdate,
   UpdateLlmApiKey,
 } from "@/src/features/llm-api-key/types";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -173,6 +175,37 @@ export const llmApiKeyRouter = createTRPCRouter({
           owner: { type: "project", projectId },
           externalIdNonce: bedrockExternalIdNonce,
         }),
+      });
+    }),
+
+  listModels: protectedProjectProcedureWithoutTracing
+    .input(ListLlmConnectionModels)
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "llmApiKeys:create",
+      });
+      const { projectId: _projectId, ...connectionInput } = input;
+      return new LlmConnectionService().listModels(connectionInput);
+    }),
+
+  listModelsUpdate: protectedProjectProcedureWithoutTracing
+    .input(ListLlmConnectionModelsUpdate)
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "llmApiKeys:update",
+      });
+      const { projectId, ...connectionInput } = input;
+      return new LlmConnectionService().listModelsForUpdate({
+        owner: {
+          type: "project",
+          projectId,
+          organizationId: ctx.session.orgId,
+        },
+        input: connectionInput,
       });
     }),
 
