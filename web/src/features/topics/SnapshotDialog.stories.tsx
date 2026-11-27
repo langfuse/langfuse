@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { useState } from "react";
 import type { FilterState } from "@langfuse/shared";
 import {
@@ -152,13 +152,7 @@ function SnapshotStory({
 const meta = preview.meta({
   component: SnapshotStory,
   parameters: { layout: "fullscreen" },
-  decorators: [
-    (Story) => (
-      <OpenOverlay>
-        <Story />
-      </OpenOverlay>
-    ),
-  ],
+  decorators: [withOpenOverlay],
 });
 
 export const Default = meta.story({ name: "New snapshot" });

@@ -1,7 +1,7 @@
 import { RuleTester } from "@typescript-eslint/rule-tester";
 import * as typescriptEslintParser from "@typescript-eslint/parser";
 
-import rule from "./no-empty-render-prop.js";
+import rule from "./no-empty-children-render-prop.js";
 
 const ruleTester = new RuleTester({
   languageOptions: {
@@ -16,7 +16,7 @@ const ruleTester = new RuleTester({
 
 const emptyRenderProp = { messageId: "emptyRenderProp" as const };
 
-ruleTester.run("no-empty-render-prop", rule, {
+ruleTester.run("no-empty-children-render-prop", rule, {
   valid: [
     `const value = () => null;`,
     `const Component = () => <DialogController renderDialog={() => <Dialog />} />;`,
@@ -25,32 +25,28 @@ ruleTester.run("no-empty-render-prop", rule, {
     `const Component = () => <Form onSubmit={() => null} />;`,
     `const Component = () => <Form renderItem={items[0]} />;`,
     `const Component = () => <Form>{renderNothing}</Form>;`,
-    `const Component = ({ show }) => <List renderItem={() => (show ? <Row /> : null)} />;`,
-    `const Component = () => <List renderItem={() => { log(); return null; }} />;`,
-    `const Component = () => <List renderItem={() => { if (ready) return <Row />; return null; }} />;`,
-    `const Component = () => <List renderItem={() => ready} />;`,
-    `const Component = () => <List renderItem={() => "no"} />;`,
-    `const Component = () => <List renderItem={() => !ready} />;`,
-    `const Component = () => <List renderItem={() => false || <Row />} />;`,
-    `const Component = () => <List renderItem={() => null || <Row />} />;`,
-    `const Component = () => <List renderItem={() => ready && null} />;`,
-    `const Component = () => <List renderItem={() => (null, <Row />)} />;`,
-    `const Component = () => <Foo renderFooter />;`,
-    `const Component = () => <Foo renderFooter={<Footer />} />;`,
+    `const Component = ({ show }) => <List>{() => (show ? <Row /> : null)}</List>;`,
+    `const Component = () => <List>{() => { log(); return null; }}</List>;`,
+    `const Component = () => <List>{() => { if (ready) return <Row />; return null; }}</List>;`,
+    `const Component = () => <List>{() => ready}</List>;`,
+    `const Component = () => <List>{() => "no"}</List>;`,
+    `const Component = () => <List>{() => !ready}</List>;`,
+    `const Component = () => <List>{() => false || <Row />}</List>;`,
+    `const Component = () => <List>{() => null || <Row />}</List>;`,
+    `const Component = () => <List>{() => ready && null}</List>;`,
+    `const Component = () => <List>{() => (null, <Row />)}</List>;`,
+    `const Component = () => <Foo renderFooter={() => null} />;`,
+    `const Component = () => <Foo suffix={() => null} />;`,
+    `const Component = () => <List children:item={() => null} />;`,
+    `const Component = () => <Foo children="text" />;`,
+    `const Component = () => <Foo children={<Body />} />;`,
     `const Component = () => <Foo><Bar /></Foo>;`,
     `const Component = () => <Foo>{null}</Foo>;`,
     `const Component = () => <Foo>{/* note */}</Foo>;`,
-    `const Component = () => <List renderItem={() => { throw new Error("nope"); }} />;`,
+    `const Component = () => <List>{() => { throw new Error("nope"); }}</List>;`,
     `const Component = () => <List render:item={() => null} />;`,
     `const Component = () => <Foo>{condition ? () => null : () => <Bar />}</Foo>;`,
-    {
-      code: `const Component = () => <Panel suffix={() => <span />} renderBody={() => null} />;`,
-      options: [{ attributeNamePattern: "^suffix$" }],
-    },
-    {
-      code: `const Component = () => <Panel children={() => <Body />} />;`,
-      options: [{ attributeNamePattern: "^suffix$" }],
-    },
+    `const Component = () => <Panel children={() => <Body />} />;`,
   ],
   invalid: [
     {
@@ -86,44 +82,40 @@ ruleTester.run("no-empty-render-prop", rule, {
       errors: [emptyRenderProp],
     },
     {
-      code: `const Component = () => <Form renderFooter={() => null} />;`,
+      code: `const Component = () => <Form children={() => void 0} />;`,
       errors: [emptyRenderProp],
     },
     {
-      code: `const Component = () => <Form renderFooter={() => void 0} />;`,
+      code: `const Component = () => <Form children={() => (null as null)} />;`,
       errors: [emptyRenderProp],
     },
     {
-      code: `const Component = () => <Form renderFooter={() => (null as null)} />;`,
+      code: `const Component = () => <Form children={() => null!} />;`,
       errors: [emptyRenderProp],
     },
     {
-      code: `const Component = () => <Form renderFooter={() => null!} />;`,
+      code: `const Component = () => <Form children={() => null ?? false} />;`,
       errors: [emptyRenderProp],
     },
     {
-      code: `const Component = () => <Form renderFooter={() => null ?? false} />;`,
+      code: `const Component = () => <Form children={() => (ready ? null : undefined)} />;`,
       errors: [emptyRenderProp],
     },
     {
-      code: `const Component = () => <Form renderFooter={() => (ready ? null : undefined)} />;`,
+      code: `const Component = () => <Form children={() => null && <Footer />} />;`,
       errors: [emptyRenderProp],
     },
     {
-      code: `const Component = () => <Form renderFooter={() => null && <Footer />} />;`,
+      code: `const Component = () => <Form children={() => false || null} />;`,
       errors: [emptyRenderProp],
     },
     {
-      code: `const Component = () => <Form renderFooter={() => false || null} />;`,
-      errors: [emptyRenderProp],
-    },
-    {
-      code: `const Component = () => <Form renderFooter={() => (0, null)} />;`,
+      code: `const Component = () => <Form children={() => (0, null)} />;`,
       errors: [emptyRenderProp],
     },
     {
       code: `const Component = () => (
-        <Form renderFooter={() => {
+        <Form children={() => {
           if (hidden) return null;
           else return false;
         }} />
@@ -132,7 +124,7 @@ ruleTester.run("no-empty-render-prop", rule, {
     },
     {
       code: `const Component = () => (
-        <Form renderFooter={() => {
+        <Form children={() => {
           if (hidden) {
             return undefined;
           }
@@ -141,22 +133,7 @@ ruleTester.run("no-empty-render-prop", rule, {
       errors: [emptyRenderProp],
     },
     {
-      code: `const Component = () => <Form renderFooter={() => { ; return null; }} />;`,
-      errors: [emptyRenderProp],
-    },
-    {
-      code: `const Component = () => <Panel suffix={() => null} />;`,
-      options: [{ attributeNamePattern: "^suffix$" }],
-      errors: [emptyRenderProp],
-    },
-    {
-      code: `const Component = () => <DialogController>{() => null}</DialogController>;`,
-      options: [{ attributeNamePattern: "^suffix$" }],
-      errors: [emptyRenderProp],
-    },
-    {
-      code: `const Component = () => <Form renderFooter={() => null} />;`,
-      options: [{ attributeNamePattern: "[" }],
+      code: `const Component = () => <Form children={() => { ; return null; }} />;`,
       errors: [emptyRenderProp],
     },
   ],

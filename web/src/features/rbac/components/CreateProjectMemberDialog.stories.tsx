@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
@@ -23,13 +23,7 @@ const meta = preview.meta({
   parameters: {
     layout: "fullscreen",
   },
-  decorators: [
-    (Story) => (
-      <OpenOverlay>
-        <Story />
-      </OpenOverlay>
-    ),
-  ],
+  decorators: [withOpenOverlay],
 });
 
 export const OrganizationMember = meta.story({

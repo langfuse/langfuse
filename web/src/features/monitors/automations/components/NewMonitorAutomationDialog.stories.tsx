@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
@@ -49,7 +49,8 @@ const meta = preview.meta({
   component: NewMonitorAutomationDialog,
   parameters: { layout: "fullscreen" },
   args: baseArgs,
-  render: (args) => <OpenDialog {...args} />,
+  decorators: [withOpenOverlay],
+  render: (args) => <NewMonitorAutomationDialog {...args} />,
 });
 
 export const Picker = meta.story({});
@@ -250,16 +251,19 @@ export const TestDoesNotSubmitSurroundingForm = meta.story({
       webhook: { url: "example.com/hook", headers: [] },
     },
   },
-  render: (args) => (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        onSurroundingFormSubmit();
-      }}
-    >
-      <OpenDialog {...args} />
-    </form>
-  ),
+  decorators: [
+    (Story) => (
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSurroundingFormSubmit();
+        }}
+      >
+        <Story />
+      </form>
+    ),
+  ],
+  render: (args) => <NewMonitorAutomationDialog {...args} />,
   play: async ({ args, canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
     await userEvent.click(
@@ -272,20 +276,9 @@ export const TestDoesNotSubmitSurroundingForm = meta.story({
 
 export const WebhookSecret = meta.story({
   render: () => (
-    <OpenOverlay>
-      <WebhookSecretDialog
-        automationName="Staging alerts"
-        webhookSecret="lf-whsec_3f9a1c0d8e7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b"
-      />
-    </OpenOverlay>
+    <WebhookSecretDialog
+      automationName="Staging alerts"
+      webhookSecret="lf-whsec_3f9a1c0d8e7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b"
+    />
   ),
 });
-
-/** OpenDialog renders the dialog already open, as its controller would. */
-function OpenDialog(props: ComponentProps<typeof NewMonitorAutomationDialog>) {
-  return (
-    <OpenOverlay>
-      <NewMonitorAutomationDialog {...props} />
-    </OpenOverlay>
-  );
-}

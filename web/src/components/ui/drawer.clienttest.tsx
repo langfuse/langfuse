@@ -137,7 +137,7 @@ describe("Drawer", () => {
           </DrawerContent>
         )}
       >
-        {/* oxlint-disable-next-line @repo/no-empty-render-prop -- Asserts initialState opens the drawer; there is no trigger. */}
+        {/* oxlint-disable-next-line @repo/no-empty-children-render-prop -- Asserts initialState opens the drawer; there is no trigger. */}
         {() => null}
       </DrawerController>
     );

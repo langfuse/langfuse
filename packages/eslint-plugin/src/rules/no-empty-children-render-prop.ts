@@ -2,22 +2,6 @@ import { AST_NODE_TYPES, type TSESTree } from "@typescript-eslint/utils";
 
 import { createRule } from "../util.js";
 
-type Options = [
-  {
-    attributeNamePattern: string;
-  },
-];
-
-const DEFAULT_ATTRIBUTE_NAME_PATTERN = "^(?:children|render.*)$";
-
-function attributeNamePattern(pattern: string): RegExp {
-  try {
-    return new RegExp(pattern);
-  } catch {
-    return new RegExp(DEFAULT_ATTRIBUTE_NAME_PATTERN);
-  }
-}
-
 function unwrap(node: TSESTree.Node): TSESTree.Node {
   let current = node;
   while (
@@ -105,31 +89,22 @@ function jsxAttributeName(
   return null;
 }
 
-const rule = createRule<Options, "emptyRenderProp">({
-  name: "no-empty-render-prop",
+const rule = createRule<[], "emptyRenderProp">({
+  name: "no-empty-children-render-prop",
   meta: {
     type: "problem",
     docs: {
-      description: "Disallow render props whose function renders nothing.",
+      description:
+        "Disallow a children render prop whose function renders nothing.",
     },
-    schema: [
-      {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          attributeNamePattern: { type: "string", minLength: 1 },
-        },
-      },
-    ],
+    schema: [],
     messages: {
       emptyRenderProp:
-        "This render prop renders nothing. Return the element it is for, or omit the prop. Do not pass an empty children function to control an overlay from outside state: render the trigger here and call its open callback. `initialState` only opens an overlay on mount from the URL or saved state.",
+        "This children render prop renders nothing. Render the trigger here and call its open callback. `initialState` only opens an overlay on mount from the URL or saved state.",
     },
   },
-  defaultOptions: [{ attributeNamePattern: DEFAULT_ATTRIBUTE_NAME_PATTERN }],
-  create(context, [{ attributeNamePattern: pattern }]) {
-    const namePattern = attributeNamePattern(pattern);
-
+  defaultOptions: [],
+  create(context) {
     function check(node: TSESTree.Node) {
       if (!isRenderFunction(node) || !isEmptyRenderFunction(node)) return;
       context.report({ node, messageId: "emptyRenderProp" });
@@ -137,14 +112,13 @@ const rule = createRule<Options, "emptyRenderProp">({
 
     return {
       JSXAttribute(node) {
+        if (jsxAttributeName(node.name) !== "children") return;
         if (
           !node.value ||
           node.value.type !== AST_NODE_TYPES.JSXExpressionContainer
         ) {
           return;
         }
-        const name = jsxAttributeName(node.name);
-        if (!name || !namePattern.test(name)) return;
         check(node.value.expression);
       },
       JSXElement(node) {

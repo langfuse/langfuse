@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
@@ -16,12 +16,11 @@ const defaultArgs = {
 } satisfies DeleteOrganizationDialogProps;
 
 const renderDialog = (args: DeleteOrganizationDialogProps) => (
-  <OpenOverlay>
-    <DeleteOrganizationDialog {...args} />
-  </OpenOverlay>
+  <DeleteOrganizationDialog {...args} />
 );
 
 const meta = preview.meta({
+  decorators: [withOpenOverlay],
   component: DeleteOrganizationDialog,
 });
 

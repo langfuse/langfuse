@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { useState } from "react";
 import { fn } from "storybook/test";
 import { KeyRound, User } from "@langfuse/icons";
@@ -43,22 +43,21 @@ function StoryBulkTargetsDialog(
     : TARGET_OPTIONS;
 
   return (
-    <OpenOverlay>
-      <GatewayBulkGuardrailTargetsDialog
-        {...props}
-        targetPicker={{
-          options,
-          search,
-          onSearchChange: setSearch,
-          isLoading: false,
-        }}
-        onSubmit={fn()}
-      />
-    </OpenOverlay>
+    <GatewayBulkGuardrailTargetsDialog
+      {...props}
+      targetPicker={{
+        options,
+        search,
+        onSearchChange: setSearch,
+        isLoading: false,
+      }}
+      onSubmit={fn()}
+    />
   );
 }
 
 const meta = preview.meta({
+  decorators: [withOpenOverlay],
   component: StoryBulkTargetsDialog,
 });
 

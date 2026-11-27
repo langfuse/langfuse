@@ -268,7 +268,7 @@ export default function RemapEvaluatorPage() {
                   hideTargetSelection={true}
                   hideAdvancedSettings={true}
                   preventRedirect={true}
-                  hideFooter
+                  renderFooter={() => null}
                   evalCapabilities={evalCapabilities}
                   showPreviewTargetBadge={false}
                 />

@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { expect, fn, within } from "storybook/test";
 import preview from "../../../../../../../.storybook/preview";
 import { ActivationConfirmationDialog } from "./ActivationConfirmationDialog";
@@ -57,12 +57,9 @@ const estimatedCost = {
 };
 
 const meta = preview.meta({
+  decorators: [withOpenOverlay],
   component: ActivationConfirmationDialog,
-  render: (args) => (
-    <OpenOverlay>
-      <ActivationConfirmationDialog {...args} />
-    </OpenOverlay>
-  ),
+  render: (args) => <ActivationConfirmationDialog {...args} />,
 });
 
 export const CostWarning = meta.story({

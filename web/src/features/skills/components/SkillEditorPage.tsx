@@ -77,7 +77,7 @@ export function NewSkillPage() {
             />
           )}
         >
-          {/* oxlint-disable-next-line @repo/no-empty-render-prop -- Opens on mount from a saved draft; there is no trigger. */}
+          {/* oxlint-disable-next-line @repo/no-empty-children-render-prop -- Opens on mount from a saved draft; there is no trigger. */}
           {() => null}
         </DialogController>
       ) : null}

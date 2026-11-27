@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { useState, type ComponentProps } from "react";
 import type { FilterState } from "@langfuse/shared";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
@@ -160,13 +160,7 @@ function SetupStory({
 const meta = preview.meta({
   component: SetupStory,
   parameters: { layout: "fullscreen" },
-  decorators: [
-    (Story) => (
-      <OpenOverlay>
-        <Story />
-      </OpenOverlay>
-    ),
-  ],
+  decorators: [withOpenOverlay],
   args: {
     step: "questions" as const,
   },

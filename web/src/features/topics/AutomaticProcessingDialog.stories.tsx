@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
@@ -7,13 +7,7 @@ import { AutomaticProcessingDialog } from "./AutomaticProcessingDialog";
 const meta = preview.meta({
   component: AutomaticProcessingDialog,
   parameters: { layout: "fullscreen" },
-  decorators: [
-    (Story) => (
-      <OpenOverlay>
-        <Story />
-      </OpenOverlay>
-    ),
-  ],
+  decorators: [withOpenOverlay],
   args: {
     initialEnabled: false,
     initialSampling: 1,

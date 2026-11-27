@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
@@ -7,13 +7,7 @@ import { AddCustomModelDialog } from "./AddCustomModelDialog";
 
 const meta = preview.meta({
   component: AddCustomModelDialog,
-  decorators: [
-    (Story) => (
-      <OpenOverlay>
-        <Story />
-      </OpenOverlay>
-    ),
-  ],
+  decorators: [withOpenOverlay],
 });
 
 const MODEL_ID = "eu.anthropic.claude-opus-4-7";

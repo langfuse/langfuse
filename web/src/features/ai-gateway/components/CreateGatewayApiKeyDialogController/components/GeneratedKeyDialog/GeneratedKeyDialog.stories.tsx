@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import type { ComponentProps } from "react";
 import { expect, screen, userEvent, waitFor } from "storybook/test";
 
@@ -9,6 +9,7 @@ import { GeneratedKeyDialog } from "./GeneratedKeyDialog";
 const SECRET_KEY = "sk-lf-test-secret";
 
 const meta = preview.meta({
+  decorators: [withOpenOverlay],
   component: GeneratedKeyDialog,
   parameters: { layout: "fullscreen" },
   args: { children: <Dialog.Body>{SECRET_KEY}</Dialog.Body> },
@@ -18,11 +19,7 @@ const meta = preview.meta({
 function OpenGeneratedKeyDialog(
   props: ComponentProps<typeof GeneratedKeyDialog>,
 ) {
-  return (
-    <OpenOverlay>
-      <GeneratedKeyDialog {...props} />
-    </OpenOverlay>
-  );
+  return <GeneratedKeyDialog {...props} />;
 }
 
 export const Default = meta.story({});

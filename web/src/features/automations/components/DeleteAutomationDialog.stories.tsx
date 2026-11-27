@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -6,13 +6,7 @@ import { DeleteAutomationDialog } from "./DeleteAutomationDialog";
 
 const meta = preview.meta({
   component: DeleteAutomationDialog,
-  decorators: [
-    (Story) => (
-      <OpenOverlay>
-        <Story />
-      </OpenOverlay>
-    ),
-  ],
+  decorators: [withOpenOverlay],
 });
 
 export default meta;

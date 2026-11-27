@@ -1,10 +1,11 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { fn } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
 import { ModelFormDialogContent } from "./ModelFormDialogContent";
 
 const meta = preview.meta({
+  decorators: [withOpenOverlay],
   component: ModelFormDialogContent,
   args: {
     isSubmitting: false,
@@ -12,11 +13,7 @@ const meta = preview.meta({
     onCreated: fn(),
     onCancel: fn(),
   },
-  render: (args) => (
-    <OpenOverlay>
-      <ModelFormDialogContent {...args} />
-    </OpenOverlay>
-  ),
+  render: (args) => <ModelFormDialogContent {...args} />,
 });
 
 export const Create = meta.story({

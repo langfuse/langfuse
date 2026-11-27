@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { fn } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
@@ -6,13 +6,7 @@ import { SlackDisconnectDialog } from "./SlackDisconnectDialog";
 
 const meta = preview.meta({
   component: SlackDisconnectDialog,
-  decorators: [
-    (Story) => (
-      <OpenOverlay>
-        <Story />
-      </OpenOverlay>
-    ),
-  ],
+  decorators: [withOpenOverlay],
 });
 
 export default meta;

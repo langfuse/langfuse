@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
@@ -21,40 +21,39 @@ function StoryGuardrailTemplateGallery({
     useState<GatewayGuardrailTemplate | null>(null);
 
   return (
-    <OpenOverlay>
-      <Dialog
-        title={selectedTemplate ? selectedTemplate.name : "Add a guardrail"}
-        size={selectedTemplate?.external ? "md" : "lg"}
-        closeOnInteractionOutside={selectedTemplate === null}
-        back={
-          selectedTemplate
-            ? {
-                onClick: () => setSelectedTemplate(null),
-                label: "Back to guardrail types",
-              }
-            : undefined
-        }
-      >
-        {selectedTemplate === null ? (
-          <GatewayGuardrailTemplateGallery
-            activeTab={activeTab}
-            onActiveTabChange={setActiveTab}
-            onSelectTemplate={(template) => {
-              onSelectTemplate(template);
-              setSelectedTemplate(template);
-            }}
-          />
-        ) : (
-          <Dialog.Body>
-            <p>Selected {selectedTemplate.name}</p>
-          </Dialog.Body>
-        )}
-      </Dialog>
-    </OpenOverlay>
+    <Dialog
+      title={selectedTemplate ? selectedTemplate.name : "Add a guardrail"}
+      size={selectedTemplate?.external ? "md" : "lg"}
+      closeOnInteractionOutside={selectedTemplate === null}
+      back={
+        selectedTemplate
+          ? {
+              onClick: () => setSelectedTemplate(null),
+              label: "Back to guardrail types",
+            }
+          : undefined
+      }
+    >
+      {selectedTemplate === null ? (
+        <GatewayGuardrailTemplateGallery
+          activeTab={activeTab}
+          onActiveTabChange={setActiveTab}
+          onSelectTemplate={(template) => {
+            onSelectTemplate(template);
+            setSelectedTemplate(template);
+          }}
+        />
+      ) : (
+        <Dialog.Body>
+          <p>Selected {selectedTemplate.name}</p>
+        </Dialog.Body>
+      )}
+    </Dialog>
   );
 }
 
 const meta = preview.meta({
+  decorators: [withOpenOverlay],
   component: StoryGuardrailTemplateGallery,
 });
 

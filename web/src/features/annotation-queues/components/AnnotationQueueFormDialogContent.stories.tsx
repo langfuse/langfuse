@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import preview from "../../../../.storybook/preview";
 import { type ScoreConfigDomain } from "@langfuse/shared";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
@@ -72,6 +72,7 @@ const children: ComponentProps<
 );
 
 const meta = preview.meta({
+  decorators: [withOpenOverlay],
   component: AnnotationQueueFormDialogContent,
   parameters: {
     layout: "fullscreen",
@@ -82,24 +83,22 @@ export const Create = meta.story({
   name: "(Test) Create",
   render: () => {
     return (
-      <OpenOverlay>
-        <AnnotationQueueFormDialogContent
-          {...fixtureControls}
-          mode="create"
-          initialValues={{
-            name: "",
-            scoreConfigIds: ["config-1"],
-            newAssignmentUserIds: [],
-          }}
-          queueNames={[]}
-          hasQueueAssignmentsReadAccess={false}
-          isSubmitting={false}
-          onSubmit={fn()}
-          submitLabel="Create queue"
-        >
-          {children}
-        </AnnotationQueueFormDialogContent>
-      </OpenOverlay>
+      <AnnotationQueueFormDialogContent
+        {...fixtureControls}
+        mode="create"
+        initialValues={{
+          name: "",
+          scoreConfigIds: ["config-1"],
+          newAssignmentUserIds: [],
+        }}
+        queueNames={[]}
+        hasQueueAssignmentsReadAccess={false}
+        isSubmitting={false}
+        onSubmit={fn()}
+        submitLabel="Create queue"
+      >
+        {children}
+      </AnnotationQueueFormDialogContent>
     );
   },
   play: async ({ canvasElement }) => {
@@ -175,11 +174,7 @@ export const Edit = meta.story({
     onSubmit: fn(),
     submitLabel: "Save queue",
   },
-  render: (args) => (
-    <OpenOverlay>
-      <AnnotationQueueFormDialogContent {...args} />
-    </OpenOverlay>
-  ),
+  render: (args) => <AnnotationQueueFormDialogContent {...args} />,
   play: async ({ canvasElement, args }) => {
     const body = within(canvasElement.ownerDocument.body);
     await expect(
@@ -206,24 +201,22 @@ export const Edit = meta.story({
 export const Submitting = meta.story({
   render: () => {
     return (
-      <OpenOverlay>
-        <AnnotationQueueFormDialogContent
-          {...fixtureControls}
-          mode="create"
-          initialValues={{
-            name: "New queue",
-            scoreConfigIds: ["config-1"],
-            newAssignmentUserIds: [],
-          }}
-          queueNames={[]}
-          hasQueueAssignmentsReadAccess={false}
-          isSubmitting={true}
-          onSubmit={fn()}
-          submitLabel="Create queue"
-        >
-          {children}
-        </AnnotationQueueFormDialogContent>
-      </OpenOverlay>
+      <AnnotationQueueFormDialogContent
+        {...fixtureControls}
+        mode="create"
+        initialValues={{
+          name: "New queue",
+          scoreConfigIds: ["config-1"],
+          newAssignmentUserIds: [],
+        }}
+        queueNames={[]}
+        hasQueueAssignmentsReadAccess={false}
+        isSubmitting={true}
+        onSubmit={fn()}
+        submitLabel="Create queue"
+      >
+        {children}
+      </AnnotationQueueFormDialogContent>
     );
   },
 });
@@ -244,24 +237,22 @@ export const WithAdvancedOpen = meta.story({
   },
   render: () => {
     return (
-      <OpenOverlay>
-        <AnnotationQueueFormDialogContent
-          {...fixtureControls}
-          mode="create"
-          initialValues={{
-            name: "Team queue",
-            scoreConfigIds: ["config-1"],
-            newAssignmentUserIds: ["user-1"],
-          }}
-          queueNames={[]}
-          hasQueueAssignmentsReadAccess={true}
-          isSubmitting={false}
-          onSubmit={fn()}
-          submitLabel="Create queue"
-        >
-          {children}
-        </AnnotationQueueFormDialogContent>
-      </OpenOverlay>
+      <AnnotationQueueFormDialogContent
+        {...fixtureControls}
+        mode="create"
+        initialValues={{
+          name: "Team queue",
+          scoreConfigIds: ["config-1"],
+          newAssignmentUserIds: ["user-1"],
+        }}
+        queueNames={[]}
+        hasQueueAssignmentsReadAccess={true}
+        isSubmitting={false}
+        onSubmit={fn()}
+        submitLabel="Create queue"
+      >
+        {children}
+      </AnnotationQueueFormDialogContent>
     );
   },
 });

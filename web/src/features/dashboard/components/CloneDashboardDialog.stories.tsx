@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { fn } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -7,13 +7,7 @@ import { CloneDashboardDialog } from "./CloneDashboardDialog";
 const meta = preview.meta({
   component: CloneDashboardDialog,
   parameters: { layout: "fullscreen" },
-  decorators: [
-    (Story) => (
-      <OpenOverlay>
-        <Story />
-      </OpenOverlay>
-    ),
-  ],
+  decorators: [withOpenOverlay],
   args: {
     dashboardName: "Overview",
     setAsHome: false,

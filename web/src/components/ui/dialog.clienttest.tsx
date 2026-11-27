@@ -84,7 +84,7 @@ describe("DialogController", () => {
         size="default"
         renderContent={({ state }) => <DialogTitle>{state}</DialogTitle>}
       >
-        {/* oxlint-disable-next-line @repo/no-empty-render-prop -- Asserts initialState opens the dialog; there is no trigger. */}
+        {/* oxlint-disable-next-line @repo/no-empty-children-render-prop -- Asserts initialState opens the dialog; there is no trigger. */}
         {() => null}
       </DialogController>
     );

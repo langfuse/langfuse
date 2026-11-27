@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { SessionDeleteViewDialog } from "./SessionDeleteViewDialog";
@@ -6,13 +6,7 @@ import { SessionDeleteViewDialog } from "./SessionDeleteViewDialog";
 const meta = preview.meta({
   component: SessionDeleteViewDialog,
   parameters: { layout: "fullscreen" },
-  decorators: [
-    (Story) => (
-      <OpenOverlay>
-        <Story />
-      </OpenOverlay>
-    ),
-  ],
+  decorators: [withOpenOverlay],
   args: {
     view: { id: "saved", name: "Generations" },
     canEdit: true,

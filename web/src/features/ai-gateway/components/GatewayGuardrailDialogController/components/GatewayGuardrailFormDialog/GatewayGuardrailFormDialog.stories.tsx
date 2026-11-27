@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { useState } from "react";
 import { expect, fn, within } from "storybook/test";
 import { KeyRound, User } from "@langfuse/icons";
@@ -60,29 +60,27 @@ function StoryGuardrailFormDialog({
   );
 
   return (
-    <OpenOverlay>
-      <Dialog
-        title={title}
-        size={isExternal ? "md" : "lg"}
-        noCapture
-        back={
-          onBack
-            ? { onClick: onBack, label: "Back to guardrail types" }
-            : undefined
-        }
-      >
-        <GatewayGuardrailFormDialog
-          {...props}
-          targetPicker={{
-            options,
-            search,
-            onSearchChange: setSearch,
-            isLoading: false,
-          }}
-          onSubmit={fn()}
-        />
-      </Dialog>
-    </OpenOverlay>
+    <Dialog
+      title={title}
+      size={isExternal ? "md" : "lg"}
+      noCapture
+      back={
+        onBack
+          ? { onClick: onBack, label: "Back to guardrail types" }
+          : undefined
+      }
+    >
+      <GatewayGuardrailFormDialog
+        {...props}
+        targetPicker={{
+          options,
+          search,
+          onSearchChange: setSearch,
+          isLoading: false,
+        }}
+        onSubmit={fn()}
+      />
+    </Dialog>
   );
 }
 
@@ -104,6 +102,7 @@ const bedrockTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
 )!;
 
 const meta = preview.meta({
+  decorators: [withOpenOverlay],
   component: StoryGuardrailFormDialog,
 });
 

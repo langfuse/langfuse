@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { useState } from "react";
 import type { FilterState } from "@langfuse/shared";
 import { DEFAULT_TOPIC_FACETS, type TopicFacet } from "@langfuse/shared/topics";
@@ -135,13 +135,7 @@ function NewMapStory({
 const meta = preview.meta({
   component: NewMapStory,
   parameters: { layout: "fullscreen" },
-  decorators: [
-    (Story) => (
-      <OpenOverlay>
-        <Story />
-      </OpenOverlay>
-    ),
-  ],
+  decorators: [withOpenOverlay],
 });
 
 export const Default = meta.story({ name: "New live map" });

@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { fn } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
@@ -19,13 +19,7 @@ const meta = preview.meta({
     refreshing: false,
     onRefresh: fn(),
   },
-  decorators: [
-    (Story) => (
-      <OpenOverlay>
-        <Story />
-      </OpenOverlay>
-    ),
-  ],
+  decorators: [withOpenOverlay],
 });
 
 export const Default = meta.story({ name: "Refresh map" });

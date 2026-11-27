@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { useState } from "react";
 import { arrayMove } from "@dnd-kit/sortable";
 import { expect, fn, waitFor, within } from "storybook/test";
@@ -73,6 +73,7 @@ export const TestMixedHeights = meta.story({
 
 export const TestSortingInDialog = meta.story({
   name: "(Test) Sorting Inside a Dialog",
+  decorators: [withOpenOverlay],
   args: {
     items: ["First", "Second"],
     getId: String,
@@ -83,21 +84,19 @@ export const TestSortingInDialog = meta.story({
   render: (args) => {
     const [items, setItems] = useState(args.items);
     return (
-      <OpenOverlay>
-        <Dialog title="Reorder choices" stopPropagationOnEnterSpace={false}>
-          <Dialog.Body>
-            <SortableList
-              {...args}
-              items={items}
-              aria-label="Choices"
-              onReorder={(from, to) => {
-                setItems(arrayMove(items, from, to));
-                args.onReorder(from, to);
-              }}
-            />
-          </Dialog.Body>
-        </Dialog>
-      </OpenOverlay>
+      <Dialog title="Reorder choices" stopPropagationOnEnterSpace={false}>
+        <Dialog.Body>
+          <SortableList
+            {...args}
+            items={items}
+            aria-label="Choices"
+            onReorder={(from, to) => {
+              setItems(arrayMove(items, from, to));
+              args.onReorder(from, to);
+            }}
+          />
+        </Dialog.Body>
+      </Dialog>
     );
   },
   play: async ({ canvasElement, args, userEvent }) => {

@@ -1,4 +1,4 @@
-import { OpenOverlay } from "@/src/components/design-system/OpenOverlay/OpenOverlay";
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
@@ -7,13 +7,7 @@ import { SessionDuplicateViewDialog } from "./SessionDuplicateViewDialog";
 const meta = preview.meta({
   component: SessionDuplicateViewDialog,
   parameters: { layout: "fullscreen" },
-  decorators: [
-    (Story) => (
-      <OpenOverlay>
-        <Story />
-      </OpenOverlay>
-    ),
-  ],
+  decorators: [withOpenOverlay],
   args: {
     view: { id: "saved", name: "Generations" },
     canEdit: true,
