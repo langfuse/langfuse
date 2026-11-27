@@ -14,7 +14,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 
-export const addDomainSchema = z.object({
+const addDomainSchema = z.object({
   domain: z
     .string()
     .trim()
@@ -30,7 +30,7 @@ export const addDomainSchema = z.object({
     ),
 });
 
-export type AddDomainInput = z.infer<typeof addDomainSchema>;
+type AddDomainInput = z.infer<typeof addDomainSchema>;
 
 export function AddDomainDialogController({
   children,

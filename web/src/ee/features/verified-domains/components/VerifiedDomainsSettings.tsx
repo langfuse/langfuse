@@ -5,7 +5,7 @@ import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { AddDomainDialogController } from "./AddDomainDialogController/AddDomainDialogController";
 import { ConnectedVerifiedDomainsSettingsTable } from "./VerifiedDomainsSettingsTable/ConnectedVerifiedDomainsSettingsTable";
 
@@ -96,7 +96,7 @@ function ConnectedAddDomainDialogController({
       });
     },
     // Inline field errors are shown in AddDomainDialogController.
-    onError: () => {},
+    onError: (error) => reportTrpcErrorWithoutToast(error, "verified-domains"),
   });
 
   async function onSubmitDomain(domain: string) {
