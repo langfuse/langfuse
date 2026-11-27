@@ -287,6 +287,7 @@ const events = {
   ],
   playground: [
     "execute_button_click",
+    "variables_import",
     "save_to_new_prompt_button_click",
     "save_to_prompt_version_button_click",
   ],
