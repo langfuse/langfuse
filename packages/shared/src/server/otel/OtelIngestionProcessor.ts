@@ -1503,6 +1503,16 @@ export class OtelIngestionProcessor {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
 
+  /**
+   * Accepts only JSON numbers: unlike `Number()`, strings, null and booleans
+   * never coerce to a count. The Rust ingestion path mirrors this exactly.
+   */
+  private static finiteTokenCount(value: unknown): number | undefined {
+    return typeof value === "number" && Number.isFinite(value)
+      ? value
+      : undefined;
+  }
+
   private tryParseSpanId(span: any): string {
     try {
       if (span?.spanId != null) {
@@ -3122,9 +3132,29 @@ export class OtelIngestionProcessor {
           totalTokens: total,
         } = usage;
 
+        // Genkit unified GenerationUsage so outputTokens no longer includes
+        // thoughtsTokens (genkit-ai/genkit#6614, Oct 2026): Gemini reports
+        // candidatesTokenCount here and totalTokenCount covers input + output
+        // + thoughts, so subtracting again zeroes the visible output. Older
+        // plugins (pre-#6614 Go compat_oai) still fold reasoning into
+        // outputTokens with total = input + output; the total agreement is
+        // what identifies that legacy inclusive shape.
+        const inputCount = OtelIngestionProcessor.finiteTokenCount(input);
+        const outputCount = OtelIngestionProcessor.finiteTokenCount(output);
+        const totalCount = OtelIngestionProcessor.finiteTokenCount(total);
+        const subtractThoughts =
+          inputCount !== undefined &&
+          outputCount !== undefined &&
+          totalCount !== undefined &&
+          inputCount + outputCount === totalCount;
+
         const usageDetails: Record<string, number> = {};
         if (input) usageDetails.input = input;
-        if (output) usageDetails.output = Math.max(output - (thoughts ?? 0), 0);
+        if (output)
+          usageDetails.output = Math.max(
+            output - (subtractThoughts ? (thoughts ?? 0) : 0),
+            0,
+          );
         if (total) usageDetails.total = total;
         if (thoughts) usageDetails.output_reasoning = thoughts;
 
