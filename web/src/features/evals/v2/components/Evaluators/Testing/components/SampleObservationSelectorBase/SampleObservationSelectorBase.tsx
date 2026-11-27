@@ -472,9 +472,14 @@ export function SampleObservationSelectorBase(
   const [visitedMatches, setVisitedMatches] = useState({
     scope: matchScope,
     samples: NO_SAMPLES,
+    pageLimit: MAX_TRACE_SAMPLE_PAGES,
   });
-  const keptMatches =
-    visitedMatches.scope === matchScope ? visitedMatches.samples : NO_SAMPLES;
+  const isCurrentScope = visitedMatches.scope === matchScope;
+  const keptMatches = isCurrentScope ? visitedMatches.samples : NO_SAMPLES;
+  // Pages may load unasked up to this many; each step by the user extends it, a new filter starts over.
+  const autoPageLimit = isCurrentScope
+    ? visitedMatches.pageLimit
+    : MAX_TRACE_SAMPLE_PAGES;
   // A sample picked in the trace tree may sit outside the loaded pages.
   const isSelected = (observation: SampleObservation) =>
     observation.id === selectedObservationId;
@@ -539,8 +544,6 @@ export function SampleObservationSelectorBase(
       ? resolveSelection(detailObservations, selectedObservationId)
       : undefined;
   const loadedPageCount = observationQuery.data?.pages.length ?? 0;
-  // Pages may load unasked up to this many; each step by the user extends it.
-  const [autoPageLimit, setAutoPageLimit] = useState(MAX_TRACE_SAMPLE_PAGES);
   const canAutoLoad =
     showTraceDetail &&
     querySettled &&
@@ -796,7 +799,6 @@ export function SampleObservationSelectorBase(
             selectedObservationId={selectedObservationId}
             pending={observationsPending}
             onSelect={(observation) => {
-              setAutoPageLimit(loadedPageCount + MAX_TRACE_SAMPLE_PAGES);
               const keptIds = new Set(keptMatches.map(({ id }) => id));
               setVisitedMatches({
                 scope: matchScope,
@@ -804,6 +806,7 @@ export function SampleObservationSelectorBase(
                   ...keptMatches,
                   ...traceMatches.filter(({ id }) => !keptIds.has(id)),
                 ],
+                pageLimit: loadedPageCount + MAX_TRACE_SAMPLE_PAGES,
               });
               onSelect(observation);
             }}
