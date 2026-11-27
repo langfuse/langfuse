@@ -1068,3 +1068,68 @@ describe("IngestionService unit tests", () => {
     }
   });
 });
+
+describe("falsy ingestion metadata", () => {
+  const service = () =>
+    new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue: vi.fn() } as any,
+      {} as any,
+    );
+
+  it.each([false, 0, ""])("trace records keep bare metadata %j", (metadata) => {
+    const [record] = (service() as any).mapTraceEventsToRecords({
+      projectId: "project-id",
+      entityId: "trace-id",
+      traceEventList: [
+        {
+          id: "event-id",
+          type: "trace-create",
+          timestamp: "2026-07-22T00:00:00.000Z",
+          body: { metadata },
+        },
+      ],
+    });
+
+    expect(record.metadata).toEqual({ metadata: String(metadata) });
+  });
+
+  it("trace records omit null metadata", () => {
+    const [record] = (service() as any).mapTraceEventsToRecords({
+      projectId: "project-id",
+      entityId: "trace-id",
+      traceEventList: [
+        {
+          id: "event-id",
+          type: "trace-create",
+          timestamp: "2026-07-22T00:00:00.000Z",
+          body: { metadata: null },
+        },
+      ],
+    });
+
+    expect(record.metadata).toEqual({});
+  });
+
+  it.each([false, 0, ""])(
+    "observation records keep bare metadata %j",
+    (metadata) => {
+      const [record] = (service() as any).mapObservationEventsToRecords({
+        projectId: "project-id",
+        entityId: "observation-id",
+        prompt: null,
+        observationEventList: [
+          {
+            id: "event-id",
+            type: "span-create",
+            timestamp: "2026-07-22T00:00:00.000Z",
+            body: { metadata },
+          },
+        ],
+      });
+
+      expect(record.metadata).toEqual({ metadata: String(metadata) });
+    },
+  );
+});

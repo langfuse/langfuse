@@ -28,6 +28,18 @@ export const convertJsonSchemaToRecord = (
   return jsonSchema as Record<string, string>;
 };
 
+/**
+ * Ingestion metadata is a JSON value, including bare false, 0, and "".
+ * Null and undefined mean the field was omitted. Any other value is kept,
+ * with scalars wrapped under the metadata key by convertJsonSchemaToRecord.
+ */
+export const convertIngestionMetadata = (
+  metadata: JsonNested | null | undefined,
+): Record<string, string> => {
+  if (metadata == null) return {};
+  return convertJsonSchemaToRecord(metadata);
+};
+
 export const convertPostgresJsonToMetadataRecord = (
   metadata: Prisma.JsonValue,
 ): Record<string, string> => {
