@@ -57,8 +57,12 @@ export function useEvaluatorTraceMatches({
   );
   const pages = query.data?.pages;
   const pageCount = pages?.length ?? 0;
+  // A page that fails is not asked for again.
   const needsNextPage =
-    query.hasNextPage && !query.isFetching && pageCount < MAX_PAGES;
+    query.hasNextPage &&
+    !query.isFetching &&
+    !query.isError &&
+    pageCount < MAX_PAGES;
   const fetchNextPage = query.fetchNextPage;
   useEffect(() => {
     if (!needsNextPage) return;
