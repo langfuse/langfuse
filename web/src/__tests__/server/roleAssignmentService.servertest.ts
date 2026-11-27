@@ -82,7 +82,7 @@ describe("role assignment integrity", () => {
     const { orgId } = await createOrgProjectAndApiKey();
     const tenant = await prisma.organization.create({ data: { name: v4() } });
     const group = await prisma.group.create({
-      data: { orgId, displayName: v4() },
+      data: { orgId, displayName: v4(), source: "SCIM" },
     });
 
     await expect(
@@ -903,7 +903,7 @@ describe("getPoliciesForUser group roles", () => {
     roles: GroupRole[],
   ) => {
     const group = await prisma.group.create({
-      data: { orgId, displayName: v4() },
+      data: { orgId, displayName: v4(), source: "SCIM" },
     });
     await prisma.groupMembership.create({
       data: { groupId: group.id, orgMembershipId },
@@ -971,7 +971,7 @@ describe("getPoliciesForUser group roles", () => {
       role: "NONE",
     });
     const group = await prisma.group.create({
-      data: { orgId, displayName: v4() },
+      data: { orgId, displayName: v4(), source: "SCIM" },
     });
     await prisma.groupMembership.create({
       data: { groupId: group.id, orgMembershipId: membership.id },

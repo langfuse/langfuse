@@ -351,7 +351,7 @@ describe("groups CRUD from the UI", () => {
   it("cannot touch a group of another organization", async () => {
     const { org, otherOrg, caller } = await prepare();
     const foreign = await prisma.group.create({
-      data: { orgId: otherOrg.id, displayName: "foreign" },
+      data: { orgId: otherOrg.id, displayName: "foreign", source: "SCIM" },
     });
 
     await expect(

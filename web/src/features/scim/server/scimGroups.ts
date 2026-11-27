@@ -331,7 +331,7 @@ export async function createScimGroup(
 
   return transactOrConflict(async (tx) => {
     const group = await tx.group.create({
-      data: { orgId, displayName, externalId },
+      data: { orgId, displayName, externalId, source: GroupSource.SCIM },
     });
     await addGroupMembers(tx, { orgId, groupId: group.id, userIds: memberIds });
     const created = (await getScimGroup(orgId, group.id, tx))!;

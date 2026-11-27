@@ -673,7 +673,7 @@ model Group {
   displayName     String            @map("display_name")
   // Unique per org when set (partial index in the migration).
   externalId      String?           @map("external_id")
-  source          GroupSource       @default(SCIM)
+  source          GroupSource
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at")
   members         GroupMembership[]

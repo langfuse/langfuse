@@ -592,7 +592,7 @@ describe("find user project roles through groups", () => {
       });
     for (const roles of groups) {
       const group = await prisma.group.create({
-        data: { orgId, displayName: v4() },
+        data: { orgId, displayName: v4(), source: "SCIM" },
       });
       await prisma.groupMembership.create({
         data: { groupId: group.id, orgMembershipId: orgMembership.id },

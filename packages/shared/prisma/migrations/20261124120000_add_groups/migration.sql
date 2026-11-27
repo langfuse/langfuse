@@ -10,7 +10,7 @@ CREATE TABLE "groups" (
     "org_id" TEXT NOT NULL,
     "display_name" TEXT NOT NULL,
     "external_id" TEXT,
-    "source" "GroupSource" NOT NULL DEFAULT 'SCIM',
+    "source" "GroupSource" NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
