@@ -16,6 +16,8 @@ function ControlledEditor(args: ComponentProps<typeof CommentEditor>) {
         setValue(nextValue);
         args.onChange(nextValue);
       }}
+      onCursorChange={(offset) => args.onCursorChange?.(offset)}
+      onKeyDown={(event) => args.onKeyDown?.(event) ?? false}
     />
   );
 }
@@ -155,6 +157,27 @@ export const TestMultilineMentionName = meta.story({
     await expect(args.onChange).toHaveBeenLastCalledWith(
       `${args.value} thanks`,
     );
+  },
+});
+
+export const TestTypingALongDraft = meta.story({
+  name: "(Test) Types A Long Draft",
+  args: {
+    value: "",
+    onChange: fn(),
+    onCursorChange: fn(),
+    onKeyDown: fn(() => false),
+  },
+  render: (args) => <ControlledEditor {...args} />,
+  play: async ({ args, canvasElement }) => {
+    const textbox = within(canvasElement).getByRole("textbox", {
+      name: "New comment",
+    });
+    await userEvent.click(textbox);
+    const draft = "Please review this observation output now!!!";
+    await userEvent.keyboard(draft);
+    await expect(args.onChange).toHaveBeenLastCalledWith(draft);
+    await expect(textbox).toHaveTextContent(draft);
   },
 });
 
