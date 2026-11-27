@@ -319,13 +319,18 @@ impl OpenAiResponsesCapture {
 /// The top-level members guardrails scan.
 /// `previous_response_id` and `conversation` are only read to tell whether earlier
 /// turns are stored upstream; `prompt` for the variables it fills a stored prompt with.
-pub(super) const GUARDRAIL_MEMBERS: &[&str] = &[
-    "input",
-    "instructions",
-    "previous_response_id",
-    "conversation",
-    "prompt",
-];
+/// Where Responses API requests carry the conversation guardrails scan.
+pub(super) const REQUEST: crate::guardrails::text::RequestSpec =
+    crate::guardrails::text::RequestSpec {
+        members: &[
+            "input",
+            "instructions",
+            "previous_response_id",
+            "conversation",
+            "prompt",
+        ],
+        last_turn: guardrail_turn,
+    };
 
 #[derive(serde::Deserialize)]
 struct GuardrailItem<'a> {
@@ -370,11 +375,11 @@ fn classify_guardrail_item(
     Ok(item.turn_item())
 }
 
-pub(super) fn guardrail_turn<'a>(
-    member: impl Fn(&str) -> Option<&'a str>,
+pub(super) fn guardrail_turn(
+    members: &crate::guardrails::text::Members<'_, '_>,
 ) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
     let mut turn = crate::guardrails::text::LastTurn::default();
-    let had_model_item = match member("input") {
+    let had_model_item = match members.get("input")? {
         Some(items) if items.starts_with('[') => {
             turn.push_items("input", items, classify_guardrail_item, read_guardrail_item)?
         }
@@ -386,10 +391,11 @@ pub(super) fn guardrail_turn<'a>(
     };
     // Instructions are resent on every turn, also when the provider stores the earlier
     // turns, so they are scanned only on the first one.
-    let continues = ["previous_response_id", "conversation"]
-        .into_iter()
-        .any(|name| member(name).is_some_and(|value| value != "null"));
-    if let Some(instructions) = member("instructions") {
+    let mut continues = false;
+    for name in ["previous_response_id", "conversation"] {
+        continues |= members.get(name)?.is_some_and(|value| value != "null");
+    }
+    if let Some(instructions) = members.get("instructions")? {
         if had_model_item || continues {
             turn.push_earlier_member("instructions", instructions);
         } else {
@@ -397,7 +403,10 @@ pub(super) fn guardrail_turn<'a>(
         }
     }
     // Variables fill a stored prompt with new caller text on every request.
-    if let Some(prompt) = member("prompt").filter(|prompt| prompt.starts_with('{')) {
+    if let Some(prompt) = members
+        .get("prompt")?
+        .filter(|prompt| prompt.starts_with('{'))
+    {
         turn.push_member_with("prompt", prompt, read_guardrail_prompt);
     }
     Ok(turn)

@@ -171,30 +171,14 @@ impl ProtocolCapture {
     }
 }
 
-/// The top-level members of a request in `api_format` that hold the conversation
-/// guardrails scan.
-pub(crate) fn guardrail_members(api_format: ApiFormat) -> &'static [&'static str] {
+/// Where requests in `api_format` carry the conversation, for input guardrails.
+pub(crate) fn request_spec(api_format: ApiFormat) -> &'static crate::guardrails::text::RequestSpec {
     match api_format {
-        ApiFormat::OpenAiChatCompletions => openai_chat_completions::GUARDRAIL_MEMBERS,
-        ApiFormat::OpenAiResponses => openai_responses::GUARDRAIL_MEMBERS,
-        ApiFormat::AnthropicMessages => anthropic_messages::GUARDRAIL_MEMBERS,
-        ApiFormat::OpenAiEmbeddings => openai_embeddings::GUARDRAIL_MEMBERS,
-        ApiFormat::OpenAiDecisions => openai_decisions::GUARDRAIL_MEMBERS,
-    }
-}
-
-/// Finds the request's last turn in the members of [`guardrail_members`] that
-/// `member` returns.
-pub(crate) fn guardrail_turn<'a>(
-    api_format: ApiFormat,
-    member: impl Fn(&str) -> Option<&'a str>,
-) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
-    match api_format {
-        ApiFormat::OpenAiChatCompletions => openai_chat_completions::guardrail_turn(member),
-        ApiFormat::OpenAiResponses => openai_responses::guardrail_turn(member),
-        ApiFormat::AnthropicMessages => anthropic_messages::guardrail_turn(member),
-        ApiFormat::OpenAiEmbeddings => Ok(openai_embeddings::guardrail_turn(member)),
-        ApiFormat::OpenAiDecisions => Ok(openai_decisions::guardrail_turn(member)),
+        ApiFormat::OpenAiChatCompletions => &openai_chat_completions::REQUEST,
+        ApiFormat::OpenAiResponses => &openai_responses::REQUEST,
+        ApiFormat::AnthropicMessages => &anthropic_messages::REQUEST,
+        ApiFormat::OpenAiEmbeddings => &openai_embeddings::REQUEST,
+        ApiFormat::OpenAiDecisions => &openai_decisions::REQUEST,
     }
 }
 

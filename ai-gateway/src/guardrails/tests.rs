@@ -77,16 +77,35 @@ fn bedrock_enforce_guardrail(id: &str) -> Guardrail {
     }
 }
 
-fn scanned(body: &str, members: &[&'static str]) -> ScannedMembers {
+fn scanned(body: &str, members: &'static [&'static str]) -> ScannedMembers {
     let parsed: std::collections::BTreeMap<&str, &serde_json::value::RawValue> =
         serde_json::from_str(body).unwrap();
-    let mut scanned = ScannedMembers::default();
+    let mut scanned = ScannedMembers::new(members);
     for name in members {
         let value = parsed[name].get();
         let start = value.as_ptr().addr() - body.as_ptr().addr();
         scanned.push(name, start..start + value.len());
     }
     scanned
+}
+
+#[test]
+fn every_format_reads_only_the_request_members_it_declares() {
+    let find = |_: &str| Some(r#"[{"role":"user","content":"hi"}]"#);
+    for api_format in [
+        ApiFormat::OpenAiChatCompletions,
+        ApiFormat::OpenAiResponses,
+        ApiFormat::AnthropicMessages,
+        ApiFormat::OpenAiEmbeddings,
+        ApiFormat::OpenAiDecisions,
+    ] {
+        let spec = crate::capture::request_spec(api_format);
+        assert!(
+            (spec.last_turn)(&Members::new(spec.members, &find)).is_ok(),
+            "{api_format:?} reads a member it does not declare"
+        );
+        assert!(Members::new(spec.members, &find).get("undeclared").is_err());
+    }
 }
 
 #[test]

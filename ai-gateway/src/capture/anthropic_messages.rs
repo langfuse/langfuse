@@ -469,13 +469,18 @@ impl AnthropicMessagesCapture {
 /// results arrive as `tool_result` blocks of one user message. The system prompt
 /// counts only on the first turn.
 /// The top-level members guardrails scan.
-pub(super) const GUARDRAIL_MEMBERS: &[&str] = &["messages", "system"];
+/// Where Anthropic Messages requests carry the conversation guardrails scan.
+pub(super) const REQUEST: crate::guardrails::text::RequestSpec =
+    crate::guardrails::text::RequestSpec {
+        members: &["messages", "system"],
+        last_turn: guardrail_turn,
+    };
 
-pub(super) fn guardrail_turn<'a>(
-    member: impl Fn(&str) -> Option<&'a str>,
+pub(super) fn guardrail_turn(
+    members: &crate::guardrails::text::Members<'_, '_>,
 ) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
     let mut turn = crate::guardrails::text::LastTurn::default();
-    let had_model_turn = match member("messages") {
+    let had_model_turn = match members.get("messages")? {
         Some(messages) => turn.push_items(
             "messages",
             messages,
@@ -484,7 +489,7 @@ pub(super) fn guardrail_turn<'a>(
         )?,
         None => false,
     };
-    if let Some(system) = member("system") {
+    if let Some(system) = members.get("system")? {
         if had_model_turn {
             turn.push_earlier_member("system", system);
         } else {

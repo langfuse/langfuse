@@ -5,7 +5,7 @@
 //! `redact` guardrail replaces matched spans before forwarding or returning;
 //! an `enforce` external guardrail follows the provider's block or anonymize
 //! verdict. Each API format's capture module finds the request's last turn
-//! (`capture::guardrail_turn`), and `response` extracts provider output blocks.
+//! (`capture::request_spec`), and `response` extracts provider output blocks.
 pub(crate) mod bedrock;
 pub(crate) mod external;
 pub(crate) mod redact;
@@ -35,7 +35,7 @@ use external::{ExternalFailureKind, ExternalGuardrailClient, ExternalOutcome, Ex
 use redact::{BodyEdit, RedactionSpan};
 use regex::Compiled;
 use response::{ParsedResponse, RedactionApply, ResponseFormat, ResponseParseError};
-use text::{LastTurn, Unreadable};
+use text::{LastTurn, Members, Unreadable};
 
 /// Evaluates local regex and external provider guardrails against a request's
 /// configured scope (`last_turn` or `entire_input`), keeping CPU work off the
@@ -231,16 +231,16 @@ impl Guardrails {
                 .await
                 .ok_or(ResolutionError::Busy)?;
             let mut eval = local?;
-            // External guardrails receive copies of the response text.
-            let mut text_reservation = parsed
-                .as_ref()
-                .map(ParsedResponse::text_bytes)
-                .filter(|&bytes| has_external && bytes > 0)
-                .map(|bytes| {
-                    MemoryReservation::from_budget(&self.memory_budget, bytes, "guardrails")
-                })
-                .transpose()?;
             let external_duration = if !eval.is_blocking() && !eval.blocks.is_empty() {
+                // External guardrails receive copies of the response text.
+                let mut text_reservation = parsed
+                    .as_ref()
+                    .map(ParsedResponse::text_bytes)
+                    .filter(|&bytes| has_external && bytes > 0)
+                    .map(|bytes| {
+                        MemoryReservation::from_budget(&self.memory_budget, bytes, "guardrails")
+                    })
+                    .transpose()?;
                 self.evaluate_external(
                     &guardrails,
                     GuardrailLocation::Response,
@@ -549,15 +549,25 @@ pub(crate) enum GuardrailAction {
     Unknown,
 }
 
-/// Where the request parse found the members of `capture::guardrail_members`.
-#[derive(Clone, Debug, Default)]
+/// Where the request parse found the members its format's
+/// [`text::RequestSpec`] declares.
+#[derive(Clone, Debug)]
 pub(crate) struct ScannedMembers {
+    declared: &'static [&'static str],
     members: Vec<(&'static str, Range<usize>)>,
     /// A member appeared twice; parsers disagree on which one the provider reads.
     duplicated: bool,
 }
 
 impl ScannedMembers {
+    pub(crate) fn new(declared: &'static [&'static str]) -> Self {
+        Self {
+            declared,
+            members: Vec::new(),
+            duplicated: false,
+        }
+    }
+
     pub(crate) fn push(&mut self, name: &'static str, range: Range<usize>) {
         self.members.push((name, range));
     }
@@ -843,7 +853,8 @@ fn last_turn(
     if scanned.duplicated {
         return Err(Unreadable);
     }
-    crate::capture::guardrail_turn(api_format, member(body, scanned))
+    let find = member(body, scanned);
+    (crate::capture::request_spec(api_format).last_turn)(&Members::new(scanned.declared, &find))
 }
 
 fn member<'a>(body: &'a [u8], scanned: &ScannedMembers) -> impl Fn(&str) -> Option<&'a str> {
@@ -1578,8 +1589,9 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
 
     fn evaluate_turn(&mut self, body: &[u8], turn: &LastTurn, scanned: &ScannedMembers) -> bool {
         let include_entire_input = self.entire_input.is_active();
+        let find = member(body, scanned);
         turn.read_scoped_leaves(
-            member(body, scanned),
+            &Members::new(scanned.declared, &find),
             include_entire_input,
             &mut |leaf, in_last_turn| {
                 let target =

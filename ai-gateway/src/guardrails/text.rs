@@ -240,6 +240,41 @@ pub(crate) type ClassifyItem = fn(&RawValue) -> Result<TurnItem, Unreadable>;
 /// Reads the text leaves of one conversation item.
 pub(crate) type ReadItem = fn(&RawValue, &mut dyn FnMut(TextLeaf<'_>)) -> Result<(), Unreadable>;
 
+/// Where a request in one API format carries the conversation guardrails scan.
+pub(crate) struct RequestSpec {
+    /// The top-level members the request parse locates; reading any other is
+    /// unreadable.
+    pub members: &'static [&'static str],
+    /// Finds the last turn among `members`.
+    pub last_turn: fn(&Members<'_, '_>) -> Result<LastTurn, Unreadable>,
+}
+
+/// A request's top-level members, by name.
+pub(crate) struct Members<'f, 'a> {
+    declared: &'static [&'static str],
+    find: &'f dyn Fn(&str) -> Option<&'a str>,
+}
+
+impl<'f, 'a> Members<'f, 'a> {
+    pub(crate) fn new(
+        declared: &'static [&'static str],
+        find: &'f dyn Fn(&str) -> Option<&'a str>,
+    ) -> Self {
+        Self { declared, find }
+    }
+
+    /// The JSON of member `name`, if the request has it. A member its format
+    /// does not declare is unreadable: the request parse never located it, so
+    /// it would read as absent and its text would go unscanned.
+    pub(crate) fn get(&self, name: &str) -> Result<Option<&'a str>, Unreadable> {
+        if self.declared.contains(&name) {
+            Ok((self.find)(name))
+        } else {
+            Err(Unreadable)
+        }
+    }
+}
+
 /// Where a request's last turn and full input sit: whole members, and
 /// conversation items from an offset on. Finding it reads the conversation's
 /// structure; reading its text is a separate step, so the caller can size the
@@ -377,9 +412,9 @@ impl LastTurn {
     /// each leaf belongs to the last turn. When `include_entire_input` is
     /// `false`, earlier items and resent system prompts are skipped completely.
     /// Returning `false` from `sink` stops walking early.
-    pub(crate) fn read_scoped_leaves<'a>(
+    pub(crate) fn read_scoped_leaves(
         &self,
-        member: impl Fn(&str) -> Option<&'a str>,
+        members: &Members<'_, '_>,
         include_entire_input: bool,
         sink: &mut dyn FnMut(TextLeaf<'_>, bool) -> bool,
     ) -> Result<(), Unreadable> {
@@ -397,7 +432,9 @@ impl LastTurn {
                     if !include_entire_input && !in_last_turn {
                         continue;
                     }
-                    let Some(raw) = member(name) else { continue };
+                    let Some(raw) = members.get(name)? else {
+                        continue;
+                    };
                     let raw: &RawValue = serde_json::from_str(raw).map_err(|_| Unreadable)?;
                     read(raw, &mut |leaf| {
                         if keep_going {
@@ -413,7 +450,9 @@ impl LastTurn {
                     classify,
                     read,
                 } => {
-                    let Some(raw) = member(name) else { continue };
+                    let Some(raw) = members.get(name)? else {
+                        continue;
+                    };
                     let begin = if include_entire_input { first } else { start };
                     let rest = raw.get(begin..).ok_or(Unreadable)?.trim_start();
                     let mut rest = rest.strip_prefix(',').unwrap_or(rest).trim_start();
@@ -446,24 +485,24 @@ impl LastTurn {
     }
 
     #[cfg(test)]
-    pub(crate) fn read_leaves<'a>(
+    pub(crate) fn read_leaves(
         &self,
-        member: impl Fn(&str) -> Option<&'a str>,
+        members: &Members<'_, '_>,
         sink: &mut dyn FnMut(TextLeaf<'_>),
     ) -> Result<(), Unreadable> {
-        self.read_scoped_leaves(member, false, &mut |leaf, _| {
+        self.read_scoped_leaves(members, false, &mut |leaf, _| {
             sink(leaf);
             true
         })
     }
 
     #[cfg(test)]
-    pub(crate) fn read<'a>(
+    pub(crate) fn read(
         &self,
-        member: impl Fn(&str) -> Option<&'a str>,
+        members: &Members<'_, '_>,
         sink: &mut dyn FnMut(&str),
     ) -> Result<(), Unreadable> {
-        self.read_leaves(member, &mut |leaf| sink(leaf.text))
+        self.read_leaves(members, &mut |leaf| sink(leaf.text))
     }
 }
 
@@ -539,8 +578,10 @@ mod tests {
         turn.push_items("messages", raw, classify_role, read_role)
             .unwrap();
         let mut roles = Vec::new();
-        turn.read(|_| Some(raw), &mut |role| roles.push(role.to_owned()))
-            .unwrap();
+        turn.read(&Members::new(&["messages"], &|_| Some(raw)), &mut |role| {
+            roles.push(role.to_owned());
+        })
+        .unwrap();
         (roles, turn.bytes())
     }
 
