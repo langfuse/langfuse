@@ -189,7 +189,7 @@ export function EvaluatorSavedDialog({
                 disabled={isSubmitting}
                 onClick={onSecondaryAction}
               >
-                Skip execution
+                Save for later
               </Button>
             )}
           </Tooltip>
