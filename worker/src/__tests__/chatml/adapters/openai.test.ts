@@ -314,6 +314,43 @@ describe("OpenAI Adapter", () => {
 
       expect(result.data?.[0].content).toBe("Hello");
     });
+
+    it("should preserve every output_text content segment", () => {
+      const output = {
+        output: [
+          {
+            content: [
+              { type: "output_text", text: "The capital is Paris." },
+              {
+                type: "output_text",
+                text: " It is known for the Eiffel Tower.",
+              },
+            ],
+            role: "assistant",
+          },
+        ],
+      };
+
+      const result = normalizeOutput(output, { framework: "openai" });
+
+      expect(result.data?.[0].content).toBe(
+        "The capital is Paris. It is known for the Eiffel Tower.",
+      );
+    });
+
+    it("should preserve mixed content arrays", () => {
+      const content = [
+        { type: "output_text", text: "I cannot help with that." },
+        { type: "refusal", refusal: "Policy restriction" },
+      ];
+      const output = {
+        output: [{ content, role: "assistant" }],
+      };
+
+      const result = normalizeOutput(output, { framework: "openai" });
+
+      expect(result.data?.[0].content).toEqual(content);
+    });
   });
 
   describe("Responses API request format", () => {
