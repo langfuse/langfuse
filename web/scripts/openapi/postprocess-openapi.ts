@@ -6,6 +6,7 @@ import {
   getFernDeprecatedProperties,
 } from "./fern-deprecations";
 import { stampDeprecations } from "./stamp-deprecations";
+import { stampInfoAndServers } from "./stamp-info-and-servers";
 import { stampUnionVariantTitles } from "./stamp-union-variant-titles";
 
 const webDirectory = process.cwd();
@@ -22,6 +23,15 @@ const openApiPath = path.resolve(
   `public/generated/${api === "server" ? "api" : "organizations-api"}/openapi.yml`,
 );
 
+// Only the major version: release-it bumps web/package.json without
+// re-exporting the spec, so a full version would go stale on every release.
+function readServerMajorVersion(): string {
+  const packageJson = JSON.parse(
+    fs.readFileSync(path.resolve(webDirectory, "package.json"), "utf8"),
+  ) as { version: string };
+  return packageJson.version.split(".")[0];
+}
+
 const deprecatedOperations = getFernDeprecatedOperations(definitionDirectory);
 const deprecatedProperties = getFernDeprecatedProperties(definitionDirectory);
 const openApiSource = fs.readFileSync(openApiPath, "utf8");
@@ -30,8 +40,14 @@ const deprecatedSource = stampDeprecations(
   deprecatedOperations,
   deprecatedProperties,
 );
-const { source: syncedSource, stamped } =
+const { source: titledSource, stamped } =
   stampUnionVariantTitles(deprecatedSource);
+// The Langfuse API spec gets a title, the major server version and the Cloud regions.
+// The organizations API is self-hosted only and keeps its own title.
+const syncedSource =
+  api === "server"
+    ? stampInfoAndServers(titledSource, readServerMajorVersion())
+    : titledSource;
 
 if (syncedSource !== openApiSource) fs.writeFileSync(openApiPath, syncedSource);
 
