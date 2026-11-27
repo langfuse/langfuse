@@ -62,37 +62,17 @@ describe("pricingPlans", () => {
     }
   });
 
-  it("gives the plans dialog's cards the table's words", () => {
-    const card = (plan: string) =>
-      stripeProducts.find((product) => product.mappedPlan === plan)?.checkout;
-
-    expect(card("cloud:core")).toMatchObject({
-      title: "Core",
-      price: "$29 / month",
-      mainFeatures: [
-        "Everything in Hobby",
-        "100k units a month",
-        "90 days data access",
-        "Unlimited users",
-        "3 annotation queues",
-        "20 alerts",
-        "4,000 / min ingestion",
-        "In-app support",
-      ],
-    });
-    expect(card("cloud:team")).toMatchObject({
-      title: "Pro + Teams Add-on",
-      mainFeatures: card("cloud:pro")?.mainFeatures,
-      addOn: {
-        name: "Teams Add-on",
-        mainFeatures: pricingPlans["cloud:team"].lines.map((line) => line.text),
-      },
-    });
-    expect(card("cloud:enterprise")?.mainFeatures).toEqual([
-      "Everything in Pro + Teams Add-on",
-      "100 alerts",
-      "Custom ingestion",
-      ...pricingPlans["cloud:enterprise"].lines.map((line) => line.text),
+  it("names and prices the Stripe catalogue's plans from the table", () => {
+    expect(
+      stripeProducts.map((product) => [
+        product.checkout?.title,
+        product.checkout?.price,
+      ]),
+    ).toEqual([
+      ["Core", "$29 / month"],
+      ["Pro", "$199 / month"],
+      ["Pro + Teams Add-on", "$499 / month"],
+      ["Enterprise", "$2,499 / month"],
     ]);
   });
 });

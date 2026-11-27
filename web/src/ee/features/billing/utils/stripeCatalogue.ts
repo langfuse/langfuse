@@ -7,46 +7,15 @@ import {
 
 import {
   type CloudPlan,
-  cloudPlans,
   pricingPlans,
 } from "@/src/ee/features/billing/constants/pricingPlans";
-import { planLimitChanges } from "@/src/ee/features/billing/fns/planLimitChanges";
+import { formatPlanPrice } from "@/src/ee/features/billing/fns/formatPlanPrice";
 
-/** A plan's card lines: the plan below it, the limits it raises, then the lines it adds. */
-const cardLines = (plan: CloudPlan): ReadonlyArray<string> => {
-  const below = cloudPlans[cloudPlans.indexOf(plan) - 1];
-  const limits = planLimitChanges(below ?? plan, plan)
-    .filter((limit) => below === undefined || limit.direction !== "same")
-    .map((limit) => `${limit.now} ${limit.label.toLowerCase()}`);
-  return [
-    ...(below ? [`Everything in ${pricingPlans[below].name}`] : []),
-    ...limits,
-    ...pricingPlans[plan].lines.map((line) => line.text),
-  ];
-};
-
-const TEAMS_ADD_ON_NAME = "Teams Add-on";
-
-/** A plans-dialog card in the plan table's words; Team is Pro's card plus the add-on's lines. */
-const checkoutOf = (plan: CloudPlan) => {
-  const { name, description, monthlyPrice, lines } = pricingPlans[plan];
-  const isTeam = plan === "cloud:team";
-  return {
-    title: name,
-    description,
-    price: `$${monthlyPrice} / month`,
-    usagePrice: "$8-6* per 100k units",
-    mainFeatures: cardLines(isTeam ? "cloud:pro" : plan),
-    ...(isTeam
-      ? {
-          addOn: {
-            name: TEAMS_ADD_ON_NAME,
-            mainFeatures: lines.map((line) => line.text),
-          },
-        }
-      : {}),
-  };
-};
+/** A plan a customer can subscribe to, named and priced as the plan table has it. */
+const checkoutOf = (plan: CloudPlan) => ({
+  title: pricingPlans[plan].name,
+  price: formatPlanPrice(plan),
+});
 
 const isTestEnvironment =
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
@@ -57,19 +26,7 @@ type StripeProduct = {
   orderKey?: number | undefined; // to check whether a plan is upgraded or downgraded
   mappedPlan: Plan;
   // include checkout if product can be subscribed to by new users
-  checkout: {
-    title: string;
-    description: string;
-    price: string;
-    usagePrice: string;
-    mainFeatures: ReadonlyArray<string>;
-    /** Lines an add-on brings, listed under its name after the plan's own. */
-    addOn?: { name: string; mainFeatures: ReadonlyArray<string> };
-    cta?: {
-      label: string;
-      href: string;
-    };
-  } | null;
+  checkout: { title: string; price: string } | null;
 };
 
 // Backward-compatible export: same name and shape as before
@@ -96,13 +53,7 @@ export const stripeProducts: StripeProduct[] = [
     stripeProductId: stripeProductIdByPlan["cloud:enterprise"],
     mappedPlan: "cloud:enterprise",
     orderKey: 2499,
-    checkout: {
-      ...checkoutOf("cloud:enterprise"),
-      cta: {
-        label: "Contact Sales",
-        href: "https://langfuse.com/talk-to-us",
-      },
-    },
+    checkout: checkoutOf("cloud:enterprise"),
   },
 ];
 
@@ -112,10 +63,7 @@ const stripeUsageProduct = {
     : "prod_T4nLLI2vn876J2",
 };
 
-export const isUpgrade = (
-  oldProductId: string,
-  newProductId: string,
-): boolean => {
+const isUpgrade = (oldProductId: string, newProductId: string): boolean => {
   const oldProduct = stripeProducts.find(
     (product) => product.stripeProductId === oldProductId,
   );

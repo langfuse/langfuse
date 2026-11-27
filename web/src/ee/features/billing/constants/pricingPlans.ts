@@ -39,7 +39,7 @@ export const planLimitLabels: Record<PlanLimitKind, string> = {
   users: "Users",
   "annotation-queues": "Annotation queues",
   alerts: "Alerts",
-  ingestion: "Ingestion",
+  ingestion: "Ingestion per minute",
 };
 
 /** What a feature line is about; a plan's line replaces a lower plan's line of the same kind. */

@@ -517,6 +517,10 @@ const events = {
   // How many open the confirm of a plan change and back out. Props are plan
   // enums and the direction only.
   billing_plan_change: ["confirm_opened"],
+  // Which plans people look at in the plan picker before they change or
+  // leave. Fires on a person's pick, not on the plan the picker opens on.
+  // Props are plan enums and the direction only.
+  billing_plan_picker: ["plan_selected"],
   // Cancel flow funnel: why paying organizations leave and whether a next
   // step keeps them. Props are reason and step enums and booleans only; the
   // written note never leaves the billing request.
