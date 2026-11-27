@@ -14,6 +14,7 @@ import {
 } from "@/src/ee/features/billing/fns/planLimitChanges";
 import { planLineChanges } from "@/src/ee/features/billing/fns/planLineChanges";
 
+import { PlanCustomerLogos } from "./PlanCustomerLogos";
 import { PlanLimitsGrid } from "./PlanLimitsGrid";
 import { PlanLinesList } from "./PlanLinesList";
 
@@ -72,6 +73,9 @@ export function PlanPickerChange({
             />
           </div>
           <p className="text-muted-foreground">{picked.description}</p>
+          <div className="pt-2">
+            <PlanCustomerLogos plan={pickedPlan} />
+          </div>
         </div>
 
         {pendingNote ? <p className="border-l-2 pl-3">{pendingNote}</p> : null}
