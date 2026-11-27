@@ -11,7 +11,7 @@ import { ZodError } from "zod";
 import { StructuredPublicApiError } from "@/src/features/public-api/types/structuredPublicApiError";
 
 import { isUserInputError, McpQueryCooldownError } from "./errors";
-import type { ServerContext } from "../types";
+import type { McpConnection, ServerContext } from "../types";
 
 type McpToolAttribute = string | number | boolean;
 
@@ -22,7 +22,8 @@ export const runMcpTool = async <TResult>({
   fn,
 }: {
   spanName: string;
-  context: ServerContext;
+  /** The call's ServerContext, or the bare connection for tools that run in no project. */
+  context: ServerContext | McpConnection;
   attributes?: Record<string, McpToolAttribute | undefined>;
   fn: (span: Span) => Promise<TResult>;
 }): Promise<TResult> =>
@@ -31,8 +32,9 @@ export const runMcpTool = async <TResult>({
     async (span) => {
       addUserToSpan(
         {
-          projectId: context.projectId,
-          orgId: context.orgId,
+          ...("projectId" in context
+            ? { projectId: context.projectId, orgId: context.orgId }
+            : {}),
           apiKeyId: context.apiKeyId,
         },
         span,

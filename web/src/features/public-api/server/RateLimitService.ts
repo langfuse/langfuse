@@ -26,6 +26,8 @@ import {
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessScope";
 
 /** @internal */
 export const RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit";
@@ -81,12 +83,13 @@ export class RateLimitService {
     RateLimitService.instance = null;
   }
 
-  /** `points` is what this request costs, e.g. its byte size for byte-based resources. */
+  /** `points` is what this request costs, e.g. its byte size for byte-based resources. An authorization context is limited by the organization its credential is bound to. */
   async rateLimitRequest(
-    scope: ApiAccessScopeWithOptionalApiKeyId,
+    auth: ApiAccessScopeWithOptionalApiKeyId | AuthorizationContext,
     resource: z.infer<typeof RateLimitResource>,
     points = 1,
   ) {
+    const scope = "principal" in auth ? toBoundScope(auth) : auth;
     // if cloud config is not present, we don't apply rate limits and just return
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       return new RateLimitHelper(undefined);
@@ -634,3 +637,18 @@ const getPlanBasedRateLimitConfig = (
       throw new Error(`Unhandled plan case: ${exhaustiveCheck}`);
   }
 };
+
+/** toBoundScope is the access scope of the resource an authorization context's credential is bound to. */
+function toBoundScope(
+  auth: AuthorizationContext,
+): ApiAccessScopeWithOptionalApiKeyId {
+  const { principal } = auth;
+  const bound =
+    principal.kind === "apiKey"
+      ? {
+          orgId: principal.boundResource.orgId,
+          projectId: principal.boundResource.projectId ?? null,
+        }
+      : { orgId: "", projectId: null };
+  return toApiAccessScope(principal, bound);
+}

@@ -3,6 +3,7 @@ import { runHealthCheck } from "@/src/features/public-api/server/health-service"
 import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import type { McpConnection } from "../../../types";
 
 const HealthInputSchema = z.object({
   failIfDatabaseUnavailable: z.boolean().optional().default(false),
@@ -23,7 +24,7 @@ export const [getHealthTool, handleGetHealth] = defineTool({
     "Check Langfuse API health. Optionally verify database availability and recent trace/observation ingestion.",
   baseSchema: HealthInputSchema,
   inputSchema: HealthInputSchema,
-  handler: async (input, context) =>
+  handler: async (input, context: McpConnection) =>
     runMcpTool({
       spanName: "mcp.health.get",
       context,

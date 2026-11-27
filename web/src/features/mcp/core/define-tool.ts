@@ -18,15 +18,25 @@ import type {
   ServerContext as McpRequestContext,
 } from "@modelcontextprotocol/server";
 import type { ApiAction } from "@/src/features/public-api/server/enforceAuth";
-import type { ServerContext } from "../types";
+import type { McpConnection, ServerContext } from "../types";
+import {
+  isProjectAction,
+  PROJECT_ID_ARGUMENT,
+  projectIdArgumentDescription,
+} from "../server/toolContext";
 import { toMcpAppToolMeta, type McpAppToolUi } from "./mcp-app";
 
 /**
- * Tool handler function type
+ * Tool handler function type. Project tools get the call's resolved
+ * ServerContext; tools that skip authz (getHealth, listProjects) run on the
+ * bare McpConnection.
  */
-export type ToolHandler<TInput> = (
+export type ToolHandler<
+  TInput,
+  TContext extends McpConnection = ServerContext,
+> = (
   input: TInput,
-  context: ServerContext,
+  context: TContext,
   /** The SDK's context of the tools/call request; absent in direct calls. */
   mcpRequest?: McpRequestContext,
 ) => Promise<unknown>;
@@ -45,7 +55,11 @@ type ToolAccessAudit<TInput> = Omit<AccessAuditMeta, "idKey"> & {
 /**
  * Tool definition options
  */
-export interface DefineToolOptions<TInput, TName extends string = string> {
+export interface DefineToolOptions<
+  TInput,
+  TName extends string = string,
+  TContext extends McpConnection = ServerContext,
+> {
   /** Tool name (must be unique across all tools) */
   name: TName;
 
@@ -59,7 +73,7 @@ export interface DefineToolOptions<TInput, TName extends string = string> {
   inputSchema: z.ZodType<TInput>;
 
   /** Handler function that executes the tool logic */
-  handler: ToolHandler<TInput>;
+  handler: ToolHandler<TInput, TContext>;
 
   /** Action the caller must hold to run this tool. */
   action: ApiAction;
@@ -160,14 +174,18 @@ function hasJsonSchemaUnion(value: unknown): boolean {
 export function defineTool<TInput, const TName extends string>(
   options: DefineAuditedToolOptions<TInput, TName>,
 ): [ToolDefinition<TName>, ToolHandler<TInput>];
-export function defineTool<TInput, const TName extends string>(
-  options: DefineToolOptions<TInput, TName>,
-): [ToolDefinition<TName>, ToolHandler<TInput>];
+export function defineTool<
+  TInput,
+  const TName extends string,
+  TContext extends McpConnection = ServerContext,
+>(
+  options: DefineToolOptions<TInput, TName, TContext>,
+): [ToolDefinition<TName>, ToolHandler<TInput, TContext>];
 export function defineTool<TInput, const TName extends string>(
   options:
     | DefineAuditedToolOptions<TInput, TName>
-    | DefineToolOptions<TInput, TName>,
-): [ToolDefinition<TName>, ToolHandler<TInput>] {
+    | DefineToolOptions<TInput, TName, McpConnection>,
+): [ToolDefinition<TName>, ToolHandler<TInput, any>] {
   const {
     name,
     description,
@@ -210,14 +228,16 @@ export function defineTool<TInput, const TName extends string>(
     name,
     description,
     action,
-    inputSchema: jsonSchemaObject,
+    inputSchema: isProjectAction(action)
+      ? withProjectIdArgument(name, jsonSchemaObject)
+      : jsonSchemaObject,
     ...(annotations ? { annotations } : {}),
     ...(ui ? { _meta: toMcpAppToolMeta(ui) } : {}),
   };
 
-  const wrappedHandler: ToolHandler<TInput> = async (
+  const wrappedHandler: ToolHandler<TInput, any> = async (
     rawInput: unknown,
-    context: ServerContext,
+    context: McpConnection,
     mcpRequest?: McpRequestContext,
   ) => {
     // Validate input with the full schema (including refinements)
@@ -227,14 +247,38 @@ export function defineTool<TInput, const TName extends string>(
       return await options.handler(validatedInput, context, mcpRequest);
     }
 
+    // Audited tools always read a project, so they get a ServerContext.
+    const projectContext = context as ServerContext;
     const { audit, toRead } = collectAccessRead(options.accessAudit);
-    const result = await options.handler(validatedInput, context, audit);
+    const result = await options.handler(validatedInput, projectContext, audit);
     await recordMcpAccess(
-      context,
+      projectContext,
       toRead(name, validatedInput as Record<string, unknown>),
     );
     return result;
   };
 
   return [toolDefinition, wrappedHandler];
+}
+
+/** withProjectIdArgument adds the optional projectId argument that every project tool accepts; tools/call strips it before the tool validates its input. */
+function withProjectIdArgument(
+  name: string,
+  schema: Tool["inputSchema"],
+): Tool["inputSchema"] {
+  if (schema.properties && PROJECT_ID_ARGUMENT in schema.properties) {
+    throw new Error(
+      `MCP tool '${name}' declares a '${PROJECT_ID_ARGUMENT}' input, which is reserved for selecting the project.`,
+    );
+  }
+  return {
+    ...schema,
+    properties: {
+      ...schema.properties,
+      [PROJECT_ID_ARGUMENT]: {
+        type: "string",
+        description: projectIdArgumentDescription,
+      },
+    },
+  };
 }

@@ -6,7 +6,7 @@
  */
 
 import type { ToolDefinition, ToolHandler } from "../core/define-tool";
-import type { ServerContext } from "../types";
+import type { McpConnection } from "../types";
 import { promptsFeature } from "./prompts";
 import { skillsFeature } from "./skills";
 import { observationsFeature } from "./observations";
@@ -14,6 +14,7 @@ import { annotationQueuesFeature } from "./annotationQueues";
 import { commentsFeature } from "./comments";
 import { datasetsFeature } from "./datasets";
 import { healthFeature } from "./health";
+import { projectsFeature } from "./projects";
 import { scoresFeature } from "./scores";
 import { metricsFeature } from "./metrics";
 import { modelsFeature } from "./models";
@@ -32,7 +33,7 @@ import { appsFeature } from "./apps";
 /** A tool's definition (for the MCP protocol) and its handler. */
 export interface RegisteredTool<TName extends string = string> {
   definition: ToolDefinition<TName>;
-  handler: ToolHandler<any>;
+  handler: ToolHandler<any, any>;
 }
 
 /**
@@ -61,7 +62,7 @@ export interface McpFeatureModule {
   tools: readonly RegisteredTool[];
 
   /** Whether the feature is offered in the given context (entitlements, flags). */
-  isEnabled?: (context: ServerContext) => boolean | Promise<boolean>;
+  isEnabled?: (context: McpConnection) => boolean | Promise<boolean>;
 }
 
 const MCP_FEATURES = [
@@ -72,6 +73,7 @@ const MCP_FEATURES = [
   commentsFeature,
   datasetsFeature,
   healthFeature,
+  projectsFeature,
   scoresFeature,
   metricsFeature,
   modelsFeature,
@@ -114,7 +116,7 @@ if (duplicate) {
 
 /** The tools a request in this context lists. */
 export async function getEnabledTools(
-  context: ServerContext,
+  context: McpConnection,
 ): Promise<RegisteredTool[]> {
   const enabled = await Promise.all(
     MCP_FEATURES.map(async (feature: McpFeatureModule) =>
@@ -132,7 +134,7 @@ export async function getEnabledTools(
  */
 export async function getEnabledTool(
   name: string,
-  context: ServerContext,
+  context: McpConnection,
 ): Promise<RegisteredTool | undefined> {
   for (const feature of MCP_FEATURES as readonly McpFeatureModule[]) {
     const tool = feature.tools.find((t) => t.definition.name === name);
@@ -152,7 +154,7 @@ export async function getEnabledTool(
  */
 export function canCallTool(
   tool: RegisteredTool,
-  context: ServerContext,
+  context: McpConnection,
 ): boolean {
   const { inAppAgent } = context;
   return (

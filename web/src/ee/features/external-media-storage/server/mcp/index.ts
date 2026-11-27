@@ -16,8 +16,7 @@ import {
 
 export const externalMediaStorageFeature = {
   name: "external-media-storage",
-  description:
-    "Configure S3 external media storage for the current Langfuse project",
+  description: "Configure S3 external media storage for a Langfuse project",
   tools: [
     {
       definition: getExternalMediaStorageTool,
@@ -36,8 +35,11 @@ export const externalMediaStorageFeature = {
       handler: handleTestExternalMediaStorage,
     },
   ],
-  isEnabled: (context) =>
-    createExternalMediaStorageService(prisma).isFeatureEnabled(
-      context.projectId,
+  // The organization's plan decides availability; an organization key's
+  // connection names no project, only the organization it is bound to.
+  isEnabled: (connection) =>
+    connection.auth.principal.kind === "apiKey" &&
+    createExternalMediaStorageService(prisma).isOrganizationFeatureEnabled(
+      connection.auth.principal.boundResource.orgId,
     ),
 } as const satisfies McpFeatureModule;

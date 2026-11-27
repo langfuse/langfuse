@@ -82,6 +82,9 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       title: "Using with MCP",
       description: (
         <>
+          {props.scope === "organization"
+            ? "This key works across the organization's projects: the agent passes a projectId on each tool call, and listProjects lists the projects it can use. The key's role decides what it can do in them. "
+            : null}
           For a detailed guide on how to use this API key to connect to the
           Langfuse MCP server, see the{" "}
           <a
@@ -96,8 +99,17 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
         </>
       ),
       codeLabel: "Header",
-      code: `Authorization: Basic ${GATEWAY_KEY_PLACEHOLDER}`,
-      secret: encodeMcpCredential(projectId, secretKey),
+      ...(props.scope === "organization"
+        ? {
+            // An organization key is not bound to a project; tool calls name
+            // their project, so the connection needs only the secret key.
+            code: `Authorization: Bearer ${GATEWAY_KEY_PLACEHOLDER}`,
+            secret: secretKey,
+          }
+        : {
+            code: `Authorization: Basic ${GATEWAY_KEY_PLACEHOLDER}`,
+            secret: encodeMcpCredential(projectId, secretKey),
+          }),
     });
   }
 

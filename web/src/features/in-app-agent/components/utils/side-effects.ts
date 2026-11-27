@@ -102,6 +102,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_listExperimentItems: [],
   langfuse_submitFeedback: ["scores", "scoreAnalytics"],
   langfuse_getHealth: [],
+  langfuse_listProjects: [],
   langfuse_getV4MigrationData: [],
   langfuse_getMedia: [],
   langfuse_getExternalMediaStorage: [],

@@ -19,11 +19,14 @@ import {
   type ClientCapabilities,
 } from "@modelcontextprotocol/server";
 import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
-import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import { formatErrorForUser } from "../core/error-formatting";
-import type { ServerContext } from "../types";
-import type { ToolDefinition } from "../core/define-tool";
+import type { McpConnection, ServerContext } from "../types";
 import { canCallTool, getEnabledTool, getEnabledTools } from "./tools";
+import {
+  isProjectAction,
+  resolveToolContext,
+  splitProjectId,
+} from "./toolContext";
 import {
   clientMayRenderApps,
   isAppTool,
@@ -43,6 +46,7 @@ const MCP_SERVER_NAME = "langfuse";
 const MCP_SERVER_VERSION = "0.3.0-unstable";
 const MCP_SERVER_INSTRUCTIONS = [
   "Use this server for project-scoped Langfuse data and actions such as prompts, datasets, scores, comments, metrics, observations etc.",
+  "Project tools run in the API key's project. Keys that are not bound to a project, such as organization keys, pass `projectId` on every project tool call; call listProjects to find the projects the key can access.",
   "Inspect the available tools and their schemas dynamically; do not assume a fixed tool list.",
   "For conceptual Langfuse product guidance, SDK/API documentation, instrumentation help, or prompt-migration guidance, prefer the Langfuse docs MCP server or installed Langfuse agent skills when they are available.",
   "Discover bundled Langfuse skills with skills/list, retrieve metadata with skills/get, and read skill files with resources/read.",
@@ -64,7 +68,7 @@ export const getMcpServerInstructions = (): string =>
  *
  * Tools come from the feature modules listed in `tools.ts`.
  *
- * @param context - Server context from authenticated request (captured in closures)
+ * @param connection - The authenticated connection (captured in closures)
  * @param clientCapabilities - Capabilities the request declared, if any;
  *   decides whether MCP App tools and their resources are offered
  * @returns Configured MCP Server instance
@@ -77,7 +81,7 @@ export const getMcpServerInstructions = (): string =>
  * // Server discarded after request
  */
 export async function createMcpServer(
-  context: ServerContext,
+  connection: McpConnection,
   clientCapabilities?: ClientCapabilities,
 ): Promise<McpServer> {
   const server = new McpServer(
@@ -114,7 +118,7 @@ export async function createMcpServer(
 
   // ListTools handler - dynamically load from registry
   server.server.setRequestHandler("tools/list", async () => {
-    const definitions = (await getEnabledTools(context)).map(
+    const definitions = (await getEnabledTools(connection)).map(
       (tool) => tool.definition,
     );
     const tools = clientMayRenderApps(clientCapabilities)
@@ -122,7 +126,7 @@ export async function createMcpServer(
       : definitions.filter((definition) => !isAppTool(definition));
 
     logger.debug("MCP ListTools", {
-      projectId: context.projectId,
+      boundProjectId: connection.boundProjectId,
       toolCount: tools.length,
       toolNames: tools.map((t) => t.name),
     });
@@ -134,29 +138,35 @@ export async function createMcpServer(
   server.server.setRequestHandler("tools/call", async (request, ctx) => {
     const { name, arguments: args } = request.params;
 
-    logger.debug("MCP CallTool", {
-      projectId: context.projectId,
-      toolName: name,
-    });
+    // Tools of disabled features and tools the connection may not call fail
+    // the same way as absent tools.
+    const registeredTool = await getEnabledTool(name, connection);
 
-    // Tools of disabled features and tools the context may not call fail the
-    // same way as absent tools.
-    const registeredTool = await getEnabledTool(name, context);
-
-    if (!registeredTool || !canCallTool(registeredTool, context)) {
+    if (!registeredTool || !canCallTool(registeredTool, connection)) {
       throw new ProtocolError(
         ProtocolErrorCode.InvalidParams,
         `Unknown tool: ${name}`,
       );
     }
 
-    assertToolAuthorized(registeredTool.definition, context);
+    const { action } = registeredTool.definition;
+    const { projectId, input } = splitProjectId(args);
+    // Project tools run in the project the call names, authorized per call.
+    const projectContext: ServerContext | undefined = isProjectAction(action)
+      ? resolveToolContext(connection, action, projectId)
+      : undefined;
+    const context = projectContext ?? connection;
+
+    logger.debug("MCP CallTool", {
+      projectId: projectContext?.projectId,
+      toolName: name,
+    });
 
     // Execute handler with context
     // Handler validates input; errors are formatted only at this boundary.
     const clickHouseCtx = contextWithLangfuseProps({
-      projectId: context.projectId,
-      apiKeyId: context.apiKeyId,
+      projectId: projectContext?.projectId,
+      apiKeyId: connection.apiKeyId,
       clickhouse: {
         surface: "mcp",
         route: name,
@@ -164,7 +174,7 @@ export async function createMcpServer(
     });
     try {
       const result = await otelContext.with(clickHouseCtx, () =>
-        registeredTool.handler(args, context, ctx),
+        registeredTool.handler(input, context, ctx),
       );
 
       if (isInputRequiredResult(result)) return result;
@@ -198,26 +208,3 @@ export async function createMcpServer(
 
   return server;
 }
-
-/** assertToolAuthorized reports enforce-mode denials as MCP errors. */
-function assertToolAuthorized(
-  definition: ToolDefinition,
-  context: ServerContext,
-): void {
-  const decision = shadowAuthorize({
-    ctx: context.auth,
-    action: definition.action,
-    resource: { projectId: context.projectId },
-    legacyDecision: {
-      success: true,
-      scope: { accessLevel: context.accessLevel },
-    },
-  });
-  if (!decision.success) {
-    const { code, message } = formatErrorForUser(decision.error);
-    throw new ProtocolError(code, message);
-  }
-}
-
-/** @internal */
-export const __test = { assertToolAuthorized };

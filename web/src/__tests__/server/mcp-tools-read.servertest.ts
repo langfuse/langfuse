@@ -34,6 +34,7 @@ vi.mock(
   }),
 );
 
+import { projectIdArgumentDescription } from "@/src/features/mcp/server/toolContext";
 import {
   Client,
   InMemoryTransport,
@@ -639,13 +640,19 @@ describe("MCP Read Tools", () => {
       ).resolves.toBeDefined();
     });
 
-    it("should not expose projectId in its input schema", () => {
+    it("should take projectId only as the optional project selector", () => {
       const properties = listMonitorsTool.inputSchema.properties as Record<
         string,
         unknown
       >;
 
-      expect(properties.projectId).toBeUndefined();
+      expect(properties.projectId).toEqual({
+        type: "string",
+        description: projectIdArgumentDescription,
+      });
+      expect(listMonitorsTool.inputSchema.required ?? []).not.toContain(
+        "projectId",
+      );
     });
 
     it("should list, filter, order, and paginate monitors in the current project", async () => {

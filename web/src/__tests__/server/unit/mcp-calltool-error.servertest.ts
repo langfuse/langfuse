@@ -20,23 +20,20 @@ import { WIDGET_APP_RESOURCE_URI } from "@/src/features/mcp/server/apps/resource
 import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
 import { getEnabledTool } from "@/src/features/mcp/server/tools";
 import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
-import type { ServerContext } from "@/src/features/mcp/types";
+import type { McpConnection } from "@/src/features/mcp/types";
+import {
+  mockAuthContext,
+  mockConnection,
+} from "@/src/__tests__/server/mcp-auth-fixtures";
 
 vi.mock("@/src/features/mcp/server/tools", () => ({
   getEnabledTool: vi.fn(),
   canCallTool: () => true,
 }));
 
-const context: ServerContext = {
-  projectId: "project-1",
-  orgId: "org-1",
-  apiKeyId: "key-1",
-  accessLevel: "project",
-  publicKey: "pk-lf-test",
-  plan: "oss",
-  rateLimitOverrides: [],
-  accessAuditLogEnabled: false,
-};
+const context: McpConnection = mockConnection(
+  mockAuthContext({ orgId: "org-1", projectId: "project-1", actions: [] }),
+);
 
 describe("MCP tool results", () => {
   it.each([

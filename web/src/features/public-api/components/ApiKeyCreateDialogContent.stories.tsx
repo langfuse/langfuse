@@ -139,5 +139,11 @@ export const CreatedOrganizationKey = meta.story({
     await expect(body.textContent).toContain(
       'LANGFUSE_PUBLIC_KEY="cm1betaproject00000000001"',
     );
+
+    // MCP connects with the secret key alone; tool calls name the project.
+    await userEvent.click(screen.getByRole("tab", { name: "MCP" }));
+    await expect(body.textContent).toContain("Authorization: Bearer");
+    await expect(body.textContent).not.toContain("Authorization: Basic");
+    await expect(body.textContent).toContain("listProjects");
   },
 });
