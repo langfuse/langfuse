@@ -52,7 +52,6 @@ import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeature
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { StringParam, useQueryParam } from "use-query-params";
 import { TraceMessagesView } from "./TraceMessagesView/TraceMessagesView";
-import { SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { useSessionScopeData } from "@/src/features/traces/hooks/useSessionScopeData";
 import { SessionErrorBanner } from "./SessionErrorBanner/SessionErrorBanner";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
@@ -740,7 +739,7 @@ function TraceLoading({
   if (isEmbedded && presentation === "messages") {
     return (
       <SkeletonGroup className={cn(traceContentClassName, "px-3 pt-2")}>
-        <SessionConversationTimelineTrace.Loading />
+        <TraceMessagesView.Loading />
       </SkeletonGroup>
     );
   }

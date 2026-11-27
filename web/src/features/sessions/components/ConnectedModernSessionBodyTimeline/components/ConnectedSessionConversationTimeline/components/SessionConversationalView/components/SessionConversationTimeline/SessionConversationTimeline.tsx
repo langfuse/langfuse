@@ -79,3 +79,7 @@ export function SessionConversationTimeline({
     </div>
   );
 }
+
+/** Placeholder for one trace's transcript while it loads. */
+SessionConversationTimeline.TraceLoading =
+  SessionConversationTimelineTrace.Loading;

@@ -190,3 +190,6 @@ function HiddenThreadsDivider({
     </div>
   );
 }
+
+/** Placeholder for a messages-only trace while it loads. */
+TraceMessagesView.Loading = SessionConversationTimeline.TraceLoading;
