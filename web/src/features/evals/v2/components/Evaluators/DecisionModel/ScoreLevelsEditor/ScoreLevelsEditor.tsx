@@ -98,6 +98,7 @@ export function ScoreLevelsEditor({
             )}
           />
         ) : null}
+        {error ? <p className="text-destructive text-xs">{error}</p> : null}
         <div className="flex items-center gap-1.5">
           <TextActionButton
             text="Add level"
@@ -114,7 +115,6 @@ export function ScoreLevelsEditor({
             so it can be a decimal from 0 to {Math.max(levels.length - 1, 0)}.
           </InfoTooltip>
         </div>
-        {error ? <p className="text-destructive text-xs">{error}</p> : null}
       </div>
     </FieldRow>
   );

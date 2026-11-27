@@ -100,12 +100,12 @@ export function ChoiceOptionsEditor({
             )}
           />
         ) : null}
+        {error ? <p className="text-destructive text-xs">{error}</p> : null}
         <TextActionButton
           text="Add option"
           disabled={options.length >= DECISION_MODEL_LIMITS.maxChoiceOptions}
           onClick={() => onChange([...options, { value: "", description: "" }])}
         />
-        {error ? <p className="text-destructive text-xs">{error}</p> : null}
       </div>
     </FieldRow>
   );
