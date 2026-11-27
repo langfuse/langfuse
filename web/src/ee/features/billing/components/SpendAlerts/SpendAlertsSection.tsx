@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Plus } from "@langfuse/icons";
+import { SPEND_ALERTS_SECTION_ID } from "@/src/ee/features/billing/constants";
 import { ConnectedSpendAlertsTable } from "./ConnectedSpendAlertsTable";
 import { ConnectedSpendAlertDialogController } from "./ConnectedSpendAlertDialogController";
 
@@ -17,7 +18,7 @@ export function SpendAlertsSection({ orgId }: SpendAlertsSectionProps) {
       onSuccess={() => setRefetchTrigger((prev) => prev + 1)}
     >
       {({ openDialog }) => (
-        <div className="space-y-2">
+        <div className="space-y-2" id={SPEND_ALERTS_SECTION_ID}>
           <div className="flex items-center justify-between pt-4">
             <div>
               <h3 className="font-bold">Spend Alerts</h3>
