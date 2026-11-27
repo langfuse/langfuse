@@ -1,4 +1,5 @@
 import { type ObservationLevelType } from "@langfuse/shared";
+import { type ReactNode } from "react";
 
 import {
   ItemTypeTile,
@@ -23,6 +24,8 @@ type EntityTitleProps = {
   help?: DocPopupProps;
   /** Observation level badge after the title; DEFAULT shows nothing. */
   level?: ObservationLevelType;
+  /** Badges after the title, on the title's text baseline. */
+  badges?: ReactNode;
   /** `sm`: for a title inside a panel that has its own heading. */
   size?: "default" | "sm";
   as: "h2" | "span";
@@ -37,6 +40,7 @@ export function EntityTitle({
   tooltip,
   help,
   level,
+  badges,
   size = "default",
   as: Heading,
   isFocusable,
@@ -52,6 +56,7 @@ export function EntityTitle({
           // A leading class must follow the font size, or tailwind-merge drops it.
           size === "sm" ? "text-base" : "text-lg leading-6",
           isFocusable && "focus:outline-hidden",
+          badges && "self-baseline",
         )}
         title={tooltip ? undefined : title}
         tabIndex={isFocusable ? 0 : undefined}
@@ -84,6 +89,7 @@ export function EntityTitle({
         )}
       </Heading>
       {level && level !== "DEFAULT" && <ObservationLevelBadge level={level} />}
+      {badges && <div className="flex shrink-0 self-baseline">{badges}</div>}
     </div>
   );
 }

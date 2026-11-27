@@ -5,8 +5,11 @@ export function SampleBadge() {
   return (
     <span className="flex shrink-0">
       <BadgeShell color="blue" size="sm">
-        <span className="size-1.5 shrink-0 rounded-full bg-current" />
-        <span className="whitespace-nowrap uppercase">Will be evaluated</span>
+        {/* The dot is out of flow, so the badge's baseline is its text's. */}
+        <span className="relative pl-2.5 whitespace-nowrap uppercase">
+          <span className="absolute top-1/2 left-0 size-1.5 -translate-y-1/2 rounded-full bg-current" />
+          Will be evaluated
+        </span>
       </BadgeShell>
     </span>
   );

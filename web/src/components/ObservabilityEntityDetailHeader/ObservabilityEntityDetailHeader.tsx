@@ -518,9 +518,9 @@ function EntityDetailHeaderChrome({
             level={titleLevel}
             size={titleSize}
             tooltip={titleTooltip}
+            badges={titleBadges}
             isFocusable
           />
-          {titleBadges}
         </div>
         <div
           ref={clusterRef}
