@@ -533,50 +533,6 @@ export default defineConfig({
                 message:
                   "Design-system internals may only be imported by other design-system components.",
               },
-              {
-                regex: "(^@/\\.storybook/decorators/|\\.storybook/decorators/)",
-                message:
-                  "Storybook-only modules stay in stories. Application code cannot import them.",
-              },
-            ],
-          },
-        ],
-      },
-    },
-    {
-      files: ["**/*.stories.{ts,tsx}"],
-      rules: {
-        "eslint-js/no-restricted-imports": [
-          "warn",
-          {
-            patterns: [
-              {
-                regex: "^(lucide-react|react-icons)(/|$)",
-                message:
-                  "Import typed icons from @langfuse/icons, @langfuse/icons/si, or @langfuse/icons/tb instead.",
-              },
-              {
-                regex: "^(\\.\\./)+(packages|ee|worker)/",
-                message:
-                  "Do not import other workspace packages via relative paths. Use the package entrypoints instead (e.g. @langfuse/shared/src/db, @langfuse/shared/src/server).",
-              },
-              {
-                regex: "^@sentry/nextjs$",
-                importNames: ["captureException", "captureMessage"],
-                message:
-                  "Do not capture directly — route through the reportError seam (@/src/utils/reportError) or a helper that wraps it (captureUnknownError, reportParserWorkerError), so one seam owns error classification. See the reportError doc comment and .agents/skills/sentry-instrumentation/SKILL.md.",
-              },
-              {
-                regex: "^sonner(?:/|$)",
-                importNames: ["toast", "default"],
-                message:
-                  "Use the notifications feature's typed toast helpers. Every toast must declare its static operation and errors/warnings must declare origin and category.",
-              },
-              {
-                regex: "(^|/)design-system/internal(?:/|$)",
-                message:
-                  "Design-system internals may only be imported by other design-system components.",
-              },
             ],
           },
         ],
@@ -584,7 +540,6 @@ export default defineConfig({
     },
     {
       files: ["src/components/design-system/**/*.{ts,tsx}"],
-      excludeFiles: ["**/*.stories.{ts,tsx}"],
       rules: {
         "eslint-js/no-restricted-imports": [
           "warn",
@@ -611,11 +566,6 @@ export default defineConfig({
                 importNames: ["toast", "default"],
                 message:
                   "Use the notifications feature's typed toast helpers. Every toast must declare its static operation and errors/warnings must declare origin and category.",
-              },
-              {
-                regex: "(^@/\\.storybook/decorators/|\\.storybook/decorators/)",
-                message:
-                  "Storybook-only modules stay in stories. Application code cannot import them.",
               },
             ],
           },
@@ -677,11 +627,6 @@ export default defineConfig({
                 message:
                   "Use the notifications feature's typed toast helpers. Every toast must declare its static operation and errors/warnings must declare origin and category.",
               },
-              {
-                regex: "(^@/\\.storybook/decorators/|\\.storybook/decorators/)",
-                message:
-                  "Storybook-only modules stay in stories. Application code cannot import them.",
-              },
             ],
           },
         ],
@@ -718,11 +663,6 @@ export default defineConfig({
                 regex: "(^|/)design-system/internal(?:/|$)",
                 message:
                   "Design-system internals may only be imported by other design-system components.",
-              },
-              {
-                regex: "(^@/\\.storybook/decorators/|\\.storybook/decorators/)",
-                message:
-                  "Storybook-only modules stay in stories. Application code cannot import them.",
               },
             ],
           },

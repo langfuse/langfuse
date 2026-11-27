@@ -59,71 +59,69 @@ export function NewSkillPage() {
   const metadata = parseSkillFrontmatterMetadata(skillMarkdown);
 
   return (
-    <>
-      {storedDraft ? (
-        <DialogController
-          initialState={() => true}
-          onDismiss={() => {
-            storedDraft.discard();
-            setDraft(createSkillDraft(draftKey, NEW_SKILL_INITIAL_VALUE, null));
+    <DialogController<true>
+      // undefined leaves the dialog closed. A boolean would open it.
+      initialState={() => (storedDraft ? true : undefined)}
+      onDismiss={() => {
+        if (!storedDraft) return;
+        storedDraft.discard();
+        setDraft(createSkillDraft(draftKey, NEW_SKILL_INITIAL_VALUE, null));
+      }}
+      renderDialog={({ closeDialog }) => (
+        <Dialog
+          title="Continue your draft?"
+          text="You have an unsaved skill draft from earlier in this tab."
+          requireExplicitClose
+          closeLabel="Start new"
+          actions={[{ label: "Continue draft", onClick: closeDialog }]}
+        />
+      )}
+    >
+      {() => (
+        <SkillEditor
+          key={draft === storedDraft ? "stored-draft" : "new-draft"}
+          headerProps={{
+            title: metadata?.name.trim() ? metadata.name : "Create skill",
+            help:
+              metadata && !metadata.nameError
+                ? {
+                    description:
+                      "The skill name and description are parsed from the frontmatter in SKILL.md.",
+                  }
+                : undefined,
+            breadcrumb: [
+              { name: "Skills", href: `/project/${projectId}/skills` },
+              { name: "New skill" },
+            ],
           }}
-          renderDialog={({ closeDialog }) => (
-            <Dialog
-              title="Continue your draft?"
-              text="You have an unsaved skill draft from earlier in this tab."
-              requireExplicitClose
-              closeLabel="Start new"
-              actions={[{ label: "Continue draft", onClick: closeDialog }]}
-            />
-          )}
-        >
-          {/* oxlint-disable-next-line @repo/no-empty-children-render-prop -- Opens on mount from a saved draft; there is no trigger. */}
-          {() => null}
-        </DialogController>
-      ) : null}
-      <SkillEditor
-        key={draft === storedDraft ? "stored-draft" : "new-draft"}
-        headerProps={{
-          title: metadata?.name.trim() ? metadata.name : "Create skill",
-          help:
-            metadata && !metadata.nameError
-              ? {
-                  description:
-                    "The skill name and description are parsed from the frontmatter in SKILL.md.",
-                }
-              : undefined,
-          breadcrumb: [
-            { name: "Skills", href: `/project/${projectId}/skills` },
-            { name: "New skill" },
-          ],
-        }}
-        projectId={projectId ?? ""}
-        store={store}
-        canCreate={canCreate}
-        view={{
-          kind: "draft",
-          onDiscard: async () => {
+          projectId={projectId ?? ""}
+          store={store}
+          canCreate={canCreate}
+          view={{
+            kind: "draft",
+            onDiscard: async () => {
+              draft.discard();
+              await router.push(`/project/${projectId}/skills`);
+            },
+          }}
+          history={{ kind: "new" }}
+          metadataOptions={{
+            labels: ["production"],
+            tags: filterOptions.data?.tags.map((tag) => tag.value) ?? [],
+          }}
+          onCreated={async (created) => {
             draft.discard();
-            await router.push(`/project/${projectId}/skills`);
-          },
-        }}
-        history={{ kind: "new" }}
-        metadataOptions={{
-          labels: ["production"],
-          tags: filterOptions.data?.tags.map((tag) => tag.value) ?? [],
-        }}
-        onCreated={async (created) => {
-          draft.discard();
-          await Promise.all([
-            utils.skills.all.invalidate(),
-            utils.skills.filterOptions.invalidate(),
-          ]);
-          await router.push(
-            `/project/${projectId}/skills/${encodeURIComponent(created.name)}?version=${created.version}`,
-          );
-        }}
-      />
-    </>
+            await Promise.all([
+              utils.skills.all.invalidate(),
+              utils.skills.filterOptions.invalidate(),
+            ]);
+            await router.push(
+              `/project/${projectId}/skills/${encodeURIComponent(created.name)}?version=${created.version}`,
+            );
+          }}
+        />
+      )}
+    </DialogController>
   );
 }
 
