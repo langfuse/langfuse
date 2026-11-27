@@ -231,11 +231,15 @@ export function mapEventEvalFilterColumnIdToField(
     return undefined;
   }
 
-  if (columnMapping.id === "isRootObservation") {
-    return isRootObservation({
-      parentObservationId: observation.parent_span_id,
-      isAppRoot: observation.is_app_root,
-    });
+  const isRoot = isRootObservation({
+    parentObservationId: observation.parent_span_id,
+    isAppRoot: observation.is_app_root,
+  });
+  if (columnMapping.id === "isRootObservation") return isRoot;
+
+  // Same fallback as the traces table: an unnamed trace takes its root observation's name.
+  if (columnMapping.id === "traceName") {
+    return observation.trace_name || (isRoot ? observation.name : null);
   }
 
   if (columnMapping.id === "isExperimentItemRootSpan") {

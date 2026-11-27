@@ -113,6 +113,18 @@ describe("mapEventEvalFilterColumnIdToField", () => {
     ).toBe("checkout-eval");
   });
 
+  it("falls back to the root observation name when the trace name is empty", () => {
+    const traceName = (observation: Partial<ObservationForEval>) =>
+      mapEventEvalFilterColumnIdToField(
+        { name: "query", ...observation } as ObservationForEval,
+        "traceName",
+      );
+
+    expect(traceName({ trace_name: "", parent_span_id: "" })).toBe("query");
+    expect(traceName({ trace_name: "chat", parent_span_id: "" })).toBe("chat");
+    expect(traceName({ trace_name: "", parent_span_id: "parent" })).toBe(null);
+  });
+
   it("maps the experiment root filter to a boolean", () => {
     expect(
       mapEventEvalFilterColumnIdToField(
