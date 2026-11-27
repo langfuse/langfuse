@@ -45,45 +45,47 @@ export function createUserTableColumn<
     <UserTableCell variant="loading" presentation={variant} />
   );
 
-  return createTableColumn<TData, TValue>({
-    ...options,
+  return {
+    ...createTableColumn<TData, TValue>({
+      ...options,
+      renderCell: (value, context) => {
+        if (!getUser && (value === null || value === undefined)) {
+          const placeholder = nullValue ?? emptyValue;
+          if (!placeholder) return null;
+          return (
+            <span className="block w-full truncate" title={placeholder}>
+              {placeholder}
+            </span>
+          );
+        }
+
+        let cell: UserTableColumnCell;
+        if (getUser) {
+          cell = getUser(value, context);
+        } else if (value !== null && value !== undefined) {
+          cell = { type: "user", user: value };
+        }
+
+        if (!cell) {
+          const placeholder = nullValue ?? emptyValue;
+          if (!placeholder) return null;
+          return (
+            <span className="block w-full truncate" title={placeholder}>
+              {placeholder}
+            </span>
+          );
+        }
+        if (cell.type === "loading") return loadingCell;
+
+        return (
+          <UserTableCell
+            user={cell.user}
+            variant={variant}
+            emptyValue={emptyValue}
+          />
+        );
+      },
+    }),
     loadingCell,
-    renderCell: (value, context) => {
-      if (!getUser && (value === null || value === undefined)) {
-        const placeholder = nullValue ?? emptyValue;
-        if (!placeholder) return null;
-        return (
-          <span className="block w-full truncate" title={placeholder}>
-            {placeholder}
-          </span>
-        );
-      }
-
-      let cell: UserTableColumnCell;
-      if (getUser) {
-        cell = getUser(value, context);
-      } else if (value !== null && value !== undefined) {
-        cell = { type: "user", user: value };
-      }
-
-      if (!cell) {
-        const placeholder = nullValue ?? emptyValue;
-        if (!placeholder) return null;
-        return (
-          <span className="block w-full truncate" title={placeholder}>
-            {placeholder}
-          </span>
-        );
-      }
-      if (cell.type === "loading") return loadingCell;
-
-      return (
-        <UserTableCell
-          user={cell.user}
-          variant={variant}
-          emptyValue={emptyValue}
-        />
-      );
-    },
-  });
+  };
 }

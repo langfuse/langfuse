@@ -793,15 +793,7 @@ function EntityMetrics({ metrics }: { metrics: readonly HeaderMetric[] }) {
           <MetricChip metric={metric} />
         </span>
       )}
-      trailingContent={
-        actions.length > 0 ? (
-          <div className="flex items-center gap-1">
-            {actions.map((metric) => (
-              <MetricChip key={metric.id} metric={metric} />
-            ))}
-          </div>
-        ) : undefined
-      }
+      trailingItems={actions.length > 0 ? actions : undefined}
       renderOverflow={({ hiddenItems, overflowItemCount }) => {
         const normalizedSearch = search.trim().toLocaleLowerCase();
         const filteredMetrics = [...hiddenItems, ...remainingMetrics].filter(

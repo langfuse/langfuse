@@ -22,24 +22,26 @@ export function createDropdownTableColumn<
     context: CellContext<TData, TValue | null | undefined>,
   ) => React.ReactNode;
 }) {
-  return createTableColumn<TData, TValue>({
-    ...options,
-    loadingCell: <Skeleton className="h-8 w-8 shrink-0 rounded-md" />,
-    renderCell: (value, context) => {
-      const items = renderMenu(value, context);
-      if (!items) return null;
+  return {
+    ...createTableColumn<TData, TValue>({
+      ...options,
+      renderCell: (value, context) => {
+        const items = renderMenu(value, context);
+        if (!items) return null;
 
-      return (
-        <div onClick={(event) => event.stopPropagation()}>
-          <DropdownMenuController align="end" renderMenu={() => items}>
-            {({ Trigger }) => (
-              <Trigger asChild>
-                <IconButton icon={MoreVertical} label="Open menu" />
-              </Trigger>
-            )}
-          </DropdownMenuController>
-        </div>
-      );
-    },
-  });
+        return (
+          <div onClick={(event) => event.stopPropagation()}>
+            <DropdownMenuController align="end" renderMenu={() => items}>
+              {({ Trigger }) => (
+                <Trigger asChild>
+                  <IconButton icon={MoreVertical} label="Open menu" />
+                </Trigger>
+              )}
+            </DropdownMenuController>
+          </div>
+        );
+      },
+    }),
+    loadingCell: <Skeleton className="h-8 w-8 shrink-0 rounded-md" />,
+  };
 }

@@ -20,17 +20,19 @@ export function createButtonTableColumn<TData extends RowData, TValue>({
     loading?: boolean;
   };
 }) {
-  return createTableColumn<TData, TValue>({
-    ...options,
-    enableResizing: false,
+  return {
+    ...createTableColumn<TData, TValue>({
+      ...options,
+      enableResizing: false,
+      renderCell: (_, context) => {
+        const { disabledReason, ...buttonProps } = getButton(context);
+        return (
+          <div title={buttonProps.disabled ? disabledReason : undefined}>
+            <Button size="sm" {...buttonProps} />
+          </div>
+        );
+      },
+    }),
     loadingCell: <Skeleton className="h-8 w-16" />,
-    renderCell: (_, context) => {
-      const { disabledReason, ...buttonProps } = getButton(context);
-      return (
-        <div title={buttonProps.disabled ? disabledReason : undefined}>
-          <Button size="sm" {...buttonProps} />
-        </div>
-      );
-    },
-  });
+  };
 }

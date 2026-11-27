@@ -48,7 +48,7 @@ export function createTokenUsageTableColumn<
 }) {
   return createTableColumn<TData, TValue>({
     ...options,
-    loadingCell: tokenUsageLoadingCell,
+    loading: "text",
     renderCell: (value, context) => {
       const cell = getCell(value, context);
       if (!cell) return null;

@@ -22,8 +22,8 @@ import { flushSync } from "react-dom";
  * entries that should not be mounted in the measurement row. Item and overflow
  * presentation remain entirely caller-defined. Apply `getItemProps` to each
  * item's single root DOM element; it supplies measurement markers and merges
- * layout classes. `trailingContent` stays pinned immediately after the overflow
- * control and participates in width measurement.
+ * layout classes. `trailingItems` stay pinned immediately after the overflow
+ * control, rendered with `renderItem`, and participate in width measurement.
  *
  * The row gap only ever separates rendered content, so every row starts on the
  * same inline edge whether it holds items, only the overflow control, or
@@ -47,13 +47,27 @@ const rowVariants = cva("flex items-center", {
     },
   },
 });
-export function OverflowList<TItem>({
+function trailingItemProps(
+  row: "measurement" | "visible",
+  props?: HTMLAttributes<HTMLElement>,
+): HTMLAttributes<HTMLElement> {
+  return {
+    ...props,
+    className: cn(
+      "flex items-center shrink-0",
+      row === "visible" && "min-w-0",
+      props?.className,
+    ),
+  };
+}
+
+export function OverflowList<TItem, TTrailing = never>({
   items,
   additionalOverflowCount,
   getKey,
   renderItem,
   renderOverflow,
-  trailingContent,
+  trailingItems,
   spacing = "compact",
   alignment = "start",
   isTightItem,
@@ -63,7 +77,7 @@ export function OverflowList<TItem>({
   additionalOverflowCount: number;
   getKey: (item: TItem) => string;
   renderItem: (
-    item: TItem,
+    item: TItem | TTrailing,
     controls: {
       getItemProps: (
         props?: HTMLAttributes<HTMLElement>,
@@ -78,15 +92,14 @@ export function OverflowList<TItem>({
     hiddenItems: readonly TItem[];
     overflowItemCount: number;
   }) => ReactNode;
-  trailingContent?: ReactNode;
+  trailingItems?: readonly TTrailing[];
   spacing?: NonNullable<VariantProps<typeof rowVariants>["spacing"]>;
   alignment?: NonNullable<VariantProps<typeof rowVariants>["alignment"]>;
   /** Tight items sit 4px from a preceding tight item instead of the row gap. */
   isTightItem?: (item: TItem) => boolean;
   minVisible?: 0 | 1;
 }) {
-  const hasTrailingContent =
-    trailingContent !== null && trailingContent !== undefined;
+  const hasTrailingContent = (trailingItems?.length ?? 0) > 0;
   const {
     measurementRowRef,
     overflowRef,
@@ -126,7 +139,16 @@ export function OverflowList<TItem>({
           </Fragment>
         ))}
         {hasTrailingContent && (
-          <div className="flex shrink-0 items-center">{trailingContent}</div>
+          <div className="flex shrink-0 items-center gap-1">
+            {trailingItems?.map((item, index) => (
+              <Fragment key={index}>
+                {renderItem(item, {
+                  getItemProps: (props) =>
+                    trailingItemProps("measurement", props),
+                })}
+              </Fragment>
+            ))}
+          </div>
         )}
       </div>
       <div
@@ -162,8 +184,17 @@ export function OverflowList<TItem>({
           </div>
         ) : null}
         {hasTrailingContent ? (
-          <div ref={trailingContentRef} className="flex shrink-0 items-center">
-            {trailingContent}
+          <div
+            ref={trailingContentRef}
+            className="flex shrink-0 items-center gap-1"
+          >
+            {trailingItems?.map((item, index) => (
+              <Fragment key={index}>
+                {renderItem(item, {
+                  getItemProps: (props) => trailingItemProps("visible", props),
+                })}
+              </Fragment>
+            ))}
           </div>
         ) : null}
       </div>

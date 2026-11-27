@@ -1,7 +1,29 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+
+export type TableColumnLoading = "text" | "badge" | "icon" | "iconText";
+
+const tableColumnLoadingClassName = {
+  text: "h-4 w-1/2",
+  badge: "h-5 w-16 shrink-0 rounded-sm",
+  icon: "h-5 w-5 shrink-0 rounded-full",
+} as const;
+
+function renderTableColumnLoading(loading: TableColumnLoading) {
+  if (loading === "iconText") {
+    return (
+      <span className="flex items-center gap-2">
+        <Skeleton className="h-5 w-5 shrink-0 rounded-full" />
+        <Skeleton className="h-4 w-1/2" />
+      </span>
+    );
+  }
+
+  return <Skeleton className={tableColumnLoadingClassName[loading]} />;
+}
 
 type NullableTableColumnValue<TValue> = TValue | null | undefined;
 
@@ -39,11 +61,11 @@ export function createTableColumn<TData extends RowData, TValue>({
   accessorFn,
   accessorKey,
   id: explicitId,
-  loadingCell,
+  loading,
   renderCell,
   ...columnOptions
 }: TableColumnOptions<TData, TValue> & {
-  loadingCell: React.ReactNode | (() => React.ReactNode);
+  loading?: TableColumnLoading;
   renderCell: (
     value: NullableTableColumnValue<TValue>,
     context: CellContext<TData, NullableTableColumnValue<TValue>>,
@@ -64,7 +86,7 @@ export function createTableColumn<TData extends RowData, TValue>({
   const column: LangfuseColumnDef<TData, NullableTableColumnValue<TValue>> = {
     ...columnOptions,
     ...accessor,
-    loadingCell,
+    loadingCell: loading ? renderTableColumnLoading(loading) : undefined,
     cell: (context) => renderCell(context.getValue(), context),
   };
 

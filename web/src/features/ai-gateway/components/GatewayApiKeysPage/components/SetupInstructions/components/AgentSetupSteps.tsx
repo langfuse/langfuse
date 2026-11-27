@@ -1,7 +1,6 @@
 import { use } from "react";
 
 import { Banner } from "@/src/components/design-system/Banner/Banner";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import { GatewaySecretKeyContext } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/contexts/gatewaySecretKeyContext";
 import { GATEWAY_KEY_PLACEHOLDER } from "@/src/features/ai-gateway/constants/agentSetupInstructions";
@@ -35,20 +34,8 @@ export function AgentSetupSteps({
             key={step.title}
             number={index + 1}
             title={step.title}
-            description={
-              step.link ? (
-                <>
-                  {describeStep(step, secretKey)}{" "}
-                  <Button
-                    variant="text"
-                    text={step.link.label}
-                    href={step.link.href}
-                  />
-                </>
-              ) : (
-                describeStep(step, secretKey)
-              )
-            }
+            description={describeStep(step, secretKey)}
+            descriptionLink={step.link}
             variant="outline"
             size="sm"
             isCollapsible={false}

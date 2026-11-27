@@ -1,9 +1,7 @@
-/* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 import { type IconComponent } from "@langfuse/icons";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   createTableColumn,
   type TableColumnOptions,
@@ -68,7 +66,7 @@ export function createBadgeTableColumn<TData extends RowData>({
 }: BadgeTableColumnOptions<TData> & { nullValue?: string }) {
   return createTableColumn<TData, string>({
     ...options,
-    loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
+    loading: "badge",
     renderCell: (value, context) => {
       if (!value) {
         return nullValue ? (

@@ -1,7 +1,6 @@
 /* eslint-disable boundaries/dependencies */
 import { type RowData } from "@tanstack/react-table";
 
-import { Skeleton } from "@/src/components/ui/skeleton";
 import { useCompactRows } from "@/src/components/table/data-table-row-height-switch";
 import { default as TagList } from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
@@ -48,7 +47,7 @@ export function createTagsTableColumn<TData extends RowData>({
 }) {
   return createTableColumn<TData, string[]>({
     ...options,
-    loadingCell: <Skeleton className="h-4 w-1/2" />,
+    loading: "text",
     renderCell: (tags) =>
       tags && tags.length > 0 ? (
         <TagsCell

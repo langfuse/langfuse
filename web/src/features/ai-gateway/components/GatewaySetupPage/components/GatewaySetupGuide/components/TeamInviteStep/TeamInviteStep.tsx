@@ -1,4 +1,3 @@
-import { Button } from "@/src/components/design-system/Button/Button";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import {
   TeamInviteForm,
@@ -18,20 +17,11 @@ export function TeamInviteStep({ status, ...formProps }: TeamInviteStepProps) {
       title={TEAM_NOTIFY_COPY.title}
       status={status}
       isCollapsible={false}
-      description={
-        <>
-          {TEAM_NOTIFY_COPY.description}
-          {status === "current" ? (
-            <>
-              {" "}
-              <Button
-                variant="text"
-                text="About roles"
-                href={TEAM_NOTIFY_COPY.rolesDocsUrl}
-              />
-            </>
-          ) : null}
-        </>
+      description={TEAM_NOTIFY_COPY.description}
+      descriptionLink={
+        status === "current"
+          ? { label: "About roles", href: TEAM_NOTIFY_COPY.rolesDocsUrl }
+          : undefined
       }
     >
       {status === "current" ? <TeamInviteForm {...formProps} /> : null}

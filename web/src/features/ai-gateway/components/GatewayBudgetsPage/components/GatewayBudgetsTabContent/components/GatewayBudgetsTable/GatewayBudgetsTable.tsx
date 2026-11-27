@@ -13,7 +13,6 @@ import type { TableProps } from "@/src/components/design-system/table/Table";
 import type { MultiSelect } from "@/src/components/table/data-table-toolbar";
 import type { RouterOutputs } from "@/src/utils/api";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   GATEWAY_BUDGET_STATUSES,
   type GatewayBudgetStatus,
@@ -68,8 +67,6 @@ const statusOptions: { value: GatewayBudgetStatus; label: string }[] = [
 /** Fits "Default budget" next to its radio dot in the open menu, which is as wide as the trigger. */
 const STATUS_FILTER_MIN_WIDTH_PX = 160;
 
-const budgetSkeleton = <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />;
-
 const intervalLabels = new Map(
   gatewaySpendBudgetIntervalOptions.map(({ value, label }) => [value, label]),
 );
@@ -81,7 +78,7 @@ const budgetColumn = (subject: "key" | "user") =>
     header: "Budget",
     size: 200,
     enableResizing: false,
-    loadingCell: budgetSkeleton,
+    loading: "badge",
     renderCell: (spendLimit, { row }) =>
       spendLimit ? (
         <span className="inline-flex items-center gap-2">

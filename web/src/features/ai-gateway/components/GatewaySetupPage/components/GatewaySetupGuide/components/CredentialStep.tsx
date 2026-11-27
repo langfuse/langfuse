@@ -14,30 +14,15 @@ export type CredentialStepProps = {
   onAddCredential: () => void;
 };
 
-function CredentialStepDescription({
+function credentialStepDescription({
   status,
   firstConnection,
 }: Pick<CredentialStepProps, "status" | "firstConnection">) {
   if (status === "complete" && firstConnection) {
-    return <>{providerLabels[firstConnection.provider]} connection added</>;
+    return `${providerLabels[firstConnection.provider]} connection added`;
   }
   const providerNames = formatAvailableGatewayProviderNames();
-  return (
-    <>
-      Connect {providerNames} with an API key. Available models are loaded from
-      the provider.
-      {status === "current" ? (
-        <>
-          {" "}
-          <Button
-            variant="text"
-            text="How provider connections work"
-            href={GATEWAY_SETUP.docsUrl}
-          />
-        </>
-      ) : null}
-    </>
-  );
+  return `Connect ${providerNames} with an API key. Available models are loaded from the provider.`;
 }
 
 export function CredentialStep({
@@ -51,11 +36,14 @@ export function CredentialStep({
       title="Add a provider connection"
       status={status}
       isCollapsible={false}
-      description={
-        <CredentialStepDescription
-          status={status}
-          firstConnection={firstConnection}
-        />
+      description={credentialStepDescription({ status, firstConnection })}
+      descriptionLink={
+        status === "current"
+          ? {
+              label: "How provider connections work",
+              href: GATEWAY_SETUP.docsUrl,
+            }
+          : undefined
       }
     >
       {status === "current" ? (

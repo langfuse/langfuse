@@ -24,7 +24,7 @@ export function createLinkListTableColumn<TData extends RowData>({
 }) {
   return createTableColumn<TData, string[]>({
     ...options,
-    loadingCell: <Skeleton className="h-4 w-1/2" />,
+    loading: "text",
     renderCell: (value, context) => {
       const cell = getCell(value, context);
       if (!cell) return null;

@@ -1,8 +1,7 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
-import { Check, Copy, InfoIcon, type IconComponent } from "@langfuse/icons";
 import { type ReactNode } from "react";
-
+import { Check, Copy, InfoIcon, type IconComponent } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
@@ -73,7 +72,7 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
 
   return createTableColumn<TData, TValue>({
     ...options,
-    loadingCell,
+    loading: "text",
     renderCell: (value, context) => {
       const text = mapValue ? mapValue(value, context) : value;
 
@@ -183,6 +182,8 @@ function TextWithAction({
   action,
   value,
 }: {
+  // TODO: typed API
+  // eslint-disable-next-line @repo/no-node-slot-props -- text cells still append a copy button or an info tooltip
   action: ReactNode;
   value?: string;
 }) {

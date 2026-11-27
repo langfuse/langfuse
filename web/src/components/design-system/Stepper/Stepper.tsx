@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { cva } from "class-variance-authority";
 import { Check, ChevronDown, Info } from "@langfuse/icons";
 
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
@@ -68,12 +69,18 @@ type StepperProps = {
   title: string;
   /** Shown in an info tooltip beside the title, outside the collapse control. */
   tooltipText?: string;
-  description?: ReactNode;
+  description?: string;
+  /** Inline text link after the description. */
+  descriptionLink?: { label: string; href: string };
+  /** Keeps the description out of session replay when it contains customer data. */
+  descriptionNoCapture?: boolean;
   /**
    * A control after the title; stays visible when collapsed and gets the rest
    * of the header row. The title then takes a field label's width, so the
    * control lines up with labelled rows.
    */
+  // TODO: typed API
+  // eslint-disable-next-line @repo/no-node-slot-props -- one caller places a tabs toggle in the header
   headerEnd?: ReactNode;
   variant?: "filled" | "outline";
   size?: "default" | "md" | "sm";
@@ -109,6 +116,8 @@ export function Stepper({
   title,
   tooltipText,
   description,
+  descriptionLink,
+  descriptionNoCapture = false,
   headerEnd,
   variant = "filled",
   size = "default",
@@ -122,7 +131,8 @@ export function Stepper({
 }: StepperProps) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const expanded = !isCollapsible || (open ?? internalOpen);
-  const hasBody = Boolean(description) || Boolean(children);
+  const hasBody =
+    Boolean(description) || Boolean(descriptionLink) || Boolean(children);
   const titleClassName = cn(
     titleVariants({ size, status }),
     headerEnd ? "min-w-16 shrink-0 text-left" : null,
@@ -205,8 +215,25 @@ export function Stepper({
               isCollapsible ? "gap-4 pl-5" : "gap-2",
             )}
           >
-            {description ? (
-              <p className={descriptionVariants({ size })}>{description}</p>
+            {description || descriptionLink ? (
+              <p
+                className={cn(
+                  descriptionVariants({ size }),
+                  descriptionNoCapture && "ph-no-capture",
+                )}
+              >
+                {description}
+                {descriptionLink ? (
+                  <>
+                    {description ? " " : null}
+                    <Button
+                      variant="text"
+                      text={descriptionLink.label}
+                      href={descriptionLink.href}
+                    />
+                  </>
+                ) : null}
+              </p>
             ) : null}
             {children}
           </div>

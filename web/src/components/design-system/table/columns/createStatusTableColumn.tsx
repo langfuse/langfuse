@@ -38,7 +38,7 @@ export function createStatusTableColumn<
 
   return createTableColumn<TData, TValue>({
     ...options,
-    loadingCell,
+    loading: "badge",
     renderCell: (value, context) => {
       const status = getStatus(value, context);
 

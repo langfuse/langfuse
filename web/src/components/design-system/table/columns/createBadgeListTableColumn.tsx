@@ -5,8 +5,6 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { OverflowList } from "@/src/components/design-system/OverflowList/OverflowList";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
-// eslint-disable-next-line boundaries/dependencies
-import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 import {
   createTableColumn,
@@ -83,7 +81,7 @@ export function createBadgeListTableColumn<
 >({ getBadge, range, ...options }: BadgeListTableColumnOptions<TData, TItem>) {
   return createTableColumn<TData, TItem[]>({
     ...options,
-    loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
+    loading: "badge",
     renderCell: (values, context) => {
       if (!values?.length) return <EmptyValue />;
 
