@@ -1,4 +1,10 @@
 import * as z from "zod";
+import {
+  CancellationFeedbackSchema,
+  CancellationReasonPlacementSchema,
+} from "@/src/ee/features/billing/utils/cancellationReasons";
+import { recordCancellationSurvey } from "@/src/ee/features/billing/server/cancellationSurvey";
+import { captureBillingEvent } from "@/src/ee/features/billing/server/billingEvents";
 
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
@@ -13,6 +19,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { logger } from "@langfuse/shared/src/server";
 import {
   type BillingProvider,
+  type Plan,
   LangfuseNotFoundError,
   parseDbOrg,
 } from "@langfuse/shared";
@@ -37,6 +44,24 @@ const PROVIDER_LABEL: Record<BillingProvider, string> = {
  * to either provider, so a hardcoded "Stripe error:" would point on-call at
  * the wrong system for a CHB REST failure.
  */
+/** Who acted and on which organization, for a billing event. */
+const billingEventContext = (
+  ctx: {
+    session: {
+      user: { id: string; organizations: { id: string; plan: Plan }[] };
+    };
+  },
+  orgId: string,
+  billingProvider: BillingProvider,
+) => ({
+  userId: ctx.session.user.id,
+  organizationId: orgId,
+  plan:
+    ctx.session.user.organizations.find((org) => org.id === orgId)?.plan ??
+    null,
+  billingProvider,
+});
+
 const billingErrorMessage = (
   billingProvider: BillingProvider,
   error: unknown,
@@ -176,6 +201,8 @@ export const cloudBillingRouter = createTRPCRouter({
       z.object({
         orgId: z.string(),
         opId: z.string().optional(),
+        feedback: CancellationFeedbackSchema.optional(),
+        placement: CancellationReasonPlacementSchema.optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -198,9 +225,50 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const { service } = await resolveBillingService(ctx, input.orgId);
+      const { billingProvider, service } = await resolveBillingService(
+        ctx,
+        input.orgId,
+      );
 
-      await service.cancel(input.orgId, input.opId);
+      await service.cancel(input.orgId, input.opId, input.feedback);
+
+      captureBillingEvent(
+        billingEventContext(ctx, input.orgId, billingProvider),
+        "billing:cancellation_scheduled",
+        {
+          reason: input.feedback?.reason ?? null,
+          reasonPosition: input.placement?.reasonPosition ?? null,
+          hasNote: Boolean(input.feedback?.note),
+        },
+      );
+
+      if (input.feedback) {
+        // The cancel already went through, so a failed write must not undo it for the user.
+        try {
+          const { billingPeriod } = await service.getSubscriptionInfo(
+            input.orgId,
+          );
+          await recordCancellationSurvey({
+            prisma: ctx.prisma,
+            orgId: input.orgId,
+            user: ctx.session.user,
+            feedback: input.feedback,
+            placement: input.placement,
+            plan:
+              ctx.session.user.organizations.find(
+                (org) => org.id === input.orgId,
+              )?.plan ?? null,
+            billingProvider,
+            periodEnd: billingPeriod ? new Date(billingPeriod.end) : null,
+          });
+        } catch (error) {
+          logger.error("cloudBilling.cancel: cancellation survey not stored", {
+            orgId: input.orgId,
+            // Name only: a Prisma error message can carry the note's text.
+            errorName: error instanceof Error ? error.name : "unknown",
+          });
+        }
+      }
 
       return { ok: true } as const;
     }),
@@ -231,9 +299,18 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const { service } = await resolveBillingService(ctx, input.orgId);
+      const { billingProvider, service } = await resolveBillingService(
+        ctx,
+        input.orgId,
+      );
 
       await service.reactivate(input.orgId, input.opId);
+
+      captureBillingEvent(
+        billingEventContext(ctx, input.orgId, billingProvider),
+        "billing:cancellation_reverted",
+        {},
+      );
 
       return { ok: true } as const;
     }),
