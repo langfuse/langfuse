@@ -55,7 +55,6 @@ import {
 } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/hooks/useSampleObservationFilterOptions";
 import { EvaluatorSampleDetail } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorSampleDetail/EvaluatorSampleDetail";
 import { orderSamplesByTrace } from "@/src/features/evals/v2/fns/evaluatorTesting/orderSamplesByTrace";
-import { useEvaluatorSampleTraceCount } from "@/src/features/evals/v2/hooks/useEvaluatorSampleTraceCount";
 import { useEvaluatorTraceMatches } from "@/src/features/evals/v2/hooks/useEvaluatorTraceMatches";
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
@@ -540,21 +539,13 @@ export function SampleObservationSelectorBase(
       ? resolveSelection(detailObservations, selectedObservationId)
       : undefined;
   const loadedPageCount = observationQuery.data?.pages.length ?? 0;
-  const traceCount = useEvaluatorSampleTraceCount({
-    projectId,
-    filter: effectiveFilters,
-    searchQuery,
-    searchType,
-    enabled: isTraceTarget && showTraceDetail,
-  });
   // Pages may load unasked up to this many; each step by the user extends it.
   const [autoPageLimit, setAutoPageLimit] = useState(MAX_TRACE_SAMPLE_PAGES);
   const canAutoLoad =
     showTraceDetail &&
     querySettled &&
     observationQuery.hasNextPage &&
-    loadedPageCount < autoPageLimit &&
-    (traceCount === null || detailObservations.length < traceCount);
+    loadedPageCount < autoPageLimit;
   const needsMoreTraces =
     isTraceTarget && detailObservations.length < MIN_SAMPLE_TRACES;
   const selectedSampleIndex = detailObservations.findIndex(
@@ -685,7 +676,8 @@ export function SampleObservationSelectorBase(
 
   // The approximate observation count does not see a text search.
   const observationCount = searchQuery ? null : options.approxTotalCount;
-  const sampleCount = isTraceTarget ? traceCount : observationCount;
+  // Traces show no count.
+  const sampleCount = isTraceTarget ? null : observationCount;
   const sampleCountLabel =
     sampleCount !== null ? formatCount(sampleCount) : null;
   const sampleTitle = isTraceTarget
