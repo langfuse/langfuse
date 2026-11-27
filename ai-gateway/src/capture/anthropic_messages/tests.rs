@@ -777,3 +777,31 @@ fn the_system_prompt_counts_only_on_the_first_turn() {
         ["result a", "result b"]
     );
 }
+
+#[test]
+fn every_generated_delta_field_is_scanned_by_response_guardrails_or_declared_not_text() {
+    for field in GENERATED_DELTA_FIELDS {
+        let delta_type = match field {
+            "text" => "text_delta",
+            "thinking" => "thinking_delta",
+            "partial_json" => "input_json_delta",
+            other => panic!("{other}: name the delta type that carries it"),
+        };
+        let frame = json!({
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": delta_type, field: "generated"},
+        });
+        let texts = crate::test_support::guardrail_sse_texts(ApiFormat::AnthropicMessages, &frame);
+        assert_eq!(
+            texts == ["generated"],
+            !NOT_TEXT.contains(&field),
+            "{field}: declare it in RESPONSE or in NOT_TEXT"
+        );
+    }
+    assert!(
+        NOT_TEXT
+            .iter()
+            .all(|field| GENERATED_DELTA_FIELDS.contains(field))
+    );
+}

@@ -253,26 +253,23 @@ fn reserve(used: &mut usize, bytes: usize) -> Result<(), Gap> {
 
 /// The first generated text, refusal, tool or function arguments, or audio.
 fn has_generated_content(delta: &Map<String, Value>) -> bool {
-    let nonempty = |value: Option<&Value>| {
-        value
-            .and_then(Value::as_str)
-            .is_some_and(|value| !value.is_empty())
-    };
-    let arguments = |call: &Value| nonempty(call.pointer("/function/arguments"));
-    nonempty(delta.get("content"))
-        || nonempty(delta.get("refusal"))
-        || delta
-            .get("tool_calls")
-            .and_then(Value::as_array)
-            .is_some_and(|calls| calls.iter().any(arguments))
-        || nonempty(
-            delta
-                .get("function_call")
-                .and_then(|call| call.get("arguments")),
-        )
-        || delta
-            .get("audio")
-            .is_some_and(|audio| nonempty(audio.get("data")) || nonempty(audio.get("transcript")))
+    GENERATED_DELTA_FIELDS.iter().any(|path| {
+        path.split_first()
+            .and_then(|(key, rest)| Some((delta.get(*key)?, rest)))
+            .is_some_and(|(value, rest)| has_nonempty_string(value, rest))
+    })
+}
+
+fn has_nonempty_string(value: &Value, path: &[&str]) -> bool {
+    match path.split_first() {
+        None => value.as_str().is_some_and(|value| !value.is_empty()),
+        Some((&"*", rest)) => value
+            .as_array()
+            .is_some_and(|items| items.iter().any(|item| has_nonempty_string(item, rest))),
+        Some((key, rest)) => value
+            .get(*key)
+            .is_some_and(|value| has_nonempty_string(value, rest)),
+    }
 }
 
 impl OpenAiChatCompletionsCapture {
@@ -524,6 +521,24 @@ pub(super) fn guardrail_turn(
     Ok(turn)
 }
 
+/// Paths in a streamed delta whose first non-empty string starts the completion;
+/// `*` is each array item. Each is read by `RESPONSE` or listed in `NOT_TEXT`.
+pub(super) const GENERATED_DELTA_FIELDS: &[&[&str]] = &[
+    &["content"],
+    &["refusal"],
+    &["tool_calls", "*", "function", "arguments"],
+    &["function_call", "arguments"],
+    &["audio", "data"],
+    &["audio", "transcript"],
+];
+
+/// Generated delta fields that hold no text for guardrails to scan.
+#[cfg(test)]
+pub(super) const NOT_TEXT: &[&[&str]] = &[
+    // Base64-encoded audio.
+    &["audio", "data"],
+];
+
 /// Where Chat Completions responses carry model text.
 pub(super) const RESPONSE: ResponseSpec = ResponseSpec {
     json: Object::new(&[("choices", each(&CHOICE))]).node(),
@@ -538,6 +553,7 @@ const MESSAGE: Node = Object::new(&[
     ("reasoning_content", parts(LEAF)),
     ("tool_calls", each(&TOOL_CALL)),
     ("function_call", ARGUMENTS),
+    ("audio", Object::new(&[("transcript", text(LEAF))]).node()),
 ])
 .strict()
 .node();
@@ -561,6 +577,10 @@ const DELTA: Node = Object::new(&[
     (
         "function_call",
         Object::new(&[("arguments", text(json_delta("function_call")))]).node(),
+    ),
+    (
+        "audio",
+        Object::new(&[("transcript", text(delta("audio_transcript")))]).node(),
     ),
 ])
 .strict()

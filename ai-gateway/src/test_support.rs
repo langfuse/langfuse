@@ -16,6 +16,7 @@ use axum::{
 use serde_json::json;
 use tokio::{net::TcpListener, task::JoinHandle};
 
+use crate::guardrails::response::{ParsedResponse, ResponseFormat};
 use crate::resolution::{
     ApiFormat, ControlPlaneClient, ControlPlaneConfig, ResolvedRequestContext,
 };
@@ -70,6 +71,17 @@ pub(crate) fn upload_text(body: &[u8]) -> String {
 
 pub(crate) fn upload_json(body: &[u8]) -> serde_json::Value {
     serde_json::from_str(&upload_text(body)).unwrap()
+}
+
+/// The texts response guardrails read from one SSE frame of `api_format`.
+pub(crate) fn guardrail_sse_texts(api_format: ApiFormat, frame: &serde_json::Value) -> Vec<String> {
+    let sse = format!("data: {frame}\n\n");
+    ParsedResponse::parse(api_format, ResponseFormat::Sse, vec![sse.into()], None)
+        .unwrap()
+        .blocks()
+        .iter()
+        .map(|block| block.text.clone())
+        .collect()
 }
 
 pub(crate) fn ingestion_token(organization: &str, project: &str) -> String {

@@ -17,7 +17,7 @@ use crate::guardrails::text::{self, Unreadable};
 /// Text parts and tool inputs nest at most this deep below a text field.
 const MAX_TEXT_DEPTH: usize = 32;
 /// Fields of a content part that hold text, in the order they are read.
-const PART_FIELDS: [&str; 3] = ["text", "refusal", "content"];
+const PART_FIELDS: [&str; 4] = ["text", "refusal", "transcript", "content"];
 /// Stream indices one [`Object`] may declare: a [`StreamKey`] holds two.
 const MAX_INDEX: usize = 2;
 

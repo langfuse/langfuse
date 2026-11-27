@@ -1266,3 +1266,28 @@ fn model_items_between_the_newest_calls_neither_hide_outputs_nor_get_scanned() {
         ["result a", "result b"]
     );
 }
+
+#[test]
+fn every_generated_event_is_scanned_by_response_guardrails_or_declared_not_text() {
+    for (kind, field) in GENERATED_EVENTS {
+        let frame = json!({
+            "type": kind,
+            "output_index": 0,
+            "content_index": 0,
+            "summary_index": 0,
+            "command_index": 0,
+            *field: "generated",
+        });
+        let texts = crate::test_support::guardrail_sse_texts(ApiFormat::OpenAiResponses, &frame);
+        assert_eq!(
+            texts == ["generated"],
+            !NOT_TEXT.contains(kind),
+            "{kind}: declare it in RESPONSE or in NOT_TEXT"
+        );
+    }
+    assert!(NOT_TEXT.iter().all(|kind| {
+        GENERATED_EVENTS
+            .iter()
+            .any(|(generated, _)| generated == kind)
+    }));
+}
