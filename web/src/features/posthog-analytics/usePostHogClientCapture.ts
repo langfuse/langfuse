@@ -501,6 +501,10 @@ const events = {
     "budget_reset",
     "agent_setup_instructions_viewed",
     "agent_setup_instructions_copied",
+    "guardrail_created",
+    "guardrail_updated",
+    "guardrail_targets_updated",
+    "guardrail_deleted",
   ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   // Sidebar presentation, using state flags and static sources.

@@ -630,6 +630,7 @@ impl RequestInput {
     /// worker drops the body and parsed members.
     pub(crate) async fn parse_on_cpu<R: Send + 'static>(
         cpu: &crate::cpu::CpuWork,
+        class: crate::cpu::CpuClass,
         body: axum::body::Bytes,
         reservation: R,
     ) -> Option<(Self, R)> {
@@ -638,10 +639,15 @@ impl RequestInput {
         } else {
             0
         };
-        cpu.run(crate::cpu::CpuJob::ParseRequest, parse_bytes, move || {
-            let input = Self::from_body(&body);
-            (input, reservation)
-        })
+        cpu.run(
+            crate::cpu::CpuJob::ParseRequest,
+            class,
+            parse_bytes,
+            move || {
+                let input = Self::from_body(&body);
+                (input, reservation)
+            },
+        )
         .await
     }
 }

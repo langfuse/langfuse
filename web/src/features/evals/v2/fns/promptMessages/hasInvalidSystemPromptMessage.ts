@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import type { EvaluatorPromptMessage } from "@langfuse/shared";
 
 export const EMPTY_PROMPT_MESSAGE_ERROR =

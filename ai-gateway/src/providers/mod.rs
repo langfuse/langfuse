@@ -20,7 +20,7 @@ use crate::{
     capture::{ExecutionCapture, MAX_RESPONSE_PARSE_BYTES, RelayOutcome, RequestInput},
     config::ExecutionLimits,
     correlation::{RequestCorrelation, UpstreamTarget},
-    cpu::CpuWork,
+    cpu::{CpuClass, CpuWork},
     guardrails::{
         BlockReason, Guardrail, GuardrailRejection, Guardrails, response::ResponseFormat,
     },
@@ -308,9 +308,14 @@ impl ProviderTransport {
                         .ok_or(ProviderError::Configuration)?,
                 )
             };
-            RequestInput::parse_on_cpu(&self.cpu, capture_body, reservation)
-                .await
-                .ok_or(ProviderError::Configuration)?
+            RequestInput::parse_on_cpu(
+                &self.cpu,
+                CpuClass::for_context(context),
+                capture_body,
+                reservation,
+            )
+            .await
+            .ok_or(ProviderError::Configuration)?
         } else {
             (RequestInput::omitted(body.len()), reservation)
         };
@@ -423,6 +428,7 @@ impl ProviderTransport {
         if let Some(guardrails) =
             guardrails.filter(|_| has_active_response_guardrails(status, route, &run.context))
         {
+            observation.record_guardrails_evaluated();
             return Box::pin(run.execute(response, guardrails)).await;
         }
         Ok(run.relay_passthrough(response))

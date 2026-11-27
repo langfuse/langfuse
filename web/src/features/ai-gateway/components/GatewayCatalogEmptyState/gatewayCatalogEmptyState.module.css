@@ -1,0 +1,33 @@
+.interactive:hover,
+.interactive:focus-visible {
+  border-color: hsl(var(--border-contrast));
+  box-shadow:
+    0 2px 4px 0 rgb(0 0 0 / 0.04),
+    0 8px 20px 0 rgb(0 0 0 / 0.06);
+}
+
+/* Space is always reserved so hovering never shifts or re-wraps card text. */
+.action {
+  opacity: 0;
+  transform: translateX(-4px);
+}
+
+.interactive:hover .action,
+.interactive:focus-visible .action {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .interactive {
+    transition:
+      border-color 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .action {
+    transition:
+      opacity 150ms ease,
+      transform 150ms ease;
+  }
+}

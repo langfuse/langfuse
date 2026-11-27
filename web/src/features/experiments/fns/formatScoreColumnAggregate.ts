@@ -1,3 +1,4 @@
+/* eslint-disable @repo/export-rules */
 import { type ScoreColumnAggregate } from "./summariseScoreColumn";
 
 export const formatScoreValue = (value: number) => value.toFixed(2);

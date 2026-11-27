@@ -21,7 +21,7 @@ Organization branch protection applies to agent output too: use a task branch an
 
 ## `config.json`
 
-`.agents/config.json` contains four kinds of data:
+`.agents/config.json` contains five kinds of data:
 
 - `shared`: defaults used across tools
 - `mcpServers`: project MCP servers and how to connect to them
@@ -29,86 +29,7 @@ Organization branch protection applies to agent output too: use a task branch an
 - `codex`: Codex-specific generated settings inputs
 - `cursor`: Cursor-specific generated settings inputs
 
-Current shape:
-
-```json
-{
-  "shared": {
-    "setupScript": "bash scripts/agents/setup.sh",
-    "devCommand": "pnpm run dev",
-    "devTerminalDescription": "Main development terminal running the development server"
-  },
-  "mcpServers": {
-    "next-devtools": {
-      "transport": "stdio",
-      "command": "pnpm",
-      "args": ["dlx", "next-devtools-mcp@0.4.0"]
-    },
-    "playwright": {
-      "transport": "stdio",
-      "command": "pnpm",
-      "args": [
-        "dlx",
-        "@playwright/mcp@latest",
-        "--isolated",
-        "--save-session",
-        "--output-dir",
-        "/tmp/playwright-mcp",
-        "--test-id-attribute",
-        "data-testid"
-      ]
-    },
-    "langfuse-docs": {
-      "transport": "http",
-      "url": "https://langfuse.com/api/mcp"
-    },
-    "linear": {
-      "transport": "http",
-      "url": "https://mcp.linear.app/mcp"
-    }
-  },
-  "claude": {
-    "settings": {
-      "permissions": {
-        "allow": [
-          "Bash(find:*)",
-          "Bash(rg:*)",
-          "Bash(grep:*)",
-          "Bash(ls:*)",
-          "Bash(cat:*)",
-          "Bash(head:*)",
-          "Bash(tail:*)"
-        ],
-        "deny": []
-      },
-      "enableAllProjectMcpServers": true
-    }
-  },
-  "codex": {
-    "environment": {
-      "version": 1,
-      "name": "langfuse"
-    }
-  },
-  "cursor": {
-    "environment": {
-      "name": "langfuse",
-      "user": "ubuntu",
-      "build": {
-        "dockerfile": "Dockerfile",
-        "context": ".."
-      },
-      "install": "bash scripts/agents/setup-cursor-cloud.sh",
-      "start": "bash scripts/agents/start-cursor-cloud.sh",
-      "ports": [
-        { "name": "Langfuse web", "port": 3000 },
-        { "name": "Langfuse worker health", "port": 3030 }
-      ],
-      "agentCanUpdateSnapshot": false
-    }
-  }
-}
-```
+See [config.json](config.json) for the current configuration.
 
 ## Next.js Runtime Diagnostics
 

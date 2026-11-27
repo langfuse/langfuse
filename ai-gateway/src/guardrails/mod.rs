@@ -23,10 +23,10 @@ use tokio::sync::Semaphore;
 use tracing::Instrument;
 
 use crate::{
-    cpu::{CpuJob, CpuWork},
+    cpu::{CpuClass, CpuJob, CpuWork},
     http::ParsedRequest,
     inference::MemoryReservation,
-    observability::ErrorOrigin,
+    observability::{ErrorOrigin, RequestObservation},
     providers::OutboundPolicy,
     resolution::{ApiFormat, ResolutionError, ResolvedRequestContext},
 };
@@ -75,10 +75,12 @@ impl Guardrails {
         api_format: ApiFormat,
         context: &ResolvedRequestContext,
         request: &ParsedRequest,
+        observation: &RequestObservation,
     ) -> Result<Outcome, ResolutionError> {
         if !context.guardrails().iter().any(Guardrail::is_active) {
             return Ok(Outcome::default());
         }
+        observation.record_guardrails_evaluated();
         let guardrails: Arc<[Guardrail]> = context.guardrails().into();
         let organization_id = context.attribution().organization_id().as_str().to_owned();
         let body = request.body().clone();
@@ -88,15 +90,20 @@ impl Guardrails {
             let check_started = std::time::Instant::now();
             let (turn, finding) = self
                 .cpu
-                .run(CpuJob::FindLastTurn, scanned.len(), {
-                    let body = body.clone();
-                    let scanned = scanned.clone();
-                    move || {
-                        let started = std::time::Instant::now();
-                        let turn = last_turn(api_format, &body, &scanned);
-                        (turn, started.elapsed())
-                    }
-                })
+                .run(
+                    CpuJob::FindLastTurn,
+                    CpuClass::Guardrailed,
+                    scanned.len(),
+                    {
+                        let body = body.clone();
+                        let scanned = scanned.clone();
+                        move || {
+                            let started = std::time::Instant::now();
+                            let turn = last_turn(api_format, &body, &scanned);
+                            (turn, started.elapsed())
+                        }
+                    },
+                )
                 .await
                 .ok_or(ResolutionError::Busy)?;
             let needs_entire_input = guardrails.iter().any(|guardrail| {
@@ -111,7 +118,7 @@ impl Guardrails {
                 .transpose()?;
             let (local, scanning) = self
                 .cpu
-                .run(CpuJob::ScanGuardrails, bytes, {
+                .run(CpuJob::ScanGuardrails, CpuClass::Guardrailed, bytes, {
                     let guardrails = Arc::clone(&guardrails);
                     let budget = Arc::clone(&self.memory_budget);
                     move || {
@@ -192,7 +199,7 @@ impl Guardrails {
             let body_bytes = body.len();
             let ((local, parsed, scanned_bytes), local_duration) = self
                 .cpu
-                .run(CpuJob::ScanGuardrails, body_bytes, {
+                .run(CpuJob::ScanGuardrails, CpuClass::Guardrailed, body_bytes, {
                     let guardrails = Arc::clone(&guardrails);
                     let budget = Arc::clone(&self.memory_budget);
                     move || {
