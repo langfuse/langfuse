@@ -71,93 +71,137 @@ export function labelingFrame(
   topics: number,
 ) {
   const back = ease((seconds - returns) / (loop - returns));
-  const piles = Array.from({ length: topics }, (_, topic) => {
-    const landed = cards.filter(
-      (card) => card.topic === topic && seconds >= card.lands,
-    );
-    return {
-      sheets: landed.length,
-      top: landed.at(-1)?.index ?? null,
-      spot: landed.length ? back : 1,
-    };
-  });
-  // The queue moves up one slot each time its head leaves.
-  const moved = cards.reduce((sum, card) => {
-    const lead = 0.3 * (card.arrives - card.starts);
-    const shift = Math.min(0.4, card.leaves - card.starts - lead);
-    return sum + ease((seconds - card.starts - lead) / shift);
-  }, 0);
-
-  const waiting: TraceCardFrame[] = [];
-  const reading: TraceCardFrame[] = [];
-  const carried: TraceCardFrame[] = [];
-  for (const card of cards) {
-    const unread = { index: card.index, lift: 0, colored: 0, unread: 1 };
-    if (back > 0 || seconds < card.starts) {
-      const slot = back > 0 ? card.index : card.index - moved;
-      const opacity = clamp01((QUEUE.slots - slot) / 0.5) * (back || 1);
-      if (opacity > 0)
-        waiting.unshift({
-          ...unread,
-          x: round(READING.x + slot * QUEUE.pitch),
-          y: QUEUE.y,
-          opacity,
-          written: 0,
-        });
-    } else if (seconds < card.arrives) {
-      const near = ease((seconds - card.starts) / (card.arrives - card.starts));
-      reading.push({
-        ...unread,
-        x: READING.x,
-        y: round(lerp(QUEUE.y, READING.y, near)),
-        opacity: 1,
-        written: 0,
-      });
-    } else if (seconds < card.leaves) {
-      const read = (seconds - card.arrives) / (card.leaves - card.arrives);
-      reading.push({
-        index: card.index,
-        x: READING.x,
-        y: READING.y,
-        lift: 0,
-        opacity: 1,
-        colored: ease((read - 0.1) / 0.6),
-        unread: 1 - clamp01(read / 0.25),
-        written: Math.ceil(card.letters * clamp01(read / 0.6)),
-      });
-    } else if (seconds < card.lands) {
-      const flown = (seconds - card.leaves) / (card.lands - card.leaves);
-      const height = card.below * SHEET.height;
-      const down = ease((flown - 0.62) / 0.38);
-      carried.push({
-        index: card.index,
-        x: round(
-          lerp(READING.x, card.topic * PILE_PITCH, ease((flown - 0.05) / 0.75)),
-        ),
-        y: round(lerp(lerp(READING.y, AISLE, ease(flown / 0.3)), 0, down)),
-        lift: round(
-          lerp(Math.max(height, CARRY) * ease(flown / 0.25), height, down),
-        ),
-        opacity: 1,
-        colored: 1,
-        unread: 0,
-        written: card.letters,
-      });
-    }
-  }
-  carried.sort((a, b) => a.y - 0.4 * a.x - (b.y - 0.4 * b.x));
-
   const lastLeaves = cards.at(-1)?.leaves ?? 0;
   return {
     /** 0 until the loop starts over, 1 when it has. */
     back,
     /** How visible the reading square is. */
     square: Math.max(back, 1 - ease((seconds - lastLeaves) / 0.4)),
-    piles,
+    piles: pileFrames(cards, seconds, topics, back),
     /** How visible the top cards' own labels and the topics' names are. */
     intents: 1 - ease((seconds - named) / 0.25),
     names: ease((seconds - named - 0.1) / 0.35),
-    cards: [...reading, ...waiting, ...carried],
+    cards: cardFrames(cards, seconds, back),
+  };
+}
+
+// Each topic's pile: the sheets landed so far, the card on top, and how visible its empty spot is.
+function pileFrames(
+  cards: readonly Card[],
+  seconds: number,
+  topics: number,
+  back: number,
+) {
+  return Array.from({ length: topics }, (_, topic) => {
+    const landed = cards.filter(
+      (card) => card.topic === topic && seconds >= card.lands,
+    );
+    return {
+      sheets: landed.length,
+      top: landed.at(-1)?.index ?? null,
+      spot: landed.length > 0 ? back : 1,
+    };
+  });
+}
+
+// Every card off the piles, in paint order: the one at the reading square, the queue from its far end, the carried ones back to front.
+function cardFrames(cards: readonly Card[], seconds: number, back: number) {
+  // The queue stands in its starting slots while it returns.
+  const moved = back > 0 ? 0 : queueShift(cards, seconds);
+  const waiting: TraceCardFrame[] = [];
+  const reading: TraceCardFrame[] = [];
+  const carried: TraceCardFrame[] = [];
+  for (const card of cards) {
+    if (back > 0 || seconds < card.starts) {
+      const queued = waitingCard(card, card.index - moved, back || 1);
+      if (queued.opacity > 0) waiting.unshift(queued);
+    } else if (seconds < card.arrives) {
+      reading.push(approachingCard(card, seconds));
+    } else if (seconds < card.leaves) {
+      reading.push(readingCard(card, seconds));
+    } else if (seconds < card.lands) {
+      carried.push(carriedCard(card, seconds));
+    }
+  }
+  carried.sort((a, b) => a.y - 0.4 * a.x - (b.y - 0.4 * b.x));
+  return [...reading, ...waiting, ...carried];
+}
+
+// Slots the queue has moved up: one each time its head leaves.
+function queueShift(cards: readonly Card[], seconds: number) {
+  return cards.reduce((sum, card) => {
+    const lead = 0.3 * (card.arrives - card.starts);
+    const shift = Math.min(0.4, card.leaves - card.starts - lead);
+    return sum + ease((seconds - card.starts - lead) / shift);
+  }, 0);
+}
+
+// In the queue, `slot` places from its head; the cards past the last slot fade out.
+function waitingCard(
+  card: Card,
+  slot: number,
+  visible: number,
+): TraceCardFrame {
+  return {
+    index: card.index,
+    x: round(READING.x + slot * QUEUE.pitch),
+    y: QUEUE.y,
+    lift: 0,
+    opacity: clamp01((QUEUE.slots - slot) / 0.5) * visible,
+    colored: 0,
+    unread: 1,
+    written: 0,
+  };
+}
+
+// Stepping from the head of the queue onto the reading square.
+function approachingCard(card: Card, seconds: number): TraceCardFrame {
+  const near = ease((seconds - card.starts) / (card.arrives - card.starts));
+  return {
+    index: card.index,
+    x: READING.x,
+    y: round(lerp(QUEUE.y, READING.y, near)),
+    lift: 0,
+    opacity: 1,
+    colored: 0,
+    unread: 1,
+    written: 0,
+  };
+}
+
+// On the reading square: its unread lines fade, its intent is written and it takes its topic's colour.
+function readingCard(card: Card, seconds: number): TraceCardFrame {
+  const read = (seconds - card.arrives) / (card.leaves - card.arrives);
+  return {
+    index: card.index,
+    x: READING.x,
+    y: READING.y,
+    lift: 0,
+    opacity: 1,
+    colored: ease((read - 0.1) / 0.6),
+    unread: 1 - clamp01(read / 0.25),
+    written: Math.ceil(card.letters * clamp01(read / 0.6)),
+  };
+}
+
+// Lifted off the reading square, carried along the aisle and set down on its pile.
+function carriedCard(card: Card, seconds: number): TraceCardFrame {
+  const flown = (seconds - card.leaves) / (card.lands - card.leaves);
+  const height = card.below * SHEET.height;
+  const down = ease((flown - 0.62) / 0.38);
+  return {
+    index: card.index,
+    x: round(
+      lerp(READING.x, card.topic * PILE_PITCH, ease((flown - 0.05) / 0.75)),
+    ),
+    y: round(lerp(lerp(READING.y, AISLE, ease(flown / 0.3)), 0, down)),
+    lift: round(
+      lerp(Math.max(height, CARRY) * ease(flown / 0.25), height, down),
+    ),
+    opacity: 1,
+    colored: 1,
+    unread: 0,
+    written: card.letters,
   };
 }
 

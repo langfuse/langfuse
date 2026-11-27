@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, type Ref } from "react";
 import { round } from "@/src/components/illustrations/engine/projection";
 import { useIllustrationId } from "@/src/components/illustrations/engine/useIllustrationId";
 import {
@@ -45,11 +45,12 @@ const EDGE_STOPS = [
 ));
 
 /** The svg the Topics drawings share: a box of css px on the floor, with the floor drawn under the children. */
-function Scene({ box, middle, drop, edges, children }: SceneProps) {
+function Scene({ box, middle, drop, edges, ref, children }: SceneProps) {
   const id = useIllustrationId();
   const view = viewOf(box, middle, drop);
   return (
     <svg
+      ref={ref}
       viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`}
       width={box.width}
       height={box.height}
@@ -248,6 +249,8 @@ type SceneProps = {
   drop: number;
   /** Floor positions of the drawing's edges; darker floor lines run along them. */
   edges: { xs: readonly number[]; ys: readonly number[] };
+  /** The svg, for a caller that watches whether it is on screen. */
+  ref?: Ref<SVGSVGElement>;
   children: ReactNode;
 };
 

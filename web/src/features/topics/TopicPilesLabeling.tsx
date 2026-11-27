@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import {
   round,
   textWidth,
@@ -42,11 +43,13 @@ export function TopicPilesLabeling({
   topics,
   traces,
 }: TopicPilesLabelingProps) {
+  const drawing = useRef<SVGSVGElement>(null);
   const timeline = labelingTimeline(traces);
-  const seconds = useLoopTime(timeline.loop, timeline.still);
+  const seconds = useLoopTime(timeline.loop, timeline.still, drawing);
   const frame = labelingFrame(timeline, seconds, topics.length);
   return (
     <TopicPilesScene
+      ref={drawing}
       box={BOX}
       middle={MIDDLE}
       drop={0}
