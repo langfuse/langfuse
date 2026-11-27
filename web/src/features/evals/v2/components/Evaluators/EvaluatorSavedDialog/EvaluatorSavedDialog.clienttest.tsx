@@ -57,10 +57,10 @@ describe("EvaluatorSavedDialog", () => {
     expect(onSecondaryAction).not.toHaveBeenCalled();
   });
 
-  it("treats Skip execution as an explicit secondary action", () => {
+  it("treats Save for later as an explicit secondary action", () => {
     const { onDismiss, onSecondaryAction } = renderDialog();
 
-    fireEvent.click(screen.getByRole("button", { name: "Skip execution" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save for later" }));
 
     expect(onSecondaryAction).toHaveBeenCalledOnce();
     expect(onDismiss).not.toHaveBeenCalled();
