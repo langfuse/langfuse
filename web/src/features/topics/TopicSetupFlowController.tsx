@@ -51,25 +51,27 @@ export function TopicSetupFlowController({
   children: (control: { openSetup: () => void }) => ReactNode;
 }) {
   const capture = useTopicsCapture();
-  // The dialog stays closed until Start analyzing, and only once settings have loaded.
-  if (!settings) return children({ openSetup() {} });
+  // The workspace stays under DialogController while settings load, so it does not remount.
   return (
     <DialogController<null>
-      renderDialog={({ closeDialog }) => (
-        <TopicSetupSession
-          // Rebuilds the draft with recommended models once the first connection arrives.
-          key={settings.connections.length > 0 ? "ready" : "none"}
-          projectId={projectId}
-          canWrite={canWrite}
-          settings={settings}
-          onSaveSampling={onSaveSampling}
-          closeDialog={closeDialog}
-        />
-      )}
+      renderDialog={({ closeDialog }) =>
+        settings ? (
+          <TopicSetupSession
+            // Rebuilds the draft with recommended models once the first connection arrives.
+            key={settings.connections.length > 0 ? "ready" : "none"}
+            projectId={projectId}
+            canWrite={canWrite}
+            settings={settings}
+            onSaveSampling={onSaveSampling}
+            closeDialog={closeDialog}
+          />
+        ) : null
+      }
     >
       {({ openDialog }) =>
         children({
           openSetup() {
+            if (!settings) return;
             capture("topics:setup_flow_opened", {
               hasConnection: settings.connections.length > 0,
               isFirstSetup: !settings.rule,
