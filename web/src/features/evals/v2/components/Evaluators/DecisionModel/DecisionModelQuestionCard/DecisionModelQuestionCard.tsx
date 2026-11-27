@@ -73,7 +73,7 @@ function CriteriaEditor({
     case DecisionModelQuestionType.NOUL:
       return (
         // Lines up with the controls of the labelled rows.
-        <div className="pl-30">
+        <div className="pl-30 @max-sm/fields:pl-0">
           <NoulCriteriaEditor
             criteria={question.criteria}
             onChange={(criteria) => onChange({ ...question, criteria })}
@@ -144,7 +144,7 @@ export function DecisionModelQuestionCard({
         </span>
       }
     >
-      <div className="flex flex-col gap-4 p-4">
+      <div className="@container/fields flex flex-col gap-4 p-4">
         <FieldRow
           label="Type"
           size="wide"

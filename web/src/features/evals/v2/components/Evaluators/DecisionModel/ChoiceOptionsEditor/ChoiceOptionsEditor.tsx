@@ -62,7 +62,7 @@ export function ChoiceOptionsEditor({
             getLabel={(option, index) => option.value || `option ${index + 1}`}
             onReorder={(from, to) => onChange(moveItem(options, from, to))}
             renderItem={(option, index) => (
-              <div className="group/row grid grid-cols-[minmax(8rem,1fr)_2fr_auto] items-center gap-2">
+              <div className="group/row grid grid-cols-[1fr_2fr_auto] items-center gap-2">
                 <Input
                   value={option.value}
                   onChange={(event) =>
@@ -70,7 +70,7 @@ export function ChoiceOptionsEditor({
                   }
                   placeholder="label"
                   aria-label={`Option ${index + 1} label`}
-                  className="h-8 border-transparent bg-transparent px-1 font-mono text-ellipsis shadow-none placeholder:text-ellipsis"
+                  className="h-8 min-w-32 border-transparent bg-transparent px-1 font-mono text-ellipsis shadow-none placeholder:text-ellipsis @max-sm/fields:min-w-20"
                 />
                 <Input
                   value={option.description}

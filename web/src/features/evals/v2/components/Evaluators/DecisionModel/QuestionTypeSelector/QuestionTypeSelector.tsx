@@ -124,7 +124,7 @@ export function QuestionTypeSelector({
   );
 
   return (
-    <div ref={slotRef} className="flex min-w-0">
+    <div ref={slotRef} className="flex min-w-0 flex-1">
       {/* An unseen copy of the tabs stays mounted to read their natural width. */}
       <div
         aria-hidden="true"
@@ -138,7 +138,7 @@ export function QuestionTypeSelector({
       {tabsFit ? (
         tabs
       ) : (
-        <div className="w-52 max-w-full">
+        <div className="w-52 max-w-full @max-sm/fields:w-full">
           <Select
             value={value}
             onValueChange={(next) =>
