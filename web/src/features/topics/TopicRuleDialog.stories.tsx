@@ -1,3 +1,4 @@
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { useState } from "react";
 import type { FilterState } from "@langfuse/shared";
 import {
@@ -8,7 +9,6 @@ import {
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { TopicRuleDialogView } from "./TopicRuleDialogView";
 import { TopicCostEstimateView } from "./TopicCostEstimateView";
@@ -141,16 +141,7 @@ function EditScanStory({
 const meta = preview.meta({
   component: EditScanStory,
   parameters: { layout: "fullscreen" },
-  decorators: [
-    (Story) => (
-      <DialogController<null>
-        initialState={() => null}
-        renderDialog={() => <Story />}
-      >
-        {() => null}
-      </DialogController>
-    ),
-  ],
+  decorators: [withOpenOverlay],
 });
 
 export const Live = meta.story({});

@@ -1,7 +1,7 @@
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { ComponentProps } from "react";
 import { ConfigureTopicsDialog } from "./ConfigureTopicsDialog";
 
@@ -41,16 +41,7 @@ const filledDraft = {
 const meta = preview.meta({
   component: ConfigureTopicsDialog,
   parameters: { layout: "fullscreen" },
-  decorators: [
-    (Story) => (
-      <DialogController<null>
-        initialState={() => null}
-        renderDialog={() => <Story />}
-      >
-        {() => null}
-      </DialogController>
-    ),
-  ],
+  decorators: [withOpenOverlay],
   args: {
     providerGroups,
     closeDialog: fn(),

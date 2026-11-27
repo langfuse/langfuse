@@ -1,10 +1,10 @@
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { useState } from "react";
 import type { FilterState } from "@langfuse/shared";
 import { DEFAULT_TOPIC_FACETS, type TopicFacet } from "@langfuse/shared/topics";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { NewMapDialogView } from "./NewMapDialogView";
 import { costEstimateFixture } from "@/.storybook/fixtures/topicCostEstimateFixture";
@@ -135,16 +135,7 @@ function NewMapStory({
 const meta = preview.meta({
   component: NewMapStory,
   parameters: { layout: "fullscreen" },
-  decorators: [
-    (Story) => (
-      <DialogController<null>
-        initialState={() => null}
-        renderDialog={() => <Story />}
-      >
-        {() => null}
-      </DialogController>
-    ),
-  ],
+  decorators: [withOpenOverlay],
 });
 
 export const Default = meta.story({ name: "New live map" });

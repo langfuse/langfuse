@@ -1,7 +1,7 @@
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { fn } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { TopicRefreshMapDialogView } from "./TopicRefreshMapDialogView";
 
 const now = Date.parse("2026-11-18T12:00:00.000Z");
@@ -19,16 +19,7 @@ const meta = preview.meta({
     refreshing: false,
     onRefresh: fn(),
   },
-  decorators: [
-    (Story) => (
-      <DialogController<null>
-        initialState={() => null}
-        renderDialog={() => <Story />}
-      >
-        {() => null}
-      </DialogController>
-    ),
-  ],
+  decorators: [withOpenOverlay],
 });
 
 export const Default = meta.story({ name: "Refresh map" });

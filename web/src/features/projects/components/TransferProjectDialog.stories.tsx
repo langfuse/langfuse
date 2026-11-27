@@ -1,8 +1,8 @@
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 
 import { TransferProjectDialog } from "./TransferProjectDialog";
 
@@ -19,16 +19,7 @@ const meta = preview.meta({
   parameters: {
     layout: "fullscreen",
   },
-  decorators: [
-    (Story) => (
-      <DialogController
-        initialState={() => true}
-        renderDialog={() => <Story />}
-      >
-        {() => null}
-      </DialogController>
-    ),
-  ],
+  decorators: [withOpenOverlay],
 });
 
 export default meta;

@@ -137,7 +137,11 @@ describe("Drawer", () => {
           </DrawerContent>
         )}
       >
-        {() => null}
+        {({ openDrawer }) => (
+          <button type="button" onClick={() => openDrawer(initialState ?? "")}>
+            Open
+          </button>
+        )}
       </DrawerController>
     );
     const { rerender } = render(renderController("first"), {

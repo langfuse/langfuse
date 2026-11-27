@@ -1,25 +1,21 @@
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import {
   DeleteProjectDialog,
   type DeleteProjectDialogProps,
 } from "./DeleteProjectDialog";
 
 const meta = preview.meta({
+  decorators: [withOpenOverlay],
   component: DeleteProjectDialog,
 });
 
 export default meta;
 
 const renderDialog = (args: DeleteProjectDialogProps) => (
-  <DialogController
-    initialState={() => true}
-    renderDialog={() => <DeleteProjectDialog {...args} />}
-  >
-    {() => null}
-  </DialogController>
+  <DeleteProjectDialog {...args} />
 );
 
 export const Default = meta.story({

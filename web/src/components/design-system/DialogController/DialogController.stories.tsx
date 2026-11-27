@@ -246,7 +246,11 @@ export const InitialState = meta.story({
       initialState={() => "Initial state"}
       renderDialog={({ state }) => <Dialog title={state} text="Content" />}
     >
-      {() => null}
+      {({ openDialog }) => (
+        <button type="button" onClick={() => openDialog("Initial state")}>
+          Open
+        </button>
+      )}
     </DialogController>
   ),
   play: async ({ canvasElement }) => {

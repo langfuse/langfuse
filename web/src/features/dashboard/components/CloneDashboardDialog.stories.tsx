@@ -1,22 +1,13 @@
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { fn } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { CloneDashboardDialog } from "./CloneDashboardDialog";
 
 const meta = preview.meta({
   component: CloneDashboardDialog,
   parameters: { layout: "fullscreen" },
-  decorators: [
-    (Story) => (
-      <DialogController<null>
-        initialState={() => null}
-        renderDialog={() => <Story />}
-      >
-        {() => null}
-      </DialogController>
-    ),
-  ],
+  decorators: [withOpenOverlay],
   args: {
     dashboardName: "Overview",
     setAsHome: false,

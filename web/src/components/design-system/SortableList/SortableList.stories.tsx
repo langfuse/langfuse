@@ -1,9 +1,9 @@
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { useState } from "react";
 import { arrayMove } from "@dnd-kit/sortable";
 import { expect, fn, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { Dialog } from "../Dialog/Dialog";
-import { DialogController } from "../DialogController/DialogController";
 import { SortableList } from "./SortableList";
 
 const meta = preview.meta({ component: SortableList });
@@ -73,6 +73,7 @@ export const TestMixedHeights = meta.story({
 
 export const TestSortingInDialog = meta.story({
   name: "(Test) Sorting Inside a Dialog",
+  decorators: [withOpenOverlay],
   args: {
     items: ["First", "Second"],
     getId: String,
@@ -83,26 +84,19 @@ export const TestSortingInDialog = meta.story({
   render: (args) => {
     const [items, setItems] = useState(args.items);
     return (
-      <DialogController<boolean>
-        initialState={() => true}
-        renderDialog={() => (
-          <Dialog title="Reorder choices" stopPropagationOnEnterSpace={false}>
-            <Dialog.Body>
-              <SortableList
-                {...args}
-                items={items}
-                aria-label="Choices"
-                onReorder={(from, to) => {
-                  setItems(arrayMove(items, from, to));
-                  args.onReorder(from, to);
-                }}
-              />
-            </Dialog.Body>
-          </Dialog>
-        )}
-      >
-        {() => null}
-      </DialogController>
+      <Dialog title="Reorder choices" stopPropagationOnEnterSpace={false}>
+        <Dialog.Body>
+          <SortableList
+            {...args}
+            items={items}
+            aria-label="Choices"
+            onReorder={(from, to) => {
+              setItems(arrayMove(items, from, to));
+              args.onReorder(from, to);
+            }}
+          />
+        </Dialog.Body>
+      </Dialog>
     );
   },
   play: async ({ canvasElement, args, userEvent }) => {

@@ -1,8 +1,8 @@
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import type { ComponentProps } from "react";
 import { fn } from "storybook/test";
 
 import preview from "@/.storybook/preview";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { GatewayApiKeyDialog } from "./GatewayApiKeyDialog";
 
 const models = [
@@ -41,6 +41,7 @@ const enabledModels = {
 };
 
 const meta = preview.meta({
+  decorators: [withOpenOverlay],
   component: GatewayApiKeyDialog,
   parameters: { layout: "fullscreen" },
   args: {
@@ -56,14 +57,7 @@ const meta = preview.meta({
 });
 
 function OpenDialog(props: ComponentProps<typeof GatewayApiKeyDialog>) {
-  return (
-    <DialogController<true>
-      initialState={() => true}
-      renderDialog={() => <GatewayApiKeyDialog {...props} />}
-    >
-      {() => null}
-    </DialogController>
-  );
+  return <GatewayApiKeyDialog {...props} />;
 }
 
 export const Default = meta.story({});

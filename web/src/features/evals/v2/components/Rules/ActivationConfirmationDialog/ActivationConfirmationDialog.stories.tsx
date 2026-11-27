@@ -1,7 +1,7 @@
+import { withOpenOverlay } from "@/.storybook/decorators/withOpenOverlay";
 import { expect, fn, within } from "storybook/test";
 import preview from "../../../../../../../.storybook/preview";
 import { ActivationConfirmationDialog } from "./ActivationConfirmationDialog";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 
 const sharedArgs = {
   onSamplingChange: fn(),
@@ -57,15 +57,9 @@ const estimatedCost = {
 };
 
 const meta = preview.meta({
+  decorators: [withOpenOverlay],
   component: ActivationConfirmationDialog,
-  render: (args) => (
-    <DialogController
-      initialState={() => ({})}
-      renderDialog={() => <ActivationConfirmationDialog {...args} />}
-    >
-      {() => null}
-    </DialogController>
-  ),
+  render: (args) => <ActivationConfirmationDialog {...args} />,
 });
 
 export const CostWarning = meta.story({

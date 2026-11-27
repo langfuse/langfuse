@@ -84,7 +84,11 @@ describe("DialogController", () => {
         size="default"
         renderContent={({ state }) => <DialogTitle>{state}</DialogTitle>}
       >
-        {() => null}
+        {({ openDialog }) => (
+          <button type="button" onClick={() => openDialog(initialState ?? "")}>
+            Open
+          </button>
+        )}
       </DialogController>
     );
     const { rerender } = render(renderController("first"), {
