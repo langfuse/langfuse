@@ -1085,20 +1085,16 @@ function BedrockGuardrailFields({
         </FormField>
       </div>
 
-      <ExternalApiKeyField control={control} hasSavedApiKey={hasSavedApiKey}>
-        Use{" "}
-        <TextLink
-          path="https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html"
-          value="Amazon Bedrock API keys"
-          icon={SquareArrowOutUpRight}
-          external
-        />
-        . Needs{" "}
-        <code className="bg-muted rounded-md px-1 py-px font-mono text-xs">
-          bedrock:ApplyGuardrail
-        </code>{" "}
-        permission in the selected region.
-      </ExternalApiKeyField>
+      <ExternalApiKeyField
+        control={control}
+        hasSavedApiKey={hasSavedApiKey}
+        tooltip={{
+          docsHref:
+            "https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html",
+          docsLabel: "Amazon Bedrock API keys",
+          note: "Needs the bedrock:ApplyGuardrail permission in the selected region.",
+        }}
+      />
     </>
   );
 }
@@ -1145,16 +1141,15 @@ function OpenAiModerationGuardrailFields({
         )}
       </CustomTooltip>
 
-      <ExternalApiKeyField control={control} hasSavedApiKey={hasSavedApiKey}>
-        Use an{" "}
-        <TextLink
-          path="https://platform.openai.com/api-keys"
-          value="OpenAI API key"
-          icon={SquareArrowOutUpRight}
-          external
-        />{" "}
-        from the project matching the region.
-      </ExternalApiKeyField>
+      <ExternalApiKeyField
+        control={control}
+        hasSavedApiKey={hasSavedApiKey}
+        tooltip={{
+          docsHref: "https://platform.openai.com/api-keys",
+          docsLabel: "OpenAI API keys",
+          note: "Use a key from the project matching the region.",
+        }}
+      />
     </div>
   );
 }
@@ -1162,17 +1157,30 @@ function OpenAiModerationGuardrailFields({
 type ExternalApiKeyFieldProps = {
   control: Control<GuardrailFormSchemaValues>;
   hasSavedApiKey: boolean;
-  /** Where to get the key; shown in the label tooltip. */
-  children: React.ReactNode;
+  /** Where to get the key, and what it needs or limits. */
+  tooltip: { docsHref: string; docsLabel: string; note: string };
 };
 
 function ExternalApiKeyField({
   control,
   hasSavedApiKey,
-  children,
+  tooltip,
 }: ExternalApiKeyFieldProps) {
   return (
-    <CustomTooltip content={<span>{children}</span>}>
+    <CustomTooltip
+      content={
+        <span>
+          Use{" "}
+          <TextLink
+            path={tooltip.docsHref}
+            value={tooltip.docsLabel}
+            icon={SquareArrowOutUpRight}
+            external
+          />
+          . {tooltip.note}
+        </span>
+      }
+    >
       {({ getTriggerProps }) => (
         <FormField
           control={control}
