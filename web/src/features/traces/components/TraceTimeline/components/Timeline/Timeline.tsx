@@ -146,20 +146,20 @@ const TYPE_COLOR_DIM: Record<string, string> = {
 };
 const FALLBACK_COLOR_DIM = "bg-muted-gray/50";
 /** Each hue's fill shade, darker than the bar in both themes, for the selected bar's edge. */
-const TYPE_BORDER: Record<string, string> = {
-  TRACE: "border-observation-trace-fill",
-  GENERATION: "border-observation-generation-fill",
-  EVENT: "border-observation-event-fill",
-  SPAN: "border-observation-span-fill",
-  AGENT: "border-observation-agent-fill",
-  EVALUATOR: "border-observation-evaluator-fill",
-  TOOL: "border-observation-tool-fill",
-  CHAIN: "border-observation-chain-fill",
-  RETRIEVER: "border-observation-retriever-fill",
-  EMBEDDING: "border-observation-embedding-fill",
-  GUARDRAIL: "border-observation-guardrail-fill",
+const TYPE_EDGE: Record<string, string> = {
+  TRACE: "ring-observation-trace-fill",
+  GENERATION: "ring-observation-generation-fill",
+  EVENT: "ring-observation-event-fill",
+  SPAN: "ring-observation-span-fill",
+  AGENT: "ring-observation-agent-fill",
+  EVALUATOR: "ring-observation-evaluator-fill",
+  TOOL: "ring-observation-tool-fill",
+  CHAIN: "ring-observation-chain-fill",
+  RETRIEVER: "ring-observation-retriever-fill",
+  EMBEDDING: "ring-observation-embedding-fill",
+  GUARDRAIL: "ring-observation-guardrail-fill",
 };
-const FALLBACK_BORDER = "border-border-contrast";
+const FALLBACK_EDGE = "ring-border-contrast";
 const NEUTRAL_COLOR_DIM = "bg-muted-foreground/30";
 /**
  * Every colour a bar can be — the set whose contrast has to be resolved. The
@@ -574,13 +574,6 @@ export function Timeline({
     });
     return levels;
   }, [packing, prepared]);
-  // Only a selection with a bar in this chart dims the bars around it.
-  const dimsUnselected = useMemo(
-    () =>
-      selectedId != null &&
-      prepared.rows.some((row) => row.node.id === selectedId),
-    [selectedId, prepared],
-  );
   const shownLayout = packed ? "packed" : "tree";
   const viewport =
     windowState.layout === shownLayout ? windowState.viewport : null;
@@ -1644,8 +1637,18 @@ export function Timeline({
   const focused = focusedId
     ? (result.nodes.find((node) => node.id === focusedId) ?? null)
     : null;
-  const selectedLane =
-    result.nodes.find((node) => node.id === selectedId)?.index ?? null;
+  const selectedNode =
+    result.nodes.find((node) => node.id === selectedId) ?? null;
+  const selectedLane = selectedNode?.index ?? null;
+  // The other bars fade only while the selected bar is drawn to stand out
+  // from them.
+  const dimsUnselected = selectedNode != null && !selectedNode.offscreen;
+  const washedRows = [
+    ...(selectedLane == null ? [] : [{ lane: selectedLane, selected: true }]),
+    ...(focused == null || focused.index === selectedLane
+      ? []
+      : [{ lane: focused.index, selected: false }]),
+  ];
   const windowLabel = formatDurationMs(
     compression.toRealMs(current.time.start + current.time.duration) -
       compression.toRealMs(current.time.start),
@@ -1847,6 +1850,23 @@ export function Timeline({
           className="absolute inset-0 isolate overflow-hidden"
           data-testid="timeline-dense-content"
         >
+          {/* The selected and hovered rows are washed once, under the grid
+              and every bar. A wash on the row itself covers the grid lines
+              and, in a packed lane, the bars drawn before it. */}
+          {washedRows.map(({ lane, selected }) => (
+            <div
+              key={selected ? "selected" : "focused"}
+              className={cn(
+                "pointer-events-none absolute inset-x-0",
+                rowWashClass({ selected, focused: !selected }),
+              )}
+              style={{
+                top: `${(lane - current.rows.start) * rowHeight}px`,
+                height: `${rowHeight}px`,
+              }}
+              data-testid="timeline-dense-row-wash"
+            />
+          ))}
           <div
             className="pointer-events-none absolute inset-y-0"
             style={{ left: `${railWidth}px`, width: `${laneWidth}px` }}
@@ -1890,28 +1910,18 @@ export function Timeline({
             })}
           </div>
 
-          {/* A packed lane is drawn once, under every bar in it: a wash per
-              bar would paint over the bars that come before it in the lane. */}
-          {packing
+          {packing && railWidth > 0
             ? packing.types.map((type, lane) => {
                 const y = (lane - current.rows.start) * rowHeight;
                 if (y + rowHeight < 0 || y > chartHeight) return null;
                 return (
                   <div
                     key={type}
-                    className={cn(
-                      "pointer-events-none absolute inset-x-0",
-                      rowWashClass({
-                        selected: lane === selectedLane,
-                        focused: lane === focused?.index,
-                      }),
-                    )}
+                    className="pointer-events-none absolute inset-x-0"
                     style={{ top: `${y}px`, height: `${rowHeight}px` }}
                     data-testid="timeline-dense-lane"
                   >
-                    {railWidth > 0 ? (
-                      <LaneLabel type={type} width={railWidth} />
-                    ) : null}
+                    <LaneLabel type={type} width={railWidth} />
                   </div>
                 );
               })
@@ -1921,7 +1931,6 @@ export function Timeline({
             const y = (node.index - current.rows.start) * rowHeight;
             if (y + rowHeight < 0 || y > chartHeight) return null;
 
-            const isFocused = node.id === focused?.id;
             const isSelected = node.id === selectedId;
             const isUnselected = dimsUnselected && !isSelected;
             // A span inside one of its own type shares that bar's lane, so
@@ -1952,12 +1961,7 @@ export function Timeline({
                 key={node.id}
                 className={cn(
                   "absolute inset-x-0",
-                  packed
-                    ? "pointer-events-none"
-                    : rowWashClass({
-                        selected: isSelected,
-                        focused: isFocused,
-                      }),
+                  packed && "pointer-events-none",
                 )}
                 style={{ top: `${y}px`, height: `${rowHeight}px` }}
                 data-testid="timeline-dense-row"
@@ -2022,11 +2026,12 @@ export function Timeline({
                         onSelect && "cursor-pointer",
                         barClass,
                         nesting % 2 === 1 && "brightness-75",
+                        // Inset, so a hairline bar keeps its size.
                         isSelected && [
-                          "border",
+                          "ring-1 ring-inset",
                           barColor === "type"
-                            ? (TYPE_BORDER[node.type] ?? FALLBACK_BORDER)
-                            : FALLBACK_BORDER,
+                            ? (TYPE_EDGE[node.type] ?? FALLBACK_EDGE)
+                            : FALLBACK_EDGE,
                         ],
                       )}
                       onClick={
