@@ -87,7 +87,7 @@ function DateRangeFieldsVariant({
   };
 
   return (
-    <div className="w-full max-w-full">
+    <div className="w-fit max-w-full">
       <InputControl
         contentLayout="text"
         height="fixed"
