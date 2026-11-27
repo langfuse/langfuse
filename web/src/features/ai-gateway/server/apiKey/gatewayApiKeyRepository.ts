@@ -37,7 +37,7 @@ const GATEWAY_API_KEY_LIST_SELECT = {
     select: {
       ...GATEWAY_API_KEY_SELECT.apiKey.select,
       gatewaySpendLimits: {
-        select: GATEWAY_SPEND_LIMIT_DTO_SELECT,
+        select: { ...GATEWAY_SPEND_LIMIT_DTO_SELECT, ownerUserId: true },
         orderBy: { createdAt: "asc" },
         take: 2,
       },
@@ -122,6 +122,13 @@ export class GatewayApiKeyRepository {
           ? toGatewaySpendLimitDto(gatewaySpendLimits[0])
           : null,
         hasSeveralSpendLimits: gatewaySpendLimits.length > 1,
+        // Members may reset only budgets they set, never an admin's or the default.
+        canResetBudget:
+          params.ownerUserId === undefined ||
+          (gatewaySpendLimits.length > 0 &&
+            gatewaySpendLimits.every(
+              ({ ownerUserId }) => ownerUserId === params.ownerUserId,
+            )),
       }),
     );
     return { data, totalCount };

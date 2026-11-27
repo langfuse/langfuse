@@ -2822,12 +2822,64 @@ describe("AI gateway control plane", () => {
       ).apiKeys.map(({ id }) => id),
     ).toEqual(expect.arrayContaining([service.id, ci.id]));
 
+    // Members cannot lift the default by giving their key a budget of its own, on any write path.
+    const ownBudget = { interval: "WEEKLY" as const, limitUsd: 20 };
+    for (const attempt of [
+      () =>
+        member.aiGateway.setSpendLimits({
+          orgId: owner.org.id,
+          scope: "API_KEY",
+          subjects: { type: "ids", subjectIds: [laptop.id] },
+          spendLimit: ownBudget,
+        }),
+      () =>
+        member.aiGateway.createSpendLimits({
+          orgId: owner.org.id,
+          scope: "API_KEY",
+          subjectIds: [laptop.id],
+          spendLimit: ownBudget,
+        }),
+      () =>
+        member.aiGateway.updateApiKey({
+          orgId: owner.org.id,
+          id: laptop.id,
+          name: "Laptop",
+          metadata: {},
+          allowedModels: null,
+          previousAllowedModels: null,
+          spendLimit: ownBudget,
+        }),
+      () =>
+        member.aiGateway.createApiKey({
+          orgId: owner.org.id,
+          name: "Unlimited",
+          metadata: {},
+          spendLimit: ownBudget,
+        }),
+    ]) {
+      await expect(attempt()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    }
+    expect(
+      await prisma.apiKey.count({
+        where: { orgId: owner.org.id, note: "Unlimited" },
+      }),
+    ).toBe(0);
+    expect(
+      (
+        await member.aiGateway.listBudgets({
+          orgId: owner.org.id,
+          scope: "API_KEY",
+          status: "all",
+        })
+      ).rows.find(({ subjectId }) => subjectId === laptop.id),
+    ).toMatchObject({ isDefault: true, isEditable: false });
+
     // A key's own budget replaces the default, whatever its amount or interval.
-    await member.aiGateway.setSpendLimits({
+    await owner.caller.aiGateway.setSpendLimits({
       orgId: owner.org.id,
       scope: "API_KEY",
       subjects: { type: "ids", subjectIds: [laptop.id] },
-      spendLimit: { interval: "WEEKLY", limitUsd: 20 },
+      spendLimit: ownBudget,
     });
     expect(await resolved(laptop.secretKey)).toEqual([
       expect.objectContaining({ scope: "api_key", limit_usd: 20 }),
@@ -3053,8 +3105,45 @@ describe("AI gateway control plane", () => {
       }),
     ]);
 
-    // Member can reset their own key's budget even when an admin set it; limit, thresholds, and ownerUserId stay intact.
-    await member.aiGateway.resetSpendLimit({
+    // Member cannot reset their own key's budget once an admin set it; the admin can, keeping limit, thresholds, and ownerUserId intact.
+    await expect(
+      member.aiGateway.resetSpendLimit({
+        orgId: owner.org.id,
+        scope: "API_KEY",
+        subjectId: memberKey.id,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const listCanReset = async (caller: typeof member, apiKeyId: string) => ({
+      budgets: (
+        await caller.aiGateway.listBudgets({
+          orgId: owner.org.id,
+          scope: "API_KEY",
+          status: "all",
+          page: 0,
+          limit: 50,
+        })
+      ).rows.find((row) => row.subjectId === apiKeyId)?.canResetBudget,
+      apiKeys: (
+        await caller.aiGateway.listApiKeys({
+          orgId: owner.org.id,
+          page: 0,
+          limit: 50,
+        })
+      ).data.find((row) => row.apiKey.id === apiKeyId)?.canResetBudget,
+    });
+    expect(await listCanReset(member, memberKey.id)).toEqual({
+      budgets: false,
+      apiKeys: false,
+    });
+    expect(await listCanReset(aiGatewayMember, aiGatewayKey.id)).toEqual({
+      budgets: true,
+      apiKeys: true,
+    });
+    expect(await listCanReset(admin, memberKey.id)).toEqual({
+      budgets: true,
+      apiKeys: true,
+    });
+    await admin.aiGateway.resetSpendLimit({
       orgId: owner.org.id,
       scope: "API_KEY",
       subjectId: memberKey.id,
@@ -3182,15 +3271,29 @@ describe("AI gateway control plane", () => {
     });
     expect(alertsBeforeReset).toBe(1);
 
-    // Member resets their own key that inherits API_KEY_DEFAULT; owner resets aiGatewayUser on USER_DEFAULT.
-    // Concurrent resets on the same subject serialize monotonically and never move countingStartedAt backward.
-    await Promise.all([
+    // Member cannot reset their own key that inherits the admin-set API_KEY_DEFAULT.
+    await expect(
       member.aiGateway.resetSpendLimit({
         orgId: owner.org.id,
         scope: "API_KEY",
         subjectId: memberSecondKey.id,
       }),
-      member.aiGateway.resetSpendLimit({
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(
+      await prisma.gatewaySpendLimit.count({
+        where: { apiKeyId: memberSecondKey.id },
+      }),
+    ).toBe(0);
+
+    // Admin resets that key; owner resets aiGatewayUser on USER_DEFAULT.
+    // Concurrent resets on the same subject serialize monotonically and never move countingStartedAt backward.
+    await Promise.all([
+      admin.aiGateway.resetSpendLimit({
+        orgId: owner.org.id,
+        scope: "API_KEY",
+        subjectId: memberSecondKey.id,
+      }),
+      admin.aiGateway.resetSpendLimit({
         orgId: owner.org.id,
         scope: "API_KEY",
         subjectId: memberSecondKey.id,
@@ -3286,10 +3389,8 @@ describe("AI gateway control plane", () => {
       orderBy: { createdAt: "asc" },
     });
     expect(resetAuditLogs).toHaveLength(7);
-    expect(resetAuditLogs[0]).toMatchObject({
-      resourceId: beforeKeyLimit.id,
-      userId: memberUserId,
-    });
+    expect(resetAuditLogs[0]).toMatchObject({ resourceId: beforeKeyLimit.id });
+    expect(resetAuditLogs[0]!.userId).not.toBe(memberUserId);
     expect(JSON.parse(resetAuditLogs[0]!.before!).countingStartedAt).toBe(
       beforeKeyLimit.countingStartedAt.toISOString(),
     );
@@ -4309,7 +4410,7 @@ describe("AI gateway control plane", () => {
     await report(keys[1], keys[1].id);
     expect(keyOwnerEmails()).toEqual(["Laptop", "CI"]);
 
-    await member.aiGateway.setSpendLimits({
+    await owner.caller.aiGateway.setSpendLimits({
       orgId: owner.org.id,
       scope: "API_KEY",
       subjects: { type: "ids", subjectIds: [keys[1].id] },

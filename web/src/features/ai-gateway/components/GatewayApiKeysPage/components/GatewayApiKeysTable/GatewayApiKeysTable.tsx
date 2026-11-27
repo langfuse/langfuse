@@ -1,4 +1,4 @@
-import { ListTree, Pencil, RotateCcw, Trash } from "@langfuse/icons";
+import { Ban, ListTree, Pencil, RotateCcw, Trash } from "@langfuse/icons";
 import { formatDistanceToNowStrict } from "date-fns";
 
 import { TableCard } from "@/src/components/TableCard/TableCard";
@@ -17,6 +17,7 @@ import type {
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
+import { GATEWAY_ADMIN_SET_BUDGET_RESET_REASON } from "@/src/features/ai-gateway/constants/gatewayAdminSetBudgetResetReason";
 import { GatewayApiKeysEmptyState } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeysEmptyState/GatewayApiKeysEmptyState";
 import { GatewayDefaultBudgetTag } from "@/src/features/ai-gateway/components/GatewayDefaultBudgetTag/GatewayDefaultBudgetTag";
 import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
@@ -32,6 +33,8 @@ type GatewayApiKey = {
   /** The organization's default key budget, which caps the key while it has no `spendLimit` of its own. */
   defaultSpendLimit?: GatewaySpendLimit | null;
   hasSeveralSpendLimits: boolean;
+  /** False for a member when a gateway admin set the key's budget or it has the default. */
+  canResetBudget: boolean;
   apiKey: {
     id: string;
     publicKey: string;
@@ -222,11 +225,8 @@ export function GatewayApiKeysTable({
       id: "resetBudget",
       type: "item" as const,
       title: "Reset budget",
-      icon: RotateCcw,
-      disabled:
-        row.spendLimit || row.defaultSpendLimit
-          ? undefined
-          : { reason: "This key has no budget to reset." },
+      icon: isResetLockedByAdmin(row) ? Ban : RotateCcw,
+      disabled: getResetBudgetDisabled(row),
       onClick: () => onResetBudget(row),
     },
     ...(ingestionProjectId
@@ -280,6 +280,22 @@ export function GatewayApiKeysTable({
       }
     />
   );
+}
+
+function getResetBudgetDisabled(row: GatewayApiKey) {
+  if (!hasBudget(row)) return { reason: "This key has no budget to reset." };
+  if (!row.canResetBudget) {
+    return { reason: GATEWAY_ADMIN_SET_BUDGET_RESET_REASON };
+  }
+  return undefined;
+}
+
+function isResetLockedByAdmin(row: GatewayApiKey) {
+  return hasBudget(row) && !row.canResetBudget;
+}
+
+function hasBudget(row: GatewayApiKey) {
+  return row.spendLimit !== null || Boolean(row.defaultSpendLimit);
 }
 
 function getMetadataEntries(value: unknown) {

@@ -1,4 +1,4 @@
-import { ListTree, Pencil, RotateCcw } from "@langfuse/icons";
+import { Ban, ListTree, Pencil, RotateCcw } from "@langfuse/icons";
 
 import {
   TableCard,
@@ -18,6 +18,7 @@ import {
   GATEWAY_BUDGET_STATUSES,
   type GatewayBudgetStatus,
 } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
+import { GATEWAY_ADMIN_SET_BUDGET_RESET_REASON } from "@/src/features/ai-gateway/constants/gatewayAdminSetBudgetResetReason";
 import {
   GATEWAY_SPEND_TABS,
   type GatewaySpendTab,
@@ -211,10 +212,8 @@ export function GatewayBudgetsTable({
       id: "resetBudget",
       type: "item" as const,
       title: "Reset budget",
-      icon: RotateCcw,
-      disabled: row.spendLimit
-        ? undefined
-        : { reason: noBudgetResetReasons[tab] },
+      icon: isResetLockedByAdmin(row) ? Ban : RotateCcw,
+      disabled: getResetBudgetDisabled(row, tab),
       onClick: () => onResetBudget(row),
     },
     ...(ingestionProjectId
@@ -261,6 +260,18 @@ export function GatewayBudgetsTable({
       noResultsMessage={isFiltered ? copy.noMatches : copy.noBudgets}
     />
   );
+}
+
+function getResetBudgetDisabled(row: GatewayBudgetRow, tab: GatewaySpendTab) {
+  if (!row.spendLimit) return { reason: noBudgetResetReasons[tab] };
+  if (!row.canResetBudget) {
+    return { reason: GATEWAY_ADMIN_SET_BUDGET_RESET_REASON };
+  }
+  return undefined;
+}
+
+function isResetLockedByAdmin(row: GatewayBudgetRow) {
+  return row.spendLimit !== null && !row.canResetBudget;
 }
 
 function toGatewayBudgetStatus(value: string): GatewayBudgetStatus {
