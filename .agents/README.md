@@ -209,7 +209,7 @@ Use HTTP/OAuth where available so credentials remain outside the agent VM.
 | PostHog | Cursor Marketplace integration | Enabled; allow analytics, schema, query, and insight reads only |
 | Browser automation | Cursor computer use in Cloud; Playwright MCP locally | Enabled; never reuse a developer's local authenticated browser session |
 
-For integrations marked read-only above, do not approve create, save, update, delete, comment, reply, send, resolve, archive, acknowledge, execute-DDL, or settings-management tools. GitHub review requests and thread actions follow the accepted PR loop within existing permissions. Review the server's discovered tool list whenever an MCP version changes; naming heuristics do not replace an explicit allowlist. Production/support data must not be copied into public preview accounts or Cursor PR artifacts.
+For integrations described as `read-only` or permitting `reads only` above, do not approve create, save, update, delete, comment, reply, send, resolve, archive, acknowledge, execute-DDL, or settings-management tools. GitHub review requests and thread actions follow the accepted PR loop within existing permissions. Review the server's discovered tool list whenever an MCP version changes; naming heuristics do not replace an explicit allowlist. Production/support data must not be copied into public preview accounts or Cursor PR artifacts.
 
 Use `Default + allowlist` network mode. Include the package and container
 registries used by the Dockerfile and Compose stack, GitHub, Langfuse preview
