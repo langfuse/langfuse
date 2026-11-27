@@ -28,7 +28,7 @@ import {
   buildGatewayTracesHref,
   type GatewayTracesTarget,
 } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayTracesHref";
-import { GATEWAY_GUARDRAIL_TEMPLATES } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
+import { GATEWAY_GUARDRAIL_TEMPLATES } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
 import { resolveGuardrailTemplate } from "@/src/features/ai-gateway/fns/resolveGuardrailTemplate";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
 import { numberFormatter } from "@/src/utils/numbers";

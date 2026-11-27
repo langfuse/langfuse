@@ -1,4 +1,4 @@
-import { GATEWAY_GUARDRAIL_TEMPLATES } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
+import { GATEWAY_GUARDRAIL_TEMPLATES } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
 import {
   GATEWAY_GUARDRAIL_PRESETS,
   GATEWAY_GUARDRAIL_PRESET_KEYS,

@@ -4,7 +4,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "@/.storybook/preview";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import type { GatewayGuardrailTemplate } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
+import type { GatewayGuardrailTemplate } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
 import {
   GatewayGuardrailTemplateGallery,
   type GatewayGuardrailTemplateGalleryTab,
