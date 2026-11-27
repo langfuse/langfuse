@@ -125,7 +125,7 @@ const rule = createRule<Options, "unexpectedProp">({
             ) {
               continue;
             }
-            walk(type, seen, member);
+            walk(type, new Set(seen), member);
           }
           return;
         case AST_NODE_TYPES.TSTypeReference: {

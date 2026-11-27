@@ -103,6 +103,14 @@ ruleTester.run("no-node-slot-props", rule, {
     },
     {
       code: `type Slot = React.ReactNode;
+             function Button(props: { icon: Slot; badge: Slot }) { return <button />; }`,
+      errors: [
+        { messageId: "unexpectedProp", data: { propName: "icon" } },
+        { messageId: "unexpectedProp", data: { propName: "badge" } },
+      ],
+    },
+    {
+      code: `type Slot = React.ReactNode;
              function Button(props: { icon: Slot }) { return <button />; }`,
       errors: [{ messageId: "unexpectedProp" }],
     },
