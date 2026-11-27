@@ -39,7 +39,10 @@ export type BillableUnitsBuilder = ExpressionBuilder<BillableUnitsDb, "b">;
 /** A row value over `b`. */
 type Read<T> = (eb: BillableUnitsBuilder) => AliasableExpression<T>;
 
-/** Dimensions of the view, keyed by name, in view order. */
+/**
+ * Dimensions of the view, keyed by name, in view order.
+ * @internal
+ */
 export const BILLABLE_UNITS_DIMENSIONS = {
   unitType: { expression: (eb) => eb.ref("b.event_type") },
   environment: { expression: (eb) => eb.ref("b.environment") },
@@ -50,6 +53,7 @@ export const BILLABLE_UNITS_DIMENSIONS = {
  * aggregates. `count` is `tuple(b.event_type, b.event_id)`: the view maps
  * both its aggregations to `uniq` (`aggregationOverrides` in `dataModel.ts`),
  * so it counts distinct units, not ledger rows.
+ * @internal
  */
 export const BILLABLE_UNITS_MEASURES = {
   count: {
