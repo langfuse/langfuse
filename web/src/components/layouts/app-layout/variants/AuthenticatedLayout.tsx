@@ -7,7 +7,6 @@
 import {
   useEffect,
   useState,
-  type ComponentProps,
   type PropsWithChildren,
   type ReactNode,
 } from "react";
@@ -15,16 +14,7 @@ import Head from "next/head";
 import { useInternalViewMode } from "@/src/features/feature-flags/hooks/useInternalViewMode";
 import { InternalViewModeDialog } from "@/src/features/feature-flags/components/InternalViewModeDialog";
 import { useRouter, type NextRouter } from "next/router";
-import {
-  SidebarProvider,
-  SidebarInset,
-  useSidebar,
-} from "@/src/components/ui/sidebar";
-import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
-import { ClassicNavigationProvider } from "@/src/components/nav/ClassicNavigationProvider";
 import { type UserNavigationItem } from "@/src/components/nav/UserMenuItems";
-import { useSidebarNotificationState } from "@/src/components/nav/useSidebarNotificationState";
-import { useSidebarVersionState } from "@/src/components/nav/useSidebarVersionState";
 import { Toaster } from "@/src/components/ui/Toaster";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { VersionUpdateBanner } from "@/src/features/version-update/VersionUpdateBanner";
@@ -43,14 +33,10 @@ import dynamic from "next/dynamic";
 import { canOpenPersonalFeaturePreviews } from "@/src/features/feature-previews/canOpenPersonalFeaturePreviews";
 import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
 import { InAppAgentWindowHost } from "@/src/features/in-app-agent/components/InAppAgentWindowHost";
-import {
-  useV4UpgradeUiEnabled,
-  useV4UpgradeUiFlag,
-} from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { findCurrentInstance } from "@/src/ee/features/ui-customization/instanceLinks";
 import { env } from "@/src/env.mjs";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useSession } from "next-auth/react";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { CustomerDataWarningBannerView } from "@/src/features/customer-data-warning/CustomerDataWarningBannerView";
@@ -60,7 +46,6 @@ import {
   LegacyUiBanner,
   useLegacyUiBannerVisible,
 } from "@/src/features/v4-migration/LegacyUiBanner";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { PaymentBannerView } from "@/src/features/payment-banner/PaymentBannerView";
 import { usePaymentBanner } from "@/src/features/payment-banner/PaymentBanner";
 import { useTopBannerHeight } from "@/src/features/top-banner/useTopBannerHeight";
@@ -68,7 +53,6 @@ import { useV4MigrationTopBanner } from "@/src/features/v4-migration/hooks/useV4
 import { V4MigrationTopBannerView } from "@/src/features/v4-migration/V4MigrationTopBannerView";
 import { AppShell } from "@/src/features/app-shell/components/AppShell";
 import { AppShellSidebarPanel } from "@/src/features/app-shell/components/AppShellSidebarPanel";
-import { useAppShellVariant } from "@/src/features/app-shell/hooks/useAppShellVariant";
 
 const CommandMenu = dynamic(
   () =>
@@ -117,7 +101,7 @@ type AuthenticatedLayoutProps = PropsWithChildren<{
 
 /**
  * Full authenticated layout with all features:
- * - App sidebar with navigation (classic or new shell, see useAppShellVariant)
+ * - App sidebar with navigation
  * - Payment banner (conditional)
  * - Support drawer
  * - Command menu (Cmd/Ctrl+K)
@@ -139,8 +123,6 @@ export function AuthenticatedLayout({
   const { data: session } = useSession();
   useProjectCookie(router);
   const uiCustomization = useUiCustomization();
-  const appShell = useAppShellVariant();
-  const capture = usePostHogClientCapture();
   // Account-level entry: use the raw flag (same as account settings tabs), not
   // project-scoped force-v3 suppression.
   const showV4Migration = useV4UpgradeUiFlag();
@@ -184,8 +166,6 @@ export function AuthenticatedLayout({
     isLangfuseCloud,
   });
 
-  const otherShellVariant = appShell.variant === "next" ? "classic" : "next";
-
   // User navigation items for sidebar dropdown
   const sidebarUser = {
     name: user.name ?? "",
@@ -222,17 +202,6 @@ export function AuthenticatedLayout({
       name: "Theme",
       onClick: () => {},
       content: <ThemeToggle />,
-    },
-    {
-      type: "action" as const,
-      name:
-        otherShellVariant === "classic"
-          ? "Switch to classic navigation"
-          : "Try the new navigation",
-      onClick: () => {
-        capture("app_shell:variant_switched", { variant: otherShellVariant });
-        appShell.setVariant(otherShellVariant);
-      },
     },
     ...(hasFeaturePreviews
       ? [
@@ -300,11 +269,6 @@ export function AuthenticatedLayout({
     </>
   );
 
-  const routerProjectId =
-    typeof router.query.projectId === "string"
-      ? router.query.projectId
-      : undefined;
-
   return (
     <>
       <Head>
@@ -329,47 +293,21 @@ export function AuthenticatedLayout({
         />
       </Head>
 
-      {appShell.variant === "next" ? (
-        <AppFrame user={user}>
-          <AppShell
-            sidebar={
-              <AppShellSidebarPanel
-                mainNavigation={navigation.mainNavigation}
-                secondaryNavigation={navigation.secondaryNavigation}
-                user={sidebarUser}
-                userMenuItems={userMenuItems}
-                isLangfuseCloud={isLangfuseCloud}
-              />
-            }
-          >
-            {content}
-          </AppShell>
-        </AppFrame>
-      ) : (
-        <SidebarProvider>
-          <ClassicNavigationProvider>
-            <AppFrame user={user}>
-              <ConnectedAppSidebar
-                navItems={navigation.mainNavigation}
-                secondaryNavItems={navigation.secondaryNavigation}
-                user={sidebarUser}
-                userMenuItems={userMenuItems}
-                isLangfuseCloud={isLangfuseCloud}
-                routerProjectId={routerProjectId}
-              />
-              {/* `min-w-0`, not a `100vw`-derived width: viewport units ignore
-                    scrollbars, and a definite width also floors `min-width:
-                    auto`, so on a wide page the inset stayed pinned 15px past
-                    the space beside the sidebar once a space-taking vertical
-                    scrollbar showed — spawning a horizontal one. Flex already
-                    sizes the inset to that space. */}
-              <SidebarInset className="h-screen-with-banner max-w-full min-w-0">
-                {content}
-              </SidebarInset>
-            </AppFrame>
-          </ClassicNavigationProvider>
-        </SidebarProvider>
-      )}
+      <AppFrame user={user}>
+        <AppShell
+          sidebar={
+            <AppShellSidebarPanel
+              mainNavigation={navigation.mainNavigation}
+              secondaryNavigation={navigation.secondaryNavigation}
+              user={sidebarUser}
+              userMenuItems={userMenuItems}
+              isLangfuseCloud={isLangfuseCloud}
+            />
+          }
+        >
+          {content}
+        </AppShell>
+      </AppFrame>
       {internalViewMode.available && (
         <InternalViewModeDialog
           open={internalViewModeOpen}
@@ -386,7 +324,7 @@ export function AuthenticatedLayout({
   );
 }
 
-/** Full-height column shared by both shells: top banners, then the sidebar and the page side by side. */
+/** Full-height column: top banners, then the sidebar and the page side by side. */
 function AppFrame({
   user,
   children,
@@ -449,66 +387,6 @@ function AppFrame({
       )}
       <div className="pt-banner-offset flex min-h-0 flex-1">{children}</div>
     </div>
-  );
-}
-
-function ConnectedAppSidebar({
-  navItems,
-  secondaryNavItems,
-  user,
-  userMenuItems,
-  isLangfuseCloud,
-  routerProjectId,
-}: {
-  navItems: GroupedNavigation;
-  secondaryNavItems: GroupedNavigation;
-  user: ComponentProps<typeof AppSidebar>["user"];
-  userMenuItems: ComponentProps<typeof AppSidebar>["userMenuItems"];
-  isLangfuseCloud: boolean;
-  routerProjectId?: string;
-}) {
-  const { isMobile } = useSidebar();
-  const uiCustomization = useUiCustomization();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(routerProjectId);
-  const session = useSession();
-  const { organization, project } = useQueryProjectOrOrganization();
-  const canCreateProjects = useHasOrganizationAccess({
-    organizationId: organization?.id,
-    scope: "projects:create",
-  });
-  const versionState = useSidebarVersionState({ isLangfuseCloud });
-  const notificationState = useSidebarNotificationState();
-
-  return (
-    <AppSidebar
-      navItems={navItems}
-      secondaryNavItems={secondaryNavItems}
-      user={user}
-      userMenuItems={userMenuItems}
-      isMobile={isMobile}
-      logo={{
-        lightModeHref: uiCustomization?.logoLightModeHref,
-        darkModeHref: uiCustomization?.logoDarkModeHref,
-      }}
-      versionState={versionState}
-      v4UpgradeUiEnabled={v4UpgradeUiEnabled}
-      notificationState={notificationState}
-      organization={
-        organization ? { id: organization.id, name: organization.name } : null
-      }
-      project={project ? { id: project.id, name: project.name } : null}
-      organizations={session.data?.user?.organizations ?? null}
-      canCreateOrganizations={
-        session.data?.user?.canCreateOrganizations ?? false
-      }
-      canCreateProjects={canCreateProjects}
-      showDemoBadge={Boolean(
-        env.NEXT_PUBLIC_DEMO_ORG_ID &&
-        env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-        routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-        isLangfuseCloud,
-      )}
-    />
   );
 }
 

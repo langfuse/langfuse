@@ -4,7 +4,6 @@ import {
   type GatewayPageSlug,
 } from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
 import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
-import { isGatewayGuardrailsEnabled } from "@/src/features/ai-gateway/fns/isGatewayGuardrailsEnabled";
 
 /** Which AI Gateway pages a member sees in an organization. */
 export function gatewayPageAccess({
@@ -22,12 +21,6 @@ export function gatewayPageAccess({
   canReadGateway: boolean;
   canInvokeGateway: boolean;
 }) {
-  const isGuardrailsEnabled = isGatewayGuardrailsEnabled({
-    nodeEnv: process.env.NODE_ENV,
-    cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-    previewPrUrl: env.NEXT_PUBLIC_PREVIEW_PR_URL,
-  });
-
   return {
     /** Self-hosted without a gateway: managers get a pointer to the docs. */
     showNotDeployedNotice: aiGatewayDeployed === false && canManageGateway,
@@ -43,10 +36,7 @@ export function gatewayPageAccess({
         canReadGateway,
         canManageGateway,
       }),
-    showGuardrails:
-      isGuardrailsEnabled &&
-      isAiGatewayEnabled &&
-      (canReadGateway || canManageGateway),
+    showGuardrails: isAiGatewayEnabled && (canReadGateway || canManageGateway),
   };
 }
 

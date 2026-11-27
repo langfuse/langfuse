@@ -18,8 +18,7 @@ import { LangfuseWordmark } from "@/src/components/design-system/LangfuseWordmar
  * `variant="icon"` (default) renders just the Langfuse mark; `variant="wordmark"`
  * renders the full logotype, for the centered brand in the mobile top bar.
  *
- * Respects the self-host UI-customization logo entitlement, same as
- * `LangfuseLogo`, and links to `/` like the sidebar logo.
+ * Respects the self-host UI-customization logo entitlement and links to `/`.
  */
 export const TopbarBrand = ({
   className,
@@ -39,8 +38,7 @@ export const TopbarBrand = ({
       className={cn("flex shrink-0 items-center gap-1", className)}
     >
       {logoLight && logoDark ? (
-        // Custom logo (max aspect ratio 1:3 per docs) + the Langfuse mark,
-        // matching LangfuseLogo's customized layout.
+        // Custom logo (max aspect ratio 1:3 per docs) beside the Langfuse mark.
         <>
           <img
             src={logoLight}

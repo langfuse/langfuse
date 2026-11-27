@@ -1,3 +1,4 @@
+/* oxlint-disable default-param-last -- baseline before rule enablement */
 /* eslint-disable no-nested-ternary */
 import { FileContent, DatasetItemInput } from "./types";
 import {

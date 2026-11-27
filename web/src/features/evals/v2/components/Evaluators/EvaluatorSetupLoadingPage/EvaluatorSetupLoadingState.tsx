@@ -1,4 +1,4 @@
-import { ArrowRight, FlaskConical, PanelRightClose } from "@langfuse/icons";
+import { FlaskConical, PanelRightClose } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -16,19 +16,19 @@ export function EvaluatorSetupLoadingState({
         Loading evaluator
       </span>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto @3xl:grid @3xl:grid-cols-[minmax(0,3fr)_minmax(360px,2fr)] @3xl:overflow-hidden">
-        <div className="shrink-0 p-6 @3xl:min-h-0 @3xl:overflow-hidden">
+        <div className="shrink-0 pt-4 pr-5 pb-6 pl-4 @3xl:min-h-0 @3xl:overflow-hidden">
           <div className="flex gap-3">
-            <div className="bg-primary text-primary-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold">
+            <div className="bg-primary text-primary-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-xs font-bold">
               1
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-bold">Define evaluation method</h2>
+              <h2 className="text-base font-bold">Method</h2>
               <Skeleton className="mt-6 h-64 w-full" />
             </div>
           </div>
 
           <div className="mt-8 flex gap-3">
-            <div className="bg-primary text-primary-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold">
+            <div className="bg-primary text-primary-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-xs font-bold">
               2
             </div>
             <div className="min-w-0 flex-1">
@@ -77,13 +77,12 @@ export function EvaluatorSetupLoadingState({
         </aside>
       </div>
 
-      <div className="flex shrink-0 items-center justify-end gap-2 border-t px-6 py-3">
+      <div className="flex shrink-0 items-center justify-end gap-2 border-t px-4 py-2.5">
         <Button type="button" variant="outline" disabled>
           Close
         </Button>
-        <Button type="button" disabled className="gap-1.5">
+        <Button type="button" disabled>
           {isCreating ? "Create evaluator" : "Save changes"}
-          {isCreating ? <ArrowRight size="base" aria-hidden="true" /> : null}
         </Button>
       </div>
     </div>

@@ -58,30 +58,32 @@ export function useCsvMapping({
 
   // Initialize defaults for freeform mode
   useEffect(() => {
-    if (!preview) return;
+    if (!preview || hasInputSchema || hasExpectedSchema) return;
 
-    const isInitialized =
-      (isFreeformField(mapping.input) && mapping.input.columns.length > 0) ||
-      (isFreeformField(mapping.expectedOutput) &&
-        mapping.expectedOutput.columns.length > 0) ||
-      mapping.metadata.length > 0;
+    const defaultInput = findDefaultColumn(preview.columns, "Input", 0);
+    const defaultExpected = findDefaultColumn(preview.columns, "Expected", 1);
+    const defaultMetadata = findDefaultColumn(preview.columns, "Metadata", 2);
 
-    if (!hasInputSchema && !hasExpectedSchema && !isInitialized) {
-      const defaultInput = findDefaultColumn(preview.columns, "Input", 0);
-      const defaultExpected = findDefaultColumn(preview.columns, "Expected", 1);
-      const defaultMetadata = findDefaultColumn(preview.columns, "Metadata", 2);
+    const inputColumn = defaultInput
+      ? preview.columns.find((c) => c.name === defaultInput)
+      : undefined;
+    const expectedColumn = defaultExpected
+      ? preview.columns.find((c) => c.name === defaultExpected)
+      : undefined;
+    const metadataColumn = defaultMetadata
+      ? preview.columns.find((c) => c.name === defaultMetadata)
+      : undefined;
 
-      const inputColumn = defaultInput
-        ? preview.columns.find((c) => c.name === defaultInput)
-        : undefined;
-      const expectedColumn = defaultExpected
-        ? preview.columns.find((c) => c.name === defaultExpected)
-        : undefined;
-      const metadataColumn = defaultMetadata
-        ? preview.columns.find((c) => c.name === defaultMetadata)
-        : undefined;
+    setMapping((prev) => {
+      const isInitialized =
+        (isFreeformField(prev.input) && prev.input.columns.length > 0) ||
+        (isFreeformField(prev.expectedOutput) &&
+          prev.expectedOutput.columns.length > 0) ||
+        prev.metadata.length > 0;
 
-      setMapping((prev) => ({
+      if (isInitialized) return prev;
+
+      return {
         input: isFreeformField(prev.input)
           ? {
               type: FieldMappingType.FREEFORM,
@@ -95,9 +97,8 @@ export function useCsvMapping({
             }
           : prev.expectedOutput,
         metadata: metadataColumn ? [metadataColumn] : [],
-      }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      };
+    });
   }, [preview, hasInputSchema, hasExpectedSchema]);
 
   const addColumnToInput = (column: CsvColumnPreview, key?: string) => {

@@ -23,7 +23,7 @@ use crate::{
         resolution_origin,
     },
     observability::{ErrorOrigin, Wait},
-    providers::{ProviderError, RequestBody, Route, StreamOptions},
+    providers::{ForwardError, ProviderError, RequestBody, Route, StreamOptions},
     resolution::{ApiFormat, ResolutionError, SpendLimitExceeded},
     server::GatewayLifecycleState,
 };
@@ -242,9 +242,12 @@ async fn relay(
     // The reservation travels with the body, so a caller that disconnects mid-parse
     // cannot free budget while the parse still holds the body.
     let (parsed, reservation) = inference
-        .run_cpu(crate::cpu::CpuJob::ParseRequest, request_bytes, move || {
-            (parse_request_body(bytes, route.api_format()), reservation)
-        })
+        .run_cpu(
+            crate::cpu::CpuJob::ParseRequest,
+            crate::cpu::CpuClass::Standard,
+            request_bytes,
+            move || (parse_request_body(bytes, route.api_format()), reservation),
+        )
         .instrument(tracing::info_span!(
             "request.parse",
             otel.kind = "internal",
@@ -291,7 +294,13 @@ async fn relay(
             correlation,
         )
         .await
-        .map_err(InferenceHttpError::Provider)
+        .map_err(|error| match error {
+            ForwardError::Provider(provider) => InferenceHttpError::Provider(provider),
+            ForwardError::GuardrailBlocked(rejection) => {
+                InferenceHttpError::Resolution(ResolutionError::GuardrailBlocked(rejection))
+            }
+            ForwardError::Busy => InferenceHttpError::Resolution(ResolutionError::Busy),
+        })
 }
 
 /// The caller body, parsed once on arrival.
@@ -660,7 +669,7 @@ impl InferenceHttpError {
                     R::SpendLimitExceeded(_) => "spend_limit_exceeded",
                     R::SpendLimitUnavailable => "spend_limit_unavailable",
                     R::SpendLimitUnpricedModel => "spend_limit_unpriced_model",
-                    R::GuardrailBlocked(_) => "guardrail_blocked",
+                    R::GuardrailBlocked(rejection) => rejection.error_code(),
                     R::Busy => "capacity",
                     R::Timeout => "timeout",
                     R::Unavailable => "unavailable",
@@ -741,11 +750,11 @@ impl InferenceHttpError {
                 "unsupported_content_encoding",
             ),
             Self::Resolution(R::SpendLimitUnpricedModel) => SPEND_LIMIT_UNPRICED_MODEL,
-            Self::Resolution(R::GuardrailBlocked(_)) => (
-                StatusCode::BAD_REQUEST,
+            Self::Resolution(R::GuardrailBlocked(rejection)) => (
+                rejection.http_status(),
                 "Request blocked by a guardrail",
-                "invalid_request_error",
-                "guardrail_blocked",
+                rejection.error_type(),
+                rejection.error_code(),
             ),
             Self::InvalidBody => (
                 StatusCode::BAD_REQUEST,
@@ -811,7 +820,7 @@ impl InferenceHttpError {
     fn message<'a>(&'a self, message: &'a str) -> &'a str {
         match self {
             Self::Resolution(ResolutionError::RateLimited(limit)) => limit.message(),
-            Self::Resolution(ResolutionError::GuardrailBlocked(message)) => message,
+            Self::Resolution(ResolutionError::GuardrailBlocked(rejection)) => rejection.message(),
             _ => self
                 .spend_limit()
                 .map_or(message, SpendLimitExceeded::message),
@@ -912,6 +921,16 @@ impl InferenceHttpError {
             response
                 .headers_mut()
                 .insert(header::RETRY_AFTER, retry_after_secs.into());
+        }
+        if matches!(
+            &self,
+            Self::Resolution(ResolutionError::GuardrailBlocked(rejection))
+                if rejection.disable_retry()
+        ) {
+            response.headers_mut().insert(
+                header::HeaderName::from_static("x-should-retry"),
+                header::HeaderValue::from_static("false"),
+            );
         }
         response
     }

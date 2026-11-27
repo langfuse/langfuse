@@ -7,7 +7,6 @@ const meta = preview.meta({ component: EvaluatorSetupFooterView });
 
 export const Default = meta.story({
   args: {
-    mode: "create",
     closeLabel: "Close",
     saveLabel: "Create evaluator",
     isSaving: false,
@@ -20,7 +19,6 @@ export const Default = meta.story({
 
 export const Editing = meta.story({
   args: {
-    mode: "edit",
     closeLabel: "Close",
     saveLabel: "Save changes",
     isSaving: false,
@@ -33,7 +31,6 @@ export const Editing = meta.story({
 
 export const Disabled = meta.story({
   args: {
-    mode: "create",
     closeLabel: "Close",
     saveLabel: "Create evaluator",
     isSaving: false,
