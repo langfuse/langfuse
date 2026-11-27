@@ -88,6 +88,10 @@ export const TestEmitsCompleteRange = meta.story({
     const end = canvas.getByLabelText("End date");
     const frame = start.parentElement;
 
+    await expect(
+      canvas.getAllByRole("button", { name: "Open calendar" }),
+    ).toHaveLength(1);
+    await expect(frame?.querySelectorAll("svg")).toHaveLength(1);
     await expect(frame).toBe(end.parentElement);
     await expect(getComputedStyle(start).borderTopWidth).toBe("0px");
     await expect(getComputedStyle(frame!).borderTopWidth).not.toBe("0px");
