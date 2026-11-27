@@ -13,7 +13,9 @@ import {
   ThumbsUp,
 } from "@langfuse/icons";
 import Link from "next/link";
+import { buildNotebookPath, safeJsonParse } from "@langfuse/shared";
 import { useRouter } from "next/router";
+import { z } from "zod";
 import { Streamdown } from "streamdown";
 import { Button } from "@/src/components/ui/button";
 import textShimmerStyles from "@/src/components/ui/text-shimmer.module.css";
@@ -777,7 +779,7 @@ function ToolCallGroup({
   return (
     <div
       className={cn(
-        "text-muted-foreground flex max-w-full flex-col gap-0",
+        "text-muted-foreground flex max-w-full flex-col",
         isCompact ? "text-[0.775rem]" : "text-sm",
       )}
     >
@@ -791,6 +793,120 @@ function ToolCallGroup({
     </div>
   );
 }
+
+export function getActivityNotebooks(tools: InAppAgentToolCallContent[]) {
+  const groups = new Map<string, { title?: string; version?: number }>();
+  for (const tool of tools) {
+    const name = getInAppAgentToolDisplayName(tool.name);
+    if (
+      ![
+        "create_notebook",
+        "write_document",
+        "patch_document",
+        "update_notebook_layout",
+        "validate_notebook",
+        "publish_notebook",
+      ].includes(name)
+    ) {
+      continue;
+    }
+    const rawResult = safeJsonParse(tool.result ?? "");
+    const envelope = z
+      .object({ content: z.array(z.object({ text: z.string() })).min(1) })
+      .safeParse(rawResult);
+    const result = notebookToolResult.safeParse(
+      envelope.success
+        ? safeJsonParse(envelope.data.content[0].text)
+        : rawResult,
+    );
+    const args = notebookToolResult.safeParse(safeJsonParse(tool.args));
+    const notebookId =
+      (result.success ? result.data.notebookId : undefined) ??
+      (args.success ? args.data.notebookId : undefined);
+    if (!notebookId) continue;
+    if (tool.status !== "succeeded" || !result.success) continue;
+    const group = groups.get(notebookId) ?? {};
+    group.title ??= result.data.title;
+    if (name === "publish_notebook") group.version = result.data.version;
+    groups.set(notebookId, group);
+  }
+  return groups;
+}
+
+export function ActivityNotebookLinks({
+  notebooks,
+  isEditing,
+  isAwaitingApproval,
+}: {
+  notebooks: ReturnType<typeof getActivityNotebooks>;
+  isEditing: boolean;
+  isAwaitingApproval: boolean;
+}) {
+  const { query } = useRouter();
+  const projectId = query.projectId;
+  if (typeof projectId !== "string") return null;
+  return Array.from(notebooks, ([notebookId, { title, version }]) => (
+    <div
+      key={notebookId}
+      className="bg-muted/50 flex items-center gap-3 rounded-xl border p-3"
+    >
+      <span className="bg-background grid size-8 shrink-0 place-items-center rounded-lg border">
+        <BookOpenText size="base" color="muted" aria-hidden="true" />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0">
+          <div
+            role="status"
+            className="text-muted-foreground flex items-center gap-1 text-xs leading-4"
+          >
+            {version !== undefined ? (
+              <>Notebook · Published v{version}</>
+            ) : isAwaitingApproval ? (
+              <>Notebook · Awaiting approval</>
+            ) : isEditing ? (
+              <>
+                <Loader2
+                  size="sm"
+                  aria-hidden="true"
+                  __rawClassName="motion-safe:animate-spin"
+                />
+                Notebook · Editing
+              </>
+            ) : (
+              <>Notebook · Draft</>
+            )}
+          </div>
+          <div className="text-foreground leading-5 font-medium wrap-break-word">
+            {title ?? "Notebook"}
+          </div>
+        </div>
+        <Link
+          href={buildNotebookPath({
+            projectId,
+            notebookId,
+            ...(version === undefined
+              ? { draftDocumentId: "main" }
+              : { version }),
+          })}
+          className="bg-background hover:bg-muted focus-visible:ring-ring inline-flex items-center gap-1 rounded-md border px-2 py-1 font-medium focus-visible:ring-2"
+        >
+          {version !== undefined
+            ? "Open notebook"
+            : isEditing
+              ? "Watch"
+              : "Open draft"}
+          <ArrowRight size="sm" aria-hidden="true" />
+        </Link>
+      </div>
+    </div>
+  ));
+}
+
+const notebookToolResult = z.object({
+  notebookId: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/),
+  title: z.string().optional(),
+  version: z.number().int().positive().optional(),
+});
 
 function ToolCallDisclosure({
   tool,

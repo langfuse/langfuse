@@ -209,6 +209,22 @@ export const buildModelsPath = (params: { projectId: string }) =>
 export const buildMonitorsPath = (params: { projectId: string }) =>
   `${buildProjectPath(params)}/alerts`;
 
+export const buildNotebookPath = (
+  params: { projectId: string; notebookId: string } & (
+    | { documentId?: string; version?: number | null; draftDocumentId?: never }
+    | { draftDocumentId: string; documentId?: never; version?: never }
+  ),
+) => {
+  const notebookPath = `${buildProjectPath(params)}/notebooks/${encodeURIComponent(params.notebookId)}`;
+  const path = params.documentId
+    ? `${notebookPath}/${encodeURIComponent(params.documentId)}`
+    : notebookPath;
+  return appendProductPathQuery(path, {
+    version: params.version ? String(params.version) : undefined,
+    draftDocument: params.draftDocumentId,
+  });
+};
+
 export const buildPlaygroundPath = (params: { projectId: string }) =>
   `${buildProjectPath(params)}/playground`;
 

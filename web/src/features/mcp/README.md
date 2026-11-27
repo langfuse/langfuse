@@ -145,6 +145,26 @@ Hosts may cache the resource per conversation, so check view changes in a new on
 
 A host sends a view its tool result once. A view that starts again in the same frame, such as after a hot update while developing it, gets no result: after 30 seconds without one (or on `tool-cancelled`) it shows Retry. When the host sent no arguments either, Retry posts a request for the chart to the chat (`app.sendMessage`, when the host supports `message`), and the model draws a new one.
 
+### Notebooks
+
+Use `list_notebooks` and `get_notebook` to discover notebooks and their document indexes. `get_notebook` and `read_document` see the current draft when there are unpublished changes, or the latest publication otherwise. Halo cannot select historical snapshots.
+
+`create_notebook` creates a draft with a `main` document. Its top-level `layout` is `default` (only `main`), `inbox`, or `tabs`. To write a body with `write_document`, pass exactly one of `markdown`, `blocks`, or `jsonl`, plus `documentId` to replace an existing document. To add a document to Inbox or Tabs, pass a `label` instead of `documentId`; the tool generates an ID and adds it to the layout.
+
+Each document has a versioned `width`: `contained` (the default) or `full` (the available reader width, with padding). Set it when writing a body, or pass only `notebookId`, `documentId`, and `width` to change it without editing the body. Omitting `width` preserves the existing setting.
+
+To change the layout, order, or labels, call `update_notebook_layout`. For example: `{kind: "tabs", documents: [{documentId: "main", label: "Overview"}]}`. Layout changes do not delete documents or modify published versions. Include all draft documents in the layout before publishing. Layouts are not document blocks.
+
+`validate_notebook` reports missing references and unreachable documents by ID. Fix those errors before calling `publish_notebook`. Pass `documentId` to check only that document's body. When omitted from `read_document` and `patch_document`, `documentId` still defaults to `main`.
+
+For mixed content, write an array of blocks such as `{schema: "text@1", markdown: "## Summary"}`, `{schema: "row@1", props: {children: [...]}}`, or `{schema: "chart@1", props: {query: {schema: "metrics@2", ...metricsQuery}, display: {kind: "line"}}}`. A line chart requires a Metrics V2 `timeDimension`. Omit block IDs to generate them; use those IDs to patch nested blocks later.
+
+For a KPI, use `display: {kind: "big-number", format: {style: "decimal"}}` with exactly one metric, `dimensions: []`, and `timeDimension: null`. Use `{style: "percent"}` for fractional values (e.g. `0.923` renders as `92.3%`) or `{style: "currency", currency: "USD"}` for currency. `display.caption` is optional.
+
+`/project/<projectId>/notebooks/<notebookId>` opens the latest saved layout, including unpublished changes, at its first reachable document. Append `/<documentId>` to open a document in the latest published version. Append `?version=N` to either route to pin a published snapshot and its layout. To open a specific draft document, append `?draftDocument=<documentId>` to the notebook URL. Halo publishes only the current draft and must pass the fingerprint from whole-notebook validation.
+
+Notebook tools are only listed and callable by Halo. Reads and validation require `notebooks:read`; mutations require `notebooks:CUD`. Creating a draft, writing or patching a document, and updating the draft layout do not prompt for approval. Publishing uses Halo's approval flow. Notebook calls require a resolved project API key policy. `API_AUTH_MIGRATION=enforce` (the default) supplies it; `shadow` supplies it only when both auth paths succeed. Explicit `legacy` mode does not expose these tools. Mutation audit entries include the actor and resource IDs, not the document body.
+
 ---
 
 # Connecting Clients

@@ -71,7 +71,6 @@ export function buildInAppAgentToolApprovalEvent(
   return {
     type: EventType.CUSTOM,
     name: IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
-    toolCallId: approval.toolCallId,
     value: approval,
   };
 }

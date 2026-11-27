@@ -32,6 +32,7 @@ import {
 } from "../messages";
 import { compactPersistedEventDeltas } from "./eventCompaction";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
+import { parseInAppAgentToolApprovalEvent } from "../approvalEvents";
 import { safeJsonParse } from "../../utils/json";
 import {
   type CompletedInAppAgentMcpToolCall,
@@ -682,7 +683,10 @@ export function partitionPendingRunEvents(events: readonly AgUiEvent[]): {
   const retainedEvents: AgUiEvent[] = [];
 
   for (const event of events) {
-    const toolCallId = getString(event, "toolCallId");
+    const toolCallId =
+      event.type === EventType.CUSTOM
+        ? parseInAppAgentToolApprovalEvent(event)?.toolCallId
+        : getString(event, "toolCallId");
     const destination =
       toolCallId && openRedirectToolCallIds.has(toolCallId)
         ? retainedEvents

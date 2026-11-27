@@ -8,6 +8,7 @@
 import type { ToolDefinition, ToolHandler } from "../core/define-tool";
 import type { ServerContext } from "../types";
 import { promptsFeature } from "./prompts";
+import { notebooksFeature } from "./notebooks";
 import { skillsFeature } from "./skills";
 import { observationsFeature } from "./observations";
 import { annotationQueuesFeature } from "./annotationQueues";
@@ -67,6 +68,7 @@ export interface McpFeatureModule {
 const MCP_FEATURES = [
   promptsFeature,
   skillsFeature,
+  notebooksFeature,
   observationsFeature,
   annotationQueuesFeature,
   commentsFeature,
@@ -158,6 +160,10 @@ export function canCallTool(
   return (
     !inAppAgent ||
     tool.definition.annotations?.readOnlyHint === true ||
+    tool.definition.name === "create_notebook" ||
+    tool.definition.name === "write_document" ||
+    tool.definition.name === "patch_document" ||
+    tool.definition.name === "update_notebook_layout" ||
     (inAppAgent.permissions === "tool-allowlist" &&
       inAppAgent.allowedToolNames.some((name) => name === tool.definition.name))
   );

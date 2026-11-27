@@ -15,6 +15,7 @@ import {
   PageTabs,
   type PageTabsProps,
 } from "@/src/components/layouts/PageTabs";
+import { readingColumnClassName } from "@/src/components/layouts/reading-column";
 import { cn } from "@/src/utils/tailwind";
 import { type ReactNode } from "react";
 import {
@@ -51,6 +52,7 @@ export type PageHeaderProps = {
   itemType?: LangfuseItemType;
   /** Replaces the entity icon immediately before the title. */
   titleTabs?: EntityTitleTabsProps;
+  titleLayout?: "full" | "reading";
   container?: boolean;
   tabsProps?: PageTabsProps;
   className?: string;
@@ -76,6 +78,7 @@ const PageHeader = ({
   breadcrumb,
   help,
   titleTooltip,
+  titleLayout = "full",
   tabsProps,
   container = false,
   className,
@@ -159,7 +162,9 @@ const PageHeader = ({
             className={cn(
               "flex w-full flex-wrap items-center justify-between gap-1 px-4 md:flex-nowrap",
               divider ? "min-h-11 py-1" : "min-h-0 pt-3 pb-0",
-              container && containerLayoutClassName,
+              titleLayout === "reading"
+                ? readingColumnClassName
+                : container && containerLayoutClassName,
             )}
           >
             {/* Left side content */}
