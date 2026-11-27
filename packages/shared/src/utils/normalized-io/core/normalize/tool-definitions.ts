@@ -22,6 +22,7 @@ const CONSUMED_DEFINITION_KEYS = new Set([
   "parameters_json_schema", // pydantic ai
   "input_schema", // anthropic
   "inputSchema", // ai sdk / mcp
+  "args_schema", // langchain
   "format", // openai custom tools
   "function", // openai function-tool wrapper
   "custom", // openai custom-tool wrapper
