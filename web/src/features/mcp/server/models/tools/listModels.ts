@@ -27,6 +27,7 @@ export const [listModelsTool, handleListModels] = defineTool({
           projectId: context.projectId,
           page: input.page,
           limit: input.limit,
+          scope: input.scope,
         });
 
         const parsed = GetModelsV1Response.parse(result);
