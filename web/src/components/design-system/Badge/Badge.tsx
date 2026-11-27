@@ -6,6 +6,9 @@ import { type ComponentPropsWithoutRef, type ElementType } from "react";
 
 import { cn } from "@/src/utils/tailwind";
 
+const CLICKABLE =
+  "cursor-pointer transition-opacity hover:opacity-80 ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden";
+
 const badgeVariants = cva(
   "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center rounded-sm border font-mono text-xs leading-none font-normal",
   {
@@ -51,11 +54,11 @@ const badgeVariants = cva(
         false: "",
       },
       interactive: {
-        true: "",
+        true: CLICKABLE,
         false: "",
       },
       dismissible: {
-        true: "cursor-pointer transition-opacity hover:opacity-80 ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+        true: CLICKABLE,
         false: "",
       },
       shouldWrap: {
@@ -161,6 +164,7 @@ export function Badge({
   return (
     <BadgeShell
       color={color}
+      interactive={interactive}
       shouldWrap={shouldWrap}
       hasTrailingIcon={TrailingIcon != null}
       {...props}
