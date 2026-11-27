@@ -1064,6 +1064,9 @@ export const promptRouter = createTRPCRouter({
           id: true,
           name: true,
         },
+        // distinct keeps the first row per name, so order by version to make
+        // that the latest version. Callers build new versions from this id.
+        orderBy: [{ name: "asc" }, { version: "desc" }],
         distinct: ["name"],
       });
     }),
