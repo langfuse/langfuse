@@ -8,6 +8,7 @@
 //! (`capture::request_spec`), and `response` extracts provider output blocks.
 pub(crate) mod bedrock;
 pub(crate) mod external;
+pub(crate) mod openai_moderation;
 pub(crate) mod redact;
 mod regex;
 pub(crate) mod response;
@@ -33,6 +34,7 @@ use crate::{
 };
 use bedrock::BedrockGuardrail;
 use external::{ExternalFailureKind, ExternalGuardrailClient, ExternalOutcome, ExternalPayloads};
+use openai_moderation::OpenAiModerationGuardrail;
 use redact::{BodyEdit, RedactionSpan};
 use regex::Compiled;
 use response::{ParsedResponse, RedactionApply, ResponseFormat, ResponseParseError};
@@ -300,7 +302,7 @@ impl Guardrails {
                 continue;
             }
             let payload_reservation =
-                self.reserve_external_payload(&eval.blocks, guardrail.scope)?;
+                self.reserve_external_payload(&eval.blocks, guardrail.scope, 1)?;
             let payloads = eval
                 .blocks
                 .serialize_for_scope(guardrail.scope, &[guardrail], location);
@@ -333,7 +335,11 @@ impl Guardrails {
                 }
                 let batch: Vec<&Guardrail> =
                     group.iter().map(|(_, guardrail)| *guardrail).collect();
-                let reservation = self.reserve_external_payload(&eval.blocks, scope)?;
+                let reservation = self.reserve_external_payload(
+                    &eval.blocks,
+                    scope,
+                    ExternalPayloads::count_for(&batch),
+                )?;
                 let payloads = eval.blocks.serialize_for_scope(scope, &batch, location);
                 scope_batches.push(ObservingBatch {
                     group,
@@ -369,12 +375,14 @@ impl Guardrails {
         &self,
         blocks: &TurnBlocks,
         scope: GuardrailScope,
+        payload_count: usize,
     ) -> Result<MemoryReservation, ResolutionError> {
         MemoryReservation::from_budget(
             &self.memory_budget,
             blocks
                 .external_payload_bytes_for_scope(scope)
-                .saturating_add(64),
+                .saturating_add(64)
+                .saturating_mul(payload_count),
             "guardrails",
         )
     }
@@ -398,6 +406,7 @@ pub(crate) enum GuardrailKind {
         patterns: Vec<String>,
     },
     Bedrock(BedrockGuardrail),
+    OpenAiModeration(OpenAiModerationGuardrail),
     /// Control plane could not decrypt or validate a fail-closed guardrail;
     /// always matches so the gateway enforces its action without forwarding
     /// unscreened requests.
@@ -436,7 +445,9 @@ impl Guardrail {
         }
         match &self.kind {
             GuardrailKind::Regex { patterns } => !patterns.is_empty(),
-            GuardrailKind::Bedrock(_) | GuardrailKind::FailClosed => true,
+            GuardrailKind::Bedrock(_)
+            | GuardrailKind::OpenAiModeration(_)
+            | GuardrailKind::FailClosed => true,
             GuardrailKind::Unknown => false,
         }
     }
@@ -452,18 +463,30 @@ impl Guardrail {
                     && !config.guardrail_version.trim().is_empty()
                     && crate::resolution::valid_token(config.api_key.expose_secret())
             }
+            // An unknown region fails only this guardrail closed at check time,
+            // so Web can add regions before every gateway knows them.
+            GuardrailKind::OpenAiModeration(config) => {
+                crate::resolution::valid_token(config.api_key.expose_secret())
+            }
         }
     }
 
     fn regex_patterns(&self) -> Option<&[String]> {
         match &self.kind {
             GuardrailKind::Regex { patterns } => Some(patterns),
-            GuardrailKind::Bedrock(_) | GuardrailKind::FailClosed | GuardrailKind::Unknown => None,
+            GuardrailKind::Bedrock(_)
+            | GuardrailKind::OpenAiModeration(_)
+            | GuardrailKind::FailClosed
+            | GuardrailKind::Unknown => None,
         }
     }
 
     fn is_external(&self) -> bool {
-        self.is_active() && matches!(self.kind, GuardrailKind::Bedrock(_))
+        self.is_active()
+            && matches!(
+                self.kind,
+                GuardrailKind::Bedrock(_) | GuardrailKind::OpenAiModeration(_)
+            )
     }
 
     fn is_external_enforce(&self) -> bool {
@@ -523,6 +546,16 @@ impl<'de> Deserialize<'de> for Guardrail {
                     .api_key
                     .ok_or_else(|| D::Error::missing_field("api_key"))?,
             }),
+            Some("openai_moderation") => {
+                GuardrailKind::OpenAiModeration(OpenAiModerationGuardrail {
+                    region: raw
+                        .region
+                        .ok_or_else(|| D::Error::missing_field("region"))?,
+                    api_key: raw
+                        .api_key
+                        .ok_or_else(|| D::Error::missing_field("api_key"))?,
+                })
+            }
             Some("fail_closed") => GuardrailKind::FailClosed,
             Some(_) => GuardrailKind::Unknown,
         };
