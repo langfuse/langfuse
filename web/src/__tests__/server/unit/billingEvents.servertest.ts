@@ -12,7 +12,12 @@ vi.mock("@/src/features/auth/lib/createProjectMembershipsOnSignup", () => ({
   isProductionCloudRegion: () => false,
 }));
 
-import { createBillingEventCapture } from "@/src/ee/features/billing/server/billingEvents";
+import {
+  createBillingEventCapture,
+  planChangeDirection,
+  planOfProduct,
+} from "@/src/ee/features/billing/server/billingEvents";
+import { stripeProducts } from "@/src/ee/features/billing/utils/stripeCatalogue";
 
 const context = {
   userId: "user-1",
@@ -74,7 +79,32 @@ describe("captureBillingEvent", () => {
     });
 
     expect(() =>
-      captureBillingEvent(context, "billing:cancellation_reverted", {}),
+      captureBillingEvent(context, "billing:plan_change_reverted", {}),
     ).not.toThrow();
+  });
+});
+
+describe("planChangeDirection", () => {
+  it("reads the direction from the price list", () => {
+    expect(planChangeDirection("cloud:core", "cloud:team")).toBe("upgrade");
+    expect(planChangeDirection("cloud:enterprise", "cloud:pro")).toBe(
+      "downgrade",
+    );
+    expect(planChangeDirection("cloud:pro", "cloud:pro")).toBe("same");
+  });
+
+  it("treats a plan outside the price list as the bottom", () => {
+    expect(planChangeDirection("cloud:hobby", "cloud:core")).toBe("upgrade");
+    expect(planChangeDirection(null, "cloud:core")).toBe("upgrade");
+  });
+});
+
+describe("planOfProduct", () => {
+  it("maps a product id to its plan and an unknown id to null", () => {
+    const pro = stripeProducts.find(
+      (product) => product.mappedPlan === "cloud:pro",
+    );
+    expect(planOfProduct(pro?.stripeProductId ?? "")).toBe("cloud:pro");
+    expect(planOfProduct("prod_unknown")).toBeNull();
   });
 });

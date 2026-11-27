@@ -47,6 +47,7 @@ vi.mock("@/src/ee/features/billing/utils/isCloudBillingEnabled", () => ({
 import { cloudBillingRouter } from "@/src/ee/features/billing/server/cloudBillingRouter";
 import { logger } from "@langfuse/shared/src/server";
 import { createSession } from "@/src/__tests__/fixtures/session-factory";
+import { stripeProducts } from "@/src/ee/features/billing/utils/stripeCatalogue";
 
 /** Metadata payloads passed to `logger.error`, where the labels land. */
 const loggedErrors = () =>
@@ -80,6 +81,10 @@ const serviceMock = () => ({
   clearPlanSwitchSchedule: vi.fn(),
   getSubscriptionInfo: vi.fn().mockResolvedValue({ billingPeriod: null }),
 });
+
+const productIdOf = (plan: string) =>
+  stripeProducts.find((product) => product.mappedPlan === plan)
+    ?.stripeProductId ?? "";
 
 describe("cloudBillingRouter provider dispatch", () => {
   beforeEach(() => {
@@ -192,6 +197,15 @@ describe("cloudBillingRouter provider dispatch", () => {
         resolveTo(billingProvider);
         const api = caller();
 
+        await api.createStripeCheckoutSession({
+          orgId: ORG_ID,
+          stripeProductId: productIdOf("cloud:core"),
+        });
+        await api.changeStripeSubscriptionProduct({
+          orgId: ORG_ID,
+          stripeProductId: productIdOf("cloud:pro"),
+        });
+        await api.clearPlanSwitchSchedule({ orgId: ORG_ID });
         await api.cancelStripeSubscription({
           orgId: ORG_ID,
           feedback: { reason: "too_expensive", note: "Too much for us" },
@@ -200,6 +214,17 @@ describe("cloudBillingRouter provider dispatch", () => {
         await api.reactivateStripeSubscription({ orgId: ORG_ID });
 
         expect(mocks.captureBillingEvent.mock.calls).toEqual([
+          [
+            who(billingProvider),
+            "billing:checkout_started",
+            { targetPlan: "cloud:core" },
+          ],
+          [
+            who(billingProvider),
+            "billing:plan_change_requested",
+            { targetPlan: "cloud:pro", direction: "upgrade" },
+          ],
+          [who(billingProvider), "billing:plan_change_reverted", {}],
           [
             who(billingProvider),
             "billing:cancellation_scheduled",
