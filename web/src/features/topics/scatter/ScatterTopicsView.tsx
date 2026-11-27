@@ -33,7 +33,6 @@ import {
 } from "../topic-map-colors";
 import {
   buildTopicOptions,
-  facetFilterKey,
   filterTopicTraces,
   partitionTopicTraceFilters,
   resolveFacetTopicIds,
@@ -136,7 +135,7 @@ export function ScatterTopicsView({
     traceFilters.setFilters([
       ...(topicId === null || topicId === selectedTopicId
         ? []
-        : topicFilters(topicId, facet, isMultiFacet, allFacets)),
+        : topicFilters(topicId, facet, isMultiFacet)),
       ...otherFacetFilters,
       ...traceFieldFilters,
     ]);
@@ -537,7 +536,6 @@ function topicFilters(
   topicId: string,
   facet: Facet,
   isMultiFacet: boolean,
-  allFacets: readonly Facet[],
 ): FilterState {
   if (topicId === UNASSIGNED_TOPIC_ID)
     return [
@@ -557,7 +555,7 @@ function topicFilters(
       {
         column: "topics",
         type: "categoryOptions",
-        key: facetFilterKey(facet, allFacets),
+        key: facet.name,
         operator: "any of",
         value: [label],
       },

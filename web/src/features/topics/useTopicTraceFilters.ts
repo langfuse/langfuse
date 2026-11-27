@@ -27,7 +27,6 @@ const snapshotSchema = z.object({
 const snapshotsSchema = z.record(z.string(), snapshotSchema);
 const emptySnapshot: FacetFilterSnapshot = { filter: "", search: null };
 const emptySnapshots: Record<string, FacetFilterSnapshot> = {};
-const LEGACY_V1_STORAGE_KEY = "topics-trace-filters-v1";
 
 type FilterableFacetInput = { facetId: string } | TopicFilterFacet;
 
@@ -41,27 +40,6 @@ function isTopicFilterFacet(
     "topics" in facet &&
     Array.isArray(facet.topics),
   );
-}
-
-function readLegacyV1Snapshot(
-  projectId: string,
-  mapId: string | null,
-  facetId: string | undefined,
-): FacetFilterSnapshot | undefined {
-  if (!facetId || typeof window === "undefined") return undefined;
-  try {
-    const raw = window.localStorage.getItem(LEGACY_V1_STORAGE_KEY);
-    if (!raw) return undefined;
-    const parsed = snapshotsSchema.safeParse(JSON.parse(raw));
-    if (!parsed.success) return undefined;
-    const legacyKey = JSON.stringify(
-      mapId ? [projectId, mapId, facetId] : [projectId, facetId],
-    );
-    const entry = parsed.data[legacyKey];
-    return entry ? { ...entry, facetId } : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 /**
@@ -83,41 +61,26 @@ export function useTopicTraceFilters(
   const parsed = snapshotsSchema.safeParse(stored);
   const snapshots = parsed.success ? parsed.data : emptySnapshots;
   const storageKey = JSON.stringify(mapId ? [projectId, mapId] : [projectId]);
-  const storedSnapshot =
-    mapId === undefined ? undefined : snapshots[storageKey];
-  const needsLegacyFallback =
-    mapId !== undefined && storedSnapshot === undefined;
-  const legacySnapshot = useMemo(
-    () =>
-      needsLegacyFallback
-        ? readLegacyV1Snapshot(projectId, mapId, selectedFacetId)
-        : undefined,
-    [needsLegacyFallback, projectId, mapId, selectedFacetId],
-  );
-  const fromLegacyV1 =
-    storedSnapshot === undefined && legacySnapshot !== undefined;
-  const snapshot = storedSnapshot ?? legacySnapshot ?? emptySnapshot;
+  const snapshot =
+    mapId === undefined
+      ? emptySnapshot
+      : (snapshots[storageKey] ?? emptySnapshot);
 
   const fullFacets = useMemo(() => facets.filter(isTopicFilterFacet), [facets]);
   const filters = useMemo(() => {
     const decoded = decodeAndNormalizeFilters(snapshot.filter, columns);
     if (!decoded.some((filter) => filter.column === "topicId")) return decoded;
-    const activeFacet = fullFacets.find(
-      (facet) => facet.facetId === selectedFacetId,
-    );
-    if (fromLegacyV1) {
-      return activeFacet
-        ? rewriteTopicIdFiltersForFacet(decoded, activeFacet, fullFacets)
-        : decoded;
-    }
     if (snapshot.facetId && snapshot.facetId !== selectedFacetId) {
       const sourceFacet = fullFacets.find(
         (facet) => facet.facetId === snapshot.facetId,
       );
       return sourceFacet
-        ? rewriteTopicIdFiltersForFacet(decoded, sourceFacet, fullFacets)
+        ? rewriteTopicIdFiltersForFacet(decoded, sourceFacet)
         : decoded.filter((filter) => filter.column !== "topicId");
     }
+    const activeFacet = fullFacets.find(
+      (facet) => facet.facetId === selectedFacetId,
+    );
     if (activeFacet && fullFacets.length > 1) {
       const activeTopicIds = new Set(
         orderedFacetTopics(activeFacet).map((topic) => topic.id),
@@ -134,37 +97,24 @@ export function useTopicTraceFilters(
             ),
         );
         return owner
-          ? rewriteTopicIdFiltersForFacet([filter], owner, fullFacets)
+          ? rewriteTopicIdFiltersForFacet([filter], owner)
           : [filter];
       });
     }
     return decoded;
-  }, [
-    snapshot.filter,
-    snapshot.facetId,
-    fromLegacyV1,
-    fullFacets,
-    selectedFacetId,
-  ]);
+  }, [snapshot.filter, snapshot.facetId, fullFacets, selectedFacetId]);
 
-  function updateSnapshot(
-    patch: Partial<FacetFilterSnapshot>,
-    forceWrite = false,
-  ) {
+  function updateSnapshot(patch: Partial<FacetFilterSnapshot>) {
     if (!selectedFacetId || mapId === undefined) return;
-    const fallbackCurrent: FacetFilterSnapshot = fromLegacyV1
-      ? { filter: encodeFiltersGeneric(filters), search: snapshot.search }
-      : emptySnapshot;
     setStored((previous: unknown) => {
       const parsedPrevious = snapshotsSchema.safeParse(previous);
       const snapshots = parsedPrevious.success
         ? parsedPrevious.data
         : emptySnapshots;
-      const current = snapshots[storageKey] ?? fallbackCurrent;
+      const current = snapshots[storageKey] ?? emptySnapshot;
       const next: FacetFilterSnapshot = { ...current, ...patch };
       if (next.facetId === undefined) delete next.facetId;
       if (
-        !forceWrite &&
         next.filter === current.filter &&
         next.search === current.search &&
         next.facetId === current.facetId
@@ -180,27 +130,11 @@ export function useTopicTraceFilters(
       (facet) => facet.facetId === selectedFacetId,
     );
     if (currentFacet && filters.some((filter) => filter.column === "topicId")) {
-      const rewritten = rewriteTopicIdFiltersForFacet(
-        filters,
-        currentFacet,
-        fullFacets,
-      );
-      updateSnapshot(
-        {
-          filter: encodeFiltersGeneric(rewritten),
-          facetId: undefined,
-        },
-        true,
-      );
-    } else if (fromLegacyV1) {
-      updateSnapshot(
-        {
-          filter: encodeFiltersGeneric(filters),
-          search: snapshot.search,
-          facetId: undefined,
-        },
-        true,
-      );
+      const rewritten = rewriteTopicIdFiltersForFacet(filters, currentFacet);
+      updateSnapshot({
+        filter: encodeFiltersGeneric(rewritten),
+        facetId: undefined,
+      });
     }
     setFacetId(nextFacetId);
   }

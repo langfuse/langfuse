@@ -38,6 +38,8 @@ type MobileTopicsViewProps = {
   onViewChange: (view: MobileTopicsVisualization) => void;
   mapResult: ComponentProps<typeof MobileTopicVisualization>["mapResult"];
   filters: FilterState;
+  /** True when an active-facet `topics` filter references no topic in this facet with `any of`. */
+  hasUnmatchedTopicFilter?: boolean;
   searchQuery: string | null;
   onFiltersChange: (filters: FilterState) => void;
   onSearchQueryChange: (query: string | null) => void;
@@ -59,6 +61,7 @@ export function MobileTopicsView({
   onViewChange,
   mapResult,
   filters,
+  hasUnmatchedTopicFilter = false,
   searchQuery,
   onFiltersChange,
   onSearchQueryChange,
@@ -73,7 +76,10 @@ export function MobileTopicsView({
   const capture = useTopicsCapture();
   const [navigation, setNavigation] = useState({
     view,
-    panel: filters.length > 0 || searchQuery ? "traces" : "topics",
+    panel:
+      filters.length > 0 || hasUnmatchedTopicFilter || searchQuery
+        ? "traces"
+        : "topics",
   });
   if (navigation.view !== view) {
     setNavigation({ view, panel: "visualization" });
@@ -83,13 +89,19 @@ export function MobileTopicsView({
   }
   const { topics, selectedTopicId, selectedTopic, traceQuery } =
     prepareMobileTopics(facet, view, filters, searchQuery, showUnassigned);
-  const traces = useTracesWithSelection(useTraces, traceQuery, selectedTraceId);
+  const traces = useTracesWithSelection(
+    useTraces,
+    hasUnmatchedTopicFilter ? null : traceQuery,
+    selectedTraceId,
+  );
   const visible = traces.rows;
   const mapPoints =
     mapResult.data?.status === "ready" ? mapResult.data.points : null;
   // The map highlights its own points that match the filters.
   const matchingTraceKey = useMemo(() => {
-    if (!(filters.length > 0 || searchQuery?.trim()) || !mapPoints) return null;
+    if (!mapPoints) return null;
+    if (hasUnmatchedTopicFilter) return "[]";
+    if (!(filters.length > 0 || searchQuery?.trim())) return null;
     const names = new Map(facet.topics.map((topic) => [topic.id, topic.name]));
     return JSON.stringify(
       filterTopicTraces(
@@ -103,7 +115,7 @@ export function MobileTopicsView({
         .map((row) => row.traceId)
         .sort(),
     );
-  }, [filters, searchQuery, mapPoints, facet.topics]);
+  }, [filters, hasUnmatchedTopicFilter, searchQuery, mapPoints, facet.topics]);
   // Map frame identity follows matching IDs, preserving tap previews across refreshes.
   const matchingTraceIds = useMemo(
     () =>

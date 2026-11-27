@@ -237,23 +237,33 @@ function MobileTopics({
   // Mobile filters by active-facet topic and assignment only; Scatter's trace and cross-facet filters stay preserved.
   const { activeFacetFilters, otherFacetFilters, traceFieldFilters } =
     partitionTopicTraceFilters(traceFilters.filters, facet, allFacets);
-  const topicFilters: FilterState = activeFacetFilters.flatMap((filter) => {
+  const topicFilters: FilterState = [];
+  const unresolvedTopicFilters: FilterState = [];
+  for (const filter of activeFacetFilters) {
     if (filter.column === "topics" && filter.type === "categoryOptions") {
       const topicIds = resolveFacetTopicIds(facet, filter.value);
-      return topicIds.length > 0
-        ? [
-            {
-              column: "topicId" as const,
-              type: "stringOptions" as const,
-              operator: filter.operator,
-              value: topicIds,
-            },
-          ]
-        : [];
+      if (topicIds.length > 0) {
+        topicFilters.push({
+          column: "topicId",
+          type: "stringOptions",
+          operator: filter.operator,
+          value: topicIds,
+        });
+      } else {
+        unresolvedTopicFilters.push(filter);
+      }
+    } else {
+      topicFilters.push(filter);
     }
-    return [filter];
-  });
-  const scatterFilters = [...otherFacetFilters, ...traceFieldFilters];
+  }
+  const hasUnmatchedTopicFilter = unresolvedTopicFilters.some(
+    (filter) => filter.operator === "any of" && filter.value.length > 0,
+  );
+  const scatterFilters = [
+    ...unresolvedTopicFilters,
+    ...otherFacetFilters,
+    ...traceFieldFilters,
+  ];
   return (
     <MobileTopicsView
       projectId={projectId}
@@ -262,6 +272,7 @@ function MobileTopics({
       onViewChange={onViewChange}
       mapResult={mapResult}
       filters={topicFilters}
+      hasUnmatchedTopicFilter={hasUnmatchedTopicFilter}
       searchQuery={traceFilters.searchQuery}
       onFiltersChange={(filters) =>
         traceFilters.setFilters([...filters, ...scatterFilters])

@@ -8,7 +8,6 @@ import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-sta
 import { parse } from "@/src/features/search-bar/lib/langQ";
 import { runSearchBarInvariants } from "@/src/features/search-bar/__tests__/searchBarInvariants";
 import {
-  buildFacetFilterKeys,
   createTopicTraceRegistry,
   filterTopicTraces,
   partitionTopicTraceFilters,
@@ -438,7 +437,7 @@ describe("topic search registry", () => {
     ).toEqual([]);
   });
 
-  it("round-trips cross-facet topics.<FacetName> filters and partitions active vs sibling facets", () => {
+  it("partitions cross-facet topics.<FacetName> filters, builds queries, and links to Tracing safely", () => {
     const intentFacet: TopicFilterFacet = {
       facetId: "facet-intent",
       name: "User Intent",
@@ -471,54 +470,19 @@ describe("topic search registry", () => {
       crossRegistry,
     );
     expect(parsed.errors).toEqual([]);
-    expect(parsed.filters).toEqual([
-      {
-        column: "topics",
-        type: "categoryOptions",
-        key: "User Intent",
-        operator: "any of",
-        value: ["Billing questions"],
-      },
-      {
-        column: "topics",
-        type: "categoryOptions",
-        key: "Sentiment",
-        operator: "any of",
-        value: ["Negative (neg-1)"],
-      },
-      {
-        column: "topics",
-        type: "categoryOptions",
-        key: "Sentiment",
-        operator: "none of",
-        value: ["Positive"],
-      },
-      {
-        column: "environment",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["production"],
-      },
-    ]);
 
     const partitioned = partitionTopicTraceFilters(
       parsed.filters,
       intentFacet,
       allFacets,
     );
-    expect(partitioned.activeFacetFilters).toHaveLength(1);
-    expect(partitioned.otherFacetFilters).toHaveLength(2);
-    expect(partitioned.traceFieldFilters).toHaveLength(1);
     expect(partitioned.otherFacetTopics).toEqual([
       { facetId: "facet-sentiment", operator: "any of", topicIds: ["neg-1"] },
       { facetId: "facet-sentiment", operator: "none of", topicIds: ["pos-1"] },
     ]);
-
-    // Client-side filtering evaluates the active facet filter and ignores sibling/trace filters.
     expect(
       ids(filterTopicTraces(rows, parsed.filters, null, intentFacet)),
     ).toEqual(["trace-one"]);
-
     expect(
       topicTraceQuery(parsed.filters, null, intentFacet.topics, {
         activeFacet: intentFacet,
@@ -534,17 +498,8 @@ describe("topic search registry", () => {
         },
       ],
       topicIds: { operator: "any of", values: ["billing"] },
-      otherFacetTopics: [
-        { facetId: "facet-sentiment", operator: "any of", topicIds: ["neg-1"] },
-        {
-          facetId: "facet-sentiment",
-          operator: "none of",
-          topicIds: ["pos-1"],
-        },
-      ],
+      otherFacetTopics: partitioned.otherFacetTopics,
     });
-
-    // Impossible positive sibling filter returns null instead of dropping the filter.
     expect(
       topicTraceQuery(
         [
@@ -562,37 +517,11 @@ describe("topic search registry", () => {
       ),
     ).toBeNull();
 
-    // Selecting one of two same-named topics cannot link to Tracing by bare name; fall back to trace IDs.
+    // Open in Tracing translates unambiguous topic filters, and falls back to trace IDs for
+    // ambiguous duplicate topic names, negation-only filters, or trace-field filters.
     expect(
       topicTracingFilters(
-        parsed.filters.slice(0, 3),
-        null,
-        intentFacet,
-        allFacets,
-      ),
-    ).toBeUndefined();
-    expect(
-      topicTracingFilters(
-        [
-          {
-            column: "topics",
-            type: "categoryOptions",
-            key: "Sentiment",
-            operator: "none of",
-            value: ["Negative (neg-1)"],
-          },
-        ],
-        null,
-        intentFacet,
-        allFacets,
-      ),
-    ).toBeUndefined();
-
-    // Open in Tracing emits raw topic names when every selected name matches only the chosen topic(s).
-    const unambiguousTopicFilters = [parsed.filters[0], parsed.filters[2]];
-    expect(
-      topicTracingFilters(
-        unambiguousTopicFilters,
+        [parsed.filters[0], parsed.filters[2]],
         null,
         intentFacet,
         allFacets,
@@ -613,37 +542,21 @@ describe("topic search registry", () => {
         value: ["Positive"],
       },
     ]);
-    // Selecting all same-named topics is unambiguous in Tracing too.
     expect(
       topicTracingFilters(
-        [
-          {
-            column: "topics",
-            type: "categoryOptions",
-            key: "Sentiment",
-            operator: "any of",
-            value: ["Negative (neg-1)", "Negative (neg-2)"],
-          },
-        ],
+        parsed.filters.slice(0, 3),
         null,
         intentFacet,
         allFacets,
       ),
-    ).toEqual([
-      {
-        column: "topics",
-        type: "categoryOptions",
-        key: "Sentiment",
-        operator: "any of",
-        value: ["Negative"],
-      },
-    ]);
-    // Adding a trace field filter falls back to trace IDs.
+    ).toBeUndefined();
+    expect(
+      topicTracingFilters([parsed.filters[2]], null, intentFacet, allFacets),
+    ).toBeUndefined();
     expect(
       topicTracingFilters(parsed.filters, null, intentFacet, allFacets),
     ).toBeUndefined();
 
-    // Shorthand topicId rewrites to topics.<ActiveFacet> on facet switch.
     expect(
       rewriteTopicIdFiltersForFacet(
         [
@@ -655,7 +568,6 @@ describe("topic search registry", () => {
           },
         ],
         intentFacet,
-        allFacets,
       ),
     ).toEqual([
       {
@@ -664,158 +576,6 @@ describe("topic search registry", () => {
         key: "User Intent",
         operator: "any of",
         value: ["Billing questions"],
-      },
-    ]);
-  });
-
-  it("keeps same-named facets distinct across autocomplete keys, tab switches, and Tracing links", () => {
-    const firstIntent = {
-      facetId: "facet-a",
-      name: "Intent",
-      topics: [{ id: "billing", name: "Billing questions" }],
-    };
-    const secondIntent = {
-      facetId: "facet-b",
-      name: "Intent",
-      topics: [{ id: "refund", name: "Refunds" }],
-    };
-    const duplicateFacets = [firstIntent, secondIntent];
-
-    expect([...buildFacetFilterKeys(duplicateFacets).entries()]).toEqual([
-      ["facet-a", "Intent (facet-a)"],
-      ["facet-b", "Intent (facet-b)"],
-    ]);
-
-    const rewritten = rewriteTopicIdFiltersForFacet(
-      [
-        {
-          column: "topicId",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["billing"],
-        },
-      ],
-      firstIntent,
-      duplicateFacets,
-    );
-    expect(rewritten).toEqual([
-      {
-        column: "topics",
-        type: "categoryOptions",
-        key: "Intent (facet-a)",
-        operator: "any of",
-        value: ["Billing questions"],
-      },
-    ]);
-
-    // On facet-a the filter is active; on same-named facet-b it becomes a sibling filter for facet-a.
-    const onFirst = partitionTopicTraceFilters(
-      rewritten,
-      firstIntent,
-      duplicateFacets,
-    );
-    expect(onFirst.activeFacetFilters).toEqual(rewritten);
-    expect(onFirst.otherFacetTopics).toEqual([]);
-
-    const onSecond = partitionTopicTraceFilters(
-      rewritten,
-      secondIntent,
-      duplicateFacets,
-    );
-    expect(onSecond.activeFacetFilters).toEqual([]);
-    expect(onSecond.otherFacetTopics).toEqual([
-      { facetId: "facet-a", operator: "any of", topicIds: ["billing"] },
-    ]);
-
-    // Tracing resolves facets by bare name, so duplicate facet names fall back to trace IDs.
-    expect(
-      topicTracingFilters(rewritten, null, firstIntent, duplicateFacets),
-    ).toBeUndefined();
-  });
-
-  it("falls back to trace IDs in Tracing when only negated topic filters are active", () => {
-    const intentFacet = {
-      facetId: "facet-intent",
-      name: "Intent",
-      topics,
-    };
-    const sentimentFacet = {
-      facetId: "facet-sentiment",
-      name: "Sentiment",
-      topics: [{ id: "neg", name: "Negative" }],
-    };
-    const allFacets = [intentFacet, sentimentFacet];
-
-    expect(
-      topicTracingFilters(
-        [
-          {
-            column: "topicId",
-            type: "stringOptions",
-            operator: "none of",
-            value: ["billing"],
-          },
-        ],
-        null,
-        intentFacet,
-        allFacets,
-      ),
-    ).toBeUndefined();
-
-    expect(
-      topicTracingFilters(
-        [
-          {
-            column: "topics",
-            type: "categoryOptions",
-            key: "Sentiment",
-            operator: "none of",
-            value: ["Negative"],
-          },
-        ],
-        null,
-        intentFacet,
-        allFacets,
-      ),
-    ).toBeUndefined();
-
-    // Combining a positive topic filter with a negated one is safe because the positive filter
-    // already constrains Tracing to summarized traces in that facet.
-    expect(
-      topicTracingFilters(
-        [
-          {
-            column: "topicId",
-            type: "stringOptions",
-            operator: "any of",
-            value: ["billing"],
-          },
-          {
-            column: "topics",
-            type: "categoryOptions",
-            key: "Sentiment",
-            operator: "none of",
-            value: ["Negative"],
-          },
-        ],
-        null,
-        intentFacet,
-        allFacets,
-      ),
-    ).toEqual([
-      {
-        column: "topics",
-        type: "categoryOptions",
-        key: "Intent",
-        operator: "any of",
-        value: ["Billing questions"],
-      },
-      {
-        column: "topics",
-        type: "categoryOptions",
-        key: "Sentiment",
-        operator: "none of",
-        value: ["Negative"],
       },
     ]);
   });

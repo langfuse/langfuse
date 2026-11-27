@@ -164,68 +164,15 @@ function splitTopicTraceFilters(
   ];
 }
 
-/**
- * Assigns each facet a unique search-bar key under `topics.<key>`.
- * Unique facet names stay bare; duplicate case-insensitive names append
- * ` (<facetId>)` so autocomplete, partitioning, and saved filters stay distinct.
- */
-export function buildFacetFilterKeys(
-  facets: readonly Pick<TopicFilterFacet, "facetId" | "name">[],
-): Map<string, string> {
-  const counts = new Map<string, number>();
-  for (const facet of facets) {
-    const lower = facet.name.toLowerCase();
-    counts.set(lower, (counts.get(lower) ?? 0) + 1);
-  }
-  const used = new Set<string>();
-  const keys = new Map<string, string>();
-  for (const facet of facets) {
-    const lower = facet.name.toLowerCase();
-    if ((counts.get(lower) ?? 0) === 1) {
-      used.add(lower);
-      keys.set(facet.facetId, facet.name);
-    }
-  }
-  for (const facet of facets) {
-    if (keys.has(facet.facetId)) continue;
-    let key = `${facet.name} (${facet.facetId})`;
-    while (used.has(key.toLowerCase())) {
-      key += ` (${facet.facetId})`;
-    }
-    used.add(key.toLowerCase());
-    keys.set(facet.facetId, key);
-  }
-  return keys;
-}
-
-export function facetFilterKey(
-  facet: Pick<TopicFilterFacet, "facetId" | "name">,
-  allFacets: readonly Pick<TopicFilterFacet, "facetId" | "name">[] = [facet],
-): string {
-  const list = allFacets.some((item) => item.facetId === facet.facetId)
-    ? allFacets
-    : [...allFacets, facet];
-  return buildFacetFilterKeys(list).get(facet.facetId) ?? facet.name;
-}
-
 function findTopicFilterFacet(
   facets: readonly TopicFilterFacet[],
   key: string,
 ): TopicFilterFacet | undefined {
-  const keys = buildFacetFilterKeys(facets);
-  const exact = facets.find((facet) => keys.get(facet.facetId) === key);
-  if (exact) return exact;
   const lower = key.toLowerCase();
-  const ci = facets.find(
-    (facet) => keys.get(facet.facetId)?.toLowerCase() === lower,
+  return (
+    facets.find((facet) => facet.name === key) ??
+    facets.find((facet) => facet.name.toLowerCase() === lower)
   );
-  if (ci) return ci;
-  // Preserve saved `<name> (<facetId>)` filters if a same-named sibling was later removed.
-  const idMatch = /\(([^()]+)\)$/.exec(key)?.[1];
-  if (idMatch) {
-    return facets.find((facet) => facet.facetId === idMatch);
-  }
-  return undefined;
 }
 
 export function resolveFacetTopicIds(
@@ -337,16 +284,14 @@ function resolveOtherFacetTopics(
 }
 
 /**
- * Rewrites shorthand `topic:<id>` filters into explicit `topics.<FacetKey>:<label>`
+ * Rewrites shorthand `topic:<id>` filters into explicit `topics.<FacetName>:<label>`
  * filters before switching facet tabs so the filter stays valid and readable.
  */
 export function rewriteTopicIdFiltersForFacet(
   filters: FilterState,
   facet: TopicFilterFacet,
-  allFacets: readonly TopicFilterFacet[] = [facet],
 ): FilterState {
   if (!filters.some((filter) => filter.column === "topicId")) return filters;
-  const key = facetFilterKey(facet, allFacets);
   const displayById = new Map(
     buildTopicOptions(orderedFacetTopics(facet)).map((option) => [
       option.value,
@@ -359,7 +304,7 @@ export function rewriteTopicIdFiltersForFacet(
     return {
       column: "topics",
       type: "categoryOptions",
-      key,
+      key: facet.name,
       operator: filter.operator,
       value: filter.value.map((id) => displayById.get(id) ?? id),
     };
@@ -370,7 +315,7 @@ export function rewriteTopicIdFiltersForFacet(
  * Builds structured `topics` filters for "Open in Tracing" (v4 live maps).
  * Returns undefined when the current selection includes filters Tracing's
  * `topics` column cannot express unambiguously (trace fields, assignment
- * states, search text, duplicate facet names, or a single same-named topic).
+ * states, search text, negation-only filters, or a single same-named topic).
  */
 export function topicTracingFilters(
   filters: FilterState,
@@ -393,14 +338,11 @@ export function topicTracingFilters(
   if (combined.length === 0) return undefined;
 
   const lookupFacets = allFacets.length > 0 ? allFacets : [activeFacet];
-  const facetKeys = buildFacetFilterKeys(lookupFacets);
   const toTracingTopicFilter = (
     facet: TopicFilterFacet,
     operator: "any of" | "none of",
     topicIds: readonly string[],
   ) => {
-    // Tracing identifies facets by bare name; duplicate facet names cannot link unambiguously.
-    if (facetKeys.get(facet.facetId) !== facet.name) return undefined;
     const topics = orderedFacetTopics(facet);
     const nameById = new Map(topics.map((topic) => [topic.id, topic.name]));
     const selectedIds = new Set(topicIds);
