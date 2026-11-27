@@ -364,6 +364,8 @@ export default createRule({
     }
     const detectComponents = byKind.has("component");
     const bindings = new Map<string, TSESTree.Node>();
+    const mutableNames = new Set<string>();
+    const kindOf = new Map<string, Kind>();
     const seenFunctions = new Set<string>();
     const exports: SeenExport[] = [];
     const pending: {
@@ -453,8 +455,35 @@ export default createRule({
             continue;
           }
           if (statement.type === N.VariableDeclaration) {
-            for (const declarator of statement.declarations)
-              remember(bindingName(declarator.id), declarator);
+            const mutable =
+              statement.kind === "let" || statement.kind === "var";
+            for (const declarator of statement.declarations) {
+              const name = bindingName(declarator.id);
+              remember(name, declarator);
+              if (mutable && name !== null) mutableNames.add(name);
+            }
+            continue;
+          }
+          if (
+            statement.type === N.TSTypeAliasDeclaration ||
+            statement.type === N.TSInterfaceDeclaration
+          ) {
+            kindOf.set(statement.id.name, "type");
+            continue;
+          }
+          if (statement.type === N.TSEnumDeclaration) {
+            kindOf.set(statement.id.name, "enum");
+            continue;
+          }
+          if (statement.type === N.ImportDeclaration) {
+            const importedType = statement.importKind === "type";
+            for (const specifier of statement.specifiers) {
+              const typeOnly =
+                importedType ||
+                (specifier.type === N.ImportSpecifier &&
+                  specifier.importKind === "type");
+              kindOf.set(specifier.local.name, typeOnly ? "type" : "reexport");
+            }
             continue;
           }
           if (statement.type === N.ExportAllDeclaration) {
@@ -487,6 +516,7 @@ export default createRule({
             declaration !== null &&
             declaration.type === N.TSEnumDeclaration
           ) {
+            kindOf.set(declaration.id.name, "enum");
             push({
               kind: "enum",
               name: declaration.id.name,
@@ -496,6 +526,13 @@ export default createRule({
             continue;
           }
           if (statement.exportKind === "type") {
+            const named = statement.declaration;
+            if (
+              named !== null &&
+              (named.type === N.TSTypeAliasDeclaration ||
+                named.type === N.TSInterfaceDeclaration)
+            )
+              kindOf.set(named.id.name, "type");
             push({
               kind: "type",
               name: null,
@@ -582,17 +619,28 @@ export default createRule({
           }
         }
         for (const item of pending) {
+          const mutable = mutableNames.has(item.local);
+          const known = kindOf.get(item.local);
+          if (known !== undefined) {
+            push({
+              kind: known,
+              name: item.name,
+              isDefault: item.isDefault,
+              mutable,
+            });
+            continue;
+          }
           const bound = bindings.get(item.local);
           if (!bound) {
             push({
               kind: "variable",
               name: item.name,
               isDefault: item.isDefault,
-              mutable: false,
+              mutable,
             });
             continue;
           }
-          noteValue(bound, item.name, item.isDefault, false);
+          noteValue(bound, item.name, item.isDefault, mutable);
         }
 
         const counts = new Map<Kind, number>();

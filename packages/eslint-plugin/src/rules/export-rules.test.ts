@@ -30,6 +30,41 @@ tester.run("export-rules", rule, {
       options: fns,
     },
     {
+      code: "type PackOptions = { a: number };\nexport function pack(o: PackOptions) { return o.a; }\nexport { PackOptions };",
+      filename: file("pack.ts"),
+      options: fns,
+    },
+    {
+      code: "interface PackOptions { a: number }\nexport function pack(): PackOptions { return { a: 1 }; }\nexport { PackOptions };",
+      filename: file("pack.ts"),
+      options: fns,
+    },
+    {
+      code: "enum Color { Red }\nexport { Color };",
+      filename: file("color.ts"),
+      options: [{ allow: ["enum"] }],
+    },
+    {
+      code: "import { value } from './other';\nexport { value };",
+      filename: file("value.ts"),
+      options: [{ allow: ["reexport"] }],
+    },
+    {
+      code: "import value from './other';\nexport { value };",
+      filename: file("value.ts"),
+      options: [{ allow: ["reexport"] }],
+    },
+    {
+      code: "declare function helper(): void;\nexport function pack() { return 1; }",
+      filename: file("pack.ts"),
+      options: fns,
+    },
+    {
+      code: "import type { Foo } from './types';\nexport { Foo };",
+      filename: file("types.ts"),
+      options: [{ allow: ["type"] }],
+    },
+    {
       code: "export function pack() { return 1; }\nexport interface FlatNode { id: string }",
       filename: file("pack.ts"),
       options: fns,
@@ -359,6 +394,18 @@ tester.run("export-rules", rule, {
       code: "export let pack = () => 1;",
       filename: file("pack.ts"),
       options: fns,
+      errors: [{ messageId: "mutableExport" }],
+    },
+    {
+      code: "let pack = () => 1;\nexport { pack };",
+      filename: file("pack.ts"),
+      options: fns,
+      errors: [{ messageId: "mutableExport" }],
+    },
+    {
+      code: "var pack = () => 1;\nexport default pack;",
+      filename: file("pack.ts"),
+      options: [{ allow: [{ kind: "function", default: true }] }],
       errors: [{ messageId: "mutableExport" }],
     },
     {
