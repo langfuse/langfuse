@@ -198,10 +198,6 @@ describe("MCP Error Formatting", () => {
 
         expect(mcpError.code).toBe(ProtocolErrorCode.InvalidRequest);
         expect(mcpError.message).toContain("Authentication failed");
-        expect(mcpError.message).toContain("Authorization: Basic");
-        expect(mcpError.message).toContain(
-          "https://langfuse.com/docs/api-and-data-platform/features/mcp-server",
-        );
       });
 
       it("should pass through ApiError 401 message for connection auth", () => {

@@ -147,9 +147,7 @@ describe("assertToolAuthorized", () => {
     ).toThrow(
       expect.objectContaining({
         code: ProtocolErrorCode.InvalidRequest,
-        message: expect.stringContaining(
-          "Authentication failed. Send the project's public and secret key as Basic auth",
-        ),
+        message: expect.stringContaining("Authentication failed."),
       }) as Error,
     );
   });

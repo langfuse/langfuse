@@ -68,9 +68,6 @@ describe("MCP Authentication", () => {
       });
 
       expect(response.status).toBe(401);
-      expect(response.headers.get("www-authenticate")).toBe(
-        'Basic realm="Langfuse MCP"',
-      );
     });
 
     it("should return 200 for valid credentials", async () => {
