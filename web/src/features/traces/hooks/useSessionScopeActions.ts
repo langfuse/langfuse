@@ -1,6 +1,7 @@
 import { MoreVertical, Webhook } from "@langfuse/icons";
 import { type EntityDetailHeaderAction } from "@/src/components/ObservabilityEntityDetailHeader/ObservabilityEntityDetailHeader";
 import { useSessionHeaderMenuItems } from "@/src/features/sessions/useSessionHeaderMenuItems";
+import { type OpenPublicShareDialog } from "@/src/features/sharing/components/PublicShareDialogController";
 import { useWebCalloutAction } from "@/src/features/web-callouts/components/useWebCalloutAction";
 import { useSessionScopeActionsData } from "./useSessionScopeActionsData";
 
@@ -9,11 +10,13 @@ export function useSessionScopeActions({
   sessionId,
   isPlaceholderData,
   enabled,
+  openShareDialog,
 }: {
   projectId: string;
   sessionId: string;
   isPlaceholderData: boolean | undefined;
   enabled: boolean;
+  openShareDialog: OpenPublicShareDialog;
 }): readonly EntityDetailHeaderAction[] {
   const session = useSessionScopeActionsData({ projectId, sessionId, enabled });
   const webCalloutAction = useWebCalloutAction(
@@ -25,6 +28,7 @@ export function useSessionScopeActions({
     sessionId,
     isPublic: session.data?.public ?? false,
     shareUrl: `/project/${encodeURIComponent(projectId)}/sessions/${encodeURIComponent(sessionId)}`,
+    openShareDialog,
   });
   return [
     ...(webCalloutAction

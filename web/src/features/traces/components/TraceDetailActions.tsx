@@ -5,6 +5,10 @@ import { useShareMenuItems } from "@/src/components/useShareMenuItems";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/ConnectedDetailHeaderActionsMenuController";
 import { DeleteTraceDialogController } from "@/src/features/traces/components/DeleteTraceDialogController";
+import {
+  type OpenPublicShareDialog,
+  PublicShareDialogController,
+} from "@/src/features/sharing/components/PublicShareDialogController";
 import { TopicsTranscriptDialogController } from "@/src/features/traces/components/TopicsTranscriptDialogController";
 import { TraceTranscriptDialogController } from "@/src/features/traces/components/TraceTranscriptDialogController";
 import { useDownloadTraceAsJson } from "@/src/features/traces/hooks/useDownloadTraceAsJson";
@@ -89,15 +93,28 @@ export function TraceDetailActions({
           timestamp={trace.timestamp}
         >
           {({ openDialog: openTopicsTranscriptDialog }) => (
-            <LoadedTraceDetailActions
-              trace={trace}
-              isSessionScope={isSessionScope}
-              {...props}
-              onShowTranscript={openTranscriptDialog}
-              onShowTopicsTranscript={openTopicsTranscriptDialog}
-            >
-              {children}
-            </LoadedTraceDetailActions>
+            <PublicShareDialogController kind="trace" objectId={trace.id}>
+              {({ openShareDialog }) => (
+                <PublicShareDialogController
+                  kind="session"
+                  objectId={trace.sessionId ?? ""}
+                >
+                  {({ openShareDialog: openSessionShareDialog }) => (
+                    <LoadedTraceDetailActions
+                      trace={trace}
+                      isSessionScope={isSessionScope}
+                      {...props}
+                      onShowTranscript={openTranscriptDialog}
+                      onShowTopicsTranscript={openTopicsTranscriptDialog}
+                      openShareDialog={openShareDialog}
+                      openSessionShareDialog={openSessionShareDialog}
+                    >
+                      {children}
+                    </LoadedTraceDetailActions>
+                  )}
+                </PublicShareDialogController>
+              )}
+            </PublicShareDialogController>
           )}
         </TopicsTranscriptDialogController>
       )}
@@ -116,18 +133,23 @@ function LoadedTraceDetailActions({
   isPlaceholderData,
   onShowTranscript,
   onShowTopicsTranscript,
+  openShareDialog,
+  openSessionShareDialog,
   children,
 }: Omit<TraceDetailActionsProps, "trace"> & {
   trace: TraceDetailData;
   isSessionScope: boolean;
   onShowTranscript?: () => void;
   onShowTopicsTranscript?: () => void;
+  openShareDialog: OpenPublicShareDialog;
+  openSessionShareDialog: OpenPublicShareDialog;
 }) {
   const sessionActions = useSessionScopeActions({
     projectId: trace.projectId,
     sessionId: trace.sessionId ?? "",
     isPlaceholderData,
     enabled: isSessionScope,
+    openShareDialog: openSessionShareDialog,
   });
   const shareItems = useShareMenuItems({
     kind: "trace",
@@ -136,6 +158,7 @@ function LoadedTraceDetailActions({
     isPublic: trace.public,
     shareUrl,
     timestamp,
+    openShareDialog,
   });
   const [handleDownload, isDownloading] = useDownloadTraceAsJson({
     trace,

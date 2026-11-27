@@ -98,6 +98,10 @@ import { SessionDuplicateViewDialog } from "@/src/features/sessions/SessionDupli
 import { SessionDeleteViewDialog } from "@/src/features/sessions/SessionDeleteViewDialog/SessionDeleteViewDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ConnectedSessionCustomizationDialog } from "@/src/features/sessions/SessionCustomizationDialog/ConnectedSessionCustomizationDialog";
+import {
+  type OpenPublicShareDialog,
+  PublicShareDialogController,
+} from "@/src/features/sharing/components/PublicShareDialogController";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
@@ -195,7 +199,19 @@ const SessionControlsBar = ({
 export const SessionPage: React.FC<{
   sessionId: string;
   projectId: string;
-}> = ({ sessionId, projectId }) => {
+}> = (props) => (
+  <PublicShareDialogController kind="session" objectId={props.sessionId}>
+    {({ openShareDialog }) => (
+      <LoadedSessionPage {...props} openShareDialog={openShareDialog} />
+    )}
+  </PublicShareDialogController>
+);
+
+const LoadedSessionPage: React.FC<{
+  sessionId: string;
+  projectId: string;
+  openShareDialog: OpenPublicShareDialog;
+}> = ({ sessionId, projectId, openShareDialog }) => {
   const router = useRouter();
   const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
@@ -225,6 +241,7 @@ export const SessionPage: React.FC<{
     projectId,
     sessionId,
     isPublic: session.data?.public ?? false,
+    openShareDialog,
   });
 
   const [showCorrections, setShowCorrections] = useLocalStorage(
@@ -757,9 +774,20 @@ function SessionEventsLoadingPage({
   );
 }
 
-const LoadedSessionEventsPage: React.FC<{
+const LoadedSessionEventsPage: React.FC<
+  Omit<React.ComponentProps<typeof SessionEventsPageContent>, "openShareDialog">
+> = (props) => (
+  <PublicShareDialogController kind="session" objectId={props.sessionId}>
+    {({ openShareDialog }) => (
+      <SessionEventsPageContent {...props} openShareDialog={openShareDialog} />
+    )}
+  </PublicShareDialogController>
+);
+
+const SessionEventsPageContent: React.FC<{
   sessionId: string;
   projectId: string;
+  openShareDialog: OpenPublicShareDialog;
   session: EventSession;
   traces: EventSessionTrace[] | undefined;
   isTracesSuccess: boolean;
@@ -779,6 +807,7 @@ const LoadedSessionEventsPage: React.FC<{
   navigation,
   treeContent,
   pageLayout,
+  openShareDialog,
 }) => {
   const parentReviewPanel = useTraceReviewPanelOptional();
   const router = useRouter();
@@ -997,6 +1026,7 @@ const LoadedSessionEventsPage: React.FC<{
     projectId,
     sessionId,
     isPublic: session.public,
+    openShareDialog,
     ...(isModernSessionEnabled && !isSessionTimelineEnabled
       ? {
           showCorrections,

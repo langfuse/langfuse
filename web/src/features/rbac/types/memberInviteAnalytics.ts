@@ -9,6 +9,7 @@ export type MemberInviteSurface =
   | "annotation_queues_empty_state"
   | "comments"
   | "trace_share"
+  | "session_share"
   | "annotation_queue_assignment";
 
 /**

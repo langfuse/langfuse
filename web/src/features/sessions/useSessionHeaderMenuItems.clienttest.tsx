@@ -55,6 +55,7 @@ describe("useSessionHeaderMenuItems", () => {
     const shareUrl = "/project/project-id/sessions/session-id";
     const { result } = renderHook(() =>
       useSessionHeaderMenuItems({
+        openShareDialog: vi.fn(),
         projectId: "project-id",
         sessionId: "session-id",
         isPublic: true,
@@ -72,6 +73,7 @@ describe("useSessionHeaderMenuItems", () => {
       "Public sharing is disabled for this organization.";
     const { result } = renderHook(() =>
       useSessionHeaderMenuItems({
+        openShareDialog: vi.fn(),
         projectId: "project-id",
         sessionId: "session-id",
         isPublic: true,
@@ -92,6 +94,7 @@ describe("useSessionHeaderMenuItems", () => {
       mockUseInternalFeaturesEnabled.mockReturnValue(true);
       const { result } = renderHook(() =>
         useSessionHeaderMenuItems({
+          openShareDialog: vi.fn(),
           projectId: "project'\\id",
           sessionId: "session'\\id",
           isPublic: false,
@@ -131,6 +134,7 @@ describe("useSessionHeaderMenuItems", () => {
   it("hides query copying without internal features", () => {
     const { result } = renderHook(() =>
       useSessionHeaderMenuItems({
+        openShareDialog: vi.fn(),
         projectId: "project-id",
         sessionId: "session-id",
         isPublic: false,
@@ -154,6 +158,7 @@ describe("useSessionHeaderMenuItems", () => {
 
     const { result } = renderHook(() =>
       useSessionHeaderMenuItems({
+        openShareDialog: vi.fn(),
         projectId: "project-id",
         sessionId: "session-id",
         isPublic: false,
@@ -179,6 +184,7 @@ describe("useSessionHeaderMenuItems", () => {
 
     const { result } = renderHook(() =>
       useSessionHeaderMenuItems({
+        openShareDialog: vi.fn(),
         projectId: "project-id",
         sessionId: "session-id",
         isPublic: false,
@@ -204,6 +210,7 @@ describe("useSessionHeaderMenuItems", () => {
   it("hides the Display submenu when no display settings are provided", () => {
     const { result } = renderHook(() =>
       useSessionHeaderMenuItems({
+        openShareDialog: vi.fn(),
         projectId: "project-id",
         sessionId: "session-id",
         isPublic: false,

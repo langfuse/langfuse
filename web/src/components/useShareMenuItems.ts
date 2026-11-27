@@ -5,13 +5,16 @@ import {
   getShareUrl,
   usePublishObject,
 } from "@/src/components/usePublishObject";
+import { type OpenPublicShareDialog } from "@/src/features/sharing/components/PublicShareDialogController";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 /**
  * Publish menu items for a trace or session detail header: Make Public while
- * private, Copy share link + Unshare while public. Publishing copies the link
- * and toasts. While sharing is disabled for the org or instance, a stored
+ * private, Copy share link + Unshare while public. Make Public asks first,
+ * through the `PublicShareDialogController` around the caller; publishing
+ * copies the link and toasts. While sharing is disabled for the org or instance, a stored
  * public flag grants no access: Make Public is disabled, and a public object
  * offers only Unshare, so members can clear the flag before sharing is
  * turned back on.
@@ -23,6 +26,7 @@ export function useShareMenuItems({
   isPublic,
   shareUrl,
   timestamp,
+  openShareDialog,
 }: {
   kind: "trace" | "session";
   projectId: string;
@@ -30,8 +34,10 @@ export function useShareMenuItems({
   isPublic: boolean;
   shareUrl?: string;
   timestamp?: Date;
+  openShareDialog: OpenPublicShareDialog;
 }): DropdownMenuItemDefinition[] {
   const publish = usePublishObject({ kind, projectId, objectId, timestamp });
+  const capture = usePostHogClientCapture();
   const label = kind === "trace" ? "Trace" : "Session";
 
   let disabled: { reason: string } | undefined;
@@ -75,6 +81,7 @@ export function useShareMenuItems({
         title: "Copy share link",
         icon: Link,
         onClick: () => {
+          capture("public_share:link_copied", { kind });
           copyTextToClipboard(getShareUrl(shareUrl));
         },
       },
@@ -91,7 +98,10 @@ export function useShareMenuItems({
       disabled: publish.sharingDisabledReason
         ? { reason: publish.sharingDisabledReason }
         : disabled,
-      onClick: () => toggle(true),
+      onClick: () => {
+        capture("public_share:dialog_open", { kind });
+        openShareDialog({ onConfirm: () => toggle(true) });
+      },
     },
   ];
 }
