@@ -8,23 +8,29 @@ export function RadioCardGroup<TValue extends string>({
   options,
   value,
   onValueChange,
+  orientation = "horizontal",
   ...props
 }: {
   id?: string;
   "aria-label": string;
   "aria-describedby"?: string;
   options: readonly { value: TValue; label: string }[];
-  value: TValue;
+  /** `null` while nothing is picked yet. */
+  value: TValue | null;
   onValueChange: (value: TValue) => void;
+  /** "vertical" stacks the cards, for more options than fit in a row. */
+  orientation?: "horizontal" | "vertical";
 }) {
   const groupId = useId();
 
   return (
     <RadioGroupPrimitive.Root
       {...props}
-      className="flex gap-2"
-      orientation="horizontal"
-      value={value}
+      className={
+        orientation === "vertical" ? "flex flex-col gap-2" : "flex gap-2"
+      }
+      orientation={orientation}
+      value={value ?? ""}
       onValueChange={(nextValue) => {
         const option = options.find((option) => option.value === nextValue);
         if (option) onValueChange(option.value);
