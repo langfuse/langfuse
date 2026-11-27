@@ -68,6 +68,7 @@ export function OverflowList<TItem, TTrailing = never>({
   renderItem,
   renderOverflow,
   trailingItems,
+  getTrailingKey,
   spacing = "compact",
   alignment = "start",
   isTightItem,
@@ -93,6 +94,8 @@ export function OverflowList<TItem, TTrailing = never>({
     overflowItemCount: number;
   }) => ReactNode;
   trailingItems?: readonly TTrailing[];
+  /** Stable key for a pinned trailing item. Falls back to the array index. */
+  getTrailingKey?: (item: TTrailing) => string;
   spacing?: NonNullable<VariantProps<typeof rowVariants>["spacing"]>;
   alignment?: NonNullable<VariantProps<typeof rowVariants>["alignment"]>;
   /** Tight items sit 4px from a preceding tight item instead of the row gap. */
@@ -141,7 +144,7 @@ export function OverflowList<TItem, TTrailing = never>({
         {hasTrailingContent && (
           <div className="flex shrink-0 items-center gap-1">
             {trailingItems?.map((item, index) => (
-              <Fragment key={index}>
+              <Fragment key={getTrailingKey?.(item) ?? index}>
                 {renderItem(item, {
                   getItemProps: (props) =>
                     trailingItemProps("measurement", props),
@@ -189,7 +192,7 @@ export function OverflowList<TItem, TTrailing = never>({
             className="flex shrink-0 items-center gap-1"
           >
             {trailingItems?.map((item, index) => (
-              <Fragment key={index}>
+              <Fragment key={getTrailingKey?.(item) ?? index}>
                 {renderItem(item, {
                   getItemProps: (props) => trailingItemProps("visible", props),
                 })}

@@ -794,6 +794,7 @@ function EntityMetrics({ metrics }: { metrics: readonly HeaderMetric[] }) {
         </span>
       )}
       trailingItems={actions.length > 0 ? actions : undefined}
+      getTrailingKey={(metric) => metric.id}
       renderOverflow={({ hiddenItems, overflowItemCount }) => {
         const normalizedSearch = search.trim().toLocaleLowerCase();
         const filteredMetrics = [...hiddenItems, ...remainingMetrics].filter(
