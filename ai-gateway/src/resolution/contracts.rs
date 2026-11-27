@@ -79,7 +79,7 @@ impl Provider {
     /// Embeddings. xAI serves only the `OpenAI` Responses and Chat Completions formats,
     /// Google AI Studio only Chat Completions and Embeddings, and Vertex AI only its
     /// OpenAI-compatible Chat Completions endpoint.
-    fn supports(self, api_format: ApiFormat) -> bool {
+    pub(crate) fn supports(self, api_format: ApiFormat) -> bool {
         match self {
             Self::OpenAi | Self::Anthropic => api_format.provider() == self,
             Self::OpenRouter | Self::Azure => api_format != ApiFormat::OpenAiDecisions,
@@ -121,7 +121,7 @@ impl Provider {
     // serves each format family under its own path. Bedrock and Vertex AI only
     // ever target their regional endpoints, and xAI, Vercel and Google AI Studio
     // their single hosted API.
-    fn allows_base_url(self, api_format: ApiFormat, base_url: &str) -> bool {
+    pub(crate) fn allows_base_url(self, api_format: ApiFormat, base_url: &str) -> bool {
         match self {
             Self::OpenAi | Self::Anthropic | Self::OpenRouter => valid_custom_base_url(base_url),
             Self::Azure => {
@@ -315,7 +315,7 @@ const RESERVED_EXTRA_HEADERS: &[&str] = &[
     "x-api-key",
 ];
 
-fn valid_extra_header(name: &str, value: &str) -> bool {
+pub(crate) fn valid_extra_header(name: &str, value: &str) -> bool {
     axum::http::HeaderName::from_bytes(name.as_bytes()).is_ok_and(|name| {
         !RESERVED_EXTRA_HEADERS.contains(&name.as_str()) && !name.as_str().starts_with("proxy-")
     }) && axum::http::HeaderValue::from_str(value).is_ok()

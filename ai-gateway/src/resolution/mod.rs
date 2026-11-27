@@ -4,7 +4,7 @@ mod contracts;
 pub(crate) mod signing;
 mod vertex;
 
-pub(crate) use contracts::SpendLimit;
+pub(crate) use contracts::{SpendLimit, valid_extra_header};
 pub use contracts::{
     ApiFormat, IngestionGrant, IngestionMode, MetadataValue, OrganizationId, ProjectId, Provider,
     ProviderConnection, ProviderCredential, RequestAttribution, ResolvedRequestContext,
