@@ -2,10 +2,11 @@ import { hasEntitlementBasedOnPlan, type Entitlement } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 
-type HasEntitlementParams = {
-  entitlement: Entitlement;
+type EntitlementTarget = {
   sessionUser: NonNullable<Session["user"]>;
 } & ({ projectId: string } | { orgId: string });
+
+type HasEntitlementParams = EntitlementTarget & { entitlement: Entitlement };
 
 /**
  * Check if user has access to a specific entitlement based on the session user (to be used server-side).
@@ -28,6 +29,23 @@ export const throwIfNoEntitlement = (p: HasEntitlementParams) => {
       message:
         "Unauthorized, user does not have access to entitlement: " +
         p.entitlement,
+    });
+  }
+};
+
+export const throwIfNoEntitlements = ({
+  entitlements,
+  ...access
+}: EntitlementTarget & { entitlements: Entitlement[] }) => {
+  const missing = entitlements.filter(
+    (entitlement) => !hasEntitlement({ ...access, entitlement }),
+  );
+  if (missing.length > 0) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message:
+        "Unauthorized, user does not have access to entitlements: " +
+        missing.join(", "),
     });
   }
 };

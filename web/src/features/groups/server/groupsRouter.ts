@@ -30,6 +30,7 @@ import {
 import {
   hasEntitlement,
   throwIfNoEntitlement,
+  throwIfNoEntitlements,
 } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   addGroupMembers,
@@ -77,8 +78,8 @@ function throwIfNoProjectGroupAccess(
   scope: ProjectScope,
 ) {
   throwIfNoProjectAccess({ session, projectId, scope });
-  throwIfNoEntitlement({
-    entitlement: "admin-api",
+  throwIfNoEntitlements({
+    entitlements: ["admin-api", "rbac-project-roles"],
     sessionUser: session.user,
     orgId: session.orgId,
   });
@@ -607,11 +608,6 @@ export const groupsRouter = createTRPCRouter({
         input.projectId,
         "projectGroups:CUD",
       );
-      throwIfNoEntitlement({
-        entitlement: "rbac-project-roles",
-        sessionUser: ctx.session.user,
-        orgId: ctx.session.orgId,
-      });
 
       const group = await ctx.prisma.group.findFirst({
         where: { id: input.groupId, orgId: ctx.session.orgId },
