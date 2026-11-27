@@ -98,6 +98,19 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
         id: command.id,
         label: command.label,
         icon: command.icon,
+        description: (
+          <>
+            Run in your terminal to connect {command.product} to Langfuse.
+            {props.scope === "organization"
+              ? " The agent can use any project in this organization."
+              : null}{" "}
+            For more information see the{" "}
+            <DocsLink href="https://langfuse.com/docs/api-and-data-platform/features/mcp-server">
+              MCP setup docs
+            </DocsLink>
+            .
+          </>
+        ),
         code: command.code,
         secret: command.secret,
       });
@@ -117,7 +130,6 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       <hr />
       <div className="flex flex-col gap-2">
         <h3 className="font-bold">Usage instructions</h3>
-        {showMcpSection ? <McpSummary scope={scope} /> : null}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <div className="flex h-9 items-center border-b">
             <Tabs.List
@@ -166,22 +178,6 @@ function DocsLink(props: { href: string; children: ReactNode }) {
     >
       {props.children}
     </a>
-  );
-}
-
-/** McpSummary is the one line that explains every agent tab. */
-function McpSummary(props: { scope: ApiKeyDetailContentProps["scope"] }) {
-  return (
-    <p className="text-muted-foreground text-sm">
-      Connect your agent to Langfuse over{" "}
-      <DocsLink href="https://langfuse.com/docs/api-and-data-platform/features/mcp-server">
-        MCP
-      </DocsLink>
-      : run the command for your tool in a terminal.
-      {props.scope === "organization"
-        ? " The agent can use any project in this organization."
-        : null}
-    </p>
   );
 }
 

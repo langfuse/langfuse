@@ -9,6 +9,8 @@ export type McpHarnessCommand = {
   /** Tab label and icon, matching the AI Gateway's setup tabs. */
   label: string;
   icon: IconComponent;
+  /** Product name used in the tab's instruction. */
+  product: string;
   /** Command with GATEWAY_KEY_PLACEHOLDER where `secret` goes; key-bearing commands start with a space to stay out of shell history. */
   code: string;
   secret: string;
@@ -36,6 +38,7 @@ export function buildMcpHarnessCommands(
     {
       id: "claude-code",
       label: "Claude",
+      product: "Claude Code",
       icon: SiClaude,
       code: shellCommand(
         `claude mcp add --transport http ${serverName}`,
@@ -47,6 +50,7 @@ export function buildMcpHarnessCommands(
     {
       id: "codex",
       label: "Codex",
+      product: "Codex",
       icon: SiOpenai,
       // Codex sends HTTP MCP credentials only as a bearer token read from an environment variable.
       code: [
@@ -62,6 +66,7 @@ export function buildMcpHarnessCommands(
     {
       id: "opencode",
       label: "OpenCode",
+      product: "OpenCode",
       icon: SquareTerminal,
       code: shellCommand(
         `opencode mcp add ${serverName}`,
@@ -73,6 +78,7 @@ export function buildMcpHarnessCommands(
     {
       id: "copilot-cli",
       label: "GitHub Copilot",
+      product: "GitHub Copilot CLI",
       icon: SiGithubcopilot,
       code: shellCommand(
         `copilot mcp add --transport http`,
