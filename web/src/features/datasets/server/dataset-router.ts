@@ -1557,7 +1557,7 @@ export const datasetRouter = createTRPCRouter({
           where: {
             projectId: input.projectId,
             name: {
-              startsWith: escapeSqlLikePattern(dataset.name) + " (copy",
+              startsWith: dataset.name + " (copy",
             },
           },
         })
