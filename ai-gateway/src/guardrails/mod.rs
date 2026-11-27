@@ -23,7 +23,7 @@ use tokio::sync::Semaphore;
 use tracing::Instrument;
 
 use crate::{
-    cpu::{CpuJob, CpuWork},
+    cpu::{CpuClass, CpuJob, CpuWork},
     http::ParsedRequest,
     inference::MemoryReservation,
     observability::{ErrorOrigin, RequestObservation},
@@ -90,15 +90,20 @@ impl Guardrails {
             let check_started = std::time::Instant::now();
             let (turn, finding) = self
                 .cpu
-                .run(CpuJob::FindLastTurn, scanned.len(), {
-                    let body = body.clone();
-                    let scanned = scanned.clone();
-                    move || {
-                        let started = std::time::Instant::now();
-                        let turn = last_turn(api_format, &body, &scanned);
-                        (turn, started.elapsed())
-                    }
-                })
+                .run(
+                    CpuJob::FindLastTurn,
+                    CpuClass::Guardrailed,
+                    scanned.len(),
+                    {
+                        let body = body.clone();
+                        let scanned = scanned.clone();
+                        move || {
+                            let started = std::time::Instant::now();
+                            let turn = last_turn(api_format, &body, &scanned);
+                            (turn, started.elapsed())
+                        }
+                    },
+                )
                 .await
                 .ok_or(ResolutionError::Busy)?;
             let needs_entire_input = guardrails.iter().any(|guardrail| {
@@ -113,7 +118,7 @@ impl Guardrails {
                 .transpose()?;
             let (local, scanning) = self
                 .cpu
-                .run(CpuJob::ScanGuardrails, bytes, {
+                .run(CpuJob::ScanGuardrails, CpuClass::Guardrailed, bytes, {
                     let guardrails = Arc::clone(&guardrails);
                     let budget = Arc::clone(&self.memory_budget);
                     move || {
@@ -194,7 +199,7 @@ impl Guardrails {
             let body_bytes = body.len();
             let ((local, parsed, scanned_bytes), local_duration) = self
                 .cpu
-                .run(CpuJob::ScanGuardrails, body_bytes, {
+                .run(CpuJob::ScanGuardrails, CpuClass::Guardrailed, body_bytes, {
                     let guardrails = Arc::clone(&guardrails);
                     let budget = Arc::clone(&self.memory_budget);
                     move || {
