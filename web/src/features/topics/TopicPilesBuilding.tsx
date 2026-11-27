@@ -27,7 +27,6 @@ export function TopicPilesBuilding({ sheets }: TopicPilesBuildingProps) {
             x={index * PILE.pitch}
             sheets={Math.max(1, count)}
             color={PILE_COLORS[index % PILE_COLORS.length]}
-            label={null}
           />
         ))
         .reverse()}

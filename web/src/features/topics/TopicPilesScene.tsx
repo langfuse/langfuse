@@ -166,8 +166,8 @@ function Floor({ id, view, edges }: FloorProps) {
   );
 }
 
-/** A stack of coloured sheets, strongest at the bottom: dark outline on the silhouette only; `label` lies on its top face. */
-function Pile({ x, sheets, color, label }: PileProps) {
+/** A stack of coloured sheets, strongest at the bottom: dark outline on the silhouette only; its top face is blank. */
+function Pile({ x, sheets, color }: PileProps) {
   const clipId = useIllustrationId();
   const lift = sheets * SHEET.height;
   const x1 = x + PILE.width;
@@ -223,7 +223,6 @@ function Pile({ x, sheets, color, label }: PileProps) {
             height={PILE.depth}
             style={{ fill: tint(color, 16, "card") }}
           />
-          {label}
           <path
             d={`M${x} 0V${y1}H${x1}`}
             fill="none"
@@ -265,8 +264,6 @@ type PileProps = {
   x: number;
   sheets: number;
   color: PileColor;
-  /** What is written on the top face; null leaves it blank. */
-  label: ReactNode;
 };
 
 /** The floor the Topics drawings stand on; `TopicPilesScene.Pile` is one stack of sheets. */

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   clamp01,
   round,
@@ -44,6 +44,8 @@ const JOIN = { start: 5.2, end: 5.6 };
 const NAME = { start: 5.4, end: 5.7 };
 const FADE_OUT = { start: 8.6, end: 9.4 };
 const FADE_IN = { start: 8.9, end: 9.7 };
+// The finished cards stand still from the last name's arrival to the fade-out.
+const STILL = { start: NAME.end, end: FADE_OUT.start };
 
 /** Decorative: a grey list of traces takes colour, splits into one column per topic and closes up into named cards. */
 export function TopicTraceRegrouping({
@@ -52,7 +54,7 @@ export function TopicTraceRegrouping({
 }: TopicTraceRegroupingProps) {
   const id = useIllustrationId();
   const time = useLoopTime();
-  const plan = planStrips(traces);
+  const plan = useMemo(() => planStrips(traces), [traces]);
   const deepest = Math.max(
     ...topics.map(
       (_, topic) => plan.filter((strip) => strip.topic === topic).length,
@@ -86,17 +88,32 @@ export function TopicTraceRegrouping({
   );
 }
 
-/** Seconds into the loop, once per animation frame; holds the final still on the server, at first paint and under reduced motion. */
+/** Seconds into the loop, once per animation frame; stays at FINAL on the server, at first paint, while the cards stand still and under reduced motion. */
 function useLoopTime() {
   const [time, setTime] = useState(FINAL);
   useEffect(() => {
-    if (!allowsMotion()) return;
-    const origin = performance.now();
-    let frame = requestAnimationFrame(function tick(now) {
-      setTime((FINAL + Math.max(0, now - origin) / 1000) % LOOP);
-      frame = requestAnimationFrame(tick);
-    });
-    return () => cancelAnimationFrame(frame);
+    if (typeof matchMedia === "undefined") return;
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+    let frame = 0;
+    const play = () => {
+      const origin = performance.now();
+      frame = requestAnimationFrame(function tick(now) {
+        const next = (FINAL + Math.max(0, now - origin) / 1000) % LOOP;
+        setTime(next >= STILL.start && next < STILL.end ? FINAL : next);
+        frame = requestAnimationFrame(tick);
+      });
+    };
+    const follow = () => {
+      cancelAnimationFrame(frame);
+      if (reduced.matches) setTime(FINAL);
+      else play();
+    };
+    if (!reduced.matches) play();
+    reduced.addEventListener("change", follow);
+    return () => {
+      reduced.removeEventListener("change", follow);
+      cancelAnimationFrame(frame);
+    };
   }, []);
   return time;
 }
@@ -339,14 +356,6 @@ function Card({ clipId, card }: CardProps) {
         className="stroke-foreground"
       />
     </g>
-  );
-}
-
-/** False under reduced motion, and where the preference cannot be read. */
-function allowsMotion() {
-  return (
-    typeof matchMedia !== "undefined" &&
-    !matchMedia("(prefers-reduced-motion: reduce)").matches
   );
 }
 
