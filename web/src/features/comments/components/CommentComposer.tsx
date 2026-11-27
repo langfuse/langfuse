@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type z } from "zod";
 import { type CommentObjectType, CreateCommentData } from "@langfuse/shared";
+import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -17,6 +18,7 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from "@/src/components/ui/popover";
+import { CreateProjectMemberDialogController } from "@/src/features/rbac/components/CreateProjectMemberDialogController";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { CommentEditor, type CommentEditorHandle } from "./CommentEditor";
@@ -228,6 +230,22 @@ export function CommentComposer({
             {hasMembersReadAccess
               ? "Markdown and @mentions supported"
               : "Markdown supported"}
+            <CreateProjectMemberDialogController surface="comments">
+              {({ hasAccess: canInvite, openDialog: openInviteDialog }) =>
+                canInvite && (
+                  <>
+                    {". "}
+                    <DesignSystemButton
+                      type="button"
+                      variant="text"
+                      size="sm"
+                      text="Invite teammates"
+                      onClick={openInviteDialog}
+                    />
+                  </>
+                )
+              }
+            </CreateProjectMemberDialogController>
           </p>
           <div className="flex shrink-0 items-center gap-3">
             <span className="text-muted-foreground hidden sm:inline-flex">
