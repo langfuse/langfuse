@@ -101,6 +101,26 @@ export function isRichToolResult(content: unknown): boolean {
   return false;
 }
 
+/**
+ * Fields that identify a normalized ChatML message. Rich tool result payloads
+ * are spread into the message for rendering, so a payload carrying one of
+ * these keys would overwrite the message's own identity — e.g. a user record
+ * with `role`/`name` fields flipping a tool message into another role and
+ * breaking the tool_call_id link to the call it answers. Such payloads are
+ * rendered as JSON strings instead of being spread.
+ */
+const RESERVED_MESSAGE_KEYS = ["role", "name", "tool_call_id"];
+
+export function richToolResultOverwritesMessageFields(
+  content: unknown,
+): boolean {
+  if (!content || typeof content !== "object" || Array.isArray(content)) {
+    return false;
+  }
+
+  return RESERVED_MESSAGE_KEYS.some((key) => key in content);
+}
+
 export function parseMetadata(
   metadata: unknown,
 ): Record<string, unknown> | null {

@@ -250,6 +250,59 @@ describe("OpenAI Adapter", () => {
     expect(result.data?.[0].tool_call_id).toBe("call_456");
   });
 
+  it("should not let rich tool result payloads overwrite reserved message fields", () => {
+    const input = {
+      messages: [
+        {
+          role: "tool",
+          tool_call_id: "call_1",
+          name: "get_user",
+          content: {
+            name: "Alice",
+            role: "admin",
+            email: "a@x.io",
+            tool_call_id: "garbage",
+          },
+        },
+      ],
+    };
+
+    const result = normalizeInput(input, { framework: "openai" });
+    expect(result.success).toBe(true);
+    expect(result.data?.[0].role).toBe("tool");
+    expect(result.data?.[0].name).toBe("get_user");
+    expect(result.data?.[0].tool_call_id).toBe("call_1");
+    // The colliding payload stays visible as a JSON string, nothing is lost
+    expect(typeof result.data?.[0].content).toBe("string");
+    expect(JSON.parse(result.data?.[0].content ?? "{}")).toEqual({
+      name: "Alice",
+      role: "admin",
+      email: "a@x.io",
+      tool_call_id: "garbage",
+    });
+  });
+
+  it("should still spread rich tool result payloads that carry message content parts (MCP shape)", () => {
+    const input = {
+      messages: [
+        {
+          role: "tool",
+          tool_call_id: "call_2",
+          content: {
+            content: [{ type: "text", text: "hello" }],
+            isError: false,
+          },
+        },
+      ],
+    };
+
+    const result = normalizeInput(input, { framework: "openai" });
+    expect(result.success).toBe(true);
+    expect(result.data?.[0].role).toBe("tool");
+    expect(result.data?.[0].tool_call_id).toBe("call_2");
+    expect(result.data?.[0].content).toEqual([{ type: "text", text: "hello" }]);
+  });
+
   describe("OpenAI Agents SDK format", () => {
     it("should convert function_call to assistant with tool_calls", () => {
       const output = [
