@@ -2,7 +2,11 @@ import { prisma, Prisma, Role } from "../../db";
 import type { FilterState } from "../../types";
 import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";
 import { usersTableCols } from "../../tableDefinitions/usersTable";
-import { hasProjectAccessByRole } from "../../features/rbac/projectAccessRights";
+import {
+  hasProjectAccessByRole,
+  projectRoleAccessRights,
+} from "../../features/rbac/projectAccessRights";
+import { resolveEffectiveRoles } from "../../features/rbac/effectiveAccess";
 
 export {
   resolveOrganizationScopes,
@@ -12,14 +16,28 @@ export {
 } from "../../features/rbac/effectiveAccess";
 
 /** rolesWithProjectReadByRank lists the roles that can read a project, lowest first. */
-const rolesWithProjectReadByRank = [
-  "VIEWER",
-  "MEMBER",
-  "ADMIN",
-  "OWNER",
-].filter((role) =>
-  hasProjectAccessByRole({ role: role as Role, scope: "project:read" }),
-);
+const rolesWithProjectReadByRank = (
+  Object.keys(projectRoleAccessRights) as Role[]
+)
+  .filter((role) => hasProjectAccessByRole({ role, scope: "project:read" }))
+  .sort((a, b) => {
+    // The query keeps the highest-ranked role, so of any two roles one must be the effective one.
+    const effective = resolveEffectiveRoles([a, b], "project");
+    if (effective.length !== 1) {
+      throw new Error(
+        `Project roles ${a} and ${b} do not subsume each other; rank roles differently in generateUserProjectRolesQuery`,
+      );
+    }
+    return effective[0] === a ? 1 : -1;
+  });
+
+/** UserProjectRole is a user who can read a project, with their effective role there. */
+export type UserProjectRole = {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+};
 
 /**
  * Generates a SQL query for the users who can read a project, each with their effective role there.
@@ -46,7 +64,7 @@ function generateUserProjectRolesQuery({
   limit?: number;
   page?: number;
   orderBy: Prisma.Sql;
-}) {
+}): Prisma.Sql {
   const rolesByRank = Prisma.sql`ARRAY[${Prisma.join(rolesWithProjectReadByRank)}]::text[]`;
   const sqlFilter = filterCondition
     ? tableColumnsToSqlFilterAndPrefix(filterCondition, usersTableCols, "users")
@@ -111,10 +129,8 @@ export const getUserProjectRoles = async ({
   limit?: number;
   page?: number;
   orderBy: Prisma.Sql;
-}) => {
-  return await prisma.$queryRaw<
-    Array<{ id: string; name: string; email: string; role: Role }>
-  >(
+}): Promise<UserProjectRole[]> => {
+  return await prisma.$queryRaw<UserProjectRole[]>(
     generateUserProjectRolesQuery({
       select: Prisma.sql`all_eligible_users.id, all_eligible_users.name, all_eligible_users.email, all_eligible_users.role`,
       projectId,
@@ -138,7 +154,7 @@ export const getUserProjectRolesCount = async ({
   orgId: string;
   filterCondition: FilterState;
   searchFilter: Prisma.Sql;
-}) => {
+}): Promise<number> => {
   const count = await prisma.$queryRaw<Array<{ count: bigint }>>(
     generateUserProjectRolesQuery({
       select: Prisma.sql`COUNT(*) AS count`,
