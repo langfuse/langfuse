@@ -11,6 +11,7 @@ import {
   deleteApiKeyFromDb,
   orgBoundApiKeyScopes,
 } from "@langfuse/shared/src/server/auth/apiKeys";
+import { getGatewayApiKeysLastUsedAtFromEvents } from "@langfuse/shared/src/server";
 import {
   OrganizationId,
   type OrganizationScope,
@@ -30,7 +31,6 @@ import { getEffectiveGatewayIngestionMode } from "@/src/features/ai-gateway/fns/
 import { GATEWAY_ROLE } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
 import { GatewayConfigRepository } from "@/src/features/ai-gateway/server/config/gatewayConfigRepository";
 import { GatewayApiKeyRepository } from "./gatewayApiKeyRepository";
-import { getGatewayApiKeysLastUsedAt } from "./gatewayApiKeyLastUsedRepository";
 
 type GatewayApiKeyIssuedAs = "user" | "serviceAccount";
 
@@ -88,7 +88,7 @@ export class GatewayApiKeyService {
     );
     return {
       isTracked: true,
-      apiKeys: await getGatewayApiKeysLastUsedAt({
+      apiKeys: await getGatewayApiKeysLastUsedAtFromEvents({
         projectId: project.id,
         apiKeyIds,
         since,

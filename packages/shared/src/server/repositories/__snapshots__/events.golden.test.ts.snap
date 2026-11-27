@@ -1,5 +1,124 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`golden: events AI gateway family > getGatewayApiKeysLastUsedAtFromEvents 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2025-12-01 00:00:00.000",
+      "param3": [
+        "golden-key",
+        "golden-key-b",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.ingestion_api_key AS api_key_id,
+    max(e.start_time) AS last_used_at
+FROM events_core AS e
+WHERE (e.project_id = {param1:String})
+    AND (e.start_time >= {param2:DateTime64(6)})
+    AND (e.service_name = 'langfuse-ai-gateway')
+    AND (e.ingestion_api_key IN ({param3:Array(String)}))
+GROUP BY e.ingestion_api_key",
+  },
+]
+`;
+
+exports[`golden: events AI gateway family > getGatewaySpendSinceFromEvents scope=API_KEY 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2025-12-01 00:00:00.000",
+      "param3": [
+        "golden-subject",
+        "golden-subject-b",
+      ],
+      "param4": [
+        1764547200000,
+        1767225600000,
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.ingestion_api_key AS subject_id,
+    toString(sum(e.total_cost)) AS spend
+FROM events_core AS e
+WHERE (e.project_id = {param1:String})
+    AND (e.start_time >= {param2:DateTime64(6)})
+    AND (e.service_name = 'langfuse-ai-gateway')
+    AND (e.ingestion_api_key IN ({param3:Array(String)}))
+    AND (toUnixTimestamp64Milli(e.start_time) >= arrayElement({param4:Array(Int64)}, indexOf({param3:Array(String)}, subject_id)))
+GROUP BY e.ingestion_api_key",
+  },
+]
+`;
+
+exports[`golden: events AI gateway family > getGatewaySpendSinceFromEvents scope=ORGANIZATION 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2025-12-01 00:00:00.000",
+      "param3": [
+        "golden-subject",
+        "golden-subject-b",
+      ],
+      "param4": [
+        1764547200000,
+        1767225600000,
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.project_id AS subject_id,
+    toString(sum(e.total_cost)) AS spend
+FROM events_core AS e
+WHERE (e.project_id = {param1:String})
+    AND (e.start_time >= {param2:DateTime64(6)})
+    AND (e.service_name = 'langfuse-ai-gateway')
+    AND (e.project_id IN ({param3:Array(String)}))
+    AND (toUnixTimestamp64Milli(e.start_time) >= arrayElement({param4:Array(Int64)}, indexOf({param3:Array(String)}, subject_id)))
+GROUP BY e.project_id",
+  },
+]
+`;
+
+exports[`golden: events AI gateway family > getGatewaySpendSinceFromEvents scope=USER 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2025-12-01 00:00:00.000",
+      "param3": [
+        "golden-subject",
+        "golden-subject-b",
+      ],
+      "param4": [
+        1764547200000,
+        1767225600000,
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.metadata_values[indexOf(e.metadata_names, 'langfuse.gateway.api_key.owner.user_id')] AS subject_id,
+    toString(sum(e.total_cost)) AS spend
+FROM events_core AS e
+WHERE (e.project_id = {param1:String})
+    AND (e.start_time >= {param2:DateTime64(6)})
+    AND (e.service_name = 'langfuse-ai-gateway')
+    AND ((e.metadata_values[indexOf(e.metadata_names, 'langfuse.gateway.api_key.owner.user_id')]) IN ({param3:Array(String)}))
+    AND (toUnixTimestamp64Milli(e.start_time) >= arrayElement({param4:Array(Int64)}, indexOf({param3:Array(String)}, subject_id)))
+GROUP BY e.metadata_values[indexOf(e.metadata_names, 'langfuse.gateway.api_key.owner.user_id')]",
+  },
+]
+`;
+
 exports[`golden: events IO payload reads family > getObservationFullIOForSessionFromEventsTable 1`] = `
 [
   {
