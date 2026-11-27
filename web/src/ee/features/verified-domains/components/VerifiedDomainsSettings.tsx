@@ -1,44 +1,13 @@
-import { useId, type ReactNode } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { type ReactNode } from "react";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import Header from "@/src/components/layouts/header";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/src/components/ui/form";
-import { Input } from "@/src/components/ui/input";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
+import { AddDomainDialogController } from "./AddDomainDialogController/AddDomainDialogController";
 import { ConnectedVerifiedDomainsSettingsTable } from "./VerifiedDomainsSettingsTable/ConnectedVerifiedDomainsSettingsTable";
-
-const addDomainSchema = z.object({
-  domain: z
-    .string()
-    .trim()
-    .min(3)
-    .max(253)
-    .transform((v) => v.toLowerCase())
-    .refine(
-      (v) =>
-        /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(
-          v,
-        ),
-      { message: "Must be a valid domain (e.g. acme.com)" },
-    ),
-});
-
-type AddDomainInput = z.infer<typeof addDomainSchema>;
 
 export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
   const hasEntitlement = useHasEntitlement("cloud-multi-tenant-sso");
@@ -86,7 +55,7 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
       <Header
         title="Verified Domains"
         actionButtons={
-          <AddDomainDialogController orgId={orgId}>
+          <ConnectedAddDomainDialogController orgId={orgId}>
             {({ openDialog }) => (
               <Button
                 type="button"
@@ -95,7 +64,7 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
                 text="Add Domain"
               />
             )}
-          </AddDomainDialogController>
+          </ConnectedAddDomainDialogController>
         }
       />
       <p className="text-muted-foreground text-sm">
@@ -107,7 +76,7 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
   );
 };
 
-function AddDomainDialogController({
+function ConnectedAddDomainDialogController({
   orgId,
   children,
 }: {
@@ -126,98 +95,20 @@ function AddDomainDialogController({
           "Click Verify to view the DNS TXT record, then confirm after adding it.",
       });
     },
+    // Inline field errors are shown in AddDomainDialogController.
+    onError: () => {},
   });
 
-  return (
-    <DialogController<true>
-      onBeforeClose={() => !createMutation.isPending}
-      renderDialog={({ closeDialog }) => (
-        <AddDomainDialogContent
-          createMutation={createMutation}
-          orgId={orgId}
-          onSuccess={() => {
-            createMutation.reset();
-            closeDialog();
-          }}
-        />
-      )}
-    >
-      {({ openDialog }) =>
-        children({
-          openDialog: () => openDialog(true),
-        })
-      }
-    </DialogController>
-  );
-}
-
-function AddDomainDialogContent({
-  orgId,
-  createMutation,
-  onSuccess,
-}: {
-  orgId: string;
-  createMutation: {
-    isPending: boolean;
-    mutateAsync: (input: { orgId: string; domain: string }) => Promise<unknown>;
-    reset: () => void;
-  };
-  onSuccess: () => void;
-}) {
-  const formId = useId();
-
-  const form = useForm<AddDomainInput>({
-    resolver: zodResolver(addDomainSchema),
-    defaultValues: { domain: "" },
-  });
-
-  async function onSubmit(values: AddDomainInput) {
-    try {
-      await createMutation.mutateAsync({ orgId, domain: values.domain });
-      form.reset();
-      onSuccess();
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to add domain";
-      form.setError("domain", { message });
-    }
+  async function onSubmitDomain(domain: string) {
+    await createMutation.mutateAsync({ orgId, domain });
   }
 
   return (
-    <Dialog
-      title="Add a domain"
-      actions={[
-        {
-          label: "Add",
-          loading: createMutation.isPending,
-          type: "submit",
-          form: formId,
-        },
-      ]}
+    <AddDomainDialogController
+      isSubmitting={createMutation.isPending}
+      onSubmitDomain={onSubmitDomain}
     >
-      <Dialog.Body>
-        <Form {...form}>
-          <form
-            id={formId}
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="space-y-4"
-          >
-            <FormField
-              control={form.control}
-              name="domain"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Domain</FormLabel>
-                  <FormControl>
-                    <Input placeholder="acme.com" autoFocus {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </form>
-        </Form>
-      </Dialog.Body>
-    </Dialog>
+      {children}
+    </AddDomainDialogController>
   );
 }
