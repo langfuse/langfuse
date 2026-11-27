@@ -207,9 +207,10 @@ export function GatewayBudgetsTable({
       type: "item" as const,
       title: "Edit budget",
       icon: Pencil,
-      description: row.isEditable
-        ? undefined
-        : GATEWAY_ADMIN_SET_BUDGET_SHORT_REASON,
+      description:
+        tab === "apiKeys" && !row.isEditable
+          ? GATEWAY_ADMIN_SET_BUDGET_SHORT_REASON
+          : undefined,
       disabled: row.isEditable
         ? undefined
         : { reason: notEditableReasons[tab] },
