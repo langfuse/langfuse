@@ -70,7 +70,7 @@ export function ChoiceOptionsEditor({
                   }
                   placeholder="label"
                   aria-label={`Option ${index + 1} label`}
-                  className="h-8 border-transparent bg-transparent px-1 font-mono shadow-none"
+                  className="h-8 border-transparent bg-transparent px-1 font-mono text-ellipsis shadow-none placeholder:text-ellipsis"
                 />
                 <Input
                   value={option.description}
@@ -79,7 +79,7 @@ export function ChoiceOptionsEditor({
                   }
                   placeholder="What this option covers (optional)"
                   aria-label={`Option ${index + 1} description`}
-                  className="text-muted-foreground h-8 border-transparent bg-transparent px-1 shadow-none"
+                  className="text-muted-foreground h-8 border-transparent bg-transparent px-1 text-ellipsis shadow-none placeholder:text-ellipsis"
                 />
                 <Button
                   type="button"
@@ -100,12 +100,12 @@ export function ChoiceOptionsEditor({
             )}
           />
         ) : null}
+        {error ? <p className="text-destructive text-xs">{error}</p> : null}
         <TextActionButton
           text="Add option"
           disabled={options.length >= DECISION_MODEL_LIMITS.maxChoiceOptions}
           onClick={() => onChange([...options, { value: "", description: "" }])}
         />
-        {error ? <p className="text-destructive text-xs">{error}</p> : null}
       </div>
     </FieldRow>
   );

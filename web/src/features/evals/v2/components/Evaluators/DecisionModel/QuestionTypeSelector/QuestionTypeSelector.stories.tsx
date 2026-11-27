@@ -63,6 +63,32 @@ export const ArrowKeysMoveFocusWithoutSelecting = meta.story({
   },
 });
 
+export const SwitchesToDropdownInNarrowSlot = meta.story({
+  name: "(Test) Switches to a dropdown in a narrow slot",
+  args: {
+    value: DecisionModelQuestionType.SCORE,
+    onValueChange: fn(),
+  },
+  decorators: [
+    (Story) => (
+      <div className="w-40">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvas }) => {
+    const dropdown = await canvas.findByRole("combobox", {
+      name: "Question type",
+    });
+
+    await expect(dropdown).toBeVisible();
+    await expect(dropdown).toHaveAccessibleDescription(
+      expect.stringContaining("Writes a numeric score"),
+    );
+    await expect(canvas.queryByRole("tab")).toBeNull();
+  },
+});
+
 export const Disabled = meta.story({
   args: {
     value: DecisionModelQuestionType.SCORE,

@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { DecisionModelQuestionType } from "@langfuse/shared";
 import {
   Gauge,
@@ -8,6 +8,14 @@ import {
 } from "@langfuse/icons";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import { useResizeObserver } from "@/src/hooks/useResizeObserver";
 
 export const QUESTION_TYPE_COPY: Record<
   DecisionModelQuestionType,
@@ -56,8 +64,9 @@ const ORDER: DecisionModelQuestionType[] = [
 ];
 
 /**
- * Picks the question type. Each tab is described to assistive technology with
- * what the type does, an example and when to use it.
+ * Picks the question type: tabs when they fit the width it is given, a
+ * dropdown otherwise. Each type is described to assistive technology with what
+ * it does, an example and when to use it.
  */
 export function QuestionTypeSelector({
   value,
@@ -70,7 +79,27 @@ export function QuestionTypeSelector({
 }) {
   const helpIdPrefix = useId();
 
-  return (
+  const slotRef = useRef<HTMLDivElement>(null);
+  const tabsMeasureRef = useRef<HTMLDivElement>(null);
+  const [tabsFit, setTabsFit] = useState(true);
+
+  const measure = useCallback(() => {
+    const slot = slotRef.current;
+    const tabsMeasure = tabsMeasureRef.current;
+    if (!slot || !tabsMeasure) return;
+
+    setTabsFit(
+      tabsMeasure.getBoundingClientRect().width <=
+        slot.getBoundingClientRect().width,
+    );
+  }, []);
+  // The first check runs before paint, so a slot too narrow never shows the tabs.
+  useLayoutEffect(measure, [measure]);
+  useResizeObserver(slotRef, measure);
+  // The tabs' own width changes without the slot resizing, e.g. when a font loads.
+  useResizeObserver(tabsMeasureRef, measure);
+
+  const tabs = (
     <Tabs
       activationMode="manual"
       value={value}
@@ -91,6 +120,52 @@ export function QuestionTypeSelector({
           );
         })}
       </Tabs.List>
+    </Tabs>
+  );
+
+  return (
+    <div ref={slotRef} className="flex min-w-0">
+      {/* An unseen copy of the tabs stays mounted to read their natural width. */}
+      <div
+        aria-hidden="true"
+        inert
+        className="invisible size-0 overflow-hidden"
+      >
+        <div ref={tabsMeasureRef} className="w-max">
+          {tabs}
+        </div>
+      </div>
+      {tabsFit ? (
+        tabs
+      ) : (
+        <div className="w-52 max-w-full">
+          <Select
+            value={value}
+            onValueChange={(next) =>
+              onValueChange(next as DecisionModelQuestionType)
+            }
+            disabled={disabled}
+          >
+            <SelectTrigger
+              aria-label="Question type"
+              aria-describedby={`${helpIdPrefix}-${value}`}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ORDER.map((type) => (
+                <SelectItem
+                  key={type}
+                  value={type}
+                  aria-describedby={`${helpIdPrefix}-${type}`}
+                >
+                  {QUESTION_TYPE_COPY[type].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       {ORDER.map((type) => {
         const copy = QUESTION_TYPE_COPY[type];
         return (
@@ -99,6 +174,6 @@ export function QuestionTypeSelector({
           </span>
         );
       })}
-    </Tabs>
+    </div>
   );
 }
