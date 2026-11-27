@@ -748,9 +748,10 @@ fn guardrail_scan(system: &str, messages: &str) -> Vec<String> {
         "messages" => Some(messages),
         _ => None,
     };
-    guardrail_turn(member)
+    let members = crate::guardrails::spec::Members::new(super::REQUEST.members, &member);
+    guardrail_turn(&members)
         .unwrap()
-        .read(member, &mut |text: &str| texts.push(text.to_owned()))
+        .read(&members, &mut |text: &str| texts.push(text.to_owned()))
         .unwrap();
     texts
 }

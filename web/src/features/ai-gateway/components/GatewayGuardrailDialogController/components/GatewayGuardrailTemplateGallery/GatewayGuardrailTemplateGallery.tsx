@@ -1,4 +1,5 @@
 import { ChevronRight } from "@langfuse/icons";
+import { SiOpenai } from "@langfuse/icons/si";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -189,6 +190,8 @@ function TemplatePreview({
     switch (preview.provider) {
       case "aws":
         return <AwsColorLogo />;
+      case "openai":
+        return <SiOpenai size="xl" aria-hidden />;
     }
   }
   return (

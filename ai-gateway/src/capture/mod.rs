@@ -171,73 +171,28 @@ impl ProtocolCapture {
     }
 }
 
-/// The top-level members of a request in `api_format` that hold the conversation
-/// guardrails scan.
-pub(crate) fn guardrail_members(api_format: ApiFormat) -> &'static [&'static str] {
+/// Where requests in `api_format` carry the conversation, for input guardrails.
+pub(crate) fn request_spec(api_format: ApiFormat) -> &'static crate::guardrails::spec::RequestSpec {
     match api_format {
-        ApiFormat::OpenAiChatCompletions => openai_chat_completions::GUARDRAIL_MEMBERS,
-        ApiFormat::OpenAiResponses => openai_responses::GUARDRAIL_MEMBERS,
-        ApiFormat::AnthropicMessages => anthropic_messages::GUARDRAIL_MEMBERS,
-        ApiFormat::OpenAiEmbeddings => openai_embeddings::GUARDRAIL_MEMBERS,
-        ApiFormat::OpenAiDecisions => openai_decisions::GUARDRAIL_MEMBERS,
+        ApiFormat::OpenAiChatCompletions => &openai_chat_completions::REQUEST,
+        ApiFormat::OpenAiResponses => &openai_responses::REQUEST,
+        ApiFormat::AnthropicMessages => &anthropic_messages::REQUEST,
+        ApiFormat::OpenAiEmbeddings => &openai_embeddings::REQUEST,
+        ApiFormat::OpenAiDecisions => &openai_decisions::REQUEST,
     }
 }
 
-/// Finds the request's last turn in the members of [`guardrail_members`] that
-/// `member` returns.
-pub(crate) fn guardrail_turn<'a>(
+/// Where an API format's responses carry model text, for output guardrails.
+pub(crate) fn response_spec(
     api_format: ApiFormat,
-    member: impl Fn(&str) -> Option<&'a str>,
-) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
+) -> Option<&'static crate::guardrails::spec::ResponseSpec> {
     match api_format {
-        ApiFormat::OpenAiChatCompletions => openai_chat_completions::guardrail_turn(member),
-        ApiFormat::OpenAiResponses => openai_responses::guardrail_turn(member),
-        ApiFormat::AnthropicMessages => anthropic_messages::guardrail_turn(member),
-        ApiFormat::OpenAiEmbeddings => Ok(openai_embeddings::guardrail_turn(member)),
-        ApiFormat::OpenAiDecisions => Ok(openai_decisions::guardrail_turn(member)),
-    }
-}
-
-/// Extracts model output text blocks from a non-streaming JSON provider response.
-pub(crate) fn extract_response_json(
-    api_format: ApiFormat,
-    value: &Value,
-    blocks: &mut Vec<crate::guardrails::response::ResponseBlock>,
-) -> Result<(), crate::guardrails::text::Unreadable> {
-    match api_format {
-        ApiFormat::OpenAiChatCompletions => {
-            openai_chat_completions::extract_response_json(value, blocks)
-        }
-        ApiFormat::AnthropicMessages => anthropic_messages::extract_response_json(value, blocks),
-        ApiFormat::OpenAiResponses => openai_responses::extract_response_json(value, blocks),
+        ApiFormat::OpenAiChatCompletions => Some(&openai_chat_completions::RESPONSE),
+        ApiFormat::AnthropicMessages => Some(&anthropic_messages::RESPONSE),
+        ApiFormat::OpenAiResponses => Some(&openai_responses::RESPONSE),
         // Decisions and Embeddings routes skip response guardrails in `Route::evaluates_response_guardrails`;
         // fail closed if invoked directly.
-        ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => {
-            Err(crate::guardrails::text::Unreadable)
-        }
-    }
-}
-
-/// Extracts model output text deltas/summaries from one parsed SSE event frame.
-pub(crate) fn extract_response_sse(
-    api_format: ApiFormat,
-    frame_idx: usize,
-    value: &Value,
-    collector: &mut crate::guardrails::response::StreamCollector,
-) -> Result<(), crate::guardrails::text::Unreadable> {
-    match api_format {
-        ApiFormat::OpenAiChatCompletions => {
-            openai_chat_completions::extract_response_sse(frame_idx, value, collector)
-        }
-        ApiFormat::AnthropicMessages => {
-            anthropic_messages::extract_response_sse(frame_idx, value, collector)
-        }
-        ApiFormat::OpenAiResponses => {
-            openai_responses::extract_response_sse(frame_idx, value, collector)
-        }
-        ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => {
-            Err(crate::guardrails::text::Unreadable)
-        }
+        ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => None,
     }
 }
 

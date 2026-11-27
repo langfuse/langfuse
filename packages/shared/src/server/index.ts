@@ -570,6 +570,7 @@ export { getTotalCostByEvaluatorIds } from "./repositories/events";
 export { getLatestEvaluatorRunCost } from "./repositories/events";
 export {
   getGatewaySpendSinceFromEvents,
+  getGatewayApiKeysLastUsedAtFromEvents,
   getGatewayGuardrailFlaggedCountsFromEvents,
   getGatewayGuardrailFlaggedTimeSeriesFromEvents,
   type GatewayGuardrailTimeBucket,

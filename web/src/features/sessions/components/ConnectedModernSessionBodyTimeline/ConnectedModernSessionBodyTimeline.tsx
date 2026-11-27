@@ -1,3 +1,4 @@
+/* eslint-disable boundaries/dependencies -- TODO: component privacy */
 import { type ComponentProps, useRef, useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 

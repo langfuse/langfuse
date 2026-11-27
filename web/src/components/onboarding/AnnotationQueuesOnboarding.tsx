@@ -72,7 +72,7 @@ export function AnnotationQueuesOnboarding({
         label: "Learn More",
         href: "https://langfuse.com/docs/scores/annotation",
       }}
-      videoSrc="https://static.langfuse.com/prod-assets/onboarding/annotation-queue-overview-v1.mp4"
+      videoSrc="https://static.langfuse.com/prod-assets/onboarding/annotation-queue-overview-v2.mp4"
     />
   );
 }

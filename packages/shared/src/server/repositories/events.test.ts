@@ -297,7 +297,7 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
   );
 
   it.each([false, true])(
-    "rejects an unfinished empty page with interrupted query=%s",
+    "returns an empty page with a cursor after empty windows, interrupted query=%s",
     async (interrupted) => {
       const clock = vi.spyOn(performance, "now").mockReturnValue(0);
       mockQueryClickhouseWithProgress.mockImplementationOnce(
@@ -308,9 +308,13 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
       );
       if (interrupted) mockProgressError(new ClickHouseQueryAbortedError());
 
-      await expect(
-        getObservationsV2PageFromEventsTableForPublicApi(boundedOpts),
-      ).rejects.toMatchObject({ errorType: "TIMEOUT" });
+      const page =
+        await getObservationsV2PageFromEventsTableForPublicApi(boundedOpts);
+
+      expect(page.items).toEqual([]);
+      expect(page.cursor?.lastStartTimeTo).toEqual(
+        new Date("2026-10-12T00:00:00Z"),
+      );
       expect(mockQueryClickhouseWithProgress).toHaveBeenCalledTimes(
         interrupted ? 2 : 1,
       );
@@ -548,14 +552,12 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
       clock.mockReturnValue(45_000);
       yield progressEvent(0);
     });
-    await expect(
-      getObservationsV2PageFromEventsTableForPublicApi({
-        ...baseOpts,
-        traceId: "trace-1",
-        fromStartTime: "1970-01-01T00:00:00Z",
-        toStartTime: "2026-10-19T00:00:00Z",
-      }),
-    ).rejects.toMatchObject({ errorType: "TIMEOUT" });
+    await getObservationsV2PageFromEventsTableForPublicApi({
+      ...baseOpts,
+      traceId: "trace-1",
+      fromStartTime: "1970-01-01T00:00:00Z",
+      toStartTime: "2026-10-19T00:00:00Z",
+    });
     const scans = mockQueryClickhouseWithProgress.mock.calls;
     expect(scans).toHaveLength(3);
     expect(

@@ -16,6 +16,7 @@ import {
 import { GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES } from "./gatewayDefaultSpendLimits";
 import type { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "./gatewayOrganizationSpendLimitScope";
 import { GATEWAY_SPEND_LIMIT_DTO_SELECT } from "./gatewaySpendLimitDto";
+import { gatewaySpendLimitsNotOwnedBy } from "./gatewaySpendLimitsNotOwnedBy";
 import {
   type GatewaySpendLimitScope,
   toScopeColumns,
@@ -129,6 +130,12 @@ export class GatewaySpendLimitRepository {
       organizationId: params.organizationId,
       scope: params.scope,
     } as const;
+    // Counts every limit, not just the listed first one, so members see the same answer the reset check gives.
+    const notOwnedWhere = {
+      ...limitWhere,
+      ...(params.ownerUserId !== undefined &&
+        gatewaySpendLimitsNotOwnedBy(params.ownerUserId)),
+    };
 
     if (params.scope === "API_KEY") {
       const where: Prisma.ApiKeyWhereInput = {
@@ -154,6 +161,9 @@ export class GatewaySpendLimitRepository {
               orderBy: { createdAt: "asc" },
               take: 1,
             },
+            _count: {
+              select: { gatewaySpendLimits: { where: notOwnedWhere } },
+            },
           },
           orderBy: [{ note: { sort: "asc", nulls: "last" } }, { id: "asc" }],
           skip,
@@ -168,6 +178,7 @@ export class GatewaySpendLimitRepository {
           name: key.note ?? key.displaySecretKey,
           user: key.user,
           limit: key.gatewaySpendLimits[0] ?? null,
+          limitsNotOwnedCount: key._count.gatewaySpendLimits,
         })),
       };
     }
@@ -206,6 +217,9 @@ export class GatewaySpendLimitRepository {
                 orderBy: { createdAt: "asc" },
                 take: 1,
               },
+              _count: {
+                select: { gatewaySpendLimits: { where: notOwnedWhere } },
+              },
             },
           },
         },
@@ -220,12 +234,15 @@ export class GatewaySpendLimitRepository {
     ]);
     return {
       totalCount,
-      rows: memberships.map(({ user: { gatewaySpendLimits, ...user } }) => ({
-        subjectId: user.id,
-        name: user.name || (user.email ?? user.id),
-        user,
-        limit: gatewaySpendLimits[0] ?? null,
-      })),
+      rows: memberships.map(
+        ({ user: { gatewaySpendLimits, _count, ...user } }) => ({
+          subjectId: user.id,
+          name: user.name || (user.email ?? user.id),
+          user,
+          limit: gatewaySpendLimits[0] ?? null,
+          limitsNotOwnedCount: _count.gatewaySpendLimits,
+        }),
+      ),
     };
   }
 

@@ -58,6 +58,9 @@ const BULK_WRITE_TIMEOUT_MS = 30_000;
 
 const NO_SUBJECTS = { totalCount: 0, rows: [] };
 
+const ADMIN_SET_BUDGET_RESET_FORBIDDEN =
+  "A gateway admin set this key's spend budget, so only an admin can reset it.";
+
 const GATEWAY_SPEND_LIMITS_UNAVAILABLE_REASON =
   "Please switch to ingestion mode usage to enable this";
 
@@ -273,23 +276,27 @@ export class GatewaySpendLimitService {
       ? await readSpend(recordingProjectId, params.scope, budgeted)
       : null;
 
-    return params.rows.map(({ subjectId, name, user, limit }) => {
-      const applied = limit ?? params.fallback;
-      return {
-        id: subjectId,
-        subjectId,
-        name,
-        user,
-        spendLimit: applied ? toGatewaySpendLimitDto(applied) : null,
-        isDefault: limit === null && applied !== null,
-        spentUsd: applied && spend ? (spend.get(subjectId) ?? 0) : undefined,
-        // Members may add a budget to their own keys, and change only budgets they set.
-        isEditable:
-          ownUserId === undefined ||
-          (params.scope === "API_KEY" &&
-            (limit === null || limit.ownerUserId === ownUserId)),
-      };
-    });
+    return params.rows.map(
+      ({ subjectId, name, user, limit, limitsNotOwnedCount }) => {
+        const applied = limit ?? params.fallback;
+        const ownsAllLimits = limit !== null && limitsNotOwnedCount === 0;
+        return {
+          id: subjectId,
+          subjectId,
+          name,
+          user,
+          spendLimit: applied ? toGatewaySpendLimitDto(applied) : null,
+          isDefault: limit === null && applied !== null,
+          spentUsd: applied && spend ? (spend.get(subjectId) ?? 0) : undefined,
+          // Members may add a budget to their own keys without the default, and change only budgets they set.
+          isEditable:
+            ownUserId === undefined ||
+            (params.scope === "API_KEY" &&
+              (limit === null ? params.fallback === null : ownsAllLimits)),
+          canResetBudget: ownUserId === undefined || ownsAllLimits,
+        };
+      },
+    );
   }
 
   /**
@@ -362,7 +369,8 @@ export class GatewaySpendLimitService {
    * the limit intact. If the subject inherits the organization's default
    * budget, creates an explicit budget for the subject copied from the default
    * with a fresh counting start. Only gateway managers may reset user budgets
-   * or another member's key; everyone else may reset only their own keys.
+   * or another member's key; everyone else may reset only budgets they set on
+   * their own keys, never one an admin set or the default.
    */
   async resetForSubject(params: {
     organizationId: string;
@@ -380,6 +388,7 @@ export class GatewaySpendLimitService {
       usageScope: params.usageScope,
       scope,
     });
+    const ownerUserId = getKeyOwnerFilter(params.usageScope);
 
     const runReset = () =>
       this.prisma.$transaction(async (tx) => {
@@ -388,6 +397,12 @@ export class GatewaySpendLimitService {
           organizationId: params.organizationId,
           scope,
         });
+        if (
+          ownerUserId !== undefined &&
+          existing.some((before) => before.ownerUserId !== ownerUserId)
+        ) {
+          throw new ForbiddenError(ADMIN_SET_BUDGET_RESET_FORBIDDEN);
+        }
         if (existing.length > 0) {
           const now = new Date();
           for (const before of existing) {
@@ -418,6 +433,10 @@ export class GatewaySpendLimitService {
               ? "Gateway key has no spend budget"
               : "User has no spend budget",
           );
+        }
+        // Only gateway admins set the default, so members never own it.
+        if (ownerUserId !== undefined) {
+          throw new ForbiddenError(ADMIN_SET_BUDGET_RESET_FORBIDDEN);
         }
         const created = await repo.create({
           organizationId: params.organizationId,
@@ -530,6 +549,18 @@ export class GatewaySpendLimitService {
     ) {
       throw new ForbiddenError(
         "A gateway admin set this key's spend budget, so only an admin can change it.",
+      );
+    }
+    // A key's own budget replaces the default, so adding one would lift the admin's cap.
+    if (
+      ownerUserId !== undefined &&
+      limit &&
+      existing.length === 0 &&
+      scope.type === "API_KEY" &&
+      (await this.repository.findDefault({ organizationId, scope: "API_KEY" }))
+    ) {
+      throw new ForbiddenError(
+        "This key has the organization's default budget, so only a gateway admin can change it.",
       );
     }
     if (limit && !isUnchanged) {

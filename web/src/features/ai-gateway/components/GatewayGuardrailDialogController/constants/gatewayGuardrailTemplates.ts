@@ -11,7 +11,7 @@ import {
 
 export type GatewayGuardrailTemplatePreview =
   | { kind: "snippet"; label: string; value: string }
-  | { kind: "logo"; provider: "aws" };
+  | { kind: "logo"; provider: "aws" | "openai" };
 
 export type GatewayGuardrailTemplate = {
   id: GatewayGuardrailTemplateKind;
@@ -190,6 +190,26 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
       defaultPresets: [],
       sampleTestText: "",
     },
+    {
+      id: "openai_moderation",
+      guardrailType: "OPENAI_MODERATION",
+      name: "OpenAI Moderation",
+      description:
+        "Flags harassment, hate, self-harm, sexual, violent and illicit content.",
+      preview: {
+        kind: "logo",
+        provider: "openai",
+      },
+      external: {
+        description:
+          "Checks each request's latest turn with the free OpenAI Moderation API. It scans text only and cannot redact.",
+        docsLabel: "OpenAI documentation",
+        docsHref: "https://platform.openai.com/docs/guides/moderation",
+      },
+      presets: [],
+      defaultPresets: [],
+      sampleTestText: "",
+    },
   ];
 
 const TEMPLATE_GUARDRAIL_TYPE: Record<
@@ -202,6 +222,7 @@ const TEMPLATE_GUARDRAIL_TYPE: Record<
   contains: "REGEX",
   custom_regex: "REGEX",
   bedrock: "BEDROCK",
+  openai_moderation: "OPENAI_MODERATION",
 };
 
 export function getGuardrailTypeForTemplate(

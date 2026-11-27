@@ -1,4 +1,4 @@
-import { ListTree, Pencil, RotateCcw } from "@langfuse/icons";
+import { Ban, ListTree, Pencil, RotateCcw } from "@langfuse/icons";
 
 import {
   TableCard,
@@ -18,6 +18,11 @@ import {
   GATEWAY_BUDGET_STATUSES,
   type GatewayBudgetStatus,
 } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
+import {
+  GATEWAY_ADMIN_SET_BUDGET_CHANGE_REASON,
+  GATEWAY_ADMIN_SET_BUDGET_RESET_REASON,
+  GATEWAY_ADMIN_SET_BUDGET_SHORT_REASON,
+} from "@/src/features/ai-gateway/constants/gatewayAdminSetBudgetReasons";
 import {
   GATEWAY_SPEND_TABS,
   type GatewaySpendTab,
@@ -158,7 +163,7 @@ const columnsByTab: Record<
 
 const notEditableReasons = {
   users: "Only gateway admins can change user budgets.",
-  apiKeys: "A gateway admin set this budget, so only an admin can change it.",
+  apiKeys: GATEWAY_ADMIN_SET_BUDGET_CHANGE_REASON,
 } as const satisfies Record<GatewaySpendTab, string>;
 
 const noBudgetResetReasons = {
@@ -202,6 +207,10 @@ export function GatewayBudgetsTable({
       type: "item" as const,
       title: "Edit budget",
       icon: Pencil,
+      description:
+        tab === "apiKeys" && !row.isEditable
+          ? GATEWAY_ADMIN_SET_BUDGET_SHORT_REASON
+          : undefined,
       disabled: row.isEditable
         ? undefined
         : { reason: notEditableReasons[tab] },
@@ -211,10 +220,11 @@ export function GatewayBudgetsTable({
       id: "resetBudget",
       type: "item" as const,
       title: "Reset budget",
-      icon: RotateCcw,
-      disabled: row.spendLimit
-        ? undefined
-        : { reason: noBudgetResetReasons[tab] },
+      icon: isResetLockedByAdmin(row) ? Ban : RotateCcw,
+      description: isResetLockedByAdmin(row)
+        ? GATEWAY_ADMIN_SET_BUDGET_SHORT_REASON
+        : undefined,
+      disabled: getResetBudgetDisabled(row, tab),
       onClick: () => onResetBudget(row),
     },
     ...(ingestionProjectId
@@ -261,6 +271,18 @@ export function GatewayBudgetsTable({
       noResultsMessage={isFiltered ? copy.noMatches : copy.noBudgets}
     />
   );
+}
+
+function getResetBudgetDisabled(row: GatewayBudgetRow, tab: GatewaySpendTab) {
+  if (!row.spendLimit) return { reason: noBudgetResetReasons[tab] };
+  if (!row.canResetBudget) {
+    return { reason: GATEWAY_ADMIN_SET_BUDGET_RESET_REASON };
+  }
+  return undefined;
+}
+
+function isResetLockedByAdmin(row: GatewayBudgetRow) {
+  return row.spendLimit !== null && !row.canResetBudget;
 }
 
 function toGatewayBudgetStatus(value: string): GatewayBudgetStatus {

@@ -255,6 +255,9 @@ function getGuardrailBadge(row: GatewayGuardrailRow) {
   if (row.type === "BEDROCK") {
     return <providerIcons.BEDROCK size="sm" aria-hidden />;
   }
+  if (row.type === "OPENAI_MODERATION") {
+    return <providerIcons.OPENAI size="sm" aria-hidden />;
+  }
   if (
     row.presets.length === 0 &&
     row.secretPrefixes.length === 0 &&

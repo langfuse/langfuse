@@ -5,12 +5,14 @@
 //! `redact` guardrail replaces matched spans before forwarding or returning;
 //! an `enforce` external guardrail follows the provider's block or anonymize
 //! verdict. Each API format's capture module finds the request's last turn
-//! (`capture::guardrail_turn`), and `response` extracts provider output blocks.
+//! (`capture::request_spec`), and `response` extracts provider output blocks.
 pub(crate) mod bedrock;
 pub(crate) mod external;
+pub(crate) mod openai_moderation;
 pub(crate) mod redact;
 mod regex;
 pub(crate) mod response;
+pub(crate) mod spec;
 pub(crate) mod text;
 
 use std::{ops::Range, sync::Arc, time::Duration};
@@ -32,9 +34,11 @@ use crate::{
 };
 use bedrock::BedrockGuardrail;
 use external::{ExternalFailureKind, ExternalGuardrailClient, ExternalOutcome, ExternalPayloads};
+use openai_moderation::OpenAiModerationGuardrail;
 use redact::{BodyEdit, RedactionSpan};
 use regex::Compiled;
 use response::{ParsedResponse, RedactionApply, ResponseFormat, ResponseParseError};
+use spec::Members;
 use text::{LastTurn, Unreadable};
 
 /// Evaluates local regex and external provider guardrails against a request's
@@ -182,7 +186,7 @@ impl Guardrails {
         api_format: ApiFormat,
         format: ResponseFormat,
         context: &ResolvedRequestContext,
-        body: Bytes,
+        body: Vec<Bytes>,
     ) -> Result<Outcome, ResolutionError> {
         if !context
             .response_guardrails()
@@ -194,9 +198,10 @@ impl Guardrails {
         let guardrails: Arc<[Guardrail]> = context.response_guardrails().into();
         let organization_id = context.attribution().organization_id().as_str().to_owned();
         let max_scan_bytes = self.max_scan_bytes;
+        let has_external = guardrails.iter().any(Guardrail::is_external);
         async move {
             let check_started = std::time::Instant::now();
-            let body_bytes = body.len();
+            let body_bytes = body.iter().map(Bytes::len).sum();
             let ((local, parsed, scanned_bytes), local_duration) = self
                 .cpu
                 .run(CpuJob::ScanGuardrails, CpuClass::Guardrailed, body_bytes, {
@@ -231,12 +236,20 @@ impl Guardrails {
                 .ok_or(ResolutionError::Busy)?;
             let mut eval = local?;
             let external_duration = if !eval.is_blocking() && !eval.blocks.is_empty() {
-                let mut no_drop = None;
+                // External guardrails receive copies of the response text.
+                let mut text_reservation = parsed
+                    .as_ref()
+                    .map(ParsedResponse::text_bytes)
+                    .filter(|&bytes| has_external && bytes > 0)
+                    .map(|bytes| {
+                        MemoryReservation::from_budget(&self.memory_budget, bytes, "guardrails")
+                    })
+                    .transpose()?;
                 self.evaluate_external(
                     &guardrails,
                     GuardrailLocation::Response,
                     &mut eval,
-                    &mut no_drop,
+                    &mut text_reservation,
                     &organization_id,
                 )
                 .await?
@@ -289,7 +302,7 @@ impl Guardrails {
                 continue;
             }
             let payload_reservation =
-                self.reserve_external_payload(&eval.blocks, guardrail.scope)?;
+                self.reserve_external_payload(&eval.blocks, guardrail.scope, 1)?;
             let payloads = eval
                 .blocks
                 .serialize_for_scope(guardrail.scope, &[guardrail], location);
@@ -322,7 +335,11 @@ impl Guardrails {
                 }
                 let batch: Vec<&Guardrail> =
                     group.iter().map(|(_, guardrail)| *guardrail).collect();
-                let reservation = self.reserve_external_payload(&eval.blocks, scope)?;
+                let reservation = self.reserve_external_payload(
+                    &eval.blocks,
+                    scope,
+                    ExternalPayloads::count_for(&batch),
+                )?;
                 let payloads = eval.blocks.serialize_for_scope(scope, &batch, location);
                 scope_batches.push(ObservingBatch {
                     group,
@@ -358,12 +375,14 @@ impl Guardrails {
         &self,
         blocks: &TurnBlocks,
         scope: GuardrailScope,
+        payload_count: usize,
     ) -> Result<MemoryReservation, ResolutionError> {
         MemoryReservation::from_budget(
             &self.memory_budget,
             blocks
                 .external_payload_bytes_for_scope(scope)
-                .saturating_add(64),
+                .saturating_add(64)
+                .saturating_mul(payload_count),
             "guardrails",
         )
     }
@@ -387,6 +406,7 @@ pub(crate) enum GuardrailKind {
         patterns: Vec<String>,
     },
     Bedrock(BedrockGuardrail),
+    OpenAiModeration(OpenAiModerationGuardrail),
     /// Control plane could not decrypt or validate a fail-closed guardrail;
     /// always matches so the gateway enforces its action without forwarding
     /// unscreened requests.
@@ -425,7 +445,9 @@ impl Guardrail {
         }
         match &self.kind {
             GuardrailKind::Regex { patterns } => !patterns.is_empty(),
-            GuardrailKind::Bedrock(_) | GuardrailKind::FailClosed => true,
+            GuardrailKind::Bedrock(_)
+            | GuardrailKind::OpenAiModeration(_)
+            | GuardrailKind::FailClosed => true,
             GuardrailKind::Unknown => false,
         }
     }
@@ -441,18 +463,30 @@ impl Guardrail {
                     && !config.guardrail_version.trim().is_empty()
                     && crate::resolution::valid_token(config.api_key.expose_secret())
             }
+            // An unknown region fails only this guardrail closed at check time,
+            // so Web can add regions before every gateway knows them.
+            GuardrailKind::OpenAiModeration(config) => {
+                crate::resolution::valid_token(config.api_key.expose_secret())
+            }
         }
     }
 
     fn regex_patterns(&self) -> Option<&[String]> {
         match &self.kind {
             GuardrailKind::Regex { patterns } => Some(patterns),
-            GuardrailKind::Bedrock(_) | GuardrailKind::FailClosed | GuardrailKind::Unknown => None,
+            GuardrailKind::Bedrock(_)
+            | GuardrailKind::OpenAiModeration(_)
+            | GuardrailKind::FailClosed
+            | GuardrailKind::Unknown => None,
         }
     }
 
     fn is_external(&self) -> bool {
-        self.is_active() && matches!(self.kind, GuardrailKind::Bedrock(_))
+        self.is_active()
+            && matches!(
+                self.kind,
+                GuardrailKind::Bedrock(_) | GuardrailKind::OpenAiModeration(_)
+            )
     }
 
     fn is_external_enforce(&self) -> bool {
@@ -512,6 +546,16 @@ impl<'de> Deserialize<'de> for Guardrail {
                     .api_key
                     .ok_or_else(|| D::Error::missing_field("api_key"))?,
             }),
+            Some("openai_moderation") => {
+                GuardrailKind::OpenAiModeration(OpenAiModerationGuardrail {
+                    region: raw
+                        .region
+                        .ok_or_else(|| D::Error::missing_field("region"))?,
+                    api_key: raw
+                        .api_key
+                        .ok_or_else(|| D::Error::missing_field("api_key"))?,
+                })
+            }
             Some("fail_closed") => GuardrailKind::FailClosed,
             Some(_) => GuardrailKind::Unknown,
         };
@@ -540,15 +584,25 @@ pub(crate) enum GuardrailAction {
     Unknown,
 }
 
-/// Where the request parse found the members of `capture::guardrail_members`.
-#[derive(Clone, Debug, Default)]
+/// Where the request parse found the members its format's
+/// [`text::RequestSpec`] declares.
+#[derive(Clone, Debug)]
 pub(crate) struct ScannedMembers {
+    declared: &'static [&'static str],
     members: Vec<(&'static str, Range<usize>)>,
     /// A member appeared twice; parsers disagree on which one the provider reads.
     duplicated: bool,
 }
 
 impl ScannedMembers {
+    pub(crate) fn new(declared: &'static [&'static str]) -> Self {
+        Self {
+            declared,
+            members: Vec::new(),
+            duplicated: false,
+        }
+    }
+
     pub(crate) fn push(&mut self, name: &'static str, range: Range<usize>) {
         self.members.push((name, range));
     }
@@ -834,7 +888,8 @@ fn last_turn(
     if scanned.duplicated {
         return Err(Unreadable);
     }
-    crate::capture::guardrail_turn(api_format, member(body, scanned))
+    let find = member(body, scanned);
+    (crate::capture::request_spec(api_format).last_turn)(&Members::new(scanned.declared, &find))
 }
 
 fn member<'a>(body: &'a [u8], scanned: &ScannedMembers) -> impl Fn(&str) -> Option<&'a str> {
@@ -1569,8 +1624,9 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
 
     fn evaluate_turn(&mut self, body: &[u8], turn: &LastTurn, scanned: &ScannedMembers) -> bool {
         let include_entire_input = self.entire_input.is_active();
+        let find = member(body, scanned);
         turn.read_scoped_leaves(
-            member(body, scanned),
+            &Members::new(scanned.declared, &find),
             include_entire_input,
             &mut |leaf, in_last_turn| {
                 let target =

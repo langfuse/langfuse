@@ -1,3 +1,4 @@
+/* eslint-disable boundaries/dependencies -- TODO: component privacy */
 // Controlled query editor. Parsing, token projection, and completion edits
 // belong to the caller; this component owns DOM editing and selection.
 //

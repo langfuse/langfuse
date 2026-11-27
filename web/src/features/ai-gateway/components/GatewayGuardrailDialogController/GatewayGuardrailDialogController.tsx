@@ -138,13 +138,13 @@ export function GatewayGuardrailDialogController({
         };
 
         const handleTestForm = async (values: GatewayGuardrailFormValues) => {
-          if (!values.bedrock) return;
+          const external = toExternalTestInput(values);
+          if (!external) return;
           try {
             await testMutation.mutateAsync({
               orgId: organizationId,
               id: state.mode === "edit" ? state.guardrail.id : undefined,
-              type: "BEDROCK",
-              bedrock: values.bedrock,
+              ...external,
             });
           } catch (error) {
             reportNonTrpcError(error, "ai-gateway-guardrails");
@@ -157,68 +157,108 @@ export function GatewayGuardrailDialogController({
         ) => {
           testMutation.reset();
           const assignments = targetOptionsToAssignments(values.targets);
+          const createGuardrail = () => {
+            if (values.openAiModeration) {
+              return createMutation.mutateAsync({
+                orgId: organizationId,
+                type: "OPENAI_MODERATION",
+                name: values.name,
+                action: resolveSupportedGuardrailAction(
+                  "OPENAI_MODERATION",
+                  values.action,
+                ),
+                scope: values.scope,
+                openAiModeration: {
+                  region: values.openAiModeration.region,
+                  apiKey: values.openAiModeration.apiKey ?? "",
+                },
+                assignments,
+              });
+            }
+            if (values.bedrock) {
+              return createMutation.mutateAsync({
+                orgId: organizationId,
+                type: "BEDROCK",
+                name: values.name,
+                action: resolveSupportedGuardrailAction(
+                  "BEDROCK",
+                  values.action,
+                ),
+                scope: values.scope,
+                bedrock: {
+                  guardrailId: values.bedrock.guardrailId,
+                  guardrailVersion: values.bedrock.guardrailVersion,
+                  region: values.bedrock.region,
+                  apiKey: values.bedrock.apiKey ?? "",
+                },
+                assignments,
+              });
+            }
+            return createMutation.mutateAsync({
+              orgId: organizationId,
+              type: "REGEX",
+              name: values.name,
+              ...toRegexActionInput(values),
+              presets: values.presets,
+              secretPrefixes: values.secretPrefixes,
+              containsWords: values.containsWords,
+              customRegex: values.customRegex || undefined,
+              assignments,
+            });
+          };
+          const updateGuardrail = (id: string) => {
+            if (values.openAiModeration) {
+              return updateMutation.mutateAsync({
+                orgId: organizationId,
+                id,
+                type: "OPENAI_MODERATION",
+                name: values.name,
+                action: resolveSupportedGuardrailAction(
+                  "OPENAI_MODERATION",
+                  values.action,
+                ),
+                scope: values.scope,
+                openAiModeration: values.openAiModeration,
+                assignments,
+              });
+            }
+            if (values.bedrock) {
+              return updateMutation.mutateAsync({
+                orgId: organizationId,
+                id,
+                type: "BEDROCK",
+                name: values.name,
+                action: resolveSupportedGuardrailAction(
+                  "BEDROCK",
+                  values.action,
+                ),
+                scope: values.scope,
+                bedrock: values.bedrock,
+                assignments,
+              });
+            }
+            return updateMutation.mutateAsync({
+              orgId: organizationId,
+              id,
+              type: "REGEX",
+              name: values.name,
+              ...toRegexActionInput(values),
+              presets: values.presets,
+              secretPrefixes: values.secretPrefixes,
+              containsWords: values.containsWords,
+              customRegex: values.customRegex || undefined,
+              assignments,
+            });
+          };
           try {
             if (state.mode === "create") {
-              const created = values.bedrock
-                ? await createMutation.mutateAsync({
-                    orgId: organizationId,
-                    type: "BEDROCK",
-                    name: values.name,
-                    action: resolveSupportedGuardrailAction(
-                      "BEDROCK",
-                      values.action,
-                    ),
-                    scope: values.scope,
-                    bedrock: {
-                      guardrailId: values.bedrock.guardrailId,
-                      guardrailVersion: values.bedrock.guardrailVersion,
-                      region: values.bedrock.region,
-                      apiKey: values.bedrock.apiKey ?? "",
-                    },
-                    assignments,
-                  })
-                : await createMutation.mutateAsync({
-                    orgId: organizationId,
-                    type: "REGEX",
-                    name: values.name,
-                    ...toRegexActionInput(values),
-                    presets: values.presets,
-                    secretPrefixes: values.secretPrefixes,
-                    containsWords: values.containsWords,
-                    customRegex: values.customRegex || undefined,
-                    assignments,
-                  });
+              const created = await createGuardrail();
               capture("ai_gateway:guardrail_created", {
                 orgId: organizationId,
                 ...toGuardrailConfigAnalytics({ template, guardrail: created }),
               });
             } else if (state.mode === "edit") {
-              const updated = values.bedrock
-                ? await updateMutation.mutateAsync({
-                    orgId: organizationId,
-                    id: state.guardrail.id,
-                    type: "BEDROCK",
-                    name: values.name,
-                    action: resolveSupportedGuardrailAction(
-                      "BEDROCK",
-                      values.action,
-                    ),
-                    scope: values.scope,
-                    bedrock: values.bedrock,
-                    assignments,
-                  })
-                : await updateMutation.mutateAsync({
-                    orgId: organizationId,
-                    id: state.guardrail.id,
-                    type: "REGEX",
-                    name: values.name,
-                    ...toRegexActionInput(values),
-                    presets: values.presets,
-                    secretPrefixes: values.secretPrefixes,
-                    containsWords: values.containsWords,
-                    customRegex: values.customRegex || undefined,
-                    assignments,
-                  });
+              const updated = await updateGuardrail(state.guardrail.id);
               capture("ai_gateway:guardrail_updated", {
                 orgId: organizationId,
                 ...toGuardrailConfigAnalytics({ template, guardrail: updated }),
@@ -423,7 +463,7 @@ function GuardrailDialogContent({
     { mode: "edit" }
   >;
   const { templateKind, availablePresets } = resolveEditableTemplate(guardrail);
-  const isExternal = guardrail.type === "BEDROCK";
+  const isExternal = guardrail.type !== "REGEX";
   const initialAction = resolveSupportedGuardrailAction(
     guardrail.type,
     guardrail.action,
@@ -449,6 +489,7 @@ function GuardrailDialogContent({
           containsWords: guardrail.containsWords,
           customRegex: guardrail.customRegex,
           bedrock: guardrail.bedrock ?? undefined,
+          openAiModeration: guardrail.openAiModeration ?? undefined,
           action: initialAction,
           scope: guardrail.scope,
           redactionLabel:
@@ -494,6 +535,19 @@ function toRegexActionInput(
     action,
     scope: values.scope,
   };
+}
+
+function toExternalTestInput(values: GatewayGuardrailFormValues) {
+  if (values.openAiModeration) {
+    return {
+      type: "OPENAI_MODERATION" as const,
+      openAiModeration: values.openAiModeration,
+    };
+  }
+  if (values.bedrock) {
+    return { type: "BEDROCK" as const, bedrock: values.bedrock };
+  }
+  return null;
 }
 
 function ConnectedGuardrailFormContent({
@@ -566,6 +620,9 @@ function resolveEditableTemplate(guardrail: GatewayGuardrailRow): {
 } {
   if (guardrail.type === "BEDROCK") {
     return { templateKind: "bedrock", availablePresets: [] };
+  }
+  if (guardrail.type === "OPENAI_MODERATION") {
+    return { templateKind: "openai_moderation", availablePresets: [] };
   }
   if (
     guardrail.presets.length === 0 &&

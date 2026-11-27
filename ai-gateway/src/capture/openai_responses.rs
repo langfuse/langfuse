@@ -8,6 +8,11 @@ use axum::http::HeaderMap;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
+use crate::guardrails::spec::{
+    Emit, JSON_LEAF, LEAF, Node, Object, ResponseSpec, delta, each, json_delta, json_summary,
+    keyed_each, maybe_keyed_each, parts, summary, text,
+};
+
 pub(super) struct OpenAiResponsesCapture {
     pub(super) facts: ProviderFacts,
     mode: IngestionMode,
@@ -314,13 +319,18 @@ impl OpenAiResponsesCapture {
 /// The top-level members guardrails scan.
 /// `previous_response_id` and `conversation` are only read to tell whether earlier
 /// turns are stored upstream; `prompt` for the variables it fills a stored prompt with.
-pub(super) const GUARDRAIL_MEMBERS: &[&str] = &[
-    "input",
-    "instructions",
-    "previous_response_id",
-    "conversation",
-    "prompt",
-];
+/// Where Responses API requests carry the conversation guardrails scan.
+pub(super) const REQUEST: crate::guardrails::spec::RequestSpec =
+    crate::guardrails::spec::RequestSpec {
+        members: &[
+            "input",
+            "instructions",
+            "previous_response_id",
+            "conversation",
+            "prompt",
+        ],
+        last_turn: guardrail_turn,
+    };
 
 #[derive(serde::Deserialize)]
 struct GuardrailItem<'a> {
@@ -328,11 +338,13 @@ struct GuardrailItem<'a> {
     kind: Option<&'a serde_json::value::RawValue>,
     #[serde(borrow, default)]
     role: Option<&'a serde_json::value::RawValue>,
-    #[serde(borrow, default)]
-    content: Option<&'a serde_json::value::RawValue>,
-    /// The result of a tool call, in `*_call_output` items.
-    #[serde(borrow, default)]
-    output: Option<&'a serde_json::value::RawValue>,
+    /// `content` and `output` (a tool call's result) are read by `GUARDRAIL_ITEM`;
+    /// declared so that a duplicate makes the input unreadable even where it is
+    /// not read.
+    #[serde(borrow, default, rename = "content")]
+    _content: Option<&'a serde_json::value::RawValue>,
+    #[serde(borrow, default, rename = "output")]
+    _output: Option<&'a serde_json::value::RawValue>,
 }
 
 impl GuardrailItem<'_> {
@@ -360,18 +372,17 @@ impl GuardrailItem<'_> {
 fn classify_guardrail_item(
     item: &serde_json::value::RawValue,
 ) -> Result<crate::guardrails::text::TurnItem, crate::guardrails::text::Unreadable> {
-    let item: GuardrailItem<'_> =
-        serde_json::from_str(item.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
+    let item: GuardrailItem<'_> = crate::guardrails::text::object_item(item)?;
     Ok(item.turn_item())
 }
 
-pub(super) fn guardrail_turn<'a>(
-    member: impl Fn(&str) -> Option<&'a str>,
+pub(super) fn guardrail_turn(
+    members: &crate::guardrails::spec::Members<'_, '_>,
 ) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
     let mut turn = crate::guardrails::text::LastTurn::default();
-    let had_model_item = match member("input") {
+    let had_model_item = match members.get("input")? {
         Some(items) if items.starts_with('[') => {
-            turn.push_items("input", items, classify_guardrail_item, read_guardrail_item)?
+            turn.push_items("input", items, classify_guardrail_item, &GUARDRAIL_ITEM)?
         }
         Some(input) => {
             turn.push_member("input", input);
@@ -381,10 +392,11 @@ pub(super) fn guardrail_turn<'a>(
     };
     // Instructions are resent on every turn, also when the provider stores the earlier
     // turns, so they are scanned only on the first one.
-    let continues = ["previous_response_id", "conversation"]
-        .into_iter()
-        .any(|name| member(name).is_some_and(|value| value != "null"));
-    if let Some(instructions) = member("instructions") {
+    let mut continues = false;
+    for name in ["previous_response_id", "conversation"] {
+        continues |= members.get(name)?.is_some_and(|value| value != "null");
+    }
+    if let Some(instructions) = members.get("instructions")? {
         if had_model_item || continues {
             turn.push_earlier_member("instructions", instructions);
         } else {
@@ -392,281 +404,141 @@ pub(super) fn guardrail_turn<'a>(
         }
     }
     // Variables fill a stored prompt with new caller text on every request.
-    if let Some(prompt) = member("prompt").filter(|prompt| prompt.starts_with('{')) {
-        turn.push_member_with("prompt", prompt, read_guardrail_prompt);
+    if let Some(prompt) = members
+        .get("prompt")?
+        .filter(|prompt| prompt.starts_with('{'))
+    {
+        turn.push_member_with("prompt", prompt, &GUARDRAIL_PROMPT);
     }
     Ok(turn)
 }
 
-#[derive(serde::Deserialize)]
-struct GuardrailPrompt<'a> {
-    #[serde(borrow, default)]
-    variables: Option<&'a serde_json::value::RawValue>,
-}
+/// A conversation item's text: a message's `content`, a tool output's `output`.
+const GUARDRAIL_ITEM: Node = Object::new(&[
+    ("content", crate::guardrails::spec::CONTENT),
+    ("output", crate::guardrails::spec::CONTENT),
+])
+.node();
 
-/// Variable values are strings or input parts.
-fn read_guardrail_prompt(
-    prompt: &serde_json::value::RawValue,
-    sink: &mut dyn FnMut(crate::guardrails::text::TextLeaf<'_>),
-) -> Result<(), crate::guardrails::text::Unreadable> {
-    let prompt: GuardrailPrompt<'_> =
-        serde_json::from_str(prompt.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
-    let Some(variables) = prompt
-        .variables
-        .filter(|variables| variables.get().starts_with('{'))
-    else {
-        return Ok(());
+/// A stored prompt's variables, which fill it with new caller text on every
+/// request: each a string, or input parts.
+const GUARDRAIL_PROMPT: Node = Object::new(&[(
+    "variables",
+    Node::Values(&Node::OneOf(&[
+        crate::guardrails::spec::PART,
+        crate::guardrails::spec::CONTENT,
+    ])),
+)])
+.node();
+
+/// Where Responses API responses carry model text.
+pub(super) const RESPONSE: ResponseSpec = ResponseSpec {
+    json: Object::new(&[
+        ("output", each(&OUTPUT_ITEM)),
+        ("output_text", text(Emit::Copy)),
+    ])
+    .node(),
+    sse: Object::new(&[]).by("type", EVENTS, None).node(),
+};
+
+const OUTPUT_ITEM: Node = Object::new(&[
+    ("content", parts(LEAF)),
+    ("summary", parts(LEAF)),
+    ("text", parts(LEAF)),
+    ("refusal", parts(LEAF)),
+    ("input", parts(LEAF)),
+    ("arguments", text(JSON_LEAF)),
+])
+.strict()
+.node();
+
+const PART: &[&str] = &["output_index", "content_index"];
+const SUMMARY_PART: &[&str] = &["output_index", "summary_index"];
+const ITEM: &[&str] = &["output_index"];
+
+/// An event of `$type` whose `$field` holds text, with stream indices from `$index`.
+macro_rules! event {
+    ($type:literal, $index:expr, $field:literal, $emit:expr) => {
+        ($type, Object::new(&[($field, text($emit))]).indexed($index))
     };
-    crate::guardrails::text::for_each_value(variables.get(), |value| {
-        if value.get().starts_with('{') {
-            crate::guardrails::text::collect_part(value, sink)
-        } else {
-            crate::guardrails::text::collect(value, sink)
-        }
-    })
 }
 
-fn read_guardrail_item(
-    item: &serde_json::value::RawValue,
-    sink: &mut dyn FnMut(crate::guardrails::text::TextLeaf<'_>),
-) -> Result<(), crate::guardrails::text::Unreadable> {
-    let item: GuardrailItem<'_> =
-        serde_json::from_str(item.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
-    for value in [item.content, item.output].into_iter().flatten() {
-        crate::guardrails::text::collect(value, sink)?;
-    }
-    Ok(())
-}
-
-pub(super) fn extract_response_json(
-    value: &Value,
-    blocks: &mut Vec<crate::guardrails::response::ResponseBlock>,
-) -> Result<(), crate::guardrails::text::Unreadable> {
-    use crate::guardrails::response::{
-        attach_matching_or_push_leaf, collect_text_or_parts, ptr_index, ptr_push, push_json_leaf,
+/// An output item's text parts and tool input, with its tool arguments in `$arguments`.
+macro_rules! item {
+    ($content:expr, $arguments:literal) => {
+        Object::new(&[
+            ("content", maybe_keyed_each(&$content)),
+            ("summary", maybe_keyed_each(&SUMMARY_TEXT_PART)),
+            ("arguments", text(json_summary($arguments))),
+            ("input", text(summary("custom_tool_call_input"))),
+            ("text", text(LEAF)),
+            ("refusal", text(LEAF)),
+        ])
     };
-    use crate::guardrails::text::Unreadable;
-
-    if let Some(output) = value.get("output").filter(|v| !v.is_null()) {
-        let output_ptr = ptr_push("", "output");
-        for (index, item) in output.as_array().ok_or(Unreadable)?.iter().enumerate() {
-            let map = item.as_object().ok_or(Unreadable)?;
-            let item_ptr = ptr_index(&output_ptr, index);
-            for key in ["content", "summary", "text", "refusal", "input"] {
-                if let Some(field) = map.get(key) {
-                    collect_text_or_parts(field, &ptr_push(&item_ptr, key), 0, blocks)?;
-                }
-            }
-            if let Some(args) = map.get("arguments").and_then(Value::as_str) {
-                push_json_leaf(blocks, args, ptr_push(&item_ptr, "arguments"));
-            }
-        }
-    }
-    if let Some(output_text) = value.get("output_text").and_then(Value::as_str) {
-        attach_matching_or_push_leaf(blocks, output_text, ptr_push("", "output_text"));
-    }
-    Ok(())
 }
 
-fn responses_delta_spec(kind: &str) -> Option<(&'static str, &'static str)> {
-    match kind {
-        "response.output_text.delta" => Some(("content_index", "output_text")),
-        "response.refusal.delta" => Some(("content_index", "refusal")),
-        "response.function_call_arguments.delta" => Some(("", "function_call_args")),
-        "response.custom_tool_call_input.delta" => Some(("", "custom_tool_call_input")),
-        "response.mcp_call_arguments.delta" => Some(("", "mcp_call_args")),
-        "response.reasoning_text.delta" => Some(("content_index", "reasoning_text")),
-        "response.reasoning_summary_text.delta" => Some(("summary_index", "reasoning_summary")),
-        _ => None,
-    }
-}
-
-fn responses_done_spec(kind: &str) -> Option<(&'static str, &'static str, &'static str)> {
-    match kind {
-        "response.output_text.done" => Some(("text", "content_index", "output_text")),
-        "response.refusal.done" => Some(("refusal", "content_index", "refusal")),
-        "response.function_call_arguments.done" => Some(("arguments", "", "function_call_args")),
-        "response.custom_tool_call_input.done" => Some(("input", "", "custom_tool_call_input")),
-        "response.mcp_call_arguments.done" => Some(("arguments", "", "mcp_call_args")),
-        "response.reasoning_text.done" => Some(("text", "content_index", "reasoning_text")),
-        "response.reasoning_summary_text.done" => {
-            Some(("text", "summary_index", "reasoning_summary"))
-        }
-        _ => None,
-    }
-}
-
-pub(super) fn extract_response_sse(
-    frame_idx: usize,
-    value: &Value,
-    collector: &mut crate::guardrails::response::StreamCollector,
-) -> Result<(), crate::guardrails::text::Unreadable> {
-    use crate::guardrails::response::{StreamKey, ptr_push};
-    use crate::guardrails::text::Unreadable;
-
-    let Some(kind) = value.get("type").and_then(Value::as_str) else {
-        return Ok(());
+/// Text and refusal of a content part, text in the `$slot` stream.
+macro_rules! text_part {
+    ($slot:literal) => {
+        Object::new(&[
+            ("text", text(summary($slot))),
+            ("refusal", text(summary("refusal"))),
+        ])
+        .node()
     };
-    let output_idx = value
-        .get("output_index")
-        .and_then(Value::as_u64)
-        .unwrap_or(0);
-    if let Some((index_field, slot)) = responses_delta_spec(kind) {
-        let part_idx = value.get(index_field).and_then(Value::as_u64).unwrap_or(0);
-        if let Some(text) = value.get("delta").and_then(Value::as_str) {
-            collector.push_delta(
-                StreamKey::Responses(output_idx, part_idx, slot),
-                frame_idx,
-                "/delta".into(),
-                text,
-            );
-        }
-        return Ok(());
-    }
-    if let Some((field, index_field, slot)) = responses_done_spec(kind) {
-        let part_idx = value.get(index_field).and_then(Value::as_u64).unwrap_or(0);
-        if let Some(text) = value.get(field).and_then(Value::as_str) {
-            collector.push_summary(
-                Some(StreamKey::Responses(output_idx, part_idx, slot)),
-                frame_idx,
-                ptr_push("", field),
-                text,
-            );
-        }
-        return Ok(());
-    }
-    match kind {
-        "response.content_part.done" | "response.reasoning_summary_part.done" => {
-            let (index_key, text_slot) = if kind == "response.reasoning_summary_part.done" {
-                ("summary_index", "reasoning_summary")
-            } else {
-                ("content_index", "output_text")
-            };
-            let part_idx = value.get(index_key).and_then(Value::as_u64).unwrap_or(0);
-            if let Some(part) = value.get("part") {
-                collect_responses_part_sse(
-                    frame_idx, part, "/part", output_idx, part_idx, text_slot, collector,
-                );
-            }
-        }
-        "response.output_item.done" => {
-            if let Some(item) = value.get("item") {
-                collect_responses_item_sse(frame_idx, item, "/item", output_idx, collector);
-            }
-        }
-        "response.completed" | "response.incomplete" => {
-            let Some(resp) = value.get("response") else {
-                return Ok(());
-            };
-            if let Some(output) = resp.get("output").filter(|v| !v.is_null()) {
-                for (index, item) in output.as_array().ok_or(Unreadable)?.iter().enumerate() {
-                    collect_responses_item_sse(
-                        frame_idx,
-                        item,
-                        &format!("/response/output/{index}"),
-                        index as u64,
-                        collector,
-                    );
-                }
-            }
-            if let Some(output_text) = resp.get("output_text").and_then(Value::as_str) {
-                collector.attach_or_push_leaf(
-                    frame_idx,
-                    output_text,
-                    "/response/output_text".into(),
-                );
-            }
-        }
-        _ => {}
-    }
-    Ok(())
 }
 
-fn collect_responses_part_sse(
-    frame_idx: usize,
-    part: &Value,
-    ptr: &str,
-    output_idx: u64,
-    part_idx: u64,
-    text_slot: &'static str,
-    collector: &mut crate::guardrails::response::StreamCollector,
-) {
-    use crate::guardrails::response::{StreamKey, ptr_push};
+/// Streamed events, each a piece of a stream (`*.delta`) or a complete copy of one.
+#[rustfmt::skip]
+const EVENTS: &[(&str, Object)] = &[
+    event!("response.output_text.delta", PART, "delta", delta("output_text")),
+    event!("response.refusal.delta", PART, "delta", delta("refusal")),
+    event!("response.function_call_arguments.delta", ITEM, "delta", json_delta("function_call_args")),
+    event!("response.custom_tool_call_input.delta", ITEM, "delta", delta("custom_tool_call_input")),
+    event!("response.mcp_call_arguments.delta", ITEM, "delta", json_delta("mcp_call_args")),
+    event!("response.reasoning_text.delta", PART, "delta", delta("reasoning_text")),
+    event!("response.reasoning_summary_text.delta", SUMMARY_PART, "delta", delta("reasoning_summary")),
+    event!("response.output_text.done", PART, "text", summary("output_text")),
+    event!("response.refusal.done", PART, "refusal", summary("refusal")),
+    event!("response.function_call_arguments.done", ITEM, "arguments", json_summary("function_call_args")),
+    event!("response.custom_tool_call_input.done", ITEM, "input", summary("custom_tool_call_input")),
+    event!("response.mcp_call_arguments.done", ITEM, "arguments", json_summary("mcp_call_args")),
+    event!("response.reasoning_text.done", PART, "text", summary("reasoning_text")),
+    event!("response.reasoning_summary_text.done", SUMMARY_PART, "text", summary("reasoning_summary")),
+    ("response.content_part.done", Object::new(&[("part", OUTPUT_TEXT_PART)]).indexed(PART)),
+    ("response.reasoning_summary_part.done", Object::new(&[("part", SUMMARY_TEXT_PART)]).indexed(SUMMARY_PART)),
+    ("response.output_item.done", Object::new(&[("item", STREAMED_ITEM)]).indexed(ITEM)),
+    ("response.completed", COMPLETED),
+    ("response.incomplete", COMPLETED),
+];
 
-    for (field, slot) in [("text", text_slot), ("refusal", "refusal")] {
-        if let Some(text) = part.get(field).and_then(Value::as_str) {
-            collector.push_summary(
-                Some(StreamKey::Responses(output_idx, part_idx, slot)),
-                frame_idx,
-                ptr_push(ptr, field),
-                text,
-            );
-        }
-    }
-}
+const COMPLETED: Object = Object::new(&[(
+    "response",
+    Object::new(&[
+        ("output", keyed_each(&STREAMED_ITEM)),
+        ("output_text", text(Emit::Copy)),
+    ])
+    .node(),
+)]);
 
-fn collect_responses_item_sse(
-    frame_idx: usize,
-    item: &Value,
-    ptr: &str,
-    output_idx: u64,
-    collector: &mut crate::guardrails::response::StreamCollector,
-) {
-    use crate::guardrails::response::{StreamKey, ptr_push};
+/// An output item in a streamed event: complete copies of its streams.
+const STREAMED_ITEM: Node = Object::new(&[])
+    .by(
+        "type",
+        &[
+            (
+                "reasoning",
+                item!(REASONING_TEXT_PART, "function_call_args"),
+            ),
+            ("mcp_call", item!(OUTPUT_TEXT_PART, "mcp_call_args")),
+        ],
+        Some(&item!(OUTPUT_TEXT_PART, "function_call_args")),
+    )
+    .node();
 
-    let item_type = item.get("type").and_then(Value::as_str);
-    if let Some(content) = item.get("content").and_then(Value::as_array) {
-        let text_slot = if item_type == Some("reasoning") {
-            "reasoning_text"
-        } else {
-            "output_text"
-        };
-        for (idx, part) in content.iter().enumerate() {
-            collect_responses_part_sse(
-                frame_idx,
-                part,
-                &format!("{ptr}/content/{idx}"),
-                output_idx,
-                idx as u64,
-                text_slot,
-                collector,
-            );
-        }
-    }
-    if let Some(summary) = item.get("summary").and_then(Value::as_array) {
-        for (idx, part) in summary.iter().enumerate() {
-            collect_responses_part_sse(
-                frame_idx,
-                part,
-                &format!("{ptr}/summary/{idx}"),
-                output_idx,
-                idx as u64,
-                "reasoning_summary",
-                collector,
-            );
-        }
-    }
-    let arg_slot = if item_type == Some("mcp_call") {
-        "mcp_call_args"
-    } else {
-        "function_call_args"
-    };
-    for (field, slot) in [("arguments", arg_slot), ("input", "custom_tool_call_input")] {
-        if let Some(text) = item.get(field).and_then(Value::as_str) {
-            collector.push_summary(
-                Some(StreamKey::Responses(output_idx, 0, slot)),
-                frame_idx,
-                ptr_push(ptr, field),
-                text,
-            );
-        }
-    }
-    for field in ["text", "refusal"] {
-        if let Some(text) = item.get(field).and_then(Value::as_str) {
-            collector.push_summary(None, frame_idx, ptr_push(ptr, field), text);
-        }
-    }
-}
+const OUTPUT_TEXT_PART: Node = text_part!("output_text");
+const REASONING_TEXT_PART: Node = text_part!("reasoning_text");
+const SUMMARY_TEXT_PART: Node = text_part!("reasoning_summary");
 
 #[cfg(test)]
 mod tests;

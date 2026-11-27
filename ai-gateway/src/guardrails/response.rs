@@ -1,40 +1,37 @@
 //! Format-agnostic response guardrail parsing, memory budgeting, and in-place
 //! redaction for non-streaming JSON and streaming SSE provider outputs.
 //!
-//! Format-specific JSON/SSE field extraction lives in the provider protocol
-//! modules under [`crate::capture`]. Each logical model output (a JSON leaf, or
-//! an SSE delta stream plus any matching summary fields) is collected once as a
-//! [`ResponseBlock`]. When no guardrail redacts the response, the caller relays
-//! the original raw bytes untouched; when redaction fires, modified strings are
-//! rewritten in place via JSON pointers.
+//! Each API format declares where its responses carry text as a [`spec`](crate::guardrails::spec) tree in
+//! its [`crate::capture`] module. Each logical model output (a JSON leaf, or an
+//! SSE delta stream plus any matching summary fields) is collected once as a
+//! [`ResponseBlock`] with the byte span of each string it came from. When no
+//! guardrail redacts the response, the caller relays the original raw bytes
+//! untouched; when redaction fires, the modified strings' spans are replaced.
+
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
-    fmt,
     ops::Range,
     sync::Arc,
 };
 
 use axum::body::Bytes;
 use axum::http::{HeaderMap, header};
-use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor};
-use serde_json::{Map, Number, Value};
 use tokio::sync::Semaphore;
 
 use crate::{
     capture,
+    guardrails::spec::{self, walker},
     guardrails::text::Unreadable,
     inference::MemoryReservation,
     resolution::{ApiFormat, ResolutionError},
     transport::identity_encoding,
 };
 
-const MAX_JSON_DEPTH: usize = 32;
-/// Batch size for charging dynamic `serde_json::Value` parse overhead to `memory_budget`.
+/// Batch size for charging dynamic parse memory to `memory_budget`.
 const PARSE_RESERVATION_BATCH_BYTES: usize = 16 * 1024;
-/// Per-element overhead of a `serde_json::Value` stored inside a `Vec`.
-const VALUE_NODE_OVERHEAD_BYTES: usize = size_of::<Value>() + 16;
-/// Per-entry overhead of a `serde_json::Map` (`BTreeMap<String, Value>` node + key + value).
-const MAP_ENTRY_OVERHEAD_BYTES: usize = size_of::<String>() + size_of::<Value>() + 64;
+/// A replacement for the later deltas of a redacted stream.
+const EMPTY_JSON_STRING: &str = "\"\"";
 
 /// Failure mode when parsing a response body for guardrails.
 #[derive(Debug)]
@@ -49,15 +46,17 @@ impl From<Unreadable> for ResponseParseError {
     }
 }
 
-/// Tracks dynamic memory reservations while building a temporary `serde_json::Value` tree.
-struct ParseBudget {
+/// Tracks dynamic memory reservations while reading a response.
+pub(in crate::guardrails) struct ParseBudget {
     reservation: Option<MemoryReservation>,
     pending: usize,
-    exhausted: bool,
+    pub(in crate::guardrails) exhausted: bool,
 }
 
 impl ParseBudget {
-    fn new(budget: Option<&Arc<Semaphore>>) -> Result<Self, ResponseParseError> {
+    pub(in crate::guardrails) fn new(
+        budget: Option<&Arc<Semaphore>>,
+    ) -> Result<Self, ResponseParseError> {
         let reservation = budget
             .map(|budget| MemoryReservation::from_budget(budget, 0, "guardrails"))
             .transpose()
@@ -69,7 +68,7 @@ impl ParseBudget {
         })
     }
 
-    fn charge(&mut self, bytes: usize) -> bool {
+    pub(in crate::guardrails) fn charge(&mut self, bytes: usize) -> bool {
         if self.reservation.is_none() || bytes == 0 {
             return true;
         }
@@ -80,7 +79,7 @@ impl ParseBudget {
         true
     }
 
-    fn flush(&mut self) -> bool {
+    pub(in crate::guardrails) fn flush(&mut self) -> bool {
         let Some(reservation) = self.reservation.as_mut() else {
             return true;
         };
@@ -96,6 +95,15 @@ impl ParseBudget {
             return false;
         }
         true
+    }
+
+    /// The error for a read that stopped: `Busy` when it ran out of budget.
+    pub(in crate::guardrails) fn failure(&self) -> ResponseParseError {
+        if self.exhausted {
+            ResponseParseError::Busy
+        } else {
+            ResponseParseError::Unreadable
+        }
     }
 }
 
@@ -139,10 +147,10 @@ pub(crate) struct ResponseBlock {
     /// True when the string holds JSON-encoded tool arguments that must remain
     /// valid JSON after redaction.
     json_encoded: bool,
-    /// `(frame_index, json_pointer)` slots for a streamed delta sequence.
-    deltas: Vec<(usize, String)>,
-    /// `(frame_index, json_pointer)` slots for complete strings (`None` = JSON body).
-    leaves: Vec<(Option<usize>, String)>,
+    /// Body spans of the JSON strings of a streamed delta sequence.
+    deltas: Vec<Range<usize>>,
+    /// Body spans of JSON strings that each hold the complete text.
+    leaves: Vec<Range<usize>>,
 }
 
 /// Outcome of splicing response redactions back into the raw JSON or SSE body.
@@ -156,69 +164,27 @@ pub(crate) enum RedactionApply {
 
 /// Parsed response body paired with its extracted logical text blocks.
 pub(crate) struct ParsedResponse {
-    body: ParsedBody,
+    body: Body,
     blocks: Vec<ResponseBlock>,
-    /// Memory budget held for retained `ResponseBlock` strings and JSON pointers
-    /// across external guardrail I/O until `finalize_response` consumes `self`.
-    _blocks_reservation: Option<MemoryReservation>,
-}
-
-enum ParsedBody {
-    Json(Bytes),
-    Sse {
-        raw: Bytes,
-        frames: Vec<Range<usize>>,
-        _frames_reservation: Option<MemoryReservation>,
-    },
-}
-
-fn blocks_retained_bytes(blocks: &[ResponseBlock]) -> usize {
-    blocks.iter().fold(0usize, |total, block| {
-        let deltas_bytes: usize = block
-            .deltas
-            .iter()
-            .map(|(_, ptr)| size_of::<(usize, String)>().saturating_add(ptr.capacity()))
-            .sum();
-        let leaves_bytes: usize = block
-            .leaves
-            .iter()
-            .map(|(_, ptr)| size_of::<(Option<usize>, String)>().saturating_add(ptr.capacity()))
-            .sum();
-        total
-            .saturating_add(size_of::<ResponseBlock>())
-            .saturating_add(block.text.capacity())
-            .saturating_add(deltas_bytes)
-            .saturating_add(leaves_bytes)
-    })
-}
-
-fn reserve_retained_blocks(
-    blocks: &[ResponseBlock],
-    budget: Option<&Arc<Semaphore>>,
-) -> Result<Option<MemoryReservation>, ResponseParseError> {
-    let bytes = blocks_retained_bytes(blocks);
-    if bytes == 0 {
-        return Ok(None);
-    }
-    budget
-        .map(|budget| MemoryReservation::from_budget(budget, bytes, "guardrails"))
-        .transpose()
-        .map_err(|_| ResponseParseError::Busy)
+    /// Memory budget held for the retained blocks across external guardrail
+    /// I/O until `finalize_response` consumes `self`.
+    _reservation: Option<MemoryReservation>,
 }
 
 impl ParsedResponse {
-    /// Parses `body` according to `api_format` and `format`, dynamically
-    /// charging temporary `serde_json::Value` allocations against `budget`,
-    /// and retains only the raw bytes plus lightweight span metadata.
+    /// Parses the buffered `chunks` of a response according to `api_format` and
+    /// `format`, charging parse and retained memory against `budget`, and keeps
+    /// only the raw bytes plus the spans of the text found.
     pub(crate) fn parse(
         api_format: ApiFormat,
         format: ResponseFormat,
-        body: Bytes,
+        chunks: Vec<Bytes>,
         budget: Option<&Arc<Semaphore>>,
     ) -> Result<Self, ResponseParseError> {
+        let spec = capture::response_spec(api_format).ok_or(ResponseParseError::Unreadable)?;
         match format {
-            ResponseFormat::Json => parse_json(api_format, body, budget),
-            ResponseFormat::Sse => parse_sse(api_format, body, budget),
+            ResponseFormat::Json => parse_json(&spec.json, Body::new(chunks), budget),
+            ResponseFormat::Sse => parse_sse(&spec.sse, Body::new(chunks), budget),
         }
     }
 
@@ -230,8 +196,8 @@ impl ParsedResponse {
         self.blocks.iter().map(|block| block.text.len()).sum()
     }
 
-    /// Rewrites every modified `(block_index, redacted_text)` in place and
-    /// serializes the updated body.
+    /// Replaces the strings of every modified `(block_index, redacted_text)`:
+    /// a stream's first delta takes the text and its later deltas become empty.
     pub(crate) fn apply_redactions(
         self,
         edits: &[(usize, String)],
@@ -240,8 +206,9 @@ impl ParsedResponse {
         if edits.is_empty() {
             return Ok(RedactionApply::Unchanged);
         }
-        let mut json_edits: Vec<(&str, &str)> = Vec::new();
-        let mut sse_edits: HashMap<usize, Vec<(&str, &str)>> = HashMap::new();
+        // Each replacement is encoded once; its spans refer to it by index.
+        let mut encoded: Vec<String> = Vec::with_capacity(edits.len());
+        let mut splices: Vec<(Range<usize>, Option<usize>)> = Vec::new();
         for (index, replacement) in edits {
             let Some(block) = self.blocks.get(*index) else {
                 return Ok(RedactionApply::Failed);
@@ -254,528 +221,483 @@ impl ParsedResponse {
             {
                 return Ok(RedactionApply::InvalidJson);
             }
-            for (pos, (frame_idx, ptr)) in block.deltas.iter().enumerate() {
-                let text = if pos == 0 { replacement.as_str() } else { "" };
-                sse_edits
-                    .entry(*frame_idx)
-                    .or_default()
-                    .push((ptr.as_str(), text));
-            }
-            for (frame_idx, ptr) in &block.leaves {
-                match frame_idx {
-                    None => json_edits.push((ptr.as_str(), replacement.as_str())),
-                    Some(idx) => sse_edits
-                        .entry(*idx)
-                        .or_default()
-                        .push((ptr.as_str(), replacement.as_str())),
-                }
-            }
-        }
-        match self.body {
-            ParsedBody::Json(raw) => {
-                if !sse_edits.is_empty() {
-                    return Ok(RedactionApply::Failed);
-                }
-                let _out_reservation = budget
-                    .filter(|_| !raw.is_empty())
-                    .map(|budget| MemoryReservation::from_budget(budget, raw.len(), "guardrails"))
-                    .transpose()?;
-                let (mut value, _res) = match parse_unique_json(&raw, budget) {
-                    Ok(parsed) => parsed,
-                    Err(ResponseParseError::Busy) => return Err(ResolutionError::Busy),
-                    Err(ResponseParseError::Unreadable) => return Ok(RedactionApply::Failed),
-                };
-                for (ptr, text) in json_edits {
-                    let Some(target) = value.pointer_mut(ptr) else {
-                        return Ok(RedactionApply::Failed);
-                    };
-                    *target = Value::String(text.to_owned());
-                }
-                Ok(serde_json::to_vec(&value)
-                    .map(Bytes::from)
-                    .map_or(RedactionApply::Failed, RedactionApply::Rewritten))
-            }
-            ParsedBody::Sse { raw, frames, .. } => {
-                if !json_edits.is_empty() {
-                    return Ok(RedactionApply::Failed);
-                }
-                Ok(apply_sse_redactions(&raw, &frames, &sse_edits, budget)?
-                    .map_or(RedactionApply::Failed, RedactionApply::Rewritten))
-            }
-        }
-    }
-}
-
-fn apply_sse_redactions(
-    raw: &[u8],
-    frames: &[Range<usize>],
-    sse_edits: &HashMap<usize, Vec<(&str, &str)>>,
-    budget: Option<&Arc<Semaphore>>,
-) -> Result<Option<Bytes>, ResolutionError> {
-    let Ok(text) = std::str::from_utf8(raw) else {
-        return Ok(None);
-    };
-    let _out_reservation = budget
-        .filter(|_| !text.is_empty())
-        .map(|budget| MemoryReservation::from_budget(budget, text.len(), "guardrails"))
-        .transpose()?;
-    let mut out = String::with_capacity(text.len());
-    for (frame_idx, raw_range) in frames.iter().enumerate() {
-        let Some(raw_slice) = text.get(raw_range.clone()) else {
-            return Ok(None);
-        };
-        let Some(edits_for_frame) = sse_edits.get(&frame_idx) else {
-            out.push_str(raw_slice);
-            continue;
-        };
-        let Some((prefix, Some(payload))) = split_single_sse_frame(raw_slice) else {
-            return Ok(None);
-        };
-        let (mut value, _res) = match parse_unique_json(payload.as_bytes(), budget) {
-            Ok(parsed) => parsed,
-            Err(ResponseParseError::Busy) => return Err(ResolutionError::Busy),
-            Err(ResponseParseError::Unreadable) => return Ok(None),
-        };
-        for &(ptr, replacement) in edits_for_frame {
-            let Some(target) = value.pointer_mut(ptr) else {
-                return Ok(None);
+            let Ok(text) = serde_json::to_string(replacement) else {
+                return Ok(RedactionApply::Failed);
             };
-            *target = Value::String(replacement.to_owned());
+            let text_index = Some(encoded.len());
+            encoded.push(text);
+            for (position, span) in block.deltas.iter().enumerate() {
+                splices.push((span.clone(), text_index.filter(|_| position == 0)));
+            }
+            for span in &block.leaves {
+                splices.push((span.clone(), text_index));
+            }
         }
-        let Ok(encoded) = serde_json::to_string(&value) else {
-            return Ok(None);
+        let text = |index: Option<usize>| {
+            index
+                .and_then(|index| encoded.get(index))
+                .map_or(EMPTY_JSON_STRING, String::as_str)
         };
-        out.push_str(&prefix);
-        out.push_str("data: ");
-        out.push_str(&encoded);
-        out.push_str("\n\n");
-    }
-    Ok(Some(Bytes::from(out)))
-}
-
-fn split_single_sse_frame(frame: &str) -> Option<(String, Option<String>)> {
-    let mut prefix = String::new();
-    let mut data_lines: Vec<&str> = Vec::new();
-    let bytes = frame.as_bytes();
-    let mut cursor = 0usize;
-    while cursor < bytes.len() {
-        let line_start = cursor;
-        while bytes
-            .get(cursor)
-            .is_some_and(|&byte| byte != b'\n' && byte != b'\r')
+        splices.sort_unstable_by_key(|(span, _)| span.start);
+        let mut len = self.body.len;
+        for pair in splices.windows(2) {
+            if let [(earlier, _), (later, _)] = pair
+                && earlier.end > later.start
+            {
+                return Ok(RedactionApply::Failed);
+            }
+        }
+        for (span, index) in &splices {
+            len = (len - span.len()).saturating_add(text(*index).len());
+        }
+        let held = len
+            + encoded.iter().map(String::capacity).sum::<usize>()
+            + splices.capacity() * size_of::<(Range<usize>, Option<usize>)>();
+        let _out_reservation = budget
+            .filter(|_| held > 0)
+            .map(|budget| MemoryReservation::from_budget(budget, held, "guardrails"))
+            .transpose()?;
+        let mut out = Vec::with_capacity(len);
+        let mut copied = 0;
+        for (span, index) in splices {
+            if self.body.copy_into(copied..span.start, &mut out).is_none() {
+                return Ok(RedactionApply::Failed);
+            }
+            out.extend_from_slice(text(index).as_bytes());
+            copied = span.end;
+        }
+        if self
+            .body
+            .copy_into(copied..self.body.len, &mut out)
+            .is_none()
         {
-            cursor += 1;
+            return Ok(RedactionApply::Failed);
         }
-        let line = frame.get(line_start..cursor)?;
-        let eol_start = cursor;
-        if bytes.get(cursor) == Some(&b'\r') {
-            cursor += 1;
-            if bytes.get(cursor) == Some(&b'\n') {
-                cursor += 1;
-            }
-        } else if bytes.get(cursor) == Some(&b'\n') {
-            cursor += 1;
-        }
-        if line.is_empty() {
-            break;
-        }
-        if let Some(rest) = line.strip_prefix("data:") {
-            data_lines.push(rest.strip_prefix(' ').unwrap_or(rest));
-        } else if line == "data" {
-            data_lines.push("");
-        } else {
-            prefix.push_str(frame.get(line_start..cursor)?);
-            if cursor == eol_start {
-                prefix.push('\n');
-            }
-        }
+        Ok(RedactionApply::Rewritten(Bytes::from(out)))
     }
-    let payload = (!data_lines.is_empty()).then(|| data_lines.join("\n"));
-    Some((prefix, payload))
 }
 
-/// Parses JSON into [`Value`] while rejecting duplicate object keys and
-/// charging dynamic `Value` tree memory overhead against `budget`.
-fn parse_unique_json(
-    bytes: &[u8],
+/// A buffered body as the chunks it arrived in, so buffering never copies or
+/// over-allocates it.
+struct Body {
+    chunks: Vec<Bytes>,
+    /// Offset of each chunk in the whole body.
+    starts: Vec<usize>,
+    len: usize,
+}
+
+impl Body {
+    fn new(chunks: Vec<Bytes>) -> Self {
+        let mut starts = Vec::with_capacity(chunks.len());
+        let mut len = 0usize;
+        for chunk in &chunks {
+            starts.push(len);
+            len = len.saturating_add(chunk.len());
+        }
+        Self {
+            chunks,
+            starts,
+            len,
+        }
+    }
+
+    /// Bytes of `range`, borrowed unless they span chunks.
+    fn slice(&self, range: Range<usize>) -> Option<Cow<'_, [u8]>> {
+        if range.is_empty() {
+            return (range.start <= self.len).then_some(Cow::Borrowed(&[]));
+        }
+        let first = self
+            .starts
+            .partition_point(|&start| start <= range.start)
+            .checked_sub(1)?;
+        let start = *self.starts.get(first)?;
+        if let Some(bytes) = self
+            .chunks
+            .get(first)?
+            .get(range.start - start..range.end - start)
+        {
+            return Some(Cow::Borrowed(bytes));
+        }
+        let mut out = Vec::with_capacity(range.len());
+        self.copy_into(range, &mut out)?;
+        Some(Cow::Owned(out))
+    }
+
+    /// Appends the bytes of `range` to `out`, chunk by chunk.
+    fn copy_into(&self, range: Range<usize>, out: &mut Vec<u8>) -> Option<()> {
+        if range.start > range.end || range.end > self.len {
+            return None;
+        }
+        let first = self
+            .starts
+            .partition_point(|&start| start <= range.start)
+            .saturating_sub(1);
+        for (chunk, &start) in self.chunks.iter().zip(&self.starts).skip(first) {
+            if start >= range.end {
+                break;
+            }
+            let end = (range.end - start).min(chunk.len());
+            out.extend_from_slice(chunk.get(range.start.saturating_sub(start).min(end)..end)?);
+        }
+        Some(())
+    }
+
+    /// Calls `on_frame` with the span of each SSE event, ending after the blank
+    /// line that ends it, and the spans of its `data` values; a trailing event
+    /// without a blank line is passed as incomplete. A last line without a line
+    /// ending is unreadable, as is a trailing event with data, since the stream
+    /// was cut off.
+    fn split_frames(
+        &self,
+        mut on_frame: impl FnMut(Range<usize>, &[Range<usize>], bool) -> Result<(), ResponseParseError>,
+    ) -> Result<(), ResponseParseError> {
+        let mut lines = LineState::default();
+        for (chunk, &start) in self.chunks.iter().zip(&self.starts) {
+            let mut offset = 0;
+            while let Some(&byte) = chunk.get(offset) {
+                let pos = start + offset;
+                if let Some(end) = lines.cr_end.take() {
+                    if byte == b'\n' {
+                        lines.end_line(end, pos + 1, &mut on_frame)?;
+                        offset += 1;
+                        continue;
+                    }
+                    lines.end_line(end, pos, &mut on_frame)?;
+                }
+                let rest = chunk.get(offset..).unwrap_or_default();
+                let Some(eol) = rest.iter().position(|&b| b == b'\n' || b == b'\r') else {
+                    lines.push_head(pos, rest);
+                    break;
+                };
+                lines.push_head(pos, rest.get(..eol).unwrap_or_default());
+                let end = pos + eol;
+                if rest.get(eol) == Some(&b'\r') {
+                    lines.cr_end = Some(end);
+                } else {
+                    lines.end_line(end, end + 1, &mut on_frame)?;
+                }
+                offset += eol + 1;
+            }
+        }
+        if let Some(end) = lines.cr_end.take() {
+            lines.end_line(end, self.len, &mut on_frame)?;
+        } else if lines.line_start < self.len {
+            return Err(ResponseParseError::Unreadable);
+        }
+        if !lines.data.is_empty() {
+            return Err(ResponseParseError::Unreadable);
+        }
+        if lines.event_start < self.len {
+            on_frame(lines.event_start..self.len, &[], false)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+struct LineState {
+    event_start: usize,
+    line_start: usize,
+    /// The first bytes of the current line, enough to recognize `data: `.
+    head: [u8; 6],
+    /// Where a line ended at `\r`, until the next byte shows whether `\n` follows.
+    cr_end: Option<usize>,
+    /// Spans of the current event's `data` values.
+    data: Vec<Range<usize>>,
+}
+
+impl LineState {
+    fn push_head(&mut self, pos: usize, bytes: &[u8]) {
+        let seen = pos - self.line_start;
+        for (slot, &byte) in self.head.iter_mut().skip(seen).zip(bytes) {
+            *slot = byte;
+        }
+    }
+
+    fn end_line(
+        &mut self,
+        end: usize,
+        next: usize,
+        on_frame: &mut impl FnMut(Range<usize>, &[Range<usize>], bool) -> Result<(), ResponseParseError>,
+    ) -> Result<(), ResponseParseError> {
+        let len = end - self.line_start;
+        if len == 0 {
+            on_frame(self.event_start..next, &self.data, true)?;
+            self.event_start = next;
+            self.data.clear();
+        } else if len == 4 && self.head.starts_with(b"data") {
+            self.data.push(end..end);
+        } else if self.head.starts_with(b"data:") {
+            let space = usize::from(len > 5 && self.head.get(5) == Some(&b' '));
+            self.data.push(self.line_start + 5 + space..end);
+        }
+        self.line_start = next;
+        self.head = [0; 6];
+        Ok(())
+    }
+}
+
+/// The joined `data` values of the SSE event `frame` that starts at `offset`,
+/// borrowed when it has one.
+fn frame_payload<'f>(frame: &'f str, offset: usize, data: &[Range<usize>]) -> Option<Cow<'f, str>> {
+    let value = |range: &Range<usize>| frame.get(range.start - offset..range.end - offset);
+    if let [single] = data {
+        return value(single).map(Cow::Borrowed);
+    }
+    let mut joined = String::new();
+    for (i, range) in data.iter().enumerate() {
+        if i > 0 {
+            joined.push('\n');
+        }
+        joined.push_str(value(range)?);
+    }
+    Some(Cow::Owned(joined))
+}
+
+/// Validates `payload` and reads its text along `node` into `collector`,
+/// charging the read's temporary memory against `budget` until it returns.
+/// `data` are the body spans that make up `payload`.
+fn read_value(
+    node: &spec::Node,
+    payload: &str,
+    data: &[Range<usize>],
+    collector: &mut StreamCollector,
     budget: Option<&Arc<Semaphore>>,
-) -> Result<(Value, Option<MemoryReservation>), ResponseParseError> {
-    struct UniqueValue<'a> {
-        budget: &'a mut ParseBudget,
-    }
-
-    impl<'de> DeserializeSeed<'de> for UniqueValue<'_> {
-        type Value = Value;
-
-        fn deserialize<D: serde::Deserializer<'de>>(
-            self,
-            deserializer: D,
-        ) -> Result<Self::Value, D::Error> {
-            deserializer.deserialize_any(self)
-        }
-    }
-
-    impl<'de> Visitor<'de> for UniqueValue<'_> {
-        type Value = Value;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            formatter.write_str("any valid JSON value without duplicate object keys")
-        }
-
-        fn visit_bool<E>(self, v: bool) -> Result<Value, E> {
-            Ok(Value::Bool(v))
-        }
-        fn visit_i64<E>(self, v: i64) -> Result<Value, E> {
-            Ok(Value::Number(v.into()))
-        }
-        fn visit_u64<E>(self, v: u64) -> Result<Value, E> {
-            Ok(Value::Number(v.into()))
-        }
-        fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<Value, E> {
-            Number::from_f64(v)
-                .map(Value::Number)
-                .ok_or_else(|| E::custom("non-finite float"))
-        }
-        fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Value, E> {
-            if !self.budget.charge(v.len().saturating_add(32)) {
-                return Err(E::custom("memory budget exhausted"));
-            }
-            Ok(Value::String(v.to_owned()))
-        }
-        fn visit_string<E: serde::de::Error>(self, v: String) -> Result<Value, E> {
-            if !self.budget.charge(v.len().saturating_add(32)) {
-                return Err(E::custom("memory budget exhausted"));
-            }
-            Ok(Value::String(v))
-        }
-        fn visit_unit<E>(self) -> Result<Value, E> {
-            Ok(Value::Null)
-        }
-        fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Value, A::Error> {
-            let mut items = Vec::new();
-            while let Some(item) = seq.next_element_seed(UniqueValue {
-                budget: self.budget,
-            })? {
-                if !self.budget.charge(VALUE_NODE_OVERHEAD_BYTES) {
-                    return Err(A::Error::custom("memory budget exhausted"));
-                }
-                items.push(item);
-            }
-            Ok(Value::Array(items))
-        }
-        fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Value, A::Error> {
-            let mut entries = Map::new();
-            while let Some(key) = map.next_key::<String>()? {
-                if entries.contains_key(&key) {
-                    return Err(A::Error::custom("duplicate object key"));
-                }
-                if !self
-                    .budget
-                    .charge(key.len().saturating_add(MAP_ENTRY_OVERHEAD_BYTES))
-                {
-                    return Err(A::Error::custom("memory budget exhausted"));
-                }
-                let value = map.next_value_seed(UniqueValue {
-                    budget: self.budget,
-                })?;
-                entries.insert(key, value);
-            }
-            Ok(Value::Object(entries))
-        }
-    }
-
-    let mut parse_budget = ParseBudget::new(budget)?;
-    let mut deserializer = serde_json::Deserializer::from_slice(bytes);
-    let parsed = UniqueValue {
-        budget: &mut parse_budget,
-    }
-    .deserialize(&mut deserializer)
-    .and_then(|value| deserializer.end().map(|()| value));
-    match parsed {
-        Ok(value) => {
-            if !parse_budget.flush() {
-                return Err(ResponseParseError::Busy);
-            }
-            Ok((value, parse_budget.reservation))
-        }
-        Err(_) if parse_budget.exhausted => Err(ResponseParseError::Busy),
-        Err(_) => Err(ResponseParseError::Unreadable),
+) -> Result<(), ResponseParseError> {
+    let mut read_budget = ParseBudget::new(budget)?;
+    walker::validate(payload.as_bytes(), &mut read_budget)?;
+    walker::read(node, payload, data, collector, &mut read_budget)
+        .map_err(|Unreadable| read_budget.failure())?;
+    if read_budget.flush() {
+        Ok(())
+    } else {
+        Err(ResponseParseError::Busy)
     }
 }
 
 fn parse_json(
-    api_format: ApiFormat,
-    body: Bytes,
+    node: &spec::Node,
+    body: Body,
     budget: Option<&Arc<Semaphore>>,
 ) -> Result<ParsedResponse, ResponseParseError> {
-    let mut blocks = Vec::new();
+    let retained = ParseBudget::new(budget)?;
+    let mut collector = StreamCollector::default();
     {
-        let (value, _parse_reservation) = parse_unique_json(&body, budget)?;
-        if !value.is_object() {
+        let raw = body.slice(0..body.len).ok_or(Unreadable)?;
+        let _copy = budget
+            .filter(|_| matches!(raw, Cow::Owned(_)))
+            .map(|budget| MemoryReservation::from_budget(budget, raw.len(), "guardrails"))
+            .transpose()
+            .map_err(|_| ResponseParseError::Busy)?;
+        let text = std::str::from_utf8(&raw).map_err(|_| Unreadable)?;
+        if !text.trim_ascii().starts_with('{') {
             return Err(ResponseParseError::Unreadable);
         }
-        capture::extract_response_json(api_format, &value, &mut blocks)?;
+        read_value(
+            node,
+            text,
+            std::slice::from_ref(&(0..body.len)),
+            &mut collector,
+            budget,
+        )?;
     }
-    let blocks_reservation = reserve_retained_blocks(&blocks, budget)?;
-    Ok(ParsedResponse {
-        body: ParsedBody::Json(body),
-        blocks,
-        _blocks_reservation: blocks_reservation,
-    })
-}
-
-fn parse_sse_frame(
-    api_format: ApiFormat,
-    frame_idx: usize,
-    data_lines: &[&str],
-    budget: Option<&Arc<Semaphore>>,
-    collector: &mut StreamCollector,
-) -> Result<usize, ResponseParseError> {
-    if data_lines.is_empty() {
-        return Ok(0);
-    }
-    let payload = data_lines.join("\n");
-    if payload == "[DONE]" {
-        return Ok(0);
-    }
-    let (value, _frame_reservation) = parse_unique_json(payload.as_bytes(), budget)?;
-    capture::extract_response_sse(api_format, frame_idx, &value, collector)?;
-    Ok(collector.take_growth_bytes())
+    finish(body, collector, retained)
 }
 
 fn parse_sse(
-    api_format: ApiFormat,
-    raw: Bytes,
+    node: &spec::Node,
+    body: Body,
     budget: Option<&Arc<Semaphore>>,
 ) -> Result<ParsedResponse, ResponseParseError> {
-    if !matches!(
-        api_format,
-        ApiFormat::OpenAiChatCompletions
-            | ApiFormat::AnthropicMessages
-            | ApiFormat::OpenAiResponses
-    ) {
-        return Err(ResponseParseError::Unreadable);
-    }
-    let text = std::str::from_utf8(&raw).map_err(|_| ResponseParseError::Unreadable)?;
-    let bytes = text.as_bytes();
-    let mut frames = Vec::new();
-    let mut frames_budget = ParseBudget::new(budget)?;
-    let mut collector = StreamCollector::default();
-    let mut cursor = 0usize;
-    let mut event_start = 0usize;
-    let mut data_lines: Vec<&str> = Vec::new();
-
-    while cursor < bytes.len() {
-        let line_start = cursor;
-        while bytes
-            .get(cursor)
-            .is_some_and(|&byte| byte != b'\n' && byte != b'\r')
-        {
-            cursor += 1;
-        }
-        let line = text
-            .get(line_start..cursor)
-            .ok_or(ResponseParseError::Unreadable)?;
-        match bytes.get(cursor) {
-            Some(&b'\r') => {
-                cursor += 1;
-                if bytes.get(cursor) == Some(&b'\n') {
-                    cursor += 1;
-                }
-            }
-            Some(&b'\n') => cursor += 1,
-            _ if !line.is_empty() => return Err(ResponseParseError::Unreadable),
-            _ => {}
-        }
-        if line.is_empty() {
-            let growth = parse_sse_frame(
-                api_format,
-                frames.len(),
-                &data_lines,
-                budget,
-                &mut collector,
-            )?;
-            if !frames_budget.charge(size_of::<Range<usize>>().saturating_add(growth)) {
-                return Err(ResponseParseError::Busy);
-            }
-            frames.push(event_start..cursor);
-            data_lines.clear();
-            event_start = cursor;
-            continue;
-        }
-        if let Some(rest) = line.strip_prefix("data:") {
-            data_lines.push(rest.strip_prefix(' ').unwrap_or(rest));
-        } else if line == "data" {
-            data_lines.push("");
-        }
-    }
-    if !data_lines.is_empty() {
-        return Err(ResponseParseError::Unreadable);
-    }
-    if event_start < bytes.len() {
-        if !frames_budget.charge(size_of::<Range<usize>>()) {
-            return Err(ResponseParseError::Busy);
-        }
-        frames.push(event_start..bytes.len());
-    }
-    if !frames_budget.flush() {
+    let mut retained = ParseBudget::new(budget)?;
+    if !retained.charge(body.starts.capacity() * size_of::<usize>()) {
         return Err(ResponseParseError::Busy);
     }
-    let blocks = collector.finish();
+    let mut collector = StreamCollector::default();
+    body.split_frames(|range, data, complete| {
+        let raw = body.slice(range.clone()).ok_or(Unreadable)?;
+        let frame = std::str::from_utf8(&raw).map_err(|_| Unreadable)?;
+        if complete
+            && !data.is_empty()
+            && let Some(payload) = frame_payload(frame, range.start, data)
+            && payload != "[DONE]"
+        {
+            // Owned only when the frame spans chunks or has several data lines.
+            let copied = size_of_val(data)
+                + usize::from(matches!(raw, Cow::Owned(_))) * raw.len()
+                + usize::from(matches!(payload, Cow::Owned(_))) * payload.len();
+            let _copies = budget
+                .filter(|_| copied > 0)
+                .map(|budget| MemoryReservation::from_budget(budget, copied, "guardrails"))
+                .transpose()
+                .map_err(|_| ResponseParseError::Busy)?;
+            read_value(node, &payload, data, &mut collector, budget)?;
+        }
+        if retained.charge(collector.take_growth_bytes()) {
+            Ok(())
+        } else {
+            Err(ResponseParseError::Busy)
+        }
+    })?;
+    finish(body, collector, retained)
+}
+
+fn finish(
+    body: Body,
+    mut collector: StreamCollector,
+    mut retained: ParseBudget,
+) -> Result<ParsedResponse, ResponseParseError> {
+    if !retained.charge(collector.take_growth_bytes()) || !retained.flush() {
+        return Err(ResponseParseError::Busy);
+    }
     Ok(ParsedResponse {
-        body: ParsedBody::Sse {
-            raw,
-            frames,
-            _frames_reservation: frames_budget.reservation,
-        },
-        blocks,
-        _blocks_reservation: None,
+        body,
+        blocks: collector.finish(),
+        _reservation: retained.reservation,
     })
 }
 
-// ---------------------------------------------------------------------------
-// Shared extraction helpers used by provider protocol modules in `capture`
-// ---------------------------------------------------------------------------
-
+/// A streamed text: its `slot` name and the stream indices above it, such as a
+/// choice and a tool call.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum StreamKey {
-    Chat(u64, &'static str),
-    ChatToolArgs(u64, u64),
-    ChatToolCustomInput(u64, u64),
-    Anthropic(u64, &'static str),
-    Responses(u64, u64, &'static str),
+pub(crate) struct StreamKey {
+    pub(in crate::guardrails) slot: &'static str,
+    pub(in crate::guardrails) index: [u64; 2],
 }
 
-impl StreamKey {
-    fn is_json_encoded(self) -> bool {
-        matches!(
-            self,
-            Self::ChatToolArgs(_, _)
-                | Self::Chat(_, "function_call")
-                | Self::Anthropic(_, "partial_json")
-                | Self::Responses(_, _, "function_call_args" | "mcp_call_args")
-        )
-    }
-}
-
+/// Collects the [`ResponseBlock`]s of one response as [`spec::read`] finds text.
 #[derive(Default)]
 pub(crate) struct StreamCollector {
     blocks: Vec<ResponseBlock>,
     by_key: HashMap<StreamKey, usize>,
     signed_thinking: HashSet<u64>,
+    /// The last delta's stream and block, which most deltas repeat.
+    last_delta: Option<(StreamKey, usize)>,
     /// Retained bytes allocated by `StreamCollector` since the last `take_growth_bytes`.
     growth_bytes: usize,
 }
 
 impl StreamCollector {
-    pub(crate) fn push_delta(&mut self, key: StreamKey, frame_idx: usize, ptr: String, text: &str) {
-        if text.is_empty() {
-            return;
-        }
-        let ptr_bytes = size_of::<(usize, String)>().saturating_add(ptr.capacity());
-        if let Some(&slot) = self.by_key.get(&key)
-            && let Some(block) = self.blocks.get_mut(slot)
-        {
-            let prev_cap = block.text.capacity();
-            block.text.push_str(text);
-            block.deltas.push((frame_idx, ptr));
-            self.growth_bytes = self
-                .growth_bytes
-                .saturating_add(block.text.capacity().saturating_sub(prev_cap))
-                .saturating_add(ptr_bytes);
-            return;
-        }
-        let owned = text.to_owned();
-        let added = size_of::<ResponseBlock>()
-            .saturating_add(owned.capacity())
-            .saturating_add(ptr_bytes);
-        let slot = self.blocks.len();
-        self.blocks.push(ResponseBlock {
-            text: owned,
-            editable: true,
-            json_encoded: key.is_json_encoded(),
-            deltas: vec![(frame_idx, ptr)],
-            leaves: Vec::new(),
-        });
-        self.by_key.insert(key, slot);
-        self.growth_bytes = self.growth_bytes.saturating_add(added);
-    }
-
-    pub(crate) fn push_summary(
+    pub(in crate::guardrails) fn push_delta(
         &mut self,
-        key: Option<StreamKey>,
-        frame_idx: usize,
-        ptr: String,
+        key: StreamKey,
+        json: bool,
+        span: Range<usize>,
         text: &str,
     ) {
         if text.is_empty() {
             return;
         }
-        let ptr_bytes = size_of::<(Option<usize>, String)>().saturating_add(ptr.capacity());
-        if let Some(key) = key
-            && let Some(&slot) = self.by_key.get(&key)
+        let slot = match self.last_delta {
+            Some((last, slot)) if last == key => Some(slot),
+            _ => self.by_key.get(&key).copied(),
+        };
+        if let Some(slot) = slot
+            && let Some(block) = self.blocks.get_mut(slot)
+        {
+            self.last_delta = Some((key, slot));
+            let (text_capacity, deltas_capacity) = (block.text.capacity(), block.deltas.capacity());
+            block.text.push_str(text);
+            block.deltas.push(span);
+            self.growth_bytes = self
+                .growth_bytes
+                .saturating_add(block.text.capacity() - text_capacity)
+                .saturating_add(
+                    (block.deltas.capacity() - deltas_capacity) * size_of::<Range<usize>>(),
+                );
+            return;
+        }
+        self.by_key.insert(key, self.blocks.len());
+        self.growth_bytes = self
+            .growth_bytes
+            .saturating_add(size_of::<(StreamKey, usize)>());
+        self.push_block(ResponseBlock {
+            text: text.to_owned(),
+            editable: true,
+            json_encoded: json,
+            deltas: vec![span],
+            leaves: Vec::new(),
+        });
+    }
+
+    pub(in crate::guardrails) fn push_summary(
+        &mut self,
+        key: StreamKey,
+        json: bool,
+        span: Range<usize>,
+        text: &str,
+    ) {
+        if let Some(&slot) = self.by_key.get(&key)
             && let Some(block) = self.blocks.get_mut(slot)
             && block.text == text
         {
-            block.leaves.push((Some(frame_idx), ptr));
-            self.growth_bytes = self.growth_bytes.saturating_add(ptr_bytes);
+            self.growth_bytes = self.growth_bytes.saturating_add(size_of::<Range<usize>>());
+            block.leaves.push(span);
             return;
         }
-        self.push_leaf_inner(
-            frame_idx,
-            text,
-            ptr,
-            key.is_some_and(StreamKey::is_json_encoded),
-        );
+        self.push_leaf(span, text, json, true);
     }
 
-    pub(crate) fn push_leaf(&mut self, frame_idx: usize, text: &str, ptr: String) {
-        self.push_leaf_inner(frame_idx, text, ptr, false);
-    }
-
-    fn push_leaf_inner(&mut self, frame_idx: usize, text: &str, ptr: String, json_encoded: bool) {
+    pub(in crate::guardrails) fn push_leaf(
+        &mut self,
+        span: Range<usize>,
+        text: &str,
+        json_encoded: bool,
+        editable: bool,
+    ) {
         if text.is_empty() {
             return;
         }
-        let owned = text.to_owned();
-        let added = size_of::<ResponseBlock>()
-            .saturating_add(owned.capacity())
-            .saturating_add(size_of::<(Option<usize>, String)>())
-            .saturating_add(ptr.capacity());
-        self.blocks.push(ResponseBlock {
-            text: owned,
-            editable: true,
+        self.push_block(ResponseBlock {
+            text: text.to_owned(),
+            editable,
             json_encoded,
             deltas: Vec::new(),
-            leaves: vec![(Some(frame_idx), ptr)],
+            leaves: vec![span],
         });
-        self.growth_bytes = self.growth_bytes.saturating_add(added);
     }
 
-    pub(crate) fn attach_or_push_leaf(&mut self, frame_idx: usize, text: &str, ptr: String) {
+    /// Attaches a duplicate summary field (e.g. `output_text`) to an already
+    /// collected block with identical text so Bedrock sees one block and every
+    /// copy is rewritten together.
+    pub(in crate::guardrails) fn attach_or_push_leaf(&mut self, span: Range<usize>, text: &str) {
         if text.is_empty() {
             return;
         }
         if let Some(block) = self.blocks.iter_mut().find(|block| block.text == text) {
-            let ptr_bytes = size_of::<(Option<usize>, String)>().saturating_add(ptr.capacity());
-            block.leaves.push((Some(frame_idx), ptr));
-            self.growth_bytes = self.growth_bytes.saturating_add(ptr_bytes);
+            self.growth_bytes = self.growth_bytes.saturating_add(size_of::<Range<usize>>());
+            block.leaves.push(span);
             return;
         }
-        self.push_leaf(frame_idx, text, ptr);
+        self.push_leaf(span, text, false, true);
+    }
+
+    fn push_block(&mut self, block: ResponseBlock) {
+        self.growth_bytes = self
+            .growth_bytes
+            .saturating_add(size_of::<ResponseBlock>())
+            .saturating_add(block.text.capacity())
+            .saturating_add(
+                (block.deltas.capacity() + block.leaves.capacity()) * size_of::<Range<usize>>(),
+            );
+        self.blocks.push(block);
     }
 
     fn take_growth_bytes(&mut self) -> usize {
         std::mem::take(&mut self.growth_bytes)
     }
 
-    pub(crate) fn mark_signed_thinking(&mut self, index: u64) {
+    pub(in crate::guardrails) fn mark_signed_thinking(&mut self, index: u64) {
         self.signed_thinking.insert(index);
     }
 
     fn finish(mut self) -> Vec<ResponseBlock> {
         for index in self.signed_thinking {
-            if let Some(&slot) = self.by_key.get(&StreamKey::Anthropic(index, "thinking"))
+            let key = StreamKey {
+                slot: "thinking",
+                index: [index, 0],
+            };
+            if let Some(&slot) = self.by_key.get(&key)
                 && let Some(block) = self.blocks.get_mut(slot)
             {
                 block.editable = false;
@@ -785,150 +707,65 @@ impl StreamCollector {
     }
 }
 
-pub(crate) fn ptr_push(base: &str, key: &str) -> String {
-    let mut out = String::with_capacity(base.len() + key.len() + 1);
-    out.push_str(base);
-    out.push('/');
-    for ch in key.chars() {
-        match ch {
-            '~' => out.push_str("~0"),
-            '/' => out.push_str("~1"),
-            other => out.push(other),
-        }
+#[cfg(test)]
+mod tests {
+    use axum::body::Bytes;
+
+    use super::*;
+    use crate::guardrails::spec::{Node, Object, delta, text};
+
+    const BEFORE: Node = Object::new(&[(
+        "delta",
+        Object::new(&[("text", text(delta("text")))]).node(),
+    )])
+    .node();
+    /// `BEFORE` with one more declared key: the whole change a new provider field needs.
+    const AFTER: Node = Object::new(&[(
+        "delta",
+        Object::new(&[
+            ("text", text(delta("text"))),
+            ("transcript", text(delta("transcript"))),
+        ])
+        .node(),
+    )])
+    .node();
+
+    #[test]
+    fn a_declared_key_is_scanned_and_redacted_in_every_frame() {
+        let sse = concat!(
+            "data: {\"delta\":{\"text\":\"hi\",\"transcript\":\"SSN 123-\"}}\n\n",
+            "data: {\"delta\":{\"transcript\":\"45-6789\"}}\n\n",
+        );
+        let parse = |node| {
+            parse_sse(
+                node,
+                Body::new(vec![Bytes::from_static(sse.as_bytes())]),
+                None,
+            )
+            .unwrap()
+        };
+        let texts = |node| {
+            parse(node)
+                .blocks
+                .iter()
+                .map(|block| block.text.clone())
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(texts(&BEFORE), ["hi"]);
+        assert_eq!(texts(&AFTER), ["hi", "SSN 123-45-6789"]);
+        let RedactionApply::Rewritten(rewritten) = parse(&AFTER)
+            .apply_redactions(&[(1, "SSN [SSN]".to_owned())], None)
+            .unwrap()
+        else {
+            panic!("the new key's stream is rewritten");
+        };
+        assert_eq!(
+            rewritten,
+            concat!(
+                "data: {\"delta\":{\"text\":\"hi\",\"transcript\":\"SSN [SSN]\"}}\n\n",
+                "data: {\"delta\":{\"transcript\":\"\"}}\n\n",
+            )
+        );
     }
-    out
-}
-
-pub(crate) fn ptr_index(base: &str, index: usize) -> String {
-    format!("{base}/{index}")
-}
-
-pub(crate) fn push_leaf(blocks: &mut Vec<ResponseBlock>, text: &str, ptr: String, editable: bool) {
-    push_leaf_inner(blocks, text, ptr, editable, false);
-}
-
-pub(crate) fn push_json_leaf(blocks: &mut Vec<ResponseBlock>, text: &str, ptr: String) {
-    push_leaf_inner(blocks, text, ptr, true, true);
-}
-
-fn push_leaf_inner(
-    blocks: &mut Vec<ResponseBlock>,
-    text: &str,
-    ptr: String,
-    editable: bool,
-    json_encoded: bool,
-) {
-    if text.is_empty() {
-        return;
-    }
-    blocks.push(ResponseBlock {
-        text: text.to_owned(),
-        editable,
-        json_encoded,
-        deltas: Vec::new(),
-        leaves: vec![(None, ptr)],
-    });
-}
-
-/// Attaches a duplicate summary field (e.g. `output_text`) to an already
-/// collected block with identical text so Bedrock sees one block and every copy
-/// is rewritten together.
-pub(crate) fn attach_matching_or_push_leaf(
-    blocks: &mut Vec<ResponseBlock>,
-    text: &str,
-    ptr: String,
-) {
-    if text.is_empty() {
-        return;
-    }
-    if let Some(block) = blocks.iter_mut().find(|block| block.text == text) {
-        block.leaves.push((None, ptr));
-        return;
-    }
-    push_leaf(blocks, text, ptr, true);
-}
-
-pub(crate) fn visit_text_or_parts(
-    value: &Value,
-    ptr: &str,
-    depth: usize,
-    visit: &mut impl FnMut(String, &str),
-) -> Result<(), Unreadable> {
-    if depth > MAX_JSON_DEPTH {
-        return Err(Unreadable);
-    }
-    match value {
-        Value::String(text) => visit(ptr.to_owned(), text),
-        Value::Array(items) => {
-            for (index, item) in items.iter().enumerate() {
-                let item_ptr = ptr_index(ptr, index);
-                match item {
-                    Value::String(text) => visit(item_ptr, text),
-                    Value::Object(map) => {
-                        for key in ["text", "refusal", "content"] {
-                            if let Some(field) = map.get(key) {
-                                visit_text_or_parts(
-                                    field,
-                                    &ptr_push(&item_ptr, key),
-                                    depth + 1,
-                                    visit,
-                                )?;
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-        _ => {}
-    }
-    Ok(())
-}
-
-pub(crate) fn collect_text_or_parts(
-    value: &Value,
-    ptr: &str,
-    depth: usize,
-    blocks: &mut Vec<ResponseBlock>,
-) -> Result<(), Unreadable> {
-    visit_text_or_parts(value, ptr, depth, &mut |leaf_ptr, text| {
-        push_leaf(blocks, text, leaf_ptr, true);
-    })
-}
-
-pub(crate) fn visit_all_strings(
-    value: &Value,
-    ptr: &str,
-    depth: usize,
-    visit: &mut impl FnMut(String, &str),
-) -> Result<(), Unreadable> {
-    if depth > MAX_JSON_DEPTH {
-        return Err(Unreadable);
-    }
-    match value {
-        Value::String(text) => visit(ptr.to_owned(), text),
-        Value::Array(items) => {
-            for (index, item) in items.iter().enumerate() {
-                visit_all_strings(item, &ptr_index(ptr, index), depth + 1, visit)?;
-            }
-        }
-        Value::Object(map) => {
-            for (key, field) in map {
-                visit_all_strings(field, &ptr_push(ptr, key), depth + 1, visit)?;
-            }
-        }
-        _ => {}
-    }
-    Ok(())
-}
-
-pub(crate) fn collect_all_strings(
-    value: &Value,
-    ptr: &str,
-    depth: usize,
-    blocks: &mut Vec<ResponseBlock>,
-) -> Result<(), Unreadable> {
-    visit_all_strings(value, ptr, depth, &mut |leaf_ptr, text| {
-        push_leaf(blocks, text, leaf_ptr, true);
-    })
 }

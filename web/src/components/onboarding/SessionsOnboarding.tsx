@@ -7,7 +7,7 @@ export function SessionsOnboarding() {
     <SplashScreen
       title="You aren't using sessions yet"
       description="Sessions let you group traces that belong to the same workflow, or conversation."
-      videoSrc="https://static.langfuse.com/prod-assets/onboarding/sessions-overview-v1.mp4"
+      videoSrc="https://static.langfuse.com/prod-assets/onboarding/sessions-overview-v2.mp4"
     >
       <div className="mt-8">
         <h3 className="mb-4 text-2xl font-bold">Start using sessions</h3>
