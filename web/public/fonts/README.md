@@ -91,6 +91,7 @@ Layouts in this app were sized on the system font, so the face is matched to it 
 
 - `size-adjust: 102%` in `fonts.ts` equalises x-height.
 - `ascent-override: 94.8%`, `descent-override: 20.69%` and `line-gap-override: 0%` give the face the system font's line metrics (ascent 0.967em, descent 0.211em; the overrides are multiplied by `size-adjust`). Browsers round ascent and descent to whole pixels, so without them 12px text sits a pixel lower and 9px text a pixel higher than in the system font. Safari ignores these three descriptors.
+- `adjustFontFallback: false` turns off the Arial-based fallback face `next/font` generates. It is sized from the file's raw metrics, not the descriptors above, so text set in it runs about 3% narrower and reflows when the face loads. The system font is within 0.5%.
 - The weight roles in `globals.css` are 400 / 480 / 540. The weights whose stroke matches the system font at 400 / 500 / 600 are 410 / 480 / 560; regular and bold are set slightly lighter than that by choice. Medium and bold need the variable weight axis, so do not swap the face for static weights without retuning them.
 
 Digits are tabular by default (every digit has the same advance), so numbers line up with or without `tabular-nums`.

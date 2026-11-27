@@ -18,13 +18,15 @@ const plexMono = localFont({
 });
 
 // Matched to the system font: x-height via `size-adjust`, line metrics via the
-// overrides. The range leaves U+274C to the emoji font.
+// overrides. The range leaves U+274C to the emoji font. No generated Arial
+// fallback, so the system stack is the fallback.
 const plexSans = localFont({
   src: "../../public/fonts/IBMPlexSans-Variable.woff2",
   weight: "100 700",
   style: "normal",
   variable: "--font-plex-sans",
   display: "swap",
+  adjustFontFallback: false,
   declarations: [
     { prop: "size-adjust", value: "102%" },
     { prop: "ascent-override", value: "94.8%" },
