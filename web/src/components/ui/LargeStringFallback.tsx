@@ -4,19 +4,8 @@ import { Button } from "@/src/components/ui/button";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { LARGE_STRING_PREVIEW_CHARS } from "@/src/components/ui/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { codePointSafeSlice } from "@/src/utils/codePointSafeSlice";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
-
-/**
- * Head slice bounded to `maxChars` UTF-16 units, backed off by one unit if the
- * boundary would split a surrogate pair (which renders as a stray U+FFFD).
- * O(1) — never materializes the full multi-MB string.
- */
-function codePointSafeSlice(value: string, maxChars: number): string {
-  if (value.length <= maxChars) return value;
-  const lastUnit = value.charCodeAt(maxChars - 1);
-  const isHighSurrogate = lastUnit >= 0xd800 && lastUnit <= 0xdbff;
-  return value.slice(0, isHighSurrogate ? maxChars - 1 : maxChars);
-}
 
 /**
  * Bounded fallback for a single top-level string value too large to render in

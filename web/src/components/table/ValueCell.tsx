@@ -11,6 +11,7 @@ import {
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { codePointSafeSlice } from "@/src/utils/codePointSafeSlice";
 import { Button } from "@/src/components/ui/button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { cn } from "@/src/utils/tailwind";
@@ -157,7 +158,7 @@ function getTruncatedValue(value: string, maxChars: number): string {
     return value;
   }
 
-  const truncated = value.substring(0, maxChars);
+  const truncated = codePointSafeSlice(value, maxChars);
   const lastSpaceIndex = truncated.lastIndexOf(" ");
 
   // Try to truncate at word boundary if possible
