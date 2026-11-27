@@ -22,9 +22,11 @@ import { isProductFeedbackAvailable } from "@/src/features/feedback/server/Feedb
 import { type ApiAction } from "@/src/features/public-api/server/enforceAuth";
 import { formatErrorForUser } from "../core/error-formatting";
 import type { McpConnection, ServerContext } from "../types";
+import type { ToolDefinition } from "../core/define-tool";
 import { canCallTool, getEnabledTool, getEnabledTools } from "./tools";
 import {
   isProjectAction,
+  withProjectIdArgument,
   resolveToolContext,
   splitProjectId,
 } from "./toolContext";
@@ -47,7 +49,7 @@ const MCP_SERVER_NAME = "langfuse";
 const MCP_SERVER_VERSION = "0.3.0-unstable";
 const MCP_SERVER_INSTRUCTIONS = [
   "Use this server for project-scoped Langfuse data and actions such as prompts, datasets, scores, comments, metrics, observations etc.",
-  "Project tools run in the API key's project. Keys that are not bound to a project, such as organization keys, pass `projectId` on every project tool call; call listProjects to find the projects the key can access.",
+  "Project tools run in the API key's project. Keys that are not bound to a project, such as organization keys, pass `projectId` on every project tool call: take it from a Langfuse URL (`/project/<projectId>/...`) when the user gives one, or call listProjects to find the projects the key can access.",
   "Inspect the available tools and their schemas dynamically; do not assume a fixed tool list.",
   "For conceptual Langfuse product guidance, SDK/API documentation, instrumentation help, or prompt-migration guidance, prefer the Langfuse docs MCP server or installed Langfuse agent skills when they are available.",
   "Discover bundled Langfuse skills with skills/list, retrieve metadata with skills/get, and read skill files with resources/read.",
@@ -124,7 +126,7 @@ export async function createMcpServer(
       ({ definition }) => ({
         name: definition.name,
         description: definition.description,
-        inputSchema: definition.inputSchema,
+        inputSchema: advertisedInputSchema(definition, connection),
         annotations: definition.annotations,
         _meta: definition._meta,
       }),
@@ -212,6 +214,17 @@ export async function createMcpServer(
   });
 
   return server;
+}
+
+/** advertisedInputSchema adds the required projectId argument to project tools for keys bound to no project; a project key always runs in its own project. */
+function advertisedInputSchema(
+  definition: ToolDefinition,
+  connection: McpConnection,
+): ToolDefinition["inputSchema"] {
+  if (!isProjectAction(definition.action) || connection.boundProjectId) {
+    return definition.inputSchema;
+  }
+  return withProjectIdArgument(definition.inputSchema);
 }
 
 /** resolveProjectContext resolves and authorizes a project tool's call; tools that run in no project get none. */

@@ -30,6 +30,15 @@ const [definition, handler] = defineTool({
   handler: async (input, context) => `${context.projectId}:${input.name}`,
 });
 
+const projectKey = mockConnection(
+  mockAuthContext({
+    orgId: "org_1",
+    projectId: "prj_1",
+    actions: ["prompts:read"],
+    organizations: [{ orgId: "org_1", projectIds: ["prj_1", "prj_2"] }],
+  }),
+);
+
 const orgKey = mockConnection(
   mockAuthContext({
     orgId: "org_1",
@@ -69,11 +78,21 @@ describe("MCP tools across projects", () => {
     await close();
   });
 
-  it("lists the optional projectId argument on project tools", async () => {
+  it("requires projectId on project tools for a key bound to no project", async () => {
     await connect(orgKey);
     const { tools } = await client.listTools();
     expect(tools[0]?.inputSchema.properties).toHaveProperty("projectId");
+    expect(tools[0]?.inputSchema.required).toEqual(["name", "projectId"]);
+  });
+
+  it("omits projectId for a project key, whose calls run in its own project", async () => {
+    await connect(projectKey);
+    const { tools } = await client.listTools();
+    expect(tools[0]?.inputSchema.properties).not.toHaveProperty("projectId");
     expect(tools[0]?.inputSchema.required).toEqual(["name"]);
+    expect(await call({ name: "a" })).toEqual([
+      { type: "text", text: "prj_1:a" },
+    ]);
   });
 
   it("strips projectId before the tool's strict schema validates its input", async () => {

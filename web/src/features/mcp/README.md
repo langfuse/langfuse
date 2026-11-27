@@ -112,10 +112,10 @@ The connection is authenticated only; every tool call is authorized against its 
 
 ### Multi-project access (organization keys)
 
-An organization key is not bound to a project, so it connects with its secret key alone (`Authorization: Bearer sk-lf-...`). Every project tool takes an optional `projectId` argument, added by `defineTool`; tools/call removes it before the tool validates its own input.
+An organization key is not bound to a project, so it connects with its secret key alone (`Authorization: Bearer sk-lf-...`). For a key bound to no project, such as an organization key, tools/list adds a required `projectId` argument to every project tool. A project key's tools don't list it: its calls run in its own project. tools/call removes `projectId` before the tool validates its own input.
 
 - `listProjects` lists the projects the key may read (`project:read`), as id and name.
-- A project key's calls default to its own project. Naming another project is denied.
+- A project key's calls run in its own project. A project key that passes `projectId` anyway may name only that project; another project is denied.
 - An organization key's calls must name a project. A project outside the key's organization is denied: the call is authorized in the organization that owns the project, never in the key's bound organization, so the key's `project/*` policy cannot match a project elsewhere.
 - What the key may do in a project is its role's. A legacy organization key holds `project:read` but no data actions, so it can list projects and little else; give the key a role (for example Admin or Viewer) for data access.
 

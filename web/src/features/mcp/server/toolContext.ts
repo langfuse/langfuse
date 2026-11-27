@@ -1,4 +1,8 @@
-import { ProtocolError, ProtocolErrorCode } from "@modelcontextprotocol/server";
+import {
+  ProtocolError,
+  ProtocolErrorCode,
+  type Tool,
+} from "@modelcontextprotocol/server";
 
 import { ForbiddenError } from "@langfuse/shared";
 import { OrganizationId, ProjectId, type Action } from "@langfuse/shared/rbac";
@@ -16,7 +20,24 @@ export const projectIdArgument = "projectId";
 
 /** projectIdArgumentDescription documents projectIdArgument in each project tool's input schema. */
 export const projectIdArgumentDescription =
-  "ID of the project to run this tool in. Required for API keys that are not bound to a project; call listProjects to find it. Defaults to the key's own project.";
+  "ID of the project to run this tool in. Take it from a Langfuse URL (`/project/<projectId>/...`) when the user gives one; otherwise call listProjects and match the project's name, and ask the user if more than one matches.";
+
+/** withProjectIdArgument adds the required projectId argument to a project tool's input schema. */
+export function withProjectIdArgument(
+  schema: Tool["inputSchema"],
+): Tool["inputSchema"] {
+  return {
+    ...schema,
+    properties: {
+      ...schema.properties,
+      [projectIdArgument]: {
+        type: "string",
+        description: projectIdArgumentDescription,
+      },
+    },
+    required: [...(schema.required ?? []), projectIdArgument],
+  };
+}
 
 /** resolveToolContext resolves the project a tool call runs in and authorizes the tool's action on it. */
 export function resolveToolContext(
