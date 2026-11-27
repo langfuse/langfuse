@@ -473,6 +473,8 @@ export function CodeMirrorEditor({
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
   const handleEditorRef = useCallback(
     (instance: ReactCodeMirrorRef | null) => {
@@ -575,7 +577,13 @@ export function CodeMirrorEditor({
   // Stable identity so the reconfigure effect (which lists `onChange` in its
   // deps) doesn't fire on every render. Route the parent handler through a ref
   // so form render-prop onChange identities cannot rebuild the editor config.
+  // Skip identical document text: CodeMirror's MutationObserver can dispatch a
+  // transaction whose inserted text equals the current doc, and @uiw still
+  // calls onChange because docChanged is true. Parents that always allocate a
+  // new state object then loop until React 185 (maximum update depth).
   const handleChange = useCallback((c: string) => {
+    if (c === valueRef.current) return;
+    valueRef.current = c;
     onChangeRef.current?.(c);
   }, []);
 
