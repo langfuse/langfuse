@@ -121,11 +121,13 @@ export const projectsRouter = createTRPCRouter({
         });
       }
 
+      const where = {
+        id: input.projectId,
+        orgId: ctx.session.orgId,
+      };
+      const beforeProject = await ctx.prisma.project.findFirst({ where });
       const project = await ctx.prisma.project.update({
-        where: {
-          id: input.projectId,
-          orgId: ctx.session.orgId,
-        },
+        where,
         data: {
           name: input.newName,
         },
@@ -135,6 +137,7 @@ export const projectsRouter = createTRPCRouter({
         resourceType: "project",
         resourceId: input.projectId,
         action: "update",
+        before: beforeProject,
         after: project,
       });
       return true;
@@ -161,11 +164,13 @@ export const projectsRouter = createTRPCRouter({
         });
       }
 
+      const where = {
+        id: input.projectId,
+        orgId: ctx.session.orgId,
+      };
+      const beforeProject = await ctx.prisma.project.findFirst({ where });
       const project = await ctx.prisma.project.update({
-        where: {
-          id: input.projectId,
-          orgId: ctx.session.orgId,
-        },
+        where,
         data: {
           retentionDays: input.retention,
         },
@@ -175,6 +180,7 @@ export const projectsRouter = createTRPCRouter({
         resourceType: "project",
         resourceId: input.projectId,
         action: "update",
+        before: beforeProject,
         after: project,
       });
       return true;
