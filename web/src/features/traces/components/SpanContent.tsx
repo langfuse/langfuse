@@ -149,12 +149,25 @@ function LoadedSpanContent({
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {/* Name and badges row */}
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          <span
-            className="min-w-0 shrink truncate text-sm"
-            title={nodeDisplayName}
-          >
-            {nodeDisplayName}
-          </span>
+          {isSelectedObservation ? (
+            // The badge wraps onto a clipped second line when the name has no room left.
+            <span className="flex h-5 min-w-0 flex-1 flex-wrap content-start items-center gap-x-2 overflow-hidden">
+              <span
+                className="min-w-24 flex-1 truncate text-sm"
+                title={nodeDisplayName}
+              >
+                {nodeDisplayName}
+              </span>
+              <SampleBadge />
+            </span>
+          ) : (
+            <span
+              className="min-w-0 shrink truncate text-sm"
+              title={nodeDisplayName}
+            >
+              {nodeDisplayName}
+            </span>
+          )}
 
           <div className="flex items-center gap-x-2">
             {/* Comment count */}
@@ -174,8 +187,7 @@ function LoadedSpanContent({
         {/* Metrics and scores row */}
         {(shouldRenderAnyMetrics ||
           shouldRenderScores ||
-          shouldRenderCorrection ||
-          isSelectedObservation) && (
+          shouldRenderCorrection) && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 font-mono">
             {/* Duration (own span) */}
             {shouldRenderDuration ? (
@@ -228,8 +240,6 @@ function LoadedSpanContent({
                 {shouldRenderCorrection && <CorrectionBadge />}
               </span>
             )}
-
-            {isSelectedObservation ? <SampleBadge /> : null}
           </div>
         )}
       </div>
