@@ -1,3 +1,4 @@
+import { EventType } from "@ag-ui/core";
 import { LangfuseConflictError } from "../../index";
 import {
   InAppAgentRunErrorCode,
@@ -405,6 +406,125 @@ export async function decideToolApproval(params: {
   });
 
   return outcome.run;
+}
+
+/**
+ * Record the result of a browser tool and create the run that continues from
+ * it, under the conversation lock. Only the latest run can be continued, and
+ * only on a browser tool call it ended without a result, so when several tabs
+ * report the same call, the first one wins and the others get a conflict.
+ */
+export async function createBrowserToolResultRun(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  parentRunId: string;
+  continuationRunId: string;
+  toolCallId: string;
+  /** Checks the result against the tool the parent run called. */
+  buildResultContent: (toolName: string) => string;
+  triggeredByUserId: string;
+  model?: string;
+}): Promise<InAppAgentRun> {
+  return params.prisma.$transaction(async (tx) => {
+    await lockConversation(tx, params.projectId, params.conversationId);
+
+    const latestRun = await tx.inAppAgentRun.findFirst({
+      where: {
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, status: true, request: true },
+    });
+    if (
+      latestRun?.id !== params.parentRunId ||
+      latestRun.status !== InAppAgentRunStatus.SUCCEEDED
+    ) {
+      throw new LangfuseConflictError(
+        "This tool call is no longer waiting for a result. Reload the conversation.",
+      );
+    }
+
+    const toolCallEvents = await tx.inAppAgentEvent.findMany({
+      where: {
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        runId: params.parentRunId,
+        type: { in: [EventType.TOOL_CALL_START, EventType.TOOL_CALL_RESULT] },
+      },
+      select: { event: true },
+    });
+    const events = toolCallEvents.map(({ event }) => event as AgUiEvent);
+    const toolCallStart = events.find(
+      (event) =>
+        event.type === EventType.TOOL_CALL_START &&
+        event.toolCallId === params.toolCallId,
+    );
+    const hasResult = events.some(
+      (event) =>
+        event.type === EventType.TOOL_CALL_RESULT &&
+        event.toolCallId === params.toolCallId,
+    );
+    const toolName = toolCallStart?.toolCallName;
+    if (typeof toolName !== "string" || hasResult) {
+      throw new LangfuseConflictError(
+        "This tool call is no longer waiting for a result. Reload the conversation.",
+      );
+    }
+    const content = params.buildResultContent(toolName);
+
+    const parentRequest = InAppAgentRunRequestSchema.safeParse(
+      latestRun.request,
+    );
+    const run = await createRunRow(tx, {
+      runId: params.continuationRunId,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      triggeredByUserId: params.triggeredByUserId,
+      model: params.model,
+      request: {
+        kind: "browserToolResult",
+        parentRunId: params.parentRunId,
+        toolCallId: params.toolCallId,
+        context: parentRequest.success ? parentRequest.data.context : [],
+        ...(parentRequest.success && parentRequest.data.topicsAvailable
+          ? { topicsAvailable: true }
+          : {}),
+      },
+    });
+
+    // The result is the new run's input, so replay pairs it with the call.
+    await appendConversationEventInTransaction({
+      tx,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      runId: params.continuationRunId,
+      event: {
+        type: EventType.RUN_STARTED,
+        threadId: params.conversationId,
+        runId: params.continuationRunId,
+        input: {
+          threadId: params.conversationId,
+          runId: params.continuationRunId,
+          state: null,
+          messages: [
+            {
+              id: `${params.toolCallId}-browser-result`,
+              role: "tool",
+              toolCallId: params.toolCallId,
+              content,
+            },
+          ],
+          tools: [],
+          context: parentRequest.success ? parentRequest.data.context : [],
+          forwardedProps: {},
+        },
+      },
+    });
+
+    return run;
+  });
 }
 
 export type CancelRunResult = {
