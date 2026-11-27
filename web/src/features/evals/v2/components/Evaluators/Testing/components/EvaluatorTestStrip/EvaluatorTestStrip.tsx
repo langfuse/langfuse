@@ -51,7 +51,8 @@ export function EvaluatorTestStrip({
       onOpenChange={setOpen}
       state={toTestResultPanelState({
         type,
-        isPending: testPending,
+        // A re-run keeps the previous result on screen until the new one lands.
+        isPending: testPending && !testResult,
         result: testResult,
       })}
       testResult={testResult}
