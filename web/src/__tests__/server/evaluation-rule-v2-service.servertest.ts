@@ -704,6 +704,51 @@ describe("RuleService", () => {
       ).resolves.toEqual({ targetObject: TopicsTargetObject });
     });
 
+    it("rejects a mapping for a code evaluator", async () => {
+      const codeEvaluator = await prisma.evaluator.create({
+        data: {
+          projectId,
+          name: `code-evaluator-${randomUUID()}`,
+          type: "CODE",
+          versions: {
+            create: {
+              version: 1,
+              sourceCode: "function evaluate() { return { scores: [] }; }",
+              sourceCodeLanguage: "TYPESCRIPT",
+            },
+          },
+        },
+      });
+
+      await expect(
+        createService().createTraceTranscriptRule(
+          {
+            projectId,
+            name: "Support conversations",
+            targetObject: TopicsTargetObject,
+            filter: [],
+            sampling: 1,
+            enabled: true,
+            evaluatorAssignments: [
+              {
+                evaluatorId: codeEvaluator.id,
+                variableMapping: [
+                  {
+                    templateVariable: "threads",
+                    selectedColumnId: "threads",
+                    jsonSelector: null,
+                  },
+                ],
+              },
+            ],
+          },
+          null,
+        ),
+      ).rejects.toThrow(
+        "Code evaluator mappings are managed by Langfuse and cannot be provided.",
+      );
+    });
+
     it("rejects an attempt to change the target of an existing rule", async () => {
       const service = createService();
       const rule = await service.create(createInput(), null);

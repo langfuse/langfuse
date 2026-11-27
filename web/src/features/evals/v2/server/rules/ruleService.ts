@@ -938,8 +938,15 @@ export class RuleService {
       if (!latestVersion) {
         throw new LangfuseNotFoundError("Evaluator version not found");
       }
-      // Code evaluators read the whole transcript, so they have no mapping to check.
-      if (evaluator.type === EvalTemplateType.CODE) continue;
+      // Code evaluators read the threads directly and take no mapping.
+      if (evaluator.type === EvalTemplateType.CODE) {
+        if (assignment.variableMapping !== null) {
+          throw new InvalidRequestError(
+            "Code evaluator mappings are managed by Langfuse and cannot be provided.",
+          );
+        }
+        continue;
+      }
       // A null assignment mapping inherits the evaluator version's mapping.
       const variableMapping =
         assignment.variableMapping ??
