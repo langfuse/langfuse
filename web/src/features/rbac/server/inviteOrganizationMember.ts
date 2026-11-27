@@ -2,10 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { Prisma, Role } from "@langfuse/shared";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import {
-  getSfdcService,
-  type SetUserRoleInput,
-} from "@/src/ee/features/sfdc-sync/server/sfdcService";
+import type { SetUserRoleInput } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { createWithinEntitlementLimit } from "@/src/features/entitlements/server/createWithinEntitlementLimit";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
@@ -26,15 +23,34 @@ import {
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
-type InviteOrganizationMemberParams = {
-  ctx: Pick<OrgAuthedContext, "session" | "prisma">;
-  input: {
-    orgId: string;
-    email: string;
-    orgRole: Role;
-    projectId?: string;
-    projectRole?: Role;
-  };
+type MemberInviteContext = Pick<OrgAuthedContext, "session" | "prisma">;
+
+type MemberInviteRoles = {
+  orgId: string;
+  orgRole: Role;
+  projectId?: string;
+  projectRole?: Role;
+};
+
+/** The organization and optional project every email of one request is invited to. */
+type MemberInviteTarget = {
+  org: { id: string; name: string };
+  project: { id: string } | null;
+};
+
+/** Why one email of a request was not invited; codes and messages stay the ones callers show. */
+export class MemberInviteError extends TRPCError {
+  readonly reason: "already_member" | "pending_invite";
+
+  constructor(reason: MemberInviteError["reason"], message: string) {
+    super({ code: "BAD_REQUEST", message });
+    this.reason = reason;
+  }
+}
+
+type InviteMemberParams = {
+  ctx: MemberInviteContext;
+  input: MemberInviteRoles & { email: string };
   /** Callers pick the email, e.g. the generic organization invite or the AI Gateway invite. */
   sendInvitationEmail: (recipient: {
     to: string;
@@ -43,50 +59,39 @@ type InviteOrganizationMemberParams = {
   }) => Promise<void>;
   /**
    * Links an existing user to the org in SFDC, one Mulesoft round trip that
-   * can take seconds. Defaults to syncing before returning; batch callers
-   * collect the syncs and run them outside their invite loop.
+   * can take seconds: callers collect the syncs and run them outside their
+   * invite loop.
    */
-  syncSfdcUserRole?: (input: SetUserRoleInput) => Promise<unknown>;
+  syncSfdcUserRole: (input: SetUserRoleInput) => Promise<unknown>;
 };
 
 /**
  * Adds a user to the organization, or creates a pending invitation when no
  * account exists yet, within the member seat limit, then sends the email.
  */
-export async function inviteOrganizationMember({
+export async function inviteOrganizationMember(params: InviteMemberParams) {
+  const target = await authorizeMemberInvite({
+    ctx: params.ctx,
+    input: params.input,
+  });
+  return inviteMember({ ...params, target });
+}
+
+/**
+ * Checks everything about an invite request that does not depend on the
+ * email, and resolves its organization and project:
+ * - the project belongs to the org
+ * - scope: organizationMembers:CUD, or projectMembers:CUD when only a project role is set
+ * - orgRole is not higher than the inviter's role, and the gateway is on for AI_GATEWAY
+ * - a project role needs the rbac-project-roles entitlement and is not higher than the inviter's
+ */
+export async function authorizeMemberInvite({
   ctx,
   input,
-  sendInvitationEmail,
-  syncSfdcUserRole = syncSfdcUserRoleNow,
-}: InviteOrganizationMemberParams) {
-  /**
-   * Create a new organization membership
-   * - Checks for:
-   *   - project is in org (throws if not)
-   *   - scope: organizationMembers:CUD if not only project-role is set, then projectMembers:CUD
-   *   - orgRole is not higher than own role
-   *   - if project role
-   *     - projectRole is not higher than own role
-   *     - entitlement for project roles if projectRole is set
-   *  - if user exists
-   *    - if org membership exists
-   *      - if only project role is set (orgRole === Role.NONE)
-   *         - create project role
-   *         - audit log
-   *         - return
-   *      - else throw error
-   *    - create org membership
-   *    - audit log
-   *    - if project role is set
-   *     - create project role
-   *    - audit log
-   *    - send email
-   * - else
-   *  - create membership invitation
-   *  - audit log
-   *  - send email
-   */
-
+}: {
+  ctx: MemberInviteContext;
+  input: MemberInviteRoles;
+}): Promise<MemberInviteTarget> {
   // The project must belong to the target org before its project-level
   // rights can stand in for organizationMembers:CUD below.
   const project = input.projectId
@@ -145,12 +150,6 @@ export async function inviteOrganizationMember({
       });
   }
 
-  const user = await ctx.prisma.user.findUnique({
-    where: {
-      email: input.email.toLowerCase(),
-    },
-  });
-
   if (project && input.projectRole)
     await assertValidProjectOwnershipChange({
       tx: ctx.prisma,
@@ -168,6 +167,30 @@ export async function inviteOrganizationMember({
   if (!org) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Org not found" });
   }
+
+  return { org, project };
+}
+
+/**
+ * Invites one email to an authorized target:
+ * - an existing user joins the org (and project) at once; an existing member
+ *   only gains the project role when no org role is set, with no email
+ * - anyone else gets a pending invitation
+ * A new member or invitation counts against the seat limit and gets the email;
+ * every outcome writes an audit log.
+ */
+export async function inviteMember({
+  ctx,
+  target: { org, project },
+  input,
+  sendInvitationEmail,
+  syncSfdcUserRole,
+}: InviteMemberParams & { target: MemberInviteTarget }) {
+  const user = await ctx.prisma.user.findUnique({
+    where: {
+      email: input.email.toLowerCase(),
+    },
+  });
 
   // Members and pending invitations both consume a seat, so the limit
   // check counts them together. Reads through the caller-supplied client
@@ -217,12 +240,12 @@ export async function inviteOrganizationMember({
           action: "create",
           after: newProjectMembership,
         });
-        return;
+        return "addedToProject";
       }
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: ALREADY_ORGANIZATION_MEMBER_MESSAGE,
-      });
+      throw new MemberInviteError(
+        "already_member",
+        ALREADY_ORGANIZATION_MEMBER_MESSAGE,
+      );
     }
 
     // A project membership can outlive this org's membership (e.g. a stray
@@ -239,10 +262,10 @@ export async function inviteOrganizationMember({
         },
       }))
     ) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: ALREADY_PROJECT_MEMBER_MESSAGE,
-      });
+      throw new MemberInviteError(
+        "already_member",
+        ALREADY_PROJECT_MEMBER_MESSAGE,
+      );
     }
 
     // create org membership as user is not a member yet, unless that
@@ -348,24 +371,19 @@ export async function inviteOrganizationMember({
         orgName: org.name,
         userExists: false,
       });
-
-      return invitation;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2002"
       ) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: PENDING_MEMBERSHIP_INVITE_MESSAGE,
-        });
+        throw new MemberInviteError(
+          "pending_invite",
+          PENDING_MEMBERSHIP_INVITE_MESSAGE,
+        );
       } else {
         throw error;
       }
     }
   }
-}
-
-function syncSfdcUserRoleNow(input: SetUserRoleInput) {
-  return getSfdcService()?.setUserRole(input) ?? Promise.resolve(false);
+  return user ? "added" : "invited";
 }

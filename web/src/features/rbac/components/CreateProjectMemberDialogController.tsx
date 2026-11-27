@@ -117,7 +117,7 @@ export function CreateProjectMemberDialogController({
             return createProjectMemberMutation
               .mutateAsync({
                 orgId,
-                email: values.email,
+                emails: [values.email],
                 orgRole: values.orgRole,
                 projectId: project?.id,
                 projectRole:
@@ -125,7 +125,9 @@ export function CreateProjectMemberDialogController({
                     ? undefined
                     : values.projectRole,
               })
-              .then(() => undefined);
+              .then(({ failed }) => {
+                if (failed.length > 0) throw new Error("Failed to add member");
+              });
           }}
           onSuccess={closeDialog}
         />
