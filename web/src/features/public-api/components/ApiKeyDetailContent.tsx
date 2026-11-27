@@ -100,11 +100,8 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
         icon: command.icon,
         description: (
           <>
-            Run in your terminal to connect {command.product} to Langfuse.
-            {props.scope === "organization"
-              ? " The agent can use any project in this organization."
-              : null}{" "}
-            For more information see the{" "}
+            Run in your terminal to connect {command.product} to Langfuse. For
+            more information see the{" "}
             <DocsLink href="https://langfuse.com/docs/api-and-data-platform/features/mcp-server">
               MCP setup docs
             </DocsLink>
