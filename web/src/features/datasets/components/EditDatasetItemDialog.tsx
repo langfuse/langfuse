@@ -143,7 +143,7 @@ export const EditDatasetItemDialog = ({
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
-            className="flex h-full flex-col"
+            className="flex min-h-0 flex-1 flex-col"
           >
             <DialogBody>
               {formError ? (
