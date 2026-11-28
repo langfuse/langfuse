@@ -544,6 +544,9 @@ export function CreateLLMApiKeyForm({
   });
 
   const currentAdapter = form.watch("adapter");
+  const showBaseURLField =
+    currentAdapter !== LLMAdapter.TypeSafe &&
+    currentAdapter !== LLMAdapter.VertexAI;
   const currentAuthMethod = form.watch("authMethod");
   const currentTypeSafeUpstreamId = form.watch("typeSafeUpstream");
   const currentTypeSafeUpstream =
@@ -1671,7 +1674,7 @@ export function CreateLLMApiKeyForm({
               {hasAdvancedSettings(currentAdapter) && showAdvancedSettings && (
                 <div className="space-y-4 border-t pt-4">
                   {/* baseURL: TypeSafe sets it through the upstream cards */}
-                  {currentAdapter !== LLMAdapter.TypeSafe && (
+                  {showBaseURLField && (
                     <FormField
                       control={form.control}
                       name="baseURL"
@@ -1780,6 +1783,7 @@ export function CreateLLMApiKeyForm({
                     LLMAdapter.OpenAI,
                     LLMAdapter.Anthropic,
                     LLMAdapter.TypeSafe,
+                    LLMAdapter.VertexAI,
                   ].includes(currentAdapter) && renderExtraHeadersField()}
 
                   {/* With default models */}

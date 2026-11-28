@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { LLMAdapter } from "@langfuse/shared";
 
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { type RouterOutputs } from "@/src/utils/api";
@@ -66,6 +67,29 @@ describe("CreateLLMApiKeyForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.testProject.mockResolvedValue({ success: true });
+  });
+
+  it("shows extra headers for a Vertex AI connection", () => {
+    render(
+      <CreateLLMApiKeyForm
+        owner={{ scope: "project", projectId: "project" }}
+        onSuccess={vi.fn()}
+        customization={null}
+      />,
+      { wrapper: LayerProvider },
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "LLM adapter" }));
+    fireEvent.click(screen.getByRole("option", { name: LLMAdapter.VertexAI }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show advanced settings" }),
+    );
+
+    expect(screen.getByText("Extra Headers")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Add Header" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("API Base URL")).not.toBeInTheDocument();
   });
 
   it("restores a TypeSafe connection's custom base URL after switching upstreams", () => {
