@@ -9,6 +9,7 @@ import {
 } from "@langfuse/shared";
 import {
   buildTableFilterHref,
+  buildScoreRecordsHref,
   buildViewAsTableHint,
 } from "./buildTableFilterHref";
 
@@ -315,5 +316,45 @@ describe("buildViewAsTableHint", () => {
     expect(result.notApplicable.size).toBe(1);
     expect(result.droppedForLength).toBe(1);
     expect(buildViewAsTableHint(result)?.count).toBe(2);
+  });
+});
+
+describe("score record drilldown", () => {
+  it("preserves score type scope, timestamps and explicit all-environment intent", () => {
+    const target = buildScoreRecordsHref(
+      "project",
+      "scores-numeric",
+      [
+        { column: "name", type: "string", operator: "=", value: "quality" },
+        {
+          column: "configId",
+          type: "string",
+          operator: "=",
+          value: "unsupported",
+        },
+      ],
+      DATE_RANGE,
+    );
+    const url = new URL("http://localhost" + target.href);
+    expect(url.pathname).toBe("/project/project/scores");
+    expect(url.searchParams.get("dateRange")).toBe(
+      `${DATE_RANGE.from.getTime()}-${DATE_RANGE.to.getTime()}`,
+    );
+    expect(decodeHrefFilters(target.href)).toEqual([
+      { column: "name", type: "string", operator: "=", value: "quality" },
+      {
+        column: "dataType",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["NUMERIC", "BOOLEAN"],
+      },
+      {
+        column: "environment",
+        type: "string",
+        operator: "contains",
+        value: "",
+      },
+    ]);
+    expect(target.notApplicable.has("configId")).toBe(true);
   });
 });

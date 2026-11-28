@@ -42,9 +42,9 @@ describe("IOTableCell", () => {
     expect(container.querySelector(".group\\/io-cell")).not.toBeNull();
   });
 
-  it("keeps a null nested inside a payload", () => {
+  it("keeps a null nested inside a payload", async () => {
     renderCell({ data: { context: null } });
-    expect(screen.getByText("null")).toBeInTheDocument();
+    expect(await screen.findByText("null")).toBeInTheDocument();
     expect(screen.queryByText("—")).not.toBeInTheDocument();
   });
 

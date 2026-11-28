@@ -1,6 +1,10 @@
 /* eslint-disable no-nested-ternary */
 // @vitest-environment node
 
+import { buildMultiQueryPlan } from "@/src/features/dashboard-blocks/multi-query/multiQueryModel";
+import { type FilterState } from "@langfuse/shared";
+import { multiQueryTabSchema } from "@langfuse/shared/dashboards";
+import { toSavedWidgetEditorDefinition } from "@/src/features/widgets/utils/widget-definition";
 import startCase from "lodash/startCase";
 import { type z } from "zod";
 
@@ -724,5 +728,150 @@ describe("buildWidgetName / buildWidgetDescription for sum of tool calls", () =>
         view: "observations",
       }),
     ).toBe("Avg Tool Calls (Observations)");
+  });
+});
+
+describe("saved widget editor adaptation", () => {
+  it("keeps canonical filters when opening and saving a classic widget without edits", () => {
+    const filters = [
+      {
+        column: "type",
+        type: "stringOptions" as const,
+        operator: "any of" as const,
+        value: ["GENERATION"],
+      },
+      {
+        column: "level",
+        type: "stringOptions" as const,
+        operator: "any of" as const,
+        value: ["ERROR"],
+      },
+      {
+        column: "providedModelName",
+        type: "stringOptions" as const,
+        operator: "any of" as const,
+        value: ["model-a"],
+      },
+      {
+        column: "metadata",
+        type: "stringObject" as const,
+        key: "team",
+        operator: "=" as const,
+        value: "support",
+      },
+    ];
+    const adapted = toSavedWidgetEditorDefinition({
+      name: "Filtered observations",
+      description: "",
+      view: "OBSERVATIONS",
+      metrics: [{ measure: "count", agg: "count" }],
+      dimensions: [],
+      filters,
+      chartType: "NUMBER",
+    });
+    if (adapted.kind !== "multiQuery") throw new Error("Expected tabbed chart");
+    expect(adapted.config.tabs[0].queries[0].filters).toEqual(filters);
+  });
+
+  it("canonicalizes saved widget labels without dropping unsupported filters", () => {
+    const sourceFilters = [
+      {
+        column: "Release",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "release-1",
+      },
+      {
+        column: "Score Name",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "quality",
+      },
+      {
+        column: "futureField",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "keep",
+      },
+      {
+        column: "release",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "observation-release",
+      },
+    ];
+    const tab = {
+      id: "main",
+      label: "Main",
+      queries: [
+        {
+          id: "a",
+          label: "Observations",
+          view: "observations",
+          metrics: [{ id: "m0", measure: "count", aggregation: "count" }],
+          dimensions: [],
+          filters: sourceFilters,
+        },
+      ],
+      display: { chartType: "NUMBER" },
+    };
+    const widget = {
+      name: "Compatibility filters",
+      description: "",
+      view: "observations",
+      metrics: [{ measure: "count", agg: "count" }],
+      dimensions: [],
+      filters: sourceFilters,
+      chartType: "NUMBER",
+    };
+    const legacy = toSavedWidgetEditorDefinition(widget);
+    if (legacy.kind !== "multiQuery") throw new Error("Expected chart");
+    expect(
+      legacy.config.tabs[0].queries[0].filters.find(
+        (filter) => filter.value === "release-1",
+      )?.column,
+    ).toBe("traceRelease");
+    const adapted = toSavedWidgetEditorDefinition({
+      ...widget,
+      definition: {
+        version: 1,
+        kind: "multiQuery",
+        config: { title: widget.name, description: "", tabs: [tab] },
+      },
+    });
+    if (adapted.kind !== "multiQuery") throw new Error("Expected chart");
+    const queries = adapted.config.tabs[0].queries;
+    const context = {
+      readPath: "v4" as const,
+      filterState: [],
+      dateRange: { from: new Date("2026-11-01"), to: new Date("2026-11-02") },
+    };
+    const plannedFilters = (filters: FilterState) =>
+      buildMultiQueryPlan(
+        multiQueryTabSchema.parse({
+          ...tab,
+          queries: [{ ...tab.queries[0], filters }],
+        }),
+        context,
+      ).queries[0].query.filters;
+    const before = plannedFilters([sourceFilters[0], sourceFilters[3]]);
+    const after = plannedFilters(
+      queries[0].filters.filter((filter) =>
+        ["release-1", "observation-release"].includes(String(filter.value)),
+      ),
+    );
+    expect(after).toEqual(before);
+    expect(queries[0].filters).toHaveLength(4);
+    expect(queries[0].filters).toEqual(
+      expect.arrayContaining([
+        { ...sourceFilters[0], column: "traceRelease" },
+        sourceFilters[1],
+        sourceFilters[2],
+        sourceFilters[3],
+      ]),
+    );
+    expect(
+      toSavedWidgetEditorDefinition({ ...widget, definition: adapted }),
+    ).toEqual(adapted);
   });
 });

@@ -834,7 +834,10 @@ export { WidgetListResponseSchema } from "./services/DashboardService/types";
 export { type DashboardDefinition } from "./services/DashboardService/types";
 export { type DashboardDomain } from "./services/DashboardService/types";
 export { type DashboardListResponse } from "./services/DashboardService/types";
-export { type WidgetDomain } from "./services/DashboardService/types";
+export {
+  type WidgetDomain,
+  type WidgetReadDomain,
+} from "./services/DashboardService/types";
 export { type CreateWidgetInput } from "./services/DashboardService/types";
 export { type WidgetListResponse } from "./services/DashboardService/types";
 export { TableViewService } from "./services/TableViewService/TableViewService";
@@ -976,3 +979,5 @@ export { AI_GATEWAY_COST_SOURCE_METADATA_KEY } from "./otel/OtelIngestionProcess
 export { AI_GATEWAY_KEY_ID_METADATA_KEY } from "./otel/OtelIngestionProcessor";
 export { aiGatewayIngestionApiKey } from "./otel/OtelIngestionProcessor";
 export { isAiGatewayIngestionApiKey } from "./otel/OtelIngestionProcessor";
+
+export { SaveWidgetDefinitionInput } from "./services/DashboardService/widget-definition-storage";

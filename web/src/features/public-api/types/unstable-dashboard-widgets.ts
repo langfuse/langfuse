@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   ChartConfigSchema,
+  widgetDefinitionSchema,
   DashboardWidgetChartType,
   DimensionSchema,
   MetricSchema,
@@ -41,7 +42,7 @@ const DashboardWidgetChartConfigInput = z
   })
   .loose();
 
-const UnstableDashboardWidgetBody = z.object({
+export const ClassicDashboardWidgetBody = z.object({
   name: z.string().min(1, "Widget name is required"),
   description: z.string(),
   view: PostUnstableDashboardWidgetView,
@@ -52,14 +53,28 @@ const UnstableDashboardWidgetBody = z.object({
   chartConfig: DashboardWidgetChartConfigInput.optional(),
 });
 
-export const PostUnstableDashboardWidgetBody =
-  UnstableDashboardWidgetBody.extend({
-    description: z.string().default(""),
-  });
+// Reject read-only content before the classic schema strips unknown fields.
+const classicWrite = z
+  .unknown()
+  .refine(
+    (input) =>
+      !(
+        input &&
+        typeof input === "object" &&
+        Object.hasOwn(input, "definition")
+      ),
+    { path: ["definition"], message: "Widget definition is read-only" },
+  );
+export const PostUnstableDashboardWidgetBody = classicWrite.pipe(
+  ClassicDashboardWidgetBody.extend({ description: z.string().default("") }),
+);
 
 const PublicDashboardWidget = z
   .object({
     id: z.string(),
+    invalid: z.literal(false).optional(),
+    definition: widgetDefinitionSchema.nullish(),
+    revision: z.number().int().nonnegative().optional(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
     name: z.string(),
@@ -80,8 +95,25 @@ export const GetUnstableDashboardWidgetsQuery = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(50),
 });
+export const GetUnstableDashboardWidgetResponse = z.discriminatedUnion(
+  "invalid",
+  [
+    PublicDashboardWidget,
+    PublicDashboardWidget.extend({
+      invalid: z.literal(true),
+      revision: z.number().int().optional(),
+      view: z.string(),
+      chartType: z.string(),
+      definition: z.unknown(),
+      dimensions: z.unknown(),
+      metrics: z.unknown(),
+      filters: z.unknown(),
+      chartConfig: z.unknown(),
+    }),
+  ],
+);
 export const GetUnstableDashboardWidgetsResponse = z.object({
-  data: z.array(PublicDashboardWidget),
+  data: z.array(GetUnstableDashboardWidgetResponse),
   meta: z.object({
     page: z.number(),
     limit: z.number(),
@@ -90,13 +122,12 @@ export const GetUnstableDashboardWidgetsResponse = z.object({
   }),
 });
 export const DashboardWidgetIdQuery = z.object({ widgetId: z.string() });
-/** @alias */
-export const GetUnstableDashboardWidgetResponse = PublicDashboardWidget;
-export const PatchUnstableDashboardWidgetBody =
-  UnstableDashboardWidgetBody.partial().refine(
+export const PatchUnstableDashboardWidgetBody = classicWrite.pipe(
+  ClassicDashboardWidgetBody.partial().refine(
     (value) => Object.keys(value).length > 0,
     "At least one field is required",
-  );
+  ),
+);
 /** @alias */
 export const PatchUnstableDashboardWidgetResponse = PublicDashboardWidget;
 export const DeleteUnstableDashboardWidgetResponse = z.object({

@@ -7238,7 +7238,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/unstableDashboardWidget'
+                $ref: '#/components/schemas/unstableDashboardWidgetRead'
         '400':
           description: ''
           content:
@@ -16269,7 +16269,7 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/unstableDashboardWidget'
+            $ref: '#/components/schemas/unstableDashboardWidgetRead'
         meta:
           $ref: '#/components/schemas/utilsMetaResponse'
       required:
@@ -16283,10 +16283,58 @@ components:
           type: string
       required:
         - message
-    unstableDashboardWidget:
-      title: unstableDashboardWidget
+    unstableWidgetDefinition:
+      title: unstableWidgetDefinition
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - multiQuery
+            - $ref: '#/components/schemas/unstableMultiQueryWidget'
+          required:
+            - kind
+          title: UnstableMultiQueryWidget
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - markdown
+            - $ref: '#/components/schemas/unstableMarkdownWidget'
+          required:
+            - kind
+          title: UnstableMarkdownWidget
+      description: >-
+        Read-only widget content. When present, use this definition to render
+        every tab, formula or Markdown. The flat fields describe its classic
+        projection.
+      required:
+        - version
+      properties:
+        version:
+          $ref: '#/components/schemas/unstableWidgetDefinitionVersion'
+    unstableDashboardWidgetRead:
+      title: unstableDashboardWidgetRead
+      oneOf:
+        - $ref: '#/components/schemas/unstableDashboardWidget'
+        - $ref: '#/components/schemas/unstableInvalidDashboardWidget'
+      description: >-
+        A saved widget. Check invalid before rendering a widget whose content
+        this server cannot interpret.
+    unstableDashboardWidgetMetadata:
+      title: unstableDashboardWidgetMetadata
       type: object
       properties:
+        revision:
+          type: integer
+          nullable: true
+          description: Optimistic edit revision. Classic widgets begin at zero.
         id:
           type: string
         createdAt:
@@ -16299,8 +16347,27 @@ components:
           type: string
         description:
           type: string
+      required:
+        - id
+        - createdAt
+        - updatedAt
+        - name
+        - description
+    unstableDashboardWidget:
+      title: unstableDashboardWidget
+      type: object
+      properties:
+        definition:
+          $ref: '#/components/schemas/unstableWidgetDefinition'
+          nullable: true
+        invalid:
+          type: boolean
+          const: false
+          nullable: true
         view:
           $ref: '#/components/schemas/unstableDashboardWidgetViewWithLegacy'
+        chartType:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
         dimensions:
           type: array
           items:
@@ -16313,22 +16380,307 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/unstableDashboardWidgetFilter'
-        chartType:
-          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
         chartConfig:
           $ref: '#/components/schemas/unstableDashboardWidgetChartConfig'
       required:
-        - id
-        - createdAt
-        - updatedAt
-        - name
-        - description
         - view
+        - chartType
         - dimensions
         - metrics
         - filters
-        - chartType
         - chartConfig
+      allOf:
+        - $ref: '#/components/schemas/unstableDashboardWidgetMetadata'
+    unstableInvalidDashboardWidget:
+      title: unstableInvalidDashboardWidget
+      type: object
+      description: >-
+        The original JSON fields are returned as stored for a widget this server
+        cannot interpret.
+      properties:
+        invalid:
+          type: boolean
+          const: true
+        view:
+          type: string
+        chartType:
+          type: string
+        definition: {}
+        dimensions: {}
+        metrics: {}
+        filters: {}
+        chartConfig: {}
+      required:
+        - invalid
+        - view
+        - chartType
+        - definition
+        - dimensions
+        - metrics
+        - filters
+        - chartConfig
+      allOf:
+        - $ref: '#/components/schemas/unstableDashboardWidgetMetadata'
+    unstableWidgetDefinitionVersion:
+      title: unstableWidgetDefinitionVersion
+      type: integer
+      enum:
+        - 1
+    unstableWidgetQueryView:
+      title: unstableWidgetQueryView
+      type: string
+      enum:
+        - observations
+        - traces
+        - scores
+        - scores-numeric
+        - scores-boolean
+        - scores-categorical
+      description: >-
+        `scores` provides full-period counts and numeric means. On the current
+
+        observations read path it includes numeric, boolean and categorical
+        scores;
+
+        the legacy trace read path also includes text and correction scores.
+    unstableMarkdownWidget:
+      title: unstableMarkdownWidget
+      type: object
+      properties:
+        config:
+          $ref: '#/components/schemas/unstableDashboardMarkdownConfig'
+      required:
+        - config
+    unstableMultiQueryWidget:
+      title: unstableMultiQueryWidget
+      type: object
+      properties:
+        config:
+          $ref: '#/components/schemas/unstableDashboardMultiQueryConfig'
+      required:
+        - config
+    unstableDashboardMarkdownConfig:
+      title: unstableDashboardMarkdownConfig
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+          description: Markdown content, at most 100000 characters.
+      required:
+        - title
+        - content
+    unstableDashboardMultiQueryConfig:
+      title: unstableDashboardMultiQueryConfig
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        tabs:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryTab'
+          description: >-
+            One to nine ordered independent tabs with unique IDs. The first tab
+            is shown by default.
+      required:
+        - title
+        - description
+        - tabs
+    unstableDashboardMultiQueryTab:
+      title: unstableDashboardMultiQueryTab
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        queries:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryTabSource'
+          description: Between one and five independent source queries.
+        display:
+          $ref: '#/components/schemas/unstableDashboardMultiQueryDisplay'
+        formulas:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryFormula'
+          nullable: true
+          description: Up to five calculations over metrics in this tab.
+      required:
+        - id
+        - label
+        - queries
+        - display
+    unstableDashboardMultiQueryFormula:
+      title: unstableDashboardMultiQueryFormula
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+          description: >-
+            Set to an empty string to display the formula expression with the
+            current series names. References in the stored expression use query
+            and metric IDs.
+        expression:
+          type: string
+          description: >-
+            Arithmetic on queryId.metricId references from this tab, numeric
+            literals, and parentheses. Null or missing operands and division by
+            zero have no value.
+        format:
+          $ref: '#/components/schemas/unstableDashboardMultiQueryFormulaFormat'
+        hidden:
+          type: boolean
+          nullable: true
+      required:
+        - id
+        - label
+        - expression
+        - format
+    unstableDashboardMultiQueryFormulaFormat:
+      title: unstableDashboardMultiQueryFormulaFormat
+      type: string
+      enum:
+        - number
+        - percent
+    unstableDashboardMultiQueryTabSource:
+      title: unstableDashboardMultiQueryTabSource
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        view:
+          $ref: '#/components/schemas/unstableWidgetQueryView'
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryTabMetric'
+        dimensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetDimension'
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+        orderBy:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryOrder'
+          nullable: true
+        hidden:
+          type: boolean
+          nullable: true
+          description: Keep the source available for formulas without plotting its metrics.
+      required:
+        - id
+        - label
+        - view
+        - metrics
+        - dimensions
+        - filters
+    unstableDashboardMultiQueryTabMetric:
+      title: unstableDashboardMultiQueryTabMetric
+      type: object
+      properties:
+        hidden:
+          type: boolean
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/unstableDashboardMultiQueryMetric'
+    unstableDashboardMultiQueryMetric:
+      title: unstableDashboardMultiQueryMetric
+      type: object
+      properties:
+        id:
+          type: string
+          description: >-
+            At most 64 characters, starting with a letter and containing only
+            letters, digits and underscores.
+        label:
+          type: string
+          nullable: true
+        measure:
+          type: string
+        aggregation:
+          $ref: '#/components/schemas/unstableDashboardWidgetMetricAggregation'
+      required:
+        - id
+        - measure
+        - aggregation
+    unstableDashboardMultiQueryOrder:
+      title: unstableDashboardMultiQueryOrder
+      type: object
+      properties:
+        field:
+          type: string
+        direction:
+          $ref: '#/components/schemas/unstableDashboardMultiQuerySortDirection'
+      required:
+        - field
+        - direction
+    unstableDashboardMultiQuerySortDirection:
+      title: unstableDashboardMultiQuerySortDirection
+      type: string
+      enum:
+        - asc
+        - desc
+    unstableDashboardMultiQueryDisplay:
+      title: unstableDashboardMultiQueryDisplay
+      type: object
+      properties:
+        chartType:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+        defaultSort:
+          $ref: '#/components/schemas/unstableDashboardWidgetDefaultSort'
+          nullable: true
+        showValueLabels:
+          type: boolean
+          nullable: true
+        rowLimit:
+          type: integer
+          nullable: true
+          description: Between 1 and 1000.
+        bins:
+          type: integer
+          nullable: true
+          description: Between 1 and 100.
+        legend:
+          type: boolean
+          nullable: true
+        subtotalMetric:
+          type: string
+          nullable: true
+          description: >-
+            A source.metric reference to a count or sum. The subtotal includes
+            returned groups before table display filters.
+        hideUnattributedRows:
+          type: boolean
+          nullable: true
+          description: Hide table rows with a missing breakdown value.
+        timeBuckets:
+          $ref: '#/components/schemas/unstableDashboardTimeBuckets'
+          nullable: true
+          description: >-
+            Use the dashboard's time interval or let the analytics query choose
+            one.
+      required:
+        - chartType
+    unstableDashboardTimeBuckets:
+      title: unstableDashboardTimeBuckets
+      type: string
+      enum:
+        - auto
+        - dashboard
     unstableDashboardPlacement:
       title: unstableDashboardPlacement
       oneOf:

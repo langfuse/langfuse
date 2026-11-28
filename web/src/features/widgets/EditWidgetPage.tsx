@@ -1,5 +1,9 @@
+import { useCanAuthorDashboardWidgets } from "@/src/features/feature-flags/hooks/useCanAuthorDashboardWidgets";
+import { INVALID_WIDGET_MESSAGE } from "./components/InvalidWidgetCard";
+import { SavedWidgetEditor } from "./components/SavedWidgetEditor";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/Page";
+import { ErrorPage } from "@/src/components/ErrorPage";
 import { api } from "@/src/utils/api";
 import { ConnectedWidgetForm } from "@/src/features/widgets/components/ConnectedWidgetForm";
 import { type WidgetSavePayload } from "@/src/features/widgets/components/widgetFormSchema";
@@ -13,6 +17,7 @@ import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export default function EditWidgetPage() {
   const router = useRouter();
+  const authoringEnabled = useCanAuthorDashboardWidgets();
   const { projectId, widgetId, dashboardId } = router.query as {
     projectId: string;
     widgetId: string;
@@ -25,16 +30,20 @@ export default function EditWidgetPage() {
   // The form derives its view/version declaration from the read path at
   // mount — an unresolved session would seed a v4 user's editor as v3.
   const { isResolved } = useReadPath();
-  const { data: widgetData, isLoading: isWidgetLoading } =
-    api.dashboardWidgets.get.useQuery(
-      {
-        projectId,
-        widgetId,
-      },
-      {
-        enabled: Boolean(projectId) && Boolean(widgetId),
-      },
-    );
+  const {
+    data: widgetData,
+    isLoading: isWidgetLoading,
+    isError: isWidgetError,
+    isSuccess: isWidgetSuccess,
+  } = api.dashboardWidgets.get.useQuery(
+    {
+      projectId,
+      widgetId,
+    },
+    {
+      enabled: Boolean(projectId) && Boolean(widgetId),
+    },
+  );
 
   // Update widget mutation
   const updateWidgetMutation = api.dashboardWidgets.update.useMutation({
@@ -95,11 +104,48 @@ export default function EditWidgetPage() {
     });
   };
 
+  if (isWidgetError || (isWidgetSuccess && !widgetData))
+    return (
+      <Page withPadding headerProps={{ title: "Edit widget" }}>
+        <ErrorPage
+          title="Widget unavailable"
+          message="This widget could not be loaded. It may have been removed, use an unsupported format, or be unavailable to your account."
+          additionalButton={{
+            label: "Back to widgets",
+            href: `/project/${projectId}/widgets`,
+          }}
+        />
+      </Page>
+    );
+
+  if (widgetData?.invalid)
+    return (
+      <Page withPadding headerProps={{ title: widgetData.name }}>
+        <ErrorPage
+          title="Invalid widget configuration"
+          message={INVALID_WIDGET_MESSAGE}
+          additionalButton={{
+            label: "Back to widgets",
+            href: `/project/${projectId}/widgets`,
+          }}
+        />
+      </Page>
+    );
+
+  if (widgetData && isResolved && (authoringEnabled || widgetData.definition))
+    return (
+      <SavedWidgetEditor
+        projectId={projectId}
+        dashboardId={dashboardId}
+        widget={widgetData}
+      />
+    );
+
   return (
     <Page
       withPadding
       headerProps={{
-        title: "Edit Widget",
+        title: "Edit widget",
         help: {
           description: "Edit an existing widget",
         },

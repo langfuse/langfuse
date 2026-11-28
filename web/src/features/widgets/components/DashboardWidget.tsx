@@ -56,6 +56,8 @@ import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { InvalidWidgetCard } from "./InvalidWidgetCard";
+import { SavedWidgetCard } from "./SavedWidgetCard";
 import { WidgetChartCard } from "./WidgetChartCard";
 import { getWidgetChartQueryState } from "../fns/getWidgetChartQueryState";
 
@@ -69,7 +71,46 @@ export interface WidgetPlacement {
   type: "widget";
 }
 
-export function DashboardWidget({
+export function DashboardWidget(
+  props: Parameters<typeof ClassicDashboardWidget>[0],
+) {
+  const canEdit = useHasProjectAccess({
+    projectId: props.projectId,
+    scope: "dashboards:CUD",
+  });
+  const widget = api.dashboardWidgets.get.useQuery(
+    { projectId: props.projectId, widgetId: props.placement.widgetId },
+    { enabled: Boolean(props.projectId) },
+  );
+  if (widget.isPending)
+    return (
+      <WidgetChartCard
+        title="Loading widget"
+        content={{ type: "loading", progress: { type: "spinner" } }}
+      />
+    );
+  if (widget.data?.invalid)
+    return (
+      <InvalidWidgetCard
+        name={widget.data.name}
+        onRemove={
+          canEdit && !props.readOnly && props.dashboardOwner === "PROJECT"
+            ? () => props.onDeleteWidget(props.placement.id)
+            : undefined
+        }
+      />
+    );
+  if (widget.data?.definition)
+    return (
+      <SavedWidgetCard
+        {...props}
+        widget={{ ...widget.data, definition: widget.data.definition }}
+      />
+    );
+  return <ClassicDashboardWidget {...props} />;
+}
+
+function ClassicDashboardWidget({
   projectId,
   dashboardId,
   chartSync,
@@ -82,6 +123,7 @@ export function DashboardWidget({
   schedulerId,
   onLockedEditAttempt,
   readOnly,
+  showDuplicateButton = false,
   onDuplicateWidget,
 }: {
   projectId: string;
@@ -107,6 +149,7 @@ export function DashboardWidget({
    * Clones this widget (new widget row seeded from `widget`) next to this
    * tile. Passed only on editable (non-locked) dashboards.
    */
+  showDuplicateButton?: boolean;
   onDuplicateWidget?: (
     anchor: WidgetPlacement,
     widget: WidgetExportSource,
@@ -123,6 +166,7 @@ export function DashboardWidget({
     },
     {
       enabled: Boolean(projectId),
+      select: (widget) => (widget.invalid ? null : widget),
     },
   );
   const metricsVersion = resolveWidgetRenderVersion({
@@ -437,22 +481,30 @@ export function DashboardWidget({
     );
   }
 
+  const widgetData = widget.data;
+
   // Portable configuration of this widget, used by the copy / download /
   // duplicate menu actions.
   const widgetExportSource: WidgetExportSource = {
-    name: widget.data.name,
-    description: widget.data.description,
-    view: widget.data.view,
-    dimensions: widget.data.dimensions,
-    metrics: widget.data.metrics.map((metric) => ({
+    name: widgetData.name,
+    description: widgetData.description,
+    view: widgetData.view,
+    dimensions: widgetData.dimensions,
+    metrics: widgetData.metrics.map((metric) => ({
       measure: metric.measure,
       agg: metric.agg as z.infer<typeof metricAggregations>,
     })),
-    filters: widget.data.filters,
-    chartType: widget.data.chartType,
-    chartConfig: widget.data.chartConfig,
-    minVersion: widget.data.minVersion,
+    filters: widgetData.filters,
+    chartType: widgetData.chartType,
+    chartConfig: widgetData.chartConfig,
+    minVersion: widgetData.minVersion,
+    definition: widgetData.definition ?? undefined,
   };
+
+  const duplicate =
+    !readOnly && hasCUDAccess && onDuplicateWidget
+      ? () => onDuplicateWidget(placement, widgetExportSource)
+      : undefined;
 
   const handleCopyToClipboard = async () => {
     try {
@@ -494,17 +546,17 @@ export function DashboardWidget({
         <CopyWidgetDialog
           open={isCopyDialogOpen}
           onOpenChange={setIsCopyDialogOpen}
-          widgetName={widget.data.name}
+          widgetName={widgetData.name}
           onConfirm={handleCopy}
           isPending={copyMutation.isPending}
         />
       )}
       <WidgetChartCard
-        chartType={widget.data.chartType}
-        title={widget.data.name}
-        description={widget.data.description}
+        chartType={widgetData.chartType}
+        title={widgetData.name}
+        description={widgetData.description}
         badge={
-          dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE"
+          dashboardOwner === "PROJECT" && widgetData.owner === "LANGFUSE"
             ? {
                 text: "Langfuse",
                 description:
@@ -549,7 +601,7 @@ export function DashboardWidget({
                         onLockedEditAttempt?.();
                         return;
                       }
-                      if (widget.data.owner === "PROJECT") {
+                      if (widgetData.owner === "PROJECT") {
                         handleEdit();
                         return;
                       }
@@ -560,6 +612,16 @@ export function DashboardWidget({
                       setIsCopyDialogOpen(true);
                     },
                   },
+                  ...(showDuplicateButton && duplicate
+                    ? [
+                        {
+                          id: "duplicate",
+                          label: "Duplicate widget",
+                          icon: CopyPlusIcon,
+                          onClick: duplicate,
+                        },
+                      ]
+                    : []),
                 ]
               : [],
           menu: [
@@ -588,15 +650,14 @@ export function DashboardWidget({
               icon: CopyIcon,
               onClick: handleCopyToClipboard,
             },
-            ...(onDuplicateWidget
+            ...(!showDuplicateButton && duplicate
               ? [
                   {
                     type: "item" as const,
                     id: "clone",
                     title: "Clone",
                     icon: CopyPlusIcon,
-                    onClick: () =>
-                      onDuplicateWidget(placement, widgetExportSource),
+                    onClick: duplicate,
                   },
                 ]
               : []),
@@ -617,7 +678,7 @@ export function DashboardWidget({
                 ? { reason: "Chart data is still loading" }
                 : undefined,
               onClick: () =>
-                downloadChartDataCsv(transformedData, widget.data.name),
+                downloadChartDataCsv(transformedData, widgetData.name),
             },
             ...(!readOnly && (hasCUDAccess || isLockedEditable)
               ? [
@@ -641,17 +702,17 @@ export function DashboardWidget({
         syncId={dashboardId}
         sync={chartSync}
         config={chartMetricConfig}
-        rowLimit={getWidgetRowLimit(widget.data.chartConfig)}
+        rowLimit={getWidgetRowLimit(widgetData.chartConfig)}
         chartConfig={chartConfigForRender}
         sortState={
-          widget.data.chartType === "PIVOT_TABLE" ? sortState : undefined
+          widgetData.chartType === "PIVOT_TABLE" ? sortState : undefined
         }
         onSortChange={
-          widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
+          widgetData.chartType === "PIVOT_TABLE" ? updateSort : undefined
         }
         metricFormatter={chartPresentation?.metricFormatter}
         missingValue={getWidgetMissingBucketValue(
-          widget.data.metrics[0]?.agg ?? "count",
+          widgetData.metrics[0]?.agg ?? "count",
         )}
       />
     </>

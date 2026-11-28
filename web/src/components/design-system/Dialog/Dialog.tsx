@@ -18,6 +18,7 @@ const dialogContentVariants = cva(
   {
     variants: {
       size: {
+        xs: "top-1/2 left-1/2 h-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg",
         sm: "sm:max-w-md",
         default: "sm:max-w-lg",
         md: "sm:max-w-2xl",
@@ -63,7 +64,11 @@ type DialogProps = {
     /** Accessible label for the back button. Defaults to "Back". */
     label?: string;
   };
-  title: string;
+  /** An interactive title keeps the dialog's accessible name separate from its control. */
+  title: string | { label: string; control: React.ReactElement };
+  onCloseAutoFocus?: React.ComponentProps<
+    typeof DialogPrimitive.Content
+  >["onCloseAutoFocus"];
 } & (
   | { children?: React.ReactNode; text?: never }
   | { children?: never; text: string }
@@ -75,6 +80,7 @@ type DialogProps = {
 function DialogRoot({
   actions,
   noCapture,
+  onCloseAutoFocus,
   children,
   closeLabel,
   hideCloseButton = false,
@@ -89,6 +95,7 @@ function DialogRoot({
   const container = useLayerContainer("modal");
   const [popoverContainer, setPopoverContainer] =
     React.useState<HTMLDivElement | null>(null);
+  const headingRef = React.useRef<HTMLHeadingElement>(null);
   const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
   // Radix auto-focuses only on open; a dialog that swaps to a close-only
   // footer while open (e.g. after a submit) would otherwise drop focus to the
@@ -121,6 +128,7 @@ function DialogRoot({
           dialogContentVariants({ size }),
           noCapture && "ph-no-capture",
         )}
+        onCloseAutoFocus={onCloseAutoFocus}
         onOpenAutoFocus={(event) => {
           // Radix otherwise focuses Cancel because it is the first tabbable.
           // Prefer the rightmost safe action, falling back to Cancel rather
@@ -131,6 +139,11 @@ function DialogRoot({
             return;
           }
 
+          if (typeof title !== "string") {
+            event.preventDefault();
+            headingRef.current?.focus();
+            return;
+          }
           if (text === undefined) return;
 
           let safeActionButton: HTMLButtonElement | null = null;
@@ -190,8 +203,15 @@ function DialogRoot({
                     <ChevronLeft size="base" aria-hidden />
                   </button>
                 ) : null}
-                <DialogPrimitive.Title className="min-w-0 flex-1 text-lg leading-none font-bold tracking-tight">
-                  {title}
+                <DialogPrimitive.Title
+                  ref={headingRef}
+                  tabIndex={typeof title === "string" ? undefined : -1}
+                  aria-label={
+                    typeof title === "string" ? undefined : title.label
+                  }
+                  className="min-w-0 flex-1 text-lg leading-none font-bold tracking-tight outline-none"
+                >
+                  {typeof title === "string" ? title : title.control}
                 </DialogPrimitive.Title>
               </div>
               {requireExplicitClose ? null : (

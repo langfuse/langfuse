@@ -1,0 +1,36 @@
+import {
+  toWidgetDefinition,
+  getWidgetQueryView,
+  type MultiQueryTab,
+  type WidgetDefinition,
+} from "@langfuse/shared/dashboards";
+import { partitionStoredUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+
+export function toSavedWidgetEditorDefinition(
+  widget: Parameters<typeof toWidgetDefinition>[0],
+): WidgetDefinition {
+  const definition = toWidgetDefinition(widget);
+  if (definition.kind === "markdown") return definition;
+  const normalizeSource = (source: MultiQueryTab["queries"][number]) => {
+    const { mappedFilters, unsupportedFilters } =
+      partitionStoredUiTableFiltersToView(
+        getWidgetQueryView(source.view),
+        source.filters,
+      );
+    return {
+      ...source,
+      filters: [...mappedFilters, ...unsupportedFilters],
+    };
+  };
+  const config = definition.config;
+  return {
+    ...definition,
+    config: {
+      ...config,
+      tabs: config.tabs.map((tab) => ({
+        ...tab,
+        queries: tab.queries.map(normalizeSource),
+      })),
+    },
+  };
+}

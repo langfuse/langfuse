@@ -103,6 +103,20 @@ describe("parseDashboardImport", () => {
     });
   });
 
+  it("rejects legacy preset imports before returning any writes for new-widget authors", () => {
+    const payload = JSON.stringify(validExport());
+    expect(
+      parseDashboardImport(payload, { isV4: false, allowLegacyPresets: false }),
+    ).toMatchObject({
+      status: "invalid",
+      reason: expect.stringContaining("Templates"),
+    });
+    expect(
+      parseDashboardImport(payload, { isV4: false, allowLegacyPresets: true })
+        .status,
+    ).toBe("dashboard");
+  });
+
   it("round-trips an exported dashboard", () => {
     const result = parseDashboardImport(JSON.stringify(validExport()), {
       isV4: false,
@@ -271,4 +285,26 @@ describe("isPasteablePlacementPayload", () => {
       }),
     ).toBe(false);
   });
+});
+
+it("preserves selected Home models and score definitions through clipboard export", () => {
+  const selection = {
+    models: ["model-alpha"],
+    scores: [{ name: "Quality", source: "EVAL", dataType: "NUMERIC" }],
+    activeTab: "p99",
+  };
+  const payload = buildPresetExport("home-model-usage", selection);
+  expect(parsePastedPreset(JSON.stringify(payload))).toEqual({
+    status: "preset",
+    presetId: "home-model-usage",
+    selection,
+  });
+  expect(
+    parsePastedPreset(
+      JSON.stringify({ ...payload, selection: { models: [42] } }),
+    ),
+  ).toMatchObject({ status: "invalid" });
+  expect(
+    parsePastedPreset(JSON.stringify(buildPresetExport("home-model-usage"))),
+  ).toEqual({ status: "preset", presetId: "home-model-usage" });
 });

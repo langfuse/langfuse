@@ -13,6 +13,11 @@ vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
 }));
 
 vi.mock(
+  "@/src/features/feature-flags/hooks/useCanAuthorDashboardWidgets",
+  () => ({ useCanAuthorDashboardWidgets: () => false }),
+);
+
+vi.mock(
   "@/src/features/sessions/ConnectedSessionDetailPage/ConnectedSessionDetailPage",
   () => ({
     ConnectedSessionDetailPage: ({ sessionId }: { sessionId: string }) => (

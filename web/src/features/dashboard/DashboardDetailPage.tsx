@@ -1,4 +1,6 @@
+import { widgetDefinitionSchema } from "@langfuse/shared/dashboards";
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { useCanAuthorDashboardWidgets } from "@/src/features/feature-flags/hooks/useCanAuthorDashboardWidgets";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import {
@@ -22,7 +24,6 @@ import {
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import {
-  PlusIcon,
   Copy,
   ClipboardPasteIcon,
   HomeIcon,
@@ -42,7 +43,7 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   type DashboardPlacement,
-  DashboardGrid,
+  type WidgetDuplicateSurface,
 } from "@/src/features/widgets/components/DashboardGrid";
 import {
   parsePastedWidget,
@@ -94,6 +95,12 @@ import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingF
 import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
+import { useCopyHomeWidget } from "@/src/features/dashboard-blocks/useCopyHomeWidget";
+import { type PresetSelection } from "@/src/features/dashboard/components/home-preset-registry";
+import { DashboardBlocksProvider } from "@/src/features/dashboard-blocks/DashboardBlocksProvider";
+import { DashboardBlocksAddMenu } from "@/src/features/dashboard-blocks/DashboardBlocksAddMenu";
+import { DashboardWidgetsGrid } from "@/src/features/dashboard-blocks/DashboardWidgetsGrid";
+
 // Position for a tile inserted "next to" an anchor tile: same size,
 // immediately to the right when that fits the 12-column grid, otherwise
 // directly below the anchor. Collisions are resolved by the grid layout.
@@ -116,7 +123,7 @@ export default function DashboardDetailPage() {
   if (!route.ready) {
     return <RouteParamsPendingFallback />;
   }
-  const { projectId } = route.params;
+  const { projectId, dashboardId } = route.params;
   if (readPath === "unknown") {
     return (
       <Page
@@ -135,19 +142,40 @@ export default function DashboardDetailPage() {
       </Page>
     );
   }
-  return <DashboardDetailView readPath={readPath} />;
+  return (
+    <DashboardDetailView
+      key={`${projectId}:${dashboardId}`}
+      projectId={projectId}
+      dashboardId={dashboardId}
+      readPath={readPath}
+    />
+  );
 }
 
-function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
+function DashboardDetailView({
+  projectId,
+  dashboardId,
+  readPath,
+}: {
+  projectId: string;
+  dashboardId: string;
+  readPath: ResolvedReadPath;
+}) {
   const router = useRouter();
   const utils = api.useUtils();
+  const authoringEnabled = useCanAuthorDashboardWidgets();
   const capture = usePostHogClientCapture();
 
-  const { projectId, dashboardId, addWidgetId } = router.query as {
-    projectId: string;
-    dashboardId: string;
-    addWidgetId?: string;
-  };
+  const { addWidgetId } = router.query as { addWidgetId?: string };
+  const mounted = useRef(true);
+  // In-flight widget creation may finish after navigation. Its caller must
+  // delete the new row rather than attach it to an abandoned dashboard draft.
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const lookbackLimit = useEntitlementLimit("data-access-days");
   const isV4 = readPath === "v4";
@@ -200,6 +228,42 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     [timeRange],
   );
 
+  const environmentOptionsState = useEnvironmentFilterOptionsCache({
+    projectId,
+    timeRange,
+  });
+  const environmentOptions = environmentOptionsState.environmentOptions.map(
+    (value) => ({
+      value,
+    }),
+  );
+
+  // Dedicated environment selector, same as Home. The selection is a view
+  // setting (persisted per project for this user), merged into the widget
+  // filters but never written into the dashboard's saved filters.
+  const { selectedEnvironments, setSelectedEnvironments } =
+    useEnvironmentFilter(environmentOptionsState.environmentOptions, projectId);
+  const setSelectedEnvironmentsDebounced = useDebounce(setSelectedEnvironments);
+  const environmentFilter = useMemo(
+    () =>
+      convertSelectedEnvironmentsToFilter(
+        ["environment"],
+        selectedEnvironments,
+      ),
+    [selectedEnvironments],
+  );
+  const gridFilterState: FilterState = useMemo(
+    () => [...currentFilters, ...environmentFilter],
+    [currentFilters, environmentFilter],
+  );
+  const { copy: copyHomeWidget, selectionDialog: homeCopySelectionDialog } =
+    useCopyHomeWidget({
+      projectId,
+      version: isV4 ? "v2" : "v1",
+      dateRange: absoluteTimeRange,
+      filterState: gridFilterState,
+    });
+
   // Check if current filters differ from saved filters
   const hasUnsavedFilterChanges = useMemo(() => {
     return JSON.stringify(currentFilters) !== JSON.stringify(savedFilters);
@@ -210,7 +274,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     definitionRef: dashboardDefinitionRef,
     applyDraft,
     clearDraftIfSaved,
-  } = useDashboardDefinitionDraft(dashboard.data?.definition);
+  } = useDashboardDefinitionDraft(dashboard.data?.definition, hasCUDAccess);
   // The async flows below (paste/duplicate/import) commit a definition change
   // only after a network round-trip. They must compute it from this ref — the
   // definition as of NOW — not from the state captured when the handler
@@ -225,6 +289,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     api.dashboard.updateDashboardDefinition.useMutation({
       // Saves are silent; the header shows a spinner while in flight.
       onSuccess: (updatedDashboard, variables) => {
+        if (!variables.definition) return;
         if (!clearDraftIfSaved(variables.definition)) return;
 
         utils.dashboard.getDashboard.setData(
@@ -232,7 +297,8 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
             projectId: variables.projectId,
             dashboardId: variables.dashboardId,
           },
-          updatedDashboard,
+          (current) =>
+            current ? { ...current, ...updatedDashboard } : current,
         );
       },
       onError: (error) => {
@@ -298,13 +364,12 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     });
 
   const saveDashboardChanges = useDebounce(
-    (definition: { widgets: DashboardPlacement[] }) => {
-      if (!hasCUDAccess) return;
-      updateDashboardDefinition.mutate({
-        projectId,
-        dashboardId,
-        definition,
-      });
+    (input: {
+      projectId: string;
+      dashboardId: string;
+      definition: { widgets: DashboardPlacement[] };
+    }) => {
+      updateDashboardDefinition.mutate(input);
     },
     600,
     false,
@@ -315,10 +380,12 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   // the debounced save.
   const applyDashboardDefinition = useCallback(
     (updated: { widgets: DashboardPlacement[] }) => {
-      applyDraft(updated);
-      saveDashboardChanges(updated);
+      if (!mounted.current || !applyDraft(updated)) return false;
+      // Pending layout saves retain their destination after route changes.
+      saveDashboardChanges({ projectId, dashboardId, definition: updated });
+      return true;
     },
-    [applyDraft, saveDashboardChanges],
+    [applyDraft, saveDashboardChanges, projectId, dashboardId],
   );
 
   // Function to save current filters
@@ -338,12 +405,17 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   const insertWidgetPlacement = useCallback(
     (
       widgetId: string,
-      position?: { x: number; y: number; x_size: number; y_size: number },
+      position?: Partial<{
+        x: number;
+        y: number;
+        x_size: number;
+        y_size: number;
+      }>,
     ) => {
       // Read through the ref: async callers (paste/duplicate) reach here
       // after a network round-trip.
       const currentDefinition = dashboardDefinitionRef.current;
-      if (!currentDefinition) return;
+      if (!mounted.current || !currentDefinition) return false;
 
       // Find the maximum y position to place the new widget at the bottom
       const maxY =
@@ -368,10 +440,13 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       const existingWidgets = position
         ? pushDownForInsertion(currentDefinition.widgets, newWidgetPlacement)
         : currentDefinition.widgets;
-      applyDashboardDefinition({
-        ...currentDefinition,
-        widgets: [...existingWidgets, newWidgetPlacement],
-      });
+      if (
+        !applyDashboardDefinition({
+          ...currentDefinition,
+          widgets: [...existingWidgets, newWidgetPlacement],
+        })
+      )
+        return false;
 
       // The new widget may land outside the viewport — bring it into view.
       setTimeout(() => {
@@ -379,12 +454,19 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
           .querySelector(`[data-placement-id="${newWidgetPlacement.id}"]`)
           ?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 150);
+      return true;
     },
     [applyDashboardDefinition, dashboardDefinitionRef],
   );
 
   const addWidgetToDashboard = useCallback(
-    (widget: WidgetItem) => insertWidgetPlacement(widget.id),
+    (widget: WidgetItem) =>
+      insertWidgetPlacement(
+        widget.id,
+        widget.definition?.kind === "markdown"
+          ? { x_size: 12, y_size: 2 }
+          : undefined,
+      ),
     [insertWidgetPlacement],
   );
 
@@ -397,7 +479,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       position?: { x: number; y: number; x_size: number; y_size: number },
     ) => {
       const currentDefinition = dashboardDefinitionRef.current;
-      if (!currentDefinition) return;
+      if (!mounted.current || !currentDefinition) return false;
 
       const maxY =
         currentDefinition.widgets.length > 0
@@ -418,65 +500,147 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       const existingWidgets = position
         ? pushDownForInsertion(currentDefinition.widgets, newPresetPlacement)
         : currentDefinition.widgets;
-      applyDashboardDefinition({
-        ...currentDefinition,
-        widgets: [...existingWidgets, newPresetPlacement],
-      });
+      if (
+        !applyDashboardDefinition({
+          ...currentDefinition,
+          widgets: [...existingWidgets, newPresetPlacement],
+        })
+      )
+        return false;
 
       setTimeout(() => {
         document
           .querySelector(`[data-placement-id="${newPresetPlacement.id}"]`)
           ?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 150);
+      return true;
     },
     [applyDashboardDefinition, dashboardDefinitionRef],
   );
 
   const addPresetToDashboard = useCallback(
-    (presetId: HomeDashboardPresetId) => insertPresetPlacement(presetId),
-    [insertPresetPlacement],
-  );
-
-  // Duplicate a preset card: another placement of the same preset next to
-  // the anchor tile (no widget row involved).
-  const handleDuplicatePreset = useCallback(
-    (anchor: PresetPlacement) => {
-      capture("dashboard:widget_duplicated", {
-        surface: "grid_menu",
-        kind: "preset",
-        preset_id: anchor.presetId,
-        dashboard_id: dashboardId,
-      });
-      insertPresetPlacement(
-        anchor.presetId as HomeDashboardPresetId,
-        placementNextTo(anchor),
-      );
+    (presetId: HomeDashboardPresetId) => {
+      if (authoringEnabled) {
+        router.push(
+          `/project/${projectId}/widgets/new?dashboardId=${dashboardId}&template=${presetId}`,
+        );
+      } else insertPresetPlacement(presetId);
     },
-    [capture, dashboardId, insertPresetPlacement],
+    [authoringEnabled, router, projectId, dashboardId, insertPresetPlacement],
   );
 
-  // Place a pasted preset card (next to `anchor` when given, else at the
-  // bottom).
+  const handleDuplicatePreset = useCallback(
+    (
+      anchor: PresetPlacement,
+      surface: WidgetDuplicateSurface,
+      selection: PresetSelection,
+    ) => {
+      const track = () =>
+        capture("dashboard:widget_duplicated", {
+          surface,
+          isV4,
+          kind: "preset",
+          preset_id: anchor.presetId,
+          dashboard_id: dashboardId,
+        });
+      if (authoringEnabled) {
+        copyHomeWidget({
+          presetId: anchor.presetId as HomeDashboardPresetId,
+          selection,
+          place: (widgetId) => {
+            const currentAnchor =
+              dashboardDefinitionRef.current?.widgets.find(
+                (placement) => placement.id === anchor.id,
+              ) ?? anchor;
+            if (
+              !insertWidgetPlacement(widgetId, placementNextTo(currentAnchor))
+            )
+              return false;
+            track();
+            return true;
+          },
+        });
+      } else if (
+        insertPresetPlacement(
+          anchor.presetId as HomeDashboardPresetId,
+          placementNextTo(anchor),
+        )
+      )
+        track();
+    },
+    [
+      capture,
+      dashboardId,
+      insertPresetPlacement,
+      isV4,
+      authoringEnabled,
+      copyHomeWidget,
+      dashboardDefinitionRef,
+      insertWidgetPlacement,
+    ],
+  );
+
   const handlePastedPreset = useCallback(
     (
       presetId: HomeDashboardPresetId,
       source: "cmd_v" | "dashboard_menu" | "drop",
       anchor?: DashboardPlacement,
+      selection: PresetSelection = {},
     ) => {
-      capture("dashboard:widget_pasted", {
-        source,
-        kind: "preset",
-        preset_id: presetId,
-        dashboard_id: dashboardId,
-      });
-      insertPresetPlacement(
-        presetId,
-        anchor ? placementNextTo(anchor) : undefined,
-      );
+      const track = () =>
+        capture("dashboard:widget_pasted", {
+          source,
+          kind: "preset",
+          preset_id: presetId,
+          dashboard_id: dashboardId,
+        });
+      if (authoringEnabled) {
+        copyHomeWidget({
+          presetId,
+          selection,
+          place: (widgetId) => {
+            const currentAnchor =
+              anchor &&
+              (dashboardDefinitionRef.current?.widgets.find(
+                (placement) => placement.id === anchor.id,
+              ) ??
+                anchor);
+            if (
+              !insertWidgetPlacement(
+                widgetId,
+                currentAnchor ? placementNextTo(currentAnchor) : undefined,
+              )
+            )
+              return false;
+            track();
+            return true;
+          },
+        });
+      } else if (
+        insertPresetPlacement(
+          presetId,
+          anchor ? placementNextTo(anchor) : undefined,
+        )
+      )
+        track();
     },
-    [capture, dashboardId, insertPresetPlacement],
+    [
+      capture,
+      dashboardId,
+      insertPresetPlacement,
+      authoringEnabled,
+      copyHomeWidget,
+      dashboardDefinitionRef,
+      insertWidgetPlacement,
+    ],
   );
 
+  const { mutateAsync: saveDefinitionAsync } =
+    api.dashboardWidgets.saveDefinition.useMutation({
+      onSuccess: async () => {
+        await utils.dashboardWidgets.invalidate();
+      },
+    });
   const { mutateAsync: createWidgetAsync } =
     api.dashboardWidgets.create.useMutation();
   const { mutateAsync: deleteWidgetAsync } =
@@ -485,21 +649,50 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   // Duplicate a tile's widget: create an independent widget row seeded from
   // the source configuration, placed next to the source tile.
   const handleDuplicateWidget = useCallback(
-    async (anchor: DashboardPlacement, widget: WidgetExportSource) => {
+    async (
+      anchor: DashboardPlacement,
+      widget: WidgetExportSource,
+      surface: WidgetDuplicateSurface,
+    ) => {
+      if (!dashboardDefinitionRef.current) return;
       try {
-        const result = await createWidgetAsync({
-          projectId,
-          ...toWidgetCreateFields(widget),
-          name: `${widget.name} (Copy)`,
-        });
+        const result = widget.definition
+          ? await saveDefinitionAsync({
+              projectId,
+              definition: widgetDefinitionSchema.parse({
+                ...widget.definition,
+                config: {
+                  ...widget.definition.config,
+                  title: `${widget.name.slice(0, 190)} (Copy)`,
+                },
+              }),
+            })
+          : await createWidgetAsync({
+              projectId,
+              ...toWidgetCreateFields(widget),
+              name: `${widget.name} (Copy)`,
+            });
+        const currentAnchor =
+          dashboardDefinitionRef.current?.widgets.find(
+            (placement) => placement.id === anchor.id,
+          ) ?? anchor;
+        if (
+          !insertWidgetPlacement(
+            result.widget.id,
+            placementNextTo(currentAnchor),
+          )
+        ) {
+          await deleteWidgetAsync({ projectId, widgetId: result.widget.id });
+          return;
+        }
         capture("dashboard:widget_duplicated", {
-          surface: "grid_menu",
+          surface,
+          isV4,
           kind: "widget",
           dashboard_id: dashboardId,
           chart_type: widget.chartType,
           view: widget.view,
         });
-        insertWidgetPlacement(result.widget.id, placementNextTo(anchor));
       } catch (e) {
         showErrorToast(
           "Failed to duplicate widget",
@@ -508,7 +701,17 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         );
       }
     },
-    [createWidgetAsync, projectId, dashboardId, capture, insertWidgetPlacement],
+    [
+      createWidgetAsync,
+      saveDefinitionAsync,
+      dashboardDefinitionRef,
+      deleteWidgetAsync,
+      projectId,
+      dashboardId,
+      capture,
+      insertWidgetPlacement,
+      isV4,
+    ],
   );
 
   // Recreate a parsed clipboard widget as a project widget and place it on
@@ -542,10 +745,33 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       // otherwise leave an orphan widget in the library.
       if (!dashboardDefinitionRef.current) return;
       try {
-        const result = await createWidgetAsync({
-          projectId,
-          ...toWidgetCreateFields(parsed.widget),
-        });
+        const result = parsed.widget.definition
+          ? await saveDefinitionAsync({
+              projectId,
+              definition: parsed.widget.definition,
+            })
+          : await createWidgetAsync({
+              projectId,
+              ...toWidgetCreateFields(parsed.widget),
+            });
+        const currentAnchor = anchor
+          ? (dashboardDefinitionRef.current?.widgets.find(
+              (placement) => placement.id === anchor.id,
+            ) ?? anchor)
+          : undefined;
+        const defaultPosition =
+          parsed.widget.definition?.kind === "markdown"
+            ? { x_size: 12, y_size: 2 }
+            : undefined;
+        if (
+          !insertWidgetPlacement(
+            result.widget.id,
+            currentAnchor ? placementNextTo(currentAnchor) : defaultPosition,
+          )
+        ) {
+          await deleteWidgetAsync({ projectId, widgetId: result.widget.id });
+          return;
+        }
         capture("dashboard:widget_pasted", {
           source,
           kind: "widget",
@@ -553,10 +779,6 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
           chart_type: parsed.widget.chartType,
           view: parsed.widget.view,
         });
-        insertWidgetPlacement(
-          result.widget.id,
-          anchor ? placementNextTo(anchor) : undefined,
-        );
         if (parsed.removedFilters) {
           showErrorToast(
             "Widget filters were adjusted",
@@ -580,6 +802,8 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     [
       capture,
       createWidgetAsync,
+      saveDefinitionAsync,
+      deleteWidgetAsync,
       dashboardDefinitionRef,
       dashboardId,
       insertWidgetPlacement,
@@ -609,7 +833,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       if (parsed.status === "not-widget") {
         const preset = parsePastedPreset(text);
         if (preset.status === "preset") {
-          handlePastedPreset(preset.presetId, source, anchor);
+          handlePastedPreset(preset.presetId, source, anchor, preset.selection);
           return;
         }
         if (preset.status === "invalid") {
@@ -694,7 +918,12 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
           );
           return;
         }
-        handlePastedPreset(preset.presetId, "cmd_v");
+        handlePastedPreset(
+          preset.presetId,
+          "cmd_v",
+          undefined,
+          preset.selection,
+        );
         return;
       }
       event.preventDefault();
@@ -736,10 +965,15 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         );
         const settled = await Promise.allSettled(
           widgetPlacements.map((p) =>
-            createWidgetAsync({
-              projectId,
-              ...toWidgetCreateFields(p.widget),
-            }),
+            p.widget.definition
+              ? saveDefinitionAsync({
+                  projectId,
+                  definition: p.widget.definition,
+                })
+              : createWidgetAsync({
+                  projectId,
+                  ...toWidgetCreateFields(p.widget),
+                }),
           ),
         );
         const createdWidgets = settled.flatMap((s) =>
@@ -769,7 +1003,14 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         // Re-read the definition after the awaits: a drag/delete/paste may
         // have landed while the widgets were being created.
         const currentDefinition = dashboardDefinitionRef.current;
-        if (!currentDefinition) return;
+        if (!mounted.current || !currentDefinition) {
+          await Promise.all(
+            createdWidgets.map((created) =>
+              deleteWidgetAsync({ projectId, widgetId: created.widget.id }),
+            ),
+          );
+          return;
+        }
         const maxY =
           currentDefinition.widgets.length > 0
             ? Math.max(...currentDefinition.widgets.map((w) => w.y + w.y_size))
@@ -796,10 +1037,19 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
           },
         );
 
-        applyDashboardDefinition({
-          ...currentDefinition,
-          widgets: [...currentDefinition.widgets, ...newPlacements],
-        });
+        if (
+          !applyDashboardDefinition({
+            ...currentDefinition,
+            widgets: [...currentDefinition.widgets, ...newPlacements],
+          })
+        ) {
+          await Promise.all(
+            createdWidgets.map((created) =>
+              deleteWidgetAsync({ projectId, widgetId: created.widget.id }),
+            ),
+          );
+          return;
+        }
 
         capture("dashboard:dashboard_json_imported", {
           dashboard_id: dashboardId,
@@ -855,6 +1105,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     },
     [
       createWidgetAsync,
+      saveDefinitionAsync,
       dashboardDefinitionRef,
       deleteWidgetAsync,
       projectId,
@@ -869,7 +1120,10 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     async (file: File) => {
       const text = await file.text();
 
-      const dashboardResult = parseDashboardImport(text, { isV4 });
+      const dashboardResult = parseDashboardImport(text, {
+        isV4,
+        allowLegacyPresets: !authoringEnabled,
+      });
       if (dashboardResult.status === "dashboard") {
         await handleDashboardImport(dashboardResult.dashboard);
         return;
@@ -897,7 +1151,12 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       if (widgetResult.status === "not-widget") {
         const preset = parsePastedPreset(text);
         if (preset.status === "preset") {
-          handlePastedPreset(preset.presetId, "drop");
+          handlePastedPreset(
+            preset.presetId,
+            "drop",
+            undefined,
+            preset.selection,
+          );
           return;
         }
         if (preset.status === "invalid") {
@@ -939,6 +1198,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     },
     [
       isV4,
+      authoringEnabled,
       handleDashboardImport,
       handleParsedWidgetPaste,
       handlePastedPreset,
@@ -1000,35 +1260,6 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     timeRange,
   });
 
-  const environmentOptionsState = useEnvironmentFilterOptionsCache({
-    projectId,
-    timeRange,
-  });
-  const environmentOptions = environmentOptionsState.environmentOptions.map(
-    (value) => ({
-      value,
-    }),
-  );
-
-  // Dedicated environment selector, same as Home. The selection is a view
-  // setting (persisted per project for this user), merged into the widget
-  // filters but never written into the dashboard's saved filters.
-  const { selectedEnvironments, setSelectedEnvironments } =
-    useEnvironmentFilter(environmentOptionsState.environmentOptions, projectId);
-  const setSelectedEnvironmentsDebounced = useDebounce(setSelectedEnvironments);
-  const environmentFilter = useMemo(
-    () =>
-      convertSelectedEnvironmentsToFilter(
-        ["environment"],
-        selectedEnvironments,
-      ),
-    [selectedEnvironments],
-  );
-  const gridFilterState: FilterState = useMemo(
-    () => [...currentFilters, ...environmentFilter],
-    [currentFilters, environmentFilter],
-  );
-  // Filter columns for PopoverFilterBuilder
   const filterColumns: ColumnDefinition[] = [
     {
       name: "Environment",
@@ -1113,7 +1344,17 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
 
   useEffect(() => {
     if (dashboardDefinition && widgetToAdd.data && addWidgetId) {
-      if (
+      if (widgetToAdd.data.invalid) {
+        showErrorToast(
+          "Cannot add widget",
+          "Repair this widget's configuration before adding it to a dashboard.",
+          {
+            operation: "widget.create",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
+        );
+      } else if (
         !dashboardDefinition.widgets.some(
           (w) => w.type === "widget" && w.widgetId === addWidgetId,
         )
@@ -1279,273 +1520,285 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                 store={schedulerStore}
                 shouldBucketQueriesByTimeRange={!("from" in timeRange)}
               >
-                <Page
-                  withPadding
-                  scrollable
-                  headerProps={{
-                    title:
-                      (dashboard.data?.name || "Dashboard") +
-                      (dashboard.data?.owner === "LANGFUSE"
-                        ? " (Langfuse Maintained)"
-                        : ""),
-                    breadcrumb: [
-                      {
-                        name: "Dashboards",
-                        href: `/project/${projectId}/dashboards`,
-                      },
-                    ],
-                    help: {
-                      description:
-                        dashboard.data?.description ||
-                        "No description available",
-                    },
-                    actionButtonsLeft: (
-                      <>
-                        <MultiSelect
-                          title="Environment"
-                          label="Env"
-                          values={selectedEnvironments}
-                          onValueChange={setSelectedEnvironmentsDebounced}
-                          options={environmentOptions}
-                          className="my-0 w-auto overflow-hidden"
-                        />
-                        <PopoverFilterBuilder
-                          columns={filterColumns}
-                          filterState={currentFilters}
-                          onChange={setCurrentFilters}
-                          // Analytics (LFE-10781): custom dashboard filter — a v3/legacy
-                          // surface (not the v4 events table).
-                          tableName="dashboard"
-                          isV4={false}
-                        />
-                      </>
-                    ),
-                    actionButtonsRight: (
-                      <>
-                        {(updateDashboardDefinition.isPending ||
-                          updateDashboardMetadata.isPending ||
-                          updateDashboardFilters.isPending ||
-                          setHomeDashboard.isPending) && (
-                          <span
-                            className="flex items-center"
-                            title="Saving..."
-                            role="status"
-                            aria-label="Saving"
-                          >
-                            <Loader2
-                              size="base"
-                              color="muted"
-                              __rawClassName="animate-spin"
-                            />
-                          </span>
-                        )}
-                        {hasCUDAccess && hasUnsavedFilterChanges && (
-                          <Button
-                            onClick={handleSaveFilters}
-                            disabled={updateDashboardFilters.isPending}
-                            variant="outline"
-                          >
-                            {updateDashboardFilters.isPending
-                              ? "Saving..."
-                              : "Save Filters"}
-                          </Button>
-                        )}
-                        {hasRbacCUDAccess && (
-                          <Button onClick={handleAddWidget}>
-                            <PlusIcon
-                              size="base"
-                              color="default"
-                              __rawClassName="mr-1"
-                            />
-                            Add Widget
-                          </Button>
-                        )}
-                        {hasCloneAccess && (
-                          <Button
-                            variant="outline"
-                            onClick={handleCloneDashboard}
-                            disabled={mutateCloneDashboard.isPending}
-                          >
-                            <Copy
-                              size="base"
-                              color="default"
-                              __rawClassName="mr-1"
-                            />
-                            Clone
-                          </Button>
-                        )}
-                        {hasRbacCUDAccess && (
-                          <DropdownMenu onOpenChange={setIsDashboardMenuOpen}>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label="More actions"
-                              >
-                                <MoreVertical size="base" color="default" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              {hasCUDAccess && (
-                                <DropdownMenuItem
-                                  disabled={clipboardProbe === "no-widget"}
-                                  onClick={() =>
-                                    pasteWidgetFromClipboard("dashboard_menu")
-                                  }
-                                >
-                                  <ClipboardPasteIcon
-                                    size="base"
-                                    color="default"
-                                    __rawClassName="mr-2"
-                                  />
-                                  Paste widget
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem
-                                disabled={
-                                  isCurrentHome || setHomeDashboard.isPending
-                                }
-                                onClick={() => {
-                                  capture(
-                                    "dashboard:home_dashboard_set_default",
-                                    {
-                                      dashboard_id: dashboardId,
-                                      source: "detail_menu",
-                                    },
-                                  );
-                                  setHomeDashboard.mutate({
-                                    projectId,
-                                    dashboardId:
-                                      dashboardId === LANGFUSE_HOME_DASHBOARD_ID
-                                        ? null
-                                        : dashboardId,
-                                  });
-                                }}
-                              >
-                                <HomeIcon
-                                  size="base"
-                                  color="default"
-                                  __rawClassName="mr-2"
-                                />
-                                {isCurrentHome
-                                  ? "Shown on Home"
-                                  : "Use as Home"}
-                              </DropdownMenuItem>
-                              {hasCUDAccess && (
-                                <DropdownMenuItem onSelect={openEditDialog}>
-                                  <PencilIcon
-                                    size="base"
-                                    color="default"
-                                    __rawClassName="mr-2"
-                                  />
-                                  Edit name & description
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                      </>
-                    ),
-                  }}
+                <DashboardBlocksProvider
+                  key={`${projectId}:${dashboardId}`}
+                  projectId={projectId}
+                  dashboardId={dashboardId}
+                  canEdit={hasCUDAccess}
+                  canCloneToEdit={isLockedEditable}
+                  readPath={readPath}
+                  dateRange={absoluteTimeRange}
+                  filterState={gridFilterState}
+                  widgets={dashboardDefinition?.widgets ?? []}
+                  dashboardReady={
+                    !dashboard.isPending && Boolean(dashboard.data)
+                  }
                 >
-                  <PageHeaderControlsPortal>
-                    <TimeRangePicker
-                      timeRange={timeRange}
-                      onTimeRangeChange={setTimeRange}
-                      timeRangePresets={dashboardTimeRangePresets}
-                      className="my-0 max-w-full overflow-x-auto"
-                      triggerClassName="px-2"
-                      disabled={
-                        lookbackLimit
-                          ? {
-                              before: new Date(
-                                new Date().getTime() -
-                                  lookbackLimit * 24 * 60 * 60 * 1000,
-                              ),
-                            }
-                          : undefined
-                      }
+                  <Page
+                    withPadding
+                    scrollable
+                    headerProps={{
+                      title:
+                        (dashboard.data?.name || "Dashboard") +
+                        (dashboard.data?.owner === "LANGFUSE"
+                          ? " (Langfuse Maintained)"
+                          : ""),
+                      breadcrumb: [
+                        {
+                          name: "Dashboards",
+                          href: `/project/${projectId}/dashboards`,
+                        },
+                      ],
+                      help: {
+                        description:
+                          dashboard.data?.description ||
+                          "No description available",
+                      },
+                      actionButtonsLeft: (
+                        <>
+                          <MultiSelect
+                            title="Environment"
+                            label="Env"
+                            values={selectedEnvironments}
+                            onValueChange={setSelectedEnvironmentsDebounced}
+                            options={environmentOptions}
+                            className="my-0 w-auto overflow-hidden"
+                          />
+                          <PopoverFilterBuilder
+                            columns={filterColumns}
+                            filterState={currentFilters}
+                            onChange={setCurrentFilters}
+                            // Analytics (LFE-10781): custom dashboard filter — a v3/legacy
+                            // surface (not the v4 events table).
+                            tableName="dashboard"
+                            isV4={false}
+                          />
+                        </>
+                      ),
+                      actionButtonsRight: (
+                        <>
+                          {(updateDashboardDefinition.isPending ||
+                            updateDashboardMetadata.isPending ||
+                            updateDashboardFilters.isPending ||
+                            setHomeDashboard.isPending) && (
+                            <span
+                              className="flex items-center"
+                              title="Saving..."
+                              role="status"
+                              aria-label="Saving"
+                            >
+                              <Loader2
+                                size="base"
+                                color="muted"
+                                __rawClassName="animate-spin"
+                              />
+                            </span>
+                          )}
+                          {hasCUDAccess && hasUnsavedFilterChanges && (
+                            <Button
+                              onClick={handleSaveFilters}
+                              disabled={updateDashboardFilters.isPending}
+                              variant="outline"
+                            >
+                              {updateDashboardFilters.isPending
+                                ? "Saving..."
+                                : "Save Filters"}
+                            </Button>
+                          )}
+                          {hasRbacCUDAccess && (
+                            <DashboardBlocksAddMenu
+                              onExistingWidget={handleAddWidget}
+                            />
+                          )}
+                          {hasCloneAccess && (
+                            <Button
+                              variant="outline"
+                              onClick={handleCloneDashboard}
+                              disabled={mutateCloneDashboard.isPending}
+                            >
+                              <Copy
+                                size="base"
+                                color="default"
+                                __rawClassName="mr-1"
+                              />
+                              Clone
+                            </Button>
+                          )}
+                          {hasRbacCUDAccess && (
+                            <DropdownMenu onOpenChange={setIsDashboardMenuOpen}>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label="More actions"
+                                >
+                                  <MoreVertical size="base" color="default" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {hasCUDAccess && (
+                                  <DropdownMenuItem
+                                    disabled={clipboardProbe === "no-widget"}
+                                    onClick={() =>
+                                      pasteWidgetFromClipboard("dashboard_menu")
+                                    }
+                                  >
+                                    <ClipboardPasteIcon
+                                      size="base"
+                                      color="default"
+                                      __rawClassName="mr-2"
+                                    />
+                                    Paste widget
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem
+                                  disabled={
+                                    isCurrentHome || setHomeDashboard.isPending
+                                  }
+                                  onClick={() => {
+                                    capture(
+                                      "dashboard:home_dashboard_set_default",
+                                      {
+                                        dashboard_id: dashboardId,
+                                        source: "detail_menu",
+                                      },
+                                    );
+                                    setHomeDashboard.mutate({
+                                      projectId,
+                                      dashboardId:
+                                        dashboardId ===
+                                        LANGFUSE_HOME_DASHBOARD_ID
+                                          ? null
+                                          : dashboardId,
+                                    });
+                                  }}
+                                >
+                                  <HomeIcon
+                                    size="base"
+                                    color="default"
+                                    __rawClassName="mr-2"
+                                  />
+                                  {isCurrentHome
+                                    ? "Shown on Home"
+                                    : "Use as Home"}
+                                </DropdownMenuItem>
+                                {hasCUDAccess && (
+                                  <DropdownMenuItem onSelect={openEditDialog}>
+                                    <PencilIcon
+                                      size="base"
+                                      color="default"
+                                      __rawClassName="mr-2"
+                                    />
+                                    Edit name & description
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </>
+                      ),
+                    }}
+                  >
+                    <PageHeaderControlsPortal>
+                      <TimeRangePicker
+                        timeRange={timeRange}
+                        onTimeRangeChange={setTimeRange}
+                        timeRangePresets={dashboardTimeRangePresets}
+                        className="my-0 max-w-full overflow-x-auto"
+                        triggerClassName="px-2"
+                        disabled={
+                          lookbackLimit
+                            ? {
+                                before: new Date(
+                                  new Date().getTime() -
+                                    lookbackLimit * 24 * 60 * 60 * 1000,
+                                ),
+                              }
+                            : undefined
+                        }
+                      />
+                    </PageHeaderControlsPortal>
+                    {isDraggingFile && (
+                      <Layer name="modal">
+                        <div className="bg-background/80 pointer-events-none fixed inset-0 flex items-center justify-center backdrop-blur-xs">
+                          <div className="border-primary bg-background rounded-lg border-2 border-dashed px-8 py-6 text-center shadow-lg">
+                            <p className="font-bold">Drop to import</p>
+                            <p className="text-muted-foreground text-sm">
+                              Langfuse dashboard or widget JSON
+                            </p>
+                          </div>
+                        </div>
+                      </Layer>
+                    )}
+                    {homeCopySelectionDialog}
+                    <SelectWidgetDialog
+                      open={isWidgetDialogOpen}
+                      onOpenChange={setIsWidgetDialogOpen}
+                      projectId={projectId}
+                      onSelectWidget={handleSelectWidget}
+                      onSelectPreset={addPresetToDashboard}
+                      dashboardId={dashboardId}
                     />
-                  </PageHeaderControlsPortal>
-                  {isDraggingFile && (
-                    <Layer name="modal">
-                      <div className="bg-background/80 pointer-events-none fixed inset-0 flex items-center justify-center backdrop-blur-xs">
-                        <div className="border-primary bg-background rounded-lg border-2 border-dashed px-8 py-6 text-center shadow-lg">
-                          <p className="font-bold">Drop to import</p>
-                          <p className="text-muted-foreground text-sm">
-                            Langfuse dashboard or widget JSON
-                          </p>
-                        </div>
-                      </div>
-                    </Layer>
-                  )}
-                  <SelectWidgetDialog
-                    open={isWidgetDialogOpen}
-                    onOpenChange={setIsWidgetDialogOpen}
-                    projectId={projectId}
-                    onSelectWidget={handleSelectWidget}
-                    onSelectPreset={addPresetToDashboard}
-                    dashboardId={dashboardId}
-                  />
-                  {(dashboard.isPending || !dashboardDefinition) && (
-                    <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
-                      <Skeleton className="h-full w-full" />
-                    </div>
-                  )}
-                  {!dashboard.isPending &&
-                    dashboardDefinition &&
-                    dashboard.isError && (
-                      <div className="flex h-64 items-center justify-center">
-                        <div className="text-destructive">
-                          Error: {dashboard.error.message}
-                        </div>
+                    {(dashboard.isPending || !dashboardDefinition) && (
+                      <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
+                        <Skeleton className="h-full w-full" />
                       </div>
                     )}
-                  {!dashboard.isPending &&
-                    dashboardDefinition &&
-                    !dashboard.isError && (
-                      <div>
-                        <DashboardGrid
-                          key={gridResetKey}
-                          readPath={readPath}
-                          widgets={dashboardDefinition.widgets}
-                          onChange={(updatedWidgets) => {
-                            if (isLockedEditable) {
-                              // Carry the attempted layout change into the clone.
-                              openCloneFirst("layout_change", {
-                                ...dashboardDefinition,
-                                widgets: updatedWidgets,
-                              });
-                              return;
-                            }
-                            applyDashboardDefinition({
-                              ...dashboardDefinition,
-                              widgets: updatedWidgets,
-                            });
-                          }}
-                          canEdit={hasRbacCUDAccess}
-                          dashboardId={dashboardId}
-                          projectId={projectId}
-                          dateRange={absoluteTimeRange}
-                          filterState={gridFilterState}
-                          onDeleteWidget={handleDeleteWidget}
-                          dashboardOwner={dashboard.data?.owner}
-                          getWidgetSchedulerId={getWidgetSchedulerId}
-                          onLockedEditAttempt={
-                            isLockedEditable
-                              ? () => openCloneFirst("widget_pencil")
-                              : undefined
-                          }
-                          onDuplicateWidget={
-                            hasCUDAccess ? handleDuplicateWidget : undefined
-                          }
-                          onDuplicatePreset={
-                            hasCUDAccess ? handleDuplicatePreset : undefined
-                          }
-                        />
-                      </div>
-                    )}
-                </Page>
+                    {!dashboard.isPending &&
+                      dashboardDefinition &&
+                      dashboard.isError && (
+                        <div className="flex h-64 items-center justify-center">
+                          <div className="text-destructive">
+                            Error: {dashboard.error.message}
+                          </div>
+                        </div>
+                      )}
+                    {!dashboard.isPending &&
+                      dashboardDefinition &&
+                      !dashboard.isError && (
+                        <div>
+                          <DashboardWidgetsGrid
+                            key={gridResetKey}
+                            dashboardName={dashboard.data?.name}
+                            gridProps={{
+                              readPath,
+                              widgets: dashboardDefinition.widgets,
+                              onChange: (updatedWidgets) => {
+                                if (isLockedEditable) {
+                                  openCloneFirst("layout_change", {
+                                    ...dashboardDefinition,
+                                    widgets: updatedWidgets,
+                                  });
+                                  return;
+                                }
+                                applyDashboardDefinition({
+                                  ...dashboardDefinition,
+                                  widgets: updatedWidgets,
+                                });
+                              },
+                              canEdit: hasRbacCUDAccess,
+                              dashboardId,
+                              projectId,
+                              dateRange: absoluteTimeRange,
+                              filterState: gridFilterState,
+                              onDeleteWidget: handleDeleteWidget,
+                              dashboardOwner: dashboard.data?.owner,
+                              getWidgetSchedulerId,
+                              onLockedEditAttempt: isLockedEditable
+                                ? () => openCloneFirst("widget_pencil")
+                                : undefined,
+                              onDuplicateWidget: hasCUDAccess
+                                ? handleDuplicateWidget
+                                : undefined,
+                              onDuplicatePreset: hasCUDAccess
+                                ? handleDuplicatePreset
+                                : undefined,
+                            }}
+                          />
+                        </div>
+                      )}
+                  </Page>
+                </DashboardBlocksProvider>
               </DashboardQuerySchedulerProvider>
             )}
           </DialogController>

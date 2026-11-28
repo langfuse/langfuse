@@ -82,18 +82,32 @@ const dashboardWidgetPatchBaseSchema = z.object({
   chartType: z.enum(DashboardWidgetChartType).optional(),
   chartConfig: DashboardWidgetChartConfigBaseSchema.optional(),
 });
+const classicPlacementBaseSchema = placementCreateBaseSchema.required({
+  id: true,
+  x: true,
+  y: true,
+  width: true,
+  height: true,
+});
+const dashboardDefinitionBaseSchema = z.object({
+  widgets: z.array(classicPlacementBaseSchema),
+});
+const dashboardWriteDefinition = PostUnstableDashboardBody.shape.definition
+  .unwrap()
+  .strict()
+  .optional();
 const dashboardPatchBaseSchema = z.object({
   dashboardId: z.string(),
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   filters: z.array(z.object({}).loose()).optional(),
-  definition: z.object({ widgets: z.array(z.object({}).loose()) }).optional(),
+  definition: dashboardDefinitionBaseSchema.optional(),
 });
 const dashboardCreateBaseSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   filters: z.array(z.object({}).loose()).optional(),
-  definition: z.object({ widgets: z.array(z.object({}).loose()) }).optional(),
+  definition: dashboardDefinitionBaseSchema.optional(),
 });
 // NOTE: object-level refinements do not survive `.shape` spreads, so every
 // schema built via `.extend(x.shape)` below must re-apply them explicitly.
@@ -210,9 +224,7 @@ export const [updateDashboardWidgetTool, handleUpdateDashboardWidget] =
     description: "Partially update a dashboard widget.",
     action: "dashboards:CUD",
     baseSchema: dashboardWidgetPatchBaseSchema,
-    inputSchema: DashboardWidgetIdQuery.extend(
-      PatchUnstableDashboardWidgetBody.shape,
-    ).superRefine(requirePatchField(["widgetId"])),
+    inputSchema: DashboardWidgetIdQuery.and(PatchUnstableDashboardWidgetBody),
     annotations: { destructiveHint: true },
     handler: ({ widgetId, ...patch }, context) =>
       runMcpTool({
@@ -284,9 +296,7 @@ export const [getDashboardTool, handleGetDashboard] = defineTool({
   name: "getDashboard",
   action: "dashboards:read",
   description:
-    "Get an editable dashboard by ID, including its current layout: " +
-    "definition.widgets lists every placement with 12-column-grid " +
-    "coordinates (x/y top-left cell, width/height in cells).",
+    "Get an editable dashboard by ID. Its definition.widgets array places saved widgets and presets on a 12-column grid.",
   baseSchema: DashboardIdQuery,
   inputSchema: DashboardIdQuery,
   annotations: { readOnlyHint: true },
@@ -308,10 +318,12 @@ export const [getDashboardTool, handleGetDashboard] = defineTool({
 });
 export const [createDashboardTool, handleCreateDashboard] = defineTool({
   name: "createDashboard",
-  description: "Create an editable dashboard.",
+  description: "Create a dashboard with saved widget or preset placements.",
   action: "dashboards:CUD",
   baseSchema: dashboardCreateBaseSchema,
-  inputSchema: PostUnstableDashboardBody,
+  inputSchema: PostUnstableDashboardBody.extend({
+    definition: dashboardWriteDefinition,
+  }),
   annotations: { destructiveHint: true },
   handler: (input, context) =>
     runMcpTool({
@@ -328,12 +340,13 @@ export const [createDashboardTool, handleCreateDashboard] = defineTool({
 export const [updateDashboardTool, handleUpdateDashboard] = defineTool({
   name: "updateDashboard",
   description:
-    "Partially update dashboard metadata, filters, or its complete definition.",
+    "Update dashboard metadata, filters, or the complete definition.widgets placement list.",
   action: "dashboards:CUD",
   baseSchema: dashboardPatchBaseSchema,
-  inputSchema: DashboardIdQuery.extend(
-    PatchUnstableDashboardBody.shape,
-  ).superRefine(requirePatchField(["dashboardId"])),
+  inputSchema: DashboardIdQuery.extend({
+    ...PatchUnstableDashboardBody.shape,
+    definition: dashboardWriteDefinition,
+  }).superRefine(requirePatchField(["dashboardId"])),
   annotations: { destructiveHint: true },
   handler: ({ dashboardId, ...patch }, context) =>
     runMcpTool({

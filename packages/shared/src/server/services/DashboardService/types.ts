@@ -1,10 +1,22 @@
 import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
 import { z } from "zod";
-import { singleFilterList } from "../../../";
+import { singleFilterList } from "../../../interfaces/filters";
+import {
+  widgetDefinitionSchema,
+  DashboardDefinitionSchema,
+} from "../../../features/dashboards";
 import {
   persistedWidgetViewToQueryView,
   type views,
 } from "../../../features/query";
+
+export {
+  DashboardDefinitionWidgetWidgetSchema,
+  DashboardDefinitionPresetWidgetSchema,
+  DashboardDefinitionWidgetSchema,
+  DashboardDefinitionSchema,
+  type DashboardDefinition,
+} from "../../../features/dashboards";
 
 /**
  * Maps the persisted Prisma enum to the query model's public view id. The map
@@ -95,38 +107,6 @@ export const ChartConfigSchema = z.discriminatedUnion("type", [
   PivotTableChartConfig,
 ]);
 
-export const DashboardDefinitionWidgetWidgetSchema = z.object({
-  type: z.literal("widget"),
-  id: z.string(),
-  widgetId: z.string(),
-  x: z.number().int().gte(0),
-  y: z.number().int().gte(0),
-  x_size: z.number().int().positive(),
-  y_size: z.number().int().positive(),
-});
-
-// A "preset" placement renders a registered curated component (looked up by
-// presetId in the web preset registry) instead of a DashboardWidget row —
-// presets carry no query configuration.
-export const DashboardDefinitionPresetWidgetSchema = z.object({
-  type: z.literal("preset"),
-  id: z.string(),
-  presetId: z.string(),
-  x: z.number().int().gte(0),
-  y: z.number().int().gte(0),
-  x_size: z.number().int().positive(),
-  y_size: z.number().int().positive(),
-});
-
-export const DashboardDefinitionWidgetSchema = z.discriminatedUnion("type", [
-  DashboardDefinitionWidgetWidgetSchema,
-  DashboardDefinitionPresetWidgetSchema,
-]);
-
-export const DashboardDefinitionSchema = z.object({
-  widgets: z.array(DashboardDefinitionWidgetSchema),
-});
-
 export const OwnerEnum = z.enum(["PROJECT", "LANGFUSE"]);
 
 // Define the dashboard domain object
@@ -154,6 +134,7 @@ export const DashboardListResponseSchema = z.object({
 
 // Define the widget domain object
 export const WidgetDomainSchema = z.object({
+  invalid: z.literal(false).optional(),
   id: z.string(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -168,10 +149,29 @@ export const WidgetDomainSchema = z.object({
   filters: singleFilterList,
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
+  definition: widgetDefinitionSchema.nullish(),
+  revision: z.number().int().nonnegative().optional(),
   // Lowest query-engine version required by the persisted widget definition.
   minVersion: z.number().int().default(1),
   owner: OwnerEnum,
 });
+
+export const InvalidWidgetDomainSchema = WidgetDomainSchema.extend({
+  invalid: z.literal(true),
+  revision: z.number().int().optional(),
+  view: z.string(),
+  chartType: z.string(),
+  dimensions: z.unknown(),
+  metrics: z.unknown(),
+  filters: z.unknown(),
+  chartConfig: z.unknown(),
+  definition: z.unknown(),
+});
+
+const WidgetReadDomainSchema = z.discriminatedUnion("invalid", [
+  WidgetDomainSchema,
+  InvalidWidgetDomainSchema,
+]);
 
 // Define create widget input schema
 export const CreateWidgetInputSchema = z.object({
@@ -187,14 +187,14 @@ export const CreateWidgetInputSchema = z.object({
 
 // Define the widget list response
 export const WidgetListResponseSchema = z.object({
-  widgets: z.array(WidgetDomainSchema),
+  widgets: z.array(WidgetReadDomainSchema),
   totalCount: z.number(),
 });
 
 // Export types derived from schemas
-export type DashboardDefinition = z.infer<typeof DashboardDefinitionSchema>;
 export type DashboardDomain = z.infer<typeof DashboardDomainSchema>;
 export type DashboardListResponse = z.infer<typeof DashboardListResponseSchema>;
 export type WidgetDomain = z.infer<typeof WidgetDomainSchema>;
+export type WidgetReadDomain = z.infer<typeof WidgetReadDomainSchema>;
 export type CreateWidgetInput = z.infer<typeof CreateWidgetInputSchema>;
 export type WidgetListResponse = z.infer<typeof WidgetListResponseSchema>;

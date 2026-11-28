@@ -37,6 +37,7 @@ type MetricsFilterBuilderProps = {
   onStringObjectKeyChange?: (key: string) => void;
   filters: FilterState;
   onChange: (filters: FilterState) => void;
+  onHasInvalidFiltersChange?: (hasInvalidFilters: boolean) => void;
 };
 
 /** Renders the filter controls without fetching. */
@@ -48,6 +49,7 @@ export function MetricsFilterBuilder({
   onStringObjectKeyChange,
   filters,
   onChange,
+  onHasInvalidFiltersChange,
 }: MetricsFilterBuilderProps) {
   const editorFilters = viewFiltersToEditorFilters(view, filters);
   const renderable = editorFilters.filter((filter) =>
@@ -79,6 +81,7 @@ export function MetricsFilterBuilder({
         </Banner>
       )}
       <InlineFilterBuilder
+        onHasInvalidFiltersChange={onHasInvalidFiltersChange}
         columns={columns}
         filterState={renderable}
         onChange={(next: FilterState) =>

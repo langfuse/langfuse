@@ -5,6 +5,7 @@ export function CloneDashboardDialog({
   dashboardName,
   setAsHome,
   hasPendingChange,
+  continuesCardEdit = false,
   existingCloneName,
   isPending,
   onConfirm,
@@ -13,6 +14,7 @@ export function CloneDashboardDialog({
   dashboardName: string;
   setAsHome: boolean;
   hasPendingChange: boolean;
+  continuesCardEdit?: boolean;
   existingCloneName?: string;
   isPending: boolean;
   onConfirm: () => void;
@@ -41,8 +43,9 @@ export function CloneDashboardDialog({
           {setAsHome && " The clone will become your Home dashboard."}
         </p>
         <p className="text-muted-foreground">
-          You can rearrange or remove Langfuse-maintained tiles. Editing their
-          content isn&rsquo;t available yet.
+          {continuesCardEdit
+            ? "The selected card will open in the widget editor in your copy."
+            : "You can rearrange or remove Langfuse-maintained tiles. Editing their content isn’t available yet."}
         </p>
         {existingCloneName && (
           <Banner

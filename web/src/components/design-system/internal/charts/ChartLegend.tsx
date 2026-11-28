@@ -84,13 +84,12 @@ function LegendItem({ item }: { item: ChartLegendItem }) {
 
 export function ChartLegend({
   items,
-  selectionActions,
+  selection,
 }: {
   items: ChartLegendItem[];
-  selectionActions?: {
+  selection?: {
     allSelected: boolean;
-    onSelectAll: () => void;
-    onDeselectAll: () => void;
+    onAllSelectedChange: (selected: boolean) => void;
   };
 }) {
   return (
@@ -111,17 +110,16 @@ export function ChartLegend({
             <DropdownMenu
               title="Additional series"
               items={[
-                ...(selectionActions
+                ...(selection
                   ? [
                       {
                         id: "all-series",
                         type: "item" as const,
-                        title: selectionActions.allSelected
+                        title: selection.allSelected
                           ? "Deselect all"
                           : "Select all",
-                        onClick: selectionActions.allSelected
-                          ? selectionActions.onDeselectAll
-                          : selectionActions.onSelectAll,
+                        onClick: () =>
+                          selection.onAllSelectedChange(!selection.allSelected),
                       },
                       {
                         id: "all-series-separator",

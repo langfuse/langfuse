@@ -8,6 +8,8 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        plain:
+          "text-muted-foreground hover:text-foreground aria-expanded:text-foreground",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         outline:
           "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
@@ -46,6 +48,7 @@ type IconButtonProps = NativeButtonProps & {
   size?: "xs" | "xsTouch" | "sm" | "md";
   variant?:
     | "ghost"
+    | "plain"
     | "outline"
     | "outlineDestructive"
     | "subtle"
@@ -54,6 +57,7 @@ type IconButtonProps = NativeButtonProps & {
 };
 
 const iconColors = {
+  plain: "inherit",
   ghost: "default",
   outline: "default",
   outlineDestructive: "destructive",

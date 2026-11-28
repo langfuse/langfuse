@@ -16,6 +16,7 @@
 ## High-Signal Entry Points
 
 - Main exports: `src/index.ts`
+- Dashboard widget formats live in `src/features/dashboards/`. Saved `DashboardWidget.definition` owns versioned charts and Markdown; dashboards use ordinary widget placements. A null definition uses the classic query fields. The top-level widget version identifies the tabbed chart or Markdown format. Structural reads preserve invalid queries for repair; saves validate their semantics. `src/server/services/DashboardService/widget-definition-storage.ts` owns revision-checked widget saves, atomic Home-card replacement and classic-field projections. New authoring must create saved widgets, not inline dashboard content.
 - DB clients and types: `src/db.ts`
 - Server exports: `src/server/index.ts`
 - CloudWatch metrics: `recordGauge` batches values; windowed measurements can
@@ -158,6 +159,7 @@
 - `@langfuse/shared/encryption` via `src/encryption/index.ts`: encryption and
   signature helpers for secrets and signed payloads.
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
+- `@langfuse/shared/dashboards` via `src/features/dashboards/index.ts` exposes client-safe dashboard definitions, widget schemas and multi-query configuration.
 - `@langfuse/shared/rbac` via `src/features/rbac/index.ts`: client-safe tagged IDs,
   role assignments, role catalog, and permission vocabulary.
 - `@langfuse/shared/rbac/server` via `src/features/rbac/server.ts`: server-only

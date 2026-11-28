@@ -45,6 +45,10 @@ export const isInternalViewEnabled = (session: Session | null | undefined) =>
       session?.environment?.enableExperimentalFeatures === true,
   }) && session?.user?.featureFlags[INTERNAL_FEATURE_FLAG] !== false;
 
+export const canAuthorDashboardBlocks = (session: Session | null | undefined) =>
+  hasInternalEmailDomain(session?.user?.email) &&
+  isInternalViewEnabled(session);
+
 export const parseFlags = (
   dbFlags: string[],
   context: FeaturePreviewAvailabilityContext & {

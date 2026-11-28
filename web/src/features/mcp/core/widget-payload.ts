@@ -1,6 +1,8 @@
 import { type z } from "zod";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { type PostUnstableDashboardWidgetResponse } from "@/src/features/public-api/types/unstable-dashboard-widgets";
+import { type WidgetDefinition as SavedWidgetDefinition } from "@langfuse/shared/dashboards";
+import { type normalizeMultiQueryResults } from "@/src/features/dashboard-blocks/multi-query/multiQueryModel";
 import { type WidgetTimeRange } from "./widget-time-ranges";
 
 /**
@@ -23,6 +25,14 @@ export type WidgetDefinition = Omit<
  * result's `_meta.widget` and the MCP App view renders.
  */
 export type WidgetPayload = WidgetDefinition & {
+  rich?: {
+    definition: SavedWidgetDefinition;
+    activeTabId?: string;
+    warnings?: string[];
+    result?: ReturnType<typeof normalizeMultiQueryResults>;
+    from: string;
+    to: string;
+  };
   version: ViewVersion;
   rows: Record<string, unknown>[];
   /** The time window as requested. */

@@ -17,11 +17,39 @@ const definition = (placementId: string) => ({
 });
 
 describe("useDashboardDefinitionDraft", () => {
+  it("rejects a pending insertion after edit access is lost", () => {
+    const initial = definition("existing");
+    const inserted = definition("new-widget");
+    const { result, rerender } = renderHook(
+      ({ canEdit }) => useDashboardDefinitionDraft(initial, canEdit),
+      { initialProps: { canEdit: true } },
+    );
+    const pendingInsertion = result.current.applyDraft;
+    rerender({ canEdit: false });
+
+    let accepted: boolean | undefined;
+    act(() => {
+      accepted = pendingInsertion(inserted);
+    });
+
+    expect(result.current.definition).toBe(initial);
+    expect(result.current.definitionRef.current).toBe(initial);
+    expect(accepted).toBe(false);
+
+    rerender({ canEdit: true });
+    act(() => {
+      accepted = pendingInsertion(inserted);
+    });
+    expect(accepted).toBe(true);
+    expect(result.current.definition).toBe(inserted);
+  });
+
   it("adopts refreshed dashboard definitions while no local edit is pending", () => {
     const initialDefinition = definition("initial");
     const refreshedDefinition = definition("agent-created");
     const { result, rerender } = renderHook(
-      ({ serverDefinition }) => useDashboardDefinitionDraft(serverDefinition),
+      ({ serverDefinition }) =>
+        useDashboardDefinitionDraft(serverDefinition, true),
       { initialProps: { serverDefinition: initialDefinition } },
     );
 
@@ -39,7 +67,8 @@ describe("useDashboardDefinitionDraft", () => {
     const refreshedDefinition = definition("agent-created");
     const savedDefinition = definition("saved-newer-edit");
     const { result, rerender } = renderHook(
-      ({ serverDefinition }) => useDashboardDefinitionDraft(serverDefinition),
+      ({ serverDefinition }) =>
+        useDashboardDefinitionDraft(serverDefinition, true),
       { initialProps: { serverDefinition: initialDefinition } },
     );
 
@@ -65,7 +94,8 @@ describe("useDashboardDefinitionDraft", () => {
     const newerDraft = definition("newer-local-edit");
     const savedDefinition = definition("saved-newer-edit");
     const { result, rerender } = renderHook(
-      ({ serverDefinition }) => useDashboardDefinitionDraft(serverDefinition),
+      ({ serverDefinition }) =>
+        useDashboardDefinitionDraft(serverDefinition, true),
       { initialProps: { serverDefinition: initialDefinition } },
     );
 

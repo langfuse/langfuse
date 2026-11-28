@@ -1,5 +1,8 @@
+import type { DashboardWidget } from "@prisma/client";
+import { saveWidgetDefinition } from "./widget-definition-storage";
 import { prisma, Prisma } from "../../../db";
 import { isPrismaRecordNotFoundError } from "../../prismaErrors";
+import { escapeSqlLikePattern } from "../../utils/sqlLike";
 import {
   LangfuseConflictError,
   LangfuseNotFoundError,
@@ -11,6 +14,8 @@ import { env } from "../../../env";
 import {
   CreateWidgetInput,
   WidgetDomain,
+  WidgetReadDomain,
+  InvalidWidgetDomainSchema,
   WidgetListResponse,
   DashboardDomain,
   DashboardListResponse,
@@ -60,7 +65,7 @@ const toWidgetQueryShape = (input: CreateWidgetInput): WidgetQueryShape => ({
   filters: input.filters,
 });
 
-const validateDashboardWidgetQuery = (
+export const validateDashboardWidgetQuery = (
   input: CreateWidgetInput,
   minVersion: number,
 ) => {
@@ -88,18 +93,62 @@ const validateDashboardWidgetQuery = (
   }
 };
 
+/**
+ * First free clone name: "ABC (Clone)", then "ABC (Clone 2)", "ABC (Clone 3)", …
+ */
+function nextCloneName(sourceName: string, existingNames: string[]): string {
+  const taken = new Set(existingNames);
+  const base = `${sourceName} (Clone)`;
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${sourceName} (Clone ${n})`)) n++;
+  return `${sourceName} (Clone ${n})`;
+}
+
+type DashboardPageOptions = {
+  projectId: string;
+  limit?: number;
+  page?: number;
+  orderBy?: OrderByState;
+  /** Include Langfuse-managed dashboards (projectId null). Defaults to true. */
+  includeLangfuseOwned?: boolean;
+};
+
+function readWidget(widget: DashboardWidget): WidgetReadDomain {
+  const owner = widget.projectId ? "PROJECT" : "LANGFUSE";
+  const parsed = WidgetDomainSchema.safeParse({
+    ...widget,
+    owner,
+    invalid: false,
+  });
+  if (parsed.success) return parsed.data;
+  return InvalidWidgetDomainSchema.parse({
+    invalid: true,
+    id: widget.id,
+    createdAt: widget.createdAt,
+    updatedAt: widget.updatedAt,
+    createdBy: widget.createdBy,
+    updatedBy: widget.updatedBy,
+    projectId: widget.projectId,
+    name: widget.name,
+    description: widget.description,
+    view: widget.view,
+    dimensions: widget.dimensions,
+    metrics: widget.metrics,
+    filters: widget.filters,
+    chartType: widget.chartType,
+    chartConfig: widget.chartConfig,
+    definition: widget.definition,
+    revision: widget.revision,
+    minVersion: widget.minVersion,
+    owner,
+  });
+}
+
 export class DashboardService {
-  /**
-   * Retrieves a list of dashboards for a given project.
-   */
-  public static async listDashboards(props: {
-    projectId: string;
-    limit?: number;
-    page?: number;
-    orderBy?: OrderByState;
-    /** Include Langfuse-managed dashboards (projectId null). Defaults to true. */
-    includeLangfuseOwned?: boolean;
-  }): Promise<DashboardListResponse> {
+  public static saveWidgetDefinition = saveWidgetDefinition;
+
+  private static async findDashboardPage(props: DashboardPageOptions) {
     const {
       projectId,
       limit,
@@ -129,15 +178,20 @@ export class DashboardService {
       }),
     ]);
 
-    const domainDashboards = dashboards.map((dashboard) =>
-      DashboardDomainSchema.parse({
-        ...dashboard,
-        owner: dashboard.projectId ? "PROJECT" : "LANGFUSE",
-      }),
-    );
+    return { dashboards, totalCount };
+  }
 
+  public static async listDashboards(
+    props: DashboardPageOptions,
+  ): Promise<DashboardListResponse> {
+    const { dashboards, totalCount } = await this.findDashboardPage(props);
     return {
-      dashboards: domainDashboards,
+      dashboards: dashboards.map((dashboard) =>
+        DashboardDomainSchema.parse({
+          ...dashboard,
+          owner: dashboard.projectId ? "PROJECT" : "LANGFUSE",
+        }),
+      ),
       totalCount,
     };
   }
@@ -162,7 +216,7 @@ export class DashboardService {
         projectId,
         createdBy: userId,
         updatedBy: userId,
-        definition: initialDefinition,
+        definition: DashboardDefinitionSchema.parse(initialDefinition),
         ...(filters !== undefined && { filters }),
       },
     });
@@ -171,6 +225,67 @@ export class DashboardService {
       ...newDashboard,
       owner: newDashboard.projectId ? "PROJECT" : "LANGFUSE",
     });
+  }
+
+  public static async cloneDashboard({
+    projectId,
+    dashboardId,
+    userId,
+    definition,
+    setAsHome,
+  }: {
+    projectId: string;
+    dashboardId: string;
+    userId: string;
+    definition?: z.infer<typeof DashboardDefinitionSchema>;
+    setAsHome?: boolean;
+  }): Promise<DashboardDomain> {
+    return prisma.$transaction(
+      async (tx) => {
+        const source = await tx.dashboard.findFirst({
+          where: { id: dashboardId, OR: [{ projectId }, { projectId: null }] },
+          select: {
+            name: true,
+            description: true,
+            definition: true,
+            filters: true,
+          },
+        });
+        if (!source)
+          throw new LangfuseNotFoundError("Source dashboard not found");
+        const names = await tx.dashboard.findMany({
+          where: {
+            projectId,
+            name: { startsWith: `${escapeSqlLikePattern(source.name)} (Clone` },
+          },
+          select: { name: true },
+        });
+        const clone = await tx.dashboard.create({
+          data: {
+            name: nextCloneName(
+              source.name,
+              names.map(({ name }) => name),
+            ),
+            description: source.description,
+            filters: source.filters ?? [],
+            projectId,
+            createdBy: userId,
+            updatedBy: userId,
+            definition: DashboardDefinitionSchema.parse(
+              definition ?? source.definition,
+            ),
+          },
+        });
+        if (setAsHome) {
+          await tx.project.update({
+            where: { id: projectId },
+            data: { homeDashboardId: clone.id },
+          });
+        }
+        return DashboardDomainSchema.parse({ ...clone, owner: "PROJECT" });
+      },
+      { isolationLevel: "RepeatableRead" },
+    );
   }
 
   /**
@@ -216,12 +331,8 @@ export class DashboardService {
     userId?: string,
   ): Promise<DashboardDomain> {
     return this.updateDashboardRecord(dashboardId, projectId, {
+      definition: DashboardDefinitionSchema.parse(definition),
       updatedBy: userId,
-      definition: {
-        // Already sanitized: the input is parsed against
-        // DashboardDefinitionSchema, which strips unknown keys.
-        widgets: definition.widgets,
-      },
     });
   }
 
@@ -339,12 +450,7 @@ export class DashboardService {
       }),
     ]);
 
-    const domainWidgets = widgets.map((widget) =>
-      WidgetDomainSchema.parse({
-        ...widget,
-        owner: widget.projectId ? "PROJECT" : "LANGFUSE",
-      }),
-    );
+    const domainWidgets = widgets.map(readWidget);
 
     return {
       widgets: domainWidgets,
@@ -393,7 +499,7 @@ export class DashboardService {
   public static async getWidget(
     widgetId: string,
     projectId: string,
-  ): Promise<WidgetDomain | null> {
+  ): Promise<WidgetReadDomain | null> {
     const widget = await prisma.dashboardWidget.findFirst({
       where: {
         id: widgetId,
@@ -405,10 +511,7 @@ export class DashboardService {
       return null;
     }
 
-    return WidgetDomainSchema.parse({
-      ...widget,
-      owner: widget.projectId ? "PROJECT" : "LANGFUSE",
-    });
+    return readWidget(widget);
   }
 
   /**
@@ -422,8 +525,19 @@ export class DashboardService {
   ): Promise<WidgetDomain> {
     const existingWidget = await prisma.dashboardWidget.findFirst({
       where: { id: widgetId, projectId },
-      select: { minVersion: true, view: true },
+      select: {
+        minVersion: true,
+        view: true,
+        definition: true,
+        revision: true,
+      },
     });
+    if (!existingWidget)
+      throw new LangfuseNotFoundError("Dashboard widget not found");
+    if (existingWidget?.definition != null)
+      throw new LangfuseConflictError(
+        "This widget uses a versioned definition. Edit it with the widget editor to preserve its tabs and formulas.",
+      );
     const persistedMinVersion =
       existingWidget && existingWidget.view === input.view
         ? existingWidget.minVersion
@@ -433,24 +547,35 @@ export class DashboardService {
       persistedMinVersion,
     );
     validateDashboardWidgetQuery(input, minVersion);
-    const updatedWidget = await prisma.dashboardWidget.update({
-      where: {
-        id: widgetId,
-        projectId,
-      },
-      data: {
-        name: input.name,
-        description: input.description,
-        view: input.view,
-        dimensions: input.dimensions,
-        metrics: input.metrics,
-        filters: input.filters,
-        chartType: input.chartType,
-        chartConfig: input.chartConfig,
-        minVersion,
-        updatedBy: userId,
-      },
-    });
+    const updatedWidget = await prisma.dashboardWidget
+      .update({
+        where: {
+          id: widgetId,
+          projectId,
+          definition: { equals: Prisma.DbNull },
+          revision: existingWidget.revision,
+        },
+        data: {
+          name: input.name,
+          description: input.description,
+          view: input.view,
+          dimensions: input.dimensions,
+          metrics: input.metrics,
+          filters: input.filters,
+          chartType: input.chartType,
+          chartConfig: input.chartConfig,
+          minVersion,
+          updatedBy: userId,
+          revision: { increment: 1 },
+        },
+      })
+      .catch((error: unknown) => {
+        if (isPrismaRecordNotFoundError(error))
+          throw new LangfuseConflictError(
+            "This widget changed. Reload it and try again.",
+          );
+        throw error;
+      });
 
     return WidgetDomainSchema.parse({
       ...updatedWidget,
@@ -559,36 +684,33 @@ export class DashboardService {
           chartType: sourceWidget.chartType,
           chartConfig: sourceWidget.chartConfig ?? {},
           minVersion,
+          definition: sourceWidget.definition ?? Prisma.DbNull,
+          revision: sourceWidget.definition ? 1 : 0,
           projectId, // project owned
           createdBy: userId,
           updatedBy: userId,
         },
       });
 
-      // 2. fetch dashboard to change reference
-      const dashboard = await tx.dashboard.findFirst({
-        where: { id: dashboardId, projectId },
-      });
-
-      if (!dashboard) {
-        throw new LangfuseNotFoundError(
-          `Dashboard ${dashboardId} not found in project ${projectId}`,
-        );
-      }
-
-      const definition = (dashboard.definition ?? {
-        widgets: [],
-      }) as z.infer<typeof DashboardDefinitionSchema>;
-      const updatedWidgets = (definition.widgets || []).map((w: any) =>
-        w.id === placementId ? { ...w, widgetId: newWidget.id } : w,
-      );
-
-      // 3. update dashboard with new widget reference
+      const [dashboard] = await tx.$queryRaw<
+        { definition: Prisma.JsonValue }[]
+      >`
+        SELECT definition FROM dashboards
+        WHERE id = ${dashboardId} AND project_id = ${projectId} FOR UPDATE
+      `;
+      if (!dashboard) throw new LangfuseNotFoundError("Dashboard not found");
+      const layout = DashboardDefinitionSchema.parse(dashboard.definition);
       await tx.dashboard.update({
         where: { id: dashboardId, projectId },
         data: {
           updatedBy: userId,
-          definition: { widgets: updatedWidgets },
+          definition: {
+            widgets: layout.widgets.map((placement) =>
+              placement.type === "widget" && placement.id === placementId
+                ? { ...placement, widgetId: newWidget.id }
+                : placement,
+            ),
+          },
         },
       });
 

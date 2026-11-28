@@ -26,6 +26,8 @@ type CloneDashboardDialogState = {
   pendingDefinition?: { widgets: DashboardPlacement[] } | null;
   /** Called when the user dismisses without cloning (revert the attempt). */
   onCancel?: () => void;
+  /** Continue the edit that opened the dialog in the chosen project copy. */
+  onOpenCopy?: (dashboardId: string) => void;
 };
 
 export function ConnectedCloneDashboardDialogController({
@@ -86,6 +88,7 @@ function ConnectedCloneDashboardDialog({
   dashboardName,
   setAsHome = false,
   pendingDefinition,
+  onOpenCopy,
 }: Omit<CloneDashboardDialogState, "onCancel"> & {
   closeDialog: () => void;
   cancelDialog: () => boolean;
@@ -94,6 +97,12 @@ function ConnectedCloneDashboardDialog({
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+
+  const openCopy = (id: string) => {
+    if (onOpenCopy) onOpenCopy(id);
+    else
+      router.push(`/project/${projectId}/dashboards/${encodeURIComponent(id)}`);
+  };
 
   // Detect existing copies of this dashboard so we can offer navigating to
   // one instead of accumulating "(Clone)" duplicates.
@@ -141,11 +150,7 @@ function ConnectedCloneDashboardDialog({
         duration: 3000,
       });
       closeDialog();
-      if (data?.id) {
-        router.push(
-          `/project/${projectId}/dashboards/${encodeURIComponent(data.id)}`,
-        );
-      }
+      if (data?.id) openCopy(data.id);
     },
     onError: (e) => {
       onPendingChange(false);
@@ -172,6 +177,7 @@ function ConnectedCloneDashboardDialog({
       dashboardName={dashboardName}
       setAsHome={setAsHome}
       hasPendingChange={Boolean(pendingDefinition)}
+      continuesCardEdit={Boolean(onOpenCopy)}
       existingCloneName={existingClone?.name}
       isPending={cloneDashboard.isPending}
       onConfirm={handleConfirm}
@@ -183,9 +189,7 @@ function ConnectedCloneDashboardDialog({
           had_pending_change: Boolean(pendingDefinition),
         });
         if (!cancelDialog()) return;
-        router.push(
-          `/project/${projectId}/dashboards/${encodeURIComponent(existingClone.id)}`,
-        );
+        openCopy(existingClone.id);
       }}
     />
   );

@@ -2,13 +2,16 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useEffect, useMemo, useRef } from "react";
-import { CopyIcon, CopyPlusIcon, TrashIcon } from "@langfuse/icons";
+import { useMediaQuery } from "react-responsive";
+import { CopyIcon, CopyPlusIcon, PencilIcon, TrashIcon } from "@langfuse/icons";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
 import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import {
   getHomePreset,
+  type PresetSelection,
+  type PresetSelectionActions,
   type PresetWidgetContext,
 } from "@/src/features/dashboard/components/home-preset-registry";
 import { buildPresetExport } from "@/src/features/dashboard/utils/dashboard-import-export";
@@ -47,7 +50,9 @@ export function PresetDashboardWidget({
   schedulerId,
   onLockedEditAttempt,
   readOnly,
+  showDuplicateButton = false,
   onDuplicatePreset,
+  onEditPreset,
   heightBehavior,
 }: {
   projectId: string;
@@ -76,7 +81,15 @@ export function PresetDashboardWidget({
    * Adds another placement of this preset card next to this tile (clone).
    * Passed only on editable (non-locked) dashboards.
    */
-  onDuplicatePreset?: (anchor: PresetPlacement) => void;
+  showDuplicateButton?: boolean;
+  onDuplicatePreset?: (
+    anchor: PresetPlacement,
+    selection: PresetSelection,
+  ) => void;
+  onEditPreset?: (
+    placement: PresetPlacement,
+    selection: PresetSelection,
+  ) => void;
   heightBehavior:
     | { mode: "fixed" }
     | {
@@ -85,11 +98,10 @@ export function PresetDashboardWidget({
       };
 }) {
   const metricsVersion: ViewVersion = readPath === "v4" ? "v2" : "v1";
+  const touchActions = useMediaQuery({
+    query: "(pointer: coarse), (hover: none)",
+  });
 
-  // Presets on project-owned dashboards (e.g. a clone of the curated Home)
-  // can be moved/removed, but their content stays fixed until extended into a
-  // configurable widget. On Langfuse-owned dashboards the same affordances
-  // show, routing through the clone-first flow.
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
     scope: "dashboards:CUD",
@@ -194,10 +206,14 @@ export function PresetDashboardWidget({
   };
 
   const capture = usePostHogClientCapture();
-  const handleCopyToClipboard = async () => {
+  const handleCopyToClipboard = async (selection: PresetSelection) => {
     try {
       await copyTextToClipboard(
-        JSON.stringify(buildPresetExport(placement.presetId), null, 2),
+        JSON.stringify(
+          buildPresetExport(placement.presetId, selection),
+          null,
+          2,
+        ),
       );
       capture("dashboard:widget_copied_to_clipboard", {
         surface: "grid_menu",
@@ -231,41 +247,75 @@ export function PresetDashboardWidget({
     );
   }
 
-  const actions: DataCardActions = {
-    draggable: !readOnly && (hasCUDAccess || isLockedEditable),
-    menu: [
-      {
-        type: "item",
-        id: "copy",
-        title: "Copy card",
-        icon: CopyIcon,
-        onClick: handleCopyToClipboard,
-      },
-      ...(onDuplicatePreset
-        ? [
-            {
-              type: "item" as const,
-              id: "clone",
-              title: "Clone",
-              icon: CopyPlusIcon,
-              onClick: () => onDuplicatePreset(placement),
-            },
-          ]
-        : []),
-      ...(!readOnly && (hasCUDAccess || isLockedEditable)
-        ? [
-            { id: "delete-separator", type: "separator" as const },
-            {
-              type: "item" as const,
-              id: "delete",
-              title: "Delete",
-              icon: TrashIcon,
-              variant: "destructive" as const,
-              onClick: handleDelete,
-            },
-          ]
-        : []),
-    ],
+  const actionsForSelection: PresetSelectionActions = (selection) => {
+    const duplicate =
+      !readOnly && hasCUDAccess && onDuplicatePreset
+        ? () => onDuplicatePreset(placement, selection)
+        : undefined;
+    const actions: DataCardActions = {
+      buttons:
+        showDuplicateButton && duplicate
+          ? [
+              {
+                id: "duplicate",
+                label: "Duplicate widget",
+                icon: CopyPlusIcon,
+                onClick: duplicate,
+              },
+            ]
+          : [],
+      draggable: !readOnly && (hasCUDAccess || isLockedEditable),
+      menu: [
+        {
+          type: "item",
+          id: "copy",
+          title: "Copy card",
+          icon: CopyIcon,
+          onClick: () => handleCopyToClipboard(selection),
+        },
+        ...(!showDuplicateButton && duplicate
+          ? [
+              {
+                type: "item" as const,
+                id: "clone",
+                title: "Clone",
+                icon: CopyPlusIcon,
+                onClick: duplicate,
+              },
+            ]
+          : []),
+        ...(!readOnly && (hasCUDAccess || isLockedEditable)
+          ? [
+              { id: "delete-separator", type: "separator" as const },
+              {
+                type: "item" as const,
+                id: "delete",
+                title: "Delete",
+                icon: TrashIcon,
+                variant: "destructive" as const,
+                onClick: handleDelete,
+              },
+            ]
+          : []),
+      ],
+    };
+    return {
+      ...actions,
+      inline: touchActions,
+      buttons: [
+        ...(!readOnly && hasRbacCUDAccess && onEditPreset
+          ? [
+              {
+                id: "edit",
+                label: "Edit widget",
+                icon: PencilIcon,
+                onClick: () => onEditPreset(placement, selection),
+              },
+            ]
+          : []),
+        ...(actions.buttons ?? []),
+      ],
+    };
   };
 
   return (
@@ -280,7 +330,11 @@ export function PresetDashboardWidget({
             : "h-full w-full overflow-y-auto"
         }
       >
-        {renderPreset({ ...ctx, actions })}
+        {renderPreset({
+          ...ctx,
+          actions: actionsForSelection({}),
+          actionsForSelection,
+        })}
       </div>
     </div>
   );

@@ -20,7 +20,6 @@ import {
   getObservationUsageByTypeByTime,
   DashboardService,
   DashboardDefinitionSchema,
-  escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
@@ -39,7 +38,11 @@ import {
   LANGFUSE_HOME_DASHBOARD_ID,
   type FilterState,
 } from "@langfuse/shared";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  hasProjectAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac/utils/checkProjectAccess";
+import { canAuthorDashboardBlocks } from "@/src/features/feature-flags/utils";
 
 // Define the dashboard list input schema
 const ListDashboardsInput = z.object({
@@ -62,10 +65,7 @@ const GetDashboardInput = z.object({
   dashboardId: z.string(),
 });
 
-// Update dashboard definition input schema
-const UpdateDashboardDefinitionInput = z.object({
-  projectId: z.string(),
-  dashboardId: z.string(),
+const UpdateDashboardDefinitionInput = GetDashboardInput.extend({
   definition: DashboardDefinitionSchema,
 });
 
@@ -108,18 +108,6 @@ const UpdateDashboardFiltersInput = z.object({
   dashboardId: z.string(),
   filters: singleFilterList,
 });
-
-/**
- * First free clone name: "ABC (Clone)", then "ABC (Clone 2)", "ABC (Clone 3)", …
- */
-function nextCloneName(sourceName: string, existingNames: string[]): string {
-  const taken = new Set(existingNames);
-  const base = `${sourceName} (Clone)`;
-  if (!taken.has(base)) return base;
-  let n = 2;
-  while (taken.has(`${sourceName} (Clone ${n})`)) n++;
-  return `${sourceName} (Clone ${n})`;
-}
 
 // Map camelCase legacy column names (used by scoreHistogram component)
 // to view-native field names before passing through the general mapper.
@@ -194,12 +182,14 @@ function clickhouseHistogramToChartData(
   };
 }
 
-async function getScoreAggregateV2({
+export async function getScoreAggregateV2({
   projectId,
   filter,
+  executionOptions,
 }: {
   projectId: string;
   filter: FilterState;
+  executionOptions?: Parameters<typeof executeQuery>[4];
 }): Promise<DatabaseRow[]> {
   // prepareScoresNumericV2Params also applies LEGACY_CAMEL_CASE_MAP for
   // scoreHistogram callers. For score-aggregate calls, the only camelCase
@@ -253,10 +243,16 @@ async function getScoreAggregateV2({
   };
 
   const [numericResults, categoricalResults] = await Promise.all([
-    executeQuery(projectId, numericQuery, "v2"),
+    executeQuery(projectId, numericQuery, "v2", false, executionOptions),
     skipCategorical
       ? Promise.resolve([])
-      : executeQuery(projectId, categoricalQuery, "v2"),
+      : executeQuery(
+          projectId,
+          categoricalQuery,
+          "v2",
+          false,
+          executionOptions,
+        ),
   ]);
 
   const merged = [
@@ -546,6 +542,24 @@ export const dashboardRouter = createTRPCRouter({
       return dashboard;
     }),
 
+  getDashboardBlockCapabilities: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:read",
+      });
+      const enabled =
+        canAuthorDashboardBlocks(ctx.session) &&
+        hasProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "dashboards:CUD",
+        });
+      return { multiQuery: enabled, markdown: enabled };
+    }),
+
   createDashboard: protectedProjectProcedure
     .input(CreateDashboardInput)
     .mutation(async ({ ctx, input }) => {
@@ -574,14 +588,12 @@ export const dashboardRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
-      const dashboard = await DashboardService.updateDashboardDefinition(
+      return DashboardService.updateDashboardDefinition(
         input.dashboardId,
         input.projectId,
         input.definition,
         ctx.session.user.id,
       );
-
-      return dashboard;
     }),
 
   updateDashboardMetadata: protectedProjectProcedure
@@ -613,49 +625,10 @@ export const dashboardRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
-      // Get the source dashboard
-      const sourceDashboard = await DashboardService.getDashboard(
-        input.dashboardId,
-        input.projectId,
-      );
-
-      if (!sourceDashboard) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Source dashboard not found",
-        });
-      }
-
-      // Create a new dashboard with the same data but a numbered clone name
-      const existingClones = await ctx.prisma.dashboard.findMany({
-        where: {
-          projectId: input.projectId,
-          name: {
-            startsWith: `${escapeSqlLikePattern(sourceDashboard.name)} (Clone`,
-          },
-        },
-        select: { name: true },
+      return DashboardService.cloneDashboard({
+        ...input,
+        userId: ctx.session.user.id,
       });
-
-      const clonedDashboard = await DashboardService.createDashboard(
-        input.projectId,
-        nextCloneName(
-          sourceDashboard.name,
-          existingClones.map((d) => d.name),
-        ),
-        sourceDashboard.description,
-        ctx.session.user.id,
-        input.definition ?? sourceDashboard.definition,
-      );
-
-      if (input.setAsHome) {
-        await ctx.prisma.project.update({
-          where: { id: input.projectId },
-          data: { homeDashboardId: clonedDashboard.id },
-        });
-      }
-
-      return clonedDashboard;
     }),
 
   getHomeDashboard: protectedProjectProcedure

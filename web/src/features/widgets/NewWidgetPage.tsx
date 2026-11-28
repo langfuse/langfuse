@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
+import { useCanAuthorDashboardWidgets } from "@/src/features/feature-flags/hooks/useCanAuthorDashboardWidgets";
+import { SavedWidgetEditor } from "./components/SavedWidgetEditor";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/Page";
 import { api } from "@/src/utils/api";
@@ -23,7 +25,16 @@ import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingF
 
 export default function NewWidgetPage() {
   const route = useReadyRouteParams(["projectId"]);
+  const router = useRouter();
+  const authoringEnabled = useCanAuthorDashboardWidgets();
   if (!route.ready) return <RouteParamsPendingFallback />;
+  if (authoringEnabled)
+    return (
+      <SavedWidgetEditor
+        projectId={route.params.projectId}
+        dashboardId={asSingleQueryParam(router.query.dashboardId)}
+      />
+    );
   return <NewWidgetView projectId={route.params.projectId} />;
 }
 

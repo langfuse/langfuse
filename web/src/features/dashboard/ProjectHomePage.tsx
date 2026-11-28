@@ -48,7 +48,8 @@ import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Button } from "@/src/components/ui/button";
-import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
+import { DashboardBlocksProvider } from "@/src/features/dashboard-blocks/DashboardBlocksProvider";
+import { DashboardWidgetsGrid } from "@/src/features/dashboard-blocks/DashboardWidgetsGrid";
 import { ConnectedHomeDashboardSelect } from "@/src/features/dashboard/components/ConnectedHomeDashboardSelect";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
@@ -268,8 +269,6 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
     capture,
   ]);
 
-  // Home is a viewing surface: no in-place editing (that lives in the
-  // Dashboards section, one pencil click away).
   const definition =
     displayedDashboard?.definition ?? LANGFUSE_HOME_DASHBOARD_DEFINITION;
 
@@ -545,26 +544,42 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
             }
           />
         </PageHeaderControlsPortal>
-        {!isDashboardDataReady || isResolvingDashboard ? (
-          <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
-            <Skeleton className="h-full w-full" />
-          </div>
-        ) : (
-          <DashboardGrid
-            widgets={definition.widgets}
-            onChange={() => undefined}
-            canEdit={false}
-            dashboardId={dashboardId}
-            projectId={projectId}
-            readPath={readPath}
-            dateRange={absoluteTimeRange}
-            filterState={gridFilterState}
-            onDeleteWidget={() => undefined}
-            dashboardOwner={dashboardOwner}
-            getWidgetSchedulerId={getWidgetSchedulerId}
-            readOnly
-          />
-        )}
+        <DashboardBlocksProvider
+          key={`${projectId}:${dashboardId}`}
+          projectId={projectId}
+          dashboardId={dashboardId}
+          canEdit={dashboardOwner === "PROJECT" && hasRbacCUDAccess}
+          canCloneToEdit={dashboardOwner === "LANGFUSE" && hasRbacCUDAccess}
+          readPath={readPath}
+          dateRange={absoluteTimeRange}
+          filterState={gridFilterState}
+          widgets={definition.widgets}
+          dashboardReady={!isResolvingDashboard}
+        >
+          {!isDashboardDataReady || isResolvingDashboard ? (
+            <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
+              <Skeleton className="h-full w-full" />
+            </div>
+          ) : (
+            <DashboardWidgetsGrid
+              dashboardName={dashboardName}
+              gridProps={{
+                widgets: definition.widgets,
+                onChange: () => undefined,
+                canEdit: false,
+                dashboardId,
+                projectId,
+                readPath,
+                dateRange: absoluteTimeRange,
+                filterState: gridFilterState,
+                onDeleteWidget: () => undefined,
+                dashboardOwner,
+                getWidgetSchedulerId,
+                readOnly: true,
+              }}
+            />
+          )}
+        </DashboardBlocksProvider>
       </Page>
     </DashboardQuerySchedulerProvider>
   );

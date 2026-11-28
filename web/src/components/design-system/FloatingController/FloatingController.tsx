@@ -137,6 +137,7 @@ function FloatingController({
   open,
   onOpenChange,
   interaction = "hover",
+  initialFocus = interaction === "click" ? 0 : -1,
   returnFocus = true,
   openDelay = 700,
   closeDelay = 300,
@@ -169,6 +170,9 @@ function FloatingController({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   interaction?: "hover" | "click";
+  initialFocus?: React.ComponentProps<
+    typeof FloatingFocusManager
+  >["initialFocus"];
   returnFocus?: React.ComponentProps<
     typeof FloatingFocusManager
   >["returnFocus"];
@@ -244,7 +248,7 @@ function FloatingController({
             context={context}
             disabled={overlayRole === "tooltip"}
             modal={false}
-            initialFocus={interaction === "click" ? 0 : -1}
+            initialFocus={initialFocus}
             returnFocus={returnFocus}
           >
             {renderContent(

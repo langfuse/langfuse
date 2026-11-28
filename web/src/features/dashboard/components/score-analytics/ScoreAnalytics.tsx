@@ -4,7 +4,9 @@ import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectT
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { GripVerticalIcon, MoreVerticalIcon } from "@langfuse/icons";
 import { VisualizationFrame } from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
+import type { PresetSelectionActions } from "../home-preset-registry";
 import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
+import { DataCardActionBar } from "@/src/components/design-system/DataCardActionBar/DataCardActionBar";
 import { type FilterState, type ScoreDataTypeType } from "@langfuse/shared";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import {
@@ -26,6 +28,7 @@ import { type ViewVersion } from "@langfuse/shared/query";
 
 export function ScoreAnalytics(props: {
   actions?: DataCardActions;
+  actionsForSelection?: PresetSelectionActions;
   className?: string;
   agg: DashboardDateRangeAggregationOption;
   globalFilterState: FilterState;
@@ -98,6 +101,21 @@ export function ScoreAnalytics(props: {
     });
   }, [scoreAnalyticsOptions, scoreKeyToData]);
 
+  const actions =
+    props.actionsForSelection?.({
+      scores: scoreAnalyticsValues.flatMap(({ key }) => {
+        const score = scoreKeyToData.get(key);
+        return score
+          ? [
+              {
+                name: score.name,
+                source: score.source,
+                dataType: score.dataType,
+              },
+            ]
+          : [];
+      }),
+    }) ?? props.actions;
   return (
     <div className={props.className}>
       <div className="group flex flex-col gap-4">
@@ -108,46 +126,50 @@ export function ScoreAnalytics(props: {
               Aggregate scores and averages over time
             </p>
           </div>
-          <div className="text-muted-foreground flex items-center gap-2">
-            {props.actions?.draggable && (
-              <GripVerticalIcon
-                size="base"
-                __rawClassName="drag-handle hidden cursor-grab active:cursor-grabbing lg:block"
-              />
-            )}
-            {props.actions?.buttons?.map(
-              ({ id, label, icon: Icon, onClick, disabled }) => (
-                <button
-                  key={id}
-                  type="button"
-                  aria-label={label}
-                  title={label}
-                  onClick={onClick}
-                  disabled={disabled}
-                  className="hover:text-foreground disabled:opacity-50"
-                >
-                  <Icon size="base" />
-                </button>
-              ),
-            )}
-            {Boolean(props.actions?.menu?.length) && (
-              <DropdownMenu
-                placement="bottom-end"
-                items={props.actions?.menu ?? []}
-              >
-                {({ getTriggerProps }) => (
+          {actions?.inline ? (
+            <DataCardActionBar actions={actions} />
+          ) : (
+            <div className="text-muted-foreground flex items-center gap-2">
+              {actions?.draggable && (
+                <GripVerticalIcon
+                  size="base"
+                  __rawClassName="drag-handle hidden cursor-grab active:cursor-grabbing lg:block"
+                />
+              )}
+              {actions?.buttons?.map(
+                ({ id, label, icon: Icon, onClick, disabled }) => (
                   <button
+                    key={id}
                     type="button"
-                    aria-label="Widget actions"
-                    className="hover:text-foreground"
-                    {...getTriggerProps()}
+                    aria-label={label}
+                    title={label}
+                    onClick={onClick}
+                    disabled={disabled}
+                    className="hover:text-foreground disabled:opacity-50"
                   >
-                    <MoreVerticalIcon size="base" />
+                    <Icon size="base" />
                   </button>
-                )}
-              </DropdownMenu>
-            )}
-          </div>
+                ),
+              )}
+              {Boolean(actions?.menu?.length) && (
+                <DropdownMenu
+                  placement="bottom-end"
+                  items={actions?.menu ?? []}
+                >
+                  {({ getTriggerProps }) => (
+                    <button
+                      type="button"
+                      aria-label="Widget actions"
+                      className="hover:text-foreground"
+                      {...getTriggerProps()}
+                    >
+                      <MoreVerticalIcon size="base" />
+                    </button>
+                  )}
+                </DropdownMenu>
+              )}
+            </div>
+          )}
         </div>
         {!props.isLoading &&
           !scoreKeysAndProps.isPending &&

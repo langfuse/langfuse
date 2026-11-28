@@ -461,11 +461,38 @@ describe("dashboard widget minVersion", () => {
       expect(res.homeDashboardId).toBe(dashboard.id);
       expect(res.dashboard?.id).toBe(dashboard.id);
       expect(res.dashboard?.owner).toBe("PROJECT");
+      expect(res.dashboard?.definition.widgets).toEqual([]);
+
+      const { widget } = await DashboardService.saveWidgetDefinition(
+        projectId,
+        {
+          dashboardId: dashboard.id,
+          definition: {
+            version: 1,
+            kind: "markdown",
+            config: { title: "Notes", content: "Read by everyone" },
+          },
+        },
+      );
+      const detail = await caller.dashboard.getDashboard({
+        projectId,
+        dashboardId: dashboard.id,
+      });
+      expect(detail.definition.widgets).toContainEqual(
+        expect.objectContaining({ type: "widget", widgetId: widget.id }),
+      );
+      const homeWithNote = await caller.dashboard.getHomeDashboard({
+        projectId,
+      });
+      expect(homeWithNote.dashboard?.definition).toEqual(detail.definition);
 
       await caller.dashboard.setHomeDashboard({ projectId, dashboardId: null });
       const cleared = await caller.dashboard.getHomeDashboard({ projectId });
       expect(cleared.homeDashboardId).toBeNull();
       expect(cleared.dashboard?.id).toBe(LANGFUSE_HOME_DASHBOARD_ID);
+      expect(cleared.dashboard?.definition).toEqual(
+        LANGFUSE_HOME_DASHBOARD_DEFINITION,
+      );
     });
 
     it("rejects pointing at a nonexistent dashboard", async () => {
@@ -499,6 +526,50 @@ describe("dashboard widget minVersion", () => {
       expect(res.homeDashboardId).toBeNull();
       expect(res.dashboard?.id).toBe(LANGFUSE_HOME_DASHBOARD_ID);
     });
+
+    it.each(["project", "managed"] as const)(
+      "preserves the %s dashboard's filters when cloning",
+      async (owner) => {
+        const filters = [
+          {
+            type: "string",
+            column: "environment",
+            operator: "=",
+            value: "staging",
+          },
+        ];
+        const caller = makeCaller();
+        const source = await prisma.dashboard.create({
+          data: {
+            projectId: owner === "project" ? projectId : null,
+            name: "Filtered template",
+            description: "",
+            definition: { widgets: [] },
+            filters,
+          },
+        });
+        const fixtureIds = [source.id];
+        try {
+          const clone = await caller.dashboard.cloneDashboard({
+            projectId,
+            dashboardId: source.id,
+            ...(owner === "managed" && {
+              definition: { widgets: [] },
+              setAsHome: true,
+            }),
+          });
+          fixtureIds.push(clone.id);
+          expect(clone.filters).toEqual(filters);
+          await expect(
+            caller.dashboard.getDashboard({ projectId, dashboardId: clone.id }),
+          ).resolves.toMatchObject({ filters });
+        } finally {
+          await prisma.dashboard.deleteMany({
+            where: { id: { in: fixtureIds } },
+          });
+        }
+      },
+    );
 
     it("numbers clone names when copies already exist", async () => {
       const caller = makeCaller();

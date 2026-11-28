@@ -47,7 +47,7 @@ describe("ScoreBadge metadata preview", () => {
       "shadow-md",
     );
     expect(
-      within(card).getByText('"First score metadata"'),
+      await within(card).findByText('"First score metadata"'),
     ).toBeInTheDocument();
 
     rerender(<ScoreBadge name="quality" scores={[secondScore, firstScore]} />);

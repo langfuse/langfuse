@@ -28,6 +28,10 @@ export interface DataPoint {
  * number. (LFE-10694, manifesto V2)
  */
 export type MissingBucketValue = "zero" | "gap";
+/** Per-series policies let metrics with different aggregation semantics share a chart. */
+export type MissingBucketPolicy =
+  | MissingBucketValue
+  | Readonly<Record<string, MissingBucketValue>>;
 
 /**
  * Whether a time-series chart shows its legend (always rendered below the
@@ -151,7 +155,7 @@ export interface ChartProps {
   showDataPointDots?: boolean;
   thresholds?: ChartThreshold[];
   /** See {@link MissingBucketValue}. Defaults to `"gap"`. */
-  missingValue?: MissingBucketValue;
+  missingValue?: MissingBucketPolicy;
   /**
    * Whether a line/area bridges `null` cells instead of breaking. Defaults to
    * `false`: drawing across a no-data bucket fabricates values that were never

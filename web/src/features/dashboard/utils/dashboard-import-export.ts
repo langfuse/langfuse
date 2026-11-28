@@ -39,18 +39,36 @@ function isLangfuseDashboardPayload(parsed: unknown): boolean {
  */
 export const PRESET_FILE_FORMAT_VERSION = 1;
 
-export function buildPresetExport(presetId: string) {
+const presetSelectionSchema = z.object({
+  models: z.array(z.string()).optional(),
+  scores: z
+    .array(
+      z.object({ name: z.string(), source: z.string(), dataType: z.string() }),
+    )
+    .optional(),
+  activeTab: z.string().optional(),
+});
+
+export function buildPresetExport(
+  presetId: string,
+  selection?: z.infer<typeof presetSelectionSchema>,
+) {
   return {
     $langfusePreset: true as const,
     version: PRESET_FILE_FORMAT_VERSION,
     presetId,
+    ...(selection && { selection }),
   };
 }
 
 export type PastedPresetParseResult =
   | { status: "not-preset" }
   | { status: "invalid"; reason: string }
-  | { status: "preset"; presetId: HomeDashboardPresetId };
+  | {
+      status: "preset";
+      presetId: HomeDashboardPresetId;
+      selection?: z.infer<typeof presetSelectionSchema>;
+    };
 
 export function parsePastedPreset(text: string): PastedPresetParseResult {
   let parsedJson: unknown;
@@ -89,9 +107,18 @@ export function parsePastedPreset(text: string): PastedPresetParseResult {
     };
   }
 
+  const selection = presetSelectionSchema
+    .optional()
+    .safeParse(payload.selection);
+  if (!selection.success)
+    return {
+      status: "invalid",
+      reason: "This card contains an invalid selection.",
+    };
   return {
     status: "preset",
     presetId: payload.presetId as HomeDashboardPresetId,
+    ...(selection.data && { selection: selection.data }),
   };
 }
 
@@ -240,7 +267,7 @@ export type DashboardImportParseResult =
  */
 export function parseDashboardImport(
   text: string,
-  params: { isV4: boolean },
+  params: { isV4: boolean; allowLegacyPresets?: boolean },
 ): DashboardImportParseResult {
   let parsedJson: unknown;
   try {
@@ -269,6 +296,17 @@ export function parseDashboardImport(
     return {
       status: "invalid",
       reason: "The dashboard configuration is malformed or not supported.",
+    };
+  }
+
+  if (
+    params.allowLegacyPresets === false &&
+    parsed.data.widgets.some((placement) => placement.type === "preset")
+  ) {
+    return {
+      status: "invalid",
+      reason:
+        "This file contains legacy Home cards. Add their editable replacements from Templates, or convert the cards before exporting. Nothing was imported.",
     };
   }
 

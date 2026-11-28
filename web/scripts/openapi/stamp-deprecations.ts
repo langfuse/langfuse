@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { isMap, isScalar, parse, parseDocument, Scalar } from "yaml";
 
-import { type DeprecatedOperation } from "./fern-deprecations";
+import {
+  type DeprecatedOperation,
+  type FernTypeConstraint,
+} from "./fern-deprecations";
 
 /** Fold width used by `fern export`. */
 const LINE_WIDTH = 80;
@@ -13,6 +16,25 @@ const LINE_WIDTH = 80;
  * aliases as nodes and needs no such option.
  */
 const RESOLVE_OPTIONS = { maxAliasCount: -1 };
+
+/** Carry explicit Fern type constraints through exports that omit them. */
+export function stampTypeConstraints(
+  source: string,
+  constraints: FernTypeConstraint[],
+) {
+  const document = parseDocument(source);
+  if (document.errors.length > 0) {
+    throw new Error(document.errors.map((error) => error.message).join("\n"));
+  }
+  for (const { path, key, value } of constraints) {
+    const object = document.getIn(path, true);
+    if (!isMap(object)) {
+      throw new Error(`OpenAPI schema does not contain type ${path.join("/")}`);
+    }
+    object.set(key, value);
+  }
+  return document.toString({ lineWidth: LINE_WIDTH });
+}
 
 const NOTICE_LABEL = "**Deprecated:**";
 /** Matches a notice this script wrote, so re-runs replace instead of stacking. */

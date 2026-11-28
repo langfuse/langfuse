@@ -1,3 +1,4 @@
+import { useCanAuthorDashboardWidgets } from "@/src/features/feature-flags/hooks/useCanAuthorDashboardWidgets";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import Page from "@/src/components/layouts/Page";
@@ -11,10 +12,11 @@ import {
 
 export default function WidgetsPage() {
   const router = useRouter();
+  const authoring = useCanAuthorDashboardWidgets();
   const { projectId } = router.query as { projectId: string };
   const hasCUDAccess = useHasProjectAccess({
     projectId,
-    scope: "prompts:CUD",
+    scope: "dashboards:CUD",
   });
 
   return (
@@ -30,15 +32,31 @@ export default function WidgetsPage() {
           activeTab: DASHBOARD_TABS.WIDGETS,
         },
         actionButtonsRight: (
-          <ActionButton
-            icon={<PlusIcon size="base" color="default" aria-hidden="true" />}
-            hasAccess={hasCUDAccess}
-            href={`/project/${projectId}/widgets/new`}
-            trackingEventName="dashboard:new_widget_form_open"
-            variant="default"
-          >
-            New widget
-          </ActionButton>
+          <>
+            {authoring && (
+              <ActionButton
+                icon={
+                  <PlusIcon size="base" color="default" aria-hidden="true" />
+                }
+                hasAccess={hasCUDAccess}
+                href={`/project/${projectId}/widgets/new?kind=markdown`}
+                trackingEventName="dashboard:new_widget_form_open"
+                trackingProps={{ kind: "markdown" }}
+                variant="outline"
+              >
+                New text
+              </ActionButton>
+            )}
+            <ActionButton
+              icon={<PlusIcon size="base" color="default" aria-hidden="true" />}
+              hasAccess={hasCUDAccess}
+              href={`/project/${projectId}/widgets/new`}
+              trackingEventName="dashboard:new_widget_form_open"
+              variant="default"
+            >
+              {authoring ? "New chart" : "New widget"}
+            </ActionButton>
+          </>
         ),
       }}
     >

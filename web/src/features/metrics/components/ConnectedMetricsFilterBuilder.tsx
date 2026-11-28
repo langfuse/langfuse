@@ -75,6 +75,7 @@ type MetricsFilterFetcherProps = {
   dateRange?: MetricsFilterDateRange;
   filters: FilterState;
   onChange: (filters: FilterState) => void;
+  onHasInvalidFiltersChange?: (hasInvalidFilters: boolean) => void;
 };
 
 type ConnectedMetricsFilterBuilderProps = MetricsFilterFetcherProps & {
@@ -89,6 +90,7 @@ export function ConnectedMetricsFilterBuilder({
   dateRange,
   filters,
   onChange,
+  onHasInvalidFiltersChange,
 }: ConnectedMetricsFilterBuilderProps) {
   const data = useMetricsFilterBuilderData({
     version,
@@ -102,6 +104,7 @@ export function ConnectedMetricsFilterBuilder({
       view={view}
       filters={filters}
       onChange={onChange}
+      onHasInvalidFiltersChange={onHasInvalidFiltersChange}
       {...data}
     />
   );

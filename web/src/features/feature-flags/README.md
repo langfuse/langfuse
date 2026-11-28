@@ -23,6 +23,8 @@ Internal view is available to users with an account email ending exactly in `@la
 
 Internal personal previews are registered in `internalFeaturePreviewFlags`; the personal modal and self-toggle mutation use `personalFeaturePreviewFlags`. Keep `featurePreviewFlags` limited to previews organizations may manage.
 
+Dashboard widget authoring is available by default to employees in **Internal view**, with the normal project edit permission. Staff eligibility uses exactly `@langfuse.com` and `@clickhouse.com`, case-insensitively, on Cloud and self-hosted installations. **View mode → External view** restores classic authoring. There is no separate preview toggle; obsolete dashboard preview preferences are ignored. Experimental deployments and organization defaults cannot grant this employee-only access. Anyone with dashboard read access can view saved widgets.
+
 Unified Trace and Session View uses the same Internal view or existing personal grant access for its preview toggle. It remains an explicit opt-in, including in Internal view and experimental deployments, and requires the events-backed read path.
 
 Organization defaults are evaluated only for the active project or

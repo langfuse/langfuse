@@ -1,5 +1,6 @@
 /* eslint-disable @repo/no-style-props */
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
+import type { PresetSelectionActions } from "./home-preset-registry";
 import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
 import { compactNumberFormatter, costFormatter } from "@/src/utils/numbers";
 import { useDashboardCardTabs } from "@/src/features/dashboard/hooks/useDashboardCardTabs";
@@ -18,6 +19,7 @@ const MAX_BARS = 20;
 
 export const UserConsumptionCard = ({
   actions,
+  actionsForSelection,
   className,
   projectId,
   globalFilterState,
@@ -28,6 +30,7 @@ export const UserConsumptionCard = ({
   schedulerId,
 }: {
   actions?: DataCardActions;
+  actionsForSelection?: PresetSelectionActions;
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
@@ -189,7 +192,7 @@ export const UserConsumptionCard = ({
     <div className={cn(className, "h-full")}>
       <WidgetChartCard
         chartType="HORIZONTAL_BAR"
-        actions={actions}
+        actions={actionsForSelection?.({ activeTab: tabs.value }) ?? actions}
         title="User consumption"
         tabs={tabs}
         content={(() => {

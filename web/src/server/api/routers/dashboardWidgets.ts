@@ -1,3 +1,4 @@
+import { canAuthorDashboardBlocks } from "@/src/features/feature-flags/utils";
 import { z } from "zod";
 import {
   createTRPCRouter,
@@ -12,6 +13,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
   DashboardService,
+  SaveWidgetDefinitionInput,
   DimensionSchema,
   MetricSchema,
   ChartConfigSchema,
@@ -61,6 +63,26 @@ const GetDashboardWidgetInput = z.object({
 });
 
 export const dashboardWidgetRouter = createTRPCRouter({
+  saveDefinition: protectedProjectProcedure
+    .input(SaveWidgetDefinitionInput.and(z.object({ projectId: z.string() })))
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+      if (!canAuthorDashboardBlocks(ctx.session))
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Widget authoring requires an employee account in Internal view.",
+        });
+      return DashboardService.saveWidgetDefinition(
+        input.projectId,
+        input,
+        ctx.session.user.id,
+      );
+    }),
   create: protectedProjectProcedure
     .input(CreateDashboardWidgetInput)
     .mutation(async ({ input, ctx }) => {
@@ -126,12 +148,8 @@ export const dashboardWidgetRouter = createTRPCRouter({
         });
       }
 
-      return {
-        ...widget,
-        view: dashboardWidgetViewToQueryView[widget.view],
-        metrics: widget.metrics,
-        owner: widget.owner,
-      };
+      if (widget.invalid) return widget;
+      return { ...widget, view: dashboardWidgetViewToQueryView[widget.view] };
     }),
 
   update: protectedProjectProcedure

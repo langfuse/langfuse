@@ -1,8 +1,10 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 import {
+  canAuthorDashboardBlocks,
   getContextualFeatureFlags,
   getFeaturePreviewOptOutFlag,
   parseFlags,
@@ -56,18 +58,18 @@ describe("parseFlags", () => {
     ).toEqual([]);
   });
 
-  it("requires personal trace evals opt-in and ignores organization defaults", () => {
-    const context = {
-      v4BetaEnabled: true,
-    };
-    expect(
-      parseFlagsWithOrganizationDefaults([], ["traceTranscriptEvals"], context)
-        .traceTranscriptEvals,
-    ).toBe(false);
-    expect(
-      parseFlags(["traceTranscriptEvals"], context).traceTranscriptEvals,
-    ).toBe(true);
-  });
+  it.each(["traceTranscriptEvals"] as const)(
+    "requires personal opt-in for %s and ignores organization defaults",
+    (flag) => {
+      const context = {
+        v4BetaEnabled: true,
+      };
+      expect(
+        parseFlagsWithOrganizationDefaults([], [flag], context)[flag],
+      ).toBe(false);
+      expect(parseFlags([flag], context)[flag]).toBe(true);
+    },
+  );
 
   it("enables both session previews by default for every user", () => {
     const flags = parseFlags([], {
@@ -229,4 +231,43 @@ describe("parseFlags", () => {
         ?.sessionViewV2,
     ).toBe(true);
   });
+});
+
+it("enables dashboard authoring only for employees in Internal view", () => {
+  for (const email of ["author@langfuse.com", "author@CLICKHOUSE.COM"]) {
+    for (const obsoletePreferences of [
+      [],
+      ["dashboardBlockAuthoring"],
+      ["feature-preview:dashboardBlockAuthoring:disabled"],
+    ]) {
+      const session = createSession({
+        user: {
+          email,
+          featureFlags: parseFlags(obsoletePreferences, {
+            v4BetaEnabled: false,
+          }),
+        },
+      });
+      expect(canAuthorDashboardBlocks(session)).toBe(true);
+      session.user!.featureFlags.internalFeatures = false;
+      expect(canAuthorDashboardBlocks(session)).toBe(false);
+    }
+  }
+  for (const email of [
+    "author@example.com",
+    "author@langfuse.com.example.com",
+    "author@sub.langfuse.com",
+  ]) {
+    const session = createSession({
+      user: {
+        email,
+        featureFlags: parseFlags(["dashboardBlockAuthoring"], {
+          v4BetaEnabled: true,
+        }),
+      },
+      environment: { enableExperimentalFeatures: true },
+    });
+    expect(canAuthorDashboardBlocks(session)).toBe(false);
+  }
+  expect(canAuthorDashboardBlocks(null)).toBe(false);
 });

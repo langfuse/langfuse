@@ -89,6 +89,10 @@ const sharedSourceResolve = {
       replacement: sharedSourcePath("encryption/index.ts"),
     },
     {
+      find: /^@langfuse\/shared\/dashboards$/,
+      replacement: sharedSourcePath("features/dashboards/index.ts"),
+    },
+    {
       find: /^@langfuse\/shared\/query$/,
       replacement: sharedSourcePath("features/query/index.ts"),
     },

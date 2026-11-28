@@ -17,6 +17,7 @@ import {
   toWidgetTimeRange,
 } from "./timeRanges";
 import { toChartProps } from "./toChartProps";
+import { RichWidgetChart } from "./RichWidgetChart";
 import {
   resultText,
   useWidgetApp,
@@ -194,6 +195,19 @@ function WidgetCard({
       />
     );
   }
+  if (payload.rich)
+    return (
+      <ErrorBoundary fallback={() => staleWidgetCard(recovery)}>
+        <RichWidgetChart
+          payload={payload}
+          rich={payload.rich}
+          loading={busy}
+          canChangeTab={widget.canRerender}
+          onSelectTab={(tabId) => widget.rerender(payload.timeRange, { tabId })}
+          onRefresh={() => widget.rerender(payload.timeRange)}
+        />
+      </ErrorBoundary>
+    );
   return <WidgetChart payload={payload} loading={busy} recovery={recovery} />;
 }
 
@@ -287,15 +301,17 @@ export function WidgetApp() {
             pickerOpen && "min-h-[520px]",
           )}
         >
-          {widget.canRerender && widget.result && (
-            <WidgetToolbar
-              timeRange={timeRange}
-              earliestTimestamp={payload?.earliestTimestamp}
-              busy={widget.pendingRange !== null}
-              onTimeRangeChange={widget.rerender}
-              onAfterPickerOpenChange={setPickerOpen}
-            />
-          )}
+          {widget.canRerender &&
+            widget.result &&
+            payload?.rich?.definition.kind !== "markdown" && (
+              <WidgetToolbar
+                timeRange={timeRange}
+                earliestTimestamp={payload?.earliestTimestamp}
+                busy={widget.pendingRange !== null}
+                onTimeRangeChange={widget.rerender}
+                onAfterPickerOpenChange={setPickerOpen}
+              />
+            )}
           <WidgetCard widget={widget} payload={payload} recovery={recovery} />
         </div>
       </LayerContainerProvider>

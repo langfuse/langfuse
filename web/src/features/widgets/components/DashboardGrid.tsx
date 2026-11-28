@@ -15,8 +15,10 @@ import { type FilterState } from "@langfuse/shared";
 import { useState, useEffect, useLayoutEffect, useCallback } from "react";
 import { flushSync } from "react-dom";
 import { reduceWidthSample } from "@/src/features/widgets/dashboardGridWidth";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { type PresetSelection } from "@/src/features/dashboard/components/home-preset-registry";
+import { useDashboardChartSync } from "@/src/features/dashboard/hooks/DashboardChartSyncProvider";
 
+export type WidgetDuplicateSurface = "grid_menu" | "grid_toolbar";
 export type DashboardPlacement = WidgetPlacement | PresetPlacement;
 
 function useDebouncedContainerWidth(delayMs: number) {
@@ -92,8 +94,10 @@ export function DashboardGrid({
   getWidgetSchedulerId,
   onLockedEditAttempt,
   readOnly,
+  duplicateSurface = "grid_menu",
   onDuplicateWidget,
   onDuplicatePreset,
+  onEditPreset,
 }: {
   widgets: DashboardPlacement[];
   onChange: (widgets: DashboardPlacement[]) => void;
@@ -116,19 +120,25 @@ export function DashboardGrid({
   onLockedEditAttempt?: () => void;
   /** Pure viewing surface (e.g. Home): tiles render no edit affordances. */
   readOnly?: boolean;
+  duplicateSurface?: WidgetDuplicateSurface;
   /** Clone a tile's widget next to it (editable dashboards only). */
   onDuplicateWidget?: (
     anchor: WidgetPlacement,
     widget: WidgetExportSource,
+    surface: WidgetDuplicateSurface,
   ) => void;
   /** Duplicate a preset card next to it (editable dashboards only). */
-  onDuplicatePreset?: (anchor: PresetPlacement) => void;
+  onDuplicatePreset?: (
+    anchor: PresetPlacement,
+    surface: WidgetDuplicateSurface,
+    selection: PresetSelection,
+  ) => void;
+  onEditPreset?: (
+    placement: PresetPlacement,
+    selection: PresetSelection,
+  ) => void;
 }) {
-  const [activeChartKey, setActiveChartKey] = useState<string>();
-  const chartSync: ChartProps["sync"] = {
-    activeKey: activeChartKey,
-    onActiveKeyChange: setActiveChartKey,
-  };
+  const chartSync = useDashboardChartSync();
   const [contentHeights, setContentHeights] = useState<Record<string, number>>(
     {},
   );
@@ -222,7 +232,14 @@ export function DashboardGrid({
         schedulerId={getWidgetSchedulerId?.(widget.id)}
         onLockedEditAttempt={onLockedEditAttempt}
         readOnly={readOnly}
-        onDuplicatePreset={onDuplicatePreset}
+        onEditPreset={onEditPreset}
+        showDuplicateButton={duplicateSurface === "grid_toolbar"}
+        onDuplicatePreset={
+          onDuplicatePreset
+            ? (anchor, selection) =>
+                onDuplicatePreset(anchor, duplicateSurface, selection)
+            : undefined
+        }
         heightBehavior={
           widget.presetId === "home-score-analytics"
             ? {
@@ -246,7 +263,13 @@ export function DashboardGrid({
         schedulerId={getWidgetSchedulerId?.(widget.id)}
         onLockedEditAttempt={onLockedEditAttempt}
         readOnly={readOnly}
-        onDuplicateWidget={onDuplicateWidget}
+        showDuplicateButton={duplicateSurface === "grid_toolbar"}
+        onDuplicateWidget={
+          onDuplicateWidget
+            ? (anchor, widget) =>
+                onDuplicateWidget(anchor, widget, duplicateSurface)
+            : undefined
+        }
       />
     );
 

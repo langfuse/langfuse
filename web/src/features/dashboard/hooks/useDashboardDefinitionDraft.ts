@@ -8,7 +8,10 @@ export type DashboardDefinition = {
 
 export function useDashboardDefinitionDraft(
   serverDefinition: DashboardDefinition | null | undefined,
+  canEdit: boolean,
 ) {
+  const canEditRef = useRef(canEdit);
+  canEditRef.current = canEdit;
   const [draft, setDraft] = useState<DashboardDefinition | null>(null);
   const draftRef = useRef(draft);
   const definition = draft ?? serverDefinition ?? null;
@@ -16,9 +19,11 @@ export function useDashboardDefinitionDraft(
   definitionRef.current = definition;
 
   const applyDraft = useCallback((updated: DashboardDefinition) => {
+    if (!canEditRef.current) return false;
     draftRef.current = updated;
     definitionRef.current = updated;
     setDraft(updated);
+    return true;
   }, []);
 
   const clearDraftIfSaved = useCallback((saved: DashboardDefinition) => {

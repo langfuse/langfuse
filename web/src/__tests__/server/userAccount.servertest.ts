@@ -10,7 +10,10 @@ import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
+import {
+  canAuthorDashboardBlocks,
+  getFeaturePreviewOptOutFlag,
+} from "@/src/features/feature-flags/utils";
 import { INTERNAL_FEATURE_FLAG } from "@/src/features/feature-flags/available-flags";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
 import { getAuthOptions } from "@/src/server/auth";
@@ -91,6 +94,56 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
       "templateFlag",
       getFeaturePreviewOptOutFlag("traceTranscriptEvals"),
     ]);
+  });
+
+  it("defaults staff authoring on and persists Customer view independently of obsolete dashboard preferences", async () => {
+    const employee = await createCaller({
+      emailDomain: "clickhouse.com",
+      featureFlags: [],
+    });
+    const sessionCallback = await getSessionCallback();
+    const refreshed = async () => {
+      const session = await sessionCallback({
+        session: employee.session,
+        token: {
+          sub: employee.userId,
+          email: employee.session.user!.email,
+          loginAt: Date.now(),
+        },
+      });
+      return {
+        session,
+        account: appRouter.createCaller({
+          ...createInnerTRPCContext({ session, headers: {} }),
+          prisma,
+        }).userAccount,
+      };
+    };
+    const fresh = await refreshed();
+    expect(canAuthorDashboardBlocks(fresh.session)).toBe(true);
+    for (const obsolete of [
+      "dashboardBlockAuthoring",
+      "feature-preview:dashboardBlockAuthoring:disabled",
+    ]) {
+      await prisma.user.update({
+        where: { id: employee.userId },
+        data: { featureFlags: [obsolete] },
+      });
+      const internal = await refreshed();
+      expect(canAuthorDashboardBlocks(internal.session)).toBe(true);
+      await internal.account.setViewMode({ mode: "EXTERNAL" });
+      const external = await refreshed();
+      expect(canAuthorDashboardBlocks(external.session)).toBe(false);
+      expect(
+        (
+          await prisma.user.findUniqueOrThrow({
+            where: { id: employee.userId },
+          })
+        ).featureFlags,
+      ).toEqual([obsolete, getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG)]);
+      await external.account.setViewMode({ mode: "INTERNAL" });
+      expect(canAuthorDashboardBlocks((await refreshed()).session)).toBe(true);
+    }
   });
 
   it("enables a preview, leaving other flags intact", async () => {

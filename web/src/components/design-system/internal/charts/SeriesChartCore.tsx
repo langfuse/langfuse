@@ -31,11 +31,18 @@ type ConfiguredLineChartSeries = LineChartSeries & {
   emphasis?: "default" | "dimmed" | "emphasized";
 };
 
+type ChartLegendInteraction = "toggle" | "select_all" | "clear_all";
+
 export type LineChartLegend =
   | { visibility: "hidden" }
   | ({
       visibility: "auto" | "visible";
       summary: "none" | "sum";
+      /**
+       * Observes legend actions for analytics. The chart owns the selection state.
+       * Avoid using this callback to synchronize selection with a parent.
+       */
+      onAfterInteraction?: (action: ChartLegendInteraction) => void;
     } & (
       | { interaction: "highlight" }
       | { interaction: "toggle"; maxVisibleSeries?: number }
@@ -325,12 +332,16 @@ export function SeriesChartCore(
       </div>
       {showLegend ? (
         <ChartLegend
-          selectionActions={
+          selection={
             legend.interaction === "toggle"
               ? {
                   allSelected: hiddenSeriesIds.size === 0,
-                  onSelectAll: () => setAllSeriesHidden(false),
-                  onDeselectAll: () => setAllSeriesHidden(true),
+                  onAllSelectedChange: (selected) => {
+                    setAllSeriesHidden(!selected);
+                    legend.onAfterInteraction?.(
+                      selected ? "select_all" : "clear_all",
+                    );
+                  },
                 }
               : undefined
           }
@@ -371,9 +382,10 @@ export function SeriesChartCore(
                 onClick: () => {
                   if (legend.interaction === "toggle") {
                     toggleSeries(item.id);
-                    return;
+                  } else {
+                    highlightSeries(item.id);
                   }
-                  highlightSeries(item.id);
+                  legend.onAfterInteraction?.("toggle");
                 },
               },
             };
