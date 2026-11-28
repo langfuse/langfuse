@@ -12,6 +12,7 @@ const SKILL_TOOL_NAMES = new Set([
   "langfuse_loadSkillResource",
   "readFile",
   "Read",
+  "read",
 ]);
 
 /** Filters unsupported tools before decoding their arguments or skill catalog. */
@@ -77,7 +78,7 @@ export function getSkillLoadRequestsFromArguments(
   }
   if (typeof args === "string") return [];
 
-  if (toolName === "readFile" || toolName === "Read") {
+  if (toolName === "readFile" || toolName === "Read" || toolName === "read") {
     const path = args.path ?? args.file_path;
     if (typeof path !== "string") return [];
     const resource = getSkillResourceFromPath(path, availableNames);
@@ -92,7 +93,7 @@ export function getSkillLoadRequestsFromArguments(
     case "Skill":
     case "loadSkill":
     case "langfuse_loadSkill":
-      skillName = args.name ?? args.skill;
+      skillName = args.name ?? args.skill ?? args.id;
       filePath = "SKILL.md";
       break;
     case "skill_read":
