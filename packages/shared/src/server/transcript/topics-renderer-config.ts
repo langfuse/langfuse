@@ -25,13 +25,15 @@ export const transcriptRenderConfigSchema = z.object({
   collapseWhitespace: z.boolean().default(true),
   headRatio: z.number().min(0).max(1).default(0.6),
   maxTokens: z.number().int().positive().nullable().default(6000),
+  // Block caps apply only when the uncapped render is longer than this.
+  capAboveCharacters: z.number().int().positive().nullable().default(null),
 });
 
 export type TranscriptRenderConfig = z.input<
   typeof transcriptRenderConfigSchema
 >;
 
-// Topics measures all block types with per-block caps and no total token budget.
+// Topics keeps small transcripts whole (~8k tokens) and caps blocks only above that; no total token budget.
 export const topicsTranscriptConfig = {
   system: { maxChars: 600 },
   user: { maxChars: 2000 },
@@ -44,4 +46,5 @@ export const topicsTranscriptConfig = {
   runIO: { maxChars: 10000 },
   observations: { maxChars: 120 },
   maxTokens: null,
+  capAboveCharacters: 32_000,
 } satisfies TranscriptRenderConfig;
