@@ -11,9 +11,9 @@ function segmentLabel(label: string): string[] {
 }
 
 // These charts estimate ordinary characters at 7 px with their 12 px font.
-// Reserve two units for an emoji cluster, which is typically wider.
+// Reserve 21 px for emoji clusters. They may use a wider fallback font.
 function labelUnits(segment: string): number {
-  return emoji.test(segment) ? 2 : 1;
+  return emoji.test(segment) ? 3 : 1;
 }
 
 export function chartLabelUnits(label: string): number {
