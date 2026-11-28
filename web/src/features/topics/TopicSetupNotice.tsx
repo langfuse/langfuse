@@ -2,7 +2,7 @@
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { type TopicSetupNoticeState } from "./useTopicSettings";
-import { TopicPilesIllustration } from "./TopicPilesIllustration";
+import { TopicTraceRegrouping } from "./TopicTraceRegrouping";
 
 type TopicSetupNoticeProps = {
   notice: TopicSetupNoticeState;
@@ -48,7 +48,10 @@ export function TopicSetupNotice({
       ) : null}
       {showOnboarding ? (
         <div className="flex flex-1 flex-col items-center-safe justify-center-safe gap-7 overflow-y-auto px-4 pb-24">
-          <TopicPilesIllustration piles={LANDING_PILES} slips={LANDING_SLIPS} />
+          <TopicTraceRegrouping
+            topics={LANDING_TOPICS}
+            traces={LANDING_TRACES}
+          />
           <div className="flex flex-col items-center gap-2 text-center">
             <h2 className="text-3xl leading-tight font-bold tracking-tight text-balance">
               See what your traces are about
@@ -59,6 +62,11 @@ export function TopicSetupNotice({
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button
+              variant="outline"
+              text="Learn more"
+              href="https://langfuse.com/topics"
+            />
             {startBlockedReason ? (
               <p role="status" className="text-muted-foreground text-sm">
                 {startBlockedReason}
@@ -70,11 +78,6 @@ export function TopicSetupNotice({
                 onClick={onStart}
               />
             )}
-            <Button
-              variant="outline"
-              text="Learn more"
-              href="https://langfuse.com/topics"
-            />
           </div>
         </div>
       ) : null}
@@ -82,27 +85,24 @@ export function TopicSetupNotice({
   );
 }
 
-// Decorative: trace summaries dropping into three example topics.
-const LANDING_PILES = [
-  { name: "Refunds", detail: "214", slots: 9, filled: 9, color: "violet" },
-  { name: "Order status", detail: "154", slots: 6, filled: 6, color: "blue" },
-  { name: "Address", detail: "96", slots: 4, filled: 4, color: "amber" },
+// Decorative: three example topics, and example traces in the order they came in.
+const LANDING_TOPICS = [
+  { name: "Refunds", count: 412 },
+  { name: "Order status", count: 154 },
+  { name: "Address", count: 96 },
 ] as const;
 
-const LANDING_SLIPS = [
-  {
-    text: "Refund for a double charge",
-    color: "violet",
-    position: "top-7 left-15 -rotate-8",
-  },
-  {
-    text: "Package says delivered, not here",
-    color: "blue",
-    position: "top-1.5 left-47.5 rotate-5",
-  },
-  {
-    text: "Ship to my office instead",
-    color: "amber",
-    position: "top-13 left-67.5 -rotate-4",
-  },
+const LANDING_TRACES = [
+  { topic: 0, text: "double charge" },
+  { topic: 1, text: "where is my order" },
+  { topic: 0, text: "refund please" },
+  { topic: 2, text: "ship to office" },
+  { topic: 0, text: "charged twice" },
+  { topic: 0, text: "money back?" },
+  { topic: 1, text: "order not here" },
+  { topic: 0, text: "refund status" },
+  { topic: 2, text: "new address" },
+  { topic: 0, text: "wrong amount" },
+  { topic: 1, text: "still not shipped" },
+  { topic: 0, text: "cancel + refund" },
 ] as const;
