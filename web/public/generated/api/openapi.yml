@@ -5910,6 +5910,481 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+    put:
+      description: >-
+        Replace a user's organization membership (requires organization-scoped
+        API key). `active: true` adds the user to the organization, `active:
+        false` removes them. When `roles` is set, the first valid role is
+        applied to the membership; when it is omitted, an existing membership
+        keeps its role and a new one gets the `NONE` role. A request that sends
+        `roles` without `active` updates the role of an existing member. Other
+        user attributes are ignored.
+      operationId: scim_replaceUser
+      tags:
+        - Scim
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScimUserSummary'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                schemas:
+                  type: array
+                  items:
+                    type: string
+                  description: Must include `urn:ietf:params:scim:schemas:core:2.0:User`
+                active:
+                  type: boolean
+                  nullable: true
+                  description: Whether the user should be a member of the organization
+                roles:
+                  type: array
+                  items:
+                    type: string
+                  nullable: true
+                  description: >-
+                    Organization role to apply. Only the first entry is used.
+                    One of OWNER, ADMIN, MEMBER, VIEWER, NONE, AI_GATEWAY.
+              required:
+                - schemas
+    patch:
+      description: >-
+        Update a user's organization membership with a SCIM PatchOp (requires
+        organization-scoped API key). Only `replace` operations whose value sets
+        `active` are supported: `active: true` adds the user to the organization
+        with the `NONE` role if they are not a member yet, `active: false`
+        removes them.
+      operationId: scim_patchUser
+      tags:
+        - Scim
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScimUser'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScimPatchRequest'
+  /api/public/scim/Groups:
+    get:
+      description: List groups in the organization (requires organization-scoped API key)
+      operationId: scim_listGroups
+      tags:
+        - Scim
+      parameters:
+        - name: filter
+          in: query
+          description: >-
+            Filter expression. Supported are `displayName eq "value"` and
+            `externalId eq "value"`.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: startIndex
+          in: query
+          description: 1-based index of the first result to return (default 1)
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: count
+          in: query
+          description: Maximum number of results to return (default and maximum 100)
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: excludedAttributes
+          in: query
+          description: >-
+            Comma-separated attributes to leave out of the response. Pass
+            `members` to omit group members.
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScimGroupsListResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+    post:
+      description: >-
+        Create a group in the organization (requires organization-scoped API key)
+      operationId: scim_createGroup
+      tags:
+        - Scim
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScimGroup'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScimGroupRequest'
+  /api/public/scim/Groups/{groupId}:
+    get:
+      description: Get a specific group by ID (requires organization-scoped API key)
+      operationId: scim_getGroup
+      tags:
+        - Scim
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: excludedAttributes
+          in: query
+          description: >-
+            Comma-separated attributes to leave out of the response. Pass
+            `members` to omit group members.
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScimGroup'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+    put:
+      description: >-
+        Replace a group's display name, external ID and members (requires
+        organization-scoped API key). Members not listed are removed from the
+        group.
+      operationId: scim_replaceGroup
+      tags:
+        - Scim
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: excludedAttributes
+          in: query
+          description: >-
+            Comma-separated attributes to leave out of the response. Pass
+            `members` to omit group members.
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScimGroup'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScimGroupRequest'
+    patch:
+      description: >-
+        Update a group with a SCIM PatchOp (requires organization-scoped API
+        key). Supports `add`, `remove` and `replace` on `members`, `displayName`
+        and `externalId`, `remove` on `members[value eq "<userId>"]`, and
+        operations without a path whose value is a partial group.
+      operationId: scim_patchGroup
+      tags:
+        - Scim
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: excludedAttributes
+          in: query
+          description: >-
+            Comma-separated attributes to leave out of the response. Pass
+            `members` to omit group members.
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScimGroup'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScimPatchRequest'
+    delete:
+      description: >-
+        Delete a group from the organization (requires organization-scoped API
+        key)
+      operationId: scim_deleteGroup
+      tags:
+        - Scim
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmptyResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/score-configs:
     post:
       description: >-
@@ -15089,6 +15564,180 @@ components:
         - primary
         - value
         - type
+    ScimUserSummary:
+      title: ScimUserSummary
+      type: object
+      description: User returned by a PUT request, without name and emails
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+        id:
+          type: string
+        userName:
+          type: string
+        meta:
+          $ref: '#/components/schemas/UserMeta'
+      required:
+        - schemas
+        - id
+        - userName
+        - meta
+    ScimPatchRequest:
+      title: ScimPatchRequest
+      type: object
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+          description: Must include `urn:ietf:params:scim:api:messages:2.0:PatchOp`
+        Operations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScimPatchOperation'
+      required:
+        - schemas
+        - Operations
+    ScimPatchOperation:
+      title: ScimPatchOperation
+      type: object
+      properties:
+        op:
+          type: string
+          description: One of `add`, `remove`, `replace`
+        path:
+          type: string
+          nullable: true
+        value:
+          nullable: true
+      required:
+        - op
+    ScimGroupRequest:
+      title: ScimGroupRequest
+      type: object
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+          nullable: true
+        displayName:
+          type: string
+        externalId:
+          type: string
+          nullable: true
+          description: >-
+            Identifier of the group in the identity provider. Unique within the
+            organization.
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScimGroupMemberReference'
+          nullable: true
+          description: >-
+            Users to add to the group. Each user must be a member of the
+            organization.
+      required:
+        - displayName
+    ScimGroupMemberReference:
+      title: ScimGroupMemberReference
+      type: object
+      properties:
+        value:
+          type: string
+          description: SCIM User ID
+      required:
+        - value
+    ScimGroup:
+      title: ScimGroup
+      type: object
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+        id:
+          type: string
+        displayName:
+          type: string
+        externalId:
+          type: string
+          nullable: true
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScimGroupMember'
+          nullable: true
+          description: Omitted when `excludedAttributes=members` is set
+        meta:
+          $ref: '#/components/schemas/GroupMeta'
+      required:
+        - schemas
+        - id
+        - displayName
+        - meta
+    ScimGroupMember:
+      title: ScimGroupMember
+      type: object
+      properties:
+        value:
+          type: string
+          description: SCIM User ID
+        display:
+          type: string
+          nullable: true
+          description: User's email address
+        $ref:
+          type: string
+        type:
+          type: string
+      required:
+        - value
+        - $ref
+        - type
+    GroupMeta:
+      title: GroupMeta
+      type: object
+      properties:
+        resourceType:
+          type: string
+        created:
+          type: string
+        lastModified:
+          type: string
+        location:
+          type: string
+      required:
+        - resourceType
+        - created
+        - lastModified
+        - location
+    ScimGroupsListResponse:
+      title: ScimGroupsListResponse
+      type: object
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+        totalResults:
+          type: integer
+        startIndex:
+          type: integer
+        itemsPerPage:
+          type: integer
+        Resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScimGroup'
+      required:
+        - schemas
+        - totalResults
+        - startIndex
+        - itemsPerPage
+        - Resources
     EmptyResponse:
       title: EmptyResponse
       type: object

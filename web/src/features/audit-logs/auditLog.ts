@@ -74,6 +74,7 @@ type AuditableResource =
   | "gatewaySpendLimit"
   | "gatewayGuardrail"
   | "topicConfig"
+  | "group"
   | "supportAccess"
   // legacy resources
   | "membership";

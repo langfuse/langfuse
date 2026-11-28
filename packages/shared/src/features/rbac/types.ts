@@ -8,6 +8,10 @@ export const UserId = (id: string): UserId => `user/${id}`;
 export type ApiKeyId = `apiKey/${string}`;
 export const ApiKeyId = (id: string): ApiKeyId => `apiKey/${id}`;
 
+/** GroupId is a group principal, tagged. */
+export type GroupId = `group/${string}`;
+export const GroupId = (id: string): GroupId => `group/${id}`;
+
 /** OrganizationId is an organization resource/owner/tenant, tagged. */
 export type OrganizationId = `organization/${string}`;
 export const OrganizationId = (id: string): OrganizationId =>
@@ -26,8 +30,15 @@ export const SystemRoleId = (role: SystemRole): SystemRoleId =>
 export type CustomRoleId = `custom/${string}`;
 export const CustomRoleId = (id: string): CustomRoleId => `custom/${id}`;
 
-/** PrincipalId is who a role is assigned to. */
-export type PrincipalId = UserId | ApiKeyId;
+/** PrincipalKind is the tag of a principal id. */
+export type PrincipalKind = "user" | "apiKey" | "group";
+
+/** PrincipalId is who a role is assigned to: `user/…`, `apiKey/…` or `group/…`. */
+export type PrincipalId = `${PrincipalKind}/${string}`;
+
+/** principalKind returns the tag of a principal id, for exhaustive switches. */
+export const principalKind = (id: PrincipalId): PrincipalKind =>
+  id.slice(0, id.indexOf("/")) as PrincipalKind;
 
 /** ResourceId is a thing access is checked against. */
 export type ResourceId = OrganizationId | ProjectId;
@@ -56,6 +67,10 @@ export const hasApiKeyKind = (id: PrincipalId): id is ApiKeyId =>
 /** hasUserKind narrows a principal id to a user. */
 export const hasUserKind = (id: PrincipalId): id is UserId =>
   id.startsWith("user/");
+
+/** hasGroupKind narrows a principal id to a group. */
+export const hasGroupKind = (id: PrincipalId): id is GroupId =>
+  id.startsWith("group/");
 
 /** hasOrganizationKind narrows an owner/resource id to an organization. */
 export const hasOrganizationKind = (

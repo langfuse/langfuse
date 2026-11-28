@@ -52,16 +52,21 @@ export async function invalidateCachedApiKeys(
   }
 }
 
-/** invalidateCachedUserApiKeys removes the cached credentials of the user's USER keys in orgId, whose policies include the user's roles. */
+/** invalidateCachedUserApiKeys removes the cached credentials of the users' USER keys in orgId, whose policies include the users' roles. */
 export async function invalidateCachedUserApiKeys(
   prisma: Prisma.TransactionClient,
-  { orgId, userId }: { orgId: string; userId: string },
+  { orgId, userIds }: { orgId: string; userIds: string[] },
   redisClient: Redis | Cluster | null = redis,
 ): Promise<void> {
+  if (userIds.length === 0) return;
   const apiKeys = await prisma.apiKey.findMany({
-    where: { orgId, userId, scope: "USER" },
+    where: { orgId, userId: { in: userIds }, scope: "USER" },
   });
-  await invalidateCachedApiKeys(apiKeys, `user ${userId}`, redisClient);
+  await invalidateCachedApiKeys(
+    apiKeys,
+    `users ${userIds.join(", ")}`,
+    redisClient,
+  );
 }
 
 /**

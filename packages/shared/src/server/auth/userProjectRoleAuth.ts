@@ -1,46 +1,50 @@
-import { prisma, Prisma, Role, ProjectMembership } from "../../db";
+import { prisma, Prisma, Role } from "../../db";
 import type { FilterState } from "../../types";
 import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";
 import { usersTableCols } from "../../tableDefinitions/usersTable";
-import { hasProjectAccessByRole } from "../../features/rbac/projectAccessRights";
+import {
+  hasProjectAccessByRole,
+  projectRoleAccessRights,
+} from "../../features/rbac/projectAccessRights";
+import { resolveEffectiveRoles } from "../../features/rbac/effectiveAccess";
 
-export function resolveProjectRole({
-  projectId,
-  projectMemberships,
-  orgMembershipRole,
-}: {
-  projectId: string;
-  projectMemberships: ProjectMembership[];
-  orgMembershipRole: Role;
-}): Role {
-  return (
-    projectMemberships.find((membership) => membership.projectId === projectId)
-      ?.role ?? orgMembershipRole
-  );
-}
+export {
+  resolveOrganizationScopes,
+  resolveProjectRole,
+  resolveProjectScopes,
+  type GroupRoleGrant,
+} from "../../features/rbac/effectiveAccess";
+
+/** rolesWithProjectReadByRank lists the roles that can read a project, lowest first. */
+const rolesWithProjectReadByRank = (
+  Object.keys(projectRoleAccessRights) as Role[]
+)
+  .filter((role) => hasProjectAccessByRole({ role, scope: "project:read" }))
+  .sort((a, b) => {
+    // The query keeps the highest-ranked role, so of any two roles one must be the effective one.
+    const effective = resolveEffectiveRoles([a, b], "project");
+    if (effective.length !== 1) {
+      throw new Error(
+        `Project roles ${a} and ${b} do not subsume each other; rank roles differently in generateUserProjectRolesQuery`,
+      );
+    }
+    return effective[0] === a ? 1 : -1;
+  });
+
+/** UserProjectRole is a user who can read a project, with their effective role there. */
+export type UserProjectRole = {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+};
 
 /**
- * Generates a SQL query to fetch users with their project roles, respecting role hierarchy.
+ * Generates a SQL query for the users who can read a project, each with their effective role there.
  *
- * ROLE HIERARCHY (from highest to lowest permissions):
- * 1. OWNER - Full org and project access
- * 2. ADMIN - Project admin access
- * 3. MEMBER - Project member access
- * 4. VIEWER - Read-only project access
- * 5. NONE - No access (excluded from results)
- * 6. AI_GATEWAY - Org-level gateway access only (excluded unless granted a project role)
- *
- * PRIORITY SYSTEM:
- * - Priority 1: Organization members without specific project roles (inherit org role)
- * - Priority 2: Users with explicit project roles (overrides org role)
- *
- * ROLE RESOLUTION:
- * - If user has explicit project role: use project role
- * - If user has no project role: inherit organization role
- * - Users with NONE role at either level are excluded
- *
- * @param params Query parameters
- * @returns Prisma SQL query for user project roles
+ * A user's direct project role replaces their direct org role, up or down. Each group they belong to then adds its
+ * org-wide role and its role on the project; groups never lower access. The effective role is the highest of these,
+ * and users whose effective role cannot read the project are left out.
  */
 function generateUserProjectRolesQuery({
   select,
@@ -60,40 +64,46 @@ function generateUserProjectRolesQuery({
   limit?: number;
   page?: number;
   orderBy: Prisma.Sql;
-}) {
-  const rolesWithoutProjectRead = Prisma.join(
-    Object.values(Role).filter(
-      (role) => !hasProjectAccessByRole({ role, scope: "project:read" }),
-    ),
-  );
+}): Prisma.Sql {
+  const rolesByRank = Prisma.sql`ARRAY[${Prisma.join(rolesWithProjectReadByRank)}]::text[]`;
   const sqlFilter = filterCondition
     ? tableColumnsToSqlFilterAndPrefix(filterCondition, usersTableCols, "users")
     : Prisma.empty;
 
   return Prisma.sql`
-    WITH all_eligible_users AS (
-      SELECT u.id, u.name, u.email, om.role as role
+    WITH direct_roles AS (
+      -- A user's project role replaces their org role.
+      SELECT DISTINCT ON (ra.user_id) ra.user_id, ra.system_role::text AS role
+      FROM role_assignments ra
+      WHERE ra.org_id = ${orgId}
+        AND ra.user_id IS NOT NULL
+        AND (ra.project_id IS NULL OR ra.project_id = ${projectId})
+      ORDER BY ra.user_id, ra.project_id NULLS LAST
+    ),
+    candidate_roles AS (
+      SELECT user_id, role FROM direct_roles
+      UNION ALL
+      SELECT om.user_id, ra.system_role::text AS role
       FROM organization_memberships om
-      INNER JOIN users u ON om.user_id = u.id
+      INNER JOIN group_memberships gm ON gm.org_membership_id = om.id
+      INNER JOIN role_assignments ra ON ra.group_id = gm.group_id
       WHERE om.org_id = ${orgId}
-        AND om.role::text NOT IN (${rolesWithoutProjectRead})
-        AND NOT EXISTS (
-          SELECT 1 FROM project_memberships pm
-          WHERE pm.org_membership_id = om.id
-            AND pm.project_id = ${projectId}
-        )
+        AND ra.org_id = ${orgId}
+        AND (ra.project_id IS NULL OR ra.project_id = ${projectId})
+        AND (ra.expires_at IS NULL OR ra.expires_at > now())
+    ),
+    all_eligible_users AS (
+      SELECT
+        u.id,
+        u.name,
+        u.email,
+        (array_agg(cr.role ORDER BY array_position(${rolesByRank}, cr.role) DESC))[1]::"Role" AS role
+      FROM candidate_roles cr
+      INNER JOIN users u ON cr.user_id = u.id
+      WHERE cr.role = ANY(${rolesByRank})
       ${sqlFilter}
       ${searchFilter}
-      UNION
-      SELECT u.id, u.name, u.email, pm.role as role
-      FROM organization_memberships om
-      INNER JOIN project_memberships pm ON om.id = pm.org_membership_id
-      INNER JOIN users u ON om.user_id = u.id
-      WHERE om.org_id = ${orgId}
-        AND pm.project_id = ${projectId}
-        AND pm.role::text NOT IN (${rolesWithoutProjectRead})
-      ${sqlFilter}
-      ${searchFilter}
+      GROUP BY u.id, u.name, u.email
     )
     SELECT ${select}
     FROM all_eligible_users
@@ -119,10 +129,8 @@ export const getUserProjectRoles = async ({
   limit?: number;
   page?: number;
   orderBy: Prisma.Sql;
-}) => {
-  return await prisma.$queryRaw<
-    Array<{ id: string; name: string; email: string; role: Role }>
-  >(
+}): Promise<UserProjectRole[]> => {
+  return await prisma.$queryRaw<UserProjectRole[]>(
     generateUserProjectRolesQuery({
       select: Prisma.sql`all_eligible_users.id, all_eligible_users.name, all_eligible_users.email, all_eligible_users.role`,
       projectId,
@@ -146,7 +154,7 @@ export const getUserProjectRolesCount = async ({
   orgId: string;
   filterCondition: FilterState;
   searchFilter: Prisma.Sql;
-}) => {
+}): Promise<number> => {
   const count = await prisma.$queryRaw<Array<{ count: bigint }>>(
     generateUserProjectRolesQuery({
       select: Prisma.sql`COUNT(*) AS count`,

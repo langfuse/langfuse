@@ -12,9 +12,11 @@ import { getOrgMembershipRoles } from "../memberships/orgMembershipRepository";
 import { getProjectMembershipRoles } from "../memberships/projectMembershipRepository";
 import {
   hasApiKeyKind,
+  hasGroupKind,
   hasOrganizationKind,
   hasSystemRoleKind,
   hasUserKind,
+  principalKind,
   untag,
   type PrincipalId,
   type OwnerId,
@@ -46,6 +48,7 @@ export async function assignRole(
       tx,
       ra.tenantId,
       ra.ownerId,
+      ra.principalId,
     );
     return await tx.roleAssignment.create({
       data: {
@@ -107,6 +110,15 @@ export async function revokeUserRoles(
 ): Promise<void> {
   await prisma.roleAssignment.deleteMany({
     where: { ownerId, userId: { not: null } },
+  });
+}
+
+export async function revokeGroupRoles(
+  prisma: Prisma.TransactionClient,
+  { ownerId }: { ownerId: OwnerId },
+): Promise<void> {
+  await prisma.roleAssignment.deleteMany({
+    where: { ownerId, groupId: { not: null } },
   });
 }
 
@@ -184,13 +196,25 @@ async function getImpliedRoles(
   ];
 }
 
-/** validateTenancy holds project ownership stable until the transaction ends. */
+/** validateTenancy rejects a group principal outside the tenant and holds project ownership stable until the transaction ends. */
 async function validateTenancy(
   tx: Prisma.TransactionClient,
   tenantId: TenantId,
   ownerId: OwnerId,
+  principalId?: PrincipalId,
 ) {
   const orgId = untag(tenantId);
+  if (principalId && hasGroupKind(principalId)) {
+    const group = await tx.group.findFirst({
+      where: { id: untag(principalId), orgId },
+      select: { id: true },
+    });
+    if (!group) {
+      throw new InvalidRequestError(
+        "Role assignment group must belong to its tenant",
+      );
+    }
+  }
   if (hasOrganizationKind(ownerId)) {
     if (ownerId !== tenantId) {
       throw new InvalidRequestError(
@@ -215,9 +239,19 @@ async function validateTenancy(
 
 /** principalFields pairs a tagged principal with its foreign key. */
 function principalFields(principalId: PrincipalId) {
-  return hasApiKeyKind(principalId)
-    ? { principalId, apiKeyId: untag(principalId) }
-    : { principalId, userId: untag(principalId) };
+  const kind = principalKind(principalId);
+  switch (kind) {
+    case "user":
+      return { principalId, userId: untag(principalId) };
+    case "apiKey":
+      return { principalId, apiKeyId: untag(principalId) };
+    case "group":
+      return { principalId, groupId: untag(principalId) };
+    default: {
+      const exhaustiveCheck: never = kind;
+      throw new Error(`Unknown principal kind: ${exhaustiveCheck}`);
+    }
+  }
 }
 
 /** validateRole rejects unsupported roles and returns their storage fields. */

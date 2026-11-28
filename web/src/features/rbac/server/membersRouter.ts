@@ -32,12 +32,12 @@ import {
   throwIfNoProjectAccess,
 } from "@/src/features/rbac/utils/checkProjectAccess";
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
+import { evictUserAccessCaches } from "@/src/features/rbac/server/evictUserAccessCaches";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import {
   deleteUserBoundApiKeys,
   evictRevokedApiKeys,
-  evictUserGatewayResolveCache,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import {
   deleteOrgMembership,
@@ -291,13 +291,9 @@ export const membersRouter = createTRPCRouter({
         });
         return updatedMembership;
       });
-      await invalidateCachedUserApiKeys(ctx.prisma, {
+      await evictUserAccessCaches(ctx.prisma, {
         orgId: input.orgId,
-        userId: membership.userId,
-      });
-      await evictUserGatewayResolveCache(ctx.prisma, {
-        orgId: input.orgId,
-        userId: membership.userId,
+        userIds: [membership.userId],
       });
 
       await auditLog({
@@ -512,7 +508,7 @@ export const membersRouter = createTRPCRouter({
           });
           await invalidateCachedUserApiKeys(ctx.prisma, {
             orgId: input.orgId,
-            userId: input.userId,
+            userIds: [input.userId],
           });
 
           await auditLog({

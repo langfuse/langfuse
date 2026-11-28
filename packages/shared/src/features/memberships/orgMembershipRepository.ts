@@ -32,7 +32,7 @@ export async function saveOrgMembership(
     await replaceOrgRole(tx, membership);
     return membership;
   });
-  await invalidateCachedUserApiKeys(prisma, { orgId, userId });
+  await invalidateCachedUserApiKeys(prisma, { orgId, userIds: [userId] });
   return membership;
 }
 
@@ -49,7 +49,7 @@ export async function updateOrgMembership(
     await replaceOrgRole(tx, membership);
     return membership;
   });
-  await invalidateCachedUserApiKeys(prisma, { orgId, userId });
+  await invalidateCachedUserApiKeys(prisma, { orgId, userIds: [userId] });
   return membership;
 }
 

@@ -9,10 +9,10 @@ import {
 import {
   deleteUserBoundApiKeys,
   evictRevokedApiKeys,
-  evictUserGatewayResolveCache,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
 import { logger, withSerializableRetry } from "@langfuse/shared/src/server";
+import { evictUserAccessCaches } from "@/src/features/rbac/server/evictUserAccessCaches";
 import {
   isBaseError,
   LangfuseConflictError,
@@ -123,7 +123,7 @@ async function provisionMembership({
         return { kind: "unchanged", role: result.role };
       }
 
-      await evictUserGatewayResolveCache(prisma, { orgId, userId });
+      await evictUserAccessCaches(prisma, { orgId, userIds: [userId] });
       await auditLog({
         resourceType: "orgMembership",
         resourceId: result.after.id,
