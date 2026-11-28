@@ -45,8 +45,8 @@ import {
   decodeBedrockApiKey,
   encodeBedrockCredential,
 } from "@/src/features/ai-gateway/server/provider/bedrock";
-import { ProviderCredentialRejectedError } from "@/src/features/ai-gateway/server/provider/connection/ProviderCredentialRejectedError";
-import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
+import { postExternalGuardrailTest } from "@/src/features/ai-gateway/server/guardrails/postExternalGuardrailTest";
+import { validateOpenAiModerationGuardrail } from "@/src/features/ai-gateway/server/guardrails/validateOpenAiModerationGuardrail";
 import type {
   GatewayCachedGuardrailScope,
   GatewayCachedGuardrails,
@@ -61,6 +61,7 @@ import {
   GatewayBedrockGuardrailConfigSchema,
   GatewayGuardrailCustomRegexSchema,
   GatewayGuardrailRedactionLabelSchema,
+  GatewayOpenAiModerationGuardrailConfigSchema,
   GatewayRegexGuardrailConfigSchema,
   isKnownGuardrailPreset,
   resolveSupportedGuardrailAction,
@@ -69,6 +70,7 @@ import {
   type GatewayGuardrailActionForType,
   type GatewayGuardrailAssignmentInput,
   type GatewayGuardrailPreset,
+  type GatewayOpenAiModerationGuardrailConfig,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { assertUnreachable } from "@/src/utils/types";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
@@ -100,8 +102,8 @@ const GATEWAY_MEMBER_ROLES = Object.values(Role).filter((role) =>
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DUPLICATE_NAME_MESSAGE = "A guardrail with this name already exists";
-const EXTERNAL_GUARDRAIL_TEST_TIMEOUT_MS = 10_000;
-const GUARDRAIL_TEST_FAILED_MESSAGE = "Guardrail test failed";
+
+type ExternalGuardrailType = Exclude<GatewayGuardrailRecord["type"], "REGEX">;
 
 export type GatewayGuardrailDeleteTarget =
   | { type: "ids"; ids: string[] }
@@ -140,6 +142,26 @@ export class GatewayGuardrailService {
             guardrail.scope ?? "LAST_TURN",
           )
         ];
+      const failClosed = () => {
+        logger.error(
+          "External gateway guardrail has invalid config or missing credential; failing closed",
+          {
+            guardrailId: guardrail.id,
+            guardrailType: guardrail.type,
+            organizationId: params.organizationId,
+          },
+        );
+        return [
+          {
+            id: guardrail.id,
+            name: guardrail.name,
+            type: "fail_closed" as const,
+            action,
+            scope,
+            patterns: [] as [],
+          },
+        ];
+      };
       switch (guardrail.type) {
         case "REGEX": {
           const config = GatewayRegexGuardrailConfigSchema.safeParse(
@@ -179,23 +201,7 @@ export class GatewayGuardrailService {
             guardrail.config,
           );
           if (!config.success || !guardrail.encryptedCredential) {
-            logger.error(
-              "Bedrock gateway guardrail has invalid config or missing credential; failing closed",
-              {
-                guardrailId: guardrail.id,
-                organizationId: params.organizationId,
-              },
-            );
-            return [
-              {
-                id: guardrail.id,
-                name: guardrail.name,
-                type: "fail_closed" as const,
-                action,
-                scope,
-                patterns: [] as [],
-              },
-            ];
+            return failClosed();
           }
           return [
             {
@@ -206,6 +212,25 @@ export class GatewayGuardrailService {
               scope,
               guardrail_id: config.data.guardrailId,
               guardrail_version: config.data.guardrailVersion,
+              region: config.data.region,
+              encrypted_credential: guardrail.encryptedCredential,
+            },
+          ];
+        }
+        case "OPENAI_MODERATION": {
+          const config = GatewayOpenAiModerationGuardrailConfigSchema.safeParse(
+            guardrail.config,
+          );
+          if (!config.success || !guardrail.encryptedCredential) {
+            return failClosed();
+          }
+          return [
+            {
+              id: guardrail.id,
+              name: guardrail.name,
+              type: "openai_moderation" as const,
+              action,
+              scope,
               region: config.data.region,
               encrypted_credential: guardrail.encryptedCredential,
             },
@@ -318,22 +343,39 @@ export class GatewayGuardrailService {
     });
   }
 
-  async test(params: {
-    organizationId: string;
-    id?: string;
-    type: "BEDROCK";
-    bedrock: GatewayBedrockGuardrailConfig & { apiKey?: string };
-  }) {
+  async test(
+    params: {
+      organizationId: string;
+      id?: string;
+    } & (
+      | {
+          type: "BEDROCK";
+          bedrock: GatewayBedrockGuardrailConfig & { apiKey?: string };
+        }
+      | {
+          type: "OPENAI_MODERATION";
+          openAiModeration: GatewayOpenAiModerationGuardrailConfig & {
+            apiKey?: string;
+          };
+        }
+    ),
+  ) {
+    if (params.type === "OPENAI_MODERATION") {
+      const config = GatewayOpenAiModerationGuardrailConfigSchema.parse({
+        region: params.openAiModeration.region,
+      });
+      const apiKey =
+        params.openAiModeration.apiKey || (await this.readStoredApiKey(params));
+      await validateOpenAiModerationGuardrail({ ...config, apiKey });
+      return { success: true as const };
+    }
     const config = GatewayBedrockGuardrailConfigSchema.parse({
       guardrailId: params.bedrock.guardrailId,
       guardrailVersion: params.bedrock.guardrailVersion,
       region: params.bedrock.region,
     });
-    const apiKey = await this.resolveBedrockApiKey({
-      organizationId: params.organizationId,
-      id: params.id,
-      apiKey: params.bedrock.apiKey,
-    });
+    const apiKey =
+      params.bedrock.apiKey || (await this.readStoredApiKey(params));
     await validateBedrockGuardrail({ ...config, apiKey });
     return { success: true as const };
   }
@@ -396,6 +438,13 @@ export class GatewayGuardrailService {
           action: GatewayGuardrailActionForType<"BEDROCK">;
           bedrock: GatewayBedrockGuardrailConfig & { apiKey: string };
         }
+      | {
+          type: "OPENAI_MODERATION";
+          action: GatewayGuardrailActionForType<"OPENAI_MODERATION">;
+          openAiModeration: GatewayOpenAiModerationGuardrailConfig & {
+            apiKey: string;
+          };
+        }
     ),
   ) {
     const redactionLabel = normalizeRedactionLabel(
@@ -420,6 +469,17 @@ export class GatewayGuardrailService {
       encryptedCredential = encrypt(
         encodeBedrockCredential(params.bedrock.apiKey),
       );
+    } else if (params.type === "OPENAI_MODERATION") {
+      const moderationConfig =
+        GatewayOpenAiModerationGuardrailConfigSchema.parse({
+          region: params.openAiModeration.region,
+        });
+      await validateOpenAiModerationGuardrail({
+        ...moderationConfig,
+        apiKey: params.openAiModeration.apiKey,
+      });
+      config = moderationConfig;
+      encryptedCredential = encrypt(params.openAiModeration.apiKey);
     } else {
       const regexConfig = normalizeGuardrailConfig({
         presets: params.presets,
@@ -500,6 +560,13 @@ export class GatewayGuardrailService {
           action: GatewayGuardrailActionForType<"BEDROCK">;
           bedrock: GatewayBedrockGuardrailConfig & { apiKey?: string };
         }
+      | {
+          type: "OPENAI_MODERATION";
+          action: GatewayGuardrailActionForType<"OPENAI_MODERATION">;
+          openAiModeration: GatewayOpenAiModerationGuardrailConfig & {
+            apiKey?: string;
+          };
+        }
     ),
   ) {
     const redactionLabel = normalizeRedactionLabel(
@@ -508,16 +575,7 @@ export class GatewayGuardrailService {
       params.type === "REGEX" ? params.redactionLabel : undefined,
     );
     if (params.type === "BEDROCK") {
-      const existingCredential = await this.repository.findCredentialById({
-        organizationId: params.organizationId,
-        id: params.id,
-      });
-      if (!existingCredential) {
-        throw new LangfuseNotFoundError("Guardrail not found");
-      }
-      if (existingCredential.type !== "BEDROCK") {
-        throw new InvalidRequestError("Guardrail type cannot be changed");
-      }
+      const existingCredential = await this.findExternalCredential(params);
       const nextConfig = GatewayBedrockGuardrailConfigSchema.parse({
         guardrailId: params.bedrock.guardrailId,
         guardrailVersion: params.bedrock.guardrailVersion,
@@ -535,8 +593,34 @@ export class GatewayGuardrailService {
       if (isBedrockConfigChanged) {
         const apiKey =
           params.bedrock.apiKey ??
-          decryptStoredBedrockApiKey(existingCredential.encryptedCredential);
+          decryptStoredApiKey(
+            "BEDROCK",
+            existingCredential.encryptedCredential,
+          );
         await validateBedrockGuardrail({ ...nextConfig, apiKey });
+      }
+    }
+    if (params.type === "OPENAI_MODERATION") {
+      const nextConfig = GatewayOpenAiModerationGuardrailConfigSchema.parse({
+        region: params.openAiModeration.region,
+      });
+      const existing = await this.findExternalCredential(params);
+      const existingConfig =
+        GatewayOpenAiModerationGuardrailConfigSchema.safeParse(existing.config);
+      if (
+        params.openAiModeration.apiKey !== undefined ||
+        !existingConfig.success ||
+        existingConfig.data.region !== nextConfig.region
+      ) {
+        await validateOpenAiModerationGuardrail({
+          ...nextConfig,
+          apiKey:
+            params.openAiModeration.apiKey ??
+            decryptStoredApiKey(
+              "OPENAI_MODERATION",
+              existing.encryptedCredential,
+            ),
+        });
       }
     }
 
@@ -579,6 +663,13 @@ export class GatewayGuardrailService {
           encryptedCredential = encrypt(
             encodeBedrockCredential(params.bedrock.apiKey),
           );
+        }
+      } else if (params.type === "OPENAI_MODERATION") {
+        config = GatewayOpenAiModerationGuardrailConfigSchema.parse({
+          region: params.openAiModeration.region,
+        });
+        if (params.openAiModeration.apiKey !== undefined) {
+          encryptedCredential = encrypt(params.openAiModeration.apiKey);
         }
       } else {
         // Preserve stored preset IDs unknown to this build (e.g. from a newer pod during rollout).
@@ -728,24 +819,33 @@ export class GatewayGuardrailService {
     return { updatedCount };
   }
 
-  private async resolveBedrockApiKey(params: {
+  private async findExternalCredential(params: {
     organizationId: string;
-    id?: string;
-    apiKey?: string;
-  }): Promise<string> {
-    if (params.apiKey) return params.apiKey;
-    if (!params.id) {
-      throw new InvalidRequestError("Enter a Bedrock API key");
-    }
+    id: string;
+    type: ExternalGuardrailType;
+  }) {
     const existing = await this.repository.findCredentialById({
       organizationId: params.organizationId,
       id: params.id,
     });
     if (!existing) throw new LangfuseNotFoundError("Guardrail not found");
-    if (existing.type !== "BEDROCK") {
-      throw new InvalidRequestError("Guardrail is not a Bedrock guardrail");
+    if (existing.type !== params.type) {
+      throw new InvalidRequestError("Guardrail type cannot be changed");
     }
-    return decryptStoredBedrockApiKey(existing.encryptedCredential);
+    return existing;
+  }
+
+  private async readStoredApiKey(params: {
+    organizationId: string;
+    id?: string;
+    type: ExternalGuardrailType;
+  }): Promise<string> {
+    if (!params.id) throw new InvalidRequestError("Enter an API key");
+    const existing = await this.findExternalCredential({
+      ...params,
+      id: params.id,
+    });
+    return decryptStoredApiKey(params.type, existing.encryptedCredential);
   }
 
   private async resolveBulkTargetIds(
@@ -868,81 +968,33 @@ export class GatewayGuardrailService {
   }
 }
 
-function decryptStoredBedrockApiKey(
+function decryptStoredApiKey(
+  type: ExternalGuardrailType,
   encryptedCredential: string | null,
 ): string {
   if (!encryptedCredential) {
-    throw new InvalidRequestError("Enter a Bedrock API key");
+    throw new InvalidRequestError("Enter an API key");
   }
-  return decodeBedrockApiKey(decrypt(encryptedCredential));
+  const credential = decrypt(encryptedCredential);
+  return type === "BEDROCK" ? decodeBedrockApiKey(credential) : credential;
 }
 
 async function validateBedrockGuardrail(
   params: GatewayBedrockGuardrailConfig & { apiKey: string },
 ) {
   const origin = bedrockRuntimeOrigin({ region: params.region });
-  const url = `${origin}/guardrail/${encodeURIComponent(params.guardrailId)}/version/${encodeURIComponent(params.guardrailVersion)}/apply`;
-  const fetcher = getGatewayFetch({
-    baseURL: null,
-    extraHeaders: {},
-    logContext: "AI Gateway Bedrock guardrail validation",
+  await postExternalGuardrailTest({
+    url: `${origin}/guardrail/${encodeURIComponent(params.guardrailId)}/version/${encodeURIComponent(params.guardrailVersion)}/apply`,
+    apiKey: params.apiKey,
+    body: { source: "INPUT", content: [{ text: { text: "Hello" } }] },
+    providerName: "Amazon Bedrock",
+    unreachableMessage:
+      "Could not reach Amazon Bedrock in the selected region.",
+    isExpectedResponse: (json) => {
+      const action = (json as { action?: unknown } | null)?.action;
+      return action === "NONE" || action === "GUARDRAIL_INTERVENED";
+    },
   });
-
-  let response: Response;
-  try {
-    response = await fetcher(url, {
-      method: "POST",
-      redirect: "error",
-      signal: AbortSignal.timeout(EXTERNAL_GUARDRAIL_TEST_TIMEOUT_MS),
-      headers: {
-        authorization: `Bearer ${params.apiKey}`,
-        "content-type": "application/json",
-        accept: "application/json",
-      },
-      body: JSON.stringify({
-        source: "INPUT",
-        content: [{ text: { text: "Hello" } }],
-      }),
-    });
-  } catch (error) {
-    if (error instanceof InvalidRequestError) throw error;
-    throw new ProviderCredentialRejectedError(
-      {
-        status: null,
-        body: "Could not reach Amazon Bedrock in the selected region.",
-      },
-      GUARDRAIL_TEST_FAILED_MESSAGE,
-    );
-  }
-
-  const body = await response.text().catch(() => "");
-  if (!response.ok) {
-    throw new ProviderCredentialRejectedError(
-      {
-        status: response.status,
-        body:
-          body || response.statusText || "Amazon Bedrock rejected the request.",
-      },
-      GUARDRAIL_TEST_FAILED_MESSAGE,
-    );
-  }
-
-  let action: unknown;
-  try {
-    const parsed = JSON.parse(body) as { action?: unknown };
-    action = parsed.action;
-  } catch {
-    action = null;
-  }
-  if (action !== "NONE" && action !== "GUARDRAIL_INTERVENED") {
-    throw new ProviderCredentialRejectedError(
-      {
-        status: response.status,
-        body: "Unexpected response from Amazon Bedrock.",
-      },
-      GUARDRAIL_TEST_FAILED_MESSAGE,
-    );
-  }
 }
 
 function deduplicateAssignments(
@@ -1151,9 +1203,10 @@ function toGuardrailDto(
   viewer: { canManageGateway: boolean; userId: string },
 ) {
   const isBedrock = record.type === "BEDROCK";
-  const parsedRegex = isBedrock
-    ? null
-    : GatewayRegexGuardrailConfigSchema.safeParse(record.config);
+  const parsedRegex =
+    record.type !== "REGEX"
+      ? null
+      : GatewayRegexGuardrailConfigSchema.safeParse(record.config);
   const presets = parsedRegex?.success
     ? parsedRegex.data.presets.filter(isKnownGuardrailPreset)
     : [];
@@ -1170,6 +1223,13 @@ function toGuardrailDto(
     ? GatewayBedrockGuardrailConfigSchema.safeParse(record.config)
     : null;
   const bedrock = parsedBedrock?.success ? parsedBedrock.data : null;
+  const parsedOpenAiModeration =
+    record.type === "OPENAI_MODERATION"
+      ? GatewayOpenAiModerationGuardrailConfigSchema.safeParse(record.config)
+      : null;
+  const openAiModeration = parsedOpenAiModeration?.success
+    ? parsedOpenAiModeration.data
+    : null;
 
   const action = resolveSupportedGuardrailAction(record.type, record.action);
 
@@ -1185,6 +1245,7 @@ function toGuardrailDto(
     containsWords,
     customRegex,
     bedrock,
+    openAiModeration,
     assignments: record.assignments.map((assignment) => {
       switch (assignment.scope) {
         case "ORGANIZATION":

@@ -142,12 +142,18 @@ pub(super) fn http_response(duration: Duration, response: &HttpResponse<'_>) {
     );
 }
 
-pub(super) fn overhead(route: &str, provider: &'static str, duration: Duration) {
+pub(super) fn overhead(
+    route: &str,
+    provider: &'static str,
+    has_guardrails: bool,
+    duration: Duration,
+) {
     METRICS.overhead.record(
         duration.as_secs_f64(),
         &[
             KeyValue::new("http.route", route.to_owned()),
             KeyValue::new("gateway.provider", provider),
+            KeyValue::new("gateway.has_guardrails", has_guardrails),
         ],
     );
 }

@@ -242,9 +242,12 @@ async fn relay(
     // The reservation travels with the body, so a caller that disconnects mid-parse
     // cannot free budget while the parse still holds the body.
     let (parsed, reservation) = inference
-        .run_cpu(crate::cpu::CpuJob::ParseRequest, request_bytes, move || {
-            (parse_request_body(bytes, route.api_format()), reservation)
-        })
+        .run_cpu(
+            crate::cpu::CpuJob::ParseRequest,
+            crate::cpu::CpuClass::Standard,
+            request_bytes,
+            move || (parse_request_body(bytes, route.api_format()), reservation),
+        )
         .instrument(tracing::info_span!(
             "request.parse",
             otel.kind = "internal",
@@ -415,7 +418,7 @@ fn parse_request_body(
     api_format: ApiFormat,
 ) -> Result<ParsedRequest, InferenceHttpError> {
     let seed = MembersSeed {
-        scanned: crate::capture::guardrail_members(api_format),
+        scanned: crate::capture::request_spec(api_format).members,
     };
     let mut deserializer = serde_json::Deserializer::from_slice(&bytes);
     let members = serde::de::DeserializeSeed::deserialize(seed, &mut deserializer)
@@ -443,7 +446,7 @@ fn parse_request_body(
         }
         Seen::Duplicated => StreamOptions::Duplicated,
     };
-    let mut scanned = ScannedMembers::default();
+    let mut scanned = ScannedMembers::new(seed.scanned);
     for (name, seen) in seed.scanned.iter().zip(members.scanned) {
         match seen {
             Seen::Absent => {}

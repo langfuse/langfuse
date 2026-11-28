@@ -207,7 +207,7 @@ pub(crate) fn relay_with_prefix<T: Send + 'static>(
 /// into `capture` (for example after response guardrails evaluated or redacted
 /// it). Records stream telemetry and finalizes `capture` once delivery finishes.
 pub(crate) fn relay_buffered_observed<T: Send + 'static>(
-    body: Bytes,
+    body: Vec<Bytes>,
     provider: &'static str,
     deadline: Instant,
     stall_timeout: Duration,
@@ -215,7 +215,7 @@ pub(crate) fn relay_buffered_observed<T: Send + 'static>(
     capture: ExecutionCapture,
 ) -> Body {
     relay_stream(
-        futures_util::stream::once(async move { Ok(body) }),
+        futures_util::stream::iter(body.into_iter().map(Ok)),
         Some(provider),
         deadline,
         stall_timeout,

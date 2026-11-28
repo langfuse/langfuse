@@ -1922,7 +1922,6 @@
       "src/features/public-api/types/blob-storage-integrations.ts:165: @typescript-eslint/no-unused-vars -- Used via z.infer",
       "src/features/public-api/types/blob-storage-integrations.ts:207: @typescript-eslint/no-unused-vars -- Used via z.infer",
       "src/features/rbac/components/MembersTable.tsx:110: react-hooks/exhaustive-deps",
-      "src/features/score-analytics/lib/color-scales.ts:14: @typescript-eslint/no-unused-vars -- Used via typeof",
       "src/features/scores/components/AnnotationForm.tsx:783: react-hooks/exhaustive-deps",
       "src/features/traces/components/AdvancedJsonViewer/components/MediaButtonGroup.tsx:70: @next/next/no-img-element",
       "src/features/traces/components/AdvancedJsonViewer/SimpleMultiSectionViewer.tsx:117: react-hooks/exhaustive-deps",

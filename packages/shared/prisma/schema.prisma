@@ -501,6 +501,8 @@ enum GatewayGuardrailType {
   REGEX
   // External AWS Bedrock Guardrail evaluated via ApplyGuardrail.
   BEDROCK
+  // External OpenAI Moderation API (`/v1/moderations`).
+  OPENAI_MODERATION
 }
 
 enum GatewayGuardrailAction {
@@ -535,7 +537,8 @@ model GatewayGuardrail {
   action              GatewayGuardrailAction
   scope               GatewayGuardrailScope        @default(LAST_TURN)
   // For REGEX: { "presets": [...], "secretPrefixes": [...], "containsWords": [...], "customRegex": "..." };
-  // For BEDROCK: { "guardrailId": "...", "guardrailVersion": "...", "region": "..." }.
+  // For BEDROCK: { "guardrailId": "...", "guardrailVersion": "...", "region": "..." };
+  // For OPENAI_MODERATION: { "region": "us" | "eu" }.
   config              Json                         @default("{}") @db.JsonB
   // Encrypted credential for external guardrail providers (e.g. Bedrock API key); null for REGEX.
   encryptedCredential String?                      @map("encrypted_credentials")

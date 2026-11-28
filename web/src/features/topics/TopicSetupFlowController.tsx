@@ -154,6 +154,7 @@ function TopicSetupSession({
       adapter: connection.adapter,
       customModels: connection.customModels,
       withDefaultModels: connection.withDefaultModels,
+      baseURL: connection.baseURL,
     }),
   );
   const [draft, setDraft] = useState(() =>
@@ -357,12 +358,12 @@ function TopicSetupSession({
       providerGroups={topicProviderGroups(
         connections,
         "chat",
-        settings.stored.summary?.model,
+        settings.stored.summary,
       )}
       embeddingProviderGroups={topicProviderGroups(
         connections,
         "embedding",
-        settings.stored.embedding?.model,
+        settings.stored.embedding,
       )}
       connectionCaption={topicConnectionCaption(connections)}
       hasConnection={connections.length > 0}

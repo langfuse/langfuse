@@ -1,4 +1,3 @@
-import { type ReactNode } from "react";
 import { cva } from "class-variance-authority";
 
 import { BadgeShell } from "../Badge/Badge";
@@ -45,7 +44,7 @@ export function LabelList(props: LabelListProps) {
         {visibleLabels.map(renderChip)}
         {labels.length > visibleLabels.length && (
           <LabelOverflow
-            chips={labels.map(renderChip)}
+            labels={labels}
             totalCount={labels.length}
             hiddenCount={labels.length - visibleLabels.length}
           />
@@ -67,7 +66,7 @@ export function LabelList(props: LabelListProps) {
         )}
         renderOverflow={({ overflowItemCount }) => (
           <LabelOverflow
-            chips={labels.map(renderChip)}
+            labels={labels}
             totalCount={labels.length}
             hiddenCount={overflowItemCount}
           />
@@ -107,11 +106,11 @@ type LabelListProps = {
 );
 
 function LabelOverflow({
-  chips,
+  labels,
   totalCount,
   hiddenCount,
 }: {
-  chips: ReactNode;
+  labels: readonly LabelListItem[];
   totalCount: number;
   hiddenCount: number;
 }) {
@@ -122,7 +121,15 @@ function LabelOverflow({
         <div className="ph-no-capture w-80 p-3">
           <div className="space-y-2">
             <h4 className="text-sm font-bold">All Labels</h4>
-            <div className="flex flex-wrap gap-1">{chips}</div>
+            <div className="flex flex-wrap gap-1">
+              {labels.map((label) => (
+                <LabelChip
+                  key={label.name}
+                  name={label.name}
+                  isProduction={label.isProduction ?? false}
+                />
+              ))}
+            </div>
           </div>
         </div>
       }

@@ -232,23 +232,22 @@ describe("GatewayGuardrailService", () => {
 });
 
 describe("aiGateway guardrails tRPC", () => {
-  it("gates guardrails to preview, staging, and local dev — blocking Cloud prod and self-hosted prod", async () => {
+  it("makes guardrails available wherever the AI Gateway is enabled for the organization", async () => {
     const orgId = await createOrganization();
     const admin = await createUser("Admin User");
     const caller = createCaller({ orgId, userId: admin.id, role: Role.ADMIN });
 
-    // Cloud production EU: blocked
+    // Cloud production EU: allowed
     Object.assign(env, {
       NODE_ENV: "production",
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
       NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
       LANGFUSE_AI_GATEWAY_ENABLED: "true",
     });
-    await expect(
-      caller.aiGateway.guardrails.list({ orgId }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const cloudResult = await caller.aiGateway.guardrails.list({ orgId });
+    expect(cloudResult.rows).toEqual([]);
 
-    // Self-hosted production: blocked
+    // Self-hosted production: allowed
     Object.assign(env, {
       NODE_ENV: "production",
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
@@ -256,28 +255,19 @@ describe("aiGateway guardrails tRPC", () => {
       LANGFUSE_AI_GATEWAY_ENABLED: "true",
       LANGFUSE_AI_GATEWAY_DEPLOYED: "true",
     });
+    const selfHostedResult = await caller.aiGateway.guardrails.list({ orgId });
+    expect(selfHostedResult.rows).toEqual([]);
+
+    // AI Gateway disabled for the organization: blocked
+    Object.assign(env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
+      NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+      LANGFUSE_AI_GATEWAY_ENABLED: "false",
+    });
     await expect(
       caller.aiGateway.guardrails.list({ orgId }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
-
-    // Staging: allowed
-    Object.assign(env, {
-      NODE_ENV: "production",
-      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING",
-      NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
-      LANGFUSE_AI_GATEWAY_ENABLED: "true",
-    });
-    const stagingResult = await caller.aiGateway.guardrails.list({ orgId });
-    expect(stagingResult.rows).toEqual([]);
-
-    // Preview: allowed
-    Object.assign(env, {
-      NODE_ENV: "production",
-      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
-      NEXT_PUBLIC_PREVIEW_PR_URL: "https://github.com/langfuse/langfuse/pull/1",
-    });
-    const previewResult = await caller.aiGateway.guardrails.list({ orgId });
-    expect(previewResult.rows).toEqual([]);
   });
 
   it("enforces OWNER/ADMIN management, redacts other identities for non-managers, and validates CRUD", async () => {
@@ -374,6 +364,24 @@ describe("aiGateway guardrails tRPC", () => {
         ],
       }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    // Blocking external guardrails only evaluate the last turn
+    await expect(
+      ownerCaller.aiGateway.guardrails.create({
+        orgId,
+        type: "OPENAI_MODERATION",
+        name: "Moderation entire input",
+        action: "BLOCK",
+        scope: "ENTIRE_INPUT",
+        openAiModeration: { region: "us", apiKey: "sk-test-key" },
+        assignments: [{ scope: "ORGANIZATION" }],
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining(
+        "Block guardrails only evaluate the last turn",
+      ),
+    });
 
     // Cross-tenant key rejected with NOT_FOUND
     await expect(
