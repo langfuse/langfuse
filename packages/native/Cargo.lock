@@ -463,8 +463,6 @@ dependencies = [
 [[package]]
 name = "holomap"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1755e0e02ac9353ced0f2c51be2c02a5cda555a9be80da47753c82609d2c1ade"
 dependencies = [
  "libm",
  "nalgebra",

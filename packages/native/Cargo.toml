@@ -18,7 +18,7 @@ ch-core-rs = { git = "https://github.com/ClickHouse/ch-core-rs.git", rev = "afb8
 hdbscan-rs = { version = "=0.6.1", default-features = false }
 getrandom = "0.3"
 memchr = "2"
-holomap = { version = "=0.3.0", default-features = false }
+holomap = { path = "vendor/holomap" }
 metrics = "0.24"
 metrics-exporter-dogstatsd = "0.9"
 napi = { version = "3", default-features = false, features = ["napi9", "serde-json"] }
