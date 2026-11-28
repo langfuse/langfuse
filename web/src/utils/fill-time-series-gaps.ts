@@ -176,24 +176,6 @@ function aggregateIntoMultiUnitBuckets<
     return [];
   }
 
-  // Helper: Get single-unit timestamp normalizer
-  const toStartOfSingleUnit = (date: Date): Date => {
-    switch (unit) {
-      case "second":
-        return startOfSecond(date);
-      case "minute":
-        return startOfMinute(date);
-      case "hour":
-        return startOfHour(date);
-      case "day":
-        return startOfDay(date);
-      case "month":
-        return startOfMonth(date);
-      case "year":
-        return startOfYear(date);
-    }
-  };
-
   // Helper: Subtract single units
   const subtractSingleUnit = (date: Date): Date => {
     switch (unit) {
@@ -222,13 +204,17 @@ function aggregateIntoMultiUnitBuckets<
   let iterations = 0;
   const maxIterations = 10000; // Safety limit to prevent infinite loops
 
-  // Create buckets going backwards until we cover fromDate
-  while (bucketEnd >= fromDate && iterations < maxIterations) {
+  // A bucket ending at the range start has no overlap, except for a single instant.
+  while (
+    bucketEnd >= fromDate &&
+    (iterations === 0 || bucketEnd > fromDate) &&
+    iterations < maxIterations
+  ) {
     iterations++;
     let bucketStart = bucketEnd;
 
     // Go back `count` units
-    for (let i = 0; i < count - 1; i++) {
+    for (let i = 0; i < count; i++) {
       bucketStart = subtractSingleUnit(bucketStart);
     }
 
@@ -247,12 +233,15 @@ function aggregateIntoMultiUnitBuckets<
     }
   }
 
-  // Assign data points to buckets
+  // Check the newest bucket first so interior boundary points belong to it.
   for (const dataPoint of data) {
-    const ts = toStartOfSingleUnit(dataPoint.timestamp);
+    // ClickHouse filters scores to the range before flooring their timestamps.
+    // A bucket starting before the range contains only in-range scores.
+    const ts = dataPoint.timestamp < fromDate ? fromDate : dataPoint.timestamp;
 
-    for (const bucket of buckets) {
-      if (ts >= bucket.start && ts <= bucket.end) {
+    for (let i = buckets.length - 1; i >= 0; i--) {
+      const bucket = buckets[i];
+      if (bucket && ts >= bucket.start && ts <= bucket.end) {
         bucket.dataPoints.push(dataPoint);
         break;
       }
@@ -483,23 +472,6 @@ function aggregateCategoricalIntoMultiUnitBuckets<
     return [];
   }
 
-  const toStartOfSingleUnit = (date: Date): Date => {
-    switch (unit) {
-      case "second":
-        return startOfSecond(date);
-      case "minute":
-        return startOfMinute(date);
-      case "hour":
-        return startOfHour(date);
-      case "day":
-        return startOfDay(date);
-      case "month":
-        return startOfMonth(date);
-      case "year":
-        return startOfYear(date);
-    }
-  };
-
   const subtractSingleUnit = (date: Date): Date => {
     switch (unit) {
       case "second":
@@ -530,13 +502,17 @@ function aggregateCategoricalIntoMultiUnitBuckets<
   let iterations = 0;
   const maxIterations = 10000;
 
-  // Create buckets going backwards
-  while (bucketEnd >= fromDate && iterations < maxIterations) {
+  // A bucket ending at the range start has no overlap, except for a single instant.
+  while (
+    bucketEnd >= fromDate &&
+    (iterations === 0 || bucketEnd > fromDate) &&
+    iterations < maxIterations
+  ) {
     iterations++;
     let bucketStart = bucketEnd;
 
     // Go back `count` units
-    for (let i = 0; i < count - 1; i++) {
+    for (let i = 0; i < count; i++) {
       bucketStart = subtractSingleUnit(bucketStart);
     }
 
@@ -555,12 +531,15 @@ function aggregateCategoricalIntoMultiUnitBuckets<
     }
   }
 
-  // Assign data points to buckets
+  // Check the newest bucket first so interior boundary points belong to it.
   for (const dataPoint of data) {
-    const ts = toStartOfSingleUnit(dataPoint.timestamp);
+    // ClickHouse filters scores to the range before flooring their timestamps.
+    // A bucket starting before the range contains only in-range scores.
+    const ts = dataPoint.timestamp < fromDate ? fromDate : dataPoint.timestamp;
 
-    for (const bucket of buckets) {
-      if (ts >= bucket.start && ts <= bucket.end) {
+    for (let i = buckets.length - 1; i >= 0; i--) {
+      const bucket = buckets[i];
+      if (bucket && ts >= bucket.start && ts <= bucket.end) {
         bucket.dataPoints.push(dataPoint);
         break;
       }
