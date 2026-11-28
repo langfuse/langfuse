@@ -8,6 +8,11 @@ import { env, type SharedEnv } from "../../../env";
 export function isGovernmentLicenseAvailable(envOverride?: SharedEnv): boolean {
   const e = envOverride ?? env;
 
+  // A government license is a self-hosted concept; Langfuse Cloud never counts.
+  if (e.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) {
+    return false;
+  }
+
   return e.LANGFUSE_EE_LICENSE_KEY?.startsWith("lf_gov_") ?? false;
 }
 
