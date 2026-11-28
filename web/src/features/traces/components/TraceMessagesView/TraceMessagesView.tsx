@@ -1,3 +1,4 @@
+/* eslint-disable boundaries/dependencies -- TODO: component privacy */
 import { useState, type ComponentProps } from "react";
 import { useRouter } from "next/router";
 import { StringParam, useQueryParam } from "use-query-params";

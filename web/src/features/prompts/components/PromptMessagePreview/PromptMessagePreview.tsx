@@ -1,3 +1,4 @@
+/* eslint-disable boundaries/dependencies -- TODO: component privacy */
 import { useTheme } from "next-themes";
 import { FoldVertical, UnfoldVertical } from "@langfuse/icons";
 import { ChatMessageController } from "@/src/features/traces/components/IOPreview/components/ChatMessageController";
