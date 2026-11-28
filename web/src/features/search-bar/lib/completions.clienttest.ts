@@ -823,6 +823,66 @@ describe("planInputCompletions", () => {
     ).toBeDefined();
   });
 
+  it("promotes keyed option keys into top-level field completions when enabled", () => {
+    const promotedRegistry = createFieldRegistry({
+      ...EVENTS_FIELD_REGISTRY,
+      keyedOptionNamespaces: { topics: "topics" },
+      promoteKeyedOptionKeys: true,
+    });
+    const observed = {
+      ...OBSERVED,
+      topics: [
+        { value: "Sentiment", type: "4 topics" },
+        { value: "User Intent", type: "6 topics" },
+      ],
+    };
+    const emptyOpts = flattenOptions(
+      planInputCompletions(
+        {
+          input: "",
+          caret: 0,
+          observed,
+          recents: [],
+          currentQueryText: "",
+        },
+        promotedRegistry,
+      ),
+    );
+    expect(emptyOpts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "field",
+          label: "topics.Sentiment",
+          fieldId: "topics.Sentiment",
+          detail: "4 topics",
+        }),
+        expect.objectContaining({
+          kind: "field",
+          label: "topics.User Intent",
+          fieldId: 'topics."User Intent"',
+          detail: "6 topics",
+        }),
+      ]),
+    );
+    const typedOpts = flattenOptions(
+      planInputCompletions(
+        {
+          input: "sent",
+          caret: 4,
+          observed,
+          recents: [],
+          currentQueryText: "sent",
+        },
+        promotedRegistry,
+      ),
+    );
+    expect(typedOpts[0]).toMatchObject({
+      kind: "field",
+      label: "topics.Sentiment",
+      fieldId: "topics.Sentiment",
+    });
+  });
+
   it("quotes a spaced score name in the numeric compare-op example", () => {
     const observed = { ...OBSERVED, scores_avg: [{ value: "Rouge Score" }] };
     const q = 'scores."Rouge Score":';

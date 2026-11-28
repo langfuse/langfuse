@@ -291,6 +291,14 @@ type ListInput = {
   /** Runs whose assignments count; defaults to each facet's published run. */
   publishedRunIds?: string[];
   /**
+   * Trace-level ClickHouse predicates (e.g. cross-facet topic semi-joins) pushed
+   * into candidate selection so selective filters fill the first page directly.
+   */
+  candidateTraceFilters?: {
+    query: string;
+    params: Record<string, unknown>;
+  }[];
+  /**
    * Trace IDs a batch may keep, as a subquery over the batch's traces and source times;
    * null keeps none. Applied after candidates, so selective filters can return short pages.
    */
@@ -302,6 +310,7 @@ type ListInput = {
 };
 
 const MAX_CANDIDATE_BATCHES = 10;
+const MAX_CANDIDATE_BATCHES_WITH_EXTRA_FILTERS = 3;
 // Same guards as the observations v2 scan: replica reads, a request deadline,
 // read-in-order without buffering, and cancellation when the client goes away.
 const READ_OPTIONS = {
@@ -310,6 +319,16 @@ const READ_OPTIONS = {
   clickhouseSettings: {
     read_in_order_use_buffering: 0,
     cancel_http_readonly_queries_on_client_close: 1,
+  },
+} as const;
+const CANDIDATE_EXTRA_FILTER_READ_OPTIONS = {
+  preferredClickhouseService: "ReadOnly",
+  clickhouseConfigs: { request_timeout: 15_000 },
+  clickhouseSettings: {
+    ...READ_OPTIONS.clickhouseSettings,
+    max_threads: 2,
+    max_execution_time: 10,
+    timeout_overflow_mode: "throw",
   },
 } as const;
 const TRACE_FILTER_TIMEOUT_SECONDS = 10;
@@ -432,6 +451,11 @@ function candidateQuery(
       "NOT startsWith(environment, {internalEnvironmentPrefix:String})",
       "environment NOT IN {publicInternalEnvironments:Array(String)}",
     );
+  const extraParams: Record<string, unknown> = {};
+  for (const extra of input.candidateTraceFilters ?? []) {
+    conditions.push(extra.query);
+    Object.assign(extraParams, extra.params);
+  }
   const descending = input.orderBy === "timestamp.desc";
   // Assignment pages hold a row per map, so their keys include the run.
   const perRun = input.kind === "assignments";
@@ -449,7 +473,7 @@ function candidateQuery(
       ORDER BY ${byTraceIds ? "" : `toStartOfHour(unit_start_time) ${direction}, `}unit_start_time ${direction},
         trace_id ${direction}, facet_id ${direction}${perRun ? `, clustering_run_id ${direction}` : ""}
       LIMIT {batchSize:UInt32}`,
-    params: { ...params.values, batchSize },
+    params: { ...params.values, ...extraParams, batchSize },
   };
 }
 
@@ -470,7 +494,13 @@ async function listCurrentRows<T extends CandidateRow>(
   if (input.facetIds.length === 0) return { rows: [] };
   const batchSize =
     input.scan?.batchSize ?? Math.min(1000, Math.max(200, input.limit * 4));
-  const maxBatches = input.scan?.maxBatches ?? MAX_CANDIDATE_BATCHES;
+  const hasCandidateTraceFilters =
+    (input.candidateTraceFilters?.length ?? 0) > 0;
+  const maxBatches =
+    input.scan?.maxBatches ??
+    (hasCandidateTraceFilters
+      ? MAX_CANDIDATE_BATCHES_WITH_EXTRA_FILTERS
+      : MAX_CANDIDATE_BATCHES);
   const publishedRunIds =
     input.publishedRunIds ??
     (await getPublishedTopicRunIds(input.projectId, input.facetIds));
@@ -494,7 +524,9 @@ async function listCurrentRows<T extends CandidateRow>(
       publishedRunIds,
     );
     const found = await queryClickhouse<CandidateRow>({
-      ...READ_OPTIONS,
+      ...(hasCandidateTraceFilters
+        ? CANDIDATE_EXTRA_FILTER_READ_OPTIONS
+        : READ_OPTIONS),
       query: candidates.query,
       params: {
         ...baseParams,

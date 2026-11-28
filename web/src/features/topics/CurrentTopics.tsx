@@ -1,4 +1,5 @@
 import { type ComponentProps, useMemo, useRef } from "react";
+import { type FilterState } from "@langfuse/shared";
 import { CircleAlert } from "@langfuse/icons";
 import { TopicsCenteredState } from "./TopicsCenteredState";
 import { Spinner } from "@/src/components/layouts/Spinner";
@@ -20,13 +21,16 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { MobileTopicsView } from "./MobileTopicsView";
 import { type TopicsActions } from "./prepare-topics-actions";
-import { splitTopicTraceFilters } from "./topic-trace-filters";
 import {
   facetWithoutUnassigned,
   mapWithoutUnassigned,
   UNASSIGNED_TOPIC_ID,
 } from "./prepare-topic-display";
 import { useTopicsCapture, useTopicsViewCapture } from "./useTopicsCapture";
+import {
+  partitionTopicTraceFilters,
+  resolveFacetTopicIds,
+} from "./topic-trace-filters";
 import {
   FacetTraceSource,
   useFacetTopicTraces,
@@ -92,6 +96,7 @@ export function CurrentTopics({
           projectId={projectId}
           scope={scope}
           facet={selectedFacet}
+          allFacets={facets}
           view={view}
           tracePanelRef={tracePanelRef}
           traceFilters={traceFilters}
@@ -107,6 +112,7 @@ function CurrentFacet({
   projectId,
   scope,
   facet: resultFacet,
+  allFacets,
   view,
   tracePanelRef,
   traceFilters,
@@ -158,6 +164,7 @@ function CurrentFacet({
         <MobileTopics
           projectId={projectId}
           facet={facet}
+          allFacets={allFacets}
           view={mobileVisualization.view}
           onViewChange={mobileVisualization.onViewChange}
           mapResult={mapResult}
@@ -172,7 +179,9 @@ function CurrentFacet({
         <ScatterTopicsView
           key={facet.facetId}
           projectId={projectId}
+          scope={scope}
           facet={facet}
+          allFacets={allFacets}
           mapResult={mapResult}
           traceFilters={traceFilters}
           showUnassigned={showUnassigned}
@@ -198,6 +207,7 @@ function CurrentFacet({
 function MobileTopics({
   projectId,
   facet,
+  allFacets,
   view,
   onViewChange,
   mapResult,
@@ -207,7 +217,12 @@ function MobileTopics({
   mapActions,
 }: Pick<
   CurrentFacetProps,
-  "projectId" | "facet" | "traceFilters" | "showUnassigned" | "mapActions"
+  | "projectId"
+  | "facet"
+  | "allFacets"
+  | "traceFilters"
+  | "showUnassigned"
+  | "mapActions"
 > & {
   view: MobileTopicsVisualization;
   onViewChange: ComponentProps<typeof MobileTopicsView>["onViewChange"];
@@ -219,10 +234,36 @@ function MobileTopics({
     projectId,
     facet.facetId,
   );
-  // Mobile filters by topic and assignment only; Scatter's trace filters wait until it is back.
-  const [topicFilters, scatterFilters] = splitTopicTraceFilters(
-    traceFilters.filters,
+  // Mobile filters by active-facet topic and assignment only; Scatter's trace and cross-facet filters stay preserved.
+  const { activeFacetFilters, otherFacetFilters, traceFieldFilters } =
+    partitionTopicTraceFilters(traceFilters.filters, facet, allFacets);
+  const topicFilters: FilterState = [];
+  const unresolvedTopicFilters: FilterState = [];
+  for (const filter of activeFacetFilters) {
+    if (filter.column === "topics" && filter.type === "categoryOptions") {
+      const topicIds = resolveFacetTopicIds(facet, filter.value);
+      if (topicIds.length > 0) {
+        topicFilters.push({
+          column: "topicId",
+          type: "stringOptions",
+          operator: filter.operator,
+          value: topicIds,
+        });
+      } else {
+        unresolvedTopicFilters.push(filter);
+      }
+    } else {
+      topicFilters.push(filter);
+    }
+  }
+  const hasUnmatchedTopicFilter = unresolvedTopicFilters.some(
+    (filter) => filter.operator === "any of" && filter.value.length > 0,
   );
+  const scatterFilters = [
+    ...unresolvedTopicFilters,
+    ...otherFacetFilters,
+    ...traceFieldFilters,
+  ];
   return (
     <MobileTopicsView
       projectId={projectId}
@@ -231,6 +272,7 @@ function MobileTopics({
       onViewChange={onViewChange}
       mapResult={mapResult}
       filters={topicFilters}
+      hasUnmatchedTopicFilter={hasUnmatchedTopicFilter}
       searchQuery={traceFilters.searchQuery}
       onFiltersChange={(filters) =>
         traceFilters.setFilters([...filters, ...scatterFilters])
@@ -319,6 +361,7 @@ type CurrentFacetProps = {
   projectId: string;
   scope: TopicMapScope;
   facet: Facet;
+  allFacets: readonly Facet[];
   view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: ReturnType<typeof useTopicTraceFilters>;

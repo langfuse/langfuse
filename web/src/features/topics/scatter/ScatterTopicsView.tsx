@@ -2,6 +2,7 @@ import { useMemo, type ComponentProps, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { keepPreviousData } from "@tanstack/react-query";
 import { type FilterState } from "@langfuse/shared";
+import { type CrossFacetTopicFilter } from "@langfuse/shared/topics";
 import { useMediaQuery } from "react-responsive";
 import {
   ResizableHandle,
@@ -31,10 +32,14 @@ import {
   UNASSIGNED_SWATCH_COLOR,
 } from "../topic-map-colors";
 import {
+  buildTopicOptions,
   filterTopicTraces,
-  splitTopicTraceFilters,
+  partitionTopicTraceFilters,
+  resolveFacetTopicIds,
   topicTraceQuery,
+  topicTracingFilters,
 } from "../topic-trace-filters";
+import { type TopicMapScope } from "../useFacetTopicTraces";
 import { type useTopicTraceFilters } from "../useTopicTraceFilters";
 import { useTopicResultsTraceSuggestions } from "../useTopicTraceFilter";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
@@ -44,7 +49,9 @@ import { ScatterMap } from "./ScatterMap";
 /** The scatter above one-line topic rows, with the selected topic's traces beside them. */
 export function ScatterTopicsView({
   projectId,
+  scope = {},
   facet,
+  allFacets = [facet],
   mapResult,
   traceFilters,
   showUnassigned,
@@ -65,15 +72,24 @@ export function ScatterTopicsView({
   // A stable list keeps the highlight set, and so a pinned card, across selection re-renders.
   const searchTopics = useMemo(() => orderedFacetTopics(facet), [facet]);
   const traceFieldSuggestions = useTopicResultsTraceSuggestions(projectId);
-  // Trace field filters (session, user, tags, …) narrow whatever the topic filters select.
-  const [topicFieldFilters, traceFieldFilters] = splitTopicTraceFilters(
-    traceFilters.filters,
+  // Active-facet filters highlight client-side; cross-facet and trace-field filters resolve on the server.
+  const {
+    activeFacetFilters,
+    otherFacetFilters,
+    otherFacetTopics,
+    traceFieldFilters,
+  } = useMemo(
+    () => partitionTopicTraceFilters(traceFilters.filters, facet, allFacets),
+    [traceFilters.filters, facet, allFacets],
   );
   const hasTraceFieldFilters = traceFieldFilters.length > 0;
+  const hasOtherFacetFilters = otherFacetFilters.length > 0;
+  const isMultiFacet = allFacets.length > 1;
   // The search bar holds the selection: picking a topic writes its filter there.
   const selectedTopicId = pickedTopicId(
-    topicFieldFilters,
+    activeFacetFilters,
     traceFilters.searchQuery,
+    facet,
   );
   const selected = topics.find((topic) => topic.id === selectedTopicId);
   const isSearching =
@@ -82,22 +98,32 @@ export function ScatterTopicsView({
       Boolean(traceFilters.searchQuery?.trim()));
   const traces = useTraces(listQuery());
   function listQuery(): TopicTraceQuery | null {
+    if (otherFacetTopics === null) return null;
     if (isSearching)
       return topicTraceQuery(
         traceFilters.filters,
         traceFilters.searchQuery,
         searchTopics,
-        { assignedOnly: !showUnassigned },
+        {
+          assignedOnly: !showUnassigned,
+          activeFacet: facet,
+          allFacets,
+        },
       );
     if (selected)
       return {
         ...topicQuery(selected.id),
         ...(hasTraceFieldFilters && { filter: traceFieldFilters }),
+        ...(otherFacetTopics.length > 0 && { otherFacetTopics }),
       };
-    return showUnassigned ? {} : { assigned: true };
+    return {
+      ...(showUnassigned ? {} : { assigned: true }),
+      ...(hasTraceFieldFilters && { filter: traceFieldFilters }),
+      ...(otherFacetTopics.length > 0 && { otherFacetTopics }),
+    };
   }
-  // Picking a topic replaces the search and topic filters with its filter; picking it
-  // again, or null, clears it. Trace field filters stay.
+  // Picking a topic replaces the search and active-facet filters with its filter;
+  // picking it again, or null, clears it. Cross-facet and trace field filters stay.
   function selectTopic(topicId: string | null, surface: "row" | "map") {
     if (topicId !== null && topicId !== selectedTopicId)
       capture("topics:topic_selected", {
@@ -109,7 +135,8 @@ export function ScatterTopicsView({
     traceFilters.setFilters([
       ...(topicId === null || topicId === selectedTopicId
         ? []
-        : topicFilters(topicId)),
+        : topicFilters(topicId, facet, isMultiFacet)),
+      ...otherFacetFilters,
       ...traceFieldFilters,
     ]);
   }
@@ -122,8 +149,9 @@ export function ScatterTopicsView({
     return selected ? selected.name : "All traces";
   }
   function listCount() {
-    // A search's total is unknown; the list only holds the loaded pages.
-    if (isSearching || hasTraceFieldFilters) return null;
+    // A search or server-side filter's total is unknown; the list only holds loaded pages.
+    if (isSearching || hasTraceFieldFilters || hasOtherFacetFilters)
+      return null;
     return selected ? selected.count : facet.counts.total;
   }
   // Bars scale to the biggest real topic; Unassigned would flatten the rest.
@@ -136,54 +164,75 @@ export function ScatterTopicsView({
   const isWide = useMediaQuery({ query: "(min-width: 1024px)" });
   const mapTopics = useScatterMapTopics(facet);
   const mapData = mapResult.data;
-  const searchKey = JSON.stringify([
-    traceFilters.filters,
+  const activeSearchKey = JSON.stringify([
+    activeFacetFilters,
     traceFilters.searchQuery,
   ]);
+  const hasActiveFacetFilter =
+    activeFacetFilters.length > 0 || Boolean(traceFilters.searchQuery?.trim());
   const topicHighlightIds = useMemo(() => {
-    if (mapData?.status !== "ready") return undefined;
-    // A search highlights its matches on the map; otherwise the picked topic does.
-    if (isSearching) {
-      const names = new Map(
-        searchTopics.map((topic) => [topic.id, topic.name]),
-      );
-      const [filters, searchQuery] = JSON.parse(searchKey) as [
-        typeof traceFilters.filters,
-        string | null,
-      ];
+    if (mapData?.status !== "ready" || !hasActiveFacetFilter) return undefined;
+    if (selectedTopicId !== null && !traceFilters.searchQuery?.trim()) {
+      const topicId =
+        selectedTopicId === UNASSIGNED_TOPIC_ID ? null : selectedTopicId;
       return new Set(
-        filterTopicTraces(
-          mapData.points.map((point) => ({
-            ...point,
-            topicName: point.topicId
-              ? (names.get(point.topicId) ?? null)
-              : null,
-          })),
-          filters,
-          searchQuery,
-        ).map((point) => point.traceId),
+        mapData.points
+          .filter((point) => (point.topicId ?? null) === topicId)
+          .map((point) => point.traceId),
       );
     }
-    if (selectedTopicId === null) return undefined;
-    const topicId =
-      selectedTopicId === UNASSIGNED_TOPIC_ID ? null : selectedTopicId;
+    const names = new Map(searchTopics.map((topic) => [topic.id, topic.name]));
+    const [filters, searchQuery] = JSON.parse(activeSearchKey) as [
+      FilterState,
+      string | null,
+    ];
     return new Set(
-      mapData.points
-        .filter((point) => (point.topicId ?? null) === topicId)
-        .map((point) => point.traceId),
+      filterTopicTraces(
+        mapData.points.map((point) => ({
+          ...point,
+          topicName: point.topicId ? (names.get(point.topicId) ?? null) : null,
+        })),
+        filters,
+        searchQuery,
+        facet,
+        allFacets,
+      ).map((point) => point.traceId),
     );
-  }, [mapData, selectedTopicId, isSearching, searchKey, searchTopics]);
-  const { ids: traceFieldMatches, error: traceFieldMatchesError } =
-    useTraceFieldMatches(projectId, facet.map?.runId, traceFieldFilters);
-  // Topic filters and trace field filters both have to match for a dot to stay lit.
+  }, [
+    mapData,
+    hasActiveFacetFilter,
+    selectedTopicId,
+    traceFilters.searchQuery,
+    activeSearchKey,
+    searchTopics,
+    facet,
+    allFacets,
+  ]);
+  const { ids: serverMatches, error: serverMatchesError } = useMapMatches(
+    projectId,
+    facet.map?.runId,
+    scope,
+    traceFieldFilters,
+    otherFacetTopics,
+  );
+  // Active-facet filters and server-side filters (cross-facet + trace fields) both have to match.
   const highlightedTraceIds = useMemo(() => {
-    if (!traceFieldMatches || mapData?.status !== "ready")
-      return topicHighlightIds;
-    if (!topicHighlightIds) return traceFieldMatches;
+    if (!serverMatches || mapData?.status !== "ready") return topicHighlightIds;
+    if (!topicHighlightIds) return serverMatches;
     return new Set(
-      [...topicHighlightIds].filter((id) => traceFieldMatches.has(id)),
+      [...topicHighlightIds].filter((id) => serverMatches.has(id)),
     );
-  }, [topicHighlightIds, traceFieldMatches, mapData?.status]);
+  }, [topicHighlightIds, serverMatches, mapData?.status]);
+  const resolvedTracingFilters = useMemo(
+    () =>
+      topicTracingFilters(
+        traceFilters.filters,
+        traceFilters.searchQuery,
+        facet,
+        allFacets,
+      ),
+    [traceFilters.filters, traceFilters.searchQuery, facet, allFacets],
+  );
   // The map shows a selection only while it still matches, like the list.
   const mapSelectedTraceId =
     peekTraceId &&
@@ -220,12 +269,12 @@ export function ScatterTopicsView({
           <MapAndRowsSplit
             map={
               <>
-                {traceFieldMatchesError && (
+                {serverMatchesError && (
                   <div className="p-2">
                     <Banner variant="error">
                       <p className="break-words">
                         Matching dots could not load:{" "}
-                        {traceFieldMatchesError.message}
+                        {serverMatchesError.message}
                       </p>
                     </Banner>
                   </div>
@@ -280,15 +329,17 @@ export function ScatterTopicsView({
           traces={traces}
           totalCount={listCount()}
           tracingTopic={
-            isSearching || !selected || selected.id === UNASSIGNED_TOPIC_ID
-              ? undefined
-              : { facet, name: selected.name }
+            resolvedTracingFilters
+              ? { facet, filters: resolvedTracingFilters }
+              : undefined
           }
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           divider="none"
           emptyMessage={
-            isSearching || hasTraceFieldFilters ? "No matches." : undefined
+            isSearching || hasTraceFieldFilters || hasOtherFacetFilters
+              ? "No matches."
+              : undefined
           }
           topicColors={new Map(topics.map((topic) => [topic.id, topic.color]))}
           search={{
@@ -299,6 +350,8 @@ export function ScatterTopicsView({
             searchQuery: traceFilters.searchQuery,
             onSearchQueryChange: traceFilters.setSearchQuery,
             traceFields: traceFieldSuggestions,
+            activeFacetId: facet.facetId,
+            allFacets,
           }}
         />
       }
@@ -308,7 +361,9 @@ export function ScatterTopicsView({
 
 type ScatterTopicsViewProps = {
   projectId: string;
+  scope?: TopicMapScope;
   facet: Facet;
+  allFacets?: readonly Facet[];
   mapResult: ComponentProps<typeof ScatterMap>["query"];
   /** The page's trace search and filters, shown above the trace list. */
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
@@ -436,64 +491,114 @@ function useScatterMapTopics(facet: Facet) {
 }
 
 /**
- * The map's traces that meet the trace field filters; undefined while there are none
- * or before the first answer. A changed filter keeps the last highlight until it loads.
+ * The map's traces that meet trace-field and/or cross-facet filters; undefined
+ * while there are none or before the first answer. A changed filter keeps the
+ * last highlight until it loads.
  */
-function useTraceFieldMatches(
+function useMapMatches(
   projectId: string,
   runId: string | undefined,
-  filters: FilterState,
+  scope: TopicMapScope,
+  traceFilters: FilterState,
+  otherFacetTopics: CrossFacetTopicFilter[] | null,
 ) {
-  const enabled = Boolean(runId) && filters.length > 0;
+  const impossible = otherFacetTopics === null;
+  const hasOtherFacets =
+    otherFacetTopics !== null && otherFacetTopics.length > 0;
+  const enabled =
+    Boolean(runId) &&
+    !impossible &&
+    (traceFilters.length > 0 || hasOtherFacets);
   const matches = api.topics.mapMatches.useQuery(
-    { projectId, runId: runId ?? "", filter: filters },
+    {
+      projectId,
+      runId: runId ?? "",
+      ruleId: scope.ruleId,
+      analysisId: scope.analysisId,
+      filter: traceFilters,
+      otherFacetTopics: hasOtherFacets ? otherFacetTopics : undefined,
+    },
     { enabled, placeholderData: keepPreviousData },
   );
   const traceIds = enabled ? matches.data?.traceIds : undefined;
   const failed = enabled && matches.isError;
   const ids = useMemo(
-    // A failed match dims every dot rather than lighting traces that may not match.
-    () => (failed ? new Set<string>() : traceIds && new Set(traceIds)),
-    [failed, traceIds],
+    // An impossible filter or a failed match dims every dot rather than lighting traces that may not match.
+    () =>
+      impossible || failed ? new Set<string>() : traceIds && new Set(traceIds),
+    [impossible, failed, traceIds],
   );
   return { ids, error: failed ? matches.error : null };
 }
 
 /** One topic picked in the list or on the map, as a search-bar filter. */
-function topicFilters(topicId: string): FilterState {
-  return topicId === UNASSIGNED_TOPIC_ID
-    ? [
-        {
-          column: "assignment",
-          type: "stringOptions",
-          operator: "none of",
-          value: ["assigned"],
-        },
-      ]
-    : [
-        {
-          column: "topicId",
-          type: "stringOptions",
-          operator: "any of",
-          value: [topicId],
-        },
-      ];
+function topicFilters(
+  topicId: string,
+  facet: Facet,
+  isMultiFacet: boolean,
+): FilterState {
+  if (topicId === UNASSIGNED_TOPIC_ID)
+    return [
+      {
+        column: "assignment",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["assigned"],
+      },
+    ];
+  if (isMultiFacet) {
+    const label =
+      buildTopicOptions(orderedFacetTopics(facet)).find(
+        (option) => option.value === topicId,
+      )?.displayValue ?? topicId;
+    return [
+      {
+        column: "topics",
+        type: "categoryOptions",
+        key: facet.name,
+        operator: "any of",
+        value: [label],
+      },
+    ];
+  }
+  return [
+    {
+      column: "topicId",
+      type: "stringOptions",
+      operator: "any of",
+      value: [topicId],
+    },
+  ];
 }
 
-/** The topic the search bar holds when it is exactly one picked topic. */
-function pickedTopicId(filters: FilterState, searchQuery: string | null) {
+/** The topic the search bar holds when it is exactly one picked topic on the active facet. */
+function pickedTopicId(
+  filters: FilterState,
+  searchQuery: string | null,
+  facet: Facet,
+) {
   if (searchQuery?.trim() || filters.length !== 1) return null;
   const [filter] = filters;
-  if (filter?.type !== "stringOptions" || filter.value.length !== 1)
-    return null;
-  if (filter.column === "topicId" && filter.operator === "any of")
-    return filter.value[0] ?? null;
+  if (!filter) return null;
+  if (filter.type === "stringOptions" && filter.value.length === 1) {
+    if (filter.column === "topicId" && filter.operator === "any of")
+      return filter.value[0] ?? null;
+    if (
+      filter.column === "assignment" &&
+      filter.operator === "none of" &&
+      filter.value[0] === "assigned"
+    )
+      return UNASSIGNED_TOPIC_ID;
+  }
   if (
-    filter.column === "assignment" &&
-    filter.operator === "none of" &&
-    filter.value[0] === "assigned"
-  )
-    return UNASSIGNED_TOPIC_ID;
+    filter.type === "categoryOptions" &&
+    filter.column === "topics" &&
+    filter.operator === "any of" &&
+    filter.value.length === 1
+  ) {
+    const ids = resolveFacetTopicIds(facet, filter.value);
+    return ids.length === 1 ? (ids[0] ?? null) : null;
+  }
   return null;
 }
 

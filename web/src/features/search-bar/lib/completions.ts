@@ -226,6 +226,7 @@ function suggestedSearchScopes(registry: FieldRegistry) {
 function fieldOptions(
   registry: FieldRegistry,
   includeVirtual = true,
+  observed?: ObservedOptions,
 ): CompletionOption[] {
   const opts: CompletionOption[] = registry.fields
     .filter((field) => field.directFilter !== false)
@@ -247,6 +248,35 @@ function fieldOptions(
       })),
     );
   }
+  if (includeVirtual) {
+    for (const [namespace, column] of Object.entries(
+      registry.keyedOptionNamespaces ?? {},
+    )) {
+      const promoted = registry.promoteKeyedOptionKeys
+        ? observedValues(observed, column)
+        : [];
+      if (promoted.length > 0) {
+        for (const o of promoted) {
+          opts.push({
+            id: `key:${namespace}.${o.value}`,
+            kind: "field",
+            label: `${namespace}.${o.value}`,
+            detail:
+              o.type ?? (o.count !== undefined ? String(o.count) : undefined),
+            fieldId: `${namespace}.${quoteIfNeeded(o.value)}`,
+          });
+        }
+      } else {
+        opts.push({
+          id: `field:${namespace}.`,
+          kind: "field",
+          label: `${namespace}.`,
+          detail: `${namespace} by key, e.g. ${namespace}.<key>:<value>`,
+          fieldId: `${namespace}.`,
+        });
+      }
+    }
+  }
   if (includeVirtual && registry.metadata) {
     opts.push({
       id: "field:metadata.",
@@ -257,15 +287,6 @@ function fieldOptions(
     });
   }
   if (includeVirtual) {
-    for (const namespace of Object.keys(registry.keyedOptionNamespaces ?? {})) {
-      opts.push({
-        id: `field:${namespace}.`,
-        kind: "field",
-        label: `${namespace}.`,
-        detail: `${namespace} by key, e.g. ${namespace}.<key>:<value>`,
-        fieldId: `${namespace}.`,
-      });
-    }
     for (const namespace of Object.keys(registry.metadataNamespaces ?? {})) {
       opts.push({
         id: `field:${namespace}.`,
@@ -1848,7 +1869,10 @@ function planUnscopedInputCompletions(
             SECTION_SUGGESTIONS,
             querySuggestionOptions(ctx.observed, registry),
           ),
-          ...section(SECTION_FIELDS, fieldOptions(registry)),
+          ...section(
+            SECTION_FIELDS,
+            fieldOptions(registry, true, ctx.observed),
+          ),
           ...section(
             SECTION_RECENT,
             registry.recentSearches
@@ -1928,7 +1952,7 @@ function planUnscopedInputCompletions(
     // timeToFirstToken, `model` → providedModelName), so label ranking alone
     // can bury or drop the very field the user named while the exact match
     // arms Enter — which must pick IT, not whatever happened to rank first.
-    const allFields = fieldOptions(registry);
+    const allFields = fieldOptions(registry, true, ctx.observed);
     const fields =
       resolvedKey !== null
         ? hoistFieldOption(

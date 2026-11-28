@@ -56,6 +56,9 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   const {
+    TRACE_START_SLACK_MS,
+    currentTopicTraceIdsCondition,
+    selectTopicMapMatches,
     selectTopicTraceRows,
     topicAnalysisCohort,
     countTopicCohortTraces,
@@ -63,6 +66,9 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   } = await importOriginal<typeof topicsServer>();
   return {
     ...mocks,
+    TRACE_START_SLACK_MS,
+    currentTopicTraceIdsCondition,
+    selectTopicMapMatches,
     selectTopicTraceRows,
     topicAnalysisCohort,
     countTopicCohortTraces,
@@ -1409,5 +1415,221 @@ describe("Topics analyses", () => {
         ],
       }),
     );
+  });
+
+  it("filters topics.traces by sibling facets in the same rule and short-circuits missing maps", async () => {
+    const siblingFacetId = "facet-sentiment";
+    const ruleId = "rule-cross";
+    const activeRun = {
+      ...run,
+      id: "run-intent",
+      facetId,
+      facetVersion,
+      ruleId,
+      batchActionId: null,
+      config: { timeRange },
+    };
+    const siblingRun = {
+      ...run,
+      id: "run-sentiment",
+      facetId: siblingFacetId,
+      facetVersion: 2,
+      ruleId,
+      batchActionId: null,
+      config: { timeRange },
+    };
+    mocks.listTopicFacets.mockResolvedValue([
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+      { id: siblingFacetId, name: "Sentiment", versions: [{ version: 2 }] },
+    ]);
+    mocks.listTopicRules.mockResolvedValue([
+      {
+        id: ruleId,
+        projectId,
+        name: "All",
+        filter: [],
+        facetIds: [facetId, siblingFacetId],
+      },
+    ]);
+    mocks.getTopicRuleMap.mockImplementation(
+      async (_projectId: string, _ruleId: string, requestedFacetId: string) =>
+        requestedFacetId === siblingFacetId ? siblingRun : activeRun,
+    );
+    mocks.getPublishedTopicRun.mockResolvedValue(null);
+    mocks.getTopicRuns.mockResolvedValue([activeRun, siblingRun]);
+    mocks.getTopicRun.mockImplementation(
+      async (_projectId: string, id: string) =>
+        id === siblingRun.id ? siblingRun : activeRun,
+    );
+    mocks.listCurrentTopicSummaries.mockResolvedValue({
+      rows: [],
+      nextCursor: null,
+    });
+
+    await caller("VIEWER").traces({
+      projectId,
+      facetId,
+      ruleId,
+      otherFacetTopics: [
+        {
+          facetId: siblingFacetId,
+          operator: "any of",
+          topicIds: ["neg-1"],
+        },
+        {
+          facetId: siblingFacetId,
+          operator: "none of",
+          topicIds: ["pos-1"],
+        },
+      ],
+    });
+
+    expect(mocks.listCurrentTopicSummaries).toHaveBeenCalledWith(
+      expect.objectContaining({
+        candidateTraceFilters: [
+          expect.objectContaining({
+            query: expect.stringContaining("trace_id IN ("),
+            params: expect.objectContaining({
+              crossFacet0_publishedRunIds: [siblingRun.id],
+              crossFacet0_facetId: siblingFacetId,
+              crossFacet0_topicIds: ["neg-1"],
+            }),
+          }),
+          expect.objectContaining({
+            query: expect.stringContaining("trace_id NOT IN ("),
+            params: expect.objectContaining({
+              crossFacet1_publishedRunIds: [siblingRun.id],
+              crossFacet1_topicIds: ["pos-1"],
+            }),
+          }),
+        ],
+      }),
+    );
+
+    // A positive filter on a sibling facet with no completed map short-circuits to empty.
+    mocks.listCurrentTopicSummaries.mockClear();
+    mocks.getTopicRuleMap.mockImplementation(
+      async (_projectId: string, _ruleId: string, requestedFacetId: string) =>
+        requestedFacetId === siblingFacetId ? null : activeRun,
+    );
+    expect(
+      await caller("VIEWER").traces({
+        projectId,
+        facetId,
+        ruleId,
+        otherFacetTopics: [
+          { facetId: siblingFacetId, operator: "any of", topicIds: ["neg-1"] },
+        ],
+      }),
+    ).toEqual({ rows: [], nextCursor: null });
+    expect(mocks.listCurrentTopicSummaries).not.toHaveBeenCalled();
+  });
+
+  it("highlights Scatter map matches using a topic_assignments-only fast path for cross-facet filters", async () => {
+    const siblingFacetId = "facet-sentiment";
+    const ruleId = "rule-cross";
+    const activeRun = {
+      ...run,
+      id: "run-intent",
+      facetId,
+      facetVersion,
+      ruleId,
+      batchActionId: null,
+      config: { timeRange },
+    };
+    const siblingRun = {
+      ...run,
+      id: "run-sentiment",
+      facetId: siblingFacetId,
+      facetVersion: 1,
+      ruleId,
+      batchActionId: null,
+      config: { timeRange },
+    };
+    mocks.listTopicFacets.mockResolvedValue([
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+      { id: siblingFacetId, name: "Sentiment", versions: [{ version: 1 }] },
+    ]);
+    mocks.listTopicRules.mockResolvedValue([
+      {
+        id: ruleId,
+        projectId,
+        name: "All",
+        filter: [],
+        facetIds: [facetId, siblingFacetId],
+      },
+    ]);
+    mocks.getTopicRuleMap.mockImplementation(
+      async (_projectId: string, _ruleId: string, requestedFacetId: string) =>
+        requestedFacetId === siblingFacetId ? siblingRun : activeRun,
+    );
+    mocks.getPublishedTopicRun.mockResolvedValue(null);
+    mocks.getTopicRuns.mockResolvedValue([activeRun, siblingRun]);
+    mocks.getTopicRun.mockImplementation(
+      async (_projectId: string, id: string) =>
+        id === siblingRun.id ? siblingRun : activeRun,
+    );
+    mocks.queryClickhouse.mockResolvedValue([
+      { trace_id: "trace-1" },
+      { trace_id: "trace-2" },
+    ]);
+
+    // Cross-facet only: skips events_core completely and runs against topic_assignments only.
+    const crossOnly = await caller("VIEWER").mapMatches({
+      projectId,
+      runId: activeRun.id,
+      ruleId,
+      otherFacetTopics: [
+        { facetId: siblingFacetId, operator: "any of", topicIds: ["neg-1"] },
+      ],
+    });
+    expect(crossOnly).toEqual({ traceIds: ["trace-1", "trace-2"] });
+    const [fastPathCall] = mocks.queryClickhouse.mock.calls.at(-1) as [
+      { query: string; params: Record<string, unknown> },
+    ];
+    expect(fastPathCall.query).toContain("FROM topic_assignments");
+    expect(fastPathCall.query).not.toContain("events_core");
+    expect(fastPathCall.params).toMatchObject({
+      mapRunId: activeRun.id,
+      crossFacet0_publishedRunIds: [siblingRun.id],
+      crossFacet0_topicIds: ["neg-1"],
+    });
+
+    // Combined with a trace filter: narrows events_core with the cross-facet subquery.
+    mocks.queryClickhouse.mockClear();
+    mocks.queryClickhouse.mockResolvedValue([{ id: "trace-1" }]);
+    const combined = await caller("VIEWER").mapMatches({
+      projectId,
+      runId: activeRun.id,
+      ruleId,
+      filter: [condition("environment", "production")],
+      otherFacetTopics: [
+        { facetId: siblingFacetId, operator: "any of", topicIds: ["neg-1"] },
+      ],
+    });
+    expect(combined).toEqual({ traceIds: ["trace-1"] });
+    const [combinedCall] = mocks.queryClickhouse.mock.calls.at(-1) as [
+      { query: string; params: Record<string, unknown> },
+    ];
+    expect(combinedCall.query).toContain("FROM events_core");
+    expect(combinedCall.query).toContain("crossFacet0_publishedRunIds");
+
+    // Missing sibling map short-circuits without querying ClickHouse.
+    mocks.queryClickhouse.mockClear();
+    mocks.getTopicRuleMap.mockImplementation(
+      async (_projectId: string, _ruleId: string, requestedFacetId: string) =>
+        requestedFacetId === siblingFacetId ? null : activeRun,
+    );
+    expect(
+      await caller("VIEWER").mapMatches({
+        projectId,
+        runId: activeRun.id,
+        ruleId,
+        otherFacetTopics: [
+          { facetId: siblingFacetId, operator: "any of", topicIds: ["neg-1"] },
+        ],
+      }),
+    ).toEqual({ traceIds: [] });
+    expect(mocks.queryClickhouse).not.toHaveBeenCalled();
   });
 });

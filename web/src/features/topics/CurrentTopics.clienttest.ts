@@ -291,6 +291,37 @@ describe("Open in Tracing", () => {
     expect(until).toBe(to.getTime());
     expect(until + 1 - from).toBe(TOPICS_MAX_TIME_RANGE_MS);
   });
+
+  it("carries multiple cross-facet topic filters into Tracing", () => {
+    const to = new Date("2026-09-23T00:00:00Z");
+    const facet = {
+      name: "Intent",
+      window: { from: new Date("2026-09-16T00:00:00Z"), to },
+    } as Facet;
+    const filters = [
+      {
+        column: "topics",
+        type: "categoryOptions" as const,
+        key: "Intent",
+        operator: "any of" as const,
+        value: ["Billing"],
+      },
+      {
+        column: "topics",
+        type: "categoryOptions" as const,
+        key: "Sentiment",
+        operator: "none of" as const,
+        value: ["Positive"],
+      },
+    ];
+    const url = new URL(
+      topicTracesHref("p1", [], true, { facet, filters })!,
+      "http://localhost",
+    );
+    expect(decodeFiltersGeneric(url.searchParams.get("filter")!)).toEqual(
+      filters,
+    );
+  });
 });
 
 it("counts a map view only once the selected map's own results arrived", () => {

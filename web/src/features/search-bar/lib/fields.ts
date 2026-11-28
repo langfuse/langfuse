@@ -158,6 +158,8 @@ export type FieldRegistry = {
   metadataNamespaces?: Readonly<Record<string, string>>;
   /** Keyed option roots (`topics.<facet>:<value>`) mapped to categoryOptions columns. */
   keyedOptionNamespaces?: Readonly<Record<string, string>>;
+  /** Promote observed keys under `keyedOptionNamespaces` into top-level field completions. */
+  promoteKeyedOptionKeys?: boolean;
   scores: boolean;
   /** Trace-level `traceScores.<name>` paths. Views whose backend has no
    *  trace-score columns (sessions) keep observation scores without them. */
@@ -384,6 +386,7 @@ export function extendFieldRegistryWithColumns(
     metadata: registry.metadata,
     metadataNamespaces: registry.metadataNamespaces,
     keyedOptionNamespaces: registry.keyedOptionNamespaces,
+    promoteKeyedOptionKeys: registry.promoteKeyedOptionKeys,
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
@@ -438,6 +441,7 @@ export function withFieldOptions(
     numericMetadata: registry.numericMetadata,
     metadataNamespaces: registry.metadataNamespaces,
     keyedOptionNamespaces: registry.keyedOptionNamespaces,
+    promoteKeyedOptionKeys: registry.promoteKeyedOptionKeys,
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
@@ -605,6 +609,7 @@ export function createFieldRegistry({
   numericMetadata = false,
   metadataNamespaces,
   keyedOptionNamespaces,
+  promoteKeyedOptionKeys = false,
   scores,
   traceScores,
   allowFreeText,
@@ -630,6 +635,7 @@ export function createFieldRegistry({
   numericMetadata?: boolean;
   metadataNamespaces?: Readonly<Record<string, string>>;
   keyedOptionNamespaces?: Readonly<Record<string, string>>;
+  promoteKeyedOptionKeys?: boolean;
   scores: boolean;
   traceScores: boolean;
   allowFreeText: boolean;
@@ -683,6 +689,7 @@ export function createFieldRegistry({
     numericMetadata,
     metadataNamespaces,
     keyedOptionNamespaces,
+    promoteKeyedOptionKeys,
     scores,
     traceScores,
     defaultTextField,

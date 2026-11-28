@@ -1283,5 +1283,84 @@ describe("Topics definition persistence", () => {
         .map(({ traceId }) => traceId)
         .sort(),
     ).toEqual([current, reassigned].sort());
+
+    // When matching against the latest summary, stale assignments after reprocessing
+    // (non-applicable summary or newer summary whose assignment failed) do not match.
+    const [becameNotApplicable, failedAssignment] = [
+      randomUUID(),
+      randomUUID(),
+    ];
+    await writeTopicSummaries([
+      { ...summary, projectId: otherProjectId, traceId: becameNotApplicable },
+      { ...summary, projectId: otherProjectId, traceId: failedAssignment },
+      {
+        ...summary,
+        projectId: otherProjectId,
+        traceId: becameNotApplicable,
+        state: "not_applicable",
+        summary: "",
+        embedding: [],
+        createdAt: "2026-09-02T00:00:00.000Z",
+      },
+      {
+        ...summary,
+        projectId: otherProjectId,
+        traceId: failedAssignment,
+        summary: "Updated summary whose assignment write failed",
+        createdAt: "2026-09-02T00:00:00.000Z",
+      },
+    ]);
+    await writeTopicAssignments([
+      assign(becameNotApplicable, "match"),
+      assign(failedAssignment, "match"),
+    ]);
+
+    const strictPositive = currentTopicTraceIdsCondition("crossFacet0", {
+      projectId: otherProjectId,
+      facetId: summary.facetId,
+      topicIds: ["match"],
+      publishedRunIds: ["serving"],
+      timeRange,
+      negated: false,
+      requireLatestSummary: true,
+    });
+    const strictPositiveRows = await clickhouseClient().query({
+      query: `SELECT DISTINCT e.trace_id AS traceId FROM topic_facet_summaries AS e
+        WHERE e.project_id = {projectId:String} AND ${strictPositive.query}`,
+      query_params: { projectId: otherProjectId, ...strictPositive.params },
+      format: "JSONEachRow",
+    });
+    expect(
+      ((await strictPositiveRows.json()) as { traceId: string }[]).map(
+        ({ traceId }) => traceId,
+      ),
+    ).toEqual([current]);
+
+    const strictNegative = currentTopicTraceIdsCondition("crossFacet1", {
+      projectId: otherProjectId,
+      facetId: summary.facetId,
+      topicIds: ["match"],
+      publishedRunIds: ["serving"],
+      timeRange,
+      negated: true,
+      requireLatestSummary: true,
+    });
+    const strictNegativeRows = await clickhouseClient().query({
+      query: `SELECT DISTINCT e.trace_id AS traceId FROM topic_facet_summaries AS e
+        WHERE e.project_id = {projectId:String}
+          AND e.trace_id IN {checkIds:Array(String)}
+          AND ${strictNegative.query}`,
+      query_params: {
+        projectId: otherProjectId,
+        checkIds: [current, becameNotApplicable, failedAssignment],
+        ...strictNegative.params,
+      },
+      format: "JSONEachRow",
+    });
+    expect(
+      ((await strictNegativeRows.json()) as { traceId: string }[])
+        .map(({ traceId }) => traceId)
+        .sort(),
+    ).toEqual([becameNotApplicable, failedAssignment].sort());
   });
 });

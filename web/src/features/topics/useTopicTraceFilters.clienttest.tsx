@@ -14,13 +14,31 @@ const topic: FilterState[number] = {
   operator: "any of",
   value: ["billing"],
 };
+const crossFacetTopic: FilterState[number] = {
+  column: "topics",
+  type: "categoryOptions",
+  key: "Sentiment",
+  operator: "any of",
+  value: ["Negative"],
+};
 const assignment: FilterState[number] = {
   column: "assignment",
   type: "stringOptions",
   operator: "any of",
   value: ["assigned"],
 };
-const facets = [{ facetId: "intent" }, { facetId: "sentiment" }];
+const facets = [
+  {
+    facetId: "intent",
+    name: "Intent",
+    topics: [{ id: "billing", name: "Billing questions" }],
+  },
+  {
+    facetId: "sentiment",
+    name: "Sentiment",
+    topics: [{ id: "neg", name: "Negative" }],
+  },
+];
 
 function setup(
   initialSearch = "",
@@ -62,14 +80,14 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-describe("Topics facet-local filters", () => {
-  it("remembers independent filters and search when switching facets and navigating Back", async () => {
+describe("Topics map-scoped filters", () => {
+  it("persists filters across facet switches and rewrites shorthand topic filters to the source facet", async () => {
     const { result, getSearch, back } = setup();
     act(() => {
-      result.current.setFilters([topic]);
+      result.current.setFilters([topic, crossFacetTopic]);
       result.current.setSearchQuery("invoice");
     });
-    expect(result.current.filters).toEqual([topic]);
+    expect(result.current.filters).toEqual([topic, crossFacetTopic]);
     expect(result.current.searchQuery).toBe("invoice");
     expect(getSearch()).toBe("");
 
@@ -77,14 +95,18 @@ describe("Topics facet-local filters", () => {
     await waitFor(() =>
       expect(result.current.selectedFacetId).toBe("sentiment"),
     );
-    expect(result.current.filters).toEqual([]);
-    expect(result.current.searchQuery).toBeNull();
-    act(() => {
-      result.current.setFilters([assignment]);
-      result.current.setSearchQuery("happy customer");
-    });
-    expect(result.current.filters).toEqual([assignment]);
-    expect(result.current.searchQuery).toBe("happy customer");
+    const expectedRewritten: FilterState = [
+      {
+        column: "topics",
+        type: "categoryOptions",
+        key: "Intent",
+        operator: "any of",
+        value: ["Billing questions"],
+      },
+      crossFacetTopic,
+    ];
+    expect(result.current.filters).toEqual(expectedRewritten);
+    expect(result.current.searchQuery).toBe("invoice");
     expect(new URLSearchParams(getSearch()).get("topicFacet")).toBe(
       "sentiment",
     );
@@ -93,14 +115,8 @@ describe("Topics facet-local filters", () => {
 
     act(back);
     await waitFor(() => expect(result.current.selectedFacetId).toBe("intent"));
-    expect(result.current.filters).toEqual([topic]);
+    expect(result.current.filters).toEqual(expectedRewritten);
     expect(result.current.searchQuery).toBe("invoice");
-    act(() => result.current.selectFacet("sentiment"));
-    await waitFor(() =>
-      expect(result.current.selectedFacetId).toBe("sentiment"),
-    );
-    expect(result.current.filters).toEqual([assignment]);
-    expect(result.current.searchQuery).toBe("happy customer");
   });
 
   it("keeps a topic filter on the map it was picked on", () => {
@@ -163,37 +179,35 @@ describe("Topics facet-local filters", () => {
     expect(withUrl.result.current.searchQuery).toBe("local search");
   });
 
-  it("persists clearing both fields in one event without resetting other facets", async () => {
-    const first = setup();
+  it("persists clearing both fields in one event without resetting other maps", async () => {
+    const mapA = setup("", "project", "map-a");
     act(() => {
-      first.result.current.setFilters([topic]);
-      first.result.current.setSearchQuery("invoice");
+      mapA.result.current.setFilters([crossFacetTopic]);
+      mapA.result.current.setSearchQuery("invoice");
     });
-    act(() => first.result.current.selectFacet("sentiment"));
-    await waitFor(() =>
-      expect(first.result.current.selectedFacetId).toBe("sentiment"),
-    );
-    act(() => {
-      first.result.current.setFilters([assignment]);
-      first.result.current.setSearchQuery("happy");
-    });
-    act(() => {
-      first.result.current.setFilters([]);
-      first.result.current.setSearchQuery(null);
-    });
-    expect(first.result.current.filters).toEqual([]);
-    expect(first.result.current.searchQuery).toBeNull();
-    first.unmount();
+    mapA.unmount();
 
-    const cleared = setup("?topicFacet=sentiment");
-    expect(cleared.result.current.filters).toEqual([]);
-    expect(cleared.result.current.searchQuery).toBeNull();
-    act(() => cleared.result.current.selectFacet("intent"));
-    await waitFor(() =>
-      expect(cleared.result.current.selectedFacetId).toBe("intent"),
-    );
-    expect(cleared.result.current.filters).toEqual([topic]);
-    expect(cleared.result.current.searchQuery).toBe("invoice");
+    const mapB = setup("", "project", "map-b");
+    act(() => {
+      mapB.result.current.setFilters([assignment]);
+      mapB.result.current.setSearchQuery("happy");
+    });
+    act(() => {
+      mapB.result.current.setFilters([]);
+      mapB.result.current.setSearchQuery(null);
+    });
+    expect(mapB.result.current.filters).toEqual([]);
+    expect(mapB.result.current.searchQuery).toBeNull();
+    mapB.unmount();
+
+    const restoredB = setup("", "project", "map-b");
+    expect(restoredB.result.current.filters).toEqual([]);
+    expect(restoredB.result.current.searchQuery).toBeNull();
+    restoredB.unmount();
+
+    const restoredA = setup("", "project", "map-a");
+    expect(restoredA.result.current.filters).toEqual([crossFacetTopic]);
+    expect(restoredA.result.current.searchQuery).toBe("invoice");
   });
 
   it("does not write storage or URL for unchanged filters", () => {
@@ -204,9 +218,27 @@ describe("Topics facet-local filters", () => {
     expect(getSearch()).toBe("");
   });
 
+  it("rewrites shorthand topicId filters when navigating to another facet via URL", async () => {
+    const first = setup("", "project", "map-a");
+    act(() => first.result.current.setFilters([topic]));
+    first.unmount();
+
+    const viaUrl = setup("?topicFacet=sentiment", "project", "map-a");
+    expect(viaUrl.result.current.selectedFacetId).toBe("sentiment");
+    expect(viaUrl.result.current.filters).toEqual([
+      {
+        column: "topics",
+        type: "categoryOptions",
+        key: "Intent",
+        operator: "any of",
+        value: ["Billing questions"],
+      },
+    ]);
+  });
+
   it("ignores malformed cached state", () => {
     localStorage.setItem(
-      "topics-trace-filters-v1",
+      "topics-trace-filters-v2",
       JSON.stringify({ broken: null }),
     );
     const { result } = setup();

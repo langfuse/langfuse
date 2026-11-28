@@ -1,5 +1,6 @@
 import {
   encodeFiltersGeneric,
+  type FilterState,
   MAX_URL_FILTER_QUERY_LENGTH,
 } from "@langfuse/shared";
 import { TOPICS_MAX_TIME_RANGE_MS } from "@langfuse/shared/topics";
@@ -49,7 +50,10 @@ export function useTracesWithSelection(
 }
 
 /** Map topics first, then topics only seen in assignments. Index order drives topic colors in every view. */
-export function orderedFacetTopics(facet: Facet) {
+export function orderedFacetTopics<T extends { id: string }>(facet: {
+  topics: readonly T[];
+  map?: { topics: readonly T[] } | null;
+}): readonly T[] {
   if (!facet.map) return facet.topics;
   const mapped = facet.map.topics;
   return [
@@ -60,41 +64,48 @@ export function orderedFacetTopics(facet: Facet) {
   ];
 }
 
+export type TopicTracingTarget =
+  | { facet: Facet; name: string }
+  | { facet: Facet; filters: FilterState };
+
 /**
- * Tracing link for a topic: v4 filters by the topic over the map's window. Other
- * selections list these traces by ID; null when the IDs exceed the URL budget.
+ * Tracing link for one or more topic filters: v4 filters by topic over the map's
+ * window. Other selections list these traces by ID; null when the IDs exceed the URL budget.
  */
 export function topicTracesHref(
   projectId: string,
   rows: FacetRow[],
   isV4: boolean,
-  topic?: { facet: Facet; name: string },
+  topic?: TopicTracingTarget,
 ) {
   return topic && isV4
-    ? topicFilterHref(projectId, topic.facet, topic.name)
+    ? topicFilterHref(projectId, topic)
     : traceIdsHref(projectId, rows, isV4);
 }
 
-function topicFilterHref(projectId: string, facet: Facet, topicName: string) {
+function topicFilterHref(projectId: string, target: TopicTracingTarget) {
   // The tracing topic filter rejects windows longer than the Topics maximum.
-  const { to } = facet.window;
+  const { to } = target.facet.window;
   const from = Math.max(
-    facet.window.from.getTime(),
+    target.facet.window.from.getTime(),
     to.getTime() - TOPICS_MAX_TIME_RANGE_MS + 1,
   );
-  return tracingHref(
-    projectId,
-    encodeFiltersGeneric([
-      {
-        column: "topics",
-        type: "categoryOptions",
-        key: facet.name,
-        operator: "any of",
-        value: [topicName],
-      },
-    ]),
-    { from: new Date(from), to },
-  );
+  const filters: FilterState =
+    "filters" in target
+      ? target.filters
+      : [
+          {
+            column: "topics",
+            type: "categoryOptions",
+            key: target.facet.name,
+            operator: "any of",
+            value: [target.name],
+          },
+        ];
+  return tracingHref(projectId, encodeFiltersGeneric(filters), {
+    from: new Date(from),
+    to,
+  });
 }
 
 function traceIdsHref(projectId: string, rows: FacetRow[], isV4: boolean) {

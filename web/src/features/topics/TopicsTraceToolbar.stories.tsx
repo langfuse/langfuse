@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState, type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -13,7 +12,18 @@ import { filterTopicTraces } from "./topic-trace-filters";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
 
 const facetPersistenceProject = "storybook-topics-toolbar-facet-persistence";
-const facets = [{ facetId: "intent" }, { facetId: "sentiment" }];
+const topics = [
+  { id: "billing", name: "Billing questions" },
+  { id: "setup", name: "Project setup" },
+];
+const sentimentTopics = [
+  { id: "positive", name: "Positive" },
+  { id: "negative", name: "Negative" },
+];
+const facets = [
+  { facetId: "intent", name: "Intent", topics },
+  { facetId: "sentiment", name: "Sentiment", topics: sentimentTopics },
+];
 
 const MemoryQueryAdapter: QueryParamAdapterComponent = ({ children }) => {
   const [location, setLocation] = useState({ search: "" });
@@ -22,19 +32,21 @@ const MemoryQueryAdapter: QueryParamAdapterComponent = ({ children }) => {
 
 function FacetToolbarExample() {
   const state = useTopicTraceFilters(facetPersistenceProject, facets, null);
+  const activeFacet =
+    facets.find((facet) => facet.facetId === state.selectedFacetId) ??
+    facets[0];
   return (
     <div className="flex max-w-2xl flex-col gap-2">
-      <Tabs
-        value={state.selectedFacetId ?? facets[0].facetId}
-        onValueChange={state.selectFacet}
-      >
+      <Tabs value={activeFacet.facetId} onValueChange={state.selectFacet}>
         <Tabs.List variant="underline">
           <Tabs.Trigger value="intent" label="Intent" />
           <Tabs.Trigger value="sentiment" label="Sentiment" />
         </Tabs.List>
       </Tabs>
       <TopicsTraceToolbar
-        topics={topics}
+        topics={activeFacet.topics}
+        activeFacetId={activeFacet.facetId}
+        allFacets={facets}
         filters={state.filters}
         searchQuery={state.searchQuery}
         onFiltersChange={state.setFilters}
@@ -43,11 +55,6 @@ function FacetToolbarExample() {
     </div>
   );
 }
-
-const topics = [
-  { id: "billing", name: "Billing questions" },
-  { id: "setup", name: "Project setup" },
-];
 const rows = [
   {
     traceId: "trace-1",
@@ -303,15 +310,13 @@ export const UnsupportedRestoredFilter = meta.story({
 });
 
 export const FacetFiltersPersist = meta.story({
-  name: "(Test) Facets Remember Their Filters",
+  name: "(Test) Map Filters Persist Across Facet Tabs",
   beforeEach: () => {
-    const storageKey = "topics-trace-filters-v1";
+    const storageKey = "topics-trace-filters-v2";
     const snapshots = JSON.parse(
       localStorage.getItem(storageKey) ?? "{}",
     ) as Record<string, unknown>;
-    for (const { facetId } of facets) {
-      delete snapshots[JSON.stringify([facetPersistenceProject, facetId])];
-    }
+    delete snapshots[JSON.stringify([facetPersistenceProject])];
     localStorage.setItem(storageKey, JSON.stringify(snapshots));
   },
   render: () => (
@@ -329,22 +334,13 @@ export const FacetFiltersPersist = meta.story({
     await waitFor(() => expect(search).toHaveTextContent("invoice"));
     await userEvent.click(canvas.getByRole("tab", { name: "Sentiment" }));
     await waitFor(() => {
-      expect(search).not.toHaveTextContent("invoice");
-      expect(canvas.queryByTestId("search-bar-token")).not.toBeInTheDocument();
+      expect(search).toHaveTextContent("invoice");
+      expect(search).toHaveTextContent('topics.Intent:"Billing questions"');
     });
-    await replaceQuery(search, "assignment:Outlier subscription");
-    await waitFor(() => expect(search).toHaveTextContent("subscription"));
     await userEvent.click(canvas.getByRole("tab", { name: "Intent" }));
     await waitFor(() => {
       expect(search).toHaveTextContent("invoice");
-      expect(search).toHaveTextContent('topic:"Billing questions"');
-      expect(search).not.toHaveTextContent("subscription");
-    });
-    await userEvent.click(canvas.getByRole("tab", { name: "Sentiment" }));
-    await waitFor(() => {
-      expect(search).toHaveTextContent("subscription");
-      expect(search).toHaveTextContent("assignment:Outlier");
-      expect(search).not.toHaveTextContent("invoice");
+      expect(search).toHaveTextContent('topics.Intent:"Billing questions"');
     });
   },
 });
