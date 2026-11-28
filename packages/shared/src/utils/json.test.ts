@@ -119,3 +119,54 @@ describe.each([
     expect(parse(JSON.stringify({ payload }))).toEqual({ payload });
   });
 });
+
+describe.each([
+  ["recursive", deepParseJson],
+  ["iterative", deepParseJsonIterative],
+] as const)("%s Python dict literals", (_name, parse) => {
+  it.each([
+    ["'", ""],
+    ["'", "\\"],
+    ['"', ""],
+    ['"', "\\"],
+  ])("bounds parsing of unterminated %s strings with suffix %s", (quote, suffix) => {
+    // Stay below the Python fallback's root-string limit, including when a
+    // dangling escape follows the repeated escaped quotes.
+    const input = "{'value': " + quote + ("\\" + quote).repeat(499_990) + suffix;
+    const start = performance.now();
+    const result = parse(input);
+    const elapsed = performance.now() - start;
+
+    expect(result).toBe(input);
+    // A linear pass takes milliseconds; leave ample headroom for slow CI.
+    expect(elapsed).toBeLessThan(1_000);
+  });
+
+  it("converts True/False/None outside strings", () => {
+    expect(parse("{'a': True, 'b': [False, None]}")).toEqual({
+      a: true,
+      b: [false, null],
+    });
+  });
+
+  it("leaves True/False/None inside string values untouched", () => {
+    expect(
+      parse("{'msg': 'None of the above', 'q': 'True or False?', 'ok': True}"),
+    ).toEqual({ msg: "None of the above", q: "True or False?", ok: true });
+  });
+
+  it("does not end a string at an escaped quote", () => {
+    expect(parse(`{"msg": "quote \\" None", 'ok': True}`)).toEqual({
+      msg: 'quote " None',
+      ok: true,
+    });
+  });
+
+  it("leaves True/False/None inside double-quoted strings and keys untouched", () => {
+    expect(parse(`{"msg": "None", 'True': 'x', 'f': False}`)).toEqual({
+      msg: "None",
+      True: "x",
+      f: false,
+    });
+  });
+});
