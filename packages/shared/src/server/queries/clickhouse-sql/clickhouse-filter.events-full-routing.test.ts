@@ -112,6 +112,36 @@ describe("filtersRequireEventsFull metadata routing", () => {
     expect(requires(metadataString("=", under200))).toBe(false);
   });
 
+  it("routes JSON-encoded numeric string equality at the truncation boundary", () => {
+    expect(requires(metadataString("=", "7".repeat(197)))).toBe(false);
+    expect(requires(metadataString("=", "7".repeat(198)))).toBe(true);
+    expect(requires(metadataString("=", "7".repeat(199)))).toBe(true);
+  });
+
+  it.each(["\n42", "\t42", "\r42"])(
+    "uses each representation's tokens for encoded metadata equality %j",
+    (value) => {
+      const { query, params } = metadataString("=", value).apply();
+      const rawKey = Object.entries(params).find(
+        ([, param]) => param === value,
+      )?.[0];
+      const encodedKey = Object.entries(params).find(
+        ([, param]) => param === JSON.stringify(value),
+      )?.[0];
+      expect(rawKey).toBeDefined();
+      expect(encodedKey).toBeDefined();
+      const raw = `{${rawKey}: String}`;
+      const encoded = `{${encodedKey}: String}`;
+      expect(query).toContain(
+        `hasAllTokens(metadata_values, arraySlice(arrayDistinct(tokens(${raw})), 1, 64)) AND metadata_values[indexOf(metadata_names, `,
+      );
+      expect(query).toContain(
+        `= ${raw}) OR (hasAllTokens(metadata_values, arraySlice(arrayDistinct(tokens(${encoded})), 1, 64)) AND metadata_values[indexOf(metadata_names, `,
+      );
+      expect(query).toContain(`= ${encoded}))`);
+    },
+  );
+
   it("keeps metadata `starts with` (<=200), numeric, and boolean filters on events_core", () => {
     expect(requires(metadataString("starts with", exactly200))).toBe(false);
     expect(
