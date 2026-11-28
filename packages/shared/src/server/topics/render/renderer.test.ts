@@ -53,7 +53,7 @@ describe("Topics transcript renderer", () => {
         "</this_run>",
         "<end_of_run>",
         "last action: assistant text",
-        "reply: assistant text",
+        "response: assistant text",
         "final output: assistant",
         "</end_of_run>",
       ].join("\n"),
@@ -182,7 +182,7 @@ describe("Topics transcript renderer", () => {
       text.indexOf("<end_of_run>"),
     );
     expect(text).toContain(
-      "last action: assistant text\nreply: assistant text\nfinal output: application output",
+      "last action: assistant text\nresponse: assistant text\nfinal output: application output",
     );
   });
 
@@ -393,7 +393,7 @@ describe("Topics transcript renderer", () => {
       renderTranscript(pending, [root, generation], topicsTranscriptConfig)
         .text,
     ).toContain(
-      "last action: assistant tool call, no result in this run\nreply: none, run waits on a tool call",
+      "last action: assistant tool call, no result in this run\nresponse: none, waits on a tool call",
     );
 
     // A blank text part next to a pending tool call is still a pending tool call, not a missing answer.
@@ -414,9 +414,9 @@ describe("Topics transcript renderer", () => {
     };
     expect(
       renderTranscript(blank, [root, generation], topicsTranscriptConfig).text,
-    ).toContain("reply: none, run waits on a tool call");
+    ).toContain("response: none, waits on a tool call");
 
-    // "none" only when the final answer was parsed and stayed in reasoning; an unreadable ending gets no line.
+    // "none" only when the final answer was parsed and stayed in reasoning; structured data is a response.
     const ending = (
       parts: Transcript["threads"][number]["currentTurn"]["messages"][number]["parts"],
     ) =>
@@ -443,11 +443,13 @@ describe("Topics transcript renderer", () => {
         },
       ] as never),
     ).toContain(
-      "last action: assistant reasoning\nreply: none, final answer only in reasoning",
+      "last action: assistant reasoning\nresponse: none, answer only in reasoning",
     );
     expect(
       ending([{ type: "data", value: { answer: 42 } }] as never),
-    ).not.toContain("reply:");
+    ).toContain(
+      "last action: assistant structured output\nresponse: structured output",
+    );
   });
 
   it("marks the request after supplied context without repeating trace input", () => {
@@ -639,7 +641,7 @@ describe("Topics transcript renderer", () => {
     expect(text).not.toContain("[final output] Result");
     expect(text).toContain("final output: tool result");
     // The root output reached the user, even though it repeats the final tool result.
-    expect(text).toContain("reply: application output");
+    expect(text).toContain("response: application output");
   });
 
   it("pairs a result with the current call when replayed history reused its ID", () => {
@@ -775,6 +777,6 @@ describe("Topics transcript renderer", () => {
     expect(text).toContain(
       "[assistant] [audio/wav omitted] transcript: Prices start at $10.",
     );
-    expect(text).toContain("reply: assistant audio");
+    expect(text).toContain("response: assistant audio");
   });
 });

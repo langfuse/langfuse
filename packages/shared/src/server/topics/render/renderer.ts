@@ -105,29 +105,34 @@ const OPAQUE_PAYLOAD_KEYS = new Set([
   "tool_definitions",
 ]);
 
-/**
- * Render an assembled trace for Topics without assembling it a second time.
- * Observations provide root I/O and operation context omitted by assembly.
- */
-/** How a run's reply ended, as the `reply:` line states it; also reported on the Topics summary span. */
-export type TopicReply =
+/** What a run responded with, as the `response:` line states it; also reported on the Topics summary span. */
+export type TopicResponse =
   | "assistant_text"
   | "assistant_audio"
+  | "structured_output"
   | "application_output"
   | "pending_tool_call"
   | "tool_result"
   | "reasoning_only"
-  | "no_text";
-const TOPIC_REPLY_TEXT: Record<TopicReply, string> = {
+  | "no_text"
+  // No line: the transcript cannot tell what the run returned.
+  | "no_assistant_message"
+  | "unreadable";
+const TOPIC_RESPONSE_TEXT: Partial<Record<TopicResponse, string>> = {
   assistant_text: "assistant text",
   assistant_audio: "assistant audio",
+  structured_output: "structured output",
   application_output: "application output",
-  pending_tool_call: "none, run waits on a tool call",
-  tool_result: "none, run ended on a tool result",
-  reasoning_only: "none, final answer only in reasoning",
+  pending_tool_call: "none, waits on a tool call",
+  tool_result: "none, ended on a tool result",
+  reasoning_only: "none, answer only in reasoning",
   no_text: "none, final message has no text",
 };
 
+/**
+ * Render an assembled trace for Topics without assembling it a second time.
+ * Observations provide root I/O and operation context omitted by assembly.
+ */
 export function renderTranscript(
   transcript: Transcript | null,
   observations: Observation[],
@@ -135,7 +140,7 @@ export function renderTranscript(
   countTokens?: (text: string) => number,
 ): {
   text: string;
-  reply: TopicReply | null;
+  response: TopicResponse;
   tokens: number | null;
   stats: {
     blocksCut: number;
@@ -707,20 +712,24 @@ export function renderTranscript(
     else if (lastPart.message.role === "user") lastAction = "user message";
     else if (lastPart.part.type === "reasoning")
       lastAction = "assistant reasoning";
-    else if (lastPart.message.role === "assistant")
-      lastAction = "assistant text";
-    else lastAction = `${lastPart.message.role} message`;
+    else if (lastPart.message.role !== "assistant")
+      lastAction = `${lastPart.message.role} message`;
+    else if (lastPart.part.type === "text") lastAction = "assistant text";
+    else if (lastPart.part.type === "data")
+      lastAction = "assistant structured output";
+    else if (lastPart.part.type === "file") lastAction = "assistant file";
+    else lastAction = "assistant message";
   }
-  // Reasoning and tool calls are not shown to end users; only non-blank text, spoken audio or the root output is.
+  // Reasoning and tool calls are not a response; non-blank text, spoken audio, structured data or the root output are.
   const assistantParts = current.flatMap(({ event }) =>
     event.kind === "part" && event.message.role === "assistant"
       ? [event.part]
       : [],
   );
   // States only what the transcript shows; an ending the renderer cannot read gets no line.
-  let reply: TopicReply | null = null;
+  let response: TopicResponse;
   if (assistantParts.some((part) => part.type === "text" && part.text.trim()))
-    reply = "assistant_text";
+    response = "assistant_text";
   else if (
     assistantParts.some(
       (part) =>
@@ -730,24 +739,27 @@ export function renderTranscript(
         part.providerMetadata.transcript.trim() !== "",
     )
   )
-    reply = "assistant_audio";
+    response = "assistant_audio";
+  else if (assistantParts.some((part) => part.type === "data"))
+    response = "structured_output";
   // The root output reached the user even when it repeats the final message.
-  else if (rootOutput) reply = "application_output";
-  else if (pendingCall) reply = "pending_tool_call";
+  else if (rootOutput) response = "application_output";
+  else if (pendingCall) response = "pending_tool_call";
   else if (lastAction === "tool result" || lastAction === "assistant tool call")
-    reply = "tool_result";
+    response = "tool_result";
   else if (
     lastPart?.kind === "part" &&
     lastPart.message.role === "assistant" &&
     (lastPart.part.type === "reasoning" || lastPart.part.type === "text") &&
-    !assistantParts.some(
-      (part) => part.type === "data" || part.type === "custom",
-    )
+    !assistantParts.some((part) => part.type === "custom")
   )
-    reply = lastPart.part.type === "reasoning" ? "reasoning_only" : "no_text";
+    response =
+      lastPart.part.type === "reasoning" ? "reasoning_only" : "no_text";
+  else response = assistantParts.length ? "unreadable" : "no_assistant_message";
+  const responseText = TOPIC_RESPONSE_TEXT[response];
   header("<end_of_run>");
   header(`last action: ${lastAction}`);
-  if (reply) header(`reply: ${TOPIC_REPLY_TEXT[reply]}`);
+  if (responseText) header(`response: ${responseText}`);
   if (rootOutputLine) header("final output: application output");
   else if (outputMatchesMessage)
     header(
@@ -811,7 +823,7 @@ export function renderTranscript(
     .reduce((sum, line) => sum + line.text.length, 0);
   return {
     text,
-    reply,
+    response,
     tokens: countTokens ? countTokens(text) : null,
     stats: {
       blocksCut,

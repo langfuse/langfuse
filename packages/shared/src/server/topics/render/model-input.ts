@@ -7,7 +7,7 @@ import type {
 import {
   redactModelPayload,
   renderTranscript,
-  type TopicReply,
+  type TopicResponse,
 } from "./renderer";
 import { topicsTranscriptConfig } from "./renderer-config";
 import type { ExecutionIssue, Transcript } from "../../transcript/types";
@@ -130,7 +130,7 @@ const UNCAPPED_TOPICS_CONFIG = {
 export function renderStoredTopicText(
   transcript: Transcript,
   executionIssues: ExecutionIssue[],
-): { text: string; reply: TopicReply | null } {
+): { text: string; response: TopicResponse } {
   const issues = new Map(
     executionIssues.map((issue) => [issue.observationId, issue]),
   );
@@ -182,10 +182,10 @@ export function renderStoredTopicText(
       metadata: {},
     } as unknown as Observation;
   });
-  const { text, reply } = renderTranscript(
+  const { text, response } = renderTranscript(
     transcript,
     observations,
     UNCAPPED_TOPICS_CONFIG,
   );
-  return { text, reply };
+  return { text, response };
 }

@@ -328,13 +328,13 @@ async function summarizeTraceFacets(params: {
     for (const facet of facets) outcome(facet, "empty_input", "rule");
     return undefined;
   }
-  const { text, reply } = renderStoredTopicText(
+  const { text, response } = renderStoredTopicText(
     params.transcript,
     params.executionIssues,
   );
-  // How often runs end without a reply, per project via the span and overall via the counter.
-  getCurrentSpan()?.setAttribute("langfuse.topics.reply", reply ?? "omitted");
-  recordIncrement("langfuse.topics.reply", 1, { reply: reply ?? "omitted" });
+  // What runs respond with, per project via the span and overall via the counter.
+  getCurrentSpan()?.setAttribute("langfuse.topics.response", response);
+  recordIncrement("langfuse.topics.response", 1, { response });
   metrics.summaryInputCharacters(
     "text",
     text.length,
